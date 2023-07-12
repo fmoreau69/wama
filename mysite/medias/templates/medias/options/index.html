@@ -1,0 +1,48 @@
+{% extends 'medias/base.html' %}
+
+{% load static %}
+
+{% block title %}Options{% endblock %}
+
+{% block medias_content %}
+  <table id="gallery" class="table table-bordered">
+    <thead>
+      <tr>
+        <th>Medias</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for media in medias %}
+        <tr>
+          <td><a href="{{ medias.file.url }}">{{ media.file.name }}</a></td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <br>
+  <hr>
+  <table id="options" class="table table-bordered">
+    <thead>
+      <tr>
+        <th>Options</th>
+        <th>Values</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for option in options %}
+        <tr>
+          <td>{{ option }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <br>
+  <hr>
+  <div class="text-center" style="margin-bottom: 20px;">
+    <button type="button" class="btn btn-primary">
+      Launch process with defined options
+    </button>
+    <input id="process" type="file" name="file" multiple
+           style="display: none;">
+  </div>
+{% endblock %}

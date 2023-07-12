@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+
+{% block content %}
+  <h1 class="page-header">WAMA : Webapp for Automatic Media Anonymization</h1>
+  <p class="lead">WAMA detects and blurs faces and number plates quickly and accurately.</p>
+  <hr>
+  <h2>How To Use It?</h2>
+  <br>
+  <h4>What can I upload?</h4>
+  <ul>
+    <li>Photos</li>
+    <li>Videos</li>
+    <li>Medias folder</li>
+<!--    <li>Youtube video from url</li>-->
+  </ul>
+  <br>
+  <h4>Setting options:</h4>
+  <ul>
+    <li>blur faces (True/False)</li>
+    <li>blur plates (True/False)</li>
+    <li>blur people (True/False)</li>
+    <li>blur cars (True/False)</li>
+    <li>conf (conf value)</li>
+    <li>boxes (True/False)</li>
+    <li>show labels (True/False)</li>
+    <li>show conf (True/False)</li>
+    <li>show (True/False)</li>
+  </ul>
+  <br>
+{% endblock %}

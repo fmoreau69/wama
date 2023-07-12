@@ -1,0 +1,26 @@
+{% extends 'medias/base.html' %}
+
+{% load static %}
+
+{% block title %}Process{% endblock %}
+
+{% block medias_content %}
+  <table id="gallery" class="table table-bordered">
+    <thead>
+      <tr>
+        <th>Medias</th>
+        <th>Process</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for media in medias %}
+        <tr>
+          <td><a href="{{ medias.file.url }}">{{ media.file.name }}</a></td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <br>
+  <hr>
+<h1 class="text-center">Visualization</h1>
+{% endblock %}
