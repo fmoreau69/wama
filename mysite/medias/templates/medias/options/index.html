@@ -33,6 +33,12 @@
     <input id="process_with_default_options" type="file" name="file" multiple
            style="display: none;">
   </div>
+  <p>
+    <a class="btn btn-primary" data-toggle="collapse" href="#collapse" role="button" aria-expanded="false" aria-controls="collapse">
+      Show options !
+    </a>
+  </p>
+  <div class="collapse" id="collapse">
   <form method="post" action="{% url 'medias:reset_options' %}">
     {% csrf_token %}
     <input type="hidden" name="next" value="{{ request.path }}">
@@ -53,7 +59,8 @@
         {% if option.type == 'BOOL' %}
           <input class="form-check-input" type="checkbox" role="switch" name="option.title" {% if option.value == '1' %}checked{% endif %}>
         {% elif option.type == 'FLOAT' %}
-          <input type="range" class="form-range" name="option.title" value="{{ option.value }}" min="0" max="1" step="0.1">
+          <input type="range" class="form-range" name="option.title" value="{{ option.value }}" min="0" max="2" step="0.1" oninput="this.nextElementSibling.value = option.value">
+          <output>{{ option.value }}</output>
         {% endif %}
       </div>
     </div>
@@ -65,5 +72,6 @@
     </button>
     <input id="process_with_defined_options" type="file" name="file" multiple
            style="display: none;">
+  </div>
   </div>
 {% endblock %}

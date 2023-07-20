@@ -1,17 +1,19 @@
 {% extends 'base.html' %}
 
 {% block content %}
-  <form method="post" action="{% url 'medias:clear_database' %}">
-    {% csrf_token %}
-    <input type="hidden" name="next" value="{{ request.path }}">
-    <button type="submit" class="btn btn-danger pull-right">
-      <span class="glyphicon glyphicon-trash"></span> Clear Database
-    </button>
-  </form>
   <h1 class="page-header">
     Anonymization
     <small>/ {% block title %}{% endblock %}</small>
   </h1>
+  <form method="post" action="{% url 'medias:clear_database' %}">
+    {% csrf_token %}
+    <input type="hidden" name="next" value="{{ request.path }}">
+    <button type="submit" class="btn btn-danger float-end">
+      <i class="far fa-trash-alt"></i> Clear Database
+    </button>
+  </form>
+  <br>
+  <br>
   <div class="row">
     <div class="col-md-3">
       <div class="panel panel-default">
@@ -22,11 +24,11 @@
           <a href="{% url 'medias:upload' %}" class="list-group-item{% if request.path == '/medias/upload/' %} active{% endif %}">
             Medias Upload
           </a>
-          <a href="{% url 'medias:options' %}" class="list-group-item{% if request.path == '/medias/options/' %} active{% endif %}">
-            Options
-          </a>
+<!--          <a href="{% url 'medias:options' %}" class="list-group-item{% if request.path == '/medias/options/' %} active{% endif %}">-->
+<!--            Options-->
+<!--          </a>-->
           <a href="{% url 'medias:process' %}" class="list-group-item{% if request.path == '/medias/process/' %} active{% endif %}">
-            Process
+            Visualization
           </a>
         </div>
       </div>

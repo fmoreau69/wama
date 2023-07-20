@@ -7,7 +7,7 @@ class Media(models.Model):
     title = models.CharField(max_length=255, blank=True)
     file = models.FileField(upload_to='input_media/')
     uploaded_at = models.DateTimeField(auto_now_add=True)
-    duration = models.FloatField(default="0")
+    duration = models.IntegerField(default="0")
     progress = models.IntegerField(default="0")
 
 

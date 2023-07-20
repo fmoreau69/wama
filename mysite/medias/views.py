@@ -1,4 +1,5 @@
 import time
+import cv2
 
 from django.shortcuts import render, redirect
 from django.http import JsonResponse
@@ -10,15 +11,21 @@ from .models import Media, Option
 
 class UploadView(View):
     def get(self, request):
+        if len(Option.objects.all()) == 0:
+            set_options()
         medias_list = Media.objects.all()
-        return render(self.request, 'medias/upload/index.html', {'medias': medias_list})
+        option_list = Option.objects.all()
+        return render(self.request, 'medias/upload/index.html', {'medias': medias_list, 'options': option_list})
 
     def post(self, request):
-        time.sleep(1)  # You don't need this line. This is just to delay the process, so you can see the progress bar
+        # time.sleep(1)  # You don't need this line. This is just to delay the process, so you can see the progress bar
         form = MediaForm(self.request.POST, self.request.FILES)
         if form.is_valid():
             media = form.save()
-            data = {'is_valid': True, 'name': media.file.name, 'url': media.file.url}
+            media.duration = cv2.VideoCapture('./media/' + media.file.name).get(cv2.CAP_PROP_POS_MSEC)
+            print('./media/' + media.file.name + str(media.duration))
+            media.save()
+            data = {'is_valid': True, 'name': media.file.name, 'url': media.file.url, 'duration': media.duration}
         else:
             data = {'is_valid': False}
         return JsonResponse(data)
@@ -27,6 +34,14 @@ class UploadView(View):
         msg = ''
         for media in Media.objects.all():
             msg = ('process launched for media :' + media)
+            # execute_from_command_line()
+        return redirect(request.POST.get('next')), msg
+
+    def launch_process_with_options(self, request):
+        msg = ''
+        for media in Media.objects.all():
+            msg = ('process launched for media :' + media)
+            # execute_from_command_line()
         return redirect(request.POST.get('next')), msg
 
 
@@ -39,10 +54,10 @@ class OptionsView(View):
         return render(self.request, 'medias/options/index.html', {'medias': medias_list, 'options': option_list})
 
     def post(self, request):
-        form = MediaForm(self.request.POST, self.request.FILES)
-        if form.is_valid():
-            media = form.save()
-            data = {'is_valid': True, 'name': media.file.name, 'url': media.file.url}
+        option_form = OptionForm(self.request.POST, self.request.FILES)
+        if option_form.is_valid():
+            option = option_form.save()
+            data = {'is_valid': True, 'name': option.title, 'value': option.value}
         else:
             data = {'is_valid': False}
         return JsonResponse(data)
@@ -90,8 +105,8 @@ def set_options():
         {'title': "Blur plates", 'default': 1, 'value': 1, 'type': 'BOOL'},
         {'title': "Blur people", 'default': 0, 'value': 0, 'type': 'BOOL'},
         {'title': "Blur cars", 'default': 0, 'value': 0, 'type': 'BOOL'},
-        {'title': "Blur size", 'default': 0, 'value': 0, 'type': 'FLOAT'},  # , 'attr_list': {{'minimum': '1'}, {'maximum': '10'}}
-        {'title': "ROI enlargement", 'default': 0, 'value': 0, 'type': 'FLOAT'},  # 'attr_list': {{'minimum': '1'}, {'maximum': '10'}}},
+        {'title': "Blur size", 'default': 1, 'value': 1, 'type': 'FLOAT'},  # , 'attr_list': {{'minimum': '1'}, {'maximum': '10'}}
+        {'title': "ROI enlargement", 'default': 1, 'value': 1, 'type': 'FLOAT'},  # 'attr_list': {{'minimum': '1'}, {'maximum': '10'}}},
         {'title': "Detection threshold", 'default': 0, 'value': 0, 'type': 'FLOAT'},  # 'attr_list': {{'minimum': '0'}, {'maximum': '1'}}},
         {'title': "Show", 'default': 1, 'value': 1, 'type': 'BOOL'},
         {'title': "Show boxes", 'default': 0, 'value': 0, 'type': 'BOOL'},
