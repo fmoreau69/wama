@@ -9,11 +9,17 @@
       </button>
       <a class="navbar-brand" href="{% url 'home' %}">Home</a>
     </div>
-    <div class="collapse navbar-collapse" id="main-menu">
+    <div class="collapse navbar-collapse" id="anonymization">
       <ul class="nav navbar-nav">
         <li{% if '/medias/' in request.path %} class="active"{% endif %}>
-          <a href="{% url 'medias:upload' %}">Anonymization</a>
+          <a class="navbar-brand" href="{% url 'medias:upload' %}">Anonymization</a>
         </li>
+      </ul>
+      <ul class="nav navbar-nav">
+        <a class="navbar-brand" href="{% url 'help' %}">Help</a>
+      </ul>
+      <ul class="nav navbar-nav">
+        <a class="navbar-brand" href="{% url 'about' %}">About</a>
       </ul>
     </div>
   </div>
