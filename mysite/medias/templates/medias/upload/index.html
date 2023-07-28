@@ -29,26 +29,9 @@
     <h3>Or drop Medias Here to Upload</h3>
   </div>
   <br>
-  <table id="medias" class="table table-bordered">
-    <thead>
-      <tr>
-        <td class="col-sm-4 fw-bold text-center">Medias</td>
-        <td class="col-sm-4 fw-bold text-center">Duration</td>
-        <td class="col-sm-4 fw-bold text-center">Progress</td>
-      </tr>
-    </thead>
-    <tbody>
-      {% for media in medias %}
-        <tr>
-          <td><a href="{{ medias.file.url }}">{{ media.file.name }}</a></td>
-          <td class="text-center">{{ media.duration }}</td>
-          <td class="progress text-center" role="progressbar" aria-label="Basic example" aria-valuenow="{{ media.progress }}" aria-valuemin="0" aria-valuemax="100" style="height: 36px">
-            <div class="progress-bar" role="progressbar" style="width: {{ media.progress }}%;">{{ media.progress }}%</div>
-          </td>
-        </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  <div id="file_list_container">
+    {% include "medias/upload/media_table.html" %}
+  </div>
   <div class="modal fade" id="modal-progress" data-backdrop="static" data-keyboard="false">
     <div class="modal-dialog">
       <div class="modal-content">
@@ -72,51 +55,72 @@
            style="display: none;">
   </div>
   <p>
-    <button class="btn btn-info" data-bs-toggle="collapse" href="#collapse" role="button" aria-expanded="false" aria-controls="collapse">
-      <i class="fas fa-cog"></i> Show options
-    </button >
+    <button class="btn btn-info" data-bs-toggle="collapse" href="#collapse" role="button" aria-expanded="false" aria-controls="collapse" value="show_value">
+      <i class="fas fa-cog"></i> Global settings
+<!--      <output>{{ show_value }}</output>-->
+    </button>
   </p>
   <div class="collapse" id="collapse">
-  <form method="post" action="{% url 'medias:reset_options' %}">
-    {% csrf_token %}
-    <input type="hidden" name="next" value="{{ request.path }}">
-    <button type="submit" class="btn btn-danger float-end">
-      <i class="far fa-trash-alt"></i> Reset options
-    </button>
-  </form>
+    <form method="post" action="{% url 'medias:reset_options' %}">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ request.path }}">
+      <button type="submit" class="btn btn-danger float-end">
+        <i class="far fa-trash-alt"></i> Reset options
+      </button>
+    </form>
+<!--  <form method="post">-->
+<!--    {% csrf_token %}-->
+<!--    data-url="{% url 'medias:upload' %}"-->
+<!--    <button type="submit" class="btn btn-danger float-end">-->
+<!--      <i class="far fa-trash-alt"></i> Update options-->
+<!--    </button>-->
+<!--  </form>-->
   <br>
   <hr>
-  <div class="row text-center p-2 border border-primary-subtle rounded-3">
-    <div class="col-sm-2"></div>
-    <div class="col-sm-3 fw-bold">Options</div>
-    <div class="col-sm-2"></div>
-    <div class="col-sm-3 fw-bold">Values</div>
-    <div class="col-sm-2"></div>
+  <div class="row text-center p-1 border border-primary-subtle rounded-3">
+    <div class="col-sm-4 fw-bold">What to blur ?</div>
+    <div class="col-sm-4 fw-bold">How to blur ?</div>
+    <div class="col-sm-4 fw-bold">What to show ?</div>
   </div>
+<!--  <div class="container">-->
+  <div class="row p-1 border border-primary-subtle rounded-3">
+    <div class="col-4">
+      <form method="post" action="{% url 'medias:upload' %}" id="options_form">
+        {% csrf_token %}
+      </form>
   {% for option in options %}
-    <div class="row text-center p-2 text-primary-emphasis bg-info-subtle border border-primary-subtle rounded-3">
-      <div class="col-sm-2"></div>
-      <div class="col-sm-3 text-center">{{ option.title }}</div>
-      <div class="col-sm-2"></div>
-      <div class="col-sm-3 text-center">
-        {% if option.type == 'BOOL' %}
-          <input class="form-check-input" type="checkbox" role="switch" name="option.title" {% if option.value == '1' %}checked{% endif %}>
-        {% elif option.type == 'FLOAT' %}
-          <input type="range" class="form-range" name="option.title" value="{{ option.value }}" min="0" max="2" step="0.1" oninput="this.nextElementSibling.value = option.value">
-<!--          <output>{{ option.value }}</output>-->
-        {% endif %}
-      </div>
-      <div class="col-sm-2"></div>
-    </div>
+    {% ifchanged option.label %}{% if forloop.counter > 1 %}</div><div class="col-4">{% endif %}{% endifchanged %}
+      {% if option.type == 'BOOL' %}
+        <div class="form-check form-switch d-flex justify-content-center align-content-center">
+          <div class="col-6">
+            <input class="form-check-input" form="options_form" type="checkbox" role="switch" id="SwitchCheck" name="{{ option.name }}" value="{{ option.value }}" {% if option.value == '1' %}checked{% endif %}>
+            <label class="form-check-label" for="SwitchCheck">{{ option.title }}</label>
+          </div>
+        </div>
+      {% elif option.type == 'FLOAT' %}
+        <div class="form-range d-flex justify-content-center align-content-center">
+          <div class="col-10">
+          <input class="form-range-input col-sm-3" form="options_form" type="range" id="customRange" name="{{ option.name }}" value="{{ option.value }}" min="0" max="1" step="0.05" oninput="this.nextElementSibling.value = option.value">
+          <output>{{ option.value }} |</output>
+          <label class="form-range-label" for="customRange">{{ option.title }}</label>
+        </div>
+        </div>
+      {% endif %}
+<!--    {% ifchanged option.label and  %}</div>{% endifchanged %}-->
+<!--  last_label = option.label-->
   {% endfor %}
+</div>
+    </div>
+<!--  </div>-->
   <hr>
   <div class="text-center" style="margin-bottom: 20px;">
-    <button type="button" class="btn btn-info">
+    <button type="submit" class="btn btn-info" form="options_form">
       <i class="fas fa-dice"></i> Launch process with defined configuration
     </button>
     <input id="process_with_defined_options" type="file" name="file" multiple
-           style="display: none;">
-  </div>
+           style="display: none;"
+           data-url="{% url 'medias:upload' %}"
+           data-form-data='{"csrfmiddlewaretoken": "{{ csrf_token }}"}'>
   </div>
   <br>
 {% endblock %}

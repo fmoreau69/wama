@@ -31,6 +31,16 @@ $(function () {
       }
     }
 
+
+  }).bind('fileuploaddone', function (e, data) {
+       $.ajax({
+       type: 'GET',
+       url : '/medias/refresh_table/',
+       success: function (res) {
+       console.log(res);
+       $("#file_list_container")[0].innerHTML = res['render'];}
+
+    });
   });
 
 });

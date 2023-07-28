@@ -1,11 +1,4 @@
-{% extends 'medias/base.html' %}
-
-{% load static %}
-
-{% block title %}Process{% endblock %}
-
-{% block medias_content %}
-  <table id="gallery" class="table table-bordered">
+  <table id="medias" class="table table-bordered">
     <thead>
       <tr>
         <td class="col-sm-6 fw-bold text-center">Media</td>
@@ -24,9 +17,8 @@
             <div class="progress-bar" role="progressbar" style="width: {{ media.progress }}%;">{{ media.progress }}%</div>
           </td>
         </tr>
+      <tr class="collapse"><td colspan="4">
+      </td></tr>
       {% endfor %}
     </tbody>
   </table>
-  <hr>
-<h1 class="text-center">Visualization</h1>
-{% endblock %}
