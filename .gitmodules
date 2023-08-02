@@ -1,0 +1,3 @@
+[submodule "YOLOv8-ultralytics"]
+	path = YOLOv8-ultralytics
+	url = https://github.com/fmoreau69/YOLOv8-ultralytics.git

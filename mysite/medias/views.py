@@ -8,6 +8,8 @@ from django.views import View
 from .forms import MediaForm, OptionForm
 from .models import Media, Option
 
+from YOLOv8-ultralytics import Anonymize
+
 
 class UploadView(View):
     def get(self, request):
@@ -54,7 +56,9 @@ class UploadView(View):
         msg = ''
         for media in Media.objects.all():
             msg = ('process launched for media :' + media)
-            # execute_from_command_line()
+            model = Anonymize()
+            Anonymize.load_model(model)
+            Anonymize.predict(model)
         return redirect(request.POST.get('next')), msg
 
     def launch_process_with_options(self, request):
@@ -107,10 +111,10 @@ def set_options():
         {'title': "Blur plates", 'name': "blur_plates", 'default': 1, 'value': 1, 'type': 'BOOL', 'label': 'WTB'},
         {'title': "Blur people", 'name': "blur_people", 'default': 0, 'value': 0, 'type': 'BOOL', 'label': 'WTB'},
         {'title': "Blur cars", 'name': "blur_cars", 'default': 0, 'value': 0, 'type': 'BOOL', 'label': 'WTB'},
-        {'title': "Blur ratio", 'name': "blur_ratio", 'default': 0.2, 'value': 0.2, 'type': 'FLOAT', 'label': 'HTB'},  # , 'attr_list': {{'minimum': '0'}, {'maximum': '100'}}
-        {'title': "Blur size", 'name': "blur_size", 'default': 0.5, 'value': 0.5, 'type': 'FLOAT', 'label': 'HTB'},  # , 'attr_list': {{'minimum': '1'}, {'maximum': '10'}}
-        {'title': "ROI enlargement", 'name': "ROI_enlargement", 'default': 0.5, 'value': 0.5, 'type': 'FLOAT', 'label': 'HTB'},  # 'attr_list': {{'minimum': '1'}, {'maximum': '10'}}},
-        {'title': "Detection threshold", 'name': "detection_threshold", 'default': 0.25, 'value': 0.25, 'type': 'FLOAT', 'label': 'HTB'},  # 'attr_list': {{'minimum': '0'}, {'maximum': '1'}}},
+        {'title': "Blur ratio", 'name': "blur_ratio", 'default': "0.20", 'value': "0.20", 'type': 'FLOAT', 'label': 'HTB'},  # , 'attr_list': {{'minimum': '0'}, {'maximum': '100'}}
+        {'title': "Blur size", 'name': "blur_size", 'default': "0.50", 'value': "0.50", 'type': 'FLOAT', 'label': 'HTB'},  # , 'attr_list': {{'minimum': '1'}, {'maximum': '10'}}
+        {'title': "ROI enlargement", 'name': "ROI_enlargement", 'default': "0.50", 'value': "0.50", 'type': 'FLOAT', 'label': 'HTB'},  # 'attr_list': {{'minimum': '1'}, {'maximum': '10'}}},
+        {'title': "Detection threshold", 'name': "detection_threshold", 'default': "0.25", 'value': "0.25", 'type': 'FLOAT', 'label': 'HTB'},  # 'attr_list': {{'minimum': '0'}, {'maximum': '1'}}},
         {'title': "Show", 'name': "show", 'default': 1, 'value': 1, 'type': 'BOOL', 'label': 'WTS'},
         {'title': "Show boxes", 'name': "show_boxes", 'default': 0, 'value': 0, 'type': 'BOOL', 'label': 'WTS'},
         {'title': "Show labels", 'name': "show_labels", 'default': 0, 'value': 0, 'type': 'BOOL', 'label': 'WTS'},

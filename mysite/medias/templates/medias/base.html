@@ -5,15 +5,7 @@
     Anonymization
     <small>/ {% block title %}{% endblock %}</small>
   </h1>
-  <form method="post" action="{% url 'medias:clear_database' %}">
-    {% csrf_token %}
-    <input type="hidden" name="next" value="{{ request.path }}">
-    <button type="submit" class="btn btn-danger float-end">
-      <i class="far fa-trash-alt"></i> Clear Database
-    </button>
-  </form>
-  <br>
-  <br>
+  <hr>
   <div class="row">
     <div class="col-md-3">
       <div class="panel panel-default">
