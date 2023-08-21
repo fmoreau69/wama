@@ -31,7 +31,6 @@ $(function () {
       }
     }
 
-
   }).bind('fileuploaddone', function (e, data) {
        $.ajax({
        type: 'GET',
@@ -39,8 +38,25 @@ $(function () {
        success: function (res) {
        console.log(res);
        $("#file_list_container")[0].innerHTML = res['render'];}
-
     });
   });
+
+//  .bind('fileuploaddone', function (e, data) {
+//       $.ajax({
+//       type: 'GET',
+//       url : '/medias/refresh_options/',
+//       success: function (res) {
+//       console.log(res);
+//       $("#options_container")[0].innerHTML = res['render'];}
+//    });
+//  }).bind('fileuploaddone', function (e, data) {
+//       $.ajax({
+//       type: 'GET',
+//       url : '/medias/refresh_content/',
+//       success: function (res) {
+//       console.log(res);
+//       $("#main_container")[0].innerHTML = res['render'];}
+//    });
+//  });
 
 });

@@ -5,29 +5,11 @@
 {% block title %}Process{% endblock %}
 
 {% block medias_content %}
-  <br>
-  <table id="gallery" class="table table-bordered">
-    <thead>
-      <tr>
-        <td class="col-sm-6 fw-bold text-center">Media</td>
-        <td class="col-sm-2 fw-bold text-center">Properties</td>
-        <td class="col-sm-2 fw-bold text-center">Duration</td>
-        <td class="col-sm-2 fw-bold text-center">Progress</td>
-      </tr>
-    </thead>
-    <tbody>
-      {% for media in medias %}
-        <tr>
-          <td><a href="{{ medias.file.url }}">{{ media.file.name }}</a></td>
-          <td class="text-center">{{ media.properties }}</td>
-          <td class="text-center">{{ media.duration_inMinSec }}</td>
-          <td class="progress text-center" role="progressbar" aria-label="Basic example" aria-valuenow="{{ media.progress }}" aria-valuemin="0" aria-valuemax="100" style="height: 36px">
-            <div class="progress-bar" role="progressbar" style="width: {{ media.progress }}%;">{{ media.progress }}%</div>
-          </td>
-        </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  <div class="row margin-bottom: 20px;">
+    <div id="file_list_container">
+    {% include "medias/upload/media_table.html" %}
+    </div>
+  </div>
   <hr>
 <h1 class="text-center">Visualization</h1>
 {% endblock %}

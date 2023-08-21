@@ -1,0 +1,27 @@
+{% for line_id, option_form in options_form.items %}
+  {% if line_id == media.id %}
+    <div class="row">
+      <div class="col-1">
+        {% include "widgets/CheckboxMultipleModal.html" with field=option_form.classes2blur id=media.id %}
+      </div>
+      <div class="col-11">
+        <div class="row">
+        {% for field in option_form %}
+          <div class="col-3">
+          {% if field.name != "classes2blur" %}
+            <div class="fieldWrapper fw-bold text-muted text-center">
+              {{ field.errors }}
+              {{ field.label }}: {{ field.value }}
+              {{ field }}
+              {% if field.help_text %}
+              <p class="help">{{ field.help_text|safe }}</p>
+              {% endif %}
+            </div>
+          {% endif %}
+          </div>
+        {% endfor %}
+        </div>
+      </div>
+    </div>
+  {% endif %}
+{% endfor %}

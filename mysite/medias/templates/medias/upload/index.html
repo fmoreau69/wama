@@ -2,7 +2,7 @@
 
 {% load static %}
 
-{% block title %}Medias Upload{% endblock %}
+{% block title %}Media upload{% endblock %}
 
 {% block javascript %}
   {# JQUERY FILE UPLOAD SCRIPTS #}
@@ -15,8 +15,10 @@
 {% endblock %}
 
 {% block medias_content %}
+  <!--  Upload medias  -->
   <div class="row margin-bottom: 20px;">
     <div class="col-1" style="padding-bottom: 5rem;"></div>
+    <!--  Upload medias from folder  -->
     <div class="col-4 d-flex justify-content-center align-items-center">
       <button type="button" class="btn btn-primary btn-lg js-upload-medias" style="height: 58px">
         <i class="fas fa-cloud-upload-alt"></i> Upload medias from folder
@@ -27,126 +29,54 @@
              data-form-data='{"csrfmiddlewaretoken": "{{ csrf_token }}"}'>
     </div>
     <div class="col-2"><h1 class="text-center text-muted fw-bold" style="padding-top: 1rem;">Or</h1></div>
-    <div class="col-3 gx-1 form-floating d-flex justify-content-center align-items-center">
-        <input type="text" class="form-control" style="height: 50px" id="basic-url" name="file" multiple value="https://youtu.be/"
-               data-url="{% url 'medias:upload' %}"
-               data-form-data='{"csrfmiddlewaretoken": "{{ csrf_token }}"}'>
-        <label class="form-label" for="basic-url">Upload medias from URL</label>
-    </div>
-    <div class="col gx-1 d-flex align-items-center">
-      <button type="submit" class="btn btn-primary" style="height: 46px">
-        <i class="fas fa-right-to-bracket"></i> Submit
-      </button>
-    </div>
-  </div>
-  <br>
-  <div class="card card-body text-bg-light text-muted text-center" style="padding-top: 1rem; padding-bottom: 1rem;">
-    <i class="fas fa-arrow-down" style="font-size: 4rem;"></i>
-    <h3 class="text-muted">Drop Medias Here</h3>
-  </div>
-  <br>
-  <hr>
-  <div id="file_list_container">
-    {% include "medias/upload/media_table.html" %}
-  </div>
-  <div class="modal fade" id="modal-progress" data-backdrop="static" data-keyboard="false">
-    <div class="modal-dialog">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h4 class="modal-title">Uploading...</h4>
+    <!--  Upload medias from URL  -->
+    <div class="col-5">
+      <div class="row" style="padding-top: 0.7rem;">
+        <div class="col-8 gx-0 form-floating d-flex justify-content-center align-items-center">
+            <input type="text" class="form-control" style="height: 50px" id="basic-url" name="file" value="https://youtu.be/">
+            <label class="form-label" for="basic-url">Upload medias from URL</label>
         </div>
-        <div class="modal-body">
-          <div class="progress">
-            <div class="progress-bar" role="progressbar" style="width: 0%;">0%</div>
+        <div class="col-4 gx-0 d-flex align-items-center" style="padding-right: 0.9rem;">
+          <form method="post" enctype="multipart/form-data">
+            <button type="button" class="btn btn-primary" style="height: 40px">
+              <i class="fas fa-right-to-bracket"></i> Submit
+            </button>
+            <input id="upload_from_url" type="file" name="file" multiple
+                   style="display: none;"
+                   data-url="{% url 'medias:upload_from_url' %}"
+                   data-form-data='{"csrfmiddlewaretoken": "{{ csrf_token }}"}'>
+          </form>
+        </div>
+      </div>
+    </div>
+    <!--  Upload medias from drag&drop  -->
+    <div style="padding-top: 20px;">
+      <div class="card card-body text-bg-light text-muted text-center"
+           {% if not medias %} style="padding-top: 15rem; padding-bottom: 15rem;"
+           {% else %} style="padding-top: 1.5rem; padding-bottom: 1.5rem;" {% endif %}>
+        <i class="fas fa-arrow-down" style="font-size: 4rem;"></i>
+        <h3 class="text-muted">Drop Medias Here</h3>
+      </div>
+      <div class="modal fade" id="modal-progress" data-backdrop="static" data-keyboard="false">
+        <div class="modal-dialog">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h4 class="modal-title">Uploading...</h4>
+            </div>
+            <div class="modal-body">
+              <div class="progress">
+                <div class="progress-bar" role="progressbar" style="width: 0%;">0%</div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
     </div>
   </div>
-  <hr>
-  <form method="post" action="{% url 'medias:clear_database' %}">
-    {% csrf_token %}
-    <input type="hidden" name="next" value="{{ request.path }}">
-    <button type="submit" class="btn btn-danger float-end">
-      <i class="far fa-trash-alt"></i> Clear Database
-    </button>
-  </form>
-  <form method="post" action="{% url 'medias:reset_options' %}">
-  <div class="text-center" style="margin-bottom: 20px;">
-    <button type="button" class="btn btn-info">
-      <i class="fas fa-dice"></i> Launch process with default configuration
-    </button>
-    <input id="process" type="file" name="file" multiple
-           style="display: none;">
-  </div>
-  </form>
-  <p>
-    <button class="btn btn-info" data-bs-toggle="collapse" href="#collapse" role="button" aria-expanded="false" aria-controls="collapse" value="show_value">
-      <i class="fas fa-cog"></i> Global settings
-<!--      <output>{{ show_value }}</output>-->
-    </button>
-  </p>
-  <div class="collapse" id="collapse">
-<!--  <form method="post">-->
-<!--    {% csrf_token %}-->
-<!--    data-url="{% url 'medias:upload' %}"-->
-<!--    <button type="submit" class="btn btn-danger float-end">-->
-<!--      <i class="far fa-trash-alt"></i> Update options-->
-<!--    </button>-->
-<!--  </form>-->
-  <hr>
-  <div class="row text-center p-1 border border-primary-subtle rounded-3">
-    <div class="col-sm-4 fw-bold">What to blur ?</div>
-    <div class="col-sm-4 fw-bold">How to blur ?</div>
-    <div class="col-sm-4 fw-bold">What to show ?</div>
-  </div>
-  <div class="row p-1 border border-primary-subtle rounded-3">
-    <div class="col-4">
-      <form method="post" action="{% url 'medias:upload' %}" id="options_form">
-        {% csrf_token %}
-      </form>
-      {% for option in options %}
-        {% ifchanged option.label %}{% if forloop.counter > 1 %}</div><div class="col-4">{% endif %}{% endifchanged %}
-        {% if option.type == 'BOOL' %}
-          <div class="form-check form-switch d-flex justify-content-center align-content-center">
-            <div class="col-6">
-              <input class="form-check-input" form="options_form" type="checkbox" role="switch" id="SwitchCheck" name="{{ option.name }}" value="{{ option.value }}" {% if option.value == '1' %}checked{% endif %}>
-              <label class="form-check-label" for="SwitchCheck">{{ option.title }}</label>
-            </div>
-          </div>
-        {% elif option.type == 'FLOAT' %}
-          <div class="form-range d-flex justify-content-center align-content-center">
-            <div class="col-10">
-            <input class="form-range-input col-sm-3" form="options_form" type="range" id="customRange" name="{{ option.name }}" value="{{ option.value }}" min="0" max="1" step="0.05" oninput="this.nextElementSibling.value = option.value">
-            <output>{{ option.value }} |</output>
-            <label class="form-range-label" for="customRange">{{ option.title }}</label>
-            </div>
-          </div>
-        {% endif %}
-      {% endfor %}
+  <!--  Content  -->
+  <div id="main_container">
+    <div {% if not medias %} class="collapse" {% else %} class="collapse show" id="collapse">{% endif %}
+      {% include "medias/upload/content.html" %}
     </div>
   </div>
-<!--  <div class="col-md-8">-->
-<!--    <select class="select">-->
-<!--      <option value="1"></option>-->
-<!--    </select>-->
-<!--  </div>-->
-  <hr>
-  <form method="post" action="{% url 'medias:reset_options' %}">
-    {% csrf_token %}
-    <input type="hidden" name="next" value="{{ request.path }}">
-    <button type="submit" class="btn btn-danger float-end">
-      <i class="far fa-trash-alt"></i> Reset options
-    </button>
-  </form>
-  <div class="text-center" style="margin-bottom: 20px;">
-    <button type="submit" class="btn btn-info" form="options_form">
-      <i class="fas fa-dice"></i> Launch process with defined configuration
-    </button>
-    <input id="process_with_defined_options" type="file" name="file" multiple
-           style="display: none;"
-           data-url="{% url 'medias:upload' %}"
-           data-form-data='{"csrfmiddlewaretoken": "{{ csrf_token }}"}'>
-  </div>
-  <br>
 {% endblock %}
