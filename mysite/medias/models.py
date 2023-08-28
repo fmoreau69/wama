@@ -1,5 +1,9 @@
 from __future__ import unicode_literals
 from django.db import models
+from django.contrib.auth.models import User
+from django.utils.translation import gettext_lazy as _
+from django.db.models.signals import post_save
+from django.dispatch import receiver
 
 from YOLOv8.ultralytics import YOLO
 import os
@@ -28,10 +32,10 @@ class Media(models.Model):
     blur_size = models.FloatField(default=0.50, verbose_name='Blur size', help_text="")
     ROI_enlargement = models.FloatField(default=0.50, verbose_name='ROI enlargement', help_text="")
     Detection_threshold = models.FloatField(default=0.25, verbose_name='Detection threshold', help_text="")
-    show = models.BooleanField(default=True, verbose_name='Show', help_text="Show visualization")
-    show_boxes = models.BooleanField(default=True, verbose_name='Show boxes', help_text="Show boxes from detection")
-    show_labels = models.BooleanField(default=True, verbose_name='Show labels', help_text="Show labels from detection")
-    show_conf = models.BooleanField(default=True, verbose_name='Show conf', help_text="Show confidence from detection")
+    show_preview = models.BooleanField(default=True, verbose_name='Show preview', help_text="Shows a blurring preview")
+    show_boxes = models.BooleanField(default=False, verbose_name='Show boxes', help_text="Show boxes from detection")
+    show_labels = models.BooleanField(default=False, verbose_name='Show labels', help_text="Show labels from detection")
+    show_conf = models.BooleanField(default=False, verbose_name='Show conf', help_text="Show confidence from detection")
     classes2blur = models.CharField(max_length=14, null=True, verbose_name='Objects to blur',
                                     choices=(get_classes_name(model_path)), help_text="Choose objects you want to blur")
 
@@ -53,3 +57,40 @@ class Option(models.Model):
 
     def __str__(self):
         return f'{self.title} {self.value}'
+
+
+class BaseLink(models.Model):
+    name = models.CharField(max_length=80,
+                            help_text=_("Link's name"))
+    details = models.TextField(help_text=_("About this link..."),
+                               null=True,
+                               blank=True)
+    url = models.URLField()
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        abstract = True
+
+
+class UserLink(BaseLink):
+    added_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='user_links')
+
+
+class UserDetails(models.Model):
+    user = models.OneToOneField(User,
+                                verbose_name=_('member'),
+                                on_delete=models.CASCADE,
+                                related_name='user_details',
+                                related_query_name='user_details')
+    text = models.TextField(verbose_name='About you',
+                            null=True,
+                            blank=True)
+
+
+@receiver(post_save, sender=User)
+def create_user_profile(sender, instance, created, **kwargs):
+    if created:
+        UserDetails.objects.create(user=instance)
+

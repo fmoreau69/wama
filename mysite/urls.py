@@ -8,6 +8,7 @@ from django.contrib.staticfiles.storage import staticfiles_storage
 
 urlpatterns = [
     re_path(r'^$', TemplateView.as_view(template_name='home.html'), name='home'),
+    re_path(r'^accounts/', include(('mysite.accounts.urls', 'accounts'), namespace='accounts')),
     re_path(r'^medias/', include(('mysite.medias.urls', 'medias'), namespace='medias')),
     re_path(r'^help/', TemplateView.as_view(template_name='help/index.html'), name='help'),
     re_path(r'^about/', TemplateView.as_view(template_name='about/index.html'), name='about'),

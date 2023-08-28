@@ -1,0 +1,10 @@
+#top-navigation .nav-link span.fa{
+    font-size: 25px;
+}
+#top-navigation .nav-link span.badge{
+    font-size: .4em;
+}
+#top-navigation .navbar-brand{
+    font-variant-caps: small-caps;
+}
+

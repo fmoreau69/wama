@@ -1,73 +1,75 @@
-<br>
-<hr>
-<!--  media list  -->
-<div class="row">
-  <div class="col-3"></div>
-  <div class="col-6">
-    <h3 class="text-muted text-center">Media list</h3>
-  </div>
-  <div class="col-3">
-  <form method="post" action="{% url 'medias:clear_database' %}">
-    {% csrf_token %}
-    <input type="hidden" name="next" value="{{ request.path }}">
-    <button type="submit" class="btn btn-danger float-end">
-      <i class="far fa-trash-alt"></i> Clear Database
-    </button>
-  </form>
-  </div>
-</div>
-<div id="file_list_container">
-  {% include "medias/upload/media_table.html" %}
-</div>
-<div class="row">
-  <div class="col-3">
-  <p>
-    <button class="btn btn-info" data-bs-toggle="collapse" href="#collapseGlobalSettings" role="button"
-            aria-expanded="false" aria-controls="collapse" value="show_value">
-      <i class="fas fa-cog"></i> Global settings
-    </button>
-  </p>
-  </div>
-  <div class="col-6 text-center" style="margin-bottom: 20px;">
-    <form method="post" action="{% url 'medias:process' %}">
-      {% csrf_token %}
-      <button type="submit" class="btn btn-info">
-        <i class="fas fa-dice"></i> Launch process
-      </button>
-    </form>
-  </div>
-  <div class="col-3"></div>
-</div>
-<div class="collapse" id="collapseGlobalSettings">
+<div {% if not medias %} class="collapse" {% else %} class="collapse show" id="collapse">{% endif %}
   <br>
   <hr>
-  <!--  Global settings  -->
+  <!--  media list  -->
   <div class="row">
     <div class="col-3"></div>
     <div class="col-6">
-      <h2 class="text-muted text-center">Global settings</h2>
+      <h3 class="text-muted text-center">Media list</h3>
     </div>
     <div class="col-3">
-      <form method="post" action="{% url 'medias:reset_options' %}">
+    <form method="post" action="{% url 'medias:clear_database' %}">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ request.path }}">
+      <button type="submit" class="btn btn-danger float-end">
+        <i class="far fa-trash-alt"></i> Clear Database
+      </button>
+    </form>
+    </div>
+  </div>
+  <div id="file_list_container">
+    {% include "medias/upload/media_table.html" %}
+  </div>
+  <div class="row">
+    <div class="col-3">
+    <p>
+      <button class="btn btn-info" data-bs-toggle="collapse" href="#collapseGlobalSettings" role="button"
+              aria-expanded="false" aria-controls="collapse" value="show_value">
+        <i class="fas fa-cog"></i> Global settings
+      </button>
+    </p>
+    </div>
+    <div class="col-6 text-center" style="margin-bottom: 20px;">
+      <form method="post" action="{% url 'medias:process' %}">
         {% csrf_token %}
-        <input type="hidden" name="next" value="{{ request.path }}">
-        <button type="submit" class="btn btn-danger float-end">
-          <i class="far fa-trash-alt"></i> Reset options
+        <button type="submit" class="btn btn-info">
+          <i class="fas fa-dice"></i> Start process
         </button>
       </form>
     </div>
+    <div class="col-3"></div>
   </div>
-  <table id="options" class="table table-bordered">
-    <thead>
-      <tr>
-        <td class="col-sm-4 fw-bold text-center text-bg-secondary">What to blur ?</td>
-        <td class="col-sm-4 fw-bold text-center text-bg-secondary">How to blur ?</td>
-        <td class="col-sm-4 fw-bold text-center text-bg-secondary">What to show ?</td>
-      </tr>
-    </thead>
-  </table>
-  <div id="global_settings_container">
-    {% include "medias/upload/global_settings.html" %}
+  <div class="collapse" id="collapseGlobalSettings">
+    <br>
+    <hr>
+    <!--  Global settings  -->
+    <div class="row">
+      <div class="col-3"></div>
+      <div class="col-6">
+        <h2 class="text-muted text-center">Global settings</h2>
+      </div>
+      <div class="col-3">
+        <form method="post" action="{% url 'medias:reset_options' %}">
+          {% csrf_token %}
+          <input type="hidden" name="next" value="{{ request.path }}">
+          <button type="submit" class="btn btn-danger float-end">
+            <i class="far fa-trash-alt"></i> Reset options
+          </button>
+        </form>
+      </div>
+    </div>
+    <table id="options" class="table table-bordered">
+      <thead>
+        <tr>
+          <td class="col-sm-4 fw-bold text-center text-bg-secondary">What to blur ?</td>
+          <td class="col-sm-4 fw-bold text-center text-bg-secondary">How to blur ?</td>
+          <td class="col-sm-4 fw-bold text-center text-bg-secondary">What to show ?</td>
+        </tr>
+      </thead>
+    </table>
+    <div id="global_settings_container">
+      {% include "medias/upload/global_settings.html" %}
+    </div>
+    <br>
   </div>
-  <br>
 </div>

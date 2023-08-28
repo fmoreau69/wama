@@ -1,0 +1,115 @@
+{% extends "./base.html" %}
+
+{% block title %} Login {% endblock title %}
+
+{% block stylesheets %}
+{{ block.super }}
+<!-- Animate.css -->
+<link href="/static/vendors/animate.css/animate.min.css" rel="stylesheet">
+{% if type_of_view == 'login'%}
+<script>window.location.hash = 'signin'</script>
+{% elif type_of_view == 'register'%}
+<script>window.location.hash = 'signup'</script>
+{% endif %}
+{% endblock stylesheets %}
+
+{% block body_class %}Login{% endblock body_class %}
+
+{% block body %}
+{% block top_navigation %}{{ block.super }}{% endblock top_navigation %}
+<div>
+    <a class="hiddenanchor" id="signup"></a>
+    <a class="hiddenanchor" id="signin"></a>
+
+    <div class="login_wrapper">
+        <div class="animate form login_form">
+            <section class="login_content">
+                <form action="{% url 'accounts:login' %}" method="post">
+                    {% csrf_token %}
+                    <h1>Login</h1>
+                    <div>
+                        {{form.username}}
+                    </div>
+                    <div>
+                        {{form.password}}
+                    </div>
+                    <div>
+                        <input class="btn btn-default submit" type="submit" value="Se connecter"/>
+                        <a class="reset_pass" href="#">Mot de passe oublié ?</a>
+                    </div>
+
+                    <div class="clearfix"></div>
+
+                    <div class="separator">
+                        <p class="change_link">Nouveau sur le site ?
+                            <a href="{% url 'accounts:signup' %}" class="to_register"> Créer un compte </a>
+                        </p>
+
+                        <div class="clearfix"></div>
+                        <br/>
+
+                        <div>
+                            <img src="/static/images/logo_ifsttar.png" alt="Logo IFSTTAR" height="80" width="180" align="center">
+                        </div>
+                    </div>
+                    <div class="login_error">
+                        {% if form.errors %}
+                        <p>Nom d'utilisateur ou mot de passe incorrect.</p>
+                        {% endif %}
+                    </div>
+                    <input type="hidden" name="next" value="{{ next }}"/>
+                </form>
+            </section>
+        </div>
+
+        <div id="register" class="animate form registration_form">
+            <section class="login_content">
+                <form action="{% url 'accounts:signup' %}" method="post">
+                    {% csrf_token %}
+                    <h1>Virtualib</h1>
+                    <div>
+                        {{form.username}}
+                    </div>
+                    <div>
+                        {{form.email}}
+                    </div>
+                    <div>
+                        {{form.password1}}
+                    </div>
+                    <div>
+                        {{form.password2}}
+                    </div>
+                    <div>
+                        <input class="btn btn-default submit" type="submit" value="Créer un compte"/>
+                    </div>
+
+
+                    <div class="clearfix"></div>
+
+                    <div class="separator">
+                        <p class="change_link">Déjà membre ?
+                            <a href="{% url 'accounts:login' %}" class="to_register"> Se connecter </a>
+                        </p>
+
+                        <div class="clearfix"></div>
+                        <br/>
+
+                        <div>
+                            <img src="/static/images/logo_ifsttar.png" alt="Logo IFSTTAR" height="80" width="180"
+                                 align="center">
+                        </div>
+                    </div>
+
+                    <div class="signup_error">
+                        {% if form.errors %}
+                        {% for key, value in form.errors.items %}
+                        {{ value.as_text|linebreaksbr }}
+                        {% endfor %}
+                        {% endif %}
+                    </div>
+                </form>
+            </section>
+        </div>
+    </div>
+</div>
+{% endblock body %}

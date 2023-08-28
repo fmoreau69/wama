@@ -49,7 +49,9 @@ $(function () {
 //       console.log(res);
 //       $("#options_container")[0].innerHTML = res['render'];}
 //    });
-//  }).bind('fileuploaddone', function (e, data) {
+//  })
+
+//  .bind('fileuploaddone', function (e, data) {
 //       $.ajax({
 //       type: 'GET',
 //       url : '/medias/refresh_content/',

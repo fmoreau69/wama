@@ -11,6 +11,9 @@ https://docs.djangoproject.com/en/1.10/ref/settings/
 """
 
 import os
+# import ldap
+# from django_auth_ldap3.config import LDAPSearch
+
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -28,17 +31,36 @@ DEBUG = True
 ALLOWED_HOSTS = []
 
 
-# Application definition
+# LDAP Settings
+AUTH_LDAP_SERVER_URI = 'ldap://ldap-eiffel.ifsttar.fr'
+# AUTH_LDAP_USER_SEARCH = LDAPSearch(
+#     'ou=people,dc=univ-eiffel,dc=fr',
+#     ldap.SCOPE_SUBTREE,
+#     '(uid=%(user)s)',
+# )
+AUTH_LDAP_USER_ATTR_MAP = {
+    "first_name": "givenName",
+    "last_name": "sn",
+    "email": "mail",
+}
+AUTH_LDAP_ALWAYS_UPDATE_USER = True
+AUTHENTICATION_BACKENDS = [
+    'django_auth_ldap.backend.LDAPBackend',
+    'django.contrib.auth.backends.ModelBackend',
+]
 
+
+# Application definition
 INSTALLED_APPS = [
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    # 'yolo',
-    'YOLOv8',
+    'mysite.accounts',
     'mysite.medias',
+    # 'yolo',
+    'YOLOv8'
 ]
 
 MIDDLEWARE = [

@@ -15,68 +15,67 @@
 {% endblock %}
 
 {% block medias_content %}
-  <!--  Upload medias  -->
-  <div class="row margin-bottom: 20px;">
-    <div class="col-1" style="padding-bottom: 5rem;"></div>
-    <!--  Upload medias from folder  -->
-    <div class="col-4 d-flex justify-content-center align-items-center">
-      <button type="button" class="btn btn-primary btn-lg js-upload-medias" style="height: 58px">
-        <i class="fas fa-cloud-upload-alt"></i> Upload medias from folder
-      </button>
-      <input id="fileupload" type="file" name="file" multiple
-             style="display: none;"
-             data-url="{% url 'medias:upload' %}"
-             data-form-data='{"csrfmiddlewaretoken": "{{ csrf_token }}"}'>
-    </div>
-    <div class="col-2"><h1 class="text-center text-muted fw-bold" style="padding-top: 1rem;">Or</h1></div>
-    <!--  Upload medias from URL  -->
-    <div class="col-5">
-      <div class="row" style="padding-top: 0.7rem;">
-        <div class="col-8 gx-0 form-floating d-flex justify-content-center align-items-center">
-            <input type="text" class="form-control" style="height: 50px" id="basic-url" name="file" value="https://youtu.be/">
-            <label class="form-label" for="basic-url">Upload medias from URL</label>
-        </div>
-        <div class="col-4 gx-0 d-flex align-items-center" style="padding-right: 0.9rem;">
-          <form method="post" enctype="multipart/form-data">
-            <button type="button" class="btn btn-primary" style="height: 40px">
-              <i class="fas fa-right-to-bracket"></i> Submit
-            </button>
-            <input id="upload_from_url" type="file" name="file" multiple
-                   style="display: none;"
-                   data-url="{% url 'medias:upload_from_url' %}"
-                   data-form-data='{"csrfmiddlewaretoken": "{{ csrf_token }}"}'>
-          </form>
-        </div>
+<!--  Upload medias  -->
+<div class="row margin-bottom: 20px;">
+  <div class="col-1" style="padding-bottom: 5rem;"></div>
+  <!--  Upload medias from folder  -->
+  <div class="col-4 d-flex justify-content-center align-items-center">
+    <button type="button" class="btn btn-primary btn-lg js-upload-medias" style="height: 58px">
+      <i class="fas fa-cloud-upload-alt"></i> Upload medias from folder
+    </button>
+    <input id="fileupload" type="file" name="file" multiple
+           style="display: none;"
+           data-url="{% url 'medias:upload' %}"
+           data-form-data='{"csrfmiddlewaretoken": "{{ csrf_token }}"}'>
+  </div>
+  <div class="col-2"><h1 class="text-center text-muted fw-bold" style="padding-top: 1rem;">Or</h1></div>
+  <!--  Upload medias from URL  -->
+  <div class="col-5">
+    <div class="row" style="padding-top: 0.7rem;">
+      <div class="col-8 gx-0 form-floating d-flex justify-content-center align-items-center">
+          <input type="text" class="form-control" style="height: 50px" id="basic-url" name="file" value="https://youtu.be/">
+          <label class="form-label" for="basic-url">Upload medias from URL</label>
+      </div>
+<!--        <div class="col-1"></div>-->
+      <div class="col-4 gx-0 d-flex align-items-center" style="padding-right: 0.9rem;">
+        <form method="post" enctype="multipart/form-data">
+          <button type="button" class="btn btn-primary" style="height: 40px">
+            <i class="fas fa-right-to-bracket"></i> Submit
+          </button>
+          <input id="upload_from_url" type="file" name="file" multiple
+                 style="display: none;"
+                 data-url="{% url 'medias:upload_from_url' %}"
+                 data-form-data='{"csrfmiddlewaretoken": "{{ csrf_token }}"}'>
+        </form>
       </div>
     </div>
-    <!--  Upload medias from drag&drop  -->
-    <div style="padding-top: 20px;">
-      <div class="card card-body text-bg-light text-muted text-center"
-           {% if not medias %} style="padding-top: 15rem; padding-bottom: 15rem;"
-           {% else %} style="padding-top: 1.5rem; padding-bottom: 1.5rem;" {% endif %}>
-        <i class="fas fa-arrow-down" style="font-size: 4rem;"></i>
-        <h3 class="text-muted">Drop Medias Here</h3>
+  </div>
+</div>
+<div class="modal fade" id="modal-progress" data-backdrop="static" data-keyboard="false">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h4 class="modal-title">Uploading...</h4>
       </div>
-      <div class="modal fade" id="modal-progress" data-backdrop="static" data-keyboard="false">
-        <div class="modal-dialog">
-          <div class="modal-content">
-            <div class="modal-header">
-              <h4 class="modal-title">Uploading...</h4>
-            </div>
-            <div class="modal-body">
-              <div class="progress">
-                <div class="progress-bar" role="progressbar" style="width: 0%;">0%</div>
-              </div>
-            </div>
-          </div>
+      <div class="modal-body">
+        <div class="progress">
+          <div class="progress-bar" role="progressbar" style="width: 0%;">0%</div>
         </div>
       </div>
     </div>
   </div>
+</div>
+<!--  Upload medias from drag&drop  -->
+<div style="padding-top: 20px;">
+  <div class="card card-body text-bg-light text-muted text-center"
+       {% if not medias %} style="padding-top: 15rem; padding-bottom: 15rem;"
+       {% else %} style="padding-top: 1.5rem; padding-bottom: 1.5rem;" {% endif %}>
+    <i class="fas fa-arrow-down" style="font-size: 4rem;"></i>
+    <h3 class="text-muted">Drop Medias Here</h3>
+  </div>
+</div>
   <!--  Content  -->
-  <div id="main_container">
-    <div {% if not medias %} class="collapse" {% else %} class="collapse show" id="collapse">{% endif %}
-      {% include "medias/upload/content.html" %}
-    </div>
-  </div>
+<div id="main_container">
+  {% include "medias/upload/content.html" %}
+</div>
 {% endblock %}

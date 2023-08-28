@@ -7,8 +7,16 @@
 {% block medias_content %}
   <div class="row margin-bottom: 20px;">
     <div id="file_list_container">
-    {% include "medias/upload/media_table.html" %}
+      {% include "medias/upload/media_table.html" %}
     </div>
+  </div>
+  <div class="text-center" style="margin-bottom: 20px;">
+    <form method="post" action="{% url 'medias:stop_process' %}">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-danger">
+        <i class="fas fa-ban"></i> Stop process
+      </button>
+    </form>
   </div>
   <hr>
 <h1 class="text-center">Visualization</h1>
