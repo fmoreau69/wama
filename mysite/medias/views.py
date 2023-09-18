@@ -1,4 +1,6 @@
+import os
 import cv2
+import subprocess as sp
 
 from django.core.files.storage import FileSystemStorage
 from django.shortcuts import render, redirect
@@ -6,6 +8,7 @@ from django.http import JsonResponse
 from django.template import loader
 from django.views import View
 from pytube import *
+from tqdm import tqdm
 
 from .forms import MediaForm, OptionForm, GlobalSettingsForm
 from .models import Media, Option
@@ -39,8 +42,8 @@ class UploadView(View):
             media.duration_inSec = vid.get(cv2.CAP_PROP_FRAME_COUNT)/media.fps
             media.duration_inMinSec = str(int(media.duration_inSec / 60)) + ':' + str(media.duration_inSec % 60)
             media.save()
-            media_data = {'is_valid': True, 'name': media.file.name, 'url': media.file.url,
-                          'properties': media.properties, 'duration': media.duration_inMinSec}
+            media_data = {'is_valid': True, 'name': media.file.name, 'url': media.file.url, 'fps': media.fps,
+                          'width': media.width, 'height': media.height, 'duration': media.duration_inMinSec}
         else:
             media_data = {'is_valid': False}
         # options_form = GlobalSettingsForm(self.request.POST, self.request.FILES)
@@ -72,25 +75,40 @@ class ProcessView(View):
 
     def post(self, request):
         if request.POST.get('url', 'medias:process'):
-            kwargs = {
-                'classes2blur': ['face', 'plate'],
-                'blur_ratio': 0.20,
-                'blur_size': 0.50,
-                'ROI_enlargement': 0.50,
-                'detection_threshold': 0.25,
-                'show_preview': True,
-                'show_boxes': True,
-                'show_labels': True,
-                'show_conf': True
-            }
-            start_process(**kwargs)
-        medias_list = Media.objects.all()
+            medias_list = Media.objects.all()
+            for media in medias_list:
+                length = media.duration_inSec * media.fps
+                with tqdm(total=length, desc="Blurring media", unit="frames", dynamic_ncols=True) as progress_bar:
+                    kwargs = {
+                        'model_path': media.model_path,  # 'anonymizer/models/yolov8n.pt',
+                        'media_path': os.path.join('media', media.file.name),
+                        'classes2blur': media.classes2blur,  # ['face', 'plate']
+                        'blur_ratio': media.blur_ratio,  # 20
+                        'rounded_edges': media.rounded_edges,  # 5
+                        'roi_enlargement': media.roi_enlargement,  # 1.05
+                        'detection_threshold': media.detection_threshold,  # 0.25
+                        'show_preview': media.show_preview,  # True
+                        'show_boxes': media.show_boxes,  # True
+                        'show_labels': media.show_labels,  # True
+                        'show_conf': media.show_conf,  # True
+                    }
+                    if any([classe in kwargs['classes2blur'] for classe in ['face', 'plate']]):
+                        kwargs['model_path'] = 'anonymizer/models/yolov8m_faces&plates_720p.pt'
+                    start_process(**kwargs)
+                    progress_bar.update()
         options_form = {}
-        for line in medias_list:
-            options_form[line.id] = OptionForm(instance=line)
+        for media in medias_list:
+            options_form[media.id] = OptionForm(instance=media)
         medias_form = MediaForm(self.request.POST, self.request.FILES)
-        context = {'medias_list': medias_list, 'medias_form': medias_form, 'options_form': options_form}
+        context = {'medias': medias_list, 'medias_form': medias_form, 'options_form': options_form}
         return render(self.request, 'medias/process/index.html', context)
+
+    def display_console(self, request):
+        if request.POST.get('url', 'medias:process.display_console'):
+            command = "path/to/builder.pl --router " + 'hostname'
+            pipe = sp.Popen(command.split(), stdout=sp.PIPE, stderr=sp.PIPE)
+            console = pipe.stdout.read()
+            return render(self.request, 'medias/process/index.html', {'console': console})
 
 
 # class ProcessView(ListView):
@@ -102,14 +120,13 @@ class ProcessView(View):
 def stop(request):
     if request.POST.get('url', 'medias:stop_process'):
         stop_process()
-        medias_list = Media.objects.all()
-        options_form = {}
-        for line in medias_list:
-            options_form[line.id] = OptionForm(instance=line)
-        medias_form = MediaForm
-        return render(request, 'medias/upload/index.html',
-                      {'medias': medias_list, 'medias_form': medias_form,
-                       'options_form': options_form})
+    medias_list = Media.objects.all()
+    options_form = {}
+    for line in medias_list:
+        options_form[line.id] = OptionForm(instance=line)
+    medias_form = MediaForm
+    context = {'medias': medias_list, 'medias_form': medias_form, 'options_form': options_form}
+    return render(request, 'medias/upload/index.html', context)
 
 
 def refresh_content(request):
@@ -155,16 +172,24 @@ def reset_options(request):
 
 def set_options():
     options_list = [
-        {'title': "Faces", 'name': "blur_faces", 'default': 1, 'value': 1, 'type': 'BOOL', 'label': 'WTB'},
-        {'title': "Plates", 'name': "blur_plates", 'default': 1, 'value': 1, 'type': 'BOOL', 'label': 'WTB'},
-        {'title': "Blur ratio", 'name': "blur_ratio", 'default': "0.20", 'value': "0.20", 'type': 'FLOAT', 'label': 'HTB'},  # , 'attr_list': {{'minimum': '0'}, {'maximum': '100'}}
-        {'title': "Blur size", 'name': "blur_size", 'default': "0.50", 'value': "0.50", 'type': 'FLOAT', 'label': 'HTB'},  # , 'attr_list': {{'minimum': '1'}, {'maximum': '10'}}
-        {'title': "ROI enlargement", 'name': "ROI_enlargement", 'default': "0.50", 'value': "0.50", 'type': 'FLOAT', 'label': 'HTB'},  # 'attr_list': {{'minimum': '1'}, {'maximum': '10'}}},
-        {'title': "Detection threshold", 'name': "detection_threshold", 'default': "0.25", 'value': "0.25", 'type': 'FLOAT', 'label': 'HTB'},  # 'attr_list': {{'minimum': '0'}, {'maximum': '1'}}},
-        {'title': "Show preview", 'name': "show", 'default': 1, 'value': 1, 'type': 'BOOL', 'label': 'WTS'},
-        {'title': "Show boxes", 'name': "show_boxes", 'default': 0, 'value': 0, 'type': 'BOOL', 'label': 'WTS'},
-        {'title': "Show labels", 'name': "show_labels", 'default': 0, 'value': 0, 'type': 'BOOL', 'label': 'WTS'},
-        {'title': "Show conf", 'name': "show_conf", 'default': 0, 'value': 0, 'type': 'BOOL', 'label': 'WTS'}
+        {'title': "Faces", 'name': "blur_faces", 'default': True, 'value': True, 'type': 'BOOL', 'label': 'WTB'},
+        {'title': "Plates", 'name': "blur_plates", 'default': True, 'value': True, 'type': 'BOOL', 'label': 'WTB'},
+        {'title': "Blur ratio", 'name': "blur_ratio", 'default': "20", 'value': "20",
+         'min': "0", 'max': "50", 'step': "1", 'type': 'FLOAT', 'label': 'HTB',
+         'attr_list': {'min': '0', 'max': '50', 'step': '1'}},
+        {'title': "Rounded edges", 'name': "rounded_edges", 'default': "5", 'value': "5",
+         'min': "0", 'max': "50", 'step': "1", 'type': 'FLOAT', 'label': 'HTB',
+         'attr_list': {'min': '0', 'max': '50', 'step': '1'}},
+        {'title': "ROI enlargement", 'name': "roi_enlargement", 'default': "1.05", 'value': "1.05",
+         'min': "0.5", 'max': "1.5", 'step': "0.05", 'type': 'FLOAT', 'label': 'HTB',
+         'attr_list': {'min': '0.5', 'max': '1.5', 'step': '0.05'}},
+        {'title': "Detection threshold", 'name': "detection_threshold", 'default': "0.25", 'value': "0.25",
+         'min': "0", 'max': "1", 'step': "0.05", 'type': 'FLOAT', 'label': 'HTB',
+         'attr_list': {'min': '0', 'max': '1', 'step': '0.05'}},
+        {'title': "Show preview", 'name': "show_preview", 'default': True, 'value': True, 'type': 'BOOL', 'label': 'WTS'},
+        {'title': "Show boxes", 'name': "show_boxes", 'default': True, 'value': True, 'type': 'BOOL', 'label': 'WTS'},
+        {'title': "Show labels", 'name': "show_labels", 'default': True, 'value': True, 'type': 'BOOL', 'label': 'WTS'},
+        {'title': "Show conf", 'name': "show_conf", 'default': True, 'value': True, 'type': 'BOOL', 'label': 'WTS'}
         ]
     for option in options_list:
         form = GlobalSettingsForm(option)
@@ -180,19 +205,17 @@ def upload_from_url(request):
         medias_form = MediaForm(request.POST, request.FILES)
         if medias_form.is_valid():
             media = medias_form.save()
-            media.fps = vid.get(cv2.CAP_PROP_FPS)
+            media.fps = int(vid.get(cv2.CAP_PROP_FPS))
             media.width = vid.get(cv2.CAP_PROP_FRAME_WIDTH)
             media.height = vid.get(cv2.CAP_PROP_FRAME_HEIGHT)
-            media.properties = str(int(media.width)) + 'x' + str(int(media.height)) + ' (' + str(int(media.fps)) + 'fps)'
             media.duration_inSec = vid.get(cv2.CAP_PROP_FRAME_COUNT)/media.fps
             media.duration_inMinSec = str(int(media.duration_inSec / 60)) + ':' + str(media.duration_inSec % 60)
             media.save()
-            media_data = {'is_valid': True, 'name': media.file.name, 'url': media.file.url,
-                          'properties': media.properties, 'duration': media.duration_inMinSec}
+            media_data = {'is_valid': True, 'name': media.file.name, 'url': media.file.url, 'fps': media.fps,
+                          'width': media.width, 'height': media.height, 'duration': media.duration_inMinSec}
         else:
             media_data = {'is_valid': False}
         return JsonResponse(media_data)  # , option_data
-
 
         # myfile = request.FILES['myfile']
         # fs = FileSystemStorage()

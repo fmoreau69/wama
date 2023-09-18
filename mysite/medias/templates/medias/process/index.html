@@ -10,14 +10,39 @@
       {% include "medias/upload/media_table.html" %}
     </div>
   </div>
-  <div class="text-center" style="margin-bottom: 20px;">
-    <form method="post" action="{% url 'medias:stop_process' %}">
-      {% csrf_token %}
-      <button type="submit" class="btn btn-danger">
-        <i class="fas fa-ban"></i> Stop process
-      </button>
-    </form>
-  </div>
+
   <hr>
-<h1 class="text-center">Visualization</h1>
+  <h1 class="text-center">Visualization</h1>
+  <div class="empty-box"></div>
+  <br>
+  <div class="row">
+    <div class="col-4">
+    <p>
+      <button class="btn btn-info" data-bs-toggle="collapse" href="#collapseConsole" role="button"
+              aria-expanded="false" aria-controls="collapse" value="show_value">
+        <i class="fas fa-cog"></i> Display console
+      </button>
+    </p>
+    </div>
+    <div class="text-center col-4">
+      <form method="post" action="{% url 'medias:stop_process' %}">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-danger">
+          <i class="fas fa-ban"></i> Stop process
+        </button>
+      </form>
+    </div>
+  </div>
+  <div class="collapse" id="collapseConsole">
+    <br>
+    <hr>
+    <h1 class="text-center">Console</h1>
+    <div class="empty-box" style="height: 200px">
+      {% for content in console %}
+          <p> {{content}} </p>
+      {% endfor %}
+    </div>
+    <br>
+    <br>
+  </div>
 {% endblock %}

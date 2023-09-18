@@ -15,4 +15,5 @@ urlpatterns = [
     re_path(r'^upload/$', views.UploadView.as_view(), name='upload'),
 
     re_path(r'^process/$', views.ProcessView.as_view(), name='process'),
+    re_path(r'^display_console/$', views.ProcessView.display_console, name='display_console'),
 ]

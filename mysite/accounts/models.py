@@ -4,7 +4,7 @@ from django.db import models
 from django import forms
 
 
-# Create your models here.
+# Create your weights here.
 from django.contrib.auth.models import User
 
 

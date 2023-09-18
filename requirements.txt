@@ -1,6 +1,17 @@
-Django>=4.2.3
+django>=4.2.3
+# django_auth_ldap>=
+django-git-submodules>=1.1.1
+imageio>=2.31
+imageio-ffmpeg>=0.4.9
+more_itertools>=10.1
 opencv-python>=4.8
-# pyproject-toml
-# python-ldap
-# django_auth_ldap
-pytube
+PySide6>=6.5
+# python-ldap>=
+pytube>=15.0
+ultralytics>=8.0.181
+
+# pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+--find-links https://download.pytorch.org/whl/cu118
+
+torch>=2.0.0+cu118
+torchvision>=0.15.0+cu118

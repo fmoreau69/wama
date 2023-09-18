@@ -59,8 +59,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'mysite.accounts',
     'mysite.medias',
-    # 'yolo',
-    'YOLOv8'
+    'anonymizer'
 ]
 
 MIDDLEWARE = [
