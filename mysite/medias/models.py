@@ -25,6 +25,7 @@ class Media(models.Model):
     title = models.CharField(max_length=255, blank=True)
     file = models.FileField(upload_to='input_media/')
     uploaded_at = models.DateTimeField(auto_now_add=True)
+    user_id = models.CharField(max_length=255, blank=True)
     fps = models.IntegerField(default=0, verbose_name="Media's frames per second")
     width = models.IntegerField(default=0, verbose_name="Media's width in pixels")
     height = models.IntegerField(default=0, verbose_name="Media's height in pixels")

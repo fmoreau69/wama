@@ -11,8 +11,8 @@ https://docs.djangoproject.com/en/1.10/ref/settings/
 """
 
 import os
-# import ldap
-# from django_auth_ldap3.config import LDAPSearch
+import ldap
+from django_auth_ldap.config import LDAPSearch
 
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
@@ -33,11 +33,11 @@ ALLOWED_HOSTS = []
 
 # LDAP Settings
 AUTH_LDAP_SERVER_URI = 'ldap://ldap-eiffel.ifsttar.fr'
-# AUTH_LDAP_USER_SEARCH = LDAPSearch(
-#     'ou=people,dc=univ-eiffel,dc=fr',
-#     ldap.SCOPE_SUBTREE,
-#     '(uid=%(user)s)',
-# )
+AUTH_LDAP_USER_SEARCH = LDAPSearch(
+    'ou=people,dc=univ-eiffel,dc=fr',
+    ldap.SCOPE_SUBTREE,
+    '(uid=%(user)s)',
+)
 AUTH_LDAP_USER_ATTR_MAP = {
     "first_name": "givenName",
     "last_name": "sn",

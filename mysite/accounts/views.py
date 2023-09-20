@@ -3,7 +3,6 @@ from django.http import HttpResponseRedirect
 from django.shortcuts import render, redirect
 from django.contrib import messages
 
-# Create your views here.
 from .models import LoginForm, UserRegistrationForm
 
 
