@@ -1,11 +1,10 @@
-{% extends "base.html" %}
+{% extends 'base.html' %}
 
 {% block title %} Login {% endblock title %}
 
 {% block stylesheets %}
-{{ block.super }}
 <!-- Animate.css -->
-<link href="/static/vendors/animate.css/animate.min.css" rel="stylesheet">
+<link href="static/css/animate.min.css" rel="stylesheet">
 {% if type_of_view == 'login'%}
 <script>window.location.hash = 'signin'</script>
 {% elif type_of_view == 'register'%}
@@ -16,7 +15,7 @@
 {% block body_class %}Login{% endblock body_class %}
 
 {% block body %}
-{% block top_navigation %}{{ block.super }}{% endblock top_navigation %}
+{% block top_navigation %}{% endblock top_navigation %}
 <div>
     <a class="hiddenanchor" id="signup"></a>
     <a class="hiddenanchor" id="signin"></a>

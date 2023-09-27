@@ -1,6 +1,6 @@
 from django import forms
 from django.forms import CheckboxSelectMultiple, HiddenInput, TextInput
-from .models import Media, Option
+from .models import Media, Option, UserDetails
 
 
 class RangeWidget(TextInput):
@@ -38,3 +38,9 @@ class GlobalSettingsForm(forms.ModelForm):
     class Meta:
         model = Option
         fields = "__all__"
+
+
+class UserDetailsEdit(forms.ModelForm):
+    class Meta:
+        model = UserDetails
+        fields = ['text']

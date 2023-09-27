@@ -97,3 +97,6 @@ ul.modal-menu ul{
 .long-text-faded img{
     display:hidden;
 }
+.list-group-item{
+  color: white;
+}

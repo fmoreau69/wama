@@ -125,4 +125,3 @@ class FrenchNumericPasswordValidator:
 
     def get_help_text(self):
         return "Le mot de passe ne peut pas être entièrement numérique."
-

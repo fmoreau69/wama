@@ -74,10 +74,16 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = 'mysite.urls'
 
+template_path = lambda a: os.path.join(BASE_DIR, a, 'template')
+
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [os.path.join(BASE_DIR, 'mysite/templates')],
+        'DIRS': [
+            os.path.join(BASE_DIR, 'mysite/templates'),
+            template_path('medias'),
+            template_path('accounts'),
+        ],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -148,3 +154,5 @@ STATICFILES_DIRS = (
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+CELERY_BROKER_URL = 'amqp://localhost'

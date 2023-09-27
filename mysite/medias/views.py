@@ -4,6 +4,7 @@ import subprocess as sp
 
 from django.core.files.storage import FileSystemStorage
 from django.shortcuts import render, redirect
+from django.contrib.auth.models import User
 from django.http import JsonResponse
 from django.template import loader
 from django.views import View
@@ -11,6 +12,7 @@ from pytube import *
 from tqdm import tqdm
 
 from .forms import MediaForm, OptionForm, GlobalSettingsForm
+from mysite.accounts.models import LoginForm
 from .models import Media, Option
 from .tasks import start_process, stop_process
 
@@ -22,19 +24,19 @@ class UploadView(View):
         medias_list = Media.objects.all()
         options_list = Option.objects.all()
         options_form = {}
-        for line in medias_list:
-            options_form[line.id] = OptionForm(instance=line)
+        for media in medias_list:
+            options_form[media.id] = OptionForm(instance=media)
         medias_form = MediaForm
         context = {'medias': medias_list, 'medias_form': medias_form, 'options': options_list,
                    'options_form': options_form}
         return render(self.request, 'medias/upload/index.html', context)
 
     def post(self, request):
-        print(self.request.POST)
         medias_form = MediaForm(self.request.POST, self.request.FILES)
         if medias_form.is_valid():
             media = medias_form.save()
             vid = cv2.VideoCapture('./media/' + media.file.name)
+            media.username = self.request.user.username
             media.fps = vid.get(cv2.CAP_PROP_FPS)
             media.width = vid.get(cv2.CAP_PROP_FRAME_WIDTH)
             media.height = vid.get(cv2.CAP_PROP_FRAME_HEIGHT)
@@ -42,8 +44,9 @@ class UploadView(View):
             media.duration_inSec = vid.get(cv2.CAP_PROP_FRAME_COUNT)/media.fps
             media.duration_inMinSec = str(int(media.duration_inSec / 60)) + ':' + str(media.duration_inSec % 60)
             media.save()
-            media_data = {'is_valid': True, 'name': media.file.name, 'url': media.file.url, 'fps': media.fps,
-                          'width': media.width, 'height': media.height, 'duration': media.duration_inMinSec}
+            media_data = {'is_valid': True, 'name': media.file.name, 'url': media.file.url, 'username': media.username,
+                          'fps': media.fps, 'width': media.width, 'height': media.height,
+                          'duration': media.duration_inMinSec}
         else:
             media_data = {'is_valid': False}
         # options_form = GlobalSettingsForm(self.request.POST, self.request.FILES)
@@ -205,14 +208,16 @@ def upload_from_url(request):
         medias_form = MediaForm(request.POST, request.FILES)
         if medias_form.is_valid():
             media = medias_form.save()
+            media.user_id = request.POST['user_id']
             media.fps = int(vid.get(cv2.CAP_PROP_FPS))
             media.width = vid.get(cv2.CAP_PROP_FRAME_WIDTH)
             media.height = vid.get(cv2.CAP_PROP_FRAME_HEIGHT)
             media.duration_inSec = vid.get(cv2.CAP_PROP_FRAME_COUNT)/media.fps
             media.duration_inMinSec = str(int(media.duration_inSec / 60)) + ':' + str(media.duration_inSec % 60)
             media.save()
-            media_data = {'is_valid': True, 'name': media.file.name, 'url': media.file.url, 'fps': media.fps,
-                          'width': media.width, 'height': media.height, 'duration': media.duration_inMinSec}
+            media_data = {'is_valid': True, 'name': media.file.name, 'url': media.file.url, 'user_id': media.user_id,
+                          'fps': media.fps, 'width': media.width, 'height': media.height,
+                          'duration': media.duration_inMinSec}
         else:
             media_data = {'is_valid': False}
         return JsonResponse(media_data)  # , option_data
