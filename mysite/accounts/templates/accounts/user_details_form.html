@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+{% block head %}{{ block.super }}{% load wysiwyg %}{% wysiwyg_setup %}{% endblock %}
+{% block content %}
+<div class="container">
+    {% include 'accounts/page_title.html' %}
+    <form method="POST">
+        {% csrf_token %}
+        {% for field in form %}
+            {% include 'accounts/base_field.html' %}
+        {% endfor %}
+        <button class="btn btn-primary" type="submit">Save</button>
+    </form>
+</div>
+{% wysiwyg_editor "id_text" %}
+{% endblock %}

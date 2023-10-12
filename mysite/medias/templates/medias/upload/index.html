@@ -11,6 +11,7 @@
   <script src="{% static 'js/jquery-file-upload/jquery.fileupload.js' %}"></script>
 
   {# MEDIAS PAGE SCRIPTS #}
+  <script src="{% static 'medias/js/update.js' %}"></script>
   <script src="{% static 'medias/js/upload.js' %}"></script>
 {% endblock %}
 
@@ -55,7 +56,7 @@
   <div class="modal-dialog">
     <div class="modal-content">
       <div class="modal-header">
-        <h4 class="modal-title black">Uploading...</h4>
+        <h4 class="modal-title text-dark">Uploading...</h4>
       </div>
       <div class="modal-body">
         <div class="progress">
@@ -65,16 +66,7 @@
     </div>
   </div>
 </div>
-<!--  Upload medias from drag&drop  -->
-<div style="padding-top: 20px;">
-  <div class="card card-body text-bg-light text-muted text-center"
-       {% if not medias %} style="padding-top: 15rem; padding-bottom: 15rem;"
-       {% else %} style="padding-top: 1.5rem; padding-bottom: 1.5rem;" {% endif %}>
-    <i class="fas fa-arrow-down" style="font-size: 4rem;"></i>
-    <h3 class="text-muted">Drop Medias Here</h3>
-  </div>
-</div>
-  <!--  Content  -->
+<!--  Main content  -->
 <div id="main_container">
   {% include "medias/upload/content.html" %}
 </div>

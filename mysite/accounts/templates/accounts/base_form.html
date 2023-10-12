@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container">
+
+    {% include 'accounts/page_title.html' %}
+    <form method="POST" enctype="multipart/form-data">
+        {% csrf_token %}
+        {% block form_content %}
+            {% for field in form %}
+                {% include 'accounts/base_field.html' %}
+            {% endfor %}
+        {% endblock %}
+        {% block form_submit %}
+        <button class="btn btn-primary" type="submit">Save</button>
+        {% endblock %}
+    </form>
+</div>
+{% endblock %}

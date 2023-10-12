@@ -38,9 +38,10 @@
       <ul class="nav navbar-nav navbar-right">
         <li class="nav-item col-2">
           {% if user.is_authenticated %}
-            {% include './top-nav_button.html' with icon="fa-user" target="user-menu" text=request.user.username.title %}
+            {% include './top-nav_button.html' with icon="fa-user" target="../../accounts/user/edit" text=request.user.username.title %}
           {% else %}
-            <a class="navbar-brand text-light d-md-flex flex-md-column" href="{% url 'accounts:login' %}" type="button" data-toggle="modal" data-target="#LOGIN-MODAL">
+            <a type="button" class="navbar-brand text-light d-md-flex flex-md-column" href="{% url 'accounts:login' %}"
+               data-toggle="modal" data-target="#{{ ui_id }}" onclick="$('#{{modal}}').modal('show');">
               <span class="fas fa-door-open"></span>
               <span>Login</span>
             </a>

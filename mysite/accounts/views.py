@@ -9,8 +9,7 @@ from django.shortcuts import render, redirect
 from django.contrib import messages
 
 from .models import LoginForm, UserRegistrationForm
-from ..medias.models import UserLink
-from ..medias.forms import UserDetailsEdit
+from ..medias.forms import UserDetailsEdit, UserDetails
 
 
 def login_view(request):
@@ -28,8 +27,8 @@ def login_view(request):
             login(request, user)
             # Return home page
             messages.success(request, "Successfully logged in !")
-            return redirect(request.POST.get('next'))
-            # return redirect('common:index')
+            # return redirect(request.POST.get('next'))
+            return redirect('medias:upload')
         else:
             messages.error(request, "Wrong login ID or password.")
             return redirect(request.POST.get('next'))
@@ -65,13 +64,13 @@ def logout_view(request):
 
 
 class IndexView(ListView):
-    template_name = 'community/index.html'
+    template_name = 'upload/index.html'
     queryset = User.objects.all()
     context_object_name = 'user_list'
 
 
 class UserPage(DetailView):
-    template_name = 'community/user_details.html'
+    template_name = 'accounts/user_details.html'
     queryset = User.objects.all()
     context_object_name = 'selected_user'
     can_edit = False
@@ -89,13 +88,13 @@ class UserPage(DetailView):
 
 @method_decorator(login_required, name='dispatch')
 class UserEdit(UpdateView):
-    template_name = 'community/user_form.html'
+    template_name = 'accounts/user_form.html'
     model = User
     fields = ["first_name", "last_name", "email"]
 
     def get_success_url(self):
         from django.urls import reverse
-        return reverse('community:user-page', args=[self.get_object().pk])
+        return reverse('accounts:user-page', args=[self.get_object().pk])
 
     def get_object(self):
         return self.model.objects.get(pk=self.request.user.id)
@@ -111,12 +110,12 @@ class UserEdit(UpdateView):
 
 @method_decorator(login_required, name='dispatch')
 class UserDetailsUpdate(UpdateView):
-    template_name = 'community/userdetails_form.html'
+    template_name = 'accounts/user_details_form.html'
     form_class = UserDetailsEdit
 
     def get_success_url(self):
         from django.urls import reverse
-        return reverse('community:user-page', args=[self.get_object().user.pk])
+        return reverse('accounts:user-page', args=[self.get_object().user.pk])
 
     def get_object(self):
         return self.form_class._meta.model.objects.get(user__pk=self.request.user.id)
@@ -128,45 +127,45 @@ class UserDetailsUpdate(UpdateView):
 
 # Query views : Links
 
-@method_decorator(login_required, name='dispatch')
-class UserLinkUpdate(UpdateView):
-    model = UserLink
-
-    def get_success_url(self):
-        from django.urls import reverse
-        return reverse('community:user-page', args=[self.get_object().added_by.pk])
-
-    def get_context_data(self, **kwargs):
-        context = super(UserLinkUpdate, self).get_context_data(**kwargs)
-        context['title'] = f'{self.request.user.first_name} {self.request.user.last_name}'
-        context['subtitle'] = 'Edit link'
-        return context
-
-
-@method_decorator(login_required, name='dispatch')
-class UserLinkInsert(CreateView):
-    model = UserLink
-    fields = ['name', 'details', 'url']
-
-    def get_success_url(self):
-        from django.urls import reverse
-        return reverse('community:user-page', args=[self.request.user.pk])
-
-    def form_valid(self, form):
-        form.instance.added_by = self.request.user
-        return super().form_valid(form)
-
-    def get_context_data(self, **kwargs):
-        context = super(UserLinkInsert, self).get_context_data(**kwargs)
-        context['title'] = f'{self.request.user.first_name} {self.request.user.last_name}'
-        context['subtitle'] = 'New link'
-        return context
-
-
-@method_decorator(login_required, name='dispatch')
-class UserLinkDelete(DeleteView):
-    model = UserLink
-
-    def get_success_url(self):
-        from django.urls import reverse
-        return reverse('community:user-page', args=[self.get_object().added_by.pk])
+# @method_decorator(login_required, name='dispatch')
+# class UserLinkUpdate(UpdateView):
+#     model = UserLink
+#
+#     def get_success_url(self):
+#         from django.urls import reverse
+#         return reverse('accounts:user-page', args=[self.get_object().added_by.pk])
+#
+#     def get_context_data(self, **kwargs):
+#         context = super(UserLinkUpdate, self).get_context_data(**kwargs)
+#         context['title'] = f'{self.request.user.first_name} {self.request.user.last_name}'
+#         context['subtitle'] = 'Edit link'
+#         return context
+#
+#
+# @method_decorator(login_required, name='dispatch')
+# class UserLinkInsert(CreateView):
+#     model = UserLink
+#     fields = ['name', 'details', 'url']
+#
+#     def get_success_url(self):
+#         from django.urls import reverse
+#         return reverse('accounts:user-page', args=[self.request.user.pk])
+#
+#     def form_valid(self, form):
+#         form.instance.added_by = self.request.user
+#         return super().form_valid(form)
+#
+#     def get_context_data(self, **kwargs):
+#         context = super(UserLinkInsert, self).get_context_data(**kwargs)
+#         context['title'] = f'{self.request.user.first_name} {self.request.user.last_name}'
+#         context['subtitle'] = 'New link'
+#         return context
+#
+#
+# @method_decorator(login_required, name='dispatch')
+# class UserLinkDelete(DeleteView):
+#     model = UserLink
+#
+#     def get_success_url(self):
+#         from django.urls import reverse
+#         return reverse('accounts:user-page', args=[self.get_object().added_by.pk])

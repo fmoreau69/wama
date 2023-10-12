@@ -150,6 +150,7 @@ STATIC_URL = '/static/'
 
 STATICFILES_DIRS = (
     os.path.join(BASE_DIR, 'mysite/static'),
+    os.path.join(BASE_DIR, 'mysite/medias/static'),
 )
 
 MEDIA_URL = '/media/'

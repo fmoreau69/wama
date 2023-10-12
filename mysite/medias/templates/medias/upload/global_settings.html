@@ -9,20 +9,20 @@
         <div class="form-check form-switch d-flex justify-content-center align-content-center">
           <div class="col-6">
             <input class="form-check-input" form="options_form" type="checkbox" role="switch"
-                   id="SwitchCheck{{ option.title }}" name="{{ option.name }}" value="{{ option.value }}"
+                   id="SwitchCheck_{{ option.name }}" name="{{ option.name }}" value="{{ option.value }}"
                    {% if option.value == 'True' %}checked{% endif %}>
-            <label class="form-check-label" for="SwitchCheck{{ option.title }}">{{ option.title }}</label>
+            <label class="form-check-label" for="SwitchCheck_{{ option.name }}">{{ option.title }}</label>
           </div>
         </div>
       {% elif option.type == 'FLOAT' %}
         <div class="form-range d-flex justify-content-center align-content-center">
           <div class="col-10">
           <input class="form-range-input col-sm-3" form="options_form" type="range"
-                 id="customRange{{ option.title }}" name="{{ option.name }}" value="{{ option.value }}"
+                 id="customRange_{{ option.name }}" name="{{ option.name }}" value="{{ option.value }}"
                  min="{{ option.min }}" max="{{ option.max }}" step="{{ option.step }}"
                  oninput="this.nextElementSibling.value = option.value">
           <output>{{ option.value }} |</output>
-          <label class="form-range-label" for="customRange{{ option.title }}">{{ option.title }}</label>
+          <label class="form-range-label" for="customRange_{{ option.name }}">{{ option.title }}</label>
           </div>
         </div>
       {% endif %}

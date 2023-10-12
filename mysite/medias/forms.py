@@ -39,8 +39,11 @@ class GlobalSettingsForm(forms.ModelForm):
         model = Option
         fields = "__all__"
 
+    def __init__(self, *args, **kwargs):
+        super(GlobalSettingsForm, self).__init__(*args, **kwargs)
+
 
 class UserDetailsEdit(forms.ModelForm):
     class Meta:
         model = UserDetails
-        fields = ['text']
+        fields = "__all__"

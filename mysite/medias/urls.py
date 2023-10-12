@@ -1,19 +1,27 @@
-from django.urls import re_path
+from django.urls import path, re_path
 
 from . import views
 
+app_name = 'mysite.medias'
+
 urlpatterns = [
-    re_path(r'^upload_from_url/$', views.upload_from_url, name='upload_from_url'),
-    re_path(r'^clear/$', views.clear_database, name='clear_database'),
-    re_path(r'^refresh_content/$', views.refresh_content, name='refresh_content'),
-    re_path(r'^refresh_table/$', views.refresh_table, name='refresh_table'),
-    re_path(r'^refresh_options/$', views.refresh_options, name='refresh_options'),
-    re_path(r'^set_options/$', views.set_options, name='set_options'),
-    re_path(r'^reset_options/$', views.reset_options, name='reset_options'),
-    re_path(r'^stop_process/$', views.stop, name='stop_process'),
+    path('upload_from_url/', views.upload_from_url, name='upload_from_url'),
+    path('clear/', views.clear_database, name='clear_database'),
+    path('refresh_content/', views.refresh_content, name='refresh_content'),
+    path('refresh_table/', views.refresh_table, name='refresh_table'),
+    path('refresh_options/', views.refresh_options, name='refresh_options'),
+    path('init_options/', views.init_options, name='init_options'),
+    path('reset_options/', views.reset_options, name='reset_options'),
+    path('update_options/', views.update_options, name='update_options'),
+    path('download_media/<int:pk>/', views.download_media, name='download_media'),
+    path('stop_process/', views.stop, name='stop_process'),
+    path('show_ms/<int:pk>/', views.show_media_settings, name='show_ms'),
+    path('show_gs/', views.show_global_settings, name='show_gs'),
 
-    re_path(r'^upload/$', views.UploadView.as_view(), name='upload'),
+    path('upload/', views.UploadView.as_view(), name='upload'),
 
-    re_path(r'^process/$', views.ProcessView.as_view(), name='process'),
-    re_path(r'^display_console/$', views.ProcessView.display_console, name='display_console'),
+    path('process/', views.ProcessView.as_view(), name='process'),
+    path('display_console/', views.ProcessView.display_console, name='display_console'),
+
+    # path('download_media/<int:pk>/', views.DownloadMediaView.as_view(), name='download_media'),
 ]

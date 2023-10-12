@@ -1,6 +1,7 @@
 from __future__ import unicode_literals
 from django.db import models
 from django.contrib.auth.models import User
+from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 from django.db.models.signals import post_save
 from django.dispatch import receiver
@@ -26,6 +27,8 @@ class Media(models.Model):
     file = models.FileField(upload_to='input_media/')
     uploaded_at = models.DateTimeField(auto_now_add=True)
     username = models.CharField(max_length=255, default='')
+    processed = models.BooleanField(default=False, verbose_name='Process status')
+    show_settings = models.BooleanField(default=False, verbose_name='Show media settings')
     fps = models.IntegerField(default=0, verbose_name="Media's frames per second")
     width = models.IntegerField(default=0, verbose_name="Media's width in pixels")
     height = models.IntegerField(default=0, verbose_name="Media's height in pixels")
@@ -42,6 +45,15 @@ class Media(models.Model):
     show_conf = models.BooleanField(default=True, verbose_name='Show conf', help_text="Show confidence from detection")
     classes2blur = models.CharField(max_length=14, default=['face', 'plate'], verbose_name='Objects to blur',
                                     choices=(get_classes_name(model_path)), help_text="Choose objects you want to blur")
+
+    def __init__(self, *args, **kwargs):
+        super(Media, self).__init__(*args, **kwargs)
+
+    def get_pk_val(self):
+        return reverse('medias:show_ms', args=[self.pk])
+
+    def __int__(self):
+        return int(self.pk)
 
 
 class Option(models.Model):
@@ -66,25 +78,6 @@ class Option(models.Model):
         return f'{self.title} {self.value}'
 
 
-class BaseLink(models.Model):
-    name = models.CharField(max_length=80,
-                            help_text=_("Link's name"))
-    details = models.TextField(help_text=_("About this link..."),
-                               null=True,
-                               blank=True)
-    url = models.URLField()
-
-    def __str__(self):
-        return self.name
-
-    class Meta:
-        abstract = True
-
-
-class UserLink(BaseLink):
-    added_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='user_links')
-
-
 class UserDetails(models.Model):
     user = models.OneToOneField(User,
                                 verbose_name=_('member'),
@@ -94,6 +87,8 @@ class UserDetails(models.Model):
     text = models.TextField(verbose_name='About you',
                             null=True,
                             blank=True)
+    username = models.CharField(max_length=255, default='')
+    show_gs = models.BooleanField(default=False, verbose_name='Show global settings')
 
 
 @receiver(post_save, sender=User)
@@ -101,3 +96,21 @@ def create_user_profile(sender, instance, created, **kwargs):
     if created:
         UserDetails.objects.create(user=instance)
 
+
+# class BaseLink(models.Model):
+#     name = models.CharField(max_length=80,
+#                             help_text=_("Link's name"))
+#     details = models.TextField(help_text=_("About this link..."),
+#                                null=True,
+#                                blank=True)
+#     url = models.URLField()
+#
+#     def __str__(self):
+#         return self.name
+#
+#     class Meta:
+#         abstract = True
+#
+#
+# class UserLink(BaseLink):
+#     added_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='user_links')

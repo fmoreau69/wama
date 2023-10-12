@@ -1,3 +1,13 @@
+<!--  Upload medias from drag&drop  -->
+<div style="padding-top: 20px;">
+  <div class="card card-body text-bg-light text-muted text-center"
+       {% if not medias %} style="padding-top: 15rem; padding-bottom: 15rem;"
+       {% else %} style="padding-top: 1.5rem; padding-bottom: 1.5rem;" {% endif %}>
+    <i class="fas fa-arrow-down" style="font-size: 4rem;"></i>
+    <h3 class="text-muted">Drop Medias Here</h3>
+  </div>
+</div>
+<!--  Content  -->
 <div {% if not medias %} class="collapse" {% else %} class="collapse show" id="collapse">{% endif %}
   <br>
   <hr>
@@ -5,7 +15,7 @@
   <div class="row">
     <div class="col-3"></div>
     <div class="col-6">
-      <h3 class="text-center">Media list</h3>
+      <h2 class="text-center">Media list</h2>
     </div>
     <div class="col-3">
     <form method="post" action="{% url 'medias:clear_database' %}">
@@ -22,12 +32,12 @@
   </div>
   <div class="row">
     <div class="col-3">
-    <p>
-      <button class="btn btn-info" data-bs-toggle="collapse" href="#collapseGlobalSettings" role="button"
-              aria-expanded="false" aria-controls="collapse" value="show_value">
-        <i class="fas fa-cog"></i> Global settings
-      </button>
-    </p>
+      <form method="post" action="{% url 'medias:show_gs' %}">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-info" id="button_show_gs">
+            <i class="fas fa-cog"></i> Global settings
+        </button>
+      </form>
     </div>
     <div class="col-6 text-center" style="margin-bottom: 20px;">
       <form method="post" action="{% url 'medias:process' %}">
@@ -39,12 +49,13 @@
     </div>
     <div class="col-3"></div>
   </div>
-  <div class="collapse" id="collapseGlobalSettings">
+  <div {% if user.user_details.show_gs %} class="collapse show" {% else %} class="collapse" id="collapseGlobalSettings">{% endif %}
     <br>
     <hr>
     <!--  Global settings  -->
     <div class="row">
-      <div class="col-3"></div>
+      <div class="col-3 d-flex justify-content-left">
+      </div>
       <div class="col-6">
         <h2 class="text-center">Global settings</h2>
       </div>
