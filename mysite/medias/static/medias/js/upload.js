@@ -32,13 +32,13 @@ $(function () {
     }
 
   }).bind('fileuploaddone', function (e, data) {
-       $.ajax({
-       type: 'GET',
-       url : '/medias/refresh_content/',
-       success: function (res) {
-       console.log(res);
-       $("#main_container")[0].innerHTML = res['render'];
-       }
+    $.ajax({
+      type: 'GET',
+      url : '/medias/refresh_content/',
+      success: function (res) {
+        $("#main_container")[0].innerHTML = res['render'];
+//        location.reload(true);
+      }
     });
   });
 

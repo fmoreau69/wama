@@ -13,7 +13,7 @@ urlpatterns = [
     path('help/', TemplateView.as_view(template_name='help/index.html'), name='help'),
     path('about/', TemplateView.as_view(template_name='about/index.html'), name='about'),
     path('favicon.ico', RedirectView.as_view(url=staticfiles_storage.url('favicon.ico'))),
-    # re_path(r'^celery-progress/', include('celery_progress.urls')),
+    # path('celery-progress/', include('celery_progress.urls')),
 ]
 
 if settings.DEBUG:

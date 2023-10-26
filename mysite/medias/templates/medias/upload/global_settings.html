@@ -1,30 +1,23 @@
 <div class="row">
-  <div class="col-4">
-    <form method="post" action="{% url 'medias:upload' %}" id="options_form">
-      {% csrf_token %}
-    </form>
-    {% for option in options %}
-      {% ifchanged option.label %}{% if forloop.counter > 1 %}</div><div class="col-4">{% endif %}{% endifchanged %}
-      {% if option.type == 'BOOL' %}
-        <div class="form-check form-switch d-flex justify-content-center align-content-center">
-          <div class="col-6">
-            <input class="form-check-input" form="options_form" type="checkbox" role="switch"
-                   id="SwitchCheck_{{ option.name }}" name="{{ option.name }}" value="{{ option.value }}"
-                   {% if option.value == 'True' %}checked{% endif %}>
-            <label class="form-check-label" for="SwitchCheck_{{ option.name }}">{{ option.title }}</label>
+  <div class="col-4 d-flex justify-content-center align-content-center">
+    {% for setting in global_settings %}
+      {% if setting.name == 'classes2blur' %}
+        {% include "widgets/CheckboxMultipleModal.html" with field=user_settings_form.classes2blur id=user.id setting_type='global_setting' button_width=4 %}
+      {% else %}
+        {% ifchanged setting.label %}{% if forloop.counter > 1 %}</div><div class="col-4">{% endif %}{% endifchanged %}
+        {% if setting.type == 'BOOL' %}
+          <div class="form-check form-switch d-flex justify-content-center align-content-center">
+            <div class="col-6">
+              {% include 'medias/upload/setting_button.html' with id=user.id setting_type='global_setting' value=gs_values|get_value:setting.name range_width='col-sm-3' %}
+            </div>
           </div>
-        </div>
-      {% elif option.type == 'FLOAT' %}
-        <div class="form-range d-flex justify-content-center align-content-center">
-          <div class="col-10">
-          <input class="form-range-input col-sm-3" form="options_form" type="range"
-                 id="customRange_{{ option.name }}" name="{{ option.name }}" value="{{ option.value }}"
-                 min="{{ option.min }}" max="{{ option.max }}" step="{{ option.step }}"
-                 oninput="this.nextElementSibling.value = option.value">
-          <output>{{ option.value }} |</output>
-          <label class="form-range-label" for="customRange_{{ option.name }}">{{ option.title }}</label>
+        {% elif setting.type == 'FLOAT' %}
+          <div class="form-range d-flex justify-content-center align-content-center">
+            <div class="col-10">
+              {% include 'medias/upload/setting_button.html' with id=user.id setting_type='global_setting' value=gs_values|get_value:setting.name range_width='col-sm-3' %}
+            </div>
           </div>
-        </div>
+        {% endif %}
       {% endif %}
     {% endfor %}
   </div>

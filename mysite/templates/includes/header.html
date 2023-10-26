@@ -2,7 +2,7 @@
   <div class="container">
     <div class="col-1"></div>
     <div class="navbar-header col-2 d-flex justify-content-center align-items-center">
-      <button type="button" class="navbar-toggler collapsed" data-bs-toggle="collapse" data-bs-target="#navbarMain" aria-controls="navbarMain" aria-expanded="false">
+      <button type="button" class="navbar-toggler" data-bs-toggle="collapse" data-bs-target="#navbarMain" aria-controls="navbarMain" aria-expanded="false" aria-label="Toggle navigation">
         <span class="sr-only">Toggle navigation</span>
         <span class="icon-bar"></span>
         <span class="icon-bar"></span>
@@ -40,8 +40,7 @@
           {% if user.is_authenticated %}
             {% include './top-nav_button.html' with icon="fa-user" target="../../accounts/user/edit" text=request.user.username.title %}
           {% else %}
-            <a type="button" class="navbar-brand text-light d-md-flex flex-md-column" href="{% url 'accounts:login' %}"
-               data-toggle="modal" data-target="#{{ ui_id }}" onclick="$('#{{modal}}').modal('show');">
+            <a type="button" class="navbar-brand text-light d-md-flex flex-md-column" data-bs-toggle="modal" data-bs-target="#LOGIN-MODAL">
               <span class="fas fa-door-open"></span>
               <span>Login</span>
             </a>
@@ -51,11 +50,11 @@
     </div>
   </div>
   <div class="navbar-header col-1 d-flex justify-content-left align-items-center">
-    {% if user.is_authenticated %}
-      <a class="btn btn-link" href="{% url 'accounts:logout' %}"><i class="fa fa-sign-out pull-right"></i>
-        <span> Logout</span>
-      </a>
-    {% endif %}
+  {% if user.is_authenticated %}
+    <a class="btn btn-link" href="{% url 'accounts:logout' %}"><i class="fa fa-sign-out pull-right"></i>
+      <span> Logout</span>
+    </a>
+  {% endif %}
   </div>
 </nav>
 {% include 'accounts/login_modal.html' %}

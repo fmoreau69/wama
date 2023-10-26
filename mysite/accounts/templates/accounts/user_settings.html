@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container">
+    <nav class="navbar navbar-expand-lg navbar-light bg-secondary">
+        <div class="container-fluid">
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#pageEditNavbar" aria-controls="pageEditNavbar" aria-expanded="false" aria-label="Toggle navigation">
+              <span class="fa fa-pen"></span>
+            </button>
+            <div class="collapse navbar-collapse"  id="pageEditNavbar">
+              <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                <li class="nav-item">
+                  <a class="nav-link" href="{% url 'accounts:user-edit' %}">Edit user</a>
+                </li>
+              </ul>
+            </div>
+        </div>
+    </nav>
+</div>
+{% endblock %}

@@ -2,6 +2,7 @@ from __future__ import unicode_literals
 from django.db import models
 from django.contrib.auth.models import User
 from django.urls import reverse
+from django.template.defaulttags import register
 from django.utils.translation import gettext_lazy as _
 from django.db.models.signals import post_save
 from django.dispatch import receiver
@@ -43,20 +44,22 @@ class Media(models.Model):
     show_boxes = models.BooleanField(default=True, verbose_name='Show boxes', help_text="Show boxes from detection")
     show_labels = models.BooleanField(default=True, verbose_name='Show labels', help_text="Show labels from detection")
     show_conf = models.BooleanField(default=True, verbose_name='Show conf', help_text="Show confidence from detection")
-    classes2blur = models.CharField(max_length=14, default=['face', 'plate'], verbose_name='Objects to blur',
+    classes2blur = models.CharField(max_length=255, default=['face', 'plate'], verbose_name='Objects to blur',
                                     choices=(get_classes_name(model_path)), help_text="Choose objects you want to blur")
 
     def __init__(self, *args, **kwargs):
         super(Media, self).__init__(*args, **kwargs)
 
-    def get_pk_val(self):
-        return reverse('medias:show_ms', args=[self.pk])
-
     def __int__(self):
         return int(self.pk)
 
+    def get_field_value(self, field):
+        media_settings = Media.objects.get(pk=self.pk)
+        setting = media_settings.get_field(field)
+        return setting.value
 
-class Option(models.Model):
+
+class GlobalSettings(models.Model):
     title = models.CharField(max_length=255)
     name = models.CharField(max_length=255, null=True)
     last_modified = models.DateTimeField(auto_now_add=True)
@@ -72,45 +75,51 @@ class Option(models.Model):
     attr_list = models.CharField(max_length=255, default="NULL", blank=True, help_text="")
 
     def __init__(self, *args, **kwargs):
-        super(Option, self).__init__(*args, **kwargs)
+        super(GlobalSettings, self).__init__(*args, **kwargs)
 
     def __str__(self):
         return f'{self.title} {self.value}'
 
 
-class UserDetails(models.Model):
+class UserSettings(models.Model):
+    model_path = os.path.join(BASE_DIR, "anonymizer/models/yolov8n.pt")
     user = models.OneToOneField(User,
                                 verbose_name=_('member'),
                                 on_delete=models.CASCADE,
-                                related_name='user_details',
-                                related_query_name='user_details')
-    text = models.TextField(verbose_name='About you',
-                            null=True,
-                            blank=True)
-    username = models.CharField(max_length=255, default='')
+                                related_name='user_settings',
+                                related_query_name='user_settings')
+    media_added = models.BooleanField(default=False, verbose_name='Media added')
     show_gs = models.BooleanField(default=False, verbose_name='Show global settings')
+    show_console = models.BooleanField(default=False, verbose_name='Show media settings')
+    blur_ratio = models.IntegerField(default=20, verbose_name='Blur ratio', help_text="")
+    rounded_edges = models.IntegerField(default=5, verbose_name='Rounded edges', help_text="")
+    roi_enlargement = models.FloatField(default=1.05, verbose_name='ROI enlargement', help_text="")
+    detection_threshold = models.FloatField(default=0.25, verbose_name='Detection threshold', help_text="")
+    show_preview = models.BooleanField(default=True, verbose_name='Show preview', help_text="Shows a blurring preview")
+    show_boxes = models.BooleanField(default=True, verbose_name='Show boxes', help_text="Show boxes from detection")
+    show_labels = models.BooleanField(default=True, verbose_name='Show labels', help_text="Show labels from detection")
+    show_conf = models.BooleanField(default=True, verbose_name='Show conf', help_text="Show confidence from detection")
+    classes2blur = models.CharField(max_length=255, default=['face', 'plate'], verbose_name='Objects to blur',
+                                    choices=(get_classes_name(model_path)), help_text="Choose objects you want to blur")
+
+    def __init__(self, *args, **kwargs):
+        super(UserSettings, self).__init__(*args, **kwargs)
+
+    def __int__(self):
+        return int(self.pk)
+
+    def get_field_value(self, field):
+        user_settings = UserSettings.objects.get(user_id=self.user)
+        setting = user_settings.get_field(field)
+        return setting.value
+
+
+@register.filter
+def get_value(dictionary, key):
+    return dictionary.get(key)
 
 
 @receiver(post_save, sender=User)
 def create_user_profile(sender, instance, created, **kwargs):
     if created:
-        UserDetails.objects.create(user=instance)
-
-
-# class BaseLink(models.Model):
-#     name = models.CharField(max_length=80,
-#                             help_text=_("Link's name"))
-#     details = models.TextField(help_text=_("About this link..."),
-#                                null=True,
-#                                blank=True)
-#     url = models.URLField()
-#
-#     def __str__(self):
-#         return self.name
-#
-#     class Meta:
-#         abstract = True
-#
-#
-# class UserLink(BaseLink):
-#     added_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='user_links')
+        UserSettings.objects.create(user=instance)

@@ -1,56 +1,94 @@
-///// Update global settings values /////
+///// Update setting buttons values /////
+(function($) {
+    $.fn.SettingButtons = function (){
+        this.each(function(){
+            var self = this;
+            function submitValues(inputId, inputValue) {
+                $.ajax({
+                    type: "POST",
+                    url: "/medias/update_settings/",
+                    data: {
+                        input_id: inputId,
+                        input_value: inputValue,
+                        csrfmiddlewaretoken: $("input[name=csrfmiddlewaretoken]").val(),
+                    },
+                    success: function(res) {
+                        console.log(inputId, inputValue)
+                        $("#setting_button_container_" + inputId)[0].innerHTML = res['render'];
+//                        if (inputId.includes('media_setting')) {
+//                            $("#media_settings_container")[0].innerHTML = res['render'];
+//                        }
+//                        else if (inputId.includes('global_setting')) {
+//                            $("#global_settings_container_" + inputId)[0].innerHTML = res['render'];
+//                        }
+                    },
+                    error: function(xhr, textStatus, errorThrown) {
+                        console.error("AJAX error : " + errorThrown);
+                     },
+                })
+            }
+
+            $(this).change(function() {
+                var inputId = $(this).attr("id");
+                if (inputId.includes('switchCheck')) {
+                    var inputValue = $(this).prop("checked");
+                }
+                else if (inputId.includes('customRange')) {
+                    var inputValue = $(this).val();
+                }
+                submitValues(inputId, inputValue);
+            });
+        });
+    };
+})(jQuery);
+
 $(document).ready(function() {
-  $("#SwitchCheck_blur_faces, #SwitchCheck_blur_plates, #customRange_blur_ratio, #customRange_rounded_edges, #customRange_roi_enlargement, #customRange_detection_threshold, #SwitchCheck_show_preview, #SwitchCheck_show_boxes, #SwitchCheck_show_labels, #SwitchCheck_show_conf")
-  .on("input change", function() {
-    var inputId = $(this).attr("id");
-    if (inputId.includes('SwitchCheck')) {
-        var inputValue = $(this).prop("checked");
-        } else if (inputId.includes('customRange')) {
-        var inputValue = $(this).val();
-        }
-    submitValues(inputId, inputValue);
-  });
-
-  function submitValues(inputId, inputValue) {
-    $.ajax({
-      type: "POST",
-      url: "/medias/update_options/",
-      data: {
-        input_id: inputId,
-        input_value: inputValue,
-        csrfmiddlewaretoken: $("input[name=csrfmiddlewaretoken]").val(),
-      },
-      success: function(res) {
-        console.log(res);
-        $("#global_settings_container")[0].innerHTML = res['render'];
-      },
-      error: function(xhr, textStatus, errorThrown) {
-        console.error("AJAX error : " + errorThrown);
-      },
-    });
-  }
+    $(".setting-button").SettingButtons();
+});
+$(document).ajaxComplete(function() {
+    $(".setting-button").SettingButtons();
 });
 
-///// Show or Hide global settings /////
-$(document).ready(function () {
-  $("#button_show_gs").click(function {
-    $.ajax({
-      type: "POST",
-      url: "/medias/show_gs/",
-      data: {
-        input_id: inputId,
-        input_value: inputValue,
-        csrfmiddlewaretoken: $("input[name=csrfmiddlewaretoken]").val(),
-      },
-      success: function(res) {
-        console.log(res);
-        $("#collapseGlobalSettings")[0].innerHTML = res['render'];
-      },
-      error: function(xhr, textStatus, errorThrown) {
-        console.error("AJAX error : " + errorThrown);
-      },
-    });
-//    var subpageContainer = $("#global_settings_container");
-//    subpageContainer.load("global_settings.html");
+///// Update reset buttons /////
+(function($) {
+    $.fn.ResetButtons = function (){
+        this.each(function(){
+            var self = this;
+        });
+    }
+})(jQuery);
+
+$(document).ajaxComplete(function() {
+    $(".reset-button").ResetButtons();
 });
+
+///// Update collapse button shown status /////
+function SendButtonState(buttonId, buttonState){
+    $.ajax({
+        type: "POST",
+        url: "/medias/expand_area/",
+        data: {
+            "button_id": buttonId,
+            "button_state": buttonState,
+            csrfmiddlewaretoken: $("input[name=csrfmiddlewaretoken]").val(),
+        },
+        success: function(res) {
+//            console.log(buttonId, buttonState)
+        },
+        error: function(xhr, textStatus, errorThrown) {
+            console.error("AJAX error : " + errorThrown);
+        },
+    })
+}
+
+$(".collapse").each(function(){
+    var buttonId = $(this).attr("id");
+    if (!buttonId.includes('collapseContent')) {
+        $(this).on('hidden.bs.collapse', function () {
+          SendButtonState(buttonId, 0);
+        });
+        $(this).on('shown.bs.collapse', function () {
+          SendButtonState(buttonId, 1);
+        });
+    }
 });

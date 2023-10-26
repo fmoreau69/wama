@@ -1,0 +1,26 @@
+{% with id|stringformat:"s" as id %}
+    <form method="post" action="{% url 'medias:upload' %}">
+        {% csrf_token %}
+        {% if setting.type == 'BOOL' %}
+            <div id="setting_button_container_{{ setting_type }}_switchCheck_{{ setting.name }}_{{ id }}">
+                <input class="form-check-input setting-button" type="checkbox" role="switch" name="{{ setting.name }}"
+                     id="{{ setting_type }}_switchCheck_{{ setting.name }}_{{ id }}"
+                     {% if value == 1 or value == 'True' %}checked{% endif %}>
+                <label class="form-check-label" for="{{ setting_type }}_SwitchCheck_{{ setting.name }}_{{ id }}">{{ setting.title }}</label>
+            </div>
+        {% elif setting.type == 'FLOAT' %}
+            <div id="setting_button_container_{{ setting_type }}_customRange_{{ setting.name }}_{{ id }}">
+                <input class="form-range-input {{ range_width }} setting-button" type="range" name="{{ setting.name }}"
+                       id="{{ setting_type }}_customRange_{{ setting.name }}_{{ id }}" value="{{ value }}"
+                       min="{{ setting.min }}" max="{{ setting.max }}" step="{{ setting.step }}">
+                {% if setting_type == 'media_setting' %}
+                    <label class="form-range-label" for="{{ setting_type }}_customRange_{{ setting.name }}_{{ id }}">{{ setting.title }}:</label>
+                    <output>{{ value }}</output>
+                {% elif setting_type == 'global_setting' %}
+                    <output>{{ value }} |</output>
+                    <label class="form-range-label" for="{{ setting_type }}_customRange_{{ setting.name }}_{{ id }}">{{ setting.title }}</label>
+                {% endif %}
+            </div>
+        {% endif %}
+    </form>
+{% endwith %}

@@ -9,7 +9,7 @@ from django.shortcuts import render, redirect
 from django.contrib import messages
 
 from .models import LoginForm, UserRegistrationForm
-from ..medias.forms import UserDetailsEdit, UserDetails
+from ..medias.forms import UserSettingsEdit
 
 
 def login_view(request):
@@ -70,7 +70,7 @@ class IndexView(ListView):
 
 
 class UserPage(DetailView):
-    template_name = 'accounts/user_details.html'
+    template_name = 'accounts/user_settings.html'
     queryset = User.objects.all()
     context_object_name = 'selected_user'
     can_edit = False
@@ -94,7 +94,7 @@ class UserEdit(UpdateView):
 
     def get_success_url(self):
         from django.urls import reverse
-        return reverse('accounts:user-page', args=[self.get_object().pk])
+        return reverse('medias:upload')
 
     def get_object(self):
         return self.model.objects.get(pk=self.request.user.id)
@@ -106,16 +106,16 @@ class UserEdit(UpdateView):
         return context
 
 
-# Query views : Details
+# Query views : settings
 
 @method_decorator(login_required, name='dispatch')
-class UserDetailsUpdate(UpdateView):
-    template_name = 'accounts/user_details_form.html'
-    form_class = UserDetailsEdit
+class UserSettingsUpdate(UpdateView):
+    template_name = 'accounts/user_settings_form.html'
+    form_class = UserSettingsEdit
 
     def get_success_url(self):
         from django.urls import reverse
-        return reverse('accounts:user-page', args=[self.get_object().user.pk])
+        return reverse('medias:upload')
 
     def get_object(self):
         return self.form_class._meta.model.objects.get(user__pk=self.request.user.id)
@@ -125,47 +125,9 @@ class UserDetailsUpdate(UpdateView):
         return super().form_valid(form)
 
 
-# Query views : Links
-
-# @method_decorator(login_required, name='dispatch')
-# class UserLinkUpdate(UpdateView):
-#     model = UserLink
-#
-#     def get_success_url(self):
-#         from django.urls import reverse
-#         return reverse('accounts:user-page', args=[self.get_object().added_by.pk])
-#
-#     def get_context_data(self, **kwargs):
-#         context = super(UserLinkUpdate, self).get_context_data(**kwargs)
-#         context['title'] = f'{self.request.user.first_name} {self.request.user.last_name}'
-#         context['subtitle'] = 'Edit link'
-#         return context
-#
-#
-# @method_decorator(login_required, name='dispatch')
-# class UserLinkInsert(CreateView):
-#     model = UserLink
-#     fields = ['name', 'details', 'url']
-#
-#     def get_success_url(self):
-#         from django.urls import reverse
-#         return reverse('accounts:user-page', args=[self.request.user.pk])
-#
-#     def form_valid(self, form):
-#         form.instance.added_by = self.request.user
-#         return super().form_valid(form)
-#
-#     def get_context_data(self, **kwargs):
-#         context = super(UserLinkInsert, self).get_context_data(**kwargs)
-#         context['title'] = f'{self.request.user.first_name} {self.request.user.last_name}'
-#         context['subtitle'] = 'New link'
-#         return context
-#
-#
-# @method_decorator(login_required, name='dispatch')
-# class UserLinkDelete(DeleteView):
-#     model = UserLink
-#
-#     def get_success_url(self):
-#         from django.urls import reverse
-#         return reverse('accounts:user-page', args=[self.get_object().added_by.pk])
+def login_form(request):
+    form = LoginForm()
+    out = {}
+    if request.user.is_authenticated is False:
+        out = {"login_form": form}
+    return out

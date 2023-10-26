@@ -13,18 +13,18 @@
       {% if user.username in media.username %}
         <tr>
           <td class="text-bg-light">
-            <div class="d-flex justify-content-center">
-              <form method="post" action="{% url 'medias:show_ms' pk=media.pk %}">
+            <div class="d-flex justify-content-center align-items-center">
+              <form method="post" action="{% url 'medias:expand_area' %}">
                 {% csrf_token %}
-                <button type="submit" class="btn btn-info btn-sm text-center" data-bs-toggle="collapse"
-                        data-bs-target="#collapseMediaOptions_{{ media.id }}" aria-expanded="false"
-                        aria-controls="collapseMediaOptions_{{ media.id }}">
+                <a class="btn btn-info btn-sm text-center" id="button_show_ms"
+                   data-bs-toggle="collapse" href="#collapseMediaSettings_{{ media.id }}"
+                   aria-expanded="false" aria-controls="collapseMediaSettings_{{ media.id }}">
                   <i class="fas fa-arrow-down"></i>
-                </button>
+                </a>
               </form>
             </div>
           </td>
-          <td class="text-bg-light"><a href="{{ medias.file.url }}">{{ media.file.name }}</a></td>
+          <td class="text-bg-light text-center"><a href="{{ medias.file.url }}">{{ media.file.name|slice:"12:" }}</a></td>
           <td class="text-bg-light text-center">{{ media.width }}x{{ media.height }} ({{ media.fps }}fps)</td>
           <td class="text-bg-light text-center">{{ media.duration_inMinSec }}</td>
           <td class="text-bg-light text-center">
@@ -35,10 +35,10 @@
             </div>
           </td>
         </tr>
-        <tr {% if media.show_settings %} class="collapse show" {% else %} class="collapse" id="collapseMediaOptions_{{ media.id }}">{% endif %}
+        <tr {% if media.show_settings %} class="collapse show" {% else %} class="collapse" {% endif %} id="collapseMediaSettings_{{ media.id }}">
           <td colspan="12">
-            <div id="options_container">
-              {% include "medias/upload/media_options.html" %}
+            <div id="media_settings_container">
+              {% include "medias/upload/media_settings.html" %}
             </div>
           </td>
         </tr>

@@ -3,12 +3,13 @@
 # Secondly, exec: pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
 # Or
 # --find-links https://download.pytorch.org/whl/cu118/torch_stable.html
-# torch>=2.0.1+cu118
-# torchvision>=0.15.2+cu118
-# torchaudio>=2.0.2+cu118
+# torch>=2.1.0+cu118
+# torchvision>=0.16.0+cu118
+# torchaudio>=2.1.0+cu118
 
 celery>=5.3.4
 django>=4.2.3
+django-wysiwyg>=0.8.0
 django_auth_ldap>=4.5.0
 django-git-submodules>=1.1.1
 imageio>=2.31

@@ -1,0 +1,54 @@
+<div class="row">
+  <div class="col-1 d-flex justify-content-center align-items-center" style="margin-left:.2rem;">
+    {% for line_id, media_form in media_settings_form.items %}
+      {% if line_id == media.id %}
+        {% include "widgets/CheckboxMultipleModal.html" with field=media_form.classes2blur id=media.id setting_type='media_setting' button_width=1 %}
+      {% endif %}
+    {% endfor %}
+  </div>
+  <div class="col-10 d-flex justify-content-center align-items-center" style="margin-left:-.2rem;">
+    <div class="row">
+      {% for setting in global_settings %}
+        {% if setting.name != 'classes2blur' and setting.type == 'FLOAT' %}
+          <div class="col-3 text-center">
+            {% include 'medias/upload/setting_button.html' with id=media.id setting_type='media_setting' value=ms_values|get_value:setting.name range_width='col-sm-12' %}
+            {% comment %}
+              <div class="fieldWrapper fw-bold text-muted text-center">
+                {{ field.errors }}
+                {{ field.label }}: {{ field.value }}
+                {% include 'medias/upload/setting_button.html' with setting=field id=media.id setting_type='media_setting' %}
+                {% if field.help_text %}
+                <p class="help">{{ field.help_text|safe }}</p>
+                {% endif %}
+              </div>
+            {% endcomment %}
+          </div>
+        {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+  <div class="col-1 d-flex justify-content-center align-items-center" style="margin-left:-.2rem;">
+    <div class="row">
+      <div class="col-5" style="margin-left:-.2rem;">
+      <form method="post" action="{% url 'medias:reset_media_settings' %}">
+        {% csrf_token %}
+        <input type="hidden" class="reset-button" name="next" value="{{ request.path }}">
+        <input type="hidden" name="media_id" value="{{ media.id }}">
+        <button type="submit" class="btn btn-danger btn-sm">
+          <i class="fas fa-rotate-left"></i>
+        </button>
+      </form>
+      </div>
+      <div class="col-5">
+      <form method="post" action="{% url 'medias:clear_media' %}">
+        {% csrf_token %}
+        <input type="hidden" class="reset-button" name="next" value="{{ request.path }}">
+        <input type="hidden" name="media_id" value="{{ media.id }}">
+        <button type="submit" class="btn btn-danger btn-sm">
+          <i class="far fa-trash-can"></i>
+        </button>
+      </form>
+      </div>
+    </div>
+  </div>
+</div>

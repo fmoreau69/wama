@@ -1,34 +1,43 @@
-{% with id|stringformat:"s" as media_id %}
-{% with 'modal_'|add:field.name|add:'_'|add:media_id as modal_id %}
-<button type="button" class="btn btn-primary btn-lg fw-bold" data-toggle="modal" data-target="#{{ modal_id }}"
-        onclick="$('#{{modal_id}}').modal('show');">
-  Obj
-<!--  {{ field.label }}-->
+{% with id|stringformat:"s" as id %}
+{% with 'modal_'|add:field.name|add:'_'|add:id as modal_id %}
+<button type="button" class="btn btn-primary btn-lg fw-bold" data-bs-toggle="modal" data-bs-target="#{{ modal_id }}">
+  {% if button_width > 1 %}
+    {{ field.label }}
+  {% else %}
+    Obj
+  {% endif %}
 </button>
-<div class="modal" tabindex="-1" role="dialog" id="{{ modal_id }}" aria-hidden="true">
+<div class="modal text-dark" tabindex="-1" role="dialog" id="{{ modal_id }}" aria-hidden="true">
   <div class="modal-dialog" role="document">
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title">{{ field.label }}</h5>
-        <button type="button" class="close" data-dismiss="modal" aria-label="Close"
-                onclick="$('#{{modal_id}}').modal('hide');">
+        <button type="button" class="close" data-bs-dismiss="modal" aria-label="Close">
           <span aria-hidden="true">&times;</span>
         </button>
       </div>
       <div class="modal-body">
+        {% for item in field %}
+          <form method="post" action="{% url 'medias:upload' %}">
+            {% csrf_token %}
+            <input class="form-check-input setting-button" type="checkbox" name="{{ item.name }}"
+                   id="{{ setting_type }}_SwitchCheck_{{ item.name }}_{{ media.id }}" value="{{ item.value }}"
+                   {% if field.value == 'True' %}checked{% endif %}>
+          </form>
+        {% endfor %}
+        {% comment %}
         <div class="fieldWrapper">
           {% if field.help_text %}
             <p class="help">{{ field.help_text|add:':'|safe }}</p>
           {% endif %}
           {{ field.errors }}
-<!--          {{ field.label_tag }}-->
           {{ field }}
         </div>
+        {% endcomment %}
       </div>
       <div class="modal-footer">
-<!--        <button type="button" class="btn btn-primary">Save changes</button>-->
-        <button type="button" class="btn btn-secondary" data-dismiss="modal"
-                onclick="$('#{{modal_id}}').modal('hide');">Close</button>
+        <button type="button" class="btn btn-primary">Save changes</button>
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
       </div>
     </div>
   </div>

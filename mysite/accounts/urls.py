@@ -13,8 +13,5 @@ urlpatterns = [
     path('users/<int:pk>/', views.UserPage.as_view(), name='user-page'),
     path('users/add/', RedirectView.as_view(url=reverse_lazy('accounts:signup')), name='insert'),
     path('user/edit', views.UserEdit.as_view(), name='user-edit'),
-    path('user/details/edit/', views.UserDetailsUpdate.as_view(), name='details-edit'),
-    # re_path('user/link/add', views.UserLinkInsert.as_view(), name='user-link-add'),
-    # re_path('user/link/edit/<int:pk>/', views.UserLinkUpdate.as_view(), name='user-link-edit'),
-    # re_path('user/link/delete/<int:pk>/', views.UserLinkDelete.as_view(), name='user-link-delete'),
+    path('user/settings/edit/', views.UserSettingsUpdate.as_view(), name='settings-edit'),
 ]
