@@ -31,16 +31,20 @@ class UploadView(View):
             else {}
         medias_list = Media.objects.all()
         media_settings_form = {}
+        ms_values = {}
         for media in medias_list:
-            media_settings_form[media.id] = MediaSettingsForm(instance=media)
-        ms_values = dict()
+            if request.user.username in media.username:
+                media_settings_form[media.id] = MediaSettingsForm(instance=media)
+                ms_values[media.id] = dict()
+                for setting in global_settings_list:
+                    ms_values[media.id][setting.name] = getattr(media, setting.name)
         gs_values = dict()
         for setting in global_settings_list:
-            ms_values[setting.name] = getattr(media, setting.name)
             gs_values[setting.name] = getattr(user_settings, setting.name)
+        class_list = Media.classes2blur.field.choices
         context = {'medias': medias_list, 'media_settings_form': media_settings_form,
                    'global_settings': global_settings_list, 'user_settings_form': user_settings_form,
-                   'ms_values': ms_values, 'gs_values': gs_values}
+                   'ms_values': ms_values, 'gs_values': gs_values, 'classes': class_list}
         return render(self.request, 'medias/upload/index.html', context)
 
     def post(self, request):
@@ -235,19 +239,41 @@ def update_settings(request):
             if setting.name in input_id:
                 context_id = {}
                 range_width = ''
+                field = {}
+                class_list = UserSettings.classes2blur.field.choices
+                template = loader.get_template('medias/upload/setting_button.html')
                 if setting_type == 'media_setting':
-                    context_id = re.search(r'\d+', input_id).group()
+                    context_id = re.search(r'\d+$', input_id).group()
                     range_width = 'col-sm-12'
+                    if setting.name == 'classes2blur':
+                        template = loader.get_template('widgets/CheckboxMultipleModal.html')
+                        class_id = int(re.findall(r'\d+', input_id)[-2])
+                        new_class = Media.classes2blur.field.choices[class_id][0]
+                        classes2blur = Media.objects.get(pk=context_id).classes2blur
+                        context_value = classes2blur[:-1] + ", '" + new_class + "']" if new_class not in classes2blur \
+                            else classes2blur.replace(", '" + new_class + "'", '')
+                        field = MediaSettingsForm(instance=Media.objects.get(pk=context_id))['classes2blur']
                     Media.objects.filter(pk=context_id).update(**{setting.name: context_value})
+                    Media.objects.filter(pk=context_id).update(MSValues_customised=1)
                 elif setting_type == 'global_setting':
                     context_id = request.user.id
                     range_width = 'col-sm-3'
-                    if any(sub in context_value for sub in ['true', 'false']):
+                    if setting.name == 'classes2blur':
+                        template = loader.get_template('widgets/CheckboxMultipleModal.html')
+                        class_id = int(re.findall(r'\d+', input_id)[-1])
+                        new_class = UserSettings.classes2blur.field.choices[class_id][0]
+                        classes2blur = UserSettings.objects.get(user_id=context_id).classes2blur
+                        context_value = classes2blur[:-1] + ", '" + new_class + "']" if new_class not in classes2blur \
+                            else classes2blur.replace(", '" + new_class + "'", '')
+                        user_settings_form = UserSettingsForm(instance=request.user) if request.user.is_authenticated \
+                            else UserSettingsForm()
+                        field = user_settings_form['classes2blur']
+                    if setting.name != 'classes2blur' and any(sub in context_value for sub in ['true', 'false']):
                         context_value = context_value.capitalize()
                     UserSettings.objects.filter(user_id=context_id).update(**{setting.name: context_value})
+                    UserSettings.objects.filter(user_id=context_id).update(GSValues_customised=1)
                 context = {'setting_type': setting_type, 'id': context_id, 'setting': setting,
-                           'range_width': range_width, 'value': context_value}
-                template = loader.get_template('medias/upload/setting_button.html')
+                           'range_width': range_width, 'value': context_value, 'field': field, 'classes': class_list}
                 response = {'render': template.render(context, request), }
                 return JsonResponse(response)
 
@@ -257,7 +283,7 @@ def expand_area(request):
         button_id = request.POST["button_id"]
         button_state = request.POST["button_state"]
         if "MediaSettings" in button_id:
-            Media.objects.filter(pk=re.search(r'\d+', button_id).group()).update(show_settings=button_state)
+            Media.objects.filter(pk=re.search(r'\d+$', button_id).group()).update(show_settings=button_state)
         elif "GlobalSettings" in button_id:
             UserSettings.objects.filter(user_id=request.user.id).update(show_gs=button_state)
         elif "Console" in button_id:
@@ -286,6 +312,7 @@ def clear_media(request):
                 if request.user.username in media.username:
                     media_added = 1
             UserSettings.objects.filter(user_id=request.user.id).update(**{'media_added': media_added})
+            Media.objects.filter(pk=request.POST['media_id']).update(MSValues_customised=0)
     return redirect(request.POST.get('next'))
 
 
@@ -296,8 +323,8 @@ def reset_media_settings(request):
         global_settings_list = GlobalSettings.objects.all()
         for setting in global_settings_list:
             if setting.name in media_settings_form.fields:
-                print(str(setting.name) + ' = ' + str(setting.default))
                 Media.objects.filter(pk=request.POST['media_id']).update(**{setting.name: setting.default})
+        Media.objects.filter(pk=request.POST['media_id']).update(MSValues_customised=0)
         return redirect(request.POST.get('next'))
 
 
@@ -308,6 +335,7 @@ def reset_user_settings(request):
         for setting in GlobalSettings.objects.all():
             setting.delete()
         init_global_settings()
+    UserSettings.objects.filter(user_id=request.user.id).update(GSValues_customised=0)
     return redirect(request.POST.get('next'))
 
 
@@ -319,7 +347,7 @@ def init_user_settings(request):
 
 def init_global_settings():
     global_settings_list = [
-        {'title': "Objects to blur", 'name': "classes2blur", 'default': ['face', 'plate'], 'value': ['face', 'plate'],
+        {'title': "Objects to blur", 'name': "classes2blur", 'default': ['', 'face', 'plate'], 'value': ['', 'face', 'plate'],
          'type': 'BOOL', 'label': 'WTB'},
         {'title': "Blur ratio", 'name': "blur_ratio", 'default': "20", 'value': "20",
          'min': "0", 'max': "50", 'step': "1", 'type': 'FLOAT', 'label': 'HTB',

@@ -30,6 +30,7 @@ class Media(models.Model):
     username = models.CharField(max_length=255, default='')
     processed = models.BooleanField(default=False, verbose_name='Process status')
     show_settings = models.BooleanField(default=False, verbose_name='Show media settings')
+    MSValues_customised = models.BooleanField(default=False, verbose_name='Media settings customised')
     fps = models.IntegerField(default=0, verbose_name="Media's frames per second")
     width = models.IntegerField(default=0, verbose_name="Media's width in pixels")
     height = models.IntegerField(default=0, verbose_name="Media's height in pixels")
@@ -44,7 +45,7 @@ class Media(models.Model):
     show_boxes = models.BooleanField(default=True, verbose_name='Show boxes', help_text="Show boxes from detection")
     show_labels = models.BooleanField(default=True, verbose_name='Show labels', help_text="Show labels from detection")
     show_conf = models.BooleanField(default=True, verbose_name='Show conf', help_text="Show confidence from detection")
-    classes2blur = models.CharField(max_length=255, default=['face', 'plate'], verbose_name='Objects to blur',
+    classes2blur = models.CharField(max_length=255, default=['', 'face', 'plate'], verbose_name='Objects to blur',
                                     choices=(get_classes_name(model_path)), help_text="Choose objects you want to blur")
 
     def __init__(self, *args, **kwargs):
@@ -91,6 +92,7 @@ class UserSettings(models.Model):
     media_added = models.BooleanField(default=False, verbose_name='Media added')
     show_gs = models.BooleanField(default=False, verbose_name='Show global settings')
     show_console = models.BooleanField(default=False, verbose_name='Show media settings')
+    GSValues_customised = models.BooleanField(default=False, verbose_name='Global settings customised')
     blur_ratio = models.IntegerField(default=20, verbose_name='Blur ratio', help_text="")
     rounded_edges = models.IntegerField(default=5, verbose_name='Rounded edges', help_text="")
     roi_enlargement = models.FloatField(default=1.05, verbose_name='ROI enlargement', help_text="")
@@ -99,7 +101,7 @@ class UserSettings(models.Model):
     show_boxes = models.BooleanField(default=True, verbose_name='Show boxes', help_text="Show boxes from detection")
     show_labels = models.BooleanField(default=True, verbose_name='Show labels', help_text="Show labels from detection")
     show_conf = models.BooleanField(default=True, verbose_name='Show conf', help_text="Show confidence from detection")
-    classes2blur = models.CharField(max_length=255, default=['face', 'plate'], verbose_name='Objects to blur',
+    classes2blur = models.CharField(max_length=255, default=['', 'face', 'plate'], verbose_name='Objects to blur',
                                     choices=(get_classes_name(model_path)), help_text="Choose objects you want to blur")
 
     def __init__(self, *args, **kwargs):
@@ -117,6 +119,14 @@ class UserSettings(models.Model):
 @register.filter
 def get_value(dictionary, key):
     return dictionary.get(key)
+
+
+@register.filter(name='split')
+def split(value, key):
+    """
+    Returns the value turned into a list.
+    """
+    return value.split(key)
 
 
 @receiver(post_save, sender=User)
