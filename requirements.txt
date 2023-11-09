@@ -8,6 +8,7 @@
 # torchaudio>=2.1.0+cu118
 
 celery>=5.3.4
+deep-translator>=1.11.4
 django>=4.2.3
 django-wysiwyg>=0.8.0
 django_auth_ldap>=4.5.0

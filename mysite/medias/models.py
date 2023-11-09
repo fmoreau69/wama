@@ -26,10 +26,11 @@ class Media(models.Model):
     model_path = os.path.join(BASE_DIR, "anonymizer/models/yolov8n.pt")
     title = models.CharField(max_length=255, blank=True)
     file = models.FileField(upload_to='input_media/')
+    file_ext = models.CharField(max_length=255)
     uploaded_at = models.DateTimeField(auto_now_add=True)
-    username = models.CharField(max_length=255, default='')
+    username = models.CharField(max_length=255, default='Anonymous')
     processed = models.BooleanField(default=False, verbose_name='Process status')
-    show_settings = models.BooleanField(default=False, verbose_name='Show media settings')
+    show_ms = models.BooleanField(default=False, verbose_name='Show media settings')
     MSValues_customised = models.BooleanField(default=False, verbose_name='Media settings customised')
     fps = models.IntegerField(default=0, verbose_name="Media's frames per second")
     width = models.IntegerField(default=0, verbose_name="Media's width in pixels")
@@ -53,6 +54,9 @@ class Media(models.Model):
 
     def __int__(self):
         return int(self.pk)
+
+    # def get_absolute_url(self):
+    #     return reverse('medias:download_media', args=[str(self.pk)])
 
     def get_field_value(self, field):
         media_settings = Media.objects.get(pk=self.pk)

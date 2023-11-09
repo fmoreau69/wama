@@ -19,7 +19,7 @@ urlpatterns = [
     path('init_global_settings/', views.init_global_settings, name='init_global_settings'),
     path('update_settings/', views.update_settings, name='update_settings'),
 
-    path('download_media/<int:pk>/', views.download_media, name='download_media'),
+    path('download_media/', views.download_media, name='download_media'),
     path('stop_process/', views.stop, name='stop_process'),
     path('expand_area/', views.expand_area, name='expand_area'),
 

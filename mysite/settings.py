@@ -149,5 +149,9 @@ STATICFILES_DIRS = (
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+MEDIA_INPUT_URL = '/media/input_media'
+MEDIA_INPUT_ROOT = os.path.join(MEDIA_ROOT, 'input_media')
+MEDIA_OUTPUT_URL = '/media/output_media'
+MEDIA_OUTPUT_ROOT = os.path.join(MEDIA_ROOT, 'output_media')
 
 CELERY_BROKER_URL = 'amqp://localhost'

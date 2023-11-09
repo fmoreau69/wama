@@ -1,7 +1,8 @@
 <table class="table table-bordered" id="medias_process">
   <thead>
     <tr>
-      <td class="col-sm-5 fw-bold text-center text-bg-secondary">Media</td>
+      <td class="col-sm-1 fw-bold text-center text-bg-secondary">Options</td>
+      <td class="col-sm-4 fw-bold text-center text-bg-secondary">Media</td>
       <td class="col-sm-2 fw-bold text-center text-bg-secondary">Properties</td>
       <td class="col-sm-2 fw-bold text-center text-bg-secondary">Duration</td>
       <td class="col-sm-2 fw-bold text-center text-bg-secondary">Progress</td>
@@ -12,6 +13,18 @@
     {% for media in medias %}
       {% if user.username in media.username %}
         <tr>
+          <td class="text-bg-light">
+            <div class="d-flex justify-content-center align-items-center">
+              <form method="post" action="{% url 'medias:expand_area' %}">
+                {% csrf_token %}
+                <a class="btn btn-info btn-sm text-center" id="button_show_ms"
+                   data-bs-toggle="collapse" href="#collapseMediaSettings_{{ media.id }}"
+                   aria-expanded="false" aria-controls="collapseMediaSettings_{{ media.id }}">
+                  <i class="fas fa-arrow-down"></i>
+                </a>
+              </form>
+            </div>
+          </td>
           <td class="text-bg-light text-center"><a href="{{ medias.file.url }}">{{ media.file.name|slice:"12:" }}</a></td>
           <td class="text-bg-light text-center">{{ media.width }}x{{ media.height }} ({{ media.fps }}fps)</td>
           <td class="text-bg-light text-center">{{ media.duration_inMinSec }}</td>
@@ -24,12 +37,20 @@
           </td>
           <td class="text-bg-light">
             <div class="d-flex justify-content-center">
-              <form method="post" action="{% url 'medias:download_media' pk=media.pk %}">
+              <form method="post" action="{% url 'medias:download_media' %}">
                 {% csrf_token %}
                 <button type="submit" class="btn btn-info btn-sm text-center" {% if not media.processed %} disabled {% else %} active>{% endif %}
+                  <input type="hidden" name="media_id" value="{{ media.id }}">
                   <i class="fas fa-download"></i>
                 </button>
               </form>
+            </div>
+          </td>
+        </tr>
+        <tr {% if media.show_settings %} class="collapse show" {% else %} class="collapse" {% endif %} id="collapseMediaSettings_{{ media.id }}">
+          <td colspan="12">
+            <div id="media_settings_container">
+              {% include "medias/upload/media_settings.html" %}
             </div>
           </td>
         </tr>

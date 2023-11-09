@@ -21,8 +21,28 @@
       {% include "medias/process/media_table_process.html" %}
     </div>
   </div>
+  <div class="row">
+    <div class="col-3">
+      <form method="post" action="{% url 'medias:expand_area' %}">
+        {% csrf_token %}
+        <a class="btn btn-info" id="button_show_preview" data-bs-toggle="collapse" href="#collapsePreview"
+           aria-expanded="false" aria-controls="collapsePreview">
+            <i class="fas fa-display"></i> Preview
+        </a>
+      </form>
+    </div>
+    <div class="col-6 text-center">
+      <form method="post" action="{% url 'medias:stop_process' %}">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-danger">
+          <i class="fas fa-ban"></i> Stop process
+        </button>
+      </form>
+    </div>
+  </div>
+  <div {% if user.user_settings.show_preview %} class="collapse show" {% else %} class="collapse" {% endif %} id="collapsePreview">
   <hr>
-  <h1 class="text-center">Visualization</h1>
+  <h1 class="text-center">Preview</h1>
   <div class="empty-box d-flex justify-content-center align-items-center"><h1 class="display-4 fw-bold">In Progress...</h1></div>
   <br>
   <div class="row">
@@ -31,16 +51,8 @@
         {% csrf_token %}
         <a class="btn btn-info" id="button_show_console" data-bs-toggle="collapse" href="#collapseConsole"
                 aria-expanded="false" aria-controls="collapseConsole">
-          <i class="fas fa-cog"></i> Display console
+          <i class="fas fa-display"></i> Display console
         </a>
-      </form>
-    </div>
-    <div class="text-center col-4">
-      <form method="post" action="{% url 'medias:stop_process' %}">
-        {% csrf_token %}
-        <button type="submit" class="btn btn-danger">
-          <i class="fas fa-ban"></i> Stop process
-        </button>
       </form>
     </div>
   </div>
@@ -55,5 +67,6 @@
     </div>
     <br>
     <br>
+  </div>
   </div>
 {% endblock %}
