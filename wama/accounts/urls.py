@@ -14,4 +14,6 @@ urlpatterns = [
     path('users/add/', RedirectView.as_view(url=reverse_lazy('accounts:signup')), name='insert'),
     path('user/edit', views.UserEdit.as_view(), name='user-edit'),
     path('user/settings/edit/', views.UserSettingsUpdate.as_view(), name='settings-edit'),
+    # path('<str:app>/insert', views.new_item, name='insert'),
+    # path('<str:app>/insert/<str:item_id>', views.new_item, name='insert'),
 ]
