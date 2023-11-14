@@ -7,12 +7,12 @@
 # torchvision>=0.16.0+cu118
 # torchaudio>=2.1.0+cu118
 
-celery>=5.3.4
+celery>=5.3.5
 deep-translator>=1.11.4
 django>=4.2.3
-django-wysiwyg>=0.8.0
 django_auth_ldap>=4.5.0
 django-git-submodules>=1.1.1
+django-wysiwyg>=0.8.0
 imageio>=2.31
 imageio-ffmpeg>=0.4.9
 mod_wsgi>=4.9.4
@@ -20,4 +20,4 @@ more_itertools>=10.1
 opencv-python>=4.8
 PySide6>=6.5
 pytube>=15.0
-ultralytics>=8.0.181
+ultralytics>=8.0.209
