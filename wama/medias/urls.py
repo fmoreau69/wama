@@ -5,19 +5,12 @@ from . import views
 app_name = 'wama.medias'
 
 urlpatterns = [
-    path('upload_from_url/', views.upload_from_url, name='upload_from_url'),
-    path('refresh_content/', views.refresh_content, name='refresh_content'),
-    path('refresh_media_table/', views.refresh_media_table, name='refresh_media_table'),
-    path('refresh_media_settings/', views.refresh_media_settings, name='refresh_media_settings'),
-    path('refresh_global_settings/', views.refresh_global_settings, name='refresh_global_settings'),
-
-    path('clear_database/', views.clear_database, name='clear_database'),
+    path('refresh/', views.refresh, name='refresh'),
+    path('update_settings/', views.update_settings, name='update_settings'),
+    path('clear_all_media/', views.clear_all_media, name='clear_all_media'),
     path('clear_media/', views.clear_media, name='clear_media'),
     path('reset_media_settings/', views.reset_media_settings, name='reset_media_settings'),
     path('reset_user_settings/', views.reset_user_settings, name='reset_user_settings'),
-    path('init_user_settings/', views.init_user_settings, name='init_user_settings'),
-    path('init_global_settings/', views.init_global_settings, name='init_global_settings'),
-    path('update_settings/', views.update_settings, name='update_settings'),
 
     path('download_media/', views.download_media, name='download_media'),
     path('stop_process/', views.stop, name='stop_process'),

@@ -34,10 +34,10 @@ $(function () {
   }).bind('fileuploaddone', function (e, data) {
     $.ajax({
       type: 'GET',
-      url : '/medias/refresh_content/',
+      url: '/medias/refresh/',
+      data: {template_name: 'content'},
       success: function (res) {
         $("#main_container")[0].innerHTML = res['render'];
-//        location.reload(true);
       }
     });
   });

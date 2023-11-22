@@ -32,26 +32,10 @@
     <div class="col-2"><h1 class="text-center fw-bold" style="padding-top: 1rem;">Or</h1></div>
     <!--  Upload medias from URL  -->
     <div class="col-5">
-      <div class="row" style="padding-top: 0.7rem;">
-        <div class="col-8 gx-0 form-floating d-flex justify-content-center align-items-center">
-            <input type="text" class="form-control" style="height: 50px" id="basic-url" name="file" value="https://youtu.be/" disabled>
-            <label class="form-label" for="basic-url">Upload medias from URL</label>
-        </div>
-  <!--        <div class="col-1"></div>-->
-        <div class="col-4 gx-0 d-flex align-items-center" style="padding-right: 0.9rem;">
-          <form method="post" enctype="multipart/form-data">
-            <button type="button" class="btn btn-primary" style="height: 40px" disabled>
-              <i class="fas fa-right-to-bracket"></i> Submit
-            </button>
-            <input id="upload_from_url" type="file" name="file" multiple
-                   style="display: none;"
-                   data-url="{% url 'medias:upload_from_url' %}"
-                   data-form-data='{"csrfmiddlewaretoken": "{{ csrf_token }}"}'>
-          </form>
-        </div>
-      </div>
+      {% include "medias/upload/upload_from_url.html" %}
     </div>
   </div>
+  <!--  Progress popup  -->
   <div class="modal fade" id="modal-progress" data-backdrop="static" data-keyboard="false">
     <div class="modal-dialog">
       <div class="modal-content">

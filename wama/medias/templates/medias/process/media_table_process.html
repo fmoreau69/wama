@@ -29,7 +29,7 @@
           <td class="text-bg-light text-center">{{ media.width }}x{{ media.height }} ({{ media.fps }}fps)</td>
           <td class="text-bg-light text-center">{{ media.duration_inMinSec }}</td>
           <td class="text-bg-light text-center">
-            <div class="progress text-center" role="progressbar" aria-label="Basic example"
+            <div class="progress text-center" role="progressbar" aria-label="Blur progress"
                  aria-valuenow="{{ media.blur_progress }}" aria-valuemin="0" aria-valuemax="100" style="height: 30px">
               <div class="progress-bar" role="progressbar" style="width: {{ media.blur_progress }}%;">
                 {{ media.blur_progress }}%</div>
@@ -47,7 +47,7 @@
             </div>
           </td>
         </tr>
-        <tr {% if media.show_settings %} class="collapse show" {% else %} class="collapse" {% endif %} id="collapseMediaSettings_{{ media.id }}">
+        <tr {% if media.show_ms %} class="collapse show" {% else %} class="collapse" {% endif %} id="collapseMediaSettings_{{ media.id }}">
           <td colspan="12">
             <div id="media_settings_container">
               {% include "medias/upload/media_settings.html" %}

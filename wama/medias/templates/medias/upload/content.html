@@ -18,11 +18,11 @@
       <h2 class="text-center">Media List</h2>
     </div>
     <div class="col-3">
-    <form method="post" action="{% url 'medias:clear_database' %}">
+    <form method="post" action="{% url 'medias:clear_all_media' %}">
       {% csrf_token %}
       <input type="hidden" class="reset-button" name="next" value="{{ request.path }}">
       <button type="submit" class="btn btn-danger float-end">
-        <i class="far fa-trash-alt"></i> Clear Database
+        <i class="far fa-trash-alt"></i> Clear All Media
       </button>
     </form>
     </div>

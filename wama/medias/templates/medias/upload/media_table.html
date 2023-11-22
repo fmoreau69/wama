@@ -35,7 +35,7 @@
             </div>
           </td>
         </tr>
-        <tr {% if media.show_settings %} class="collapse show" {% else %} class="collapse" {% endif %} id="collapseMediaSettings_{{ media.id }}">
+        <tr {% if media.show_ms %} class="collapse show" {% else %} class="collapse" {% endif %} id="collapseMediaSettings_{{ media.id }}">
           <td colspan="12">
             <div id="media_settings_container">
               {% include "medias/upload/media_settings.html" %}
