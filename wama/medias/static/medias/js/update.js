@@ -15,12 +15,6 @@
                     success: function(res) {
                         console.log(inputId, inputValue)
                         $("#setting_button_container_" + inputId)[0].innerHTML = res['render'];
-//                        if (inputId.includes('media_setting')) {
-//                            $("#media_settings_container")[0].innerHTML = res['render'];
-//                        }
-//                        else if (inputId.includes('global_setting')) {
-//                            $("#global_settings_container_" + inputId)[0].innerHTML = res['render'];
-//                        }
                     },
                     error: function(xhr, textStatus, errorThrown) {
                         console.error("AJAX error : " + errorThrown);
@@ -68,8 +62,8 @@ function SendButtonState(buttonId, buttonState){
         type: "POST",
         url: "/medias/expand_area/",
         data: {
-            "button_id": buttonId,
-            "button_state": buttonState,
+            button_id: buttonId,
+            button_state: buttonState,
             csrfmiddlewaretoken: $("input[name=csrfmiddlewaretoken]").val(),
         },
         success: function(res) {

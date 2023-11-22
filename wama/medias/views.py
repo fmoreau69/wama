@@ -7,9 +7,9 @@ import urllib.request
 import subprocess as sp
 
 # from django.core.files.storage import FileSystemStorage
-from django.shortcuts import render, redirect
 from django.http import FileResponse, JsonResponse
-from django.contrib.auth.models import User, AnonymousUser
+from django.shortcuts import render, redirect
+from django.contrib.auth.models import User
 # from django.contrib import messages
 from django.template import loader
 from django.conf import settings
@@ -18,117 +18,83 @@ from django.views import View
 from .forms import MediaForm, MediaSettingsForm, GlobalSettingsForm, UserSettingsForm
 from .models import Media, GlobalSettings, UserSettings
 from .tasks import start_process, stop_process
+from ..settings import MEDIA_INPUT_ROOT
 from ..accounts.views import add_user
 
 
 class UploadView(View):
 
     def get(self, request):
-        global_settings_list = GlobalSettings.objects.all()
-        if len(global_settings_list) == 0:
+        if len(GlobalSettings.objects.all()) == 0:
             init_global_settings()
         if not User.objects.filter(username='anonymous').exists():
             add_user('anonymous', 'Anonymous', 'User', 'anonymous@univ-eiffel.fr')
-        user = request.user if request.user.is_authenticated else User.objects.get(username='anonymous')
-        user_settings_form = UserSettingsForm(instance=user)
-        user_settings = UserSettings.objects.get(user_id=user.id)
-        medias_list = Media.objects.all()
-        media_settings_form = {}
-        ms_values = {}
-        for media in medias_list:
-            if user.username in media.username:
-                media_settings_form[media.id] = MediaSettingsForm(instance=media)
-                ms_values[media.id] = dict()
-                for setting in global_settings_list:
-                    ms_values[media.id][setting.name] = getattr(media, setting.name)
-        gs_values = dict()
-        for setting in global_settings_list:
-            gs_values[setting.name] = getattr(user_settings, setting.name)
-        class_list = Media.classes2blur.field.choices
-        context = {'user': user, 'medias': medias_list, 'media_settings_form': media_settings_form,
-                   'global_settings': global_settings_list, 'user_settings_form': user_settings_form,
-                   'ms_values': ms_values, 'gs_values': gs_values, 'classes': class_list}
-        return render(self.request, 'medias/upload/index.html', context)
+        return render(self.request, 'medias/upload/index.html', get_context(request))
 
     def post(self, request):
+        user = request.user if request.user.is_authenticated else User.objects.get(username='anonymous')
+        UserSettings.objects.filter(user_id=user.id).update(**{'media_added': 1})
         medias_form = MediaForm(self.request.POST, self.request.FILES)
         if medias_form.is_valid():
             media = medias_form.save()
             media.file_ext = os.path.splitext(media.file.name)[1]
-            user = request.user if request.user.is_authenticated else User.objects.get(username='anonymous')
-            UserSettings.objects.filter(user_id=user.id).update(**{'media_added': 1})
-            media.username = user.username
             vid = cv2.VideoCapture('./media/' + media.file.name)
-            media.fps = vid.get(cv2.CAP_PROP_FPS)
-            media.width = vid.get(cv2.CAP_PROP_FRAME_WIDTH)
-            media.height = vid.get(cv2.CAP_PROP_FRAME_HEIGHT)
-            media.properties = str(int(media.width)) + 'x' + str(int(media.height)) + ' (' + str(int(media.fps)) + 'fps)'
-            media.duration_inSec = vid.get(cv2.CAP_PROP_FRAME_COUNT)/media.fps
-            media.duration_inMinSec = str(int(media.duration_inSec / 60)) + ':' + str(media.duration_inSec % 60)
-            media.save()
+            add_media_to_db(media, user, vid)
             media_data = {'is_valid': True, 'name': media.file.name, 'url': media.file.url, 'file_ext': media.file_ext,
                           'username': media.username, 'fps': media.fps, 'width': media.width, 'height': media.height,
                           'duration': media.duration_inMinSec}
-        else:
-            media_data = {'is_valid': False}
-        return JsonResponse(media_data)
+            return JsonResponse(media_data)
+        elif request.POST.get('media_url'):
+            stream = upload_from_url(request)
+            media = Media.objects.create()
+            media.file_ext = '.mp4'
+            media.file = 'input_media/' + stream.title + media.file_ext
+            vid = cv2.VideoCapture(stream.download(output_path=MEDIA_INPUT_ROOT))
+            add_media_to_db(media, user, vid)
+        return render(request, 'medias/upload/index.html', get_context(request))
+
+
+def upload_from_url(request):
+    media_url = request.POST.get('media_url')
+    video = YouTube(media_url)
+    stream = video.streams.get_highest_resolution()
+    return stream
+
+
+def add_media_to_db(media, user, vid):
+    media.username = user.username
+    media.fps = vid.get(cv2.CAP_PROP_FPS)
+    media.width = int(vid.get(cv2.CAP_PROP_FRAME_WIDTH))
+    media.height = int(vid.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    media.properties = str(media.width) + 'x' + str(media.height) + ' (' + str(media.fps) + 'fps)'
+    media.duration_inSec = vid.get(cv2.CAP_PROP_FRAME_COUNT) / media.fps
+    media.duration_inMinSec = str(int(media.duration_inSec / 60)) + ':' + str(media.duration_inSec % 60)
+    media.save()
 
 
 class ProcessView(View):
     def get(self, request):
-        global_settings_list = GlobalSettings.objects.all()
-        user = request.user if request.user.is_authenticated else User.objects.get(username='anonymous')
-        user_settings_form = UserSettingsForm(instance=user)
-        user_settings = UserSettings.objects.get(user_id=user.id)
-        medias_list = Media.objects.all()
-        media_settings_form = {}
-        ms_values = {}
-        for media in medias_list:
-            if request.user.is_authenticated and request.user.username in media.username:
-                media_settings_form[media.id] = MediaSettingsForm(instance=media)
-                ms_values[media.id] = dict()
-                for setting in global_settings_list:
-                    ms_values[media.id][setting.name] = getattr(media, setting.name)
-            elif media.username == 'Anonymous':
-                media_settings_form[media.id] = MediaSettingsForm(instance=media)
-                ms_values[media.id] = dict()
-                for setting in global_settings_list:
-                    ms_values[media.id][setting.name] = getattr(media, setting.name)
-        gs_values = dict()
-        for setting in global_settings_list:
-            gs_values[setting.name] = getattr(user_settings, setting.name)
-        class_list = Media.classes2blur.field.choices
-        context = {'user': user, 'medias': medias_list, 'media_settings_form': media_settings_form,
-                   'global_settings': global_settings_list, 'user_settings_form': user_settings_form,
-                   'ms_values': ms_values, 'gs_values': gs_values, 'classes': class_list}
-        return render(self.request, 'medias/process/index.html', context)
+        return render(self.request, 'medias/process/index.html', get_context(request))
 
     def post(self, request):
         if request.POST.get('url', 'medias:process'):
-            global_settings_list = GlobalSettings.objects.all()
             user = request.user if request.user.is_authenticated else User.objects.get(username='anonymous')
-            user_settings_form = UserSettingsForm(instance=user)
             user_settings = UserSettings.objects.get(user_id=user.id)
             medias_list = Media.objects.all()
-            media_settings_form = {}
-            ms_values = {}
             for media in medias_list:
-                if request.user.is_authenticated and request.user.username in media.username:
-                    media_settings_form[media.id] = MediaSettingsForm(instance=media)
-                    ms_values[media.id] = dict()
-                    for setting in global_settings_list:
-                        ms_values[media.id][setting.name] = getattr(media, setting.name)
+                if user.username in media.username:
+                    ms_custom = media.MSValues_customised
                     length = media.duration_inSec * media.fps
                     with tqdm(total=length, desc="Blurring media", unit="frames", dynamic_ncols=True) as progress_bar:
                         kwargs = {
                             'model_path': media.model_path,  # 'anonymizer/models/yolov8n.pt',
                             'media_path': os.path.join('media', media.file.name),
-                            'media_ext': media.file_ext,
-                            'classes2blur': media.classes2blur if media.MSValues_customised else user_settings.classes2blur,  # ['face', 'plate']
-                            'blur_ratio': media.blur_ratio if media.MSValues_customised else user_settings.blur_ratio,  # 20
-                            'rounded_edges': media.rounded_edges if media.MSValues_customised else user_settings.rounded_edges,  # 5
-                            'roi_enlargement': media.roi_enlargement if media.MSValues_customised else user_settings.roi_enlargement,  # 1.05
-                            'detection_threshold': media.detection_threshold if media.MSValues_customised else user_settings.detection_threshold,  # 0.25
+                            'file_ext': media.file_ext,
+                            'classes2blur': media.classes2blur if ms_custom else user_settings.classes2blur,  # ['face', 'plate']
+                            'blur_ratio': media.blur_ratio if ms_custom else user_settings.blur_ratio,  # 20
+                            'rounded_edges': media.rounded_edges if ms_custom else user_settings.rounded_edges,  # 5
+                            'roi_enlargement': media.roi_enlargement if ms_custom else user_settings.roi_enlargement,  # 1.05
+                            'detection_threshold': media.detection_threshold if ms_custom else user_settings.detection_threshold,  # 0.25
                             'show_preview': user_settings.show_preview,  # True
                             'show_boxes': user_settings.show_boxes,  # True
                             'show_labels': user_settings.show_labels,  # True
@@ -140,14 +106,7 @@ class ProcessView(View):
                         progress_bar.update()
                         media.processed = True
                         media.save()
-            gs_values = dict()
-            for setting in global_settings_list:
-                gs_values[setting.name] = getattr(user_settings, setting.name)
-            class_list = Media.classes2blur.field.choices
-            context = {'user': user, 'medias': medias_list, 'media_settings_form': media_settings_form,
-                       'global_settings': global_settings_list, 'user_settings_form': user_settings_form,
-                       'ms_values': ms_values, 'gs_values': gs_values, 'classes': class_list}
-            return render(self.request, 'medias/process/index.html', context)
+            return render(self.request, 'medias/process/index.html', get_context(request))
 
     def display_console(self, request):
         if request.POST.get('url', 'medias:process.display_console'):
@@ -164,51 +123,32 @@ def download_media(request):
         media_path = os.path.join(settings.MEDIA_ROOT, os.path.splitext(media_name)[0] + '_blurred' + media.file_ext)
         if os.path.exists(media_path):
             response = FileResponse(open(media_path, "rb"), as_attachment=True)
+            print('Downloading: ' + media_name)
             return response
         else:
-            global_settings_list = GlobalSettings.objects.all()
-            user = request.user if request.user.is_authenticated else User.objects.get(username='anonymous')
-            user_settings_form = UserSettingsForm(instance=user)
-            user_settings = UserSettings.objects.get(user_id=user.id)
-            medias_list = Media.objects.all()
-            media_settings_form = {}
-            ms_values = {}
-            for media in medias_list:
-                if user.username in media.username:
-                    media_settings_form[media.id] = MediaSettingsForm(instance=media)
-                    ms_values[media.id] = dict()
-                    for setting in global_settings_list:
-                        ms_values[media.id][setting.name] = getattr(media, setting.name)
-            gs_values = dict()
-            for setting in global_settings_list:
-                gs_values[setting.name] = getattr(user_settings, setting.name)
-            class_list = Media.classes2blur.field.choices
-            context = {'user': user, 'medias': medias_list, 'media_settings_form': media_settings_form,
-                       'global_settings': global_settings_list, 'user_settings_form': user_settings_form,
-                       'ms_values': ms_values, 'gs_values': gs_values, 'classes': class_list}
-            return render(request, 'medias/process/index.html', context)
+            return render(request, 'medias/process/index.html', get_context(request))
 
 
 def stop(request):
     if request.POST.get('url', 'medias:stop_process'):
         stop_process()
-    medias_list = Media.objects.all()
-    media_settings_form = {}
-    for media in medias_list:
-        media_settings_form[media.id] = MediaSettingsForm(instance=media)
-    medias_form = MediaForm
-    user = request.user if request.user.is_authenticated else User.objects.get(username='anonymous')
-    user_settings_form = UserSettingsForm(instance=user)
-    context = {'user': user, 'medias': medias_list, 'medias_form': medias_form, 'media_settings_form': media_settings_form,
-               'user_settings_form': user_settings_form}
-    return render(request, 'medias/upload/index.html', context)
+    return render(request, 'medias/upload/index.html', get_context(request))
 
 
-def refresh_content(request):
-    global_settings_list = GlobalSettings.objects.all()
+def refresh(request):
+    """
+    Refreshes template according to the argument supplied: 'content', 'media_table', 'media_settings', 'global_settings'
+    """
+    template = loader.get_template('medias/upload/' + request.GET['template_name'] + '.html')
+    response = {'render': template.render(get_context(request), request), }
+    return JsonResponse(response)
+
+
+def get_context(request):
     user = request.user if request.user.is_authenticated else User.objects.get(username='anonymous')
-    user_settings_form = UserSettingsForm(instance=user)
     user_settings = UserSettings.objects.get(user_id=user.id)
+    user_settings_form = UserSettingsForm(instance=user)
+    global_settings_list = GlobalSettings.objects.all()
     medias_list = Media.objects.all()
     media_settings_form = {}
     ms_values = {}
@@ -222,62 +162,10 @@ def refresh_content(request):
     for setting in global_settings_list:
         gs_values[setting.name] = getattr(user_settings, setting.name)
     class_list = Media.classes2blur.field.choices
-    template = loader.get_template('medias/upload/content.html')
     context = {'user': user, 'medias': medias_list, 'media_settings_form': media_settings_form,
                'global_settings': global_settings_list, 'user_settings_form': user_settings_form,
                'ms_values': ms_values, 'gs_values': gs_values, 'classes': class_list}
-    response = {'render': template.render(context, request), }
-    return JsonResponse(response)
-
-
-def refresh_media_table(request):
-    medias_list = Media.objects.all()
-    global_settings_list = GlobalSettings.objects.all()
-    media_settings_form = {}
-    for media in medias_list:
-        media_settings_form[media.id] = MediaSettingsForm(media)
-    medias_form = MediaForm
-    user = request.user if request.user.is_authenticated else User.objects.get(username='anonymous')
-    user_settings_form = UserSettingsForm(instance=user)
-    ms_values = dict()
-    for setting in global_settings_list:
-        ms_values[setting.name] = getattr(media, setting.name)
-    template = loader.get_template('medias/upload/media_table.html')
-    context = {'user': user, 'medias': medias_list, 'medias_form': medias_form, 'global_settings': global_settings_list,
-               'media_settings_form': media_settings_form, 'user_settings_form': user_settings_form,
-               'ms_values': ms_values}
-    response = {'render': template.render(context, request), }
-    return JsonResponse(response)
-
-
-def refresh_media_settings(request):
-    global_settings_list = GlobalSettings.objects.all()
-    user = request.user if request.user.is_authenticated else User.objects.get(username='anonymous')
-    user_settings_form = UserSettingsForm(instance=user)
-    medias_list = Media.objects.all()
-    media_settings_form = {}
-    for media in medias_list:
-        media_settings_form[media.id] = MediaSettingsForm(media)
-    ms_values = dict()
-    for setting in global_settings_list:
-        ms_values[setting.name] = getattr(media, setting.name)
-    template = loader.get_template('medias/upload/media_settings.html')
-    context = {'user': user, 'medias': medias_list, 'media_settings_form': media_settings_form,
-               'user_settings_form': user_settings_form, 'ms_values': ms_values}
-    response = {'render': template.render(context, request), }
-    return JsonResponse(response)
-
-
-def refresh_global_settings(request):
-    global_settings_list = GlobalSettings.objects.all()
-    global_settings_form = GlobalSettingsForm()
-    user = request.user if request.user.is_authenticated else User.objects.get(username='anonymous')
-    user_settings_form = UserSettingsForm(instance=user)
-    template = loader.get_template('medias/upload/global_settings.html')
-    context = {'user': user, 'global_settings': global_settings_list, 'global_settings_form': global_settings_form,
-               'user_settings_form': user_settings_form}
-    response = {'render': template.render(context, request), }
-    return JsonResponse(response)
+    return context
 
 
 def update_settings(request):
@@ -345,7 +233,7 @@ def expand_area(request):
         return JsonResponse(data={})
 
 
-def clear_database(request):
+def clear_all_media(request):
     user = request.user if request.user.is_authenticated else User.objects.get(username='anonymous')
     if user.user_settings.media_added:
         for media in Media.objects.all():
@@ -391,7 +279,7 @@ def reset_user_settings(request):
         for setting in GlobalSettings.objects.all():
             setting.delete()
         init_global_settings()
-    UserSettings.objects.filter(user_id=request.user.id).update(GSValues_customised=0)
+    UserSettings.objects.filter(user_id=user.id).update(GSValues_customised=0)
     return redirect(request.POST.get('next'))
 
 
@@ -425,36 +313,3 @@ def init_global_settings():
     for setting in global_settings_list:
         global_settings_form = GlobalSettingsForm(setting)
         global_settings_form.save()
-
-
-def upload_from_url(request):
-    if request.method == 'POST':
-        link = request.POST['link']
-        video = YouTube(link)
-        stream = video.streams.get_highest_resolution()
-        vid = cv2.VideoCapture(stream.download())
-        medias_form = MediaForm(request.POST, request.FILES)
-        if medias_form.is_valid():
-            media = medias_form.save()
-            media.user_id = request.POST['user_id']
-            media.fps = int(vid.get(cv2.CAP_PROP_FPS))
-            media.width = vid.get(cv2.CAP_PROP_FRAME_WIDTH)
-            media.height = vid.get(cv2.CAP_PROP_FRAME_HEIGHT)
-            media.duration_inSec = vid.get(cv2.CAP_PROP_FRAME_COUNT)/media.fps
-            media.duration_inMinSec = str(int(media.duration_inSec / 60)) + ':' + str(media.duration_inSec % 60)
-            media.save()
-            media_data = {'is_valid': True, 'name': media.file.name, 'url': media.file.url, 'user_id': media.user_id,
-                          'fps': media.fps, 'width': media.width, 'height': media.height,
-                          'duration': media.duration_inMinSec}
-        else:
-            media_data = {'is_valid': False}
-        return JsonResponse(media_data)
-
-        # myfile = request.FILES['myfile']
-        # fs = FileSystemStorage()
-        # filename = fs.save(myfile.name, myfile)
-        # uploaded_file_url = fs.url(filename)
-        # return render(request, 'core/simple_upload.html', {
-        #     'uploaded_file_url': uploaded_file_url
-        # })
-    # return render(request, 'core/simple_upload.html')

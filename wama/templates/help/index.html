@@ -1,53 +1,48 @@
 {% extends 'base.html' %}
 
 {% block content %}
-  <h1 class="page-header">WAMA : Webapp for Automatic Media Anonymization</h1>
-  <p class="lead">WAMA detects and blurs faces and number plates quickly and accurately.</p>
+  <h1 class="page-header">How to use WAMA ?</h1>
+  <p class="lead">WAMA detects and blurs faces, number plates and so much more, quickly and accurately.</p>
   <hr>
-  <h2>How To Use It?</h2>
-  <br>
   <h4>Upload medias</h4>
   <ul>
-    <li>Photos</li>
     <li>Videos</li>
-    <li>Media folder</li>
+    <li>Photos</li>
+    <li>Media links</li>
+    <li>Media folders</li>
 <!--    <li>Youtube video from url</li>-->
   </ul>
-<!--  <b>=> Then click on "Launch process with default options" button or choose options!</b>-->
-<!--  <br>-->
   <hr>
-  <h4>Define options</h4>
+  <h4>Configure globally or individually for each media (optional)</h4>
   <ul>
-    <li>What to blur?</li>
+    <li>What to blur?
       <ul>
         <li>Faces (True/False)</li>
         <li>Plates (True/False)</li>
-        <li>People (True/False)</li>
-        <li>Cars (True/False)</li>
+        <li>Or other objects... (True/False)</li>
       </ul>
-    <li>How to blur?</li>
+    </li>
+    <li>How to blur?
       <ul>
-        <li>blur size (blur size value)</li>
-        <li>detection threshold (detection threshold value)</li>
+        <li>Blur size (blur size value)</li>
+        <li>Rounded edges (rounded edges value)</li>
+        <li>Detection threshold (detection threshold value)</li>
         <li>ROI enlargement (ROI enlargement value)</li>
       </ul>
-    <li>What to show?</li>
+    </li>
+    <li>What to show?
       <ul>
-        <li>boxes (True/False)</li>
-        <li>show labels (True/False)</li>
-        <li>show conf (True/False)</li>
-        <li>show (True/False)</li>
+        <li>Boxes (True/False)</li>
+        <li>Show labels (True/False)</li>
+        <li>Show conf (True/False)</li>
+        <li>Show (True/False)</li>
       </ul>
+    </li>
   </ul>
-<!--  <b>=> Then click on "Launch process with defined options" button!</b>-->
-<!--  <br>-->
   <hr>
-  <h4>Visualize process</h4>
+  <h4>Launch the process then download your videos</h4>
   <ul>
-    <li>Visualize video blurring in action</li>
+    <li>Visualize video blurring in action if desired</li>
+    <li>Accept blurring process and download result or ask to optimize it!</li>
   </ul>
-<!--  <b>=> Then accept blurring process and download result or ask to optimize it!</b>-->
-<!--  <br>-->
-  <br>
-  <br>
 {% endblock %}
