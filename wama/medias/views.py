@@ -123,7 +123,7 @@ def download_media(request):
         media_path = os.path.join(settings.MEDIA_ROOT, os.path.splitext(media_name)[0] + '_blurred' + media.file_ext)
         if os.path.exists(media_path):
             response = FileResponse(open(media_path, "rb"), as_attachment=True)
-            print('Downloading: ' + media_name)
+            print(f"Downloading: {media_name}")
             return response
         else:
             return render(request, 'medias/process/index.html', get_context(request))
