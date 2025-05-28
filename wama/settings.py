@@ -1,8 +1,10 @@
 from pathlib import Path
+import logging
 import socket
 
+
 # Fonctionnalités conditionnelles
-ENABLE_LDAP = False
+ENABLE_LDAP = True
 ENABLE_CELERY = False
 
 # Répertoires de base
@@ -40,8 +42,26 @@ if ENABLE_LDAP:
         'django_auth_ldap.backend.LDAPBackend',
         'django.contrib.auth.backends.ModelBackend',
     ]
+    LOGGING = {
+        'version': 1,
+        'disable_existing_loggers': False,
+        'handlers': {
+            'console': {
+                'level': 'DEBUG',
+                'class': 'logging.StreamHandler',
+            },
+        },
+        'loggers': {
+            'django_auth_ldap': {
+                'level': 'DEBUG',
+                'handlers': ['console'],
+                'propagate': True,
+            },
+        },
+    }
 else:
     AUTHENTICATION_BACKENDS = [
+        'django_auth_ldap.backend.LDAPBackend',
         'django.contrib.auth.backends.ModelBackend',
     ]
 
