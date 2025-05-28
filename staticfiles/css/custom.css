@@ -1,0 +1,102 @@
+textarea{
+height: 50px;
+}
+
+
+/*  Multi checkbox  */
+ul.modal-menu ul{
+    display:flex;
+    flex:none;
+    flex-direction:row;
+    flex-wrap:wrap;
+    width:100%;
+}
+
+.unknown_file{
+    width: 30px;
+    height: 40px;
+    background: #444444;
+}
+.unknown_file>div{
+    border-left: 2px solid white;
+    border-bottom: 2px solid white;
+    top: 0;
+    right:0;
+    float:right;
+    width:15px;
+    height: 15px;
+    background: linear-gradient(45deg, #444444, #444444 50%, white 50%, white)
+}
+.unknown_file>p{
+    position:absolute;
+    bottom: 0;
+    width:30px;
+    text-align: center;
+    color:white;
+    vertical-align: bottom;
+    font-size: 1vw;
+}
+
+.active-filter span.irs-bar{
+    background: rgb(255,160,0);
+}
+
+
+
+.helptext{
+    position: relative;
+    display:inline;
+    font-weight: bold;
+    cursor:pointer;
+}
+
+.media img{
+    max-width: 120px;
+    max-height: 120px;
+}
+
+#top-navigation i{
+    font-size: 1.5em;
+}
+#top-navigation i{
+    font-size: 1.5em;
+}
+.page-title{margin: 30px 0px 50px 30px;}
+
+/* Customise range slider color */
+.irs--round .irs-from,
+.irs--round .irs-to,
+.irs--round .irs-single{
+    background-color: gray;
+}
+.irs--round .irs-from:before,
+.irs--round .irs-to:before,
+.irs--round .irs-single:before {
+    border-top-color: gray;
+}
+.irs--round .irs-handle{
+    border-color: gray;
+}
+.irs--round .irs-bar{
+    background-color: gray;
+}
+
+.long-text-faded{
+    position:relative;
+    max-height: 130px;
+    overflow:hidden;
+}
+.long-text-faded .mask {
+  width:100%;
+  height: 100%;
+  position:absolute;
+  top:0;
+  left:0;
+  background:linear-gradient(transparent, white);
+}
+.long-text-faded img{
+    display:hidden;
+}
+.list-group-item{
+  color: white;
+}

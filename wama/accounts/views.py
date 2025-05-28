@@ -1,6 +1,6 @@
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
-from django.contrib.auth import login, logout
+from django.contrib.auth import authenticate, login, logout
 from django.utils.decorators import method_decorator
 from django.views.generic import ListView, View, DetailView, TemplateView, RedirectView
 from django.views.generic.edit import CreateView, UpdateView, DeleteView
