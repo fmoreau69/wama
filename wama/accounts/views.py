@@ -135,10 +135,11 @@ def login_form(request):
 
 def add_user(username, first_name, last_name, email):
     if not User.objects.filter(username=username).exists():
-        user = User.objects.create_user(username, first_name, last_name, email)
+        user = User.objects.create_user(username=username, first_name=first_name, last_name=last_name, email=email)
         user.set_unusable_password()
-        user.username = user.id
         user.save()
+        # user.username = user.id
+        # user.save()
         print(f"The user {user.username} has been created successfully.")
     else:
         print(f"The user with the username {username} already exists.")
