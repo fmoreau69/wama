@@ -1,16 +1,20 @@
-<form method="post" enctype="multipart/form-data" action="">
+<form id="media-url-form" method="post" enctype="multipart/form-data" action="{% url 'medias:upload' %}">
     {% csrf_token %}
     <div class="row" style="padding-top: 0.7rem;">
         <div class="col-8 gx-0 form-floating d-flex justify-content-center align-items-center">
-            <input type="text" class="form-control" style="height: 50px" id="media_url" name="media_url" value="https://youtu.be/" placeholder="enter url..">
+            <input type="text" class="form-control" style="height: 50px"
+                   id="media_url" name="media_url"
+                   value="https://youtu.be/"
+                   placeholder="enter url..">
             <label class="form-label" for="media_url">Upload medias from URL</label>
         </div>
         <div class="col-4 gx-0 d-flex align-items-center" style="padding-right: 0.9rem;">
             <input type="submit" class="btn btn-primary" style="height: 40px" value="Submit">
         </div>
     </div>
+
     <input id="fileupload" type="file" name="file" multiple
-     style="display: none;"
-     data-url="{% url 'medias:upload' %}"
-     data-form-data='{"csrfmiddlewaretoken": "{{ csrf_token }}"}'>
+           style="display: none;"
+           data-url="{% url 'medias:upload' %}"
+           data-form-data='{"csrfmiddlewaretoken": "{{ csrf_token }}"}'>
 </form>

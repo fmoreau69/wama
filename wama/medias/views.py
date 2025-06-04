@@ -1,16 +1,19 @@
 import os
 import re
 import cv2
+import yt_dlp
+import mimetypes
+import uuid
 from pytube import *
 from tqdm import tqdm
-import urllib.request
+# import urllib.request
 import subprocess as sp
 
-# from django.core.files.storage import FileSystemStorage
+from django.core.files.storage import default_storage, FileSystemStorage
 from django.http import FileResponse, JsonResponse
 from django.shortcuts import render, redirect
 from django.contrib.auth.models import User
-# from django.contrib import messages
+from django.contrib import messages
 from django.template import loader
 from django.conf import settings
 from django.views import View
@@ -31,34 +34,117 @@ class UploadView(View):
             add_user('anonymous', 'Anonymous', 'User', 'anonymous@univ-eiffel.fr')
         return render(self.request, 'medias/upload/index.html', get_context(request))
 
+
     def post(self, request):
         user = request.user if request.user.is_authenticated else User.objects.get(username='anonymous')
-        UserSettings.objects.filter(user_id=user.id).update(**{'media_added': 1})
-        medias_form = MediaForm(self.request.POST, self.request.FILES)
-        if medias_form.is_valid():
-            media = medias_form.save()
-            media.file_ext = os.path.splitext(media.file.name)[1]
-            vid = cv2.VideoCapture('./media/' + media.file.name)
-            add_media_to_db(media, user, vid)
-            media_data = {'is_valid': True, 'name': media.file.name, 'url': media.file.url, 'file_ext': media.file_ext,
-                          'username': media.username, 'fps': media.fps, 'width': media.width, 'height': media.height,
-                          'duration': media.duration_inMinSec}
-            return JsonResponse(media_data)
-        elif request.POST.get('media_url'):
-            stream = upload_from_url(request)
-            media = Media.objects.create()
-            media.file_ext = '.mp4'
-            media.file = 'input_media/' + stream.title + media.file_ext
-            vid = cv2.VideoCapture(stream.download(output_path=MEDIA_INPUT_ROOT))
-            add_media_to_db(media, user, vid)
-        return render(request, 'medias/upload/index.html', get_context(request))
+        UserSettings.objects.filter(user_id=user.id).update(media_added=1)
+
+        video_path = upload_from_url(request)
+        if not video_path:
+            return render(request, 'medias/upload/index.html', get_context(request))
+
+        filename = os.path.basename(video_path)
+        media = Media.objects.create(file=f'input_media/{filename}', file_ext=os.path.splitext(filename)[1])
+        vid = cv2.VideoCapture(str(video_path))
+        add_media_to_db(media, user, vid)
+
+        return JsonResponse({
+            'is_valid': True,
+            'name': filename,
+            'url': media.file.url,
+            'file_ext': media.file_ext,
+            'username': media.username,
+            'fps': media.fps,
+            'width': media.width,
+            'height': media.height,
+            'duration': media.duration_inMinSec,
+        })
+
+
+    # def post(self, request):
+    #     user = request.user if request.user.is_authenticated else User.objects.get(username='anonymous')
+    #     UserSettings.objects.filter(user_id=user.id).update(**{'media_added': 1})
+    #     medias_form = MediaForm(self.request.POST, self.request.FILES)
+    #     if medias_form.is_valid():
+    #         media = medias_form.save()
+    #         media.file_ext = os.path.splitext(media.file.name)[1]
+    #         vid = cv2.VideoCapture('./media/' + media.file.name)
+    #         add_media_to_db(media, user, vid)
+    #         media_data = {'is_valid': True, 'name': media.file.name, 'url': media.file.url, 'file_ext': media.file_ext,
+    #                       'username': media.username, 'fps': media.fps, 'width': media.width, 'height': media.height,
+    #                       'duration': media.duration_inMinSec}
+    #         return JsonResponse(media_data)
+    #     elif request.POST.get('media_url'):
+    #         stream = upload_from_url(request)
+    #         if not stream:
+    #             return render(request, 'medias/upload/index.html', get_context(request))  # affiche l'erreur
+    #         media = Media.objects.create()
+    #         media.file_ext = '.mp4'
+    #         media.file = 'input_media/' + stream.title + media.file_ext
+    #         vid = cv2.VideoCapture(stream.download(output_path=MEDIA_INPUT_ROOT))
+    #         add_media_to_db(media, user, vid)
+    #     return render(request, 'medias/upload/index.html', get_context(request))
 
 
 def upload_from_url(request):
+    media_file = request.FILES.get('file')
     media_url = request.POST.get('media_url')
-    video = YouTube(media_url)
-    stream = video.streams.get_highest_resolution()
-    return stream
+    output_path = settings.MEDIA_INPUT_ROOT
+    allowed_mime_types = ['video/mp4', 'video/x-msvideo', 'video/quicktime', 'video/x-matroska']
+
+    # 📁 Cas 1 : Fichier uploadé localement
+    if media_file:
+        mime_type, _ = mimetypes.guess_type(media_file.name)
+        if mime_type not in allowed_mime_types:
+            messages.error(request, f"Type de fichier non supporté : {mime_type}")
+            return None
+
+        filename = get_unique_filename(output_path, media_file.name)
+        save_path = os.path.join(output_path, filename)
+
+        with open(save_path, 'wb+') as dest:
+            for chunk in media_file.chunks():
+                dest.write(chunk)
+
+        return save_path
+
+    # 🌐 Cas 2 : URL distante (YouTube, etc.)
+    elif media_url:
+        try:
+            ydl_opts = {
+                'format': 'mp4/best',
+                'outtmpl': os.path.join(output_path, '%(title)s.%(ext)s'),
+                'quiet': True,
+            }
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(media_url, download=True)
+                base_path = ydl.prepare_filename(info)
+
+                # Gérer les doublons : renommer si nécessaire
+                filename = os.path.basename(base_path)
+                unique_path = get_unique_filename(output_path, filename)
+                if unique_path != filename:
+                    new_path = os.path.join(output_path, unique_path)
+                    os.rename(base_path, new_path)
+                    return new_path
+                return base_path
+        except Exception as e:
+            messages.error(request, f"Erreur lors du téléchargement depuis l'URL : {e}")
+            return None
+
+    # ❌ Aucun média fourni
+    messages.error(request, "Aucun média fourni (fichier ou URL).")
+    return None
+
+
+def get_unique_filename(folder, filename):
+    """Ajoute un suffixe UUID si le fichier existe déjà."""
+    base, ext = os.path.splitext(filename)
+    full_path = os.path.join(folder, filename)
+    while os.path.exists(full_path):
+        filename = f"{base}_{uuid.uuid4().hex[:6]}{ext}"
+        full_path = os.path.join(folder, filename)
+    return filename
 
 
 def add_media_to_db(media, user, vid):
@@ -107,6 +193,7 @@ class ProcessView(View):
                         media.processed = True
                         media.save()
             return render(self.request, 'medias/process/index.html', get_context(request))
+        return None
 
     def display_console(self, request):
         if request.POST.get('url', 'medias:process.display_console'):
@@ -114,6 +201,7 @@ class ProcessView(View):
             pipe = sp.Popen(command.split(), stdout=sp.PIPE, stderr=sp.PIPE)
             console = pipe.stdout.read()
             return render(self.request, 'medias/process/index.html', {'console': console})
+        return None
 
 
 def download_media(request):
@@ -127,6 +215,7 @@ def download_media(request):
             return response
         else:
             return render(request, 'medias/process/index.html', get_context(request))
+    return None
 
 
 def stop(request):
@@ -215,6 +304,9 @@ def update_settings(request):
                            'range_width': range_width, 'value': context_value, 'field': field, 'classes': class_list}
                 response = {'render': template.render(context, request), }
                 return JsonResponse(response)
+            return None
+        return None
+    return None
 
 
 def expand_area(request):
@@ -231,6 +323,7 @@ def expand_area(request):
         elif "Console" in button_id:
             UserSettings.objects.filter(user_id=user.id).update(show_console=button_state)
         return JsonResponse(data={})
+    return None
 
 
 def clear_all_media(request):
@@ -270,6 +363,7 @@ def reset_media_settings(request):
                 Media.objects.filter(pk=request.POST['media_id']).update(**{setting.name: setting.default})
         Media.objects.filter(pk=request.POST['media_id']).update(MSValues_customised=0)
         return redirect(request.POST.get('next'))
+    return None
 
 
 def reset_user_settings(request):
@@ -313,3 +407,11 @@ def init_global_settings():
     for setting in global_settings_list:
         global_settings_form = GlobalSettingsForm(setting)
         global_settings_form.save()
+
+class AboutView(View):
+    def get(self, request):
+        return render(self.request, 'medias/about/index.html')
+
+class HelpView(View):
+    def get(self, request):
+        return render(self.request, 'medias/help/index.html')

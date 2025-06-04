@@ -2,7 +2,7 @@
 
 {% block content %}
   <h1 class="page-header">
-    Anonymize
+    Anonymizer
     <small>/ {% block title %}{% endblock %}</small>
   </h1>
   <hr>
@@ -14,10 +14,16 @@
         </div>
         <div class="list-group">
           <a href="{% url 'medias:upload' %}" class="list-group-item {% if request.path == '/medias/upload/' %} active {% endif %}">
-            Media upload
+            <span class="fas fa-upload"></span> <span>Media upload</span>
           </a>
           <a href="{% url 'medias:process' %}" class="list-group-item {% if request.path == '/medias/process/' %} active {% endif %}">
-            Process
+            <span class="fas fa-spinner"></span> <span>Process</span>
+          </a>
+          <a href="{% url 'medias:about' %}" class="list-group-item {% if request.path == '/medias/about/' %} active {% endif %}">
+            <span class="fas fa-circle-info"></span> <span>About</span>
+          </a>
+          <a href="{% url 'medias:help' %}" class="list-group-item {% if request.path == '/medias/help/' %} active {% endif %}">
+            <span class="fas fa-circle-question"></span> <span>Help</span>
           </a>
         </div>
       </div>

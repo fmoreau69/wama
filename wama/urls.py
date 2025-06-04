@@ -11,12 +11,12 @@ urlpatterns = [
     path('', TemplateView.as_view(template_name='home.html'), name='home'),
     path('accounts/', include(('wama.accounts.urls', 'accounts'), namespace='accounts')),
     path('medias/', include(('wama.medias.urls', 'medias'), namespace='medias')),
-    path('help/', TemplateView.as_view(template_name='help/index.html'), name='help'),
-    path('about/', TemplateView.as_view(template_name='about/index.html'), name='about'),
     path('favicon.ico', RedirectView.as_view(url=staticfiles_storage.url('favicon.ico'))),
-    # path('celery-progress/', include('celery_progress.urls')),
     path('ping/', lambda request: HttpResponse("Django OK via Apache")),
     path('admin/', admin.site.urls),
+    # path('celery-progress/', include('celery_progress.urls')),
+    # path('help/', TemplateView.as_view(template_name='help/index.html'), name='help'),
+    # path('about/', TemplateView.as_view(template_name='about/index.html'), name='about'),
 ]
 
 if settings.DEBUG:

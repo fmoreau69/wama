@@ -66,6 +66,7 @@ class MediaSettingsForm(forms.ModelForm):
         widgets = {'id': HiddenInput,
                    'blur_ratio': RangeWidget(min=0, max=50, step=1),
                    'rounded_edges': RangeWidget(min=0, max=50, step=1),
+                   'progressive_blur': RangeWidget(min=10, max=20, step=1),
                    'roi_enlargement': RangeWidget(min=0.5, max=1.5, step=.05),
                    'detection_threshold': RangeWidget(min=0, max=1, step=.05),
                    'classes2blur': CheckboxSelectMultiple
@@ -89,6 +90,7 @@ class UserSettingsForm(forms.ModelForm):
         widgets = {'id': HiddenInput,
                    'blur_ratio': RangeWidget(min=0, max=50, step=1),
                    'rounded_edges': RangeWidget(min=0, max=50, step=1),
+                   'progressive_blur': RangeWidget(min=10, max=20, step=1),
                    'roi_enlargement': RangeWidget(min=0.5, max=1.5, step=.05),
                    'detection_threshold': RangeWidget(min=0, max=1, step=.05),
                    'show_preview': SwitchWidget(),

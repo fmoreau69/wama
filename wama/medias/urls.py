@@ -18,5 +18,7 @@ urlpatterns = [
 
     path('upload/', views.UploadView.as_view(), name='upload'),
     path('process/', views.ProcessView.as_view(), name='process'),
+    path('about/', views.AboutView.as_view(), name='about'),
+    path('help/', views.HelpView.as_view(), name='help'),
     path('display_console/', views.ProcessView.display_console, name='display_console'),
 ]
