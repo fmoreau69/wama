@@ -27,6 +27,12 @@ class Media(models.Model):
     title = models.CharField(max_length=255, blank=True)
     file = models.FileField(upload_to='input_media/')
     file_ext = models.CharField(max_length=255)
+    MEDIA_TYPES = [
+        ('video', 'Vidéo'),
+        ('image', 'Image'),
+        ('audio', 'Audio'),
+    ]
+    media_type = models.CharField(max_length=10, choices=MEDIA_TYPES, default='video')
     uploaded_at = models.DateTimeField(auto_now_add=True)
     username = models.CharField(max_length=255, default='anonymous')
     processed = models.BooleanField(default=False, verbose_name='Process status')

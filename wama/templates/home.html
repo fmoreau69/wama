@@ -2,16 +2,22 @@
 
 {% block content %}
   <h1 class="page-header">WAMA: Web App for Media Automation</h1>
-  <p class="lead">WAMA Anonymizer detects and blurs faces, number plates and so much more, quickly and accurately.</p>
+  <p class="lead">WAMA, Web App for Media Automation, is a web application developed at Lescot and based on deep learning, offering AI tools applied to media.</p>
   <hr>
-  <p class="lead">To get started, please log on to WAMA... (
-    <a type="button" class="navbar-brand text-light" data-bs-toggle="modal" data-bs-target="#LOGIN-MODAL">
-      <span class="fas fa-door-open"></span></a>
-    )
-  </p>
-  <br>
-  <div class="ratio ratio-16x9">
-    <iframe class="ratio" src="https://www.youtube.com/embed/243buD-70FI" style="border:3px solid black;"></iframe>
+    <ul>
+      Planned developments include (See the <a href="https://github.com/fmoreau69/web-app-for-media-automation" target="_blank">GitHub project</a>) :
+      <li>Anonymizer: automatic blurring of objects in photos/videos</li>
+      <li>Enhancer: improved resolution and quality of photos/videos (in progress)</li>
+      <li>Transcriber: automatic transcription of audio files into text (in progress)</li>
+      <li>Synthesizer: automatic voice synthesis from text files (in progress)</li>
+    </ul>
+    => <a type="button" class="navbar-brand text-light" data-bs-toggle="modal" data-bs-target="#LOGIN-MODAL">
+        <u>To get started, please log on to WAMA...</u> ( <span class="fas fa-door-open"></span></a> )
+  <hr>
+  <div style="margin-left: auto; margin-right: auto;">
+    Anonymizer example:
+    <div class="ratio ratio-16x9">
+      <iframe class="ratio" src="https://www.youtube.com/embed/243buD-70FI" style="border:3px solid black; width: 640px; height: 360px;"></iframe>
+    </div>
   </div>
-  <br>
 {% endblock %}
