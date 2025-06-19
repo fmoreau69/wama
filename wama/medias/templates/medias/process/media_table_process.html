@@ -11,7 +11,7 @@
   </thead>
   <tbody>
     {% for media in medias %}
-      {% if user.username in media.username %}
+      {% if user.id == media.user.id %}
         <tr>
           <td class="text-bg-light">
             <div class="d-flex justify-content-center align-items-center">

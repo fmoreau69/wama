@@ -12,9 +12,10 @@ urlpatterns = [
     path('reset_media_settings/', views.reset_media_settings, name='reset_media_settings'),
     path('reset_user_settings/', views.reset_user_settings, name='reset_user_settings'),
 
+    path('download_all_media/', views.download_all_media, name='download_all_media'),
     path('download_media/', views.download_media, name='download_media'),
-    path('stop_process/', views.stop, name='stop_process'),
     path('expand_area/', views.expand_area, name='expand_area'),
+    path('stop_process/', views.stop, name='stop_process'),
 
     path('upload/', views.UploadView.as_view(), name='upload'),
     path('process/', views.ProcessView.as_view(), name='process'),

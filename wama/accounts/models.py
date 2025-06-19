@@ -1,25 +1,23 @@
 from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
 from django.contrib.auth.decorators import user_passes_test
-from django.db import models
-from django import forms
-
-
-# Create your weights here.
 from django.contrib.auth.models import User
+from django import forms
 
 
 class LoginForm(AuthenticationForm):
     username = forms.CharField(
-        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': "User ID (forname.name)"}))
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': "User ID (forname.name)"})
+    )
     password = forms.CharField(
-        widget=forms.PasswordInput(attrs={'class': 'form-control', 'placeholder': "Password"}))
+        widget=forms.PasswordInput(attrs={'class': 'form-control', 'placeholder': "Password"})
+    )
 
 
 class UserRegistrationForm(UserCreationForm):
     username = forms.CharField(
         widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': "Nom d'utilisateur"})
     )
-    email = forms.CharField(
+    email = forms.EmailField(
         widget=forms.EmailInput(attrs={'class': 'form-control', 'placeholder': "Email"})
     )
     password1 = forms.CharField(
@@ -37,19 +35,25 @@ class UserRegistrationForm(UserCreationForm):
         password1 = self.cleaned_data.get("password1")
         password2 = self.cleaned_data.get("password2")
         if password1 and password2 and password1 != password2:
-            raise forms.ValidationError(
-                'Les deux mots de passe saisis ne sont pas identiques',
-                code='password_mismatch',
-            )
+            raise forms.ValidationError("Les deux mots de passe saisis ne sont pas identiques", code='password_mismatch')
         return password2
 
+    def save(self, commit=True):
+        user = super().save(commit=False)
+        user.email = self.cleaned_data["email"]
+        if commit:
+            user.save()
+            # Optionnel : ajout automatique à un groupe
+            # group = Group.objects.get(name='default_users')
+            # user.groups.add(group)
+        return user
 
-# def group_required(*group_names):
-#     """Requires user membership in at least one of the groups passed in."""
-#     def in_groups(u):
-#         if u.is_authenticated:
-#             if bool(u.groups.filter(name__in=group_names)) | u.is_superuser:
-#                 return True
-#         return False
-#
-#     return user_passes_test(in_groups, login_url='accounts/signin/')
+
+def group_required(*group_names):
+    """
+    Checks whether the user belongs to one of the given groups, or is a superuser.
+    """
+    def in_groups(u):
+        return u.is_authenticated and (u.is_superuser or u.groups.filter(name__in=group_names).exists())
+
+    return user_passes_test(in_groups, login_url='accounts:signin')

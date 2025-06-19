@@ -15,8 +15,6 @@ urlpatterns = [
     path('ping/', lambda request: HttpResponse("Django OK via Apache")),
     path('admin/', admin.site.urls),
     # path('celery-progress/', include('celery_progress.urls')),
-    # path('help/', TemplateView.as_view(template_name='help/index.html'), name='help'),
-    # path('about/', TemplateView.as_view(template_name='about/index.html'), name='about'),
 ]
 
 if settings.DEBUG:

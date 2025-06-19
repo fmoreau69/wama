@@ -1,66 +1,54 @@
+from django.contrib import messages
+from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
-from django.contrib.auth import authenticate, login, logout
+from django.http import HttpResponseRedirect, JsonResponse
+from django.shortcuts import render, redirect, get_object_or_404
+from django.urls import reverse
 from django.utils.decorators import method_decorator
-from django.views.generic import ListView, View, DetailView, TemplateView, RedirectView
-from django.views.generic.edit import CreateView, UpdateView, DeleteView
-from django.http import HttpResponseRedirect
-from django.shortcuts import render, redirect
-from django.contrib import messages
+from django.views.generic import ListView, View, DetailView, TemplateView
+from django.views.generic.edit import CreateView, UpdateView
 
-# from .utils import get_form, ContextBuilder, get_app_config
 from .models import LoginForm, UserRegistrationForm
 from ..medias.forms import UserSettingsEdit
+from ..medias.models import UserSettings
 
 
 def login_view(request):
     if request.user.is_authenticated:
         return redirect('medias:upload')
 
+    form = LoginForm(data=request.POST or None)
+
     if request.method == 'POST':
-        # Create form with POST request
-        form = LoginForm(data=request.POST)
-        # Verify form validity
         if form.is_valid():
-            # get the user
             user = form.get_user()
-            # log in the user
             login(request, user)
-            # Return home page
-            messages.success(request, "Successfully logged in !")
-            # return redirect(request.POST.get('next'))
-            return redirect('medias:upload')
+            messages.success(request, "Successfully logged in!")
+            next_url = request.POST.get('next') or 'medias:upload'
+            return redirect(next_url)
         else:
-            messages.error(request, "Wrong login ID or password.")
-            return redirect(request.POST.get('next'))
-    else:
-        # Return blank form
-        form = LoginForm()
+            messages.error(request, "Invalid credentials.")
+
     return render(request, 'accounts/login_v2.html', {'form': form, 'type_of_view': 'login'})
 
 
 def signup_view(request):
-    # Determine if it is POST or GET request
+    form = UserRegistrationForm(request.POST or None)
+
     if request.method == 'POST':
-        # Create form with POST request
-        print(request.POST)
-        form = UserRegistrationForm(request.POST)
-        # Verify form validity
         if form.is_valid():
-            # Save and get the user
-            form.save()
+            user = form.save()
+            # Crée les UserSettings liés
+            UserSettings.objects.get_or_create(user=user)
             return render(request, 'accounts/signup_validation.html')
-    else:
-        # Return blank form
-        form = UserRegistrationForm()
-    # Return page with the right form (blank or filled)
+
     return render(request, 'accounts/login.html', {'form': form, 'type_of_view': 'register'})
 
 
 def logout_view(request):
-    # if request.method == "POST":
     logout(request)
-    return HttpResponseRedirect('/')
+    return redirect('accounts:login')
 
 
 class IndexView(ListView):
@@ -73,16 +61,10 @@ class UserPage(DetailView):
     template_name = 'accounts/user_settings.html'
     queryset = User.objects.all()
     context_object_name = 'selected_user'
-    can_edit = False
-
-    def dispatch(self, request, *args, **kwargs):
-        if kwargs['pk'] == request.user.pk:
-            self.can_edit = True
-        return super(UserPage, self).dispatch(request, *args, **kwargs)
 
     def get_context_data(self, **kwargs):
-        context = super(UserPage, self).get_context_data(**kwargs)
-        context['can_edit'] = self.can_edit
+        context = super().get_context_data(**kwargs)
+        context['can_edit'] = (self.request.user.pk == self.object.pk)
         return context
 
 
@@ -93,20 +75,17 @@ class UserEdit(UpdateView):
     fields = ["first_name", "last_name", "email"]
 
     def get_success_url(self):
-        from django.urls import reverse
         return reverse('medias:upload')
 
     def get_object(self):
-        return self.model.objects.get(pk=self.request.user.id)
+        return self.request.user
 
     def get_context_data(self, **kwargs):
-        context = super(UserEdit, self).get_context_data(**kwargs)
-        context['title'] = f'{self.get_object().first_name} {self.get_object().last_name}'
+        context = super().get_context_data(**kwargs)
+        context['title'] = f'{self.object.first_name} {self.object.last_name}'
         context['subtitle'] = 'Edit user information'
         return context
 
-
-# Query views : settings
 
 @method_decorator(login_required, name='dispatch')
 class UserSettingsUpdate(UpdateView):
@@ -114,11 +93,10 @@ class UserSettingsUpdate(UpdateView):
     form_class = UserSettingsEdit
 
     def get_success_url(self):
-        from django.urls import reverse
         return reverse('medias:upload')
 
     def get_object(self):
-        return self.form_class._meta.model.objects.get(user__pk=self.request.user.id)
+        return get_object_or_404(UserSettings, user=self.request.user)
 
     def form_valid(self, form):
         form.instance.user = self.request.user
@@ -126,20 +104,43 @@ class UserSettingsUpdate(UpdateView):
 
 
 def login_form(request):
-    form = LoginForm()
-    out = {}
-    if request.user.is_authenticated is False:
-        out = {"login_form": form}
-    return out
+    """ Context processor ou fragment HTML selon usage """
+    if not request.user.is_authenticated:
+        return {"login_form": LoginForm()}
+    return {}
 
 
 def add_user(username, first_name, last_name, email):
+    """ Crée un utilisateur si inexistant """
     if not User.objects.filter(username=username).exists():
-        user = User.objects.create_user(username=username, first_name=first_name, last_name=last_name, email=email)
+        user = User.objects.create_user(
+            username=username,
+            first_name=first_name,
+            last_name=last_name,
+            email=email
+        )
         user.set_unusable_password()
         user.save()
-        # user.username = user.id
-        # user.save()
-        print(f"The user {user.username} has been created successfully.")
+        print(f"The user {username} has been created successfully.")
     else:
-        print(f"The user with the username {username} already exists.")
+        print(f"The user {username} already exists.")
+
+
+def get_or_create_anonymous_user():
+    """
+    Récupère ou crée un utilisateur anonyme désactivé.
+    """
+    user, created = User.objects.get_or_create(
+        username='anonymous',
+        defaults={
+            'first_name': 'Anonymous',
+            'last_name': 'User',
+            'email': 'anonymous@univ-eiffel.fr',
+            'is_active': False,
+        }
+    )
+    if created:
+        user.set_unusable_password()
+        user.save()
+        print("Anonymous user created.")
+    return user
