@@ -1,49 +1,42 @@
 {% with id|stringformat:"s" as id %}
 {% with 'modal_'|add:field.name|add:'_'|add:id as modal_id %}
-<button type="button" class="btn btn-primary btn-lg fw-bold" data-bs-toggle="modal" data-bs-target="#{{ modal_id }}">
-  {% if button_width > 1 %}
-    {{ field.label }}
-  {% else %}
-    Obj
-  {% endif %}
-</button>
-<div class="modal text-dark" tabindex="-1" role="dialog" id="{{ modal_id }}" aria-hidden="true">
-  <div class="modal-dialog" role="document">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">{{ field.label }}</h5>
-        <button type="button" class="close" data-bs-dismiss="modal" aria-label="Close">
-          <span aria-hidden="true">&times;</span>
-        </button>
-      </div>
-      <div class="modal-body">
-        {% for item in field %}
-          {% with item.id_for_label|split:"_"|last|add:"1" as class_id %}
-          {% with classes|slice:class_id|last as class_name %}
-          <form method="post" action="{% url 'medias:upload' %}">
-            {% csrf_token %}
-            <input class="form-check-input setting-button" type="checkbox" name="{{ class_name|last }}"
-                   id="{{ setting_type }}_SwitchCheck_{{ item.id_for_label }}_{{ media.id }}"
-                   {% if class_name|first in value %}checked{% endif %}> {{ class_id }}: {{ class_name|last }}
-          </form>
-          {% endwith %}
-          {% endwith %}
-        {% endfor %}
-        {% comment %}
-        <div class="fieldWrapper">
-          {% if field.help_text %}
-            <p class="help">{{ field.help_text|add:':'|safe }}</p>
-          {% endif %}
-          {{ field.errors }}
-          {{ field }}
+  <button type="button" class="btn btn-primary btn-lg fw-bold" data-bs-toggle="modal" data-bs-target="#{{ modal_id }}">
+    {% if button_width > 1 %}
+      {{ field.label }}
+    {% else %}
+      {{ field.label|slice:":3" }}
+    {% endif %}
+  </button>
+
+  <div class="modal text-dark" tabindex="-1" role="dialog" id="{{ modal_id }}" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">{{ field.label }}</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
-        {% endcomment %}
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+
+        <div class="modal-body">
+          {% for class_code, class_label in classes %}
+            <div class="form-check">
+              <input class="form-check-input setting-button"
+                     type="checkbox"
+                     name="{{ class_code }}"
+                     id="{{ setting_type }}_SwitchCheck_{{ field.name }}_{{ class_code }}_{{ id }}"
+                     {% if class_code in value %}checked{% endif %}>
+              <label class="form-check-label"
+                     for="{{ setting_type }}_SwitchCheck_{{ field.name }}_{{ class_code }}_{{ id }}">
+                {{ class_label }}
+              </label>
+            </div>
+          {% endfor %}
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        </div>
       </div>
     </div>
   </div>
-</div>
 {% endwith %}
 {% endwith %}

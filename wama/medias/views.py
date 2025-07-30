@@ -282,9 +282,8 @@ class ProcessView(View):
                 'file_ext': media.file_ext,
                 'classes2blur': media.classes2blur if ms_custom else user_settings.classes2blur,
                 'blur_ratio': media.blur_ratio if ms_custom else user_settings.blur_ratio,
-                'rounded_edges': media.rounded_edges if ms_custom else user_settings.rounded_edges,
-                'progressive_blur': media.progressive_blur if ms_custom else user_settings.progressive_blur,
                 'roi_enlargement': media.roi_enlargement if ms_custom else user_settings.roi_enlargement,
+                'progressive_blur': media.progressive_blur if ms_custom else user_settings.progressive_blur,
                 'detection_threshold': media.detection_threshold if ms_custom else user_settings.detection_threshold,
                 'show_preview': user_settings.show_preview,
                 'show_boxes': user_settings.show_boxes,
@@ -396,131 +395,160 @@ def refresh(request):
         return JsonResponse({'error': f"Template introuvable : {e}"}, status=500)
 
     context = get_context(request)
-    return JsonResponse({'html': template.render(context, request)})
+    return JsonResponse({'render': template.render(context, request)})
 
 
 def get_context(request):
+    # Récupérer l'utilisateur ou créer un utilisateur anonyme
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
 
-    user_settings = UserSettings.objects.get(user=user)
+    # Récupérer ou créer les paramètres utilisateur
+    user_settings, _ = UserSettings.objects.get_or_create(user=user)
     user_settings_form = UserSettingsForm(instance=user_settings)
-    global_settings_list = GlobalSettings.objects.all()
-    medias_list = Media.objects.filter(user=user)
 
+    # Récupérer tous les paramètres globaux et médias de l'utilisateur
+    global_settings = GlobalSettings.objects.all()
+    medias = Media.objects.filter(user=user)
+
+    # Construire les formulaires et valeurs des paramètres pour chaque média
     media_settings_form = {}
     ms_values = {}
 
-    for media in medias_list:
+    for media in medias:
         media_settings_form[media.id] = MediaSettingsForm(instance=media)
-        ms_values[media.id] = {}
-        for setting in global_settings_list:
-            ms_values[media.id][setting.name] = getattr(media, setting.name)
+        ms_values[media.id] = {
+            setting.name: getattr(media, setting.name)
+            for setting in global_settings
+        }
 
-    gs_values = dict()
-    for setting in global_settings_list:
-        gs_values[setting.name] = getattr(user_settings, setting.name)
+    # Valeurs des paramètres globaux pour l'utilisateur
+    gs_values = {
+        setting.name: getattr(user_settings, setting.name)
+        for setting in global_settings
+    }
+
+    # Liste des classes à flouter
     class_list = Media.classes2blur.field.choices
 
-    context = {
+    return {
         'user': user,
-        'medias': medias_list,
+        'medias': medias,
         'media_settings_form': media_settings_form,
-        'global_settings': global_settings_list,
+        'global_settings': global_settings,
         'user_settings_form': user_settings_form,
         'ms_values': ms_values,
         'gs_values': gs_values,
         'classes': class_list,
     }
 
-    return context
 
+from django.http import JsonResponse
+from django.template import loader
+import re
 
 def update_settings(request):
-    if request.method != 'POST':
-        return HttpResponseNotAllowed(['POST'])
+    if request.method != "POST":
+        return JsonResponse({'error': 'Invalid request method'}, status=400)
 
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    # Récupérer les champs du POST
+    setting_type = request.POST.get("setting_type")
+    setting_name = request.POST.get("setting_name")
+    input_value = request.POST.get("input_value")
+    media_id = request.POST.get("media_id")  # Peut être None pour global_setting
 
-    input_id = request.POST.get('input_id')
-    context_value = request.POST.get('input_value')
+    if not setting_type or not setting_name or input_value is None:
+        return JsonResponse({'error': 'Missing parameters'}, status=400)
 
-    if not input_id:
-        return HttpResponseBadRequest("Missing input_id")
+    # Préparer le contexte pour le render du bouton
+    context = {
+        'setting_type': setting_type,
+        'id': media_id or request.user.id,
+        'range_width': 'col-sm-12',
+    }
 
-    match = re.search(r'^\S*_setting', input_id)
-    if not match:
-        return HttpResponseBadRequest("Invalid input_id format")
-
-    setting_type = match.group()
-    global_settings_list = GlobalSettings.objects.all()
-
-    for setting in global_settings_list:
-        if setting.name not in input_id:
-            continue
-
-        context_id = None
-        range_width = ''
-        field = {}
-        class_list = UserSettings.classes2blur.field.choices
-        template = loader.get_template('medias/upload/setting_button.html')
-
+    try:
         if setting_type == 'media_setting':
-            context_id = re.search(r'\d+$', input_id).group()
-            range_width = 'col-sm-12'
-            media = Media.objects.filter(pk=context_id).first()
-            if not media:
-                return HttpResponseBadRequest("Invalid media ID")
-            if setting.name == 'classes2blur':
-                template = loader.get_template('widgets/CheckboxMultipleModal.html')
-                class_id = int(re.findall(r'\d+', input_id)[-2])
-                classes_str = media.classes2blur or ""
-                classes_list = [cls.strip() for cls in classes_str.split(',') if cls.strip()]
+            if not media_id:
+                return JsonResponse({'error': 'Missing media_id for media_setting'}, status=400)
 
-                new_class = Media.classes2blur.field.choices[class_id][0]
+            from .models import Media, GlobalSettings
+            media = Media.objects.get(pk=int(media_id))
 
-                if new_class in classes_list:
-                    classes_list.remove(new_class)
+            if setting_name.startswith('classes2blur'):
+                # cas spécial checkbox par classe
+                _, class_name = setting_name.split('_', 1)
+                current = media.classes2blur.split(',') if media.classes2blur else []
+                is_checked = str(input_value).lower() in ['true', '1', 'on']
+
+                if is_checked and class_name not in current:
+                    current.append(class_name)
+                elif not is_checked and class_name in current:
+                    current.remove(class_name)
+
+                media.classes2blur = ','.join(current)
+                media.save()
+                context['value'] = media.classes2blur
+
+            else:
+                # générique : float, bool, int
+                field = Media._meta.get_field(setting_name)
+                internal_type = field.get_internal_type()
+
+                if internal_type == 'BooleanField':
+                    value = str(input_value).lower() in ['true', '1', 'on']
+                elif internal_type in ['FloatField', 'DecimalField']:
+                    value = float(input_value)
                 else:
-                    classes_list.append(new_class)
+                    value = int(input_value)
 
-                context_value = ','.join(classes_list)
+                setattr(media, setting_name, value)
+                media.save()
+                context['value'] = getattr(media, setting_name)
 
-                media.classes2blur = context_value
-                field = MediaSettingsForm(instance=media)['classes2blur']
-            Media.objects.filter(pk=context_id).update(**{setting.name: context_value}, MSValues_customised=1)
+            # Charger le GlobalSettings correspondant pour le titre/label
+            context['setting'] = GlobalSettings.objects.get(name=setting_name)
+
+        elif setting_type == 'user_setting':
+            from .models import UserSettings, GlobalSettings
+            user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+            user_settings, _ = UserSettings.objects.get_or_create(user=user)
+
+            field = UserSettings._meta.get_field(setting_name)
+            internal_type = field.get_internal_type()
+
+            if internal_type == 'BooleanField':
+                value = str(input_value).lower() in ['true', '1', 'on']
+            elif internal_type in ['FloatField', 'DecimalField']:
+                value = float(input_value)
+            else:
+                value = int(input_value)
+
+            setattr(user_settings, setting_name, value)
+            user_settings.save()
+            context['value'] = getattr(user_settings, setting_name)
+            context['setting'] = GlobalSettings.objects.get(name=setting_name)
 
         elif setting_type == 'global_setting':
-            context_id = user.id
-            range_width = 'col-sm-3'
-            user_settings = UserSettings.objects.get(user_id=context_id)
-            if setting.name == 'classes2blur':
-                template = loader.get_template('widgets/CheckboxMultipleModal.html')
-                class_id = int(re.findall(r'\d+', input_id)[-1])
-                new_class = UserSettings.classes2blur.field.choices[class_id][0]
-                classes2blur = user_settings.classes2blur
-                context_value = (
-                    classes2blur[:-1] + ", '" + new_class + "']"
-                    if new_class not in classes2blur
-                    else classes2blur.replace(", '" + new_class + "'", '')
-                )
-                field = UserSettingsForm(instance=user_settings)['classes2blur']
-            elif any(val in context_value for val in ['true', 'false']):
-                context_value = context_value.capitalize()
-            UserSettings.objects.filter(user_id=context_id).update(**{setting.name: context_value}, GSValues_customised=1)
+            from .models import GlobalSettings
+            global_setting = GlobalSettings.objects.get(name=setting_name)
 
-        context = {
-            'user': user,
-            'setting_type': setting_type,
-            'id': context_id,
-            'setting': setting,
-            'range_width': range_width,
-            'value': context_value,
-            'field': field,
-            'classes': class_list
-        }
-        return JsonResponse({'render': template.render(context, request)})
+            # GlobalSettings.value est souvent CharField ou TextField
+            # Si besoin, tu peux faire un mapping par setting_name pour caster en float/int
+            value = input_value
+            global_setting.value = value
+            global_setting.save()
+            context['value'] = global_setting.value
+            context['setting'] = global_setting
 
-    return HttpResponseBadRequest("Setting not found in input_id")
+        else:
+            return JsonResponse({'error': f'Unknown setting_type: {setting_type}'}, status=400)
+
+        html = loader.render_to_string('medias/upload/setting_button.html', context, request=request)
+        return JsonResponse({'render': html})
+
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
 
 
 def expand_area(request):
@@ -560,26 +588,29 @@ def clear_all_media(request):
         user_medias.delete()
         UserSettings.objects.filter(user_id=user.id).update(media_added=0)
 
-    return redirect(request.POST.get('next', '/'))
+    # Rafraîchir le template content
+    context = get_context(request)
+    template = loader.get_template('medias/upload/content.html')
+    return JsonResponse({'render': template.render(context, request)})
 
 
 def clear_media(request):
-    if request.method != 'POST':
-        return HttpResponseNotAllowed(['POST'])
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
 
-    user = request.user if request.user.is_authenticated else User.objects.get(username='anonymous')
     media_id = request.POST.get('media_id')
     media = Media.objects.filter(pk=media_id).first()
 
     if media:
+        Media.objects.filter(pk=media_id).update(MSValues_customised=0)
         media.file.delete()
         media.delete()
-        Media.objects.filter(pk=media_id).update(MSValues_customised=0)
 
     has_media = Media.objects.filter(user=user).exists()
     UserSettings.objects.filter(user_id=user.id).update(media_added=int(has_media))
 
-    return redirect(request.POST.get('next', '/'))
+    context = get_context(request)
+    template = loader.get_template('medias/upload/content.html')
+    return JsonResponse({'render': template.render(context, request)})
 
 
 def reset_media_settings(request):
@@ -606,7 +637,6 @@ def reset_media_settings(request):
     return redirect(request.POST.get('next', '/'))
 
 
-
 def reset_user_settings(request):
     user = request.user if request.user.is_authenticated else User.objects.get(username='anonymous')
     init_user_settings(user)
@@ -621,10 +651,9 @@ def reset_user_settings(request):
 
 
 def init_user_settings(user):
-    if GlobalSettings.objects.exists():
-        return  # Already initialized
-
     global_settings_list = GlobalSettings.objects.all()
+    if not global_settings_list:
+        return
     for setting in global_settings_list:
         UserSettings.objects.filter(user_id=user.id).update(**{setting.name: setting.default})
 
@@ -634,20 +663,17 @@ def init_global_settings():
         return  # Already initialized
 
     global_settings_list = [
-        {'title': "Objects to blur", 'name': "classes2blur", 'default': "face,plate", 'value': "face,plate",
+        {'title': "Objects to blur", 'name': "classes2blur", 'default': ["face", "plate"], 'value': ["face", "plate"],
          'type': 'BOOL', 'label': 'WTB'},
         {'title': "Blur ratio", 'name': "blur_ratio", 'default': "25", 'value': "25",
          'min': "1", 'max': "49", 'step': "2", 'type': 'FLOAT', 'label': 'HTB',
          'attr_list': {'min': '1', 'max': '49', 'step': '2'}},
-        {'title': "Rounded edges", 'name': "rounded_edges", 'default': "5", 'value': "5",
-         'min': "0", 'max': "50", 'step': "1", 'type': 'FLOAT', 'label': 'HTB',
-         'attr_list': {'min': '0', 'max': '50', 'step': '1'}},
-        {'title': "Progressive blur", 'name': "progressive_blur", 'default': "25", 'value': "25",
-         'min': "3", 'max': "31", 'step': "2", 'type': 'FLOAT', 'label': 'HTB',
-         'attr_list': {'min': '3', 'max': '31', 'step': '2'}},
         {'title': "ROI enlargement", 'name': "roi_enlargement", 'default': "1.05", 'value': "1.05",
          'min': "0.5", 'max': "1.5", 'step': "0.05", 'type': 'FLOAT', 'label': 'HTB',
          'attr_list': {'min': '0.5', 'max': '1.5', 'step': '0.05'}},
+        {'title': "Progressive blur", 'name': "progressive_blur", 'default': "25", 'value': "25",
+         'min': "3", 'max': "31", 'step': "2", 'type': 'FLOAT', 'label': 'HTB',
+         'attr_list': {'min': '3', 'max': '31', 'step': '2'}},
         {'title': "Detection threshold", 'name': "detection_threshold", 'default': "0.25", 'value': "0.25",
          'min': "0", 'max': "1", 'step': "0.05", 'type': 'FLOAT', 'label': 'HTB',
          'attr_list': {'min': '0', 'max': '1', 'step': '0.05'}},

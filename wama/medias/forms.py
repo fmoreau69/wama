@@ -1,5 +1,4 @@
 from django import forms
-from django.template.loader import render_to_string
 from django.forms import CheckboxSelectMultiple, HiddenInput, TextInput
 from .models import Media, GlobalSettings, UserSettings
 from wama.medias.utils.yolo_utils import get_yolo_class_choices
@@ -57,28 +56,27 @@ class MediaForm(forms.ModelForm):
 
 
 class MediaSettingsForm(forms.ModelForm):
-    def __init__(self,  *args, **kwargs):
-        super(MediaSettingsForm, self).__init__(*args, **kwargs)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.fields['classes2blur'].choices = get_yolo_class_choices()
 
         if self.instance and self.instance.classes2blur:
-            self.initial['classes2blur'] = self.instance.classes2blur.split(',')
+            self.initial['classes2blur'] = self.instance.classes2blur
 
     def clean_classes2blur(self):
-        data = self.cleaned_data.get('classes2blur', [])
-        return ','.join(data)  # on stocke dans le modèle sous forme CSV
+        return self.cleaned_data.get('classes2blur', [])
 
     class Meta:
         model = Media
-        fields = ('id', 'blur_ratio', 'progressive_blur', 'roi_enlargement',
+        fields = ('id', 'blur_ratio', 'roi_enlargement', 'progressive_blur',
                   'detection_threshold', 'classes2blur')
         widgets = {
             'id': HiddenInput,
             'blur_ratio': RangeWidget(min=1, max=49, step=2),
-            'progressive_blur': RangeWidget(min=3, max=31, step=2),
             'roi_enlargement': RangeWidget(min=0.5, max=1.5, step=.05),
+            'progressive_blur': RangeWidget(min=3, max=31, step=2),
             'detection_threshold': RangeWidget(min=0, max=1, step=.05),
-            'classes2blur': CheckboxSelectMultiple
+            'classes2blur': CheckboxSelectMultiple,
         }
 
 
@@ -93,25 +91,24 @@ class GlobalSettingsForm(forms.ModelForm):
 
 class UserSettingsForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
-        super(UserSettingsForm, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self.fields['classes2blur'].choices = get_yolo_class_choices()
 
         if self.instance and self.instance.classes2blur:
-            self.initial['classes2blur'] = self.instance.classes2blur.split(',')
+            self.initial['classes2blur'] = self.instance.classes2blur
 
     def clean_classes2blur(self):
-        data = self.cleaned_data.get('classes2blur', [])
-        return ','.join(data)
+        return self.cleaned_data.get('classes2blur', [])
 
     class Meta:
         model = UserSettings
-        fields = ('id', 'blur_ratio', 'progressive_blur', 'roi_enlargement', 'detection_threshold',
+        fields = ('id', 'blur_ratio', 'roi_enlargement', 'progressive_blur', 'detection_threshold',
                   'show_preview', 'show_boxes', 'show_labels', 'show_conf', 'classes2blur')
         widgets = {
             'id': HiddenInput,
             'blur_ratio': RangeWidget(min=1, max=49, step=2),
-            'progressive_blur': RangeWidget(min=3, max=31, step=2),
             'roi_enlargement': RangeWidget(min=0.5, max=1.5, step=.05),
+            'progressive_blur': RangeWidget(min=3, max=31, step=2),
             'detection_threshold': RangeWidget(min=0, max=1, step=.05),
             'show_preview': SwitchWidget(),
             'show_boxes': SwitchWidget(),
@@ -121,19 +118,21 @@ class UserSettingsForm(forms.ModelForm):
         }
 
 
+
 class UserSettingsEdit(forms.ModelForm):
     def __init__(self, *args, **kwargs):
-        super(UserSettingsEdit, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self.fields['classes2blur'].choices = get_yolo_class_choices()
 
         if self.instance and self.instance.classes2blur:
-            self.initial['classes2blur'] = self.instance.classes2blur.split(',')
+            self.initial['classes2blur'] = self.instance.classes2blur
 
     def clean_classes2blur(self):
-        data = self.cleaned_data.get('classes2blur', [])
-        return ','.join(data)
+        return self.cleaned_data.get('classes2blur', [])
 
     class Meta:
         model = UserSettings
         fields = "__all__"
-        widgets = {'classes2blur': CheckboxSelectMultiple}
+        widgets = {
+            'classes2blur': CheckboxSelectMultiple,
+        }

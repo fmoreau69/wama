@@ -2,10 +2,11 @@
   <thead>
     <tr>
       <td class="col-sm-1 fw-bold text-center text-bg-secondary">Options</td>
-      <td class="col-sm-5 fw-bold text-center text-bg-secondary">Media</td>
+      <td class="col-sm-4 fw-bold text-center text-bg-secondary">Media</td>
       <td class="col-sm-2 fw-bold text-center text-bg-secondary">Properties</td>
       <td class="col-sm-2 fw-bold text-center text-bg-secondary">Duration</td>
       <td class="col-sm-2 fw-bold text-center text-bg-secondary">Progress</td>
+      <td class="col-sm-1 fw-bold text-center text-bg-secondary">Actions</td>
     </tr>
   </thead>
   <tbody>
@@ -32,6 +33,28 @@
                  aria-valuenow="{{ media.blur_progress }}" aria-valuemin="0" aria-valuemax="100" style="height: 30px">
               <div class="progress-bar" role="progressbar" style="width: {{ media.blur_progress }}%">
                 {{ media.blur_progress }}%</div>
+            </div>
+          </td>
+          <td class="text-bg-light text-center">
+            <div class="col-auto">
+              <div class="btn-group" role="group">
+                <form method="post" action="{% url 'medias:reset_media_settings' %}" class="me-1">
+                  {% csrf_token %}
+                  <input type="hidden" name="next" value="{{ request.path }}">
+                  <input type="hidden" name="media_id" value="{{ media.id }}">
+                  <button type="submit" class="btn btn-danger btn-sm" title="Reset settings">
+                    <i class="fas fa-rotate-left"></i>
+                  </button>
+                </form>
+                <form method="post" action="{% url 'medias:clear_media' %}">
+                  {% csrf_token %}
+                  <input type="hidden" name="next" value="{{ request.path }}">
+                  <input type="hidden" name="media_id" value="{{ media.id }}">
+                  <button type="submit" class="btn btn-danger btn-sm" title="Delete media">
+                    <i class="far fa-trash-can"></i>
+                  </button>
+                </form>
+              </div>
             </div>
           </td>
         </tr>

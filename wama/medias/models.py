@@ -49,8 +49,8 @@ class Media(models.Model):
     blur_progress = models.IntegerField(default=0)
     blur_ratio = models.IntegerField(default=25)
     rounded_edges = models.IntegerField(default=5)
-    progressive_blur = models.IntegerField(default=25)
     roi_enlargement = models.FloatField(default=1.05)
+    progressive_blur = models.IntegerField(default=25)
     detection_threshold = models.FloatField(default=0.25)
 
     show_preview = models.BooleanField(default=True)
@@ -58,11 +58,11 @@ class Media(models.Model):
     show_labels = models.BooleanField(default=True)
     show_conf = models.BooleanField(default=True)
 
-    classes2blur = models.CharField(
-        max_length=255,
-        default='face,plate',
+    classes2blur = models.JSONField(
+        default=["face", "plate"],
+        blank=True,
         verbose_name='Objects to blur',
-        help_text="Comma-separated list of objects to blur"
+        help_text="List of objects to blur"
     )
 
     def __str__(self):
@@ -112,9 +112,8 @@ class UserSettings(models.Model):
     GSValues_customised = models.BooleanField(default=False, verbose_name='Global settings customised')
 
     blur_ratio = models.IntegerField(default=25)
-    rounded_edges = models.IntegerField(default=5)
-    progressive_blur = models.IntegerField(default=25)
     roi_enlargement = models.FloatField(default=1.05)
+    progressive_blur = models.IntegerField(default=25)
     detection_threshold = models.FloatField(default=0.25)
 
     show_preview = models.BooleanField(default=True)
@@ -122,15 +121,16 @@ class UserSettings(models.Model):
     show_labels = models.BooleanField(default=True)
     show_conf = models.BooleanField(default=True)
 
-    classes2blur = models.CharField(
-        max_length=255,
-        default='face,plate',
+    classes2blur = models.JSONField(
+        default=["face", "plate"],
+        blank=True,
         verbose_name='Objects to blur',
-        help_text="Comma-separated list of objects to blur"
+        help_text="List of objects to blur"
     )
 
     def __str__(self):
-        return f"UserSettings for {self.user.username}"
+        username = getattr(self.user, 'username', 'Unknown User')
+        return f"UserSettings for {username}"
 
     def get_field_value(self, field):
         return getattr(self, field, None)
