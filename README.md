@@ -1,5 +1,16 @@
 # WAMA: Web App for Media Automation
 
+## What is WAMA?
+
+WAMA, <i>"Web App for Media Automation"</i>, is a web application developed by Fabien Moreau at Lescot (Gustave Eiffel University laboratory) and based on deep learning, offering AI tools applied to media. These tools will be added as developments progress. The first tool offered is an automatic object blurring tool for images/videos, which can be used in particular to anonymize videos by blurring faces and license plates. 
+
+<ins>Planned developments include</ins>: <br />
+WAMA Anonymizer: Automatic blurring of objects in photos/videos <br />
+WAMA Enhancer: Improvement of the resolution and quality of photos/videos <br />
+WAMA Imager: automatic image generation based on prompt text <br />
+WAMA Synthesizer: Automatic voice synthesis from text files <br />
+WAMA Transcriber: Automatic transcription of audio files into text <br />
+
 ## Running Locally
 
 ```bash

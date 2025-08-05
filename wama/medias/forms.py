@@ -58,13 +58,26 @@ class MediaForm(forms.ModelForm):
 class MediaSettingsForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['classes2blur'].choices = get_yolo_class_choices()
+
+        # Liste YOLO [(index, label)]
+        yolo_choices = get_yolo_class_choices()
+
+        # Préfixe fixe
+        fixed_classes = [("face", "Face"), ("plate", "Plate")]
+
+        # Fusion sans doublons et en excluant "face" et "plate" des YOLO
+        all_classes = fixed_classes + [
+            (lbl, lbl) for _, lbl in yolo_choices if lbl.lower() not in ['face', 'plate']
+        ]
+
+        self.fields['classes2blur'].choices = all_classes
 
         if self.instance and self.instance.classes2blur:
             self.initial['classes2blur'] = self.instance.classes2blur
 
     def clean_classes2blur(self):
-        return self.cleaned_data.get('classes2blur', [])
+        cleaned = [str(cls).lower() for cls in self.cleaned_data.get('classes2blur', [])]
+        return list(set(cleaned))
 
     class Meta:
         model = Media

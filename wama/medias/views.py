@@ -1,6 +1,6 @@
 import os
-import io
 import re
+import io
 import cv2
 import yt_dlp
 import zipfile
@@ -8,26 +8,22 @@ import mimetypes
 import uuid
 import requests
 from PIL import Image
-from tqdm import tqdm
 from urllib.parse import urlparse
 import subprocess as sp
 
-# from django.core.files.storage import default_storage, FileSystemStorage
-from django.http import FileResponse, JsonResponse, HttpResponseBadRequest, HttpResponseNotAllowed  # , Http404
+from django.http import FileResponse, HttpResponseBadRequest, HttpResponseNotAllowed, JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
-# from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
-# from django.contrib import messages
 from django.template import loader
+from django.template.loader import render_to_string
 from django.conf import settings
 from django.views import View
 from django.views.generic import TemplateView
 
-from .forms import MediaSettingsForm, GlobalSettingsForm, UserSettingsForm  # , MediaForm
+from .forms import MediaSettingsForm, GlobalSettingsForm, UserSettingsForm
 from .models import Media, GlobalSettings, UserSettings
 from .tasks import start_process, stop_process
-# from ..settings import MEDIA_INPUT_ROOT
-from ..accounts.views import add_user, get_or_create_anonymous_user
+from ..accounts.views import get_or_create_anonymous_user
 
 
 class UploadView(View):
@@ -442,10 +438,6 @@ def get_context(request):
     }
 
 
-from django.http import JsonResponse
-from django.template import loader
-import re
-
 def update_settings(request):
     if request.method != "POST":
         return JsonResponse({'error': 'Invalid request method'}, status=400)
@@ -471,23 +463,22 @@ def update_settings(request):
             if not media_id:
                 return JsonResponse({'error': 'Missing media_id for media_setting'}, status=400)
 
-            from .models import Media, GlobalSettings
             media = Media.objects.get(pk=int(media_id))
 
-            if setting_name.startswith('classes2blur'):
-                # cas spécial checkbox par classe
+            if setting_name.startswith('classes2blur_'):
+                # cas spécial checkbox dynamique pour une classe individuelle
                 _, class_name = setting_name.split('_', 1)
-                current = media.classes2blur.split(',') if media.classes2blur else []
                 is_checked = str(input_value).lower() in ['true', '1', 'on']
 
+                current = media.classes2blur or []
                 if is_checked and class_name not in current:
                     current.append(class_name)
                 elif not is_checked and class_name in current:
                     current.remove(class_name)
 
-                media.classes2blur = ','.join(current)
-                media.save()
-                context['value'] = media.classes2blur
+                media.classes2blur = current
+                media.save(update_fields=['classes2blur'])
+                context['value'] = current
 
             else:
                 # générique : float, bool, int
@@ -509,7 +500,6 @@ def update_settings(request):
             context['setting'] = GlobalSettings.objects.get(name=setting_name)
 
         elif setting_type == 'user_setting':
-            from .models import UserSettings, GlobalSettings
             user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
             user_settings, _ = UserSettings.objects.get_or_create(user=user)
 
@@ -529,7 +519,6 @@ def update_settings(request):
             context['setting'] = GlobalSettings.objects.get(name=setting_name)
 
         elif setting_type == 'global_setting':
-            from .models import GlobalSettings
             global_setting = GlobalSettings.objects.get(name=setting_name)
 
             # GlobalSettings.value est souvent CharField ou TextField
@@ -548,7 +537,6 @@ def update_settings(request):
 
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
-
 
 
 def expand_area(request):
@@ -634,7 +622,10 @@ def reset_media_settings(request):
     if updated_fields:
         Media.objects.filter(pk=media_id).update(**updated_fields, MSValues_customised=0)
 
-    return redirect(request.POST.get('next', '/'))
+    # Rafraîchir dynamiquement le bloc HTML comme les autres vues
+    context = get_context(request)
+    template = loader.get_template('medias/upload/content.html')
+    return JsonResponse({'render': template.render(context, request)})
 
 
 def reset_user_settings(request):
@@ -647,7 +638,14 @@ def reset_user_settings(request):
         init_global_settings()
 
     UserSettings.objects.filter(user_id=user.id).update(GSValues_customised=0)
-    return redirect(request.POST.get('next', '/'))
+
+    if request.headers.get("x-requested-with") == "XMLHttpRequest":
+        # Recharger uniquement le fragment global settings si appelé en AJAX
+        html = render_to_string("medias/upload/global_settings.html", request=request)
+        return JsonResponse({"render": html})
+    else:
+        # Sinon, redirection classique
+        return redirect(request.POST.get('next', '/'))
 
 
 def init_user_settings(user):

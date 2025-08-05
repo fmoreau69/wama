@@ -17,15 +17,15 @@
         </div>
 
         <div class="modal-body">
-          {% for class_code, class_label in classes %}
+          {% for class_code, class_label in field.field.choices %}
             <div class="form-check">
               <input class="form-check-input setting-button"
                      type="checkbox"
                      name="{{ class_code }}"
-                     id="{{ setting_type }}_SwitchCheck_{{ field.name }}_{{ class_code }}_{{ id }}"
+                     id="{{ setting_type }}_{{ field.name }}_{{ class_code }}_{{ id }}"
                      {% if class_code in value %}checked{% endif %}>
               <label class="form-check-label"
-                     for="{{ setting_type }}_SwitchCheck_{{ field.name }}_{{ class_code }}_{{ id }}">
+                     for="{{ setting_type }}_{{ field.name }}_{{ class_code }}_{{ id }}">
                 {{ class_label }}
               </label>
             </div>

@@ -38,7 +38,7 @@
           <td class="text-bg-light text-center">
             <div class="col-auto">
               <div class="btn-group" role="group">
-                <form method="post" action="{% url 'medias:reset_media_settings' %}" class="me-1">
+                <form method="post" action="{% url 'medias:reset_media_settings' %}" class="me-1 ajax-form" data-target="#main_container">
                   {% csrf_token %}
                   <input type="hidden" name="next" value="{{ request.path }}">
                   <input type="hidden" name="media_id" value="{{ media.id }}">
@@ -46,7 +46,7 @@
                     <i class="fas fa-rotate-left"></i>
                   </button>
                 </form>
-                <form method="post" action="{% url 'medias:clear_media' %}">
+                <form method="post" action="{% url 'medias:clear_media' %}" class="me-1 ajax-form" data-target="#main_container">
                   {% csrf_token %}
                   <input type="hidden" name="next" value="{{ request.path }}">
                   <input type="hidden" name="media_id" value="{{ media.id }}">
@@ -60,7 +60,7 @@
         </tr>
         <tr {% if media.show_ms %} class="collapse show" {% else %} class="collapse" {% endif %} id="collapseMediaSettings_{{ media.id }}">
           <td colspan="12">
-            <div id="media_settings_container">
+            <div id="media_settings_container_{{ media.id }}">
               {% include "medias/upload/media_settings.html" %}
             </div>
           </td>
