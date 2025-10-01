@@ -10,7 +10,7 @@ from wama.settings import BASE_DIR
 import os
 
 # Model path
-MODEL_PATH = os.path.join(BASE_DIR, "anonymizer/models/yolov8n.pt")
+MODEL_PATH = os.path.join(BASE_DIR, "anonymizer", "models", "yolov8n.pt")
 
 # Optional: utility for splitting templates
 @register.filter(name='split')
@@ -20,6 +20,9 @@ def split(value, key):
 @register.filter
 def get_value(dictionary, key):
     return dictionary.get(key)
+
+def default_classes2blur():
+    return ["face", "plate"]
 
 
 class Media(models.Model):
@@ -59,7 +62,7 @@ class Media(models.Model):
     show_conf = models.BooleanField(default=True)
 
     classes2blur = models.JSONField(
-        default=["face", "plate"],
+        default=default_classes2blur,
         blank=True,
         verbose_name='Objects to blur',
         help_text="List of objects to blur"
@@ -122,7 +125,7 @@ class UserSettings(models.Model):
     show_conf = models.BooleanField(default=True)
 
     classes2blur = models.JSONField(
-        default=["face", "plate"],
+        default=default_classes2blur,
         blank=True,
         verbose_name='Objects to blur',
         help_text="List of objects to blur"

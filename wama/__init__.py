@@ -1,8 +1,3 @@
-try:
-    from django.conf import settings
+from .celery import app as celery_app
 
-    if getattr(settings, "ENABLE_CELERY", False):
-        from .celery import app as celery_app
-        __all__ = ('celery_app',)
-except Exception:
-    pass
+__all__ = ('celery_app',)

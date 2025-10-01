@@ -24,12 +24,21 @@ $(function () {
     },
 
     done: function (e, data) {
-      if (data.result && data.result.is_valid) {
-        $("#gallery tbody").prepend(
-          `<tr><td><a href="${data.result.url}">${data.result.name}</a></td></tr>`
-        );
+      if (data.result && data.result.success) {
+        const medias = data.result.added || (data.result.media ? [data.result.media] : []);
+
+        medias.forEach(function (media) {
+          $("#gallery tbody").prepend(
+            `<tr><td><a href="${media.url}">${media.name}</a></td></tr>`
+          );
+        });
+
+        if (data.result.errors && data.result.errors.length) {
+          console.warn("Erreurs lors de l'ajout de médias :", data.result.errors);
+        }
       } else {
-        alert("Le fichier n'est pas valide ou une erreur est survenue.");
+        const error = data.result?.error || "Le fichier n'est pas valide ou une erreur est survenue.";
+        alert(error);
       }
 
       // Rafraîchir le contenu après upload
@@ -61,12 +70,13 @@ $(function () {
       data: $form.serialize(),
       dataType: 'json',
       success: function (data) {
-        if (data.is_valid) {
+        if (data.success && data.media) {
           $("#gallery tbody").prepend(
-            `<tr><td><a href="${data.url}">${data.name}</a></td></tr>`
+            `<tr><td><a href="${data.media.url}">${data.media.name}</a></td></tr>`
           );
         } else {
-          alert("Le téléchargement a échoué.");
+          const error = data.error || "Le téléchargement a échoué.";
+          alert(error);
         }
 
         // Rafraîchir le contenu après ajout par URL

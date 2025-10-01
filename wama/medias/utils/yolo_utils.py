@@ -3,13 +3,35 @@ from wama.settings import BASE_DIR
 import os
 import logging
 
-MODEL_PATH = os.path.join(BASE_DIR, "anonymizer/models/yolov8n.pt")
+# Dossier des modèles
+MODELS_ROOT = os.path.join(BASE_DIR, "anonymizer", "models")
 
-def get_yolo_class_choices():
+def get_model_path(filename: str) -> str:
+    """
+    Retourne le chemin absolu d’un modèle YOLO.
+    """
+    return os.path.join(MODELS_ROOT, filename)
+
+def get_yolo_class_choices(model_filename: str = "yolov8n.pt"):
+    """
+    Charge un modèle YOLO et retourne la liste des classes disponibles.
+    """
+    model_path = get_model_path(model_filename)
+
     try:
-        model = YOLO(MODEL_PATH)
+        model = YOLO(model_path)
         names_dict = model.model.names  # {0: 'person', 1: 'car', ...}
         return [(str(k), v.capitalize()) for k, v in names_dict.items()]
     except Exception as e:
-        logging.warning(f"[YOLO] Could not load model at {MODEL_PATH}: {e}")
+        logging.warning(f"[YOLO] Could not load model at {model_path}: {e}")
+        # Valeurs par défaut si le modèle ne se charge pas
         return [('0', 'Face'), ('1', 'Plate')]
+
+def get_all_class_choices():
+    yolo_choices = get_yolo_class_choices()
+
+    fixed_classes = [("face", "Face"), ("plate", "Plate")]
+    all_classes = fixed_classes + [
+        (lbl, lbl) for _, lbl in yolo_choices if lbl.lower() not in ['face', 'plate']
+    ]
+    return all_classes

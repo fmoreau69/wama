@@ -5,81 +5,87 @@
 {% block title %}Process{% endblock %}
 
 {% block javascript %}
-  {# JQUERY FILE UPLOAD SCRIPTS #}
-  <script src="{% static 'js/jquery-file-upload/vendor/jquery.ui.widget.js' %}"></script>
-  <script src="{% static 'js/jquery-file-upload/jquery.iframe-transport.js' %}"></script>
-  <script src="{% static 'js/jquery-file-upload/jquery.fileupload.js' %}"></script>
+{# JQUERY FILE UPLOAD SCRIPTS #}
+<script src="{% static 'js/jquery-file-upload/vendor/jquery.ui.widget.js' %}"></script>
+<script src="{% static 'js/jquery-file-upload/jquery.iframe-transport.js' %}"></script>
+<script src="{% static 'js/jquery-file-upload/jquery.fileupload.js' %}"></script>
 
-  {# MEDIAS PAGE SCRIPTS #}
-  <script src="{% static 'medias/js/update.js' %}"></script>
-  <script src="{% static 'medias/js/upload.js' %}"></script>
+{# MEDIAS PAGE SCRIPTS #}
+<script src="{% static 'medias/js/process.js' %}"></script>
+<script src="{% static 'medias/js/update.js' %}"></script>
+<script src="{% static 'medias/js/upload.js' %}"></script>
 {% endblock %}
 
 {% block medias_content %}
-  <div class="row margin-bottom: 20px;">
-<!--  <form action="{% url 'medias:download_all_media' %}" method="post">-->
-<!--    {% csrf_token %}-->
-<!--    <input type="hidden" class="btn btn-success" name="next" value="{{ request.path }}">-->
-<!--    <button type="submit" class="btn btn-primary">-->
-<!--      <i class="fas fa-arrow-down"></i> Download All Media-->
-<!--    </button>-->
-<!--  </form>-->
+<div class="row margin-bottom: 20px;">
+    <!--  <form action="{% url 'medias:download_all_media' %}" method="post">-->
+    <!--    {% csrf_token %}-->
+    <!--    <input type="hidden" class="btn btn-success" name="next" value="{{ request.path }}">-->
+    <!--    <button type="submit" class="btn btn-primary">-->
+    <!--      <i class="fas fa-arrow-down"></i> Download All Media-->
+    <!--    </button>-->
+    <!--  </form>-->
     <form action="{% url 'medias:download_all_media' %}" method="post">
         {% csrf_token %}
-        <button type="submit" class="btn btn-success float-end">Download All</button>
-    </form>
-  </div>
-  <div class="row margin-bottom: 20px;">
-    <div id="media_table_container">
-      {% include "medias/process/media_table_process.html" %}
-    </div>
-  </div>
-  <div class="row">
-    <div class="col-3">
-      <form method="post" action="{% url 'medias:expand_area' %}">
-        {% csrf_token %}
-        <a class="btn btn-info" id="button_show_preview" data-bs-toggle="collapse" href="#collapsePreview"
-           aria-expanded="false" aria-controls="collapsePreview">
-            <i class="fas fa-display"></i> Preview
-        </a>
-      </form>
-    </div>
-    <div class="col-6 text-center">
-      <form method="post" action="{% url 'medias:stop_process' %}">
-        {% csrf_token %}
-        <button type="submit" class="btn btn-danger">
-          <i class="fas fa-ban"></i> Stop process
+        <button type="submit" class="btn btn-success float-end">
+            Download All
         </button>
-      </form>
+    </form>
+</div>
+<div class="row margin-bottom: 20px;">
+    <div id="media_table_container">
+        {% include "medias/process/media_table_process.html" %}
     </div>
-  </div>
-  <div {% if user.user_settings.show_preview %} class="collapse show" {% else %} class="collapse" {% endif %} id="collapsePreview">
-  <hr>
-  <h1 class="text-center">Preview</h1>
-  <div class="empty-box d-flex justify-content-center align-items-center"><h1 class="display-4 fw-bold">In Progress...</h1></div>
-  <br>
-  <div class="row">
-    <div class="col-4">
-      <form method="post" action="{% url 'medias:expand_area' %}">
-        {% csrf_token %}
-        <a class="btn btn-info" id="button_show_console" data-bs-toggle="collapse" href="#collapseConsole"
-                aria-expanded="false" aria-controls="collapseConsole">
-          <i class="fas fa-display"></i> Display console
-        </a>
-      </form>
+</div>
+<div class="row">
+    <div class="col-3">
+        <form method="post" action="{% url 'medias:expand_area' %}">
+            {% csrf_token %}
+            <a class="btn btn-info" id="button_show_preview" data-bs-toggle="collapse" href="#collapsePreview"
+               aria-expanded="false" aria-controls="collapsePreview">
+                <i class="fas fa-display"></i> Preview
+            </a>
+        </form>
     </div>
-  </div>
-  <br>
-  <div {% if user.user_settings.show_console %} class="collapse show" {% else %} class="collapse" {% endif %} id="collapseConsole">
+    <div class="col-6 text-center" style="margin-bottom: 20px;">
+        <button id="process-toggle-btn" class="btn btn-info">
+            <i class="fas fa-dice"></i> Start Process
+        </button>
+        <div id="process-loader" style="display:none; margin-top:10px;">
+            <div class="progress">
+                <div id="process-progress" class="progress-bar" role="progressbar" style="width: 0%;">0%</div>
+            </div>
+        </div>
+    </div>
+    <div id="process-result" style="margin-top:10px;"></div>
+</div>
+<div {% if user.user_settings.show_preview %} class="collapse show" {% else %} class="collapse" {% endif %} id="collapsePreview">
     <hr>
-    <h1 class="text-center">Console</h1>
-    <div class="empty-box d-flex justify-content-center align-items-center" style="height: 200px"><h1 class="display-4 fw-bold">In Progress...</h1>
-      {% for content in console %}
-          <p> {{ content }} </p>
-      {% endfor %}
+    <h1 class="text-center">Preview</h1>
+    <div class="empty-box d-flex justify-content-center align-items-center"><h1 class="display-4 fw-bold">In Progress...</h1></div>
+    <br>
+    <div class="row">
+        <div class="col-4">
+            <form method="post" action="{% url 'medias:expand_area' %}">
+                {% csrf_token %}
+                <a class="btn btn-info" id="button_show_console" data-bs-toggle="collapse" href="#collapseConsole"
+                   aria-expanded="false" aria-controls="collapseConsole">
+                    <i class="fas fa-display"></i> Display console
+                </a>
+            </form>
+        </div>
     </div>
     <br>
-    <br>
-  </div>
-  </div>
+    <div {% if user.user_settings.show_console %} class="collapse show" {% else %} class="collapse" {% endif %} id="collapseConsole">
+        <hr>
+        <h1 class="text-center">Console</h1>
+        <div class="empty-box d-flex justify-content-center align-items-center" style="height: 200px"><h1 class="display-4 fw-bold">In Progress...</h1>
+            {% for content in console %}
+            <p> {{ content }} </p>
+            {% endfor %}
+        </div>
+        <br>
+        <br>
+    </div>
+</div>
 {% endblock %}

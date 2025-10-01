@@ -1,7 +1,7 @@
 from django import forms
 from django.forms import CheckboxSelectMultiple, HiddenInput, TextInput
 from .models import Media, GlobalSettings, UserSettings
-from wama.medias.utils.yolo_utils import get_yolo_class_choices
+from wama.medias.utils.yolo_utils import get_all_class_choices
 
 
 class RangeWidget(TextInput):
@@ -58,19 +58,7 @@ class MediaForm(forms.ModelForm):
 class MediaSettingsForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-
-        # Liste YOLO [(index, label)]
-        yolo_choices = get_yolo_class_choices()
-
-        # Préfixe fixe
-        fixed_classes = [("face", "Face"), ("plate", "Plate")]
-
-        # Fusion sans doublons et en excluant "face" et "plate" des YOLO
-        all_classes = fixed_classes + [
-            (lbl, lbl) for _, lbl in yolo_choices if lbl.lower() not in ['face', 'plate']
-        ]
-
-        self.fields['classes2blur'].choices = all_classes
+        self.fields['classes2blur'].choices = get_all_class_choices()
 
         if self.instance and self.instance.classes2blur:
             self.initial['classes2blur'] = self.instance.classes2blur
@@ -105,7 +93,7 @@ class GlobalSettingsForm(forms.ModelForm):
 class UserSettingsForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['classes2blur'].choices = get_yolo_class_choices()
+        self.fields['classes2blur'].choices = get_all_class_choices()
 
         if self.instance and self.instance.classes2blur:
             self.initial['classes2blur'] = self.instance.classes2blur
@@ -131,11 +119,10 @@ class UserSettingsForm(forms.ModelForm):
         }
 
 
-
 class UserSettingsEdit(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['classes2blur'].choices = get_yolo_class_choices()
+        self.fields['classes2blur'].choices = get_all_class_choices()
 
         if self.instance and self.instance.classes2blur:
             self.initial['classes2blur'] = self.instance.classes2blur

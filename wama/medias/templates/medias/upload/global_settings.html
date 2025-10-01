@@ -1,3 +1,30 @@
+<hr>
+<div class="row">
+    <div class="col-3 d-flex justify-content-left">
+    </div>
+    <div class="col-6">
+        <h2 class="text-center">Global Settings</h2>
+    </div>
+    <div class="col-3">
+        <form method="post" action="{% url 'medias:reset_user_settings' %}" class="ajax-form"
+              data-target="#global_settings_container">
+            {% csrf_token %}
+            <input type="hidden" class="reset-button" name="next" value="{{ request.path }}">
+            <button type="submit" class="btn btn-danger float-end">
+                <i class="fas fa-rotate-left"></i> Reset Settings
+            </button>
+        </form>
+    </div>
+</div>
+<table id="options" class="table table-bordered">
+    <thead>
+    <tr>
+        <td class="col-sm-4 fw-bold text-center text-bg-secondary">What to blur ?</td>
+        <td class="col-sm-4 fw-bold text-center text-bg-secondary">How to blur ?</td>
+        <td class="col-sm-4 fw-bold text-center text-bg-secondary">What to show ?</td>
+    </tr>
+    </thead>
+</table>
 <div class="row">
   <div class="col-4 d-flex justify-content-center align-content-center">
     {% for setting in global_settings %}
@@ -22,3 +49,4 @@
     {% endfor %}
   </div>
 </div>
+<br>

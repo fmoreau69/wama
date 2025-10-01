@@ -12,7 +12,7 @@
   <tbody>
     {% for media in medias %}
       {% if user.id == media.user.id %}
-        <tr>
+        <tr data-media-id="{{ media.id }}">
           <td class="text-bg-light">
             <div class="d-flex justify-content-center align-items-center">
               <form method="post" action="{% url 'medias:expand_area' %}">

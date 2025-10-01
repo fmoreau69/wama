@@ -35,5 +35,9 @@ python manage.py migrate
 ```
 
 ```bash
+python manage.py init_wama
+```
+
+```bash
 python manage.py runserver
 ```

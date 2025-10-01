@@ -15,7 +15,7 @@ urlpatterns = [
     path('download_all_media/', views.download_all_media, name='download_all_media'),
     path('download_media/', views.download_media, name='download_media'),
     path('expand_area/', views.expand_area, name='expand_area'),
-    path('stop_process/', views.stop, name='stop_process'),
+    path('stop_process/', views.stop_process_view, name='stop_process'),
 
     path('upload/', views.UploadView.as_view(), name='upload'),
     path('process/', views.ProcessView.as_view(), name='process'),

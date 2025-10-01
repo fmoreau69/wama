@@ -12,27 +12,35 @@ $(document).ready(function () {
     }
 
     /**
-     * Envoie la valeur au serveur via AJAX
+     * Extrait setting_type, media_id et setting_name depuis l'ID HTML
      * @param {string} inputId - L'ID de l'input (ex: media_setting_blur_ratio_17)
+     * @returns {Object} { setting_type, media_id, setting_name }
+     */
+    function extractSettingName(inputId) {
+        const parts = inputId.split('_');
+        const setting_type = parts[0] + '_' + parts[1];
+
+        if (setting_type === 'media_setting') {
+            // last part is media_id, rest is setting_name
+            const media_id = parts[parts.length - 1];
+            const setting_name = parts.slice(2, parts.length - 1).join('_');
+            return { setting_type, media_id, setting_name };
+        } else {
+            // global_setting or other types, no media_id
+            const setting_name = parts.slice(2).join('_');
+            return { setting_type, media_id: null, setting_name };
+        }
+    }
+
+    /**
+     * Envoie la valeur au serveur via AJAX
+     * @param {string} inputId - L'ID de l'input
      * @param {string|boolean|number} inputValue - La nouvelle valeur
      */
     function submitValues(inputId, inputValue) {
         console.log("[update.js] ▶ Sending update", { inputId, inputValue });
 
-        const parts = inputId.split('_');
-        const setting_type = parts[0] + '_' + parts[1];
-        let media_id = null;
-        let setting_name = null;
-
-        if (setting_type === 'media_setting') {
-            media_id = parts[parts.length - 1];
-            setting_name = parts.slice(2, parts.length - 1).join('_');
-        } else if (setting_type === 'global_setting') {
-            setting_name = parts.slice(2).join('_');
-        } else {
-            // cas éventuel
-            setting_name = parts.slice(2).join('_');
-        }
+        const { setting_type, media_id, setting_name } = extractSettingName(inputId);
 
         let data = {
             setting_type: setting_type,

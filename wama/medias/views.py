@@ -5,38 +5,39 @@ import cv2
 import yt_dlp
 import zipfile
 import mimetypes
-import uuid
 import requests
 from PIL import Image
 from urllib.parse import urlparse
 import subprocess as sp
+from celery.result import AsyncResult
 
 from django.http import FileResponse, HttpResponseBadRequest, HttpResponseNotAllowed, JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
+from django.views.decorators.http import require_POST
+from django.db import close_old_connections
+from django.core.cache import cache
 from django.contrib.auth.models import User
 from django.template import loader
 from django.template.loader import render_to_string
-from django.conf import settings
 from django.views import View
 from django.views.generic import TemplateView
 
-from .forms import MediaSettingsForm, GlobalSettingsForm, UserSettingsForm
 from .models import Media, GlobalSettings, UserSettings
-from .tasks import start_process, stop_process
+from .forms import MediaSettingsForm, UserSettingsForm
+from .tasks import process_single_media, process_user_media_batch, stop_process
+from .utils.media_utils import get_input_media_path, get_output_media_path, get_blurred_media_path, get_unique_filename
+from .utils.yolo_utils import get_model_path
+
 from ..accounts.views import get_or_create_anonymous_user
+from ..settings import MEDIA_ROOT, MEDIA_INPUT_ROOT, MEDIA_OUTPUT_ROOT
 
 
 class UploadView(View):
-
     def get(self, request):
-        # Ensure default settings and anonymous user exist
-        if not GlobalSettings.objects.exists():
-            init_global_settings()
-        get_or_create_anonymous_user()
         return render(request, 'medias/upload/index.html', get_context(request))
 
     def post(self, request):
-        user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+        user = request.user if request.user.is_authenticated else User.objects.filter(username="anonymous").first()
         UserSettings.objects.filter(user_id=user.id).update(media_added=1)
 
         try:
@@ -45,51 +46,39 @@ class UploadView(View):
             # Case 1: text file containing paths or URLs
             if media_file and media_file.name.endswith(('.txt', '.csv', '.log')):
                 lines = media_file.read().decode('utf-8').splitlines()
-                added, failed, results = [], [], []
+                added, failed = [], []
 
                 for line in lines:
-                    path = line.strip().replace('\\', '/')  # Normalize Windows-style paths
+                    path = line.strip().replace('\\', '/')
                     if not path:
                         continue
                     try:
                         if is_url(path):
-                            # Remote URL: download it
-                            video_path = download_media_from_url(path, settings.MEDIA_INPUT_ROOT)
+                            video_path = upload_media_from_url(path, MEDIA_INPUT_ROOT)
                         else:
-                            # Local path: validate and copy into MEDIA_INPUT_ROOT
                             if not os.path.isfile(path):
                                 raise FileNotFoundError("Local path not found or inaccessible")
-
                             filename = os.path.basename(path)
-                            unique_filename = get_unique_filename(settings.MEDIA_INPUT_ROOT, filename)
-                            dest_path = os.path.join(settings.MEDIA_INPUT_ROOT, unique_filename)
-
+                            unique_filename = get_unique_filename(MEDIA_INPUT_ROOT, filename)
+                            dest_path = os.path.join(MEDIA_INPUT_ROOT, unique_filename)
                             with open(path, 'rb') as src, open(dest_path, 'wb') as dst:
                                 dst.write(src.read())
-
                             video_path = dest_path
-
-                        added.append(video_path)
+                        # Crée Media en DB
+                        media = process_media(video_path, user)
+                        added.append(media)
                     except Exception as e:
                         failed.append((path, str(e)))
 
-                # Process all valid media files
-                for video_path in added:
-                    try:
-                        result = process_media(video_path, user)
-                        if isinstance(result, dict):
-                            results.append(result)
-                        else:
-                            failed.append((video_path, str(result)))
-                    except Exception as e:
-                        failed.append((video_path, str(e)))
+                return JsonResponse({'success': True, 'added': added, 'errors': failed})
 
-                return JsonResponse({'results': results, 'errors': failed})
-
-            # Case 2: direct upload (file or URL from form)
+            # Case 2: direct upload (file or URL)
             video_path = upload_from_url(request)
-            result = process_media(video_path, user)
-            return JsonResponse(result)
+            media_result = process_media(video_path, user)
+            if isinstance(media_result, dict) and media_result.get('is_valid'):
+                return JsonResponse({'success': True, 'media': media_result})
+            else:
+                return JsonResponse({'success': False, 'error': media_result}, status=400)
 
         except ValueError as e:
             return JsonResponse({'is_valid': False, 'error': str(e)}, status=400)
@@ -116,9 +105,9 @@ def process_media(video_path, user):
         mime_type, _ = mimetypes.guess_type(video_path)
         if mime_type and mime_type.startswith("video/"):
             vid = cv2.VideoCapture(str(video_path))
-            add_media_to_db(media, user, vid)
+            add_media_to_db(media, vid)
         else:
-            add_media_to_db(media, user, video_path)
+            add_media_to_db(media, video_path)
 
         return {
             'is_valid': True,
@@ -139,13 +128,13 @@ def upload_from_url(request):
     """Handle media from either an uploaded file or a form URL."""
     media_file = request.FILES.get('file')
     media_url = request.POST.get('media_url')
-    output_path = settings.MEDIA_INPUT_ROOT
+    output_path = MEDIA_INPUT_ROOT
     os.makedirs(output_path, exist_ok=True)
 
     if media_file:
         return handle_uploaded_media_file(media_file, output_path)
     elif media_url:
-        return download_media_from_url(media_url, output_path)
+        return upload_media_from_url(media_url, output_path)
 
     raise ValueError("No media file or URL provided.")
 
@@ -170,7 +159,7 @@ def handle_uploaded_media_file(media_file, output_path):
     return save_path
 
 
-def download_media_from_url(url, output_path):
+def upload_media_from_url(url, output_path):
     """Download a media file from a URL using yt_dlp or direct HTTP."""
     try:
         # YouTube and similar platforms
@@ -208,17 +197,7 @@ def download_media_from_url(url, output_path):
         raise ValueError(f"Download failed: {e}")
 
 
-def get_unique_filename(folder, filename):
-    """Return a unique filename if the file already exists."""
-    base, ext = os.path.splitext(filename)
-    full_path = os.path.join(folder, filename)
-    while os.path.exists(full_path):
-        filename = f"{base}_{uuid.uuid4().hex[:6]}{ext}"
-        full_path = os.path.join(folder, filename)
-    return filename
-
-
-def add_media_to_db(media, user, vid_or_path):
+def add_media_to_db(media, vid_or_path):
     """Populate the Media model with metadata from a video or image."""
     if isinstance(vid_or_path, str):
         mime_type, _ = mimetypes.guess_type(vid_or_path)
@@ -255,49 +234,21 @@ def add_media_to_db(media, user, vid_or_path):
 
 
 class ProcessView(View):
-
     def get(self, request):
         return render(request, 'medias/process/index.html', get_context(request))
 
     def post(self, request):
-        user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-
-        # S'assurer que les UserSettings existent pour cet utilisateur
-        user_settings, _ = UserSettings.objects.get_or_create(user=user)
-        user_settings.media_added = True
-        user_settings.save()
-
-        medias_list = Media.objects.filter(user=user)
-
-        for media in medias_list:
-            ms_custom = media.MSValues_customised
-            length = media.duration_inSec * media.fps
-
-            kwargs = {
-                'media_path': os.path.join('media', media.file.name),
-                'file_ext': media.file_ext,
-                'classes2blur': media.classes2blur if ms_custom else user_settings.classes2blur,
-                'blur_ratio': media.blur_ratio if ms_custom else user_settings.blur_ratio,
-                'roi_enlargement': media.roi_enlargement if ms_custom else user_settings.roi_enlargement,
-                'progressive_blur': media.progressive_blur if ms_custom else user_settings.progressive_blur,
-                'detection_threshold': media.detection_threshold if ms_custom else user_settings.detection_threshold,
-                'show_preview': user_settings.show_preview,
-                'show_boxes': user_settings.show_boxes,
-                'show_labels': user_settings.show_labels,
-                'show_conf': user_settings.show_conf,
-            }
-
-            # Si floutage de visages ou plaques, utiliser modèle spécifique
-            if any(c in kwargs['classes2blur'] for c in ['face', 'plate']):
-                kwargs['model_path'] = 'anonymizer/models/yolov8m_faces&plates_720p.pt'
-
-            start_process(**kwargs)
-
-            media.processed = True
-            media.save()
-
-        return render(request, 'medias/process/index.html', get_context(request))
-
+        try:
+            user = request.user if request.user.is_authenticated else User.objects.filter(username="anonymous").first()
+            # Lancer batch task qui va enchaîner toutes les tâches individuelles
+            task = process_user_media_batch.delay(user.id)
+            cache.set(f"user_task_{user.id}", task.id, timeout=3600)
+            return JsonResponse({"task_id": task.id})
+        except Exception as e:
+            import traceback
+            print("🚨 ERREUR upload:", e)
+            traceback.print_exc()
+            return JsonResponse({'is_valid': False, 'error': str(e)}, status=500)
 
     def display_console(self, request):
         if request.POST.get('url', 'medias:process.display_console'):
@@ -306,6 +257,20 @@ class ProcessView(View):
             console = pipe.stdout.read()
             return render(self.request, 'medias/process/index.html', {'console': console})
         return None
+
+
+def get_process_progress(request):
+    user_id = request.user.id or request.session.session_key
+    if not user_id:
+        request.session.save()
+        user_id = request.session.session_key
+    progress = int(cache.get(f"process_progress_{user_id}", 0))
+    return JsonResponse({"progress": progress})
+
+
+def task_status(request, task_id):
+    res = AsyncResult(task_id)
+    return JsonResponse({"status": res.status})
 
 
 def download_media(request):
@@ -319,9 +284,8 @@ def download_media(request):
     media = get_object_or_404(Media, pk=media_id)
 
     # Generate blurred output file path
-    output_name = media.file.name.replace('input', 'output')
-    blurred_filename = os.path.splitext(output_name)[0] + '_blurred' + media.file_ext
-    media_path = os.path.join(settings.MEDIA_ROOT, blurred_filename)
+    media_path = get_blurred_media_path(media.file.name, media.file_ext)
+    blurred_filename = os.path.basename(media_path)
 
     if not os.path.exists(media_path):
         # Return to a page with context (HTML)
@@ -358,10 +322,7 @@ def download_all_media(request):
     zip_buffer = io.BytesIO()
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
         for media in medias:
-            # Build blurred file path
-            media_name = media.file.name.replace('input', 'output')
-            blurred_filename = os.path.splitext(media_name)[0] + '_blurred' + media.file_ext
-            file_path = os.path.join(settings.MEDIA_ROOT, blurred_filename)
+            file_path = get_blurred_media_path(media.file.name, media.file_ext)
 
             if os.path.exists(file_path):
                 archive_name = os.path.basename(file_path)
@@ -371,10 +332,20 @@ def download_all_media(request):
     return FileResponse(zip_buffer, as_attachment=True, filename="blurred_media.zip")
 
 
-def stop(request):
-    if request.POST.get('url', 'medias:stop_process'):
-        stop_process()
-    return render(request, 'medias/upload/index.html', get_context(request))
+def stop_process_view(request):
+    if request.method != 'POST':
+        return HttpResponseNotAllowed(['POST'])
+
+    user_id = request.user.id
+    task_id = cache.get(f"user_task_{user_id}")
+    if task_id:
+        res = AsyncResult(task_id)
+        res.revoke(terminate=True)
+        cache.delete(f"user_task_{user_id}")
+        cache.delete(f"process_progress_{user_id}")
+        stop_process(user_id)  # set stop flag pour toutes les tasks individuelles
+
+    return JsonResponse({"status": "stopped"})
 
 
 def refresh(request):
@@ -395,35 +366,46 @@ def refresh(request):
 
 
 def get_context(request):
-    # Récupérer l'utilisateur ou créer un utilisateur anonyme
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    if request.user.is_authenticated:
+        user = request.user
+    else:
+        user = User.objects.filter(username="anonymous").first()
 
-    # Récupérer ou créer les paramètres utilisateur
     user_settings, _ = UserSettings.objects.get_or_create(user=user)
     user_settings_form = UserSettingsForm(instance=user_settings)
 
-    # Récupérer tous les paramètres globaux et médias de l'utilisateur
     global_settings = GlobalSettings.objects.all()
     medias = Media.objects.filter(user=user)
 
-    # Construire les formulaires et valeurs des paramètres pour chaque média
     media_settings_form = {}
     ms_values = {}
 
     for media in medias:
         media_settings_form[media.id] = MediaSettingsForm(instance=media)
-        ms_values[media.id] = {
-            setting.name: getattr(media, setting.name)
+        ms_values[media.id] = {}
+        for setting in global_settings:
+            ms_values[media.id][setting.name] = getattr(media, setting.name, None)
+
+    # range_widths par média et par setting (FLOAT → col-12)
+    range_widths_media = {
+        media.id: {
+            setting.name: 'col-12' if setting.type == 'FLOAT' else ''
             for setting in global_settings
         }
+        for media in medias
+    }
 
-    # Valeurs des paramètres globaux pour l'utilisateur
-    gs_values = {
-        setting.name: getattr(user_settings, setting.name)
+    # range_widths global (FLOAT → col-3)
+    range_widths_global = {
+        setting.name: 'col-3' if setting.type == 'FLOAT' else ''
         for setting in global_settings
     }
 
-    # Liste des classes à flouter
+    # valeurs par défaut pour les global_settings
+    gs_values = {}
+    for setting in global_settings:
+        gs_values[setting.name] = getattr(user_settings, setting.name, setting.default)
+
     class_list = Media.classes2blur.field.choices
 
     return {
@@ -435,6 +417,8 @@ def get_context(request):
         'ms_values': ms_values,
         'gs_values': gs_values,
         'classes': class_list,
+        'range_widths_media': range_widths_media,
+        'range_widths_global': range_widths_global,
     }
 
 
@@ -519,12 +503,9 @@ def update_settings(request):
             context['setting'] = GlobalSettings.objects.get(name=setting_name)
 
         elif setting_type == 'global_setting':
-            global_setting = GlobalSettings.objects.get(name=setting_name)
+            global_setting, _ = GlobalSettings.objects.get_or_create(name=setting_name)
 
-            # GlobalSettings.value est souvent CharField ou TextField
-            # Si besoin, tu peux faire un mapping par setting_name pour caster en float/int
-            value = input_value
-            global_setting.value = value
+            global_setting.value = input_value
             global_setting.save()
             context['value'] = global_setting.value
             context['setting'] = global_setting
@@ -575,6 +556,7 @@ def clear_all_media(request):
             media.file.delete()
         user_medias.delete()
         UserSettings.objects.filter(user_id=user.id).update(media_added=0)
+        UserSettings.objects.filter(user_id=user.id).update(show_gs=0)
 
     # Rafraîchir le template content
     context = get_context(request)
@@ -628,32 +610,34 @@ def reset_media_settings(request):
     return JsonResponse({'render': template.render(context, request)})
 
 
+@require_POST
 def reset_user_settings(request):
     user = request.user if request.user.is_authenticated else User.objects.get(username='anonymous')
     init_user_settings(user)
 
     if user.username == 'anonymous':
-        if GlobalSettings.objects.exists():
-            GlobalSettings.objects.all().delete()
-        init_global_settings()
+        reset_global_settings_safe()
 
     UserSettings.objects.filter(user_id=user.id).update(GSValues_customised=0)
 
     if request.headers.get("x-requested-with") == "XMLHttpRequest":
-        # Recharger uniquement le fragment global settings si appelé en AJAX
-        html = render_to_string("medias/upload/global_settings.html", request=request)
+        context = get_context(request)
+        html = render_to_string("medias/upload/global_settings.html", context=context, request=request)
         return JsonResponse({"render": html})
     else:
-        # Sinon, redirection classique
         return redirect(request.POST.get('next', '/'))
 
 
 def init_user_settings(user):
+    close_old_connections()  # assure que la connexion est du thread courant
+
     global_settings_list = GlobalSettings.objects.all()
     if not global_settings_list:
         return
     for setting in global_settings_list:
-        UserSettings.objects.filter(user_id=user.id).update(**{setting.name: setting.default})
+        field_name = setting.name.split('_')[0]
+        if field_name in [f.name for f in UserSettings._meta.get_fields()]:
+            UserSettings.objects.filter(user_id=user.id).update(**{field_name: setting.default})
 
 
 def init_global_settings():
@@ -684,6 +668,17 @@ def init_global_settings():
         setting = GlobalSettings(**setting_data)
         setting.save()
 
+def ensure_global_settings():
+    if not GlobalSettings.objects.exists():
+        init_global_settings()
+
+def reset_global_settings_safe():
+    """Réinitialise les GlobalSettings sans provoquer d'erreur de thread."""
+    close_old_connections()  # ferme toute connexion héritée d'un autre thread
+
+    if GlobalSettings.objects.exists():
+        GlobalSettings.objects.all().delete()
+    init_global_settings()
 
 class AboutView(TemplateView):
     template_name = 'medias/about/index.html'
