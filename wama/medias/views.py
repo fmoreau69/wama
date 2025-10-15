@@ -13,6 +13,7 @@ from celery.result import AsyncResult
 
 from django.http import FileResponse, HttpResponseBadRequest, HttpResponseNotAllowed, JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_POST
 from django.db import close_old_connections
 from django.core.cache import cache
@@ -49,7 +50,7 @@ class UploadView(View):
                 added, failed = [], []
 
                 for line in lines:
-                    path = line.strip().replace('\\', '/')
+                    path = windows_path_to_wsl(line)
                     if not path:
                         continue
                     try:
@@ -84,6 +85,23 @@ class UploadView(View):
             return JsonResponse({'is_valid': False, 'error': str(e)}, status=400)
         except Exception as e:
             return JsonResponse({'is_valid': False, 'error': f"Server error: {e}"}, status=500)
+
+
+def windows_path_to_wsl(path):
+    """
+    Convertit un chemin Windows D:\... en chemin WSL /mnt/d/...
+    Ignore les URLs (http:// ou https://).
+    """
+    path = path.strip().replace('\\', '/')
+    if path.lower().startswith(('http://', 'https://')):
+        return path
+    import re
+    match = re.match(r'^([a-zA-Z]):/(.*)', path)
+    if match:
+        drive = match.group(1).lower()
+        rest = match.group(2)
+        return f"/mnt/{drive}/{rest}"
+    return path
 
 
 def is_url(path):
@@ -608,6 +626,13 @@ def reset_media_settings(request):
     context = get_context(request)
     template = loader.get_template('medias/upload/content.html')
     return JsonResponse({'render': template.render(context, request)})
+
+
+@login_required
+def check_all_processed(request):
+    medias = Media.objects.filter(user=request.user)
+    all_processed = medias.exists() and all(m.processed for m in medias)
+    return JsonResponse({"all_processed": all_processed})
 
 
 @require_POST

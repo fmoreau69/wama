@@ -23,13 +23,3 @@ app.autodiscover_tasks()
 @app.task(bind=True)
 def debug_task(self):
     print(f'Request: {self.request!r}')
-
-
-# @app.task
-# def do_work(self, list_of_work, progress_observer):
-#     total_work_to_do = len(list_of_work)
-#     for i, work_item in enumerate(list_of_work):
-#         # do_work_item(work_item)
-#         # tell the progress observer how many out of the total items we have processed
-#         progress_observer.set_progress(i, total_work_to_do)
-#     return 'work is complete'
