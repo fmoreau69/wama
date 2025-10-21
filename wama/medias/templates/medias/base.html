@@ -2,7 +2,7 @@
 
 {% block content %}
   <h1 class="page-header">
-    Anonymizer
+    WAMA
     <small>/ {% block title %}{% endblock %}</small>
   </h1>
   <hr>
@@ -14,7 +14,7 @@
         </div>
         <div class="list-group">
           <a href="{% url 'medias:upload' %}" class="list-group-item {% if request.path == '/medias/upload/' %} active {% endif %}">
-            <span class="fas fa-upload"></span> <span>Media upload / </span> <span class="fas fa-spinner"></span> <span>Process</span>
+            <span class="fas fa-upload"></span> <span>Upload / </span> <span class="fas fa-spinner"></span> <span>Process</span>
           </a>
 <!--          <a href="{% url 'medias:process' %}" class="list-group-item {% if request.path == '/medias/process/' %} active {% endif %}">-->
 <!--            <span class="fas fa-spinner"></span> <span>Process</span>-->

@@ -100,3 +100,11 @@ ul.modal-menu ul{
 .list-group-item{
   color: white;
 }
+
+.fixed-gs-output-value {
+    display: inline-block;
+    width: 2.5em;      /* largeur fixe adaptée à tes valeurs, ex: 9999 */
+    text-align: right; /* aligne les chiffres à droite pour la cohérence */
+    font-variant-numeric: tabular-nums; /* pour des chiffres monospaces propres */
+    /* padding-left: 1px;
+}

@@ -15,7 +15,7 @@ from django.http import FileResponse, HttpResponseBadRequest, HttpResponseNotAll
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_POST
-from django.db import close_old_connections
+from django.db import close_old_connections, transaction
 from django.core.cache import cache
 from django.contrib.auth.models import User
 from django.template import loader
@@ -402,7 +402,8 @@ def get_context(request):
         media_settings_form[media.id] = MediaSettingsForm(instance=media)
         ms_values[media.id] = {}
         for setting in global_settings:
-            ms_values[media.id][setting.name] = getattr(media, setting.name, None)
+            # Lecture directe depuis l'instance, JSONField gère la conversion
+            ms_values[media.id][setting.name] = getattr(media, setting.name, setting.value)
 
     # range_widths par média et par setting (FLOAT → col-12)
     range_widths_media = {
@@ -422,7 +423,10 @@ def get_context(request):
     # valeurs par défaut pour les global_settings
     gs_values = {}
     for setting in global_settings:
-        gs_values[setting.name] = getattr(user_settings, setting.name, setting.default)
+        value = getattr(user_settings, setting.name, None)
+        if value is None:
+            value = setting.default
+        gs_values[setting.name] = value
 
     class_list = Media.classes2blur.field.choices
 
@@ -457,7 +461,7 @@ def update_settings(request):
     context = {
         'setting_type': setting_type,
         'id': media_id or request.user.id,
-        'range_width': 'col-sm-12',
+        'range_width': 'col-sm-3' if setting_type == 'global_setting' else 'col-sm-12',
     }
 
     try:
@@ -521,11 +525,22 @@ def update_settings(request):
             context['setting'] = GlobalSettings.objects.get(name=setting_name)
 
         elif setting_type == 'global_setting':
-            global_setting, _ = GlobalSettings.objects.get_or_create(name=setting_name)
+            try:
+                global_setting = GlobalSettings.objects.get(name=setting_name)
+            except GlobalSettings.DoesNotExist:
+                return JsonResponse({'error': f'Unknown global setting: {setting_name}'}, status=400)
 
-            global_setting.value = input_value
-            global_setting.save()
-            context['value'] = global_setting.value
+            # Conversion typée
+            if global_setting.type == 'BOOL':
+                value = str(input_value).lower() in ['true', '1', 'on']
+            elif global_setting.type == 'FLOAT':
+                value = float(input_value)
+            else:
+                value = input_value
+
+            global_setting.value = value
+            global_setting.save(update_fields=['value'])
+            context['value'] = value
             context['setting'] = global_setting
 
         else:
@@ -637,13 +652,10 @@ def check_all_processed(request):
 
 @require_POST
 def reset_user_settings(request):
-    user = request.user if request.user.is_authenticated else User.objects.get(username='anonymous')
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+
+    # Réinitialisation des UserSettings aux valeurs par défaut de GlobalSettings
     init_user_settings(user)
-
-    if user.username == 'anonymous':
-        reset_global_settings_safe()
-
-    UserSettings.objects.filter(user_id=user.id).update(GSValues_customised=0)
 
     if request.headers.get("x-requested-with") == "XMLHttpRequest":
         context = get_context(request)
@@ -653,23 +665,30 @@ def reset_user_settings(request):
         return redirect(request.POST.get('next', '/'))
 
 
-def init_user_settings(user):
-    close_old_connections()  # assure que la connexion est du thread courant
 
+def init_user_settings(user):
+    """
+    Réinitialise les UserSettings d’un utilisateur avec les valeurs par défaut des GlobalSettings.
+    """
+    close_old_connections()
+
+    user_settings, _ = UserSettings.objects.get_or_create(user=user)
     global_settings_list = GlobalSettings.objects.all()
-    if not global_settings_list:
-        return
+
     for setting in global_settings_list:
-        field_name = setting.name.split('_')[0]
-        if field_name in [f.name for f in UserSettings._meta.get_fields()]:
-            UserSettings.objects.filter(user_id=user.id).update(**{field_name: setting.default})
+        if setting.name in [f.name for f in UserSettings._meta.get_fields()]:
+            setattr(user_settings, setting.name, setting.default)
+
+    # Réinitialise le flag custom
+    user_settings.GSValues_customised = 0
+    user_settings.save()
 
 
 def init_global_settings():
     if GlobalSettings.objects.exists():
         return  # Already initialized
 
-    global_settings_list = [
+    settings_data = [
         {'title': "Objects to blur", 'name': "classes2blur", 'default': ["face", "plate"], 'value': ["face", "plate"],
          'type': 'BOOL', 'label': 'WTB'},
         {'title': "Blur ratio", 'name': "blur_ratio", 'default': "25", 'value': "25",
@@ -689,21 +708,19 @@ def init_global_settings():
         {'title': "Show labels", 'name': "show_labels", 'default': True, 'value': True, 'type': 'BOOL', 'label': 'WTS'},
         {'title': "Show conf", 'name': "show_conf", 'default': True, 'value': True, 'type': 'BOOL', 'label': 'WTS'}
         ]
-    for setting_data in global_settings_list:
-        setting = GlobalSettings(**setting_data)
-        setting.save()
+    for s in settings_data :
+        GlobalSettings.objects.create(**s)
 
 def ensure_global_settings():
     if not GlobalSettings.objects.exists():
         init_global_settings()
 
 def reset_global_settings_safe():
-    """Réinitialise les GlobalSettings sans provoquer d'erreur de thread."""
-    close_old_connections()  # ferme toute connexion héritée d'un autre thread
-
-    if GlobalSettings.objects.exists():
+    """Réinitialise tous les GlobalSettings proprement."""
+    close_old_connections()
+    with transaction.atomic():
         GlobalSettings.objects.all().delete()
-    init_global_settings()
+        init_global_settings()
 
 class AboutView(TemplateView):
     template_name = 'medias/about/index.html'

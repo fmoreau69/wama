@@ -36,16 +36,15 @@
                        oninput="this.nextElementSibling.value = this.value">
 
                 {% if setting_type == 'media_setting' %}
-                    <label class="form-range-label"
-                           for="{{ setting_type }}_{{ setting.name }}_{{ id }}">
+                    <label class="form-range-label" for="{{ setting_type }}_{{ setting.name }}_{{ id }}">
                         {{ setting.title }}:
                     </label>
                     <output>{{ value }}</output>
+
                 {% elif setting_type == 'global_setting' %}
-                    <output>{{ value }} |</output>
-                    <label class="form-range-label"
-                           for="{{ setting_type }}_{{ setting.name }}">
-                        {{ setting.title }}
+                    <output class="fixed-gs-output-value">{{ value }}</output>
+                    <label class="form-range-label" for="{{ setting_type }}_{{ setting.name }}">
+                         | {{ setting.title }}
                     </label>
                 {% endif %}
             </div>

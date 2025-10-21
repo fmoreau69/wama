@@ -30,13 +30,7 @@ class Media(models.Model):
     title = models.CharField(max_length=255, blank=True)
     file = models.FileField(upload_to='input_media/')
     file_ext = models.CharField(max_length=255)
-
-    MEDIA_TYPES = [
-        ('video', 'Vidéo'),
-        ('image', 'Image'),
-        ('audio', 'Audio'),
-    ]
-    media_type = models.CharField(max_length=10, choices=MEDIA_TYPES, default='video')
+    media_type = models.CharField(max_length=10, choices=[('video', 'Vidéo'), ('image', 'Image'), ('audio', 'Audio'),], default='video')
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
     processed = models.BooleanField(default=False, verbose_name='Process status')
@@ -79,22 +73,14 @@ class GlobalSettings(models.Model):
     title = models.CharField(max_length=255)
     name = models.CharField(max_length=255, null=True)
     last_modified = models.DateTimeField(auto_now_add=True)
-    default = models.CharField(max_length=255, default="0")
-    value = models.CharField(max_length=255, default="0")
+    default = models.JSONField(default=dict)
+    value = models.JSONField(default=dict)
+    type = models.CharField(max_length=5, choices=[('BOOL', 'Boolean'), ('FLOAT', 'Float')], default="FLOAT")
+    label = models.CharField(max_length=255, choices=[('WTB', 'What to blur ?'), ('HTB', 'How to blur ?'), ('WTS', 'What to show ?'),], default='HTB')
+    attr_list = models.JSONField(default=dict, blank=True, null=True)
     min = models.CharField(max_length=255, default="", blank=True)
     max = models.CharField(max_length=255, default="", blank=True)
     step = models.CharField(max_length=255, default="", blank=True)
-
-    TYPE_CHOICES = [('BOOL', 'Boolean'), ('FLOAT', 'Float')]
-    type = models.CharField(max_length=5, choices=TYPE_CHOICES, default="FLOAT")
-
-    LABEL_CHOICES = [
-        ('WTB', 'What to blur ?'),
-        ('HTB', 'How to blur ?'),
-        ('WTS', 'What to show ?'),
-    ]
-    label = models.CharField(max_length=255, choices=LABEL_CHOICES, default='HTB')
-    attr_list = models.CharField(max_length=255, default="", blank=True)
 
     def __str__(self):
         return f'{self.title} ({self.value})'
