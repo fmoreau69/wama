@@ -7,6 +7,7 @@ from .models import Media, UserSettings
 from anonymizer import anonymize
 from .utils.media_utils import get_input_media_path
 from .utils.yolo_utils import get_model_path
+from .utils.console_utils import push_console_line
 
 # ----------------------------------------------------------------------
 # Tâche principale pour traiter un média
@@ -56,27 +57,32 @@ def process_single_media(self, media_id):
 
         # Reset progress at start
         set_media_progress(media.id, 0)
+        push_console_line(user.id, f"Start processing media {media.id} ...")
 
         # Load model (early progress)
         try:
             cache.set(f"media_stage_{media.id}", "loading_model", timeout=3600)
             set_media_progress(media.id, 5)
+            push_console_line(user.id, f"Loading model for media {media.id} ...")
         except Exception:
             pass
 
         # Run process (we cannot hook internal progress; mark mid-progress)
         set_media_progress(media.id, 10)
+        push_console_line(user.id, f"Running anonymization for media {media.id} ...")
         start_process(**kwargs)
 
         # Marque le média comme traité
         media.processed = True
         media.save(update_fields=["processed"])
         set_media_progress(media.id, 100)
+        push_console_line(user.id, f"Finished media {media.id} ✔")
 
         return {"processed": media.id}
 
     except Exception as e:
         print(f"Erreur sur media {media_id}: {e}")
+        push_console_line(user.id, f"Error on media {media_id}: {e}")
         # mark as failed state (keep last known progress)
         return {"error": str(e), "media_id": media_id}
 

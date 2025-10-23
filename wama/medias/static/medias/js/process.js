@@ -140,7 +140,7 @@ document.addEventListener("DOMContentLoaded", function() {
                             consoleContainer.innerHTML = data.output.map(line => `<p>${line}</p>`).join('');
                         })
                         .catch(() => {});
-                }, 2000);
+                }, 1000);
             }
         })
         .catch(err => {

@@ -31,6 +31,7 @@ from .utils.yolo_utils import get_model_path, list_available_models
 
 from ..accounts.views import get_or_create_anonymous_user
 from ..settings import MEDIA_ROOT, MEDIA_INPUT_ROOT, MEDIA_OUTPUT_ROOT
+from .utils.console_utils import get_console_lines
 
 
 class UploadView(View):
@@ -281,15 +282,9 @@ class ProcessView(View):
 
 
 def console_content(request):
-    """Retourne un flux textuel (best-effort) des logs en cours pour affichage console."""
-    # Simple demo: lit les derniers états de progression depuis le cache
+    """Retourne un flux textuel des logs en cours pour affichage console (via Redis/Cache)."""
     user = request.user if request.user.is_authenticated else User.objects.filter(username="anonymous").first()
-    batch_ids = cache.get(f"batch_media_ids_{user.id}") or []
-    lines = []
-    for mid in batch_ids:
-        pct = cache.get(f"media_progress_{mid}")
-        if pct is not None:
-            lines.append(f"Media {mid}: {pct}%")
+    lines = get_console_lines(user.id, limit=200)
     return JsonResponse({"output": lines})
 
 
