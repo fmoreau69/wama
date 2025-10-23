@@ -1,4 +1,5 @@
 from celery import shared_task
+from django.apps import apps
 from django.core.cache import cache
 from django.db import close_old_connections
 from django.conf import settings
