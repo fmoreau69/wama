@@ -179,29 +179,84 @@ def handle_uploaded_media_file(media_file, output_path):
 
 
 def upload_media_from_url(url, output_path):
-    """Download a media file from a URL using yt_dlp or direct HTTP."""
+    """Download a media file from a URL using yt_dlp (with robust options) or direct HTTP.
+
+    For YouTube URLs, try yt_dlp with youtube-specific extractor args and proper headers. If that
+    fails, fallback to pytube. For generic HTTP URLs, stream with a desktop-like User-Agent.
+    """
     try:
         # YouTube and similar platforms
         if 'youtube.com' in url or 'youtu.be' in url:
             ydl_opts = {
-                'format': 'mp4/best',
+                # Prefer progressive or merged mp4; fallback to best single file
+                'format': 'bv*+ba/b',
+                'merge_output_format': 'mp4',
                 'outtmpl': os.path.join(output_path, '%(title)s.%(ext)s'),
+                'noplaylist': True,
                 'quiet': True,
+                'retries': 5,
+                'fragment_retries': 5,
+                'sleep_interval_requests': 2,
+                'http_headers': {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122 Safari/537.36',
+                    'Accept-Language': 'en-US,en;q=0.9',
+                    'Referer': 'https://www.youtube.com/',
+                },
+                # Helps avoid throttling/403 in some cases
+                'extractor_args': {
+                    'youtube': {'player_client': ['android']}
+                },
+                'nocheckcertificate': True,
+                'overwrites': False,
+                'concurrent_fragment_downloads': 1,
             }
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(url, download=True)
-                base_path = ydl.prepare_filename(info)
+            try:
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    info = ydl.extract_info(url, download=True)
+                    base_path = ydl.prepare_filename(info)
 
-                filename = os.path.basename(base_path)
-                unique_path = get_unique_filename(output_path, filename)
-                if unique_path != filename:
-                    new_path = os.path.join(output_path, unique_path)
-                    os.rename(base_path, new_path)
-                    return new_path
-                return base_path
+                    filename = os.path.basename(base_path)
+                    unique_filename = get_unique_filename(output_path, filename)
+                    final_path = os.path.join(output_path, unique_filename)
+                    if final_path != base_path:
+                        os.rename(base_path, final_path)
+                    else:
+                        final_path = base_path
+                    return final_path
+            except Exception as yerr:
+                # Fallback to pytube if available
+                try:
+                    from pytube import YouTube
+                    yt = YouTube(url)
+                    # Prefer progressive mp4 to avoid merge
+                    stream = (
+                        yt.streams
+                        .filter(progressive=True, file_extension='mp4')
+                        .order_by('resolution')
+                        .desc()
+                        .first()
+                    )
+                    if stream is None:
+                        # fallback to any mp4
+                        stream = yt.streams.filter(file_extension='mp4').first()
+                    if stream is None:
+                        raise ValueError("No suitable stream found (mp4)")
 
-        # HTTP download
-        response = requests.get(url, stream=True, timeout=15)
+                    temp_filename = stream.default_filename or 'video.mp4'
+                    unique_filename = get_unique_filename(output_path, temp_filename)
+                    save_path = os.path.join(output_path, unique_filename)
+                    stream.download(output_path=output_path, filename=unique_filename)
+                    return save_path
+                except Exception as pterr:
+                    raise ValueError(f"YouTube download failed (yt_dlp: {yerr}); fallback pytube failed: {pterr}")
+
+        # Generic HTTP download
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122 Safari/537.36',
+            'Accept': '*/*',
+            'Referer': url,
+        }
+        response = requests.get(url, stream=True, timeout=20, headers=headers)
         response.raise_for_status()
         filename = os.path.basename(urlparse(url).path) or 'video.mp4'
         unique_filename = get_unique_filename(output_path, filename)
@@ -209,7 +264,8 @@ def upload_media_from_url(url, output_path):
 
         with open(save_path, 'wb') as f:
             for chunk in response.iter_content(chunk_size=8192):
-                f.write(chunk)
+                if chunk:
+                    f.write(chunk)
         return save_path
 
     except Exception as e:
