@@ -54,7 +54,8 @@ $(document).ready(function () {
                 if (res.success) {
                     console.log("%c[update.js] ✔ Setting updated successfully", "color:#4CAF50", res);
                 } else if (res.render) {
-                    $("#setting_button_container_" + inputId).html(res.render);
+                    const container = $("#setting_button_container_" + inputId);
+                    container.replaceWith(res.render);
                     console.log("%c[update.js] ✔ DOM re-rendered", "color:#4CAF50");
                 } else {
                     console.warn("%c[update.js] ⚠ Unexpected server response", "color:#FFC107", res);
@@ -77,11 +78,13 @@ $(document).ready(function () {
     $(document).on("input change", ".setting-button", function () {
         const $el = $(this);
         const inputId = $el.attr("id");
-        const inputType = $el.attr("type");
+        const inputType = $el.attr("type") || ($el.is('select') ? 'select' : undefined);
         let inputValue;
 
         if (inputType === "checkbox") {
             inputValue = $el.prop("checked") ? "true" : "false";
+        } else if (inputType === 'select') {
+            inputValue = $el.val();
         } else {
             inputValue = $el.val();
         }

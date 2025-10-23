@@ -2,7 +2,7 @@
     <div id="setting_button_container_{{ setting_type }}_{{ setting.name }}{% if setting_type == 'media_setting' %}_{{ id }}{% endif %}"
          style="padding:0rem; border-radius:0.25rem;">
         {% if setting.type == 'BOOL' %}
-            <div id="setting_button_container_{{ setting_type }}_{{ setting.name }}_{{ id }}">
+            <div id="setting_button_container_{{ setting_type }}_{{ setting.name }}{% if setting_type == 'media_setting' %}_{{ id }}{% endif %}">
                 <input class="form-check-input setting-button" type="checkbox" role="switch" name="{{ setting.name }}"
                      id="{{ setting_type }}_{{ setting.name }}_{{ id }}"
                      {% if value %}checked{% endif %}>

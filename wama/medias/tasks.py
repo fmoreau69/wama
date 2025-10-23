@@ -39,8 +39,15 @@ def process_single_media(self, media_id):
             'show_conf': user_settings.show_conf,
         }
 
-        if any(c in kwargs['classes2blur'] for c in ['face', 'plate']):
-            kwargs['model_path'] = get_model_path("yolov8m_faces&plates_720p.pt")
+        # Model selection: prefer user's explicit model_to_use, otherwise infer by classes
+        try:
+            from .utils.yolo_utils import get_model_path as _gmp
+            if getattr(user_settings, 'model_to_use', None):
+                kwargs['model_path'] = _gmp(user_settings.model_to_use)
+            elif any(c in kwargs['classes2blur'] for c in ['face', 'plate']):
+                kwargs['model_path'] = _gmp("yolov8m_faces&plates_720p.pt")
+        except Exception:
+            pass
 
         # Vérifie si un stop a été demandé
         if cache.get(f"stop_process_{user.id}", False):

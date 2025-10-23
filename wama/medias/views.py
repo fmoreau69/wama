@@ -27,7 +27,7 @@ from .models import Media, GlobalSettings, UserSettings
 from .forms import MediaSettingsForm, UserSettingsForm
 from .tasks import process_single_media, process_user_media_batch, stop_process
 from .utils.media_utils import get_input_media_path, get_output_media_path, get_blurred_media_path, get_unique_filename
-from .utils.yolo_utils import get_model_path
+from .utils.yolo_utils import get_model_path, list_available_models
 
 from ..accounts.views import get_or_create_anonymous_user
 from ..settings import MEDIA_ROOT, MEDIA_INPUT_ROOT, MEDIA_OUTPUT_ROOT
@@ -280,6 +280,19 @@ class ProcessView(View):
         return None
 
 
+def console_content(request):
+    """Retourne un flux textuel (best-effort) des logs en cours pour affichage console."""
+    # Simple demo: lit les derniers états de progression depuis le cache
+    user = request.user if request.user.is_authenticated else User.objects.filter(username="anonymous").first()
+    batch_ids = cache.get(f"batch_media_ids_{user.id}") or []
+    lines = []
+    for mid in batch_ids:
+        pct = cache.get(f"media_progress_{mid}")
+        if pct is not None:
+            lines.append(f"Media {mid}: {pct}%")
+    return JsonResponse({"output": lines})
+
+
 def get_process_progress(request):
     """
     Retourne la progression globale (tous médias de l'utilisateur) ou individuelle (par media_id).
@@ -420,6 +433,10 @@ def get_context(request):
         user = User.objects.filter(username="anonymous").first()
 
     user_settings, _ = UserSettings.objects.get_or_create(user=user)
+    # Ensure sensible defaults for initial view (show_preview True)
+    if user_settings.show_preview is None:
+        user_settings.show_preview = True
+        user_settings.save(update_fields=['show_preview'])
     user_settings_form = UserSettingsForm(instance=user_settings)
 
     global_settings = GlobalSettings.objects.all()
@@ -455,10 +472,12 @@ def get_context(request):
     for setting in global_settings:
         value = getattr(user_settings, setting.name, None)
         if value is None:
+            # fallback on GlobalSettings.default
             value = setting.default
         gs_values[setting.name] = value
 
     class_list = Media.classes2blur.field.choices
+    available_models = list_available_models()
 
     return {
         'user': user,
@@ -471,6 +490,7 @@ def get_context(request):
         'classes': class_list,
         'range_widths_media': range_widths_media,
         'range_widths_global': range_widths_global,
+        'available_models': available_models,
     }
 
 
@@ -491,7 +511,8 @@ def update_settings(request):
     context = {
         'setting_type': setting_type,
         'id': media_id or request.user.id,
-        'range_width': 'col-sm-3' if setting_type == 'global_setting' else 'col-sm-12',
+        # Global and user settings should render compact sliders; media_setting is full width
+        'range_width': 'col-sm-12' if setting_type == 'media_setting' else 'col-sm-3',
     }
 
     try:
@@ -556,6 +577,13 @@ def update_settings(request):
                 user_settings.save(update_fields=['classes2blur', 'GSValues_customised'])
                 context['value'] = current
                 context['setting'] = GlobalSettings.objects.get(name='classes2blur')
+            elif setting_name == 'model_to_use':
+                # simple string select
+                user_settings.model_to_use = str(input_value)
+                user_settings.GSValues_customised = True
+                user_settings.save(update_fields=['model_to_use', 'GSValues_customised'])
+                context['value'] = user_settings.model_to_use
+                context['setting'] = GlobalSettings.objects.filter(name='classes2blur').first()
             else:
                 field = UserSettings._meta.get_field(setting_name)
                 internal_type = field.get_internal_type()
@@ -667,6 +695,9 @@ def clear_media(request):
 
     has_media = Media.objects.filter(user=user).exists()
     UserSettings.objects.filter(user_id=user.id).update(media_added=int(has_media))
+    if not has_media:
+        # Hide global settings section when no media remains
+        UserSettings.objects.filter(user_id=user.id).update(show_gs=0)
 
     context = get_context(request)
     template = loader.get_template('medias/upload/content.html')

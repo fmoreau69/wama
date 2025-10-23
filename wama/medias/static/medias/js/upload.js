@@ -41,8 +41,11 @@ $(function () {
         alert(error);
       }
 
-      // Rafraîchir le contenu après upload
-      refreshContent();
+      // Rafraîchir le contenu après upload et garder Start Process utilisable sans reload
+      refreshContent(() => {
+        // Optionnel: démarrer le process si l'utilisateur le souhaite (ex: prompt)
+        // Ici, on ne démarre pas automatiquement, mais le bouton est prêt
+      });
     },
 
     fail: function (e, data) {
@@ -93,7 +96,7 @@ $(function () {
   });
 
   // Fonction pour rafraîchir le contenu
-  function refreshContent() {
+  function refreshContent(after) {
     $.ajax({
       type: 'GET',
       url: '/medias/refresh/',
@@ -101,6 +104,10 @@ $(function () {
       success: function (res) {
         if (res.render) {
           $("#main_container").html(res.render);
+          if (typeof attachCollapseEvents === 'function') {
+            attachCollapseEvents();
+          }
+          if (typeof after === 'function') after();
         }
       },
       error: function () {

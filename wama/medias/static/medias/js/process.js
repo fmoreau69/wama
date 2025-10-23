@@ -63,6 +63,12 @@ document.addEventListener("DOMContentLoaded", function() {
                             if (pct >= 100) {
                                 clearInterval(progressIntervals[mediaId]);
                                 delete progressIntervals[mediaId];
+                                // Enable download button on upload page
+                                const row = document.querySelector(`#medias tbody tr[data-media-id='${mediaId}']`);
+                                if (row) {
+                                    const btn = row.querySelector("form[action$='download_media/'] button");
+                                    if (btn) btn.removeAttribute('disabled');
+                                }
                             }
                         })
                         .catch(() => clearInterval(progressIntervals[mediaId]));
@@ -86,6 +92,12 @@ document.addEventListener("DOMContentLoaded", function() {
                             if (pct >= 100) {
                                 clearInterval(progressIntervals[mediaId]);
                                 delete progressIntervals[mediaId];
+                                // Enable download button on process page
+                                const row = document.querySelector(`#medias_process tbody tr[data-media-id='${mediaId}']`);
+                                if (row) {
+                                    const btn = row.querySelector("form[action$='download_media/'] button");
+                                    if (btn) btn.removeAttribute('disabled');
+                                }
                             }
                         })
                         .catch(() => clearInterval(progressIntervals[mediaId]));
@@ -118,18 +130,18 @@ document.addEventListener("DOMContentLoaded", function() {
 //                }, 2000);
 //            }
 //
-//            // Polling console
-//            const consoleContainer = document.querySelector("#collapseConsole .empty-box");
-//            if (consoleContainer) {
-//                pollingConsole = setInterval(() => {
-//                    fetch("/medias/console_content/")
-//                        .then(r => r.json())
-//                        .then(data => {
-//                            consoleContainer.innerHTML = data.output.map(line => `<p>${line}</p>`).join('');
-//                        })
-//                        .catch(() => {});
-//                }, 2000);
-//            }
+            // Polling console
+            const consoleContainer = document.querySelector("#collapseConsole .empty-box");
+            if (consoleContainer) {
+                pollingConsole = setInterval(() => {
+                    fetch("/medias/console_content/")
+                        .then(r => r.json())
+                        .then(data => {
+                            consoleContainer.innerHTML = data.output.map(line => `<p>${line}</p>`).join('');
+                        })
+                        .catch(() => {});
+                }, 2000);
+            }
         })
         .catch(err => {
             loader.style.display = 'none';
@@ -173,6 +185,9 @@ document.addEventListener("DOMContentLoaded", function() {
             startProcess();
         }
     });
+
+    // Rendez le bouton immédiatement fonctionnel après refresh AJAX (upload)
+    // Si la page a été rafraîchie dynamiquement, cet init est rejoué par DOMContentLoaded.
 
     function checkDownloadAll() {
         const wrapper = document.getElementById("download-all-wrapper");

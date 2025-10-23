@@ -2,6 +2,7 @@ from ultralytics import YOLO
 from wama.settings import BASE_DIR
 import os
 import logging
+from typing import List
 
 # Dossier des modèles
 MODELS_ROOT = os.path.join(BASE_DIR, "anonymizer", "models")
@@ -35,3 +36,13 @@ def get_all_class_choices():
         (lbl, lbl) for _, lbl in yolo_choices if lbl.lower() not in ['face', 'plate']
     ]
     return all_classes
+
+
+def list_available_models() -> List[str]:
+    """List model files available in anonymizer/models directory."""
+    if not os.path.isdir(MODELS_ROOT):
+        return []
+    return sorted([
+        f for f in os.listdir(MODELS_ROOT)
+        if os.path.isfile(os.path.join(MODELS_ROOT, f)) and not f.startswith('.')
+    ])

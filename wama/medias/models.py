@@ -118,6 +118,12 @@ class UserSettings(models.Model):
         help_text="List of objects to blur"
     )
 
+    model_to_use = models.CharField(
+        max_length=255,
+        default='yolov8n.pt',
+        help_text='YOLO model filename located in anonymizer/models'
+    )
+
     def __str__(self):
         username = getattr(self.user, 'username', 'Unknown User')
         return f"UserSettings for {username}"
