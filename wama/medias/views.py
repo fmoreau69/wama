@@ -525,10 +525,15 @@ def update_settings(request):
             context['setting'] = GlobalSettings.objects.get(name=setting_name)
 
         elif setting_type == 'global_setting':
+            print(f"[DEBUG] update_settings: received global_setting {setting_name}={input_value}")
             try:
                 global_setting = GlobalSettings.objects.get(name=setting_name)
             except GlobalSettings.DoesNotExist:
+                print(f"[update_settings] ❌ Unknown global setting: {setting_name}")
                 return JsonResponse({'error': f'Unknown global setting: {setting_name}'}, status=400)
+
+            print(
+                f"[update_settings] 🟡 Before save: {global_setting.name} = {input_value} (type={global_setting.type})")
 
             # Conversion typée
             if global_setting.type == 'BOOL':
@@ -538,8 +543,11 @@ def update_settings(request):
             else:
                 value = input_value
 
-            global_setting.value = value
+            global_setting.value = {"current": value}
             global_setting.save(update_fields=['value'])
+
+            print(f"[update_settings] ✅ Saved: {global_setting.name} = {global_setting.value}")
+
             context['value'] = value
             context['setting'] = global_setting
 

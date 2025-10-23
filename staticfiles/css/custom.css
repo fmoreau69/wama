@@ -103,8 +103,8 @@ ul.modal-menu ul{
 
 .fixed-gs-output-value {
     display: inline-block;
-    width: 3.5em;      /* largeur fixe adaptée à tes valeurs, ex: 9999 */
+    width: 3rem;      /* largeur fixe adaptée à tes valeurs, ex: 9999 */
     text-align: right; /* aligne les chiffres à droite pour la cohérence */
     font-variant-numeric: tabular-nums; /* pour des chiffres monospaces propres */
-    padding-left: 1px;
+    /* padding-left: 1px;
 }

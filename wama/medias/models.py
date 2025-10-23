@@ -83,7 +83,8 @@ class GlobalSettings(models.Model):
     step = models.CharField(max_length=255, default="", blank=True)
 
     def __str__(self):
-        return f'{self.title} ({self.value})'
+        val = self.value.get("current") if isinstance(self.value, dict) else self.value
+        return f"{self.title} ({val})"
 
 
 class UserSettings(models.Model):
