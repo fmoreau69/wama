@@ -1,0 +1,104 @@
+{% extends 'medias/base.html' %}
+{% load static %}
+
+{% block title %}Transcriber{% endblock %}
+
+{% block javascript %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const uploadBtn = document.getElementById('transcriber-upload-btn');
+  const fileInput = document.getElementById('transcriber-file');
+
+  uploadBtn.addEventListener('click', () => fileInput.click());
+
+  fileInput.addEventListener('change', function() {
+    if (!this.files.length) return;
+    const form = new FormData();
+    form.append('file', this.files[0]);
+    fetch('{% url "wama.transcriber:upload" %}', {
+      method: 'POST',
+      headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+      body: form,
+    }).then(r => r.json()).then(data => {
+      if (data.id) {
+        startTask(data.id);
+      }
+    });
+  });
+
+  function startTask(id) {
+    fetch(`{% url "wama.transcriber:start" 0 %}`.replace('/0/', `/${id}/`)).then(r => r.json()).then(_ => {
+      pollProgress(id);
+    });
+  }
+
+  function pollProgress(id) {
+    const row = document.querySelector(`[data-id='${id}']`);
+    const bar = row ? row.querySelector('.progress-bar') : null;
+    const status = row ? row.querySelector('.status') : null;
+
+    const timer = setInterval(() => {
+      fetch(`{% url "wama.transcriber:progress" 0 %}`.replace('/0/', `/${id}/`))
+        .then(r => r.json())
+        .then(data => {
+          const p = data.progress || 0;
+          const s = data.status || 'PENDING';
+          if (bar) { bar.style.width = p + '%'; bar.innerText = p + '%'; }
+          if (status) { status.innerText = s; }
+          if (p >= 100 || s === 'SUCCESS' || s === 'FAILURE') {
+            clearInterval(timer);
+            // enable download on success
+            if (s === 'SUCCESS' && row) {
+              const btn = row.querySelector('.download-btn');
+              if (btn) btn.removeAttribute('disabled');
+            }
+          }
+        })
+        .catch(() => clearInterval(timer));
+    }, 1000);
+  }
+});
+</script>
+{% endblock %}
+
+{% block medias_content %}
+<div class="row">
+  <div class="col-12 text-center">
+    <button id="transcriber-upload-btn" class="btn btn-primary btn-lg">
+      <i class="fas fa-file-audio"></i> Upload audio
+    </button>
+    <input id="transcriber-file" type="file" accept="audio/*" style="display:none" />
+  </div>
+</div>
+
+<hr />
+
+<table class="table table-bordered mt-3">
+  <thead>
+    <tr>
+      <th>ID</th>
+      <th>Audio</th>
+      <th>Status</th>
+      <th>Progress</th>
+      <th>Download</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for t in transcripts %}
+    <tr data-id="{{ t.id }}">
+      <td>{{ t.id }}</td>
+      <td><a href="{{ t.audio.url }}" target="_blank">{{ t.audio.name|slice:"21:" }}</a></td>
+      <td class="status">{{ t.status }}</td>
+      <td>
+        <div class="progress">
+          <div class="progress-bar" role="progressbar" style="width: {{ t.progress }}%;">{{ t.progress }}%</div>
+        </div>
+      </td>
+      <td>
+        <a class="btn btn-success download-btn" {% if not t.text %}disabled{% endif %} href="{% url 'wama.transcriber:download' t.id %}">Download</a>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

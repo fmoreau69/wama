@@ -97,6 +97,7 @@ INSTALLED_APPS = [
     'django_wysiwyg',
     'wama.accounts',
     'wama.medias',
+    'wama.transcriber',
     'anonymizer',
 ]
 
