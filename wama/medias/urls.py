@@ -11,6 +11,7 @@ urlpatterns = [
     path('clear_media/', views.clear_media, name='clear_media'),
     path('reset_media_settings/', views.reset_media_settings, name='reset_media_settings'),
     path('reset_user_settings/', views.reset_user_settings, name='reset_user_settings'),
+    path('process_progress/', views.get_process_progress, name='process_progress'),
 
     path("check_all_processed/", views.check_all_processed, name="check_all_processed"),
     path('download_all_media/', views.download_all_media, name='download_all_media'),

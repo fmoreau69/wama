@@ -258,6 +258,9 @@ class ProcessView(View):
     def post(self, request):
         try:
             user = request.user if request.user.is_authenticated else User.objects.filter(username="anonymous").first()
+            # Enregistre la liste des médias à traiter pour le calcul du progrès global
+            batch_medias = list(Media.objects.filter(user=user, processed=False).order_by('id').values_list('id', flat=True))
+            cache.set(f"batch_media_ids_{user.id}", batch_medias, timeout=3600)
             # Lancer batch task qui va enchaîner toutes les tâches individuelles
             task = process_user_media_batch.delay(user.id)
             cache.set(f"user_task_{user.id}", task.id, timeout=3600)
@@ -278,12 +281,39 @@ class ProcessView(View):
 
 
 def get_process_progress(request):
-    user_id = request.user.id or request.session.session_key
-    if not user_id:
-        request.session.save()
-        user_id = request.session.session_key
-    progress = int(cache.get(f"process_progress_{user_id}", 0))
-    return JsonResponse({"progress": progress})
+    """
+    Retourne la progression globale (tous médias de l'utilisateur) ou individuelle (par media_id).
+    - Si ?media_id=... est fourni: lit Media.blur_progress ou cache("media_progress_{id}")
+    - Sinon: moyenne des progrès des médias en cours pour l'utilisateur
+    """
+    media_id = request.GET.get('media_id')
+    if media_id:
+        try:
+            media = Media.objects.get(pk=int(media_id))
+            progress = int(cache.get(f"media_progress_{media.id}", media.blur_progress or 0))
+            return JsonResponse({"progress": max(0, min(100, progress))})
+        except Media.DoesNotExist:
+            return JsonResponse({"progress": 0})
+
+    # Global progress for current user
+    user = request.user if request.user.is_authenticated else User.objects.filter(username="anonymous").first()
+    batch_ids = cache.get(f"batch_media_ids_{user.id}")
+    if batch_ids:
+        medias = list(Media.objects.filter(id__in=batch_ids).order_by('id'))
+    else:
+        medias = list(Media.objects.filter(user=user).order_by('id'))
+
+    if not medias:
+        return JsonResponse({"progress": 0})
+
+    values = []
+    for m in medias:
+        if m.processed:
+            values.append(100)
+        else:
+            values.append(int(cache.get(f"media_progress_{m.id}", m.blur_progress or 0)))
+    avg = sum(values) // len(values) if values else 0
+    return JsonResponse({"progress": max(0, min(100, avg))})
 
 
 def task_status(request, task_id):
@@ -393,7 +423,7 @@ def get_context(request):
     user_settings_form = UserSettingsForm(instance=user_settings)
 
     global_settings = GlobalSettings.objects.all()
-    medias = Media.objects.filter(user=user)
+    medias = Media.objects.filter(user=user).order_by('id')
 
     media_settings_form = {}
     ms_values = {}
@@ -483,7 +513,8 @@ def update_settings(request):
                     current.remove(class_name)
 
                 media.classes2blur = current
-                media.save(update_fields=['classes2blur'])
+                media.MSValues_customised = True
+                media.save(update_fields=['classes2blur', 'MSValues_customised'])
                 context['value'] = current
 
             else:
@@ -499,7 +530,8 @@ def update_settings(request):
                     value = int(input_value)
 
                 setattr(media, setting_name, value)
-                media.save()
+                media.MSValues_customised = True
+                media.save(update_fields=[setting_name, 'MSValues_customised'])
                 context['value'] = getattr(media, setting_name)
 
             # Charger le GlobalSettings correspondant pour le titre/label
@@ -508,21 +540,38 @@ def update_settings(request):
         elif setting_type == 'user_setting':
             user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
             user_settings, _ = UserSettings.objects.get_or_create(user=user)
+            if setting_name.startswith('classes2blur_'):
+                # Toggle for a single class in the user's classes2blur list
+                _, class_name = setting_name.split('_', 1)
+                is_checked = str(input_value).lower() in ['true', '1', 'on']
 
-            field = UserSettings._meta.get_field(setting_name)
-            internal_type = field.get_internal_type()
+                current = user_settings.classes2blur or []
+                if is_checked and class_name not in current:
+                    current.append(class_name)
+                elif not is_checked and class_name in current:
+                    current.remove(class_name)
 
-            if internal_type == 'BooleanField':
-                value = str(input_value).lower() in ['true', '1', 'on']
-            elif internal_type in ['FloatField', 'DecimalField']:
-                value = float(input_value)
+                user_settings.classes2blur = current
+                user_settings.GSValues_customised = True
+                user_settings.save(update_fields=['classes2blur', 'GSValues_customised'])
+                context['value'] = current
+                context['setting'] = GlobalSettings.objects.get(name='classes2blur')
             else:
-                value = int(input_value)
+                field = UserSettings._meta.get_field(setting_name)
+                internal_type = field.get_internal_type()
 
-            setattr(user_settings, setting_name, value)
-            user_settings.save()
-            context['value'] = getattr(user_settings, setting_name)
-            context['setting'] = GlobalSettings.objects.get(name=setting_name)
+                if internal_type == 'BooleanField':
+                    value = str(input_value).lower() in ['true', '1', 'on']
+                elif internal_type in ['FloatField', 'DecimalField']:
+                    value = float(input_value)
+                else:
+                    value = int(input_value)
+
+                setattr(user_settings, setting_name, value)
+                user_settings.GSValues_customised = True
+                user_settings.save(update_fields=[setting_name, 'GSValues_customised'])
+                context['value'] = getattr(user_settings, setting_name)
+                context['setting'] = GlobalSettings.objects.get(name=setting_name)
 
         elif setting_type == 'global_setting':
             print(f"[DEBUG] update_settings: received global_setting {setting_name}={input_value}")

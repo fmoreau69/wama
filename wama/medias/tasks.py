@@ -47,16 +47,30 @@ def process_single_media(self, media_id):
             cache.delete(f"stop_process_{user.id}")
             return {"stopped": media.id}
 
+        # Reset progress at start
+        set_media_progress(media.id, 0)
+
+        # Load model (early progress)
+        try:
+            cache.set(f"media_stage_{media.id}", "loading_model", timeout=3600)
+            set_media_progress(media.id, 5)
+        except Exception:
+            pass
+
+        # Run process (we cannot hook internal progress; mark mid-progress)
+        set_media_progress(media.id, 10)
         start_process(**kwargs)
 
         # Marque le média comme traité
         media.processed = True
-        media.save()
+        media.save(update_fields=["processed"])
+        set_media_progress(media.id, 100)
 
         return {"processed": media.id}
 
     except Exception as e:
         print(f"Erreur sur media {media_id}: {e}")
+        # mark as failed state (keep last known progress)
         return {"error": str(e), "media_id": media_id}
 
 
@@ -106,3 +120,17 @@ def process_user_media_batch(self, user_id):
         task_ids.append(task.id)
 
     return {"queued_tasks": task_ids, "total": medias_list.count()}
+
+
+# ----------------------------------------------------------------------
+# Helpers
+# ----------------------------------------------------------------------
+def set_media_progress(media_id: int, percent: int) -> None:
+    """Persist media progress in cache and DB (clamped 0..100)."""
+    try:
+        pct = max(0, min(100, int(percent)))
+        cache.set(f"media_progress_{media_id}", pct, timeout=3600)
+        Media.objects.filter(pk=media_id).update(blur_progress=pct)
+    except Exception:
+        # best effort only
+        pass

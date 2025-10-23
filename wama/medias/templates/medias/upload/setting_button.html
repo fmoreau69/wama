@@ -5,7 +5,7 @@
             <div id="setting_button_container_{{ setting_type }}_{{ setting.name }}_{{ id }}">
                 <input class="form-check-input setting-button" type="checkbox" role="switch" name="{{ setting.name }}"
                      id="{{ setting_type }}_{{ setting.name }}_{{ id }}"
-                     {% if value == 1 or value == 'True' %}checked{% endif %}>
+                     {% if value %}checked{% endif %}>
                 <label class="form-check-label" for="{{ setting_type }}_{{ setting.name }}_{{ id }}">{{ setting.title }}</label>
             </div>
         {% elif setting.type == 'CHOICE' %}
@@ -41,7 +41,7 @@
                     </label>
                     <output>{{ value }}</output>
 
-                {% elif setting_type == 'global_setting' %}
+                {% elif setting_type == 'global_setting' or setting_type == 'user_setting' %}
                     <output class="fixed-gs-output-value">{{ value }}</output>
                     <label class="form-range-label" for="{{ setting_type }}_{{ setting.name }}">
                          | {{ setting.title }}

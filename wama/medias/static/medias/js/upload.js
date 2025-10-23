@@ -11,7 +11,7 @@ $(function () {
 
     start: function () {
       $("#modal-progress").modal("show");
-      $(".progress-bar").css({ width: "0%" }).text("0%");
+      $("#modal-progress .progress-bar").css({ width: "0%" }).text("0%");
     },
 
     stop: function () {
@@ -20,7 +20,7 @@ $(function () {
 
     progressall: function (e, data) {
       const progress = parseInt((data.loaded / data.total) * 100, 10);
-      $(".progress-bar").css({ width: progress + "%" }).text(progress + "%");
+      $("#modal-progress .progress-bar").css({ width: progress + "%" }).text(progress + "%");
     },
 
     done: function (e, data) {
