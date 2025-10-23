@@ -1,6 +1,7 @@
 import os
 from django.shortcuts import render, get_object_or_404
 from django.views import View
+from django.views.generic import TemplateView
 from django.http import JsonResponse, FileResponse, HttpResponseBadRequest
 from django.contrib.auth.decorators import login_required
 from django.utils.decorators import method_decorator
@@ -16,6 +17,14 @@ class IndexView(View):
     def get(self, request):
         transcripts = Transcript.objects.filter(user=request.user).order_by('-id')
         return render(request, 'transcriber/index.html', { 'transcripts': transcripts })
+
+
+class AboutView(TemplateView):
+    template_name = 'transcriber/about.html'
+
+
+class HelpView(TemplateView):
+    template_name = 'transcriber/help.html'
 
 
 @require_POST

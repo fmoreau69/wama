@@ -9,4 +9,6 @@ urlpatterns = [
     path('start/<int:pk>/', views.start, name='start'),
     path('progress/<int:pk>/', views.progress, name='progress'),
     path('download/<int:pk>/', views.download, name='download'),
+    path('about/', views.AboutView.as_view(), name='about'),
+    path('help/', views.HelpView.as_view(), name='help'),
 ]

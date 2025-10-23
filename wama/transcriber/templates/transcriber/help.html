@@ -1,0 +1,24 @@
+{% extends 'transcriber/base.html' %}
+{% load static %}
+
+{% block title %}Help{% endblock %}
+
+{% block transcriber_content %}
+  <h1 class="page-header">Help - Transcriber</h1>
+  <hr>
+  <h4>Upload</h4>
+  <ul>
+    <li>Click "Upload audio" and select a file from your computer</li>
+  </ul>
+  <hr>
+  <h4>Process</h4>
+  <ul>
+    <li>Processing starts automatically after upload</li>
+    <li>Progress bar shows the current progress</li>
+  </ul>
+  <hr>
+  <h4>Download</h4>
+  <ul>
+    <li>When finished, click Download to save the transcript</li>
+  </ul>
+{% endblock %}
