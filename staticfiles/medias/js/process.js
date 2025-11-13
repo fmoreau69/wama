@@ -10,6 +10,7 @@ document.addEventListener("DOMContentLoaded", function() {
     const progressIntervals = {};
     let pollingYOLO = null;
     let pollingConsole = null;
+    let pollingGlobal = null;
 
     function getCookie(name) {
         let cookieValue = null;
@@ -45,7 +46,7 @@ document.addEventListener("DOMContentLoaded", function() {
             taskId = data.task_id;
             isRunning = true;
 
-            // Polling pour chaque ligne <tr> qui contient un media_id
+            // Polling pour chaque ligne <tr> qui contient un media_id (upload page table id="medias")
             document.querySelectorAll("#medias tbody tr[data-media-id]").forEach(tr => {
                 const mediaId = tr.dataset.mediaId;
                 const progressBar = tr.querySelector(".progress-bar");
@@ -62,11 +63,61 @@ document.addEventListener("DOMContentLoaded", function() {
                             if (pct >= 100) {
                                 clearInterval(progressIntervals[mediaId]);
                                 delete progressIntervals[mediaId];
+                                // Enable download button on upload page
+                                const row = document.querySelector(`#medias tbody tr[data-media-id='${mediaId}']`);
+                                if (row) {
+                                    const btn = row.querySelector("form[action$='download_media/'] button");
+                                    if (btn) btn.removeAttribute('disabled');
+                                }
                             }
                         })
                         .catch(() => clearInterval(progressIntervals[mediaId]));
                 }, 1000);
             });
+
+            // Polling aussi pour la table de la page process (id="medias_process")
+            document.querySelectorAll("#medias_process tbody tr[data-media-id]").forEach(tr => {
+                const mediaId = tr.dataset.mediaId;
+                const progressBar = tr.querySelector(".progress-bar");
+                if (!progressBar) return;
+
+                progressIntervals[mediaId] = setInterval(() => {
+                    fetch(`/medias/process_progress/?media_id=${mediaId}`)
+                        .then(r => r.json())
+                        .then(progressData => {
+                            const pct = progressData.progress || 0;
+                            progressBar.style.width = pct + '%';
+                            progressBar.innerText = pct + '%';
+
+                            if (pct >= 100) {
+                                clearInterval(progressIntervals[mediaId]);
+                                delete progressIntervals[mediaId];
+                                // Enable download button on process page
+                                const row = document.querySelector(`#medias_process tbody tr[data-media-id='${mediaId}']`);
+                                if (row) {
+                                    const btn = row.querySelector("form[action$='download_media/'] button");
+                                    if (btn) btn.removeAttribute('disabled');
+                                }
+                            }
+                        })
+                        .catch(() => clearInterval(progressIntervals[mediaId]));
+                }, 1000);
+            });
+
+            // Polling global progress bar if present
+            const globalBar = document.getElementById('process-progress');
+            if (globalBar) {
+                pollingGlobal = setInterval(() => {
+                    fetch('/medias/process_progress/')
+                        .then(r => r.json())
+                        .then(data => {
+                            const pct = data.progress || 0;
+                            globalBar.style.width = pct + '%';
+                            globalBar.innerText = pct + '%';
+                        })
+                        .catch(() => {});
+                }, 1000);
+            }
 
 //            // Polling YOLO preview
 //            const previewContainer = document.querySelector("#collapsePreview .empty-box");
@@ -79,18 +130,18 @@ document.addEventListener("DOMContentLoaded", function() {
 //                }, 2000);
 //            }
 //
-//            // Polling console
-//            const consoleContainer = document.querySelector("#collapseConsole .empty-box");
-//            if (consoleContainer) {
-//                pollingConsole = setInterval(() => {
-//                    fetch("/medias/console_content/")
-//                        .then(r => r.json())
-//                        .then(data => {
-//                            consoleContainer.innerHTML = data.output.map(line => `<p>${line}</p>`).join('');
-//                        })
-//                        .catch(() => {});
-//                }, 2000);
-//            }
+            // Polling console
+            const consoleContainer = document.querySelector("#collapseConsole .empty-box");
+            if (consoleContainer) {
+                pollingConsole = setInterval(() => {
+                    fetch("/medias/console_content/")
+                        .then(r => r.json())
+                        .then(data => {
+                            consoleContainer.innerHTML = data.output.map(line => `<p>${line}</p>`).join('');
+                        })
+                        .catch(() => {});
+                }, 1000);
+            }
         })
         .catch(err => {
             loader.style.display = 'none';
@@ -114,6 +165,7 @@ document.addEventListener("DOMContentLoaded", function() {
             resultDiv.innerHTML = '<span class="text-warning">⚠️ Process stopped</span>';
             taskId = null;
             isRunning = false;
+            if (pollingGlobal) { clearInterval(pollingGlobal); pollingGlobal = null; }
         })
         .catch(() => {
             resultDiv.innerHTML = '<span class="text-danger">Error stopping process</span>';
@@ -133,6 +185,9 @@ document.addEventListener("DOMContentLoaded", function() {
             startProcess();
         }
     });
+
+    // Rendez le bouton immédiatement fonctionnel après refresh AJAX (upload)
+    // Si la page a été rafraîchie dynamiquement, cet init est rejoué par DOMContentLoaded.
 
     function checkDownloadAll() {
         const wrapper = document.getElementById("download-all-wrapper");

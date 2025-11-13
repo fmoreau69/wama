@@ -11,7 +11,7 @@ $(function () {
 
     start: function () {
       $("#modal-progress").modal("show");
-      $(".progress-bar").css({ width: "0%" }).text("0%");
+      $("#modal-progress .progress-bar").css({ width: "0%" }).text("0%");
     },
 
     stop: function () {
@@ -20,7 +20,7 @@ $(function () {
 
     progressall: function (e, data) {
       const progress = parseInt((data.loaded / data.total) * 100, 10);
-      $(".progress-bar").css({ width: progress + "%" }).text(progress + "%");
+      $("#modal-progress .progress-bar").css({ width: progress + "%" }).text(progress + "%");
     },
 
     done: function (e, data) {
@@ -41,8 +41,11 @@ $(function () {
         alert(error);
       }
 
-      // Rafraîchir le contenu après upload
-      refreshContent();
+      // Rafraîchir le contenu après upload et garder Start Process utilisable sans reload
+      refreshContent(() => {
+        // Optionnel: démarrer le process si l'utilisateur le souhaite (ex: prompt)
+        // Ici, on ne démarre pas automatiquement, mais le bouton est prêt
+      });
     },
 
     fail: function (e, data) {
@@ -93,7 +96,7 @@ $(function () {
   });
 
   // Fonction pour rafraîchir le contenu
-  function refreshContent() {
+  function refreshContent(after) {
     $.ajax({
       type: 'GET',
       url: '/medias/refresh/',
@@ -101,6 +104,10 @@ $(function () {
       success: function (res) {
         if (res.render) {
           $("#main_container").html(res.render);
+          if (typeof attachCollapseEvents === 'function') {
+            attachCollapseEvents();
+          }
+          if (typeof after === 'function') after();
         }
       },
       error: function () {
