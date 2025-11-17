@@ -62,7 +62,19 @@
 <div {% if user.user_settings.show_preview %} class="collapse show" {% else %} class="collapse" {% endif %} id="collapsePreview">
     <hr>
     <h1 class="text-center">Preview</h1>
-    <div class="empty-box d-flex justify-content-center align-items-center"><h1 class="display-4 fw-bold">In Progress...</h1></div>
+    <div class="preview-wrapper">
+        <div id="media-preview-empty" class="empty-box d-flex justify-content-center align-items-center flex-column">
+            <h3 class="fw-bold mb-2">Aucun média sélectionné</h3>
+            <p class="text-muted mb-0 text-center">Cliquez sur un nom de média pour pré-visualiser le fichier original.</p>
+        </div>
+        <video id="media-preview-player"
+               class="w-100 rounded d-none"
+               controls
+               playsinline
+               muted
+               preload="metadata"></video>
+        <div id="media-preview-meta" class="text-center text-muted mt-2 d-none"></div>
+    </div>
     <br>
     <div class="row">
         <div class="col-4">
@@ -79,10 +91,16 @@
     <div {% if user.user_settings.show_console %} class="collapse show" {% else %} class="collapse" {% endif %} id="collapseConsole">
         <hr>
         <h1 class="text-center">Console</h1>
-        <div class="empty-box d-flex justify-content-center align-items-center" style="height: 200px"><h1 class="display-4 fw-bold">In Progress...</h1>
-            {% for content in console %}
-            <p> {{ content }} </p>
-            {% endfor %}
+        <div id="console-logs-container" style="max-height: 500px; overflow-y: auto; background-color: #1e1e1e; color: #d4d4d4; padding: 15px; border-radius: 5px; font-family: 'Courier New', monospace; font-size: 12px;">
+            <div id="console-logs-content">
+                {% if console %}
+                    {% for content in console %}
+                    <div style="margin-bottom: 2px; white-space: pre-wrap; word-wrap: break-word;">{{ content }}</div>
+                    {% endfor %}
+                {% else %}
+                    <div class="text-center text-muted" style="padding: 20px;">Aucun log disponible. Les logs Celery worker apparaîtront ici.</div>
+                {% endif %}
+            </div>
         </div>
         <br>
         <br>

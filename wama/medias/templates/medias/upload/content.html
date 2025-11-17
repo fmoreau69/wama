@@ -66,43 +66,62 @@
         {% include "medias/upload/global_settings.html" %}
     </div>
 </div>
-<div class="row">
-    <div class="col-3">
-        <form method="post" action="{% url 'medias:expand_area' %}">
-            {% csrf_token %}
-            <a class="btn btn-info" id="button_show_preview" data-bs-toggle="collapse" href="#collapsePreview"
-               aria-expanded="false" aria-controls="collapsePreview">
-                <i class="fas fa-display"></i> Preview
-            </a>
-        </form>
+<br>
+<div>
+    <div class="row">
+        <div class="col-4">
+            <form method="post" action="{% url 'medias:expand_area' %}">
+                {% csrf_token %}
+                <a class="btn btn-info" id="button_show_preview" data-bs-toggle="collapse" href="#collapsePreview"
+                   aria-expanded="false" aria-controls="collapsePreview">
+                    <i class="fas fa-display"></i> Preview
+                </a>
+            </form>
+        </div>
+<!--        <div class="col-4">-->
+<!--            <form method="post" action="{% url 'medias:expand_area' %}">-->
+<!--                {% csrf_token %}-->
+<!--                <a class="btn btn-info" id="button_show_console" data-bs-toggle="collapse" href="#collapseConsole"-->
+<!--                   aria-expanded="false" aria-controls="collapseConsole">-->
+<!--                    <i class="fas fa-display"></i> Display console-->
+<!--                </a>-->
+<!--            </form>-->
+<!--        </div>-->
     </div>
 </div>
 <div {% if user.user_settings.show_preview %} class="collapse show" {% else %} class="collapse" {% endif %} id="collapsePreview">
     <hr>
     <h1 class="text-center">Preview</h1>
-    <div class="empty-box d-flex justify-content-center align-items-center"><h1 class="display-4 fw-bold">In Progress...</h1></div>
-    <br>
-    <div class="row">
-        <div class="col-4">
-            <form method="post" action="{% url 'medias:expand_area' %}">
-                {% csrf_token %}
-                <a class="btn btn-info" id="button_show_console" data-bs-toggle="collapse" href="#collapseConsole"
-                   aria-expanded="false" aria-controls="collapseConsole">
-                    <i class="fas fa-display"></i> Display console
-                </a>
-            </form>
+    <div class="preview-wrapper">
+        <div id="media-preview-empty" class="empty-box d-flex justify-content-center align-items-center flex-column">
+            <h3 class="fw-bold mb-2">Aucun média sélectionné</h3>
+            <p class="text-muted mb-0 text-center">Cliquez sur un nom de média dans le tableau pour lancer un aperçu.</p>
         </div>
+        <video id="media-preview-player"
+               class="w-100 rounded d-none"
+               controls
+               playsinline
+               muted
+               preload="metadata"></video>
+        <div id="media-preview-meta" class="text-center text-muted mt-2 d-none"></div>
     </div>
     <br>
-    <div {% if user.user_settings.show_console %} class="collapse show" {% else %} class="collapse" {% endif %} id="collapseConsole">
-        <hr>
-        <h1 class="text-center">Console</h1>
-        <div class="empty-box d-flex justify-content-center align-items-center" style="height: 200px"><h1 class="display-4 fw-bold">In Progress...</h1>
-            {% for content in console %}
-            <p> {{ content }} </p>
-            {% endfor %}
-        </div>
-        <br>
-        <br>
-    </div>
 </div>
+<!--<br>-->
+<!--<div {% if user.user_settings.show_console %} class="collapse show" {% else %} class="collapse" {% endif %} id="collapseConsole">-->
+<!--    <hr>-->
+<!--    <h1 class="text-center">Console</h1>-->
+<!--    <div id="console-logs-container" style="max-height: 500px; overflow-y: auto; background-color: #1e1e1e; color: #d4d4d4; padding: 15px; border-radius: 5px; font-family: 'Courier New', monospace; font-size: 12px;">-->
+<!--        <div id="console-logs-content">-->
+<!--            {% if console %}-->
+<!--                {% for content in console %}-->
+<!--                <div style="margin-bottom: 2px; white-space: pre-wrap; word-wrap: break-word;">{{ content }}</div>-->
+<!--                {% endfor %}-->
+<!--            {% else %}-->
+<!--                <div class="text-center" style="padding: 20px;">Aucun log disponible.<br>Les logs Celery worker apparaîtront ici.</div>-->
+<!--            {% endif %}-->
+<!--        </div>-->
+<!--    </div>-->
+<!--    <br>-->
+<!--    <br>-->
+<!--</div>-->

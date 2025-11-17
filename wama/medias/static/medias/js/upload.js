@@ -29,9 +29,13 @@ $(function () {
 
         medias.forEach(function (media) {
           $("#gallery tbody").prepend(
-            `<tr><td><a href="${media.url}">${media.name}</a></td></tr>`
+            `<tr><td><button type="button" class="btn btn-link p-0 preview-media-link" data-preview-url="${media.preview_url}">${media.name}</button></td></tr>`
           );
         });
+
+        if (typeof window.initMediaPreview === 'function') {
+          window.initMediaPreview();
+        }
 
         if (data.result.errors && data.result.errors.length) {
           console.warn("Erreurs lors de l'ajout de médias :", data.result.errors);
@@ -75,8 +79,11 @@ $(function () {
       success: function (data) {
         if (data.success && data.media) {
           $("#gallery tbody").prepend(
-            `<tr><td><a href="${data.media.url}">${data.media.name}</a></td></tr>`
+            `<tr><td><button type="button" class="btn btn-link p-0 preview-media-link" data-preview-url="${data.media.preview_url}">${data.media.name}</button></td></tr>`
           );
+          if (typeof window.initMediaPreview === 'function') {
+            window.initMediaPreview();
+          }
         } else {
           const error = data.error || "Le téléchargement a échoué.";
           alert(error);
@@ -106,6 +113,12 @@ $(function () {
           $("#main_container").html(res.render);
           if (typeof attachCollapseEvents === 'function') {
             attachCollapseEvents();
+          }
+          if (typeof window.initProcessControls === 'function') {
+            window.initProcessControls();
+          }
+          if (typeof window.initMediaPreview === 'function') {
+            window.initMediaPreview();
           }
           if (typeof after === 'function') after();
         }

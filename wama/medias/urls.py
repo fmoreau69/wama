@@ -19,6 +19,7 @@ urlpatterns = [
     path('expand_area/', views.expand_area, name='expand_area'),
     path('stop_process/', views.stop_process_view, name='stop_process'),
     path('console_content/', views.console_content, name='console_content'),
+    path('preview/<int:media_id>/', views.preview_media, name='preview_media'),
 
     path('upload/', views.UploadView.as_view(), name='upload'),
     path('process/', views.ProcessView.as_view(), name='process'),

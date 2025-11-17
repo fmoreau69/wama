@@ -11,7 +11,7 @@ from urllib.parse import urlparse
 import subprocess as sp
 from celery.result import AsyncResult
 
-from django.http import FileResponse, HttpResponseBadRequest, HttpResponseNotAllowed, JsonResponse
+from django.http import FileResponse, HttpResponseBadRequest, HttpResponseForbidden, HttpResponseNotAllowed, JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_POST
@@ -22,6 +22,8 @@ from django.template import loader
 from django.template.loader import render_to_string
 from django.views import View
 from django.views.generic import TemplateView
+from django.urls import reverse
+from django.utils.encoding import iri_to_uri
 
 from .models import Media, GlobalSettings, UserSettings
 from .forms import MediaSettingsForm, UserSettingsForm
@@ -31,7 +33,7 @@ from .utils.yolo_utils import get_model_path, list_available_models
 
 from ..accounts.views import get_or_create_anonymous_user
 from ..settings import MEDIA_ROOT, MEDIA_INPUT_ROOT, MEDIA_OUTPUT_ROOT
-from .utils.console_utils import get_console_lines
+from .utils.console_utils import get_console_lines, get_celery_worker_logs
 
 
 class UploadView(View):
@@ -130,8 +132,10 @@ def process_media(video_path, user):
 
         return {
             'is_valid': True,
+            'id': media.id,
             'name': filename,
             'url': media.file.url,
+            'preview_url': reverse('medias:preview_media', args=[media.id]),
             'file_ext': media.file_ext,
             'username': user.username,
             'fps': media.fps,
@@ -337,11 +341,44 @@ class ProcessView(View):
         return None
 
 
+def preview_media(request, media_id):
+    """Return metadata + absolute URL to play a media file in-place."""
+    viewer = request.user if request.user.is_authenticated else User.objects.filter(username="anonymous").first()
+    media = get_object_or_404(Media, pk=media_id)
+
+    if media.user != viewer and not (request.user.is_authenticated and request.user.is_staff):
+        return HttpResponseForbidden("You do not have access to this media.")
+
+    media_url = iri_to_uri(media.file.url)
+    mime_type, _ = mimetypes.guess_type(media.file.path)
+
+    return JsonResponse({
+        "name": os.path.basename(media.file.name),
+        "url": media_url,
+        "mime_type": mime_type or "video/mp4",
+        "duration": media.duration_inMinSec,
+        "resolution": f"{media.width}x{media.height}" if media.width and media.height else "",
+    })
+
+
 def console_content(request):
-    """Retourne un flux textuel des logs en cours pour affichage console (via Redis/Cache)."""
+    """Retourne un flux textuel des logs en cours pour affichage console (via Redis/Cache + logs Celery)."""
     user = request.user if request.user.is_authenticated else User.objects.filter(username="anonymous").first()
-    lines = get_console_lines(user.id, limit=200)
-    return JsonResponse({"output": lines})
+    
+    # Récupérer les logs de la console (via Redis/Cache)
+    console_lines = get_console_lines(user.id, limit=100)
+    
+    # Récupérer les logs Celery worker
+    celery_lines = get_celery_worker_logs(limit=100)
+    
+    # Combiner les deux sources (logs Celery en premier, puis logs console)
+    # Les logs Celery sont généralement plus récents et pertinents
+    all_lines = celery_lines + console_lines
+    
+    # Limiter le nombre total de lignes
+    all_lines = all_lines[-200:]
+    
+    return JsonResponse({"output": all_lines})
 
 
 def get_process_progress(request):

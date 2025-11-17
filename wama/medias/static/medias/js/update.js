@@ -143,6 +143,12 @@ $(document).ready(function () {
                 if (res.render) {
                     $(targetSelector).html(res.render);
                     attachCollapseEvents();
+                    if (typeof window.initProcessControls === 'function') {
+                        window.initProcessControls();
+                    }
+                    if (typeof window.initMediaPreview === 'function') {
+                        window.initMediaPreview();
+                    }
                     console.log("%c[update.js] ✔ Section reloaded", "color:#4CAF50");
                 } else {
                     console.warn("%c[update.js] ⚠ Réponse inattendue", "color:#FFC107", res);

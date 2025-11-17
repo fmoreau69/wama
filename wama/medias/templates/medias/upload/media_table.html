@@ -25,7 +25,13 @@
                 </form>
             </div>
         </td>
-        <td class="text-bg-light text-center"><a href="{{ media.file.url }}">{{ media.file.name|slice:"12:" }}</a></td>
+        <td class="text-bg-light text-center">
+            <button type="button"
+                    class="btn btn-link p-0 preview-media-link"
+                    data-preview-url="{% url 'medias:preview_media' media.id %}">
+                {{ media.file.name|slice:"12:" }}
+            </button>
+        </td>
         <td class="text-bg-light text-center">{{ media.width }}x{{ media.height }} ({{ media.fps }}fps)</td>
         <td class="text-bg-light text-center">{{ media.duration_inMinSec }}</td>
         <td class="text-bg-light text-center">
