@@ -63,16 +63,21 @@
     <hr>
     <h1 class="text-center">Preview</h1>
     <div class="preview-wrapper">
-        <div id="media-preview-empty" class="empty-box d-flex justify-content-center align-items-center flex-column">
-            <h3 class="fw-bold mb-2">Aucun média sélectionné</h3>
-            <p class="text-muted mb-0 text-center">Cliquez sur un nom de média pour pré-visualiser le fichier original.</p>
+        <div class="preview-player-shell ratio ratio-16x9 bg-black rounded shadow position-relative overflow-hidden">
+            <video id="media-preview-player"
+                   class="w-100 h-100 position-absolute top-0 start-0 d-none"
+                   controls
+                   playsinline
+                   muted
+                   preload="metadata"></video>
+            <div id="media-preview-empty" class="preview-placeholder text-white text-center px-4">
+                <div class="d-flex flex-column h-100 justify-content-center align-items-center">
+                    <i class="fas fa-play-circle mb-3" style="font-size: 3rem;"></i>
+                    <h4 class="fw-bold mb-2">Aucun média sélectionné</h4>
+                    <p class="text-muted mb-0">Cliquez sur un média pour afficher l’aperçu original.</p>
+                </div>
+            </div>
         </div>
-        <video id="media-preview-player"
-               class="w-100 rounded d-none"
-               controls
-               playsinline
-               muted
-               preload="metadata"></video>
         <div id="media-preview-meta" class="text-center text-muted mt-2 d-none"></div>
     </div>
     <br>

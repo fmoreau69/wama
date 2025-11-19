@@ -349,7 +349,7 @@ def preview_media(request, media_id):
     if media.user != viewer and not (request.user.is_authenticated and request.user.is_staff):
         return HttpResponseForbidden("You do not have access to this media.")
 
-    media_url = iri_to_uri(media.file.url)
+    media_url = request.build_absolute_uri(iri_to_uri(media.file.url))
     mime_type, _ = mimetypes.guess_type(media.file.path)
 
     return JsonResponse({

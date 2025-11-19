@@ -4,101 +4,129 @@
 {% block title %}Transcriber{% endblock %}
 
 {% block javascript %}
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-  const uploadBtn = document.getElementById('transcriber-upload-btn');
-  const fileInput = document.getElementById('transcriber-file');
-
-  uploadBtn.addEventListener('click', () => fileInput.click());
-
-  fileInput.addEventListener('change', function() {
-    if (!this.files.length) return;
-    const form = new FormData();
-    form.append('file', this.files[0]);
-    fetch('{% url "wama.transcriber:upload" %}', {
-      method: 'POST',
-      headers: { 'X-CSRFToken': '{{ csrf_token }}' },
-      body: form,
-    }).then(r => r.json()).then(data => {
-      if (data.id) {
-        startTask(data.id);
-      }
-    });
-  });
-
-  function startTask(id) {
-    fetch(`{% url "wama.transcriber:start" 0 %}`.replace('/0/', `/${id}/`)).then(r => r.json()).then(_ => {
-      pollProgress(id);
-    });
-  }
-
-  function pollProgress(id) {
-    const row = document.querySelector(`[data-id='${id}']`);
-    const bar = row ? row.querySelector('.progress-bar') : null;
-    const status = row ? row.querySelector('.status') : null;
-
-    const timer = setInterval(() => {
-      fetch(`{% url "wama.transcriber:progress" 0 %}`.replace('/0/', `/${id}/`))
-        .then(r => r.json())
-        .then(data => {
-          const p = data.progress || 0;
-          const s = data.status || 'PENDING';
-          if (bar) { bar.style.width = p + '%'; bar.innerText = p + '%'; }
-          if (status) { status.innerText = s; }
-          if (p >= 100 || s === 'SUCCESS' || s === 'FAILURE') {
-            clearInterval(timer);
-            // enable download on success
-            if (s === 'SUCCESS' && row) {
-              const btn = row.querySelector('.download-btn');
-              if (btn) btn.removeAttribute('disabled');
-            }
-          }
-        })
-        .catch(() => clearInterval(timer));
-    }, 1000);
-  }
-});
-</script>
+  {{ block.super }}
+  <script>
+    window.TRANSCRIBER_APP = {
+      csrfToken: '{{ csrf_token }}',
+      uploadUrl: '{% url "transcriber:upload" %}',
+      startUrlTemplate: '{% url "transcriber:start" 0 %}',
+      progressUrlTemplate: '{% url "transcriber:progress" 0 %}',
+      deleteUrlTemplate: '{% url "transcriber:delete" 0 %}',
+      downloadUrlTemplate: '{% url "transcriber:download" 0 %}',
+      startAllUrl: '{% url "transcriber:start_all" %}',
+      clearUrl: '{% url "transcriber:clear_all" %}',
+    };
+  </script>
+  <script src="{% static 'transcriber/js/index.js' %}"></script>
 {% endblock %}
 
 {% block transcriber_content %}
-<div class="row">
-  <div class="col-12 text-center">
-    <button id="transcriber-upload-btn" class="btn btn-primary btn-lg">
-      <i class="fas fa-file-audio"></i> Upload audio
-    </button>
-    <input id="transcriber-file" type="file" accept="audio/*" style="display:none" />
+<div id="transcriber-app" class="transcriber-app">
+  <div class="row g-3 align-items-center">
+    <div class="col-lg-6 col-12 text-center">
+      <button id="transcriber-upload-btn" class="btn btn-primary btn-lg w-100 w-lg-auto">
+        <i class="fas fa-file-audio"></i> Upload audio
+      </button>
+      <input id="transcriber-file" type="file" accept="audio/*" style="display:none" />
+      <p class="text small mt-2 mb-0">Formats acceptés : mp3, wav, flac, m4a...</p>
+    </div>
+    <div class="col-lg-6 col-12 text-center">
+      <button id="transcriber-speak-btn" class="btn btn-warning btn-lg w-100 w-lg-auto">
+        <i class="fas fa-microphone"></i> Speak
+      </button>
+      <p id="transcriber-speak-hint" class="text small mt-2 mb-0">
+        Lancez une transcription vocale en direct (Chrome recommandé).
+      </p>
+    </div>
+  </div>
+
+  <div class="card bg-dark mt-4 shadow-sm">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <span><i class="fas fa-wave-square"></i> Live transcription</span>
+      <small class="text-white" id="live-transcription-status">En attente...</small>
+    </div>
+    <div class="card-body" style="min-height: 220px;">
+      <div id="live-transcription-output" class="text-white" style="white-space: pre-wrap; font-size: 1.1rem;">
+        Appuyez sur <strong>Speak</strong> puis commencez à parler pour voir le texte apparaître ici en temps réel.
+      </div>
+    </div>
+  </div>
+
+  <hr class="border-secondary my-4" />
+
+  <div class="row g-3 align-items-center mb-4">
+    <div class="col-md-4">
+      <button id="transcriber-clear-btn" class="btn btn-danger w-100">
+        <i class="far fa-trash-alt"></i> Clear All
+      </button>
+    </div>
+    <div class="col-md-4 text-center">
+      <button id="transcriber-process-btn" class="btn btn-info w-100">
+        <i class="fas fa-dice"></i> Start Process
+      </button>
+    </div>
+    <div class="col-md-4">
+      <form method="post" action="{% url 'transcriber:download_all' %}" id="transcriber-download-all-form">
+        {% csrf_token %}
+        <button id="transcriber-download-all-btn" class="btn btn-success w-100" disabled>
+          <i class="fas fa-download"></i> Download All
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <div class="table-responsive">
+    <table class="table table-bordered table-dark align-middle" id="transcriber-queue">
+      <thead>
+        <tr class="text-center">
+          <th style="width: 80px;">ID</th>
+          <th>Audio</th>
+          <th style="width: 140px;">Properties</th>
+          <th style="width: 120px;">Duration</th>
+          <th style="width: 120px;">Status</th>
+          <th style="width: 220px;">Progress</th>
+          <th style="width: 160px;">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in transcripts %}
+        <tr data-id="{{ t.id }}" data-status="{{ t.status }}">
+          <td class="fw-bold text-center">#{{ t.id }}</td>
+          <td>
+            <div class="fw-semibold">{{ t.audio.name|cut:"transcriber/input/" }}</div>
+            <div><a href="{{ t.audio.url }}" target="_blank" class="text-info small"><i class="fas fa-link"></i> Voir le fichier</a></div>
+          </td>
+          <td class="text-center small">{{ t.properties|default:"-" }}</td>
+          <td class="text-center fw-semibold">{{ t.duration_display|default:"--:--" }}</td>
+          <td class="status text-uppercase text-center">{{ t.status }}</td>
+          <td>
+            <div class="progress" style="height: 24px;">
+              <div class="progress-bar" role="progressbar" style="width: {{ t.progress }}%;">
+                {{ t.progress }}%
+              </div>
+            </div>
+          </td>
+          <td class="text-center">
+            <div class="btn-group" role="group">
+              <a class="btn btn-success btn-sm download-btn {% if not t.text %}disabled{% endif %}"
+                 {% if not t.text %}aria-disabled="true" tabindex="-1"{% endif %}
+                 href="{% url 'transcriber:download' t.id %}">
+                <i class="fas fa-download"></i>
+              </a>
+              <button class="btn btn-danger btn-sm js-delete-transcript"
+                      data-delete-url="{% url 'transcriber:delete' t.id %}">
+                <i class="fas fa-trash-alt"></i>
+              </button>
+            </div>
+          </td>
+        </tr>
+        {% empty %}
+        <tr class="empty-row">
+          <td colspan="7" class="text-center py-4">Aucune transcription en attente.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
   </div>
 </div>
-
-<hr />
-
-<table class="table table-bordered mt-3">
-  <thead>
-    <tr>
-      <th>ID</th>
-      <th>Audio</th>
-      <th>Status</th>
-      <th>Progress</th>
-      <th>Download</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for t in transcripts %}
-    <tr data-id="{{ t.id }}">
-      <td>{{ t.id }}</td>
-      <td><a href="{{ t.audio.url }}" target="_blank">{{ t.audio.name|slice:"21:" }}</a></td>
-      <td class="status">{{ t.status }}</td>
-      <td>
-        <div class="progress">
-          <div class="progress-bar" role="progressbar" style="width: {{ t.progress }}%;">{{ t.progress }}%</div>
-        </div>
-      </td>
-      <td>
-        <a class="btn btn-success download-btn" {% if not t.text %}disabled{% endif %} href="{% url 'wama.transcriber:download' t.id %}">Download</a>
-      </td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
 {% endblock %}
