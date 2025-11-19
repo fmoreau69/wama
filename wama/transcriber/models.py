@@ -11,6 +11,9 @@ class Transcript(models.Model):
     task_id = models.CharField(max_length=255, blank=True, default='')
     status = models.CharField(max_length=32, default='PENDING')  # PENDING/RUNNING/SUCCESS/FAILURE
     progress = models.IntegerField(default=0)
+    properties = models.CharField(max_length=128, blank=True, default='')
+    duration_seconds = models.FloatField(default=0)
+    duration_display = models.CharField(max_length=16, blank=True, default='')
 
     # Result
     language = models.CharField(max_length=16, blank=True, default='')
