@@ -7,6 +7,9 @@ class Transcript(models.Model):
     audio = models.FileField(upload_to='transcriber/input/')
     created_at = models.DateTimeField(auto_now_add=True)
 
+    # Options
+    preprocess_audio = models.BooleanField(default=False)
+
     # Processing state
     task_id = models.CharField(max_length=255, blank=True, default='')
     status = models.CharField(max_length=32, default='PENDING')  # PENDING/RUNNING/SUCCESS/FAILURE

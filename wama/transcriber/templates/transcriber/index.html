@@ -6,7 +6,7 @@
 {% block javascript %}
   {{ block.super }}
   <script>
-    window.TRANSCRIBER_APP = {
+    window.TRANSCRIBER_APP = Object.assign({}, window.TRANSCRIBER_APP, {
       csrfToken: '{{ csrf_token }}',
       uploadUrl: '{% url "transcriber:upload" %}',
       startUrlTemplate: '{% url "transcriber:start" 0 %}',
@@ -15,9 +15,11 @@
       downloadUrlTemplate: '{% url "transcriber:download" 0 %}',
       startAllUrl: '{% url "transcriber:start_all" %}',
       clearUrl: '{% url "transcriber:clear_all" %}',
-    };
+      preprocessingUrl: '{% url "transcriber:set_preprocessing" %}',
+      preprocessingEnabled: {{ preprocessing_enabled|yesno:"true,false" }},
+    });
   </script>
-  <script src="{% static 'transcriber/js/index.js' %}"></script>
+  <script src="{% static 'transcriber/js/index.js' %}?v=20250203"></script>
 {% endblock %}
 
 {% block transcriber_content %}
@@ -90,11 +92,18 @@
       </thead>
       <tbody>
         {% for t in transcripts %}
-        <tr data-id="{{ t.id }}" data-status="{{ t.status }}">
+        <tr data-id="{{ t.id }}" data-status="{{ t.status }}" data-preprocess="{{ t.preprocess_audio|yesno:'true,false' }}">
           <td class="fw-bold text-center">#{{ t.id }}</td>
           <td>
             <div class="fw-semibold">{{ t.audio.name|cut:"transcriber/input/" }}</div>
-            <div><a href="{{ t.audio.url }}" target="_blank" class="text-info small"><i class="fas fa-link"></i> Voir le fichier</a></div>
+            <div class="d-flex align-items-center gap-2 mt-1">
+              <a href="{{ t.audio.url }}" target="_blank" class="text-info small">
+                <i class="fas fa-link"></i> Voir le fichier
+              </a>
+              <span class="badge bg-warning text-dark preprocess-badge {% if not t.preprocess_audio %}d-none{% endif %}">
+                Prétraité
+              </span>
+            </div>
           </td>
           <td class="text-center small">{{ t.properties|default:"-" }}</td>
           <td class="text-center fw-semibold">{{ t.duration_display|default:"--:--" }}</td>
@@ -127,6 +136,64 @@
         {% endfor %}
       </tbody>
     </table>
+  </div>
+</div>
+
+<div class="mt-4 p-3 border border-secondary rounded bg-dark">
+  <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3">
+    <div class="form-check form-switch">
+      <input class="form-check-input"
+             type="checkbox"
+             id="preprocessingToggle"
+             data-preprocess-url="{% url 'transcriber:set_preprocessing' %}"
+             {% if preprocessing_enabled %}checked{% endif %}>
+      <label class="form-check-label fw-semibold" for="preprocessingToggle">
+        Prétraitement audio
+      </label>
+    </div>
+    <button type="button"
+            class="btn btn-sm btn-outline-info"
+            data-bs-toggle="modal"
+            data-bs-target="#preprocessingModal">
+      <i class="fas fa-question-circle"></i> Pourquoi l'activer ?
+    </button>
+  </div>
+</div>
+
+<!-- Section de contrôle du prétraitement audio -->
+<div class="modal fade" id="preprocessingModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content text-dark bg-light">
+      <div class="modal-header">
+        <h5 class="modal-title">Prétraitement audio</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <h6>Qu'est-ce que le prétraitement audio ?</h6>
+        <p>Le prétraitement améliore la qualité de vos enregistrements avant la transcription :</p>
+        <ul>
+          <li><strong>Normalisation</strong> : Convertit l'audio en mono 16kHz</li>
+          <li><strong>Réduction de bruit</strong> : Élimine le bruit de fond</li>
+          <li><strong>Ajustement du volume</strong> : Optimise les niveaux sonores</li>
+        </ul>
+
+        <h6 class="mt-3">Quand l'utiliser ?</h6>
+        <ul>
+          <li>✅ Enregistrements avec du bruit ambiant</li>
+          <li>✅ Audio de mauvaise qualité</li>
+          <li>✅ Enregistrements de réunions ou conférences</li>
+          <li>❌ Studios d'enregistrement professionnels (déjà optimisés)</li>
+        </ul>
+
+        <div class="alert alert-info">
+          <i class="fas fa-clock"></i>
+          Le prétraitement ajoute 2-5 secondes par minute d'audio.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+      </div>
+    </div>
   </div>
 </div>
 {% endblock %}

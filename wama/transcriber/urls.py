@@ -16,4 +16,7 @@ urlpatterns = [
     path('console/', views.console_content, name='console'),
     path('about/', views.AboutView.as_view(), name='about'),
     path('help/', views.HelpView.as_view(), name='help'),
+    path('preprocessing/toggle/', views.toggle_preprocessing, name='toggle_preprocessing'),
+    path('preprocessing/status/', views.preprocessing_status, name='preprocessing_status'),
+    path('preprocessing/set/', views.set_preprocessing_preference, name='set_preprocessing'),
 ]

@@ -18,12 +18,12 @@ urlpatterns = [
     path('download_media/', views.download_media, name='download_media'),
     path('expand_area/', views.expand_area, name='expand_area'),
     path('stop_process/', views.stop_process_view, name='stop_process'),
-    path('console_content/', views.console_content, name='console_content'),
+    path('console/', views.console_content, name='console'),
     path('preview/<int:media_id>/', views.preview_media, name='preview_media'),
 
     path('upload/', views.UploadView.as_view(), name='upload'),
-    path('process/', views.ProcessView.as_view(), name='process'),
     path('about/', views.AboutView.as_view(), name='about'),
     path('help/', views.HelpView.as_view(), name='help'),
-    path('display_console/', views.ProcessView.display_console, name='display_console'),
+    # path('process/', views.ProcessView.as_view(), name='process'),
+    # path('display_console/', views.ProcessView.display_console, name='display_console'),
 ]

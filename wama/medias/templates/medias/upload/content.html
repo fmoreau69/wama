@@ -78,15 +78,6 @@
                 </a>
             </form>
         </div>
-<!--        <div class="col-4">-->
-<!--            <form method="post" action="{% url 'medias:expand_area' %}">-->
-<!--                {% csrf_token %}-->
-<!--                <a class="btn btn-info" id="button_show_console" data-bs-toggle="collapse" href="#collapseConsole"-->
-<!--                   aria-expanded="false" aria-controls="collapseConsole">-->
-<!--                    <i class="fas fa-display"></i> Display console-->
-<!--                </a>-->
-<!--            </form>-->
-<!--        </div>-->
     </div>
 </div>
 <div {% if user.user_settings.show_preview %} class="collapse show" {% else %} class="collapse" {% endif %} id="collapsePreview">
@@ -112,21 +103,3 @@
     </div>
     <br>
 </div>
-<!--<br>-->
-<!--<div {% if user.user_settings.show_console %} class="collapse show" {% else %} class="collapse" {% endif %} id="collapseConsole">-->
-<!--    <hr>-->
-<!--    <h1 class="text-center">Console</h1>-->
-<!--    <div id="console-logs-container" style="max-height: 500px; overflow-y: auto; background-color: #1e1e1e; color: #d4d4d4; padding: 15px; border-radius: 5px; font-family: 'Courier New', monospace; font-size: 12px;">-->
-<!--        <div id="console-logs-content">-->
-<!--            {% if console %}-->
-<!--                {% for content in console %}-->
-<!--                <div style="margin-bottom: 2px; white-space: pre-wrap; word-wrap: break-word;">{{ content }}</div>-->
-<!--                {% endfor %}-->
-<!--            {% else %}-->
-<!--                <div class="text-center" style="padding: 20px;">Aucun log disponible.<br>Les logs Celery worker apparaîtront ici.</div>-->
-<!--            {% endif %}-->
-<!--        </div>-->
-<!--    </div>-->
-<!--    <br>-->
-<!--    <br>-->
-<!--</div>-->

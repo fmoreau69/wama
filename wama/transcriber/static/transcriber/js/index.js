@@ -10,8 +10,14 @@ document.addEventListener('DOMContentLoaded', function () {
   const startProcessBtn = document.getElementById('transcriber-process-btn');
   const clearAllBtn = document.getElementById('transcriber-clear-btn');
   const downloadAllBtn = document.getElementById('transcriber-download-all-btn');
+  const preprocessToggle = document.getElementById('preprocessingToggle');
+  const toggleDatasetUrl = preprocessToggle ? preprocessToggle.dataset.preprocessUrl : '';
 
   const pollers = new Map();
+  let preprocessEnabled = !!config.preprocessingEnabled;
+  if (typeof config.preprocessingEnabled === 'string') {
+    preprocessEnabled = config.preprocessingEnabled === 'true';
+  }
 
   function getUrl(template, id) {
     return template.replace('/0/', `/${id}/`);
@@ -32,6 +38,7 @@ document.addEventListener('DOMContentLoaded', function () {
       const file = this.files[0];
       const body = new FormData();
       body.append('file', file);
+      body.append('preprocess_audio', preprocessEnabled ? '1' : '0');
       uploadBtn.disabled = true;
 
       fetch(config.uploadUrl, {
@@ -44,8 +51,8 @@ document.addEventListener('DOMContentLoaded', function () {
           if (data.error) {
             throw new Error(data.error);
           }
+          data.status = data.status || 'PENDING';
           appendRow(data);
-          startTask(data.id);
         })
         .catch((error) => {
           alert(error.message || 'Upload failed');
@@ -69,16 +76,20 @@ document.addEventListener('DOMContentLoaded', function () {
 
     const row = document.createElement('tr');
     row.dataset.id = data.id;
-    row.dataset.status = data.status || 'PENDING';
+    row.dataset.status = (data.status || 'PENDING').toUpperCase();
+    row.dataset.preprocess = data.preprocess_audio ? 'true' : 'false';
     row.innerHTML = `
       <td class="fw-bold text-center">#${data.id}</td>
       <td>
         <div class="fw-semibold">${escapeHtml(data.audio_label || data.audio_name || 'Audio')}</div>
-        <div><a href="${data.audio_url}" target="_blank" class="text-info small"><i class="fas fa-link"></i> Voir le fichier</a></div>
+        <div class="d-flex align-items-center gap-2 mt-1">
+          <a href="${data.audio_url}" target="_blank" class="text-info small"><i class="fas fa-link"></i> Voir le fichier</a>
+          <span class="badge bg-warning text-dark preprocess-badge${data.preprocess_audio ? '' : ' d-none'}">Prétraité</span>
+        </div>
       </td>
-      <td class="status text-uppercase text-center">${data.status || 'PENDING'}</td>
-      <td class="text-center text-muted small">${escapeHtml(data.properties || '-')}</td>
+      <td class="text-center small">${escapeHtml(data.properties || '-')}</td>
       <td class="text-center fw-semibold">${escapeHtml(data.duration_display || '--:--')}</td>
+      <td class="status text-uppercase text-center">${data.status || 'PENDING'}</td>
       <td>
         <div class="progress" style="height: 24px;">
           <div class="progress-bar" role="progressbar" style="width: 0%;">0%</div>
@@ -100,14 +111,6 @@ document.addEventListener('DOMContentLoaded', function () {
     tbody.prepend(row);
     bindRowActions(row);
     updateDownloadAllState();
-  }
-
-  function startTask(id) {
-    fetch(getUrl(config.startUrlTemplate, id), { method: 'GET' })
-      .then(() => {
-        startPolling(id);
-      })
-      .catch(() => startPolling(id));
   }
 
   function startPolling(id) {
@@ -212,6 +215,7 @@ document.addEventListener('DOMContentLoaded', function () {
     queueTable.querySelectorAll('tbody tr[data-id]').forEach((row) => {
       const id = row.dataset.id;
       const status = (row.dataset.status || '').toUpperCase();
+      applyPreprocessBadge(row, row.dataset.preprocess === 'true');
       bindRowActions(row);
       if (['PENDING', 'RUNNING', 'STARTED'].includes(status)) {
         startPolling(id);
@@ -292,6 +296,13 @@ document.addEventListener('DOMContentLoaded', function () {
     if (clearAllBtn) {
       clearAllBtn.addEventListener('click', handleClearAll);
     }
+    if (preprocessToggle) {
+      preprocessToggle.checked = preprocessEnabled;
+      preprocessToggle.addEventListener('change', () => {
+        preprocessEnabled = preprocessToggle.checked;
+        persistPreprocessingPreference(preprocessEnabled);
+      });
+    }
   }
 
   function handleStartAll() {
@@ -300,7 +311,7 @@ document.addEventListener('DOMContentLoaded', function () {
     fetch(config.startAllUrl, {
       method: 'POST',
       headers: csrfHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({}),
+      body: JSON.stringify({ preprocessing: preprocessEnabled }),
     })
       .then((response) => response.json())
       .then((data) => {
@@ -309,7 +320,14 @@ document.addEventListener('DOMContentLoaded', function () {
           alert('Aucune transcription à démarrer.');
           return;
         }
-        started.forEach((id) => startPolling(id));
+        started.forEach((id) => {
+          const row = queueTable.querySelector(`tr[data-id="${id}"]`);
+          if (row) {
+            row.dataset.preprocess = preprocessEnabled ? 'true' : 'false';
+            applyPreprocessBadge(row, preprocessEnabled);
+          }
+          startPolling(id);
+        });
       })
       .catch((error) => {
         alert(error.message || 'Erreur lors du démarrage des transcriptions.');
@@ -373,6 +391,31 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   }
 
+  function persistPreprocessingPreference(enabled) {
+    const endpoint = config.preprocessingUrl || toggleDatasetUrl;
+    if (!endpoint) return;
+    fetch(endpoint, {
+      method: 'POST',
+      headers: csrfHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ enabled }),
+    }).catch(() => {
+      if (preprocessToggle) {
+        preprocessToggle.checked = !enabled;
+      }
+    });
+  }
+
+  function applyPreprocessBadge(row, enabled) {
+    if (!row) return;
+    const badge = row.querySelector('.preprocess-badge');
+    if (!badge) return;
+    if (enabled) {
+      badge.classList.remove('d-none');
+    } else {
+      badge.classList.add('d-none');
+    }
+  }
+
   function escapeHtml(str) {
     return (str || '').replace(/[&<>"']/g, function (match) {
       const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
@@ -386,4 +429,3 @@ document.addEventListener('DOMContentLoaded', function () {
   initBulkActions();
   bindRowActions(document);
 });
-

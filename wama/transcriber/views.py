@@ -13,6 +13,7 @@ from django.http import JsonResponse, FileResponse, HttpResponseBadRequest
 from django.contrib.auth.decorators import login_required
 from django.utils.decorators import method_decorator
 from django.core.cache import cache
+from django.contrib.auth.models import User
 from django.views.decorators.http import require_POST
 from django.utils.encoding import smart_str
 
@@ -29,52 +30,6 @@ def _format_duration(seconds: float) -> str:
     minutes = int(seconds // 60)
     secs = int(seconds % 60)
     return f"{minutes}:{secs:02d}"
-
-
-# def _get_ffprobe_path():
-#     env_binary = os.getenv("FFMPEG_BINARY")
-#     if env_binary and os.path.isfile(env_binary):
-#         print(f"✅ Using ffmpeg from FFMPEG_BINARY: {env_binary}")
-#         return env_binary
-#
-#     ffprobe = shutil.which("ffprobe")
-#     if ffprobe:
-#         return ffprobe
-#
-#     windows_candidates = [
-#         r"C:\ffmpeg\bin\ffprobe.exe",
-#         r"C:\Program Files\ffmpeg\bin\ffprobe.exe",
-#         r"C:\Program Files (x86)\ffmpeg\bin\ffprobe.exe",
-#     ]
-#     wsl_candidates = [
-#         "/mnt/c/ffmpeg/bin/ffprobe.exe",
-#         "/mnt/c/Program Files/ffmpeg/bin/ffprobe.exe",
-#         "/mnt/c/Program Files (x86)/ffmpeg/bin/ffprobe.exe",
-#     ]
-#     linux_candidates = [
-#         "/usr/bin/ffprobe",
-#         "/usr/local/bin/ffprobe",
-#     ]
-#
-#     if platform.system() == "Windows":
-#         for candidate in windows_candidates:
-#             if os.path.isfile(candidate):
-#                 print(f"✅ Using ffprobe for Windows: {candidate}")
-#                 return candidate
-#
-#     if is_wsl():
-#         for candidate in wsl_candidates:
-#             if os.path.isfile(candidate):
-#                 print(f"✅ Using Windows ffprobe via WSL: {candidate}")
-#                 return candidate
-#
-#     for candidate in linux_candidates:
-#         if os.path.isfile(candidate):
-#             print(f"✅ Using ffprobe for Linux: {candidate}")
-#             return candidate
-#
-#     print("❌ FFMPEG binary not found. Please install ffmpeg or set FFMPEG_BINARY.")
-#     return None
 
 
 def _get_ffprobe_path() -> str | None:
@@ -143,7 +98,7 @@ def _describe_audio(transcript: Transcript) -> None:
         if sample_rate:
             try:
                 sr_hz = int(sample_rate)
-                sr_label = f"{sr_hz/1000:.1f} kHz"
+                sr_label = f"{sr_hz / 1000:.1f} kHz"
             except (TypeError, ValueError):
                 sr_label = f"{sample_rate} Hz"
 
@@ -161,7 +116,14 @@ def _describe_audio(transcript: Transcript) -> None:
 class IndexView(View):
     def get(self, request):
         transcripts = Transcript.objects.filter(user=request.user).order_by('-id')
-        return render(request, 'transcriber/index.html', { 'transcripts': transcripts })
+
+        # Récupérer les préférences de prétraitement de l'utilisateur
+        enable_preprocessing = cache.get(f"user_{request.user.id}_preprocessing_enabled", True)
+
+        return render(request, 'transcriber/index.html', {
+            'transcripts': transcripts,
+            'preprocessing_enabled': enable_preprocessing,
+        })
 
 
 class AboutView(TemplateView):
@@ -178,7 +140,16 @@ def upload(request):
     file = request.FILES.get('file')
     if not file:
         return HttpResponseBadRequest('Missing file')
-    t = Transcript.objects.create(user=request.user, audio=file)
+
+    preprocess_requested = str(request.POST.get('preprocess_audio', '')).lower() in ('1', 'true', 'on')
+    # Persist preference for future uploads
+    cache.set(f"user_{request.user.id}_preprocessing_enabled", preprocess_requested, timeout=30 * 24 * 3600)
+
+    t = Transcript.objects.create(
+        user=request.user,
+        audio=file,
+        preprocess_audio=preprocess_requested,
+    )
     _describe_audio(t)
     return JsonResponse({
         'id': t.id,
@@ -187,27 +158,54 @@ def upload(request):
         'status': t.status,
         'properties': t.properties,
         'duration_display': t.duration_display,
+        'preprocess_audio': t.preprocess_audio,
     })
 
 
 @login_required
 def start(request, pk: int):
+    """
+    Démarre la transcription d'un fichier audio.
+    Utilise le prétraitement par défaut sauf si désactivé.
+    """
     t = get_object_or_404(Transcript, pk=pk, user=request.user)
-    from .workers import transcribe
-    task = transcribe.delay(t.id)
+
+    # Récupérer la préférence de prétraitement
+    # Priorité: paramètre URL > préférence utilisateur > défaut (True)
+    use_preprocessing = request.GET.get('preprocessing')
+    if use_preprocessing is not None:
+        use_preprocessing = use_preprocessing.lower() == 'true'
+        cache.set(f"user_{request.user.id}_preprocessing_enabled", use_preprocessing, timeout=30 * 24 * 3600)
+    else:
+        use_preprocessing = cache.get(
+            f"user_{request.user.id}_preprocessing_enabled",
+            t.preprocess_audio if t.preprocess_audio is not None else True,
+        )
+
+    # Choisir la tâche appropriée
+    if use_preprocessing:
+        from .workers import transcribe
+        task = transcribe.delay(t.id)
+    else:
+        from .workers import transcribe_without_preprocessing
+        task = transcribe_without_preprocessing.delay(t.id)
+
     t.task_id = task.id
     t.status = 'RUNNING'
-    t.progress = 5
-    cache.set(f"transcriber_progress_{t.id}", 5, timeout=3600)
-    t.save(update_fields=['task_id', 'status', 'progress'])
-    return JsonResponse({ 'task_id': task.id })
+    t.preprocess_audio = use_preprocessing
+    t.save(update_fields=['task_id', 'status', 'preprocess_audio'])
+
+    return JsonResponse({
+        'task_id': task.id,
+        'preprocessing': use_preprocessing,
+    })
 
 
 @login_required
 def progress(request, pk: int):
     t = get_object_or_404(Transcript, pk=pk, user=request.user)
     p = int(cache.get(f"transcriber_progress_{t.id}", t.progress or 0))
-    return JsonResponse({ 'progress': p, 'status': t.status })
+    return JsonResponse({'progress': p, 'status': t.status})
 
 
 @login_required
@@ -215,9 +213,11 @@ def download(request, pk: int):
     t = get_object_or_404(Transcript, pk=pk, user=request.user)
     if not t.text:
         return HttpResponseBadRequest('No transcript yet')
-    content = t.text.encode('utf-8')
+    # Créer un buffer BytesIO pour FileResponse
+    buffer = io.BytesIO(t.text.encode('utf-8'))
+    buffer.seek(0)
     return FileResponse(
-        content,
+        buffer,
         as_attachment=True,
         filename=f"transcript_{t.id}.txt",
         content_type='text/plain; charset=utf-8'
@@ -237,35 +237,64 @@ def delete(request, pk: int):
         except OSError:
             pass
     cache.delete(f"transcriber_progress_{pk}")
-    return JsonResponse({ 'deleted': pk })
+    return JsonResponse({'deleted': pk})
 
 
 @login_required
 def console_content(request):
-    user = request.user
-    lines = get_console_lines(user.id, limit=100)
+    """Retourne un flux textuel des logs en cours pour affichage console (via Redis/Cache + logs Celery)."""
+    user = request.user if request.user.is_authenticated else User.objects.filter(username="anonymous").first()
+    console_lines = get_console_lines(user.id, limit=100)
     celery_lines = get_celery_worker_logs(limit=100)
-    combined = (celery_lines + lines)[-200:]
-    return JsonResponse({ 'output': combined })
+    all_lines = (celery_lines + console_lines)[-200:]
+    return JsonResponse({'output': all_lines})
 
 
 @require_POST
 @login_required
 def start_all(request):
-    from .workers import transcribe
+    """
+    Démarre toutes les transcriptions en attente.
+    Respecte la préférence de prétraitement de l'utilisateur.
+    """
+    # Récupérer la préférence de prétraitement
+    payload = {}
+    if request.body:
+        try:
+            payload = json.loads(request.body.decode('utf-8'))
+        except Exception:
+            payload = {}
+    use_preprocessing = payload.get('preprocessing')
+    if use_preprocessing is None:
+        use_preprocessing = cache.get(f"user_{request.user.id}_preprocessing_enabled", True)
+    else:
+        use_preprocessing = bool(use_preprocessing)
+        cache.set(f"user_{request.user.id}_preprocessing_enabled", use_preprocessing, timeout=30 * 24 * 3600)
+
+    if use_preprocessing:
+        from .workers import transcribe
+        task_func = transcribe
+    else:
+        from .workers import transcribe_without_preprocessing
+        task_func = transcribe_without_preprocessing
+
     qs = Transcript.objects.filter(user=request.user).exclude(status='SUCCESS')
     started = []
     for transcript in qs:
         if transcript.status == 'RUNNING':
             continue
-        task = transcribe.delay(transcript.id)
+        task = task_func.delay(transcript.id)
         transcript.task_id = task.id
         transcript.status = 'RUNNING'
-        transcript.progress = 5
-        cache.set(f"transcriber_progress_{transcript.id}", 5, timeout=3600)
-        transcript.save(update_fields=['task_id', 'status', 'progress'])
+        transcript.preprocess_audio = use_preprocessing
+        transcript.save(update_fields=['task_id', 'status', 'preprocess_audio'])
         started.append(transcript.id)
-    return JsonResponse({ 'started_ids': started, 'count': len(started) })
+
+    return JsonResponse({
+        'started_ids': started,
+        'count': len(started),
+        'preprocessing': use_preprocessing,
+    })
 
 
 @require_POST
@@ -284,7 +313,7 @@ def clear_all(request):
                 pass
         cache.delete(f"transcriber_progress_{transcript.id}")
     transcripts.delete()
-    return JsonResponse({ 'cleared_ids': cleared, 'count': len(cleared) })
+    return JsonResponse({'cleared_ids': cleared, 'count': len(cleared)})
 
 
 @login_required
@@ -299,3 +328,47 @@ def download_all(request):
             archive.writestr(filename, transcript.text or '')
     buffer.seek(0)
     return FileResponse(buffer, as_attachment=True, filename="transcripts.zip")
+
+
+@require_POST
+@login_required
+def set_preprocessing_preference(request):
+    payload = {}
+    if request.body:
+        try:
+            payload = json.loads(request.body.decode('utf-8'))
+        except Exception:
+            payload = {}
+    enabled = payload.get('enabled')
+    if enabled is None:
+        enabled = str(request.POST.get('enabled', '')).lower() in ('1', 'true', 'on')
+    else:
+        enabled = bool(enabled)
+    cache.set(f"user_{request.user.id}_preprocessing_enabled", enabled, timeout=30 * 24 * 3600)
+    return JsonResponse({'enabled': enabled})
+
+
+@require_POST
+@login_required
+def toggle_preprocessing(request):
+    """
+    Nouvelle vue pour activer/désactiver le prétraitement audio.
+    """
+    enable = request.POST.get('enable', 'true').lower() == 'true'
+    cache.set(f"user_{request.user.id}_preprocessing_enabled", enable, timeout=None)
+
+    return JsonResponse({
+        'preprocessing_enabled': enable,
+        'message': 'Prétraitement activé' if enable else 'Prétraitement désactivé',
+    })
+
+
+@login_required
+def preprocessing_status(request):
+    """
+    Retourne le statut actuel du prétraitement pour l'utilisateur.
+    """
+    enabled = cache.get(f"user_{request.user.id}_preprocessing_enabled", True)
+    return JsonResponse({
+        'preprocessing_enabled': enabled,
+    })

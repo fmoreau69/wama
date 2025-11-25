@@ -106,5 +106,39 @@ ul.modal-menu ul{
     width: 3rem;      /* largeur fixe adaptée à tes valeurs, ex: 9999 */
     text-align: right; /* aligne les chiffres à droite pour la cohérence */
     font-variant-numeric: tabular-nums; /* pour des chiffres monospaces propres */
-    /* padding-left: 1px;
+    /* padding-left: 1px; */
+}
+
+.preprocessing-controls {
+    animation: fadeIn 0.3s ease-in;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.form-check-input:checked {
+    background-color: #28a745;
+    border-color: #28a745;
+}
+
+.preprocessing-controls .form-check-label {
+    cursor: pointer;
+    user-select: none;
+}
+
+#preprocessingInfo {
+    animation: slideDown 0.2s ease-out;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        max-height: 0;
+    }
+    to {
+        opacity: 1;
+        max-height: 100px;
+    }
 }

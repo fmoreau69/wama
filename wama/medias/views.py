@@ -312,33 +312,33 @@ def add_media_to_db(media, vid_or_path):
     media.save()
 
 
-class ProcessView(View):
-    def get(self, request):
-        return render(request, 'medias/process/index.html', get_context(request))
-
-    def post(self, request):
-        try:
-            user = request.user if request.user.is_authenticated else User.objects.filter(username="anonymous").first()
-            # Enregistre la liste des médias à traiter pour le calcul du progrès global
-            batch_medias = list(Media.objects.filter(user=user, processed=False).order_by('id').values_list('id', flat=True))
-            cache.set(f"batch_media_ids_{user.id}", batch_medias, timeout=3600)
-            # Lancer batch task qui va enchaîner toutes les tâches individuelles
-            task = process_user_media_batch.delay(user.id)
-            cache.set(f"user_task_{user.id}", task.id, timeout=3600)
-            return JsonResponse({"task_id": task.id})
-        except Exception as e:
-            import traceback
-            print("🚨 ERREUR upload:", e)
-            traceback.print_exc()
-            return JsonResponse({'is_valid': False, 'error': str(e)}, status=500)
-
-    def display_console(self, request):
-        if request.POST.get('url', 'medias:process.display_console'):
-            command = "path/to/builder.pl --router " + 'hostname'
-            pipe = sp.Popen(command.split(), stdout=sp.PIPE, stderr=sp.PIPE)
-            console = pipe.stdout.read()
-            return render(self.request, 'medias/process/index.html', {'console': console})
-        return None
+# class ProcessView(View):
+#     def get(self, request):
+#         return render(request, 'medias/process/index.html', get_context(request))
+#
+#     def post(self, request):
+#         try:
+#             user = request.user if request.user.is_authenticated else User.objects.filter(username="anonymous").first()
+#             # Enregistre la liste des médias à traiter pour le calcul du progrès global
+#             batch_medias = list(Media.objects.filter(user=user, processed=False).order_by('id').values_list('id', flat=True))
+#             cache.set(f"batch_media_ids_{user.id}", batch_medias, timeout=3600)
+#             # Lancer batch task qui va enchaîner toutes les tâches individuelles
+#             task = process_user_media_batch.delay(user.id)
+#             cache.set(f"user_task_{user.id}", task.id, timeout=3600)
+#             return JsonResponse({"task_id": task.id})
+#         except Exception as e:
+#             import traceback
+#             print("🚨 ERREUR upload:", e)
+#             traceback.print_exc()
+#             return JsonResponse({'is_valid': False, 'error': str(e)}, status=500)
+#
+#     def display_console(self, request):
+#         if request.POST.get('url', 'medias:process.display_console'):
+#             command = "path/to/builder.pl --router " + 'hostname'
+#             pipe = sp.Popen(command.split(), stdout=sp.PIPE, stderr=sp.PIPE)
+#             console = pipe.stdout.read()
+#             return render(self.request, 'medias/process/index.html', {'console': console})
+#         return None
 
 
 def preview_media(request, media_id):
@@ -361,24 +361,14 @@ def preview_media(request, media_id):
     })
 
 
+@login_required
 def console_content(request):
     """Retourne un flux textuel des logs en cours pour affichage console (via Redis/Cache + logs Celery)."""
     user = request.user if request.user.is_authenticated else User.objects.filter(username="anonymous").first()
-    
-    # Récupérer les logs de la console (via Redis/Cache)
     console_lines = get_console_lines(user.id, limit=100)
-    
-    # Récupérer les logs Celery worker
     celery_lines = get_celery_worker_logs(limit=100)
-    
-    # Combiner les deux sources (logs Celery en premier, puis logs console)
-    # Les logs Celery sont généralement plus récents et pertinents
-    all_lines = celery_lines + console_lines
-    
-    # Limiter le nombre total de lignes
-    all_lines = all_lines[-200:]
-    
-    return JsonResponse({"output": all_lines})
+    all_lines = (celery_lines + console_lines)[-200:]
+    return JsonResponse({'output': all_lines})
 
 
 def get_process_progress(request):
@@ -741,7 +731,7 @@ def expand_area(request):
         "MediaSettings": lambda: Media.objects.filter(pk=re.search(r'\d+$', button_id).group()).update(show_ms=button_state),
         "GlobalSettings": lambda: UserSettings.objects.filter(user_id=user.id).update(show_gs=button_state),
         "Preview": lambda: UserSettings.objects.filter(user_id=user.id).update(show_preview=button_state),
-        "Console": lambda: UserSettings.objects.filter(user_id=user.id).update(show_console=button_state),
+        # "Console": lambda: UserSettings.objects.filter(user_id=user.id).update(show_console=button_state),
     }
 
     for key, action in update_map.items():
