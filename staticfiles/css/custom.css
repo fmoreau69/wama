@@ -1,3 +1,4 @@
+/*  Anonymizer  */
 textarea{
 height: 50px;
 }
@@ -40,8 +41,6 @@ ul.modal-menu ul{
 .active-filter span.irs-bar{
     background: rgb(255,160,0);
 }
-
-
 
 .helptext{
     position: relative;
@@ -109,6 +108,96 @@ ul.modal-menu ul{
     /* padding-left: 1px; */
 }
 
+
+/*  Synthesizer  */
+    .drop-zone {
+        border: 2px dashed #007bff;
+        border-radius: 8px;
+        padding: 40px;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.3s;
+        background-color: #212529;
+    }
+
+    .drop-zone:hover, .drop-zone.drag-over {
+        background-color: #e7f3ff;
+        border-color: #0056b3;
+    }
+
+    .synthesis-card {
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 15px;
+        margin-bottom: 10px;
+        background: white;
+        transition: box-shadow 0.2s;
+    }
+
+    .synthesis-card:hover {
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+
+    .synthesis-card.processing {
+        border-left: 4px solid #ffc107;
+    }
+
+    .synthesis-card.success {
+        border-left: 4px solid #28a745;
+    }
+
+    .synthesis-card.error {
+        border-left: 4px solid #dc3545;
+    }
+
+    .progress-bar-custom {
+        height: 6px;
+        border-radius: 3px;
+        background-color: #e9ecef;
+        overflow: hidden;
+    }
+
+    .progress-fill {
+        height: 100%;
+        background-color: #007bff;
+        transition: width 0.3s;
+    }
+
+    .audio-player {
+        width: 100%;
+        margin: 10px 0;
+    }
+
+    .btn-group-actions {
+        display: flex;
+        gap: 5px;
+    }
+
+    .options-panel {
+        background: #212529;
+        padding: 20px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+    }
+
+    .voice-preview-btn {
+        padding: 5px 10px;
+        font-size: 0.875rem;
+    }
+
+    .console-output {
+        background: #1e1e1e;
+        color: #d4d4d4;
+        padding: 15px;
+        border-radius: 5px;
+        max-height: 300px;
+        overflow-y: auto;
+        font-family: 'Courier New', monospace;
+        font-size: 0.875rem;
+    }
+
+
+/*  Transcriber  */
 .preprocessing-controls {
     animation: fadeIn 0.3s ease-in;
 }
