@@ -1,0 +1,24 @@
+{% extends 'synthesizer/base.html' %}
+{% load static %}
+
+{% block title %}Synthesizer - About{% endblock %}
+
+{% block synthesizer_content %}
+<h1 class="page-header">
+    <i class="fas fa-circle-info"></i> About - WAMA Synthesizer
+</h1>
+<p class="lead">Automatic generation of speech audio from text.</p>
+<hr>
+<h4>What is it?</h4>
+<ul>
+    <li>An interface to enter or upload text and generate speech audio</li>
+    <li>Backed by text_to_speech_synthesizer with fallback engine support</li>
+</ul>
+<hr>
+<h4>How does it work?</h4>
+<ul>
+    <li>Enter text or upload a document and start synthesis</li>
+    <li>Choose language and voice options</li>
+    <li>Follow processing and download the generated audio file</li>
+</ul>
+{% endblock %}

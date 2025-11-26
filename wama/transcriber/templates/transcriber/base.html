@@ -15,13 +15,13 @@
             </div>
             <div class="list-group">
                 <a href="{% url 'transcriber:index' %}" class="list-group-item {% if request.path == '/transcriber/' %} active {% endif %}">
-                    <span class="fas fa-upload"></span> <span>Upload / </span> <span class="fas fa-spinner"></span> <span>Process</span>
+                    <span class="fas fa-upload"></span> Upload / <span class="fas fa-spinner"></span> Process
                 </a>
                 <a href="{% url 'transcriber:about' %}" class="list-group-item {% if request.path == '/transcriber/about/' %} active {% endif %}">
-                    <span class="fas fa-circle-info"></span> <span>About</span>
+                    <span class="fas fa-circle-info"></span> About
                 </a>
                 <a href="{% url 'transcriber:help' %}" class="list-group-item {% if request.path == '/transcriber/help/' %} active {% endif %}">
-                    <span class="fas fa-circle-question"></span> <span>Help</span>
+                    <span class="fas fa-circle-question"></span> Help
                 </a>
             </div>
         </div>

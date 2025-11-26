@@ -1,21 +1,23 @@
 {% extends 'transcriber/base.html' %}
 {% load static %}
 
-{% block title %}About{% endblock %}
+{% block title %}Transcriber - About{% endblock %}
 
 {% block transcriber_content %}
-  <h1 class="page-header">About WAMA Transcriber</h1>
-  <p class="lead">Automatic transcription of audio files into text.</p>
-  <hr>
-  <h4>What is it?</h4>
-  <ul>
+<h1 class="page-header">
+    <i class="fas fa-circle-info"></i> About - WAMA Transcriber
+</h1>
+<p class="lead">Automatic transcription of audio files into text.</p>
+<hr>
+<h4>What is it?</h4>
+<ul>
     <li>An interface to upload audio and obtain text transcripts</li>
     <li>Backed by speech_to_text_transcriptor or Whisper as fallback</li>
-  </ul>
-  <hr>
-  <h4>How does it work?</h4>
-  <ul>
+</ul>
+<hr>
+<h4>How does it work?</h4>
+<ul>
     <li>Upload an audio file and start processing</li>
     <li>Follow progress and download the text when finished</li>
-  </ul>
+</ul>
 {% endblock %}
