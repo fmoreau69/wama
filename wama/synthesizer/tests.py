@@ -414,4 +414,4 @@ class PerformanceTest(TestCase):
             list(VoiceSynthesis.objects.select_related('user').all())
 
 # Pour exécuter les tests:
-# python manage.py test wama_synthesizer
+# python manage.py test synthesizer

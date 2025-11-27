@@ -312,33 +312,33 @@ def add_media_to_db(media, vid_or_path):
     media.save()
 
 
-# class ProcessView(View):
-#     def get(self, request):
-#         return render(request, 'medias/process/index.html', get_context(request))
-#
-#     def post(self, request):
-#         try:
-#             user = request.user if request.user.is_authenticated else User.objects.filter(username="anonymous").first()
-#             # Enregistre la liste des médias à traiter pour le calcul du progrès global
-#             batch_medias = list(Media.objects.filter(user=user, processed=False).order_by('id').values_list('id', flat=True))
-#             cache.set(f"batch_media_ids_{user.id}", batch_medias, timeout=3600)
-#             # Lancer batch task qui va enchaîner toutes les tâches individuelles
-#             task = process_user_media_batch.delay(user.id)
-#             cache.set(f"user_task_{user.id}", task.id, timeout=3600)
-#             return JsonResponse({"task_id": task.id})
-#         except Exception as e:
-#             import traceback
-#             print("🚨 ERREUR upload:", e)
-#             traceback.print_exc()
-#             return JsonResponse({'is_valid': False, 'error': str(e)}, status=500)
-#
-#     def display_console(self, request):
-#         if request.POST.get('url', 'medias:process.display_console'):
-#             command = "path/to/builder.pl --router " + 'hostname'
-#             pipe = sp.Popen(command.split(), stdout=sp.PIPE, stderr=sp.PIPE)
-#             console = pipe.stdout.read()
-#             return render(self.request, 'medias/process/index.html', {'console': console})
-#         return None
+class ProcessView(View):
+    def get(self, request):
+        return render(request, 'medias/upload/index.html', get_context(request))
+
+    def post(self, request):
+        try:
+            user = request.user if request.user.is_authenticated else User.objects.filter(username="anonymous").first()
+            # Enregistre la liste des médias à traiter pour le calcul du progrès global
+            batch_medias = list(Media.objects.filter(user=user, processed=False).order_by('id').values_list('id', flat=True))
+            cache.set(f"batch_media_ids_{user.id}", batch_medias, timeout=3600)
+            # Lancer batch task qui va enchaîner toutes les tâches individuelles
+            task = process_user_media_batch.delay(user.id)
+            cache.set(f"user_task_{user.id}", task.id, timeout=3600)
+            return JsonResponse({"task_id": task.id})
+        except Exception as e:
+            import traceback
+            print("🚨 ERREUR upload:", e)
+            traceback.print_exc()
+            return JsonResponse({'is_valid': False, 'error': str(e)}, status=500)
+
+    def display_console(self, request):
+        if request.POST.get('url', 'medias:upload.display_console'):
+            command = "path/to/builder.pl --router " + 'hostname'
+            pipe = sp.Popen(command.split(), stdout=sp.PIPE, stderr=sp.PIPE)
+            console = pipe.stdout.read()
+            return render(self.request, 'medias/upload/index.html', {'console': console})
+        return None
 
 
 def preview_media(request, media_id):
@@ -889,7 +889,7 @@ def reset_global_settings_safe():
         init_global_settings()
 
 class AboutView(TemplateView):
-    template_name = 'medias/about/index.html'
+    template_name = 'medias/about.html'
 
 class HelpView(TemplateView):
-    template_name = 'medias/help/index.html'
+    template_name = 'medias/help.html'

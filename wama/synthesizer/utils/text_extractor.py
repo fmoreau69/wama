@@ -1,16 +1,14 @@
 """
-WAMA Synthesizer - Utilities
-Extraction de texte
+WAMA Synthesizer - Text Extractor (version simplifiée)
+Extraction de texte depuis différents formats
 """
 
 import os
 import logging
-from typing import Optional
+import re
 
 logger = logging.getLogger(__name__)
 
-
-# ============= TEXT EXTRACTION =============
 
 def extract_text_from_file(file_path: str) -> str:
     """
@@ -24,20 +22,17 @@ def extract_text_from_file(file_path: str) -> str:
     """
     ext = os.path.splitext(file_path)[1].lower()
 
-    extractors = {
-        '.txt': _extract_from_txt,
-        '.md': _extract_from_txt,
-        '.pdf': _extract_from_pdf,
-        '.docx': _extract_from_docx,
-        '.csv': _extract_from_csv,
-    }
-
-    extractor = extractors.get(ext)
-    if not extractor:
-        raise ValueError(f"Format de fichier non supporté: {ext}")
-
     try:
-        return extractor(file_path)
+        if ext in ['.txt', '.md']:
+            return _extract_from_txt(file_path)
+        elif ext == '.pdf':
+            return _extract_from_pdf(file_path)
+        elif ext == '.docx':
+            return _extract_from_docx(file_path)
+        elif ext == '.csv':
+            return _extract_from_csv(file_path)
+        else:
+            raise ValueError(f"Format de fichier non supporté: {ext}")
     except Exception as e:
         logger.error(f"Error extracting text from {file_path}: {e}")
         raise
@@ -58,12 +53,16 @@ def _extract_from_pdf(file_path: str) -> str:
         with open(file_path, 'rb') as f:
             reader = PyPDF2.PdfReader(f)
             for page in reader.pages:
-                text.append(page.extract_text())
+                page_text = page.extract_text()
+                if page_text:
+                    text.append(page_text)
 
         return '\n'.join(text)
 
     except ImportError:
-        raise RuntimeError("PyPDF2 not installed. Install with: pip install PyPDF2")
+        raise RuntimeError("PyPDF2 n'est pas installé. Installez avec: pip install PyPDF2")
+    except Exception as e:
+        raise RuntimeError(f"Erreur lors de l'extraction PDF: {str(e)}")
 
 
 def _extract_from_docx(file_path: str) -> str:
@@ -81,7 +80,9 @@ def _extract_from_docx(file_path: str) -> str:
         return '\n'.join(text)
 
     except ImportError:
-        raise RuntimeError("python-docx not installed. Install with: pip install python-docx")
+        raise RuntimeError("python-docx n'est pas installé. Installez avec: pip install python-docx")
+    except Exception as e:
+        raise RuntimeError(f"Erreur lors de l'extraction DOCX: {str(e)}")
 
 
 def _extract_from_csv(file_path: str) -> str:
@@ -89,16 +90,19 @@ def _extract_from_csv(file_path: str) -> str:
     import csv
 
     text = []
-    with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-        reader = csv.reader(f)
-        for row in reader:
-            # Joindre les colonnes avec des espaces
-            text.append(' '.join(str(cell) for cell in row if cell))
+    try:
+        with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+            reader = csv.reader(f)
+            for row in reader:
+                # Joindre les colonnes avec des espaces
+                row_text = ' '.join(str(cell) for cell in row if cell)
+                if row_text.strip():
+                    text.append(row_text)
 
-    return '\n'.join(text)
+        return '\n'.join(text)
+    except Exception as e:
+        raise RuntimeError(f"Erreur lors de l'extraction CSV: {str(e)}")
 
-
-# ============= TEXT PREPROCESSING =============
 
 def clean_text_for_tts(text: str) -> str:
     """
@@ -110,7 +114,8 @@ def clean_text_for_tts(text: str) -> str:
     Returns:
         str: Texte nettoyé
     """
-    import re
+    if not text:
+        return ""
 
     # Supprimer les URLs
     text = re.sub(r'http[s]?://\S+', '', text)
@@ -121,7 +126,7 @@ def clean_text_for_tts(text: str) -> str:
     # Normaliser les espaces multiples
     text = re.sub(r'\s+', ' ', text)
 
-    # Supprimer les caractères de contrôle
+    # Supprimer les caractères de contrôle sauf retours à la ligne
     text = ''.join(char for char in text if ord(char) >= 32 or char in '\n\r\t')
 
     # Normaliser les sauts de ligne multiples
@@ -141,6 +146,9 @@ def estimate_reading_time(text: str, wpm: int = 150) -> float:
     Returns:
         float: Temps estimé en secondes
     """
+    if not text:
+        return 0.0
+
     word_count = len(text.split())
     minutes = word_count / wpm
     return minutes * 60
@@ -157,7 +165,8 @@ def split_text_by_sentences(text: str, max_length: int = 1000) -> list:
     Returns:
         list: Liste de morceaux de texte
     """
-    import re
+    if not text:
+        return []
 
     # Diviser en phrases
     sentences = re.split(r'(?<=[.!?])\s+', text)

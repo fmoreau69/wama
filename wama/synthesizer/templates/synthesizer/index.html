@@ -1,11 +1,11 @@
 {% extends 'synthesizer/base.html' %}
 {% load static %}
 
-{% block title %}<i class="fas fa-microphone-alt"></i> Synthesizer - Synthèse Vocale{% endblock %}
+{% block title %}Synthesizer - Text To Speech{% endblock %}
 
 {% block javascript %}
 {{ block.super }}
-  <script src="{% static 'synthsizer/js/index.js' %}"></script>
+  <script src="{% static 'synthesizer/js/index.js' %}"></script>
 {% endblock %}
 
 {% block synthesizer_content %}

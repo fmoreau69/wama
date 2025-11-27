@@ -61,70 +61,96 @@ def upload(request):
     """
     Upload d'un fichier texte à synthétiser.
     """
-    text_file = request.FILES.get('file')
-    if not text_file:
-        return HttpResponseBadRequest('Missing file')
-
-    # Valider l'extension
-    allowed_extensions = ['txt', 'pdf', 'docx', 'csv', 'md']
-    ext = os.path.splitext(text_file.name)[1][1:].lower()
-    if ext not in allowed_extensions:
-        return JsonResponse({
-            'error': f'Format non supporté. Formats acceptés: {", ".join(allowed_extensions)}'
-        }, status=400)
-
-    # Récupérer les options
-    tts_model = request.POST.get('tts_model', 'xtts_v2')
-    language = request.POST.get('language', 'fr')
-    voice_preset = request.POST.get('voice_preset', 'default')
-    speed = float(request.POST.get('speed', 1.0))
-    pitch = float(request.POST.get('pitch', 1.0))
-    emotion_intensity = float(request.POST.get('emotion_intensity', 1.0))
-
-    # Voice reference (optionnel)
-    voice_reference = request.FILES.get('voice_reference')
-
-    # Créer l'objet VoiceSynthesis
-    synthesis = VoiceSynthesis.objects.create(
-        user=request.user,
-        text_file=text_file,
-        tts_model=tts_model,
-        language=language,
-        voice_preset=voice_preset,
-        speed=speed,
-        pitch=pitch,
-        emotion_intensity=emotion_intensity,
-        voice_reference=voice_reference
-    )
-
-    # Extraire le texte et mettre à jour les métadonnées
     try:
-        from .utils.text_extractor import extract_text_from_file, clean_text_for_tts
-        text_content = extract_text_from_file(synthesis.text_file.path)
-        synthesis.text_content = clean_text_for_tts(text_content)
-        synthesis.update_metadata()
-    except Exception as e:
-        synthesis.status = 'FAILURE'
-        synthesis.error_message = f"Erreur d'extraction: {str(e)}"
-        synthesis.save()
-        return JsonResponse({
-            'error': f"Impossible d'extraire le texte: {str(e)}"
-        }, status=400)
+        text_file = request.FILES.get('file')
+        if not text_file:
+            return JsonResponse({
+                'error': 'Aucun fichier fourni'
+            }, status=400)
 
-    return JsonResponse({
-        'id': synthesis.id,
-        'text_file_url': synthesis.text_file.url,
-        'text_file_label': os.path.basename(smart_str(synthesis.text_file.name)),
-        'status': synthesis.status,
-        'word_count': synthesis.word_count,
-        'duration_display': synthesis.duration_display,
-        'properties': synthesis.properties or 'En attente',
-        'options': {
-            'model': synthesis.get_tts_model_display(),
-            'language': synthesis.get_language_display(),
-            'voice': synthesis.get_voice_preset_display(),
-        }
-    })
+        # Valider l'extension
+        allowed_extensions = ['txt', 'pdf', 'docx', 'csv', 'md']
+        ext = os.path.splitext(text_file.name)[1][1:].lower()
+        if ext not in allowed_extensions:
+            return JsonResponse({
+                'error': f'Format non supporté. Formats acceptés: {", ".join(allowed_extensions)}'
+            }, status=400)
+
+        # Récupérer les options avec gestion d'erreur
+        try:
+            tts_model = request.POST.get('tts_model', 'xtts_v2')
+            language = request.POST.get('language', 'fr')
+            voice_preset = request.POST.get('voice_preset', 'default')
+            speed = float(request.POST.get('speed', 1.0))
+            pitch = float(request.POST.get('pitch', 1.0))
+            emotion_intensity = float(request.POST.get('emotion_intensity', 1.0))
+        except (ValueError, TypeError) as e:
+            return JsonResponse({
+                'error': f'Paramètres invalides: {str(e)}'
+            }, status=400)
+
+        # Voice reference (optionnel)
+        voice_reference = request.FILES.get('voice_reference')
+
+        # Créer l'objet VoiceSynthesis
+        synthesis = VoiceSynthesis.objects.create(
+            user=request.user,
+            text_file=text_file,
+            tts_model=tts_model,
+            language=language,
+            voice_preset=voice_preset,
+            speed=speed,
+            pitch=pitch,
+            emotion_intensity=emotion_intensity,
+            voice_reference=voice_reference
+        )
+
+        # Extraire le texte et mettre à jour les métadonnées
+        try:
+            from .utils.text_extractor import extract_text_from_file, clean_text_for_tts
+            text_content = extract_text_from_file(synthesis.text_file.path)
+            synthesis.text_content = clean_text_for_tts(text_content)
+            synthesis.update_metadata()
+        except ImportError as e:
+            # Module d'extraction pas encore créé
+            synthesis.text_content = "Extraction en attente"
+            synthesis.word_count = 0
+            synthesis.save()
+            return JsonResponse({
+                'error': f"Module d'extraction non disponible: {str(e)}"
+            }, status=500)
+        except Exception as e:
+            synthesis.status = 'FAILURE'
+            synthesis.error_message = f"Erreur d'extraction: {str(e)}"
+            synthesis.save()
+            return JsonResponse({
+                'error': f"Impossible d'extraire le texte: {str(e)}"
+            }, status=400)
+
+        return JsonResponse({
+            'id': synthesis.id,
+            'text_file_url': synthesis.text_file.url,
+            'text_file_label': os.path.basename(smart_str(synthesis.text_file.name)),
+            'status': synthesis.status,
+            'word_count': synthesis.word_count,
+            'duration_display': synthesis.duration_display,
+            'properties': synthesis.properties or 'En attente',
+            'options': {
+                'model': synthesis.get_tts_model_display(),
+                'language': synthesis.get_language_display(),
+                'voice': synthesis.get_voice_preset_display(),
+            }
+        })
+
+    except Exception as e:
+        # Capturer toute erreur non gérée
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"Error in upload view: {error_details}")
+
+        return JsonResponse({
+            'error': f'Erreur serveur: {str(e)}'
+        }, status=500)
 
 
 @login_required
