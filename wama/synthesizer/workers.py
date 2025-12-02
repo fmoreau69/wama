@@ -6,6 +6,10 @@ Tâches de synthèse vocale avec TTS
 import os
 import torch
 from celery import shared_task
+
+# Accept Coqui TTS terms of service automatically for non-commercial use
+# See: https://coqui.ai/cpml
+os.environ.setdefault("COQUI_TOS_AGREED", "1")
 from django.core.cache import cache
 from django.db import close_old_connections
 from django.core.files.base import ContentFile
@@ -70,6 +74,75 @@ def _console(user_id: int, message: str) -> None:
         push_console_line(user_id, f"[Synthesizer] {message}")
     except Exception:
         pass
+
+
+def _get_default_speaker_wav(voice_preset: str) -> str:
+    """
+    Retourne le chemin vers un fichier audio de référence par défaut.
+    Télécharge automatiquement des samples si nécessaire.
+
+    Args:
+        voice_preset: Le preset de voix sélectionné
+
+    Returns:
+        str: Chemin vers le fichier audio de référence, ou None
+    """
+    import pkg_resources
+    import urllib.request
+
+    # Mapping des presets vers des fichiers de référence
+    # Pour l'instant, on essaie d'utiliser les samples du package TTS
+    try:
+        # Chercher dans le package TTS pour des samples
+        tts_path = pkg_resources.resource_filename('TTS', '')
+        samples_dir = os.path.join(tts_path, 'utils', 'samples')
+
+        if os.path.exists(samples_dir):
+            # Chercher un fichier WAV dans le dossier samples
+            for file in os.listdir(samples_dir):
+                if file.endswith('.wav'):
+                    return os.path.join(samples_dir, file)
+    except Exception:
+        pass
+
+    # Fallback: chercher dans le dossier du projet
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+    default_voices_dir = os.path.join(project_root, 'media', 'synthesizer', 'default_voices')
+
+    # Créer le dossier s'il n'existe pas
+    os.makedirs(default_voices_dir, exist_ok=True)
+
+    preset_mapping = {
+        'default': 'default.wav',
+        'male_1': 'male_1.wav',
+        'male_2': 'male_2.wav',
+        'female_1': 'female_1.wav',
+        'female_2': 'female_2.wav',
+    }
+
+    # Télécharger un sample par défaut si aucun n'existe
+    default_file = os.path.join(default_voices_dir, 'default.wav')
+    if not os.path.exists(default_file):
+        try:
+            # Utiliser un sample audio de démonstration depuis le repo XTTS
+            sample_url = "https://github.com/coqui-ai/TTS/raw/dev/tests/data/ljspeech/wavs/LJ001-0001.wav"
+            logger.info(f"Downloading default voice sample from {sample_url}")
+            urllib.request.urlretrieve(sample_url, default_file)
+            logger.info(f"Default voice sample saved to {default_file}")
+        except Exception as e:
+            logger.warning(f"Could not download default voice sample: {e}")
+
+    # Chercher le fichier correspondant au preset
+    if voice_preset in preset_mapping:
+        voice_file = os.path.join(default_voices_dir, preset_mapping[voice_preset])
+        if os.path.exists(voice_file):
+            return voice_file
+
+    # Fallback: utiliser le fichier default
+    if os.path.exists(default_file):
+        return default_file
+
+    return None
 
 
 @shared_task(bind=True)
@@ -222,6 +295,22 @@ def _synthesize_xtts_v2(tts, synthesis, text, output_path, progress_fn, console_
     if synthesis.voice_reference:
         console_fn(synthesis.user_id, "Utilisation du clonage de voix...")
         kwargs['speaker_wav'] = synthesis.voice_reference.path
+    else:
+        # XTTS v2 nécessite toujours un speaker_wav
+        # Utiliser un échantillon par défaut basé sur le preset
+        console_fn(synthesis.user_id, "Aucune voix de référence fournie, recherche d'une voix par défaut...")
+        default_speaker = _get_default_speaker_wav(synthesis.voice_preset)
+        if default_speaker and os.path.exists(default_speaker):
+            console_fn(synthesis.user_id, f"Voix par défaut trouvée: {os.path.basename(default_speaker)}")
+            kwargs['speaker_wav'] = default_speaker
+        else:
+            # Impossible de trouver une voix de référence
+            error_msg = (
+                "XTTS v2 nécessite un fichier audio de référence (voice_reference). "
+                "Veuillez uploader un fichier audio de 6-10 secondes, ou ajoutez des voix par défaut "
+                "dans le dossier media/synthesizer/default_voices/"
+            )
+            raise ValueError(error_msg)
 
     # Diviser le texte en chunks pour les longs textes
     max_chars = 1000  # Limite de caractères par chunk

@@ -1,16 +1,6 @@
-// Configuration - URLs définies côté serveur
-const URLS = {
-    upload: "{% url 'synthesizer:upload' %}",
-    start: "/synthesizer/start/",
-    progress: "/synthesizer/progress/",
-    delete: "/synthesizer/delete/",
-    startAll: "{% url 'synthesizer:start_all' %}",
-    downloadAll: "{% url 'synthesizer:download_all' %}",
-    clearAll: "{% url 'synthesizer:clear_all' %}",
-    console: "{% url 'synthesizer:console' %}"
-};
-
-const csrfToken = '{{ csrf_token }}';
+// Configuration - URLs définies côté serveur (injectées depuis le template)
+const URLS = window.WAMA_CONFIG.urls;
+const csrfToken = window.WAMA_CONFIG.csrfToken;
 
 // Attendre que le DOM soit chargé
 document.addEventListener('DOMContentLoaded', function() {

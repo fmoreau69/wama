@@ -1,1 +1,1 @@
-default_app_config = 'wama.apps.SynthesizerConfig'
+default_app_config = 'wama.synthesizer.apps.SynthesizerConfig'

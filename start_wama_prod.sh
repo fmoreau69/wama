@@ -87,6 +87,8 @@ fi
 # ------------------------------------------------------
 if ! pgrep -f "celery.*worker" > /dev/null; then
     echo "=== Starting Celery Worker ==="
+    # Accept Coqui TTS terms of service for non-commercial use
+    export COQUI_TOS_AGREED=1
     celery -A wama worker \
         --loglevel=INFO \
         --concurrency=$CELERY_WORKERS \
@@ -115,3 +117,4 @@ fi
 echo "=== WAMA production stack started successfully ==="
 echo "Django: http://localhost:$DJANGO_PORT"
 echo "Logs: $LOG_DIR"
+hostname -I

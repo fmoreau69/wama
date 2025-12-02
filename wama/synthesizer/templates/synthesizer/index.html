@@ -3,18 +3,13 @@
 
 {% block title %}Synthesizer - Text To Speech{% endblock %}
 
-{% block javascript %}
-{{ block.super }}
-  <script src="{% static 'synthesizer/js/index.js' %}"></script>
-{% endblock %}
-
 {% block synthesizer_content %}
 <div class="container-fluid py-4">
 
     <!-- Upload Zone -->
     <div class="row mb-4">
         <div class="col-12">
-            <div class="drop-zone" id="dropZone">
+            <div class="drop-zone" id="dropZone" data-upload-url="{% url 'synthesizer:upload' %}" data-csrf-token="{{ csrf_token }}">
                 <i class="fas fa-file-upload fa-3x mb-3 text-primary"></i>
                 <h5>Glissez-déposez vos fichiers texte ici</h5>
                 <p class="text mb-3">ou cliquez pour parcourir</p>
@@ -249,4 +244,25 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block javascript %}
+{{ block.super }}
+<script>
+    // Inject Django URLs and CSRF token into JavaScript
+    window.WAMA_CONFIG = {
+        urls: {
+            upload: "{% url 'synthesizer:upload' %}",
+            start: "/synthesizer/start/",
+            progress: "/synthesizer/progress/",
+            delete: "/synthesizer/delete/",
+            startAll: "{% url 'synthesizer:start_all' %}",
+            downloadAll: "{% url 'synthesizer:download_all' %}",
+            clearAll: "{% url 'synthesizer:clear_all' %}",
+            console: "{% url 'synthesizer:console' %}"
+        },
+        csrfToken: "{{ csrf_token }}"
+    };
+</script>
+<script src="{% static 'synthesizer/js/index.js' %}"></script>
 {% endblock %}
