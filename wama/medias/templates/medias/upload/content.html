@@ -1,12 +1,3 @@
-<!--  Upload medias from drag&drop  -->
-<div style="padding-top: 20px;">
-    <div class="card card-body text-bg-light text-muted text-center"
-         {% if not user.user_settings.media_added %} style="padding-top: 15rem; padding-bottom: 15rem;"
-         {% else %} style="padding-top: 1.5rem; padding-bottom: 1.5rem;" {% endif %}>
-        <i class="fas fa-arrow-down" style="font-size: 4rem;"></i>
-        <h3 class="text-muted">Drop media Or media list here</h3>
-    </div>
-</div>
 <div {% if not user.user_settings.media_added %} class="collapse" {% else %} class="collapse show" {% endif %}
      id="collapseContent">
     <!--  content  -->

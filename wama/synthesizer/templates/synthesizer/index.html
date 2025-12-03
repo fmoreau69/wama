@@ -117,7 +117,29 @@
             </div>
         </div>
     </div>
-    
+
+    <!-- Global Progress Bar -->
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="card" style="background: #212529; border: 1px solid #495057;">
+                <div class="card-body py-2">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="mb-0 text-light">
+                            <i class="fas fa-chart-line"></i> Progression globale
+                        </h6>
+                        <small class="text-muted" id="globalProgressStats">Calcul...</small>
+                    </div>
+                    <div class="progress-bar-custom" style="height: 10px;">
+                        <div class="progress-fill" id="globalProgressBar" style="width: 0%"></div>
+                    </div>
+                    <div class="text-center mt-1">
+                        <small class="text-light" id="globalProgressText">0%</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Syntheses Queue -->
     <div class="row">
         <div class="col-12">
@@ -255,6 +277,7 @@
             upload: "{% url 'synthesizer:upload' %}",
             start: "/synthesizer/start/",
             progress: "/synthesizer/progress/",
+            globalProgress: "{% url 'synthesizer:global_progress' %}",
             delete: "/synthesizer/delete/",
             startAll: "{% url 'synthesizer:start_all' %}",
             downloadAll: "{% url 'synthesizer:download_all' %}",

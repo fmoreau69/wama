@@ -9,6 +9,7 @@
     window.TRANSCRIBER_APP = Object.assign({}, window.TRANSCRIBER_APP, {
       csrfToken: '{{ csrf_token }}',
       uploadUrl: '{% url "transcriber:upload" %}',
+      uploadYoutubeUrl: '{% url "transcriber:upload_youtube" %}',
       startUrlTemplate: '{% url "transcriber:start" 0 %}',
       progressUrlTemplate: '{% url "transcriber:progress" 0 %}',
       deleteUrlTemplate: '{% url "transcriber:delete" 0 %}',
@@ -24,14 +25,52 @@
 
 {% block transcriber_content %}
 <div id="transcriber-app" class="transcriber-app">
-    <div class="row g-3 align-items-center">
-        <div class="col-lg-6 col-12 text-center">
-            <button id="transcriber-upload-btn" class="btn btn-primary btn-lg w-100 w-lg-auto">
-                <i class="fas fa-file-audio"></i> Upload audio
-            </button>
-            <input id="transcriber-file" type="file" accept="audio/*" style="display:none" />
-            <p class="text small mt-2 mb-0">Formats acceptés : mp3, wav, flac, m4a...</p>
+    <!-- Drag & Drop Zone -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="drop-zone" id="dropZoneTranscriber">
+                <i class="fas fa-cloud-upload-alt fa-3x mb-3 text-primary"></i>
+                <h5>Glissez-déposez vos fichiers audio/vidéo ici</h5>
+                <p class="text mb-3">ou cliquez pour parcourir</p>
+                <p class="small text">
+                    Audio: MP3, WAV, FLAC, M4A, OGG<br>
+                    Vidéo: MP4, AVI, MKV, MOV, WEBM
+                </p>
+                <input type="file" id="transcriber-file" multiple accept="audio/*,video/*" style="display: none;">
+                <button class="btn btn-primary mt-2" id="transcriber-browse-btn">
+                    <i class="fas fa-folder-open"></i> Parcourir
+                </button>
+            </div>
         </div>
+    </div>
+
+    <!-- YouTube URL Input -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card" style="background: #212529; border: 1px solid #495057;">
+                <div class="card-body">
+                    <h6 class="text-light mb-3">
+                        <i class="fab fa-youtube text-danger"></i> Transcrire depuis YouTube
+                    </h6>
+                    <div class="input-group">
+                        <input type="text"
+                               class="form-control"
+                               id="youtubeUrl"
+                               placeholder="Collez l'URL de la vidéo YouTube ici..."
+                               aria-label="YouTube URL">
+                        <button class="btn btn-danger" type="button" id="youtubeSubmitBtn">
+                            <i class="fas fa-download"></i> Télécharger & Transcrire
+                        </button>
+                    </div>
+                    <small class="text-muted mt-2 d-block">
+                        Exemple: https://www.youtube.com/watch?v=dQw4w9WgXcQ
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3 align-items-center justify-content-center">
         <div class="col-lg-6 col-12 text-center">
             <button id="transcriber-speak-btn" class="btn btn-warning btn-lg w-100 w-lg-auto">
                 <i class="fas fa-microphone"></i> Speak

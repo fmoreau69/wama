@@ -132,15 +132,30 @@ document.addEventListener('DOMContentLoaded', function() {
     if (startAllBtn) {
         startAllBtn.addEventListener('click', async () => {
             try {
+                // Récupérer les options du formulaire
+                const formData = new FormData();
+                formData.append('tts_model', document.getElementById('tts_model').value);
+                formData.append('language', document.getElementById('language').value);
+                formData.append('voice_preset', document.getElementById('voice_preset').value);
+                formData.append('speed', document.getElementById('speed').value);
+                formData.append('pitch', document.getElementById('pitch').value);
+
+                const voiceRef = document.getElementById('voice_reference');
+                if (voiceRef && voiceRef.files[0]) {
+                    formData.append('voice_reference', voiceRef.files[0]);
+                }
+
                 const response = await fetch(URLS.startAll, {
                     method: 'POST',
-                    headers: { 'X-CSRFToken': csrfToken }
+                    headers: { 'X-CSRFToken': csrfToken },
+                    body: formData
                 });
 
                 if (response.ok) {
                     location.reload();
                 } else {
-                    alert('Erreur lors du démarrage');
+                    const data = await response.json();
+                    alert('Erreur: ' + (data.error || 'Échec du démarrage'));
                 }
             } catch (error) {
                 alert('Erreur: ' + error.message);
@@ -219,6 +234,33 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
     }, 2000);
+
+    // Auto-refresh global progress
+    async function updateGlobalProgress() {
+        try {
+            const response = await fetch(URLS.globalProgress);
+            const data = await response.json();
+
+            const globalProgressBar = document.getElementById('globalProgressBar');
+            const globalProgressText = document.getElementById('globalProgressText');
+            const globalProgressStats = document.getElementById('globalProgressStats');
+
+            if (globalProgressBar && globalProgressText) {
+                globalProgressBar.style.width = data.global_progress + '%';
+                globalProgressText.textContent = data.global_progress + '%';
+            }
+
+            if (globalProgressStats) {
+                globalProgressStats.textContent = `${data.completed}/${data.total} terminé • ${data.running} en cours • ${data.pending} en attente${data.failed > 0 ? ` • ${data.failed} échoué` : ''}`;
+            }
+        } catch (error) {
+            console.error('Global progress update error:', error);
+        }
+    }
+
+    // Update global progress every 2 seconds
+    updateGlobalProgress();
+    setInterval(updateGlobalProgress, 2000);
 
 }); // Fin DOMContentLoaded
 

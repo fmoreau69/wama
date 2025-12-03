@@ -19,22 +19,55 @@
 
 {% block medias_content %}
 <!--  Upload media  -->
-<div class="row margin-bottom: 20px;">
-    <div class="col-1" style="padding-bottom: 5rem;"></div>
-    <!--  Upload local media  -->
-    <div class="col-4 d-flex justify-content-center align-items-center">
-        <button type="button" class="btn btn-primary btn-lg js-upload-medias" style="height: 58px; width: 300px">
-            <i class="fas fa-cloud-upload-alt"></i> Upload local media
-        </button>
-        <input id="fileupload" type="file" name="file" multiple
-               style="display: none;"
-               data-url="{% url 'medias:upload' %}"
-               data-form-data='{"csrfmiddlewaretoken": "{{ csrf_token }}"}'>
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="drop-zone" id="dropZoneAnonymizer">
+            <i class="fas fa-cloud-upload-alt fa-3x mb-3 text-primary"></i>
+            <h5>Glissez-déposez vos fichiers photo/vidéo ici</h5>
+            <p class="text mb-3">ou cliquez pour parcourir</p>
+            <p class="small text">
+                Photo: JPG, PNG, GIF, BMP, WEBP<br>
+                Vidéo: MP4, AVI, MKV, MOV, WEBM
+            </p>
+            <input id="fileupload" type="file" name="file" multiple
+                   accept="image/*,video/*"
+                   style="display: none;"
+                   data-url="{% url 'medias:upload' %}"
+                   data-form-data='{"csrfmiddlewaretoken": "{{ csrf_token }}"}'>
+            <button type="button" class="btn btn-primary btn-lg mt-2 js-upload-medias">
+                <i class="fas fa-folder-open"></i> Parcourir
+            </button>
+        </div>
     </div>
-    <div class="col-2"><h1 class="text-center fw-bold" style="padding-top: 1rem;">Or</h1></div>
-    <!--  Upload medias from URL  -->
-    <div class="col-5">
-        {% include "medias/upload/upload_from_url.html" %}
+</div>
+
+<!-- URL Upload Section -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card" style="background: #212529; border: 1px solid #495057;">
+            <div class="card-body">
+                <h6 class="text-light mb-3">
+                    <i class="fas fa-link"></i> Télécharger depuis une URL
+                </h6>
+                <form id="media-url-form" method="post" enctype="multipart/form-data" action="{% url 'medias:upload' %}">
+                    {% csrf_token %}
+                    <div class="input-group">
+                        <input type="text"
+                               class="form-control"
+                               id="media_url"
+                               name="media_url"
+                               placeholder="Collez l'URL de la photo/vidéo ici..."
+                               aria-label="Media URL">
+                        <button class="btn btn-primary" type="submit">
+                            <i class="fas fa-download"></i> Télécharger
+                        </button>
+                    </div>
+                    <small class="text-muted mt-2 d-block">
+                        Exemple: https://example.com/video.mp4 ou lien YouTube
+                    </small>
+                </form>
+            </div>
+        </div>
     </div>
 </div>
 <!--  Progress popup  -->

@@ -4,6 +4,63 @@ $(function () {
     $("#fileupload").click();
   });
 
+  // Support Drag & Drop pour la zone d'upload
+  const dropZone = document.getElementById('dropZoneAnonymizer');
+  const fileInput = document.getElementById('fileupload');
+
+  if (dropZone && fileInput) {
+    // Click sur la zone = ouvrir le sélecteur
+    dropZone.addEventListener('click', function(e) {
+      // Ne pas déclencher si on clique sur le bouton (qui a déjà son handler)
+      if (!e.target.closest('.js-upload-medias')) {
+        fileInput.click();
+      }
+    });
+
+    // Empêcher le comportement par défaut du navigateur
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+      dropZone.addEventListener(eventName, preventDefaults, false);
+      document.body.addEventListener(eventName, preventDefaults, false);
+    });
+
+    function preventDefaults(e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+
+    // Highlight de la zone au survol
+    ['dragenter', 'dragover'].forEach(eventName => {
+      dropZone.addEventListener(eventName, highlight, false);
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+      dropZone.addEventListener(eventName, unhighlight, false);
+    });
+
+    function highlight() {
+      dropZone.classList.add('drag-over');
+    }
+
+    function unhighlight() {
+      dropZone.classList.remove('drag-over');
+    }
+
+    // Gestion du drop
+    dropZone.addEventListener('drop', handleDrop, false);
+
+    function handleDrop(e) {
+      const dt = e.dataTransfer;
+      const files = dt.files;
+
+      if (files.length > 0) {
+        // Simuler la sélection de fichiers via l'input
+        fileInput.files = files;
+        // Déclencher l'événement change pour fileupload
+        $(fileInput).trigger('change');
+      }
+    }
+  }
+
   // Upload des fichiers
   $("#fileupload").fileupload({
     dataType: 'json',

@@ -165,13 +165,28 @@ def start(request, pk: int):
             'error': 'La synthèse est déjà en cours'
         }, status=400)
 
+    # Réinitialiser complètement la synthèse
+    synthesis.status = 'PENDING'
+    synthesis.progress = 0
+    synthesis.error_message = ''
+
+    # Supprimer l'ancien audio si présent
+    if synthesis.audio_output:
+        try:
+            synthesis.audio_output.delete(save=False)
+        except:
+            pass
+
+    synthesis.save(update_fields=['status', 'progress', 'error_message', 'audio_output'])
+    cache.set(f"synthesizer_progress_{synthesis.id}", 0, timeout=3600)
+
     from .workers import synthesize_voice
     task = synthesize_voice.delay(synthesis.id)
 
     synthesis.task_id = task.id
     synthesis.status = 'RUNNING'
-    synthesis.progress = 5
-    cache.set(f"synthesizer_progress_{synthesis.id}", 5, timeout=3600)
+    synthesis.progress = 0
+    cache.set(f"synthesizer_progress_{synthesis.id}", 0, timeout=3600)
     synthesis.save(update_fields=['task_id', 'status', 'progress'])
 
     return JsonResponse({
@@ -194,6 +209,56 @@ def progress(request, pk: int):
         'audio_url': synthesis.audio_output.url if synthesis.audio_output else None,
         'duration_display': synthesis.duration_display,
         'error': synthesis.error_message if synthesis.status == 'FAILURE' else None,
+    })
+
+
+@login_required
+def global_progress(request):
+    """
+    Récupère la progression globale de toutes les synthèses de l'utilisateur.
+    """
+    syntheses = VoiceSynthesis.objects.filter(user=request.user)
+
+    if not syntheses.exists():
+        return JsonResponse({
+            'global_progress': 0,
+            'total': 0,
+            'completed': 0,
+            'running': 0,
+            'pending': 0,
+            'failed': 0
+        })
+
+    total = syntheses.count()
+    completed = syntheses.filter(status='SUCCESS').count()
+    running = syntheses.filter(status='RUNNING').count()
+    pending = syntheses.filter(status='PENDING').count()
+    failed = syntheses.filter(status='FAILURE').count()
+
+    # Calculer la progression globale
+    # Les synthèses SUCCESS comptent pour 100%
+    # Les synthèses RUNNING comptent selon leur progression
+    # Les synthèses PENDING comptent pour 0%
+    # Les synthèses FAILURE comptent pour 0%
+    total_progress = 0
+
+    for synthesis in syntheses:
+        if synthesis.status == 'SUCCESS':
+            total_progress += 100
+        elif synthesis.status == 'RUNNING':
+            p = int(cache.get(f"synthesizer_progress_{synthesis.id}", synthesis.progress or 0))
+            total_progress += p
+        # PENDING et FAILURE comptent pour 0
+
+    global_progress = int(total_progress / total) if total > 0 else 0
+
+    return JsonResponse({
+        'global_progress': global_progress,
+        'total': total,
+        'completed': completed,
+        'running': running,
+        'pending': pending,
+        'failed': failed
     })
 
 
@@ -283,26 +348,86 @@ def console_content(request):
 def start_all(request):
     """
     Démarre toutes les synthèses en attente.
+    Met à jour les options de synthèse pour toutes les files avant de les lancer.
     """
     from .workers import synthesize_voice
 
-    qs = VoiceSynthesis.objects.filter(user=request.user).exclude(status='SUCCESS')
+    # Récupérer les nouvelles options depuis le formulaire
+    try:
+        tts_model = request.POST.get('tts_model')
+        language = request.POST.get('language')
+        voice_preset = request.POST.get('voice_preset')
+        speed = request.POST.get('speed')
+        pitch = request.POST.get('pitch')
+        voice_reference = request.FILES.get('voice_reference')
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Erreur lors de la récupération des options: {str(e)}'
+        }, status=400)
+
+    # Récupérer toutes les synthèses (sauf celles en cours)
+    qs = VoiceSynthesis.objects.filter(user=request.user).exclude(status='RUNNING')
     started = []
+    updated_options = []
 
     for synthesis in qs:
-        if synthesis.status == 'RUNNING':
-            continue
+        # Mettre à jour les options si fournies
+        options_changed = False
+        if tts_model and synthesis.tts_model != tts_model:
+            synthesis.tts_model = tts_model
+            options_changed = True
+        if language and synthesis.language != language:
+            synthesis.language = language
+            options_changed = True
+        if voice_preset and synthesis.voice_preset != voice_preset:
+            synthesis.voice_preset = voice_preset
+            options_changed = True
+        if speed and float(speed) != synthesis.speed:
+            synthesis.speed = float(speed)
+            options_changed = True
+        if pitch and float(pitch) != synthesis.pitch:
+            synthesis.pitch = float(pitch)
+            options_changed = True
+        if voice_reference:
+            # Supprimer l'ancienne référence si elle existe
+            if synthesis.voice_reference:
+                try:
+                    synthesis.voice_reference.delete(save=False)
+                except:
+                    pass
+            synthesis.voice_reference = voice_reference
+            options_changed = True
 
+        if options_changed:
+            updated_options.append(synthesis.id)
+
+        # Réinitialiser la synthèse
+        synthesis.status = 'PENDING'
+        synthesis.progress = 0
+        synthesis.error_message = ''
+
+        # Supprimer l'ancien audio si présent
+        if synthesis.audio_output:
+            try:
+                synthesis.audio_output.delete(save=False)
+            except:
+                pass
+
+        synthesis.save()
+        cache.set(f"synthesizer_progress_{synthesis.id}", 0, timeout=3600)
+
+        # Lancer la tâche
         task = synthesize_voice.delay(synthesis.id)
         synthesis.task_id = task.id
         synthesis.status = 'RUNNING'
-        synthesis.progress = 5
-        cache.set(f"synthesizer_progress_{synthesis.id}", 5, timeout=3600)
+        synthesis.progress = 0
+        cache.set(f"synthesizer_progress_{synthesis.id}", 0, timeout=3600)
         synthesis.save(update_fields=['task_id', 'status', 'progress'])
         started.append(synthesis.id)
 
     return JsonResponse({
         'started_ids': started,
+        'updated_options': updated_options,
         'count': len(started)
     })
 

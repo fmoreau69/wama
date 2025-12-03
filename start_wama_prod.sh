@@ -117,4 +117,5 @@ fi
 echo "=== WAMA production stack started successfully ==="
 echo "Django: http://localhost:$DJANGO_PORT"
 echo "Logs: $LOG_DIR"
+date
 hostname -I

@@ -1,7 +1,6 @@
 document.addEventListener('DOMContentLoaded', function () {
   const config = window.TRANSCRIBER_APP || {};
   const csrfToken = config.csrfToken;
-  const uploadBtn = document.getElementById('transcriber-upload-btn');
   const fileInput = document.getElementById('transcriber-file');
   const queueTable = document.getElementById('transcriber-queue');
   const speakButton = document.getElementById('transcriber-speak-btn');
@@ -29,38 +28,143 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
 
-  function initUpload() {
-    if (!uploadBtn || !fileInput) return;
+  async function uploadFile(file) {
+    const body = new FormData();
+    body.append('file', file);
+    body.append('preprocess_audio', preprocessEnabled ? '1' : '0');
 
-    uploadBtn.addEventListener('click', () => fileInput.click());
-    fileInput.addEventListener('change', function () {
-      if (!this.files.length) return;
-      const file = this.files[0];
-      const body = new FormData();
-      body.append('file', file);
-      body.append('preprocess_audio', preprocessEnabled ? '1' : '0');
-      uploadBtn.disabled = true;
-
-      fetch(config.uploadUrl, {
+    try {
+      const response = await fetch(config.uploadUrl, {
         method: 'POST',
         headers: csrfHeaders(),
         body,
-      })
-        .then((response) => response.json())
-        .then((data) => {
-          if (data.error) {
-            throw new Error(data.error);
-          }
-          data.status = data.status || 'PENDING';
-          appendRow(data);
-        })
-        .catch((error) => {
-          alert(error.message || 'Upload failed');
-        })
-        .finally(() => {
-          uploadBtn.disabled = false;
-          fileInput.value = '';
+      });
+
+      const data = await response.json();
+
+      if (data.error) {
+        throw new Error(data.error);
+      }
+
+      data.status = data.status || 'PENDING';
+      appendRow(data);
+    } catch (error) {
+      alert(`Erreur pour ${file.name}: ${error.message}`);
+    }
+  }
+
+  async function handleFiles(files) {
+    for (const file of files) {
+      await uploadFile(file);
+    }
+  }
+
+  function initUpload() {
+    if (!fileInput) return;
+
+    fileInput.addEventListener('change', function () {
+      if (!this.files.length) return;
+      handleFiles(this.files);
+      fileInput.value = '';
+    });
+  }
+
+  function initDragDrop() {
+    const dropZone = document.getElementById('dropZoneTranscriber');
+    const browseBtn = document.getElementById('transcriber-browse-btn');
+
+    if (!dropZone || !fileInput) return;
+
+    // Click on drop zone to open file dialog
+    dropZone.addEventListener('click', (e) => {
+      if (e.target !== browseBtn) {
+        fileInput.click();
+      }
+    });
+
+    // Browse button
+    if (browseBtn) {
+      browseBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        fileInput.click();
+      });
+    }
+
+    // Drag over
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropZone.classList.add('drag-over');
+    });
+
+    // Drag leave
+    dropZone.addEventListener('dragleave', () => {
+      dropZone.classList.remove('drag-over');
+    });
+
+    // Drop
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('drag-over');
+
+      const files = e.dataTransfer.files;
+      if (files.length > 0) {
+        handleFiles(files);
+      }
+    });
+  }
+
+  function initYoutube() {
+    const youtubeUrl = document.getElementById('youtubeUrl');
+    const youtubeBtn = document.getElementById('youtubeSubmitBtn');
+
+    if (!youtubeUrl || !youtubeBtn) return;
+
+    youtubeBtn.addEventListener('click', async () => {
+      const url = youtubeUrl.value.trim();
+
+      if (!url) {
+        alert('Veuillez entrer une URL YouTube');
+        return;
+      }
+
+      youtubeBtn.disabled = true;
+      youtubeBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Téléchargement...';
+
+      try {
+        const body = new FormData();
+        body.append('youtube_url', url);
+        body.append('preprocess_audio', preprocessEnabled ? '1' : '0');
+
+        const response = await fetch(config.uploadYoutubeUrl, {
+          method: 'POST',
+          headers: csrfHeaders(),
+          body,
         });
+
+        const data = await response.json();
+
+        if (data.error) {
+          throw new Error(data.error);
+        }
+
+        data.status = data.status || 'PENDING';
+        appendRow(data);
+        youtubeUrl.value = '';
+
+        alert(`Vidéo YouTube téléchargée: ${data.video_title || 'Succès'}`);
+      } catch (error) {
+        alert(`Erreur YouTube: ${error.message}`);
+      } finally {
+        youtubeBtn.disabled = false;
+        youtubeBtn.innerHTML = '<i class="fas fa-download"></i> Télécharger & Transcrire';
+      }
+    });
+
+    // Allow Enter key
+    youtubeUrl.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        youtubeBtn.click();
+      }
     });
   }
 
@@ -424,6 +528,8 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   initUpload();
+  initDragDrop();
+  initYoutube();
   initExistingRows();
   initSpeech();
   initBulkActions();

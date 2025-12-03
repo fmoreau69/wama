@@ -145,11 +145,57 @@ def upload(request):
     # Persist preference for future uploads
     cache.set(f"user_{request.user.id}_preprocessing_enabled", preprocess_requested, timeout=30 * 24 * 3600)
 
-    t = Transcript.objects.create(
-        user=request.user,
-        audio=file,
-        preprocess_audio=preprocess_requested,
-    )
+    from .utils.video_utils import is_video_file, extract_audio_from_video
+
+    # Vérifier si c'est une vidéo
+    if is_video_file(file.name):
+        try:
+            # Sauvegarder temporairement la vidéo
+            import tempfile
+            from django.core.files.base import ContentFile
+
+            with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(file.name)[1]) as temp_video:
+                for chunk in file.chunks():
+                    temp_video.write(chunk)
+                temp_video_path = temp_video.name
+
+            # Extraire l'audio
+            audio_path = extract_audio_from_video(temp_video_path)
+
+            # Lire le fichier audio
+            with open(audio_path, 'rb') as audio_file:
+                audio_content = audio_file.read()
+
+            # Créer un ContentFile pour Django
+            audio_name = os.path.splitext(file.name)[0] + '_audio.wav'
+            audio_django_file = ContentFile(audio_content, name=audio_name)
+
+            # Créer le transcript avec l'audio extrait
+            t = Transcript.objects.create(
+                user=request.user,
+                audio=audio_django_file,
+                preprocess_audio=preprocess_requested,
+            )
+
+            # Nettoyer les fichiers temporaires
+            try:
+                os.remove(temp_video_path)
+                os.remove(audio_path)
+            except OSError:
+                pass
+
+        except Exception as e:
+            return JsonResponse({
+                'error': f'Erreur lors de l\'extraction audio de la vidéo: {str(e)}'
+            }, status=500)
+    else:
+        # Fichier audio normal
+        t = Transcript.objects.create(
+            user=request.user,
+            audio=file,
+            preprocess_audio=preprocess_requested,
+        )
+
     _describe_audio(t)
     return JsonResponse({
         'id': t.id,
@@ -160,6 +206,80 @@ def upload(request):
         'duration_display': t.duration_display,
         'preprocess_audio': t.preprocess_audio,
     })
+
+
+@require_POST
+@login_required
+def upload_youtube(request):
+    """
+    Télécharge l'audio depuis YouTube et crée une transcription.
+    """
+    youtube_url = request.POST.get('youtube_url', '').strip()
+    if not youtube_url:
+        return JsonResponse({
+            'error': 'URL YouTube manquante'
+        }, status=400)
+
+    # Valider l'URL YouTube
+    import re
+    youtube_regex = r'(https?://)?(www\.)?(youtube|youtu|youtube-nocookie)\.(com|be)/'
+    if not re.match(youtube_regex, youtube_url):
+        return JsonResponse({
+            'error': 'URL YouTube invalide'
+        }, status=400)
+
+    preprocess_requested = str(request.POST.get('preprocess_audio', '')).lower() in ('1', 'true', 'on')
+    cache.set(f"user_{request.user.id}_preprocessing_enabled", preprocess_requested, timeout=30 * 24 * 3600)
+
+    try:
+        from .utils.video_utils import download_youtube_audio
+        from django.core.files.base import ContentFile
+        import tempfile
+
+        # Créer un dossier temporaire pour le téléchargement
+        temp_dir = tempfile.mkdtemp()
+
+        # Télécharger l'audio
+        audio_path, video_title = download_youtube_audio(youtube_url, temp_dir)
+
+        # Lire le fichier audio
+        with open(audio_path, 'rb') as audio_file:
+            audio_content = audio_file.read()
+
+        # Créer un ContentFile pour Django
+        audio_name = f"{video_title[:100]}_youtube.wav"  # Limiter la longueur du nom
+        audio_django_file = ContentFile(audio_content, name=audio_name)
+
+        # Créer le transcript
+        t = Transcript.objects.create(
+            user=request.user,
+            audio=audio_django_file,
+            preprocess_audio=preprocess_requested,
+        )
+
+        # Nettoyer le dossier temporaire
+        try:
+            shutil.rmtree(temp_dir)
+        except OSError:
+            pass
+
+        _describe_audio(t)
+
+        return JsonResponse({
+            'id': t.id,
+            'audio_url': t.audio.url,
+            'audio_label': os.path.basename(smart_str(t.audio.name)),
+            'status': t.status,
+            'properties': t.properties,
+            'duration_display': t.duration_display,
+            'preprocess_audio': t.preprocess_audio,
+            'video_title': video_title,
+        })
+
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Erreur lors du téléchargement YouTube: {str(e)}'
+        }, status=500)
 
 
 @login_required

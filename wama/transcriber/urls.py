@@ -11,6 +11,7 @@ urlpatterns = [
 
     # Opérations
     path('upload/', views.upload, name='upload'),
+    path('upload_youtube/', views.upload_youtube, name='upload_youtube'),
     path('start/<int:pk>/', views.start, name='start'),
     path('progress/<int:pk>/', views.progress, name='progress'),
     path('download/<int:pk>/', views.download, name='download'),
