@@ -17,11 +17,11 @@
         </div>
     </div>
     <div id="media_table_container">
-        {% include "medias/upload/media_table.html" %}
+        {% include "anonymizer/upload/media_table.html" %}
     </div>
     <div class="row">
         <div class="col-4">
-            <form method="post" action="{% url 'medias:expand_area' %}">
+            <form method="post" action="{% url 'anonymizer:expand_area' %}">
                 {% csrf_token %}
                 <a class="btn btn-info" id="button_show_gs" data-bs-toggle="collapse" href="#collapseGlobalSettings"
                    aria-expanded="false" aria-controls="collapseGlobalSettings">
@@ -34,8 +34,8 @@
                 <i class="fas fa-dice"></i> Start Process
             </button>
         </div>
-        <div id="download-all-wrapper" data-check-url="{% url 'medias:check_all_processed' %}" class="col-4 text-center" style="margin-bottom: 20px;">
-            <form action="{% url 'medias:download_all_media' %}" method="post">
+        <div id="download-all-wrapper" data-check-url="{% url 'anonymizer:check_all_processed' %}" class="col-4 text-center" style="margin-bottom: 20px;">
+            <form action="{% url 'anonymizer:download_all_media' %}" method="post">
                 {% csrf_token %}
                 <button id="download-all-btn" type="submit" class="btn btn-success float-end" disabled>
                     Download All
@@ -54,14 +54,14 @@
 <!--  Global settings  -->
 <div {% if user.user_settings.show_gs %} class="collapse show" {% else %} class="collapse" {% endif %} id="collapseGlobalSettings">
     <div id="global_settings_container">
-        {% include "medias/upload/global_settings.html" %}
+        {% include "anonymizer/upload/global_settings.html" %}
     </div>
 </div>
 <br>
 <div>
     <div class="row">
         <div class="col-4">
-            <form method="post" action="{% url 'medias:expand_area' %}">
+            <form method="post" action="{% url 'anonymizer:expand_area' %}">
                 {% csrf_token %}
                 <a class="btn btn-info" id="button_show_preview" data-bs-toggle="collapse" href="#collapsePreview"
                    aria-expanded="false" aria-controls="collapsePreview">

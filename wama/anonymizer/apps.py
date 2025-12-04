@@ -1,8 +1,8 @@
 from django.apps import AppConfig
 
-class MediasConfig(AppConfig):
+class AnonymizerConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
-    name = 'wama.medias'
+    name = 'wama.anonymizer'
 
     def ready(self):
-        import wama.medias.signals
+        import wama.anonymizer.signals

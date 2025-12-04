@@ -18,7 +18,7 @@ from django.views.decorators.http import require_POST
 from django.utils.encoding import smart_str
 
 from .models import Transcript
-from wama.medias.utils.console_utils import (
+from wama.anonymizer.utils.console_utils import (
     get_console_lines,
     get_celery_worker_logs,
 )

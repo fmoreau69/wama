@@ -96,10 +96,9 @@ INSTALLED_APPS = [
     "django_celery_beat",
     'django_wysiwyg',
     'wama.accounts',
-    'wama.medias',
+    'wama.anonymizer',
     'wama.synthesizer',
     'wama.transcriber',
-    'anonymizer',
 ]
 
 # Middleware
@@ -121,7 +120,7 @@ TEMPLATES = [
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
         'DIRS': [
             BASE_DIR / 'wama' / 'templates',
-            BASE_DIR / 'wama' / 'medias' / 'templates',
+            BASE_DIR / 'wama' / 'anonymizer' / 'templates',
             BASE_DIR / 'wama' / 'accounts' / 'templates',
         ],
         'APP_DIRS': True,
@@ -159,7 +158,9 @@ STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_DIRS = [
     BASE_DIR / 'wama' / 'static',
-    BASE_DIR / 'wama' / 'medias' / 'static',
+    BASE_DIR / 'wama' / 'anonymizer' / 'static',
+    BASE_DIR / 'wama' / 'synthesizer' / 'static',
+    BASE_DIR / 'wama' / 'transcriber' / 'static',
 ]
 
 # Configuration Celery (optionnelle)

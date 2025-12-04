@@ -1,4 +1,4 @@
-<form id="media-url-form" method="post" enctype="multipart/form-data" action="{% url 'medias:upload' %}">
+<form id="media-url-form" method="post" enctype="multipart/form-data" action="{% url 'anonymizer:upload' %}">
     {% csrf_token %}
     <div class="row" style="padding-top: 0.7rem;">
         <div class="col-8 gx-0 form-floating d-flex justify-content-center align-items-center">
@@ -15,6 +15,6 @@
 
     <input id="fileupload" type="file" name="file" multiple
            style="display: none;"
-           data-url="{% url 'medias:upload' %}"
+           data-url="{% url 'anonymizer:upload' %}"
            data-form-data='{"csrfmiddlewaretoken": "{{ csrf_token }}"}'>
 </form>

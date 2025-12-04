@@ -1,4 +1,4 @@
-{% extends 'medias/base.html' %}
+{% extends 'anonymizer/base.html' %}
 
 {% load static %}
 
@@ -11,13 +11,13 @@
 <script src="{% static 'js/jquery-file-upload/jquery.fileupload.js' %}"></script>
 
 {# MEDIAS PAGE SCRIPTS #}
-<script src="{% static 'medias/js/console.js' %}"></script>
-<script src="{% static 'medias/js/process.js' %}"></script>
-<script src="{% static 'medias/js/update.js' %}"></script>
-<script src="{% static 'medias/js/upload.js' %}"></script>
+<script src="{% static 'anonymizer/js/console.js' %}"></script>
+<script src="{% static 'anonymizer/js/process.js' %}"></script>
+<script src="{% static 'anonymizer/js/update.js' %}"></script>
+<script src="{% static 'anonymizer/js/upload.js' %}"></script>
 {% endblock %}
 
-{% block medias_content %}
+{% block anonymizer_content %}
 <!--  Upload media  -->
 <div class="row mb-4">
     <div class="col-12">
@@ -32,7 +32,7 @@
             <input id="fileupload" type="file" name="file" multiple
                    accept="image/*,video/*"
                    style="display: none;"
-                   data-url="{% url 'medias:upload' %}"
+                   data-url="{% url 'anonymizer:upload' %}"
                    data-form-data='{"csrfmiddlewaretoken": "{{ csrf_token }}"}'>
             <button type="button" class="btn btn-primary btn-lg mt-2 js-upload-medias">
                 <i class="fas fa-folder-open"></i> Parcourir
@@ -49,7 +49,7 @@
                 <h6 class="text-light mb-3">
                     <i class="fas fa-link"></i> Télécharger depuis une URL
                 </h6>
-                <form id="media-url-form" method="post" enctype="multipart/form-data" action="{% url 'medias:upload' %}">
+                <form id="media-url-form" method="post" enctype="multipart/form-data" action="{% url 'anonymizer:upload' %}">
                     {% csrf_token %}
                     <div class="input-group">
                         <input type="text"
@@ -86,6 +86,6 @@
     </div>
 </div>
 <div id="main_container">
-    {% include "medias/upload/content.html" %}
+    {% include "anonymizer/upload/content.html" %}
 </div>
 {% endblock %}

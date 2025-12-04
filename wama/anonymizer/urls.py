@@ -5,12 +5,13 @@ WAMA Anonymizer - URLs Configuration
 from django.urls import path
 from . import views
 
-app_name = 'wama.medias'
+app_name = 'wama.anonymizer'
 
 urlpatterns = [
     # Pages principales
-    path('upload/', views.UploadView.as_view(), name='upload'),
-    path('process/', views.ProcessView.as_view(), name='process'),
+    path('', views.IndexView.as_view(), name='index'),
+    path('upload/', views.IndexView.as_view(), name='upload'),  # Alias pour upload (même page que index)
+    path('process/', views.ProcessView.as_view(), name='process'),  # Endpoint pour lancer le traitement batch
     path('about/', views.AboutView.as_view(), name='about'),
     path('help/', views.HelpView.as_view(), name='help'),
 

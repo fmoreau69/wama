@@ -15,7 +15,7 @@
     <tr data-media-id="{{ media.id }}">
         <td class="text-center">
             <div class="d-flex justify-content-center align-items-center">
-                <form method="post" action="{% url 'medias:expand_area' %}">
+                <form method="post" action="{% url 'anonymizer:expand_area' %}">
                     {% csrf_token %}
                     <a class="btn btn-info btn-sm text-center" id="button_show_ms"
                        data-bs-toggle="collapse" href="#collapseMediaSettings_{{ media.id }}"
@@ -28,7 +28,7 @@
         <td class="text-center">
             <button type="button"
                     class="btn btn-link p-0 preview-media-link"
-                    data-preview-url="{% url 'medias:preview_media' media.id %}">
+                    data-preview-url="{% url 'anonymizer:preview_media' media.id %}">
                 {{ media.file.name|slice:"12:" }}
             </button>
         </td>
@@ -44,7 +44,7 @@
         <td class="text-center">
             <div class="col-auto">
                 <div class="btn-group" role="group">
-                    <form method="post" action="{% url 'medias:reset_media_settings' %}" class="me-1 ajax-form" data-target="#main_container">
+                    <form method="post" action="{% url 'anonymizer:reset_media_settings' %}" class="me-1 ajax-form" data-target="#main_container">
                         {% csrf_token %}
                         <input type="hidden" name="next" value="{{ request.path }}">
                         <input type="hidden" name="media_id" value="{{ media.id }}">
@@ -52,7 +52,7 @@
                             <i class="fas fa-rotate-left"></i>
                         </button>
                     </form>
-                    <form method="post" action="{% url 'medias:clear_media' %}" class="me-1 ajax-form" data-target="#main_container">
+                    <form method="post" action="{% url 'anonymizer:clear_media' %}" class="me-1 ajax-form" data-target="#main_container">
                         {% csrf_token %}
                         <input type="hidden" name="next" value="{{ request.path }}">
                         <input type="hidden" name="media_id" value="{{ media.id }}">
@@ -60,7 +60,7 @@
                             <i class="far fa-trash-can"></i>
                         </button>
                     </form>
-                    <form method="post" action="{% url 'medias:download_media' %}">
+                    <form method="post" action="{% url 'anonymizer:download_media' %}">
                         {% csrf_token %}
                         <button type="submit" class="btn btn-success btn-sm text-center" {% if not media.processed %} disabled {% else %} active>{% endif %}
                             <input type="hidden" name="media_id" value="{{ media.id }}">
@@ -74,7 +74,7 @@
     <tr {% if media.show_ms %} class="collapse show" {% else %} class="collapse" {% endif %} id="collapseMediaSettings_{{ media.id }}">
         <td colspan="12">
             <div id="media_settings_container_{{ media.id }}">
-                {% include "medias/upload/media_settings.html" %}
+                {% include "anonymizer/upload/media_settings.html" %}
             </div>
         </td>
     </tr>

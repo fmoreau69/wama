@@ -14,7 +14,7 @@
       {% for setting in global_settings %}
         {% if setting.name != 'classes2blur' and setting.type == 'FLOAT' %}
           <div class="col-3 text-center">
-            {% include 'medias/upload/setting_button.html' with id=media.id setting_type='media_setting' value=ms_values|get_value:media.id|get_value:setting.name range_width='col-sm-12' %}
+            {% include 'anonymizer/upload/setting_button.html' with id=media.id setting_type='media_setting' value=ms_values|get_value:media.id|get_value:setting.name range_width='col-sm-12' %}
           </div>
         {% endif %}
       {% endfor %}

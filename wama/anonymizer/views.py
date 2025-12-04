@@ -36,9 +36,11 @@ from ..settings import MEDIA_ROOT, MEDIA_INPUT_ROOT, MEDIA_OUTPUT_ROOT
 from .utils.console_utils import get_console_lines, get_celery_worker_logs
 
 
-class UploadView(View):
+class IndexView(View):
+    """Page principale de Anonymizer."""
+
     def get(self, request):
-        return render(request, 'medias/upload/index.html', get_context(request))
+        return render(request, 'anonymizer/index.html', get_context(request))
 
     def post(self, request):
         user = request.user if request.user.is_authenticated else User.objects.filter(username="anonymous").first()
@@ -91,7 +93,7 @@ class UploadView(View):
 
 
 def windows_path_to_wsl(path):
-    """
+    r"""
     Convertit un chemin Windows D:\... en chemin WSL /mnt/d/...
     Ignore les URLs (http:// ou https://).
     """
@@ -135,7 +137,7 @@ def process_media(video_path, user):
             'id': media.id,
             'name': filename,
             'url': media.file.url,
-            'preview_url': reverse('medias:preview_media', args=[media.id]),
+            'preview_url': reverse('anonymizer:preview_media', args=[media.id]),
             'file_ext': media.file_ext,
             'username': user.username,
             'fps': media.fps,
@@ -313,8 +315,14 @@ def add_media_to_db(media, vid_or_path):
 
 
 class ProcessView(View):
+    """
+    Endpoint pour lancer le traitement batch des médias.
+    Le GET redirige vers la page principale.
+    Le POST lance le traitement asynchrone via Celery.
+    """
     def get(self, request):
-        return render(request, 'medias/upload/index.html', get_context(request))
+        # Rediriger vers la page principale au lieu de rendre le template
+        return redirect('anonymizer:index')
 
     def post(self, request):
         try:
@@ -333,11 +341,11 @@ class ProcessView(View):
             return JsonResponse({'is_valid': False, 'error': str(e)}, status=500)
 
     def display_console(self, request):
-        if request.POST.get('url', 'medias:upload.display_console'):
+        if request.POST.get('url', 'anonymizer:upload.display_console'):
             command = "path/to/builder.pl --router " + 'hostname'
             pipe = sp.Popen(command.split(), stdout=sp.PIPE, stderr=sp.PIPE)
             console = pipe.stdout.read()
-            return render(self.request, 'medias/upload/index.html', {'console': console})
+            return render(self.request, 'anonymizer/index.html', {'console': console})
         return None
 
 
@@ -430,7 +438,7 @@ def download_media(request):
         # Return to a page with context (HTML)
         context = get_context(request)
         context['error'] = f"Processed file {blurred_filename} doesn't exist."
-        return render(request, 'medias/process/index.html', context)
+        return render(request, 'anonymizer/index.html', context)
 
         # In JSON if called via JavaScript
         # return JsonResponse({'error': 'Blurred file not found.'}, status=404)
@@ -496,7 +504,7 @@ def refresh(request):
         return JsonResponse({'error': "Paramètre 'template_name' manquant."}, status=400)
 
     try:
-        template = loader.get_template(f'medias/upload/{template_name}.html')
+        template = loader.get_template(f'anonymizer/upload/{template_name}.html')
     except Exception as e:
         return JsonResponse({'error': f"Template introuvable : {e}"}, status=500)
 
@@ -709,7 +717,7 @@ def update_settings(request):
         else:
             return JsonResponse({'error': f'Unknown setting_type: {setting_type}'}, status=400)
 
-        html = loader.render_to_string('medias/upload/setting_button.html', context, request=request)
+        html = loader.render_to_string('anonymizer/upload/setting_button.html', context, request=request)
         return JsonResponse({'render': html})
 
     except Exception as e:
@@ -756,7 +764,7 @@ def clear_all_media(request):
 
     # Rafraîchir le template content
     context = get_context(request)
-    template = loader.get_template('medias/upload/content.html')
+    template = loader.get_template('anonymizer/upload/content.html')
     return JsonResponse({'render': template.render(context, request)})
 
 
@@ -778,7 +786,7 @@ def clear_media(request):
         UserSettings.objects.filter(user_id=user.id).update(show_gs=0)
 
     context = get_context(request)
-    template = loader.get_template('medias/upload/content.html')
+    template = loader.get_template('anonymizer/upload/content.html')
     return JsonResponse({'render': template.render(context, request)})
 
 
@@ -805,7 +813,7 @@ def reset_media_settings(request):
 
     # Rafraîchir dynamiquement le bloc HTML comme les autres vues
     context = get_context(request)
-    template = loader.get_template('medias/upload/content.html')
+    template = loader.get_template('anonymizer/upload/content.html')
     return JsonResponse({'render': template.render(context, request)})
 
 
@@ -825,7 +833,7 @@ def reset_user_settings(request):
 
     if request.headers.get("x-requested-with") == "XMLHttpRequest":
         context = get_context(request)
-        html = render_to_string("medias/upload/global_settings.html", context=context, request=request)
+        html = render_to_string("anonymizer/upload/global_settings.html", context=context, request=request)
         return JsonResponse({"render": html})
     else:
         return redirect(request.POST.get('next', '/'))
@@ -889,7 +897,7 @@ def reset_global_settings_safe():
         init_global_settings()
 
 class AboutView(TemplateView):
-    template_name = 'medias/about.html'
+    template_name = 'anonymizer/about.html'
 
 class HelpView(TemplateView):
-    template_name = 'medias/help.html'
+    template_name = 'anonymizer/help.html'

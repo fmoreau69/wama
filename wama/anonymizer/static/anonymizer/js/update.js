@@ -48,7 +48,7 @@ $(document).ready(function () {
 
         $.ajax({
             type: "POST",
-            url: "/medias/update_settings/",
+            url: "/anonymizer/update_settings/",
             data,
             success: function (res) {
                 if (res.success) {
@@ -110,7 +110,7 @@ $(document).ready(function () {
 
         $.ajax({
             type: "POST",
-            url: "/anoymizer/clear_all_media/",
+            url: "/anonymizer/clear_all_media/",
             data: { csrfmiddlewaretoken: $("input[name=csrfmiddlewaretoken]").val() },
             success: function () {
                 console.log("%c[update.js] ✔ Médias supprimés", "color:#4CAF50");
@@ -170,7 +170,7 @@ $(document).ready(function () {
 function sendButtonState(buttonId, buttonState) {
     $.ajax({
         type: "POST",
-        url: "/medias/expand_area/",
+        url: "/anonymizer/expand_area/",
         data: {
             button_id: buttonId,
             button_state: buttonState,

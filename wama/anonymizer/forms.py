@@ -1,7 +1,7 @@
 from django import forms
 from django.forms import CheckboxSelectMultiple, HiddenInput, TextInput
 from .models import Media, GlobalSettings, UserSettings
-from wama.medias.utils.yolo_utils import get_all_class_choices
+from wama.anonymizer.utils.yolo_utils import get_all_class_choices
 
 
 class RangeWidget(TextInput):

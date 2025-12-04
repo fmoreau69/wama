@@ -19,7 +19,7 @@ from django.core.validators import FileExtensionValidator
 from django.core.exceptions import ValidationError
 
 from .models import VoiceSynthesis, VoicePreset
-from wama.medias.utils.console_utils import (
+from wama.anonymizer.utils.console_utils import (
     get_console_lines,
     get_celery_worker_logs,
 )

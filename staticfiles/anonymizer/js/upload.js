@@ -163,7 +163,7 @@ $(function () {
   function refreshContent(after) {
     $.ajax({
       type: 'GET',
-      url: '/medias/refresh/',
+      url: '/anonymizer/refresh/',
       data: { template_name: 'content' },
       success: function (res) {
         if (res.render) {

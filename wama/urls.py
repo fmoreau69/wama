@@ -10,7 +10,7 @@ from django.http import HttpResponse
 urlpatterns = [
     path('', TemplateView.as_view(template_name='home.html'), name='home'),
     path('accounts/', include(('wama.accounts.urls', 'accounts'), namespace='accounts')),
-    path('medias/', include(('wama.medias.urls', 'medias'), namespace='medias')),
+    path('anonymizer/', include(('wama.anonymizer.urls', 'anonymizer'), namespace='anonymizer')),
     path('synthesizer/', include(('wama.synthesizer.urls', 'synthesizer'), namespace='synthesizer')),
     path('transcriber/', include(('wama.transcriber.urls', 'transcriber'), namespace='transcriber')),
     path('favicon.ico', RedirectView.as_view(url=staticfiles_storage.url('favicon.ico'))),

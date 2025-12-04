@@ -10,13 +10,13 @@ from django.views.generic import ListView, View, DetailView, TemplateView
 from django.views.generic.edit import CreateView, UpdateView
 
 from .models import LoginForm, UserRegistrationForm
-from ..medias.forms import UserSettingsEdit
-from ..medias.models import UserSettings
+from ..anonymizer.forms import UserSettingsEdit
+from ..anonymizer.models import UserSettings
 
 
 def login_view(request):
     if request.user.is_authenticated:
-        return redirect('medias:upload')
+        return redirect('anonymizer:upload')
 
     form = LoginForm(data=request.POST or None)
 
@@ -25,7 +25,7 @@ def login_view(request):
             user = form.get_user()
             login(request, user)
             messages.success(request, "Successfully logged in!")
-            next_url = request.POST.get('next') or 'medias:upload'
+            next_url = request.POST.get('next') or 'anonymizer:upload'
             return redirect(next_url)
         else:
             messages.error(request, "Invalid credentials.")
@@ -52,7 +52,7 @@ def logout_view(request):
 
 
 class IndexView(ListView):
-    template_name = 'upload/index.html'
+    template_name = 'anonymizer/index.html'
     queryset = User.objects.all()
     context_object_name = 'user_list'
 
@@ -75,7 +75,7 @@ class UserEdit(UpdateView):
     fields = ["first_name", "last_name", "email"]
 
     def get_success_url(self):
-        return reverse('medias:upload')
+        return reverse('anonymizer:upload')
 
     def get_object(self):
         return self.request.user
@@ -93,7 +93,7 @@ class UserSettingsUpdate(UpdateView):
     form_class = UserSettingsEdit
 
     def get_success_url(self):
-        return reverse('medias:upload')
+        return reverse('anonymizer:upload')
 
     def get_object(self):
         return get_object_or_404(UserSettings, user=self.request.user)

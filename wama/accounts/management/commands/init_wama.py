@@ -2,7 +2,7 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 
 from wama.accounts.views import get_or_create_anonymous_user
-from wama.medias.views import ensure_global_settings
+from wama.anonymizer.views import ensure_global_settings
 
 
 class Command(BaseCommand):

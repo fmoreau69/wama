@@ -5,7 +5,7 @@ from django.core.cache import cache
 from django.db import close_old_connections
 
 from .models import Transcript
-from wama.medias.utils.console_utils import push_console_line
+from wama.anonymizer.utils.console_utils import push_console_line
 
 try:
     from .utils.audio_preprocessor import AudioPreprocessor

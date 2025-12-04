@@ -133,7 +133,7 @@ document.addEventListener("DOMContentLoaded", function() {
         if (loader) loader.style.display = 'block';
         if (resultDiv) resultDiv.innerHTML = '';
 
-        fetch("/medias/process/", {
+        fetch("/anonymizer/process/", {
             method: "POST",
             headers: { "X-CSRFToken": getCookie('csrftoken') }
         })
@@ -157,7 +157,7 @@ document.addEventListener("DOMContentLoaded", function() {
                     if (!progressBar) return;
 
                     progressIntervals[mediaId] = setInterval(() => {
-                        fetch(`/medias/process_progress/?media_id=${mediaId}`)
+                        fetch(`/anonymizer/process_progress/?media_id=${mediaId}`)
                             .then(r => r.json())
                             .then(progressData => {
                                 const pct = progressData.progress || 0;
@@ -181,7 +181,7 @@ document.addEventListener("DOMContentLoaded", function() {
             const globalBar = document.getElementById('process-progress');
             if (globalBar) {
                 pollingGlobal = setInterval(() => {
-                    fetch('/medias/process_progress/')
+                    fetch('/anonymizer/process_progress/')
                         .then(r => r.json())
                         .then(data => {
                             const pct = data.progress || 0;
@@ -197,7 +197,7 @@ document.addEventListener("DOMContentLoaded", function() {
             const previewContainer = document.querySelector("#collapsePreview .empty-box");
             if (previewContainer) {
                 pollingYOLO = setInterval(() => {
-                    fetch("/medias/yolo_preview/")
+                    fetch("/anonymizer/yolo_preview/")
                         .then(r => r.text())
                         .then(html => { previewContainer.innerHTML = html; })
                         .catch(() => {});
@@ -216,7 +216,7 @@ document.addEventListener("DOMContentLoaded", function() {
         const loader = getLoader();
         const resultDiv = getResultDiv();
 
-        fetch("/medias/stop_process/", {
+        fetch("/anonymizer/stop_process/", {
             method: "POST",
             headers: { "X-CSRFToken": getCookie('csrftoken') }
         })
