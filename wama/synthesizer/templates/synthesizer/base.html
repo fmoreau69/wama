@@ -1,50 +1,29 @@
-{% extends 'base.html' %}
+{% extends 'common/app_base.html' %}
 {% load static %}
 
-{% block content %}
-<h1 class="page-header">
-    WAMA
-    <small>/ {% block title %}{% endblock %}</small>
-</h1>
-<hr>
-<div class="row">
-    <div class="col-md-3">
-        <div class="panel panel-default">
-            <div class="panel-heading">
-                <h3 class="panel-title">Menu</h3>
-            </div>
-            <div class="list-group">
-                <a href="{% url 'synthesizer:index' %}" class="list-group-item {% if request.path == '/synthesizer/' %} active {% endif %}">
-                    <span class="fas fa-upload"></span> Upload / <span class="fas fa-spinner"></span> Process
-                </a>
-                <a href="{% url 'synthesizer:about' %}" class="list-group-item {% if request.path == '/synthesizer/about/' %} active {% endif %}">
-                    <span class="fas fa-circle-info"></span> About
-                </a>
-                <a href="{% url 'synthesizer:help' %}" class="list-group-item {% if request.path == '/synthesizer/help/' %} active {% endif %}">
-                    <span class="fas fa-circle-question"></span> Help
-                </a>
-            </div>
-        </div>
-        <div class="panel panel-default mt-3">
-            <div class="panel-heading d-flex justify-content-between align-items-center">
-                <h3 class="panel-title mb-0">Console</h3>
-                <small class="text-muted" id="synthesizer-console-hint">Live logs</small>
-            </div>
-            <div class="panel-body" style="max-height: 320px; overflow-y: auto; background: #111; color: #e4e4e4; font-family: 'Courier New', monospace; font-size: 12px;">
-                <div id="synthesizer-console-content"
-                     data-console-url="{% url 'synthesizer:console' %}">
-                    <p class="text-muted mb-0">Chargement des logs...</p>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-9">
-        {% block synthesizer_content %}{% endblock %}
-    </div>
-</div>
+{% block app_scripts %}
+{# SYNTHESIZER SPECIFIC SCRIPTS #}
+<script src="{% static 'synthesizer/js/index.js' %}"></script>
 {% endblock %}
 
-{% block javascript %}
-{{ block.super }}
-<script src="{% static 'synthesizer/js/console.js' %}"></script>
+{% block console_content_id %}synthesizer-console-content{% endblock %}
+{% block console_hint_id %}synthesizer-console-hint{% endblock %}
+{% block console_url %}{% url 'synthesizer:console' %}{% endblock %}
+
+{% block app_menu %}
+<a href="{% url 'synthesizer:index' %}" class="list-group-item {% if request.path == '/synthesizer/' %} active {% endif %}">
+    <span class="fas fa-upload"></span> Upload / <span class="fas fa-spinner"></span> Process
+</a>
+<a href="{% url 'synthesizer:about' %}" class="list-group-item {% if request.path == '/synthesizer/about/' %} active {% endif %}">
+    <span class="fas fa-circle-info"></span> About
+</a>
+<a href="{% url 'synthesizer:help' %}" class="list-group-item {% if request.path == '/synthesizer/help/' %} active {% endif %}">
+    <span class="fas fa-circle-question"></span> Help
+</a>
+{% endblock %}
+
+{% block app_content %}
+{% block synthesizer_content %}
+{# Le contenu spécifique à chaque page synthesizer va ici #}
+{% endblock %}
 {% endblock %}

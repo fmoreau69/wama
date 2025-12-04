@@ -33,7 +33,7 @@ from .utils.yolo_utils import get_model_path, list_available_models
 
 from ..accounts.views import get_or_create_anonymous_user
 from ..settings import MEDIA_ROOT, MEDIA_INPUT_ROOT, MEDIA_OUTPUT_ROOT
-from .utils.console_utils import get_console_lines, get_celery_worker_logs
+from ..common.utils.console_utils import get_console_lines, get_celery_worker_logs
 
 
 class IndexView(View):

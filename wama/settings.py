@@ -97,6 +97,7 @@ INSTALLED_APPS = [
     "django_celery_results",
     "django_celery_beat",
     'django_wysiwyg',
+    'wama.common',       # Composants communs à toutes les apps
     'wama.accounts',
     'wama.anonymizer',
     'wama.synthesizer',
@@ -160,6 +161,7 @@ STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_DIRS = [
     BASE_DIR / 'wama' / 'static',
+    BASE_DIR / 'wama' / 'common' / 'static',
     BASE_DIR / 'wama' / 'anonymizer' / 'static',
     BASE_DIR / 'wama' / 'synthesizer' / 'static',
     BASE_DIR / 'wama' / 'transcriber' / 'static',

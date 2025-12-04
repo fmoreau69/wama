@@ -1,59 +1,31 @@
-{% extends 'base.html' %}
+{% extends 'common/app_base.html' %}
 {% load static %}
 
-{% block javascript %}
-{# JQUERY FILE UPLOAD SCRIPTS #}
-<script src="{% static 'js/jquery-file-upload/vendor/jquery.ui.widget.js' %}"></script>
-<script src="{% static 'js/jquery-file-upload/jquery.iframe-transport.js' %}"></script>
-<script src="{% static 'js/jquery-file-upload/jquery.fileupload.js' %}"></script>
-
-{# MEDIAS PAGE SCRIPTS #}
-<script src="{% static 'anonymizer/js/console.js' %}"></script>
+{% block app_scripts %}
+{# ANONYMIZER SPECIFIC SCRIPTS #}
 <script src="{% static 'anonymizer/js/process.js' %}"></script>
 <script src="{% static 'anonymizer/js/update.js' %}"></script>
 <script src="{% static 'anonymizer/js/upload.js' %}"></script>
 {% endblock %}
 
-{% block content %}
-<h1 class="page-header">
-    WAMA
-    <small>/ {% block title %}{% endblock %}</small>
-</h1>
-<hr>
-<div class="row">
-    <div class="col-md-3">
-        <div class="panel panel-default">
-            <div class="panel-heading">
-                <h3 class="panel-title">Menu</h3>
-            </div>
-            <div class="list-group">
-                <a href="{% url 'anonymizer:index' %}" class="list-group-item {% if request.path == '/anonymizer/' or request.path == '/anonymizer/upload/' %} active {% endif %}">
-                    <span class="fas fa-upload"></span> Upload / <span class="fas fa-spinner"></span> Process
-                </a>
-                <a href="{% url 'anonymizer:about' %}" class="list-group-item {% if request.path == '/anonymizer/about/' %} active {% endif %}">
-                    <span class="fas fa-circle-info"></span> About
-                </a>
-                <a href="{% url 'anonymizer:help' %}" class="list-group-item {% if request.path == '/anonymizer/help/' %} active {% endif %}">
-                    <span class="fas fa-circle-question"></span> Help
-                </a>
-            </div>
-        </div>
-        <div class="panel panel-default mt-3">
-            <div class="panel-heading d-flex justify-content-between align-items-center">
-                <h3 class="panel-title mb-0">Console</h3>
-                <small class="text-muted" id="anonymizer-console-hint">Live logs</small>
-            </div>
-            <div class="panel-body" style="max-height: 320px; overflow-y: auto; background: #111; color: #e4e4e4; font-family: 'Courier New', monospace; font-size: 12px;">
-                <div id="anonymizer-console-content"
-                     data-console-url="{% url 'anonymizer:console' %}">
-                    <p class="text-muted mb-0">Chargement des logs...</p>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-9">
-        {% block anonymizer_content %}
-        {% endblock %}
-    </div>
-</div>
+{% block console_content_id %}anonymizer-console-content{% endblock %}
+{% block console_hint_id %}anonymizer-console-hint{% endblock %}
+{% block console_url %}{% url 'anonymizer:console' %}{% endblock %}
+
+{% block app_menu %}
+<a href="{% url 'anonymizer:index' %}" class="list-group-item {% if request.path == '/anonymizer/' or request.path == '/anonymizer/upload/' %} active {% endif %}">
+    <span class="fas fa-upload"></span> Upload / <span class="fas fa-spinner"></span> Process
+</a>
+<a href="{% url 'anonymizer:about' %}" class="list-group-item {% if request.path == '/anonymizer/about/' %} active {% endif %}">
+    <span class="fas fa-circle-info"></span> About
+</a>
+<a href="{% url 'anonymizer:help' %}" class="list-group-item {% if request.path == '/anonymizer/help/' %} active {% endif %}">
+    <span class="fas fa-circle-question"></span> Help
+</a>
+{% endblock %}
+
+{% block app_content %}
+{% block anonymizer_content %}
+{# Le contenu spécifique à chaque page anonymizer va ici #}
+{% endblock %}
 {% endblock %}

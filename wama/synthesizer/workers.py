@@ -16,7 +16,7 @@ from django.core.files.base import ContentFile
 import logging
 
 from .models import VoiceSynthesis
-from wama.anonymizer.utils.console_utils import push_console_line
+from wama.common.utils.console_utils import push_console_line
 from .utils.text_extractor import extract_text_from_file
 from .utils.audio_processor import process_audio_output
 
