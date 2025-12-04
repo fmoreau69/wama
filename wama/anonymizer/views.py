@@ -123,7 +123,7 @@ def process_media(video_path, user):
     try:
         filename = os.path.basename(video_path)
         ext = os.path.splitext(filename)[1]
-        media = Media.objects.create(file=f'input_media/{filename}', file_ext=ext, user=user)
+        media = Media.objects.create(file=f'anonymizer/inputs/{filename}', file_ext=ext, user=user)
 
         mime_type, _ = mimetypes.guess_type(video_path)
         if mime_type and mime_type.startswith("video/"):

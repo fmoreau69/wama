@@ -13,10 +13,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 MODELS_ROOT = BASE_DIR / "anonymizer" / "models"
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
-MEDIA_INPUT_URL = '/media/input_media'
-MEDIA_INPUT_ROOT = MEDIA_ROOT / 'input_media'
-MEDIA_OUTPUT_URL = '/media/output_media'
-MEDIA_OUTPUT_ROOT = MEDIA_ROOT / 'output_media'
+
+# Anonymizer media paths
+MEDIA_INPUT_URL = '/media/anonymizer/inputs'
+MEDIA_INPUT_ROOT = MEDIA_ROOT / 'anonymizer' / 'inputs'
+MEDIA_OUTPUT_URL = '/media/anonymizer/outputs'
+MEDIA_OUTPUT_ROOT = MEDIA_ROOT / 'anonymizer' / 'outputs'
 
 # Clé secrète & débogage
 SECRET_KEY = 'REDACTED_SECRET_KEY'

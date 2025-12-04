@@ -28,7 +28,7 @@ def default_classes2blur():
 class Media(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="media")
     title = models.CharField(max_length=255, blank=True)
-    file = models.FileField(upload_to='input_media/')
+    file = models.FileField(upload_to='anonymizer/inputs/')
     file_ext = models.CharField(max_length=255)
     media_type = models.CharField(max_length=10, choices=[('video', 'Vidéo'), ('image', 'Image'), ('audio', 'Audio'),], default='video')
     uploaded_at = models.DateTimeField(auto_now_add=True)
