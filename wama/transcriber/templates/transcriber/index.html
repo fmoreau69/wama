@@ -32,8 +32,8 @@
             <div class="drop-zone" id="dropZoneTranscriber">
                 <i class="fas fa-cloud-upload-alt fa-3x mb-3 text-primary"></i>
                 <h5>Glissez-déposez vos fichiers audio/vidéo ici</h5>
-                <p class="text mb-3">ou cliquez pour parcourir</p>
-                <p class="small text">
+                <p class="text-light mb-3">ou cliquez pour parcourir</p>
+                <p class="small text-white-50">
                     Audio: MP3, WAV, FLAC, M4A, OGG<br>
                     Vidéo: MP4, AVI, MKV, MOV, WEBM
                 </p>
@@ -63,7 +63,7 @@
                             <i class="fas fa-download"></i> Télécharger & Transcrire
                         </button>
                     </div>
-                    <small class="text-muted mt-2 d-block">
+                    <small class="text-white-50 mt-2 d-block">
                         Exemple: https://www.youtube.com/watch?v=dQw4w9WgXcQ
                     </small>
                 </div>
@@ -89,11 +89,11 @@
 
             <div class="card bg-dark mt-4 shadow-sm">
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <span><i class="fas fa-wave-square"></i> Live transcription</span>
+                    <span class="text-light"><i class="fas fa-wave-square"></i> Live transcription</span>
                     <small class="text-white" id="live-transcription-status">En attente...</small>
                 </div>
                 <div class="card-body" style="min-height: 220px;">
-                    <div id="live-transcription-output" class="text-white" style="white-space: pre-wrap; font-size: 1.1rem;">
+                    <div id="live-transcription-output" class="text-white" style="white-space: pre-wrap; font-size: 1rem;">
                         Appuyez sur <strong>Speak</strong> puis commencez à parler pour voir le texte apparaître ici en temps réel.
                     </div>
                 </div>
@@ -217,16 +217,18 @@
     </div>
 
 </div>
+{% endblock %}
 
-<!-- Section de contrôle du prétraitement audio -->
+<!-- Modal Prétraitement - doit être hors du block transcriber_content pour être au niveau du body -->
+{% block extra_modals %}
 <div class="modal fade" id="preprocessingModal" tabindex="-1">
     <div class="modal-dialog">
-        <div class="modal-content text-dark bg-light">
-            <div class="modal-header">
-                <h5 class="modal-title">Prétraitement audio</h5>
+        <div class="modal-content" style="background-color: #ffffff !important; color: #000000 !important;">
+            <div class="modal-header" style="background-color: #f8f9fa; border-bottom: 1px solid #dee2e6;">
+                <h5 class="modal-title" style="color: #000000;">Prétraitement audio</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body">
+            <div class="modal-body" style="color: #000000;">
                 <h6>Qu'est-ce que le prétraitement audio ?</h6>
                 <p>Le prétraitement améliore la qualité de vos enregistrements avant la transcription :</p>
                 <ul>
@@ -248,7 +250,7 @@
                     Le prétraitement ajoute 2-5 secondes par minute d'audio.
                 </div>
             </div>
-            <div class="modal-footer">
+            <div class="modal-footer" style="background-color: #f8f9fa; border-top: 1px solid #dee2e6;">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
             </div>
         </div>

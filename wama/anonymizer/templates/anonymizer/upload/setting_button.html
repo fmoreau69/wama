@@ -2,7 +2,7 @@
     <div id="setting_button_container_{{ setting_type }}_{{ setting.name }}{% if setting_type == 'media_setting' %}_{{ id }}{% endif %}"
          style="padding:0rem; border-radius:0.25rem;">
         {% if setting.type == 'BOOL' %}
-            <div id="setting_button_container_{{ setting_type }}_{{ setting.name }}{% if setting_type == 'media_setting' %}_{{ id }}{% endif %}">
+            <div id="setting_button_container_{{ setting_type }}_{{ setting.name }}{% if setting_type == 'media_setting' %}_{{ id }}{% endif %}" class="mb-2">
                 <input class="form-check-input setting-button" type="checkbox" role="switch" name="{{ setting.name }}"
                      id="{{ setting_type }}_{{ setting.name }}_{{ id }}"
                      {% if value %}checked{% endif %}>
@@ -28,24 +28,34 @@
 
         {% elif setting.type == 'FLOAT' %}
             <div>
-                <input class="form-range-input {{ range_width }} setting-button" type="range"
-                       name="{{ setting.name }}"
-                       id="{{ setting_type }}_{{ setting.name }}{% if setting_type == 'media_setting' %}_{{ id }}{% endif %}"
-                       value="{{ value }}" min="{{ setting.min }}" max="{{ setting.max }}" step="{{ setting.step }}"
-                       title="{{ setting.title }}"
-                       oninput="this.nextElementSibling.value = this.value">
+                {% if setting_type == 'global_setting' or setting_type == 'user_setting' %}
+                    {# Pour global/user settings: tout sur une ligne (slider, valeur, titre) #}
+                    <div class="d-flex align-items-center gap-1 mb-2">
+                        <input class="form-range setting-button" type="range"
+                               name="{{ setting.name }}"
+                               id="{{ setting_type }}_{{ setting.name }}"
+                               value="{{ value }}" min="{{ setting.min }}" max="{{ setting.max }}" step="{{ setting.step }}"
+                               title="{{ setting.title }}"
+                               style="flex: 0 0 90px; min-width: 90px;"
+                               oninput="this.nextElementSibling.value = this.value">
+                        <output class="text-light" style="min-width: 2rem; text-align: center; font-size: 0.85rem;">{{ value }}</output>
+                        <label class="form-range-label mb-0 text-nowrap" for="{{ setting_type }}_{{ setting.name }}" style="font-size: 0.85rem;">
+                            {{ setting.title }}
+                        </label>
+                    </div>
 
-                {% if setting_type == 'media_setting' %}
+                {% elif setting_type == 'media_setting' %}
+                    {# Pour media settings: format original (slider puis label et valeur) #}
+                    <input class="form-range-input {{ range_width }} setting-button" type="range"
+                           name="{{ setting.name }}"
+                           id="{{ setting_type }}_{{ setting.name }}_{{ id }}"
+                           value="{{ value }}" min="{{ setting.min }}" max="{{ setting.max }}" step="{{ setting.step }}"
+                           title="{{ setting.title }}"
+                           oninput="this.nextElementSibling.value = this.value">
                     <label class="form-range-label" for="{{ setting_type }}_{{ setting.name }}_{{ id }}">
                         {{ setting.title }}:
                     </label>
                     <output>{{ value }}</output>
-
-                {% elif setting_type == 'global_setting' or setting_type == 'user_setting' %}
-                    <output class="fixed-gs-output-value">{{ value }}</output>
-                    <label class="form-range-label" for="{{ setting_type }}_{{ setting.name }}">
-                         | {{ setting.title }}
-                    </label>
                 {% endif %}
             </div>
         {% endif %}

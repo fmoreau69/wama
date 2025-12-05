@@ -82,6 +82,10 @@
     {# Modal login - doit être directement dans le body pour Bootstrap 5 #}
     {% include 'accounts/login_modal.html' %}
 
+    {# Block pour les modals additionnels des apps - doit être au niveau du body #}
+    {% block extra_modals %}
+    {% endblock %}
+
     <script src="{% static 'js/jquery-3.1.1.min.js' %}"></script>
     <script src="{% static 'js/bootstrap.min.js' %}"></script>
 <!--    <script src="{% static 'build/js/custom.js' %}"></script>-->

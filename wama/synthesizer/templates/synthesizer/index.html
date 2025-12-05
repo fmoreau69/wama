@@ -12,8 +12,8 @@
             <div class="drop-zone" id="dropZone" data-upload-url="{% url 'synthesizer:upload' %}" data-csrf-token="{{ csrf_token }}">
                 <i class="fas fa-file-upload fa-3x mb-3 text-primary"></i>
                 <h5>Glissez-déposez vos fichiers texte ici</h5>
-                <p class="text mb-3">ou cliquez pour parcourir</p>
-                <p class="small text">
+                <p class="text-light mb-3">ou cliquez pour parcourir</p>
+                <p class="small text-white-50">
                     Formats supportés: TXT, PDF, DOCX, CSV, MD
                 </p>
                 <input type="file" id="fileInput" multiple accept=".txt,.pdf,.docx,.csv,.md"
@@ -41,7 +41,7 @@
                             </option>
                             {% endfor %}
                         </select>
-                        <small class="text">XTTS v2 recommandé pour le clonage de voix</small>
+                        <small class="text-white-50">XTTS v2 recommandé pour le clonage de voix</small>
                     </div>
                     
                     <div class="col-md-2">
@@ -92,7 +92,7 @@
                         </label>
                         <input type="file" class="form-control" id="voice_reference" 
                                accept="audio/*" name="voice_reference">
-                        <small class="text">
+                        <small class="text-white-50">
                             Fichier audio 6-10 sec pour cloner une voix (optionnel)
                         </small>
                     </div>
@@ -128,7 +128,7 @@
                         <h6 class="mb-0 text-light">
                             <i class="fas fa-chart-line"></i> Progression globale
                         </h6>
-                        <small class="text-muted" id="globalProgressStats">Calcul...</small>
+                        <small class="text-white-50" id="globalProgressStats">Calcul...</small>
                     </div>
                     <div class="progress-bar-custom" style="height: 10px;">
                         <div class="progress-fill" id="globalProgressBar" style="width: 0%"></div>
@@ -158,8 +158,8 @@
                         <div class="col-md-3">
                             <strong>{{ synthesis.filename }}</strong>
                             <br>
-                            <small class="text">
-                                {{ synthesis.word_count }} mots • 
+                            <small class="text-white-50">
+                                {{ synthesis.word_count }} mots •
                                 {{ synthesis.duration_display|default:"--:--" }}
                             </small>
                         </div>
@@ -175,7 +175,7 @@
                         
                         <!-- Properties -->
                         <div class="col-md-2">
-                            <small class="text">
+                            <small class="text-white-50">
                                 {{ synthesis.properties|default:"En attente" }}
                             </small>
                         </div>
@@ -193,7 +193,7 @@
                             <div class="progress-bar-custom mt-2">
                                 <div class="progress-fill" style="width: {{ synthesis.progress }}%"></div>
                             </div>
-                            <small class="text">{{ synthesis.progress }}%</small>
+                            <small class="text-light">{{ synthesis.progress }}%</small>
                         </div>
                         
                         <!-- Actions -->

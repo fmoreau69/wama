@@ -18,24 +18,168 @@
 {% endblock %}
 
 {% block content %}
-  <h1 class="page-header">WAMA: Web App for Media Automation</h1>
-  <p class="lead">WAMA, Web App for Media Automation, is a web application developed at Lescot and based on deep learning, offering AI tools applied to media.</p>
-  <hr>
-    <ul>
-      Planned developments include (See the <a href="https://github.com/fmoreau69/web-app-for-media-automation" target="_blank">GitHub project</a>) :
-      <li>Anonymizer: automatic blurring of objects in photos/videos</li>
-      <li>Enhancer: improved resolution and quality of photos/videos (upcoming)</li>
-      <li>Imager: automatic image generation based on prompt text (upcoming)</li>
-      <li>Transcriber: automatic transcription of audio files into text</li>
-      <li>Synthesizer: automatic voice synthesis from text files</li>
-    </ul>
-    => <a type="button" class="navbar-brand text-light" data-bs-toggle="modal" data-bs-target="#LOGIN-MODAL">
-        <u>To get started, please log on to WAMA...</u> ( <span class="fas fa-door-open"></span></a> )
-  <hr>
-  <div style="margin-left: auto; margin-right: auto;">
-    Anonymizer example:
-    <div class="ratio ratio-16x9">
-        <iframe class="ratio" src="https://www.youtube.com/embed/243buD-70FI" style="border:3px solid black; width: 640px; height: 360px;"></iframe>
+<style>
+  /* Style pour la page home - scroll uniquement sur le contenu */
+  .home-wrapper {
+    height: calc(100vh - 60px);
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(155, 155, 155, 0.5) transparent;
+  }
+  .home-wrapper::-webkit-scrollbar {
+    width: 6px;
+  }
+  .home-wrapper::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .home-wrapper::-webkit-scrollbar-thumb {
+    background-color: rgba(155, 155, 155, 0.5);
+    border-radius: 3px;
+  }
+</style>
+
+<div class="home-wrapper">
+  <div class="container-fluid py-4" style="max-width: 1200px;">
+
+    <div class="row mb-4">
+      <div class="col-12">
+        <h1 class="page-header mb-3">
+          <i class="fas fa-robot"></i> WAMA: Web App for Media Automation
+        </h1>
+        <p class="lead">
+          WAMA is a web application developed at Lescot and based on deep learning, offering AI tools applied to media.
+        </p>
+      </div>
     </div>
+
+    <hr>
+
+    <!-- Applications disponibles -->
+    <div class="row mb-4">
+      <div class="col-12">
+        <h4 class="mb-3"><i class="fas fa-tools"></i> Available Applications</h4>
+        <div class="row g-3">
+
+          <!-- Anonymizer -->
+          <div class="col-md-6 col-lg-4">
+            <div class="card h-100" style="background: #212529; border: 1px solid #495057;">
+              <div class="card-body">
+                <h5 class="card-title text-light">
+                  <i class="fas fa-file-video text-primary"></i> Anonymizer
+                </h5>
+                <p class="card-text text-light">
+                  Automatic blurring of objects in photos/videos
+                </p>
+                <a href="{% url 'anonymizer:index' %}" class="btn btn-primary">
+                  <i class="fas fa-arrow-right"></i> Open
+                </a>
+              </div>
+            </div>
+          </div>
+
+          <!-- Synthesizer -->
+          <div class="col-md-6 col-lg-4">
+            <div class="card h-100" style="background: #212529; border: 1px solid #495057;">
+              <div class="card-body">
+                <h5 class="card-title text-light">
+                  <i class="fas fa-microphone-alt text-success"></i> Synthesizer
+                </h5>
+                <p class="card-text text-light">
+                  Automatic voice synthesis from text files
+                </p>
+                <a href="{% url 'synthesizer:index' %}" class="btn btn-success">
+                  <i class="fas fa-arrow-right"></i> Open
+                </a>
+              </div>
+            </div>
+          </div>
+
+          <!-- Transcriber -->
+          <div class="col-md-6 col-lg-4">
+            <div class="card h-100" style="background: #212529; border: 1px solid #495057;">
+              <div class="card-body">
+                <h5 class="card-title text-light">
+                  <i class="fas fa-file-audio text-info"></i> Transcriber
+                </h5>
+                <p class="card-text text-light">
+                  Automatic transcription of audio files into text
+                </p>
+                <a href="{% url 'transcriber:index' %}" class="btn btn-info">
+                  <i class="fas fa-arrow-right"></i> Open
+                </a>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <hr>
+
+    <!-- Applications à venir -->
+    <div class="row mb-4">
+      <div class="col-12">
+        <h4 class="mb-3"><i class="fas fa-clock"></i> Upcoming Features</h4>
+        <div class="card" style="background: #212529; border: 1px solid #495057;">
+          <div class="card-body">
+            <ul class="text-light mb-0">
+              <li><strong>Enhancer:</strong> Improved resolution and quality of photos/videos</li>
+              <li><strong>Imager:</strong> Automatic image generation based on prompt text</li>
+            </ul>
+            <p class="text-light mt-3 mb-0">
+              <i class="fab fa-github"></i> See the
+              <a href="https://github.com/fmoreau69/web-app-for-media-automation" target="_blank" class="text-info">
+                GitHub project
+              </a> for more details
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {% if user.username == 'anonymous' or not user.is_authenticated %}
+    <hr>
+
+    <!-- Login prompt -->
+    <div class="row mb-4">
+      <div class="col-12">
+        <div class="alert alert-info" style="background: #1a3a52; border: 1px solid #2980b9;">
+          <h5 class="alert-heading">
+            <i class="fas fa-door-open"></i> Get Started
+          </h5>
+          <p class="mb-0">
+            To access all features and save your work, please
+            <a href="#" class="alert-link" data-bs-toggle="modal" data-bs-target="#LOGIN-MODAL">
+              log in to WAMA
+            </a>
+          </p>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <hr>
+
+    <!-- Demo video -->
+    <div class="row mb-4">
+      <div class="col-12">
+        <h4 class="mb-3"><i class="fas fa-video"></i> Anonymizer Demo</h4>
+        <div class="card" style="background: #212529; border: 1px solid #495057;">
+          <div class="card-body">
+            <div class="ratio ratio-16x9">
+              <iframe
+                src="https://www.youtube.com/embed/243buD-70FI"
+                style="border-radius: 8px;"
+                allowfullscreen>
+              </iframe>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </div>
+</div>
 {% endblock %}
