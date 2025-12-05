@@ -13,6 +13,7 @@ urlpatterns = [
     path('anonymizer/', include(('wama.anonymizer.urls', 'anonymizer'), namespace='anonymizer')),
     path('synthesizer/', include(('wama.synthesizer.urls', 'synthesizer'), namespace='synthesizer')),
     path('transcriber/', include(('wama.transcriber.urls', 'transcriber'), namespace='transcriber')),
+    path('imager/', include(('wama.imager.urls', 'imager'), namespace='imager')),
     path('favicon.ico', RedirectView.as_view(url=staticfiles_storage.url('favicon.ico'))),
     path('ping/', lambda request: HttpResponse("Django OK via Apache")),
     path('admin/', admin.site.urls),

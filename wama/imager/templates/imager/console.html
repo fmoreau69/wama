@@ -1,0 +1,39 @@
+{% extends 'imager/base.html' %}
+{% load static %}
+
+{% block title %}Imager - Console{% endblock %}
+
+{% block imager_content %}
+<div class="container-fluid py-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="card" style="background: #212529; border: 1px solid #495057;">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0 text-light">
+                        <i class="fas fa-terminal"></i> Console Output
+                    </h5>
+                    <button class="btn btn-sm btn-outline-light" id="clearConsoleBtn">
+                        <i class="fas fa-eraser"></i> Clear
+                    </button>
+                </div>
+                <div class="card-body" style="background: #000; color: #0f0; font-family: monospace; min-height: 500px; max-height: 600px; overflow-y: auto;">
+                    <pre id="consoleOutput" style="margin: 0; color: #0f0;">Waiting for logs...</pre>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block javascript %}
+{{ block.super }}
+<script>
+    window.IMAGER_CONFIG = {
+        urls: {
+            consoleContent: "{% url 'imager:console_content' %}"
+        },
+        csrfToken: "{{ csrf_token }}"
+    };
+</script>
+<script src="{% static 'imager/js/console.js' %}"></script>
+{% endblock %}

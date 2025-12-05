@@ -102,6 +102,7 @@ INSTALLED_APPS = [
     'wama.anonymizer',
     'wama.synthesizer',
     'wama.transcriber',
+    'wama.imager',
 ]
 
 # Middleware

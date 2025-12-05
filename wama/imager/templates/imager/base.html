@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Imager - AI Image Generation{% endblock %}
+
+{% block content %}
+<div class="app-wrapper" style="height: calc(100vh - 60px); overflow-y: auto; background: url('{% static 'images/background.jpg' %}') no-repeat center center fixed; background-size: cover;">
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-md-12">
+                <!-- Navigation tabs -->
+                <ul class="nav nav-tabs mt-3" role="tablist">
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.resolver_match.url_name == 'index' %}active{% endif %}"
+                           href="{% url 'imager:index' %}">
+                            <i class="fas fa-home"></i> Imager
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.resolver_match.url_name == 'console' %}active{% endif %}"
+                           href="{% url 'imager:console' %}">
+                            <i class="fas fa-terminal"></i> Console
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.resolver_match.url_name == 'about' %}active{% endif %}"
+                           href="{% url 'imager:about' %}">
+                            <i class="fas fa-info-circle"></i> About
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.resolver_match.url_name == 'help' %}active{% endif %}"
+                           href="{% url 'imager:help' %}">
+                            <i class="fas fa-question-circle"></i> Help
+                        </a>
+                    </li>
+                </ul>
+
+                <!-- Content area -->
+                <div class="tab-content">
+                    <div class="tab-pane fade show active">
+                        {% block imager_content %}
+                        {% endblock %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block javascript %}
+{{ block.super }}
+{% endblock %}

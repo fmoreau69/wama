@@ -1,0 +1,312 @@
+{% extends 'imager/base.html' %}
+{% load static %}
+
+{% block title %}Imager - AI Image Generation{% endblock %}
+
+{% block imager_content %}
+<div class="container-fluid py-4">
+
+    <!-- Prompt Input Section -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card" style="background: #212529; border: 1px solid #495057;">
+                <div class="card-body">
+                    <h5 class="text-light mb-3">
+                        <i class="fas fa-magic"></i> Create New Image Generation
+                    </h5>
+
+                    <form id="generationForm">
+                        <!-- Prompt -->
+                        <div class="mb-3">
+                            <label for="prompt" class="form-label text-light">
+                                Prompt <span class="text-danger">*</span>
+                            </label>
+                            <textarea class="form-control" id="prompt" name="prompt" rows="3"
+                                      placeholder="Describe the image you want to generate..."
+                                      required></textarea>
+                            <small class="text-white-50">
+                                Be descriptive! Example: "A majestic mountain landscape at sunset, oil painting style, vibrant colors"
+                            </small>
+                        </div>
+
+                        <!-- Negative Prompt -->
+                        <div class="mb-3">
+                            <label for="negative_prompt" class="form-label text-light">
+                                Negative Prompt (optional)
+                            </label>
+                            <textarea class="form-control" id="negative_prompt" name="negative_prompt" rows="2"
+                                      placeholder="What to avoid in the image..."></textarea>
+                            <small class="text-white-50">
+                                Example: "blurry, low quality, distorted, watermark"
+                            </small>
+                        </div>
+
+                        <!-- Parameters Row 1 -->
+                        <div class="row mb-3">
+                            <div class="col-md-3">
+                                <label for="model" class="form-label text-light">Model</label>
+                                <select class="form-select" id="model" name="model">
+                                    {% for value, label in models_choices %}
+                                    <option value="{{ value }}" {% if value == user_settings.default_model %}selected{% endif %}>
+                                        {{ label }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <div class="col-md-3">
+                                <label for="width" class="form-label text-light">Width</label>
+                                <select class="form-select" id="width" name="width">
+                                    <option value="256">256px</option>
+                                    <option value="512" selected>512px</option>
+                                    <option value="768">768px</option>
+                                    <option value="1024">1024px</option>
+                                </select>
+                            </div>
+
+                            <div class="col-md-3">
+                                <label for="height" class="form-label text-light">Height</label>
+                                <select class="form-select" id="height" name="height">
+                                    <option value="256">256px</option>
+                                    <option value="512" selected>512px</option>
+                                    <option value="768">768px</option>
+                                    <option value="1024">1024px</option>
+                                </select>
+                            </div>
+
+                            <div class="col-md-3">
+                                <label for="num_images" class="form-label text-light">Number of Images</label>
+                                <select class="form-select" id="num_images" name="num_images">
+                                    <option value="1" selected>1</option>
+                                    <option value="2">2</option>
+                                    <option value="3">3</option>
+                                    <option value="4">4</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Parameters Row 2 -->
+                        <div class="row mb-3">
+                            <div class="col-md-3">
+                                <label for="steps" class="form-label text-light">
+                                    Steps: <span id="steps_value">30</span>
+                                </label>
+                                <input type="range" class="form-range" id="steps" name="steps"
+                                       min="10" max="100" step="5" value="30"
+                                       oninput="document.getElementById('steps_value').textContent = this.value">
+                                <small class="text-white-50">More steps = better quality, slower</small>
+                            </div>
+
+                            <div class="col-md-3">
+                                <label for="guidance_scale" class="form-label text-light">
+                                    Guidance Scale: <span id="guidance_value">7.5</span>
+                                </label>
+                                <input type="range" class="form-range" id="guidance_scale" name="guidance_scale"
+                                       min="1" max="20" step="0.5" value="7.5"
+                                       oninput="document.getElementById('guidance_value').textContent = this.value">
+                                <small class="text-white-50">How closely to follow prompt</small>
+                            </div>
+
+                            <div class="col-md-3">
+                                <label for="seed" class="form-label text-light">Seed (optional)</label>
+                                <input type="number" class="form-control" id="seed" name="seed"
+                                       placeholder="Random if empty">
+                                <small class="text-white-50">For reproducibility</small>
+                            </div>
+
+                            <div class="col-md-3">
+                                <label class="form-label text-light">&nbsp;</label>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="upscale" name="upscale">
+                                    <label class="form-check-label text-light" for="upscale">
+                                        Upscale image
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Submit Button -->
+                        <div class="text-end">
+                            <button type="submit" class="btn btn-primary" id="submitBtn">
+                                <i class="fas fa-plus"></i> Add to Queue
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <hr>
+
+    <!-- Action Buttons -->
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="btn-group" role="group">
+                <button class="btn btn-success" id="startAllBtn">
+                    <i class="fas fa-play"></i> Start All
+                </button>
+                <button class="btn btn-danger" id="clearAllBtn">
+                    <i class="fas fa-trash"></i> Clear All
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Global Progress -->
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="card" style="background: #212529; border: 1px solid #495057;">
+                <div class="card-body py-2">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="mb-0 text-light">
+                            <i class="fas fa-chart-line"></i> Global Progress
+                        </h6>
+                        <small class="text-white-50" id="globalProgressStats">0/0 completed</small>
+                    </div>
+                    <div class="progress" style="height: 20px;">
+                        <div class="progress-bar" id="globalProgressBar" role="progressbar" style="width: 0%">0%</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Generations Queue -->
+    <div class="row">
+        <div class="col-12">
+            <h4 class="mb-3 text-light">
+                <i class="fas fa-list"></i> Generation Queue
+                <span class="badge bg-secondary" id="queueCount">{{ generations.count }}</span>
+            </h4>
+
+            <div id="generationsQueue">
+                {% for gen in generations %}
+                <div class="card mb-3" data-id="{{ gen.id }}"
+                     style="background: #212529; border: 1px solid #495057;">
+                    <div class="card-body">
+                        <div class="row align-items-center">
+                            <!-- Info Column -->
+                            <div class="col-md-4">
+                                <h6 class="text-light mb-1">Generation #{{ gen.id }}</h6>
+                                <p class="text-white-50 mb-1" style="font-size: 0.9rem;">
+                                    {{ gen.prompt|truncatechars:100 }}
+                                </p>
+                                <small class="text-white-50">
+                                    <i class="fas fa-robot"></i> {{ gen.get_model_display|default:gen.model }}
+                                    • {{ gen.width }}x{{ gen.height }}
+                                    • {{ gen.num_images }} image(s)
+                                </small>
+                            </div>
+
+                            <!-- Status Column -->
+                            <div class="col-md-3">
+                                <span class="badge
+                                    {% if gen.status == 'PENDING' %}bg-secondary
+                                    {% elif gen.status == 'RUNNING' %}bg-warning
+                                    {% elif gen.status == 'SUCCESS' %}bg-success
+                                    {% elif gen.status == 'FAILURE' %}bg-danger
+                                    {% endif %}">
+                                    {{ gen.get_status_display }}
+                                </span>
+                                <div class="progress mt-2" style="height: 20px;">
+                                    <div class="progress-bar" role="progressbar"
+                                         style="width: {{ gen.progress }}%">
+                                        {{ gen.progress }}%
+                                    </div>
+                                </div>
+                                {% if gen.error_message %}
+                                <small class="text-danger d-block mt-1">
+                                    <i class="fas fa-exclamation-triangle"></i> {{ gen.error_message|truncatechars:50 }}
+                                </small>
+                                {% endif %}
+                            </div>
+
+                            <!-- Preview Column -->
+                            <div class="col-md-3">
+                                {% if gen.generated_images %}
+                                <div class="d-flex gap-1 flex-wrap">
+                                    {% for img_path in gen.generated_images|slice:":4" %}
+                                    <img src="{{ img_path }}" alt="Generated" class="img-thumbnail"
+                                         style="width: 60px; height: 60px; object-fit: cover; cursor: pointer;"
+                                         onclick="showImageModal('{{ img_path }}')">
+                                    {% endfor %}
+                                </div>
+                                {% else %}
+                                <small class="text-white-50">No images yet</small>
+                                {% endif %}
+                            </div>
+
+                            <!-- Actions Column -->
+                            <div class="col-md-2 text-end">
+                                <div class="btn-group-vertical btn-group-sm">
+                                    {% if gen.status != 'RUNNING' %}
+                                    <button class="btn btn-primary start-btn" data-id="{{ gen.id }}">
+                                        <i class="fas fa-play"></i> Start
+                                    </button>
+                                    {% endif %}
+                                    {% if gen.generated_images %}
+                                    <a href="{% url 'imager:download' gen.id %}" class="btn btn-success">
+                                        <i class="fas fa-download"></i> Download
+                                    </a>
+                                    {% endif %}
+                                    <button class="btn btn-danger delete-btn" data-id="{{ gen.id }}">
+                                        <i class="fas fa-trash"></i> Delete
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% empty %}
+                <div class="text-center text-light py-5">
+                    <i class="fas fa-inbox fa-3x mb-3"></i>
+                    <p>No generations in queue</p>
+                    <p class="text-white-50">Create a prompt above to start generating images</p>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- Image Preview Modal -->
+<div class="modal fade" id="imageModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content" style="background-color: #ffffff !important;">
+            <div class="modal-header" style="background-color: #f8f9fa; border-bottom: 1px solid #dee2e6;">
+                <h5 class="modal-title" style="color: #000000;">Generated Image</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center">
+                <img id="modalImage" src="" alt="Preview" style="max-width: 100%; height: auto;">
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block javascript %}
+{{ block.super }}
+<script>
+    window.IMAGER_CONFIG = {
+        urls: {
+            create: "{% url 'imager:create' %}",
+            start: "{% url 'imager:start' 0 %}",
+            startAll: "{% url 'imager:start_all' %}",
+            progress: "{% url 'imager:progress' 0 %}",
+            globalProgress: "{% url 'imager:global_progress' %}",
+            delete: "{% url 'imager:delete' 0 %}",
+            clearAll: "{% url 'imager:clear_all' %}"
+        },
+        csrfToken: "{{ csrf_token }}"
+    };
+
+    function showImageModal(imagePath) {
+        document.getElementById('modalImage').src = imagePath;
+        new bootstrap.Modal(document.getElementById('imageModal')).show();
+    }
+</script>
+<script src="{% static 'imager/js/index.js' %}"></script>
+{% endblock %}
