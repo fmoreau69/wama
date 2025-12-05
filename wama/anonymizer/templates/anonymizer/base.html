@@ -2,10 +2,7 @@
 {% load static %}
 
 {% block app_scripts %}
-{# ANONYMIZER SPECIFIC SCRIPTS #}
-<script src="{% static 'anonymizer/js/process.js' %}"></script>
-<script src="{% static 'anonymizer/js/update.js' %}"></script>
-<script src="{% static 'anonymizer/js/upload.js' %}"></script>
+{# ANONYMIZER SPECIFIC SCRIPTS - chargés depuis index.html #}
 {% endblock %}
 
 {% block console_content_id %}anonymizer-console-content{% endblock %}

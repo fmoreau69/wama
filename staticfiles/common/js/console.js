@@ -14,7 +14,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function refreshConsole() {
       fetch(endpoint)
-        .then((response) => response.json())
+        .then((response) => {
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+          }
+          return response.json();
+        })
         .then((data) => {
           const lines = data.output || [];
           if (!lines.length) {
@@ -34,9 +39,10 @@ document.addEventListener('DOMContentLoaded', function () {
             panelBody.scrollTop = panelBody.scrollHeight;
           }
         })
-        .catch(() => {
+        .catch((error) => {
+          console.error('Console fetch error:', error);
           consoleContainer.innerHTML =
-            '<p class="text-danger mb-0">Impossible de charger les logs (voir celery-worker.log).</p>';
+            `<p class="text-danger mb-0">Erreur: ${escapeHtml(error.message)}</p>`;
         });
     }
 

@@ -134,5 +134,5 @@ class UserSettings(models.Model):
 
 @receiver(post_save, sender=User)
 def create_user_profile(sender, instance, created, **kwargs):
-    if created:
-        UserSettings.objects.create(user=instance)
+    if created and instance and instance.pk:
+        UserSettings.objects.get_or_create(user=instance)

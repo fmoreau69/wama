@@ -24,7 +24,8 @@
 {% endblock %}
 
 {% block transcriber_content %}
-<div id="transcriber-app" class="transcriber-app">
+<div class="container-fluid py-4">
+
     <!-- Drag & Drop Zone -->
     <div class="row mb-4">
         <div class="col-12">
@@ -70,54 +71,64 @@
         </div>
     </div>
 
-    <div class="row g-3 align-items-center justify-content-center">
-        <div class="col-lg-6 col-12 text-center">
-            <button id="transcriber-speak-btn" class="btn btn-warning btn-lg w-100 w-lg-auto">
-                <i class="fas fa-microphone"></i> Speak
-            </button>
-            <p id="transcriber-speak-hint" class="text small mt-2 mb-0">
-                Lancez une transcription vocale en direct (Chrome recommandé).
-            </p>
-        </div>
-    </div>
+    <hr>
 
-    <div class="card bg-dark mt-4 shadow-sm">
-        <div class="card-header d-flex justify-content-between align-items-center">
-            <span><i class="fas fa-wave-square"></i> Live transcription</span>
-            <small class="text-white" id="live-transcription-status">En attente...</small>
-        </div>
-        <div class="card-body" style="min-height: 220px;">
-            <div id="live-transcription-output" class="text-white" style="white-space: pre-wrap; font-size: 1.1rem;">
-                Appuyez sur <strong>Speak</strong> puis commencez à parler pour voir le texte apparaître ici en temps réel.
+    <!-- Live Transcription Section -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="row g-3 align-items-center justify-content-center">
+                <div class="col-lg-6 col-12 text-center">
+                    <button id="transcriber-speak-btn" class="btn btn-warning btn-lg w-100 w-lg-auto">
+                        <i class="fas fa-microphone"></i> Speak
+                    </button>
+                    <p id="transcriber-speak-hint" class="text small mt-2 mb-0">
+                        Lancez une transcription vocale en direct (Chrome recommandé).
+                    </p>
+                </div>
+            </div>
+
+            <div class="card bg-dark mt-4 shadow-sm">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span><i class="fas fa-wave-square"></i> Live transcription</span>
+                    <small class="text-white" id="live-transcription-status">En attente...</small>
+                </div>
+                <div class="card-body" style="min-height: 220px;">
+                    <div id="live-transcription-output" class="text-white" style="white-space: pre-wrap; font-size: 1.1rem;">
+                        Appuyez sur <strong>Speak</strong> puis commencez à parler pour voir le texte apparaître ici en temps réel.
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 
-    <hr class="border-secondary my-4" />
+    <hr>
 
-    <div class="row g-3 align-items-center mb-4">
-        <div class="col-md-4">
-            <button id="transcriber-clear-btn" class="btn btn-danger w-100">
-                <i class="far fa-trash-alt"></i> Clear All
-            </button>
-        </div>
-        <div class="col-md-4 text-center">
-            <button id="transcriber-process-btn" class="btn btn-info w-100">
-                <i class="fas fa-dice"></i> Start Process
-            </button>
-        </div>
-        <div class="col-md-4">
-            <form method="post" action="{% url 'transcriber:download_all' %}" id="transcriber-download-all-form">
-                {% csrf_token %}
-                <button id="transcriber-download-all-btn" class="btn btn-success w-100" disabled>
+    <!-- Action Buttons -->
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="btn-group" role="group">
+                <button id="transcriber-process-btn" class="btn btn-success">
+                    <i class="fas fa-play"></i> Start Process
+                </button>
+                <button id="transcriber-download-all-btn" class="btn btn-info" disabled>
                     <i class="fas fa-download"></i> Download All
                 </button>
-            </form>
+                <button id="transcriber-clear-btn" class="btn btn-danger">
+                    <i class="fas fa-trash"></i> Clear All
+                </button>
+            </div>
         </div>
     </div>
 
-    <div class="table-responsive">
-        <table class="table table-bordered table-dark align-middle" id="transcriber-queue">
+    <!-- Transcripts Queue -->
+    <div class="row">
+        <div class="col-12">
+            <h4 class="mb-3">
+                <i class="fas fa-list"></i> File d'attente
+            </h4>
+
+            <div class="table-responsive">
+                <table class="table table-bordered table-dark align-middle" id="transcriber-queue">
             <thead>
             <tr class="text-center">
                 <th style="width: 80px;">ID</th>
@@ -176,9 +187,13 @@
             </tbody>
         </table>
     </div>
-</div>
+        </div>
+    </div>
 
-<div class="mt-4 p-3 border border-secondary rounded bg-dark">
+    <!-- Preprocessing Control -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="p-3 border border-secondary rounded bg-dark">
     <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3">
         <div class="form-check form-switch">
             <input class="form-check-input"
@@ -197,6 +212,10 @@
             <i class="fas fa-question-circle"></i> Pourquoi l'activer ?
         </button>
     </div>
+            </div>
+        </div>
+    </div>
+
 </div>
 
 <!-- Section de contrôle du prétraitement audio -->

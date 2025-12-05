@@ -1,5 +1,22 @@
 {% extends 'base.html' %}
 
+{% block javascript %}
+{{ block.super }}
+<script>
+  // Si l'URL contient un paramètre "next", afficher automatiquement le modal de login
+  document.addEventListener('DOMContentLoaded', function() {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.has('next')) {
+      const loginModal = document.getElementById('LOGIN-MODAL');
+      if (loginModal) {
+        const modal = new bootstrap.Modal(loginModal);
+        modal.show();
+      }
+    }
+  });
+</script>
+{% endblock %}
+
 {% block content %}
   <h1 class="page-header">WAMA: Web App for Media Automation</h1>
   <p class="lead">WAMA, Web App for Media Automation, is a web application developed at Lescot and based on deep learning, offering AI tools applied to media.</p>

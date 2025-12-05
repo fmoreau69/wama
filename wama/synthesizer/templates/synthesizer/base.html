@@ -2,8 +2,7 @@
 {% load static %}
 
 {% block app_scripts %}
-{# SYNTHESIZER SPECIFIC SCRIPTS #}
-<script src="{% static 'synthesizer/js/index.js' %}"></script>
+{# SYNTHESIZER SPECIFIC SCRIPTS - chargés depuis les pages individuelles après WAMA_CONFIG #}
 {% endblock %}
 
 {% block console_content_id %}synthesizer-console-content{% endblock %}

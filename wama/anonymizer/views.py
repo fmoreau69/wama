@@ -43,7 +43,7 @@ class IndexView(View):
         return render(request, 'anonymizer/index.html', get_context(request))
 
     def post(self, request):
-        user = request.user if request.user.is_authenticated else User.objects.filter(username="anonymous").first()
+        user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
         UserSettings.objects.filter(user_id=user.id).update(media_added=1)
 
         try:
@@ -326,7 +326,7 @@ class ProcessView(View):
 
     def post(self, request):
         try:
-            user = request.user if request.user.is_authenticated else User.objects.filter(username="anonymous").first()
+            user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
             # Enregistre la liste des médias à traiter pour le calcul du progrès global
             batch_medias = list(Media.objects.filter(user=user, processed=False).order_by('id').values_list('id', flat=True))
             cache.set(f"batch_media_ids_{user.id}", batch_medias, timeout=3600)
@@ -369,10 +369,9 @@ def preview_media(request, media_id):
     })
 
 
-@login_required
 def console_content(request):
     """Retourne un flux textuel des logs en cours pour affichage console (via Redis/Cache + logs Celery)."""
-    user = request.user if request.user.is_authenticated else User.objects.filter(username="anonymous").first()
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     console_lines = get_console_lines(user.id, limit=100)
     celery_lines = get_celery_worker_logs(limit=100)
     all_lines = (celery_lines + console_lines)[-200:]
@@ -395,7 +394,7 @@ def get_process_progress(request):
             return JsonResponse({"progress": 0})
 
     # Global progress for current user
-    user = request.user if request.user.is_authenticated else User.objects.filter(username="anonymous").first()
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     batch_ids = cache.get(f"batch_media_ids_{user.id}")
     if batch_ids:
         medias = list(Media.objects.filter(id__in=batch_ids).order_by('id'))
@@ -516,7 +515,7 @@ def get_context(request):
     if request.user.is_authenticated:
         user = request.user
     else:
-        user = User.objects.filter(username="anonymous").first()
+        user = get_or_create_anonymous_user()
 
     user_settings, _ = UserSettings.objects.get_or_create(user=user)
     # Ensure sensible defaults for initial view (show_preview True)
@@ -817,9 +816,9 @@ def reset_media_settings(request):
     return JsonResponse({'render': template.render(context, request)})
 
 
-@login_required
 def check_all_processed(request):
-    medias = Media.objects.filter(user=request.user)
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    medias = Media.objects.filter(user=user)
     all_processed = medias.exists() and all(m.processed for m in medias)
     return JsonResponse({"all_processed": all_processed})
 

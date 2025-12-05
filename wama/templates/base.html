@@ -17,6 +17,12 @@
       <script src="https://oss.maxcdn.com/respond/1.4.2/respond.min.js"></script>
     <![endif]-->
     <style type="text/css">
+      /* Bloquer le scroll sur body/html pour éviter le scroll de la page entière */
+      html, body {
+        height: 100%;
+        overflow: hidden;
+      }
+
       .page-header {
         margin-top: 0;
       }
@@ -25,6 +31,32 @@
           height: 450px;
           border: 1px white solid;
         }
+      /* Fix modal z-index issues - Le backdrop doit être DERRIÈRE le modal */
+      .modal-backdrop {
+        z-index: 1040 !important;
+      }
+      .modal {
+        z-index: 1050 !important;
+      }
+      .modal-dialog {
+        position: relative;
+        z-index: 1051 !important;
+      }
+      .modal-content {
+        position: relative;
+        z-index: 1052 !important;
+        background-color: white !important;
+        pointer-events: auto !important;
+      }
+      /* S'assurer que les autres éléments ne bloquent pas le modal */
+      .app-wrapper {
+        position: relative;
+        z-index: 1 !important;
+      }
+      .container {
+        position: relative;
+        z-index: 1 !important;
+      }
     </style>
   </head>
   <body>
@@ -46,6 +78,10 @@
       {% block content %}
       {% endblock %}
     </div>
+
+    {# Modal login - doit être directement dans le body pour Bootstrap 5 #}
+    {% include 'accounts/login_modal.html' %}
+
     <script src="{% static 'js/jquery-3.1.1.min.js' %}"></script>
     <script src="{% static 'js/bootstrap.min.js' %}"></script>
 <!--    <script src="{% static 'build/js/custom.js' %}"></script>-->

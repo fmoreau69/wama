@@ -5,6 +5,7 @@
 {% block title %}Anonymizer - Objects Blurring{% endblock %}
 
 {% block javascript %}
+{{ block.super }}
 {# JQUERY FILE UPLOAD SCRIPTS #}
 <script src="{% static 'js/jquery-file-upload/vendor/jquery.ui.widget.js' %}"></script>
 <script src="{% static 'js/jquery-file-upload/jquery.iframe-transport.js' %}"></script>
@@ -18,74 +19,80 @@
 {% endblock %}
 
 {% block anonymizer_content %}
-<!--  Upload media  -->
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="drop-zone" id="dropZoneAnonymizer">
-            <i class="fas fa-cloud-upload-alt fa-3x mb-3 text-primary"></i>
-            <h5>Glissez-déposez vos fichiers photo/vidéo ici</h5>
-            <p class="text mb-3">ou cliquez pour parcourir</p>
-            <p class="small text">
-                Photo: JPG, PNG, GIF, BMP, WEBP<br>
-                Vidéo: MP4, AVI, MKV, MOV, WEBM
-            </p>
-            <input id="fileupload" type="file" name="file" multiple
-                   accept="image/*,video/*"
-                   style="display: none;"
-                   data-url="{% url 'anonymizer:upload' %}"
-                   data-form-data='{"csrfmiddlewaretoken": "{{ csrf_token }}"}'>
-            <button type="button" class="btn btn-primary btn-lg mt-2 js-upload-medias">
-                <i class="fas fa-folder-open"></i> Parcourir
-            </button>
-        </div>
-    </div>
-</div>
+<div class="container-fluid py-4">
 
-<!-- URL Upload Section -->
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="card" style="background: #212529; border: 1px solid #495057;">
-            <div class="card-body">
-                <h6 class="text-light mb-3">
-                    <i class="fas fa-link"></i> Télécharger depuis une URL
-                </h6>
-                <form id="media-url-form" method="post" enctype="multipart/form-data" action="{% url 'anonymizer:upload' %}">
-                    {% csrf_token %}
-                    <div class="input-group">
-                        <input type="text"
-                               class="form-control"
-                               id="media_url"
-                               name="media_url"
-                               placeholder="Collez l'URL de la photo/vidéo ici..."
-                               aria-label="Media URL">
-                        <button class="btn btn-primary" type="submit">
-                            <i class="fas fa-download"></i> Télécharger
-                        </button>
-                    </div>
-                    <small class="text-muted mt-2 d-block">
-                        Exemple: https://example.com/video.mp4 ou lien YouTube
-                    </small>
-                </form>
+    <!-- Upload Zone -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="drop-zone" id="dropZoneAnonymizer">
+                <i class="fas fa-cloud-upload-alt fa-3x mb-3 text-primary"></i>
+                <h5>Glissez-déposez vos fichiers photo/vidéo ici</h5>
+                <p class="text mb-3">ou cliquez pour parcourir</p>
+                <p class="small text">
+                    Photo: JPG, PNG, GIF, BMP, WEBP<br>
+                    Vidéo: MP4, AVI, MKV, MOV, WEBM
+                </p>
+                <input id="fileupload" type="file" name="file" multiple
+                       accept="image/*,video/*"
+                       style="display: none;"
+                       data-url="{% url 'anonymizer:upload' %}"
+                       data-form-data='{"csrfmiddlewaretoken": "{{ csrf_token }}"}'>
+                <button type="button" class="btn btn-primary mt-2 js-upload-medias">
+                    <i class="fas fa-folder-open"></i> Parcourir
+                </button>
             </div>
         </div>
     </div>
-</div>
-<!--  Progress popup  -->
-<div class="modal fade" id="modal-progress" data-backdrop="static" data-keyboard="false">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h4 class="modal-title text-dark">Uploading...</h4>
-            </div>
-            <div class="modal-body">
-                <div class="progress">
-                    <div class="progress-bar" role="progressbar" style="width: 0%;">0%</div>
+
+    <!-- URL Upload Section -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card" style="background: #212529; border: 1px solid #495057;">
+                <div class="card-body">
+                    <h6 class="text-light mb-3">
+                        <i class="fas fa-link"></i> Télécharger depuis une URL
+                    </h6>
+                    <form id="media-url-form" method="post" enctype="multipart/form-data" action="{% url 'anonymizer:upload' %}">
+                        {% csrf_token %}
+                        <div class="input-group">
+                            <input type="text"
+                                   class="form-control"
+                                   id="media_url"
+                                   name="media_url"
+                                   placeholder="Collez l'URL de la photo/vidéo ici..."
+                                   aria-label="Media URL">
+                            <button class="btn btn-primary" type="submit">
+                                <i class="fas fa-download"></i> Télécharger
+                            </button>
+                        </div>
+                        <small class="text-muted mt-2 d-block">
+                            Exemple: https://example.com/video.mp4 ou lien YouTube
+                        </small>
+                    </form>
                 </div>
             </div>
         </div>
     </div>
-</div>
-<div id="main_container">
-    {% include "anonymizer/upload/content.html" %}
+    <!--  Progress popup  -->
+    <div class="modal fade" id="modal-progress" data-backdrop="static" data-keyboard="false">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h4 class="modal-title text-dark">Uploading...</h4>
+                </div>
+                <div class="modal-body">
+                    <div class="progress">
+                        <div class="progress-bar" role="progressbar" style="width: 0%;">0%</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content Container -->
+    <div id="main_container">
+        {% include "anonymizer/upload/content.html" %}
+    </div>
+
 </div>
 {% endblock %}

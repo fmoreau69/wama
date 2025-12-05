@@ -400,6 +400,11 @@ document.addEventListener('DOMContentLoaded', function () {
     if (clearAllBtn) {
       clearAllBtn.addEventListener('click', handleClearAll);
     }
+    if (downloadAllBtn) {
+      downloadAllBtn.addEventListener('click', () => {
+        window.location.href = config.startAllUrl.replace('start_all', 'download_all');
+      });
+    }
     if (preprocessToggle) {
       preprocessToggle.checked = preprocessEnabled;
       preprocessToggle.addEventListener('change', () => {

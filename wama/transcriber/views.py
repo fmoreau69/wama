@@ -22,6 +22,7 @@ from wama.common.utils.console_utils import (
     get_console_lines,
     get_celery_worker_logs,
 )
+from wama.accounts.views import get_or_create_anonymous_user
 
 
 def _format_duration(seconds: float) -> str:
@@ -112,13 +113,13 @@ def _describe_audio(transcript: Transcript) -> None:
         return
 
 
-@method_decorator(login_required, name='dispatch')
 class IndexView(View):
     def get(self, request):
-        transcripts = Transcript.objects.filter(user=request.user).order_by('-id')
+        user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+        transcripts = Transcript.objects.filter(user=user).order_by('-id')
 
         # Récupérer les préférences de prétraitement de l'utilisateur
-        enable_preprocessing = cache.get(f"user_{request.user.id}_preprocessing_enabled", True)
+        enable_preprocessing = cache.get(f"user_{user.id}_preprocessing_enabled", True)
 
         return render(request, 'transcriber/index.html', {
             'transcripts': transcripts,
@@ -135,7 +136,6 @@ class HelpView(TemplateView):
 
 
 @require_POST
-@login_required
 def upload(request):
     file = request.FILES.get('file')
     if not file:
@@ -143,7 +143,8 @@ def upload(request):
 
     preprocess_requested = str(request.POST.get('preprocess_audio', '')).lower() in ('1', 'true', 'on')
     # Persist preference for future uploads
-    cache.set(f"user_{request.user.id}_preprocessing_enabled", preprocess_requested, timeout=30 * 24 * 3600)
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    cache.set(f"user_{user.id}_preprocessing_enabled", preprocess_requested, timeout=30 * 24 * 3600)
 
     from .utils.video_utils import is_video_file, extract_audio_from_video
 
@@ -172,7 +173,7 @@ def upload(request):
 
             # Créer le transcript avec l'audio extrait
             t = Transcript.objects.create(
-                user=request.user,
+                user=user,
                 audio=audio_django_file,
                 preprocess_audio=preprocess_requested,
             )
@@ -191,7 +192,7 @@ def upload(request):
     else:
         # Fichier audio normal
         t = Transcript.objects.create(
-            user=request.user,
+            user=user,
             audio=file,
             preprocess_audio=preprocess_requested,
         )
@@ -209,7 +210,6 @@ def upload(request):
 
 
 @require_POST
-@login_required
 def upload_youtube(request):
     """
     Télécharge l'audio depuis YouTube et crée une transcription.
@@ -229,7 +229,8 @@ def upload_youtube(request):
         }, status=400)
 
     preprocess_requested = str(request.POST.get('preprocess_audio', '')).lower() in ('1', 'true', 'on')
-    cache.set(f"user_{request.user.id}_preprocessing_enabled", preprocess_requested, timeout=30 * 24 * 3600)
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    cache.set(f"user_{user.id}_preprocessing_enabled", preprocess_requested, timeout=30 * 24 * 3600)
 
     try:
         from .utils.video_utils import download_youtube_audio
@@ -252,7 +253,7 @@ def upload_youtube(request):
 
         # Créer le transcript
         t = Transcript.objects.create(
-            user=request.user,
+            user=user,
             audio=audio_django_file,
             preprocess_audio=preprocess_requested,
         )
@@ -282,23 +283,23 @@ def upload_youtube(request):
         }, status=500)
 
 
-@login_required
 def start(request, pk: int):
     """
     Démarre la transcription d'un fichier audio.
     Utilise le prétraitement par défaut sauf si désactivé.
     """
-    t = get_object_or_404(Transcript, pk=pk, user=request.user)
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    t = get_object_or_404(Transcript, pk=pk, user=user)
 
     # Récupérer la préférence de prétraitement
     # Priorité: paramètre URL > préférence utilisateur > défaut (True)
     use_preprocessing = request.GET.get('preprocessing')
     if use_preprocessing is not None:
         use_preprocessing = use_preprocessing.lower() == 'true'
-        cache.set(f"user_{request.user.id}_preprocessing_enabled", use_preprocessing, timeout=30 * 24 * 3600)
+        cache.set(f"user_{user.id}_preprocessing_enabled", use_preprocessing, timeout=30 * 24 * 3600)
     else:
         use_preprocessing = cache.get(
-            f"user_{request.user.id}_preprocessing_enabled",
+            f"user_{user.id}_preprocessing_enabled",
             t.preprocess_audio if t.preprocess_audio is not None else True,
         )
 
@@ -321,16 +322,16 @@ def start(request, pk: int):
     })
 
 
-@login_required
 def progress(request, pk: int):
-    t = get_object_or_404(Transcript, pk=pk, user=request.user)
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    t = get_object_or_404(Transcript, pk=pk, user=user)
     p = int(cache.get(f"transcriber_progress_{t.id}", t.progress or 0))
     return JsonResponse({'progress': p, 'status': t.status})
 
 
-@login_required
 def download(request, pk: int):
-    t = get_object_or_404(Transcript, pk=pk, user=request.user)
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    t = get_object_or_404(Transcript, pk=pk, user=user)
     if not t.text:
         return HttpResponseBadRequest('No transcript yet')
     # Créer un buffer BytesIO pour FileResponse
@@ -345,9 +346,9 @@ def download(request, pk: int):
 
 
 @require_POST
-@login_required
 def delete(request, pk: int):
-    t = get_object_or_404(Transcript, pk=pk, user=request.user)
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    t = get_object_or_404(Transcript, pk=pk, user=user)
     audio_path = t.audio.path
     t.audio.delete(save=False)
     t.delete()
@@ -360,10 +361,9 @@ def delete(request, pk: int):
     return JsonResponse({'deleted': pk})
 
 
-@login_required
 def console_content(request):
     """Retourne un flux textuel des logs en cours pour affichage console (via Redis/Cache + logs Celery)."""
-    user = request.user if request.user.is_authenticated else User.objects.filter(username="anonymous").first()
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     console_lines = get_console_lines(user.id, limit=100)
     celery_lines = get_celery_worker_logs(limit=100)
     all_lines = (celery_lines + console_lines)[-200:]
@@ -371,7 +371,6 @@ def console_content(request):
 
 
 @require_POST
-@login_required
 def start_all(request):
     """
     Démarre toutes les transcriptions en attente.
@@ -386,10 +385,11 @@ def start_all(request):
             payload = {}
     use_preprocessing = payload.get('preprocessing')
     if use_preprocessing is None:
-        use_preprocessing = cache.get(f"user_{request.user.id}_preprocessing_enabled", True)
+        use_preprocessing = cache.get(f"user_{user.id}_preprocessing_enabled", True)
     else:
         use_preprocessing = bool(use_preprocessing)
-        cache.set(f"user_{request.user.id}_preprocessing_enabled", use_preprocessing, timeout=30 * 24 * 3600)
+        user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    cache.set(f"user_{user.id}_preprocessing_enabled", use_preprocessing, timeout=30 * 24 * 3600)
 
     if use_preprocessing:
         from .workers import transcribe
@@ -398,7 +398,8 @@ def start_all(request):
         from .workers import transcribe_without_preprocessing
         task_func = transcribe_without_preprocessing
 
-    qs = Transcript.objects.filter(user=request.user).exclude(status='SUCCESS')
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    qs = Transcript.objects.filter(user=user).exclude(status='SUCCESS')
     started = []
     for transcript in qs:
         if transcript.status == 'RUNNING':
@@ -418,9 +419,9 @@ def start_all(request):
 
 
 @require_POST
-@login_required
 def clear_all(request):
-    transcripts = Transcript.objects.filter(user=request.user)
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    transcripts = Transcript.objects.filter(user=user)
     cleared = []
     for transcript in transcripts:
         cleared.append(transcript.id)
@@ -436,9 +437,9 @@ def clear_all(request):
     return JsonResponse({'cleared_ids': cleared, 'count': len(cleared)})
 
 
-@login_required
 def download_all(request):
-    transcripts = Transcript.objects.filter(user=request.user).exclude(text='')
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    transcripts = Transcript.objects.filter(user=user).exclude(text='')
     if not transcripts.exists():
         return HttpResponseBadRequest('No transcripts ready')
     buffer = io.BytesIO()
@@ -451,7 +452,6 @@ def download_all(request):
 
 
 @require_POST
-@login_required
 def set_preprocessing_preference(request):
     payload = {}
     if request.body:
@@ -464,18 +464,19 @@ def set_preprocessing_preference(request):
         enabled = str(request.POST.get('enabled', '')).lower() in ('1', 'true', 'on')
     else:
         enabled = bool(enabled)
-    cache.set(f"user_{request.user.id}_preprocessing_enabled", enabled, timeout=30 * 24 * 3600)
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    cache.set(f"user_{user.id}_preprocessing_enabled", enabled, timeout=30 * 24 * 3600)
     return JsonResponse({'enabled': enabled})
 
 
 @require_POST
-@login_required
 def toggle_preprocessing(request):
     """
     Nouvelle vue pour activer/désactiver le prétraitement audio.
     """
     enable = request.POST.get('enable', 'true').lower() == 'true'
-    cache.set(f"user_{request.user.id}_preprocessing_enabled", enable, timeout=None)
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    cache.set(f"user_{user.id}_preprocessing_enabled", enable, timeout=None)
 
     return JsonResponse({
         'preprocessing_enabled': enable,
@@ -483,12 +484,12 @@ def toggle_preprocessing(request):
     })
 
 
-@login_required
 def preprocessing_status(request):
     """
     Retourne le statut actuel du prétraitement pour l'utilisateur.
     """
-    enabled = cache.get(f"user_{request.user.id}_preprocessing_enabled", True)
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    enabled = cache.get(f"user_{user.id}_preprocessing_enabled", True)
     return JsonResponse({
         'preprocessing_enabled': enabled,
     })

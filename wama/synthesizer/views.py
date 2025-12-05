@@ -23,17 +23,18 @@ from wama.common.utils.console_utils import (
     get_console_lines,
     get_celery_worker_logs,
 )
+from wama.accounts.views import get_or_create_anonymous_user
 
 
-@method_decorator(login_required, name='dispatch')
 class IndexView(View):
     """Page principale du synthesizer."""
 
     def get(self, request):
-        syntheses = VoiceSynthesis.objects.filter(user=request.user).order_by('-id')
+        user = request.user if request.user.is_authenticated else get_or_create_anonymous_user() if request.user.is_authenticated else get_or_create_anonymous_user()
+        syntheses = VoiceSynthesis.objects.filter(user=user).order_by('-id')
         voice_presets = VoicePreset.objects.filter(
             is_public=True
-        ) | VoicePreset.objects.filter(created_by=request.user)
+        ) | VoicePreset.objects.filter(created_by=user)
 
         context = {
             'syntheses': syntheses,
@@ -56,7 +57,6 @@ class HelpView(TemplateView):
 
 
 @require_POST
-@login_required
 def upload(request):
     """
     Upload d'un fichier texte à synthétiser.
@@ -92,9 +92,12 @@ def upload(request):
         # Voice reference (optionnel)
         voice_reference = request.FILES.get('voice_reference')
 
+        # Récupérer l'utilisateur (authentifié ou anonyme)
+        user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+
         # Créer l'objet VoiceSynthesis
         synthesis = VoiceSynthesis.objects.create(
-            user=request.user,
+            user=user,
             text_file=text_file,
             tts_model=tts_model,
             language=language,
@@ -153,12 +156,12 @@ def upload(request):
         }, status=500)
 
 
-@login_required
 def start(request, pk: int):
     """
     Démarre la synthèse vocale pour un fichier.
     """
-    synthesis = get_object_or_404(VoiceSynthesis, pk=pk, user=request.user)
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    synthesis = get_object_or_404(VoiceSynthesis, pk=pk, user=user)
 
     if synthesis.status == 'RUNNING':
         return JsonResponse({
@@ -195,12 +198,12 @@ def start(request, pk: int):
     })
 
 
-@login_required
 def progress(request, pk: int):
     """
     Récupère la progression d'une synthèse.
     """
-    synthesis = get_object_or_404(VoiceSynthesis, pk=pk, user=request.user)
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    synthesis = get_object_or_404(VoiceSynthesis, pk=pk, user=user)
     p = int(cache.get(f"synthesizer_progress_{synthesis.id}", synthesis.progress or 0))
 
     return JsonResponse({
@@ -212,12 +215,12 @@ def progress(request, pk: int):
     })
 
 
-@login_required
 def global_progress(request):
     """
     Récupère la progression globale de toutes les synthèses de l'utilisateur.
     """
-    syntheses = VoiceSynthesis.objects.filter(user=request.user)
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    syntheses = VoiceSynthesis.objects.filter(user=user)
 
     if not syntheses.exists():
         return JsonResponse({
@@ -262,12 +265,12 @@ def global_progress(request):
     })
 
 
-@login_required
 def download(request, pk: int):
     """
     Télécharge le fichier audio généré.
     """
-    synthesis = get_object_or_404(VoiceSynthesis, pk=pk, user=request.user)
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    synthesis = get_object_or_404(VoiceSynthesis, pk=pk, user=user)
 
     if not synthesis.audio_output:
         return HttpResponseBadRequest('Aucun audio généré')
@@ -279,12 +282,12 @@ def download(request, pk: int):
     )
 
 
-@login_required
 def preview(request, pk: int):
     """
     Retourne l'URL de l'audio pour la prévisualisation.
     """
-    synthesis = get_object_or_404(VoiceSynthesis, pk=pk, user=request.user)
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    synthesis = get_object_or_404(VoiceSynthesis, pk=pk, user=user)
 
     if not synthesis.audio_output:
         return JsonResponse({
@@ -299,12 +302,12 @@ def preview(request, pk: int):
 
 
 @require_POST
-@login_required
 def delete(request, pk: int):
     """
     Supprime une synthèse vocale.
     """
-    synthesis = get_object_or_404(VoiceSynthesis, pk=pk, user=request.user)
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    synthesis = get_object_or_404(VoiceSynthesis, pk=pk, user=user)
 
     # Supprimer les fichiers
     if synthesis.text_file:
@@ -331,12 +334,11 @@ def delete(request, pk: int):
     return JsonResponse({'deleted': pk})
 
 
-@login_required
 def console_content(request):
     """
     Récupère le contenu de la console.
     """
-    user = request.user
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     lines = get_console_lines(user.id, limit=100)
     celery_lines = get_celery_worker_logs(limit=100)
     combined = (celery_lines + lines)[-200:]
@@ -344,7 +346,6 @@ def console_content(request):
 
 
 @require_POST
-@login_required
 def start_all(request):
     """
     Démarre toutes les synthèses en attente.
@@ -366,7 +367,8 @@ def start_all(request):
         }, status=400)
 
     # Récupérer toutes les synthèses (sauf celles en cours)
-    qs = VoiceSynthesis.objects.filter(user=request.user).exclude(status='RUNNING')
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    qs = VoiceSynthesis.objects.filter(user=user).exclude(status='RUNNING')
     started = []
     updated_options = []
 
@@ -433,12 +435,12 @@ def start_all(request):
 
 
 @require_POST
-@login_required
 def clear_all(request):
     """
     Supprime toutes les synthèses de l'utilisateur.
     """
-    syntheses = VoiceSynthesis.objects.filter(user=request.user)
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    syntheses = VoiceSynthesis.objects.filter(user=user)
     cleared = []
 
     for synthesis in syntheses:
@@ -473,13 +475,13 @@ def clear_all(request):
     })
 
 
-@login_required
 def download_all(request):
     """
     Télécharge toutes les synthèses terminées dans un ZIP.
     """
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     syntheses = VoiceSynthesis.objects.filter(
-        user=request.user,
+        user=user,
         status='SUCCESS'
     ).exclude(audio_output='')
 
@@ -505,12 +507,12 @@ def download_all(request):
 
 
 @require_POST
-@login_required
 def update_options(request, pk: int):
     """
     Met à jour les options d'une synthèse.
     """
-    synthesis = get_object_or_404(VoiceSynthesis, pk=pk, user=request.user)
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    synthesis = get_object_or_404(VoiceSynthesis, pk=pk, user=user)
 
     if synthesis.status == 'RUNNING':
         return JsonResponse({
@@ -553,7 +555,6 @@ def update_options(request, pk: int):
 # ============= VOICE PRESETS =============
 
 @require_POST
-@login_required
 def create_voice_preset(request):
     """
     Crée un preset de voix personnalisé.
@@ -576,6 +577,7 @@ def create_voice_preset(request):
             'error': 'Ce nom de preset existe déjà'
         }, status=400)
 
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     preset = VoicePreset.objects.create(
         name=name,
         description=description,
@@ -583,7 +585,7 @@ def create_voice_preset(request):
         language=language,
         gender=gender,
         is_public=is_public,
-        created_by=request.user
+        created_by=user
     )
 
     return JsonResponse({
@@ -594,14 +596,13 @@ def create_voice_preset(request):
     })
 
 
-@login_required
 def list_voice_presets(request):
     """
     Liste les presets de voix disponibles.
     """
     presets = VoicePreset.objects.filter(
         is_public=True
-    ) | VoicePreset.objects.filter(created_by=request.user)
+    ) | VoicePreset.objects.filter(created_by=user)
 
     data = [{
         'id': p.id,
@@ -617,12 +618,12 @@ def list_voice_presets(request):
 
 
 @require_POST
-@login_required
 def delete_voice_preset(request, pk: int):
     """
     Supprime un preset de voix.
     """
-    preset = get_object_or_404(VoicePreset, pk=pk, created_by=request.user)
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    preset = get_object_or_404(VoicePreset, pk=pk, created_by=user)
     preset.reference_audio.delete(save=False)
     preset.delete()
 

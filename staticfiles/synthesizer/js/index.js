@@ -1,9 +1,14 @@
-// Configuration - URLs définies côté serveur (injectées depuis le template)
-const URLS = window.WAMA_CONFIG.urls;
-const csrfToken = window.WAMA_CONFIG.csrfToken;
-
 // Attendre que le DOM soit chargé
 document.addEventListener('DOMContentLoaded', function() {
+    // Configuration - URLs définies côté serveur (injectées depuis le template)
+    if (!window.WAMA_CONFIG) {
+        console.error('WAMA_CONFIG not found. Make sure the template injects it.');
+        alert('Erreur de configuration. Veuillez recharger la page.');
+        return;
+    }
+
+    const URLS = window.WAMA_CONFIG.urls;
+    const csrfToken = window.WAMA_CONFIG.csrfToken;
 
     // Range sliders
     const speedSlider = document.getElementById('speed');
@@ -262,59 +267,60 @@ document.addEventListener('DOMContentLoaded', function() {
     updateGlobalProgress();
     setInterval(updateGlobalProgress, 2000);
 
+    // Helper functions
+    async function handleFiles(files) {
+        for (const file of files) {
+            await uploadFile(file);
+        }
+    }
+
+    async function uploadFile(file) {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('tts_model', document.getElementById('tts_model').value);
+        formData.append('language', document.getElementById('language').value);
+        formData.append('voice_preset', document.getElementById('voice_preset').value);
+        formData.append('speed', document.getElementById('speed').value);
+        formData.append('pitch', document.getElementById('pitch').value);
+
+        const voiceRef = document.getElementById('voice_reference');
+        if (voiceRef && voiceRef.files[0]) {
+            formData.append('voice_reference', voiceRef.files[0]);
+        }
+
+        try {
+            const response = await fetch(URLS.upload, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': csrfToken },
+                body: formData
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                location.reload();
+            } else {
+                alert('Erreur: ' + (data.error || 'Upload échoué'));
+            }
+        } catch (error) {
+            console.error('Upload error:', error);
+            alert('Erreur de communication: ' + error.message);
+        }
+    }
+
+    async function updateConsole() {
+        try {
+            const response = await fetch(URLS.console);
+            const data = await response.json();
+
+            const output = document.getElementById('consoleOutput');
+            if (output && data.output) {
+                output.innerHTML = data.output.map(line => `<div>${line}</div>`).join('');
+                output.scrollTop = output.scrollHeight;
+            }
+        } catch (error) {
+            console.error('Console update error:', error);
+        }
+    }
+
 }); // Fin DOMContentLoaded
-
-async function handleFiles(files) {
-    for (const file of files) {
-        await uploadFile(file);
-    }
-}
-
-async function uploadFile(file) {
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('tts_model', document.getElementById('tts_model').value);
-    formData.append('language', document.getElementById('language').value);
-    formData.append('voice_preset', document.getElementById('voice_preset').value);
-    formData.append('speed', document.getElementById('speed').value);
-    formData.append('pitch', document.getElementById('pitch').value);
-
-    const voiceRef = document.getElementById('voice_reference');
-    if (voiceRef && voiceRef.files[0]) {
-        formData.append('voice_reference', voiceRef.files[0]);
-    }
-
-    try {
-        const response = await fetch(URLS.upload, {
-            method: 'POST',
-            headers: { 'X-CSRFToken': csrfToken },
-            body: formData
-        });
-
-        const data = await response.json();
-
-        if (response.ok) {
-            location.reload();
-        } else {
-            alert('Erreur: ' + (data.error || 'Upload échoué'));
-        }
-    } catch (error) {
-        console.error('Upload error:', error);
-        alert('Erreur de communication: ' + error.message);
-    }
-}
-
-async function updateConsole() {
-    try {
-        const response = await fetch(URLS.console);
-        const data = await response.json();
-
-        const output = document.getElementById('consoleOutput');
-        if (output && data.output) {
-            output.innerHTML = data.output.map(line => `<div>${line}</div>`).join('');
-            output.scrollTop = output.scrollHeight;
-        }
-    } catch (error) {
-        console.error('Console update error:', error);
-    }
-}

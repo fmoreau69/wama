@@ -16,16 +16,94 @@
 
 {# CONSOLE SCRIPT - Commun à toutes les apps #}
 <script src="{% static 'common/js/console.js' %}"></script>
+
 {% endblock %}
 
 {% block content %}
-<h1 class="page-header">
-    WAMA
-    <small>/ {% block title %}{% endblock %}</small>
-</h1>
-<hr>
-<div class="row">
-    <div class="col-md-3">
+<style>
+    /* Ne pas bloquer le scroll sur body/html pour permettre aux modals Bootstrap de fonctionner */
+    .container {
+        max-width: 1200px; /* Limite la largeur maximale */
+        margin: 0 auto; /* Centre le contenu */
+        padding-left: 15px;
+        padding-right: 15px;
+        position: relative;
+        z-index: 1;
+    }
+    /* Conteneur principal avec hauteur fixe */
+    .app-wrapper {
+        display: flex;
+        flex-direction: column;
+        height: calc(100vh - 60px); /* 60px pour la navigation top */
+        position: relative;
+        z-index: 1;
+        overflow: hidden; /* Bloquer le scroll seulement sur ce conteneur */
+    }
+    .app-header {
+        flex-shrink: 0;
+    }
+    .app-body {
+        flex: 1;
+        overflow: hidden;
+        display: flex;
+        position: relative;
+    }
+    .app-sidebar {
+        width: 25%;
+        overflow-y: auto;
+        overflow-x: hidden;
+        padding-right: 15px;
+        padding-bottom: 50px;
+        /* Masquer la scrollbar tout en gardant la fonctionnalité */
+        scrollbar-width: thin;
+        scrollbar-color: rgba(155, 155, 155, 0.5) transparent;
+    }
+    .app-sidebar::-webkit-scrollbar {
+        width: 6px;
+    }
+    .app-sidebar::-webkit-scrollbar-track {
+        background: transparent;
+    }
+    .app-sidebar::-webkit-scrollbar-thumb {
+        background-color: rgba(155, 155, 155, 0.5);
+        border-radius: 3px;
+    }
+    .app-content {
+        width: 75%;
+        overflow-y: auto;
+        overflow-x: hidden;
+        padding-left: 15px;
+        padding-bottom: 50px;
+        /* Masquer la scrollbar tout en gardant la fonctionnalité */
+        scrollbar-width: thin;
+        scrollbar-color: rgba(155, 155, 155, 0.5) transparent;
+    }
+    .app-content::-webkit-scrollbar {
+        width: 6px;
+    }
+    .app-content::-webkit-scrollbar-track {
+        background: transparent;
+    }
+    .app-content::-webkit-scrollbar-thumb {
+        background-color: rgba(155, 155, 155, 0.5);
+        border-radius: 3px;
+    }
+</style>
+
+<div class="app-wrapper">
+    {# HEADER FIXE #}
+    <div class="app-header">
+        <h1 class="page-header" style="margin-top: 0;">
+            WAMA
+            <small>/ {% block title %}{% endblock %}</small>
+        </h1>
+        <hr style="margin-top: 10px; margin-bottom: 10px;">
+    </div>
+
+    {# CONTENEUR AVEC SCROLL #}
+    <div class="app-body">
+        {# SIDEBAR FIXE AVEC SCROLL INTERNE #}
+        <div class="app-sidebar">
         {# MENU - Fourni par l'app qui hérite #}
         <div class="panel panel-default">
             <div class="panel-heading">
@@ -51,13 +129,14 @@
                 </div>
             </div>
         </div>
-    </div>
+        </div>
 
-    {# CONTENU PRINCIPAL - Fourni par l'app qui hérite #}
-    <div class="col-md-9">
-        {% block app_content %}
-        {# Les apps héritant de ce template doivent définir ce bloc #}
-        {% endblock %}
+        {# CONTENU PRINCIPAL AVEC SCROLL #}
+        <div class="app-content">
+            {% block app_content %}
+            {# Les apps héritant de ce template doivent définir ce bloc #}
+            {% endblock %}
+        </div>
     </div>
 </div>
 {% endblock %}
