@@ -62,8 +62,8 @@
                     </form>
                     <form method="post" action="{% url 'anonymizer:download_media' %}">
                         {% csrf_token %}
-                        <button type="submit" class="btn btn-success btn-sm text-center" {% if not media.processed %} disabled {% else %} active>{% endif %}
-                            <input type="hidden" name="media_id" value="{{ media.id }}">
+                        <input type="hidden" name="media_id" value="{{ media.id }}">
+                        <button type="submit" class="btn btn-success btn-sm text-center" {% if not media.processed %} disabled {% else %} active{% endif %}>
                             <i class="fas fa-download"></i>
                         </button>
                     </form>

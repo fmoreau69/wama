@@ -17,6 +17,7 @@ from django.views.decorators.http import require_POST
 from django.utils.encoding import smart_str
 from django.core.validators import FileExtensionValidator
 from django.core.exceptions import ValidationError
+from django.core.files.base import ContentFile
 
 from .models import VoiceSynthesis, VoicePreset
 from wama.common.utils.console_utils import (
@@ -153,6 +154,188 @@ def upload(request):
 
         return JsonResponse({
             'error': f'Erreur serveur: {str(e)}'
+        }, status=500)
+
+
+@require_POST
+def upload_text(request):
+    """
+    Créer un fichier DOCX à partir du texte saisi et l'ajouter à la file d'attente.
+    """
+    try:
+        text_content = request.POST.get('text_content', '').strip()
+        title = request.POST.get('title', '').strip()
+
+        if not text_content:
+            return JsonResponse({
+                'error': 'Le texte ne peut pas être vide'
+            }, status=400)
+
+        # Générer un nom de fichier
+        if not title:
+            # Utiliser les premiers mots du texte comme titre
+            words = text_content.split()[:5]
+            title = ' '.join(words)
+            if len(text_content.split()) > 5:
+                title += '...'
+
+        # Limiter la longueur du titre
+        if len(title) > 50:
+            title = title[:50] + '...'
+
+        filename = f"{title}.docx"
+
+        # Créer un fichier DOCX avec python-docx
+        try:
+            from docx import Document
+            from docx.shared import Pt
+
+            doc = Document()
+
+            # Note: On n'ajoute PAS le titre au document DOCX
+            # Le titre sert uniquement pour le nom du fichier
+            # Seul le text_content sera synthétisé vocalement
+
+            # Ajouter uniquement le contenu (sans le titre)
+            # Split par paragraphes (double saut de ligne)
+            paragraphs = text_content.split('\n\n')
+            for para_text in paragraphs:
+                if para_text.strip():
+                    paragraph = doc.add_paragraph(para_text.strip())
+                    # Format basique
+                    for run in paragraph.runs:
+                        run.font.size = Pt(12)
+
+            # Sauvegarder dans un buffer
+            buffer = io.BytesIO()
+            doc.save(buffer)
+            buffer.seek(0)
+
+            # Créer un ContentFile pour Django
+            docx_file = ContentFile(buffer.read(), name=filename)
+
+        except ImportError:
+            return JsonResponse({
+                'error': 'Le module python-docx n\'est pas installé. Veuillez l\'installer avec: pip install python-docx'
+            }, status=500)
+        except Exception as e:
+            return JsonResponse({
+                'error': f'Erreur lors de la création du fichier DOCX: {str(e)}'
+            }, status=500)
+
+        # Récupérer les options (utiliser les valeurs par défaut si non fournies)
+        try:
+            tts_model = request.POST.get('tts_model', 'xtts_v2')
+            language = request.POST.get('language', 'fr')
+            voice_preset = request.POST.get('voice_preset', 'default')
+            speed = float(request.POST.get('speed', 1.0))
+            pitch = float(request.POST.get('pitch', 1.0))
+            emotion_intensity = float(request.POST.get('emotion_intensity', 1.0))
+        except (ValueError, TypeError) as e:
+            return JsonResponse({
+                'error': f'Paramètres invalides: {str(e)}'
+            }, status=400)
+
+        # Voice reference (optionnel)
+        voice_reference = request.FILES.get('voice_reference')
+
+        # Récupérer l'utilisateur
+        user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+
+        # Créer l'objet VoiceSynthesis
+        synthesis = VoiceSynthesis.objects.create(
+            user=user,
+            text_file=docx_file,
+            tts_model=tts_model,
+            language=language,
+            voice_preset=voice_preset,
+            speed=speed,
+            pitch=pitch,
+            emotion_intensity=emotion_intensity,
+            voice_reference=voice_reference
+        )
+
+        # Mettre à jour les métadonnées
+        try:
+            from .utils.text_extractor import extract_text_from_file, clean_text_for_tts
+            extracted_text = extract_text_from_file(synthesis.text_file.path)
+            synthesis.text_content = clean_text_for_tts(extracted_text)
+            synthesis.update_metadata()
+        except ImportError:
+            # Si le module d'extraction n'existe pas, utiliser le texte brut
+            synthesis.text_content = text_content
+            synthesis.word_count = len(text_content.split())
+            synthesis.save()
+        except Exception as e:
+            synthesis.status = 'FAILURE'
+            synthesis.error_message = f"Erreur d'extraction: {str(e)}"
+            synthesis.save()
+            return JsonResponse({
+                'error': f"Impossible d'extraire le texte: {str(e)}"
+            }, status=400)
+
+        return JsonResponse({
+            'success': True,
+            'id': synthesis.id,
+            'text_file_url': synthesis.text_file.url,
+            'text_file_label': filename,
+            'status': synthesis.status,
+            'word_count': synthesis.word_count,
+            'duration_display': synthesis.duration_display,
+            'properties': synthesis.properties or 'En attente',
+            'options': {
+                'model': synthesis.get_tts_model_display(),
+                'language': synthesis.get_language_display(),
+                'voice': synthesis.get_voice_preset_display(),
+            }
+        })
+
+    except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"Error in upload_text view: {error_details}")
+
+        return JsonResponse({
+            'error': f'Erreur serveur: {str(e)}'
+        }, status=500)
+
+
+def text_preview(request, pk: int):
+    """
+    Récupère le contenu texte d'une synthèse pour prévisualisation.
+    """
+    try:
+        user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+        synthesis = get_object_or_404(VoiceSynthesis, pk=pk, user=user)
+
+        # Si le contenu texte est déjà extrait, l'utiliser
+        if synthesis.text_content:
+            text_content = synthesis.text_content
+        else:
+            # Sinon, extraire depuis le fichier
+            try:
+                from .utils.text_extractor import extract_text_from_file
+                text_content = extract_text_from_file(synthesis.text_file.path)
+            except ImportError:
+                # Fallback: lire le fichier brut
+                try:
+                    with open(synthesis.text_file.path, 'r', encoding='utf-8') as f:
+                        text_content = f.read()
+                except Exception as e:
+                    text_content = f"Impossible de lire le fichier: {str(e)}"
+
+        return JsonResponse({
+            'success': True,
+            'filename': synthesis.filename,
+            'text_content': text_content,
+            'word_count': synthesis.word_count,
+            'duration_display': synthesis.duration_display,
+        })
+
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': f'Erreur lors de la récupération du texte: {str(e)}'
         }, status=500)
 
 

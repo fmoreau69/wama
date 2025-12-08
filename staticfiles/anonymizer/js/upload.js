@@ -1,4 +1,36 @@
 $(function () {
+  // Initialize modal once and reuse the instance
+  let progressModal = null;
+  const modalElement = document.getElementById('modal-progress');
+
+  if (modalElement) {
+    // Create modal instance with proper configuration
+    progressModal = new bootstrap.Modal(modalElement, {
+      backdrop: 'static',
+      keyboard: false,
+      focus: true
+    });
+
+    // Prevent focus retention on hide
+    modalElement.addEventListener('hide.bs.modal', function () {
+      // Blur any focused element inside the modal before closing
+      const focusedElement = modalElement.querySelector(':focus');
+      if (focusedElement) {
+        focusedElement.blur();
+      }
+    });
+
+    // Clean aria-hidden after modal is fully hidden
+    modalElement.addEventListener('hidden.bs.modal', function () {
+      modalElement.setAttribute('aria-hidden', 'true');
+    });
+
+    // Set aria-hidden to false when modal is shown
+    modalElement.addEventListener('shown.bs.modal', function () {
+      modalElement.setAttribute('aria-hidden', 'false');
+    });
+  }
+
   // Ouvre le sélecteur de fichiers
   $(".js-upload-medias").click(function () {
     $("#fileupload").click();
@@ -67,17 +99,23 @@ $(function () {
     sequentialUploads: true,
 
     start: function () {
-      $("#modal-progress").modal("show");
-      $("#modal-progress .progress-bar").css({ width: "0%" }).text("0%");
+      // Use the pre-initialized modal instance
+      if (progressModal) {
+        progressModal.show();
+        $("#modal-progress .progress-bar").css({ width: "0%" }).text("0%").attr('aria-valuenow', 0);
+      }
     },
 
     stop: function () {
-      $("#modal-progress").modal("hide");
+      // Use the pre-initialized modal instance
+      if (progressModal) {
+        progressModal.hide();
+      }
     },
 
     progressall: function (e, data) {
       const progress = parseInt((data.loaded / data.total) * 100, 10);
-      $("#modal-progress .progress-bar").css({ width: progress + "%" }).text(progress + "%");
+      $("#modal-progress .progress-bar").css({ width: progress + "%" }).text(progress + "%").attr('aria-valuenow', progress);
     },
 
     done: function (e, data) {
@@ -111,7 +149,10 @@ $(function () {
 
     fail: function (e, data) {
       alert("Échec du téléchargement : " + (data.errorThrown || "erreur inconnue"));
-      $("#modal-progress").modal("hide");
+      // Use the pre-initialized modal instance
+      if (progressModal) {
+        progressModal.hide();
+      }
     }
   });
 
@@ -126,7 +167,10 @@ $(function () {
       return;
     }
 
-    $("#modal-progress").modal("show");
+    // Use the pre-initialized modal instance
+    if (progressModal) {
+      progressModal.show();
+    }
 
     $.ajax({
       type: 'POST',
@@ -153,7 +197,10 @@ $(function () {
         alert("Erreur : " + (xhr.responseText || "Une erreur s'est produite"));
       },
       complete: function () {
-        $("#modal-progress").modal("hide");
+        // Use the pre-initialized modal instance
+        if (progressModal) {
+          progressModal.hide();
+        }
         $form[0].reset();
       }
     });

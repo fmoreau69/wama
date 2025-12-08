@@ -1,7 +1,7 @@
 from django import forms
-from django.forms import CheckboxSelectMultiple, HiddenInput, TextInput
+from django.forms import CheckboxSelectMultiple, HiddenInput, TextInput, Select
 from .models import Media, GlobalSettings, UserSettings
-from wama.anonymizer.utils.yolo_utils import get_all_class_choices
+from wama.anonymizer.utils.yolo_utils import get_all_class_choices, get_model_choices_grouped
 
 
 class RangeWidget(TextInput):
@@ -98,13 +98,17 @@ class UserSettingsForm(forms.ModelForm):
         if self.instance and self.instance.classes2blur:
             self.initial['classes2blur'] = self.instance.classes2blur
 
+        # Add model selection field with grouped choices
+        if 'model_to_use' in self.fields:
+            self.fields['model_to_use'].widget.choices = get_model_choices_grouped()
+
     def clean_classes2blur(self):
         return self.cleaned_data.get('classes2blur', [])
 
     class Meta:
         model = UserSettings
         fields = ('id', 'blur_ratio', 'roi_enlargement', 'progressive_blur', 'detection_threshold',
-                  'show_preview', 'show_boxes', 'show_labels', 'show_conf', 'classes2blur')
+                  'show_preview', 'show_boxes', 'show_labels', 'show_conf', 'classes2blur', 'model_to_use')
         widgets = {
             'id': HiddenInput,
             'blur_ratio': RangeWidget(min=1, max=49, step=2),
@@ -116,6 +120,7 @@ class UserSettingsForm(forms.ModelForm):
             'show_labels': SwitchWidget(),
             'show_conf': SwitchWidget(),
             'classes2blur': CheckboxSelectMultiple,
+            'model_to_use': Select(),
         }
 
 
@@ -127,6 +132,10 @@ class UserSettingsEdit(forms.ModelForm):
         if self.instance and self.instance.classes2blur:
             self.initial['classes2blur'] = self.instance.classes2blur
 
+        # Add model selection field with grouped choices
+        if 'model_to_use' in self.fields:
+            self.fields['model_to_use'].widget.choices = get_model_choices_grouped()
+
     def clean_classes2blur(self):
         return self.cleaned_data.get('classes2blur', [])
 
@@ -135,4 +144,5 @@ class UserSettingsEdit(forms.ModelForm):
         fields = "__all__"
         widgets = {
             'classes2blur': CheckboxSelectMultiple,
+            'model_to_use': Select(),
         }

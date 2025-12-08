@@ -109,6 +109,52 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
+    // Text preview buttons
+    document.querySelectorAll('.preview-text-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const id = btn.dataset.id;
+            const modal = new bootstrap.Modal(document.getElementById('textPreviewModal'));
+
+            // Show modal with loader
+            modal.show();
+
+            // Reset modal state
+            document.getElementById('textPreviewLoader').style.display = 'block';
+            document.getElementById('textPreviewContent').style.display = 'none';
+            document.getElementById('textPreviewError').style.display = 'none';
+
+            try {
+                const response = await fetch(URLS.textPreview + id + '/');
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    // Update modal content
+                    document.getElementById('textPreviewTitle').innerHTML =
+                        `<i class="fas fa-file-alt"></i> ${data.filename}`;
+                    document.getElementById('textPreviewInfo').textContent =
+                        `${data.word_count} mots • Durée estimée: ${data.duration_display}`;
+                    document.getElementById('textPreviewText').textContent = data.text_content;
+
+                    // Show content
+                    document.getElementById('textPreviewLoader').style.display = 'none';
+                    document.getElementById('textPreviewContent').style.display = 'block';
+                } else {
+                    // Show error
+                    document.getElementById('textPreviewLoader').style.display = 'none';
+                    document.getElementById('textPreviewErrorMsg').textContent =
+                        data.error || 'Impossible de charger le texte';
+                    document.getElementById('textPreviewError').style.display = 'block';
+                }
+            } catch (error) {
+                console.error('Text preview error:', error);
+                document.getElementById('textPreviewLoader').style.display = 'none';
+                document.getElementById('textPreviewErrorMsg').textContent =
+                    'Erreur de communication: ' + error.message;
+                document.getElementById('textPreviewError').style.display = 'block';
+            }
+        });
+    });
+
     // Delete buttons
     document.querySelectorAll('.delete-btn').forEach(btn => {
         btn.addEventListener('click', async () => {
@@ -266,6 +312,66 @@ document.addEventListener('DOMContentLoaded', function() {
     // Update global progress every 2 seconds
     updateGlobalProgress();
     setInterval(updateGlobalProgress, 2000);
+
+    // Text input form submission
+    const textInputForm = document.getElementById('textInputForm');
+    if (textInputForm) {
+        textInputForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const textContent = document.getElementById('textContent').value.trim();
+            const title = document.getElementById('textTitle').value.trim();
+
+            if (!textContent) {
+                alert('Veuillez entrer du texte à synthétiser.');
+                return;
+            }
+
+            const submitBtn = document.getElementById('submitTextBtn');
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Ajout en cours...';
+
+            try {
+                const formData = new FormData();
+                formData.append('text_content', textContent);
+                formData.append('title', title);
+                formData.append('tts_model', document.getElementById('tts_model').value);
+                formData.append('language', document.getElementById('language').value);
+                formData.append('voice_preset', document.getElementById('voice_preset').value);
+                formData.append('speed', document.getElementById('speed').value);
+                formData.append('pitch', document.getElementById('pitch').value);
+
+                const voiceRef = document.getElementById('voice_reference');
+                if (voiceRef && voiceRef.files[0]) {
+                    formData.append('voice_reference', voiceRef.files[0]);
+                }
+
+                const response = await fetch(URLS.uploadText, {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': csrfToken },
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    alert(`Texte ajouté avec succès à la file d'attente !\nMots: ${data.word_count}`);
+                    // Clear form
+                    textInputForm.reset();
+                    // Reload page to show new synthesis
+                    location.reload();
+                } else {
+                    alert('Erreur: ' + (data.error || 'Échec de l\'ajout'));
+                }
+            } catch (error) {
+                console.error('Text upload error:', error);
+                alert('Erreur de communication: ' + error.message);
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="fas fa-plus-circle"></i> Ajouter à la file d\'attente';
+            }
+        });
+    }
 
     // Helper functions
     async function handleFiles(files) {

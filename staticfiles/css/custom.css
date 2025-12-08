@@ -21,6 +21,52 @@
         box-shadow: 0 2px 10px rgba(0,0,0,0.5);
     }
 
+    /* Fix modal z-index to appear above navigation (z-index: 1000) */
+    .modal,
+    .modal.fade,
+    .modal.show {
+        z-index: 1055 !important;
+    }
+
+    .modal-backdrop,
+    .modal-backdrop.fade,
+    .modal-backdrop.show {
+        z-index: 1050 !important;
+    }
+
+    /* Ensure modal is clickable and not grayed out */
+    .modal-dialog {
+        z-index: 1056 !important;
+        position: relative;
+        margin-top: 80px !important; /* Descendre le modal sous le header avec une marge esthétique */
+    }
+
+    /* Fix modal content visibility */
+    .modal-content {
+        position: relative;
+        background-color: #fff !important;
+        color: #212529 !important;
+        pointer-events: auto !important;
+        z-index: 1057 !important;
+    }
+
+    /* Ensure modal header, body, and footer are visible */
+    .modal-header,
+    .modal-body,
+    .modal-footer {
+        background-color: transparent !important;
+        color: inherit !important;
+    }
+
+    /* Specific fix for progress modal */
+    #modal-progress {
+        z-index: 1055 !important;
+    }
+
+    #modal-progress .modal-dialog {
+        z-index: 1056 !important;
+    }
+
     .top_nav nav {
         background-color: #212529 !important;
     }

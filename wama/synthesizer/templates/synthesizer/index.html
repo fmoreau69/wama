@@ -25,6 +25,38 @@
         </div>
     </div>
 
+    <!-- Text Input Zone -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card" style="background: #212529; border: 1px solid #495057;">
+                <div class="card-body">
+                    <h6 class="text-light mb-3">
+                        <i class="fas fa-keyboard"></i> Saisir du texte directement
+                    </h6>
+                    <form id="textInputForm">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <label for="textTitle" class="form-label text-light">Titre (optionnel)</label>
+                            <input type="text" class="form-control" id="textTitle" name="title"
+                                   placeholder="Mon texte à synthétiser">
+                        </div>
+                        <div class="mb-3">
+                            <label for="textContent" class="form-label text-light">Texte à synthétiser</label>
+                            <textarea class="form-control" id="textContent" name="text_content" rows="5"
+                                      placeholder="Entrez votre texte ici..."></textarea>
+                            <small class="text-white-50 mt-1 d-block">
+                                Le texte sera converti en fichier DOCX et ajouté à la file d'attente
+                            </small>
+                        </div>
+                        <button type="submit" class="btn btn-success" id="submitTextBtn">
+                            <i class="fas fa-plus-circle"></i> Ajouter à la file d'attente
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Options Panel -->
     <div class="row mb-4">
         <div class="col-12">
@@ -156,7 +188,13 @@
                     <div class="row align-items-center">
                         <!-- Text File Info -->
                         <div class="col-md-3">
-                            <strong>{{ synthesis.filename }}</strong>
+                            <strong>
+                                <button type="button" class="btn btn-link p-0 text-start preview-text-btn"
+                                        data-id="{{ synthesis.id }}"
+                                        style="color: #fff; text-decoration: none;">
+                                    <i class="fas fa-file-alt"></i> {{ synthesis.filename }}
+                                </button>
+                            </strong>
                             <br>
                             <small class="text-white-50">
                                 {{ synthesis.word_count }} mots •
@@ -247,8 +285,10 @@
     </div>
 
 </div>
+{% endblock %}
 
-<!-- Preview Modal -->
+{% block extra_modals %}
+<!-- Audio Preview Modal -->
 <div class="modal fade" id="previewModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
@@ -267,6 +307,45 @@
         </div>
     </div>
 </div>
+
+<!-- Text Preview Modal -->
+<div class="modal fade" id="textPreviewModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="textPreviewTitle">
+                    <i class="fas fa-file-alt"></i> Prévisualisation du texte
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="textPreviewLoader" class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Chargement...</span>
+                    </div>
+                    <p class="mt-2 text-light">Chargement du texte...</p>
+                </div>
+                <div id="textPreviewContent" style="display: none;">
+                    <div class="mb-3">
+                        <small class="text-white-50">
+                            <i class="fas fa-info-circle"></i>
+                            <span id="textPreviewInfo"></span>
+                        </small>
+                    </div>
+                    <div class="card" style="background: #1e1e1e; border: 1px solid #495057;">
+                        <div class="card-body">
+                            <pre id="textPreviewText" style="color: #d4d4d4; white-space: pre-wrap; word-wrap: break-word; font-family: 'Segoe UI', Arial, sans-serif; font-size: 14px; line-height: 1.6; margin: 0; max-height: 500px; overflow-y: auto;"></pre>
+                        </div>
+                    </div>
+                </div>
+                <div id="textPreviewError" class="alert alert-danger" style="display: none;">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <span id="textPreviewErrorMsg"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block javascript %}
@@ -276,6 +355,8 @@
     window.WAMA_CONFIG = {
         urls: {
             upload: "{% url 'synthesizer:upload' %}",
+            uploadText: "{% url 'synthesizer:upload_text' %}",
+            textPreview: "/synthesizer/text-preview/",
             start: "/synthesizer/start/",
             progress: "/synthesizer/progress/",
             globalProgress: "{% url 'synthesizer:global_progress' %}",

@@ -35,8 +35,30 @@
                     {% include "widgets/CheckboxMultipleModal.html" with field=user_settings_form.classes2blur id=user.id setting_type='user_setting' value=gs_values|get_value:setting.name button_width=4 %}
                     <div class="mt-3" style="width: 100%; max-width: 320px;">
                         <select id="user_setting_model_to_use" class="form-select setting-button">
-                            {% for m in available_models %}
-                                <option value="{{ m }}" {% if gs_values.model_to_use == m %}selected{% endif %}>{{ m }}</option>
+                            {% for model_type, model_list in models_by_type.items %}
+                                {% if model_type == 'detect' %}
+                                    <optgroup label="Detection">
+                                {% elif model_type == 'segment' %}
+                                    <optgroup label="Segmentation">
+                                {% elif model_type == 'classify' %}
+                                    <optgroup label="Classification">
+                                {% elif model_type == 'pose' %}
+                                    <optgroup label="Pose Estimation">
+                                {% elif model_type == 'obb' %}
+                                    <optgroup label="Oriented Bounding Box">
+                                {% elif model_type == 'root' %}
+                                    <optgroup label="Legacy (Root Directory)">
+                                {% else %}
+                                    <optgroup label="{{ model_type|title }}">
+                                {% endif %}
+                                    {% for model_name in model_list %}
+                                        {% if model_type == 'root' %}
+                                            <option value="{{ model_name }}" {% if gs_values.model_to_use == model_name %}selected{% endif %}>{{ model_name }}</option>
+                                        {% else %}
+                                            <option value="{{ model_type }}/{{ model_name }}" {% if gs_values.model_to_use == model_name or gs_values.model_to_use|stringformat:'s' == model_type|add:'/'|add:model_name %}selected{% endif %}>{{ model_name }}</option>
+                                        {% endif %}
+                                    {% endfor %}
+                                </optgroup>
                             {% endfor %}
                         </select>
                         <label class="form-label fw-bold" for="user_setting_model_to_use">Model to use</label>

@@ -20,10 +20,31 @@ def get_blurred_media_path(filename: str, file_ext: str) -> str:
     """
     Retourne le chemin absolu pour une version 'blurred' du fichier média.
     Exemple : input.mp4 → input_blurred.mp4
+    Note: For videos, always returns .mp4 regardless of intermediate format
     """
-    base = os.path.splitext(os.path.basename(filename))[0]
+    # Extract just the filename without path
+    base_filename = os.path.basename(filename)
+    base = os.path.splitext(base_filename)[0]
+
+    print(f"[get_blurred_media_path] Input filename: {filename}")
+    print(f"[get_blurred_media_path] Base filename: {base_filename}")
+    print(f"[get_blurred_media_path] Base (no ext): {base}")
+    print(f"[get_blurred_media_path] File ext: {file_ext}")
+
+    # For videos, always use .mp4 as final output (after FFmpeg re-encoding)
+    # Images keep their original extension
+    if file_ext.lower() in ['.mp4', '.avi', '.mov', '.mkv', '.webm', '.flv', '.wmv']:
+        file_ext = '.mp4'
+        print(f"[get_blurred_media_path] Video detected, using .mp4")
+
     blurred_filename = f"{base}_blurred{file_ext}"
-    return os.path.join(MEDIA_OUTPUT_ROOT, blurred_filename)
+    full_path = os.path.join(MEDIA_OUTPUT_ROOT, blurred_filename)
+
+    print(f"[get_blurred_media_path] Blurred filename: {blurred_filename}")
+    print(f"[get_blurred_media_path] Full path: {full_path}")
+    print(f"[get_blurred_media_path] File exists: {os.path.exists(full_path)}")
+
+    return full_path
 
 
 def get_unique_filename(folder: str, filename: str) -> str:

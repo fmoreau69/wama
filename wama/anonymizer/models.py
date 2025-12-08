@@ -49,6 +49,8 @@ class Media(models.Model):
     roi_enlargement = models.FloatField(default=1.05)
     progressive_blur = models.IntegerField(default=25)
     detection_threshold = models.FloatField(default=0.25)
+    interpolate_detections = models.BooleanField(default=True, verbose_name='Interpolate missing detections')
+    max_interpolation_frames = models.IntegerField(default=15, verbose_name='Max frames to interpolate (capped at 0.5s)')
 
     show_preview = models.BooleanField(default=True)
     show_boxes = models.BooleanField(default=True)
@@ -105,6 +107,8 @@ class UserSettings(models.Model):
     roi_enlargement = models.FloatField(default=1.05)
     progressive_blur = models.IntegerField(default=25)
     detection_threshold = models.FloatField(default=0.25)
+    interpolate_detections = models.BooleanField(default=True, verbose_name='Interpolate missing detections')
+    max_interpolation_frames = models.IntegerField(default=15, verbose_name='Max frames to interpolate (capped at 0.5s)')
 
     show_preview = models.BooleanField(default=True)
     show_boxes = models.BooleanField(default=True)

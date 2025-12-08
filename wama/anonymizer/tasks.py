@@ -34,6 +34,8 @@ def process_single_media(self, media_id):
             'roi_enlargement': media.roi_enlargement if ms_custom else user_settings.roi_enlargement,
             'progressive_blur': media.progressive_blur if ms_custom else user_settings.progressive_blur,
             'detection_threshold': media.detection_threshold if ms_custom else user_settings.detection_threshold,
+            'interpolate_detections': media.interpolate_detections if ms_custom else user_settings.interpolate_detections,
+            'max_interpolation_frames': media.max_interpolation_frames if ms_custom else user_settings.max_interpolation_frames,
             'show_preview': user_settings.show_preview,
             'show_boxes': user_settings.show_boxes,
             'show_labels': user_settings.show_labels,

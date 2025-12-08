@@ -29,7 +29,7 @@ from .models import Media, GlobalSettings, UserSettings
 from .forms import MediaSettingsForm, UserSettingsForm
 from .tasks import process_single_media, process_user_media_batch, stop_process
 from .utils.media_utils import get_input_media_path, get_output_media_path, get_blurred_media_path, get_unique_filename
-from .utils.yolo_utils import get_model_path, list_available_models
+from .utils.yolo_utils import get_model_path, list_available_models, list_models_by_type
 
 from ..accounts.views import get_or_create_anonymous_user
 from ..settings import MEDIA_ROOT, MEDIA_INPUT_ROOT, MEDIA_OUTPUT_ROOT
@@ -194,12 +194,14 @@ def upload_media_from_url(url, output_path):
         # YouTube and similar platforms
         if 'youtube.com' in url or 'youtu.be' in url:
             ydl_opts = {
-                # Prefer progressive or merged mp4; fallback to best single file
-                'format': 'bv*+ba/b',
+                # Download BEST quality: best video + best audio, merged to mp4
+                # bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best
+                # This ensures we get the highest resolution available
+                'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best',
                 'merge_output_format': 'mp4',
                 'outtmpl': os.path.join(output_path, '%(title)s.%(ext)s'),
                 'noplaylist': True,
-                'quiet': True,
+                'quiet': False,  # Show progress for debugging
                 'retries': 5,
                 'fragment_retries': 5,
                 'sleep_interval_requests': 2,
@@ -210,11 +212,16 @@ def upload_media_from_url(url, output_path):
                 },
                 # Helps avoid throttling/403 in some cases
                 'extractor_args': {
-                    'youtube': {'player_client': ['android']}
+                    'youtube': {'player_client': ['android', 'web']}
                 },
                 'nocheckcertificate': True,
                 'overwrites': False,
-                'concurrent_fragment_downloads': 1,
+                'concurrent_fragment_downloads': 4,  # Speed up download with more threads
+                # Post-processing to ensure best quality
+                'postprocessors': [{
+                    'key': 'FFmpegVideoConvertor',
+                    'preferedformat': 'mp4',
+                }],
             }
             try:
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -233,25 +240,38 @@ def upload_media_from_url(url, output_path):
                 # Fallback to pytube if available
                 try:
                     from pytube import YouTube
+                    print(f"[YouTube Download] yt_dlp failed, trying pytube fallback: {yerr}")
                     yt = YouTube(url)
-                    # Prefer progressive mp4 to avoid merge
-                    stream = (
-                        yt.streams
-                        .filter(progressive=True, file_extension='mp4')
-                        .order_by('resolution')
-                        .desc()
-                        .first()
-                    )
+
+                    # Try to get the highest resolution stream (adaptive or progressive)
+                    # First try: highest resolution adaptive video stream
+                    stream = yt.streams.filter(adaptive=True, file_extension='mp4').order_by('resolution').desc().first()
+
                     if stream is None:
-                        # fallback to any mp4
+                        # Second try: progressive streams (lower quality but has audio)
+                        print("[YouTube Download] No adaptive stream found, trying progressive...")
+                        stream = (
+                            yt.streams
+                            .filter(progressive=True, file_extension='mp4')
+                            .order_by('resolution')
+                            .desc()
+                            .first()
+                        )
+
+                    if stream is None:
+                        # Last resort: any mp4 stream
+                        print("[YouTube Download] No progressive stream found, trying any mp4...")
                         stream = yt.streams.filter(file_extension='mp4').first()
+
                     if stream is None:
                         raise ValueError("No suitable stream found (mp4)")
 
+                    print(f"[YouTube Download] Using stream: {stream.resolution} - {stream.mime_type}")
                     temp_filename = stream.default_filename or 'video.mp4'
                     unique_filename = get_unique_filename(output_path, temp_filename)
                     save_path = os.path.join(output_path, unique_filename)
                     stream.download(output_path=output_path, filename=unique_filename)
+                    print(f"[YouTube Download] Downloaded successfully: {save_path}")
                     return save_path
                 except Exception as pterr:
                     raise ValueError(f"YouTube download failed (yt_dlp: {yerr}); fallback pytube failed: {pterr}")
@@ -424,16 +444,22 @@ def download_media(request):
         return HttpResponseNotAllowed(['POST'])
 
     media_id = request.POST.get('media_id')
+    print(f"[download_media] Received media_id: {media_id}")
+
     if not media_id:
+        print("[download_media] ✗ Missing media_id")
         return HttpResponseBadRequest("Missing media_id.")
 
     media = get_object_or_404(Media, pk=media_id)
+    print(f"[download_media] Media found: {media.file.name} (ext: {media.file_ext}, processed: {media.processed})")
 
     # Generate blurred output file path
     media_path = get_blurred_media_path(media.file.name, media.file_ext)
     blurred_filename = os.path.basename(media_path)
+    print(f"[download_media] Looking for file: {media_path}")
 
     if not os.path.exists(media_path):
+        print(f"[download_media] ✗ File not found: {media_path}")
         # Return to a page with context (HTML)
         context = get_context(request)
         context['error'] = f"Processed file {blurred_filename} doesn't exist."
@@ -445,9 +471,10 @@ def download_media(request):
     # Serve le fichier
     try:
         response = FileResponse(open(media_path, "rb"), as_attachment=True, filename=os.path.basename(media_path))
-        print(f"Téléchargement : {blurred_filename}")
+        print(f"[download_media] ✓ Download started: {blurred_filename}")
         return response
     except Exception as e:
+        print(f"[download_media] ✗ Error: {str(e)}")
         return HttpResponseBadRequest(f"Erreur lors du téléchargement : {str(e)}")
 
 
@@ -456,25 +483,53 @@ def download_all_media(request):
     if request.method != 'POST':
         return HttpResponseNotAllowed(['POST'])
 
-    user = request.user
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    print(f"[download_all_media] User: {user.username} (ID: {user.id})")
 
-    # Recover processed user media
-    medias = Media.objects.filter(user=user, processed=True)
+    # Check all user media first
+    all_medias = Media.objects.filter(user=user)
+    processed_medias = all_medias.filter(processed=True)
 
-    if not medias.exists():
-        return HttpResponseBadRequest("No blurred files found.")
+    print(f"[download_all_media] Total user media: {all_medias.count()}")
+    print(f"[download_all_media] Processed media: {processed_medias.count()}")
+
+    # Log each media status
+    for media in all_medias:
+        print(f"[download_all_media] Media ID {media.id}: {media.file.name} - processed={media.processed}")
+
+    if not processed_medias.exists():
+        error_msg = f"No processed media found. Total media: {all_medias.count()}, Processed: 0"
+        print(f"[download_all_media] ERROR: {error_msg}")
+        return HttpResponseBadRequest(error_msg)
 
     # Create a ZIP archive in memory
     zip_buffer = io.BytesIO()
+    files_added = 0
+    missing_files = []
+
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
-        for media in medias:
+        for media in processed_medias:
             file_path = get_blurred_media_path(media.file.name, media.file_ext)
+            print(f"[download_all_media] Looking for: {file_path}")
 
             if os.path.exists(file_path):
                 archive_name = os.path.basename(file_path)
                 zip_file.write(str(file_path), arcname=archive_name)
+                files_added += 1
+                print(f"[download_all_media] ✓ Added to ZIP: {archive_name}")
+            else:
+                missing_files.append(os.path.basename(file_path))
+                print(f"[download_all_media] ✗ File not found: {file_path}")
+
+    print(f"[download_all_media] ZIP created with {files_added} files, {len(missing_files)} missing")
+
+    if files_added == 0:
+        error_msg = f"No files found on disk. Processed in DB: {processed_medias.count()}, Missing files: {', '.join(missing_files)}"
+        print(f"[download_all_media] ERROR: {error_msg}")
+        return HttpResponseBadRequest(error_msg)
 
     zip_buffer.seek(0)
+    print(f"[download_all_media] ✓ Sending ZIP with {files_added} files")
     return FileResponse(zip_buffer, as_attachment=True, filename="blurred_media.zip")
 
 
@@ -563,6 +618,7 @@ def get_context(request):
 
     class_list = Media.classes2blur.field.choices
     available_models = list_available_models()
+    models_by_type = list_models_by_type()
 
     return {
         'user': user,
@@ -576,6 +632,7 @@ def get_context(request):
         'range_widths_media': range_widths_media,
         'range_widths_global': range_widths_global,
         'available_models': available_models,
+        'models_by_type': models_by_type,
     }
 
 
@@ -622,6 +679,8 @@ def update_settings(request):
                 media.MSValues_customised = True
                 media.save(update_fields=['classes2blur', 'MSValues_customised'])
                 context['value'] = current
+                # Pour classes2blur_, on cherche le GlobalSettings 'classes2blur'
+                context['setting'] = GlobalSettings.objects.get(name='classes2blur')
 
             else:
                 # générique : float, bool, int
@@ -639,9 +698,8 @@ def update_settings(request):
                 media.MSValues_customised = True
                 media.save(update_fields=[setting_name, 'MSValues_customised'])
                 context['value'] = getattr(media, setting_name)
-
-            # Charger le GlobalSettings correspondant pour le titre/label
-            context['setting'] = GlobalSettings.objects.get(name=setting_name)
+                # Pour les autres settings, on cherche le GlobalSettings avec le nom exact
+                context['setting'] = GlobalSettings.objects.get(name=setting_name)
 
         elif setting_type == 'user_setting':
             user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()

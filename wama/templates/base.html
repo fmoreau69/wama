@@ -31,23 +31,7 @@
           height: 450px;
           border: 1px white solid;
         }
-      /* Fix modal z-index issues - Le backdrop doit être DERRIÈRE le modal */
-      .modal-backdrop {
-        z-index: 1040 !important;
-      }
-      .modal {
-        z-index: 1050 !important;
-      }
-      .modal-dialog {
-        position: relative;
-        z-index: 1051 !important;
-      }
-      .modal-content {
-        position: relative;
-        z-index: 1052 !important;
-        background-color: white !important;
-        pointer-events: auto !important;
-      }
+      /* Modal z-index rules are now in custom.css to avoid conflicts */
       /* S'assurer que les autres éléments ne bloquent pas le modal */
       .app-wrapper {
         position: relative;

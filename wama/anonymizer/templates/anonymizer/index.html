@@ -16,6 +16,16 @@
 <script src="{% static 'anonymizer/js/process.js' %}"></script>
 <script src="{% static 'anonymizer/js/update.js' %}"></script>
 <script src="{% static 'anonymizer/js/upload.js' %}"></script>
+
+{# Fix modal z-index by moving modals to body level #}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Move all modals that start with "modal_classes2blur" to body level
+    document.querySelectorAll('[id^="modal_classes2blur"]').forEach(function(modal) {
+        document.body.appendChild(modal);
+    });
+});
+</script>
 {% endblock %}
 
 {% block anonymizer_content %}
@@ -73,26 +83,29 @@
             </div>
         </div>
     </div>
-    <!--  Progress popup  -->
-    <div class="modal fade" id="modal-progress" data-backdrop="static" data-keyboard="false">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h4 class="modal-title text-dark">Uploading...</h4>
-                </div>
-                <div class="modal-body">
-                    <div class="progress">
-                        <div class="progress-bar" role="progressbar" style="width: 0%;">0%</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
 
     <!-- Main Content Container -->
     <div id="main_container">
         {% include "anonymizer/upload/content.html" %}
     </div>
 
+</div>
+{% endblock %}
+
+{% block extra_modals %}
+<!--  Progress popup - Must be at body level for proper z-index -->
+<div class="modal fade" id="modal-progress" tabindex="-1" aria-labelledby="modalProgressLabel">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title" id="modalProgressLabel">Uploading...</h4>
+            </div>
+            <div class="modal-body">
+                <div class="progress">
+                    <div class="progress-bar" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock %}
