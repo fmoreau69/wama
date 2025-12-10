@@ -64,6 +64,18 @@ class Media(models.Model):
         help_text="List of objects to blur"
     )
 
+    precision_level = models.IntegerField(
+        default=50,
+        verbose_name='Processing precision level',
+        help_text='0=Quick (fast), 50=Balanced, 100=Precise (slow but accurate)'
+    )
+
+    use_segmentation = models.BooleanField(
+        default=False,
+        verbose_name='Use segmentation models',
+        help_text='Automatically determined by precision level'
+    )
+
     def __str__(self):
         return self.title or f"Media {self.pk}"
 
@@ -126,6 +138,18 @@ class UserSettings(models.Model):
         max_length=255,
         default='yolov8n.pt',
         help_text='YOLO model filename located in anonymizer/models'
+    )
+
+    precision_level = models.IntegerField(
+        default=50,
+        verbose_name='Processing precision level',
+        help_text='0=Quick (fast), 50=Balanced, 100=Precise (slow but accurate)'
+    )
+
+    use_segmentation = models.BooleanField(
+        default=False,
+        verbose_name='Use segmentation models',
+        help_text='Automatically determined by precision level'
     )
 
     def __str__(self):

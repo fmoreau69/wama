@@ -18,7 +18,15 @@ app = Celery('wama')
 app.config_from_object('django.conf:settings', namespace='CELERY')
 app.conf.worker_pool = "threads"
 app.conf.worker_concurrency = 4
-app.autodiscover_tasks()
+
+# Auto-discover tasks in all installed apps
+# Explicitly list apps with Celery tasks
+app.autodiscover_tasks([
+    'wama.anonymizer',
+    'wama.synthesizer',
+    'wama.transcriber',
+    'wama.enhancer',
+])
 
 @app.task(bind=True)
 def debug_task(self):

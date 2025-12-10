@@ -326,7 +326,15 @@ def progress(request, pk: int):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     t = get_object_or_404(Transcript, pk=pk, user=user)
     p = int(cache.get(f"transcriber_progress_{t.id}", t.progress or 0))
-    return JsonResponse({'progress': p, 'status': t.status})
+
+    # Get partial text for live display
+    partial_text = cache.get(f"transcriber_partial_text_{t.id}", '')
+
+    return JsonResponse({
+        'progress': p,
+        'status': t.status,
+        'partial_text': partial_text
+    })
 
 
 def download(request, pk: int):

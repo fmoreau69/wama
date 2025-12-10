@@ -26,6 +26,10 @@ def process_single_media(self, media_id):
         user_settings, _ = UserSettings.objects.get_or_create(user=user)
         ms_custom = media.MSValues_customised
 
+        # Get precision level and use_segmentation from media or user settings
+        precision_level = media.precision_level if ms_custom else user_settings.precision_level
+        use_segmentation = media.use_segmentation if ms_custom else user_settings.use_segmentation
+
         kwargs = {
             'media_path': get_input_media_path(media.file.name),
             'file_ext': media.file_ext,
@@ -40,16 +44,37 @@ def process_single_media(self, media_id):
             'show_boxes': user_settings.show_boxes,
             'show_labels': user_settings.show_labels,
             'show_conf': user_settings.show_conf,
+            'precision_level': precision_level,
+            'use_segmentation': use_segmentation,
         }
 
-        # Model selection: prefer user's explicit model_to_use, otherwise infer by classes
+        # Model selection: prefer user's explicit model_to_use, otherwise auto-select by precision
         try:
             from .utils.yolo_utils import get_model_path as _gmp
-            if getattr(user_settings, 'model_to_use', None):
-                kwargs['model_path'] = _gmp(user_settings.model_to_use)
-            elif any(c in kwargs['classes2blur'] for c in ['face', 'plate']):
-                kwargs['model_path'] = _gmp("yolov8m_faces&plates_720p.pt")
-        except Exception:
+            from .utils.model_selector import select_model_by_precision
+
+            model_to_use = getattr(user_settings, 'model_to_use', None)
+
+            # If user has specified a model explicitly (not empty string), use it
+            if model_to_use and model_to_use.strip():
+                kwargs['model_path'] = _gmp(model_to_use)
+                push_console_line(user.id, f"Using user-specified model: {model_to_use}")
+            else:
+                # Auto-select model based on precision level and classes
+                selected_model = select_model_by_precision(
+                    classes_to_blur=kwargs['classes2blur'],
+                    precision_level=precision_level
+                )
+
+                if selected_model:
+                    kwargs['model_path'] = _gmp(selected_model)
+                    push_console_line(user.id, f"Auto-selected model (precision {precision_level}): {selected_model}")
+                # Fallback to custom face/plate model if needed
+                elif any(c in kwargs['classes2blur'] for c in ['face', 'plate']):
+                    kwargs['model_path'] = _gmp("yolov8m_faces&plates_720p.pt")
+                    push_console_line(user.id, f"Using custom face/plate model")
+        except Exception as e:
+            push_console_line(user.id, f"Warning: Model selection failed ({e}), using default")
             pass
 
         # Vérifie si un stop a été demandé

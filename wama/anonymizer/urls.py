@@ -35,6 +35,9 @@ urlpatterns = [
     # Console
     path('console/', views.console_content, name='console'),
 
+    # Model Management
+    path('model-recommendations/', views.get_model_recommendations, name='model_recommendations'),
+
     # Unused
     # path('display_console/', views.ProcessView.display_console, name='display_console'),
 ]

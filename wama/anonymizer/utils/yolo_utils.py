@@ -2,28 +2,43 @@ from ultralytics import YOLO
 from wama.settings import BASE_DIR
 import os
 import logging
-from typing import List, Dict, Tuple
-
-# Dossier des modèles
-MODELS_ROOT = os.path.join(BASE_DIR, "anonymizer", "models")
+from typing import List, Dict, Tuple, Optional
+from .model_manager import (
+    auto_download_model,
+    get_installed_models,
+    MODELS_ROOT,
+)
 
 # Types de modèles disponibles
 MODEL_TYPES = ['detect', 'segment', 'classify', 'pose', 'obb']
 
-def get_model_path(filename: str) -> str:
+logger = logging.getLogger(__name__)
+
+
+def get_model_path(filename: str, auto_download: bool = True) -> str:
     """
     Retourne le chemin absolu d'un modèle YOLO.
     Recherche d'abord dans la racine, puis dans les sous-dossiers par type.
+    Si auto_download est True et que le modèle est officiel, le télécharge automatiquement.
 
     Args:
         filename: Nom du fichier modèle (ex: 'yolov8n.pt' ou 'detect/yolov8n.pt')
+        auto_download: Si True, télécharge le modèle s'il n'existe pas
 
     Returns:
         Chemin absolu vers le fichier modèle
     """
     # Si le chemin contient déjà un séparateur, utiliser directement
     if '/' in filename or '\\' in filename:
-        return os.path.join(MODELS_ROOT, filename)
+        path = os.path.join(MODELS_ROOT, filename)
+        if os.path.isfile(path):
+            return path
+        # Try auto-download if enabled
+        if auto_download:
+            downloaded_path = auto_download_model(filename)
+            if downloaded_path:
+                return downloaded_path
+        return path
 
     # Rechercher d'abord dans la racine (compatibilité ascendante)
     root_path = os.path.join(MODELS_ROOT, filename)
@@ -36,7 +51,15 @@ def get_model_path(filename: str) -> str:
         if os.path.isfile(type_path):
             return type_path
 
+    # Si non trouvé et auto_download activé, essayer de télécharger
+    if auto_download:
+        logger.info(f"Model {filename} not found locally, attempting auto-download...")
+        downloaded_path = auto_download_model(filename)
+        if downloaded_path:
+            return downloaded_path
+
     # Si non trouvé, retourner le chemin racine (pour compatibilité)
+    logger.warning(f"Model {filename} not found and could not be downloaded")
     return root_path
 
 def get_yolo_class_choices(model_filename: str = "yolov8n.pt"):
@@ -80,34 +103,19 @@ def list_available_models() -> List[str]:
 def list_models_by_type() -> Dict[str, List[str]]:
     """
     List all available models organized by type.
+    Uses model_manager to get comprehensive model information.
 
     Returns:
         Dictionary mapping model type to list of model filenames
         Example: {'detect': ['yolov8n.pt', ...], 'segment': ['yolov8n-seg.pt']}
     """
+    # Get installed models from model_manager
+    installed = get_installed_models()
+
+    # Convert to simple dict of lists
     models_by_type = {}
-
-    if not os.path.isdir(MODELS_ROOT):
-        return models_by_type
-
-    # List models in root directory (legacy/uncategorized)
-    root_models = [
-        f for f in os.listdir(MODELS_ROOT)
-        if os.path.isfile(os.path.join(MODELS_ROOT, f)) and f.endswith('.pt') and not f.startswith('.')
-    ]
-    if root_models:
-        models_by_type['root'] = sorted(root_models)
-
-    # List models in subdirectories
-    for model_type in MODEL_TYPES:
-        type_dir = os.path.join(MODELS_ROOT, model_type)
-        if os.path.isdir(type_dir):
-            type_models = [
-                f for f in os.listdir(type_dir)
-                if os.path.isfile(os.path.join(type_dir, f)) and f.endswith('.pt') and not f.startswith('.')
-            ]
-            if type_models:
-                models_by_type[model_type] = sorted(type_models)
+    for model_type, models_list in installed.items():
+        models_by_type[model_type] = [m['name'] for m in models_list]
 
     return models_by_type
 

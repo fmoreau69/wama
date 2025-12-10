@@ -260,6 +260,9 @@ document.addEventListener('DOMContentLoaded', function () {
     }
     row.dataset.status = status;
 
+    // Update live transcription display if this is the first running transcript
+    updateLiveTranscriptionFromQueue(id, status, data.partial_text);
+
     if (['SUCCESS', 'FAILURE'].includes(status) || progress >= 100) {
       stopPolling(id);
     }
@@ -377,7 +380,44 @@ document.addEventListener('DOMContentLoaded', function () {
           interimTranscript += transcript;
         }
       }
-      liveOutput.textContent = (finalTranscript + interimTranscript).trim() || '...';
+
+      // Combine final and interim transcripts
+      const fullText = (finalTranscript + interimTranscript).trim();
+
+      if (!fullText || fullText === '...') {
+        liveOutput.textContent = '...';
+        return;
+      }
+
+      // Highlight last word during transcription
+      const words = fullText.split(/(\s+)/); // Split keeping whitespace
+
+      if (words.length > 0) {
+        // Find the last non-whitespace word
+        let lastWordIndex = -1;
+        for (let i = words.length - 1; i >= 0; i--) {
+          if (words[i].trim().length > 0) {
+            lastWordIndex = i;
+            break;
+          }
+        }
+
+        if (lastWordIndex >= 0) {
+          // Build HTML with highlighted last word
+          const htmlParts = words.map((word, index) => {
+            if (index === lastWordIndex) {
+              return `<mark style="background-color: #ffc107; color: #000; padding: 2px 4px; border-radius: 3px;">${escapeHtml(word)}</mark>`;
+            }
+            return escapeHtml(word);
+          });
+
+          liveOutput.innerHTML = htmlParts.join('');
+        } else {
+          liveOutput.textContent = fullText;
+        }
+      } else {
+        liveOutput.textContent = fullText || '...';
+      }
     };
 
     speakButton.addEventListener('click', () => {
@@ -530,6 +570,91 @@ document.addEventListener('DOMContentLoaded', function () {
       const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
       return map[match];
     });
+  }
+
+  function updateLiveTranscriptionFromQueue(transcriptId, status, partialText) {
+    // Only update if not in speech mode and this is the first running transcript
+    if (!liveOutput || !liveStatus) return;
+
+    // Check if speak mode is active
+    if (speakButton && speakButton.classList.contains('active')) {
+      return; // Don't override speech mode
+    }
+
+    // Find the first RUNNING transcript
+    const firstRunning = queueTable ? queueTable.querySelector('tbody tr[data-status="RUNNING"]') : null;
+
+    if (!firstRunning) {
+      // No running transcripts, show default message
+      if (liveOutput.textContent !== 'Appuyez sur Speak puis commencez à parler pour voir le texte apparaître ici en temps réel.') {
+        liveOutput.textContent = 'Aucune transcription en cours.';
+        liveStatus.textContent = 'En attente...';
+      }
+      return;
+    }
+
+    const firstRunningId = firstRunning.dataset.id;
+
+    // Only update if this is the first running transcript
+    if (firstRunningId !== String(transcriptId)) {
+      return;
+    }
+
+    // Update status
+    if (status === 'RUNNING') {
+      liveStatus.textContent = `Transcription #${transcriptId} en cours...`;
+    } else if (status === 'SUCCESS') {
+      liveStatus.textContent = `Transcription #${transcriptId} terminée ✓`;
+      // Keep showing the text for a few seconds after completion
+      setTimeout(() => {
+        if (firstRunning.dataset.status === 'SUCCESS') {
+          liveOutput.textContent = 'Aucune transcription en cours.';
+          liveStatus.textContent = 'En attente...';
+        }
+      }, 3000);
+    } else if (status === 'FAILURE') {
+      liveStatus.textContent = `Transcription #${transcriptId} échouée ✗`;
+    }
+
+    // Display partial text with last word highlighting
+    if (partialText && partialText.trim()) {
+      displayTextWithHighlight(partialText);
+    }
+  }
+
+  function displayTextWithHighlight(text) {
+    if (!liveOutput) return;
+
+    // Split text into words while keeping whitespace
+    const words = text.split(/(\s+)/);
+
+    if (words.length === 0) {
+      liveOutput.textContent = text;
+      return;
+    }
+
+    // Find the last non-whitespace word
+    let lastWordIndex = -1;
+    for (let i = words.length - 1; i >= 0; i--) {
+      if (words[i].trim().length > 0) {
+        lastWordIndex = i;
+        break;
+      }
+    }
+
+    if (lastWordIndex >= 0) {
+      // Build HTML with highlighted last word
+      const htmlParts = words.map((word, index) => {
+        if (index === lastWordIndex) {
+          return `<mark style="background-color: #ffc107; color: #000; padding: 2px 4px; border-radius: 3px;">${escapeHtml(word)}</mark>`;
+        }
+        return escapeHtml(word);
+      });
+
+      liveOutput.innerHTML = htmlParts.join('');
+    } else {
+      liveOutput.textContent = text;
+    }
   }
 
   initUpload();

@@ -80,6 +80,12 @@ def _preprocess_audio(transcript: Transcript, audio_path: str) -> str:
         return audio_path
 
 
+def _set_partial_text(transcript_id: int, text: str) -> None:
+    """Store partial transcription text in cache for live display."""
+    key = f"transcriber_partial_text_{transcript_id}"
+    cache.set(key, text, timeout=3600)
+
+
 @shared_task(bind=True)
 def transcribe(self, transcript_id: int):
     """
@@ -91,11 +97,15 @@ def transcribe(self, transcript_id: int):
     _set_progress(t, 5, force=True)
     _console(t.user_id, f"Transcription {t.id} démarrée.")
 
+    # Initialize partial text for live display
+    _set_partial_text(t.id, "🎙️ Transcription en cours...\n")
+
     audio_path = t.audio.path
     cleaned_path = None
 
     try:
         # Étape 1: Prétraitement audio
+        _set_partial_text(t.id, "🔧 Prétraitement audio...\n")
         cleaned_path = _preprocess_audio(t, audio_path)
 
         # Étape 2: Transcription
@@ -115,12 +125,16 @@ def transcribe(self, transcript_id: int):
 
             _console(t.user_id, f"Utilisation du moteur CLI sur {os.path.basename(cleaned_path)}")
             _set_progress(t, 20)
+            _set_partial_text(t.id, "🎯 Analyse de l'audio en cours...\n\n")
 
             subprocess.run(cmd, check=True, capture_output=True, text=True)
             _set_progress(t, 90)
 
             with open(out_txt, 'r', encoding='utf-8', errors='ignore') as f:
                 t.text = f.read()
+
+            # Update partial text with final result
+            _set_partial_text(t.id, t.text)
 
             t.status = 'SUCCESS'
             _set_progress(t, 100)
@@ -136,11 +150,13 @@ def transcribe(self, transcript_id: int):
 
             _console(t.user_id, f"Moteur Whisper (base) en cours...")
             _set_progress(t, 20)
+            _set_partial_text(t.id, "📥 Chargement du modèle Whisper...\n\n")
 
             # Charger le modèle Whisper
             model = whisper.load_model('base', device=DEVICE)
             _console(t.user_id, f"Modèle Whisper chargé sur {DEVICE}")
             _set_progress(t, 30)
+            _set_partial_text(t.id, "🎯 Transcription en cours...\n\nCela peut prendre quelques instants selon la durée de l'audio.\n")
 
             # Transcrire le fichier prétraité
             _console(t.user_id, f"Transcription en cours...")
@@ -148,6 +164,10 @@ def transcribe(self, transcript_id: int):
 
             t.text = result.get('text', '')
             t.language = result.get('language', '')
+
+            # Update partial text with final result
+            _set_partial_text(t.id, t.text)
+
             t.status = 'SUCCESS'
             _set_progress(t, 100)
             t.save(update_fields=['text', 'language', 'status'])
@@ -160,6 +180,7 @@ def transcribe(self, transcript_id: int):
         t.status = 'FAILURE'
         t.save(update_fields=['status'])
         _set_progress(t, 0, force=True)
+        _set_partial_text(t.id, f"❌ Erreur lors de la transcription:\n\n{str(e)}")
         _console(t.user_id, f"Erreur transcription {t.id}: {e}")
         return {'ok': False, 'error': str(e)}
 
@@ -183,8 +204,12 @@ def transcribe_without_preprocessing(self, transcript_id: int):
     _set_progress(t, 5, force=True)
     _console(t.user_id, f"Transcription {t.id} démarrée (sans prétraitement).")
 
+    # Initialize partial text for live display
+    _set_partial_text(t.id, "🎙️ Transcription en cours (sans prétraitement)...\n")
+
     try:
         audio_path = t.audio.path
+        _set_partial_text(t.id, "🎯 Analyse de l'audio en cours...\n\n")
 
         # Tentative avec speech_to_text_transcriptor CLI
         try:
@@ -201,6 +226,10 @@ def transcribe_without_preprocessing(self, transcript_id: int):
             _set_progress(t, 90)
             with open(out_txt, 'r', encoding='utf-8', errors='ignore') as f:
                 t.text = f.read()
+
+            # Update partial text with final result
+            _set_partial_text(t.id, t.text)
+
             t.status = 'SUCCESS'
             _set_progress(t, 100)
             t.save(update_fields=['text', 'status'])
@@ -210,12 +239,20 @@ def transcribe_without_preprocessing(self, transcript_id: int):
             # Fallback whisper
             if whisper is None:
                 raise RuntimeError('No STT engine available (install whisper or speech_to_text_transcriptor)')
+
+            _set_partial_text(t.id, "📥 Chargement du modèle Whisper...\n\n")
             model = whisper.load_model('base', device=DEVICE)
             _console(t.user_id, f"Moteur Whisper (base) en cours...")
             _set_progress(t, 20)
+            _set_partial_text(t.id, "🎯 Transcription en cours...\n\n")
+
             result = model.transcribe(t.audio.path)
             t.text = result.get('text', '')
             t.language = result.get('language', '')
+
+            # Update partial text with final result
+            _set_partial_text(t.id, t.text)
+
             t.status = 'SUCCESS'
             _set_progress(t, 100)
             t.save(update_fields=['text', 'language', 'status'])
@@ -225,5 +262,6 @@ def transcribe_without_preprocessing(self, transcript_id: int):
         t.status = 'FAILURE'
         t.save(update_fields=['status'])
         _set_progress(t, 0, force=True)
+        _set_partial_text(t.id, f"❌ Erreur lors de la transcription:\n\n{str(e)}")
         _console(t.user_id, f"Erreur transcription {t.id}: {e}")
         return {'ok': False, 'error': str(e)}

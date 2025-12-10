@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Enhancer - AI Image/Video Upscaling{% endblock %}</title>
+    {% load static %}
+
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{% static 'enhancer/css/style.css' %}">
+
+    {% block extra_css %}{% endblock %}
+</head>
+<body class="bg-dark text-white">
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-black border-bottom border-secondary">
+        <div class="container-fluid">
+            <a class="navbar-brand fw-bold" href="{% url 'enhancer:index' %}">
+                <i class="fas fa-magic"></i> Enhancer
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">
+                            <i class="fas fa-home"></i> Accueil
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="{% url 'enhancer:index' %}">
+                            <i class="fas fa-wand-magic-sparkles"></i> Enhancer
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-black text-center text-white-50 py-3 mt-5 border-top border-secondary">
+        <div class="container">
+            <p class="mb-0">
+                <small>
+                    Enhancer - Powered by
+                    <a href="https://github.com/Djdefrag/QualityScaler" target="_blank" class="text-info text-decoration-none">
+                        QualityScaler
+                    </a>
+                    | AI Upscaling & Denoising
+                </small>
+            </p>
+        </div>
+    </footer>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    {% block javascript %}{% endblock %}
+</body>
+</html>

@@ -70,13 +70,14 @@ class MediaSettingsForm(forms.ModelForm):
     class Meta:
         model = Media
         fields = ('id', 'blur_ratio', 'roi_enlargement', 'progressive_blur',
-                  'detection_threshold', 'classes2blur')
+                  'detection_threshold', 'classes2blur', 'precision_level')
         widgets = {
             'id': HiddenInput,
             'blur_ratio': RangeWidget(min=1, max=49, step=2),
             'roi_enlargement': RangeWidget(min=0.5, max=1.5, step=.05),
             'progressive_blur': RangeWidget(min=3, max=31, step=2),
             'detection_threshold': RangeWidget(min=0, max=1, step=.05),
+            'precision_level': RangeWidget(min=0, max=100, step=5),
             'classes2blur': CheckboxSelectMultiple,
         }
 
@@ -108,13 +109,14 @@ class UserSettingsForm(forms.ModelForm):
     class Meta:
         model = UserSettings
         fields = ('id', 'blur_ratio', 'roi_enlargement', 'progressive_blur', 'detection_threshold',
-                  'show_preview', 'show_boxes', 'show_labels', 'show_conf', 'classes2blur', 'model_to_use')
+                  'show_preview', 'show_boxes', 'show_labels', 'show_conf', 'classes2blur', 'model_to_use', 'precision_level')
         widgets = {
             'id': HiddenInput,
             'blur_ratio': RangeWidget(min=1, max=49, step=2),
             'roi_enlargement': RangeWidget(min=0.5, max=1.5, step=.05),
             'progressive_blur': RangeWidget(min=3, max=31, step=2),
             'detection_threshold': RangeWidget(min=0, max=1, step=.05),
+            'precision_level': RangeWidget(min=0, max=100, step=5),
             'show_preview': SwitchWidget(),
             'show_boxes': SwitchWidget(),
             'show_labels': SwitchWidget(),

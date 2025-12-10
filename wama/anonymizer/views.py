@@ -398,6 +398,49 @@ def console_content(request):
     return JsonResponse({'output': all_lines})
 
 
+def get_model_recommendations(request):
+    """
+    API endpoint pour obtenir les recommandations de modèles basées sur les classes à flouter.
+
+    GET params:
+        - classes: Liste des classes séparées par des virgules (ex: "person,car,face")
+        - current_model: Modèle actuellement sélectionné (optionnel)
+
+    Returns:
+        JSON avec les recommandations de modèles
+    """
+    from wama.anonymizer.utils.model_selector import get_model_selection_info
+
+    # Get parameters
+    classes_str = request.GET.get('classes', '')
+    current_model = request.GET.get('current_model', None)
+
+    if not classes_str:
+        return JsonResponse({
+            'status': 'error',
+            'message': 'Paramètre "classes" manquant'
+        }, status=400)
+
+    # Parse classes list
+    classes_to_blur = [cls.strip() for cls in classes_str.split(',') if cls.strip()]
+
+    if not classes_to_blur:
+        return JsonResponse({
+            'status': 'error',
+            'message': 'Aucune classe fournie'
+        }, status=400)
+
+    # Get model selection info
+    try:
+        info = get_model_selection_info(classes_to_blur, current_model)
+        return JsonResponse(info)
+    except Exception as e:
+        return JsonResponse({
+            'status': 'error',
+            'message': str(e)
+        }, status=500)
+
+
 def get_process_progress(request):
     """
     Retourne la progression globale (tous médias de l'utilisateur) ou individuelle (par media_id).
@@ -899,7 +942,7 @@ def reset_user_settings(request):
 
 def init_user_settings(user):
     """
-    Réinitialise les UserSettings d’un utilisateur avec les valeurs par défaut des GlobalSettings.
+    Réinitialise les UserSettings d'un utilisateur avec les valeurs par défaut des GlobalSettings.
     """
     close_old_connections()
 
@@ -909,6 +952,14 @@ def init_user_settings(user):
     for setting in global_settings_list:
         if setting.name in [f.name for f in UserSettings._meta.get_fields()]:
             setattr(user_settings, setting.name, setting.default)
+
+    # Ensure precision_level has a default value
+    if not hasattr(user_settings, 'precision_level') or user_settings.precision_level is None:
+        user_settings.precision_level = 50
+
+    # Ensure use_segmentation has a default value
+    if not hasattr(user_settings, 'use_segmentation') or user_settings.use_segmentation is None:
+        user_settings.use_segmentation = False
 
     # Réinitialise le flag custom
     user_settings.GSValues_customised = 0
@@ -922,6 +973,9 @@ def init_global_settings():
     settings_data = [
         {'title': "Objects to blur", 'name': "classes2blur", 'default': ["face", "plate"], 'value': ["face", "plate"],
          'type': 'BOOL', 'label': 'WTB'},
+        {'title': "Processing precision", 'name': "precision_level", 'default': "50", 'value': "50",
+         'min': "0", 'max': "100", 'step': "5", 'type': 'FLOAT', 'label': 'WTB',
+         'attr_list': {'min': '0', 'max': '100', 'step': '5'}},
         {'title': "Blur ratio", 'name': "blur_ratio", 'default': "25", 'value': "25",
          'min': "1", 'max': "49", 'step': "2", 'type': 'FLOAT', 'label': 'HTB',
          'attr_list': {'min': '1', 'max': '49', 'step': '2'}},

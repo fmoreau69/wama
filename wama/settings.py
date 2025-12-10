@@ -103,6 +103,7 @@ INSTALLED_APPS = [
     'wama.synthesizer',
     'wama.transcriber',
     'wama.imager',
+    'wama.enhancer',     # AI Image/Video Upscaling
 ]
 
 # Middleware
