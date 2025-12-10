@@ -1,78 +1,89 @@
-<nav class="nav navbar navbar-dark bg-dark nav-justified navbar-expand-md" id="top-navigation">
-  <div class="container">
-    <div class="col-1"></div>
-    <div class="navbar-header col-2 d-flex justify-content-center align-items-center">
-      <button type="button" class="navbar-toggler" data-bs-toggle="collapse" data-bs-target="#navbarMain" aria-controls="navbarMain" aria-expanded="false" aria-label="Toggle navigation">
-        <span class="sr-only">Toggle navigation</span>
-        <span class="icon-bar"></span>
-        <span class="icon-bar"></span>
-        <span class="icon-bar"></span>
-      </button>
-      <a class="navbar-brand text-light d-md-flex flex-md-column justify-content-center align-items-center" href="{% url 'home' %}">
-        <span class="fas fa-home"></span>
-        <span>Home</span>
-      </a>
+<!-- Navigation moderne inspirée du design Enhancer -->
+<nav class="navbar navbar-expand-lg navbar-dark bg-black border-bottom border-secondary" style="min-height: 60px;">
+    <div class="container-fluid">
+        <!-- Menu déroulant Applications (gauche) -->
+        <div class="dropdown">
+            <button class="btn btn-dark dropdown-toggle d-flex align-items-center" type="button" id="appsDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                <i class="fas fa-th me-2"></i>
+                <span>Applications</span>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-dark" aria-labelledby="appsDropdown">
+                <li>
+                    <a class="dropdown-item {% if 'anonymizer' in request.path %}active{% endif %}" href="{% url 'anonymizer:index' %}">
+                        <i class="fas fa-file-video me-2"></i> Anonymizer
+                    </a>
+                </li>
+                <li>
+                    <a class="dropdown-item {% if 'enhancer' in request.path %}active{% endif %}" href="{% url 'enhancer:index' %}">
+                        <i class="fas fa-wand-magic-sparkles me-2"></i> Enhancer
+                    </a>
+                </li>
+                <li>
+                    <a class="dropdown-item {% if 'imager' in request.path %}active{% endif %}" href="{% url 'imager:index' %}">
+                        <i class="fas fa-magic me-2"></i> Imager
+                    </a>
+                </li>
+                <li>
+                    <a class="dropdown-item {% if 'synthesizer' in request.path %}active{% endif %}" href="{% url 'synthesizer:index' %}">
+                        <i class="fas fa-microphone-alt me-2"></i> Synthesizer
+                    </a>
+                </li>
+                <li>
+                    <a class="dropdown-item {% if 'transcriber' in request.path %}active{% endif %}" href="{% url 'transcriber:index' %}">
+                        <i class="fas fa-file-audio me-2"></i> Transcriber
+                    </a>
+                </li>
+            </ul>
+        </div>
+
+        <!-- Logo WAMA (centre sur mobile) -->
+        <a class="navbar-brand fw-bold mx-auto mx-lg-0 ms-lg-3" href="{% url 'home' %}">
+            <i class="fas fa-bolt"></i> WAMA
+        </a>
+
+        <!-- Bouton toggle pour mobile -->
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+
+        <!-- Menu navigation (droite) -->
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav ms-auto">
+                <!-- Bouton Accueil -->
+                <li class="nav-item">
+                    <a class="nav-link {% if request.path == '/' %}active{% endif %}" href="{% url 'home' %}">
+                        <i class="fas fa-home me-1"></i>
+                        <span>Accueil</span>
+                    </a>
+                </li>
+
+                <!-- Bouton Compte / Login -->
+                {% if user.is_authenticated and user.username != 'anonymous' %}
+                <li class="nav-item">
+                    <a class="nav-link" href="../../accounts/user/edit">
+                        <i class="fas fa-user me-1"></i>
+                        <span>{{ user.first_name|default:user.username }} {{ user.last_name }}</span>
+                    </a>
+                </li>
+                {% else %}
+                <li class="nav-item">
+                    <a class="nav-link" href="#" data-bs-toggle="modal" data-bs-target="#LOGIN-MODAL">
+                        <i class="fas fa-door-open me-1"></i>
+                        <span>Login</span>
+                    </a>
+                </li>
+                {% endif %}
+
+                <!-- Bouton Logout -->
+                {% if user.is_authenticated and user.username != 'anonymous' %}
+                <li class="nav-item">
+                    <a class="nav-link" href="{% url 'accounts:logout' %}">
+                        <i class="fas fa-sign-out-alt me-1"></i>
+                        <span>Logout</span>
+                    </a>
+                </li>
+                {% endif %}
+            </ul>
+        </div>
     </div>
-    <div class="collapse navbar-collapse d-flex justify-content-center align-items-center" id="navbarMain">
-      <ul class="nav nav-pills nav-fill w-100">
-        <li class="nav-item col-2">
-          <a class="navbar-brand text-light d-md-flex flex-md-column" href="{% url 'anonymizer:index' %}">
-            <span class="fas fa-file-video"></span>
-            <span>Anonymizer</span>
-          </a>
-        </li>
-        <li class="nav-item col-2">
-          <a class="navbar-brand text-light d-md-flex flex-md-column" href="{% url 'enhancer:index' %}">
-            <span class="fas fa-wand-magic-sparkles"></span>
-            <span>Enhancer</span>
-          </a>
-        </li>
-        <li class="nav-item col-2">
-          <a class="navbar-brand text-light d-md-flex flex-md-column" href="{% url 'imager:index' %}">
-            <span class="fas fa-magic"></span>
-            <span>Imager</span>
-          </a>
-        </li>
-        <li class="nav-item col-2">
-          <a class="navbar-brand text-light d-md-flex flex-md-column" href="{% url 'synthesizer:index' %}">
-            <span class="fas fa-microphone-alt"></span>
-            <span>Synthesizer</span>
-          </a>
-        </li>
-        <li class="nav-item col-2">
-          <a class="navbar-brand text-light d-md-flex flex-md-column" href="{% url 'transcriber:index' %}">
-            <span class="fas fa-file-audio"></span>
-            <span>Transcriber</span>
-          </a>
-        </li>
-      </ul>
-      <div class="col-1"></div>
-      <ul class="nav navbar-nav navbar-right">
-        <li class="nav-item col-2">
-          {% if user.is_authenticated and user.username != 'anonymous' %}
-            {% include './top-nav_button.html' with icon="fa-user" target="../../accounts/user/edit" text=user.username.title %}
-          {% else %}
-            <a type="button" class="navbar-brand text-light d-md-flex flex-md-column" data-bs-toggle="modal" data-bs-target="#LOGIN-MODAL">
-              <span class="fas fa-door-open"></span>
-              <span>Login</span>
-            </a>
-            {% comment %}
-            <div class="col-1">
-                <a href="{% url app|add:':insert'  %}" class="btn btn-primary" title=" New {{ singular_name }}">
-                    <i class="fas fa-plus"></i>
-                </a>
-            </div>
-            {% endcomment %}
-          {% endif %}
-        </li>
-      </ul>
-    </div>
-  </div>
-  <div class="navbar-header col-1 d-flex justify-content-left align-items-center">
-  {% if user.is_authenticated and user.username != 'anonymous' %}
-    <a class="btn btn-link" href="{% url 'accounts:logout' %}"><i class="fa fa-sign-out pull-right"></i>
-      <span> Logout</span>
-    </a>
-  {% endif %}
-  </div>
 </nav>
