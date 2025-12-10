@@ -142,11 +142,17 @@ document.addEventListener('DOMContentLoaded', function () {
       </td>
       <td class="text-center">
         <div class="btn-group" role="group">
+          <button class="btn btn-primary btn-sm js-restart-enhancement"
+                  data-id="${data.id}"
+                  title="Relancer le traitement">
+            <i class="fas fa-play"></i>
+          </button>
           <a class="btn btn-success btn-sm download-btn disabled" aria-disabled="true" tabindex="-1"
              href="${getUrl(config.downloadUrlTemplate, data.id)}">
             <i class="fas fa-download"></i>
           </a>
-          <button class="btn btn-warning btn-sm settings-btn" disabled>
+          <button class="btn btn-warning btn-sm settings-btn"
+                  data-bs-toggle="modal" data-bs-target="#settingsModal${data.id}">
             <i class="fas fa-cog"></i>
           </button>
           <button class="btn btn-danger btn-sm js-delete-enhancement"
@@ -158,8 +164,73 @@ document.addEventListener('DOMContentLoaded', function () {
     `;
 
     tbody.prepend(row);
+    createSettingsModal(data);
     bindRowActions(row);
     updateDownloadAllState();
+  }
+
+  function createSettingsModal(data) {
+    // Remove existing modal if any
+    const existingModal = document.getElementById(`settingsModal${data.id}`);
+    if (existingModal) {
+      existingModal.remove();
+    }
+
+    // Get AI models from the default dropdown
+    const defaultModelSelect = document.getElementById('defaultAiModel');
+    let modelOptions = '';
+    if (defaultModelSelect) {
+      Array.from(defaultModelSelect.options).forEach(option => {
+        const selected = option.value === data.ai_model ? 'selected' : '';
+        modelOptions += `<option value="${option.value}" ${selected}>${escapeHtml(option.text)}</option>`;
+      });
+    }
+
+    const modal = document.createElement('div');
+    modal.className = 'modal fade';
+    modal.id = `settingsModal${data.id}`;
+    modal.setAttribute('tabindex', '-1');
+    modal.innerHTML = `
+      <div class="modal-dialog">
+        <div class="modal-content bg-dark text-white">
+          <div class="modal-header border-secondary">
+            <h5 class="modal-title">Paramètres - #${data.id}</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <form class="enhancement-settings-form" data-id="${data.id}">
+              <div class="mb-3">
+                <label class="form-label">Modèle AI</label>
+                <select class="form-select bg-dark text-white border-secondary" name="ai_model">
+                  ${modelOptions}
+                </select>
+              </div>
+              <div class="mb-3 form-check form-switch">
+                <input class="form-check-input" type="checkbox" name="denoise" ${data.denoise ? 'checked' : ''}>
+                <label class="form-check-label">Débruitage</label>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Blend Factor: <span class="blend-display">${data.blend_factor || 0}</span></label>
+                <input type="range" class="form-range" name="blend_factor"
+                       min="0" max="1" step="0.1" value="${data.blend_factor || 0}"
+                       oninput="this.previousElementSibling.querySelector('.blend-display').textContent = this.value">
+              </div>
+            </form>
+          </div>
+          <div class="modal-footer border-secondary">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+            <button type="button" class="btn btn-primary save-settings-btn" data-id="${data.id}">
+              Sauvegarder
+            </button>
+            <button type="button" class="btn btn-success save-and-restart-btn" data-id="${data.id}">
+              <i class="fas fa-play"></i> Sauvegarder et relancer
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
   }
 
   function startPolling(id) {
@@ -226,6 +297,50 @@ document.addEventListener('DOMContentLoaded', function () {
     updateDownloadAllState();
   }
 
+  function handleRestartEnhancement(id) {
+    if (!id) return;
+
+    const row = queueTable ? queueTable.querySelector(`tr[data-id="${id}"]`) : null;
+    if (!row) return;
+
+    // Confirm restart if already completed
+    const status = (row.dataset.status || '').toUpperCase();
+    if (status === 'SUCCESS' || status === 'RUNNING') {
+      if (!confirm('Relancer le traitement de ce fichier ?')) {
+        return;
+      }
+    }
+
+    fetch(getUrl(config.startUrlTemplate, id), {
+      method: 'POST',
+      headers: csrfHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({}),
+    })
+      .then((response) => {
+        if (!response.ok) {
+          return response.json().then((err) => {
+            throw new Error(err.message || 'Erreur serveur');
+          });
+        }
+        return response.json();
+      })
+      .then((data) => {
+        // Update row status
+        row.dataset.status = 'RUNNING';
+        const statusCell = row.querySelector('.status');
+        if (statusCell) {
+          statusCell.textContent = 'RUNNING';
+        }
+
+        // Start polling
+        startPolling(id);
+      })
+      .catch((error) => {
+        console.error('Erreur restart:', error);
+        alert(error.message || 'Erreur lors du démarrage du traitement.');
+      });
+  }
+
   function bindRowActions(scope) {
     const deleteButtons = (scope || document).querySelectorAll('.js-delete-enhancement');
     deleteButtons.forEach((btn) => {
@@ -234,11 +349,25 @@ document.addEventListener('DOMContentLoaded', function () {
       btn.addEventListener('click', () => handleDelete(btn));
     });
 
+    const restartButtons = (scope || document).querySelectorAll('.js-restart-enhancement');
+    restartButtons.forEach((btn) => {
+      if (btn.dataset.bound === '1') return;
+      btn.dataset.bound = '1';
+      btn.addEventListener('click', () => handleRestartEnhancement(btn.dataset.id));
+    });
+
     const saveSettingsButtons = (scope || document).querySelectorAll('.save-settings-btn');
     saveSettingsButtons.forEach((btn) => {
       if (btn.dataset.bound === '1') return;
       btn.dataset.bound = '1';
-      btn.addEventListener('click', () => handleSaveSettings(btn));
+      btn.addEventListener('click', () => handleSaveSettings(btn, false));
+    });
+
+    const saveAndRestartButtons = (scope || document).querySelectorAll('.save-and-restart-btn');
+    saveAndRestartButtons.forEach((btn) => {
+      if (btn.dataset.bound === '1') return;
+      btn.dataset.bound = '1';
+      btn.addEventListener('click', () => handleSaveSettings(btn, true));
     });
   }
 
@@ -276,7 +405,7 @@ document.addEventListener('DOMContentLoaded', function () {
       });
   }
 
-  function handleSaveSettings(button) {
+  function handleSaveSettings(button, restart = false) {
     const enhancementId = button.dataset.id;
     const form = document.querySelector(`.enhancement-settings-form[data-id="${enhancementId}"]`);
 
@@ -295,7 +424,12 @@ document.addEventListener('DOMContentLoaded', function () {
         const modal = bootstrap.Modal.getInstance(document.getElementById(`settingsModal${enhancementId}`));
         if (modal) modal.hide();
 
-        alert('Paramètres sauvegardés !');
+        if (restart) {
+          // Restart enhancement with new settings
+          handleRestartEnhancement(enhancementId);
+        } else {
+          alert('Paramètres sauvegardés !');
+        }
       })
       .catch((error) => {
         alert('Erreur lors de la sauvegarde: ' + error.message);

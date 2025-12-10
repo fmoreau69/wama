@@ -245,9 +245,9 @@ def delete(request, pk: int):
 
 @require_POST
 def start_all(request):
-    """Start all pending enhancements."""
+    """Start all enhancements (including reprocessing completed ones)."""
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    enhancements = Enhancement.objects.filter(user=user).exclude(status='SUCCESS')
+    enhancements = Enhancement.objects.filter(user=user)
 
     from .tasks import enhance_media
 
@@ -255,6 +255,7 @@ def start_all(request):
     errors = []
 
     for enhancement in enhancements:
+        # Skip only currently running enhancements
         if enhancement.status == 'RUNNING':
             continue
 

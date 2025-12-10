@@ -1,7 +1,9 @@
 """
 Automatic model downloader for Enhancer app.
 
-Downloads AI models from QualityScaler releases if not present locally.
+Downloads AI models from multiple sources:
+1. QualityScaler GitHub releases (primary)
+2. Hugging Face repository (fallback)
 """
 
 import os
@@ -14,9 +16,19 @@ from tqdm import tqdm
 
 logger = logging.getLogger(__name__)
 
-# QualityScaler GitHub repository
+# Source 1: QualityScaler GitHub repository
 GITHUB_REPO = "Djdefrag/QualityScaler"
 GITHUB_API_URL = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
+
+# Source 2: Hugging Face repository (fallback)
+HUGGINGFACE_REPO = "svjack/AI-onnx"
+HUGGINGFACE_BASE_URL = f"https://huggingface.co/{HUGGINGFACE_REPO}/resolve/main"
+
+# Model filename mapping for different sources
+# Some models have different names on Hugging Face
+FILENAME_MAPPING = {
+    'RealESR_Animex4_fp16.onnx': 'RealSRx4_Anime_fp16.onnx',  # Different name on HF
+}
 
 # Model files to download with their download URLs
 # These URLs point to pre-built models from QualityScaler releases
@@ -129,6 +141,13 @@ def find_asset_url(release_info: Dict, filename: str) -> Optional[str]:
     return None
 
 
+def get_huggingface_url(model_file: str) -> str:
+    """Get Hugging Face download URL for a model file."""
+    # Check if model has a different name on Hugging Face
+    hf_filename = FILENAME_MAPPING.get(model_file, model_file)
+    return f"{HUGGINGFACE_BASE_URL}/{hf_filename}?download=true"
+
+
 def download_file(url: str, destination: Path, description: str = "") -> bool:
     """Download a file from URL with progress bar."""
     try:
@@ -161,6 +180,18 @@ def download_file(url: str, destination: Path, description: str = "") -> bool:
         if destination.exists():
             destination.unlink()  # Remove partial download
         return False
+
+
+def download_model_from_huggingface(model_file: str) -> bool:
+    """Download a single model directly from Hugging Face."""
+    models_dir = ensure_models_directory()
+    destination = models_dir / model_file
+
+    url = get_huggingface_url(model_file)
+    description = f"{model_file} (Hugging Face)"
+
+    logger.info(f"Downloading {model_file} from Hugging Face...")
+    return download_file(url, destination, description)
 
 
 def download_and_extract_models(release_info: Dict, models_to_download: List[str]) -> Dict[str, bool]:
@@ -229,7 +260,11 @@ def download_and_extract_models(release_info: Dict, models_to_download: List[str
 
 def download_models(models: Optional[List[str]] = None, download_all: bool = False) -> Dict[str, bool]:
     """
-    Download missing AI models.
+    Download missing AI models with multi-source fallback.
+
+    Download strategy:
+    1. Try GitHub (QualityScaler releases) - downloads all models from ZIP
+    2. If GitHub fails, try Hugging Face for each model individually
 
     Args:
         models: List of specific models to download. If None, downloads priority models.
@@ -258,21 +293,48 @@ def download_models(models: Optional[List[str]] = None, download_all: bool = Fal
         return {}
 
     logger.info(f"Models to download: {', '.join(to_download)}")
+    results = {}
 
-    # Get latest release info
+    # Try Method 1: GitHub (QualityScaler releases)
+    logger.info("Attempting to download from GitHub (QualityScaler)...")
     release_info = get_latest_release_info()
-    if not release_info:
-        logger.error("Could not get release information from GitHub")
-        return {model: False for model in to_download}
 
-    logger.info(f"Using QualityScaler release: {release_info.get('tag_name', 'unknown')}")
+    if release_info:
+        logger.info(f"Using QualityScaler release: {release_info.get('tag_name', 'unknown')}")
+        results = download_and_extract_models(release_info, to_download)
+    else:
+        logger.warning("Could not get release information from GitHub")
+        results = {model: False for model in to_download}
 
-    # Download and extract models
-    results = download_and_extract_models(release_info, to_download)
+    # Try Method 2: Hugging Face (fallback for failed downloads)
+    failed_models = [model for model, success in results.items() if not success]
+
+    if failed_models:
+        logger.info(f"\nFalling back to Hugging Face for {len(failed_models)} model(s)...")
+        logger.info("Source: https://huggingface.co/svjack/AI-onnx")
+
+        for model_file in failed_models:
+            logger.info(f"\nAttempting to download {model_file} from Hugging Face...")
+            success = download_model_from_huggingface(model_file)
+            results[model_file] = success
+
+            if success:
+                logger.info(f"✓ {model_file} downloaded successfully from Hugging Face")
+            else:
+                logger.error(f"✗ {model_file} failed to download from Hugging Face")
 
     # Summary
     successful = sum(1 for v in results.values() if v)
-    logger.info(f"Downloaded {successful}/{len(results)} models successfully")
+    failed = len(results) - successful
+
+    logger.info(f"\n=== Download Results ===")
+    logger.info(f"✓ Successfully downloaded: {successful}/{len(results)} model(s)")
+
+    if failed > 0:
+        logger.error(f"✗ Failed to download: {failed} model(s)")
+        logger.info("\nYou can try again or download manually from:")
+        logger.info("- https://github.com/Djdefrag/QualityScaler/releases")
+        logger.info("- https://huggingface.co/svjack/AI-onnx/tree/main")
 
     return results
 

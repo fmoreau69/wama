@@ -213,6 +213,11 @@
                         </td>
                         <td class="text-center">
                             <div class="btn-group" role="group">
+                                <button class="btn btn-primary btn-sm js-restart-enhancement"
+                                        data-id="{{ e.id }}"
+                                        title="Relancer le traitement">
+                                    <i class="fas fa-play"></i>
+                                </button>
                                 <a class="btn btn-success btn-sm download-btn {% if not e.output_file %}disabled{% endif %}"
                                    {% if not e.output_file %}aria-disabled="true" tabindex="-1"{% endif %}
                                    href="{% url 'enhancer:download' e.id %}">
@@ -267,6 +272,9 @@
                                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
                                     <button type="button" class="btn btn-primary save-settings-btn" data-id="{{ e.id }}">
                                         Sauvegarder
+                                    </button>
+                                    <button type="button" class="btn btn-success save-and-restart-btn" data-id="{{ e.id }}">
+                                        <i class="fas fa-play"></i> Sauvegarder et relancer
                                     </button>
                                 </div>
                             </div>
