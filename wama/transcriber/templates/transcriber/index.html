@@ -24,198 +24,195 @@
 {% endblock %}
 
 {% block transcriber_content %}
-<div class="container-fluid py-4">
 
-    <!-- Drag & Drop Zone -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="drop-zone" id="dropZoneTranscriber">
-                <i class="fas fa-cloud-upload-alt fa-3x mb-3 text-primary"></i>
-                <h5>Glissez-déposez vos fichiers audio/vidéo ici</h5>
-                <p class="text-light mb-3">ou cliquez pour parcourir</p>
-                <p class="small text-white-50">
-                    Audio: MP3, WAV, FLAC, M4A, OGG<br>
-                    Vidéo: MP4, AVI, MKV, MOV, WEBM
-                </p>
-                <input type="file" id="transcriber-file" multiple accept="audio/*,video/*" style="display: none;">
-                <button class="btn btn-primary mt-2" id="transcriber-browse-btn">
-                    <i class="fas fa-folder-open"></i> Parcourir
-                </button>
-            </div>
+<!-- Drag & Drop Zone -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="drop-zone" id="dropZoneTranscriber">
+            <i class="fas fa-cloud-upload-alt fa-3x mb-3 text-primary"></i>
+            <h5>Glissez-déposez vos fichiers audio/vidéo ici</h5>
+            <p class="text-light mb-3">ou cliquez pour parcourir</p>
+            <p class="small text-white-50">
+                Audio: MP3, WAV, FLAC, M4A, OGG<br>
+                Vidéo: MP4, AVI, MKV, MOV, WEBM
+            </p>
+            <input type="file" id="transcriber-file" multiple accept="audio/*,video/*" style="display: none;">
+            <button class="btn btn-primary mt-2" id="transcriber-browse-btn">
+                <i class="fas fa-folder-open"></i> Parcourir
+            </button>
         </div>
     </div>
+</div>
 
-    <!-- YouTube URL Input -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card" style="background: #212529; border: 1px solid #495057;">
-                <div class="card-body">
-                    <h6 class="text-light mb-3">
-                        <i class="fab fa-youtube text-danger"></i> Transcrire depuis YouTube
-                    </h6>
-                    <div class="input-group">
-                        <input type="text"
-                               class="form-control"
-                               id="youtubeUrl"
-                               placeholder="Collez l'URL de la vidéo YouTube ici..."
-                               aria-label="YouTube URL">
-                        <button class="btn btn-danger" type="button" id="youtubeSubmitBtn">
-                            <i class="fas fa-download"></i> Télécharger & Transcrire
-                        </button>
-                    </div>
-                    <small class="text-white-50 mt-2 d-block">
-                        Exemple: https://www.youtube.com/watch?v=dQw4w9WgXcQ
-                    </small>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <hr>
-
-    <!-- Live Transcription Section -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="row g-3 align-items-center justify-content-center">
-                <div class="col-lg-6 col-12 text-center">
-                    <button id="transcriber-speak-btn" class="btn btn-warning btn-lg w-100 w-lg-auto">
-                        <i class="fas fa-microphone"></i> Speak
+<!-- YouTube URL Input -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card" style="background: #212529; border: 1px solid #495057;">
+            <div class="card-body">
+                <h6 class="text-light mb-3">
+                    <i class="fab fa-youtube text-danger"></i> Transcrire depuis YouTube
+                </h6>
+                <div class="input-group">
+                    <input type="text"
+                           class="form-control"
+                           id="youtubeUrl"
+                           placeholder="Collez l'URL de la vidéo YouTube ici..."
+                           aria-label="YouTube URL">
+                    <button class="btn btn-danger" type="button" id="youtubeSubmitBtn">
+                        <i class="fas fa-download"></i> Télécharger & Transcrire
                     </button>
-                    <p id="transcriber-speak-hint" class="text small mt-2 mb-0">
-                        Lancez une transcription vocale en direct (Chrome recommandé).
-                    </p>
                 </div>
+                <small class="text-white-50 mt-2 d-block">
+                    Exemple: https://www.youtube.com/watch?v=dQw4w9WgXcQ
+                </small>
             </div>
+        </div>
+    </div>
+</div>
 
-            <div class="card bg-dark mt-4 shadow-sm">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <span class="text-light"><i class="fas fa-wave-square"></i> Live transcription</span>
-                    <small class="text-white" id="live-transcription-status">En attente...</small>
-                </div>
-                <div class="card-body" style="min-height: 220px;">
-                    <div id="live-transcription-output" class="text-white" style="white-space: pre-wrap; font-size: 1rem;">
-                        Appuyez sur <strong>Speak</strong> puis commencez à parler pour voir le texte apparaître ici en temps réel.
-                    </div>
+<hr>
+
+<!-- Live Transcription Section -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="row g-3 align-items-center justify-content-center">
+            <div class="col-lg-6 col-12 text-center">
+                <button id="transcriber-speak-btn" class="btn btn-warning btn-lg w-100 w-lg-auto">
+                    <i class="fas fa-microphone"></i> Speak
+                </button>
+                <p id="transcriber-speak-hint" class="text small mt-2 mb-0">
+                    Lancez une transcription vocale en direct (Chrome recommandé).
+                </p>
+            </div>
+        </div>
+
+        <div class="card bg-dark mt-4 shadow-sm">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span class="text-light"><i class="fas fa-wave-square"></i> Live transcription</span>
+                <small class="text-white" id="live-transcription-status">En attente...</small>
+            </div>
+            <div class="card-body" style="min-height: 220px;">
+                <div id="live-transcription-output" class="text-white" style="white-space: pre-wrap; font-size: 2rem;">
+                    Appuyez sur <strong>Speak</strong> puis commencez à parler pour voir le texte apparaître ici en temps réel.
                 </div>
             </div>
         </div>
     </div>
+</div>
 
-    <hr>
+<hr>
 
-    <!-- Action Buttons -->
-    <div class="row mb-3">
-        <div class="col-12">
-            <div class="btn-group" role="group">
-                <button id="transcriber-process-btn" class="btn btn-success">
-                    <i class="fas fa-play"></i> Start Process
-                </button>
-                <button id="transcriber-download-all-btn" class="btn btn-info" disabled>
-                    <i class="fas fa-download"></i> Download All
-                </button>
-                <button id="transcriber-clear-btn" class="btn btn-danger">
-                    <i class="fas fa-trash"></i> Clear All
-                </button>
-            </div>
+<!-- Action Buttons -->
+<div class="row mb-3">
+    <div class="col-12">
+        <div class="btn-group" role="group">
+            <button id="transcriber-process-btn" class="btn btn-success">
+                <i class="fas fa-play"></i> Start Process
+            </button>
+            <button id="transcriber-download-all-btn" class="btn btn-info" disabled>
+                <i class="fas fa-download"></i> Download All
+            </button>
+            <button id="transcriber-clear-btn" class="btn btn-danger">
+                <i class="fas fa-trash"></i> Clear All
+            </button>
         </div>
     </div>
+</div>
 
-    <!-- Transcripts Queue -->
-    <div class="row">
-        <div class="col-12">
-            <h4 class="mb-3">
-                <i class="fas fa-list"></i> File d'attente
-            </h4>
+<!-- Transcripts Queue -->
+<div class="row">
+    <div class="col-12">
+        <h4 class="mb-3">
+            <i class="fas fa-list"></i> File d'attente
+        </h4>
 
-            <div class="table-responsive">
-                <table class="table table-bordered table-dark align-middle" id="transcriber-queue">
-            <thead>
-            <tr class="text-center">
-                <th style="width: 80px;">ID</th>
-                <th>Audio</th>
-                <th style="width: 140px;">Properties</th>
-                <th style="width: 120px;">Duration</th>
-                <th style="width: 120px;">Status</th>
-                <th style="width: 220px;">Progress</th>
-                <th style="width: 160px;">Actions</th>
-            </tr>
-            </thead>
-            <tbody>
-            {% for t in transcripts %}
-            <tr data-id="{{ t.id }}" data-status="{{ t.status }}" data-preprocess="{{ t.preprocess_audio|yesno:'true,false' }}">
-                <td class="fw-bold text-center">#{{ t.id }}</td>
-                <td>
-                    <div class="fw-semibold">{{ t.audio.name|cut:"transcriber/input/" }}</div>
-                    <div class="d-flex align-items-center gap-2 mt-1">
-                        <a href="{{ t.audio.url }}" target="_blank" class="text-info small">
-                            <i class="fas fa-link"></i> Voir le fichier
-                        </a>
-                        <span class="badge bg-warning text-dark preprocess-badge {% if not t.preprocess_audio %}d-none{% endif %}">
+        <div class="table-responsive">
+            <table class="table table-bordered table-dark align-middle" id="transcriber-queue">
+                <thead>
+                <tr class="text-center">
+                    <th style="width: 80px;">ID</th>
+                    <th>Audio</th>
+                    <th style="width: 140px;">Properties</th>
+                    <th style="width: 120px;">Duration</th>
+                    <th style="width: 120px;">Status</th>
+                    <th style="width: 220px;">Progress</th>
+                    <th style="width: 160px;">Actions</th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for t in transcripts %}
+                <tr data-id="{{ t.id }}" data-status="{{ t.status }}" data-preprocess="{{ t.preprocess_audio|yesno:'true,false' }}">
+                    <td class="fw-bold text-center">#{{ t.id }}</td>
+                    <td>
+                        <div class="fw-semibold">{{ t.audio.name|cut:"transcriber/input/" }}</div>
+                        <div class="d-flex align-items-center gap-2 mt-1">
+                            <a href="{{ t.audio.url }}" target="_blank" class="text-info small">
+                                <i class="fas fa-link"></i> Voir le fichier
+                            </a>
+                            <span class="badge bg-warning text-dark preprocess-badge {% if not t.preprocess_audio %}d-none{% endif %}">
                 Prétraité
               </span>
-                    </div>
-                </td>
-                <td class="text-center small">{{ t.properties|default:"-" }}</td>
-                <td class="text-center fw-semibold">{{ t.duration_display|default:"--:--" }}</td>
-                <td class="status text-uppercase text-center">{{ t.status }}</td>
-                <td>
-                    <div class="progress" style="height: 24px;">
-                        <div class="progress-bar" role="progressbar" style="width: {{ t.progress }}%;">
-                            {{ t.progress }}%
                         </div>
-                    </div>
-                </td>
-                <td class="text-center">
-                    <div class="btn-group" role="group">
-                        <a class="btn btn-success btn-sm download-btn {% if not t.text %}disabled{% endif %}"
-                           {% if not t.text %}aria-disabled="true" tabindex="-1"{% endif %}
-                           href="{% url 'transcriber:download' t.id %}">
-                            <i class="fas fa-download"></i>
-                        </a>
-                        <button class="btn btn-danger btn-sm js-delete-transcript"
-                                data-delete-url="{% url 'transcriber:delete' t.id %}">
-                            <i class="fas fa-trash-alt"></i>
-                        </button>
-                    </div>
-                </td>
-            </tr>
-            {% empty %}
-            <tr class="empty-row">
-                <td colspan="7" class="text-center py-4">Aucune transcription en attente.</td>
-            </tr>
-            {% endfor %}
-            </tbody>
-        </table>
-    </div>
+                    </td>
+                    <td class="text-center small">{{ t.properties|default:"-" }}</td>
+                    <td class="text-center fw-semibold">{{ t.duration_display|default:"--:--" }}</td>
+                    <td class="status text-uppercase text-center">{{ t.status }}</td>
+                    <td>
+                        <div class="progress" style="height: 24px;">
+                            <div class="progress-bar" role="progressbar" style="width: {{ t.progress }}%;">
+                                {{ t.progress }}%
+                            </div>
+                        </div>
+                    </td>
+                    <td class="text-center">
+                        <div class="btn-group" role="group">
+                            <a class="btn btn-success btn-sm download-btn {% if not t.text %}disabled{% endif %}"
+                               {% if not t.text %}aria-disabled="true" tabindex="-1"{% endif %}
+                               href="{% url 'transcriber:download' t.id %}">
+                                <i class="fas fa-download"></i>
+                            </a>
+                            <button class="btn btn-danger btn-sm js-delete-transcript"
+                                    data-delete-url="{% url 'transcriber:delete' t.id %}">
+                                <i class="fas fa-trash-alt"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr class="empty-row">
+                    <td colspan="7" class="text-center py-4">Aucune transcription en attente.</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
         </div>
     </div>
+</div>
 
-    <!-- Preprocessing Control -->
-    <div class="row mt-4">
-        <div class="col-12">
-            <div class="p-3 border border-secondary rounded bg-dark">
-    <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3">
-        <div class="form-check form-switch">
-            <input class="form-check-input"
-                   type="checkbox"
-                   id="preprocessingToggle"
-                   data-preprocess-url="{% url 'transcriber:set_preprocessing' %}"
-                   {% if preprocessing_enabled %}checked{% endif %}>
-            <label class="form-check-label fw-semibold" for="preprocessingToggle">
-                Prétraitement audio
-            </label>
-        </div>
-        <button type="button"
-                class="btn btn-sm btn-outline-info"
-                data-bs-toggle="modal"
-                data-bs-target="#preprocessingModal">
-            <i class="fas fa-question-circle"></i> Pourquoi l'activer ?
-        </button>
-    </div>
+<!-- Preprocessing Control -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="p-3 border border-secondary rounded bg-dark">
+            <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3">
+                <div class="form-check form-switch">
+                    <input class="form-check-input"
+                           type="checkbox"
+                           id="preprocessingToggle"
+                           data-preprocess-url="{% url 'transcriber:set_preprocessing' %}"
+                           {% if preprocessing_enabled %}checked{% endif %}>
+                    <label class="form-check-label fw-semibold" for="preprocessingToggle">
+                        Prétraitement audio
+                    </label>
+                </div>
+                <button type="button"
+                        class="btn btn-sm btn-outline-info"
+                        data-bs-toggle="modal"
+                        data-bs-target="#preprocessingModal">
+                    <i class="fas fa-question-circle"></i> Pourquoi l'activer ?
+                </button>
             </div>
         </div>
     </div>
-
 </div>
 {% endblock %}
 

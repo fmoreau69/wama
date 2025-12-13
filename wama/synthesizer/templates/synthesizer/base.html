@@ -1,32 +1,134 @@
-{% extends 'common/app_base.html' %}
+{% extends 'common/app_modern_base.html' %}
 {% load static %}
 
-{% block app_scripts %}
-{# SYNTHESIZER SPECIFIC SCRIPTS - chargés depuis les pages individuelles après WAMA_CONFIG #}
-{% endblock %}
+{% block app_icon %}<i class="fas fa-microphone-alt text-primary"></i>{% endblock %}
+{% block app_title %}Text-to-Speech Synthesizer{% endblock %}
+{% block app_description %}Générez des fichiers audio à partir de texte avec des voix IA réalistes{% endblock %}
 
 {% block console_content_id %}synthesizer-console-content{% endblock %}
-{% block console_hint_id %}synthesizer-console-hint{% endblock %}
 {% block console_url %}{% url 'synthesizer:console' %}{% endblock %}
 
-{% block app_menu %}
-<a href="{% url 'synthesizer:index' %}" class="list-group-item {% if request.path == '/synthesizer/' %} active {% endif %}">
-    <span class="fas fa-upload"></span> Upload / <span class="fas fa-spinner"></span> Process
-</a>
-<a href="{% url 'synthesizer:about' %}" class="list-group-item {% if request.path == '/synthesizer/about/' %} active {% endif %}">
-    <span class="fas fa-circle-info"></span> About
-</a>
-<a href="{% url 'synthesizer:help' %}" class="list-group-item {% if request.path == '/synthesizer/help/' %} active {% endif %}">
-    <span class="fas fa-circle-question"></span> Help
-</a>
+{% block queue_content %}
+    {% block synthesizer_content %}
+    {# Le contenu principal de Synthesizer #}
+    {% endblock %}
 {% endblock %}
 
-{% block app_content %}
-{% block synthesizer_content %}
-{# Le contenu spécifique à chaque page synthesizer va ici #}
-{% endblock %}
+{% block about_content %}
+<div class="info-card">
+    <h3><i class="fas fa-microphone-alt me-2"></i>À propos de Synthesizer</h3>
+
+    <div class="mb-4">
+        <h5>Qu'est-ce que Synthesizer ?</h5>
+        <p class="text-light">
+            Synthesizer est une application de synthèse vocale intégrée à WAMA qui transforme
+            automatiquement du texte en audio de haute qualité.
+        </p>
+    </div>
+
+    <div class="mb-4">
+        <h5>Fonctionnalités</h5>
+        <ul class="text-light">
+            <li>Interface pour saisir ou télécharger du texte et générer de l'audio</li>
+            <li>Support de text_to_speech_synthesizer avec moteurs de secours</li>
+            <li>Modèle XTTS v2 pour le clonage de voix</li>
+            <li>Choix de la langue et des préréglages de voix</li>
+            <li>Ajustement de la vitesse et de la tonalité</li>
+            <li>Upload optionnel d'échantillon audio pour clonage de voix</li>
+            <li>Support de multiples formats : TXT, PDF, DOCX, CSV, MD</li>
+            <li>Prévisualisation audio intégrée</li>
+            <li>Traitement par lots</li>
+        </ul>
+    </div>
+
+    <div class="mb-4">
+        <h5>Comment ça fonctionne ?</h5>
+        <ol class="text-light">
+            <li>Entrez du texte ou téléchargez un document</li>
+            <li>Choisissez les options de langue et de voix</li>
+            <li>Lancez la synthèse</li>
+            <li>Suivez la progression du traitement</li>
+            <li>Téléchargez le fichier audio généré</li>
+        </ol>
+    </div>
+
+    <div>
+        <h5>Technologie</h5>
+        <p class="text-light">
+            Propulsé par des moteurs TTS avancés avec support du clonage de voix
+            pour une qualité audio réaliste et naturelle.
+        </p>
+    </div>
+</div>
 {% endblock %}
 
-{% block extra_modals %}
-{# Modals spécifiques au synthesizer - doivent être au niveau body #}
+{% block help_content %}
+<div class="info-card">
+    <h3><i class="fas fa-question-circle me-2"></i>Guide d'utilisation</h3>
+
+    <div class="mb-4">
+        <h5><i class="fas fa-sliders-h me-2"></i>Options de synthèse</h5>
+        <ul class="text-light">
+            <li>Sélectionnez un modèle TTS (XTTS v2 recommandé pour le clonage de voix)</li>
+            <li>Choisissez la langue et le préréglage de voix pour la parole générée</li>
+            <li>Ajustez la vitesse et la tonalité avec les curseurs</li>
+            <li>Réinitialisez tous les paramètres avec le bouton reset</li>
+            <li>(Optionnel) Téléchargez un court échantillon audio pour le clonage de voix</li>
+        </ul>
+    </div>
+
+    <div class="mb-4">
+        <h5><i class="fas fa-file-upload me-2"></i>Téléchargement de fichiers texte</h5>
+        <ul class="text-light">
+            <li>Glissez-déposez vos fichiers texte dans la zone de téléchargement</li>
+            <li>Ou cliquez sur "Parcourir" pour sélectionner manuellement</li>
+            <li>Formats supportés : TXT, PDF, DOCX, CSV, MD</li>
+            <li>Chaque fichier téléchargé apparaît dans la file de synthèse</li>
+        </ul>
+    </div>
+
+    <div class="mb-4">
+        <h5><i class="fas fa-play me-2"></i>Démarrer le traitement</h5>
+        <ul class="text-light">
+            <li>Cliquez sur "Démarrer le traitement" pour lancer la synthèse</li>
+            <li>Vous pouvez démarrer les éléments individuellement ou traiter toute la file</li>
+            <li>Mises à jour du statut : En attente → En cours → Succès / Échec</li>
+            <li>Une barre de progression indique l'avancement de la synthèse</li>
+        </ul>
+    </div>
+
+    <div class="mb-4">
+        <h5><i class="fas fa-volume-up me-2"></i>Prévisualisation et téléchargement</h5>
+        <ul class="text-light">
+            <li>Quand la synthèse est terminée, un bouton Prévisualiser devient disponible</li>
+            <li>Utilisez le lecteur audio intégré pour écouter instantanément</li>
+            <li>Cliquez sur Télécharger pour sauvegarder le fichier audio généré</li>
+        </ul>
+    </div>
+
+    <div class="mb-4">
+        <h5><i class="fas fa-list me-2"></i>Gestion de la file</h5>
+        <ul class="text-light">
+            <li>Le badge affiche le nombre d'éléments actuellement dans la file</li>
+            <li>Supprimez les éléments individuellement ou utilisez "Tout effacer"</li>
+            <li>Chaque entrée affiche les options de synthèse et les propriétés</li>
+        </ul>
+    </div>
+
+    <div class="alert alert-info">
+        <h6><i class="fas fa-lightbulb me-2"></i>Astuce</h6>
+        <p class="mb-0">
+            Pour un clonage de voix optimal avec XTTS v2, utilisez un échantillon audio
+            de 6-10 secondes avec une voix claire et peu de bruit de fond.
+        </p>
+    </div>
+</div>
+{% endblock %}
+
+{% block footer_text %}
+    Synthesizer - Text-to-Speech Generation | WAMA
+{% endblock %}
+
+{% block app_scripts %}
+{# Scripts spécifiques à Synthesizer #}
 {% endblock %}

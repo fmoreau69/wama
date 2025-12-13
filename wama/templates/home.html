@@ -19,7 +19,15 @@
 
 {% block content %}
 <style>
-  /* Style pour la page home - scroll uniquement sur le contenu */
+  body {
+      background: linear-gradient(rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.5)), url('/static/images/bg_anonymize1.png');
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+      background-attachment: fixed;
+  }
+
+<!--  /* Style pour la page home - scroll uniquement sur le contenu */
   .home-wrapper {
     height: calc(100vh - 60px);
     overflow-y: auto;
@@ -36,7 +44,7 @@
   .home-wrapper::-webkit-scrollbar-thumb {
     background-color: rgba(155, 155, 155, 0.5);
     border-radius: 3px;
-  }
+  }-->
 </style>
 
 <div class="home-wrapper">
@@ -193,10 +201,10 @@
     </div>
     {% endif %}
 
-    <hr>
+<!--    <hr>-->
 
     <!-- Demo video -->
-    <div class="row mb-4">
+<!--    <div class="row mb-4">
       <div class="col-12">
         <h4 class="mb-3"><i class="fas fa-video"></i> Anonymizer Demo</h4>
         <div class="card" style="background: #212529; border: 1px solid #495057;">
@@ -211,7 +219,7 @@
           </div>
         </div>
       </div>
-    </div>
+    </div>-->
 
   </div>
 </div>

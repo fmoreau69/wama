@@ -14,4 +14,5 @@ urlpatterns = [
     path('clear_all/', views.clear_all, name='clear_all'),
     path('download_all/', views.download_all, name='download_all'),
     path('update_settings/<int:pk>/', views.update_settings, name='update_settings'),
+    path('console/', views.console_content, name='console'),
 ]

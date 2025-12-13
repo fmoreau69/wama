@@ -1,61 +1,145 @@
-{% extends 'base.html' %}
+{% extends 'common/app_modern_base.html' %}
 {% load static %}
 
-{% block title %}Enhancer - AI Image/Video Upscaling{% endblock %}
+{% block app_icon %}<i class="fas fa-magic text-primary"></i>{% endblock %}
+{% block app_title %}AI Image & Video Enhancer{% endblock %}
+{% block app_description %}Améliorez la qualité de vos images et vidéos avec l'intelligence artificielle{% endblock %}
 
-{% block extra_css %}
-    <!-- Enhancer Custom CSS -->
-    <link rel="stylesheet" href="{% static 'enhancer/css/style.css' %}">
-    <!-- Style pour le fond sombre spécifique à Enhancer -->
-    <style>
-        body {
-            background-color: #212529;
-            color: #ffffff;
-        }
-        /* Remplacer container par container-fluid pour toute la largeur */
-        .container {
-            max-width: 100% !important;
-            padding-left: 15px;
-            padding-right: 15px;
-        }
-    </style>
+{% block app_styles %}
+/* Styles spécifiques à Enhancer */
 {% endblock %}
 
-{% block top_navigation %}
-    <!-- Utilise le header général de WAMA -->
-    <div class="top_nav">
-        {% include 'includes/header.html' %}
+{% block console_content_id %}enhancer-console-content{% endblock %}
+{% block console_url %}{% url 'enhancer:console' %}{% endblock %}
+
+{% block queue_content %}
+    {% block enhancer_content %}
+    {# Le contenu principal d'Enhancer (upload, queue, etc.) #}
+    {% endblock %}
+{% endblock %}
+
+{% block about_content %}
+<div class="info-card">
+    <h3><i class="fas fa-wand-magic-sparkles me-2"></i>À propos d'Enhancer</h3>
+
+    <div class="mb-4">
+        <h5>Fonctionnalités</h5>
+        <ul class="text-light">
+            <li><strong>Upscaling AI</strong> : Agrandissement intelligent des images et vidéos</li>
+            <li><strong>7 modèles AI</strong> : RealESRGAN, BSRGAN, RealESR, IRCNN</li>
+            <li><strong>Débruitage</strong> : Réduction du bruit avec modèles IRCNN</li>
+            <li><strong>Blend Factor</strong> : Mélange entre résultat AI et image originale</li>
+            <li><strong>Support multi-formats</strong> : Images (JPG, PNG, WebP, HEIC) et vidéos (MP4, MKV, AVI)</li>
+        </ul>
     </div>
 
-    {% if messages %}
-      <ul class="messages">
-        {% for message in messages %}
-          <li{% if message.tags %} class="{{ message.tags }}"{% endif %}>
-            {{ message }}
-          </li>
-        {% endfor %}
-      </ul>
-    {% endif %}
+    <div class="mb-4">
+        <h5>Modèles AI disponibles</h5>
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card bg-dark border-secondary mb-3">
+                    <div class="card-body">
+                        <h6 class="card-title text-info">RealESR_Gx4</h6>
+                        <p class="card-text small">Rapide, usage général (4x)</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card bg-dark border-secondary mb-3">
+                    <div class="card-body">
+                        <h6 class="card-title text-info">RealESRGANx4</h6>
+                        <p class="card-text small">Qualité maximale (4x, lent)</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card bg-dark border-secondary mb-3">
+                    <div class="card-body">
+                        <h6 class="card-title text-info">BSRGANx2/x4</h6>
+                        <p class="card-text small">Haute qualité, léger</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card bg-dark border-secondary mb-3">
+                    <div class="card-body">
+                        <h6 class="card-title text-info">IRCNN</h6>
+                        <p class="card-text small">Débruitage spécialisé</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div>
+        <h5>Technologie</h5>
+        <p class="text-light">
+            Enhancer utilise <a href="https://github.com/Djdefrag/QualityScaler" target="_blank" class="text-info">QualityScaler</a>
+            avec des modèles ONNX optimisés pour le GPU (DirectML).
+        </p>
+    </div>
+</div>
 {% endblock %}
 
-{% block content %}
-    <!-- Main Content -->
-    <main>
-        {% block enhancer_content %}{% endblock %}
-    </main>
+{% block help_content %}
+<div class="info-card">
+    <h3><i class="fas fa-question-circle me-2"></i>Guide d'utilisation</h3>
 
-    <!-- Footer -->
-    <footer class="bg-black text-center text-white-50 py-3 mt-5 border-top border-secondary">
-        <div class="container">
-            <p class="mb-0">
-                <small>
-                    Enhancer - Powered by
-                    <a href="https://github.com/Djdefrag/QualityScaler" target="_blank" class="text-info text-decoration-none">
-                        QualityScaler
-                    </a>
-                    | AI Upscaling & Denoising
-                </small>
-            </p>
-        </div>
-    </footer>
-{% endblock content %}
+    <div class="mb-4">
+        <h5>1. Upload de fichiers</h5>
+        <p class="text-light">
+            Glissez-déposez vos fichiers dans la zone prévue ou cliquez sur "Parcourir" pour sélectionner vos images/vidéos.
+        </p>
+    </div>
+
+    <div class="mb-4">
+        <h5>2. Configuration des paramètres</h5>
+        <p class="text-light">
+            Avant de lancer le traitement, vous pouvez configurer :
+        </p>
+        <ul class="text-light">
+            <li><strong>Modèle AI</strong> : Choisissez le modèle selon vos besoins (vitesse vs qualité)</li>
+            <li><strong>Débruitage</strong> : Activez pour réduire le bruit avant l'upscaling</li>
+            <li><strong>Blend Factor</strong> : 0 = 100% AI, 1 = 100% original</li>
+        </ul>
+        <p class="text-light">
+            Vous pouvez modifier les paramètres de chaque fichier individuellement en cliquant sur <i class="fas fa-cog text-warning"></i>.
+        </p>
+    </div>
+
+    <div class="mb-4">
+        <h5>3. Lancement du traitement</h5>
+        <p class="text-light">
+            Cliquez sur "Démarrer le traitement" pour lancer tous les fichiers, ou sur <i class="fas fa-play text-primary"></i> pour un fichier spécifique.
+        </p>
+    </div>
+
+    <div class="mb-4">
+        <h5>4. Téléchargement des résultats</h5>
+        <p class="text-light">
+            Une fois le traitement terminé, téléchargez vos fichiers avec <i class="fas fa-download text-success"></i> ou
+            "Télécharger tout" pour récupérer une archive ZIP.
+        </p>
+    </div>
+
+    <div class="alert alert-info">
+        <h6><i class="fas fa-lightbulb me-2"></i>Astuce</h6>
+        <p class="mb-0">
+            Pour de meilleurs résultats sur les vidéos, utilisez <strong>RealESRGANx4</strong>
+            avec débruitage activé. Pour une vitesse maximale, préférez <strong>RealESR_Gx4</strong>.
+        </p>
+    </div>
+</div>
+{% endblock %}
+
+{% block footer_text %}
+    Enhancer - Powered by
+    <a href="https://github.com/Djdefrag/QualityScaler" target="_blank" class="text-info text-decoration-none">
+        QualityScaler
+    </a>
+    | AI Upscaling & Denoising
+{% endblock %}
+
+{% block app_scripts %}
+{# Scripts spécifiques à Enhancer chargés depuis index.html #}
+{% endblock %}

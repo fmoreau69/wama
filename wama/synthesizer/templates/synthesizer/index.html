@@ -4,222 +4,221 @@
 {% block title %}Synthesizer - Text To Speech{% endblock %}
 
 {% block synthesizer_content %}
-<div class="container-fluid py-4">
 
-    <!-- Upload Zone -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="drop-zone" id="dropZone" data-upload-url="{% url 'synthesizer:upload' %}" data-csrf-token="{{ csrf_token }}">
-                <i class="fas fa-file-upload fa-3x mb-3 text-primary"></i>
-                <h5>Glissez-déposez vos fichiers texte ici</h5>
-                <p class="text-light mb-3">ou cliquez pour parcourir</p>
-                <p class="small text-white-50">
-                    Formats supportés: TXT, PDF, DOCX, CSV, MD
-                </p>
-                <input type="file" id="fileInput" multiple accept=".txt,.pdf,.docx,.csv,.md"
-                       style="display: none;">
-                <button class="btn btn-primary mt-2" id="browseBtn">
-                    <i class="fas fa-folder-open"></i> Parcourir
-                </button>
-            </div>
+<!-- Upload Zone -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="drop-zone" id="dropZone" data-upload-url="{% url 'synthesizer:upload' %}" data-csrf-token="{{ csrf_token }}">
+            <i class="fas fa-file-upload fa-3x mb-3 text-primary"></i>
+            <h5>Glissez-déposez vos fichiers texte ici</h5>
+            <p class="text-light mb-3">ou cliquez pour parcourir</p>
+            <p class="small text-white-50">
+                Formats supportés: TXT, PDF, DOCX, CSV, MD
+            </p>
+            <input type="file" id="fileInput" multiple accept=".txt,.pdf,.docx,.csv,.md"
+                   style="display: none;">
+            <button class="btn btn-primary mt-2" id="browseBtn">
+                <i class="fas fa-folder-open"></i> Parcourir
+            </button>
         </div>
     </div>
+</div>
 
-    <!-- Text Input Zone -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card" style="background: #212529; border: 1px solid #495057;">
-                <div class="card-body">
-                    <h6 class="text-light mb-3">
-                        <i class="fas fa-keyboard"></i> Saisir du texte directement
-                    </h6>
-                    <form id="textInputForm">
-                        {% csrf_token %}
-                        <div class="mb-3">
-                            <label for="textTitle" class="form-label text-light">Titre (optionnel)</label>
-                            <input type="text" class="form-control" id="textTitle" name="title"
-                                   placeholder="Mon texte à synthétiser">
-                        </div>
-                        <div class="mb-3">
-                            <label for="textContent" class="form-label text-light">Texte à synthétiser</label>
-                            <textarea class="form-control" id="textContent" name="text_content" rows="5"
-                                      placeholder="Entrez votre texte ici..."></textarea>
-                            <small class="text-white-50 mt-1 d-block">
-                                Le texte sera converti en fichier DOCX et ajouté à la file d'attente
-                            </small>
-                        </div>
-                        <button type="submit" class="btn btn-success" id="submitTextBtn">
-                            <i class="fas fa-plus-circle"></i> Ajouter à la file d'attente
-                        </button>
-                    </form>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Options Panel -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="options-panel">
-                <h5 class="mb-3"><i class="fas fa-sliders-h"></i> Options de synthèse</h5>
-                
-                <div class="row">
-                    <div class="col-md-3">
-                        <label for="tts_model" class="form-label">Modèle TTS</label>
-                        <select class="form-select" id="tts_model" name="tts_model">
-                            {% for value, label in tts_models %}
-                            <option value="{{ value }}" {% if value == 'xtts_v2' %}selected{% endif %}>
-                                {{ label }}
-                            </option>
-                            {% endfor %}
-                        </select>
-                        <small class="text-white-50">XTTS v2 recommandé pour le clonage de voix</small>
+<!-- Text Input Zone -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card" style="background: #212529; border: 1px solid #495057;">
+            <div class="card-body">
+                <h6 class="text-light mb-3">
+                    <i class="fas fa-keyboard"></i> Saisir du texte directement
+                </h6>
+                <form id="textInputForm">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label for="textTitle" class="form-label text-light">Titre (optionnel)</label>
+                        <input type="text" class="form-control" id="textTitle" name="title"
+                               placeholder="Mon texte à synthétiser">
                     </div>
-                    
-                    <div class="col-md-2">
-                        <label for="language" class="form-label">Langue</label>
-                        <select class="form-select" id="language" name="language">
-                            {% for value, label in languages %}
-                            <option value="{{ value }}" {% if value == 'fr' %}selected{% endif %}>
-                                {{ label }}
-                            </option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    
-                    <div class="col-md-2">
-                        <label for="voice_preset" class="form-label">Voix</label>
-                        <select class="form-select" id="voice_preset" name="voice_preset">
-                            {% for value, label in voice_presets_choices %}
-                            <option value="{{ value }}">{{ label }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    
-                    <div class="col-md-2">
-                        <label for="speed" class="form-label">Vitesse: <span id="speed_value">1.0</span>x</label>
-                        <input type="range" class="form-range" id="speed" name="speed" 
-                               min="0.5" max="2.0" step="0.1" value="1.0">
-                    </div>
-                    
-                    <div class="col-md-2">
-                        <label for="pitch" class="form-label">Hauteur: <span id="pitch_value">1.0</span>x</label>
-                        <input type="range" class="form-range" id="pitch" name="pitch" 
-                               min="0.5" max="2.0" step="0.1" value="1.0">
-                    </div>
-                    
-                    <div class="col-md-1">
-                        <label class="form-label">&nbsp;</label>
-                        <button class="btn btn-sm btn-outline-secondary w-100" id="resetOptions">
-                            <i class="fas fa-undo"></i>
-                        </button>
-                    </div>
-                </div>
-                
-                <!-- Voice Reference Upload -->
-                <div class="row mt-3">
-                    <div class="col-md-6">
-                        <label for="voice_reference" class="form-label">
-                            <i class="fas fa-user-circle"></i> Voix de référence (clonage)
-                        </label>
-                        <input type="file" class="form-control" id="voice_reference" 
-                               accept="audio/*" name="voice_reference">
-                        <small class="text-white-50">
-                            Fichier audio 6-10 sec pour cloner une voix (optionnel)
+                    <div class="mb-3">
+                        <label for="textContent" class="form-label text-light">Texte à synthétiser</label>
+                        <textarea class="form-control" id="textContent" name="text_content" rows="5"
+                                  placeholder="Entrez votre texte ici..."></textarea>
+                        <small class="text-white-50 mt-1 d-block">
+                            Le texte sera converti en fichier DOCX et ajouté à la file d'attente
                         </small>
                     </div>
+                    <button type="submit" class="btn btn-success" id="submitTextBtn">
+                        <i class="fas fa-plus-circle"></i> Ajouter à la file d'attente
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Options Panel -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="options-panel">
+            <h5 class="mb-3"><i class="fas fa-sliders-h"></i> Options de synthèse</h5>
+
+            <div class="row">
+                <div class="col-md-3">
+                    <label for="tts_model" class="form-label">Modèle TTS</label>
+                    <select class="form-select" id="tts_model" name="tts_model">
+                        {% for value, label in tts_models %}
+                        <option value="{{ value }}" {% if value == 'xtts_v2' %}selected{% endif %}>
+                        {{ label }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                    <small class="text-white-50">XTTS v2 recommandé pour le clonage de voix</small>
+                </div>
+
+                <div class="col-md-2">
+                    <label for="language" class="form-label">Langue</label>
+                    <select class="form-select" id="language" name="language">
+                        {% for value, label in languages %}
+                        <option value="{{ value }}" {% if value == 'fr' %}selected{% endif %}>
+                        {{ label }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="col-md-2">
+                    <label for="voice_preset" class="form-label">Voix</label>
+                    <select class="form-select" id="voice_preset" name="voice_preset">
+                        {% for value, label in voice_presets_choices %}
+                        <option value="{{ value }}">{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="col-md-2">
+                    <label for="speed" class="form-label">Vitesse: <span id="speed_value">1.0</span>x</label>
+                    <input type="range" class="form-range" id="speed" name="speed"
+                           min="0.5" max="2.0" step="0.1" value="1.0">
+                </div>
+
+                <div class="col-md-2">
+                    <label for="pitch" class="form-label">Hauteur: <span id="pitch_value">1.0</span>x</label>
+                    <input type="range" class="form-range" id="pitch" name="pitch"
+                           min="0.5" max="2.0" step="0.1" value="1.0">
+                </div>
+
+                <div class="col-md-1">
+                    <label class="form-label">&nbsp;</label>
+                    <button class="btn btn-sm btn-outline-secondary w-100" id="resetOptions">
+                        <i class="fas fa-undo"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Voice Reference Upload -->
+            <div class="row mt-3">
+                <div class="col-md-6">
+                    <label for="voice_reference" class="form-label">
+                        <i class="fas fa-user-circle"></i> Voix de référence (clonage)
+                    </label>
+                    <input type="file" class="form-control" id="voice_reference"
+                           accept="audio/*" name="voice_reference">
+                    <small class="text-white-50">
+                        Fichier audio 6-10 sec pour cloner une voix (optionnel)
+                    </small>
                 </div>
             </div>
         </div>
     </div>
+</div>
 
-    <hr>
-    <!-- Action Buttons -->
-    <div class="row mb-3">
-        <div class="col-12">
-            <div class="btn-group" role="group">
-                <button class="btn btn-success" id="startAllBtn">
-                    <i class="fas fa-play"></i> Start Process
-                </button>
-                <button class="btn btn-info" id="downloadAllBtn">
-                    <i class="fas fa-download"></i> Download All
-                </button>
-                <button class="btn btn-danger" id="clearAllBtn">
-                    <i class="fas fa-trash"></i> Clear All
-                </button>
-            </div>
+<hr>
+<!-- Action Buttons -->
+<div class="row mb-3">
+    <div class="col-12">
+        <div class="btn-group" role="group">
+            <button class="btn btn-success" id="startAllBtn">
+                <i class="fas fa-play"></i> Start Process
+            </button>
+            <button class="btn btn-info" id="downloadAllBtn">
+                <i class="fas fa-download"></i> Download All
+            </button>
+            <button class="btn btn-danger" id="clearAllBtn">
+                <i class="fas fa-trash"></i> Clear All
+            </button>
         </div>
     </div>
+</div>
 
-    <!-- Global Progress Bar -->
-    <div class="row mb-3">
-        <div class="col-12">
-            <div class="card" style="background: #212529; border: 1px solid #495057;">
-                <div class="card-body py-2">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <h6 class="mb-0 text-light">
-                            <i class="fas fa-chart-line"></i> Progression globale
-                        </h6>
-                        <small class="text-white-50" id="globalProgressStats">Calcul...</small>
-                    </div>
-                    <div class="progress-bar-custom" style="height: 10px;">
-                        <div class="progress-fill" id="globalProgressBar" style="width: 0%"></div>
-                    </div>
-                    <div class="text-center mt-1">
-                        <small class="text-light" id="globalProgressText">0%</small>
-                    </div>
+<!-- Global Progress Bar -->
+<div class="row mb-3">
+    <div class="col-12">
+        <div class="card" style="background: #212529; border: 1px solid #495057;">
+            <div class="card-body py-2">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h6 class="mb-0 text-light">
+                        <i class="fas fa-chart-line"></i> Progression globale
+                    </h6>
+                    <small class="text-white-50" id="globalProgressStats">Calcul...</small>
+                </div>
+                <div class="progress-bar-custom" style="height: 10px;">
+                    <div class="progress-fill" id="globalProgressBar" style="width: 0%"></div>
+                </div>
+                <div class="text-center mt-1">
+                    <small class="text-light" id="globalProgressText">0%</small>
                 </div>
             </div>
         </div>
     </div>
+</div>
 
-    <!-- Syntheses Queue -->
-    <div class="row">
-        <div class="col-12">
-            <h4 class="mb-3">
-                <i class="fas fa-list"></i> File d'attente
-                <span class="badge bg-secondary" id="queueCount">{{ syntheses.count }}</span>
-            </h4>
-            
-            <div id="synthesisQueue">
-                {% for synthesis in syntheses %}
-                <div class="synthesis-card {% if synthesis.status == 'RUNNING' %}processing{% elif synthesis.status == 'SUCCESS' %}success{% elif synthesis.status == 'FAILURE' %}error{% endif %}" 
-                     data-id="{{ synthesis.id }}">
-                    <div class="row align-items-center">
-                        <!-- Text File Info -->
-                        <div class="col-md-3">
-                            <strong>
-                                <button type="button" class="btn btn-link p-0 text-start preview-text-btn"
-                                        data-id="{{ synthesis.id }}"
-                                        style="color: #fff; text-decoration: none;">
-                                    <i class="fas fa-file-alt"></i> {{ synthesis.filename }}
-                                </button>
-                            </strong>
-                            <br>
-                            <small class="text-white-50">
-                                {{ synthesis.word_count }} mots •
-                                {{ synthesis.duration_display|default:"--:--" }}
-                            </small>
-                        </div>
-                        
-                        <!-- Options -->
-                        <div class="col-md-2">
-                            <small>
-                                <i class="fas fa-robot"></i> {{ synthesis.get_tts_model_display|truncatechars:20 }}<br>
-                                <i class="fas fa-language"></i> {{ synthesis.get_language_display }}<br>
-                                <i class="fas fa-microphone"></i> {{ synthesis.get_voice_preset_display|truncatechars:15 }}
-                            </small>
-                        </div>
-                        
-                        <!-- Properties -->
-                        <div class="col-md-2">
-                            <small class="text-white-50">
-                                {{ synthesis.properties|default:"En attente" }}
-                            </small>
-                        </div>
-                        
-                        <!-- Status & Progress -->
-                        <div class="col-md-2">
+<!-- Syntheses Queue -->
+<div class="row">
+    <div class="col-12">
+        <h4 class="mb-3">
+            <i class="fas fa-list"></i> File d'attente
+            <span class="badge bg-secondary" id="queueCount">{{ syntheses.count }}</span>
+        </h4>
+
+        <div id="synthesisQueue">
+            {% for synthesis in syntheses %}
+            <div class="synthesis-card {% if synthesis.status == 'RUNNING' %}processing{% elif synthesis.status == 'SUCCESS' %}success{% elif synthesis.status == 'FAILURE' %}error{% endif %}"
+                 data-id="{{ synthesis.id }}">
+                <div class="row align-items-center">
+                    <!-- Text File Info -->
+                    <div class="col-md-3">
+                        <strong>
+                            <button type="button" class="btn btn-link p-0 text-start preview-text-btn"
+                                    data-id="{{ synthesis.id }}"
+                                    style="color: #fff; text-decoration: none;">
+                                <i class="fas fa-file-alt"></i> {{ synthesis.filename }}
+                            </button>
+                        </strong>
+                        <br>
+                        <small class="text-white-50">
+                            {{ synthesis.word_count }} mots •
+                            {{ synthesis.duration_display|default:"--:--" }}
+                        </small>
+                    </div>
+
+                    <!-- Options -->
+                    <div class="col-md-2">
+                        <small>
+                            <i class="fas fa-robot"></i> {{ synthesis.get_tts_model_display|truncatechars:20 }}<br>
+                            <i class="fas fa-language"></i> {{ synthesis.get_language_display }}<br>
+                            <i class="fas fa-microphone"></i> {{ synthesis.get_voice_preset_display|truncatechars:15 }}
+                        </small>
+                    </div>
+
+                    <!-- Properties -->
+                    <div class="col-md-2">
+                        <small class="text-white-50">
+                            {{ synthesis.properties|default:"En attente" }}
+                        </small>
+                    </div>
+
+                    <!-- Status & Progress -->
+                    <div class="col-md-2">
                             <span class="badge 
                                 {% if synthesis.status == 'PENDING' %}bg-secondary
                                 {% elif synthesis.status == 'RUNNING' %}bg-warning
@@ -228,62 +227,60 @@
                                 {% endif %}">
                                 {{ synthesis.get_status_display }}
                             </span>
-                            <div class="progress-bar-custom mt-2">
-                                <div class="progress-fill" style="width: {{ synthesis.progress }}%"></div>
-                            </div>
-                            <small class="text-light">{{ synthesis.progress }}%</small>
+                        <div class="progress-bar-custom mt-2">
+                            <div class="progress-fill" style="width: {{ synthesis.progress }}%"></div>
                         </div>
-                        
-                        <!-- Actions -->
-                        <div class="col-md-3">
-                            <div class="btn-group-actions">
-                                {% if synthesis.status != 'RUNNING' %}
-                                <button class="btn btn-sm btn-primary start-btn" 
-                                        data-id="{{ synthesis.id }}">
-                                    <i class="fas fa-play"></i>
-                                </button>
-                                {% endif %}
-                                
-                                {% if synthesis.audio_output %}
-                                <button class="btn btn-sm btn-success preview-btn" 
-                                        data-id="{{ synthesis.id }}">
-                                    <i class="fas fa-volume-up"></i> Preview
-                                </button>
-                                <a href="{% url 'synthesizer:download' synthesis.id %}" 
-                                   class="btn btn-sm btn-info">
-                                    <i class="fas fa-download"></i>
-                                </a>
-                                {% endif %}
-                                
-                                <button class="btn btn-sm btn-danger delete-btn" 
-                                        data-id="{{ synthesis.id }}">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                            </div>
-                            
-                            <!-- Audio Preview (hidden by default) -->
-                            <div class="audio-preview mt-2" id="preview_{{ synthesis.id }}" 
-                                 style="display: none;">
-                                {% if synthesis.audio_output %}
-                                <audio controls class="audio-player">
-                                    <source src="{{ synthesis.audio_output.url }}" type="audio/wav">
-                                </audio>
-                                {% endif %}
-                            </div>
+                        <small class="text-light">{{ synthesis.progress }}%</small>
+                    </div>
+
+                    <!-- Actions -->
+                    <div class="col-md-3">
+                        <div class="btn-group-actions">
+                            {% if synthesis.status != 'RUNNING' %}
+                            <button class="btn btn-sm btn-primary start-btn"
+                                    data-id="{{ synthesis.id }}">
+                                <i class="fas fa-play"></i>
+                            </button>
+                            {% endif %}
+
+                            {% if synthesis.audio_output %}
+                            <button class="btn btn-sm btn-success preview-btn"
+                                    data-id="{{ synthesis.id }}">
+                                <i class="fas fa-volume-up"></i> Preview
+                            </button>
+                            <a href="{% url 'synthesizer:download' synthesis.id %}"
+                               class="btn btn-sm btn-info">
+                                <i class="fas fa-download"></i>
+                            </a>
+                            {% endif %}
+
+                            <button class="btn btn-sm btn-danger delete-btn"
+                                    data-id="{{ synthesis.id }}">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+
+                        <!-- Audio Preview (hidden by default) -->
+                        <div class="audio-preview mt-2" id="preview_{{ synthesis.id }}"
+                             style="display: none;">
+                            {% if synthesis.audio_output %}
+                            <audio controls class="audio-player">
+                                <source src="{{ synthesis.audio_output.url }}" type="audio/wav">
+                            </audio>
+                            {% endif %}
                         </div>
                     </div>
                 </div>
-                {% empty %}
-                <div class="text-center text py-5">
-                    <i class="fas fa-inbox fa-3x mb-3"></i>
-                    <p>Aucun fichier dans la file d'attente</p>
-                    <p>Uploadez des fichiers texte pour commencer</p>
-                </div>
-                {% endfor %}
             </div>
+            {% empty %}
+            <div class="text-center text py-5">
+                <i class="fas fa-inbox fa-3x mb-3"></i>
+                <p>Aucun fichier dans la file d'attente</p>
+                <p>Uploadez des fichiers texte pour commencer</p>
+            </div>
+            {% endfor %}
         </div>
     </div>
-
 </div>
 {% endblock %}
 

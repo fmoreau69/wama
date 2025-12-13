@@ -1,58 +1,228 @@
-{% extends 'base.html' %}
+{% extends 'common/app_modern_base.html' %}
 {% load static %}
 
-{% block title %}Imager - AI Image Generation{% endblock %}
+{% block app_icon %}<i class="fas fa-magic text-primary"></i>{% endblock %}
+{% block app_title %}AI Image Generation{% endblock %}
+{% block app_description %}Créez des images époustouflantes à partir de descriptions textuelles{% endblock %}
 
-{% block content %}
-<div class="app-wrapper" style="height: calc(100vh - 60px); overflow-y: auto; background: url('{% static 'images/background.jpg' %}') no-repeat center center fixed; background-size: cover;">
-    <div class="container-fluid">
+{% block console_content_id %}imager-console-content{% endblock %}
+{% block console_url %}{% url 'imager:console_content' %}{% endblock %}
+
+{% block queue_content %}
+    {% block imager_content %}
+    {# Le contenu principal d'Imager #}
+    {% endblock %}
+{% endblock %}
+
+{% block about_content %}
+<div class="info-card">
+    <h3><i class="fas fa-magic me-2"></i>À propos d'Imager</h3>
+
+    <div class="mb-4">
+        <h5>Qu'est-ce qu'Imager ?</h5>
+        <p class="text-light">
+            Imager est une application de génération d'images par IA intégrée à WAMA
+            (Web App for Media Automation). Elle utilise la puissante bibliothèque <strong>imaginAIry</strong>
+            pour générer des images stupéfiantes à partir de descriptions textuelles.
+        </p>
+    </div>
+
+    <div class="mb-4">
+        <h5>Fonctionnalités</h5>
+        <ul class="text-light">
+            <li>Génération d'images à partir de prompts textuels avec des modèles IA avancés</li>
+            <li>Support de plusieurs modèles Stable Diffusion</li>
+            <li>Dimensions d'image personnalisables (256px à 1024px)</li>
+            <li>Prompts négatifs pour exclure les éléments indésirables</li>
+            <li>Steps et guidance scale ajustables</li>
+            <li>Upscaling optionnel pour une meilleure résolution</li>
+            <li>Reproductibilité basée sur les seeds</li>
+            <li>Génération par lots (jusqu'à 4 images simultanées)</li>
+            <li>Suivi de progression en temps réel</li>
+            <li>Téléchargement individuel ou groupé</li>
+        </ul>
+    </div>
+
+    <div class="mb-4">
+        <h5>Modèles disponibles</h5>
         <div class="row">
-            <div class="col-md-12">
-                <!-- Navigation tabs -->
-                <ul class="nav nav-tabs mt-3" role="tablist">
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.resolver_match.url_name == 'index' %}active{% endif %}"
-                           href="{% url 'imager:index' %}">
-                            <i class="fas fa-home"></i> Imager
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.resolver_match.url_name == 'console' %}active{% endif %}"
-                           href="{% url 'imager:console' %}">
-                            <i class="fas fa-terminal"></i> Console
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.resolver_match.url_name == 'about' %}active{% endif %}"
-                           href="{% url 'imager:about' %}">
-                            <i class="fas fa-info-circle"></i> About
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.resolver_match.url_name == 'help' %}active{% endif %}"
-                           href="{% url 'imager:help' %}">
-                            <i class="fas fa-question-circle"></i> Help
-                        </a>
-                    </li>
-                </ul>
-
-                <!-- Content area -->
-                <div class="tab-content">
-                    <div class="tab-pane fade show active">
-                        {% block imager_content %}
-                        {% endblock %}
+            <div class="col-md-6">
+                <div class="card bg-dark border-secondary mb-3">
+                    <div class="card-body">
+                        <h6 class="card-title text-info">OpenJourney v4</h6>
+                        <p class="card-text small">Artistique, images vibrantes de haute qualité</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card bg-dark border-secondary mb-3">
+                    <div class="card-body">
+                        <h6 class="card-title text-info">Dreamlike Art 2.0</h6>
+                        <p class="card-text small">Style artistique onirique et surréaliste</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card bg-dark border-secondary mb-3">
+                    <div class="card-body">
+                        <h6 class="card-title text-info">Stable Diffusion 2.1</h6>
+                        <p class="card-text small">Dernière version stable, qualité équilibrée</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card bg-dark border-secondary mb-3">
+                    <div class="card-body">
+                        <h6 class="card-title text-info">Stable Diffusion 1.5</h6>
+                        <p class="card-text small">Version classique, rapide et fiable</p>
                     </div>
                 </div>
             </div>
         </div>
     </div>
+
+    <div>
+        <h5>Technologie</h5>
+        <p class="text-light">
+            Propulsé par <a href="https://github.com/brycedrennan/imaginAIry" target="_blank" class="text-info">imaginAIry</a>,
+            une bibliothèque open-source de génération d'images IA construite sur la technologie Stable Diffusion.
+        </p>
+        <p class="text-light">
+            Fait partie de l'écosystème WAMA pour l'automation et le traitement de médias.
+        </p>
+    </div>
+
+    <div class="alert alert-info">
+        <i class="fas fa-info-circle"></i>
+        <strong>Note :</strong> La génération d'images est intensive en calcul et peut prendre plusieurs minutes
+        selon votre matériel et les paramètres choisis. Un GPU est recommandé pour un traitement plus rapide.
+    </div>
 </div>
 {% endblock %}
 
-{% block extra_modals %}
-{# Modals spécifiques à l'imager - doivent être au niveau body #}
+{% block help_content %}
+<div class="info-card">
+    <h3><i class="fas fa-question-circle me-2"></i>Guide d'utilisation</h3>
+
+    <!-- Quick Start -->
+    <div class="mb-4">
+        <h5>Démarrage rapide</h5>
+        <div class="card bg-dark mb-2">
+            <div class="card-body">
+                <h6 class="text-info">1. Créer une génération</h6>
+                <p class="text-light mb-0">
+                    Entrez votre prompt dans la zone de texte. Soyez descriptif sur ce que vous voulez voir.
+                </p>
+            </div>
+        </div>
+        <div class="card bg-dark mb-2">
+            <div class="card-body">
+                <h6 class="text-info">2. Ajuster les paramètres</h6>
+                <p class="text-light mb-0">
+                    Choisissez le modèle, la taille et les paramètres de génération pour contrôler la qualité et le style.
+                </p>
+            </div>
+        </div>
+        <div class="card bg-dark mb-2">
+            <div class="card-body">
+                <h6 class="text-info">3. Lancer la génération</h6>
+                <p class="text-light mb-0">
+                    Cliquez sur "Ajouter à la file" puis "Démarrer" pour générer votre image.
+                </p>
+            </div>
+        </div>
+        <div class="card bg-dark">
+            <div class="card-body">
+                <h6 class="text-info">4. Télécharger les résultats</h6>
+                <p class="text-light mb-0">
+                    Une fois terminé, téléchargez vos images générées.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Parameters -->
+    <div class="mb-4">
+        <h5>Paramètres expliqués</h5>
+
+        <h6 class="text-info mt-3">Prompt</h6>
+        <p class="text-light">
+            Description principale de ce que vous voulez générer. Soyez spécifique et descriptif.
+            <br><strong>Exemple :</strong> "Un lac de montagne serein à l'aube, atmosphère brumeuse, photoréaliste"
+        </p>
+
+        <h6 class="text-info mt-3">Prompt négatif</h6>
+        <p class="text-light">
+            Ce que vous NE voulez PAS dans l'image. Aide à éviter les éléments indésirables.
+            <br><strong>Exemple :</strong> "flou, basse qualité, déformé, laid, filigrane"
+        </p>
+
+        <h6 class="text-info mt-3">Steps</h6>
+        <p class="text-light">
+            Nombre d'étapes de diffusion. Plus de steps = meilleure qualité mais plus lent.
+            <br>• <strong>20-30 :</strong> Rapide, bon pour tester
+            <br>• <strong>50-70 :</strong> Recommandé pour la qualité
+            <br>• <strong>80-100 :</strong> Qualité maximale (très lent)
+        </p>
+
+        <h6 class="text-info mt-3">Guidance Scale</h6>
+        <p class="text-light">
+            À quel point suivre strictement votre prompt.
+            <br>• <strong>1-5 :</strong> Créatif, interprétation libre
+            <br>• <strong>7-10 :</strong> Équilibré (recommandé)
+            <br>• <strong>15-20 :</strong> Adhérence stricte au prompt
+        </p>
+    </div>
+
+    <!-- Examples -->
+    <div class="mb-4">
+        <h5>Exemples de prompts</h5>
+
+        <div class="card bg-dark mb-2">
+            <div class="card-body">
+                <h6 class="text-success">Paysage</h6>
+                <p class="text-light mb-1">
+                    <strong>Prompt :</strong> "Majestueuse chaîne de montagnes à l'heure dorée, nuages dramatiques,
+                    prairie alpine au premier plan, photoréaliste, très détaillé"
+                </p>
+                <p class="text-white-50 mb-0">
+                    <strong>Négatif :</strong> "flou, basse qualité, cartoon, peinture"
+                </p>
+            </div>
+        </div>
+
+        <div class="card bg-dark mb-2">
+            <div class="card-body">
+                <h6 class="text-success">Portrait</h6>
+                <p class="text-light mb-1">
+                    <strong>Prompt :</strong> "Portrait d'un vieux magicien sage, longue barbe blanche,
+                    robes mystiques, bâton magique, style art fantastique, détaillé"
+                </p>
+                <p class="text-white-50 mb-0">
+                    <strong>Négatif :</strong> "vêtements modernes, flou, visage déformé"
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <div class="alert alert-info">
+        <h6><i class="fas fa-lightbulb me-2"></i>Astuce</h6>
+        <p class="mb-0">
+            Pour de meilleurs résultats, incluez des mots-clés de qualité : "très détaillé", "8k", "professionnel"
+            et utilisez un prompt négatif pour exclure "flou, basse qualité, déformé".
+        </p>
+    </div>
+</div>
 {% endblock %}
 
-{% block javascript %}
-{{ block.super }}
+{% block footer_text %}
+    Imager - Powered by
+    <a href="https://github.com/brycedrennan/imaginAIry" target="_blank" class="text-info text-decoration-none">
+        imaginAIry
+    </a>
+    | AI Image Generation
+{% endblock %}
+
+{% block app_scripts %}
+{# Scripts spécifiques à Imager #}
 {% endblock %}

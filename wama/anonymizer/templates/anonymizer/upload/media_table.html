@@ -1,84 +1,143 @@
-<table class="table table-bordered table-dark align-middle" id="medias">
-    <thead>
-    <tr>
-        <td class="col-sm-1 fw-bold text-center text-bg-secondary">Options</td>
-        <td class="col-sm-4 fw-bold text-center text-bg-secondary">Media</td>
-        <td class="col-sm-2 fw-bold text-center text-bg-secondary">Properties</td>
-        <td class="col-sm-1,5 fw-bold text-center text-bg-secondary">Duration</td>
-        <td class="col-sm-1,5 fw-bold text-center text-bg-secondary">Progress</td>
-        <td class="col-sm-1 fw-bold text-center text-bg-secondary">Actions</td>
-    </tr>
-    </thead>
-    <tbody>
-    {% for media in medias %}
-    {% if user.id == media.user.id %}
-    <tr data-media-id="{{ media.id }}">
-        <td class="text-center">
-            <div class="d-flex justify-content-center align-items-center">
-                <form method="post" action="{% url 'anonymizer:expand_area' %}">
-                    {% csrf_token %}
-                    <a class="btn btn-info btn-sm text-center" id="button_show_ms"
-                       data-bs-toggle="collapse" href="#collapseMediaSettings_{{ media.id }}"
-                       aria-expanded="false" aria-controls="collapseMediaSettings_{{ media.id }}">
-                        <i class="fas fa-arrow-down"></i>
-                    </a>
-                </form>
-            </div>
-        </td>
-        <td class="text-center">
-            <button type="button"
-                    class="btn btn-link p-0 preview-media-link"
-                    data-preview-url="{% url 'anonymizer:preview_media' media.id %}">
-                {{ media.file.name|slice:"12:" }}
-            </button>
-        </td>
-        <td class="text-center">{{ media.width }}x{{ media.height }} ({{ media.fps }}fps)</td>
-        <td class="text-center">{{ media.duration_inMinSec }}</td>
-        <td class=text-center">
-            <div class="progress text-center" role="progressbar" aria-label="Blur progress"
-                 aria-valuenow="{{ media.blur_progress }}" aria-valuemin="0" aria-valuemax="100" style="height: 24px">
-                <div class="progress-bar" role="progressbar" style="width: {{ media.blur_progress }}%;">
-                    {{ media.blur_progress }}%</div>
-            </div>
-        </td>
-        <td class="text-center">
-            <div class="col-auto">
+<div class="table-responsive">
+    <table class="table table-bordered table-dark align-middle" id="medias">
+        <thead>
+        <tr class="text-center">
+            <th style="width: 80px;">ID</th>
+            <th style="width: 100px;">Type</th>
+            <th>Fichier</th>
+            <th style="width: 150px;">Propriétés</th>
+            <th style="width: 100px;">Durée</th>
+            <th style="width: 120px;">Statut</th>
+            <th style="width: 220px;">Progression</th>
+            <th style="width: 180px;">Actions</th>
+        </tr>
+        </thead>
+        <tbody>
+        {% for media in medias %}
+        {% if user.id == media.user.id %}
+        <tr data-media-id="{{ media.id }}"
+            data-media-name="{{ media.file.name|slice:"12:" }}"
+            data-media-processed="{{ media.processed|lower }}">
+
+            <!-- ID -->
+            <td class="fw-bold text-center">#{{ media.id }}</td>
+
+            <!-- Type -->
+            <td class="text-center">
+                {% if media.media_type == 'image' %}
+                    <i class="fas fa-image text-info"></i> Image
+                {% elif media.media_type == 'video' %}
+                    <i class="fas fa-video text-warning"></i> Vidéo
+                {% else %}
+                    <i class="fas fa-file text-secondary"></i> Média
+                {% endif %}
+            </td>
+
+            <!-- Fichier -->
+            <td>
+                <div class="fw-semibold">
+                    <button type="button"
+                            class="btn btn-link p-0 preview-media-link text-decoration-none"
+                            data-preview-url="{% url 'anonymizer:preview_media' media.id %}">
+                        {{ media.file.name|slice:"12:" }}
+                    </button>
+                </div>
+                <div class="d-flex align-items-center gap-2 mt-1">
+                    {% if media.MSValues_customised %}
+                    <span class="badge bg-info">Personnalisé</span>
+                    {% endif %}
+                    {% if media.interpolate_detections %}
+                    <span class="badge bg-primary">Interpolation</span>
+                    {% endif %}
+                    {% if media.use_segmentation %}
+                    <span class="badge bg-success">Segmentation</span>
+                    {% endif %}
+                </div>
+            </td>
+
+            <!-- Propriétés -->
+            <td class="text-center small">
+                {{ media.width }}x{{ media.height }}<br>
+                <span class="text-muted">{{ media.fps }} fps</span>
+            </td>
+
+            <!-- Durée -->
+            <td class="text-center">{{ media.duration_inMinSec }}</td>
+
+            <!-- Statut -->
+            <td class="text-center">
+                {% if media.processed %}
+                    <span class="badge bg-success">Terminé</span>
+                {% elif media.blur_progress > 0 %}
+                    <span class="badge bg-warning">En cours</span>
+                {% else %}
+                    <span class="badge bg-secondary">En attente</span>
+                {% endif %}
+            </td>
+
+            <!-- Progression -->
+            <td>
+                <div class="progress" style="height: 24px;">
+                    <div class="progress-bar" role="progressbar"
+                         style="width: {{ media.blur_progress }}%;">
+                        {{ media.blur_progress }}%
+                    </div>
+                </div>
+            </td>
+
+            <!-- Actions -->
+            <td class="text-center">
                 <div class="btn-group" role="group">
-                    <form method="post" action="{% url 'anonymizer:reset_media_settings' %}" class="me-1 ajax-form" data-target="#main_container">
-                        {% csrf_token %}
-                        <input type="hidden" name="next" value="{{ request.path }}">
-                        <input type="hidden" name="media_id" value="{{ media.id }}">
-                        <button type="submit" class="btn btn-danger btn-sm" title="Reset settings">
-                            <i class="fas fa-rotate-left"></i>
-                        </button>
-                    </form>
-                    <form method="post" action="{% url 'anonymizer:clear_media' %}" class="me-1 ajax-form" data-target="#main_container">
-                        {% csrf_token %}
-                        <input type="hidden" name="next" value="{{ request.path }}">
-                        <input type="hidden" name="media_id" value="{{ media.id }}">
-                        <button type="submit" class="btn btn-danger btn-sm" title="Delete media">
-                            <i class="far fa-trash-can"></i>
-                        </button>
-                    </form>
-                    <form method="post" action="{% url 'anonymizer:download_media' %}">
+                    <!-- Restart Button -->
+                    <button type="button"
+                            class="btn btn-primary btn-sm restart-btn"
+                            data-media-id="{{ media.id }}"
+                            title="Relancer le traitement">
+                        <i class="fas fa-play"></i>
+                    </button>
+
+                    <!-- Download Button -->
+                    <form method="post" action="{% url 'anonymizer:download_media' %}" class="d-inline">
                         {% csrf_token %}
                         <input type="hidden" name="media_id" value="{{ media.id }}">
-                        <button type="submit" class="btn btn-success btn-sm text-center" {% if not media.processed %} disabled {% else %} active{% endif %}>
+                        <button type="submit"
+                                class="btn btn-success btn-sm {% if not media.processed %}disabled{% endif %}"
+                                {% if not media.processed %}disabled aria-disabled="true" tabindex="-1"{% endif %}
+                                title="Télécharger le média traité">
                             <i class="fas fa-download"></i>
                         </button>
                     </form>
+
+                    <!-- Settings Button (Orange Gear) -->
+                    <button type="button"
+                            class="btn btn-warning btn-sm settings-btn"
+                            data-media-id="{{ media.id }}"
+                            title="Configurer les paramètres">
+                        <i class="fas fa-cog"></i>
+                    </button>
+
+                    <!-- Delete Button -->
+                    <button type="button"
+                            class="btn btn-danger btn-sm delete-btn"
+                            data-media-id="{{ media.id }}"
+                            title="Supprimer le média">
+                        <i class="fas fa-trash-alt"></i>
+                    </button>
                 </div>
-            </div>
-        </td>
-    </tr>
-    <tr {% if media.show_ms %} class="collapse show" {% else %} class="collapse" {% endif %} id="collapseMediaSettings_{{ media.id }}">
-        <td colspan="12">
-            <div id="media_settings_container_{{ media.id }}">
-                {% include "anonymizer/upload/media_settings.html" %}
-            </div>
-        </td>
-    </tr>
-    {% endif %}
-    {% endfor %}
-    </tbody>
-</table>
+            </td>
+        </tr>
+        {% endif %}
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Empty State -->
+{% if not medias %}
+<div class="card bg-dark border-secondary">
+    <div class="card-body text-center text-white-50 py-5">
+        <i class="fas fa-inbox fa-3x mb-3"></i>
+        <p class="mb-0">Aucun média dans la file d'attente. Uploadez des fichiers pour commencer !</p>
+    </div>
+</div>
+{% endif %}

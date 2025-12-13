@@ -1,0 +1,212 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block extra_css %}
+<!-- Style moderne inspiré d'Enhancer pour toutes les apps -->
+<link href="{% static 'common/css/app_modern.css' %}" rel="stylesheet">
+<style>
+    body {
+        background-color: #212529;
+        color: #ffffff;
+    }
+
+    .container {
+        max-width: 100% !important;
+        padding-left: 15px;
+        padding-right: 15px;
+    }
+
+    /* Tab content padding */
+    .tab-pane {
+        padding: 10px 0 0 0;
+    }
+
+    /* Onglets personnalisés style Enhancer */
+    .nav-tabs {
+        border-bottom: 2px solid #495057;
+        margin-bottom: 15px;
+    }
+
+    .nav-tabs .nav-link {
+        color: #adb5bd;
+        border: none;
+        border-bottom: 3px solid transparent;
+        background: transparent;
+        padding: 12px 24px;
+        transition: all 0.3s ease;
+    }
+
+    .nav-tabs .nav-link:hover {
+        color: #ffffff;
+        border-bottom-color: #6c757d;
+    }
+
+    .nav-tabs .nav-link.active {
+        color: #ffffff;
+        background: transparent;
+        border-bottom-color: #0dcaf0;
+        font-weight: 600;
+    }
+
+    /* Console style terminal */
+    .console-container {
+        background: #1a1d20;
+        border: 1px solid #495057;
+        border-radius: 8px;
+        padding: 20px;
+        max-height: 500px;
+        overflow-y: auto;
+        font-family: 'Courier New', monospace;
+        font-size: 13px;
+        line-height: 1.6;
+    }
+
+    .console-container::-webkit-scrollbar {
+        width: 8px;
+    }
+
+    .console-container::-webkit-scrollbar-track {
+        background: #2b3035;
+    }
+
+    .console-container::-webkit-scrollbar-thumb {
+        background: #495057;
+        border-radius: 4px;
+    }
+
+    /* About/Help content */
+    .info-card {
+        background: #2b3035;
+        border: 1px solid #495057;
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 0;
+    }
+
+    .info-card h3 {
+        color: #0dcaf0;
+        margin-bottom: 16px;
+    }
+
+    /* App blocks spécifiques */
+    {% block app_styles %}{% endblock %}
+</style>
+{% endblock %}
+
+{% block top_navigation %}
+    <!-- Utilise le header général de WAMA -->
+    <div class="top_nav">
+        {% include 'includes/header.html' %}
+    </div>
+
+    {% if messages %}
+      <ul class="messages">
+        {% for message in messages %}
+          <li{% if message.tags %} class="{{ message.tags }}"{% endif %}>
+            {{ message }}
+          </li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid pt-3 pb-1">
+    <!-- Titre de l'application -->
+    <div class="text-center mb-3">
+        <h1 class="display-4 mb-3">
+            {% block app_icon %}<i class="fas fa-cog"></i>{% endblock %}
+            {% block app_title %}Application{% endblock %}
+        </h1>
+        <p class="lead text-light">
+            {% block app_description %}Description de l'application{% endblock %}
+        </p>
+    </div>
+
+    <!-- Onglets de navigation -->
+    <ul class="nav nav-tabs" id="appTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="queue-tab" data-bs-toggle="tab" data-bs-target="#queue-pane" type="button" role="tab">
+                <i class="fas fa-list me-2"></i>File d'attente
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="console-tab" data-bs-toggle="tab" data-bs-target="#console-pane" type="button" role="tab">
+                <i class="fas fa-terminal me-2"></i>Console
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="about-tab" data-bs-toggle="tab" data-bs-target="#about-pane" type="button" role="tab">
+                <i class="fas fa-info-circle me-2"></i>À propos
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="help-tab" data-bs-toggle="tab" data-bs-target="#help-pane" type="button" role="tab">
+                <i class="fas fa-question-circle me-2"></i>Aide
+            </button>
+        </li>
+    </ul>
+
+    <!-- Contenu des onglets -->
+    <div class="tab-content" id="appTabsContent">
+        <!-- Onglet File d'attente -->
+        <div class="tab-pane fade show active" id="queue-pane" role="tabpanel">
+            {% block queue_content %}
+            <p class="text-muted">Contenu de la file d'attente</p>
+            {% endblock %}
+        </div>
+
+        <!-- Onglet Console -->
+        <div class="tab-pane fade" id="console-pane" role="tabpanel">
+            <div class="console-container">
+                <div id="{% block console_content_id %}console-content{% endblock %}"
+                     data-console-url="{% block console_url %}{% endblock %}">
+                    <p class="text-muted">Chargement des logs...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Onglet À propos -->
+        <div class="tab-pane fade" id="about-pane" role="tabpanel">
+            {% block about_content %}
+            <div class="info-card">
+                <h3>À propos de cette application</h3>
+                <p class="text-light">Informations sur l'application...</p>
+            </div>
+            {% endblock %}
+        </div>
+
+        <!-- Onglet Aide -->
+        <div class="tab-pane fade" id="help-pane" role="tabpanel">
+            {% block help_content %}
+            <div class="info-card">
+                <h3>Aide</h3>
+                <p class="text-light">Documentation d'utilisation...</p>
+            </div>
+            {% endblock %}
+        </div>
+    </div>
+</div>
+
+<!-- Footer -->
+<footer class="bg-black text-center text-white-50 py-2 mt-2 border-top border-secondary">
+    <div class="container">
+        <p class="mb-0">
+            <small>
+                {% block footer_text %}
+                WAMA - Web App for Media Automation
+                {% endblock %}
+            </small>
+        </p>
+    </div>
+</footer>
+{% endblock content %}
+
+{% block javascript %}
+{{ block.super }}
+<!-- Console auto-refresh script -->
+<script src="{% static 'common/js/console.js' %}"></script>
+
+<!-- App specific scripts -->
+{% block app_scripts %}{% endblock %}
+{% endblock %}

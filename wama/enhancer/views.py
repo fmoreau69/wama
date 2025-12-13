@@ -13,6 +13,7 @@ from PIL import Image
 
 from .models import Enhancement, UserSettings
 from wama.accounts.views import get_or_create_anonymous_user
+from wama.common.utils.console_utils import get_console_lines, get_celery_worker_logs
 
 logger = logging.getLogger(__name__)
 
@@ -354,3 +355,17 @@ def update_settings(request, pk: int):
         'denoise': enhancement.denoise,
         'blend_factor': enhancement.blend_factor,
     })
+
+
+def console_content(request):
+    """
+    Retourne le contenu de la console (logs Celery + cache).
+    """
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+
+    # Récupère les logs depuis le cache et Celery
+    console_lines = get_console_lines(user.id, limit=100)
+    celery_lines = get_celery_worker_logs(limit=100)
+    all_lines = (celery_lines + console_lines)[-200:]
+
+    return JsonResponse({'output': all_lines})

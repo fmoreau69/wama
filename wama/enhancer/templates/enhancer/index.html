@@ -4,9 +4,260 @@
 {% block title %}Enhancer - AI Image/Video Upscaling{% endblock %}
 
 {% block enhancer_content %}
+<!-- Drag & Drop Zone -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="drop-zone" id="dropZoneEnhancer">
+            <i class="fas fa-cloud-upload-alt fa-3x mb-3 text-primary"></i>
+            <h5>Glissez-déposez vos fichiers ici</h5>
+            <p class="text-light mb-3">ou cliquez pour parcourir</p>
+            <p class="small text-white-50">
+                Images: JPG, PNG, BMP, TIF, WebP, HEIC<br>
+                Vidéos: MP4, WebM, MKV, AVI, MOV, GIF
+            </p>
+            <input type="file" id="enhancer-file" multiple accept="image/*,video/*" style="display: none;">
+            <button class="btn btn-primary mt-2" id="enhancer-browse-btn">
+                <i class="fas fa-folder-open"></i> Parcourir
+            </button>
+        </div>
+    </div>
+</div>
 
-{% block javascript %}
-{{ block.super }}
+<!-- Settings Panel -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card bg-dark border-secondary">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span class="fw-bold"><i class="fas fa-cog"></i> Paramètres globaux</span>
+                <button class="btn btn-sm btn-outline-light" type="button" data-bs-toggle="collapse" data-bs-target="#settingsPanel">
+                    <i class="fas fa-chevron-down"></i>
+                </button>
+            </div>
+            <div class="collapse" id="settingsPanel">
+                <div class="card-body">
+                    <div class="row">
+                        <!-- AI Model Selection -->
+                        <div class="col-md-4 mb-3">
+                            <label for="defaultAiModel" class="form-label fw-bold">
+                                <i class="fas fa-brain"></i> Modèle AI
+                            </label>
+                            <select class="form-select bg-dark text-white border-secondary" id="defaultAiModel">
+                                {% for value, label in ai_models %}
+                                <option value="{{ value }}" {% if user_settings.default_ai_model == value %}selected{% endif %}>
+                                    {{ label }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                            <small class="text-muted">Modèle utilisé pour l'amélioration</small>
+                        </div>
+
+                        <!-- Denoise Option -->
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="fas fa-broom"></i> Débruitage
+                            </label>
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="defaultDenoise"
+                                       {% if user_settings.default_denoise %}checked{% endif %}>
+                                <label class="form-check-label" for="defaultDenoise">
+                                    Appliquer le débruitage avant upscaling
+                                </label>
+                            </div>
+                            <small class="text-muted">Réduit le bruit dans l'image</small>
+                        </div>
+
+                        <!-- Blend Factor -->
+                        <div class="col-md-4 mb-3">
+                            <label for="defaultBlendFactor" class="form-label fw-bold">
+                                <i class="fas fa-sliders-h"></i> Blend Factor: <span id="blendValue">{{ user_settings.default_blend_factor }}</span>
+                            </label>
+                            <input type="range" class="form-range" id="defaultBlendFactor"
+                                   min="0" max="1" step="0.1" value="{{ user_settings.default_blend_factor }}"
+                                   oninput="document.getElementById('blendValue').textContent = this.value">
+                            <small class="text-muted">0 = 100% AI, 1 = 100% Original</small>
+                        </div>
+                    </div>
+
+                    <!-- Model Info -->
+                    <div class="alert alert-info mt-3" role="alert">
+                        <i class="fas fa-info-circle"></i> <strong>Info modèles:</strong><br>
+                        <small>
+                            • <strong>RealESR_Gx4</strong>: Rapide, usage général (4x)<br>
+                            • <strong>BSRGANx2/x4</strong>: Haute qualité, léger<br>
+                            • <strong>RealESRGANx4</strong>: Qualité maximale (lent)<br>
+                            • <strong>IRCNN</strong>: Débruitage uniquement (1x)
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<hr>
+
+<!-- Action Buttons -->
+<div class="row mb-3">
+    <div class="col-12">
+        <div class="btn-group" role="group">
+            <button id="enhancer-process-btn" class="btn btn-success">
+                <i class="fas fa-play"></i> Démarrer le traitement
+            </button>
+            <button id="enhancer-download-all-btn" class="btn btn-info" disabled>
+                <i class="fas fa-download"></i> Télécharger tout
+            </button>
+            <button id="enhancer-clear-btn" class="btn btn-danger">
+                <i class="fas fa-trash"></i> Tout effacer
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Enhancements Queue -->
+<div class="row">
+    <div class="col-12">
+        <h4 class="mb-3">
+            <i class="fas fa-list"></i> File d'attente
+        </h4>
+
+        <div class="table-responsive">
+            <table class="table table-bordered table-dark align-middle" id="enhancer-queue">
+                <thead>
+                <tr class="text-center">
+                    <th style="width: 80px;">ID</th>
+                    <th style="width: 100px;">Type</th>
+                    <th>Fichier</th>
+                    <th style="width: 150px;">Dimensions</th>
+                    <th style="width: 150px;">Modèle AI</th>
+                    <th style="width: 120px;">Statut</th>
+                    <th style="width: 220px;">Progression</th>
+                    <th style="width: 160px;">Actions</th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for e in enhancements %}
+                <tr data-id="{{ e.id }}" data-status="{{ e.status }}">
+                    <td class="fw-bold text-center">#{{ e.id }}</td>
+                    <td class="text-center">
+                        {% if e.media_type == 'image' %}
+                        <i class="fas fa-image text-info"></i> Image
+                        {% else %}
+                        <i class="fas fa-video text-warning"></i> Vidéo
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div class="fw-semibold">{{ e.get_input_filename }}</div>
+                        <div class="d-flex align-items-center gap-2 mt-1">
+                            <a href="{{ e.input_file.url }}" target="_blank" class="text-info small">
+                                <i class="fas fa-link"></i> Voir le fichier
+                            </a>
+                            {% if e.denoise %}
+                            <span class="badge bg-primary">Débruitage</span>
+                            {% endif %}
+                            {% if e.blend_factor > 0 %}
+                            <span class="badge bg-secondary">Blend {{ e.blend_factor }}</span>
+                            {% endif %}
+                        </div>
+                    </td>
+                    <td class="text-center small">
+                        {{ e.width }}x{{ e.height }}
+                        {% if e.output_width %}
+                        <br><i class="fas fa-arrow-right text-success"></i> {{ e.output_width }}x{{ e.output_height }}
+                        {% endif %}
+                    </td>
+                    <td class="text-center small">
+                        <span class="badge bg-info">{{ e.get_ai_model_display }}</span>
+                    </td>
+                    <td class="status text-uppercase text-center">{{ e.status }}</td>
+                    <td>
+                        <div class="progress" style="height: 24px;">
+                            <div class="progress-bar" role="progressbar" style="width: {{ e.progress }}%;">
+                                {{ e.progress }}%
+                            </div>
+                        </div>
+                    </td>
+                    <td class="text-center">
+                        <div class="btn-group" role="group">
+                            <button class="btn btn-primary btn-sm js-restart-enhancement"
+                                    data-id="{{ e.id }}"
+                                    title="Relancer le traitement">
+                                <i class="fas fa-play"></i>
+                            </button>
+                            <a class="btn btn-success btn-sm download-btn {% if not e.output_file %}disabled{% endif %}"
+                               {% if not e.output_file %}aria-disabled="true" tabindex="-1"{% endif %}
+                               href="{% url 'enhancer:download' e.id %}">
+                                <i class="fas fa-download"></i>
+                            </a>
+                            <button class="btn btn-warning btn-sm settings-btn"
+                                    data-bs-toggle="modal" data-bs-target="#settingsModal{{ e.id }}">
+                                <i class="fas fa-cog"></i>
+                            </button>
+                            <button class="btn btn-danger btn-sm js-delete-enhancement"
+                                    data-delete-url="{% url 'enhancer:delete' e.id %}">
+                                <i class="fas fa-trash-alt"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+
+                <!-- Settings Modal for each enhancement -->
+                <div class="modal fade" id="settingsModal{{ e.id }}" tabindex="-1">
+                    <div class="modal-dialog">
+                        <div class="modal-content bg-dark text-white">
+                            <div class="modal-header border-secondary">
+                                <h5 class="modal-title">Paramètres - #{{ e.id }}</h5>
+                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body">
+                                <form class="enhancement-settings-form" data-id="{{ e.id }}">
+                                    <div class="mb-3">
+                                        <label class="form-label">Modèle AI</label>
+                                        <select class="form-select bg-dark text-white border-secondary" name="ai_model">
+                                            {% for value, label in ai_models %}
+                                            <option value="{{ value }}" {% if e.ai_model == value %}selected{% endif %}>
+                                                {{ label }}
+                                            </option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                    <div class="mb-3 form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" name="denoise"
+                                               {% if e.denoise %}checked{% endif %}>
+                                        <label class="form-check-label">Débruitage</label>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Blend Factor: <span class="blend-display">{{ e.blend_factor }}</span></label>
+                                        <input type="range" class="form-range" name="blend_factor"
+                                               min="0" max="1" step="0.1" value="{{ e.blend_factor }}"
+                                               oninput="this.previousElementSibling.querySelector('.blend-display').textContent = this.value">
+                                    </div>
+                                </form>
+                            </div>
+                            <div class="modal-footer border-secondary">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                                <button type="button" class="btn btn-primary save-settings-btn" data-id="{{ e.id }}">
+                                    Sauvegarder
+                                </button>
+                                <button type="button" class="btn btn-success save-and-restart-btn" data-id="{{ e.id }}">
+                                    <i class="fas fa-play"></i> Sauvegarder et relancer
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% empty %}
+                <tr class="empty-row">
+                    <td colspan="8" class="text-center py-4">Aucun fichier en attente.</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock enhancer_content %}
+
+{% block app_scripts %}
 <script>
     window.ENHANCER_APP = Object.assign({}, window.ENHANCER_APP, {
       csrfToken: '{{ csrf_token }}',
@@ -23,276 +274,3 @@
 </script>
 <script src="{% static 'enhancer/js/index.js' %}"></script>
 {% endblock %}
-
-{% block content %}
-<div class="container-fluid py-4">
-
-    <!-- Header -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="text-center">
-                <h1 class="display-4 mb-3">
-                    <i class="fas fa-magic text-primary"></i> AI Image & Video Enhancer
-                </h1>
-                <p class="lead text-light">
-                    Améliorer la qualité de vos images et vidéos avec l'intelligence artificielle
-                </p>
-            </div>
-        </div>
-    </div>
-
-    <!-- Drag & Drop Zone -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="drop-zone" id="dropZoneEnhancer">
-                <i class="fas fa-cloud-upload-alt fa-3x mb-3 text-primary"></i>
-                <h5>Glissez-déposez vos fichiers ici</h5>
-                <p class="text-light mb-3">ou cliquez pour parcourir</p>
-                <p class="small text-white-50">
-                    Images: JPG, PNG, BMP, TIF, WebP, HEIC<br>
-                    Vidéos: MP4, WebM, MKV, AVI, MOV, GIF
-                </p>
-                <input type="file" id="enhancer-file" multiple accept="image/*,video/*" style="display: none;">
-                <button class="btn btn-primary mt-2" id="enhancer-browse-btn">
-                    <i class="fas fa-folder-open"></i> Parcourir
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Settings Panel -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card bg-dark border-secondary">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <span class="fw-bold"><i class="fas fa-cog"></i> Paramètres par défaut</span>
-                    <button class="btn btn-sm btn-outline-light" type="button" data-bs-toggle="collapse" data-bs-target="#settingsPanel">
-                        <i class="fas fa-chevron-down"></i>
-                    </button>
-                </div>
-                <div class="collapse" id="settingsPanel">
-                    <div class="card-body">
-                        <div class="row">
-                            <!-- AI Model Selection -->
-                            <div class="col-md-4 mb-3">
-                                <label for="defaultAiModel" class="form-label fw-bold">
-                                    <i class="fas fa-brain"></i> Modèle AI
-                                </label>
-                                <select class="form-select bg-dark text-white border-secondary" id="defaultAiModel">
-                                    {% for value, label in ai_models %}
-                                        <option value="{{ value }}" {% if user_settings.default_ai_model == value %}selected{% endif %}>
-                                            {{ label }}
-                                        </option>
-                                    {% endfor %}
-                                </select>
-                                <small class="text-muted">Modèle utilisé pour l'amélioration</small>
-                            </div>
-
-                            <!-- Denoise Option -->
-                            <div class="col-md-4 mb-3">
-                                <label class="form-label fw-bold">
-                                    <i class="fas fa-broom"></i> Débruitage
-                                </label>
-                                <div class="form-check form-switch">
-                                    <input class="form-check-input" type="checkbox" id="defaultDenoise"
-                                           {% if user_settings.default_denoise %}checked{% endif %}>
-                                    <label class="form-check-label" for="defaultDenoise">
-                                        Appliquer le débruitage avant upscaling
-                                    </label>
-                                </div>
-                                <small class="text-muted">Réduit le bruit dans l'image</small>
-                            </div>
-
-                            <!-- Blend Factor -->
-                            <div class="col-md-4 mb-3">
-                                <label for="defaultBlendFactor" class="form-label fw-bold">
-                                    <i class="fas fa-sliders-h"></i> Blend Factor: <span id="blendValue">{{ user_settings.default_blend_factor }}</span>
-                                </label>
-                                <input type="range" class="form-range" id="defaultBlendFactor"
-                                       min="0" max="1" step="0.1" value="{{ user_settings.default_blend_factor }}"
-                                       oninput="document.getElementById('blendValue').textContent = this.value">
-                                <small class="text-muted">0 = 100% AI, 1 = 100% Original</small>
-                            </div>
-                        </div>
-
-                        <!-- Model Info -->
-                        <div class="alert alert-info mt-3" role="alert">
-                            <i class="fas fa-info-circle"></i> <strong>Info modèles:</strong><br>
-                            <small>
-                                • <strong>RealESR_Gx4</strong>: Rapide, usage général (4x)<br>
-                                • <strong>BSRGANx2/x4</strong>: Haute qualité, léger<br>
-                                • <strong>RealESRGANx4</strong>: Qualité maximale (lent)<br>
-                                • <strong>IRCNN</strong>: Débruitage uniquement (1x)
-                            </small>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <hr>
-
-    <!-- Action Buttons -->
-    <div class="row mb-3">
-        <div class="col-12">
-            <div class="btn-group" role="group">
-                <button id="enhancer-process-btn" class="btn btn-success">
-                    <i class="fas fa-play"></i> Démarrer le traitement
-                </button>
-                <button id="enhancer-download-all-btn" class="btn btn-info" disabled>
-                    <i class="fas fa-download"></i> Télécharger tout
-                </button>
-                <button id="enhancer-clear-btn" class="btn btn-danger">
-                    <i class="fas fa-trash"></i> Tout effacer
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Enhancements Queue -->
-    <div class="row">
-        <div class="col-12">
-            <h4 class="mb-3">
-                <i class="fas fa-list"></i> File d'attente
-            </h4>
-
-            <div class="table-responsive">
-                <table class="table table-bordered table-dark align-middle" id="enhancer-queue">
-                    <thead>
-                        <tr class="text-center">
-                            <th style="width: 80px;">ID</th>
-                            <th style="width: 100px;">Type</th>
-                            <th>Fichier</th>
-                            <th style="width: 150px;">Dimensions</th>
-                            <th style="width: 150px;">Modèle AI</th>
-                            <th style="width: 120px;">Statut</th>
-                            <th style="width: 220px;">Progression</th>
-                            <th style="width: 160px;">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                    {% for e in enhancements %}
-                    <tr data-id="{{ e.id }}" data-status="{{ e.status }}">
-                        <td class="fw-bold text-center">#{{ e.id }}</td>
-                        <td class="text-center">
-                            {% if e.media_type == 'image' %}
-                                <i class="fas fa-image text-info"></i> Image
-                            {% else %}
-                                <i class="fas fa-video text-warning"></i> Vidéo
-                            {% endif %}
-                        </td>
-                        <td>
-                            <div class="fw-semibold">{{ e.get_input_filename }}</div>
-                            <div class="d-flex align-items-center gap-2 mt-1">
-                                <a href="{{ e.input_file.url }}" target="_blank" class="text-info small">
-                                    <i class="fas fa-link"></i> Voir le fichier
-                                </a>
-                                {% if e.denoise %}
-                                <span class="badge bg-primary">Débruitage</span>
-                                {% endif %}
-                                {% if e.blend_factor > 0 %}
-                                <span class="badge bg-secondary">Blend {{ e.blend_factor }}</span>
-                                {% endif %}
-                            </div>
-                        </td>
-                        <td class="text-center small">
-                            {{ e.width }}x{{ e.height }}
-                            {% if e.output_width %}
-                                <br><i class="fas fa-arrow-right text-success"></i> {{ e.output_width }}x{{ e.output_height }}
-                            {% endif %}
-                        </td>
-                        <td class="text-center small">
-                            <span class="badge bg-info">{{ e.get_ai_model_display }}</span>
-                        </td>
-                        <td class="status text-uppercase text-center">{{ e.status }}</td>
-                        <td>
-                            <div class="progress" style="height: 24px;">
-                                <div class="progress-bar" role="progressbar" style="width: {{ e.progress }}%;">
-                                    {{ e.progress }}%
-                                </div>
-                            </div>
-                        </td>
-                        <td class="text-center">
-                            <div class="btn-group" role="group">
-                                <button class="btn btn-primary btn-sm js-restart-enhancement"
-                                        data-id="{{ e.id }}"
-                                        title="Relancer le traitement">
-                                    <i class="fas fa-play"></i>
-                                </button>
-                                <a class="btn btn-success btn-sm download-btn {% if not e.output_file %}disabled{% endif %}"
-                                   {% if not e.output_file %}aria-disabled="true" tabindex="-1"{% endif %}
-                                   href="{% url 'enhancer:download' e.id %}">
-                                    <i class="fas fa-download"></i>
-                                </a>
-                                <button class="btn btn-warning btn-sm settings-btn"
-                                        data-bs-toggle="modal" data-bs-target="#settingsModal{{ e.id }}">
-                                    <i class="fas fa-cog"></i>
-                                </button>
-                                <button class="btn btn-danger btn-sm js-delete-enhancement"
-                                        data-delete-url="{% url 'enhancer:delete' e.id %}">
-                                    <i class="fas fa-trash-alt"></i>
-                                </button>
-                            </div>
-                        </td>
-                    </tr>
-
-                    <!-- Settings Modal for each enhancement -->
-                    <div class="modal fade" id="settingsModal{{ e.id }}" tabindex="-1">
-                        <div class="modal-dialog">
-                            <div class="modal-content bg-dark text-white">
-                                <div class="modal-header border-secondary">
-                                    <h5 class="modal-title">Paramètres - #{{ e.id }}</h5>
-                                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                                </div>
-                                <div class="modal-body">
-                                    <form class="enhancement-settings-form" data-id="{{ e.id }}">
-                                        <div class="mb-3">
-                                            <label class="form-label">Modèle AI</label>
-                                            <select class="form-select bg-dark text-white border-secondary" name="ai_model">
-                                                {% for value, label in ai_models %}
-                                                    <option value="{{ value }}" {% if e.ai_model == value %}selected{% endif %}>
-                                                        {{ label }}
-                                                    </option>
-                                                {% endfor %}
-                                            </select>
-                                        </div>
-                                        <div class="mb-3 form-check form-switch">
-                                            <input class="form-check-input" type="checkbox" name="denoise"
-                                                   {% if e.denoise %}checked{% endif %}>
-                                            <label class="form-check-label">Débruitage</label>
-                                        </div>
-                                        <div class="mb-3">
-                                            <label class="form-label">Blend Factor: <span class="blend-display">{{ e.blend_factor }}</span></label>
-                                            <input type="range" class="form-range" name="blend_factor"
-                                                   min="0" max="1" step="0.1" value="{{ e.blend_factor }}"
-                                                   oninput="this.previousElementSibling.querySelector('.blend-display').textContent = this.value">
-                                        </div>
-                                    </form>
-                                </div>
-                                <div class="modal-footer border-secondary">
-                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-                                    <button type="button" class="btn btn-primary save-settings-btn" data-id="{{ e.id }}">
-                                        Sauvegarder
-                                    </button>
-                                    <button type="button" class="btn btn-success save-and-restart-btn" data-id="{{ e.id }}">
-                                        <i class="fas fa-play"></i> Sauvegarder et relancer
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    {% empty %}
-                    <tr class="empty-row">
-                        <td colspan="8" class="text-center py-4">Aucun fichier en attente.</td>
-                    </tr>
-                    {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-
-</div>
-{% endblock %}
-{% endblock enhancer_content %}

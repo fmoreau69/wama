@@ -1,28 +1,124 @@
-{% extends 'common/app_base.html' %}
+{% extends 'common/app_modern_base.html' %}
 {% load static %}
 
-{% block app_scripts %}
-{# TRANSCRIBER SPECIFIC SCRIPTS - chargés depuis index.html #}
-{% endblock %}
+{% block app_icon %}<i class="fas fa-file-audio text-primary"></i>{% endblock %}
+{% block app_title %}Speech-to-Text Transcriber{% endblock %}
+{% block app_description %}Transcrivez automatiquement vos fichiers audio en texte{% endblock %}
 
 {% block console_content_id %}transcriber-console-content{% endblock %}
-{% block console_hint_id %}transcriber-console-hint{% endblock %}
 {% block console_url %}{% url 'transcriber:console' %}{% endblock %}
 
-{% block app_menu %}
-<a href="{% url 'transcriber:index' %}" class="list-group-item {% if request.path == '/transcriber/' %} active {% endif %}">
-    <span class="fas fa-upload"></span> Upload / <span class="fas fa-spinner"></span> Process
-</a>
-<a href="{% url 'transcriber:about' %}" class="list-group-item {% if request.path == '/transcriber/about/' %} active {% endif %}">
-    <span class="fas fa-circle-info"></span> About
-</a>
-<a href="{% url 'transcriber:help' %}" class="list-group-item {% if request.path == '/transcriber/help/' %} active {% endif %}">
-    <span class="fas fa-circle-question"></span> Help
-</a>
+{% block queue_content %}
+    {% block transcriber_content %}
+    {# Le contenu principal de Transcriber #}
+    {% endblock %}
 {% endblock %}
 
-{% block app_content %}
-{% block transcriber_content %}
-{# Le contenu spécifique à chaque page transcriber va ici #}
+{% block about_content %}
+<div class="info-card">
+    <h3><i class="fas fa-file-audio me-2"></i>À propos de Transcriber</h3>
+
+    <div class="mb-4">
+        <h5>Qu'est-ce que Transcriber ?</h5>
+        <p class="text-light">
+            Transcriber est une application de transcription automatique intégrée à WAMA
+            qui convertit vos fichiers audio en texte avec précision.
+        </p>
+    </div>
+
+    <div class="mb-4">
+        <h5>Fonctionnalités</h5>
+        <ul class="text-light">
+            <li>Interface pour télécharger des audios et obtenir des transcriptions textuelles</li>
+            <li>Propulsé par speech_to_text_transcriptor avec Whisper en secours</li>
+            <li>Support de multiples formats audio</li>
+            <li>Détection automatique de la langue</li>
+            <li>Téléchargement des transcriptions en TXT, DOCX, ou autres formats</li>
+            <li>Traitement par lots de plusieurs fichiers</li>
+            <li>Prévisualisation des transcriptions</li>
+        </ul>
+    </div>
+
+    <div class="mb-4">
+        <h5>Comment ça fonctionne ?</h5>
+        <ol class="text-light">
+            <li>Téléchargez un fichier audio</li>
+            <li>Lancez le traitement</li>
+            <li>Suivez la progression</li>
+            <li>Téléchargez le texte transcrit quand c'est terminé</li>
+        </ol>
+    </div>
+
+    <div>
+        <h5>Technologie</h5>
+        <p class="text-light">
+            Utilise des modèles de reconnaissance vocale avancés pour une transcription
+            précise et rapide de vos fichiers audio.
+        </p>
+    </div>
+</div>
 {% endblock %}
+
+{% block help_content %}
+<div class="info-card">
+    <h3><i class="fas fa-question-circle me-2"></i>Guide d'utilisation</h3>
+
+    <div class="mb-4">
+        <h5><i class="fas fa-file-upload me-2"></i>Téléchargement</h5>
+        <ul class="text-light">
+            <li>Cliquez sur "Upload audio" et sélectionnez un fichier depuis votre ordinateur</li>
+            <li>Ou utilisez le glisser-déposer pour ajouter rapidement vos fichiers</li>
+            <li>Formats supportés : MP3, WAV, M4A, FLAC, OGG, et plus</li>
+        </ul>
+    </div>
+
+    <div class="mb-4">
+        <h5><i class="fas fa-play me-2"></i>Traitement</h5>
+        <ul class="text-light">
+            <li>Le traitement peut démarrer automatiquement après l'upload</li>
+            <li>Ou cliquez sur le bouton de démarrage pour lancer manuellement</li>
+            <li>La barre de progression indique l'avancement du traitement</li>
+            <li>Le statut passe de : En attente → En cours → Terminé</li>
+        </ul>
+    </div>
+
+    <div class="mb-4">
+        <h5><i class="fas fa-download me-2"></i>Téléchargement</h5>
+        <ul class="text-light">
+            <li>Quand c'est terminé, cliquez sur Télécharger pour sauvegarder la transcription</li>
+            <li>Le fichier texte contient l'intégralité de la transcription</li>
+            <li>Différents formats de sortie peuvent être disponibles</li>
+        </ul>
+    </div>
+
+    <div class="mb-4">
+        <h5><i class="fas fa-microphone me-2"></i>Bouton "Speak"</h5>
+        <p class="text-light">
+            Transcriber dispose d'une fonctionnalité unique permettant d'enregistrer
+            directement votre voix depuis le navigateur :
+        </p>
+        <ul class="text-light">
+            <li>Cliquez sur le bouton "Speak" pour commencer l'enregistrement</li>
+            <li>Parlez clairement dans votre microphone</li>
+            <li>Cliquez à nouveau pour arrêter l'enregistrement</li>
+            <li>L'audio capturé sera automatiquement ajouté à la file de transcription</li>
+        </ul>
+    </div>
+
+    <div class="alert alert-info">
+        <h6><i class="fas fa-lightbulb me-2"></i>Astuce</h6>
+        <p class="mb-0">
+            Pour de meilleurs résultats, utilisez des fichiers audio de qualité avec
+            un minimum de bruit de fond. La transcription sera plus précise.
+        </p>
+    </div>
+</div>
+{% endblock %}
+
+{% block footer_text %}
+    Transcriber - Speech-to-Text Transcription | WAMA
+{% endblock %}
+
+{% block app_scripts %}
+{# Scripts spécifiques à Transcriber #}
 {% endblock %}

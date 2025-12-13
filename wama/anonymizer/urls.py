@@ -38,6 +38,11 @@ urlpatterns = [
     # Model Management
     path('model-recommendations/', views.get_model_recommendations, name='model_recommendations'),
 
+    # Modern Modal-Based Settings
+    path('get_media_settings/<int:media_id>/', views.get_media_settings, name='get_media_settings'),
+    path('save_media_settings/', views.save_media_settings, name='save_media_settings'),
+    path('restart_media/', views.restart_media, name='restart_media'),
+
     # Unused
     # path('display_console/', views.ProcessView.display_console, name='display_console'),
 ]

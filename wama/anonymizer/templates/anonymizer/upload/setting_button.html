@@ -6,11 +6,11 @@
                 <input class="form-check-input setting-button" type="checkbox" role="switch" name="{{ setting.name }}"
                      id="{{ setting_type }}_{{ setting.name }}_{{ id }}"
                      {% if value %}checked{% endif %}>
-                <label class="form-check-label" for="{{ setting_type }}_{{ setting.name }}_{{ id }}">{{ setting.title }}</label>
+                <label class="form-check-label text-light" for="{{ setting_type }}_{{ setting.name }}_{{ id }}">{{ setting.title }}</label>
             </div>
         {% elif setting.type == 'CHOICE' %}
             <div>
-                <label class="form-label">{{ setting.title }}</label><br>
+                <label class="form-label text-light">{{ setting.title }}</label><br>
                 {% for opt_value, label in setting.choices %}
                     <div class="form-check">
                         <input type="checkbox" class="form-check-input setting-button"
@@ -18,7 +18,7 @@
                                id="{{ setting_type }}_{{ setting.name }}{% if setting_type == 'media_setting' %}_{{ id }}{% endif %}_{{ forloop.counter }}"
                                value="{{ opt_value }}"
                                {% if opt_value in selected_values %}checked{% endif %}>
-                        <label class="form-check-label"
+                        <label class="form-check-label text-light"
                                for="{{ setting_type }}_{{ setting.name }}{% if setting_type == 'media_setting' %}_{{ id }}{% endif %}_{{ forloop.counter }}">
                             {{ label }}
                         </label>
@@ -39,7 +39,7 @@
                                style="flex: 0 0 90px; min-width: 90px;"
                                oninput="this.nextElementSibling.value = this.value">
                         <output class="text-light" style="min-width: 2rem; text-align: center; font-size: 0.85rem;">{{ value }}</output>
-                        <label class="form-range-label mb-0 text-nowrap" for="{{ setting_type }}_{{ setting.name }}" style="font-size: 0.85rem;">
+                        <label class="form-range-label mb-0 text-nowrap text-light" for="{{ setting_type }}_{{ setting.name }}" style="font-size: 0.85rem;">
                             {{ setting.title }}
                         </label>
                     </div>
@@ -52,10 +52,10 @@
                            value="{{ value }}" min="{{ setting.min }}" max="{{ setting.max }}" step="{{ setting.step }}"
                            title="{{ setting.title }}"
                            oninput="this.nextElementSibling.value = this.value">
-                    <label class="form-range-label" for="{{ setting_type }}_{{ setting.name }}_{{ id }}">
+                    <label class="form-range-label text-light" for="{{ setting_type }}_{{ setting.name }}_{{ id }}">
                         {{ setting.title }}:
                     </label>
-                    <output>{{ value }}</output>
+                    <output class="text-light">{{ value }}</output>
                 {% endif %}
             </div>
         {% endif %}

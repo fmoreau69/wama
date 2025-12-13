@@ -1,96 +1,104 @@
 <div {% if not user.user_settings.media_added %} class="collapse" {% else %} class="collapse show" {% endif %}
      id="collapseContent">
-    <!--  content  -->
-    <br>
-    <hr>
-    <!--  media list  -->
-    <div class="row">
-        <div class="col-3"></div>
-        <div class="col-6">
-            <h2 class="text-center">Media List</h2>
-        </div>
-        <div class="col-3">
-            <button type="button" id="clear_all_media_btn" class="btn btn-danger float-end">
-                <i class="far fa-trash-alt"></i> Clear All
-            </button>
-            <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
-        </div>
-    </div>
-    <div id="media_table_container">
-        {% include "anonymizer/upload/media_table.html" %}
-    </div>
-    <div class="row">
-        <div class="col-4">
-            <form method="post" action="{% url 'anonymizer:expand_area' %}">
-                {% csrf_token %}
-                <a class="btn btn-info" id="button_show_gs" data-bs-toggle="collapse" href="#collapseGlobalSettings"
-                   aria-expanded="false" aria-controls="collapseGlobalSettings">
-                    <i class="fas fa-cog"></i> Global Settings
-                </a>
-            </form>
-        </div>
-        <div class="col-4 text-center" style="margin-bottom: 20px;">
-            <button id="process-toggle-btn" class="btn btn-info">
-                <i class="fas fa-dice"></i> Start Process
-            </button>
-        </div>
-        <div id="download-all-wrapper" data-check-url="{% url 'anonymizer:check_all_processed' %}" class="col-4 text-center" style="margin-bottom: 20px;">
-            <form action="{% url 'anonymizer:download_all_media' %}" method="post">
-                {% csrf_token %}
-                <button id="download-all-btn" type="submit" class="btn btn-success float-end" disabled>
-                    Download All
-                </button>
-            </form>
-        </div>
-        <div id="process-loader" style="display:none; margin-top:10px;">
-            <div class="progress">
-                <div id="process-progress" class="progress-bar" role="progressbar" style="width: 0%;">0%</div>
-            </div>
-        </div>
-        <div id="process-result" style="margin-top:10px;"></div>
-    </div>
-    <div class="col-3"></div>
-</div>
-<!--  Global settings  -->
-<div {% if user.user_settings.show_gs %} class="collapse show" {% else %} class="collapse" {% endif %} id="collapseGlobalSettings">
-    <div id="global_settings_container">
-        {% include "anonymizer/upload/global_settings.html" %}
-    </div>
-</div>
-<br>
-<div>
-    <div class="row">
-        <div class="col-4">
-            <form method="post" action="{% url 'anonymizer:expand_area' %}">
-                {% csrf_token %}
-                <a class="btn btn-info" id="button_show_preview" data-bs-toggle="collapse" href="#collapsePreview"
-                   aria-expanded="false" aria-controls="collapsePreview">
-                    <i class="fas fa-display"></i> Preview
-                </a>
-            </form>
-        </div>
-    </div>
-</div>
-<div {% if user.user_settings.show_preview %} class="collapse show" {% else %} class="collapse" {% endif %} id="collapsePreview">
-    <hr>
-    <h1 class="text-center">Preview</h1>
-    <div class="preview-wrapper">
-        <div class="preview-player-shell ratio ratio-16x9 bg-black rounded shadow position-relative overflow-hidden">
-            <video id="media-preview-player"
-                   class="w-100 h-100 position-absolute top-0 start-0 d-none"
-                   controls
-                   playsinline
-                   muted
-                   preload="metadata"></video>
-            <div id="media-preview-empty" class="preview-placeholder text-white text-center px-4">
-                <div class="d-flex flex-column h-100 justify-content-center align-items-center">
-                    <i class="fas fa-play-circle mb-3" style="font-size: 3rem;"></i>
-                    <h4 class="fw-bold mb-2">Aucun média sélectionné</h4>
-                    <p class="text-muted mb-0">Choisissez un média dans le tableau pour lancer l’aperçu.</p>
+
+    <!-- Global Settings (Collapsible) -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card bg-dark border-secondary">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span class="fw-bold"><i class="fas fa-cog"></i> Paramètres globaux</span>
+                    <button class="btn btn-sm btn-outline-light" type="button" data-bs-toggle="collapse" data-bs-target="#collapseGlobalSettings">
+                        <i class="fas fa-chevron-down"></i>
+                    </button>
+                </div>
+                <div {% if user.user_settings.show_gs %} class="collapse show" {% else %} class="collapse" {% endif %} id="collapseGlobalSettings">
+                    <div class="card-body" id="global_settings_container">
+                        {% include "anonymizer/upload/global_settings.html" %}
+                    </div>
                 </div>
             </div>
         </div>
-        <div id="media-preview-meta" class="text-center text-muted mt-2 d-none"></div>
     </div>
-    <br>
+
+    <hr class="border-secondary my-4">
+
+    <!-- Action Buttons -->
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="btn-group" role="group">
+                <button id="process-toggle-btn" class="btn btn-success">
+                    <i class="fas fa-play"></i> Démarrer le traitement
+                </button>
+                <form action="{% url 'anonymizer:download_all_media' %}" method="post" class="d-inline">
+                    {% csrf_token %}
+                    <button id="download-all-btn" type="submit" class="btn btn-info" disabled>
+                        <i class="fas fa-download"></i> Télécharger tout
+                    </button>
+                </form>
+                <button type="button" id="clear_all_media_btn" class="btn btn-danger">
+                    <i class="fas fa-trash"></i> Tout effacer
+                </button>
+            </div>
+            <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+        </div>
+    </div>
+
+    <!-- Queue Header -->
+    <div class="row mb-3">
+        <div class="col-12">
+            <h4 class="mb-3">
+                <i class="fas fa-list"></i> File d'attente
+                <span class="badge bg-secondary">{{ medias.count }}</span>
+            </h4>
+        </div>
+    </div>
+
+    <!-- Media Table -->
+    <div id="media_table_container" class="table-responsive">
+        {% include "anonymizer/upload/media_table.html" %}
+    </div>
+
+    <!-- Process Loader & Results -->
+    <div id="process-loader" style="display:none; margin-top:10px;">
+        <div class="progress">
+            <div id="process-progress" class="progress-bar" role="progressbar" style="width: 0%;">0%</div>
+        </div>
+    </div>
+    <div id="process-result" style="margin-top:10px;"></div>
+
+    <!-- Preview Section (Collapsible) -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card bg-dark border-secondary">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span class="fw-bold"><i class="fas fa-display"></i> Prévisualisation</span>
+                    <button class="btn btn-sm btn-outline-light" type="button" data-bs-toggle="collapse" data-bs-target="#collapsePreview">
+                        <i class="fas fa-chevron-down"></i>
+                    </button>
+                </div>
+                <div {% if user.user_settings.show_preview %} class="collapse show" {% else %} class="collapse" {% endif %} id="collapsePreview">
+                    <div class="card-body">
+                        <div class="preview-wrapper">
+                            <div class="preview-player-shell ratio ratio-16x9 bg-black rounded shadow position-relative overflow-hidden">
+                                <video id="media-preview-player"
+                                       class="w-100 h-100 position-absolute top-0 start-0 d-none"
+                                       controls
+                                       playsinline
+                                       muted
+                                       preload="metadata"></video>
+                                <div id="media-preview-empty" class="preview-placeholder text-white text-center px-4">
+                                    <div class="d-flex flex-column h-100 justify-content-center align-items-center">
+                                        <i class="fas fa-play-circle mb-3" style="font-size: 3rem;"></i>
+                                        <h4 class="fw-bold mb-2">Aucun média sélectionné</h4>
+                                        <p class="text-muted mb-0">Choisissez un média dans le tableau pour lancer l'aperçu.</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div id="media-preview-meta" class="text-center text-muted mt-2 d-none"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>

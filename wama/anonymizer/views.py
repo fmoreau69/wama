@@ -1007,6 +1007,212 @@ def reset_global_settings_safe():
         GlobalSettings.objects.all().delete()
         init_global_settings()
 
+
+# ========================================
+# Modern Modal-Based Settings Endpoints
+# ========================================
+
+def get_media_settings(request, media_id):
+    """Get settings for a specific media to populate the settings modal."""
+    try:
+        media = Media.objects.get(pk=media_id)
+        global_settings = GlobalSettings.objects.all()
+
+        # Build settings data for the modal
+        classes2blur_list = []
+        sliders_list = []
+        booleans_list = []
+
+        # Classes2blur options - toutes les classes YOLO COCO (80 classes) + classes spéciales
+        # Classes spéciales pour l'anonymisation
+        special_classes = ["face", "plate"]
+
+        # Classes YOLO COCO standard (80 classes)
+        coco_classes = [
+            'person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train', 'truck', 'boat',
+            'traffic light', 'fire hydrant', 'stop sign', 'parking meter', 'bench', 'bird', 'cat',
+            'dog', 'horse', 'sheep', 'cow', 'elephant', 'bear', 'zebra', 'giraffe', 'backpack',
+            'umbrella', 'handbag', 'tie', 'suitcase', 'frisbee', 'skis', 'snowboard', 'sports ball',
+            'kite', 'baseball bat', 'baseball glove', 'skateboard', 'surfboard', 'tennis racket',
+            'bottle', 'wine glass', 'cup', 'fork', 'knife', 'spoon', 'bowl', 'banana', 'apple',
+            'sandwich', 'orange', 'broccoli', 'carrot', 'hot dog', 'pizza', 'donut', 'cake', 'chair',
+            'couch', 'potted plant', 'bed', 'dining table', 'toilet', 'tv', 'laptop', 'mouse',
+            'remote', 'keyboard', 'cell phone', 'microwave', 'oven', 'toaster', 'sink', 'refrigerator',
+            'book', 'clock', 'vase', 'scissors', 'teddy bear', 'hair drier', 'toothbrush'
+        ]
+
+        # Combiner les classes spéciales et COCO
+        available_classes = special_classes + coco_classes
+
+        media_classes = media.classes2blur if media.classes2blur else []
+        for cls in available_classes:
+            classes2blur_list.append({
+                'value': cls,
+                'label': cls.replace('_', ' ').title(),
+                'checked': cls in media_classes
+            })
+
+        # Slider settings (FLOAT type)
+        slider_configs = [
+            {'name': 'blur_ratio', 'title': 'Blur Ratio', 'min': 1, 'max': 49, 'step': 2},
+            {'name': 'roi_enlargement', 'title': 'ROI Enlargement', 'min': 0.5, 'max': 1.5, 'step': 0.05},
+            {'name': 'progressive_blur', 'title': 'Progressive Blur', 'min': 3, 'max': 31, 'step': 2},
+            {'name': 'detection_threshold', 'title': 'Detection Threshold', 'min': 0, 'max': 1, 'step': 0.05},
+            {'name': 'precision_level', 'title': 'Precision Level', 'min': 0, 'max': 100, 'step': 5},
+        ]
+
+        for config in slider_configs:
+            media_value = getattr(media, config['name'], None)
+            if media_value is None:
+                # Get default from global settings
+                setting = global_settings.filter(name=config['name']).first()
+                if setting:
+                    default_val = setting.default
+                    if isinstance(default_val, str):
+                        media_value = float(default_val)
+                    else:
+                        media_value = float(default_val) if default_val else config['min']
+                else:
+                    media_value = config['min']
+
+            sliders_list.append({
+                'name': config['name'],
+                'title': config['title'],
+                'value': float(media_value),
+                'min': config['min'],
+                'max': config['max'],
+                'step': config['step'],
+                'description': ''
+            })
+
+        # Boolean settings
+        bool_configs = [
+            {'name': 'show_preview', 'title': 'Show Preview'},
+            {'name': 'show_boxes', 'title': 'Show Boxes'},
+            {'name': 'show_labels', 'title': 'Show Labels'},
+            {'name': 'show_conf', 'title': 'Show Confidence'},
+            {'name': 'interpolate_detections', 'title': 'Interpolate Detections'},
+            {'name': 'use_segmentation', 'title': 'Use Segmentation'},
+        ]
+
+        for config in bool_configs:
+            media_value = getattr(media, config['name'], False)
+            booleans_list.append({
+                'name': config['name'],
+                'title': config['title'],
+                'value': bool(media_value)
+            })
+
+        return JsonResponse({
+            'success': True,
+            'classes2blur': classes2blur_list,
+            'sliders': sliders_list,
+            'booleans': booleans_list
+        })
+
+    except Media.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Media not found'
+        }, status=404)
+    except Exception as e:
+        import traceback
+        return JsonResponse({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        }, status=500)
+
+
+@require_POST
+def save_media_settings(request):
+    """Save settings for a specific media from the modal."""
+    try:
+        media_id = request.POST.get('media_id')
+        if not media_id:
+            return JsonResponse({'success': False, 'error': 'No media_id provided'}, status=400)
+
+        media = Media.objects.get(pk=media_id)
+
+        # Save classes2blur (checkboxes)
+        classes2blur = request.POST.getlist('classes2blur')
+        if classes2blur:
+            media.classes2blur = classes2blur
+
+        # Save slider values
+        slider_fields = ['blur_ratio', 'roi_enlargement', 'progressive_blur', 'detection_threshold', 'precision_level']
+        for field in slider_fields:
+            value = request.POST.get(field)
+            if value is not None:
+                if field in ['blur_ratio', 'progressive_blur', 'precision_level']:
+                    setattr(media, field, int(float(value)))
+                else:
+                    setattr(media, field, float(value))
+
+        # Save boolean values
+        bool_fields = ['show_preview', 'show_boxes', 'show_labels', 'show_conf', 'interpolate_detections', 'use_segmentation']
+        for field in bool_fields:
+            value = request.POST.get(field)
+            if value is not None:
+                setattr(media, field, value.lower() == 'true')
+
+        # Mark as customized
+        media.MSValues_customised = True
+        media.save()
+
+        return JsonResponse({
+            'success': True,
+            'message': 'Settings saved successfully'
+        })
+
+    except Media.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Media not found'
+        }, status=404)
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@require_POST
+def restart_media(request):
+    """Restart processing for a specific media."""
+    try:
+        media_id = request.POST.get('media_id')
+        if not media_id:
+            return JsonResponse({'success': False, 'error': 'No media_id provided'}, status=400)
+
+        media = Media.objects.get(pk=media_id)
+
+        # Reset processing status
+        media.processed = False
+        media.blur_progress = 0
+        media.save()
+
+        # Launch the processing task
+        task = process_single_media.delay(media.id)
+
+        return JsonResponse({
+            'success': True,
+            'message': 'Processing started',
+            'task_id': task.id
+        })
+
+    except Media.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Media not found'
+        }, status=404)
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
 class AboutView(TemplateView):
     template_name = 'anonymizer/about.html'
 

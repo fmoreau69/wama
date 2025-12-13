@@ -1,32 +1,222 @@
-{% extends 'common/app_base.html' %}
+{% extends 'common/app_modern_base.html' %}
 {% load static %}
 
-{% block app_scripts %}
-{# ANONYMIZER SPECIFIC SCRIPTS - chargés depuis index.html #}
-{% endblock %}
+{% block app_icon %}<i class="fas fa-user-secret text-primary"></i>{% endblock %}
+{% block app_title %}Media Anonymizer{% endblock %}
+{% block app_description %}Anonymisez automatiquement visages et plaques d'immatriculation pour la conformité RGPD{% endblock %}
 
 {% block console_content_id %}anonymizer-console-content{% endblock %}
-{% block console_hint_id %}anonymizer-console-hint{% endblock %}
 {% block console_url %}{% url 'anonymizer:console' %}{% endblock %}
 
-{% block app_menu %}
-<a href="{% url 'anonymizer:index' %}" class="list-group-item {% if request.path == '/anonymizer/' or request.path == '/anonymizer/upload/' %} active {% endif %}">
-    <span class="fas fa-upload"></span> Upload / <span class="fas fa-spinner"></span> Process
-</a>
-<a href="{% url 'anonymizer:about' %}" class="list-group-item {% if request.path == '/anonymizer/about/' %} active {% endif %}">
-    <span class="fas fa-circle-info"></span> About
-</a>
-<a href="{% url 'anonymizer:help' %}" class="list-group-item {% if request.path == '/anonymizer/help/' %} active {% endif %}">
-    <span class="fas fa-circle-question"></span> Help
-</a>
+{% block queue_content %}
+    {% block anonymizer_content %}
+    {# Le contenu principal d'Anonymizer #}
+    {% endblock %}
 {% endblock %}
 
-{% block app_content %}
-{% block anonymizer_content %}
-{# Le contenu spécifique à chaque page anonymizer va ici #}
-{% endblock %}
+{% block about_content %}
+<div class="info-card">
+    <h3><i class="fas fa-user-secret me-2"></i>À propos d'Anonymizer</h3>
+
+    <div class="mb-4">
+        <h5>Qu'est-ce qu'Anonymizer ?</h5>
+        <p class="text-light">
+            Anonymizer est une application d'anonymisation automatique de médias intégrée à WAMA.
+            Elle détecte et floute rapidement et avec précision les visages, plaques d'immatriculation
+            et bien plus encore dans vos photos et vidéos.
+        </p>
+    </div>
+
+    <div class="mb-4">
+        <h5>Conformité RGPD</h5>
+        <p class="text-light">
+            En conformité avec le <a href="https://www.economie.gouv.fr/entreprises/reglement-general-protection-donnees-rgpd"
+               target="_blank" class="text-info">Règlement Général sur la Protection des Données (RGPD)</a>,
+            Anonymizer vous aide à garantir l'anonymisation de vos données visuelles.
+        </p>
+        <ul class="text-light">
+            <li>Répond aux exigences du RGPD et de la CNIL</li>
+            <li>Permet la conservation de données vidéo anonymisées pour la recherche</li>
+            <li>Service d'anonymisation automatique en ligne</li>
+            <li>Intégrable dans des projets de recherche futurs</li>
+        </ul>
+    </div>
+
+    <div class="mb-4">
+        <h5>Fonctionnalités</h5>
+        <ul class="text-light">
+            <li>Détection et floutage de visages avec précision</li>
+            <li>Détection et floutage de plaques d'immatriculation</li>
+            <li>Support de multiples classes d'objets personnalisables</li>
+            <li>Configuration globale ou individuelle par média</li>
+            <li>Paramètres de flou avancés (taille, progressif, seuil, ROI)</li>
+            <li>Options d'affichage (boîtes, labels, confiance)</li>
+            <li>Support de photos et vidéos</li>
+            <li>Upload depuis fichiers, liens ou dossiers</li>
+            <li>Traitement par lots</li>
+            <li>Prévisualisation en temps réel</li>
+        </ul>
+    </div>
+
+    <div class="mb-4">
+        <h5>Options de détection</h5>
+        <div class="row">
+            <div class="col-md-4">
+                <div class="card bg-dark border-secondary mb-3">
+                    <div class="card-body">
+                        <h6 class="card-title text-info"><i class="fas fa-user me-2"></i>Visages</h6>
+                        <p class="card-text small">Détection des visages de personnes</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card bg-dark border-secondary mb-3">
+                    <div class="card-body">
+                        <h6 class="card-title text-info"><i class="fas fa-car me-2"></i>Plaques</h6>
+                        <p class="card-text small">Détection des plaques d'immatriculation</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card bg-dark border-secondary mb-3">
+                    <div class="card-body">
+                        <h6 class="card-title text-info"><i class="fas fa-ellipsis me-2"></i>Autres objets</h6>
+                        <p class="card-text small">Classes d'objets personnalisables</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div>
+        <h5>Technologie</h5>
+        <p class="text-light">
+            <strong><a href="https://pytorch.org/" target="_blank" class="text-info">PyTorch</a> :</strong>
+            Framework de deep learning développé par le groupe de recherche en IA de Facebook,
+            publié en open source sur GitHub en 2017.
+        </p>
+        <p class="text-light">
+            <strong><a href="https://www.ultralytics.com/yolo" target="_blank" class="text-info">YOLOv8</a> :</strong>
+            You Only Look Once - Framework de détection d'objets en temps réel de dernière génération.
+        </p>
+    </div>
+
+    <div class="alert alert-info mt-4">
+        <i class="fas fa-info-circle"></i>
+        <strong>Note :</strong> L'anonymisation est un processus irréversible. Assurez-vous de conserver
+        une copie originale de vos médias si nécessaire avant traitement.
+    </div>
+</div>
 {% endblock %}
 
-{% block extra_modals %}
-{# Modals spécifiques à l'anonymizer - doivent être au niveau body #}
+{% block help_content %}
+<div class="info-card">
+    <h3><i class="fas fa-question-circle me-2"></i>Guide d'utilisation</h3>
+
+    <!-- Quick Start -->
+    <div class="mb-4">
+        <h5>Démarrage rapide</h5>
+        <div class="card bg-dark mb-2">
+            <div class="card-body">
+                <h6 class="text-info">1. Uploader des médias</h6>
+                <p class="text-light mb-0">
+                    Glissez-déposez vos fichiers ou cliquez pour sélectionner des vidéos, photos, liens ou dossiers.
+                </p>
+            </div>
+        </div>
+        <div class="card bg-dark mb-2">
+            <div class="card-body">
+                <h6 class="text-info">2. Configurer les paramètres</h6>
+                <p class="text-light mb-0">
+                    Cliquez sur l'icône ⚙️ pour configurer les options d'anonymisation pour chaque média.
+                </p>
+            </div>
+        </div>
+        <div class="card bg-dark mb-2">
+            <div class="card-body">
+                <h6 class="text-info">3. Lancer le traitement</h6>
+                <p class="text-light mb-0">
+                    Cliquez sur "Démarrer le traitement" pour lancer l'anonymisation.
+                </p>
+            </div>
+        </div>
+        <div class="card bg-dark">
+            <div class="card-body">
+                <h6 class="text-info">4. Télécharger les résultats</h6>
+                <p class="text-light mb-0">
+                    Une fois terminé, téléchargez vos médias anonymisés.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Upload Options -->
+    <div class="mb-4">
+        <h5><i class="fas fa-upload me-2"></i>Types d'upload supportés</h5>
+        <ul class="text-light">
+            <li><strong>Vidéos</strong> - MP4, AVI, MOV, MKV, etc.</li>
+            <li><strong>Photos</strong> - JPG, PNG, BMP, etc.</li>
+            <li><strong>Liens de médias</strong> - URL vers des vidéos ou images en ligne</li>
+            <li><strong>Dossiers de médias</strong> - Upload multiple de fichiers</li>
+        </ul>
+    </div>
+
+    <!-- Configuration Options -->
+    <div class="mb-4">
+        <h5><i class="fas fa-sliders-h me-2"></i>Options de configuration</h5>
+
+        <h6 class="text-info mt-3">Quoi flouter ?</h6>
+        <ul class="text-light">
+            <li><strong>Faces (Visages)</strong> - Active/désactive la détection des visages</li>
+            <li><strong>Plates (Plaques)</strong> - Active/désactive la détection des plaques d'immatriculation</li>
+            <li><strong>Autres objets</strong> - Sélectionnez les classes d'objets à détecter</li>
+        </ul>
+
+        <h6 class="text-info mt-3">Comment flouter ?</h6>
+        <ul class="text-light">
+            <li><strong>Blur Size</strong> - Taille du flou appliqué (valeur en pixels)</li>
+            <li><strong>Progressive Blur</strong> - Intensité du flou progressif sur les bords</li>
+            <li><strong>Detection Threshold</strong> - Seuil de confiance pour la détection (0-1)</li>
+            <li><strong>ROI Enlargement</strong> - Agrandissement de la région d'intérêt (%)</li>
+        </ul>
+
+        <h6 class="text-info mt-3">Quoi afficher ?</h6>
+        <ul class="text-light">
+            <li><strong>Boxes</strong> - Afficher les boîtes de détection</li>
+            <li><strong>Labels</strong> - Afficher les étiquettes des objets détectés</li>
+            <li><strong>Confidence</strong> - Afficher le score de confiance</li>
+            <li><strong>Show</strong> - Prévisualiser le traitement en temps réel</li>
+        </ul>
+    </div>
+
+    <!-- Processing -->
+    <div class="mb-4">
+        <h5><i class="fas fa-cog me-2"></i>Traitement</h5>
+        <ul class="text-light">
+            <li>Configuration globale : Applique les mêmes paramètres à tous les médias</li>
+            <li>Configuration individuelle : Personnalisez les paramètres pour chaque média via ⚙️</li>
+            <li>Visualisation en temps réel : Suivez la progression du floutage si activé</li>
+            <li>Optimisation : Ajustez les paramètres et relancez si le résultat n'est pas satisfaisant</li>
+        </ul>
+    </div>
+
+    <!-- Tips -->
+    <div class="alert alert-info">
+        <h6><i class="fas fa-lightbulb me-2"></i>Astuces</h6>
+        <ul class="mb-0">
+            <li>Pour une détection optimale, utilisez des vidéos avec une bonne résolution</li>
+            <li>Augmentez le Detection Threshold si trop de faux positifs sont détectés</li>
+            <li>Utilisez ROI Enlargement pour élargir la zone floutée autour des détections</li>
+            <li>Activez Progressive Blur pour un effet de flou plus naturel sur les bords</li>
+        </ul>
+    </div>
+</div>
+{% endblock %}
+
+{% block footer_text %}
+    Anonymizer - RGPD Compliant Media Anonymization | WAMA
+{% endblock %}
+
+{% block app_scripts %}
+{# Scripts spécifiques à Anonymizer #}
 {% endblock %}
