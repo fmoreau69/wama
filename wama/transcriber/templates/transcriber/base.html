@@ -120,5 +120,11 @@
 {% endblock %}
 
 {% block app_scripts %}
+<script>
+    window.TRANSCRIBER_APP = Object.assign({}, window.TRANSCRIBER_APP, {
+        csrfToken: '{{ csrf_token }}',
+        globalProgressUrl: '{% url "transcriber:global_progress" %}',
+    });
+</script>
 {# Scripts spécifiques à Transcriber #}
 {% endblock %}

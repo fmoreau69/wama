@@ -379,7 +379,19 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(data => {
             if (data.success) {
                 console.log('[settings_modal.js] Media deleted successfully');
-                location.reload();
+
+                // Update UI dynamically instead of reloading the page
+                if (data.render) {
+                    const mainContainer = document.getElementById('main_container');
+                    if (mainContainer) {
+                        mainContainer.innerHTML = data.render;
+                        console.log('[settings_modal.js] UI updated dynamically');
+                    } else {
+                        location.reload();
+                    }
+                } else {
+                    location.reload();
+                }
             } else {
                 alert('Error deleting media: ' + (data.error || 'Unknown error'));
             }

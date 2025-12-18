@@ -26,6 +26,7 @@ app.autodiscover_tasks([
     'wama.synthesizer',
     'wama.transcriber',
     'wama.enhancer',
+    'wama.imager',
 ])
 
 @app.task(bind=True)

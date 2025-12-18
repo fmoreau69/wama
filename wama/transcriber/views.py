@@ -501,3 +501,42 @@ def preprocessing_status(request):
     return JsonResponse({
         'preprocessing_enabled': enabled,
     })
+
+
+def global_progress(request):
+    """Get overall progress for all user transcripts"""
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+
+    try:
+        transcripts = Transcript.objects.filter(user=user)
+
+        if not transcripts.exists():
+            return JsonResponse({
+                'total': 0,
+                'pending': 0,
+                'running': 0,
+                'success': 0,
+                'failure': 0,
+                'overall_progress': 0
+            })
+
+        total = transcripts.count()
+        pending = transcripts.filter(status='PENDING').count()
+        running = transcripts.filter(status='RUNNING').count()
+        success = transcripts.filter(status='SUCCESS').count()
+        failure = transcripts.filter(status='FAILURE').count()
+
+        # Calculate overall progress
+        total_progress = sum(t.progress for t in transcripts)
+        overall_progress = int(total_progress / total) if total > 0 else 0
+
+        return JsonResponse({
+            'total': total,
+            'pending': pending,
+            'running': running,
+            'success': success,
+            'failure': failure,
+            'overall_progress': overall_progress
+        })
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)

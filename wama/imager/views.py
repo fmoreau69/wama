@@ -176,10 +176,14 @@ def progress(request, generation_id):
     try:
         generation = get_object_or_404(ImageGeneration, id=generation_id, user=user)
 
+        # Get progress from cache (more real-time) or fallback to DB
+        cached_progress = cache.get(f"imager_progress_{generation_id}")
+        progress = cached_progress if cached_progress is not None else generation.progress
+
         data = {
             'id': generation.id,
             'status': generation.status,
-            'progress': generation.progress,
+            'progress': progress,
             'error_message': generation.error_message,
             'generated_images': generation.generated_images,
             'duration': generation.duration_display,

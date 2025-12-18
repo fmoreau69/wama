@@ -22,8 +22,9 @@ urlpatterns = [
     path('clear_all/', views.clear_all, name='clear_all'),
     path('download_all/', views.download_all, name='download_all'),
 
-    # Console
+    # Console & Progress
     path('console/', views.console_content, name='console'),
+    path('global_progress/', views.global_progress, name='global_progress'),
 
     # Preprocessing
     path('preprocessing/toggle/', views.toggle_preprocessing, name='toggle_preprocessing'),

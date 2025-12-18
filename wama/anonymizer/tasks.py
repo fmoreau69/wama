@@ -1,4 +1,6 @@
 import os
+import threading
+import time
 from celery import shared_task
 from django.db import close_old_connections
 from django.core.cache import cache
@@ -94,16 +96,44 @@ def process_single_media(self, media_id):
         except Exception:
             pass
 
-        # Run process (we cannot hook internal progress; mark mid-progress)
+        # Run process with simulated progress
         set_media_progress(media.id, 10)
         push_console_line(user.id, f"Running anonymization for media {media.id} ...")
-        start_process(**kwargs)
+
+        # Estimate processing time based on media type and size (rough estimate)
+        # Video: ~60 seconds, Image: ~10 seconds
+        # Adjust based on actual experience
+        is_video = media.file_ext.lower() in ['mp4', 'avi', 'mov', 'mkv', 'webm']
+        estimated_duration = 60 if is_video else 10
+
+        # Start progress simulation in background thread (10% -> 90%)
+        stop_flag = f"stop_progress_sim_{media.id}"
+        cache.delete(stop_flag)  # Ensure it's clear
+        progress_thread = threading.Thread(
+            target=simulate_progress,
+            args=(media.id, 10, 90, estimated_duration, stop_flag),
+            daemon=True
+        )
+        progress_thread.start()
+
+        try:
+            # Run the actual processing
+            start_process(**kwargs)
+        finally:
+            # Stop the progress simulation
+            cache.set(stop_flag, True, timeout=10)
+            progress_thread.join(timeout=2)  # Wait max 2 seconds for thread to finish
 
         # Marque le média comme traité
-        media.processed = True
-        media.save(update_fields=["processed"])
-        set_media_progress(media.id, 100)
-        push_console_line(user.id, f"Finished media {media.id} ✔")
+        try:
+            media.refresh_from_db()
+            media.processed = True
+            media.save(update_fields=["processed"])
+            set_media_progress(media.id, 100)
+            push_console_line(user.id, f"Finished media {media.id} ✔")
+        except media.__class__.DoesNotExist:
+            push_console_line(user.id, f"Warning: Media {media.id} was deleted during processing")
+            return {"error": "Media was deleted", "media_id": media_id}
 
         return {"processed": media.id}
 
@@ -174,3 +204,24 @@ def set_media_progress(media_id: int, percent: int) -> None:
     except Exception:
         # best effort only
         pass
+
+
+def simulate_progress(media_id: int, start_pct: int, end_pct: int, duration_seconds: int, stop_flag_key: str):
+    """
+    Simule une progression graduelle de start_pct à end_pct sur duration_seconds.
+    S'arrête si le flag stop_flag_key est détecté dans le cache.
+    """
+    if duration_seconds <= 0 or start_pct >= end_pct:
+        return
+
+    steps = min(duration_seconds, end_pct - start_pct)  # Max 1 step per second
+    interval = duration_seconds / steps
+    increment = (end_pct - start_pct) / steps
+
+    current = start_pct
+    for _ in range(steps):
+        if cache.get(stop_flag_key, False):
+            break
+        time.sleep(interval)
+        current += increment
+        set_media_progress(media_id, int(current))

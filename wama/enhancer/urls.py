@@ -15,4 +15,5 @@ urlpatterns = [
     path('download_all/', views.download_all, name='download_all'),
     path('update_settings/<int:pk>/', views.update_settings, name='update_settings'),
     path('console/', views.console_content, name='console'),
+    path('global_progress/', views.global_progress, name='global_progress'),
 ]

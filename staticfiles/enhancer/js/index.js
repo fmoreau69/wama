@@ -284,14 +284,22 @@ document.addEventListener('DOMContentLoaded', function () {
     }
     row.dataset.status = status;
 
-    if (['SUCCESS', 'FAILURE'].includes(status) || progress >= 100) {
-      stopPolling(id);
-    }
-
     if (status === 'SUCCESS' && downloadBtn) {
       downloadBtn.classList.remove('disabled');
       downloadBtn.removeAttribute('aria-disabled');
       downloadBtn.removeAttribute('tabindex');
+    }
+
+    // Stop polling after terminal states, but ensure we show 100% for SUCCESS
+    if (['SUCCESS', 'FAILURE'].includes(status)) {
+      // If SUCCESS and progress not yet 100%, force it to 100%
+      if (status === 'SUCCESS' && progress < 100 && bar) {
+        bar.style.width = '100%';
+        bar.textContent = '100%';
+      }
+      stopPolling(id);
+    } else if (progress >= 100) {
+      stopPolling(id);
     }
 
     updateDownloadAllState();
@@ -311,10 +319,22 @@ document.addEventListener('DOMContentLoaded', function () {
       }
     }
 
+    // Get settings from the enhancement's settings form
+    const form = document.querySelector(`.enhancement-settings-form[data-id="${id}"]`);
+    let settings = {};
+
+    if (form) {
+      settings = {
+        ai_model: form.querySelector('[name="ai_model"]')?.value,
+        denoise: form.querySelector('[name="denoise"]')?.checked,
+        blend_factor: form.querySelector('[name="blend_factor"]')?.value
+      };
+    }
+
     fetch(getUrl(config.startUrlTemplate, id), {
       method: 'POST',
       headers: csrfHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({}),
+      body: JSON.stringify(settings),
     })
       .then((response) => {
         if (!response.ok) {
@@ -476,7 +496,11 @@ document.addEventListener('DOMContentLoaded', function () {
     fetch(config.startAllUrl, {
       method: 'POST',
       headers: csrfHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({}),
+      body: JSON.stringify({
+        ai_model: defaultAiModel,
+        denoise: defaultDenoise,
+        blend_factor: defaultBlendFactor
+      }),
     })
       .then((response) => {
         if (!response.ok) {
@@ -578,10 +602,49 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
 
+  function updateGlobalProgress() {
+    if (!config.globalProgressUrl) return;
+
+    fetch(config.globalProgressUrl)
+      .then(response => response.json())
+      .then(data => {
+        const progressBar = document.getElementById('globalProgressBar');
+        const statsText = document.getElementById('globalProgressStats');
+
+        if (progressBar && statsText) {
+          const progress = data.overall_progress || 0;
+          progressBar.style.width = progress + '%';
+          progressBar.textContent = progress + '%';
+
+          statsText.textContent = `${data.success}/${data.total} terminé`;
+
+          // Update progress bar color based on status
+          progressBar.className = 'progress-bar';
+          if (data.failure > 0) {
+            progressBar.classList.add('bg-danger');
+          } else if (data.running > 0) {
+            progressBar.classList.add('progress-bar-animated', 'progress-bar-striped');
+          } else if (data.success === data.total && data.total > 0) {
+            progressBar.classList.add('bg-success');
+          }
+        }
+      })
+      .catch(error => console.error('Error updating global progress:', error));
+  }
+
   // Initialize
   initUpload();
   initDragDrop();
   initExistingRows();
   initBulkActions();
   bindRowActions(document);
+
+  // Bind actions to existing modals (loaded from Django template)
+  setTimeout(() => {
+    bindRowActions(document);
+  }, 100);
+
+  // Update global progress every 2 seconds
+  updateGlobalProgress();
+  setInterval(updateGlobalProgress, 2000);
 });

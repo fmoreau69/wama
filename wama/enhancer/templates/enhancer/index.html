@@ -113,6 +113,25 @@
     </div>
 </div>
 
+<!-- Global Progress -->
+<div class="row mb-3">
+    <div class="col-12">
+        <div class="card bg-dark border-secondary">
+            <div class="card-body py-2">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h6 class="mb-0 text-light">
+                        <i class="fas fa-chart-line"></i> Progression globale
+                    </h6>
+                    <small class="text-white-50" id="globalProgressStats">0/0 terminé</small>
+                </div>
+                <div class="progress" style="height: 20px;">
+                    <div class="progress-bar" id="globalProgressBar" role="progressbar" style="width: 0%">0%</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Enhancements Queue -->
 <div class="row">
     <div class="col-12">
@@ -270,6 +289,7 @@
       startAllUrl: '{% url "enhancer:start_all" %}',
       clearUrl: '{% url "enhancer:clear_all" %}',
       downloadAllUrl: '{% url "enhancer:download_all" %}',
+      globalProgressUrl: '{% url "enhancer:global_progress" %}',
     });
 </script>
 <script src="{% static 'enhancer/js/index.js' %}"></script>

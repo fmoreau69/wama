@@ -6,8 +6,11 @@ Image generation using imaginAIry
 from celery import shared_task
 from django.utils import timezone
 from django.conf import settings
+from django.core.cache import cache
 import os
 import logging
+
+from wama.common.utils.console_utils import push_console_line
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +28,8 @@ def generate_image_task(self, generation_id):
         generation.progress = 0
         generation.save()
 
+        user_id = generation.user.id
+        push_console_line(user_id, f"[Imager] Starting generation #{generation_id}: {generation.prompt[:50]}...")
         logger.info(f"Starting image generation #{generation_id}")
 
         # Import imaginAIry
@@ -50,6 +55,8 @@ def generate_image_task(self, generation_id):
 
         generation.progress = 10
         generation.save()
+        cache.set(f"imager_progress_{generation_id}", 10, timeout=3600)
+        push_console_line(user_id, f"[Imager] Preparing prompt for model {generation.model}")
 
         # Create ImaginePrompt
         imagine_prompt = ImaginePrompt(
@@ -65,6 +72,8 @@ def generate_image_task(self, generation_id):
 
         generation.progress = 20
         generation.save()
+        cache.set(f"imager_progress_{generation_id}", 20, timeout=3600)
+        push_console_line(user_id, f"[Imager] Generating {generation.num_images} image(s)...")
 
         logger.info(f"Generating {generation.num_images} image(s) with model {generation.model}")
 
@@ -77,6 +86,8 @@ def generate_image_task(self, generation_id):
                 progress = 20 + int((i / generation.num_images) * 70)
                 generation.progress = progress
                 generation.save()
+                cache.set(f"imager_progress_{generation_id}", progress, timeout=3600)
+                push_console_line(user_id, f"[Imager] Generating image {i+1}/{generation.num_images}... ({progress}%)")
 
                 # Generate image
                 results = list(imagine([imagine_prompt]))
@@ -104,13 +115,22 @@ def generate_image_task(self, generation_id):
 
         generation.progress = 90
         generation.save()
+        cache.set(f"imager_progress_{generation_id}", 90, timeout=3600)
+        push_console_line(user_id, f"[Imager] Finalizing generation...")
 
         # Update generation with results
-        generation.generated_images = generated_paths
-        generation.status = 'SUCCESS'
-        generation.progress = 100
-        generation.completed_at = timezone.now()
-        generation.save()
+        try:
+            generation.refresh_from_db()
+            generation.generated_images = generated_paths
+            generation.status = 'SUCCESS'
+            generation.progress = 100
+            generation.completed_at = timezone.now()
+            generation.save()
+            cache.set(f"imager_progress_{generation_id}", 100, timeout=3600)
+            push_console_line(user_id, f"[Imager] ✓ Successfully generated {len(generated_paths)} image(s) for generation #{generation_id}")
+        except ImageGeneration.DoesNotExist:
+            logger.warning(f"Generation {generation_id} was deleted during processing")
+            return {'error': 'Generation was deleted during processing'}
 
         logger.info(f"Successfully generated {len(generated_paths)} image(s) for generation #{generation_id}")
 
@@ -125,10 +145,13 @@ def generate_image_task(self, generation_id):
 
         try:
             generation = ImageGeneration.objects.get(id=generation_id)
+            user_id = generation.user.id
             generation.status = 'FAILURE'
             generation.error_message = str(e)
             generation.completed_at = timezone.now()
             generation.save()
+            cache.set(f"imager_progress_{generation_id}", 0, timeout=3600)
+            push_console_line(user_id, f"[Imager] ✗ Generation #{generation_id} failed: {str(e)}")
         except Exception as save_error:
             logger.error(f"Failed to save error state: {str(save_error)}")
 
