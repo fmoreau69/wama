@@ -88,11 +88,17 @@ def enhance_media(self, enhancement_id: int):
         if result['ok']:
             processing_time = time.time() - start_time
             logger.info(f"Enhancement SUCCESS in {processing_time:.2f}s")
-            enhancement.status = 'SUCCESS'
-            enhancement.processing_time = processing_time
-            enhancement.save(update_fields=['status', 'processing_time'])
-            _set_progress(enhancement_id, 100)
-            _console(user_id, f"Enhancement #{enhancement_id} completed ✓")
+            try:
+                enhancement.refresh_from_db()
+                enhancement.status = 'SUCCESS'
+                enhancement.progress = 100
+                enhancement.processing_time = processing_time
+                enhancement.save(update_fields=['status', 'progress', 'processing_time'])
+                cache.set(f"enhancer_progress_{enhancement_id}", 100, timeout=3600)
+                _console(user_id, f"Enhancement #{enhancement_id} completed ✓")
+            except Enhancement.DoesNotExist:
+                logger.warning(f"Enhancement {enhancement_id} was deleted during processing")
+                return {'ok': False, 'error': 'Enhancement was deleted'}
         else:
             error_msg = result.get('error', 'Unknown error')
             logger.error(f"Enhancement processing returned error: {error_msg}")
@@ -110,11 +116,17 @@ def enhance_media(self, enhancement_id: int):
         logger.error(f"Error: {error_msg}")
         logger.error(f"========================================", exc_info=True)
 
-        enhancement.status = 'FAILURE'
-        enhancement.error_message = error_msg
-        enhancement.save(update_fields=['status', 'error_message'])
-        _set_progress(enhancement_id, 0)
-        _console(user_id, f"Enhancement #{enhancement_id} failed: {error_msg}")
+        try:
+            enhancement.refresh_from_db()
+            enhancement.status = 'FAILURE'
+            enhancement.progress = 0
+            enhancement.error_message = error_msg
+            enhancement.save(update_fields=['status', 'progress', 'error_message'])
+            cache.set(f"enhancer_progress_{enhancement_id}", 0, timeout=3600)
+            _console(user_id, f"Enhancement #{enhancement_id} failed: {error_msg}")
+        except Enhancement.DoesNotExist:
+            logger.warning(f"Enhancement {enhancement_id} was deleted during processing, cannot save error state")
+
         return {'ok': False, 'error': error_msg}
 
 
@@ -192,8 +204,13 @@ def _enhance_image(enhancement: Enhancement, user_id: int) -> dict:
         enhancement.output_width = width
         enhancement.output_height = height
         enhancement.output_file_size = file_size
-        enhancement.save(update_fields=['output_file', 'output_width', 'output_height', 'output_file_size'])
-        logger.info("Database updated with output file info")
+        try:
+            enhancement.refresh_from_db()
+            enhancement.save(update_fields=['output_file', 'output_width', 'output_height', 'output_file_size'])
+            logger.info("Database updated with output file info")
+        except Enhancement.DoesNotExist:
+            logger.warning(f"Enhancement {enhancement.id} was deleted during processing")
+            raise Exception("Enhancement was deleted during processing")
 
         _set_progress(enhancement.id, 95)
 
@@ -351,7 +368,12 @@ def _enhance_video(enhancement: Enhancement, user_id: int) -> dict:
         enhancement.output_width = output_width
         enhancement.output_height = output_height
         enhancement.output_file_size = os.path.getsize(output_path)
-        enhancement.save(update_fields=['output_file', 'output_width', 'output_height', 'output_file_size'])
+        try:
+            enhancement.refresh_from_db()
+            enhancement.save(update_fields=['output_file', 'output_width', 'output_height', 'output_file_size'])
+        except Enhancement.DoesNotExist:
+            logger.warning(f"Enhancement {enhancement.id} was deleted during processing")
+            raise Exception("Enhancement was deleted during processing")
 
         _console(user_id, f"Video encoding complete")
 

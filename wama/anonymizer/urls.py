@@ -32,8 +32,9 @@ urlpatterns = [
     path('clear_all_media/', views.clear_all_media, name='clear_all_media'),
     path('download_all_media/', views.download_all_media, name='download_all_media'),
 
-    # Console
+    # Console & Progress
     path('console/', views.console_content, name='console'),
+    path('global_progress/', views.global_progress, name='global_progress'),
 
     # Model Management
     path('model-recommendations/', views.get_model_recommendations, name='model_recommendations'),

@@ -161,7 +161,46 @@ $(document).ready(function () {
         });
     });
 
+    /* ============================
+     * 📊 Update global progress bar
+     * ============================ */
+    function updateGlobalProgress() {
+        $.ajax({
+            type: "GET",
+            url: "/anonymizer/global_progress/",
+            success: function (data) {
+                const progressBar = document.getElementById('globalProgressBar');
+                const statsText = document.getElementById('globalProgressStats');
+
+                if (progressBar && statsText) {
+                    const progress = data.overall_progress || 0;
+                    progressBar.style.width = progress + '%';
+                    progressBar.textContent = progress + '%';
+
+                    statsText.textContent = `${data.success}/${data.total} terminé`;
+
+                    // Update progress bar color based on status
+                    progressBar.className = 'progress-bar';
+                    if (data.failure > 0) {
+                        progressBar.classList.add('bg-danger');
+                    } else if (data.running > 0) {
+                        progressBar.classList.add('progress-bar-animated', 'progress-bar-striped');
+                    } else if (data.success === data.total && data.total > 0) {
+                        progressBar.classList.add('bg-success');
+                    }
+                }
+            },
+            error: function (xhr) {
+                console.error("%c[update.js] ✖ Error updating global progress", "color:red", xhr.responseText);
+            }
+        });
+    }
+
     attachCollapseEvents();
+
+    // Update global progress every 2 seconds
+    updateGlobalProgress();
+    setInterval(updateGlobalProgress, 2000);
 });
 
 /* ============================

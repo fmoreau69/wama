@@ -96,12 +96,25 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h4 class="modal-title" id="modalProgressLabel">Uploading...</h4>
+                <h4 class="modal-title text-white" id="modalProgressLabel">
+                    <i class="fas fa-upload me-2"></i>Téléchargement en cours...
+                </h4>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <div class="progress">
-                    <div class="progress-bar" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
+                <div class="progress" style="height: 24px;">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated"
+                         role="progressbar"
+                         style="width: 0%;"
+                         aria-valuenow="0"
+                         aria-valuemin="0"
+                         aria-valuemax="100">0%</div>
                 </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-1"></i>Fermer
+                </button>
             </div>
         </div>
     </div>

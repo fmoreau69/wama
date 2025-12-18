@@ -874,20 +874,28 @@ def clear_media(request):
     media_id = request.POST.get('media_id')
     media = Media.objects.filter(pk=media_id).first()
 
-    if media:
+    if not media:
+        return JsonResponse({'success': False, 'error': 'Media not found'}, status=404)
+
+    try:
         Media.objects.filter(pk=media_id).update(MSValues_customised=0)
         media.file.delete()
         media.delete()
 
-    has_media = Media.objects.filter(user=user).exists()
-    UserSettings.objects.filter(user_id=user.id).update(media_added=int(has_media))
-    if not has_media:
-        # Hide global settings section when no media remains
-        UserSettings.objects.filter(user_id=user.id).update(show_gs=0)
+        has_media = Media.objects.filter(user=user).exists()
+        UserSettings.objects.filter(user_id=user.id).update(media_added=int(has_media))
+        if not has_media:
+            # Hide global settings section when no media remains
+            UserSettings.objects.filter(user_id=user.id).update(show_gs=0)
 
-    context = get_context(request)
-    template = loader.get_template('anonymizer/upload/content.html')
-    return JsonResponse({'render': template.render(context, request)})
+        context = get_context(request)
+        template = loader.get_template('anonymizer/upload/content.html')
+        return JsonResponse({
+            'success': True,
+            'render': template.render(context, request)
+        })
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
 
 def reset_media_settings(request):
@@ -1211,6 +1219,49 @@ def restart_media(request):
             'success': False,
             'error': str(e)
         }, status=500)
+
+
+def global_progress(request):
+    """Get overall progress for all user medias"""
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+
+    try:
+        medias = Media.objects.filter(user=user)
+
+        if not medias.exists():
+            return JsonResponse({
+                'total': 0,
+                'pending': 0,
+                'running': 0,
+                'success': 0,
+                'failure': 0,
+                'overall_progress': 0
+            })
+
+        total = medias.count()
+        # Anonymizer uses 'processed' instead of 'status'
+        pending = medias.filter(processed=False).count()
+        success = medias.filter(processed=True).count()
+        running = 0  # Anonymizer doesn't have explicit RUNNING status
+
+        # Calculate overall progress using cache
+        total_progress = 0
+        for m in medias:
+            progress = int(cache.get(f"media_progress_{m.id}", m.blur_progress or 0))
+            total_progress += progress
+
+        overall_progress = int(total_progress / total) if total > 0 else 0
+
+        return JsonResponse({
+            'total': total,
+            'pending': pending,
+            'running': running,
+            'success': success,
+            'failure': 0,  # Anonymizer doesn't track failures separately
+            'overall_progress': overall_progress
+        })
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
 
 
 class AboutView(TemplateView):

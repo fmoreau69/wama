@@ -18,6 +18,84 @@ document.addEventListener("DOMContentLoaded", function() {
         return cookieValue;
     }
 
+    // Start polling for a specific media's progress
+    function startMediaProgressPolling(mediaId, progressBar) {
+        if (progressIntervals[mediaId]) {
+            return; // Already polling this media
+        }
+
+        console.log(`[process.js] Starting progress polling for media ${mediaId}`);
+
+        progressIntervals[mediaId] = setInterval(() => {
+            fetch(`/anonymizer/process_progress/?media_id=${mediaId}`)
+                .then(r => r.json())
+                .then(progressData => {
+                    const pct = progressData.progress || 0;
+                    progressBar.style.width = pct + '%';
+                    progressBar.innerText = pct + '%';
+
+                    // Update status badge
+                    const tr = progressBar.closest('tr');
+                    if (tr) {
+                        const statusBadge = tr.querySelector('td:nth-child(6) .badge');
+                        if (statusBadge) {
+                            if (pct >= 100) {
+                                statusBadge.className = 'badge bg-success';
+                                statusBadge.textContent = 'Terminé';
+                            } else if (pct > 0) {
+                                statusBadge.className = 'badge bg-warning';
+                                statusBadge.textContent = 'En cours';
+                            }
+                        }
+                    }
+
+                    if (pct >= 100) {
+                        clearInterval(progressIntervals[mediaId]);
+                        delete progressIntervals[mediaId];
+                        console.log(`[process.js] Completed polling for media ${mediaId}`);
+
+                        // Enable download button
+                        const btn = tr.querySelector("form[action$='download_media/'] button");
+                        if (btn) btn.removeAttribute('disabled');
+                    }
+                })
+                .catch(err => {
+                    console.error(`[process.js] Error polling media ${mediaId}:`, err);
+                    clearInterval(progressIntervals[mediaId]);
+                    delete progressIntervals[mediaId];
+                });
+        }, 1000);
+    }
+
+    // Auto-start polling for all in-progress media on page load
+    function initializeProgressPolling() {
+        console.log('[process.js] Initializing progress polling for in-progress media...');
+
+        ["#medias", "#medias_process"].forEach(tableId => {
+            const table = document.querySelector(tableId);
+            if (!table) return;
+
+            table.querySelectorAll('tbody tr[data-media-id]').forEach(tr => {
+                const mediaId = tr.dataset.mediaId;
+                const processed = tr.dataset.mediaProcessed === 'true';
+                const progressBar = tr.querySelector('.progress-bar');
+
+                if (!progressBar) return;
+
+                const currentProgress = parseInt(progressBar.style.width) || 0;
+
+                // Start polling if media is in progress (0 < progress < 100) and not yet processed
+                if (currentProgress > 0 && currentProgress < 100 && !processed) {
+                    console.log(`[process.js] Found in-progress media ${mediaId} at ${currentProgress}%`);
+                    startMediaProgressPolling(mediaId, progressBar);
+                }
+            });
+        });
+    }
+
+    // Initialize polling on page load
+    initializeProgressPolling();
+
     function getButton() {
         return document.getElementById('process-toggle-btn');
     }
@@ -156,24 +234,8 @@ document.addEventListener("DOMContentLoaded", function() {
                     const progressBar = tr.querySelector(".progress-bar");
                     if (!progressBar) return;
 
-                    progressIntervals[mediaId] = setInterval(() => {
-                        fetch(`/anonymizer/process_progress/?media_id=${mediaId}`)
-                            .then(r => r.json())
-                            .then(progressData => {
-                                const pct = progressData.progress || 0;
-                                progressBar.style.width = pct + '%';
-                                progressBar.innerText = pct + '%';
-
-                                if (pct >= 100) {
-                                    clearInterval(progressIntervals[mediaId]);
-                                    delete progressIntervals[mediaId];
-
-                                    const btn = tr.querySelector("form[action$='download_media/'] button");
-                                    if (btn) btn.removeAttribute('disabled');
-                                }
-                            })
-                            .catch(() => clearInterval(progressIntervals[mediaId]));
-                    }, 1000);
+                    // Use the centralized polling function
+                    startMediaProgressPolling(mediaId, progressBar);
                 });
             });
 

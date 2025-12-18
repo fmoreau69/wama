@@ -285,5 +285,21 @@
 {% endblock imager_content %}
 
 {% block app_scripts %}
+<script>
+    // Inject Django URLs and CSRF token into JavaScript
+    window.IMAGER_CONFIG = {
+        urls: {
+            create: "{% url 'imager:create' %}",
+            start: "{% url 'imager:start' 0 %}",
+            progress: "{% url 'imager:progress' 0 %}",
+            globalProgress: "{% url 'imager:global_progress' %}",
+            download: "{% url 'imager:download' 0 %}",
+            delete: "{% url 'imager:delete' 0 %}",
+            startAll: "{% url 'imager:start_all' %}",
+            clearAll: "{% url 'imager:clear_all' %}"
+        },
+        csrfToken: "{{ csrf_token }}"
+    };
+</script>
 <script src="{% static 'imager/js/index.js' %}"></script>
 {% endblock %}

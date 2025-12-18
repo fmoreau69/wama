@@ -113,6 +113,25 @@
     </div>
 </div>
 
+<!-- Global Progress -->
+<div class="row mb-3">
+    <div class="col-12">
+        <div class="card bg-dark border-secondary">
+            <div class="card-body py-2">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h6 class="mb-0 text-light">
+                        <i class="fas fa-chart-line"></i> Progression globale
+                    </h6>
+                    <small class="text-white-50" id="globalProgressStats">0/0 terminé</small>
+                </div>
+                <div class="progress" style="height: 20px;">
+                    <div class="progress-bar" id="globalProgressBar" role="progressbar" style="width: 0%">0%</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Enhancements Queue -->
 <div class="row">
     <div class="col-12">
@@ -188,8 +207,12 @@
                                href="{% url 'enhancer:download' e.id %}">
                                 <i class="fas fa-download"></i>
                             </a>
-                            <button class="btn btn-warning btn-sm settings-btn"
-                                    data-bs-toggle="modal" data-bs-target="#settingsModal{{ e.id }}">
+                            <button class="btn btn-warning btn-sm js-open-settings"
+                                    data-id="{{ e.id }}"
+                                    data-ai-model="{{ e.ai_model }}"
+                                    data-denoise="{{ e.denoise|lower }}"
+                                    data-blend-factor="{{ e.blend_factor }}"
+                                    title="Configurer les paramètres">
                                 <i class="fas fa-cog"></i>
                             </button>
                             <button class="btn btn-danger btn-sm js-delete-enhancement"
@@ -199,52 +222,6 @@
                         </div>
                     </td>
                 </tr>
-
-                <!-- Settings Modal for each enhancement -->
-                <div class="modal fade" id="settingsModal{{ e.id }}" tabindex="-1">
-                    <div class="modal-dialog">
-                        <div class="modal-content bg-dark text-white">
-                            <div class="modal-header border-secondary">
-                                <h5 class="modal-title">Paramètres - #{{ e.id }}</h5>
-                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                            </div>
-                            <div class="modal-body">
-                                <form class="enhancement-settings-form" data-id="{{ e.id }}">
-                                    <div class="mb-3">
-                                        <label class="form-label">Modèle AI</label>
-                                        <select class="form-select bg-dark text-white border-secondary" name="ai_model">
-                                            {% for value, label in ai_models %}
-                                            <option value="{{ value }}" {% if e.ai_model == value %}selected{% endif %}>
-                                                {{ label }}
-                                            </option>
-                                            {% endfor %}
-                                        </select>
-                                    </div>
-                                    <div class="mb-3 form-check form-switch">
-                                        <input class="form-check-input" type="checkbox" name="denoise"
-                                               {% if e.denoise %}checked{% endif %}>
-                                        <label class="form-check-label">Débruitage</label>
-                                    </div>
-                                    <div class="mb-3">
-                                        <label class="form-label">Blend Factor: <span class="blend-display">{{ e.blend_factor }}</span></label>
-                                        <input type="range" class="form-range" name="blend_factor"
-                                               min="0" max="1" step="0.1" value="{{ e.blend_factor }}"
-                                               oninput="this.previousElementSibling.querySelector('.blend-display').textContent = this.value">
-                                    </div>
-                                </form>
-                            </div>
-                            <div class="modal-footer border-secondary">
-                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-                                <button type="button" class="btn btn-primary save-settings-btn" data-id="{{ e.id }}">
-                                    Sauvegarder
-                                </button>
-                                <button type="button" class="btn btn-success save-and-restart-btn" data-id="{{ e.id }}">
-                                    <i class="fas fa-play"></i> Sauvegarder et relancer
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
                 {% empty %}
                 <tr class="empty-row">
                     <td colspan="8" class="text-center py-4">Aucun fichier en attente.</td>
@@ -270,6 +247,7 @@
       startAllUrl: '{% url "enhancer:start_all" %}',
       clearUrl: '{% url "enhancer:clear_all" %}',
       downloadAllUrl: '{% url "enhancer:download_all" %}',
+      globalProgressUrl: '{% url "enhancer:global_progress" %}',
     });
 </script>
 <script src="{% static 'enhancer/js/index.js' %}"></script>

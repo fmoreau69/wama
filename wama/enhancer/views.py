@@ -150,10 +150,20 @@ def start(request, pk: int):
     enhancement = get_object_or_404(Enhancement, pk=pk, user=user)
     logger.info(f"Enhancement found: ID={enhancement.id}, media_type={enhancement.media_type}, current_status={enhancement.status}")
 
-    # Get settings from request if provided
-    ai_model = request.POST.get('ai_model', enhancement.ai_model)
-    denoise = request.POST.get('denoise', '').lower() in ('1', 'true', 'on')
-    blend_factor = float(request.POST.get('blend_factor', enhancement.blend_factor))
+    # Get settings from request (support both JSON and form-data)
+    try:
+        import json
+        data = json.loads(request.body) if request.body else {}
+    except (json.JSONDecodeError, ValueError):
+        data = request.POST
+
+    ai_model = data.get('ai_model', enhancement.ai_model)
+    denoise_value = data.get('denoise', enhancement.denoise)
+    if isinstance(denoise_value, str):
+        denoise = denoise_value.lower() in ('1', 'true', 'on')
+    else:
+        denoise = bool(denoise_value)
+    blend_factor = float(data.get('blend_factor', enhancement.blend_factor))
 
     logger.info(f"Settings: model={ai_model}, denoise={denoise}, blend_factor={blend_factor}")
 
@@ -250,6 +260,20 @@ def start_all(request):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     enhancements = Enhancement.objects.filter(user=user)
 
+    # Get global settings from request (support both JSON and form-data)
+    try:
+        import json
+        data = json.loads(request.body) if request.body else {}
+    except (json.JSONDecodeError, ValueError):
+        data = request.POST
+
+    # Extract global settings if provided
+    global_ai_model = data.get('ai_model')
+    global_denoise = data.get('denoise')
+    global_blend_factor = data.get('blend_factor')
+
+    logger.info(f"start_all with global settings: model={global_ai_model}, denoise={global_denoise}, blend={global_blend_factor}")
+
     from .tasks import enhance_media
 
     started = []
@@ -261,6 +285,19 @@ def start_all(request):
             continue
 
         try:
+            # Apply global settings if provided
+            if global_ai_model:
+                enhancement.ai_model = global_ai_model
+            if global_denoise is not None:
+                if isinstance(global_denoise, str):
+                    enhancement.denoise = global_denoise.lower() in ('1', 'true', 'on')
+                else:
+                    enhancement.denoise = bool(global_denoise)
+            if global_blend_factor is not None:
+                enhancement.blend_factor = float(global_blend_factor)
+
+            enhancement.save(update_fields=['ai_model', 'denoise', 'blend_factor'])
+
             task = enhance_media.delay(enhancement.id)
             enhancement.task_id = task.id
             enhancement.status = 'RUNNING'
@@ -369,3 +406,47 @@ def console_content(request):
     all_lines = (celery_lines + console_lines)[-200:]
 
     return JsonResponse({'output': all_lines})
+
+
+def global_progress(request):
+    """Get overall progress for all user enhancements"""
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+
+    try:
+        enhancements = Enhancement.objects.filter(user=user)
+
+        if not enhancements.exists():
+            return JsonResponse({
+                'total': 0,
+                'pending': 0,
+                'running': 0,
+                'success': 0,
+                'failure': 0,
+                'overall_progress': 0
+            })
+
+        total = enhancements.count()
+        pending = enhancements.filter(status='PENDING').count()
+        running = enhancements.filter(status='RUNNING').count()
+        success = enhancements.filter(status='SUCCESS').count()
+        failure = enhancements.filter(status='FAILURE').count()
+
+        # Calculate overall progress using cache
+        total_progress = 0
+        for e in enhancements:
+            progress = int(cache.get(f"enhancer_progress_{e.id}", e.progress or 0))
+            total_progress += progress
+
+        overall_progress = int(total_progress / total) if total > 0 else 0
+
+        return JsonResponse({
+            'total': total,
+            'pending': pending,
+            'running': running,
+            'success': success,
+            'failure': failure,
+            'overall_progress': overall_progress
+        })
+    except Exception as e:
+        logger.error(f"Error in global_progress: {e}")
+        return JsonResponse({'error': str(e)}, status=500)

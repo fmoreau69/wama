@@ -1,4 +1,8 @@
 /*  Layout & Background  */
+html {
+    height: 100%;
+}
+
 body {
     /*background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);*/
     background: linear-gradient(rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.5)), url('/static/images/bg_anonymize1.png');
@@ -8,6 +12,9 @@ body {
     background-attachment: fixed;
     min-height: 100vh;
     color: white;
+    display: flex;
+    flex-direction: column;
+    overflow-x: hidden; /* Évite le scroll horizontal */
 }
 
 /* Progress bars - Beautiful gradient (global) */
@@ -28,6 +35,7 @@ body {
         width: 100%;
         z-index: 1000;
         box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+        flex-shrink: 0; /* Empêche la nav de rétrécir dans le flexbox */
     }
 
     /* Fix modal z-index to appear above navigation (z-index: 1000) */
@@ -61,7 +69,9 @@ body {
 
     /* Ensure modal header, body, and footer are visible */
     .modal-header,
-    .modal-body,
+    .modal-body {
+        background-color: #212529;
+    }
     .modal-footer {
         background-color: transparent !important;
         color: inherit !important;
@@ -82,13 +92,105 @@ body {
 
     body > .container {
         margin-top: 100px !important; /* Hauteur du header avec marge */
+        margin-left: 20px !important;
+        margin-right: 20px !important;
+        width: calc(100% - 40px); /* 100% moins les marges */
         padding-bottom: 2rem;
+        flex: 1 0 auto; /* Permet au container de s'étendre pour pousser le footer en bas */
+    }
+
+    /* Footer pleine largeur et toujours en bas pour pages non-modernes */
+    body > footer {
+        flex-shrink: 0; /* Empêche le footer de rétrécir */
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    body > footer .container {
+        max-width: 100% !important;
+        width: 100% !important;
+        margin: 0 auto !important;
     }
 
 
 /*  Anonymizer  */
     textarea{
     height: 50px;
+    }
+
+    /* Anonymizer & Enhancer Modals - Dark theme #212529 */
+    #modal-progress .modal-content,
+    [id^="modal_classes2blur"] .modal-content,
+    [id^="settingsModal"] .modal-content {
+        background-color: #212529 !important;
+        color: #fff !important;
+        border: 1px solid #495057 !important;
+    }
+
+    /* Ensure modals appear above everything - z-index fix */
+    [id^="settingsModal"].modal,
+    [id^="settingsModal"].modal.fade,
+    [id^="settingsModal"].modal.show {
+        z-index: 1055 !important;
+    }
+
+    [id^="settingsModal"] .modal-dialog {
+        z-index: 1056 !important;
+        position: relative;
+    }
+
+    [id^="settingsModal"] .modal-content {
+        z-index: 1057 !important;
+        position: relative;
+        pointer-events: auto !important;
+    }
+
+    #modal-progress .modal-header,
+    [id^="modal_classes2blur"] .modal-header,
+    [id^="settingsModal"] .modal-header {
+        background-color: #212529 !important;
+        border-bottom: 1px solid #495057 !important;
+    }
+
+    #modal-progress .modal-title,
+    [id^="modal_classes2blur"] .modal-title,
+    [id^="settingsModal"] .modal-title {
+        color: #fff !important;
+    }
+
+    #modal-progress .modal-body,
+    [id^="modal_classes2blur"] .modal-body,
+    [id^="settingsModal"] .modal-body {
+        background-color: #212529 !important;
+        color: #fff !important;
+    }
+
+    #modal-progress .modal-footer,
+    [id^="modal_classes2blur"] .modal-footer,
+    [id^="settingsModal"] .modal-footer {
+        background-color: #212529 !important;
+        border-top: 1px solid #495057 !important;
+    }
+
+    /* Form elements in Anonymizer modals */
+    #modal-progress .form-check-label,
+    [id^="modal_classes2blur"] .form-check-label,
+    [id^="settingsModal"] .form-check-label {
+        color: #fff !important;
+    }
+
+    /* Text color for form elements */
+    #modal-progress label,
+    #modal-progress p,
+    #modal-progress span,
+    [id^="modal_classes2blur"] label,
+    [id^="modal_classes2blur"] p,
+    [id^="modal_classes2blur"] span,
+    [id^="settingsModal"] label,
+    [id^="settingsModal"] p,
+    [id^="settingsModal"] span {
+        color: #fff !important;
     }
 
 

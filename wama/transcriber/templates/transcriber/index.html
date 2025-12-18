@@ -92,7 +92,7 @@
                 <small class="text-white" id="live-transcription-status">En attente...</small>
             </div>
             <div class="card-body" style="min-height: 220px;">
-                <div id="live-transcription-output" class="text-white" style="white-space: pre-wrap; font-size: 2rem;">
+                <div id="live-transcription-output" class="text-white" style="text-align: center; font-size: 1.2rem;">
                     Appuyez sur <strong>Speak</strong> puis commencez à parler pour voir le texte apparaître ici en temps réel.
                 </div>
             </div>
@@ -115,6 +115,25 @@
             <button id="transcriber-clear-btn" class="btn btn-danger">
                 <i class="fas fa-trash"></i> Clear All
             </button>
+        </div>
+    </div>
+</div>
+
+<!-- Global Progress -->
+<div class="row mb-3">
+    <div class="col-12">
+        <div class="card bg-dark border-secondary">
+            <div class="card-body py-2">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h6 class="mb-0 text-light">
+                        <i class="fas fa-chart-line"></i> Progression globale
+                    </h6>
+                    <small class="text-white-50" id="globalProgressStats">0/0 terminé</small>
+                </div>
+                <div class="progress" style="height: 20px;">
+                    <div class="progress-bar" id="globalProgressBar" role="progressbar" style="width: 0%">0%</div>
+                </div>
+            </div>
         </div>
     </div>
 </div>

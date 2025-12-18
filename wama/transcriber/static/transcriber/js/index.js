@@ -657,6 +657,36 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   }
 
+  function updateGlobalProgress() {
+    if (!config.globalProgressUrl) return;
+
+    fetch(config.globalProgressUrl)
+      .then(response => response.json())
+      .then(data => {
+        const progressBar = document.getElementById('globalProgressBar');
+        const statsText = document.getElementById('globalProgressStats');
+
+        if (progressBar && statsText) {
+          const progress = data.overall_progress || 0;
+          progressBar.style.width = progress + '%';
+          progressBar.textContent = progress + '%';
+
+          statsText.textContent = `${data.success}/${data.total} terminé`;
+
+          // Update progress bar color based on status
+          progressBar.className = 'progress-bar';
+          if (data.failure > 0) {
+            progressBar.classList.add('bg-danger');
+          } else if (data.running > 0) {
+            progressBar.classList.add('progress-bar-animated', 'progress-bar-striped');
+          } else if (data.success === data.total && data.total > 0) {
+            progressBar.classList.add('bg-success');
+          }
+        }
+      })
+      .catch(error => console.error('Error updating global progress:', error));
+  }
+
   initUpload();
   initDragDrop();
   initYoutube();
@@ -664,4 +694,8 @@ document.addEventListener('DOMContentLoaded', function () {
   initSpeech();
   initBulkActions();
   bindRowActions(document);
+
+  // Update global progress every 2 seconds
+  updateGlobalProgress();
+  setInterval(updateGlobalProgress, 2000);
 });
