@@ -1,0 +1,55 @@
+{% load static %}
+<!-- FileManager Toggle Button -->
+<button id="filemanager-toggle" type="button" title="Explorateur de fichiers">
+    <i class="fas fa-folder-open"></i>
+</button>
+
+<!-- FileManager Sidebar -->
+<aside id="filemanager-sidebar">
+    <!-- Header -->
+    <div class="filemanager-header">
+        <h5><i class="fas fa-folder-open me-2"></i>Explorateur</h5>
+        <button class="btn-close-sidebar" title="Fermer">
+            <i class="fas fa-times"></i>
+        </button>
+    </div>
+
+    <!-- Toolbar -->
+    <div class="filemanager-toolbar">
+        <button class="btn btn-sm btn-outline-light btn-refresh" title="Actualiser">
+            <i class="fas fa-sync-alt"></i>
+        </button>
+    </div>
+
+    <!-- Search -->
+    <div class="filemanager-search">
+        <input type="text" id="filemanager-search" class="form-control" placeholder="Rechercher...">
+    </div>
+
+    <!-- Drop Zone for Upload -->
+    <div id="filemanager-dropzone" class="filemanager-dropzone">
+        <i class="fas fa-cloud-upload-alt"></i>
+        <p>Glissez vos fichiers ici<br><small>ou cliquez pour sélectionner</small></p>
+    </div>
+
+    <!-- File Tree -->
+    <div class="filemanager-tree">
+        <div id="filemanager-tree"></div>
+    </div>
+</aside>
+
+<!-- FileManager Config Script -->
+<script>
+    window.FILEMANAGER_CONFIG = {
+        csrfToken: '{{ csrf_token }}',
+        apiTreeUrl: '{% url "filemanager:api_tree" %}',
+        apiSearchUrl: '{% url "filemanager:api_search" %}',
+        apiUploadUrl: '{% url "filemanager:api_upload" %}',
+        apiDeleteUrl: '{% url "filemanager:api_delete" %}',
+        apiRenameUrl: '{% url "filemanager:api_rename" %}',
+        apiInfoUrl: '{% url "filemanager:api_info" %}',
+        apiPreviewUrl: '{% url "filemanager:api_preview" %}',
+        apiImportUrl: '{% url "filemanager:api_import" %}',
+        apiDownloadUrl: '/filemanager/api/download/'
+    };
+</script>

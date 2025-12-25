@@ -219,14 +219,30 @@ def download(request, pk: int):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     enhancement = get_object_or_404(Enhancement, pk=pk, user=user)
 
+    logger.info(f"Download request for enhancement {pk}")
+    logger.info(f"  - output_file field: {enhancement.output_file}")
+    logger.info(f"  - output_file.name: {enhancement.output_file.name if enhancement.output_file else 'None'}")
+
     if not enhancement.output_file:
+        logger.error(f"No output file available for enhancement {pk}")
         return HttpResponseBadRequest('No output file available')
 
-    return FileResponse(
-        enhancement.output_file.open('rb'),
-        as_attachment=True,
-        filename=enhancement.get_output_filename()
-    )
+    # Check if file exists in storage
+    from django.core.files.storage import default_storage
+    if not default_storage.exists(enhancement.output_file.name):
+        logger.error(f"Output file does not exist in storage: {enhancement.output_file.name}")
+        return HttpResponseBadRequest(f'Output file not found in storage: {enhancement.output_file.name}')
+
+    logger.info(f"Opening file for download: {enhancement.output_file.name}")
+    try:
+        return FileResponse(
+            enhancement.output_file.open('rb'),
+            as_attachment=True,
+            filename=enhancement.get_output_filename()
+        )
+    except Exception as e:
+        logger.error(f"Error opening file for download: {e}", exc_info=True)
+        return HttpResponseBadRequest(f'Error opening file: {e}')
 
 
 @require_POST

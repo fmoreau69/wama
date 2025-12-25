@@ -80,7 +80,29 @@ $(function () {
     // Gestion du drop
     dropZone.addEventListener('drop', handleDrop, false);
 
-    function handleDrop(e) {
+    async function handleDrop(e) {
+      // Check if this is a FileManager drop
+      if (window.FileManager && window.FileManager.getFileManagerData) {
+        const fileData = window.FileManager.getFileManagerData(e);
+        if (fileData && fileData.path) {
+          // Handle FileManager import
+          try {
+            const result = await window.FileManager.importToApp(fileData.path, 'anonymizer');
+            if (result.imported) {
+              // Reload the page to show the new file
+              window.location.reload();
+            }
+          } catch (error) {
+            console.error('FileManager import error:', error);
+            if (window.FileManager.showToast) {
+              window.FileManager.showToast('Erreur d\'import: ' + error.message, 'danger');
+            }
+          }
+          return;
+        }
+      }
+
+      // Regular file drop
       const dt = e.dataTransfer;
       const files = dt.files;
 
@@ -208,6 +230,9 @@ $(function () {
 
   // Fonction pour rafraîchir le contenu
   function refreshContent(after) {
+    // Clean up old modals and backdrops before refreshing
+    cleanupModals();
+
     $.ajax({
       type: 'GET',
       url: '/anonymizer/refresh/',
@@ -215,6 +240,10 @@ $(function () {
       success: function (res) {
         if (res.render) {
           $("#main_container").html(res.render);
+
+          // Re-initialize modals after content refresh
+          reinitializeModals();
+
           if (typeof attachCollapseEvents === 'function') {
             attachCollapseEvents();
           }
@@ -232,4 +261,38 @@ $(function () {
       }
     });
   }
+
+  // Clean up old modal instances and backdrops
+  function cleanupModals() {
+    // Find all modals that were moved to body level
+    document.querySelectorAll('[id^="modal_classes2blur"]').forEach(function(modal) {
+      const bsModal = bootstrap.Modal.getInstance(modal);
+      if (bsModal) {
+        bsModal.dispose();
+      }
+      modal.remove();
+    });
+
+    // Remove any leftover modal backdrops
+    document.querySelectorAll('.modal-backdrop').forEach(function(backdrop) {
+      backdrop.remove();
+    });
+
+    // Remove modal-open class from body
+    document.body.classList.remove('modal-open');
+    document.body.style.overflow = '';
+    document.body.style.paddingRight = '';
+  }
+
+  // Re-initialize modals after content refresh
+  function reinitializeModals() {
+    // Move all modals that start with "modal_classes2blur" to body level
+    document.querySelectorAll('[id^="modal_classes2blur"]').forEach(function(modal) {
+      document.body.appendChild(modal);
+    });
+  }
+
+  // Expose these functions globally for use by other scripts
+  window.cleanupModals = cleanupModals;
+  window.reinitializeModals = reinitializeModals;
 });

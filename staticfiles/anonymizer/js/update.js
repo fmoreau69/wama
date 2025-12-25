@@ -135,6 +135,11 @@ $(document).ready(function () {
         const targetSelector = $form.data("target") || "#main_container";
         const formData = $form.serialize();
 
+        // Clean up old modals before submitting
+        if (typeof window.cleanupModals === 'function') {
+            window.cleanupModals();
+        }
+
         $.ajax({
             type: method,
             url: actionUrl,
@@ -142,6 +147,12 @@ $(document).ready(function () {
             success: function (res) {
                 if (res.render) {
                     $(targetSelector).html(res.render);
+
+                    // Re-initialize modals after content update
+                    if (typeof window.reinitializeModals === 'function') {
+                        window.reinitializeModals();
+                    }
+
                     attachCollapseEvents();
                     if (typeof window.initProcessControls === 'function') {
                         window.initProcessControls();

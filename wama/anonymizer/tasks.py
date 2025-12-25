@@ -9,7 +9,7 @@ from .models import Media, UserSettings
 from anonymizer import anonymize
 from .utils.media_utils import get_input_media_path
 from .utils.yolo_utils import get_model_path
-from .utils.console_utils import push_console_line
+from wama.common.utils.console_utils import push_console_line
 
 # ----------------------------------------------------------------------
 # Tâche principale pour traiter un média
@@ -174,21 +174,33 @@ def process_user_media_batch(self, user_id):
     """
     Enfile tous les médias non traités d'un utilisateur dans des tâches individuelles.
     """
+    import logging
+    logger = logging.getLogger('celery')
+
+    logger.info(f"[process_user_media_batch] Starting batch process for user_id={user_id}")
+
     close_old_connections()
 
     User = get_user_model()
     user = User.objects.get(pk=user_id)
+    logger.info(f"[process_user_media_batch] User: {user.username}")
+
     medias_list = Media.objects.filter(user=user, processed=False)
+    logger.info(f"[process_user_media_batch] Found {medias_list.count()} unprocessed media(s)")
 
     if not medias_list.exists():
+        logger.warning(f"[process_user_media_batch] No media to process for user {user.username}")
         return {"processed": 0}
 
     task_ids = []
     for media in medias_list:
         # Chaque média est traité dans sa propre tâche Celery
+        logger.info(f"[process_user_media_batch] Launching task for media {media.id} ({media.title})")
         task = process_single_media.delay(media.id)
         task_ids.append(task.id)
+        logger.info(f"[process_user_media_batch] Task {task.id} launched for media {media.id}")
 
+    logger.info(f"[process_user_media_batch] Total tasks launched: {len(task_ids)}")
     return {"queued_tasks": task_ids, "total": medias_list.count()}
 
 

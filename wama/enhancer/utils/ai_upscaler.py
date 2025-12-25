@@ -101,7 +101,7 @@ class AIUpscaler:
         # Find models directory
         if models_dir is None:
             from wama.settings import BASE_DIR
-            models_dir = os.path.join(BASE_DIR, 'wama', 'enhancer', 'AI-onnx')
+            models_dir = os.path.join(BASE_DIR, 'AI-models', 'enhancer', 'onnx')
 
         self.models_dir = models_dir
         self.model_path = os.path.join(models_dir, self.model_info['file'])

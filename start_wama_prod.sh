@@ -72,12 +72,8 @@ python manage.py collectstatic --noinput --settings=$DJANGO_SETTINGS_MODULE
 if ! pgrep -f "gunicorn wama.wsgi" > /dev/null; then
     echo "=== Starting Gunicorn ==="
     gunicorn wama.wsgi:application \
-        --bind 0.0.0.0:$DJANGO_PORT \
-        --workers $GUNICORN_WORKERS \
-        --daemon \
-        --env DJANGO_SETTINGS_MODULE=$DJANGO_SETTINGS_MODULE \
-        --access-logfile $LOG_DIR/gunicorn-access.log \
-        --error-logfile $LOG_DIR/gunicorn-error.log
+        --config gunicorn_conf.py \
+        --env DJANGO_SETTINGS_MODULE=$DJANGO_SETTINGS_MODULE
 else
     echo "Gunicorn is already running."
 fi
@@ -89,6 +85,8 @@ if ! pgrep -f "celery.*worker" > /dev/null; then
     echo "=== Starting Celery Worker ==="
     # Accept Coqui TTS terms of service for non-commercial use
     export COQUI_TOS_AGREED=1
+    # Set TTS home directory to centralized AI-models directory
+    export TTS_HOME=$PROJECT_DIR/AI-models/synthesizer/tts
     celery -A wama worker \
         --loglevel=INFO \
         --concurrency=$CELERY_WORKERS \

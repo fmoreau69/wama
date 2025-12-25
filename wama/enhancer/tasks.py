@@ -158,16 +158,18 @@ def _enhance_image(enhancement: Enhancement, user_id: int) -> dict:
     logger.info(f"Input file path: {input_path}")
     logger.info(f"Input file exists: {os.path.exists(input_path)}")
 
+    # Get the base name from the input file (which already has unique name from Django upload)
     base_name, ext = os.path.splitext(os.path.basename(input_path))
+    # Output filename is simply {input_base}_enhanced{ext}
+    # No ID needed - if we re-process same input, we just overwrite the output
     output_filename = f"{base_name}_enhanced{ext}"
     logger.info(f"Output filename will be: {output_filename}")
 
-    # Create temporary output path
-    output_dir = os.path.dirname(input_path).replace('input', 'output')
-    logger.info(f"Creating output directory: {output_dir}")
-    os.makedirs(output_dir, exist_ok=True)
-    output_path = os.path.join(output_dir, output_filename)
-    logger.info(f"Output path: {output_path}")
+    # Create temporary file for processing (not in media/ to avoid permission issues)
+    import tempfile
+    temp_fd, output_path = tempfile.mkstemp(suffix=ext, prefix='enhancer_')
+    os.close(temp_fd)  # Close the file descriptor, we'll write with cv2
+    logger.info(f"Temporary output path: {output_path}")
 
     try:
         # Progress callback
@@ -191,15 +193,52 @@ def _enhance_image(enhancement: Enhancement, user_id: int) -> dict:
         )
 
         logger.info(f"Upscaling completed: {width}x{height}")
+        logger.info(f"Verifying output file exists: {output_path}")
+        if not os.path.exists(output_path):
+            raise FileNotFoundError(f"Upscaler did not create output file at {output_path}")
 
-        # Save output file to model
-        logger.info("Saving output file to database...")
+        # Delete old output file if it exists
+        if enhancement.output_file:
+            try:
+                logger.info(f"Deleting old output file: {enhancement.output_file.name}")
+                enhancement.output_file.delete(save=False)
+            except Exception as e:
+                logger.warning(f"Could not delete old output file: {e}")
+
+        # Save output file directly to storage to force overwrite without Django's uniqueness check
+        from django.core.files.storage import default_storage
+        output_storage_path = os.path.join('enhancer/output', output_filename)
+
+        # Force delete if exists (handles orphaned files)
+        if default_storage.exists(output_storage_path):
+            try:
+                logger.info(f"Deleting existing file in storage: {output_storage_path}")
+                default_storage.delete(output_storage_path)
+            except Exception as e:
+                logger.warning(f"Could not delete existing storage file: {e}")
+
+        # Write file directly to storage, then update the FileField with the known path
+        logger.info(f"Saving output file to storage: {output_storage_path}")
         with open(output_path, 'rb') as f:
-            enhancement.output_file.save(output_filename, ContentFile(f.read()), save=False)
+            saved_path = default_storage.save(output_storage_path, ContentFile(f.read()))
+
+        logger.info(f"File saved to storage at: {saved_path}")
+
+        # Verify the file exists in storage
+        if default_storage.exists(saved_path):
+            logger.info(f"Verified: File exists in storage at {saved_path}")
+            storage_size = default_storage.size(saved_path)
+            logger.info(f"Storage file size: {storage_size} bytes")
+        else:
+            logger.error(f"ERROR: File was NOT saved to storage at {saved_path}")
+
+        # Update the FileField to point to the saved file
+        enhancement.output_file.name = saved_path
+        logger.info(f"Output file field updated: {enhancement.output_file.name}")
 
         # Update dimensions
         file_size = os.path.getsize(output_path)
-        logger.info(f"Output file size: {file_size} bytes")
+        logger.info(f"Temporary file size: {file_size} bytes")
 
         enhancement.output_width = width
         enhancement.output_height = height
@@ -214,27 +253,21 @@ def _enhance_image(enhancement: Enhancement, user_id: int) -> dict:
 
         _set_progress(enhancement.id, 95)
 
-        # Clean up temp file
-        try:
-            os.remove(output_path)
-            logger.info(f"Temporary file removed: {output_path}")
-        except Exception as cleanup_err:
-            logger.warning(f"Could not remove temp file: {cleanup_err}")
-
         logger.info("--- _enhance_image END (SUCCESS) ---")
         return {'ok': True, 'output_width': width, 'output_height': height}
 
     except Exception as e:
         logger.error(f"--- _enhance_image END (FAILURE) ---")
         logger.error(f"Error during image enhancement: {e}", exc_info=True)
-
-        # Clean up on error
+        raise
+    finally:
+        # Always clean up temp file
         if os.path.exists(output_path):
             try:
                 os.remove(output_path)
-            except:
-                pass
-        raise
+                logger.info(f"Temporary file removed: {output_path}")
+            except Exception as cleanup_err:
+                logger.warning(f"Could not remove temp file: {cleanup_err}")
 
 
 def _enhance_video(enhancement: Enhancement, user_id: int) -> dict:
@@ -259,7 +292,9 @@ def _enhance_video(enhancement: Enhancement, user_id: int) -> dict:
     _set_progress(enhancement.id, 5)
 
     input_path = enhancement.input_file.path
+    # Get the base name from the input file (which already has unique name from Django upload)
     base_name, ext = os.path.splitext(os.path.basename(input_path))
+    # Output filename is simply {input_base}_enhanced{ext}
     output_filename = f"{base_name}_enhanced{ext}"
 
     # Create temporary directories
@@ -360,9 +395,44 @@ def _enhance_video(enhancement: Enhancement, user_id: int) -> dict:
 
         _set_progress(enhancement.id, 95)
 
-        # Save output file to model
+        # Delete old output file if it exists
+        if enhancement.output_file:
+            try:
+                logger.info(f"Deleting old output file: {enhancement.output_file.name}")
+                enhancement.output_file.delete(save=False)
+            except Exception as e:
+                logger.warning(f"Could not delete old output file: {e}")
+
+        # Save output file directly to storage to force overwrite without Django's uniqueness check
+        from django.core.files.storage import default_storage
+        output_storage_path = os.path.join('enhancer/output', output_filename)
+
+        # Force delete if exists (handles orphaned files)
+        if default_storage.exists(output_storage_path):
+            try:
+                logger.info(f"Deleting existing file in storage: {output_storage_path}")
+                default_storage.delete(output_storage_path)
+            except Exception as e:
+                logger.warning(f"Could not delete existing storage file: {e}")
+
+        # Write file directly to storage, then update the FileField with the known path
+        logger.info(f"Saving output file to storage: {output_storage_path}")
         with open(output_path, 'rb') as f:
-            enhancement.output_file.save(output_filename, ContentFile(f.read()), save=False)
+            saved_path = default_storage.save(output_storage_path, ContentFile(f.read()))
+
+        logger.info(f"File saved to storage at: {saved_path}")
+
+        # Verify the file exists in storage
+        if default_storage.exists(saved_path):
+            logger.info(f"Verified: File exists in storage at {saved_path}")
+            storage_size = default_storage.size(saved_path)
+            logger.info(f"Storage file size: {storage_size} bytes")
+        else:
+            logger.error(f"ERROR: File was NOT saved to storage at {saved_path}")
+
+        # Update the FileField to point to the saved file
+        enhancement.output_file.name = saved_path
+        logger.info(f"Output file field updated: {enhancement.output_file.name}")
 
         # Update dimensions
         enhancement.output_width = output_width

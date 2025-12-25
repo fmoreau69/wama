@@ -322,14 +322,20 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function restartMedia(mediaId) {
         console.log(`[settings_modal.js] Restarting media ${mediaId}`);
+        console.log(`[settings_modal.js] CSRF token: ${getCsrfToken()}`);
 
         if (!confirm('Start/restart processing for this media?')) {
+            console.log('[settings_modal.js] User cancelled restart');
             return;
         }
+
+        console.log('[settings_modal.js] User confirmed, preparing request...');
 
         const formData = new FormData();
         formData.append('csrfmiddlewaretoken', getCsrfToken());
         formData.append('media_id', mediaId);
+
+        console.log('[settings_modal.js] Sending POST request to /anonymizer/restart_media/');
 
         fetch('/anonymizer/restart_media/', {
             method: 'POST',
@@ -338,12 +344,17 @@ document.addEventListener('DOMContentLoaded', function() {
             },
             body: formData,
         })
-        .then(response => response.json())
+        .then(response => {
+            console.log(`[settings_modal.js] Response status: ${response.status}`);
+            return response.json();
+        })
         .then(data => {
+            console.log('[settings_modal.js] Response data:', data);
             if (data.success) {
                 console.log('[settings_modal.js] Media restarted successfully');
                 location.reload();
             } else {
+                console.error('[settings_modal.js] Restart failed:', data.error);
                 alert('Error restarting media: ' + (data.error || 'Unknown error'));
             }
         })

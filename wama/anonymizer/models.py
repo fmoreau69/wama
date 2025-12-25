@@ -22,7 +22,7 @@ def get_value(dictionary, key):
     return dictionary.get(key)
 
 def default_classes2blur():
-    return ["face", "plate"]
+    return ["face"]
 
 
 class Media(models.Model):

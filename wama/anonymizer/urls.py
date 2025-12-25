@@ -36,6 +36,9 @@ urlpatterns = [
     path('console/', views.console_content, name='console'),
     path('global_progress/', views.global_progress, name='global_progress'),
 
+    # Debug
+    path('debug/media-status/', views.debug_media_status, name='debug_media_status'),
+
     # Model Management
     path('model-recommendations/', views.get_model_recommendations, name='model_recommendations'),
 

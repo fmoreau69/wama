@@ -60,9 +60,31 @@ document.addEventListener('DOMContentLoaded', function() {
             dropZone.classList.remove('drag-over');
         });
 
-        dropZone.addEventListener('drop', (e) => {
+        dropZone.addEventListener('drop', async (e) => {
             e.preventDefault();
             dropZone.classList.remove('drag-over');
+
+            // Check if this is a FileManager drop
+            if (window.FileManager && window.FileManager.getFileManagerData) {
+                const fileData = window.FileManager.getFileManagerData(e);
+                if (fileData && fileData.path) {
+                    // Handle FileManager import
+                    try {
+                        const result = await window.FileManager.importToApp(fileData.path, 'synthesizer');
+                        if (result.imported) {
+                            window.location.reload();
+                        }
+                    } catch (error) {
+                        console.error('FileManager import error:', error);
+                        if (window.FileManager.showToast) {
+                            window.FileManager.showToast('Erreur d\'import: ' + error.message, 'danger');
+                        }
+                    }
+                    return;
+                }
+            }
+
+            // Regular file drop
             handleFiles(e.dataTransfer.files);
         });
 
@@ -373,6 +395,244 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // Preview text button with streaming support
+    const previewTextBtn = document.getElementById('previewTextBtn');
+    let currentEventSource = null;
+
+    if (previewTextBtn) {
+        previewTextBtn.addEventListener('click', async () => {
+            const textContent = document.getElementById('textContent').value.trim();
+
+            if (!textContent) {
+                alert('Veuillez entrer du texte pour générer un aperçu.');
+                return;
+            }
+
+            // Close any existing EventSource
+            if (currentEventSource) {
+                currentEventSource.close();
+                currentEventSource = null;
+            }
+
+            const previewLoader = document.getElementById('previewLoader');
+            const previewContainer = document.getElementById('previewAudioContainer');
+            const previewProgress = document.getElementById('previewProgress');
+            const previewStatus = document.getElementById('previewStatus');
+
+            // Show loader, hide audio container
+            previewLoader.style.display = 'block';
+            previewContainer.style.display = 'none';
+
+            // Reset progress
+            previewProgress.style.width = '0%';
+            previewProgress.textContent = '0%';
+            previewStatus.textContent = 'Préparation...';
+
+            // Disable preview button
+            previewTextBtn.disabled = true;
+            previewTextBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Génération...';
+
+            try {
+                // Step 1: Initialize the preview
+                const formData = new FormData();
+                formData.append('text_content', textContent);
+                formData.append('tts_model', document.getElementById('tts_model').value);
+                formData.append('language', document.getElementById('language').value);
+                formData.append('voice_preset', document.getElementById('voice_preset').value);
+                formData.append('speed', document.getElementById('speed').value);
+                formData.append('pitch', document.getElementById('pitch').value);
+
+                const voiceRef = document.getElementById('voice_reference');
+                if (voiceRef && voiceRef.files[0]) {
+                    formData.append('voice_reference', voiceRef.files[0]);
+                }
+
+                const response = await fetch(URLS.voicePreview, {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': csrfToken },
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (!response.ok || !data.stream_url) {
+                    throw new Error(data.error || 'Échec de l\'initialisation de l\'aperçu');
+                }
+
+                console.log('Preview initialized:', data);
+                console.log('Stream URL:', data.stream_url);
+                previewStatus.textContent = `Génération de ${data.word_count} mots...`;
+
+                // Step 2: Connect to the streaming endpoint
+                currentEventSource = new EventSource(data.stream_url);
+
+                // Buffer pour collecter les chunks audio
+                const audioChunks = [];
+                const previewPlayer = document.getElementById('previewAudioPlayer');
+
+                currentEventSource.onmessage = (event) => {
+                    try {
+                        const eventData = JSON.parse(event.data);
+                        console.log('Stream event:', eventData);
+
+                        switch (eventData.event) {
+                            case 'start':
+                                previewStatus.textContent = eventData.message;
+                                previewProgress.style.width = '5%';
+                                previewProgress.textContent = '5%';
+                                break;
+
+                            case 'info':
+                                previewStatus.textContent = eventData.message;
+                                break;
+
+                            case 'progress':
+                                const progress = eventData.progress || 0;
+                                previewProgress.style.width = progress + '%';
+                                previewProgress.textContent = progress + '%';
+                                if (eventData.sentence) {
+                                    previewStatus.textContent = `Génération: "${eventData.sentence.substring(0, 50)}..."`;
+                                }
+                                break;
+
+                            case 'audio':
+                                // Décoder et collecter le chunk audio base64
+                                if (eventData.data) {
+                                    audioChunks.push(eventData.data);
+                                    previewStatus.textContent = `Réception de l'audio (${audioChunks.length} chunks)...`;
+                                }
+                                break;
+
+                            case 'end':
+                                previewProgress.style.width = '100%';
+                                previewProgress.textContent = '100%';
+                                previewStatus.textContent = 'Assemblage de l\'audio...';
+
+                                // Assembler et jouer tous les chunks audio
+                                if (audioChunks.length > 0) {
+                                    assembleAndPlayAudio(audioChunks, previewPlayer, previewContainer, previewLoader);
+                                } else {
+                                    previewStatus.textContent = eventData.message;
+                                    setTimeout(() => {
+                                        previewLoader.style.display = 'none';
+                                    }, 1000);
+                                }
+
+                                currentEventSource.close();
+                                currentEventSource = null;
+                                break;
+
+                            case 'error':
+                                console.error('Server error:', eventData.message);
+                                if (eventData.details) {
+                                    console.error('Error details:', eventData.details);
+                                }
+                                previewLoader.style.display = 'none';
+                                alert('Erreur: ' + eventData.message);
+                                if (currentEventSource) {
+                                    currentEventSource.close();
+                                    currentEventSource = null;
+                                }
+                                break;
+                        }
+                    } catch (parseError) {
+                        console.error('Error parsing stream event:', parseError);
+                        console.error('Raw event data:', event.data);
+                    }
+                };
+
+                currentEventSource.onerror = (error) => {
+                    console.error('EventSource error:', error);
+                    console.error('EventSource readyState:', currentEventSource ? currentEventSource.readyState : 'null');
+                    previewLoader.style.display = 'none';
+
+                    // Show more detailed error information
+                    const errorMsg = 'Erreur de streaming. Vérifiez la console pour plus de détails.';
+                    alert(errorMsg);
+
+                    if (currentEventSource) {
+                        currentEventSource.close();
+                        currentEventSource = null;
+                    }
+                };
+
+            } catch (error) {
+                console.error('Voice preview error:', error);
+                alert('Erreur: ' + error.message);
+                previewLoader.style.display = 'none';
+            } finally {
+                previewTextBtn.disabled = false;
+                previewTextBtn.innerHTML = '<i class="fas fa-play-circle"></i> Preview';
+            }
+        });
+    }
+
+    // Function to assemble and play audio chunks
+    async function assembleAndPlayAudio(base64Chunks, audioPlayer, containerElement, loaderElement) {
+        try {
+            console.log(`Assembling ${base64Chunks.length} audio chunks...`);
+
+            // Décoder tous les chunks base64 en ArrayBuffer
+            const audioBuffers = [];
+
+            for (const base64Data of base64Chunks) {
+                // Décoder base64
+                const binaryString = atob(base64Data);
+                const bytes = new Uint8Array(binaryString.length);
+                for (let i = 0; i < binaryString.length; i++) {
+                    bytes[i] = binaryString.charCodeAt(i);
+                }
+                audioBuffers.push(bytes.buffer);
+            }
+
+            console.log(`Decoded ${audioBuffers.length} chunks`);
+
+            // Créer un blob avec tous les buffers WAV concaténés
+            // Note: Pour une vraie concaténation WAV, il faudrait merger les headers
+            // Pour simplifier, on va créer un blob avec le premier chunk (qui contient le header)
+            // et ajouter uniquement les données audio des chunks suivants
+
+            if (audioBuffers.length === 1) {
+                // Un seul chunk, facile
+                const blob = new Blob([audioBuffers[0]], { type: 'audio/wav' });
+                const audioUrl = URL.createObjectURL(blob);
+
+                audioPlayer.querySelector('source').src = audioUrl;
+                audioPlayer.load();
+
+                // Afficher le lecteur, masquer le loader
+                loaderElement.style.display = 'none';
+                containerElement.style.display = 'block';
+
+                // Auto-play
+                audioPlayer.play().catch(e => console.log('Autoplay prevented:', e));
+            } else {
+                // Plusieurs chunks - concaténation simple
+                // ATTENTION: Ceci fonctionne mais n'est pas optimal pour WAV
+                // car chaque chunk a son propre header
+                const blob = new Blob(audioBuffers, { type: 'audio/wav' });
+                const audioUrl = URL.createObjectURL(blob);
+
+                audioPlayer.querySelector('source').src = audioUrl;
+                audioPlayer.load();
+
+                // Afficher le lecteur, masquer le loader
+                loaderElement.style.display = 'none';
+                containerElement.style.display = 'block';
+
+                // Auto-play
+                audioPlayer.play().catch(e => console.log('Autoplay prevented:', e));
+            }
+
+            console.log('Audio assembled and ready to play');
+
+        } catch (error) {
+            console.error('Error assembling audio:', error);
+            alert('Erreur lors de l\'assemblage de l\'audio: ' + error.message);
+            loaderElement.style.display = 'none';
+        }
+    }
+
     // Helper functions
     async function handleFiles(files) {
         for (const file of files) {
@@ -427,6 +687,109 @@ document.addEventListener('DOMContentLoaded', function() {
         } catch (error) {
             console.error('Console update error:', error);
         }
+    }
+
+    // Voice Recording Feature
+    let mediaRecorder = null;
+    let audioChunks = [];
+    let recordingStartTime = null;
+    let recordingTimerInterval = null;
+
+    const recordVoiceBtn = document.getElementById('recordVoiceBtn');
+    const stopRecordingBtn = document.getElementById('stopRecordingBtn');
+    const recordingIndicator = document.getElementById('recordingIndicator');
+    const recordingTimer = document.getElementById('recordingTimer');
+    const voiceReferenceInput = document.getElementById('voice_reference');
+
+    if (recordVoiceBtn) {
+        recordVoiceBtn.addEventListener('click', async () => {
+            try {
+                // Demander l'accès au microphone
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        sampleRate: 22050
+                    }
+                });
+
+                // Créer le MediaRecorder
+                const options = { mimeType: 'audio/webm' };
+                mediaRecorder = new MediaRecorder(stream, options);
+                audioChunks = [];
+
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) {
+                        audioChunks.push(event.data);
+                    }
+                };
+
+                mediaRecorder.onstop = async () => {
+                    // Arrêter le timer
+                    if (recordingTimerInterval) {
+                        clearInterval(recordingTimerInterval);
+                        recordingTimerInterval = null;
+                    }
+
+                    // Arrêter toutes les pistes audio
+                    stream.getTracks().forEach(track => track.stop());
+
+                    // Créer un blob audio
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+
+                    // Convertir en WAV si possible (pour meilleure compatibilité)
+                    // Sinon, utiliser le webm directement
+                    const file = new File([audioBlob], 'recorded_voice.webm', { type: 'audio/webm' });
+
+                    // Créer un DataTransfer pour assigner le fichier à l'input
+                    const dataTransfer = new DataTransfer();
+                    dataTransfer.items.add(file);
+                    voiceReferenceInput.files = dataTransfer.files;
+
+                    // Afficher une confirmation
+                    alert(`Enregistrement terminé ! Durée: ${recordingTimer.textContent}`);
+
+                    // Cacher l'indicateur
+                    recordingIndicator.style.display = 'none';
+                    recordVoiceBtn.disabled = false;
+                };
+
+                // Démarrer l'enregistrement
+                mediaRecorder.start();
+                recordingStartTime = Date.now();
+
+                // Afficher l'indicateur
+                recordingIndicator.style.display = 'block';
+                recordVoiceBtn.disabled = true;
+
+                // Démarrer le timer
+                recordingTimerInterval = setInterval(() => {
+                    const elapsed = Math.floor((Date.now() - recordingStartTime) / 1000);
+                    recordingTimer.textContent = `${elapsed}s`;
+
+                    // Arrêter automatiquement après 10 secondes
+                    if (elapsed >= 10) {
+                        stopRecordingBtn.click();
+                    }
+                }, 100);
+
+            } catch (error) {
+                console.error('Microphone access error:', error);
+                if (error.name === 'NotAllowedError') {
+                    alert('Accès au microphone refusé. Veuillez autoriser l\'accès au microphone dans les paramètres de votre navigateur.');
+                } else {
+                    alert('Erreur d\'accès au microphone: ' + error.message);
+                }
+            }
+        });
+    }
+
+    if (stopRecordingBtn) {
+        stopRecordingBtn.addEventListener('click', () => {
+            if (mediaRecorder && mediaRecorder.state === 'recording') {
+                mediaRecorder.stop();
+            }
+        });
     }
 
 }); // Fin DOMContentLoaded

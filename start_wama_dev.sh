@@ -71,6 +71,8 @@ if ! pgrep -f "celery.*worker" > /dev/null; then
     echo "=== Starting Celery Worker (solo mode) ==="
     # Accept Coqui TTS terms of service for non-commercial use
     export COQUI_TOS_AGREED=1
+    # Set TTS home directory within the project
+    export TTS_HOME=$PROJECT_DIR/AI-models/synthesizer/tts
     celery -A wama worker \
         --loglevel=INFO \
         --pool=solo \

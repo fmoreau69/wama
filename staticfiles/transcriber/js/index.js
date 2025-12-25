@@ -102,10 +102,31 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     // Drop
-    dropZone.addEventListener('drop', (e) => {
+    dropZone.addEventListener('drop', async (e) => {
       e.preventDefault();
       dropZone.classList.remove('drag-over');
 
+      // Check if this is a FileManager drop
+      if (window.FileManager && window.FileManager.getFileManagerData) {
+        const fileData = window.FileManager.getFileManagerData(e);
+        if (fileData && fileData.path) {
+          // Handle FileManager import
+          try {
+            const result = await window.FileManager.importToApp(fileData.path, 'transcriber');
+            if (result.imported) {
+              window.location.reload();
+            }
+          } catch (error) {
+            console.error('FileManager import error:', error);
+            if (window.FileManager.showToast) {
+              window.FileManager.showToast('Erreur d\'import: ' + error.message, 'danger');
+            }
+          }
+          return;
+        }
+      }
+
+      // Regular file drop
       const files = e.dataTransfer.files;
       if (files.length > 0) {
         handleFiles(files);

@@ -346,16 +346,43 @@ class ProcessView(View):
 
     def post(self, request):
         try:
+            import logging
+            logger = logging.getLogger('anonymizer.process')
+
             user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+            logger.info(f"[ProcessView] Starting process for user {user.id} ({user.username})")
+
             # Enregistre la liste des médias à traiter pour le calcul du progrès global
             batch_medias = list(Media.objects.filter(user=user, processed=False).order_by('id').values_list('id', flat=True))
+            logger.info(f"[ProcessView] Found {len(batch_medias)} media(s) to process: {batch_medias}")
+
+            if not batch_medias:
+                logger.warning(f"[ProcessView] No unprocessed media found for user {user.username}")
+                return JsonResponse({"task_id": None, "error": "No media to process"})
+
             cache.set(f"batch_media_ids_{user.id}", batch_medias, timeout=3600)
+
             # Lancer batch task qui va enchaîner toutes les tâches individuelles
+            logger.info(f"[ProcessView] Calling process_user_media_batch.delay({user.id})")
             task = process_user_media_batch.delay(user.id)
+            logger.info(f"[ProcessView] Task created: {task.id}")
+            logger.info(f"[ProcessView] Task state immediately after creation: {task.state}")
+
+            # Test Redis connection
+            try:
+                from celery import current_app
+                logger.info(f"[ProcessView] Celery broker: {current_app.conf.broker_url}")
+                logger.info(f"[ProcessView] Celery backend: {current_app.conf.result_backend}")
+            except Exception as e:
+                logger.error(f"[ProcessView] Error checking Celery config: {e}")
+
             cache.set(f"user_task_{user.id}", task.id, timeout=3600)
             return JsonResponse({"task_id": task.id})
         except Exception as e:
             import traceback
+            logger = logging.getLogger('anonymizer.process')
+            logger.error(f"[ProcessView] ERROR: {e}")
+            logger.error(traceback.format_exc())
             print("🚨 ERREUR upload:", e)
             traceback.print_exc()
             return JsonResponse({'is_valid': False, 'error': str(e)}, status=500)
@@ -396,6 +423,56 @@ def console_content(request):
     celery_lines = get_celery_worker_logs(limit=100)
     all_lines = (celery_lines + console_lines)[-200:]
     return JsonResponse({'output': all_lines})
+
+
+def debug_media_status(request):
+    """Debug view to check media status."""
+    import logging
+    logger = logging.getLogger('anonymizer.debug')
+
+    # Session info
+    session_info = {
+        'session_key': request.session.session_key,
+        'session_data': dict(request.session.items()) if hasattr(request.session, 'items') else {},
+        'session_age': request.session.get_expiry_age() if hasattr(request.session, 'get_expiry_age') else None,
+    }
+
+    # User info
+    user_info = {
+        'is_authenticated': request.user.is_authenticated,
+        'username': request.user.username if request.user.is_authenticated else 'AnonymousUser',
+        'user_id': request.user.id if request.user.is_authenticated else None,
+    }
+
+    logger.info(f"[debug_media_status] Session: {session_info}")
+    logger.info(f"[debug_media_status] User: {user_info}")
+
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+
+    medias = Media.objects.filter(user=user).order_by('-id')[:10]
+
+    result = {
+        'session': session_info,
+        'user_info': user_info,
+        'effective_user': user.username,
+        'effective_user_id': user.id,
+        'total_medias': Media.objects.filter(user=user).count(),
+        'unprocessed_medias': Media.objects.filter(user=user, processed=False).count(),
+        'medias': []
+    }
+
+    for m in medias:
+        result['medias'].append({
+            'id': m.id,
+            'title': m.title or f"Media {m.id}",
+            'processed': m.processed,
+            'blur_progress': m.blur_progress,
+            'file': str(m.file),
+            'user': m.user.username,
+            'user_id': m.user.id,
+        })
+
+    return JsonResponse(result, json_dumps_params={'indent': 2})
 
 
 def get_model_recommendations(request):
@@ -447,13 +524,24 @@ def get_process_progress(request):
     - Si ?media_id=... est fourni: lit Media.blur_progress ou cache("media_progress_{id}")
     - Sinon: moyenne des progrès des médias en cours pour l'utilisateur
     """
+    import logging
+    logger = logging.getLogger('anonymizer.progress')
+
     media_id = request.GET.get('media_id')
     if media_id:
         try:
             media = Media.objects.get(pk=int(media_id))
-            progress = int(cache.get(f"media_progress_{media.id}", media.blur_progress or 0))
+            cache_progress = cache.get(f"media_progress_{media.id}")
+            db_progress = media.blur_progress or 0
+
+            # Prefer cache, fallback to DB
+            progress = int(cache_progress if cache_progress is not None else db_progress)
+
+            logger.info(f"[get_process_progress] media_id={media_id}, cache={cache_progress}, db={db_progress}, final={progress}, processed={media.processed}")
+
             return JsonResponse({"progress": max(0, min(100, progress))})
         except Media.DoesNotExist:
+            logger.warning(f"[get_process_progress] Media {media_id} not found")
             return JsonResponse({"progress": 0})
 
     # Global progress for current user
@@ -902,27 +990,27 @@ def reset_media_settings(request):
     if request.method != 'POST':
         return HttpResponseNotAllowed(['POST'])
 
-    media_id = request.POST.get('media_id')
-    if not media_id:
-        return HttpResponseBadRequest("Missing media_id")
+    try:
+        media_id = request.POST.get('media_id')
+        if not media_id:
+            return JsonResponse({'success': False, 'error': 'Missing media_id'}, status=400)
 
-    media = get_object_or_404(Media, pk=media_id)
-    media_settings_form = MediaSettingsForm(instance=media)
-    global_settings_list = GlobalSettings.objects.all()
+        media = get_object_or_404(Media, pk=media_id)
+        media_settings_form = MediaSettingsForm(instance=media)
+        global_settings_list = GlobalSettings.objects.all()
 
-    updated_fields = {
-        setting.name: setting.default
-        for setting in global_settings_list
-        if setting.name in media_settings_form.fields
-    }
+        updated_fields = {
+            setting.name: setting.default
+            for setting in global_settings_list
+            if setting.name in media_settings_form.fields
+        }
 
-    if updated_fields:
-        Media.objects.filter(pk=media_id).update(**updated_fields, MSValues_customised=0)
+        if updated_fields:
+            Media.objects.filter(pk=media_id).update(**updated_fields, MSValues_customised=0)
 
-    # Rafraîchir dynamiquement le bloc HTML comme les autres vues
-    context = get_context(request)
-    template = loader.get_template('anonymizer/upload/content.html')
-    return JsonResponse({'render': template.render(context, request)})
+        return JsonResponse({'success': True})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
 
 def check_all_processed(request):
@@ -979,7 +1067,7 @@ def init_global_settings():
         return  # Already initialized
 
     settings_data = [
-        {'title': "Objects to blur", 'name': "classes2blur", 'default': ["face", "plate"], 'value': ["face", "plate"],
+        {'title': "Objects to blur", 'name': "classes2blur", 'default': ["face"], 'value': ["face"],
          'type': 'BOOL', 'label': 'WTB'},
         {'title': "Processing precision", 'name': "precision_level", 'default': "50", 'value': "50",
          'min': "0", 'max': "100", 'step': "5", 'type': 'FLOAT', 'label': 'WTB',
@@ -1188,20 +1276,32 @@ def save_media_settings(request):
 @require_POST
 def restart_media(request):
     """Restart processing for a specific media."""
+    import logging
+    logger = logging.getLogger('anonymizer.process')
+
+    logger.info(f"[restart_media] Request received: {request.method}")
+    logger.info(f"[restart_media] POST data: {request.POST}")
+
     try:
         media_id = request.POST.get('media_id')
+        logger.info(f"[restart_media] media_id={media_id}")
+
         if not media_id:
+            logger.warning("[restart_media] No media_id provided")
             return JsonResponse({'success': False, 'error': 'No media_id provided'}, status=400)
 
         media = Media.objects.get(pk=media_id)
+        logger.info(f"[restart_media] Found media: {media.title} (id={media.id})")
 
         # Reset processing status
         media.processed = False
         media.blur_progress = 0
         media.save()
+        logger.info(f"[restart_media] Reset media processing status")
 
         # Launch the processing task
         task = process_single_media.delay(media.id)
+        logger.info(f"[restart_media] Launched task {task.id} for media {media.id}")
 
         return JsonResponse({
             'success': True,
@@ -1210,11 +1310,13 @@ def restart_media(request):
         })
 
     except Media.DoesNotExist:
+        logger.error(f"[restart_media] Media not found: {media_id}")
         return JsonResponse({
             'success': False,
             'error': 'Media not found'
         }, status=404)
     except Exception as e:
+        logger.error(f"[restart_media] Error: {e}")
         return JsonResponse({
             'success': False,
             'error': str(e)

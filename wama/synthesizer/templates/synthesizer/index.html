@@ -47,9 +47,53 @@
                             Le texte sera converti en fichier DOCX et ajouté à la file d'attente
                         </small>
                     </div>
-                    <button type="submit" class="btn btn-success" id="submitTextBtn">
-                        <i class="fas fa-plus-circle"></i> Ajouter à la file d'attente
-                    </button>
+                    <div class="btn-group" role="group">
+                        <button type="button" class="btn btn-info" id="previewTextBtn">
+                            <i class="fas fa-play-circle"></i> Preview
+                        </button>
+                        <button type="submit" class="btn btn-success" id="submitTextBtn">
+                            <i class="fas fa-plus-circle"></i> Ajouter à la file d'attente
+                        </button>
+                    </div>
+                    <div id="previewAudioContainer" class="mt-3" style="display: none;">
+                        <div class="card" style="background: #1a1d20; border: 1px solid #495057;">
+                            <div class="card-body">
+                                <h6 class="text-light mb-2">
+                                    <i class="fas fa-volume-up"></i> Aperçu de la synthèse vocale
+                                </h6>
+                                <audio id="previewAudioPlayer" controls class="w-100">
+                                    <source src="" type="audio/wav">
+                                    Votre navigateur ne supporte pas l'élément audio.
+                                </audio>
+                                <small class="text-white-50 mt-2 d-block">
+                                    <i class="fas fa-info-circle"></i> Ceci est un aperçu utilisant les paramètres actuels
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="previewLoader" class="mt-3" style="display: none;">
+                        <div class="card" style="background: #1a1d20; border: 1px solid #495057;">
+                            <div class="card-body">
+                                <div class="text-center mb-3">
+                                    <div class="spinner-border text-info" role="status">
+                                        <span class="visually-hidden">Génération en cours...</span>
+                                    </div>
+                                </div>
+                                <div class="mb-2">
+                                    <small class="text-white-50">
+                                        <i class="fas fa-stream"></i> Génération en streaming...
+                                    </small>
+                                </div>
+                                <div class="progress" style="height: 20px; background: rgba(255,255,255,0.1);">
+                                    <div id="previewProgress" class="progress-bar progress-bar-striped progress-bar-animated"
+                                         role="progressbar" style="width: 0%;">0%</div>
+                                </div>
+                                <div id="previewStatus" class="mt-2 small text-light text-center">
+                                    Préparation...
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </form>
             </div>
         </div>
@@ -121,13 +165,35 @@
                     <label for="voice_reference" class="form-label">
                         <i class="fas fa-user-circle"></i> Voix de référence (clonage)
                     </label>
-                    <input type="file" class="form-control" id="voice_reference"
-                           accept="audio/*" name="voice_reference">
+                    <div class="input-group">
+                        <input type="file" class="form-control" id="voice_reference"
+                               accept="audio/*" name="voice_reference">
+                        <button class="btn btn-outline-info" type="button" id="recordVoiceBtn"
+                                title="Enregistrer votre voix depuis le micro">
+                            <i class="fas fa-microphone"></i> Enregistrer
+                        </button>
+                    </div>
                     <small class="text-white-50">
                         Fichier audio 6-10 sec pour cloner une voix (optionnel)
                     </small>
+                    <div id="recordingIndicator" class="mt-2" style="display: none;">
+                        <div class="alert alert-info d-flex align-items-center" role="alert">
+                            <i class="fas fa-circle text-danger me-2" style="animation: pulse 1.5s infinite;"></i>
+                            <span id="recordingStatus">Enregistrement en cours... <span id="recordingTimer">0s</span></span>
+                            <button class="btn btn-sm btn-danger ms-auto" id="stopRecordingBtn">
+                                <i class="fas fa-stop"></i> Arrêter
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
+
+            <style>
+                @keyframes pulse {
+                    0%, 100% { opacity: 1; }
+                    50% { opacity: 0.3; }
+                }
+            </style>
         </div>
     </div>
 </div>
@@ -354,6 +420,7 @@
             upload: "{% url 'synthesizer:upload' %}",
             uploadText: "{% url 'synthesizer:upload_text' %}",
             textPreview: "/synthesizer/text-preview/",
+            voicePreview: "/synthesizer/voice-preview/",
             start: "/synthesizer/start/",
             progress: "/synthesizer/progress/",
             globalProgress: "{% url 'synthesizer:global_progress' %}",

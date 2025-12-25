@@ -42,6 +42,17 @@ DATABASES = {
     }
 }
 
+# Configuration du cache (Redis partagé entre workers Gunicorn)
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+        'LOCATION': 'redis://127.0.0.1:6379/1',
+        'OPTIONS': {
+            'db': 1,  # DB1 pour le cache (DB0 pour Celery)
+        }
+    }
+}
+
 # Configuration LDAP
 if ENABLE_LDAP:
     import ldap
@@ -104,6 +115,7 @@ INSTALLED_APPS = [
     'wama.transcriber',
     'wama.imager',
     'wama.enhancer',     # AI Image/Video Upscaling
+    'wama.filemanager',  # File browser sidebar
 ]
 
 # Middleware
@@ -161,6 +173,14 @@ USE_TZ = True
 # Authentication
 LOGIN_URL = '/'  # Rediriger vers la page d'accueil au lieu de /accounts/login/
 LOGIN_REDIRECT_URL = '/anonymizer/'  # Après login, aller vers Anonymizer
+
+# Session configuration
+SESSION_COOKIE_AGE = 86400 * 7  # 7 jours (en secondes)
+# SESSION_SAVE_EVERY_REQUEST = True  # Renouveler la session à chaque requête
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False  # La session persiste même après fermeture du navigateur
+SESSION_COOKIE_HTTPONLY = True  # Protection contre XSS
+SESSION_COOKIE_SAMESITE = 'Lax'  # Protection CSRF
+SESSION_COOKIE_NAME = 'wama_sessionid'  # Nom personnalisé pour éviter les conflits
 
 # Fichiers statiques et médias
 STATIC_URL = '/static/'

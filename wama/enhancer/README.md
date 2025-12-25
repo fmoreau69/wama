@@ -60,7 +60,7 @@ Les modèles ONNX ne sont **pas inclus** dans le repository (trop volumineux).
 
 1. **Créer le répertoire des modèles** :
    ```bash
-   mkdir -p wama/enhancer/AI-onnx
+   mkdir -p AI-models/enhancer/onnx
    ```
 
 2. **Télécharger depuis QualityScaler** :
@@ -70,7 +70,7 @@ Les modèles ONNX ne sont **pas inclus** dans le repository (trop volumineux).
 
 3. **Copier les modèles** :
    ```bash
-   cp /path/to/QualityScaler/AI-onnx/*.onnx wama/enhancer/AI-onnx/
+   cp /path/to/QualityScaler/AI-onnx/*.onnx AI-models/enhancer/onnx/
    ```
 
 #### Option B : Script Automatique (À venir)
@@ -79,10 +79,10 @@ Un script de téléchargement automatique sera fourni prochainement.
 
 #### Modèles Requis
 
-Les fichiers suivants doivent être présents dans `wama/enhancer/AI-onnx/` :
+Les fichiers suivants doivent être présents dans `AI-models/enhancer/onnx/` :
 
 ```
-wama/enhancer/AI-onnx/
+AI-models/enhancer/onnx/
 ├── RealESR_Gx4_fp16.onnx          (22 MB)  - Recommandé pour débuter
 ├── RealESR_Animex4_fp16.onnx      (22 MB)
 ├── BSRGANx2_fp16.onnx             (4 MB)
@@ -233,7 +233,7 @@ Model file not found: /path/to/RealESR_Gx4_fp16.onnx
 ```
 
 **Solution** :
-1. Vérifier que `wama/enhancer/AI-onnx/` existe
+1. Vérifier que `AI-models/enhancer/onnx/` existe
 2. Télécharger les modèles depuis QualityScaler
 3. Vérifier les permissions de lecture
 
@@ -299,18 +299,20 @@ wama/enhancer/
 ├── models.py           # Enhancement, UserSettings
 ├── views.py            # 10 vues HTTP
 ├── urls.py             # Routing
-├── workers.py          # Celery tasks
+├── tasks.py            # Celery tasks
 ├── utils/
-│   └── ai_upscaler.py  # Intégration QualityScaler
+│   ├── ai_upscaler.py      # Intégration QualityScaler
+│   └── model_downloader.py # Téléchargement automatique
 ├── templates/
 │   └── enhancer/
 │       ├── base.html
 │       └── index.html
-├── static/
-│   └── enhancer/
-│       ├── css/style.css
-│       └── js/index.js
-└── AI-onnx/           # Modèles (à télécharger)
+└── static/
+    └── enhancer/
+        ├── css/style.css
+        └── js/index.js
+
+AI-models/enhancer/onnx/  # Modèles (centralisés)
 ```
 
 ### API Endpoints

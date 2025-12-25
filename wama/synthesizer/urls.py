@@ -3,6 +3,7 @@ WAMA Synthesizer - URLs Configuration
 """
 
 from django.urls import path
+from django.http import JsonResponse
 from . import views
 
 app_name = 'synthesizer'
@@ -17,6 +18,10 @@ urlpatterns = [
     path('upload/', views.upload, name='upload'),
     path('upload-text/', views.upload_text, name='upload_text'),
     path('text-preview/<int:pk>/', views.text_preview, name='text_preview'),
+    path('voice-preview/', views.voice_preview, name='voice_preview'),
+    path('voice-preview-stream/<str:preview_id>/', views.voice_preview_stream, name='voice_preview_stream'),
+    path('voice-preview-stream-test/', lambda request: JsonResponse({'test': 'OK'}), name='voice_preview_stream_test'),
+    path('voice-preview-diagnostic/<str:preview_id>/', lambda request, preview_id: JsonResponse({'status': 'OK', 'preview_id': preview_id}), name='voice_preview_diagnostic'),
     path('start/<int:pk>/', views.start, name='start'),
     path('progress/<int:pk>/', views.progress, name='progress'),
     path('global-progress/', views.global_progress, name='global_progress'),

@@ -15,6 +15,7 @@ urlpatterns = [
     path('transcriber/', include(('wama.transcriber.urls', 'transcriber'), namespace='transcriber')),
     path('imager/', include(('wama.imager.urls', 'imager'), namespace='imager')),
     path('enhancer/', include(('wama.enhancer.urls', 'enhancer'), namespace='enhancer')),
+    path('filemanager/', include(('wama.filemanager.urls', 'filemanager'), namespace='filemanager')),
     path('favicon.ico', RedirectView.as_view(url=staticfiles_storage.url('images/favicon.ico'))),
     path('ping/', lambda request: HttpResponse("Django OK via Apache")),
     path('admin/', admin.site.urls),

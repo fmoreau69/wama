@@ -72,10 +72,10 @@ MODEL_FILES = {
 
 
 def get_models_directory() -> Path:
-    """Get the AI-onnx models directory path."""
+    """Get the AI-onnx models directory path (centralized in AI-models/)."""
     from django.conf import settings
     base_dir = Path(settings.BASE_DIR)
-    models_dir = base_dir / 'wama' / 'enhancer' / 'AI-onnx'
+    models_dir = base_dir / 'AI-models' / 'enhancer' / 'onnx'
     return models_dir
 
 

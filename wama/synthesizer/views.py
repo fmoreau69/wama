@@ -6,6 +6,7 @@ Interface de synthèse vocale
 import os
 import io
 import zipfile
+import logging
 from django.shortcuts import render, get_object_or_404
 from django.views import View
 from django.views.generic import TemplateView
@@ -25,6 +26,29 @@ from wama.common.utils.console_utils import (
     get_celery_worker_logs,
 )
 from wama.accounts.views import get_or_create_anonymous_user
+
+logger = logging.getLogger(__name__)
+
+# Don't import TTS worker functions at module level to avoid blocking Gunicorn startup
+# Import them lazily when needed
+_get_tts_model = None
+_get_default_speaker_wav = None
+synthesize_voice = None
+
+def _ensure_workers_imported():
+    """Lazy import of worker functions to avoid blocking Gunicorn startup."""
+    global _get_tts_model, _get_default_speaker_wav, synthesize_voice
+
+    if _get_tts_model is None:
+        try:
+            from .workers import _get_tts_model as gtm, _get_default_speaker_wav as gds, synthesize_voice as sv
+            _get_tts_model = gtm
+            _get_default_speaker_wav = gds
+            synthesize_voice = sv
+            logger.info("TTS worker functions imported successfully")
+        except Exception as e:
+            logger.error(f"Failed to import TTS worker functions: {e}")
+            raise
 
 
 class IndexView(View):
@@ -366,7 +390,8 @@ def start(request, pk: int):
     synthesis.save(update_fields=['status', 'progress', 'error_message', 'audio_output'])
     cache.set(f"synthesizer_progress_{synthesis.id}", 0, timeout=3600)
 
-    from .workers import synthesize_voice
+    _ensure_workers_imported()
+
     task = synthesize_voice.delay(synthesis.id)
 
     synthesis.task_id = task.id
@@ -534,7 +559,10 @@ def start_all(request):
     Démarre toutes les synthèses en attente.
     Met à jour les options de synthèse pour toutes les files avant de les lancer.
     """
-    from .workers import synthesize_voice
+    try:
+        _ensure_workers_imported()
+    except Exception as e:
+        return JsonResponse({'error': f'TTS worker functions not available: {str(e)}'}, status=500)
 
     # Récupérer les nouvelles options depuis le formulaire
     try:
@@ -779,10 +807,252 @@ def create_voice_preset(request):
     })
 
 
+@require_POST
+def voice_preview(request):
+    """
+    Prépare un aperçu vocal et retourne un preview_id pour le streaming.
+    """
+    try:
+        text_content = request.POST.get('text_content', '').strip()
+        tts_model = request.POST.get('tts_model', 'xtts_v2')
+        language = request.POST.get('language', 'fr')
+        voice_preset = request.POST.get('voice_preset', 'male_1')
+        speed = float(request.POST.get('speed', 1.0))
+        pitch = float(request.POST.get('pitch', 1.0))
+
+        if not text_content:
+            return JsonResponse({
+                'error': 'Le texte ne peut pas être vide'
+            }, status=400)
+
+        # Limiter le texte à environ 50 mots pour un aperçu rapide
+        words = text_content.split()
+        preview_words = words[:50]
+        preview_text = ' '.join(preview_words)
+
+        if len(words) > 50:
+            preview_text += '...'
+
+        # Créer un identifiant unique pour ce preview
+        import hashlib
+        import time
+        preview_id = hashlib.md5(f"{text_content}{time.time()}".encode()).hexdigest()[:8]
+
+        # Stocker les paramètres dans le cache pour le traitement
+        cache.set(f'voice_preview_{preview_id}', {
+            'text': preview_text,
+            'tts_model': tts_model,
+            'language': language,
+            'voice_preset': voice_preset,
+            'speed': speed,
+            'pitch': pitch,
+            'status': 'pending',
+        }, timeout=300)  # 5 minutes
+
+        from django.urls import reverse
+
+        stream_url = reverse('synthesizer:voice_preview_stream', kwargs={'preview_id': preview_id})
+
+        return JsonResponse({
+            'status': 'ready',
+            'preview_id': preview_id,
+            'preview_text': preview_text,
+            'word_count': len(preview_words),
+            'stream_url': stream_url
+        })
+
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Erreur lors de la génération de l\'aperçu: {str(e)}'
+        }, status=500)
+
+
+def voice_preview_stream(request, preview_id):
+    """
+    Génère et stream l'audio en temps réel via SSE (Server-Sent Events).
+    """
+    from django.http import StreamingHttpResponse
+    import json
+    import base64
+    import tempfile
+    import os
+    import re
+
+    logger.info(f"voice_preview_stream called with preview_id: {preview_id}")
+
+    # Récupérer les paramètres depuis le cache
+    preview_data = cache.get(f'voice_preview_{preview_id}')
+
+    logger.info(f"Preview data from cache: {preview_data is not None}")
+
+    if not preview_data:
+        logger.error(f"Preview data not found for id: {preview_id}")
+        return JsonResponse({'error': 'Preview not found or expired'}, status=404)
+
+    def generate_audio_stream():
+        """
+        Générateur qui produit l'audio par chunks avec le vrai moteur TTS.
+        Format SSE: data: {json}\n\n
+        """
+        try:
+            print(f"[VOICE_PREVIEW] Starting audio stream generation for preview_id: {preview_id}", flush=True)
+
+            # Import TTS worker functions lazily
+            try:
+                _ensure_workers_imported()
+                print("[VOICE_PREVIEW] Worker functions imported successfully", flush=True)
+            except Exception as import_error:
+                error_msg = f"Failed to import TTS worker functions: {str(import_error)}"
+                logger.error(error_msg)
+                yield f"data: {json.dumps({'event': 'error', 'message': error_msg})}\n\n"
+                return
+
+            # Marquer comme en cours
+            preview_data['status'] = 'generating'
+            cache.set(f'voice_preview_{preview_id}', preview_data, timeout=300)
+
+            # Envoyer un événement de début
+            yield f"data: {json.dumps({'event': 'start', 'message': 'Chargement du modèle TTS...'})}\n\n"
+            logger.info("Sent start event")
+
+            # Charger le modèle TTS
+            tts_model_name = preview_data.get('tts_model', 'xtts_v2')
+            logger.info(f"Loading TTS model: {tts_model_name}")
+
+            try:
+                tts = _get_tts_model(tts_model_name)
+                logger.info(f"TTS model loaded successfully: {tts_model_name}")
+            except Exception as model_error:
+                error_msg = f"Erreur lors du chargement du modèle {tts_model_name}: {str(model_error)}"
+                logger.error(error_msg)
+                yield f"data: {json.dumps({'event': 'error', 'message': error_msg})}\n\n"
+                return
+
+            yield f"data: {json.dumps({'event': 'progress', 'progress': 10, 'sentence': f'Modèle {tts_model_name} chargé'})}\n\n"
+
+            # Diviser le texte en phrases
+            text = preview_data['text']
+            sentences = re.split(r'(?<=[.!?])\s+', text)
+            sentences = [s.strip() for s in sentences if s.strip()]
+
+            # Créer un dossier temporaire pour les fichiers audio
+            temp_dir = tempfile.mkdtemp(prefix='voice_preview_')
+
+            try:
+                # Paramètres de base pour TTS
+                language = preview_data.get('language', 'fr')
+                voice_preset = preview_data.get('voice_preset', 'default')
+
+                # Préparer les kwargs de base selon le modèle
+                base_kwargs = {}
+
+                # Configuration spécifique selon le modèle
+                if tts_model_name == 'xtts_v2':
+                    # XTTS v2 est multilingue et nécessite speaker_wav
+                    base_kwargs['language'] = language
+                    default_speaker = _get_default_speaker_wav(voice_preset)
+                    if default_speaker and os.path.exists(default_speaker):
+                        base_kwargs['speaker_wav'] = default_speaker
+                        yield f"data: {json.dumps({'event': 'info', 'message': f'Voix de référence: {os.path.basename(default_speaker)}'})}\n\n"
+                    else:
+                        yield f"data: {json.dumps({'event': 'error', 'message': 'XTTS v2 nécessite une voix de référence.'})}\n\n"
+                        return
+                else:
+                    # Autres modèles (Tacotron2, etc.) : pas de paramètre language
+                    # Ils utilisent leur langue par défaut
+                    print(f"[VOICE_PREVIEW] Using {tts_model_name} without language parameter", flush=True)
+
+                # Générer l'audio phrase par phrase
+                audio_chunks_files = []
+
+                for i, sentence in enumerate(sentences):
+                    # Calcul de la progression
+                    progress = int(10 + ((i + 1) / len(sentences)) * 80)
+
+                    yield f"data: {json.dumps({'event': 'progress', 'progress': progress, 'sentence': sentence[:80]})}\n\n"
+
+                    # Générer l'audio pour cette phrase
+                    chunk_file = os.path.join(temp_dir, f'chunk_{i}.wav')
+
+                    kwargs = base_kwargs.copy()
+                    kwargs['text'] = sentence
+                    kwargs['file_path'] = chunk_file
+
+                    try:
+                        print(f"[VOICE_PREVIEW] Generating audio for sentence {i+1}/{len(sentences)}: {sentence[:50]}...", flush=True)
+                        tts.tts_to_file(**kwargs)
+                        print(f"[VOICE_PREVIEW] Audio generated successfully for sentence {i+1}", flush=True)
+                        audio_chunks_files.append(chunk_file)
+
+                        # Appliquer les transformations speed et pitch
+                        speed = preview_data.get('speed', 1.0)
+                        pitch = preview_data.get('pitch', 1.0)
+
+                        processed_file = chunk_file
+                        if speed != 1.0 or pitch != 1.0:
+                            from .utils.audio_processor import process_audio_output
+                            print(f"[VOICE_PREVIEW] Applying speed={speed}, pitch={pitch}", flush=True)
+                            processed_output = os.path.join(temp_dir, f'chunk_{i}_processed.wav')
+                            processed_file = process_audio_output(chunk_file, speed=speed, pitch=pitch, output_path=processed_output)
+                            print(f"[VOICE_PREVIEW] Audio processed", flush=True)
+
+                        # Lire le fichier audio et l'encoder en base64
+                        with open(processed_file, 'rb') as f:
+                            audio_data = f.read()
+                            audio_base64 = base64.b64encode(audio_data).decode('utf-8')
+
+                        # Envoyer le chunk audio
+                        print(f"[VOICE_PREVIEW] Sending audio chunk {i+1}, size: {len(audio_base64)} bytes", flush=True)
+                        yield f"data: {json.dumps({'event': 'audio', 'data': audio_base64, 'format': 'wav', 'index': i})}\n\n"
+                        print(f"[VOICE_PREVIEW] Audio chunk {i+1} sent successfully", flush=True)
+
+                    except Exception as tts_error:
+                        error_msg = f"Erreur lors de la génération de la phrase {i+1}: {str(tts_error)}"
+                        print(f"[VOICE_PREVIEW] ERROR: {error_msg}", flush=True)
+                        yield f"data: {json.dumps({'event': 'error', 'message': error_msg})}\n\n"
+                        return
+
+                # Tous les chunks sont générés
+                yield f"data: {json.dumps({'event': 'progress', 'progress': 95, 'sentence': 'Finalisation...'})}\n\n"
+
+                # Message de fin
+                yield f"data: {json.dumps({'event': 'end', 'message': f'Génération terminée: {len(sentences)} phrases'})}\n\n"
+
+            finally:
+                # Nettoyage des fichiers temporaires
+                import shutil
+                try:
+                    shutil.rmtree(temp_dir)
+                except Exception:
+                    pass
+
+        except ImportError as e:
+            error_msg = f"TTS library not available: {str(e)}. Install with: pip install TTS"
+            logger.error(f"Import error: {error_msg}")
+            yield f"data: {json.dumps({'event': 'error', 'message': error_msg})}\n\n"
+        except Exception as e:
+            import traceback
+            error_details = traceback.format_exc()
+            logger.error(f"Error in voice_preview_stream: {error_details}")
+            yield f"data: {json.dumps({'event': 'error', 'message': f'Erreur TTS: {str(e)}', 'details': error_details.split(chr(10))[-3:]})}\n\n"
+        finally:
+            logger.info(f"Stream generator completed for preview_id: {preview_id}")
+
+    response = StreamingHttpResponse(
+        generate_audio_stream(),
+        content_type='text/event-stream'
+    )
+    response['Cache-Control'] = 'no-cache'
+    response['X-Accel-Buffering'] = 'no'  # Disable buffering for nginx
+
+    return response
+
+
 def list_voice_presets(request):
     """
     Liste les presets de voix disponibles.
     """
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     presets = VoicePreset.objects.filter(
         is_public=True
     ) | VoicePreset.objects.filter(created_by=user)

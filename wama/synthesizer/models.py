@@ -24,6 +24,7 @@ class VoiceSynthesis(models.Model):
 
     TTS_MODEL_CHOICES = [
         ('xtts_v2', 'XTTS v2 (Multilingual, Voice Cloning)'),
+        ('bark', 'Bark (Natural, Emotional, Sound Effects)'),
         ('vits', 'VITS (Fast, Good Quality)'),
         ('tacotron2', 'Tacotron2 (Classic, Stable)'),
         ('speedy_speech', 'SpeedySpeech (Very Fast)'),
@@ -54,6 +55,17 @@ class VoiceSynthesis(models.Model):
         ('female_1', 'Voix féminine 1'),
         ('female_2', 'Voix féminine 2'),
         ('custom', 'Voix personnalisée (clonage)'),
+        # Bark speaker presets
+        ('bark_v2_en_0', 'Bark EN Speaker 0'),
+        ('bark_v2_en_1', 'Bark EN Speaker 1'),
+        ('bark_v2_en_2', 'Bark EN Speaker 2'),
+        ('bark_v2_en_3', 'Bark EN Speaker 3'),
+        ('bark_v2_en_4', 'Bark EN Speaker 4'),
+        ('bark_v2_en_5', 'Bark EN Speaker 5'),
+        ('bark_v2_fr_0', 'Bark FR Speaker 0'),
+        ('bark_v2_fr_1', 'Bark FR Speaker 1'),
+        ('bark_v2_es_0', 'Bark ES Speaker 0'),
+        ('bark_v2_de_0', 'Bark DE Speaker 0'),
     ]
 
     # Informations de base

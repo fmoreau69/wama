@@ -31,6 +31,7 @@ document.addEventListener("DOMContentLoaded", function() {
                 .then(r => r.json())
                 .then(progressData => {
                     const pct = progressData.progress || 0;
+                    console.log(`[process.js] Media ${mediaId} progress: ${pct}%`);
                     progressBar.style.width = pct + '%';
                     progressBar.innerText = pct + '%';
 
@@ -54,9 +55,33 @@ document.addEventListener("DOMContentLoaded", function() {
                         delete progressIntervals[mediaId];
                         console.log(`[process.js] Completed polling for media ${mediaId}`);
 
+                        // Update the row to reflect processed state
+                        if (tr) {
+                            tr.dataset.mediaProcessed = 'true';
+                        }
+
                         // Enable download button
                         const btn = tr.querySelector("form[action$='download_media/'] button");
-                        if (btn) btn.removeAttribute('disabled');
+                        if (btn) {
+                            btn.removeAttribute('disabled');
+                            btn.removeAttribute('aria-disabled');
+                            btn.removeAttribute('tabindex');
+                            btn.classList.remove('disabled');
+                            console.log(`[process.js] Download button enabled for media ${mediaId}`);
+                        } else {
+                            console.warn(`[process.js] Download button not found for media ${mediaId}`);
+                        }
+
+                        // Check if all media are processed to enable download all
+                        if (typeof checkDownloadAll === 'function') {
+                            checkDownloadAll();
+                        }
+
+                        // Refresh page content to update UI
+                        if (typeof refreshContent === 'function') {
+                            console.log(`[process.js] Refreshing content after media ${mediaId} completion`);
+                            setTimeout(() => refreshContent(), 1000);
+                        }
                     }
                 })
                 .catch(err => {
@@ -200,23 +225,34 @@ document.addEventListener("DOMContentLoaded", function() {
     }
 
     function startProcess(btnRef) {
+        console.log('[process.js] startProcess() called');
+
         const btnToggle = btnRef || getButton();
         const loader = getLoader();
         const resultDiv = getResultDiv();
 
-        if (!btnToggle) return;
+        if (!btnToggle) {
+            console.error('[process.js] Button not found!');
+            return;
+        }
 
+        console.log('[process.js] Changing button state and sending request...');
         btnToggle.innerHTML = '<i class="fas fa-stop"></i> Stop Process';
         btnToggle.className = 'btn btn-danger';
         if (loader) loader.style.display = 'block';
         if (resultDiv) resultDiv.innerHTML = '';
 
+        console.log('[process.js] Sending POST to /anonymizer/process/');
         fetch("/anonymizer/process/", {
             method: "POST",
             headers: { "X-CSRFToken": getCookie('csrftoken') }
         })
-        .then(r => r.json())
+        .then(r => {
+            console.log(`[process.js] Response status: ${r.status}`);
+            return r.json();
+        })
         .then(data => {
+            console.log('[process.js] Response data:', data);
             if (!data.task_id) {
                 if (loader) loader.style.display = 'none';
                 resetButton();
@@ -249,6 +285,34 @@ document.addEventListener("DOMContentLoaded", function() {
                             const pct = data.progress || 0;
                             globalBar.style.width = pct + '%';
                             globalBar.innerText = pct + '%';
+
+                            // Check if all processing is complete
+                            if (pct >= 100 && isRunning) {
+                                console.log('[process.js] All media processing complete, resetting button');
+
+                                // Stop all polling intervals
+                                if (pollingGlobal) {
+                                    clearInterval(pollingGlobal);
+                                    pollingGlobal = null;
+                                }
+                                if (pollingYOLO) {
+                                    clearInterval(pollingYOLO);
+                                    pollingYOLO = null;
+                                }
+
+                                // Hide loader
+                                const loader = getLoader();
+                                if (loader) loader.style.display = 'none';
+
+                                // Reset button to initial state
+                                resetButton();
+
+                                // Show success message
+                                const resultDiv = getResultDiv();
+                                if (resultDiv) {
+                                    resultDiv.innerHTML = '<span class="text-success">✅ Traitement terminé</span>';
+                                }
+                            }
                         })
                         .catch(() => {});
                 }, 1000);
@@ -305,27 +369,32 @@ document.addEventListener("DOMContentLoaded", function() {
     function resetButton() {
         const btnToggle = getButton();
         if (btnToggle) {
-            btnToggle.innerHTML = '<i class="fas fa-dice"></i> Start Process';
-            btnToggle.className = 'btn btn-info';
+            btnToggle.innerHTML = '<i class="fas fa-play"></i> Démarrer le traitement';
+            btnToggle.className = 'btn btn-success';
         }
         isRunning = false;
     }
 
     function checkDownloadAll() {
-        const wrapper = document.getElementById("download-all-wrapper");
-        if (!wrapper) return;
-        const url = wrapper.dataset.checkUrl;
-        if (!url) return;
+        const url = '/anonymizer/check_all_processed/';
 
         fetch(url)
             .then(response => response.json())
             .then(data => {
                 const btn = document.getElementById("download-all-btn");
-                if (!btn) return;
-                if (data.all_processed) btn.removeAttribute("disabled");
-                else btn.setAttribute("disabled", "true");
+                if (!btn) {
+                    console.warn('[process.js] Download all button not found');
+                    return;
+                }
+                if (data.all_processed) {
+                    btn.removeAttribute("disabled");
+                    console.log('[process.js] Download all button enabled');
+                } else {
+                    btn.setAttribute("disabled", "true");
+                    console.log('[process.js] Download all button disabled - not all media processed');
+                }
             })
-            .catch(err => console.error("Error checking processed:", err));
+            .catch(err => console.error("[process.js] Error checking all processed:", err));
     }
 
     // Poll every second

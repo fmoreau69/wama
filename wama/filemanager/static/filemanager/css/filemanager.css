@@ -1,0 +1,512 @@
+/**
+ * WAMA FileManager Styles
+ * Dark theme matching WAMA's design
+ * Note: Les styles de layout (body, container, footer) sont dans app_modern.css
+ */
+
+/* === CSS VARIABLES === */
+:root {
+    --fm-header-height: 50px;
+    --fm-footer-height: 40px;
+    --fm-sidebar-width: 280px;
+    --fm-sidebar-width-mobile: 240px;
+    --fm-right-panel-width: 320px;
+}
+
+/* === LEFT SIDEBAR (FILE EXPLORER) - ALWAYS VISIBLE === */
+#filemanager-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    width: var(--fm-sidebar-width);
+    background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
+    border-right: 1px solid #2d3748;
+    z-index: 1025; /* Sous le header */
+    display: flex;
+    flex-direction: column;
+    box-shadow: 2px 0 10px rgba(0, 0, 0, 0.3);
+}
+
+/* === RIGHT PANEL (SETTINGS & PREVIEW) === */
+#wama-right-panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    height: 100vh;
+    width: var(--fm-right-panel-width);
+    background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
+    border-left: 1px solid #2d3748;
+    z-index: 1025;
+    display: flex;
+    flex-direction: column;
+    box-shadow: -2px 0 10px rgba(0, 0, 0, 0.3);
+}
+
+.right-panel-header {
+    padding: 12px 15px;
+    background: rgba(0, 0, 0, 0.2);
+    border-bottom: 1px solid #2d3748;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+    min-height: var(--fm-header-height);
+}
+
+.right-panel-header h5 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #e2e8f0;
+}
+
+.right-panel-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 15px;
+}
+
+.right-panel-section {
+    margin-bottom: 20px;
+}
+
+.right-panel-section-title {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #a0aec0;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 10px;
+    padding-bottom: 5px;
+    border-bottom: 1px solid #374151;
+}
+
+/* Preview container in right panel */
+.right-panel-preview {
+    background: #0d1117;
+    border-radius: 8px;
+    padding: 10px;
+    margin-bottom: 15px;
+}
+
+.right-panel-preview video,
+.right-panel-preview img {
+    width: 100%;
+    border-radius: 4px;
+}
+
+.right-panel-preview-placeholder {
+    text-align: center;
+    padding: 40px 20px;
+    color: #718096;
+}
+
+.right-panel-preview-placeholder i {
+    font-size: 3rem;
+    margin-bottom: 10px;
+    display: block;
+}
+
+/* === SIDEBAR HEADER === */
+.filemanager-header {
+    padding: 12px 15px;
+    background: rgba(0, 0, 0, 0.2);
+    border-bottom: 1px solid #2d3748;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+}
+
+.filemanager-header h5 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #e2e8f0;
+}
+
+.filemanager-header .btn-close-sidebar {
+    background: transparent;
+    border: none;
+    color: #a0aec0;
+    font-size: 1.2rem;
+    cursor: pointer;
+    padding: 5px;
+    transition: color 0.2s;
+}
+
+.filemanager-header .btn-close-sidebar:hover {
+    color: #fff;
+}
+
+/* === TOOLBAR === */
+.filemanager-toolbar {
+    padding: 10px 15px;
+    background: rgba(0, 0, 0, 0.1);
+    border-bottom: 1px solid #2d3748;
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.filemanager-toolbar .btn {
+    padding: 6px 10px;
+    font-size: 0.85rem;
+}
+
+/* === SEARCH === */
+.filemanager-search {
+    padding: 10px 15px;
+    border-bottom: 1px solid #2d3748;
+    flex-shrink: 0;
+}
+
+.filemanager-search .form-control {
+    background: #2d3748;
+    border: 1px solid #4a5568;
+    color: #e2e8f0;
+    font-size: 0.85rem;
+    padding: 8px 12px;
+}
+
+.filemanager-search .form-control::placeholder {
+    color: #718096;
+}
+
+.filemanager-search .form-control:focus {
+    background: #374151;
+    border-color: #667eea;
+    box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.25);
+}
+
+/* === TREE CONTAINER === */
+.filemanager-tree {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 10px;
+}
+
+/* Custom scrollbar */
+.filemanager-tree::-webkit-scrollbar {
+    width: 8px;
+}
+
+.filemanager-tree::-webkit-scrollbar-track {
+    background: #1a1a2e;
+}
+
+.filemanager-tree::-webkit-scrollbar-thumb {
+    background: #4a5568;
+    border-radius: 4px;
+}
+
+.filemanager-tree::-webkit-scrollbar-thumb:hover {
+    background: #667eea;
+}
+
+/* === JSTREE DARK THEME === */
+.jstree-default-dark {
+    background: transparent;
+}
+
+.jstree-default-dark .jstree-node,
+.jstree-default-dark .jstree-leaf > .jstree-icon {
+    background-image: none;
+}
+
+.jstree-default-dark .jstree-anchor {
+    color: #e2e8f0;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: background 0.15s, color 0.15s;
+    font-size: 0.9rem;
+}
+
+.jstree-default-dark .jstree-anchor:hover {
+    background: rgba(102, 126, 234, 0.15);
+    color: #fff;
+}
+
+.jstree-default-dark .jstree-clicked {
+    background: rgba(102, 126, 234, 0.3) !important;
+    color: #fff !important;
+}
+
+.jstree-default-dark .jstree-hovered {
+    background: rgba(102, 126, 234, 0.2);
+}
+
+/* Tree icons */
+.jstree-default-dark .jstree-icon {
+    margin-right: 6px;
+}
+
+.jstree-default-dark .jstree-icon.jstree-ocl {
+    color: #718096;
+}
+
+/* Open/close arrows */
+.jstree-default-dark .jstree-closed > .jstree-ocl::before,
+.jstree-default-dark .jstree-open > .jstree-ocl::before {
+    font-family: "Font Awesome 6 Free";
+    font-weight: 900;
+}
+
+.jstree-default-dark .jstree-closed > .jstree-ocl {
+    color: #a0aec0;
+}
+
+.jstree-default-dark .jstree-open > .jstree-ocl {
+    color: #667eea;
+}
+
+/* Connecting lines */
+.jstree-default-dark .jstree-wholerow {
+    background: transparent;
+}
+
+.jstree-default-dark .jstree-wholerow-hovered {
+    background: rgba(102, 126, 234, 0.1);
+}
+
+.jstree-default-dark .jstree-wholerow-clicked {
+    background: rgba(102, 126, 234, 0.2);
+}
+
+/* === CONTEXT MENU === */
+.jstree-default-dark .jstree-contextmenu,
+.vakata-context,
+.vakata-context ul {
+    background: #1e293b !important;
+    border: 1px solid #374151 !important;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+    padding: 5px 0;
+}
+
+.vakata-context li > a {
+    color: #e2e8f0 !important;
+    padding: 8px 15px;
+    font-size: 0.9rem;
+    transition: background 0.15s;
+}
+
+.vakata-context li > a:hover,
+.vakata-context li > a:focus {
+    background: rgba(102, 126, 234, 0.2) !important;
+    color: #fff !important;
+}
+
+.vakata-context li > a > i {
+    margin-right: 8px;
+    color: #a0aec0;
+}
+
+.vakata-context li > a:hover > i {
+    color: #667eea;
+}
+
+.vakata-context-separator {
+    border-top: 1px solid #374151 !important;
+    margin: 5px 0;
+}
+
+/* === DROP ZONE === */
+.filemanager-dropzone {
+    border: 2px dashed #4a5568;
+    border-radius: 8px;
+    padding: 20px;
+    text-align: center;
+    margin: 10px 15px;
+    transition: all 0.3s;
+    flex-shrink: 0;
+}
+
+.filemanager-dropzone.drag-over {
+    border-color: #667eea;
+    background: rgba(102, 126, 234, 0.1);
+}
+
+.filemanager-dropzone p {
+    margin: 0;
+    color: #718096;
+    font-size: 0.85rem;
+}
+
+.filemanager-dropzone i {
+    font-size: 2rem;
+    color: #4a5568;
+    margin-bottom: 10px;
+}
+
+/* === TOGGLE BUTTON - HIDDEN (sidebar always visible) === */
+#filemanager-toggle {
+    display: none;
+}
+
+/* === CONTENT LAYOUT WITH BOTH PANELS === */
+/* Le contenu est toujours entre les deux panneaux */
+body > .top_nav {
+    margin-left: var(--fm-sidebar-width);
+    width: calc(100% - var(--fm-sidebar-width) - var(--fm-right-panel-width));
+}
+
+body > .container,
+body > .container-fluid {
+    margin-left: var(--fm-sidebar-width) !important;
+    margin-right: var(--fm-right-panel-width) !important;
+    width: calc(100% - var(--fm-sidebar-width) - var(--fm-right-panel-width)) !important;
+    max-width: calc(100% - var(--fm-sidebar-width) - var(--fm-right-panel-width)) !important;
+}
+
+body > footer {
+    margin-left: var(--fm-sidebar-width);
+    margin-right: var(--fm-right-panel-width);
+    width: calc(100% - var(--fm-sidebar-width) - var(--fm-right-panel-width));
+}
+
+/* === PREVIEW MODAL === */
+#filePreviewModal .modal-content {
+    background: #1e293b;
+    border: 1px solid #374151;
+}
+
+#filePreviewModal .modal-header {
+    border-bottom: 1px solid #374151;
+}
+
+#filePreviewModal .modal-header .btn-close {
+    filter: invert(1);
+}
+
+#filePreviewModal .preview-container {
+    max-height: 70vh;
+    overflow: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#filePreviewModal .preview-container img,
+#filePreviewModal .preview-container video {
+    max-width: 100%;
+    max-height: 65vh;
+    object-fit: contain;
+}
+
+/* === FILE INFO === */
+.file-info-table {
+    width: 100%;
+    color: #e2e8f0;
+}
+
+.file-info-table tr {
+    border-bottom: 1px solid #374151;
+}
+
+.file-info-table td {
+    padding: 8px 0;
+}
+
+.file-info-table td:first-child {
+    color: #a0aec0;
+    font-weight: 500;
+    width: 100px;
+}
+
+/* === RESPONSIVE === */
+@media (max-width: 1200px) {
+    :root {
+        --fm-sidebar-width: 240px;
+        --fm-right-panel-width: 280px;
+    }
+}
+
+@media (max-width: 992px) {
+    :root {
+        --fm-sidebar-width: 200px;
+        --fm-right-panel-width: 240px;
+    }
+}
+
+@media (max-width: 768px) {
+    :root {
+        --fm-sidebar-width: 180px;
+        --fm-right-panel-width: 200px;
+    }
+
+    .filemanager-header h5,
+    .right-panel-header h5 {
+        font-size: 0.9rem;
+    }
+}
+
+/* === LOADING STATE === */
+.filemanager-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    color: #718096;
+}
+
+.filemanager-loading .spinner-border {
+    width: 24px;
+    height: 24px;
+    margin-right: 10px;
+}
+
+/* === DRAGGABLE FILES === */
+.jstree-default-dark .jstree-anchor[data-type="file"] {
+    cursor: grab;
+}
+
+.jstree-default-dark .jstree-anchor[data-type="file"]:active {
+    cursor: grabbing;
+}
+
+/* Drag helper */
+.filemanager-drag-helper {
+    background: #667eea;
+    color: white;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+    z-index: 9999;
+}
+
+/* === APP DROPZONE INTEGRATION === */
+/* Highlight app dropzones when dragging from FileManager */
+.drag-over,
+.filemanager-drag-target {
+    border-color: #667eea !important;
+    background: rgba(102, 126, 234, 0.15) !important;
+    box-shadow: 0 0 15px rgba(102, 126, 234, 0.3);
+}
+
+/* Visual feedback for drop zones */
+#dropZoneEnhancer.drag-over,
+#dropZoneAnonymizer.drag-over,
+#dropZone.drag-over,
+#dropZoneTranscriber.drag-over {
+    transform: scale(1.01);
+    transition: all 0.2s ease;
+}
+
+/* Drop zone message when dragging */
+.drag-over::after {
+    content: "Déposez le fichier ici";
+    position: absolute;
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #667eea;
+    color: white;
+    padding: 5px 15px;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    z-index: 10;
+}
