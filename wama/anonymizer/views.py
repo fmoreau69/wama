@@ -123,7 +123,7 @@ def process_media(video_path, user):
     try:
         filename = os.path.basename(video_path)
         ext = os.path.splitext(filename)[1]
-        media = Media.objects.create(file=f'anonymizer/inputs/{filename}', file_ext=ext, user=user)
+        media = Media.objects.create(file=f'anonymizer/input/{filename}', file_ext=ext, user=user)
 
         mime_type, _ = mimetypes.guess_type(video_path)
         if mime_type and mime_type.startswith("video/"):
@@ -697,6 +697,13 @@ def refresh(request):
     return JsonResponse({'render': template.render(context, request)})
 
 
+def queue_count(request):
+    """Returns the current queue count for AJAX updates."""
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    count = Media.objects.filter(user=user).count()
+    return JsonResponse({'count': count})
+
+
 def get_context(request):
     if request.user.is_authenticated:
         user = request.user
@@ -940,20 +947,32 @@ def expand_area(request):
 
 
 def clear_all_media(request):
+    """Delete all media files (input and output) for the current user."""
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
 
-    if user.user_settings.media_added:
-        user_medias = Media.objects.filter(user=user)
+    user_medias = Media.objects.filter(user=user)
+    if user_medias.exists():
         for media in user_medias:
-            media.file.delete()
-        user_medias.delete()
-        UserSettings.objects.filter(user_id=user.id).update(media_added=0)
-        UserSettings.objects.filter(user_id=user.id).update(show_gs=0)
+            # Delete input file
+            if media.file:
+                try:
+                    media.file.delete(save=False)
+                except Exception as e:
+                    print(f"[clear_all_media] Error deleting input file: {e}")
 
-    # Rafraîchir le template content
-    context = get_context(request)
-    template = loader.get_template('anonymizer/upload/content.html')
-    return JsonResponse({'render': template.render(context, request)})
+            # Delete output file (blurred media)
+            if media.output_file:
+                try:
+                    output_path = get_output_media_path(media)
+                    if os.path.exists(output_path):
+                        os.remove(output_path)
+                except Exception as e:
+                    print(f"[clear_all_media] Error deleting output file: {e}")
+
+        user_medias.delete()
+        UserSettings.objects.filter(user_id=user.id).update(media_added=0, show_gs=0)
+
+    return JsonResponse({'success': True})
 
 
 def clear_media(request):

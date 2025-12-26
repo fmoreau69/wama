@@ -553,8 +553,10 @@ def import_to_enhancer(source_path, user):
 def import_to_anonymizer(source_path, user):
     """Import a file to Anonymizer app."""
     from wama.anonymizer.models import Media
+    from wama.anonymizer.views import add_media_to_db
     from django.core.files import File
     import shutil
+    import mimetypes
 
     # Copy file to anonymizer input folder
     dest_dir = Path(settings.MEDIA_ROOT) / 'anonymizer' / 'input'
@@ -572,14 +574,33 @@ def import_to_anonymizer(source_path, user):
 
     shutil.copy2(source_path, dest_path)
 
-    # Create Media record
+    # Get file extension and determine media type
+    file_ext = dest_path.suffix.lower()
+    mime_type, _ = mimetypes.guess_type(str(dest_path))
+
+    # Determine initial media type based on mime
+    if mime_type and mime_type.startswith('image/'):
+        media_type = 'image'
+    elif mime_type and mime_type.startswith('video/'):
+        media_type = 'video'
+    else:
+        media_type = 'video'  # Default
+
+    # Create Media record with proper fields
     relative_path = f'anonymizer/input/{dest_path.name}'
 
-    with open(dest_path, 'rb') as f:
-        media = Media.objects.create(
-            user=user,
-            file=File(f, name=dest_path.name),
-        )
+    media = Media.objects.create(
+        user=user,
+        file=relative_path,
+        file_ext=file_ext,
+        media_type=media_type,
+    )
+
+    # Add metadata (dimensions, fps, duration, etc.)
+    try:
+        add_media_to_db(media, str(dest_path))
+    except Exception as e:
+        logger.warning(f"Could not add metadata for {dest_path.name}: {e}")
 
     return {
         'imported': True,

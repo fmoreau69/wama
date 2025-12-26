@@ -3,6 +3,73 @@
 
 {% block title %}Enhancer - AI Image/Video Upscaling{% endblock %}
 
+{% block app_right_panel_settings %}
+<!-- AI Model Selection -->
+<div class="mb-3">
+    <label for="defaultAiModel" class="form-label small fw-bold text-light">
+        <i class="fas fa-brain"></i> Modèle AI
+    </label>
+    <select class="form-select form-select-sm bg-dark text-white border-secondary" id="defaultAiModel">
+        {% for value, label in ai_models %}
+        <option value="{{ value }}" {% if user_settings.default_ai_model == value %}selected{% endif %}>
+            {{ label }}
+        </option>
+        {% endfor %}
+    </select>
+</div>
+
+<!-- Denoise Option -->
+<div class="mb-3">
+    <div class="form-check form-switch">
+        <input class="form-check-input" type="checkbox" id="defaultDenoise"
+               {% if user_settings.default_denoise %}checked{% endif %}>
+        <label class="form-check-label small text-light" for="defaultDenoise">
+            <i class="fas fa-broom"></i> Débruitage
+        </label>
+    </div>
+    <small class="text-muted d-block">Appliquer avant upscaling</small>
+</div>
+
+<!-- Blend Factor -->
+<div class="mb-3">
+    <label for="defaultBlendFactor" class="form-label small fw-bold text-light">
+        <i class="fas fa-sliders-h"></i> Blend: <span id="blendValue">{{ user_settings.default_blend_factor }}</span>
+    </label>
+    <input type="range" class="form-range" id="defaultBlendFactor"
+           min="0" max="1" step="0.1" value="{{ user_settings.default_blend_factor }}"
+           oninput="document.getElementById('blendValue').textContent = this.value">
+    <div class="d-flex justify-content-between">
+        <small class="text-muted">100% AI</small>
+        <small class="text-muted">100% Original</small>
+    </div>
+</div>
+
+<!-- Model Info -->
+<div class="alert alert-info py-2 small" role="alert">
+    <i class="fas fa-info-circle"></i> <strong>Modèles:</strong><br>
+    <small>
+        • <strong>RealESR_Gx4</strong>: Rapide (4x)<br>
+        • <strong>BSRGANx2/x4</strong>: Haute qualité<br>
+        • <strong>RealESRGANx4</strong>: Max qualité<br>
+        • <strong>IRCNN</strong>: Débruitage (1x)
+    </small>
+</div>
+{% endblock %}
+
+{% block app_right_panel_actions %}
+<div class="d-grid gap-2">
+    <button id="enhancer-process-btn" class="btn btn-success btn-sm">
+        <i class="fas fa-play"></i> Démarrer
+    </button>
+    <button id="enhancer-download-all-btn" class="btn btn-info btn-sm" disabled>
+        <i class="fas fa-download"></i> Télécharger tout
+    </button>
+    <button id="enhancer-clear-btn" class="btn btn-outline-danger btn-sm">
+        <i class="fas fa-trash"></i> Tout effacer
+    </button>
+</div>
+{% endblock %}
+
 {% block enhancer_content %}
 <!-- Drag & Drop Zone -->
 <div class="row mb-4">
@@ -23,95 +90,6 @@
     </div>
 </div>
 
-<!-- Settings Panel -->
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="card bg-dark border-secondary">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <span class="fw-bold"><i class="fas fa-cog"></i> Paramètres globaux</span>
-                <button class="btn btn-sm btn-outline-light" type="button" data-bs-toggle="collapse" data-bs-target="#settingsPanel">
-                    <i class="fas fa-chevron-down"></i>
-                </button>
-            </div>
-            <div class="collapse" id="settingsPanel">
-                <div class="card-body">
-                    <div class="row">
-                        <!-- AI Model Selection -->
-                        <div class="col-md-4 mb-3">
-                            <label for="defaultAiModel" class="form-label fw-bold">
-                                <i class="fas fa-brain"></i> Modèle AI
-                            </label>
-                            <select class="form-select bg-dark text-white border-secondary" id="defaultAiModel">
-                                {% for value, label in ai_models %}
-                                <option value="{{ value }}" {% if user_settings.default_ai_model == value %}selected{% endif %}>
-                                    {{ label }}
-                                </option>
-                                {% endfor %}
-                            </select>
-                            <small class="text-muted">Modèle utilisé pour l'amélioration</small>
-                        </div>
-
-                        <!-- Denoise Option -->
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label fw-bold">
-                                <i class="fas fa-broom"></i> Débruitage
-                            </label>
-                            <div class="form-check form-switch">
-                                <input class="form-check-input" type="checkbox" id="defaultDenoise"
-                                       {% if user_settings.default_denoise %}checked{% endif %}>
-                                <label class="form-check-label" for="defaultDenoise">
-                                    Appliquer le débruitage avant upscaling
-                                </label>
-                            </div>
-                            <small class="text-muted">Réduit le bruit dans l'image</small>
-                        </div>
-
-                        <!-- Blend Factor -->
-                        <div class="col-md-4 mb-3">
-                            <label for="defaultBlendFactor" class="form-label fw-bold">
-                                <i class="fas fa-sliders-h"></i> Blend Factor: <span id="blendValue">{{ user_settings.default_blend_factor }}</span>
-                            </label>
-                            <input type="range" class="form-range" id="defaultBlendFactor"
-                                   min="0" max="1" step="0.1" value="{{ user_settings.default_blend_factor }}"
-                                   oninput="document.getElementById('blendValue').textContent = this.value">
-                            <small class="text-muted">0 = 100% AI, 1 = 100% Original</small>
-                        </div>
-                    </div>
-
-                    <!-- Model Info -->
-                    <div class="alert alert-info mt-3" role="alert">
-                        <i class="fas fa-info-circle"></i> <strong>Info modèles:</strong><br>
-                        <small>
-                            • <strong>RealESR_Gx4</strong>: Rapide, usage général (4x)<br>
-                            • <strong>BSRGANx2/x4</strong>: Haute qualité, léger<br>
-                            • <strong>RealESRGANx4</strong>: Qualité maximale (lent)<br>
-                            • <strong>IRCNN</strong>: Débruitage uniquement (1x)
-                        </small>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<hr>
-
-<!-- Action Buttons -->
-<div class="row mb-3">
-    <div class="col-12">
-        <div class="btn-group" role="group">
-            <button id="enhancer-process-btn" class="btn btn-success">
-                <i class="fas fa-play"></i> Démarrer le traitement
-            </button>
-            <button id="enhancer-download-all-btn" class="btn btn-info" disabled>
-                <i class="fas fa-download"></i> Télécharger tout
-            </button>
-            <button id="enhancer-clear-btn" class="btn btn-danger">
-                <i class="fas fa-trash"></i> Tout effacer
-            </button>
-        </div>
-    </div>
-</div>
 
 <!-- Global Progress -->
 <div class="row mb-3">

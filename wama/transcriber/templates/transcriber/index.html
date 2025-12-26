@@ -3,6 +3,53 @@
 
 {% block title %}Transcriber - Speech To Text{% endblock %}
 
+{% block app_right_panel_settings %}
+<!-- Preprocessing Toggle -->
+<div class="mb-3">
+    <div class="form-check form-switch">
+        <input class="form-check-input" type="checkbox" id="preprocessingToggle"
+               data-preprocess-url="{% url 'transcriber:set_preprocessing' %}"
+               {% if preprocessing_enabled %}checked{% endif %}>
+        <label class="form-check-label small fw-bold text-light" for="preprocessingToggle">
+            <i class="fas fa-wand-magic-sparkles"></i> Prétraitement audio
+        </label>
+    </div>
+    <small class="text-muted d-block mt-1">
+        Normalisation + réduction de bruit
+    </small>
+</div>
+
+<!-- Info Box -->
+<div class="alert alert-info py-2 small" role="alert">
+    <i class="fas fa-info-circle"></i> <strong>Prétraitement:</strong><br>
+    <small>
+        • Convertit en mono 16kHz<br>
+        • Réduit le bruit de fond<br>
+        • Optimise les niveaux
+    </small>
+</div>
+
+<!-- Preprocessing Info Button -->
+<button type="button" class="btn btn-outline-info btn-sm w-100"
+        data-bs-toggle="modal" data-bs-target="#preprocessingModal">
+    <i class="fas fa-question-circle"></i> En savoir plus
+</button>
+{% endblock %}
+
+{% block app_right_panel_actions %}
+<div class="d-grid gap-2">
+    <button id="transcriber-process-btn" class="btn btn-success btn-sm">
+        <i class="fas fa-play"></i> Démarrer
+    </button>
+    <button id="transcriber-download-all-btn" class="btn btn-info btn-sm" disabled>
+        <i class="fas fa-download"></i> Télécharger tout
+    </button>
+    <button id="transcriber-clear-btn" class="btn btn-outline-danger btn-sm">
+        <i class="fas fa-trash"></i> Tout effacer
+    </button>
+</div>
+{% endblock %}
+
 {% block javascript %}
 {{ block.super }}
 <script>
@@ -102,22 +149,6 @@
 
 <hr>
 
-<!-- Action Buttons -->
-<div class="row mb-3">
-    <div class="col-12">
-        <div class="btn-group" role="group">
-            <button id="transcriber-process-btn" class="btn btn-success">
-                <i class="fas fa-play"></i> Start Process
-            </button>
-            <button id="transcriber-download-all-btn" class="btn btn-info" disabled>
-                <i class="fas fa-download"></i> Download All
-            </button>
-            <button id="transcriber-clear-btn" class="btn btn-danger">
-                <i class="fas fa-trash"></i> Clear All
-            </button>
-        </div>
-    </div>
-</div>
 
 <!-- Global Progress -->
 <div class="row mb-3">
@@ -208,31 +239,6 @@
     </div>
 </div>
 
-<!-- Preprocessing Control -->
-<div class="row mt-4">
-    <div class="col-12">
-        <div class="p-3 border border-secondary rounded bg-dark">
-            <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3">
-                <div class="form-check form-switch">
-                    <input class="form-check-input"
-                           type="checkbox"
-                           id="preprocessingToggle"
-                           data-preprocess-url="{% url 'transcriber:set_preprocessing' %}"
-                           {% if preprocessing_enabled %}checked{% endif %}>
-                    <label class="form-check-label fw-semibold" for="preprocessingToggle">
-                        Prétraitement audio
-                    </label>
-                </div>
-                <button type="button"
-                        class="btn btn-sm btn-outline-info"
-                        data-bs-toggle="modal"
-                        data-bs-target="#preprocessingModal">
-                    <i class="fas fa-question-circle"></i> Pourquoi l'activer ?
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
 {% endblock %}
 
 <!-- Modal Prétraitement - doit être hors du block transcriber_content pour être au niveau du body -->

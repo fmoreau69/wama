@@ -8,29 +8,165 @@
 :root {
     --fm-header-height: 50px;
     --fm-footer-height: 40px;
-    --fm-sidebar-width: 320px;
-    --fm-sidebar-width-mobile: 280px;
+    --fm-sidebar-width: 280px;
+    --fm-sidebar-width-mobile: 240px;
+    --fm-right-panel-width: 320px;
 }
 
-/* === SIDEBAR CONTAINER === */
+/* === MAIN HEADER - Aligned with side panels === */
+.wama-header {
+    height: var(--fm-header-height) !important;
+    min-height: var(--fm-header-height) !important;
+    max-height: var(--fm-header-height) !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%) !important;
+    display: flex !important;
+    align-items: center !important;
+    overflow: visible !important; /* Allow dropdown to overflow */
+}
+
+.wama-header .container-fluid {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    overflow: visible !important; /* Allow dropdown to overflow */
+}
+
+.wama-header .navbar-brand {
+    padding: 0;
+    margin: 0;
+    font-size: 1.1rem;
+}
+
+.wama-header .btn,
+.wama-header .nav-link {
+    padding: 6px 12px;
+    font-size: 0.9rem;
+}
+
+.wama-header .dropdown-toggle {
+    height: 36px;
+}
+
+/* Dropdown menu must overflow outside header */
+.wama-header .dropdown {
+    position: relative;
+}
+
+.wama-header .dropdown-menu {
+    position: absolute !important;
+    top: 100% !important;
+    left: 0 !important;
+    z-index: 1050 !important;
+    margin-top: 2px !important;
+}
+
+/* Top nav wrapper - matches header height */
+.top_nav {
+    position: fixed !important;
+    top: 0 !important;
+    left: var(--fm-sidebar-width) !important;
+    right: var(--fm-right-panel-width) !important;
+    width: auto !important;
+    height: var(--fm-header-height) !important;
+    z-index: 1030 !important;
+    overflow: visible !important; /* Critical for dropdown */
+}
+
+/* === LEFT SIDEBAR (FILE EXPLORER) - ALWAYS VISIBLE === */
 #filemanager-sidebar {
     position: fixed;
-    top: var(--fm-header-height);
+    top: 0;
     left: 0;
-    height: calc(100vh - var(--fm-header-height) - var(--fm-footer-height));
+    height: calc(100vh - var(--fm-footer-height));
     width: var(--fm-sidebar-width);
     background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
     border-right: 1px solid #2d3748;
-    z-index: 1040;
-    transform: translateX(-100%);
-    transition: transform 0.3s ease-in-out;
+    z-index: 1025; /* Sous le header */
     display: flex;
     flex-direction: column;
     box-shadow: 2px 0 10px rgba(0, 0, 0, 0.3);
 }
 
-#filemanager-sidebar.open {
-    transform: translateX(0);
+/* === RIGHT PANEL (SETTINGS & PREVIEW) === */
+#wama-right-panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    height: calc(100vh - var(--fm-footer-height));
+    width: var(--fm-right-panel-width);
+    background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
+    border-left: 1px solid #2d3748;
+    z-index: 1025;
+    display: flex;
+    flex-direction: column;
+    box-shadow: -2px 0 10px rgba(0, 0, 0, 0.3);
+}
+
+.right-panel-header {
+    padding: 12px 15px;
+    background: rgba(0, 0, 0, 0.2);
+    border-bottom: 1px solid #2d3748;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+    min-height: var(--fm-header-height);
+}
+
+.right-panel-header h5 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #e2e8f0;
+}
+
+.right-panel-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 15px;
+}
+
+.right-panel-section {
+    margin-bottom: 20px;
+}
+
+.right-panel-section-title {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #a0aec0;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 10px;
+    padding-bottom: 5px;
+    border-bottom: 1px solid #374151;
+}
+
+/* Preview container in right panel */
+.right-panel-preview {
+    background: #0d1117;
+    border-radius: 8px;
+    padding: 10px;
+    margin-bottom: 15px;
+}
+
+.right-panel-preview video,
+.right-panel-preview img {
+    width: 100%;
+    border-radius: 4px;
+}
+
+.right-panel-preview-placeholder {
+    text-align: center;
+    padding: 40px 20px;
+    color: #718096;
+}
+
+.right-panel-preview-placeholder i {
+    font-size: 3rem;
+    margin-bottom: 10px;
+    display: block;
 }
 
 /* === SIDEBAR HEADER === */
@@ -266,52 +402,32 @@
     margin-bottom: 10px;
 }
 
-/* === TOGGLE BUTTON === */
+/* === TOGGLE BUTTON - HIDDEN (sidebar always visible) === */
 #filemanager-toggle {
-    position: fixed;
-    top: calc(var(--fm-header-height) + 15px);
-    left: 10px;
-    z-index: 1039;
-    width: 40px;
-    height: 40px;
-    border-radius: 8px;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    border: none;
-    color: white;
-    box-shadow: 0 2px 10px rgba(102, 126, 234, 0.4);
-    cursor: pointer;
-    transition: all 0.3s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    display: none;
 }
 
-#filemanager-toggle:hover {
-    transform: scale(1.1);
-    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.6);
+/* === CONTENT LAYOUT WITH BOTH PANELS === */
+/* Le contenu est positionné entre les deux panneaux latéraux */
+body > .container,
+body > .container-fluid {
+    margin-top: var(--fm-header-height) !important;
+    margin-left: var(--fm-sidebar-width) !important;
+    margin-right: var(--fm-right-panel-width) !important;
+    margin-bottom: var(--fm-footer-height) !important;
+    width: calc(100% - var(--fm-sidebar-width) - var(--fm-right-panel-width)) !important;
+    max-width: calc(100% - var(--fm-sidebar-width) - var(--fm-right-panel-width)) !important;
 }
 
-#filemanager-toggle.sidebar-open {
-    left: calc(var(--fm-sidebar-width) + 10px);
-}
-
-/* === CONTENT RESIZE WHEN SIDEBAR OPEN === */
-body .container,
-body .container-fluid,
 body > footer {
-    transition: margin-left 0.3s ease-in-out, width 0.3s ease-in-out, max-width 0.3s ease-in-out;
-}
-
-body.filemanager-open .container,
-body.filemanager-open .container-fluid {
-    margin-left: var(--fm-sidebar-width);
-    width: calc(100% - var(--fm-sidebar-width));
-    max-width: calc(100% - var(--fm-sidebar-width));
-}
-
-body.filemanager-open > footer {
-    margin-left: var(--fm-sidebar-width);
-    width: calc(100% - var(--fm-sidebar-width));
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100% !important;
+    height: var(--fm-footer-height);
+    margin: 0 !important;
+    z-index: 1030; /* Au-dessus des panneaux latéraux (1025) */
 }
 
 /* === PREVIEW MODAL === */
@@ -364,25 +480,29 @@ body.filemanager-open > footer {
 }
 
 /* === RESPONSIVE === */
+@media (max-width: 1200px) {
+    :root {
+        --fm-sidebar-width: 240px;
+        --fm-right-panel-width: 280px;
+    }
+}
+
+@media (max-width: 992px) {
+    :root {
+        --fm-sidebar-width: 200px;
+        --fm-right-panel-width: 240px;
+    }
+}
+
 @media (max-width: 768px) {
-    #filemanager-sidebar {
-        width: var(--fm-sidebar-width-mobile);
+    :root {
+        --fm-sidebar-width: 180px;
+        --fm-right-panel-width: 200px;
     }
 
-    #filemanager-toggle.sidebar-open {
-        left: calc(var(--fm-sidebar-width-mobile) + 10px);
-    }
-
-    body.filemanager-open .container,
-    body.filemanager-open .container-fluid {
-        margin-left: var(--fm-sidebar-width-mobile);
-        width: calc(100% - var(--fm-sidebar-width-mobile));
-        max-width: calc(100% - var(--fm-sidebar-width-mobile));
-    }
-
-    body.filemanager-open > footer {
-        margin-left: var(--fm-sidebar-width-mobile);
-        width: calc(100% - var(--fm-sidebar-width-mobile));
+    .filemanager-header h5,
+    .right-panel-header h5 {
+        font-size: 0.9rem;
     }
 }
 

@@ -30,6 +30,15 @@ os.environ.setdefault("SUNO_USE_SMALL_MODELS", "False")  # Use full models for b
 # Bark models use old pickle format - we trust Suno AI as the source
 os.environ.setdefault("TORCH_FORCE_WEIGHTS_ONLY_LOAD", "0")
 
+# Patch torch.load BEFORE any model loading happens
+# PyTorch 2.6+ changed default to weights_only=True which breaks Bark
+_original_torch_load = torch.load
+def _patched_torch_load(*args, **kwargs):
+    if 'weights_only' not in kwargs:
+        kwargs['weights_only'] = False
+    return _original_torch_load(*args, **kwargs)
+torch.load = _patched_torch_load
+
 from django.core.cache import cache
 from django.db import close_old_connections
 from django.core.files.base import ContentFile
@@ -121,20 +130,7 @@ def _ensure_bark_loaded():
     if _BARK_AVAILABLE is None:
         try:
             logger.info("Lazy importing Bark library...")
-
-            # Patch torch.load to allow weights_only=False for Bark models
-            # PyTorch 2.6+ changed default to weights_only=True which breaks Bark
-            import torch
-            original_load = torch.load
-
-            def patched_load(*args, **kwargs):
-                # Force weights_only=False for Bark model loading
-                if 'weights_only' not in kwargs:
-                    kwargs['weights_only'] = False
-                return original_load(*args, **kwargs)
-
-            torch.load = patched_load
-            logger.info("Patched torch.load for Bark compatibility (PyTorch 2.6+)")
+            # Note: torch.load is already patched at module level for PyTorch 2.6+ compatibility
 
             from bark import SAMPLE_RATE, generate_audio, preload_models
 
@@ -148,6 +144,10 @@ def _ensure_bark_loaded():
             _BARK_AVAILABLE = False
             logger.error(f"Bark library not available: {e}")
             raise RuntimeError("Bark library not installed. Install with: pip install suno-bark")
+        except Exception as e:
+            _BARK_AVAILABLE = False
+            logger.error(f"Error initializing Bark: {e}", exc_info=True)
+            raise RuntimeError(f"Failed to initialize Bark: {e}")
 
     if not _BARK_AVAILABLE:
         raise RuntimeError("Bark library not available")
@@ -159,9 +159,23 @@ def _ensure_bark_loaded():
             _BARK_AVAILABLE['preload_models']()
             _BARK_MODELS_LOADED = True
             logger.info("Bark models preloaded successfully")
+        except ValueError as e:
+            # This can happen with corrupted model files or version mismatch
+            error_msg = str(e)
+            if "not enough values to unpack" in error_msg:
+                logger.error(f"Bark model checkpoint corrupted or incompatible: {e}")
+                # Try to clear the cache and suggest re-download
+                bark_cache = BARK_HOME
+                raise RuntimeError(
+                    f"Les fichiers du modèle Bark semblent corrompus ou incompatibles. "
+                    f"Essayez de supprimer le dossier cache: {bark_cache} "
+                    f"et relancez pour télécharger les modèles à nouveau. "
+                    f"Erreur originale: {e}"
+                )
+            raise RuntimeError(f"Failed to load Bark models: {e}")
         except Exception as e:
-            logger.warning(f"Failed to preload Bark models: {e}")
-            # Don't fail here - models will be downloaded on demand
+            logger.error(f"Failed to preload Bark models: {e}", exc_info=True)
+            raise RuntimeError(f"Failed to load Bark models: {e}")
 
     return _BARK_AVAILABLE
 

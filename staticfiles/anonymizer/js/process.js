@@ -77,10 +77,41 @@ document.addEventListener("DOMContentLoaded", function() {
                             checkDownloadAll();
                         }
 
-                        // Refresh page content to update UI
-                        if (typeof refreshContent === 'function') {
-                            console.log(`[process.js] Refreshing content after media ${mediaId} completion`);
+                        // Refresh media table to update UI (more efficient than full content refresh)
+                        if (typeof window.refreshMediaTable === 'function') {
+                            console.log(`[process.js] Refreshing media table after media ${mediaId} completion`);
+                            setTimeout(() => window.refreshMediaTable(), 1000);
+                        } else if (typeof refreshContent === 'function') {
+                            console.log(`[process.js] Fallback: Refreshing content after media ${mediaId} completion`);
                             setTimeout(() => refreshContent(), 1000);
+                        }
+
+                        // Check if all polling is complete (all medias processed)
+                        if (isRunning && Object.keys(progressIntervals).length === 0) {
+                            console.log('[process.js] All media polling complete, resetting button state');
+
+                            // Stop global polling if exists
+                            if (pollingGlobal) {
+                                clearInterval(pollingGlobal);
+                                pollingGlobal = null;
+                            }
+                            if (pollingYOLO) {
+                                clearInterval(pollingYOLO);
+                                pollingYOLO = null;
+                            }
+
+                            // Hide loader
+                            const loader = getLoader();
+                            if (loader) loader.style.display = 'none';
+
+                            // Reset button to initial state
+                            resetButton();
+
+                            // Show success message
+                            const resultDiv = getResultDiv();
+                            if (resultDiv) {
+                                resultDiv.innerHTML = '<span class="text-success">✅ Traitement terminé</span>';
+                            }
                         }
                     }
                 })
@@ -276,7 +307,7 @@ document.addEventListener("DOMContentLoaded", function() {
             });
 
             // Polling global progress bar
-            const globalBar = document.getElementById('process-progress');
+            const globalBar = document.getElementById('globalProgressBar');
             if (globalBar) {
                 pollingGlobal = setInterval(() => {
                     fetch('/anonymizer/process_progress/')

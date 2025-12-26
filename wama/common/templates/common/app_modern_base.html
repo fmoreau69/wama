@@ -183,6 +183,17 @@
 </footer>
 {% endblock footer %}
 
+{% block right_panel_settings %}
+{% block app_right_panel_settings %}
+<p class="text-muted small">Sélectionnez un fichier pour voir les options</p>
+{% endblock %}
+{% endblock %}
+
+{% block right_panel_actions %}
+{% block app_right_panel_actions %}
+{% endblock %}
+{% endblock %}
+
 {% block javascript %}
 {{ block.super }}
 <!-- Console auto-refresh script -->

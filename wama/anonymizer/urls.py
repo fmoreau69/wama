@@ -17,6 +17,7 @@ urlpatterns = [
 
     # Opérations
     path('refresh/', views.refresh, name='refresh'),
+    path('queue_count/', views.queue_count, name='queue_count'),
     path('update_settings/', views.update_settings, name='update_settings'),
     path('clear_media/', views.clear_media, name='clear_media'),
     path('reset_media_settings/', views.reset_media_settings, name='reset_media_settings'),

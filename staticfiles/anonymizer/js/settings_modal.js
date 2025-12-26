@@ -270,8 +270,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (andRestart) {
                     restartMedia(mediaId);
                 } else {
-                    // Refresh the page to show updated settings
-                    location.reload();
+                    // Refresh the media table to show updated settings
+                    if (typeof window.refreshMediaTable === 'function') {
+                        window.refreshMediaTable();
+                    } else {
+                        location.reload();
+                    }
                 }
             } else {
                 alert('Error saving settings: ' + (data.error || 'Unknown error'));
@@ -305,7 +309,17 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(data => {
             if (data.success) {
                 console.log('[settings_modal.js] Settings reset successfully');
-                location.reload();
+                // Close modal and refresh media table
+                const modal = document.getElementById(`settingsModal${mediaId}`);
+                if (modal) {
+                    const bsModal = bootstrap.Modal.getInstance(modal);
+                    if (bsModal) bsModal.hide();
+                }
+                if (typeof window.refreshMediaTable === 'function') {
+                    window.refreshMediaTable();
+                } else {
+                    location.reload();
+                }
             } else {
                 alert('Error resetting settings: ' + (data.error || 'Unknown error'));
             }
@@ -352,7 +366,11 @@ document.addEventListener('DOMContentLoaded', function() {
             console.log('[settings_modal.js] Response data:', data);
             if (data.success) {
                 console.log('[settings_modal.js] Media restarted successfully');
-                location.reload();
+                if (typeof window.refreshMediaTable === 'function') {
+                    window.refreshMediaTable();
+                } else {
+                    location.reload();
+                }
             } else {
                 console.error('[settings_modal.js] Restart failed:', data.error);
                 alert('Error restarting media: ' + (data.error || 'Unknown error'));
@@ -391,15 +409,13 @@ document.addEventListener('DOMContentLoaded', function() {
             if (data.success) {
                 console.log('[settings_modal.js] Media deleted successfully');
 
-                // Update UI dynamically instead of reloading the page
-                if (data.render) {
-                    const mainContainer = document.getElementById('main_container');
-                    if (mainContainer) {
-                        mainContainer.innerHTML = data.render;
-                        console.log('[settings_modal.js] UI updated dynamically');
-                    } else {
-                        location.reload();
+                // Update UI dynamically using refreshMediaTable
+                if (typeof window.refreshMediaTable === 'function') {
+                    window.refreshMediaTable();
+                    if (typeof window.updateQueueCount === 'function') {
+                        window.updateQueueCount();
                     }
+                    console.log('[settings_modal.js] UI updated dynamically');
                 } else {
                     location.reload();
                 }

@@ -162,8 +162,8 @@ $(function () {
         alert(error);
       }
 
-      // Rafraîchir le contenu après upload et garder Start Process utilisable sans reload
-      refreshContent(() => {
+      // Rafraîchir uniquement la table des médias après upload
+      refreshMediaTable(() => {
         // Optionnel: démarrer le process si l'utilisateur le souhaite (ex: prompt)
         // Ici, on ne démarre pas automatiquement, mais le bouton est prêt
       });
@@ -212,8 +212,8 @@ $(function () {
           alert(error);
         }
 
-        // Rafraîchir le contenu après ajout par URL
-        refreshContent();
+        // Rafraîchir uniquement la table des médias après ajout par URL
+        refreshMediaTable();
       },
       error: function (xhr) {
         alert("Erreur : " + (xhr.responseText || "Une erreur s'est produite"));
@@ -228,7 +228,37 @@ $(function () {
     });
   });
 
-  // Fonction pour rafraîchir le contenu
+  // Fonction pour rafraîchir uniquement la table des médias (plus moderne)
+  function refreshMediaTable(after) {
+    $.ajax({
+      type: 'GET',
+      url: '/anonymizer/refresh/',
+      data: { template_name: 'media_table' },
+      success: function (res) {
+        if (res.render) {
+          $("#media_table_container").html(res.render);
+
+          // Re-initialize event handlers
+          if (typeof window.initProcessControls === 'function') {
+            window.initProcessControls();
+          }
+          if (typeof window.initMediaPreview === 'function') {
+            window.initMediaPreview();
+          }
+
+          // Update queue count badge
+          updateQueueCount();
+
+          if (typeof after === 'function') after();
+        }
+      },
+      error: function () {
+        console.warn("Échec du rafraîchissement de la table.");
+      }
+    });
+  }
+
+  // Fonction pour rafraîchir tout le contenu (utiliser si nécessaire)
   function refreshContent(after) {
     // Clean up old modals and backdrops before refreshing
     cleanupModals();
@@ -258,6 +288,20 @@ $(function () {
       },
       error: function () {
         console.warn("Échec du rafraîchissement du contenu.");
+      }
+    });
+  }
+
+  // Met à jour le compteur de la file d'attente
+  function updateQueueCount() {
+    $.ajax({
+      type: 'GET',
+      url: '/anonymizer/queue_count/',
+      success: function (data) {
+        const badge = document.getElementById('queueCount');
+        if (badge && data.count !== undefined) {
+          badge.textContent = data.count;
+        }
       }
     });
   }
@@ -295,4 +339,7 @@ $(function () {
   // Expose these functions globally for use by other scripts
   window.cleanupModals = cleanupModals;
   window.reinitializeModals = reinitializeModals;
+  window.refreshMediaTable = refreshMediaTable;
+  window.refreshContent = refreshContent;
+  window.updateQueueCount = updateQueueCount;
 });

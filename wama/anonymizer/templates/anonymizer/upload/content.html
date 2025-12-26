@@ -1,115 +1,74 @@
-<div {% if not user.user_settings.media_added %} class="collapse" {% else %} class="collapse show" {% endif %}
-     id="collapseContent">
+<!-- Hidden CSRF token for JS -->
+<input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
 
-    <!-- Global Settings (Collapsible) -->
-    <div class="row mt-4">
-        <div class="col-12">
-            <div class="card bg-dark border-secondary">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <span class="fw-bold"><i class="fas fa-cog"></i> Paramètres globaux</span>
-                    <button class="btn btn-sm btn-outline-light" type="button" data-bs-toggle="collapse" data-bs-target="#collapseGlobalSettings">
-                        <i class="fas fa-chevron-down"></i>
-                    </button>
+<!-- Queue Header -->
+<div class="row mb-3">
+    <div class="col-12">
+        <h4 class="mb-3">
+            <i class="fas fa-list"></i> File d'attente
+            <span class="badge bg-secondary" id="queueCount">{{ medias.count }}</span>
+        </h4>
+    </div>
+</div>
+
+<!-- Media Table or Empty State -->
+<div id="media_table_container">
+    {% include "anonymizer/upload/media_table.html" %}
+</div>
+
+{% if medias.count > 0 %}
+<!-- Global Progress (only shown when medias exist) -->
+<div class="row mb-3 mt-4">
+    <div class="col-12">
+        <div class="card bg-dark border-secondary">
+            <div class="card-body py-2">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h6 class="mb-0 text-light">
+                        <i class="fas fa-chart-line"></i> Progression globale
+                    </h6>
+                    <small class="text-white-50" id="globalProgressStats">0/0 terminé</small>
                 </div>
-                <div {% if user.user_settings.show_gs %} class="collapse show" {% else %} class="collapse" {% endif %} id="collapseGlobalSettings">
-                    <div class="card-body" id="global_settings_container">
-                        {% include "anonymizer/upload/global_settings.html" %}
-                    </div>
+                <div class="progress" style="height: 20px;">
+                    <div class="progress-bar" id="globalProgressBar" role="progressbar" style="width: 0%">0%</div>
                 </div>
             </div>
         </div>
     </div>
+</div>
 
-    <hr class="border-secondary my-4">
-
-    <!-- Action Buttons -->
-    <div class="row mb-3">
-        <div class="col-12">
-            <div class="btn-group" role="group">
-                <button id="process-toggle-btn" class="btn btn-success">
-                    <i class="fas fa-play"></i> Démarrer le traitement
+<!-- Preview Section (only shown when medias exist) -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card bg-dark border-secondary">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span class="fw-bold"><i class="fas fa-display"></i> Prévisualisation</span>
+                <button class="btn btn-sm btn-outline-light" type="button" data-bs-toggle="collapse" data-bs-target="#collapsePreview">
+                    <i class="fas fa-chevron-down"></i>
                 </button>
-                <form action="{% url 'anonymizer:download_all_media' %}" method="post" class="d-inline">
-                    {% csrf_token %}
-                    <button id="download-all-btn" type="submit" class="btn btn-info" disabled>
-                        <i class="fas fa-download"></i> Télécharger tout
-                    </button>
-                </form>
-                <button type="button" id="clear_all_media_btn" class="btn btn-danger">
-                    <i class="fas fa-trash"></i> Tout effacer
-                </button>
             </div>
-            <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
-        </div>
-    </div>
-
-    <!-- Global Progress -->
-    <div class="row mb-3">
-        <div class="col-12">
-            <div class="card bg-dark border-secondary">
-                <div class="card-body py-2">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <h6 class="mb-0 text-light">
-                            <i class="fas fa-chart-line"></i> Progression globale
-                        </h6>
-                        <small class="text-white-50" id="globalProgressStats">0/0 terminé</small>
-                    </div>
-                    <div class="progress" style="height: 20px;">
-                        <div class="progress-bar" id="globalProgressBar" role="progressbar" style="width: 0%">0%</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Queue Header -->
-    <div class="row mb-3">
-        <div class="col-12">
-            <h4 class="mb-3">
-                <i class="fas fa-list"></i> File d'attente
-                <span class="badge bg-secondary">{{ medias.count }}</span>
-            </h4>
-        </div>
-    </div>
-
-    <!-- Media Table -->
-    <div id="media_table_container" class="table-responsive">
-        {% include "anonymizer/upload/media_table.html" %}
-    </div>
-
-    <!-- Preview Section (Collapsible) -->
-    <div class="row mt-4">
-        <div class="col-12">
-            <div class="card bg-dark border-secondary">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <span class="fw-bold"><i class="fas fa-display"></i> Prévisualisation</span>
-                    <button class="btn btn-sm btn-outline-light" type="button" data-bs-toggle="collapse" data-bs-target="#collapsePreview">
-                        <i class="fas fa-chevron-down"></i>
-                    </button>
-                </div>
-                <div {% if user.user_settings.show_preview %} class="collapse show" {% else %} class="collapse" {% endif %} id="collapsePreview">
-                    <div class="card-body">
-                        <div class="preview-wrapper">
-                            <div class="preview-player-shell ratio ratio-16x9 bg-black rounded shadow position-relative overflow-hidden">
-                                <video id="media-preview-player"
-                                       class="w-100 h-100 position-absolute top-0 start-0 d-none"
-                                       controls
-                                       playsinline
-                                       muted
-                                       preload="metadata"></video>
-                                <div id="media-preview-empty" class="preview-placeholder text-white text-center px-4">
-                                    <div class="d-flex flex-column h-100 justify-content-center align-items-center">
-                                        <i class="fas fa-play-circle mb-3" style="font-size: 3rem;"></i>
-                                        <h4 class="fw-bold mb-2">Aucun média sélectionné</h4>
-                                        <p class="text-muted mb-0">Choisissez un média dans le tableau pour lancer l'aperçu.</p>
-                                    </div>
+            <div {% if user.user_settings.show_preview %}class="collapse show"{% else %}class="collapse"{% endif %} id="collapsePreview">
+                <div class="card-body">
+                    <div class="preview-wrapper">
+                        <div class="preview-player-shell ratio ratio-16x9 bg-black rounded shadow position-relative overflow-hidden">
+                            <video id="media-preview-player"
+                                   class="w-100 h-100 position-absolute top-0 start-0 d-none"
+                                   controls
+                                   playsinline
+                                   muted
+                                   preload="metadata"></video>
+                            <div id="media-preview-empty" class="preview-placeholder text-white text-center px-4">
+                                <div class="d-flex flex-column h-100 justify-content-center align-items-center">
+                                    <i class="fas fa-play-circle mb-3" style="font-size: 3rem;"></i>
+                                    <h4 class="fw-bold mb-2">Aucun média sélectionné</h4>
+                                    <p class="text-muted mb-0">Choisissez un média dans le tableau pour lancer l'aperçu.</p>
                                 </div>
                             </div>
-                            <div id="media-preview-meta" class="text-center text-muted mt-2 d-none"></div>
                         </div>
+                        <div id="media-preview-meta" class="text-center text-muted mt-2 d-none"></div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 </div>
+{% endif %}

@@ -15,10 +15,10 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 # Anonymizer media paths
-MEDIA_INPUT_URL = '/media/anonymizer/inputs'
-MEDIA_INPUT_ROOT = MEDIA_ROOT / 'anonymizer' / 'inputs'
-MEDIA_OUTPUT_URL = '/media/anonymizer/outputs'
-MEDIA_OUTPUT_ROOT = MEDIA_ROOT / 'anonymizer' / 'outputs'
+MEDIA_INPUT_URL = '/media/anonymizer/input'
+MEDIA_INPUT_ROOT = MEDIA_ROOT / 'anonymizer' / 'input'
+MEDIA_OUTPUT_URL = '/media/anonymizer/output'
+MEDIA_OUTPUT_ROOT = MEDIA_ROOT / 'anonymizer' / 'output'
 
 # Clé secrète & débogage
 SECRET_KEY = 'REDACTED_SECRET_KEY'

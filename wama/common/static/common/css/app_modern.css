@@ -66,29 +66,9 @@ footer .container {
 }
 
 /*  === NAVIGATION === */
-.top_nav {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    width: 100%;
-    z-index: 1030;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.5);
-    flex-shrink: 0;
-    overflow: visible !important; /* Permet aux dropdowns de dépasser */
-}
+/* Note: .top_nav positioning is handled in filemanager.css */
 
-.top_nav nav,
-.top_nav .navbar {
-    background-color: #212529 !important;
-    overflow: visible !important; /* Critique pour les dropdowns */
-}
-
-.top_nav .container-fluid {
-    overflow: visible !important;
-}
-
-/* Assure que les dropdowns sont visibles et positionnés correctement */
+/* Dropdowns visibility */
 .top_nav .dropdown-menu {
     z-index: 1035;
     position: absolute !important;
@@ -96,10 +76,6 @@ footer .container {
 
 .top_nav .dropdown {
     position: relative;
-}
-
-#top-navigation i {
-    font-size: 1.5em;
 }
 
 .page-title {

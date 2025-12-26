@@ -1,6 +1,6 @@
-<!-- Navigation moderne inspirée du design Enhancer -->
-<nav class="navbar navbar-expand-lg navbar-dark bg-black border-bottom border-secondary" style="padding-top: 0.25rem; padding-bottom: 0.25rem;">
-    <div class="container-fluid">
+<!-- Navigation WAMA - Alignée avec les panneaux latéraux -->
+<nav class="navbar navbar-dark border-bottom border-secondary wama-header">
+    <div class="container-fluid px-3">
         <!-- Menu déroulant Applications (gauche) -->
         <div class="dropdown">
             <button class="btn btn-dark dropdown-toggle d-flex align-items-center" type="button" id="appsDropdown" data-bs-toggle="dropdown" aria-expanded="false">
@@ -36,19 +36,14 @@
             </ul>
         </div>
 
-        <!-- Logo WAMA (centre sur mobile) -->
-        <a class="navbar-brand fw-bold mx-auto mx-lg-0 ms-lg-3" href="{% url 'home' %}">
+        <!-- Logo WAMA -->
+        <a class="navbar-brand fw-bold ms-3" href="{% url 'home' %}">
             <i class="fas fa-bolt"></i> WAMA
         </a>
 
-        <!-- Bouton toggle pour mobile -->
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
-            <span class="navbar-toggler-icon"></span>
-        </button>
-
         <!-- Menu navigation (droite) -->
-        <div class="collapse navbar-collapse" id="navbarNav">
-            <ul class="navbar-nav ms-auto">
+        <div class="d-flex align-items-center">
+            <ul class="navbar-nav flex-row gap-2">
                 <!-- Bouton Accueil -->
                 <li class="nav-item">
                     <a class="nav-link {% if request.path == '/' %}active{% endif %}" href="{% url 'home' %}">

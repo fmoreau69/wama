@@ -4,6 +4,226 @@
 
 {% block title %}Anonymizer - Objects Blurring{% endblock %}
 
+{% block app_right_panel_settings %}
+<!-- CSRF Token for AJAX -->
+<input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+
+<!-- Section: Quoi flouter -->
+<div class="right-panel-section">
+    <div class="right-panel-section-title">
+        <i class="fas fa-eye-slash"></i> Quoi flouter
+    </div>
+
+    <!-- Classes Selection Button -->
+    <div class="mb-2">
+        <button type="button" class="btn btn-sm btn-outline-primary w-100" data-bs-toggle="modal" data-bs-target="#modal_classes2blur_{{ user.id }}">
+            <i class="fas fa-list-check"></i> Sélectionner les classes
+        </button>
+    </div>
+
+    <!-- Precision Level -->
+    <div class="mb-2">
+        <div class="d-flex align-items-center gap-2">
+            <input class="form-range setting-button" type="range"
+                   name="precision_level"
+                   id="user_setting_precision_level"
+                   value="{% if gs_values.precision_level %}{{ gs_values.precision_level }}{% else %}50{% endif %}"
+                   min="0" max="100" step="5"
+                   style="flex: 1;"
+                   oninput="this.nextElementSibling.textContent = this.value">
+            <output class="text-light" style="min-width: 2rem; text-align: center;">{{ gs_values.precision_level|default:"50" }}</output>
+            <span class="small text-light">Précision</span>
+        </div>
+        <div class="text-center">
+            <small class="text-info" id="precision_label_rp">
+                {% if gs_values.precision_level <= 20 %}Quick
+                {% elif gs_values.precision_level <= 40 %}Balanced Quick
+                {% elif gs_values.precision_level <= 60 %}Balanced
+                {% elif gs_values.precision_level <= 80 %}Balanced Precise
+                {% else %}Max Precision{% endif %}
+            </small>
+        </div>
+    </div>
+
+    <!-- Model Selection -->
+    <div class="mb-2">
+        <select id="user_setting_model_to_use" class="form-select form-select-sm bg-dark text-white border-secondary setting-button">
+            <option value="">Auto (basé sur précision)</option>
+            {% for model_type, model_list in models_by_type.items %}
+                <optgroup label="{{ model_type|title }}">
+                    {% for model_name in model_list %}
+                        {% if model_type == 'root' %}
+                            <option value="{{ model_name }}" {% if gs_values.model_to_use == model_name %}selected{% endif %}>{{ model_name }}</option>
+                        {% else %}
+                            <option value="{{ model_type }}/{{ model_name }}" {% if gs_values.model_to_use == model_name or gs_values.model_to_use|stringformat:'s' == model_type|add:'/'|add:model_name %}selected{% endif %}>{{ model_name }}</option>
+                        {% endif %}
+                    {% endfor %}
+                </optgroup>
+            {% endfor %}
+        </select>
+    </div>
+</div>
+
+<!-- Section: Comment flouter -->
+<div class="right-panel-section">
+    <div class="right-panel-section-title">
+        <i class="fas fa-adjust"></i> Comment flouter
+    </div>
+
+    <!-- Blur Ratio -->
+    <div class="mb-2">
+        <div class="d-flex align-items-center gap-1">
+            <input class="form-range setting-button" type="range"
+                   name="blur_ratio"
+                   id="user_setting_blur_ratio"
+                   value="{{ gs_values.blur_ratio|default:'25' }}"
+                   min="1" max="49" step="2"
+                   style="flex: 0 0 90px;"
+                   oninput="this.nextElementSibling.textContent = this.value">
+            <output class="text-light" style="min-width: 2rem; text-align: center;">{{ gs_values.blur_ratio|default:"25" }}</output>
+            <span class="small text-light text-nowrap">Intensité flou</span>
+        </div>
+    </div>
+
+    <!-- ROI Enlargement -->
+    <div class="mb-2">
+        <div class="d-flex align-items-center gap-1">
+            <input class="form-range setting-button" type="range"
+                   name="roi_enlargement"
+                   id="user_setting_roi_enlargement"
+                   value="{{ gs_values.roi_enlargement|default:'1.05' }}"
+                   min="0.5" max="1.5" step="0.05"
+                   style="flex: 0 0 90px;"
+                   oninput="this.nextElementSibling.textContent = this.value">
+            <output class="text-light" style="min-width: 2rem; text-align: center;">{{ gs_values.roi_enlargement|default:"1.05" }}</output>
+            <span class="small text-light text-nowrap">Agrandissement ROI</span>
+        </div>
+    </div>
+
+    <!-- Progressive Blur -->
+    <div class="mb-2">
+        <div class="d-flex align-items-center gap-1">
+            <input class="form-range setting-button" type="range"
+                   name="progressive_blur"
+                   id="user_setting_progressive_blur"
+                   value="{{ gs_values.progressive_blur|default:'25' }}"
+                   min="3" max="31" step="2"
+                   style="flex: 0 0 90px;"
+                   oninput="this.nextElementSibling.textContent = this.value">
+            <output class="text-light" style="min-width: 2rem; text-align: center;">{{ gs_values.progressive_blur|default:"25" }}</output>
+            <span class="small text-light text-nowrap">Flou progressif</span>
+        </div>
+    </div>
+
+    <!-- Detection Threshold -->
+    <div class="mb-2">
+        <div class="d-flex align-items-center gap-1">
+            <input class="form-range setting-button" type="range"
+                   name="detection_threshold"
+                   id="user_setting_detection_threshold"
+                   value="{{ gs_values.detection_threshold|default:'0.25' }}"
+                   min="0" max="1" step="0.05"
+                   style="flex: 0 0 90px;"
+                   oninput="this.nextElementSibling.textContent = this.value">
+            <output class="text-light" style="min-width: 2rem; text-align: center;">{{ gs_values.detection_threshold|default:"0.25" }}</output>
+            <span class="small text-light text-nowrap">Seuil détection</span>
+        </div>
+    </div>
+</div>
+
+<!-- Section: Quoi afficher -->
+<div class="right-panel-section">
+    <div class="right-panel-section-title">
+        <i class="fas fa-eye"></i> Quoi afficher
+    </div>
+
+    <div class="mb-1">
+        <div class="form-check form-switch">
+            <input class="form-check-input setting-button" type="checkbox" role="switch"
+                   name="show_preview" id="user_setting_show_preview"
+                   {% if gs_values.show_preview %}checked{% endif %}>
+            <label class="form-check-label text-light small" for="user_setting_show_preview">Prévisualisation</label>
+        </div>
+    </div>
+
+    <div class="mb-1">
+        <div class="form-check form-switch">
+            <input class="form-check-input setting-button" type="checkbox" role="switch"
+                   name="show_boxes" id="user_setting_show_boxes"
+                   {% if gs_values.show_boxes %}checked{% endif %}>
+            <label class="form-check-label text-light small" for="user_setting_show_boxes">Boîtes de détection</label>
+        </div>
+    </div>
+
+    <div class="mb-1">
+        <div class="form-check form-switch">
+            <input class="form-check-input setting-button" type="checkbox" role="switch"
+                   name="show_labels" id="user_setting_show_labels"
+                   {% if gs_values.show_labels %}checked{% endif %}>
+            <label class="form-check-label text-light small" for="user_setting_show_labels">Labels</label>
+        </div>
+    </div>
+
+    <div class="mb-1">
+        <div class="form-check form-switch">
+            <input class="form-check-input setting-button" type="checkbox" role="switch"
+                   name="show_conf" id="user_setting_show_conf"
+                   {% if gs_values.show_conf %}checked{% endif %}>
+            <label class="form-check-label text-light small" for="user_setting_show_conf">Confiance</label>
+        </div>
+    </div>
+</div>
+
+<!-- Reset Button -->
+<form method="post" action="{% url 'anonymizer:reset_user_settings' %}" class="mt-2">
+    {% csrf_token %}
+    <input type="hidden" name="next" value="{{ request.path }}">
+    <button type="submit" class="btn btn-outline-danger btn-sm w-100">
+        <i class="fas fa-rotate-left"></i> Reset paramètres
+    </button>
+</form>
+
+<script>
+// Update precision label when slider changes
+document.addEventListener('DOMContentLoaded', function() {
+    const slider = document.getElementById('user_setting_precision_level');
+    const label = document.getElementById('precision_label_rp');
+
+    function updatePrecisionLabelRp() {
+        if (!slider || !label) return;
+        const value = parseInt(slider.value);
+        if (value <= 20) { label.textContent = 'Quick'; label.className = 'text-success'; }
+        else if (value <= 40) { label.textContent = 'Balanced Quick'; label.className = 'text-info'; }
+        else if (value <= 60) { label.textContent = 'Balanced'; label.className = 'text-primary'; }
+        else if (value <= 80) { label.textContent = 'Balanced Precise'; label.className = 'text-warning'; }
+        else { label.textContent = 'Max Precision'; label.className = 'text-danger'; }
+    }
+
+    if (slider) {
+        slider.addEventListener('input', updatePrecisionLabelRp);
+        updatePrecisionLabelRp();
+    }
+});
+</script>
+{% endblock %}
+
+{% block app_right_panel_actions %}
+<div class="d-grid gap-2">
+    <button id="process-toggle-btn" class="btn btn-success btn-sm">
+        <i class="fas fa-play"></i> Démarrer
+    </button>
+    <form action="{% url 'anonymizer:download_all_media' %}" method="post" class="d-grid">
+        {% csrf_token %}
+        <button id="download-all-btn" type="submit" class="btn btn-info btn-sm" disabled>
+            <i class="fas fa-download"></i> Télécharger tout
+        </button>
+    </form>
+    <button type="button" id="clear_all_media_btn" class="btn btn-outline-danger btn-sm">
+        <i class="fas fa-trash"></i> Tout effacer
+    </button>
+</div>
+{% endblock %}
+
 {% block javascript %}
 {{ block.super }}
 {# JQUERY FILE UPLOAD SCRIPTS #}
@@ -12,7 +232,7 @@
 <script src="{% static 'js/jquery-file-upload/jquery.fileupload.js' %}"></script>
 
 {# MEDIAS PAGE SCRIPTS #}
-<script src="{% static 'anonymizer/js/console.js' %}"></script>
+<script src="{% static 'common/js/console.js' %}"></script>
 <script src="{% static 'anonymizer/js/process.js' %}"></script>
 <script src="{% static 'anonymizer/js/update.js' %}"></script>
 <script src="{% static 'anonymizer/js/upload.js' %}"></script>

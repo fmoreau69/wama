@@ -112,9 +112,23 @@ $(document).ready(function () {
             type: "POST",
             url: "/anonymizer/clear_all_media/",
             data: { csrfmiddlewaretoken: $("input[name=csrfmiddlewaretoken]").val() },
-            success: function () {
-                console.log("%c[update.js] ✔ Médias supprimés", "color:#4CAF50");
-                window.location.reload();
+            success: function (res) {
+                if (res.success) {
+                    console.log("%c[update.js] ✔ Médias supprimés", "color:#4CAF50");
+                    // Refresh media table without full page reload
+                    if (typeof window.refreshMediaTable === 'function') {
+                        window.refreshMediaTable();
+                    } else {
+                        window.location.reload();
+                    }
+                    // Update queue count
+                    if (typeof window.updateQueueCount === 'function') {
+                        window.updateQueueCount();
+                    }
+                } else {
+                    console.warn("%c[update.js] ⚠ Unexpected response", "color:#FFC107", res);
+                    window.location.reload();
+                }
             },
             error: function (xhr) {
                 console.error("%c[update.js] ✖ Erreur clear_all_media", "color:red", xhr.responseText);

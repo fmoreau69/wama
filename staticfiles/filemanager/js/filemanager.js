@@ -1,5 +1,6 @@
 /**
  * WAMA FileManager - jstree integration with dark theme
+ * Sidebar is always visible (fixed position)
  */
 (function() {
     'use strict';
@@ -9,7 +10,6 @@
 
     // State
     let tree = null;
-    let isOpen = false;
 
     // Initialize on DOM ready
     document.addEventListener('DOMContentLoaded', init);
@@ -21,7 +21,6 @@
             return;
         }
 
-        setupToggleButton();
         setupSidebar();
         initJstree();
         setupSearch();
@@ -29,68 +28,15 @@
         setupPreviewModal();
     }
 
-    function setupToggleButton() {
-        const toggleBtn = document.getElementById('filemanager-toggle');
-        if (!toggleBtn) return;
-
-        toggleBtn.addEventListener('click', toggleSidebar);
-    }
-
     function setupSidebar() {
         const sidebar = document.getElementById('filemanager-sidebar');
         if (!sidebar) return;
-
-        // Close button
-        const closeBtn = sidebar.querySelector('.btn-close-sidebar');
-        if (closeBtn) {
-            closeBtn.addEventListener('click', closeSidebar);
-        }
 
         // Refresh button
         const refreshBtn = sidebar.querySelector('.btn-refresh');
         if (refreshBtn) {
             refreshBtn.addEventListener('click', refreshTree);
         }
-    }
-
-    function toggleSidebar() {
-        const sidebar = document.getElementById('filemanager-sidebar');
-        const toggleBtn = document.getElementById('filemanager-toggle');
-
-        if (!sidebar) return;
-
-        isOpen = !isOpen;
-
-        if (isOpen) {
-            sidebar.classList.add('open');
-            toggleBtn.classList.add('sidebar-open');
-            toggleBtn.innerHTML = '<i class="fas fa-times"></i>';
-            document.body.classList.add('filemanager-open');
-            // Refresh tree when opening
-            if (tree) {
-                refreshTree();
-            }
-        } else {
-            sidebar.classList.remove('open');
-            toggleBtn.classList.remove('sidebar-open');
-            toggleBtn.innerHTML = '<i class="fas fa-folder-open"></i>';
-            document.body.classList.remove('filemanager-open');
-        }
-    }
-
-    function closeSidebar() {
-        const sidebar = document.getElementById('filemanager-sidebar');
-        const toggleBtn = document.getElementById('filemanager-toggle');
-
-        if (sidebar) {
-            sidebar.classList.remove('open');
-            isOpen = false;
-        }
-        if (toggleBtn) {
-            toggleBtn.classList.remove('sidebar-open');
-            toggleBtn.innerHTML = '<i class="fas fa-folder-open"></i>';
-        }
-        document.body.classList.remove('filemanager-open');
     }
 
     function initJstree() {
@@ -646,9 +592,7 @@
 
     // Expose to global scope
     window.FileManager = {
-        toggle: toggleSidebar,
         refresh: refreshTree,
-        close: closeSidebar,
         importToApp: importToApp,
         getFileManagerData: getFileManagerData,
         handleDropFromFileManager: handleDropFromFileManager,

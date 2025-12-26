@@ -177,6 +177,113 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
+    // Settings buttons - Open modal with current values
+    const settingsModal = document.getElementById('settingsModal');
+    const settingsModalInstance = settingsModal ? new bootstrap.Modal(settingsModal) : null;
+
+    document.querySelectorAll('.settings-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const id = btn.dataset.id;
+            const ttsModel = btn.dataset.ttsModel;
+            const language = btn.dataset.language;
+            const voicePreset = btn.dataset.voicePreset;
+            const speed = btn.dataset.speed || '1.0';
+            const pitch = btn.dataset.pitch || '1.0';
+
+            // Populate modal fields
+            document.getElementById('settingsSynthesisId').value = id;
+            document.getElementById('settingsTtsModel').value = ttsModel;
+            document.getElementById('settingsLanguage').value = language;
+            document.getElementById('settingsVoicePreset').value = voicePreset;
+            document.getElementById('settingsSpeed').value = speed;
+            document.getElementById('settingsSpeedValue').textContent = speed;
+            document.getElementById('settingsPitch').value = pitch;
+            document.getElementById('settingsPitchValue').textContent = pitch;
+
+            // Clear voice reference input
+            document.getElementById('settingsVoiceRef').value = '';
+
+            // Show modal
+            if (settingsModalInstance) {
+                settingsModalInstance.show();
+            }
+        });
+    });
+
+    // Save settings button
+    const saveSettingsBtn = document.getElementById('saveSettingsBtn');
+    if (saveSettingsBtn) {
+        saveSettingsBtn.addEventListener('click', async () => {
+            await saveSettings(false);
+        });
+    }
+
+    // Save and start button
+    const saveAndStartBtn = document.getElementById('saveAndStartBtn');
+    if (saveAndStartBtn) {
+        saveAndStartBtn.addEventListener('click', async () => {
+            await saveSettings(true);
+        });
+    }
+
+    // Save settings function
+    async function saveSettings(startAfterSave) {
+        const synthesisId = document.getElementById('settingsSynthesisId').value;
+        const formData = new FormData();
+
+        formData.append('tts_model', document.getElementById('settingsTtsModel').value);
+        formData.append('language', document.getElementById('settingsLanguage').value);
+        formData.append('voice_preset', document.getElementById('settingsVoicePreset').value);
+        formData.append('speed', document.getElementById('settingsSpeed').value);
+        formData.append('pitch', document.getElementById('settingsPitch').value);
+
+        const voiceRef = document.getElementById('settingsVoiceRef');
+        if (voiceRef && voiceRef.files[0]) {
+            formData.append('voice_reference', voiceRef.files[0]);
+        }
+
+        try {
+            // Save settings
+            const response = await fetch(URLS.updateOptions + synthesisId + '/', {
+                method: 'POST',
+                headers: { 'X-CSRFToken': csrfToken },
+                body: formData
+            });
+
+            if (response.ok) {
+                // Close modal
+                if (settingsModalInstance) {
+                    settingsModalInstance.hide();
+                }
+
+                if (startAfterSave) {
+                    // Start the synthesis
+                    const startResponse = await fetch(URLS.start + synthesisId + '/', {
+                        method: 'GET',
+                        headers: { 'X-CSRFToken': csrfToken }
+                    });
+
+                    if (startResponse.ok) {
+                        location.reload();
+                    } else {
+                        const data = await startResponse.json();
+                        alert('Paramètres sauvegardés mais erreur au démarrage: ' + (data.error || 'Échec'));
+                        location.reload();
+                    }
+                } else {
+                    // Just reload to show updated settings
+                    location.reload();
+                }
+            } else {
+                const data = await response.json();
+                alert('Erreur lors de la sauvegarde: ' + (data.error || 'Échec'));
+            }
+        } catch (error) {
+            console.error('Save settings error:', error);
+            alert('Erreur: ' + error.message);
+        }
+    }
+
     // Delete buttons
     document.querySelectorAll('.delete-btn').forEach(btn => {
         btn.addEventListener('click', async () => {

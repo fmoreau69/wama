@@ -1,3 +1,4 @@
+{% if medias.count > 0 %}
 <div class="table-responsive">
     <table class="table table-bordered table-dark align-middle" id="medias">
         <thead>
@@ -16,7 +17,7 @@
         {% for media in medias %}
         {% if user.id == media.user.id %}
         <tr data-media-id="{{ media.id }}"
-            data-media-name="{{ media.file.name|slice:"12:" }}"
+            data-media-name="{{ media.file.name|slice:"17:" }}"
             data-media-processed="{{ media.processed|lower }}">
 
             <!-- ID -->
@@ -39,7 +40,7 @@
                     <button type="button"
                             class="btn btn-link p-0 preview-media-link text-decoration-none"
                             data-preview-url="{% url 'anonymizer:preview_media' media.id %}">
-                        {{ media.file.name|slice:"12:" }}
+                        {{ media.file.name|slice:"17:" }}
                     </button>
                 </div>
                 <div class="d-flex align-items-center gap-2 mt-1">
@@ -131,13 +132,11 @@
         </tbody>
     </table>
 </div>
-
+{% else %}
 <!-- Empty State -->
-{% if not medias %}
-<div class="card bg-dark border-secondary">
-    <div class="card-body text-center text-white-50 py-5">
-        <i class="fas fa-inbox fa-3x mb-3"></i>
-        <p class="mb-0">Aucun média dans la file d'attente. Uploadez des fichiers pour commencer !</p>
-    </div>
+<div class="text-center text-white-50 py-5">
+    <i class="fas fa-inbox fa-3x mb-3"></i>
+    <p class="mb-2">Aucun fichier dans la file d'attente</p>
+    <p class="small">Uploadez des fichiers photo/vidéo pour commencer</p>
 </div>
 {% endif %}
