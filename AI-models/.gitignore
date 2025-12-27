@@ -1,0 +1,39 @@
+# AI Models - Git Ignore Configuration
+#
+# By default, exclude large model files from Git.
+# Keep directory structure and documentation files.
+
+# Synthesizer TTS models
+synthesizer/tts/tts/
+*.pth
+*.onnx
+*.bin
+*.safetensors
+
+# Anonymizer YOLO models (future)
+anonymizer/yolo/*.pt
+anonymizer/yolo/*.weights
+
+# Enhancer ONNX models (future)
+enhancer/onnx/*.onnx
+enhancer/onnx/*.pth
+
+# Common AI model formats
+*.h5
+*.pb
+*.tflite
+*.mlmodel
+*.caffemodel
+*.pkl
+*.pickle
+*.pt
+*.pth
+*.onnx
+*.engine
+
+# Keep these files
+!README.md
+!DOWNLOAD_MODELS.md
+!.gitignore
+!*/README.md
+!*/DOWNLOAD_MODELS.md

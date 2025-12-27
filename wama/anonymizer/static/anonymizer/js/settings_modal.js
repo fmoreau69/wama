@@ -53,7 +53,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 classes2blur: data.classes2blur || [],
                 sliders: data.sliders || [],
                 booleans: data.booleans || [],
-                sam3: data.sam3 || { use_sam3: false, prompt: '', status: { ready: false }, examples: [] }
+                sam3: data.sam3 || { use_sam3: false, prompt: '' },
+                model: data.model || { current: '', global_default: '', choices: [] }
             };
 
             const modal = buildModalHTML(mediaId, settingsData);
@@ -81,22 +82,20 @@ document.addEventListener('DOMContentLoaded', function() {
         // Build settings form HTML
         let settingsHTML = '';
 
-        // SAM3 data
-        const sam3Data = settingsData.sam3 || { use_sam3: false, prompt: '', status: { ready: false }, examples: [] };
+        // SAM3 data - status will be loaded asynchronously
+        const sam3Data = settingsData.sam3 || { use_sam3: false, prompt: '' };
         const useSam3 = sam3Data.use_sam3;
-        const sam3Ready = sam3Data.status && sam3Data.status.ready;
 
-        // Detection mode toggle section
+        // Detection mode toggle section - SAM3 status badge will be updated asynchronously
         settingsHTML += `
             <div class="mb-4">
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <label class="form-label fw-bold text-light mb-0">
-                        <i class="fas fa-crosshairs me-2"></i>Mode de détection
+                        <i class="fas fa-crosshairs me-2"></i>Mode de detection
                     </label>
-                    ${sam3Ready ?
-                        '<span class="badge bg-success"><i class="fas fa-check-circle"></i> SAM3 disponible</span>' :
-                        '<span class="badge bg-secondary"><i class="fas fa-info-circle"></i> SAM3 non disponible</span>'
-                    }
+                    <span class="badge bg-secondary" id="sam3_status_badge_${mediaId}">
+                        <i class="fas fa-spinner fa-spin"></i> Verification...
+                    </span>
                 </div>
                 <div class="btn-group w-100" role="group" aria-label="Detection mode">
                     <input type="radio" class="btn-check" name="detection_mode_${mediaId}" id="mode_yolo_${mediaId}" value="yolo"
@@ -105,8 +104,8 @@ document.addEventListener('DOMContentLoaded', function() {
                         <i class="fas fa-object-group me-1"></i>YOLO (Classes)
                     </label>
                     <input type="radio" class="btn-check" name="detection_mode_${mediaId}" id="mode_sam3_${mediaId}" value="sam3"
-                           ${useSam3 ? 'checked' : ''} ${!sam3Ready ? 'disabled' : ''} autocomplete="off">
-                    <label class="btn btn-outline-info ${!sam3Ready ? 'disabled' : ''}" for="mode_sam3_${mediaId}">
+                           ${useSam3 ? 'checked' : ''} autocomplete="off">
+                    <label class="btn btn-outline-info" for="mode_sam3_${mediaId}" id="sam3_label_${mediaId}">
                         <i class="fas fa-comment-dots me-1"></i>SAM3 (Prompt)
                     </label>
                 </div>
@@ -126,42 +125,81 @@ document.addEventListener('DOMContentLoaded', function() {
                               name="sam3_prompt"
                               id="sam3_prompt_${mediaId}"
                               rows="3"
-                              placeholder="Décrivez ce que vous voulez flouter..."
+                              placeholder="Decrivez ce que vous voulez flouter..."
                               maxlength="500">${sam3Data.prompt || ''}</textarea>
                     <div class="d-flex justify-content-between align-items-center">
-                        <small class="text-white-50">Décrivez les objets à flouter en langage naturel</small>
+                        <small class="text-white-50">Decrivez les objets a flouter en langage naturel</small>
                         <small class="text-white-50" id="sam3_prompt_count_${mediaId}">${(sam3Data.prompt || '').length}/500</small>
                     </div>
-                    ${sam3Data.examples && sam3Data.examples.length > 0 ? `
-                        <div class="mt-2">
-                            <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#sam3_examples_${mediaId}">
-                                <i class="fas fa-lightbulb me-1"></i>Exemples
-                            </button>
-                            <div class="collapse mt-2" id="sam3_examples_${mediaId}">
-                                <div class="list-group list-group-flush">
-                                    ${sam3Data.examples.map(ex => `
-                                        <a href="#" class="list-group-item list-group-item-action bg-dark text-light border-secondary py-2 px-3 sam3-example-item" data-prompt="${ex.prompt}" data-target="sam3_prompt_${mediaId}">
-                                            <strong>${ex.prompt}</strong><br>
-                                            <small class="text-white-50">${ex.description}</small>
-                                        </a>
-                                    `).join('')}
-                                </div>
+                    <div class="mt-2">
+                        <button type="button" class="btn btn-sm btn-outline-secondary sam3-examples-btn" data-media-id="${mediaId}">
+                            <i class="fas fa-lightbulb me-1"></i>Exemples
+                        </button>
+                        <div class="collapse mt-2" id="sam3_examples_${mediaId}">
+                            <div class="list-group list-group-flush" id="sam3_examples_list_${mediaId}">
+                                <div class="text-white-50 small p-2">Chargement...</div>
                             </div>
                         </div>
-                    ` : ''}
+                    </div>
                 </div>
             </div>
         `;
 
-        // Classes2blur section (shown when YOLO mode is selected)
-        if (settingsData.classes2blur && settingsData.classes2blur.length > 0) {
+        // YOLO section container (includes model selection and classes)
+        settingsHTML += `<div id="yolo_section_${mediaId}" style="display: ${useSam3 ? 'none' : 'block'};">`;
+
+        // Model selection dropdown (only shown in YOLO mode)
+        const modelData = settingsData.model || { current: '', global_default: '', choices: [] };
+        if (modelData.choices && modelData.choices.length > 0) {
+            // Group choices by category
+            const groupedChoices = {};
+            modelData.choices.forEach(choice => {
+                const group = choice.group || 'Other';
+                if (!groupedChoices[group]) groupedChoices[group] = [];
+                groupedChoices[group].push(choice);
+            });
+
             settingsHTML += `
-                <div class="mb-4" id="yolo_section_${mediaId}" style="display: ${useSam3 ? 'none' : 'block'};">
+                <div class="mb-4">
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <label class="form-label fw-bold text-light mb-0">
-                            <i class="fas fa-eye-slash me-2"></i>Objets à flouter (YOLO)
+                            <i class="fas fa-cube me-2"></i>Modele YOLO
                         </label>
-                        <small class="text-white-50">${settingsData.classes2blur.filter(c => c.checked).length} sélectionné(s)</small>
+                        <small class="text-white-50">Defaut: ${modelData.global_default || 'Auto'}</small>
+                    </div>
+                    <div class="p-3 rounded" style="background-color: #1a1d20; border: 1px solid #495057;">
+                        <select class="form-select bg-dark text-white border-secondary"
+                                name="model_to_use" id="model_to_use_${mediaId}">
+                            <option value="" ${!modelData.current ? 'selected' : ''}>
+                                -- Utiliser le parametre global (${modelData.global_default || 'Auto'}) --
+                            </option>
+                            ${Object.entries(groupedChoices).map(([group, choices]) => `
+                                <optgroup label="${group}">
+                                    ${choices.map(choice => `
+                                        <option value="${choice.value}" ${modelData.current === choice.value ? 'selected' : ''}>
+                                            ${choice.label}
+                                        </option>
+                                    `).join('')}
+                                </optgroup>
+                            `).join('')}
+                        </select>
+                        <small class="text-white-50 d-block mt-2">
+                            Selectionnez un modele specifique ou laissez vide pour utiliser le parametre global.
+                        </small>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Classes2blur section
+        if (settingsData.classes2blur && settingsData.classes2blur.length > 0) {
+            settingsHTML += `
+                <div class="mb-4">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <label class="form-label fw-bold text-light mb-0">
+                            <i class="fas fa-eye-slash me-2"></i>Objets a flouter
+                        </label>
+                        <small class="text-white-50">${settingsData.classes2blur.filter(c => c.checked).length} selectionne(s)</small>
                     </div>
                     <div class="p-3 rounded" style="background-color: #1a1d20; border: 1px solid #495057; max-height: 300px; overflow-y: auto;">
                         <div class="row">
@@ -183,6 +221,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 </div>
             `;
         }
+
+        // Close YOLO section container
+        settingsHTML += `</div>`;
 
         // Slider settings
         if (settingsData.sliders && settingsData.sliders.length > 0) {
@@ -334,29 +375,112 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
 
-        // SAM3 example click handlers
-        modal.querySelectorAll('.sam3-example-item').forEach(item => {
-            item.addEventListener('click', function(e) {
-                e.preventDefault();
-                const prompt = this.dataset.prompt;
-                const targetId = this.dataset.target;
-                const targetTextarea = document.getElementById(targetId);
-                if (targetTextarea) {
-                    targetTextarea.value = prompt;
-                    // Update character count
-                    const countEl = document.getElementById(targetId.replace('sam3_prompt_', 'sam3_prompt_count_'));
-                    if (countEl) {
-                        countEl.textContent = prompt.length + '/500';
+        // SAM3 examples button - load examples on first click
+        const sam3ExamplesBtn = modal.querySelector('.sam3-examples-btn');
+        if (sam3ExamplesBtn) {
+            let examplesLoaded = false;
+            sam3ExamplesBtn.addEventListener('click', function() {
+                const collapseEl = modal.querySelector(`#sam3_examples_${mediaId}`);
+                if (collapseEl) {
+                    collapseEl.classList.toggle('show');
+                    // Load examples only once
+                    if (!examplesLoaded) {
+                        examplesLoaded = true;
+                        loadSam3Examples(mediaId);
                     }
                 }
-                // Collapse the examples
-                const collapseEl = this.closest('.collapse');
-                if (collapseEl) {
-                    const bsCollapse = bootstrap.Collapse.getInstance(collapseEl);
-                    if (bsCollapse) bsCollapse.hide();
+            });
+        }
+
+        // Fetch SAM3 status asynchronously (doesn't block modal display)
+        fetchSam3StatusAsync(mediaId);
+    }
+
+    // Async SAM3 status check - runs in background after modal is shown
+    function fetchSam3StatusAsync(mediaId) {
+        const statusBadge = document.getElementById(`sam3_status_badge_${mediaId}`);
+        const sam3Radio = document.getElementById(`mode_sam3_${mediaId}`);
+        const sam3Label = document.getElementById(`sam3_label_${mediaId}`);
+
+        fetch('/anonymizer/sam3/status/')
+            .then(response => response.json())
+            .then(data => {
+                if (statusBadge) {
+                    if (data.ready) {
+                        statusBadge.className = 'badge bg-success';
+                        statusBadge.innerHTML = '<i class="fas fa-check-circle"></i> SAM3 disponible';
+                        if (sam3Radio) sam3Radio.disabled = false;
+                        if (sam3Label) sam3Label.classList.remove('disabled');
+                    } else if (data.installed && !data.hf_authenticated) {
+                        statusBadge.className = 'badge bg-warning text-dark';
+                        statusBadge.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Token HF requis';
+                        if (sam3Radio) sam3Radio.disabled = true;
+                        if (sam3Label) sam3Label.classList.add('disabled');
+                    } else if (!data.installed) {
+                        statusBadge.className = 'badge bg-danger';
+                        statusBadge.innerHTML = '<i class="fas fa-times-circle"></i> SAM3 non installe';
+                        if (sam3Radio) sam3Radio.disabled = true;
+                        if (sam3Label) sam3Label.classList.add('disabled');
+                    } else {
+                        statusBadge.className = 'badge bg-secondary';
+                        statusBadge.innerHTML = '<i class="fas fa-info-circle"></i> ' + (data.error || 'Etat inconnu');
+                    }
+                }
+            })
+            .catch(err => {
+                console.error('[settings_modal.js] SAM3 status check failed:', err);
+                if (statusBadge) {
+                    statusBadge.className = 'badge bg-secondary';
+                    statusBadge.innerHTML = '<i class="fas fa-question-circle"></i> Non verifie';
                 }
             });
-        });
+    }
+
+    // Load SAM3 examples asynchronously
+    function loadSam3Examples(mediaId) {
+        const examplesList = document.getElementById(`sam3_examples_list_${mediaId}`);
+        if (!examplesList) return;
+
+        fetch('/anonymizer/sam3/examples/')
+            .then(response => response.json())
+            .then(data => {
+                if (data.examples && data.examples.length > 0) {
+                    examplesList.innerHTML = data.examples.map(ex => `
+                        <a href="#" class="list-group-item list-group-item-action bg-dark text-light border-secondary py-2 px-3 sam3-example-item" data-prompt="${ex.prompt}" data-media-id="${mediaId}">
+                            <strong>${ex.prompt}</strong><br>
+                            <small class="text-white-50">${ex.description}</small>
+                        </a>
+                    `).join('');
+
+                    // Bind click handlers for newly created example items
+                    examplesList.querySelectorAll('.sam3-example-item').forEach(item => {
+                        item.addEventListener('click', function(e) {
+                            e.preventDefault();
+                            const prompt = this.dataset.prompt;
+                            const mid = this.dataset.mediaId;
+                            const targetTextarea = document.getElementById(`sam3_prompt_${mid}`);
+                            if (targetTextarea) {
+                                targetTextarea.value = prompt;
+                                const countEl = document.getElementById(`sam3_prompt_count_${mid}`);
+                                if (countEl) {
+                                    countEl.textContent = prompt.length + '/500';
+                                }
+                            }
+                            // Collapse the examples
+                            const collapseEl = document.getElementById(`sam3_examples_${mid}`);
+                            if (collapseEl) {
+                                collapseEl.classList.remove('show');
+                            }
+                        });
+                    });
+                } else {
+                    examplesList.innerHTML = '<div class="text-white-50 small p-2">Aucun exemple disponible</div>';
+                }
+            })
+            .catch(err => {
+                console.error('[settings_modal.js] Failed to load SAM3 examples:', err);
+                examplesList.innerHTML = '<div class="text-danger small p-2">Erreur de chargement</div>';
+            });
     }
 
     function saveMediaSettings(mediaId, andRestart) {
@@ -392,6 +516,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
         modal.querySelectorAll('input[type="range"]').forEach(input => {
             formData.append(input.name, input.value);
+        });
+
+        // Collect select values (model_to_use)
+        modal.querySelectorAll('select').forEach(select => {
+            if (select.name) {
+                formData.append(select.name, select.value);
+            }
         });
 
         // Save settings

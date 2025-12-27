@@ -66,17 +66,25 @@ def process_single_media(self, media_id):
             'user_id': user.id,  # For console logging
         }
 
-        # Model selection: prefer user's explicit model_to_use, otherwise auto-select by precision
+        # Model selection: prefer media-specific model, then user's global model, otherwise auto-select
         try:
             from .utils.yolo_utils import get_model_path as _gmp
             from .utils.model_selector import select_model_by_precision
 
-            model_to_use = getattr(user_settings, 'model_to_use', None)
+            # Priority: 1) Media-specific model, 2) User's global model, 3) Auto-select
+            model_to_use = None
 
-            # If user has specified a model explicitly (not empty string), use it
-            if model_to_use and model_to_use.strip():
+            # Check if media has a specific model set (only if customised)
+            if ms_custom and media.model_to_use and media.model_to_use.strip():
+                model_to_use = media.model_to_use.strip()
+                push_console_line(user.id, f"Using media-specific model: {model_to_use}")
+            # Otherwise check user's global setting
+            elif hasattr(user_settings, 'model_to_use') and user_settings.model_to_use and user_settings.model_to_use.strip():
+                model_to_use = user_settings.model_to_use.strip()
+                push_console_line(user.id, f"Using user's global model: {model_to_use}")
+
+            if model_to_use:
                 kwargs['model_path'] = _gmp(model_to_use)
-                push_console_line(user.id, f"Using user-specified model: {model_to_use}")
             else:
                 # Auto-select model based on precision level and classes
                 selected_model = select_model_by_precision(

@@ -10,7 +10,7 @@ from wama.settings import BASE_DIR
 import os
 
 # Model path
-MODEL_PATH = os.path.join(BASE_DIR, "anonymizer", "models", "yolov8n.pt")
+MODEL_PATH = os.path.join(BASE_DIR, "anonymizer", "models", "yolov11s.pt")
 
 # Optional: utility for splitting templates
 @register.filter(name='split')
@@ -87,6 +87,14 @@ class Media(models.Model):
         null=True,
         verbose_name='SAM3 Text Prompt',
         help_text='Text prompt for SAM3 segmentation (e.g., "blur all faces and license plates")'
+    )
+
+    model_to_use = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        verbose_name='YOLO model to use',
+        help_text='Specific YOLO model for this media (empty = use global setting or auto-select)'
     )
 
     def __str__(self):

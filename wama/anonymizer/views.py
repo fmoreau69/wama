@@ -762,7 +762,8 @@ def get_context(request):
     gs_values['use_sam3'] = getattr(user_settings, 'use_sam3', False)
     gs_values['sam3_prompt'] = getattr(user_settings, 'sam3_prompt', '') or ''
 
-    class_list = Media.classes2blur.field.choices
+    # Get class choices from form field (which uses get_all_class_choices())
+    class_list = user_settings_form.fields['classes2blur'].choices
     available_models = list_available_models()
     models_by_type = list_models_by_type()
 
@@ -1171,33 +1172,16 @@ def get_media_settings(request, media_id):
         sliders_list = []
         booleans_list = []
 
-        # Classes2blur options - toutes les classes YOLO COCO (80 classes) + classes spéciales
-        # Classes spéciales pour l'anonymisation
-        special_classes = ["face", "plate"]
-
-        # Classes YOLO COCO standard (80 classes)
-        coco_classes = [
-            'person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train', 'truck', 'boat',
-            'traffic light', 'fire hydrant', 'stop sign', 'parking meter', 'bench', 'bird', 'cat',
-            'dog', 'horse', 'sheep', 'cow', 'elephant', 'bear', 'zebra', 'giraffe', 'backpack',
-            'umbrella', 'handbag', 'tie', 'suitcase', 'frisbee', 'skis', 'snowboard', 'sports ball',
-            'kite', 'baseball bat', 'baseball glove', 'skateboard', 'surfboard', 'tennis racket',
-            'bottle', 'wine glass', 'cup', 'fork', 'knife', 'spoon', 'bowl', 'banana', 'apple',
-            'sandwich', 'orange', 'broccoli', 'carrot', 'hot dog', 'pizza', 'donut', 'cake', 'chair',
-            'couch', 'potted plant', 'bed', 'dining table', 'toilet', 'tv', 'laptop', 'mouse',
-            'remote', 'keyboard', 'cell phone', 'microwave', 'oven', 'toaster', 'sink', 'refrigerator',
-            'book', 'clock', 'vase', 'scissors', 'teddy bear', 'hair drier', 'toothbrush'
-        ]
-
-        # Combiner les classes spéciales et COCO
-        available_classes = special_classes + coco_classes
+        # Use the same class list as global settings for consistency
+        from .utils.yolo_utils import get_all_class_choices
+        available_classes = get_all_class_choices()  # Returns [(code, label), ...]
 
         media_classes = media.classes2blur if media.classes2blur else []
-        for cls in available_classes:
+        for cls_code, cls_label in available_classes:
             classes2blur_list.append({
-                'value': cls,
-                'label': cls.replace('_', ' ').title(),
-                'checked': cls in media_classes
+                'value': cls_code,
+                'label': cls_label,
+                'checked': cls_code in media_classes
             })
 
         # Slider settings (FLOAT type)
@@ -1251,12 +1235,37 @@ def get_media_settings(request, media_id):
                 'value': bool(media_value)
             })
 
-        # SAM3 settings
+        # SAM3 settings - status is loaded asynchronously by frontend to avoid slow modal opening
         sam3_data = {
             'use_sam3': media.use_sam3,
             'prompt': media.sam3_prompt or '',
-            'status': get_sam3_status(),
-            'examples': get_recommended_prompt_examples(),
+            # Don't include status here - let frontend fetch it asynchronously when needed
+            # 'status': get_sam3_status(),  # SLOW - removed for performance
+            # 'examples': get_recommended_prompt_examples(),  # Also loaded async
+        }
+
+        # Model selection - get available models grouped by type
+        from .utils.yolo_utils import get_model_choices_grouped
+        model_choices_grouped = get_model_choices_grouped()
+
+        # Flatten grouped choices for easier frontend handling
+        model_choices = []
+        for group_label, group_choices in model_choices_grouped:
+            for value, label in group_choices:
+                model_choices.append({
+                    'value': value,
+                    'label': label,
+                    'group': group_label
+                })
+
+        # Get user's global model setting as default
+        user_settings, _ = UserSettings.objects.get_or_create(user=media.user)
+        global_model = getattr(user_settings, 'model_to_use', '') or ''
+
+        model_data = {
+            'current': media.model_to_use or '',  # Empty means use global/auto
+            'global_default': global_model,
+            'choices': model_choices,
         }
 
         return JsonResponse({
@@ -1265,6 +1274,7 @@ def get_media_settings(request, media_id):
             'sliders': sliders_list,
             'booleans': booleans_list,
             'sam3': sam3_data,
+            'model': model_data,
         })
 
     except Media.DoesNotExist:
@@ -1330,6 +1340,12 @@ def save_media_settings(request):
                         'error': f'Invalid SAM3 prompt: {error}'
                     }, status=400)
             media.sam3_prompt = prompt if prompt else None
+
+        # Save model selection
+        model_to_use = request.POST.get('model_to_use')
+        if model_to_use is not None:
+            # Empty string means use global/auto-select
+            media.model_to_use = model_to_use.strip() if model_to_use.strip() else None
 
         # Mark as customized
         media.MSValues_customised = True

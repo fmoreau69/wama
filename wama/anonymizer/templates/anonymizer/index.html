@@ -259,189 +259,6 @@
     </button>
 </form>
 
-<script>
-// Update precision label when slider changes
-document.addEventListener('DOMContentLoaded', function() {
-    const slider = document.getElementById('user_setting_precision_level');
-    const label = document.getElementById('precision_label_rp');
-
-    function updatePrecisionLabelRp() {
-        if (!slider || !label) return;
-        const value = parseInt(slider.value);
-        if (value <= 20) { label.textContent = 'Quick'; label.className = 'text-success'; }
-        else if (value <= 40) { label.textContent = 'Balanced Quick'; label.className = 'text-info'; }
-        else if (value <= 60) { label.textContent = 'Balanced'; label.className = 'text-primary'; }
-        else if (value <= 80) { label.textContent = 'Balanced Precise'; label.className = 'text-warning'; }
-        else { label.textContent = 'Max Precision'; label.className = 'text-danger'; }
-    }
-
-    if (slider) {
-        slider.addEventListener('input', updatePrecisionLabelRp);
-        updatePrecisionLabelRp();
-    }
-
-    // SAM3 / YOLO Toggle Handler
-    const yoloRadio = document.getElementById('detection_mode_yolo');
-    const sam3Radio = document.getElementById('detection_mode_sam3');
-    const yoloSection = document.getElementById('yolo_settings_section');
-    const sam3Section = document.getElementById('sam3_settings_section');
-    const sam3StatusIndicator = document.getElementById('sam3_status_indicator');
-    const sam3StatusBadge = document.getElementById('sam3_status_badge');
-    const hfConfigWarning = document.getElementById('hf_config_warning');
-    const sam3PromptTextarea = document.getElementById('user_setting_sam3_prompt');
-    const sam3PromptCount = document.getElementById('sam3_prompt_count');
-    const sam3ExamplesBtn = document.getElementById('sam3_examples_btn');
-    const sam3ExamplesCollapse = document.getElementById('sam3_examples_collapse');
-    const sam3ExamplesList = document.getElementById('sam3_examples_list');
-
-    // Helper function to save user settings via AJAX
-    function saveUserSetting(settingName, value) {
-        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-        const data = new FormData();
-        data.append('setting_type', 'user_setting');
-        data.append('setting_name', settingName);
-        data.append('input_value', value);
-        data.append('csrfmiddlewaretoken', csrfToken);
-
-        fetch('/anonymizer/update_settings/', {
-            method: 'POST',
-            body: data
-        })
-        .then(response => response.json())
-        .then(result => {
-            console.log('[SAM3] Setting saved:', settingName, '=', value, result);
-        })
-        .catch(err => {
-            console.error('[SAM3] Failed to save setting:', err);
-        });
-    }
-
-    function toggleDetectionMode(mode) {
-        if (mode === 'yolo') {
-            yoloSection.style.display = 'block';
-            sam3Section.style.display = 'none';
-            sam3StatusIndicator.style.display = 'none';
-            // Save use_sam3 = false
-            saveUserSetting('use_sam3', 'false');
-        } else {
-            yoloSection.style.display = 'none';
-            sam3Section.style.display = 'block';
-            sam3StatusIndicator.style.display = 'block';
-            checkSam3Status();
-            // Save use_sam3 = true
-            saveUserSetting('use_sam3', 'true');
-        }
-    }
-
-    function checkSam3Status() {
-        fetch('{% url "anonymizer:sam3_status" %}')
-            .then(response => response.json())
-            .then(data => {
-                if (data.ready) {
-                    sam3StatusBadge.className = 'badge bg-success';
-                    sam3StatusBadge.innerHTML = '<i class="fas fa-check-circle"></i> SAM3 prêt';
-                    hfConfigWarning.style.display = 'none';
-                } else if (data.installed && !data.hf_authenticated) {
-                    sam3StatusBadge.className = 'badge bg-warning text-dark';
-                    sam3StatusBadge.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Config HF requise';
-                    hfConfigWarning.style.display = 'block';
-                } else if (!data.installed) {
-                    sam3StatusBadge.className = 'badge bg-danger';
-                    sam3StatusBadge.innerHTML = '<i class="fas fa-times-circle"></i> SAM3 non installé';
-                    hfConfigWarning.style.display = 'none';
-                } else {
-                    sam3StatusBadge.className = 'badge bg-secondary';
-                    sam3StatusBadge.innerHTML = '<i class="fas fa-info-circle"></i> ' + (data.error || 'État inconnu');
-                }
-            })
-            .catch(err => {
-                sam3StatusBadge.className = 'badge bg-secondary';
-                sam3StatusBadge.innerHTML = '<i class="fas fa-question-circle"></i> Vérification échouée';
-                console.error('SAM3 status check failed:', err);
-            });
-    }
-
-    // Update prompt character count
-    function updatePromptCount() {
-        if (sam3PromptTextarea && sam3PromptCount) {
-            sam3PromptCount.textContent = sam3PromptTextarea.value.length + '/500';
-        }
-    }
-
-    // Load SAM3 examples
-    function loadSam3Examples() {
-        fetch('{% url "anonymizer:sam3_examples" %}')
-            .then(response => response.json())
-            .then(data => {
-                sam3ExamplesList.innerHTML = '';
-                data.examples.forEach(example => {
-                    const item = document.createElement('a');
-                    item.href = '#';
-                    item.className = 'list-group-item list-group-item-action bg-dark text-light border-secondary py-1 px-2';
-                    item.innerHTML = '<small><strong>' + example.prompt + '</strong><br><span class="text-white-50">' + example.description + '</span></small>';
-                    item.addEventListener('click', function(e) {
-                        e.preventDefault();
-                        sam3PromptTextarea.value = example.prompt;
-                        updatePromptCount();
-                        sam3ExamplesCollapse.classList.remove('show');
-                    });
-                    sam3ExamplesList.appendChild(item);
-                });
-            })
-            .catch(err => {
-                console.error('Failed to load SAM3 examples:', err);
-            });
-    }
-
-    // Debounce function for delayed saves
-    function debounce(func, wait) {
-        let timeout;
-        return function(...args) {
-            clearTimeout(timeout);
-            timeout = setTimeout(() => func.apply(this, args), wait);
-        };
-    }
-
-    // Debounced save for SAM3 prompt
-    const debouncedSavePrompt = debounce(function(value) {
-        saveUserSetting('sam3_prompt', value);
-    }, 500);
-
-    // Event listeners
-    if (yoloRadio) {
-        yoloRadio.addEventListener('change', function() {
-            if (this.checked) toggleDetectionMode('yolo');
-        });
-    }
-    if (sam3Radio) {
-        sam3Radio.addEventListener('change', function() {
-            if (this.checked) toggleDetectionMode('sam3');
-        });
-    }
-    if (sam3PromptTextarea) {
-        sam3PromptTextarea.addEventListener('input', function() {
-            updatePromptCount();
-            // Save the prompt with debouncing
-            debouncedSavePrompt(this.value);
-        });
-        updatePromptCount();
-    }
-    if (sam3ExamplesBtn) {
-        sam3ExamplesBtn.addEventListener('click', function() {
-            const isExpanded = sam3ExamplesCollapse.classList.contains('show');
-            if (!isExpanded) {
-                loadSam3Examples();
-            }
-            sam3ExamplesCollapse.classList.toggle('show');
-        });
-    }
-
-    // Check SAM3 status on page load if SAM3 mode is selected
-    if (sam3Radio && sam3Radio.checked) {
-        checkSam3Status();
-    }
-});
-</script>
 {% endblock %}
 
 {% block app_right_panel_actions %}
@@ -474,16 +291,7 @@ document.addEventListener('DOMContentLoaded', function() {
 <script src="{% static 'anonymizer/js/update.js' %}"></script>
 <script src="{% static 'anonymizer/js/upload.js' %}"></script>
 <script src="{% static 'anonymizer/js/settings_modal.js' %}"></script>
-
-{# Fix modal z-index by moving modals to body level #}
-<script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // Move all modals that start with "modal_classes2blur" to body level
-        document.querySelectorAll('[id^="modal_classes2blur"]').forEach(function(modal) {
-            document.body.appendChild(modal);
-        });
-    });
-</script>
+<script src="{% static 'anonymizer/js/right_panel.js' %}"></script>
 {% endblock %}
 
 {% block anonymizer_content %}
@@ -541,7 +349,7 @@ document.addEventListener('DOMContentLoaded', function() {
     </div>
 </div>
 
-<hr>
+<hr class="border-secondary">
 
 <!-- Main Content Container -->
 <div id="main_container">
@@ -550,6 +358,67 @@ document.addEventListener('DOMContentLoaded', function() {
 {% endblock %}
 
 {% block extra_modals %}
+<!-- Classes Selection Modal -->
+<div class="modal fade" id="modal_classes2blur_{{ user.id }}" tabindex="-1" aria-labelledby="modalClasses2blurLabel">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content bg-dark text-light">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title" id="modalClasses2blurLabel">
+                    <i class="fas fa-list-check me-2"></i>Sélectionner les classes à flouter
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" style="max-height: 60vh; overflow-y: auto;">
+                <div class="mb-3">
+                    <strong class="text-info">Classes spéciales</strong>
+                    <div class="row mt-2">
+                        {% for cls in classes %}
+                            {% if cls.0 == 'face' or cls.0 == 'plate' %}
+                            <div class="col-md-4 col-sm-6 mb-2">
+                                <div class="form-check">
+                                    <input class="form-check-input classes2blur-checkbox" type="checkbox"
+                                           name="classes2blur" value="{{ cls.0 }}"
+                                           id="classes2blur_global_{{ cls.0 }}"
+                                           {% if cls.0 in gs_values.classes2blur %}checked{% endif %}>
+                                    <label class="form-check-label text-light" for="classes2blur_global_{{ cls.0 }}">
+                                        {{ cls.1 }}
+                                    </label>
+                                </div>
+                            </div>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+                <hr class="border-secondary">
+                <div class="mb-3">
+                    <strong class="text-info">Classes COCO (objets courants)</strong>
+                    <div class="row mt-2">
+                        {% for cls in classes %}
+                            {% if cls.0 != 'face' and cls.0 != 'plate' %}
+                            <div class="col-md-4 col-sm-6 mb-2">
+                                <div class="form-check">
+                                    <input class="form-check-input classes2blur-checkbox" type="checkbox"
+                                           name="classes2blur" value="{{ cls.0 }}"
+                                           id="classes2blur_global_{{ cls.0 }}"
+                                           {% if cls.0 in gs_values.classes2blur %}checked{% endif %}>
+                                    <label class="form-check-label text-light small" for="classes2blur_global_{{ cls.0 }}">
+                                        {{ cls.1 }}
+                                    </label>
+                                </div>
+                            </div>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <span class="text-white-50 me-auto" id="classes2blur_count">0 classe(s) sélectionnée(s)</span>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!--  Progress popup - Must be at body level for proper z-index -->
 <div class="modal fade" id="modal-progress" tabindex="-1" aria-labelledby="modalProgressLabel">
     <div class="modal-dialog">
@@ -611,81 +480,4 @@ document.addEventListener('DOMContentLoaded', function() {
         </div>
     </div>
 </div>
-
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    const hfSaveBtn = document.getElementById('hf_config_save_btn');
-    const hfTokenInput = document.getElementById('hf_token_input');
-    const hfConfigResult = document.getElementById('hf_config_result');
-
-    if (hfSaveBtn) {
-        hfSaveBtn.addEventListener('click', function() {
-            const token = hfTokenInput.value.trim();
-
-            if (!token) {
-                hfConfigResult.className = 'alert alert-warning';
-                hfConfigResult.textContent = 'Veuillez entrer un token.';
-                hfConfigResult.classList.remove('d-none');
-                return;
-            }
-
-            hfSaveBtn.disabled = true;
-            hfSaveBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Enregistrement...';
-
-            const formData = new FormData();
-            formData.append('hf_token', token);
-            formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
-
-            fetch('{% url "anonymizer:configure_hf_token" %}', {
-                method: 'POST',
-                headers: {
-                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
-                },
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    hfConfigResult.className = 'alert alert-success';
-                    hfConfigResult.textContent = 'Token configuré avec succès!';
-                    hfConfigResult.classList.remove('d-none');
-
-                    // Update status badge
-                    const sam3StatusBadge = document.getElementById('sam3_status_badge');
-                    if (sam3StatusBadge) {
-                        sam3StatusBadge.className = 'badge bg-success';
-                        sam3StatusBadge.innerHTML = '<i class="fas fa-check-circle"></i> SAM3 prêt';
-                    }
-
-                    // Hide warning
-                    const hfConfigWarning = document.getElementById('hf_config_warning');
-                    if (hfConfigWarning) {
-                        hfConfigWarning.style.display = 'none';
-                    }
-
-                    // Close modal after 1.5s
-                    setTimeout(function() {
-                        const modal = bootstrap.Modal.getInstance(document.getElementById('modal_hf_config'));
-                        if (modal) modal.hide();
-                    }, 1500);
-                } else {
-                    hfConfigResult.className = 'alert alert-danger';
-                    hfConfigResult.textContent = data.error || 'Erreur lors de la configuration.';
-                    hfConfigResult.classList.remove('d-none');
-                }
-            })
-            .catch(err => {
-                hfConfigResult.className = 'alert alert-danger';
-                hfConfigResult.textContent = 'Erreur de connexion.';
-                hfConfigResult.classList.remove('d-none');
-                console.error('HF config error:', err);
-            })
-            .finally(function() {
-                hfSaveBtn.disabled = false;
-                hfSaveBtn.innerHTML = '<i class="fas fa-save me-1"></i>Enregistrer';
-            });
-        });
-    }
-});
-</script>
 {% endblock %}
