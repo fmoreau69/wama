@@ -52,7 +52,8 @@ document.addEventListener('DOMContentLoaded', function() {
             const settingsData = {
                 classes2blur: data.classes2blur || [],
                 sliders: data.sliders || [],
-                booleans: data.booleans || []
+                booleans: data.booleans || [],
+                sam3: data.sam3 || { use_sam3: false, prompt: '', status: { ready: false }, examples: [] }
             };
 
             const modal = buildModalHTML(mediaId, settingsData);
@@ -80,13 +81,85 @@ document.addEventListener('DOMContentLoaded', function() {
         // Build settings form HTML
         let settingsHTML = '';
 
-        // Classes2blur section
+        // SAM3 data
+        const sam3Data = settingsData.sam3 || { use_sam3: false, prompt: '', status: { ready: false }, examples: [] };
+        const useSam3 = sam3Data.use_sam3;
+        const sam3Ready = sam3Data.status && sam3Data.status.ready;
+
+        // Detection mode toggle section
+        settingsHTML += `
+            <div class="mb-4">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <label class="form-label fw-bold text-light mb-0">
+                        <i class="fas fa-crosshairs me-2"></i>Mode de détection
+                    </label>
+                    ${sam3Ready ?
+                        '<span class="badge bg-success"><i class="fas fa-check-circle"></i> SAM3 disponible</span>' :
+                        '<span class="badge bg-secondary"><i class="fas fa-info-circle"></i> SAM3 non disponible</span>'
+                    }
+                </div>
+                <div class="btn-group w-100" role="group" aria-label="Detection mode">
+                    <input type="radio" class="btn-check" name="detection_mode_${mediaId}" id="mode_yolo_${mediaId}" value="yolo"
+                           ${!useSam3 ? 'checked' : ''} autocomplete="off">
+                    <label class="btn btn-outline-primary" for="mode_yolo_${mediaId}">
+                        <i class="fas fa-object-group me-1"></i>YOLO (Classes)
+                    </label>
+                    <input type="radio" class="btn-check" name="detection_mode_${mediaId}" id="mode_sam3_${mediaId}" value="sam3"
+                           ${useSam3 ? 'checked' : ''} ${!sam3Ready ? 'disabled' : ''} autocomplete="off">
+                    <label class="btn btn-outline-info ${!sam3Ready ? 'disabled' : ''}" for="mode_sam3_${mediaId}">
+                        <i class="fas fa-comment-dots me-1"></i>SAM3 (Prompt)
+                    </label>
+                </div>
+            </div>
+        `;
+
+        // SAM3 prompt section (shown when SAM3 mode is selected)
+        settingsHTML += `
+            <div class="mb-4" id="sam3_section_${mediaId}" style="display: ${useSam3 ? 'block' : 'none'};">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <label class="form-label fw-bold text-light mb-0">
+                        <i class="fas fa-comment-dots me-2"></i>Prompt SAM3
+                    </label>
+                </div>
+                <div class="p-3 rounded" style="background-color: #1a1d20; border: 1px solid #495057;">
+                    <textarea class="form-control bg-dark text-white border-secondary mb-2"
+                              name="sam3_prompt"
+                              id="sam3_prompt_${mediaId}"
+                              rows="3"
+                              placeholder="Décrivez ce que vous voulez flouter..."
+                              maxlength="500">${sam3Data.prompt || ''}</textarea>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <small class="text-white-50">Décrivez les objets à flouter en langage naturel</small>
+                        <small class="text-white-50" id="sam3_prompt_count_${mediaId}">${(sam3Data.prompt || '').length}/500</small>
+                    </div>
+                    ${sam3Data.examples && sam3Data.examples.length > 0 ? `
+                        <div class="mt-2">
+                            <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#sam3_examples_${mediaId}">
+                                <i class="fas fa-lightbulb me-1"></i>Exemples
+                            </button>
+                            <div class="collapse mt-2" id="sam3_examples_${mediaId}">
+                                <div class="list-group list-group-flush">
+                                    ${sam3Data.examples.map(ex => `
+                                        <a href="#" class="list-group-item list-group-item-action bg-dark text-light border-secondary py-2 px-3 sam3-example-item" data-prompt="${ex.prompt}" data-target="sam3_prompt_${mediaId}">
+                                            <strong>${ex.prompt}</strong><br>
+                                            <small class="text-white-50">${ex.description}</small>
+                                        </a>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        </div>
+                    ` : ''}
+                </div>
+            </div>
+        `;
+
+        // Classes2blur section (shown when YOLO mode is selected)
         if (settingsData.classes2blur && settingsData.classes2blur.length > 0) {
             settingsHTML += `
-                <div class="mb-4">
+                <div class="mb-4" id="yolo_section_${mediaId}" style="display: ${useSam3 ? 'none' : 'block'};">
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <label class="form-label fw-bold text-light mb-0">
-                            <i class="fas fa-eye-slash me-2"></i>Objets à flouter
+                            <i class="fas fa-eye-slash me-2"></i>Objets à flouter (YOLO)
                         </label>
                         <small class="text-white-50">${settingsData.classes2blur.filter(c => c.checked).length} sélectionné(s)</small>
                     </div>
@@ -224,6 +297,66 @@ document.addEventListener('DOMContentLoaded', function() {
         if (resetBtn) {
             resetBtn.addEventListener('click', () => resetMediaSettings(mediaId));
         }
+
+        // Detection mode toggle (YOLO/SAM3)
+        const yoloRadio = modal.querySelector(`#mode_yolo_${mediaId}`);
+        const sam3Radio = modal.querySelector(`#mode_sam3_${mediaId}`);
+        const yoloSection = modal.querySelector(`#yolo_section_${mediaId}`);
+        const sam3Section = modal.querySelector(`#sam3_section_${mediaId}`);
+
+        function toggleDetectionSections(mode) {
+            if (mode === 'yolo') {
+                if (yoloSection) yoloSection.style.display = 'block';
+                if (sam3Section) sam3Section.style.display = 'none';
+            } else {
+                if (yoloSection) yoloSection.style.display = 'none';
+                if (sam3Section) sam3Section.style.display = 'block';
+            }
+        }
+
+        if (yoloRadio) {
+            yoloRadio.addEventListener('change', function() {
+                if (this.checked) toggleDetectionSections('yolo');
+            });
+        }
+        if (sam3Radio) {
+            sam3Radio.addEventListener('change', function() {
+                if (this.checked) toggleDetectionSections('sam3');
+            });
+        }
+
+        // SAM3 prompt character count
+        const sam3Prompt = modal.querySelector(`#sam3_prompt_${mediaId}`);
+        const sam3PromptCount = modal.querySelector(`#sam3_prompt_count_${mediaId}`);
+        if (sam3Prompt && sam3PromptCount) {
+            sam3Prompt.addEventListener('input', function() {
+                sam3PromptCount.textContent = this.value.length + '/500';
+            });
+        }
+
+        // SAM3 example click handlers
+        modal.querySelectorAll('.sam3-example-item').forEach(item => {
+            item.addEventListener('click', function(e) {
+                e.preventDefault();
+                const prompt = this.dataset.prompt;
+                const targetId = this.dataset.target;
+                const targetTextarea = document.getElementById(targetId);
+                if (targetTextarea) {
+                    targetTextarea.value = prompt;
+                    // Update character count
+                    const countEl = document.getElementById(targetId.replace('sam3_prompt_', 'sam3_prompt_count_'));
+                    if (countEl) {
+                        countEl.textContent = prompt.length + '/500';
+                    }
+                }
+                // Collapse the examples
+                const collapseEl = this.closest('.collapse');
+                if (collapseEl) {
+                    const bsCollapse = bootstrap.Collapse.getInstance(collapseEl);
+                    if (bsCollapse) bsCollapse.hide();
+                }
+            });
+        });
     }
 
     function saveMediaSettings(mediaId, andRestart) {
@@ -234,13 +367,25 @@ document.addEventListener('DOMContentLoaded', function() {
         formData.append('csrfmiddlewaretoken', getCsrfToken());
         formData.append('media_id', mediaId);
 
+        // Collect detection mode (YOLO or SAM3)
+        const sam3Radio = modal.querySelector(`#mode_sam3_${mediaId}`);
+        const useSam3 = sam3Radio && sam3Radio.checked;
+        formData.append('use_sam3', useSam3 ? 'true' : 'false');
+
+        // Collect SAM3 prompt
+        const sam3Prompt = modal.querySelector(`#sam3_prompt_${mediaId}`);
+        if (sam3Prompt) {
+            formData.append('sam3_prompt', sam3Prompt.value || '');
+        }
+
         // Collect all form values from modal
         modal.querySelectorAll('input[type="checkbox"]').forEach(input => {
             if (input.name === 'classes2blur') {
                 if (input.checked) {
                     formData.append(input.name, input.value);
                 }
-            } else {
+            } else if (!input.name.startsWith('detection_mode_')) {
+                // Skip detection_mode radio buttons, they're handled separately
                 formData.append(input.name, input.checked ? 'true' : 'false');
             }
         });

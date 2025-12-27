@@ -76,6 +76,19 @@ class Media(models.Model):
         help_text='Automatically determined by precision level'
     )
 
+    # SAM3 (Segment Anything Model 3) fields
+    use_sam3 = models.BooleanField(
+        default=False,
+        verbose_name='Use SAM3 for segmentation',
+        help_text='When True, uses SAM3 text prompt instead of YOLO classes'
+    )
+    sam3_prompt = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name='SAM3 Text Prompt',
+        help_text='Text prompt for SAM3 segmentation (e.g., "blur all faces and license plates")'
+    )
+
     def __str__(self):
         return self.title or f"Media {self.pk}"
 
@@ -150,6 +163,24 @@ class UserSettings(models.Model):
         default=False,
         verbose_name='Use segmentation models',
         help_text='Automatically determined by precision level'
+    )
+
+    # SAM3 (Segment Anything Model 3) fields
+    use_sam3 = models.BooleanField(
+        default=False,
+        verbose_name='Use SAM3 by default',
+        help_text='When True, uses SAM3 text prompt instead of YOLO classes by default'
+    )
+    sam3_prompt = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name='Default SAM3 Text Prompt',
+        help_text='Default text prompt for SAM3 segmentation'
+    )
+    hf_token_configured = models.BooleanField(
+        default=False,
+        verbose_name='HuggingFace token configured',
+        help_text='Whether user has configured HuggingFace access token for SAM3'
     )
 
     def __str__(self):

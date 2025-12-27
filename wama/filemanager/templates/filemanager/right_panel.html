@@ -1,0 +1,118 @@
+{% load static %}
+<!-- Right Panel - Settings & Preview -->
+<aside id="wama-right-panel">
+    <!-- Header -->
+    <div class="right-panel-header">
+        <h5><i class="fas fa-sliders-h me-2"></i>Panneau</h5>
+    </div>
+
+    <!-- Content -->
+    <div class="right-panel-content">
+        <!-- Preview Section -->
+        <div class="right-panel-section" id="preview-section">
+            <div class="right-panel-section-title">
+                <i class="fas fa-eye me-1"></i> Aperçu
+            </div>
+            <div class="right-panel-preview" id="preview-container">
+                <div class="right-panel-preview-placeholder" id="preview-placeholder">
+                    <i class="fas fa-photo-video"></i>
+                    <p>Sélectionnez un fichier<br>pour l'aperçu</p>
+                </div>
+                <div id="preview-media" style="display: none;">
+                    <!-- Dynamic preview content -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Settings Section - Will be populated by apps -->
+        <div class="right-panel-section" id="settings-section">
+            <div class="right-panel-section-title">
+                <i class="fas fa-cog me-1"></i> Paramètres
+            </div>
+            <div id="global-settings-container">
+                {% block right_panel_settings %}
+                <p class="text-muted small">Aucun paramètre disponible</p>
+                {% endblock %}
+            </div>
+        </div>
+
+        <!-- Actions Section -->
+        <div class="right-panel-section" id="actions-section">
+            <div class="right-panel-section-title">
+                <i class="fas fa-play-circle me-1"></i> Actions
+            </div>
+            <div id="global-actions-container">
+                {% block right_panel_actions %}
+                <!-- Actions will be added by apps -->
+                {% endblock %}
+            </div>
+        </div>
+    </div>
+</aside>
+
+<!-- Right Panel Script -->
+<script>
+    window.WAMA_RIGHT_PANEL = {
+        // Show preview for a file
+        showPreview: function(url, type) {
+            const placeholder = document.getElementById('preview-placeholder');
+            const mediaContainer = document.getElementById('preview-media');
+
+            if (!url) {
+                placeholder.style.display = 'block';
+                mediaContainer.style.display = 'none';
+                mediaContainer.innerHTML = '';
+                return;
+            }
+
+            placeholder.style.display = 'none';
+            mediaContainer.style.display = 'block';
+
+            if (type === 'video' || url.match(/\.(mp4|webm|ogg|mov|avi)$/i)) {
+                mediaContainer.innerHTML = `
+                    <video controls autoplay muted style="width: 100%; border-radius: 4px;">
+                        <source src="${url}" type="video/mp4">
+                    </video>
+                `;
+            } else if (type === 'image' || url.match(/\.(jpg|jpeg|png|gif|webp|bmp)$/i)) {
+                mediaContainer.innerHTML = `
+                    <img src="${url}" alt="Preview" style="width: 100%; border-radius: 4px;">
+                `;
+            } else if (type === 'audio' || url.match(/\.(mp3|wav|ogg|flac|m4a)$/i)) {
+                mediaContainer.innerHTML = `
+                    <audio controls style="width: 100%;">
+                        <source src="${url}">
+                    </audio>
+                `;
+            } else {
+                mediaContainer.innerHTML = `
+                    <div class="text-center text-muted py-3">
+                        <i class="fas fa-file fa-2x mb-2"></i>
+                        <p class="small mb-0">Aperçu non disponible</p>
+                    </div>
+                `;
+            }
+        },
+
+        // Clear preview
+        clearPreview: function() {
+            this.showPreview(null);
+        },
+
+        // Update settings content
+        updateSettings: function(html) {
+            const container = document.getElementById('global-settings-container');
+            if (container) {
+                container.innerHTML = html;
+            }
+        },
+
+        // Update actions content
+        updateActions: function(html) {
+            const container = document.getElementById('global-actions-container');
+            if (container) {
+                container.innerHTML = html;
+            }
+        }
+    };
+</script>

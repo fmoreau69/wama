@@ -1,21 +1,6 @@
 <!-- Hidden CSRF token for JS -->
 <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
 
-<!-- Queue Header -->
-<div class="row mb-3">
-    <div class="col-12">
-        <h4 class="mb-3">
-            <i class="fas fa-list"></i> File d'attente
-            <span class="badge bg-secondary" id="queueCount">{{ medias.count }}</span>
-        </h4>
-    </div>
-</div>
-
-<!-- Media Table or Empty State -->
-<div id="media_table_container">
-    {% include "anonymizer/upload/media_table.html" %}
-</div>
-
 {% if medias.count > 0 %}
 <!-- Global Progress (only shown when medias exist) -->
 <div class="row mb-3 mt-4">
@@ -34,6 +19,21 @@
             </div>
         </div>
     </div>
+</div>
+
+<!-- Queue Header -->
+<div class="row mb-3">
+    <div class="col-12">
+        <h4 class="mb-3">
+            <i class="fas fa-list"></i> File d'attente
+            <span class="badge bg-secondary" id="queueCount">{{ medias.count }}</span>
+        </h4>
+    </div>
+</div>
+
+<!-- Media Table or Empty State -->
+<div id="media_table_container">
+    {% include "anonymizer/upload/media_table.html" %}
 </div>
 
 <!-- Preview Section (only shown when medias exist) -->

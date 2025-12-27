@@ -48,6 +48,12 @@ urlpatterns = [
     path('save_media_settings/', views.save_media_settings, name='save_media_settings'),
     path('restart_media/', views.restart_media, name='restart_media'),
 
+    # SAM3 (Segment Anything Model 3) Endpoints
+    path('sam3/status/', views.get_sam3_status_view, name='sam3_status'),
+    path('sam3/configure-hf/', views.configure_hf_token, name='configure_hf_token'),
+    path('sam3/validate-prompt/', views.validate_prompt_view, name='validate_prompt'),
+    path('sam3/examples/', views.get_sam3_examples, name='sam3_examples'),
+
     # Unused
     # path('display_console/', views.ProcessView.display_console, name='display_console'),
 ]

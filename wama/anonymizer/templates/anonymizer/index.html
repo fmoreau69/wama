@@ -8,10 +8,38 @@
 <!-- CSRF Token for AJAX -->
 <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
 
-<!-- Section: Quoi flouter -->
+<!-- Section: Mode de détection -->
 <div class="right-panel-section">
     <div class="right-panel-section-title">
-        <i class="fas fa-eye-slash"></i> Quoi flouter
+        <i class="fas fa-crosshairs"></i> Mode de détection
+    </div>
+
+    <!-- Detection Mode Toggle -->
+    <div class="btn-group w-100 mb-2" role="group" aria-label="Detection mode">
+        <input type="radio" class="btn-check setting-button" name="detection_mode" id="detection_mode_yolo" value="yolo"
+               {% if not gs_values.use_sam3 %}checked{% endif %} autocomplete="off">
+        <label class="btn btn-outline-primary btn-sm" for="detection_mode_yolo">
+            <i class="fas fa-object-group"></i> YOLO
+        </label>
+        <input type="radio" class="btn-check setting-button" name="detection_mode" id="detection_mode_sam3" value="sam3"
+               {% if gs_values.use_sam3 %}checked{% endif %} autocomplete="off">
+        <label class="btn btn-outline-info btn-sm" for="detection_mode_sam3">
+            <i class="fas fa-comment-dots"></i> SAM3
+        </label>
+    </div>
+
+    <!-- SAM3 Status Indicator -->
+    <div id="sam3_status_indicator" class="small mb-2" style="display: {% if gs_values.use_sam3 %}block{% else %}none{% endif %};">
+        <span class="badge bg-secondary" id="sam3_status_badge">
+            <i class="fas fa-spinner fa-spin"></i> Vérification...
+        </span>
+    </div>
+</div>
+
+<!-- Section: Quoi flouter (YOLO) -->
+<div class="right-panel-section" id="yolo_settings_section" style="{% if gs_values.use_sam3 %}display: none;{% endif %}">
+    <div class="right-panel-section-title">
+        <i class="fas fa-eye-slash"></i> Quoi flouter (YOLO)
     </div>
 
     <!-- Classes Selection Button -->
@@ -61,6 +89,54 @@
                 </optgroup>
             {% endfor %}
         </select>
+    </div>
+</div>
+
+<!-- Section: Quoi flouter (SAM3) -->
+<div class="right-panel-section" id="sam3_settings_section" style="{% if not gs_values.use_sam3 %}display: none;{% endif %}">
+    <div class="right-panel-section-title">
+        <i class="fas fa-comment-dots"></i> Quoi flouter (SAM3)
+    </div>
+
+    <!-- SAM3 Text Prompt -->
+    <div class="mb-2">
+        <label class="form-label text-light small mb-1" for="user_setting_sam3_prompt">
+            Décrivez ce que vous voulez flouter:
+        </label>
+        <textarea class="form-control form-control-sm bg-dark text-white border-secondary setting-button"
+                  id="user_setting_sam3_prompt"
+                  name="sam3_prompt"
+                  rows="3"
+                  placeholder="Ex: tous les visages et plaques d'immatriculation"
+                  maxlength="500">{{ gs_values.sam3_prompt|default:"" }}</textarea>
+        <small class="text-white-50 d-flex justify-content-between">
+            <span>Prompt pour SAM3</span>
+            <span id="sam3_prompt_count">0/500</span>
+        </small>
+    </div>
+
+    <!-- SAM3 Examples -->
+    <div class="mb-2">
+        <button type="button" class="btn btn-sm btn-outline-secondary w-100" id="sam3_examples_btn">
+            <i class="fas fa-lightbulb"></i> Exemples de prompts
+        </button>
+    </div>
+
+    <!-- SAM3 Examples Dropdown -->
+    <div class="collapse mb-2" id="sam3_examples_collapse">
+        <div class="list-group list-group-flush" id="sam3_examples_list">
+            <!-- Examples will be loaded dynamically -->
+        </div>
+    </div>
+
+    <!-- HuggingFace Token Config (if not configured) -->
+    <div id="hf_config_warning" class="alert alert-warning py-2 px-3 mb-2" style="display: none;">
+        <small>
+            <i class="fas fa-exclamation-triangle"></i> Token HuggingFace requis
+            <button type="button" class="btn btn-sm btn-warning ms-2" data-bs-toggle="modal" data-bs-target="#modal_hf_config">
+                Configurer
+            </button>
+        </small>
     </div>
 </div>
 
@@ -203,6 +279,167 @@ document.addEventListener('DOMContentLoaded', function() {
         slider.addEventListener('input', updatePrecisionLabelRp);
         updatePrecisionLabelRp();
     }
+
+    // SAM3 / YOLO Toggle Handler
+    const yoloRadio = document.getElementById('detection_mode_yolo');
+    const sam3Radio = document.getElementById('detection_mode_sam3');
+    const yoloSection = document.getElementById('yolo_settings_section');
+    const sam3Section = document.getElementById('sam3_settings_section');
+    const sam3StatusIndicator = document.getElementById('sam3_status_indicator');
+    const sam3StatusBadge = document.getElementById('sam3_status_badge');
+    const hfConfigWarning = document.getElementById('hf_config_warning');
+    const sam3PromptTextarea = document.getElementById('user_setting_sam3_prompt');
+    const sam3PromptCount = document.getElementById('sam3_prompt_count');
+    const sam3ExamplesBtn = document.getElementById('sam3_examples_btn');
+    const sam3ExamplesCollapse = document.getElementById('sam3_examples_collapse');
+    const sam3ExamplesList = document.getElementById('sam3_examples_list');
+
+    // Helper function to save user settings via AJAX
+    function saveUserSetting(settingName, value) {
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        const data = new FormData();
+        data.append('setting_type', 'user_setting');
+        data.append('setting_name', settingName);
+        data.append('input_value', value);
+        data.append('csrfmiddlewaretoken', csrfToken);
+
+        fetch('/anonymizer/update_settings/', {
+            method: 'POST',
+            body: data
+        })
+        .then(response => response.json())
+        .then(result => {
+            console.log('[SAM3] Setting saved:', settingName, '=', value, result);
+        })
+        .catch(err => {
+            console.error('[SAM3] Failed to save setting:', err);
+        });
+    }
+
+    function toggleDetectionMode(mode) {
+        if (mode === 'yolo') {
+            yoloSection.style.display = 'block';
+            sam3Section.style.display = 'none';
+            sam3StatusIndicator.style.display = 'none';
+            // Save use_sam3 = false
+            saveUserSetting('use_sam3', 'false');
+        } else {
+            yoloSection.style.display = 'none';
+            sam3Section.style.display = 'block';
+            sam3StatusIndicator.style.display = 'block';
+            checkSam3Status();
+            // Save use_sam3 = true
+            saveUserSetting('use_sam3', 'true');
+        }
+    }
+
+    function checkSam3Status() {
+        fetch('{% url "anonymizer:sam3_status" %}')
+            .then(response => response.json())
+            .then(data => {
+                if (data.ready) {
+                    sam3StatusBadge.className = 'badge bg-success';
+                    sam3StatusBadge.innerHTML = '<i class="fas fa-check-circle"></i> SAM3 prêt';
+                    hfConfigWarning.style.display = 'none';
+                } else if (data.installed && !data.hf_authenticated) {
+                    sam3StatusBadge.className = 'badge bg-warning text-dark';
+                    sam3StatusBadge.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Config HF requise';
+                    hfConfigWarning.style.display = 'block';
+                } else if (!data.installed) {
+                    sam3StatusBadge.className = 'badge bg-danger';
+                    sam3StatusBadge.innerHTML = '<i class="fas fa-times-circle"></i> SAM3 non installé';
+                    hfConfigWarning.style.display = 'none';
+                } else {
+                    sam3StatusBadge.className = 'badge bg-secondary';
+                    sam3StatusBadge.innerHTML = '<i class="fas fa-info-circle"></i> ' + (data.error || 'État inconnu');
+                }
+            })
+            .catch(err => {
+                sam3StatusBadge.className = 'badge bg-secondary';
+                sam3StatusBadge.innerHTML = '<i class="fas fa-question-circle"></i> Vérification échouée';
+                console.error('SAM3 status check failed:', err);
+            });
+    }
+
+    // Update prompt character count
+    function updatePromptCount() {
+        if (sam3PromptTextarea && sam3PromptCount) {
+            sam3PromptCount.textContent = sam3PromptTextarea.value.length + '/500';
+        }
+    }
+
+    // Load SAM3 examples
+    function loadSam3Examples() {
+        fetch('{% url "anonymizer:sam3_examples" %}')
+            .then(response => response.json())
+            .then(data => {
+                sam3ExamplesList.innerHTML = '';
+                data.examples.forEach(example => {
+                    const item = document.createElement('a');
+                    item.href = '#';
+                    item.className = 'list-group-item list-group-item-action bg-dark text-light border-secondary py-1 px-2';
+                    item.innerHTML = '<small><strong>' + example.prompt + '</strong><br><span class="text-white-50">' + example.description + '</span></small>';
+                    item.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        sam3PromptTextarea.value = example.prompt;
+                        updatePromptCount();
+                        sam3ExamplesCollapse.classList.remove('show');
+                    });
+                    sam3ExamplesList.appendChild(item);
+                });
+            })
+            .catch(err => {
+                console.error('Failed to load SAM3 examples:', err);
+            });
+    }
+
+    // Debounce function for delayed saves
+    function debounce(func, wait) {
+        let timeout;
+        return function(...args) {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => func.apply(this, args), wait);
+        };
+    }
+
+    // Debounced save for SAM3 prompt
+    const debouncedSavePrompt = debounce(function(value) {
+        saveUserSetting('sam3_prompt', value);
+    }, 500);
+
+    // Event listeners
+    if (yoloRadio) {
+        yoloRadio.addEventListener('change', function() {
+            if (this.checked) toggleDetectionMode('yolo');
+        });
+    }
+    if (sam3Radio) {
+        sam3Radio.addEventListener('change', function() {
+            if (this.checked) toggleDetectionMode('sam3');
+        });
+    }
+    if (sam3PromptTextarea) {
+        sam3PromptTextarea.addEventListener('input', function() {
+            updatePromptCount();
+            // Save the prompt with debouncing
+            debouncedSavePrompt(this.value);
+        });
+        updatePromptCount();
+    }
+    if (sam3ExamplesBtn) {
+        sam3ExamplesBtn.addEventListener('click', function() {
+            const isExpanded = sam3ExamplesCollapse.classList.contains('show');
+            if (!isExpanded) {
+                loadSam3Examples();
+            }
+            sam3ExamplesCollapse.classList.toggle('show');
+        });
+    }
+
+    // Check SAM3 status on page load if SAM3 mode is selected
+    if (sam3Radio && sam3Radio.checked) {
+        checkSam3Status();
+    }
 });
 </script>
 {% endblock %}
@@ -304,6 +541,8 @@ document.addEventListener('DOMContentLoaded', function() {
     </div>
 </div>
 
+<hr>
+
 <!-- Main Content Container -->
 <div id="main_container">
     {% include "anonymizer/upload/content.html" %}
@@ -339,4 +578,114 @@ document.addEventListener('DOMContentLoaded', function() {
         </div>
     </div>
 </div>
+
+<!-- HuggingFace Token Configuration Modal -->
+<div class="modal fade" id="modal_hf_config" tabindex="-1" aria-labelledby="modalHfConfigLabel">
+    <div class="modal-dialog">
+        <div class="modal-content bg-dark text-light">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title" id="modalHfConfigLabel">
+                    <i class="fas fa-key me-2"></i>Configuration HuggingFace
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="small text-white-50">
+                    SAM3 nécessite un token HuggingFace pour télécharger les modèles.
+                    Obtenez votre token sur <a href="https://huggingface.co/settings/tokens" target="_blank" class="text-info">huggingface.co/settings/tokens</a>
+                </p>
+                <div class="mb-3">
+                    <label for="hf_token_input" class="form-label">Token HuggingFace</label>
+                    <input type="password" class="form-control bg-dark text-white border-secondary"
+                           id="hf_token_input" placeholder="hf_xxxxxxxxxxxxx">
+                    <div class="form-text text-white-50">Le token commence par "hf_"</div>
+                </div>
+                <div id="hf_config_result" class="alert d-none" role="alert"></div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                <button type="button" class="btn btn-primary" id="hf_config_save_btn">
+                    <i class="fas fa-save me-1"></i>Enregistrer
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const hfSaveBtn = document.getElementById('hf_config_save_btn');
+    const hfTokenInput = document.getElementById('hf_token_input');
+    const hfConfigResult = document.getElementById('hf_config_result');
+
+    if (hfSaveBtn) {
+        hfSaveBtn.addEventListener('click', function() {
+            const token = hfTokenInput.value.trim();
+
+            if (!token) {
+                hfConfigResult.className = 'alert alert-warning';
+                hfConfigResult.textContent = 'Veuillez entrer un token.';
+                hfConfigResult.classList.remove('d-none');
+                return;
+            }
+
+            hfSaveBtn.disabled = true;
+            hfSaveBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Enregistrement...';
+
+            const formData = new FormData();
+            formData.append('hf_token', token);
+            formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+
+            fetch('{% url "anonymizer:configure_hf_token" %}', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                },
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    hfConfigResult.className = 'alert alert-success';
+                    hfConfigResult.textContent = 'Token configuré avec succès!';
+                    hfConfigResult.classList.remove('d-none');
+
+                    // Update status badge
+                    const sam3StatusBadge = document.getElementById('sam3_status_badge');
+                    if (sam3StatusBadge) {
+                        sam3StatusBadge.className = 'badge bg-success';
+                        sam3StatusBadge.innerHTML = '<i class="fas fa-check-circle"></i> SAM3 prêt';
+                    }
+
+                    // Hide warning
+                    const hfConfigWarning = document.getElementById('hf_config_warning');
+                    if (hfConfigWarning) {
+                        hfConfigWarning.style.display = 'none';
+                    }
+
+                    // Close modal after 1.5s
+                    setTimeout(function() {
+                        const modal = bootstrap.Modal.getInstance(document.getElementById('modal_hf_config'));
+                        if (modal) modal.hide();
+                    }, 1500);
+                } else {
+                    hfConfigResult.className = 'alert alert-danger';
+                    hfConfigResult.textContent = data.error || 'Erreur lors de la configuration.';
+                    hfConfigResult.classList.remove('d-none');
+                }
+            })
+            .catch(err => {
+                hfConfigResult.className = 'alert alert-danger';
+                hfConfigResult.textContent = 'Erreur de connexion.';
+                hfConfigResult.classList.remove('d-none');
+                console.error('HF config error:', err);
+            })
+            .finally(function() {
+                hfSaveBtn.disabled = false;
+                hfSaveBtn.innerHTML = '<i class="fas fa-save me-1"></i>Enregistrer';
+            });
+        });
+    }
+});
+</script>
 {% endblock %}

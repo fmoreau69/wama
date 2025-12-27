@@ -9,6 +9,7 @@ from .models import Media, UserSettings
 from anonymizer import anonymize
 from .utils.media_utils import get_input_media_path
 from .utils.yolo_utils import get_model_path
+from .utils.sam3_manager import check_sam3_installed, validate_sam3_prompt
 from wama.common.utils.console_utils import push_console_line
 
 # ----------------------------------------------------------------------
@@ -32,6 +33,17 @@ def process_single_media(self, media_id):
         precision_level = media.precision_level if ms_custom else user_settings.precision_level
         use_segmentation = media.use_segmentation if ms_custom else user_settings.use_segmentation
 
+        # Get SAM3 settings from media or user settings
+        use_sam3 = media.use_sam3 if ms_custom else user_settings.use_sam3
+        sam3_prompt = media.sam3_prompt if ms_custom else user_settings.sam3_prompt
+
+        # Debug: Log SAM3 settings retrieval
+        print(f"[process_single_media] DEBUG: ms_custom={ms_custom}")
+        print(f"[process_single_media] DEBUG: media.use_sam3={media.use_sam3}, user_settings.use_sam3={user_settings.use_sam3}")
+        print(f"[process_single_media] DEBUG: media.sam3_prompt='{media.sam3_prompt}', user_settings.sam3_prompt='{user_settings.sam3_prompt}'")
+        print(f"[process_single_media] DEBUG: Final use_sam3={use_sam3}, sam3_prompt='{sam3_prompt}'")
+        push_console_line(user.id, f"[DEBUG] SAM3 settings: use_sam3={use_sam3}, prompt='{sam3_prompt[:30] if sam3_prompt else ''}'")
+
         kwargs = {
             'media_path': get_input_media_path(media.file.name),
             'file_ext': media.file_ext,
@@ -48,6 +60,10 @@ def process_single_media(self, media_id):
             'show_conf': user_settings.show_conf,
             'precision_level': precision_level,
             'use_segmentation': use_segmentation,
+            # SAM3 parameters
+            'use_sam3': use_sam3,
+            'sam3_prompt': sam3_prompt,
+            'user_id': user.id,  # For console logging
         }
 
         # Model selection: prefer user's explicit model_to_use, otherwise auto-select by precision
@@ -148,7 +164,75 @@ def process_single_media(self, media_id):
 # Fonction pour lancer le traitement du média
 # ----------------------------------------------------------------------
 def start_process(**kwargs):
-    print(f"Process started for media: {kwargs['media_path']} ...")
+    """
+    Route processing to SAM3 or YOLO based on settings.
+
+    If use_sam3=True and sam3_prompt is provided, uses SAM3 for segmentation.
+    Otherwise, uses the standard YOLO-based Anonymize class.
+    """
+    media_path = kwargs.get('media_path', 'unknown')
+    use_sam3 = kwargs.get('use_sam3', False)
+    sam3_prompt = kwargs.get('sam3_prompt', '')
+    user_id = kwargs.get('user_id')
+
+    # Debug: Log SAM3 routing decision
+    print(f"[start_process] DEBUG: use_sam3={use_sam3} (type={type(use_sam3)})")
+    print(f"[start_process] DEBUG: sam3_prompt='{sam3_prompt}' (type={type(sam3_prompt)})")
+    print(f"[start_process] DEBUG: Condition check: use_sam3={bool(use_sam3)}, sam3_prompt={bool(sam3_prompt)}, strip={bool(sam3_prompt and sam3_prompt.strip())}")
+    if user_id:
+        push_console_line(user_id, f"[DEBUG] use_sam3={use_sam3}, sam3_prompt='{sam3_prompt[:30] if sam3_prompt else ''}'...")
+
+    # Route to SAM3 if enabled and prompt provided
+    if use_sam3 and sam3_prompt and sam3_prompt.strip():
+        print(f"[SAM3] Process started for media: {media_path} ...")
+
+        # Validate SAM3 is available
+        if not check_sam3_installed():
+            error_msg = "SAM3 not installed. Falling back to YOLO."
+            print(f"Warning: {error_msg}")
+            if user_id:
+                push_console_line(user_id, f"Warning: {error_msg}")
+            # Fall through to YOLO
+        else:
+            # Validate prompt
+            is_valid, error = validate_sam3_prompt(sam3_prompt)
+            if not is_valid:
+                error_msg = f"Invalid SAM3 prompt: {error}. Falling back to YOLO."
+                print(f"Warning: {error_msg}")
+                if user_id:
+                    push_console_line(user_id, f"Warning: {error_msg}")
+                # Fall through to YOLO
+            else:
+                # Use SAM3 processor
+                try:
+                    from anonymizer.sam3_processor import SAM3Processor
+
+                    if user_id:
+                        push_console_line(user_id, f"Using SAM3 with prompt: {sam3_prompt[:50]}...")
+
+                    processor = SAM3Processor()
+                    processor.load_model('auto')
+                    processor.process(**kwargs)
+
+                    if user_id:
+                        push_console_line(user_id, f"SAM3 processing complete")
+                    return
+                except ImportError as e:
+                    error_msg = f"SAM3 import error: {e}. Falling back to YOLO."
+                    print(f"Warning: {error_msg}")
+                    if user_id:
+                        push_console_line(user_id, f"Warning: {error_msg}")
+                except Exception as e:
+                    error_msg = f"SAM3 processing error: {e}. Falling back to YOLO."
+                    print(f"Warning: {error_msg}")
+                    if user_id:
+                        push_console_line(user_id, f"Warning: {error_msg}")
+
+    # Default: Use YOLO-based Anonymize
+    print(f"[YOLO] Process started for media: {media_path} ...")
+    if user_id:
+        push_console_line(user_id, f"Using YOLO with classes: {kwargs.get('classes2blur', [])}")
+
     model = anonymize.Anonymize()
     anonymize.Anonymize.load_model(model, **kwargs)
     anonymize.Anonymize.process(model, **kwargs)

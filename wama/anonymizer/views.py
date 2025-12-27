@@ -30,6 +30,10 @@ from .forms import MediaSettingsForm, UserSettingsForm
 from .tasks import process_single_media, process_user_media_batch, stop_process
 from .utils.media_utils import get_input_media_path, get_output_media_path, get_blurred_media_path, get_unique_filename
 from .utils.yolo_utils import get_model_path, list_available_models, list_models_by_type
+from .utils.sam3_manager import (
+    get_sam3_status, setup_hf_auth, validate_sam3_prompt,
+    get_sam3_requirements, get_recommended_prompt_examples
+)
 
 from ..accounts.views import get_or_create_anonymous_user
 from ..settings import MEDIA_ROOT, MEDIA_INPUT_ROOT, MEDIA_OUTPUT_ROOT
@@ -754,6 +758,10 @@ def get_context(request):
             value = setting.default
         gs_values[setting.name] = value
 
+    # Add SAM3 settings (not in GlobalSettings but needed for the right panel)
+    gs_values['use_sam3'] = getattr(user_settings, 'use_sam3', False)
+    gs_values['sam3_prompt'] = getattr(user_settings, 'sam3_prompt', '') or ''
+
     class_list = Media.classes2blur.field.choices
     available_models = list_available_models()
     models_by_type = list_models_by_type()
@@ -821,7 +829,7 @@ def update_settings(request):
                 context['setting'] = GlobalSettings.objects.get(name='classes2blur')
 
             else:
-                # générique : float, bool, int
+                # générique : float, bool, int, text
                 field = Media._meta.get_field(setting_name)
                 internal_type = field.get_internal_type()
 
@@ -829,15 +837,27 @@ def update_settings(request):
                     value = str(input_value).lower() in ['true', '1', 'on']
                 elif internal_type in ['FloatField', 'DecimalField']:
                     value = float(input_value)
-                else:
+                elif internal_type in ['TextField', 'CharField']:
+                    # For text fields like sam3_prompt
+                    value = str(input_value) if input_value else None
+                elif internal_type == 'IntegerField':
                     value = int(input_value)
+                else:
+                    # Fallback: try int, else keep as string
+                    try:
+                        value = int(input_value)
+                    except (ValueError, TypeError):
+                        value = str(input_value)
 
                 setattr(media, setting_name, value)
                 media.MSValues_customised = True
                 media.save(update_fields=[setting_name, 'MSValues_customised'])
                 context['value'] = getattr(media, setting_name)
                 # Pour les autres settings, on cherche le GlobalSettings avec le nom exact
-                context['setting'] = GlobalSettings.objects.get(name=setting_name)
+                try:
+                    context['setting'] = GlobalSettings.objects.get(name=setting_name)
+                except GlobalSettings.DoesNotExist:
+                    context['setting'] = None
 
         elif setting_type == 'user_setting':
             user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
@@ -873,14 +893,27 @@ def update_settings(request):
                     value = str(input_value).lower() in ['true', '1', 'on']
                 elif internal_type in ['FloatField', 'DecimalField']:
                     value = float(input_value)
-                else:
+                elif internal_type in ['TextField', 'CharField']:
+                    # For text fields like sam3_prompt
+                    value = str(input_value) if input_value else None
+                elif internal_type == 'IntegerField':
                     value = int(input_value)
+                else:
+                    # Fallback: try int, else keep as string
+                    try:
+                        value = int(input_value)
+                    except (ValueError, TypeError):
+                        value = str(input_value)
 
                 setattr(user_settings, setting_name, value)
                 user_settings.GSValues_customised = True
                 user_settings.save(update_fields=[setting_name, 'GSValues_customised'])
                 context['value'] = getattr(user_settings, setting_name)
-                context['setting'] = GlobalSettings.objects.get(name=setting_name)
+                # Try to get the global setting, but don't fail if it doesn't exist (like sam3_prompt)
+                try:
+                    context['setting'] = GlobalSettings.objects.get(name=setting_name)
+                except GlobalSettings.DoesNotExist:
+                    context['setting'] = None
 
         elif setting_type == 'global_setting':
             print(f"[DEBUG] update_settings: received global_setting {setting_name}={input_value}")
@@ -960,14 +993,14 @@ def clear_all_media(request):
                 except Exception as e:
                     print(f"[clear_all_media] Error deleting input file: {e}")
 
-            # Delete output file (blurred media)
-            if media.output_file:
-                try:
-                    output_path = get_output_media_path(media)
-                    if os.path.exists(output_path):
-                        os.remove(output_path)
-                except Exception as e:
-                    print(f"[clear_all_media] Error deleting output file: {e}")
+            # Delete output file (blurred media) - derive path from input filename
+            try:
+                output_path = get_blurred_media_path(media.file.name, media.file_ext)
+                if os.path.exists(output_path):
+                    os.remove(output_path)
+                    print(f"[clear_all_media] Deleted output file: {output_path}")
+            except Exception as e:
+                print(f"[clear_all_media] Error deleting output file: {e}")
 
         user_medias.delete()
         UserSettings.objects.filter(user_id=user.id).update(media_added=0, show_gs=0)
@@ -1218,11 +1251,20 @@ def get_media_settings(request, media_id):
                 'value': bool(media_value)
             })
 
+        # SAM3 settings
+        sam3_data = {
+            'use_sam3': media.use_sam3,
+            'prompt': media.sam3_prompt or '',
+            'status': get_sam3_status(),
+            'examples': get_recommended_prompt_examples(),
+        }
+
         return JsonResponse({
             'success': True,
             'classes2blur': classes2blur_list,
             'sliders': sliders_list,
-            'booleans': booleans_list
+            'booleans': booleans_list,
+            'sam3': sam3_data,
         })
 
     except Media.DoesNotExist:
@@ -1270,6 +1312,24 @@ def save_media_settings(request):
             value = request.POST.get(field)
             if value is not None:
                 setattr(media, field, value.lower() == 'true')
+
+        # Save SAM3 settings
+        use_sam3 = request.POST.get('use_sam3')
+        if use_sam3 is not None:
+            media.use_sam3 = use_sam3.lower() == 'true'
+
+        sam3_prompt = request.POST.get('sam3_prompt')
+        if sam3_prompt is not None:
+            prompt = sam3_prompt.strip()
+            if prompt:
+                # Validate prompt
+                is_valid, error = validate_sam3_prompt(prompt)
+                if not is_valid:
+                    return JsonResponse({
+                        'success': False,
+                        'error': f'Invalid SAM3 prompt: {error}'
+                    }, status=400)
+            media.sam3_prompt = prompt if prompt else None
 
         # Mark as customized
         media.MSValues_customised = True
@@ -1383,6 +1443,61 @@ def global_progress(request):
         })
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
+
+
+# ----------------------------------------------------------------------
+# SAM3 Endpoints
+# ----------------------------------------------------------------------
+
+def get_sam3_status_view(request):
+    """Return SAM3 installation and configuration status."""
+    status = get_sam3_status()
+    status['requirements'] = get_sam3_requirements()
+    status['examples'] = get_recommended_prompt_examples()
+    return JsonResponse(status)
+
+
+@require_POST
+def configure_hf_token(request):
+    """Configure HuggingFace token for SAM3 access."""
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+
+    token = request.POST.get('hf_token', '').strip()
+    if not token:
+        return JsonResponse({'success': False, 'error': 'Token requis'}, status=400)
+
+    if setup_hf_auth(token):
+        # Mark user as having configured HF token
+        user_settings, _ = UserSettings.objects.get_or_create(user=user)
+        user_settings.hf_token_configured = True
+        user_settings.save(update_fields=['hf_token_configured'])
+
+        return JsonResponse({
+            'success': True,
+            'message': 'Token HuggingFace configure avec succes'
+        })
+    else:
+        return JsonResponse({
+            'success': False,
+            'error': 'Echec de la configuration du token'
+        }, status=500)
+
+
+def validate_prompt_view(request):
+    """Validate a SAM3 text prompt."""
+    prompt = request.GET.get('prompt', '')
+    is_valid, error = validate_sam3_prompt(prompt)
+    return JsonResponse({
+        'valid': is_valid,
+        'error': error if not is_valid else None
+    })
+
+
+def get_sam3_examples(request):
+    """Get recommended SAM3 prompt examples."""
+    return JsonResponse({
+        'examples': get_recommended_prompt_examples()
+    })
 
 
 class AboutView(TemplateView):
