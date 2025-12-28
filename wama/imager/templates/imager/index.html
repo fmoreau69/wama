@@ -214,6 +214,13 @@
                         <!-- Actions Column -->
                         <div class="col-md-4 text-end">
                             <div class="btn-group" role="group">
+                                {% if gen.status == 'PENDING' %}
+                                <button class="btn btn-outline-light btn-sm settings-btn" data-id="{{ gen.id }}"
+                                        title="Paramètres">
+                                    <i class="fas fa-cog"></i>
+                                </button>
+                                {% endif %}
+
                                 {% if gen.status != 'RUNNING' %}
                                 <button class="btn btn-primary btn-sm start-btn" data-id="{{ gen.id }}">
                                     <i class="fas fa-play"></i>
@@ -284,6 +291,135 @@
 </div>
 {% endblock imager_content %}
 
+<!-- Settings Modal -->
+<div class="modal fade" id="generationSettingsModal" tabindex="-1" aria-labelledby="generationSettingsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content bg-dark text-white border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title" id="generationSettingsModalLabel">
+                    <i class="fas fa-cog"></i> Paramètres de génération #<span id="modal_gen_id"></span>
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="settingsForm">
+                    <input type="hidden" id="settings_gen_id" name="generation_id">
+
+                    <!-- Prompt -->
+                    <div class="mb-3">
+                        <label for="settings_prompt" class="form-label">Prompt</label>
+                        <textarea class="form-control bg-dark text-white border-secondary" id="settings_prompt" name="prompt" rows="3"></textarea>
+                    </div>
+
+                    <!-- Negative Prompt -->
+                    <div class="mb-3">
+                        <label for="settings_negative_prompt" class="form-label">Prompt négatif</label>
+                        <textarea class="form-control bg-dark text-white border-secondary" id="settings_negative_prompt" name="negative_prompt" rows="2"></textarea>
+                    </div>
+
+                    <div class="row">
+                        <!-- Model -->
+                        <div class="col-md-6 mb-3">
+                            <label for="settings_model" class="form-label">Modèle</label>
+                            <select class="form-select bg-dark text-white border-secondary" id="settings_model" name="model">
+                                {% for value, label in models_choices %}
+                                <option value="{{ value }}">{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <!-- Number of images -->
+                        <div class="col-md-6 mb-3">
+                            <label for="settings_num_images" class="form-label">Nombre d'images</label>
+                            <select class="form-select bg-dark text-white border-secondary" id="settings_num_images" name="num_images">
+                                <option value="1">1</option>
+                                <option value="2">2</option>
+                                <option value="3">3</option>
+                                <option value="4">4</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <!-- Width -->
+                        <div class="col-md-6 mb-3">
+                            <label for="settings_width" class="form-label">Largeur</label>
+                            <select class="form-select bg-dark text-white border-secondary" id="settings_width" name="width">
+                                <option value="256">256px</option>
+                                <option value="512">512px</option>
+                                <option value="768">768px</option>
+                                <option value="1024">1024px</option>
+                            </select>
+                        </div>
+
+                        <!-- Height -->
+                        <div class="col-md-6 mb-3">
+                            <label for="settings_height" class="form-label">Hauteur</label>
+                            <select class="form-select bg-dark text-white border-secondary" id="settings_height" name="height">
+                                <option value="256">256px</option>
+                                <option value="512">512px</option>
+                                <option value="768">768px</option>
+                                <option value="1024">1024px</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <!-- Steps -->
+                        <div class="col-md-6 mb-3">
+                            <label for="settings_steps" class="form-label">
+                                Steps : <span id="settings_steps_value">30</span>
+                            </label>
+                            <input type="range" class="form-range" id="settings_steps" name="steps"
+                                   min="10" max="100" step="5" value="30"
+                                   oninput="document.getElementById('settings_steps_value').textContent = this.value">
+                        </div>
+
+                        <!-- Guidance Scale -->
+                        <div class="col-md-6 mb-3">
+                            <label for="settings_guidance_scale" class="form-label">
+                                Guidance Scale : <span id="settings_guidance_value">7.5</span>
+                            </label>
+                            <input type="range" class="form-range" id="settings_guidance_scale" name="guidance_scale"
+                                   min="1" max="20" step="0.5" value="7.5"
+                                   oninput="document.getElementById('settings_guidance_value').textContent = this.value">
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <!-- Seed -->
+                        <div class="col-md-6 mb-3">
+                            <label for="settings_seed" class="form-label">Seed</label>
+                            <input type="number" class="form-control bg-dark text-white border-secondary" id="settings_seed" name="seed"
+                                   placeholder="Aléatoire si vide">
+                        </div>
+
+                        <!-- Upscale -->
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">&nbsp;</label>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="settings_upscale" name="upscale">
+                                <label class="form-check-label" for="settings_upscale">
+                                    Upscale l'image (x2)
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                <button type="button" class="btn btn-success" id="saveSettingsBtn">
+                    <i class="fas fa-play"></i> Enregistrer et démarrer
+                </button>
+                <button type="button" class="btn btn-primary" id="saveSettingsOnlyBtn">
+                    <i class="fas fa-save"></i> Enregistrer
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% block app_scripts %}
 <script>
     // Inject Django URLs and CSRF token into JavaScript
@@ -296,7 +432,9 @@
             download: "{% url 'imager:download' 0 %}",
             delete: "{% url 'imager:delete' 0 %}",
             startAll: "{% url 'imager:start_all' %}",
-            clearAll: "{% url 'imager:clear_all' %}"
+            clearAll: "{% url 'imager:clear_all' %}",
+            getSettings: "{% url 'imager:get_settings' 0 %}",
+            saveSettings: "{% url 'imager:save_settings' 0 %}"
         },
         csrfToken: "{{ csrf_token }}"
     };

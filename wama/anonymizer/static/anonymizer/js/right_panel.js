@@ -54,16 +54,19 @@
         const sam3StatusIndicator = document.getElementById('sam3_status_indicator');
 
         function toggleDetectionMode(mode) {
+            console.log('[right_panel.js] Toggling detection mode to:', mode);
             if (mode === 'yolo') {
                 if (yoloSection) yoloSection.style.display = 'block';
                 if (sam3Section) sam3Section.style.display = 'none';
                 if (sam3StatusIndicator) sam3StatusIndicator.style.display = 'none';
+                console.log('[right_panel.js] Saving use_sam3 = false');
                 saveUserSetting('use_sam3', 'false');
             } else {
                 if (yoloSection) yoloSection.style.display = 'none';
                 if (sam3Section) sam3Section.style.display = 'block';
                 if (sam3StatusIndicator) sam3StatusIndicator.style.display = 'block';
                 checkSam3Status();
+                console.log('[right_panel.js] Saving use_sam3 = true');
                 saveUserSetting('use_sam3', 'true');
             }
         }

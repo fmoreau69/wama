@@ -29,4 +29,8 @@ urlpatterns = [
     # Console and settings
     path('console-content/', views.console_content, name='console_content'),
     path('update-settings/', views.update_settings, name='update_settings'),
+
+    # Individual generation settings
+    path('settings/<int:generation_id>/', views.get_generation_settings, name='get_settings'),
+    path('settings/<int:generation_id>/save/', views.save_generation_settings, name='save_settings'),
 ]

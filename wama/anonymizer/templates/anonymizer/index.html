@@ -16,12 +16,12 @@
 
     <!-- Detection Mode Toggle -->
     <div class="btn-group w-100 mb-2" role="group" aria-label="Detection mode">
-        <input type="radio" class="btn-check setting-button" name="detection_mode" id="detection_mode_yolo" value="yolo"
+        <input type="radio" class="btn-check" name="detection_mode" id="detection_mode_yolo" value="yolo"
                {% if not gs_values.use_sam3 %}checked{% endif %} autocomplete="off">
         <label class="btn btn-outline-primary btn-sm" for="detection_mode_yolo">
             <i class="fas fa-object-group"></i> YOLO
         </label>
-        <input type="radio" class="btn-check setting-button" name="detection_mode" id="detection_mode_sam3" value="sam3"
+        <input type="radio" class="btn-check" name="detection_mode" id="detection_mode_sam3" value="sam3"
                {% if gs_values.use_sam3 %}checked{% endif %} autocomplete="off">
         <label class="btn btn-outline-info btn-sm" for="detection_mode_sam3">
             <i class="fas fa-comment-dots"></i> SAM3

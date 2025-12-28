@@ -8,6 +8,7 @@ from django.http import JsonResponse, HttpResponse, FileResponse
 from django.views.decorators.http import require_http_methods
 from django.contrib.auth.decorators import login_required
 from django.core.files.base import ContentFile
+from django.core.cache import cache
 from django.utils import timezone
 from django.db.models import Q
 import os
@@ -30,18 +31,34 @@ def index(request):
     # Get or create user settings
     user_settings, _ = UserSettings.objects.get_or_create(user=user)
 
-    # Available models
-    models_choices = [
-        ('openjourney-v4', 'OpenJourney v4'),
-        ('dreamlike-art-2', 'Dreamlike Art 2.0'),
-        ('sd-2.1', 'Stable Diffusion 2.1'),
-        ('sd-1.5', 'Stable Diffusion 1.5'),
-    ]
+    # Get available models from backend system (fast method - no heavy imports)
+    try:
+        from .backends import get_models_choices_fast, get_backend_info_fast
+
+        # Use fast methods to avoid slow torch/diffusers imports during page load
+        models_choices = get_models_choices_fast()
+        backend_info = get_backend_info_fast()
+
+        backend_name = backend_info['backend_name']
+        backend_available = backend_info['backend_available']
+        available_backends = backend_info['available_backends']
+    except ImportError:
+        # Fallback to default models if backend system not available
+        models_choices = [
+            ('openjourney-v4', 'OpenJourney v4'),
+            ('stable-diffusion-v1-5', 'Stable Diffusion 1.5'),
+        ]
+        backend_name = "Unknown"
+        backend_available = False
+        available_backends = {}
 
     context = {
         'generations': generations,
         'user_settings': user_settings,
         'models_choices': models_choices,
+        'backend_name': backend_name,
+        'backend_available': backend_available,
+        'available_backends': available_backends,
     }
 
     return render(request, 'imager/index.html', context)
@@ -400,4 +417,94 @@ def update_settings(request):
 
     except Exception as e:
         logger.error(f"Error updating settings: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+def get_generation_settings(request, generation_id):
+    """Get settings for a specific generation"""
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+
+    try:
+        generation = get_object_or_404(ImageGeneration, id=generation_id, user=user)
+
+        data = {
+            'id': generation.id,
+            'prompt': generation.prompt,
+            'negative_prompt': generation.negative_prompt or '',
+            'model': generation.model,
+            'width': generation.width,
+            'height': generation.height,
+            'steps': generation.steps,
+            'guidance_scale': generation.guidance_scale,
+            'seed': generation.seed,
+            'num_images': generation.num_images,
+            'upscale': generation.upscale,
+            'status': generation.status,
+        }
+
+        return JsonResponse(data)
+
+    except Exception as e:
+        logger.error(f"Error getting generation settings: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@require_http_methods(["POST"])
+def save_generation_settings(request, generation_id):
+    """Save settings for a specific generation"""
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+
+    try:
+        generation = get_object_or_404(ImageGeneration, id=generation_id, user=user)
+
+        # Only allow editing PENDING generations
+        if generation.status != 'PENDING':
+            return JsonResponse({'error': 'Cannot edit a generation that is not pending'}, status=400)
+
+        # Update fields from POST data
+        if 'prompt' in request.POST:
+            prompt = request.POST.get('prompt', '').strip()
+            if not prompt:
+                return JsonResponse({'error': 'Prompt is required'}, status=400)
+            generation.prompt = prompt
+
+        if 'negative_prompt' in request.POST:
+            generation.negative_prompt = request.POST.get('negative_prompt', '').strip()
+
+        if 'model' in request.POST:
+            generation.model = request.POST.get('model')
+
+        if 'width' in request.POST:
+            generation.width = int(request.POST.get('width', 512))
+
+        if 'height' in request.POST:
+            generation.height = int(request.POST.get('height', 512))
+
+        if 'steps' in request.POST:
+            generation.steps = int(request.POST.get('steps', 30))
+
+        if 'guidance_scale' in request.POST:
+            generation.guidance_scale = float(request.POST.get('guidance_scale', 7.5))
+
+        if 'seed' in request.POST:
+            seed = request.POST.get('seed')
+            generation.seed = int(seed) if seed else None
+
+        if 'num_images' in request.POST:
+            generation.num_images = int(request.POST.get('num_images', 1))
+
+        if 'upscale' in request.POST:
+            generation.upscale = request.POST.get('upscale', 'false').lower() == 'true'
+
+        generation.save()
+
+        logger.info(f"Updated settings for generation #{generation.id}")
+
+        return JsonResponse({
+            'success': True,
+            'message': 'Settings saved successfully'
+        })
+
+    except Exception as e:
+        logger.error(f"Error saving generation settings: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)

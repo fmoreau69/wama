@@ -8,6 +8,7 @@
 
     const config = window.IMAGER_CONFIG;
     let progressInterval = null;
+    let reloadedGenerations = new Set(); // Track generations that already triggered a reload
 
     // Initialize on page load
     document.addEventListener('DOMContentLoaded', function() {
@@ -56,6 +57,31 @@
                 }
             }
         });
+
+        // Settings buttons
+        document.addEventListener('click', function(e) {
+            if (e.target.closest('.settings-btn')) {
+                const btn = e.target.closest('.settings-btn');
+                const genId = btn.getAttribute('data-id');
+                openSettingsModal(genId);
+            }
+        });
+
+        // Save settings button (save and start)
+        const saveSettingsBtn = document.getElementById('saveSettingsBtn');
+        if (saveSettingsBtn) {
+            saveSettingsBtn.addEventListener('click', function() {
+                saveSettings(true);
+            });
+        }
+
+        // Save settings only button
+        const saveSettingsOnlyBtn = document.getElementById('saveSettingsOnlyBtn');
+        if (saveSettingsOnlyBtn) {
+            saveSettingsOnlyBtn.addEventListener('click', function() {
+                saveSettings(false);
+            });
+        }
     }
 
     /**
@@ -316,8 +342,17 @@
             }
         }
 
-        // If completed, reload to show images
-        if (data.status === 'SUCCESS' && data.generated_images && data.generated_images.length > 0) {
+        // If just completed (status changed to SUCCESS), reload to show images
+        // Only reload once per generation to avoid infinite loop
+        const genId = card.getAttribute('data-id');
+        const wasRunning = card.getAttribute('data-was-running') === 'true';
+
+        if (data.status === 'RUNNING') {
+            card.setAttribute('data-was-running', 'true');
+        }
+
+        if (data.status === 'SUCCESS' && wasRunning && !reloadedGenerations.has(genId)) {
+            reloadedGenerations.add(genId);
             setTimeout(() => location.reload(), 1000);
         }
     }
@@ -382,6 +417,108 @@
         setTimeout(() => {
             alertDiv.remove();
         }, 5000);
+    }
+
+    /**
+     * Open settings modal for a generation
+     */
+    function openSettingsModal(genId) {
+        const url = config.urls.getSettings.replace('0', genId);
+
+        fetch(url)
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    showNotification('Error: ' + data.error, 'danger');
+                    return;
+                }
+
+                // Populate modal with data
+                document.getElementById('modal_gen_id').textContent = data.id;
+                document.getElementById('settings_gen_id').value = data.id;
+                document.getElementById('settings_prompt').value = data.prompt || '';
+                document.getElementById('settings_negative_prompt').value = data.negative_prompt || '';
+                document.getElementById('settings_model').value = data.model || '';
+                document.getElementById('settings_width').value = data.width || 512;
+                document.getElementById('settings_height').value = data.height || 512;
+                document.getElementById('settings_num_images').value = data.num_images || 1;
+
+                // Steps
+                const stepsEl = document.getElementById('settings_steps');
+                stepsEl.value = data.steps || 30;
+                document.getElementById('settings_steps_value').textContent = stepsEl.value;
+
+                // Guidance scale
+                const guidanceEl = document.getElementById('settings_guidance_scale');
+                guidanceEl.value = data.guidance_scale || 7.5;
+                document.getElementById('settings_guidance_value').textContent = guidanceEl.value;
+
+                // Seed
+                document.getElementById('settings_seed').value = data.seed || '';
+
+                // Upscale
+                document.getElementById('settings_upscale').checked = data.upscale || false;
+
+                // Show modal
+                const modal = new bootstrap.Modal(document.getElementById('generationSettingsModal'));
+                modal.show();
+            })
+            .catch(error => {
+                console.error('Error loading settings:', error);
+                showNotification('Error loading settings', 'danger');
+            });
+    }
+
+    /**
+     * Save settings from modal
+     */
+    function saveSettings(andStart = false) {
+        const genId = document.getElementById('settings_gen_id').value;
+        const url = config.urls.saveSettings.replace('0', genId);
+
+        const formData = new FormData();
+        formData.append('prompt', document.getElementById('settings_prompt').value);
+        formData.append('negative_prompt', document.getElementById('settings_negative_prompt').value);
+        formData.append('model', document.getElementById('settings_model').value);
+        formData.append('width', document.getElementById('settings_width').value);
+        formData.append('height', document.getElementById('settings_height').value);
+        formData.append('steps', document.getElementById('settings_steps').value);
+        formData.append('guidance_scale', document.getElementById('settings_guidance_scale').value);
+        formData.append('seed', document.getElementById('settings_seed').value);
+        formData.append('num_images', document.getElementById('settings_num_images').value);
+        formData.append('upscale', document.getElementById('settings_upscale').checked ? 'true' : 'false');
+
+        fetch(url, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': config.csrfToken
+            },
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification('Settings saved!', 'success');
+
+                // Close modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('generationSettingsModal'));
+                if (modal) modal.hide();
+
+                if (andStart) {
+                    // Start the generation
+                    startGeneration(genId);
+                } else {
+                    // Refresh page to show updated settings
+                    setTimeout(() => location.reload(), 500);
+                }
+            } else {
+                showNotification('Error: ' + (data.error || 'Unknown error'), 'danger');
+            }
+        })
+        .catch(error => {
+            console.error('Error saving settings:', error);
+            showNotification('Error saving settings', 'danger');
+        });
     }
 
 })();

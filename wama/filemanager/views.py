@@ -86,6 +86,14 @@ def build_file_tree(user):
                 {'id': 'transcriber_output', 'text': 'Output', 'path': 'transcriber/output', 'icon': 'fa fa-folder text-success'},
             ]
         },
+        {
+            'id': 'imager',
+            'text': 'Imager',
+            'icon': 'fa fa-image text-success',
+            'children': [
+                {'id': 'imager_output', 'text': 'Output', 'path': f'imager/outputs/{user_id}', 'icon': 'fa fa-folder text-success'},
+            ]
+        },
     ]
 
     for folder_config in folders_config:
@@ -196,6 +204,7 @@ def api_search(request):
         'synthesizer/output',
         'transcriber/input',
         'transcriber/output',
+        f'imager/outputs/{user.id}',
     ]
 
     for search_path in search_paths:
@@ -447,6 +456,7 @@ def is_path_allowed(path, user):
         'anonymizer/',
         'synthesizer/',
         'transcriber/',
+        'imager/',
     ]
 
     for prefix in allowed_prefixes:

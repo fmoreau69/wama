@@ -54,27 +54,30 @@
 
                 <!-- Bouton Compte / Login -->
                 {% if user.is_authenticated and user.username != 'anonymous' %}
-                <li class="nav-item">
-                    <a class="nav-link" href="../../accounts/user/edit">
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                         <i class="fas fa-user me-1"></i>
                         <span>{{ user.first_name|default:user.username }} {{ user.last_name }}</span>
                     </a>
+                    <ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end" aria-labelledby="userDropdown">
+                        <li>
+                            <a class="dropdown-item" href="{% url 'accounts:user-edit' %}">
+                                <i class="fas fa-user-edit me-2"></i> Profil
+                            </a>
+                        </li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li>
+                            <a class="dropdown-item" href="{% url 'accounts:logout' %}">
+                                <i class="fas fa-sign-out-alt me-2"></i> Logout
+                            </a>
+                        </li>
+                    </ul>
                 </li>
                 {% else %}
                 <li class="nav-item">
                     <a class="nav-link" href="#" data-bs-toggle="modal" data-bs-target="#LOGIN-MODAL">
                         <i class="fas fa-door-open me-1"></i>
-                        <span style="h5">Login</span>
-                    </a>
-                </li>
-                {% endif %}
-
-                <!-- Bouton Logout -->
-                {% if user.is_authenticated and user.username != 'anonymous' %}
-                <li class="nav-item">
-                    <a class="nav-link" href="{% url 'accounts:logout' %}">
-                        <i class="fas fa-sign-out-alt me-1"></i>
-                        <span>Logout</span>
+                        <span>Login</span>
                     </a>
                 </li>
                 {% endif %}

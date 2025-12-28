@@ -10,6 +10,9 @@
 
     // State
     let tree = null;
+    let lastTreeHash = null;
+    let autoRefreshInterval = null;
+    const AUTO_REFRESH_DELAY = 5000; // Check every 5 seconds
 
     // Initialize on DOM ready
     document.addEventListener('DOMContentLoaded', init);
@@ -21,21 +24,47 @@
             return;
         }
 
-        setupSidebar();
         initJstree();
         setupSearch();
         setupUploadDropzone();
         setupPreviewModal();
+        setupAutoRefresh();
+        setupCustomEventListeners();
     }
 
-    function setupSidebar() {
-        const sidebar = document.getElementById('filemanager-sidebar');
-        if (!sidebar) return;
+    function setupAutoRefresh() {
+        // Start periodic check for changes
+        autoRefreshInterval = setInterval(checkForChanges, AUTO_REFRESH_DELAY);
+    }
 
-        // Refresh button
-        const refreshBtn = sidebar.querySelector('.btn-refresh');
-        if (refreshBtn) {
-            refreshBtn.addEventListener('click', refreshTree);
+    function setupCustomEventListeners() {
+        // Listen for custom refresh events from other apps
+        document.addEventListener('filemanager:refresh', function() {
+            console.log('[FileManager] Refresh triggered by custom event');
+            refreshTree();
+        });
+
+        // Also listen for common events that might indicate file changes
+        document.addEventListener('media:uploaded', refreshTree);
+        document.addEventListener('media:deleted', refreshTree);
+        document.addEventListener('media:processed', refreshTree);
+    }
+
+    async function checkForChanges() {
+        if (!tree) return;
+
+        try {
+            const response = await fetch(config.apiTreeUrl || '/filemanager/api/tree/');
+            const data = await response.json();
+            const newHash = JSON.stringify(data);
+
+            if (lastTreeHash && newHash !== lastTreeHash) {
+                console.log('[FileManager] Tree changed, refreshing...');
+                tree.refresh();
+            }
+            lastTreeHash = newHash;
+        } catch (error) {
+            // Silently ignore errors during auto-refresh
         }
     }
 
@@ -89,6 +118,7 @@
         // Event handlers
         $(treeContainer).on('dblclick.jstree', '.jstree-anchor', handleDoubleClick);
         $(treeContainer).on('loaded.jstree', handleTreeLoaded);
+        $(treeContainer).on('refresh.jstree', handleTreeRefreshed);
 
         // Setup external drag & drop
         setupExternalDragDrop(treeContainer);
@@ -138,6 +168,63 @@
 
     function handleTreeLoaded() {
         console.log('FileManager tree loaded');
+
+        // Store initial tree state for change detection
+        fetchTreeHash();
+
+        // Auto-expand folder corresponding to current app
+        autoExpandCurrentAppFolder();
+    }
+
+    async function fetchTreeHash() {
+        try {
+            const response = await fetch(config.apiTreeUrl || '/filemanager/api/tree/');
+            const data = await response.json();
+            lastTreeHash = JSON.stringify(data);
+        } catch (error) {
+            console.warn('[FileManager] Could not fetch tree hash:', error);
+        }
+    }
+
+    function handleTreeRefreshed() {
+        console.log('FileManager tree refreshed');
+
+        // Update hash after refresh
+        fetchTreeHash();
+
+        // Re-expand current app folder
+        setTimeout(autoExpandCurrentAppFolder, 100);
+    }
+
+    function autoExpandCurrentAppFolder() {
+        if (!tree) return;
+
+        // Get current app from URL pathname (e.g., /anonymizer/ -> anonymizer)
+        const pathParts = window.location.pathname.split('/').filter(p => p);
+        const currentApp = pathParts[0];
+
+        // Map of app names to their tree node IDs
+        const appFolderMap = {
+            'enhancer': ['enhancer', 'enhancer_input', 'enhancer_output'],
+            'anonymizer': ['anonymizer', 'anonymizer_input', 'anonymizer_output'],
+            'synthesizer': ['synthesizer', 'synthesizer_input', 'synthesizer_output'],
+            'transcriber': ['transcriber', 'transcriber_input', 'transcriber_output'],
+            'imager': ['imager', 'imager_output'],
+        };
+
+        const nodesToOpen = appFolderMap[currentApp];
+
+        if (nodesToOpen && nodesToOpen.length > 0) {
+            console.log(`FileManager: Auto-expanding ${currentApp} folders`);
+
+            // Open nodes sequentially (parent first, then children)
+            nodesToOpen.forEach(nodeId => {
+                const node = tree.get_node(nodeId);
+                if (node) {
+                    tree.open_node(node);
+                }
+            });
+        }
     }
 
     function refreshTree() {
@@ -590,9 +677,15 @@
         return true;
     }
 
+    // Helper to trigger refresh via custom event (useful for other apps)
+    function triggerRefresh() {
+        document.dispatchEvent(new CustomEvent('filemanager:refresh'));
+    }
+
     // Expose to global scope
     window.FileManager = {
         refresh: refreshTree,
+        triggerRefresh: triggerRefresh,
         importToApp: importToApp,
         getFileManagerData: getFileManagerData,
         handleDropFromFileManager: handleDropFromFileManager,
