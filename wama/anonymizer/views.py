@@ -356,13 +356,24 @@ class ProcessView(View):
             user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
             logger.info(f"[ProcessView] Starting process for user {user.id} ({user.username})")
 
-            # Enregistre la liste des médias à traiter pour le calcul du progrès global
-            batch_medias = list(Media.objects.filter(user=user, processed=False).order_by('id').values_list('id', flat=True))
-            logger.info(f"[ProcessView] Found {len(batch_medias)} media(s) to process: {batch_medias}")
+            # Get all user media (not just unprocessed)
+            all_medias = Media.objects.filter(user=user).order_by('id')
 
-            if not batch_medias:
-                logger.warning(f"[ProcessView] No unprocessed media found for user {user.username}")
+            if not all_medias.exists():
+                logger.warning(f"[ProcessView] No media found for user {user.username}")
                 return JsonResponse({"task_id": None, "error": "No media to process"})
+
+            # Reset all media to allow reprocessing
+            for media in all_medias:
+                media.processed = False
+                media.blur_progress = 0
+                media.save(update_fields=['processed', 'blur_progress'])
+                # Clear cache for this media
+                cache.delete(f"media_progress_{media.id}")
+                logger.info(f"[ProcessView] Reset media {media.id} for reprocessing")
+
+            batch_medias = list(all_medias.values_list('id', flat=True))
+            logger.info(f"[ProcessView] Found {len(batch_medias)} media(s) to process: {batch_medias}")
 
             cache.set(f"batch_media_ids_{user.id}", batch_medias, timeout=3600)
 
@@ -1080,10 +1091,36 @@ def reset_user_settings(request):
     # Réinitialisation des UserSettings aux valeurs par défaut de GlobalSettings
     init_user_settings(user)
 
-    if request.headers.get("x-requested-with") == "XMLHttpRequest":
-        context = get_context(request)
-        html = render_to_string("anonymizer/upload/global_settings.html", context=context, request=request)
-        return JsonResponse({"render": html})
+    # Get the updated settings to return to the client
+    user_settings, _ = UserSettings.objects.get_or_create(user=user)
+
+    # Check if this is an AJAX/fetch request
+    is_ajax = (
+        request.headers.get("x-requested-with") == "XMLHttpRequest" or
+        request.headers.get("Content-Type") == "application/json" or
+        request.content_type == "application/x-www-form-urlencoded"
+    )
+
+    if is_ajax or request.headers.get("X-CSRFToken"):
+        # Return JSON with the reset settings values
+        settings_data = {
+            'precision_level': user_settings.precision_level,
+            'blur_ratio': user_settings.blur_ratio,
+            'detection_threshold': user_settings.detection_threshold,
+            'roi_enlargement': user_settings.roi_enlargement,
+            'progressive_blur': user_settings.progressive_blur,
+            'use_sam3': getattr(user_settings, 'use_sam3', False),
+            'sam3_prompt': getattr(user_settings, 'sam3_prompt', '') or '',
+            'classes2blur': user_settings.classes2blur or [],
+            'interpolate_detections': user_settings.interpolate_detections,
+            'use_segmentation': user_settings.use_segmentation,
+            'model_to_use': getattr(user_settings, 'model_to_use', '') or '',
+            'show_preview': getattr(user_settings, 'show_preview', True),
+            'show_boxes': getattr(user_settings, 'show_boxes', True),
+            'show_labels': getattr(user_settings, 'show_labels', True),
+            'show_conf': getattr(user_settings, 'show_conf', True),
+        }
+        return JsonResponse({"success": True, "settings": settings_data})
     else:
         return redirect(request.POST.get('next', '/'))
 
@@ -1102,13 +1139,13 @@ def init_user_settings(user):
         if setting.name in [f.name for f in UserSettings._meta.get_fields()]:
             setattr(user_settings, setting.name, setting.default)
 
-    # Ensure precision_level has a default value
-    if not hasattr(user_settings, 'precision_level') or user_settings.precision_level is None:
-        user_settings.precision_level = 50
-
-    # Ensure use_segmentation has a default value
-    if not hasattr(user_settings, 'use_segmentation') or user_settings.use_segmentation is None:
-        user_settings.use_segmentation = False
+    # Reset to model defaults (these may not be in GlobalSettings)
+    user_settings.precision_level = 50
+    user_settings.use_segmentation = False
+    user_settings.show_preview = True
+    user_settings.show_boxes = True
+    user_settings.show_labels = True
+    user_settings.show_conf = True
 
     # Réinitialise le flag custom
     user_settings.GSValues_customised = 0

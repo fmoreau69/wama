@@ -44,6 +44,15 @@ def process_single_media(self, media_id):
         print(f"[process_single_media] DEBUG: Final use_sam3={use_sam3}, sam3_prompt='{sam3_prompt}'")
         push_console_line(user.id, f"[DEBUG] SAM3 settings: use_sam3={use_sam3}, prompt='{sam3_prompt[:30] if sam3_prompt else ''}'")
 
+        # Determine if this is an image (interpolation doesn't apply to images)
+        image_extensions = ['.jpg', '.jpeg', '.png', '.bmp', '.gif', '.webp', '.tiff', '.tif']
+        is_image = media.file_ext and media.file_ext.lower() in image_extensions
+
+        # Get interpolation setting (disabled for images)
+        interpolate_detections = False if is_image else (
+            media.interpolate_detections if ms_custom else user_settings.interpolate_detections
+        )
+
         kwargs = {
             'media_path': get_input_media_path(media.file.name),
             'file_ext': media.file_ext,
@@ -52,7 +61,7 @@ def process_single_media(self, media_id):
             'roi_enlargement': media.roi_enlargement if ms_custom else user_settings.roi_enlargement,
             'progressive_blur': media.progressive_blur if ms_custom else user_settings.progressive_blur,
             'detection_threshold': media.detection_threshold if ms_custom else user_settings.detection_threshold,
-            'interpolate_detections': media.interpolate_detections if ms_custom else user_settings.interpolate_detections,
+            'interpolate_detections': interpolate_detections,
             'max_interpolation_frames': media.max_interpolation_frames if ms_custom else user_settings.max_interpolation_frames,
             'show_preview': user_settings.show_preview,
             'show_boxes': user_settings.show_boxes,

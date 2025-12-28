@@ -376,6 +376,171 @@
     }
 
     // ========================================
+    // Reset Global Settings Handler
+    // ========================================
+
+    function initResetGlobalSettings() {
+        const resetBtn = document.getElementById('reset-global-settings-btn');
+        if (!resetBtn) return;
+
+        resetBtn.addEventListener('click', function() {
+            console.log('[right_panel.js] Resetting global settings...');
+
+            // Show loading state
+            const originalContent = resetBtn.innerHTML;
+            resetBtn.disabled = true;
+            resetBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Reset...';
+
+            const formData = new FormData();
+            formData.append('csrfmiddlewaretoken', getCsrfToken());
+
+            fetch('/anonymizer/reset_user_settings/', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': getCsrfToken()
+                },
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    console.log('[right_panel.js] Global settings reset successfully');
+                    // Refresh settings dynamically
+                    refreshGlobalSettings(data.settings);
+                    showResetSuccessMessage();
+                } else {
+                    console.error('[right_panel.js] Reset failed:', data.error);
+                    alert('Erreur: ' + (data.error || 'Erreur inconnue'));
+                }
+            })
+            .catch(err => {
+                console.error('[right_panel.js] Reset error:', err);
+                alert('Erreur lors de la reinitialisation');
+            })
+            .finally(function() {
+                resetBtn.disabled = false;
+                resetBtn.innerHTML = originalContent;
+            });
+        });
+    }
+
+    function refreshGlobalSettings(settings) {
+        if (!settings) return;
+
+        console.log('[right_panel.js] Refreshing with settings:', settings);
+
+        // Helper to update slider and its output element
+        function updateSlider(id, value) {
+            const slider = document.getElementById(id);
+            if (slider && value !== undefined) {
+                slider.value = value;
+                // Update the output element (next sibling)
+                if (slider.nextElementSibling && slider.nextElementSibling.tagName === 'OUTPUT') {
+                    slider.nextElementSibling.textContent = value;
+                }
+                console.log('[right_panel.js] Updated', id, 'to', value);
+            }
+        }
+
+        // Update precision slider
+        updateSlider('user_setting_precision_level', settings.precision_level);
+        // Also update precision label
+        const precisionSlider = document.getElementById('user_setting_precision_level');
+        if (precisionSlider) {
+            precisionSlider.dispatchEvent(new Event('input'));
+        }
+
+        // Update blur_ratio slider
+        updateSlider('user_setting_blur_ratio', settings.blur_ratio);
+
+        // Update detection_threshold slider
+        updateSlider('user_setting_detection_threshold', settings.detection_threshold);
+
+        // Update roi_enlargement slider
+        updateSlider('user_setting_roi_enlargement', settings.roi_enlargement);
+
+        // Update progressive_blur slider
+        updateSlider('user_setting_progressive_blur', settings.progressive_blur);
+
+        // Update SAM3 settings
+        const yoloRadio = document.getElementById('detection_mode_yolo');
+        const sam3Radio = document.getElementById('detection_mode_sam3');
+        if (yoloRadio && sam3Radio) {
+            if (settings.use_sam3) {
+                sam3Radio.checked = true;
+                sam3Radio.dispatchEvent(new Event('change'));
+            } else {
+                yoloRadio.checked = true;
+                yoloRadio.dispatchEvent(new Event('change'));
+            }
+        }
+
+        // Update SAM3 prompt
+        const sam3Prompt = document.getElementById('user_setting_sam3_prompt');
+        if (sam3Prompt) {
+            sam3Prompt.value = settings.sam3_prompt || '';
+            sam3Prompt.dispatchEvent(new Event('input'));
+        }
+
+        // Update classes checkboxes
+        if (settings.classes2blur) {
+            document.querySelectorAll('.classes2blur-checkbox').forEach(function(cb) {
+                cb.checked = settings.classes2blur.includes(cb.value);
+            });
+            // Update count
+            const countEl = document.getElementById('classes2blur_count');
+            if (countEl) {
+                const checked = document.querySelectorAll('.classes2blur-checkbox:checked').length;
+                countEl.textContent = checked + ' classe(s) selectionnee(s)';
+            }
+        }
+
+        // Update model dropdown
+        const modelSelect = document.getElementById('user_setting_model_to_use');
+        if (modelSelect) {
+            modelSelect.value = settings.model_to_use || '';
+        }
+
+        // Update display checkboxes
+        const checkboxes = {
+            'user_setting_show_preview': settings.show_preview,
+            'user_setting_show_boxes': settings.show_boxes,
+            'user_setting_show_labels': settings.show_labels,
+            'user_setting_show_conf': settings.show_conf
+        };
+        for (const [id, value] of Object.entries(checkboxes)) {
+            const cb = document.getElementById(id);
+            if (cb) {
+                cb.checked = value;
+            }
+        }
+
+        console.log('[right_panel.js] Global settings refreshed');
+    }
+
+    function showResetSuccessMessage() {
+        // Create or find success message
+        let successMsg = document.getElementById('reset-success-msg');
+        if (!successMsg) {
+            successMsg = document.createElement('div');
+            successMsg.id = 'reset-success-msg';
+            successMsg.className = 'alert alert-success py-1 px-2 mt-2';
+            successMsg.style.fontSize = '0.85rem';
+            const resetBtn = document.getElementById('reset-global-settings-btn');
+            if (resetBtn && resetBtn.parentNode) {
+                resetBtn.parentNode.insertBefore(successMsg, resetBtn.nextSibling);
+            }
+        }
+
+        successMsg.innerHTML = '<i class="fas fa-check-circle me-1"></i>Parametres reinitialises!';
+        successMsg.style.display = 'block';
+
+        setTimeout(function() {
+            successMsg.style.display = 'none';
+        }, 2000);
+    }
+
+    // ========================================
     // Initialize All Handlers
     // ========================================
 
@@ -388,6 +553,7 @@
         initPrecisionLabel();
         initClassesModal();
         initHfTokenConfig();
+        initResetGlobalSettings();
         fixModalZIndex();
 
         console.log('[right_panel.js] Initialized successfully');

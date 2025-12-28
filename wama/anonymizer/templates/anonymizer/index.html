@@ -251,13 +251,9 @@
 </div>
 
 <!-- Reset Button -->
-<form method="post" action="{% url 'anonymizer:reset_user_settings' %}" class="mt-2">
-    {% csrf_token %}
-    <input type="hidden" name="next" value="{{ request.path }}">
-    <button type="submit" class="btn btn-outline-danger btn-sm w-100">
-        <i class="fas fa-rotate-left"></i> Reset paramètres
-    </button>
-</form>
+<button type="button" id="reset-global-settings-btn" class="btn btn-outline-danger btn-sm w-100 mt-2">
+    <i class="fas fa-rotate-left"></i> Reset parametres
+</button>
 
 {% endblock %}
 

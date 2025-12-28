@@ -564,10 +564,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function resetMediaSettings(mediaId) {
-        if (!confirm('Reset all settings for this media to default values?')) {
-            return;
-        }
-
         console.log(`[settings_modal.js] Resetting settings for media ${mediaId}`);
 
         const formData = new FormData();
@@ -584,26 +580,132 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                console.log('[settings_modal.js] Settings reset successfully');
-                // Close modal and refresh media table
-                const modal = document.getElementById(`settingsModal${mediaId}`);
-                if (modal) {
-                    const bsModal = bootstrap.Modal.getInstance(modal);
-                    if (bsModal) bsModal.hide();
-                }
-                if (typeof window.refreshMediaTable === 'function') {
-                    window.refreshMediaTable();
-                } else {
-                    location.reload();
-                }
+                console.log('[settings_modal.js] Settings reset successfully, refreshing modal...');
+
+                // Fetch new settings and update modal dynamically
+                fetch(`/anonymizer/get_media_settings/${mediaId}/`, {
+                    method: 'GET',
+                    headers: {
+                        'X-CSRFToken': getCsrfToken(),
+                        'Content-Type': 'application/json',
+                    },
+                })
+                .then(response => response.json())
+                .then(newData => {
+                    if (newData.success) {
+                        updateModalWithSettings(mediaId, newData);
+                        // Show success feedback
+                        showResetSuccess(mediaId);
+                    }
+                })
+                .catch(err => {
+                    console.error('[settings_modal.js] Error fetching new settings:', err);
+                });
             } else {
-                alert('Error resetting settings: ' + (data.error || 'Unknown error'));
+                alert('Erreur lors de la reinitialisation: ' + (data.error || 'Erreur inconnue'));
             }
         })
         .catch(error => {
             console.error('[settings_modal.js] Error resetting settings:', error);
-            alert('Error resetting settings. Please try again.');
+            alert('Erreur lors de la reinitialisation. Veuillez reessayer.');
         });
+    }
+
+    function updateModalWithSettings(mediaId, data) {
+        const modal = document.getElementById(`settingsModal${mediaId}`);
+        if (!modal) return;
+
+        // Update detection mode (YOLO/SAM3)
+        const sam3Data = data.sam3 || { use_sam3: false, prompt: '' };
+        const yoloRadio = modal.querySelector(`#mode_yolo_${mediaId}`);
+        const sam3Radio = modal.querySelector(`#mode_sam3_${mediaId}`);
+        const yoloSection = modal.querySelector(`#yolo_section_${mediaId}`);
+        const sam3Section = modal.querySelector(`#sam3_section_${mediaId}`);
+
+        if (yoloRadio && sam3Radio) {
+            if (sam3Data.use_sam3) {
+                sam3Radio.checked = true;
+                yoloRadio.checked = false;
+                if (yoloSection) yoloSection.style.display = 'none';
+                if (sam3Section) sam3Section.style.display = 'block';
+            } else {
+                yoloRadio.checked = true;
+                sam3Radio.checked = false;
+                if (yoloSection) yoloSection.style.display = 'block';
+                if (sam3Section) sam3Section.style.display = 'none';
+            }
+        }
+
+        // Update SAM3 prompt
+        const sam3Prompt = modal.querySelector(`#sam3_prompt_${mediaId}`);
+        if (sam3Prompt) {
+            sam3Prompt.value = sam3Data.prompt || '';
+            const countEl = modal.querySelector(`#sam3_prompt_count_${mediaId}`);
+            if (countEl) countEl.textContent = (sam3Data.prompt || '').length + '/500';
+        }
+
+        // Update model selection
+        const modelSelect = modal.querySelector(`#model_to_use_${mediaId}`);
+        if (modelSelect && data.model) {
+            modelSelect.value = data.model.current || '';
+        }
+
+        // Update classes checkboxes
+        if (data.classes2blur) {
+            data.classes2blur.forEach((cls, idx) => {
+                const checkbox = modal.querySelector(`#classes2blur_${mediaId}_${idx}`);
+                if (checkbox) {
+                    checkbox.checked = cls.checked;
+                }
+            });
+        }
+
+        // Update sliders
+        if (data.sliders) {
+            data.sliders.forEach(slider => {
+                const input = modal.querySelector(`input[name="${slider.name}"]`);
+                if (input) {
+                    input.value = slider.value;
+                    // Update displayed value
+                    const valueEl = modal.querySelector(`#value_${slider.name}_${mediaId}`);
+                    if (valueEl) valueEl.textContent = slider.value;
+                }
+            });
+        }
+
+        // Update booleans
+        if (data.booleans) {
+            data.booleans.forEach(bool => {
+                const checkbox = modal.querySelector(`input[name="${bool.name}"]`);
+                if (checkbox) {
+                    checkbox.checked = bool.value;
+                }
+            });
+        }
+
+        console.log('[settings_modal.js] Modal updated with new settings');
+    }
+
+    function showResetSuccess(mediaId) {
+        const modal = document.getElementById(`settingsModal${mediaId}`);
+        if (!modal) return;
+
+        // Find or create success message element
+        let successMsg = modal.querySelector('.reset-success-msg');
+        if (!successMsg) {
+            successMsg = document.createElement('div');
+            successMsg.className = 'reset-success-msg alert alert-success mt-2';
+            successMsg.style.cssText = 'position: absolute; top: 10px; right: 10px; z-index: 1050;';
+            modal.querySelector('.modal-body')?.prepend(successMsg);
+        }
+
+        successMsg.innerHTML = '<i class="fas fa-check-circle me-2"></i>Parametres reinitialises!';
+        successMsg.style.display = 'block';
+
+        // Hide after 2 seconds
+        setTimeout(() => {
+            successMsg.style.display = 'none';
+        }, 2000);
     }
 
     /* ============================
