@@ -26,27 +26,94 @@
     overflow: visible !important; /* Allow dropdown to overflow */
 }
 
-.wama-header .container-fluid {
-    height: 100%;
-    display: flex;
-    align-items: center;
-    overflow: visible !important; /* Allow dropdown to overflow */
+/* Header container with absolute center for logo */
+.wama-header-container {
+    height: 100% !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    position: relative;
+    overflow: visible !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
 }
 
-.wama-header .navbar-brand {
+/* Reset Bootstrap navbar internal flex styles */
+.wama-header.navbar {
+    flex-wrap: nowrap !important;
+}
+
+/* Left section (Applications dropdown) */
+.wama-header-left {
+    display: flex !important;
+    align-items: center !important;
+    height: 100% !important;
+    z-index: 2;
+}
+
+.wama-header-left .dropdown {
+    display: flex !important;
+    align-items: center !important;
+    height: 100% !important;
+}
+
+/* Center logo - absolutely positioned for true center */
+.wama-header .wama-logo {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
     padding: 0;
     margin: 0;
     font-size: 1.1rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    z-index: 1;
+    white-space: nowrap;
 }
 
+/* Right section (User menu) */
+.wama-header-right {
+    display: flex !important;
+    align-items: center !important;
+    height: 100% !important;
+    z-index: 2;
+}
+
+/* Override Bootstrap navbar-nav defaults */
+.wama-header .navbar-nav {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    height: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+.wama-header .navbar-nav .nav-item {
+    display: flex !important;
+    align-items: center !important;
+    height: 100% !important;
+    margin: 0 !important;
+}
+
+.wama-header .navbar-nav .nav-link {
+    display: flex !important;
+    align-items: center !important;
+    height: 100% !important;
+    padding: 0 12px !important;
+    margin: 0 !important;
+}
+
+/* All buttons and links in header */
 .wama-header .btn,
-.wama-header .nav-link {
-    padding: 6px 12px;
-    font-size: 0.9rem;
-}
-
 .wama-header .dropdown-toggle {
-    height: 36px;
+    display: flex !important;
+    align-items: center !important;
+    height: auto !important;
+    padding: 8px 12px !important;
+    font-size: 0.9rem;
+    font-weight: 600;
 }
 
 /* Dropdown menu must overflow outside header */
@@ -104,23 +171,7 @@
     box-shadow: -2px 0 10px rgba(0, 0, 0, 0.3);
 }
 
-.right-panel-header {
-    padding: 12px 15px;
-    background: rgba(0, 0, 0, 0.2);
-    border-bottom: 1px solid #2d3748;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-shrink: 0;
-    min-height: var(--fm-header-height);
-}
-
-.right-panel-header h5 {
-    margin: 0;
-    font-size: 1rem;
-    font-weight: 600;
-    color: #e2e8f0;
-}
+/* right-panel-header styles are now unified with filemanager-header above */
 
 .right-panel-content {
     flex: 1;
@@ -170,21 +221,27 @@
 }
 
 /* === SIDEBAR HEADER === */
-.filemanager-header {
-    padding: 12px 15px;
+/* === UNIFIED PANEL HEADERS === */
+.filemanager-header,
+.right-panel-header {
+    padding: 0 15px;
     background: rgba(0, 0, 0, 0.2);
     border-bottom: 1px solid #2d3748;
     display: flex;
     align-items: center;
     justify-content: space-between;
     flex-shrink: 0;
+    height: var(--fm-header-height);
+    min-height: var(--fm-header-height);
 }
 
-.filemanager-header h5 {
+.filemanager-header h5,
+.right-panel-header h5 {
     margin: 0;
-    font-size: 1rem;
-    font-weight: 600;
+    font-size: 0.95rem;
+    font-weight: 700;
     color: #e2e8f0;
+    letter-spacing: 0.3px;
 }
 
 .filemanager-header .btn-close-sidebar {
@@ -337,41 +394,107 @@
 }
 
 /* === CONTEXT MENU === */
-.jstree-default-dark .jstree-contextmenu,
-.vakata-context,
-.vakata-context ul {
+.jstree-contextmenu.jstree-default-dark-contextmenu,
+ul.vakata-context.jstree-contextmenu {
     background: #1e293b !important;
     border: 1px solid #374151 !important;
-    border-radius: 8px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
-    padding: 5px 0;
+    border-radius: 6px !important;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5) !important;
+    padding: 4px 0 !important;
+    margin: 0 !important;
+    z-index: 9999 !important;
+    min-width: 150px !important;
+    list-style: none !important;
+    padding-left: 0 !important;
+    margin-left: 0 !important;
+    -webkit-padding-start: 0 !important;
+    padding-inline-start: 0 !important;
 }
 
-.vakata-context li > a {
+.jstree-contextmenu.jstree-default-dark-contextmenu > li,
+ul.vakata-context.jstree-contextmenu > li {
+    margin: 0 !important;
+    padding: 0 !important;
+    list-style: none !important;
+    text-indent: 0 !important;
+}
+
+.jstree-contextmenu.jstree-default-dark-contextmenu > li > a,
+ul.vakata-context.jstree-contextmenu > li > a {
     color: #e2e8f0 !important;
-    padding: 8px 15px;
-    font-size: 0.9rem;
+    padding: 6px 12px !important;
+    margin: 0 !important;
+    font-size: 0.85rem !important;
+    line-height: 1.4 !important;
     transition: background 0.15s;
+    display: block !important;
+    text-decoration: none !important;
+    white-space: nowrap !important;
+    text-indent: 0 !important;
 }
 
-.vakata-context li > a:hover,
-.vakata-context li > a:focus {
-    background: rgba(102, 126, 234, 0.2) !important;
+.jstree-contextmenu.jstree-default-dark-contextmenu > li > a:hover,
+ul.vakata-context.jstree-contextmenu > li > a:hover {
+    background: rgba(102, 126, 234, 0.25) !important;
     color: #fff !important;
 }
 
-.vakata-context li > a > i {
-    margin-right: 8px;
-    color: #a0aec0;
+/* Icon styling */
+.jstree-contextmenu.jstree-default-dark-contextmenu > li > a > i,
+ul.vakata-context.jstree-contextmenu > li > a > i {
+    display: inline-block !important;
+    width: 16px !important;
+    margin-right: 8px !important;
+    margin-left: 0 !important;
+    font-size: 0.75rem !important;
+    text-align: center !important;
+    color: #a0aec0 !important;
+    vertical-align: baseline !important;
+    position: relative !important;
+    top: 1px !important;
 }
 
-.vakata-context li > a:hover > i {
-    color: #667eea;
+.jstree-contextmenu.jstree-default-dark-contextmenu > li > a:hover > i,
+ul.vakata-context.jstree-contextmenu > li > a:hover > i {
+    color: #667eea !important;
 }
 
-.vakata-context-separator {
-    border-top: 1px solid #374151 !important;
-    margin: 5px 0;
+/* Hide the separator span between icon and text */
+.jstree-contextmenu.jstree-default-dark-contextmenu > li > a > span.vakata-contextmenu-sep,
+ul.vakata-context.jstree-contextmenu > li > a > span.vakata-contextmenu-sep {
+    display: none !important;
+}
+
+/* Separator line between menu sections */
+.jstree-contextmenu.jstree-default-dark-contextmenu > li.vakata-context-separator,
+ul.vakata-context.jstree-contextmenu > li.vakata-context-separator {
+    height: 1px !important;
+    margin: 4px 8px !important;
+    padding: 0 !important;
+    background: #374151 !important;
+    border: none !important;
+}
+
+.jstree-contextmenu.jstree-default-dark-contextmenu > li.vakata-context-separator > a,
+ul.vakata-context.jstree-contextmenu > li.vakata-context-separator > a {
+    display: none !important;
+}
+
+/* Style for danger items (delete) */
+.jstree-contextmenu.jstree-default-dark-contextmenu > li.context-menu-danger > a,
+ul.vakata-context.jstree-contextmenu > li.context-menu-danger > a {
+    color: #f87171 !important;
+}
+
+.jstree-contextmenu.jstree-default-dark-contextmenu > li.context-menu-danger > a:hover,
+ul.vakata-context.jstree-contextmenu > li.context-menu-danger > a:hover {
+    background: rgba(248, 113, 113, 0.2) !important;
+    color: #fca5a5 !important;
+}
+
+.jstree-contextmenu.jstree-default-dark-contextmenu > li.context-menu-danger > a > i,
+ul.vakata-context.jstree-contextmenu > li.context-menu-danger > a > i {
+    color: #f87171 !important;
 }
 
 /* === DROP ZONE === */

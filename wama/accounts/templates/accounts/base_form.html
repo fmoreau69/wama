@@ -1,63 +1,43 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<style>
-  /* Style pour les pages de formulaire - scroll uniquement sur le contenu */
-  .form-wrapper {
-    height: calc(100vh - 60px);
-    overflow-y: auto;
-    overflow-x: hidden;
-    scrollbar-width: thin;
-    scrollbar-color: rgba(155, 155, 155, 0.5) transparent;
-  }
-  .form-wrapper::-webkit-scrollbar {
-    width: 6px;
-  }
-  .form-wrapper::-webkit-scrollbar-track {
-    background: transparent;
-  }
-  .form-wrapper::-webkit-scrollbar-thumb {
-    background-color: rgba(155, 155, 155, 0.5);
-    border-radius: 3px;
-  }
-</style>
+<div class="container-fluid py-4">
+    <div class="row justify-content-center">
+        <div class="col-12 col-md-8 col-lg-6">
+            <!-- Header -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2 class="text-light mb-0">
+                    <i class="fas fa-user-edit"></i> {{ title|default:"Mon profil" }}
+                </h2>
+            </div>
+            {% if subtitle %}
+            <p class="text-secondary mb-4">{{ subtitle }}</p>
+            {% endif %}
 
-<div class="form-wrapper">
-  <div class="container-fluid py-4" style="max-width: 800px;">
-
-    <div class="row mb-4">
-      <div class="col-12">
-        {% include 'accounts/page_title.html' %}
-      </div>
-    </div>
-
-    <div class="row">
-      <div class="col-12">
-        <div class="card" style="background: rgba(33, 37, 41, 0.95); border: 1px solid #495057; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
-          <div class="card-body">
-            <form method="POST" enctype="multipart/form-data">
-              {% csrf_token %}
-              {% block form_content %}
-                {% for field in form %}
-                  {% include 'accounts/base_field.html' %}
-                {% endfor %}
-              {% endblock %}
-              {% block form_submit %}
-              <div class="mt-4">
-                <button class="btn btn-primary" type="submit">
-                  <i class="fas fa-save"></i> Save
-                </button>
-                <a href="{% url 'home' %}" class="btn btn-secondary">
-                  <i class="fas fa-times"></i> Cancel
-                </a>
-              </div>
-              {% endblock %}
-            </form>
-          </div>
+            <!-- Form Card -->
+            <div class="card bg-dark border-secondary">
+                <div class="card-body">
+                    <form method="POST" enctype="multipart/form-data">
+                        {% csrf_token %}
+                        {% block form_content %}
+                            {% for field in form %}
+                                {% include 'accounts/base_field.html' %}
+                            {% endfor %}
+                        {% endblock %}
+                        {% block form_submit %}
+                        <div class="d-flex gap-2 mt-4 pt-3 border-top border-secondary">
+                            <button class="btn btn-success" type="submit">
+                                <i class="fas fa-save me-1"></i> Enregistrer
+                            </button>
+                            <a href="{% url 'home' %}" class="btn btn-secondary">
+                                <i class="fas fa-times me-1"></i> Annuler
+                            </a>
+                        </div>
+                        {% endblock %}
+                    </form>
+                </div>
+            </div>
         </div>
-      </div>
     </div>
-
-  </div>
 </div>
 {% endblock %}

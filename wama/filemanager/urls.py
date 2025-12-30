@@ -12,6 +12,7 @@ urlpatterns = [
     path('api/search/', views.api_search, name='api_search'),
     path('api/upload/', views.api_upload, name='api_upload'),
     path('api/delete/', views.api_delete, name='api_delete'),
+    path('api/delete-all/', views.api_delete_all, name='api_delete_all'),
     path('api/rename/', views.api_rename, name='api_rename'),
     path('api/info/', views.api_info, name='api_info'),
     path('api/preview/', views.api_preview, name='api_preview'),

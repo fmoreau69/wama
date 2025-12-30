@@ -132,11 +132,30 @@ def build_folder_node(config, media_root, user_id):
 
 
 def scan_folder_files(folder_path, relative_path, user_id):
-    """Scan a folder for files and return jstree nodes."""
-    files = []
+    """Scan a folder for files and subfolders, returning jstree nodes recursively."""
+    nodes = []
     try:
-        for item in sorted(folder_path.iterdir()):
-            if item.is_file():
+        # Sort: folders first, then files
+        items = sorted(folder_path.iterdir(), key=lambda x: (x.is_file(), x.name.lower()))
+
+        for item in items:
+            if item.is_dir():
+                # Recursively scan subfolder
+                subfolder_relative = f'{relative_path}/{item.name}'
+                subfolder_children = scan_folder_files(item, subfolder_relative, user_id)
+
+                nodes.append({
+                    'id': f'folder_{subfolder_relative}'.replace('/', '_').replace('\\', '_'),
+                    'text': item.name,
+                    'icon': 'fa fa-folder text-warning',
+                    'type': 'folder',
+                    'state': {'opened': False},
+                    'data': {
+                        'path': subfolder_relative,
+                    },
+                    'children': subfolder_children
+                })
+            elif item.is_file():
                 # Get file info
                 stat = item.stat()
                 mime_type = mimetypes.guess_type(item.name)[0] or 'application/octet-stream'
@@ -153,7 +172,7 @@ def scan_folder_files(folder_path, relative_path, user_id):
                 else:
                     icon = 'fa fa-file text-secondary'
 
-                files.append({
+                nodes.append({
                     'id': f'file_{relative_path}/{item.name}'.replace('/', '_').replace('\\', '_'),
                     'text': item.name,
                     'icon': icon,
@@ -170,7 +189,7 @@ def scan_folder_files(folder_path, relative_path, user_id):
     except Exception as e:
         logger.error(f"Error scanning {folder_path}: {e}")
 
-    return files
+    return nodes
 
 
 @require_GET
@@ -224,17 +243,76 @@ def api_search(request):
 
 @require_POST
 def api_upload(request):
-    """Upload file(s) to user's temp folder."""
+    """Upload file(s) to user's temp folder, preserving folder structure if provided."""
     user = get_user(request)
     files = request.FILES.getlist('files')
 
     if not files:
         return HttpResponseBadRequest('No files provided')
 
+    # Get relative paths if provided (for folder uploads)
+    paths_json = request.POST.get('paths', '[]')
+    try:
+        relative_paths = json.loads(paths_json)
+    except json.JSONDecodeError:
+        relative_paths = []
+
+    # Ensure paths list matches files list
+    if len(relative_paths) != len(files):
+        relative_paths = [None] * len(files)
+
     uploaded = []
-    for file in files:
+    folders_created = set()
+
+    for i, file in enumerate(files):
         try:
-            # Create UserFile record
+            relative_path = relative_paths[i] if relative_paths[i] else None
+
+            if relative_path:
+                # Upload with folder structure preservation
+                # Sanitize the relative path
+                safe_path = sanitize_relative_path(relative_path)
+
+                if safe_path:
+                    # Build the full path: users/{user_id}/temp/{relative_path}
+                    dest_dir = Path(settings.MEDIA_ROOT) / f'users/{user.id}/temp' / Path(safe_path).parent
+
+                    # Create directories if needed
+                    if not dest_dir.exists():
+                        dest_dir.mkdir(parents=True, exist_ok=True)
+                        # Track created folders
+                        folders_created.add(str(Path(safe_path).parent))
+
+                    # Save file with its original folder structure
+                    dest_path = f'users/{user.id}/temp/{safe_path}'
+                    full_dest = Path(settings.MEDIA_ROOT) / dest_path
+
+                    # Write file content
+                    with open(full_dest, 'wb+') as destination:
+                        for chunk in file.chunks():
+                            destination.write(chunk)
+
+                    # Create UserFile record with the structured path
+                    user_file = UserFile.objects.create(
+                        user=user,
+                        original_name=file.name,
+                        mime_type=file.content_type or mimetypes.guess_type(file.name)[0] or '',
+                        file_size=file.size,
+                    )
+                    # Manually set the file path (bypass upload_to)
+                    user_file.file.name = dest_path
+                    user_file.save()
+
+                    uploaded.append({
+                        'id': user_file.id,
+                        'name': user_file.original_name,
+                        'path': dest_path,
+                        'size': user_file.file_size,
+                        'relative_path': safe_path,
+                    })
+                    continue
+
+            # Standard upload (no folder structure)
             user_file = UserFile.objects.create(
                 user=user,
                 file=file,
@@ -251,7 +329,44 @@ def api_upload(request):
         except Exception as e:
             logger.error(f"Error uploading file {file.name}: {e}")
 
-    return JsonResponse({'uploaded': uploaded, 'count': len(uploaded)})
+    return JsonResponse({
+        'uploaded': uploaded,
+        'count': len(uploaded),
+        'folders_created': len(folders_created)
+    })
+
+
+def sanitize_relative_path(path):
+    """
+    Sanitize a relative path to prevent directory traversal attacks.
+    Returns None if path is invalid.
+    """
+    if not path:
+        return None
+
+    # Normalize path separators
+    path = path.replace('\\', '/')
+
+    # Remove leading slashes
+    path = path.lstrip('/')
+
+    # Split and filter path components
+    parts = path.split('/')
+    safe_parts = []
+
+    for part in parts:
+        # Skip empty parts and parent directory references
+        if not part or part == '.' or part == '..':
+            continue
+        # Remove any potentially dangerous characters
+        safe_part = ''.join(c for c in part if c.isalnum() or c in '._- ')
+        if safe_part:
+            safe_parts.append(safe_part)
+
+    if not safe_parts:
+        return None
+
+    return '/'.join(safe_parts)
 
 
 @require_POST
@@ -284,6 +399,88 @@ def api_delete(request):
             return JsonResponse({'error': 'File not found'}, status=404)
     except Exception as e:
         logger.error(f"Error deleting {file_path}: {e}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@require_POST
+def api_delete_all(request):
+    """Delete all files in a folder and its subfolders."""
+    user = get_user(request)
+
+    try:
+        data = json.loads(request.body)
+        folder_path = data.get('path', '')
+    except (json.JSONDecodeError, ValueError):
+        folder_path = request.POST.get('path', '')
+
+    if not folder_path:
+        return HttpResponseBadRequest('No folder path provided')
+
+    # Security check: ensure path is within allowed directories
+    if not is_path_allowed(folder_path, user):
+        return JsonResponse({'error': 'Access denied'}, status=403)
+
+    try:
+        full_path = Path(settings.MEDIA_ROOT) / folder_path
+
+        if not full_path.exists():
+            return JsonResponse({'error': 'Folder not found'}, status=404)
+
+        if not full_path.is_dir():
+            return JsonResponse({'error': 'Path is not a folder'}, status=400)
+
+        deleted_count = 0
+        deleted_folders = 0
+        errors = []
+
+        # Walk through all files in folder and subfolders
+        for file_path in full_path.rglob('*'):
+            if file_path.is_file():
+                try:
+                    relative_path = str(file_path.relative_to(settings.MEDIA_ROOT))
+                    file_path.unlink()
+                    deleted_count += 1
+
+                    # Also delete from UserFile if exists
+                    UserFile.objects.filter(user=user, file=relative_path).delete()
+                except Exception as e:
+                    errors.append(f"{file_path.name}: {str(e)}")
+                    logger.error(f"Error deleting {file_path}: {e}")
+
+        # Check if this is a user temp folder - if so, also delete empty subfolders
+        # Application folders (enhancer, anonymizer, etc.) should keep their structure
+        is_temp_folder = folder_path.startswith(f'users/{user.id}/temp')
+
+        if is_temp_folder:
+            # Delete empty folders (bottom-up to handle nested empty folders)
+            # We need to sort by depth (deepest first) to delete nested folders correctly
+            empty_folders = []
+            for dir_path in full_path.rglob('*'):
+                if dir_path.is_dir():
+                    empty_folders.append(dir_path)
+
+            # Sort by path length descending (deepest folders first)
+            empty_folders.sort(key=lambda p: len(str(p)), reverse=True)
+
+            for dir_path in empty_folders:
+                try:
+                    # Check if folder is empty (no files, no subdirs)
+                    if not any(dir_path.iterdir()):
+                        dir_path.rmdir()
+                        deleted_folders += 1
+                except Exception as e:
+                    logger.error(f"Error deleting empty folder {dir_path}: {e}")
+
+        response = {'deleted_count': deleted_count}
+        if deleted_folders > 0:
+            response['deleted_folders'] = deleted_folders
+        if errors:
+            response['errors'] = errors
+
+        return JsonResponse(response)
+
+    except Exception as e:
+        logger.error(f"Error deleting all in {folder_path}: {e}")
         return JsonResponse({'error': str(e)}, status=500)
 
 
@@ -415,8 +612,9 @@ def api_preview(request):
         return JsonResponse({'error': 'File not found'}, status=404)
 
     mime_type = mimetypes.guess_type(full_path.name)[0] or ''
+    ext = full_path.suffix.lower()
 
-    # For images and videos, return the media URL
+    # For images, videos and audio, return the media URL
     if mime_type.startswith(('image/', 'video/', 'audio/')):
         media_url = f"{settings.MEDIA_URL}{file_path}"
         return JsonResponse({
@@ -424,13 +622,38 @@ def api_preview(request):
             'mime': mime_type,
             'name': full_path.name,
         })
-    else:
-        return JsonResponse({
-            'preview_url': None,
-            'mime': mime_type,
-            'name': full_path.name,
-            'message': 'Preview not available for this file type'
-        })
+
+    # For text files, extract and return the content
+    text_extensions = ['.txt', '.md', '.csv', '.pdf', '.docx']
+    if ext in text_extensions:
+        try:
+            from wama.synthesizer.utils.text_extractor import extract_text_from_file
+            text_content = extract_text_from_file(str(full_path))
+            # Limit preview to first 10000 characters
+            if len(text_content) > 10000:
+                text_content = text_content[:10000] + '\n\n... [Contenu tronqué]'
+            return JsonResponse({
+                'preview_url': None,
+                'mime': 'text/plain',
+                'name': full_path.name,
+                'text_content': text_content,
+                'original_mime': mime_type,
+            })
+        except Exception as e:
+            logger.error(f"Error extracting text from {full_path}: {e}")
+            return JsonResponse({
+                'preview_url': None,
+                'mime': mime_type,
+                'name': full_path.name,
+                'error': f'Erreur lors de la lecture: {str(e)}'
+            })
+
+    return JsonResponse({
+        'preview_url': None,
+        'mime': mime_type,
+        'name': full_path.name,
+        'message': 'Preview not available for this file type'
+    })
 
 
 def is_path_allowed(path, user):
@@ -523,7 +746,6 @@ def api_import_to_app(request):
 def import_to_enhancer(source_path, user):
     """Import a file to Enhancer app."""
     from wama.enhancer.models import Enhancement
-    from django.core.files import File
     import shutil
 
     # Copy file to enhancer input folder
@@ -542,14 +764,12 @@ def import_to_enhancer(source_path, user):
 
     shutil.copy2(source_path, dest_path)
 
-    # Create Enhancement record
+    # Create Enhancement record - set path directly to avoid duplicate upload
     relative_path = f'enhancer/input/{dest_path.name}'
 
-    with open(dest_path, 'rb') as f:
-        enhancement = Enhancement.objects.create(
-            user=user,
-            input_file=File(f, name=dest_path.name),
-        )
+    enhancement = Enhancement.objects.create(user=user)
+    enhancement.input_file.name = relative_path
+    enhancement.save()
 
     return {
         'imported': True,
@@ -622,14 +842,23 @@ def import_to_anonymizer(source_path, user):
 
 
 def import_to_synthesizer(source_path, user):
-    """Import a file to Synthesizer app (for voice samples)."""
-    # Synthesizer may handle this differently - just copy for now
+    """Import a text file to Synthesizer app."""
+    from wama.synthesizer.models import VoiceSynthesis
+    from django.core.files import File
     import shutil
 
+    # Validate file extension
+    allowed_extensions = ['txt', 'pdf', 'docx', 'csv', 'md']
+    ext = source_path.suffix[1:].lower() if source_path.suffix else ''
+    if ext not in allowed_extensions:
+        raise ValueError(f"Format non supporté. Formats acceptés: {', '.join(allowed_extensions)}")
+
+    # Create destination directory
     dest_dir = Path(settings.MEDIA_ROOT) / 'synthesizer' / 'input'
     dest_dir.mkdir(parents=True, exist_ok=True)
     dest_path = dest_dir / source_path.name
 
+    # Handle duplicate names
     if dest_path.exists():
         stem = dest_path.stem
         suffix = dest_path.suffix
@@ -640,18 +869,46 @@ def import_to_synthesizer(source_path, user):
 
     shutil.copy2(source_path, dest_path)
 
+    # Create VoiceSynthesis record
+    relative_path = str(dest_path.relative_to(settings.MEDIA_ROOT))
+
+    synthesis = VoiceSynthesis.objects.create(
+        user=user,
+        tts_model='xtts_v2',
+        language='fr',
+        voice_preset='default',
+        speed=1.0,
+        pitch=1.0,
+        emotion_intensity=1.0,
+    )
+    # Set file path directly
+    synthesis.text_file.name = relative_path
+    synthesis.save()
+
+    # Extract text and update metadata
+    try:
+        from wama.synthesizer.utils.text_extractor import extract_text_from_file, clean_text_for_tts
+        text_content = extract_text_from_file(str(dest_path))
+        synthesis.text_content = clean_text_for_tts(text_content)
+        synthesis.update_metadata()
+    except Exception as e:
+        logger.warning(f"Could not extract text from {dest_path}: {e}")
+        synthesis.text_content = ""
+        synthesis.word_count = 0
+        synthesis.save()
+
     return {
         'imported': True,
         'app': 'synthesizer',
         'filename': dest_path.name,
-        'path': f'synthesizer/input/{dest_path.name}',
+        'path': relative_path,
+        'synthesis_id': synthesis.id,
     }
 
 
 def import_to_transcriber(source_path, user):
     """Import a file to Transcriber app."""
     from wama.transcriber.models import Transcript
-    from django.core.files import File
     import shutil
 
     # Copy file to transcriber input folder
@@ -673,11 +930,9 @@ def import_to_transcriber(source_path, user):
     # Create Transcript record
     relative_path = f'transcriber/input/{dest_path.name}'
 
-    with open(dest_path, 'rb') as f:
-        transcript = Transcript.objects.create(
-            user=user,
-            audio_file=File(f, name=dest_path.name),
-        )
+    transcript = Transcript.objects.create(user=user)
+    transcript.audio.name = relative_path
+    transcript.save()
 
     return {
         'imported': True,

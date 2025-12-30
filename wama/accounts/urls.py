@@ -3,7 +3,7 @@ from django.views.generic.base import RedirectView
 
 from . import views
 
-app_name = 'wama.accounts'
+app_name = 'accounts'
 
 urlpatterns = [
     re_path(r'^logout/$', views.logout_view, name='logout'),
@@ -14,6 +14,11 @@ urlpatterns = [
     path('users/add/', RedirectView.as_view(url=reverse_lazy('accounts:signup')), name='insert'),
     path('user/edit', views.UserEdit.as_view(), name='user-edit'),
     path('user/settings/edit/', views.UserSettingsUpdate.as_view(), name='settings-edit'),
-    # path('<str:app>/insert', views.new_item, name='insert'),
-    # path('<str:app>/insert/<str:item_id>', views.new_item, name='insert'),
+
+    # User Management (Admin only)
+    path('users/', views.user_management, name='user-management'),
+    path('users/new/', views.user_add, name='user-add'),
+    path('users/<int:user_id>/delete/', views.user_delete, name='user-delete'),
+    path('users/<int:user_id>/role/', views.user_update_role, name='user-update-role'),
+    path('users/<int:user_id>/toggle-active/', views.user_toggle_active, name='user-toggle-active'),
 ]

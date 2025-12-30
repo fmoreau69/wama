@@ -232,44 +232,142 @@ document.addEventListener("DOMContentLoaded", function() {
     }
 
     function applyPreviewData(data) {
-        const { video, placeholder, meta } = getPreviewElements();
-        if (!video || !data || !data.url) return;
+        if (!data || !data.url) return;
 
-        if (placeholder) {
-            placeholder.classList.add('d-none');
-        }
-        if (meta) {
-            const parts = [data.name, data.resolution, data.duration].filter(Boolean);
-            meta.textContent = parts.join(' • ');
-            meta.classList.remove('d-none');
+        // Show preview in modal (like FileManager)
+        showPreviewModal(data);
+    }
+
+    function showPreviewModal(data) {
+        let modal = document.getElementById('mediaPreviewModal');
+
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'mediaPreviewModal';
+            modal.className = 'modal fade';
+            modal.innerHTML = `
+                <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+                    <div class="modal-content bg-dark text-white">
+                        <div class="modal-header border-secondary">
+                            <h5 class="modal-title"></h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body p-0">
+                            <div class="preview-container d-flex justify-content-center align-items-center" style="min-height: 300px;"></div>
+                        </div>
+                        <div class="modal-footer border-secondary py-2">
+                            <small class="preview-meta text-muted"></small>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+
+            // Clean up video/audio when modal is hidden
+            modal.addEventListener('hidden.bs.modal', function() {
+                const video = modal.querySelector('video');
+                const audio = modal.querySelector('audio');
+                if (video) video.pause();
+                if (audio) audio.pause();
+            });
         }
 
-        if (video.dataset.currentSrc !== data.url) {
-            video.pause();
-            video.src = data.url;
-            video.dataset.currentSrc = data.url;
-            video.load();
+        const title = modal.querySelector('.modal-title');
+        const container = modal.querySelector('.preview-container');
+        const metaEl = modal.querySelector('.preview-meta');
+
+        title.textContent = data.name || 'Aperçu';
+
+        // Build meta info
+        const metaParts = [data.resolution, data.duration].filter(Boolean);
+        metaEl.textContent = metaParts.join(' • ');
+
+        // Determine content type and render accordingly
+        const mimeType = data.mime_type || '';
+
+        if (mimeType.startsWith('image/')) {
+            container.innerHTML = `<img src="${data.url}" alt="${data.name}" style="max-width:100%; max-height:70vh; object-fit: contain;">`;
+        } else if (mimeType.startsWith('video/')) {
+            container.innerHTML = `
+                <video controls autoplay muted style="max-width:100%; max-height:70vh;">
+                    <source src="${data.url}" type="${mimeType}">
+                </video>
+                <div class="video-error-message d-none text-center p-4">
+                    <i class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i>
+                    <h5>Lecture impossible</h5>
+                    <p class="text-muted mb-2">Le codec de cette vidéo n'est pas supporté par le navigateur.</p>
+                    <a href="${data.url}" download class="btn btn-outline-light btn-sm">
+                        <i class="fas fa-download me-2"></i>Télécharger le fichier
+                    </a>
+                </div>
+            `;
+            // Handle video playback errors
+            const video = container.querySelector('video');
+            const errorMsg = container.querySelector('.video-error-message');
+            video.addEventListener('error', function() {
+                video.classList.add('d-none');
+                errorMsg.classList.remove('d-none');
+            });
+        } else if (mimeType.startsWith('audio/')) {
+            container.innerHTML = `<audio src="${data.url}" controls autoplay style="width:100%;"></audio>`;
+        } else {
+            // Default to video player for unknown types
+            container.innerHTML = `
+                <video controls autoplay muted style="max-width:100%; max-height:70vh;">
+                    <source src="${data.url}" type="video/mp4">
+                </video>
+                <div class="video-error-message d-none text-center p-4">
+                    <i class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i>
+                    <h5>Lecture impossible</h5>
+                    <p class="text-muted mb-2">Le codec de cette vidéo n'est pas supporté par le navigateur.</p>
+                    <a href="${data.url}" download class="btn btn-outline-light btn-sm">
+                        <i class="fas fa-download me-2"></i>Télécharger le fichier
+                    </a>
+                </div>
+            `;
+            const video = container.querySelector('video');
+            const errorMsg = container.querySelector('.video-error-message');
+            video.addEventListener('error', function() {
+                video.classList.add('d-none');
+                errorMsg.classList.remove('d-none');
+            });
         }
 
-        video.classList.remove('d-none');
-        video.muted = true;
-        video.play().catch(() => {});
+        const bsModal = new bootstrap.Modal(modal);
+        bsModal.show();
     }
 
     function showPreviewError(message) {
-        const { video, placeholder, meta } = getPreviewElements();
-        if (video) {
-            video.pause();
-            video.classList.add('d-none');
+        // Show error in a toast or alert
+        const toastContainer = document.getElementById('toast-container') || createToastContainer();
+
+        const toast = document.createElement('div');
+        toast.className = 'toast align-items-center text-white bg-danger border-0';
+        toast.setAttribute('role', 'alert');
+        toast.innerHTML = `
+            <div class="d-flex">
+                <div class="toast-body"><i class="fas fa-exclamation-triangle me-2"></i>${message}</div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+            </div>
+        `;
+
+        toastContainer.appendChild(toast);
+        const bsToast = new bootstrap.Toast(toast, { delay: 4000 });
+        bsToast.show();
+
+        toast.addEventListener('hidden.bs.toast', () => toast.remove());
+    }
+
+    function createToastContainer() {
+        let container = document.getElementById('toast-container');
+        if (!container) {
+            container = document.createElement('div');
+            container.id = 'toast-container';
+            container.className = 'toast-container position-fixed bottom-0 end-0 p-3';
+            container.style.zIndex = '1100';
+            document.body.appendChild(container);
         }
-        if (placeholder) {
-            placeholder.classList.remove('d-none');
-            placeholder.innerHTML = `<h4 class="fw-bold mb-2">Impossible d'afficher l'aperçu</h4><p class="text-danger mb-0">${message}</p>`;
-        }
-        if (meta) {
-            meta.classList.add('d-none');
-            meta.textContent = '';
-        }
+        return container;
     }
 
     function startProcess(btnRef) {

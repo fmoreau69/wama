@@ -164,10 +164,15 @@ class DiffusersBackend(ImageGenerationBackend):
                     safety_checker=None,  # Disable NSFW filter for faster processing
                 )
 
-            # Use faster scheduler
-            self._pipe.scheduler = DPMSolverMultistepScheduler.from_config(
-                self._pipe.scheduler.config
-            )
+            # Use faster scheduler (with fallback if incompatible)
+            try:
+                scheduler_config = dict(self._pipe.scheduler.config)
+                # Fix incompatible settings for some models
+                if scheduler_config.get('final_sigmas_type') == 'zero':
+                    scheduler_config['final_sigmas_type'] = 'sigma_min'
+                self._pipe.scheduler = DPMSolverMultistepScheduler.from_config(scheduler_config)
+            except Exception as scheduler_error:
+                logger.warning(f"Could not use DPMSolver scheduler, using default: {scheduler_error}")
 
             # Move to device
             self._pipe = self._pipe.to(self._device)

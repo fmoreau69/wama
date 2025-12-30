@@ -17,12 +17,14 @@ urlpatterns = [
     # Generation management
     path('create/', views.create_generation, name='create'),
     path('start/<int:generation_id>/', views.start_generation, name='start'),
+    path('restart/<int:generation_id>/', views.restart_generation, name='restart'),
     path('start-all/', views.start_all_generations, name='start_all'),
     path('progress/<int:generation_id>/', views.progress, name='progress'),
     path('global-progress/', views.global_progress, name='global_progress'),
 
     # Download and delete
     path('download/<int:generation_id>/', views.download, name='download'),
+    path('download-all/', views.download_all, name='download_all'),
     path('delete/<int:generation_id>/', views.delete_generation, name='delete'),
     path('clear-all/', views.clear_all, name='clear_all'),
 

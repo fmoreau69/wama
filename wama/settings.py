@@ -148,6 +148,7 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 'wama.accounts.views.login_form',
+                'wama.accounts.context_processors.user_role',
             ],
         },
     },

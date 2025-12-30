@@ -97,7 +97,9 @@
                 }
             },
             'contextmenu': {
-                'items': contextMenuItems
+                'items': contextMenuItems,
+                'select_node': true,
+                'show_at_node': true
             },
             'search': {
                 'show_only_matches': true,
@@ -114,6 +116,7 @@
         });
 
         tree = $(treeContainer).jstree(true);
+        console.log('[FileManager] jstree initialized, plugins:', tree.settings.plugins);
 
         // Event handlers
         $(treeContainer).on('dblclick.jstree', '.jstree-anchor', handleDoubleClick);
@@ -125,34 +128,65 @@
     }
 
     function contextMenuItems(node) {
+        console.log('[FileManager] Context menu requested for node:', node.id, 'type:', node.type);
+
+        // Return false to disable context menu for nodes without a type
+        if (!node.type || (node.type !== 'file' && node.type !== 'folder')) {
+            return false;
+        }
+
         const items = {};
 
         if (node.type === 'file') {
             items.preview = {
-                label: '<i class="fa fa-eye"></i> Aperçu',
+                label: 'Aperçu',
+                icon: 'fa fa-eye',
                 action: function() { previewFile(node); }
             };
             items.download = {
-                label: '<i class="fa fa-download"></i> Télécharger',
+                label: 'Télécharger',
+                icon: 'fa fa-download',
                 action: function() { downloadFile(node); }
             };
             items.info = {
-                label: '<i class="fa fa-info-circle"></i> Informations',
+                label: 'Informations',
+                icon: 'fa fa-info-circle',
                 action: function() { showFileInfo(node); }
             };
-            items.separator1 = { separator: true };
             items.rename = {
-                label: '<i class="fa fa-edit"></i> Renommer',
+                label: 'Renommer',
+                icon: 'fa fa-edit',
+                separator_before: true,
                 action: function() { renameFile(node); }
             };
             items.delete = {
-                label: '<i class="fa fa-trash text-danger"></i> Supprimer',
-                action: function() { deleteFile(node); }
+                label: 'Supprimer',
+                icon: 'fa fa-trash',
+                action: function() { deleteFile(node); },
+                _class: 'context-menu-danger'
             };
         } else if (node.type === 'folder') {
             items.refresh = {
-                label: '<i class="fa fa-sync"></i> Actualiser',
+                label: 'Actualiser',
+                icon: 'fa fa-sync',
                 action: function() { refreshTree(); }
+            };
+            items.expand = {
+                label: 'Tout déplier',
+                icon: 'fa fa-folder-open',
+                action: function() { tree.open_all(node); }
+            };
+            items.collapse = {
+                label: 'Tout replier',
+                icon: 'fa fa-folder',
+                action: function() { tree.close_all(node); }
+            };
+            items.deleteAll = {
+                label: 'Vider le dossier',
+                icon: 'fa fa-trash',
+                separator_before: true,
+                action: function() { deleteAllInFolder(node); },
+                _class: 'context-menu-danger'
             };
         }
 
@@ -242,7 +276,7 @@
         fetch(`${config.apiPreviewUrl || '/filemanager/api/preview/'}?path=${encodeURIComponent(path)}`)
             .then(res => res.json())
             .then(data => {
-                if (data.preview_url) {
+                if (data.preview_url || data.text_content !== undefined) {
                     showPreviewModal(data);
                 } else {
                     showToast('Aperçu non disponible pour ce type de fichier', 'warning');
@@ -341,10 +375,72 @@
             });
     }
 
+    function deleteAllInFolder(node) {
+        const path = node.data?.path;
+        if (!path) {
+            showToast('Ce dossier ne peut pas être vidé', 'warning');
+            return;
+        }
+
+        // Count files to give user feedback
+        const childCount = countFilesRecursive(node);
+
+        if (childCount === 0) {
+            showToast('Le dossier est déjà vide', 'info');
+            return;
+        }
+
+        const message = `Supprimer ${childCount} fichier(s) dans "${node.text}" et ses sous-dossiers ?\n\nCette action est irréversible.`;
+        if (!confirm(message)) return;
+
+        fetch(config.apiDeleteAllUrl || '/filemanager/api/delete-all/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({ path: path })
+        })
+            .then(res => res.json())
+            .then(data => {
+                if (data.deleted_count !== undefined) {
+                    let message = `${data.deleted_count} fichier(s) supprimé(s)`;
+                    if (data.deleted_folders > 0) {
+                        message += `, ${data.deleted_folders} dossier(s) vide(s) supprimé(s)`;
+                    }
+                    showToast(message, 'success');
+                    refreshTree();
+                } else {
+                    showToast(data.error || 'Erreur lors de la suppression', 'danger');
+                }
+            })
+            .catch(err => {
+                console.error('Delete all error:', err);
+                showToast('Erreur lors de la suppression', 'danger');
+            });
+    }
+
+    function countFilesRecursive(node) {
+        let count = 0;
+        if (node.children && node.children.length > 0) {
+            node.children.forEach(childId => {
+                const child = tree.get_node(childId);
+                if (child) {
+                    if (child.type === 'file') {
+                        count++;
+                    } else if (child.type === 'folder') {
+                        count += countFilesRecursive(child);
+                    }
+                }
+            });
+        }
+        return count;
+    }
+
     // === SEARCH ===
 
     function setupSearch() {
-        const searchInput = document.getElementById('filemanager-search');
+        const searchInput = document.getElementById('filemanager-tree-filter');
         if (!searchInput) return;
 
         let searchTimeout = null;
@@ -373,7 +469,23 @@
         fileInput.style.display = 'none';
         document.body.appendChild(fileInput);
 
-        dropzone.addEventListener('click', () => fileInput.click());
+        // Also create a folder input for click-to-select folders
+        const folderInput = document.createElement('input');
+        folderInput.type = 'file';
+        folderInput.webkitdirectory = true;
+        folderInput.multiple = true;
+        folderInput.style.display = 'none';
+        document.body.appendChild(folderInput);
+
+        // Click handler - show choice between files or folder
+        dropzone.addEventListener('click', (e) => {
+            // If shift key is held, select folder, otherwise files
+            if (e.shiftKey) {
+                folderInput.click();
+            } else {
+                fileInput.click();
+            }
+        });
 
         dropzone.addEventListener('dragover', (e) => {
             e.preventDefault();
@@ -384,18 +496,187 @@
             dropzone.classList.remove('drag-over');
         });
 
-        dropzone.addEventListener('drop', (e) => {
+        // Handle drop - detect folders using webkitGetAsEntry
+        dropzone.addEventListener('drop', async (e) => {
             e.preventDefault();
             dropzone.classList.remove('drag-over');
-            handleFileUpload(e.dataTransfer.files);
+
+            const items = e.dataTransfer.items;
+            if (items && items.length > 0) {
+                // Check if any item is a directory using webkitGetAsEntry
+                const entries = [];
+                for (let i = 0; i < items.length; i++) {
+                    const entry = items[i].webkitGetAsEntry?.();
+                    if (entry) {
+                        entries.push(entry);
+                    }
+                }
+
+                if (entries.length > 0) {
+                    // Process entries (files and folders)
+                    await handleEntriesUpload(entries);
+                } else {
+                    // Fallback to regular file upload
+                    handleFileUpload(e.dataTransfer.files);
+                }
+            } else {
+                handleFileUpload(e.dataTransfer.files);
+            }
         });
 
         fileInput.addEventListener('change', (e) => {
             handleFileUpload(e.target.files);
             fileInput.value = '';
         });
+
+        folderInput.addEventListener('change', (e) => {
+            // webkitdirectory gives us files with webkitRelativePath
+            handleFolderFilesUpload(e.target.files);
+            folderInput.value = '';
+        });
     }
 
+    /**
+     * Read all files from FileSystemEntry objects (supports folders)
+     */
+    async function handleEntriesUpload(entries) {
+        showToast('Lecture des fichiers...', 'info');
+        console.log('[FileManager] Processing', entries.length, 'entries');
+
+        const filesWithPaths = [];
+
+        // Process all entries in parallel
+        await Promise.all(entries.map(entry => readEntry(entry, '', filesWithPaths)));
+
+        console.log('[FileManager] Found', filesWithPaths.length, 'files');
+
+        if (filesWithPaths.length === 0) {
+            showToast('Aucun fichier trouvé', 'warning');
+            return;
+        }
+
+        await uploadFilesWithPaths(filesWithPaths);
+    }
+
+    /**
+     * Recursively read a FileSystemEntry (file or directory)
+     */
+    async function readEntry(entry, parentPath, filesWithPaths) {
+        try {
+            if (entry.isFile) {
+                // Get the File object
+                const file = await new Promise((resolve, reject) => {
+                    entry.file(resolve, reject);
+                });
+
+                const relativePath = parentPath ? `${parentPath}/${entry.name}` : entry.name;
+                filesWithPaths.push({ file, relativePath });
+            } else if (entry.isDirectory) {
+                // Read directory contents
+                const dirPath = parentPath ? `${parentPath}/${entry.name}` : entry.name;
+                const reader = entry.createReader();
+
+                // Read all entries in the directory (may need multiple reads)
+                const allEntries = await readAllDirectoryEntries(reader);
+
+                console.log('[FileManager] Directory', dirPath, 'contains', allEntries.length, 'items');
+
+                // Recursively process each entry in parallel
+                await Promise.all(allEntries.map(childEntry => readEntry(childEntry, dirPath, filesWithPaths)));
+            }
+        } catch (error) {
+            console.error('[FileManager] Error reading entry:', entry.name, error);
+        }
+    }
+
+    /**
+     * Read all entries from a directory reader (handles batched results)
+     */
+    async function readAllDirectoryEntries(reader) {
+        const allEntries = [];
+
+        // readEntries returns results in batches, keep reading until empty
+        const readBatch = () => {
+            return new Promise((resolve, reject) => {
+                reader.readEntries(resolve, reject);
+            });
+        };
+
+        let batch;
+        do {
+            try {
+                batch = await readBatch();
+                allEntries.push(...batch);
+            } catch (error) {
+                console.error('[FileManager] Error reading directory batch:', error);
+                break;
+            }
+        } while (batch && batch.length > 0);
+
+        return allEntries;
+    }
+
+    /**
+     * Handle files from folder input (uses webkitRelativePath)
+     */
+    async function handleFolderFilesUpload(files) {
+        if (!files.length) return;
+
+        const filesWithPaths = [];
+        for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+            // webkitRelativePath includes the folder name
+            const relativePath = file.webkitRelativePath || file.name;
+            filesWithPaths.push({ file, relativePath });
+        }
+
+        await uploadFilesWithPaths(filesWithPaths);
+    }
+
+    /**
+     * Upload files with their relative paths preserved
+     */
+    async function uploadFilesWithPaths(filesWithPaths) {
+        const formData = new FormData();
+        const paths = [];
+
+        for (const { file, relativePath } of filesWithPaths) {
+            formData.append('files', file);
+            paths.push(relativePath);
+        }
+
+        // Send paths as JSON
+        formData.append('paths', JSON.stringify(paths));
+
+        showToast(`Upload de ${filesWithPaths.length} fichier(s)...`, 'info');
+
+        try {
+            const response = await fetch(config.apiUploadUrl || '/filemanager/api/upload/', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': csrfToken
+                },
+                body: formData
+            });
+
+            const data = await response.json();
+
+            if (data.count > 0) {
+                const folderInfo = data.folders_created ? ` (${data.folders_created} dossier(s) créé(s))` : '';
+                showToast(`${data.count} fichier(s) uploadé(s)${folderInfo}`, 'success');
+                refreshTree();
+            } else {
+                showToast('Aucun fichier uploadé', 'warning');
+            }
+        } catch (err) {
+            console.error('Upload error:', err);
+            showToast('Erreur lors de l\'upload', 'danger');
+        }
+    }
+
+    /**
+     * Simple file upload (no folder structure)
+     */
     function handleFileUpload(files) {
         if (!files.length) return;
 
@@ -460,7 +741,7 @@
             modal.id = 'filePreviewModal';
             modal.className = 'modal fade';
             modal.innerHTML = `
-                <div class="modal-dialog modal-lg modal-dialog-centered">
+                <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
                     <div class="modal-content bg-dark text-white">
                         <div class="modal-header border-secondary">
                             <h5 class="modal-title"></h5>
@@ -481,13 +762,52 @@
         title.textContent = data.name;
 
         if (data.mime.startsWith('image/')) {
-            container.innerHTML = `<img src="${data.preview_url}" alt="${data.name}">`;
+            container.innerHTML = `<img src="${data.preview_url}" alt="${data.name}" style="max-width:100%; max-height:70vh;">`;
         } else if (data.mime.startsWith('video/')) {
-            container.innerHTML = `<video src="${data.preview_url}" controls autoplay></video>`;
+            container.innerHTML = `
+                <video controls autoplay muted style="max-width:100%; max-height:70vh;">
+                    <source src="${data.preview_url}" type="${data.mime}">
+                </video>
+                <div class="video-error-message d-none text-center p-4">
+                    <i class="fa fa-exclamation-triangle fa-3x text-warning mb-3"></i>
+                    <h5>Lecture impossible</h5>
+                    <p class="text-muted mb-2">Le codec de cette vidéo n'est pas supporté par le navigateur.</p>
+                    <a href="${data.preview_url}" download class="btn btn-outline-light btn-sm">
+                        <i class="fa fa-download me-2"></i>Télécharger le fichier
+                    </a>
+                </div>
+            `;
+            const video = container.querySelector('video');
+            const errorMsg = container.querySelector('.video-error-message');
+            video.addEventListener('error', function() {
+                video.classList.add('d-none');
+                errorMsg.classList.remove('d-none');
+            });
         } else if (data.mime.startsWith('audio/')) {
-            container.innerHTML = `<audio src="${data.preview_url}" controls autoplay></audio>`;
+            container.innerHTML = `<audio src="${data.preview_url}" controls autoplay style="width:100%;"></audio>`;
+        } else if (data.text_content !== undefined) {
+            // Text file preview
+            const escapedContent = escapeHtml(data.text_content);
+            container.innerHTML = `
+                <pre class="text-preview" style="
+                    background: #0d1117;
+                    border: 1px solid #374151;
+                    border-radius: 6px;
+                    padding: 15px;
+                    max-height: 60vh;
+                    overflow: auto;
+                    white-space: pre-wrap;
+                    word-wrap: break-word;
+                    font-family: 'Consolas', 'Monaco', monospace;
+                    font-size: 0.85rem;
+                    color: #e2e8f0;
+                    margin: 0;
+                ">${escapedContent}</pre>
+            `;
+        } else if (data.error) {
+            container.innerHTML = `<p class="text-danger"><i class="fa fa-exclamation-triangle me-2"></i>${escapeHtml(data.error)}</p>`;
         } else {
-            container.innerHTML = `<p class="text-muted">Aperçu non disponible</p>`;
+            container.innerHTML = `<p class="text-muted">Aperçu non disponible pour ce type de fichier</p>`;
         }
 
         const bsModal = new bootstrap.Modal(modal);

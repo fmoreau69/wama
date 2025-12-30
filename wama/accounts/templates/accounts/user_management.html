@@ -1,0 +1,332 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Gestion des utilisateurs - WAMA{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2 class="text-light">
+                    <i class="fas fa-users-cog"></i> Gestion des utilisateurs
+                </h2>
+                <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#addUserModal">
+                    <i class="fas fa-user-plus"></i> Ajouter un utilisateur
+                </button>
+            </div>
+
+            <!-- Users Table -->
+            <div class="card bg-dark border-secondary">
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-dark table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Utilisateur</th>
+                                    <th>Email</th>
+                                    <th>Nom</th>
+                                    <th>Rôle</th>
+                                    <th>Statut</th>
+                                    <th>Date d'inscription</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in users %}
+                                <tr data-user-id="{{ item.user.id }}">
+                                    <td>
+                                        <i class="fas fa-user me-2"></i>
+                                        {{ item.user.username }}
+                                        {% if item.user == request.user %}
+                                        <span class="badge bg-info ms-1">Vous</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ item.user.email|default:"-" }}</td>
+                                    <td>{{ item.user.first_name }} {{ item.user.last_name }}</td>
+                                    <td>
+                                        <select class="form-select form-select-sm bg-dark text-white border-secondary role-select"
+                                                data-user-id="{{ item.user.id }}"
+                                                {% if item.user.username == 'anonymous' %}disabled{% endif %}>
+                                            <option value="admin" {% if item.role == 'admin' %}selected{% endif %}>
+                                                Admin
+                                            </option>
+                                            <option value="dev" {% if item.role == 'dev' %}selected{% endif %}>
+                                                Développeur
+                                            </option>
+                                            <option value="user" {% if item.role == 'user' %}selected{% endif %}>
+                                                Utilisateur
+                                            </option>
+                                            {% if item.role == 'anonymous' %}
+                                            <option value="anonymous" selected disabled>
+                                                Anonyme
+                                            </option>
+                                            {% endif %}
+                                        </select>
+                                    </td>
+                                    <td>
+                                        {% if item.user.username == 'anonymous' %}
+                                        <span class="badge bg-secondary">Système</span>
+                                        {% elif item.user.is_active %}
+                                        <span class="badge bg-success status-badge">Actif</span>
+                                        {% else %}
+                                        <span class="badge bg-danger status-badge">Inactif</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ item.user.date_joined|date:"d/m/Y H:i" }}</td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm">
+                                            {% if item.user.username != 'anonymous' and item.user != request.user %}
+                                            <button class="btn btn-outline-warning toggle-active-btn"
+                                                    data-user-id="{{ item.user.id }}"
+                                                    title="{% if item.user.is_active %}Désactiver{% else %}Activer{% endif %}">
+                                                <i class="fas fa-{% if item.user.is_active %}ban{% else %}check{% endif %}"></i>
+                                            </button>
+                                            <button class="btn btn-outline-danger delete-user-btn"
+                                                    data-user-id="{{ item.user.id }}"
+                                                    data-username="{{ item.user.username }}"
+                                                    title="Supprimer">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                            {% else %}
+                                            <button class="btn btn-outline-secondary" disabled title="Action non disponible">
+                                                <i class="fas fa-lock"></i>
+                                            </button>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="7" class="text-center text-muted">Aucun utilisateur trouvé</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Roles Legend -->
+            <div class="card bg-dark border-secondary mt-4">
+                <div class="card-header border-secondary">
+                    <h5 class="mb-0"><i class="fas fa-info-circle"></i> Légende des rôles</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <h6 class="text-danger"><i class="fas fa-crown"></i> Admin</h6>
+                            <p class="text-muted small">Accès complet à toutes les fonctionnalités, gestion des utilisateurs</p>
+                        </div>
+                        <div class="col-md-3">
+                            <h6 class="text-warning"><i class="fas fa-code"></i> Développeur</h6>
+                            <p class="text-muted small">Accès aux fonctionnalités avancées et debug</p>
+                        </div>
+                        <div class="col-md-3">
+                            <h6 class="text-info"><i class="fas fa-user"></i> Utilisateur</h6>
+                            <p class="text-muted small">Accès standard aux applications</p>
+                        </div>
+                        <div class="col-md-3">
+                            <h6 class="text-secondary"><i class="fas fa-user-secret"></i> Anonyme</h6>
+                            <p class="text-muted small">Utilisateur non identifié (système)</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_modals %}
+<!-- Add User Modal -->
+<div class="modal fade" id="addUserModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark text-white border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title"><i class="fas fa-user-plus"></i> Ajouter un utilisateur</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addUserForm">
+                    <div class="mb-3">
+                        <label class="form-label">Nom d'utilisateur <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control bg-dark text-white border-secondary"
+                               name="username" required>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Prénom</label>
+                            <input type="text" class="form-control bg-dark text-white border-secondary"
+                                   name="first_name">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Nom</label>
+                            <input type="text" class="form-control bg-dark text-white border-secondary"
+                                   name="last_name">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Email</label>
+                        <input type="email" class="form-control bg-dark text-white border-secondary"
+                               name="email">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Mot de passe</label>
+                        <input type="password" class="form-control bg-dark text-white border-secondary"
+                               name="password" placeholder="Laisser vide pour un mot de passe non défini">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Rôle</label>
+                        <select class="form-select bg-dark text-white border-secondary" name="role">
+                            <option value="user" selected>Utilisateur</option>
+                            <option value="dev">Développeur</option>
+                            <option value="admin">Admin</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                <button type="button" class="btn btn-success" id="submitAddUser">
+                    <i class="fas fa-plus"></i> Créer
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block javascript %}
+{{ block.super }}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const csrfToken = '{{ csrf_token }}';
+
+    // Add user
+    document.getElementById('submitAddUser').addEventListener('click', function() {
+        const form = document.getElementById('addUserForm');
+        const formData = new FormData(form);
+
+        fetch('{% url "accounts:user-add" %}', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrfToken
+            },
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.message);
+                location.reload();
+            } else {
+                alert('Erreur: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Erreur lors de la création');
+        });
+    });
+
+    // Role change
+    document.querySelectorAll('.role-select').forEach(select => {
+        select.addEventListener('change', function() {
+            const userId = this.dataset.userId;
+            const newRole = this.value;
+
+            const formData = new FormData();
+            formData.append('role', newRole);
+
+            fetch(`/accounts/users/${userId}/role/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': csrfToken
+                },
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Show success notification
+                    showNotification(data.message, 'success');
+                } else {
+                    alert('Erreur: ' + data.error);
+                    location.reload(); // Revert selection
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                location.reload();
+            });
+        });
+    });
+
+    // Toggle active
+    document.querySelectorAll('.toggle-active-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const userId = this.dataset.userId;
+
+            fetch(`/accounts/users/${userId}/toggle-active/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': csrfToken
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    location.reload();
+                } else {
+                    alert('Erreur: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+            });
+        });
+    });
+
+    // Delete user
+    document.querySelectorAll('.delete-user-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const userId = this.dataset.userId;
+            const username = this.dataset.username;
+
+            if (confirm(`Êtes-vous sûr de vouloir supprimer l'utilisateur "${username}" ?`)) {
+                fetch(`/accounts/users/${userId}/delete/`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': csrfToken
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        location.reload();
+                    } else {
+                        alert('Erreur: ' + data.error);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                });
+            }
+        });
+    });
+
+    function showNotification(message, type) {
+        const alertDiv = document.createElement('div');
+        alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed top-0 start-50 translate-middle-x mt-3`;
+        alertDiv.style.zIndex = '9999';
+        alertDiv.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        document.body.appendChild(alertDiv);
+        setTimeout(() => alertDiv.remove(), 3000);
+    }
+});
+</script>
+{% endblock %}

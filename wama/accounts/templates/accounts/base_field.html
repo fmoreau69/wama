@@ -1,13 +1,23 @@
-<div class="form-group mb-3">
-  <label class="form-label text-light" for="{{ field.id_for_label }}">
-    {% if field.field.required %}<span class="text-danger">*</span>{% endif %}
-    {{ field.label }}
-  </label>
-  {{ field }}
-  {% if field.help_text %}
-    <small class="form-text text-white-50 d-block mt-1">{{ field.help_text }}</small>
-  {% endif %}
-  {% if field.errors %}
-    <div class="text-danger d-block mt-1">{{ field.errors }}</div>
-  {% endif %}
+<div class="mb-3">
+    <label class="form-label" for="{{ field.id_for_label }}">
+        {{ field.label }}
+        {% if field.field.required %}<span class="text-danger">*</span>{% endif %}
+    </label>
+    {% with field_type=field.field.widget.input_type %}
+    {% if field_type == 'checkbox' %}
+        <div class="form-check">
+            {{ field }}
+        </div>
+    {% elif field_type == 'select' or field.field.widget.template_name == 'django/forms/widgets/select.html' %}
+        {{ field }}
+    {% else %}
+        {{ field }}
+    {% endif %}
+    {% endwith %}
+    {% if field.help_text %}
+        <small class="form-text text-muted d-block mt-1">{{ field.help_text }}</small>
+    {% endif %}
+    {% if field.errors %}
+        <div class="invalid-feedback d-block">{{ field.errors }}</div>
+    {% endif %}
 </div>

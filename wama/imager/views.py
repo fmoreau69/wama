@@ -154,6 +154,46 @@ def start_generation(request, generation_id):
 
 
 @require_http_methods(["POST"])
+def restart_generation(request, generation_id):
+    """Restart a completed or failed generation"""
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+
+    try:
+        generation = get_object_or_404(ImageGeneration, id=generation_id, user=user)
+
+        if generation.status == 'RUNNING':
+            return JsonResponse({'error': 'Generation is already running'}, status=400)
+
+        # Reset status and progress
+        generation.status = 'PENDING'
+        generation.progress = 0
+        generation.error_message = None
+        generation.save()
+
+        # Import here to avoid circular imports
+        from .tasks import generate_image_task
+
+        # Start Celery task
+        task = generate_image_task.delay(generation.id)
+
+        # Update status
+        generation.status = 'RUNNING'
+        generation.save()
+
+        logger.info(f"Restarted generation #{generation.id}, task_id: {task.id}")
+
+        return JsonResponse({
+            'success': True,
+            'task_id': task.id,
+            'message': 'Generation restarted'
+        })
+
+    except Exception as e:
+        logger.error(f"Error restarting generation: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@require_http_methods(["POST"])
 def start_all_generations(request):
     """Start all pending generations"""
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
@@ -346,6 +386,39 @@ def clear_all(request):
         return JsonResponse({'error': str(e)}, status=500)
 
 
+def download_all(request):
+    """Download all generated images as a zip file"""
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+
+    try:
+        generations = ImageGeneration.objects.filter(user=user, status='SUCCESS')
+
+        if not generations.exists():
+            return HttpResponse("No completed generations to download", status=404)
+
+        import zipfile
+        from io import BytesIO
+
+        zip_buffer = BytesIO()
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+            for generation in generations:
+                for image_path in generation.generated_images:
+                    if os.path.exists(image_path):
+                        # Create a subfolder per generation
+                        folder_name = f"generation_{generation.id}"
+                        arcname = f"{folder_name}/{os.path.basename(image_path)}"
+                        zip_file.write(image_path, arcname)
+
+        zip_buffer.seek(0)
+        response = HttpResponse(zip_buffer.getvalue(), content_type='application/zip')
+        response['Content-Disposition'] = 'attachment; filename="imager_all_images.zip"'
+        return response
+
+    except Exception as e:
+        logger.error(f"Error downloading all images: {str(e)}")
+        return HttpResponse(f"Error: {str(e)}", status=500)
+
+
 def console(request):
     """Console page for monitoring logs"""
     return render(request, 'imager/console.html')
@@ -457,9 +530,9 @@ def save_generation_settings(request, generation_id):
     try:
         generation = get_object_or_404(ImageGeneration, id=generation_id, user=user)
 
-        # Only allow editing PENDING generations
-        if generation.status != 'PENDING':
-            return JsonResponse({'error': 'Cannot edit a generation that is not pending'}, status=400)
+        # Don't allow editing while running
+        if generation.status == 'RUNNING':
+            return JsonResponse({'error': 'Cannot edit a running generation'}, status=400)
 
         # Update fields from POST data
         if 'prompt' in request.POST:

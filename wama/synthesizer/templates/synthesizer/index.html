@@ -64,6 +64,27 @@
     <input type="file" class="form-control form-control-sm bg-dark text-white border-secondary"
            id="voice_reference" accept="audio/*" name="voice_reference">
     <small class="text-muted d-block mt-1">Audio 6-10s pour clonage</small>
+
+    <!-- Microphone Recording -->
+    <div class="mt-2">
+        <button type="button" class="btn btn-outline-info btn-sm w-100" id="recordVoiceBtn">
+            <i class="fas fa-microphone"></i> Enregistrer ma voix
+        </button>
+
+        <!-- Recording Indicator (hidden by default) -->
+        <div id="recordingIndicator" class="mt-2 p-2 bg-danger bg-opacity-25 rounded text-center" style="display: none;">
+            <div class="d-flex align-items-center justify-content-between">
+                <span class="text-danger">
+                    <i class="fas fa-circle fa-beat"></i> Enregistrement...
+                </span>
+                <span id="recordingTimer" class="badge bg-danger">0s</span>
+                <button type="button" class="btn btn-danger btn-sm" id="stopRecordingBtn">
+                    <i class="fas fa-stop"></i> Stop
+                </button>
+            </div>
+            <small class="text-muted d-block mt-1">Max 10s - Arrêt auto</small>
+        </div>
+    </div>
 </div>
 
 <!-- Reset Button -->
@@ -412,6 +433,27 @@
                         <input type="file" class="form-control" id="settingsVoiceRef"
                                name="voice_reference" accept="audio/*">
                         <small class="text-muted">Audio 6-10s pour clonage (optionnel)</small>
+
+                        <!-- Microphone Recording for Modal -->
+                        <div class="mt-2">
+                            <button type="button" class="btn btn-outline-info btn-sm w-100" id="modalRecordVoiceBtn">
+                                <i class="fas fa-microphone"></i> Enregistrer ma voix
+                            </button>
+
+                            <!-- Recording Indicator (hidden by default) -->
+                            <div id="modalRecordingIndicator" class="mt-2 p-2 bg-danger bg-opacity-25 rounded text-center" style="display: none;">
+                                <div class="d-flex align-items-center justify-content-between">
+                                    <span class="text-danger">
+                                        <i class="fas fa-circle fa-beat"></i> Enregistrement...
+                                    </span>
+                                    <span id="modalRecordingTimer" class="badge bg-danger">0s</span>
+                                    <button type="button" class="btn btn-danger btn-sm" id="modalStopRecordingBtn">
+                                        <i class="fas fa-stop"></i> Stop
+                                    </button>
+                                </div>
+                                <small class="text-muted d-block mt-1">Max 10s - Arrêt auto</small>
+                            </div>
+                        </div>
                     </div>
                 </form>
             </div>

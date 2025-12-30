@@ -58,6 +58,17 @@
             }
         });
 
+        // Restart buttons (for SUCCESS or FAILURE generations)
+        document.addEventListener('click', function(e) {
+            if (e.target.closest('.restart-btn')) {
+                const btn = e.target.closest('.restart-btn');
+                const genId = btn.getAttribute('data-id');
+                if (confirm('Relancer cette génération ?')) {
+                    restartGeneration(genId);
+                }
+            }
+        });
+
         // Settings buttons
         document.addEventListener('click', function(e) {
             if (e.target.closest('.settings-btn')) {
@@ -82,6 +93,76 @@
                 saveSettings(false);
             });
         }
+
+        // Download all button
+        const downloadAllBtn = document.getElementById('downloadAllBtn');
+        if (downloadAllBtn) {
+            downloadAllBtn.addEventListener('click', function() {
+                window.location.href = config.urls.downloadAll;
+            });
+        }
+
+        // Download individual buttons
+        document.addEventListener('click', function(e) {
+            if (e.target.closest('.download-btn')) {
+                const btn = e.target.closest('.download-btn');
+                const genId = btn.getAttribute('data-id');
+                window.location.href = config.urls.download.replace('0', genId);
+            }
+        });
+
+        // Range sliders
+        const stepsSlider = document.getElementById('steps');
+        if (stepsSlider) {
+            stepsSlider.addEventListener('input', function(e) {
+                document.getElementById('steps_value').textContent = e.target.value;
+            });
+        }
+
+        const guidanceSlider = document.getElementById('guidance_scale');
+        if (guidanceSlider) {
+            guidanceSlider.addEventListener('input', function(e) {
+                document.getElementById('guidance_value').textContent = e.target.value;
+            });
+        }
+
+        // Reset options button
+        const resetBtn = document.getElementById('resetOptions');
+        if (resetBtn) {
+            resetBtn.addEventListener('click', function() {
+                // Reset model to first option
+                const modelSelect = document.getElementById('model');
+                if (modelSelect) modelSelect.selectedIndex = 0;
+
+                // Reset dimensions
+                const widthSelect = document.getElementById('width');
+                const heightSelect = document.getElementById('height');
+                if (widthSelect) widthSelect.value = '512';
+                if (heightSelect) heightSelect.value = '512';
+
+                // Reset num images
+                const numImagesSelect = document.getElementById('num_images');
+                if (numImagesSelect) numImagesSelect.value = '1';
+
+                // Reset sliders
+                if (stepsSlider) {
+                    stepsSlider.value = 30;
+                    document.getElementById('steps_value').textContent = '30';
+                }
+                if (guidanceSlider) {
+                    guidanceSlider.value = 7.5;
+                    document.getElementById('guidance_value').textContent = '7.5';
+                }
+
+                // Reset seed
+                const seedInput = document.getElementById('seed');
+                if (seedInput) seedInput.value = '';
+
+                // Reset upscale
+                const upscaleCheck = document.getElementById('upscale');
+                if (upscaleCheck) upscaleCheck.checked = false;
+            });
+        }
     }
 
     /**
@@ -92,6 +173,25 @@
 
         const formData = new FormData(e.target);
         const submitBtn = document.getElementById('submitBtn');
+
+        // Add parameters from right panel
+        const model = document.getElementById('model');
+        const width = document.getElementById('width');
+        const height = document.getElementById('height');
+        const numImages = document.getElementById('num_images');
+        const steps = document.getElementById('steps');
+        const guidanceScale = document.getElementById('guidance_scale');
+        const seed = document.getElementById('seed');
+        const upscale = document.getElementById('upscale');
+
+        if (model) formData.set('model', model.value);
+        if (width) formData.set('width', width.value);
+        if (height) formData.set('height', height.value);
+        if (numImages) formData.set('num_images', numImages.value);
+        if (steps) formData.set('steps', steps.value);
+        if (guidanceScale) formData.set('guidance_scale', guidanceScale.value);
+        if (seed && seed.value) formData.set('seed', seed.value);
+        if (upscale) formData.set('upscale', upscale.checked ? 'true' : 'false');
 
         submitBtn.disabled = true;
         submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Adding...';
@@ -149,6 +249,34 @@
         .catch(error => {
             console.error('Error:', error);
             showNotification('Error starting generation', 'danger');
+        });
+    }
+
+    /**
+     * Restart a completed or failed generation
+     */
+    function restartGeneration(genId) {
+        const url = config.urls.restart.replace('0', genId);
+
+        fetch(url, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': config.csrfToken,
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification('Génération relancée !', 'success');
+                setTimeout(() => location.reload(), 500);
+            } else {
+                showNotification('Error: ' + (data.error || 'Unknown error'), 'danger');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showNotification('Error restarting generation', 'danger');
         });
     }
 

@@ -75,7 +75,7 @@ class VoiceSynthesis(models.Model):
 
     # Fichier texte source
     text_file = models.FileField(
-        upload_to='synthesizer/texts/%Y/%m/%d/',
+        upload_to='synthesizer/input/',
         validators=[FileExtensionValidator(allowed_extensions=['txt', 'pdf', 'docx', 'csv', 'md'])],
         help_text="Fichier texte à synthétiser"
     )
@@ -88,7 +88,7 @@ class VoiceSynthesis(models.Model):
 
     # Fichier de référence vocale (pour le clonage)
     voice_reference = models.FileField(
-        upload_to='synthesizer/voice_refs/%Y/%m/%d/',
+        upload_to='synthesizer/input/',
         blank=True,
         null=True,
         validators=[FileExtensionValidator(allowed_extensions=['wav', 'mp3', 'flac', 'ogg'])],
@@ -135,7 +135,7 @@ class VoiceSynthesis(models.Model):
 
     # Résultat
     audio_output = models.FileField(
-        upload_to='synthesizer/outputs/%Y/%m/%d/',
+        upload_to='synthesizer/output/',
         blank=True,
         null=True,
         help_text="Fichier audio généré"

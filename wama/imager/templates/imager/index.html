@@ -3,6 +3,119 @@
 
 {% block title %}Imager - AI Image Generation{% endblock %}
 
+{% block app_right_panel_settings %}
+<!-- Model -->
+<div class="mb-3">
+    <label for="model" class="form-label small fw-bold text-light">
+        <i class="fas fa-robot"></i> Modèle
+    </label>
+    <select class="form-select form-select-sm bg-dark text-white border-secondary" id="model" name="model">
+        {% for value, label in models_choices %}
+        <option value="{{ value }}" {% if value == user_settings.default_model %}selected{% endif %}>
+            {{ label }}
+        </option>
+        {% endfor %}
+    </select>
+</div>
+
+<!-- Dimensions -->
+<div class="row mb-3">
+    <div class="col-6">
+        <label for="width" class="form-label small fw-bold text-light">
+            <i class="fas fa-arrows-alt-h"></i> Largeur
+        </label>
+        <select class="form-select form-select-sm bg-dark text-white border-secondary" id="width" name="width">
+            <option value="256">256px</option>
+            <option value="512" selected>512px</option>
+            <option value="768">768px</option>
+            <option value="1024">1024px</option>
+        </select>
+    </div>
+    <div class="col-6">
+        <label for="height" class="form-label small fw-bold text-light">
+            <i class="fas fa-arrows-alt-v"></i> Hauteur
+        </label>
+        <select class="form-select form-select-sm bg-dark text-white border-secondary" id="height" name="height">
+            <option value="256">256px</option>
+            <option value="512" selected>512px</option>
+            <option value="768">768px</option>
+            <option value="1024">1024px</option>
+        </select>
+    </div>
+</div>
+
+<!-- Num Images -->
+<div class="mb-3">
+    <label for="num_images" class="form-label small fw-bold text-light">
+        <i class="fas fa-images"></i> Nombre d'images
+    </label>
+    <select class="form-select form-select-sm bg-dark text-white border-secondary" id="num_images" name="num_images">
+        <option value="1" selected>1</option>
+        <option value="2">2</option>
+        <option value="3">3</option>
+        <option value="4">4</option>
+    </select>
+</div>
+
+<!-- Steps -->
+<div class="mb-3">
+    <label for="steps" class="form-label small fw-bold text-light">
+        <i class="fas fa-shoe-prints"></i> Steps: <span id="steps_value">30</span>
+    </label>
+    <input type="range" class="form-range" id="steps" name="steps"
+           min="10" max="100" step="5" value="30">
+    <small class="text-muted">Plus = meilleure qualité</small>
+</div>
+
+<!-- Guidance Scale -->
+<div class="mb-3">
+    <label for="guidance_scale" class="form-label small fw-bold text-light">
+        <i class="fas fa-sliders-h"></i> Guidance: <span id="guidance_value">7.5</span>
+    </label>
+    <input type="range" class="form-range" id="guidance_scale" name="guidance_scale"
+           min="1" max="20" step="0.5" value="7.5">
+    <small class="text-muted">Suivi du prompt</small>
+</div>
+
+<!-- Seed -->
+<div class="mb-3">
+    <label for="seed" class="form-label small fw-bold text-light">
+        <i class="fas fa-seedling"></i> Seed (optionnel)
+    </label>
+    <input type="number" class="form-control form-control-sm bg-dark text-white border-secondary"
+           id="seed" name="seed" placeholder="Aléatoire si vide">
+</div>
+
+<!-- Upscale -->
+<div class="mb-3">
+    <div class="form-check">
+        <input class="form-check-input" type="checkbox" id="upscale" name="upscale">
+        <label class="form-check-label small text-light" for="upscale">
+            <i class="fas fa-expand-arrows-alt"></i> Upscale (x2)
+        </label>
+    </div>
+</div>
+
+<!-- Reset Button -->
+<button class="btn btn-outline-secondary btn-sm w-100" id="resetOptions">
+    <i class="fas fa-undo"></i> Réinitialiser
+</button>
+{% endblock %}
+
+{% block app_right_panel_actions %}
+<div class="d-grid gap-2">
+    <button class="btn btn-success btn-sm" id="startAllBtn">
+        <i class="fas fa-play"></i> Démarrer tout
+    </button>
+    <button class="btn btn-info btn-sm" id="downloadAllBtn">
+        <i class="fas fa-download"></i> Télécharger tout
+    </button>
+    <button class="btn btn-outline-danger btn-sm" id="clearAllBtn">
+        <i class="fas fa-trash"></i> Tout effacer
+    </button>
+</div>
+{% endblock %}
+
 {% block imager_content %}
 <!-- Prompt Input Section -->
 <div class="row mb-4">
@@ -39,90 +152,6 @@
                         </small>
                     </div>
 
-                    <!-- Parameters Row 1 -->
-                    <div class="row mb-3">
-                        <div class="col-md-3">
-                            <label for="model" class="form-label text-light">Modèle</label>
-                            <select class="form-select bg-dark text-white border-secondary" id="model" name="model">
-                                {% for value, label in models_choices %}
-                                <option value="{{ value }}" {% if value == user_settings.default_model %}selected{% endif %}>
-                                    {{ label }}
-                                </option>
-                                {% endfor %}
-                            </select>
-                        </div>
-
-                        <div class="col-md-3">
-                            <label for="width" class="form-label text-light">Largeur</label>
-                            <select class="form-select bg-dark text-white border-secondary" id="width" name="width">
-                                <option value="256">256px</option>
-                                <option value="512" selected>512px</option>
-                                <option value="768">768px</option>
-                                <option value="1024">1024px</option>
-                            </select>
-                        </div>
-
-                        <div class="col-md-3">
-                            <label for="height" class="form-label text-light">Hauteur</label>
-                            <select class="form-select bg-dark text-white border-secondary" id="height" name="height">
-                                <option value="256">256px</option>
-                                <option value="512" selected>512px</option>
-                                <option value="768">768px</option>
-                                <option value="1024">1024px</option>
-                            </select>
-                        </div>
-
-                        <div class="col-md-3">
-                            <label for="num_images" class="form-label text-light">Nombre d'images</label>
-                            <select class="form-select bg-dark text-white border-secondary" id="num_images" name="num_images">
-                                <option value="1" selected>1</option>
-                                <option value="2">2</option>
-                                <option value="3">3</option>
-                                <option value="4">4</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <!-- Parameters Row 2 -->
-                    <div class="row mb-3">
-                        <div class="col-md-3">
-                            <label for="steps" class="form-label text-light">
-                                Steps : <span id="steps_value">30</span>
-                            </label>
-                            <input type="range" class="form-range" id="steps" name="steps"
-                                   min="10" max="100" step="5" value="30"
-                                   oninput="document.getElementById('steps_value').textContent = this.value">
-                            <small class="text-white-50">Plus de steps = meilleure qualité, plus lent</small>
-                        </div>
-
-                        <div class="col-md-3">
-                            <label for="guidance_scale" class="form-label text-light">
-                                Guidance Scale : <span id="guidance_value">7.5</span>
-                            </label>
-                            <input type="range" class="form-range" id="guidance_scale" name="guidance_scale"
-                                   min="1" max="20" step="0.5" value="7.5"
-                                   oninput="document.getElementById('guidance_value').textContent = this.value">
-                            <small class="text-white-50">Suivi du prompt</small>
-                        </div>
-
-                        <div class="col-md-3">
-                            <label for="seed" class="form-label text-light">Seed (optionnel)</label>
-                            <input type="number" class="form-control bg-dark text-white border-secondary" id="seed" name="seed"
-                                   placeholder="Aléatoire si vide">
-                            <small class="text-white-50">Pour reproductibilité</small>
-                        </div>
-
-                        <div class="col-md-3">
-                            <label class="form-label text-light">&nbsp;</label>
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="upscale" name="upscale">
-                                <label class="form-check-label text-light" for="upscale">
-                                    Upscale l'image
-                                </label>
-                            </div>
-                        </div>
-                    </div>
-
                     <!-- Submit Button -->
                     <div class="text-end">
                         <button type="submit" class="btn btn-primary" id="submitBtn">
@@ -136,20 +165,6 @@
 </div>
 
 <hr class="border-secondary">
-
-<!-- Action Buttons -->
-<div class="row mb-3">
-    <div class="col-12">
-        <div class="btn-group" role="group">
-            <button class="btn btn-success" id="startAllBtn">
-                <i class="fas fa-play"></i> Démarrer tout
-            </button>
-            <button class="btn btn-danger" id="clearAllBtn">
-                <i class="fas fa-trash"></i> Tout effacer
-            </button>
-        </div>
-    </div>
-</div>
 
 <!-- Global Progress -->
 <div class="row mb-3">
@@ -199,9 +214,14 @@
                         <!-- Progress Column -->
                         <div class="col-md-4">
                             <div class="mb-2">
-                                <small class="text-white-50">
-                                    <span class="status-badge">{{ gen.status }}</span>
-                                </small>
+                                <span class="badge
+                                    {% if gen.status == 'PENDING' %}bg-secondary
+                                    {% elif gen.status == 'RUNNING' %}bg-warning
+                                    {% elif gen.status == 'SUCCESS' %}bg-success
+                                    {% elif gen.status == 'FAILURE' %}bg-danger
+                                    {% endif %}">
+                                    {{ gen.status }}
+                                </span>
                             </div>
                             <div class="progress" style="height: 24px;">
                                 <div class="progress-bar" role="progressbar"
@@ -214,34 +234,41 @@
                         <!-- Actions Column -->
                         <div class="col-md-4 text-end">
                             <div class="btn-group" role="group">
-                                {% if gen.status == 'PENDING' %}
+                                <!-- Settings button - always visible except when running -->
+                                {% if gen.status != 'RUNNING' %}
                                 <button class="btn btn-outline-light btn-sm settings-btn" data-id="{{ gen.id }}"
                                         title="Paramètres">
                                     <i class="fas fa-cog"></i>
                                 </button>
                                 {% endif %}
 
-                                {% if gen.status != 'RUNNING' %}
-                                <button class="btn btn-primary btn-sm start-btn" data-id="{{ gen.id }}">
-                                    <i class="fas fa-play"></i>
-                                </button>
-                                {% else %}
+                                <!-- Start/Restart button -->
+                                {% if gen.status == 'RUNNING' %}
                                 <button class="btn btn-secondary btn-sm" disabled>
                                     <i class="fas fa-spinner fa-spin"></i>
                                 </button>
-                                {% endif %}
-
-                                {% if gen.status == 'SUCCESS' %}
-                                <button class="btn btn-success btn-sm download-btn" data-id="{{ gen.id }}">
-                                    <i class="fas fa-download"></i>
+                                {% elif gen.status == 'SUCCESS' or gen.status == 'FAILURE' %}
+                                <button class="btn btn-warning btn-sm restart-btn" data-id="{{ gen.id }}"
+                                        title="Relancer">
+                                    <i class="fas fa-redo"></i>
                                 </button>
                                 {% else %}
-                                <button class="btn btn-secondary btn-sm" disabled>
+                                <button class="btn btn-primary btn-sm start-btn" data-id="{{ gen.id }}"
+                                        title="Démarrer">
+                                    <i class="fas fa-play"></i>
+                                </button>
+                                {% endif %}
+
+                                <!-- Download button -->
+                                {% if gen.status == 'SUCCESS' %}
+                                <button class="btn btn-success btn-sm download-btn" data-id="{{ gen.id }}"
+                                        title="Télécharger">
                                     <i class="fas fa-download"></i>
                                 </button>
                                 {% endif %}
 
-                                <button class="btn btn-danger btn-sm delete-btn" data-id="{{ gen.id }}">
+                                <button class="btn btn-danger btn-sm delete-btn" data-id="{{ gen.id }}"
+                                        title="Supprimer">
                                     <i class="fas fa-trash-alt"></i>
                                 </button>
                             </div>
@@ -291,6 +318,7 @@
 </div>
 {% endblock imager_content %}
 
+{% block extra_modals %}
 <!-- Settings Modal -->
 <div class="modal fade" id="generationSettingsModal" tabindex="-1" aria-labelledby="generationSettingsModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
@@ -419,6 +447,7 @@
         </div>
     </div>
 </div>
+{% endblock extra_modals %}
 
 {% block app_scripts %}
 <script>
@@ -427,9 +456,11 @@
         urls: {
             create: "{% url 'imager:create' %}",
             start: "{% url 'imager:start' 0 %}",
+            restart: "{% url 'imager:restart' 0 %}",
             progress: "{% url 'imager:progress' 0 %}",
             globalProgress: "{% url 'imager:global_progress' %}",
             download: "{% url 'imager:download' 0 %}",
+            downloadAll: "{% url 'imager:download_all' %}",
             delete: "{% url 'imager:delete' 0 %}",
             startAll: "{% url 'imager:start_all' %}",
             clearAll: "{% url 'imager:clear_all' %}",

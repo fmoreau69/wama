@@ -899,4 +899,106 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // Voice Recording for Modal
+    const modalRecordVoiceBtn = document.getElementById('modalRecordVoiceBtn');
+    const modalStopRecordingBtn = document.getElementById('modalStopRecordingBtn');
+    const modalRecordingIndicator = document.getElementById('modalRecordingIndicator');
+    const modalRecordingTimer = document.getElementById('modalRecordingTimer');
+    const settingsVoiceRefInput = document.getElementById('settingsVoiceRef');
+
+    let modalMediaRecorder = null;
+    let modalAudioChunks = [];
+    let modalRecordingStartTime = null;
+    let modalRecordingTimerInterval = null;
+
+    if (modalRecordVoiceBtn) {
+        modalRecordVoiceBtn.addEventListener('click', async () => {
+            try {
+                // Demander l'accès au microphone
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        sampleRate: 22050
+                    }
+                });
+
+                // Créer le MediaRecorder
+                const options = { mimeType: 'audio/webm' };
+                modalMediaRecorder = new MediaRecorder(stream, options);
+                modalAudioChunks = [];
+
+                modalMediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) {
+                        modalAudioChunks.push(event.data);
+                    }
+                };
+
+                modalMediaRecorder.onstop = async () => {
+                    // Arrêter le timer
+                    if (modalRecordingTimerInterval) {
+                        clearInterval(modalRecordingTimerInterval);
+                        modalRecordingTimerInterval = null;
+                    }
+
+                    // Arrêter toutes les pistes audio
+                    stream.getTracks().forEach(track => track.stop());
+
+                    // Créer un blob audio
+                    const audioBlob = new Blob(modalAudioChunks, { type: 'audio/webm' });
+
+                    // Créer un fichier
+                    const file = new File([audioBlob], 'recorded_voice.webm', { type: 'audio/webm' });
+
+                    // Créer un DataTransfer pour assigner le fichier à l'input
+                    const dataTransfer = new DataTransfer();
+                    dataTransfer.items.add(file);
+                    settingsVoiceRefInput.files = dataTransfer.files;
+
+                    // Afficher une confirmation
+                    alert(`Enregistrement terminé ! Durée: ${modalRecordingTimer.textContent}`);
+
+                    // Cacher l'indicateur
+                    modalRecordingIndicator.style.display = 'none';
+                    modalRecordVoiceBtn.disabled = false;
+                };
+
+                // Démarrer l'enregistrement
+                modalMediaRecorder.start();
+                modalRecordingStartTime = Date.now();
+
+                // Afficher l'indicateur
+                modalRecordingIndicator.style.display = 'block';
+                modalRecordVoiceBtn.disabled = true;
+
+                // Démarrer le timer
+                modalRecordingTimerInterval = setInterval(() => {
+                    const elapsed = Math.floor((Date.now() - modalRecordingStartTime) / 1000);
+                    modalRecordingTimer.textContent = `${elapsed}s`;
+
+                    // Arrêter automatiquement après 10 secondes
+                    if (elapsed >= 10) {
+                        modalStopRecordingBtn.click();
+                    }
+                }, 100);
+
+            } catch (error) {
+                console.error('Microphone access error:', error);
+                if (error.name === 'NotAllowedError') {
+                    alert('Accès au microphone refusé. Veuillez autoriser l\'accès au microphone dans les paramètres de votre navigateur.');
+                } else {
+                    alert('Erreur d\'accès au microphone: ' + error.message);
+                }
+            }
+        });
+    }
+
+    if (modalStopRecordingBtn) {
+        modalStopRecordingBtn.addEventListener('click', () => {
+            if (modalMediaRecorder && modalMediaRecorder.state === 'recording') {
+                modalMediaRecorder.stop();
+            }
+        });
+    }
+
 }); // Fin DOMContentLoaded

@@ -1,55 +1,57 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<style>
-  /* Style pour la page user settings - scroll uniquement sur le contenu */
-  .settings-wrapper {
-    height: calc(100vh - 60px);
-    overflow-y: auto;
-    overflow-x: hidden;
-    scrollbar-width: thin;
-    scrollbar-color: rgba(155, 155, 155, 0.5) transparent;
-  }
-  .settings-wrapper::-webkit-scrollbar {
-    width: 6px;
-  }
-  .settings-wrapper::-webkit-scrollbar-track {
-    background: transparent;
-  }
-  .settings-wrapper::-webkit-scrollbar-thumb {
-    background-color: rgba(155, 155, 155, 0.5);
-    border-radius: 3px;
-  }
-</style>
-
-<div class="settings-wrapper">
-  <div class="container-fluid py-4" style="max-width: 1200px;">
-
-    <div class="row mb-4">
-      <div class="col-12">
-        <h1 class="page-header mb-3">
-          <i class="fas fa-cog"></i> User Settings
-        </h1>
-      </div>
-    </div>
-
-    <div class="row">
-      <div class="col-12">
-        <div class="card" style="background: #212529; border: 1px solid #495057;">
-          <div class="card-body">
-            <h5 class="card-title text-light mb-3">
-              <i class="fas fa-pen"></i> Account Management
-            </h5>
-            <div class="list-group">
-              <a href="{% url 'accounts:user-edit' %}" class="list-group-item list-group-item-action" style="background: #343a40; border-color: #495057;">
-                <i class="fas fa-user-edit"></i> Edit User Profile
-              </a>
+<div class="container-fluid py-4">
+    <div class="row justify-content-center">
+        <div class="col-12 col-md-8 col-lg-6">
+            <!-- Header -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2 class="text-light mb-0">
+                    <i class="fas fa-cog"></i> Paramètres
+                </h2>
             </div>
-          </div>
-        </div>
-      </div>
-    </div>
 
-  </div>
+            <!-- User Info Card -->
+            <div class="card bg-dark border-secondary mb-4">
+                <div class="card-header border-secondary">
+                    <h5 class="mb-0"><i class="fas fa-user me-2"></i>Informations utilisateur</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-2">
+                        <div class="col-4 text-muted">Nom d'utilisateur</div>
+                        <div class="col-8">{{ selected_user.username }}</div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-4 text-muted">Nom complet</div>
+                        <div class="col-8">{{ selected_user.first_name }} {{ selected_user.last_name }}</div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-4 text-muted">Email</div>
+                        <div class="col-8">{{ selected_user.email|default:"-" }}</div>
+                    </div>
+                    <div class="row">
+                        <div class="col-4 text-muted">Inscrit le</div>
+                        <div class="col-8">{{ selected_user.date_joined|date:"d/m/Y H:i" }}</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Actions Card -->
+            <div class="card bg-dark border-secondary">
+                <div class="card-header border-secondary">
+                    <h5 class="mb-0"><i class="fas fa-pen me-2"></i>Gestion du compte</h5>
+                </div>
+                <div class="card-body">
+                    {% if can_edit %}
+                    <a href="{% url 'accounts:user-edit' %}" class="btn btn-outline-primary w-100">
+                        <i class="fas fa-user-edit me-2"></i> Modifier mon profil
+                    </a>
+                    {% else %}
+                    <p class="text-muted mb-0">Vous ne pouvez pas modifier ce profil.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock %}
