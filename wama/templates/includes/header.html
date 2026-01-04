@@ -15,6 +15,11 @@
                         </a>
                     </li>
                     <li>
+                        <a class="dropdown-item d-flex align-items-center {% if 'describer' in request.path %}active{% endif %}" href="{% url 'describer:index' %}">
+                            <i class="fas fa-search-plus text-info me-2"></i> Describer
+                        </a>
+                    </li>
+                    <li>
                         <a class="dropdown-item d-flex align-items-center {% if 'enhancer' in request.path %}active{% endif %}" href="{% url 'enhancer:index' %}">
                             <i class="fas fa-wand-magic-sparkles me-2"></i> Enhancer
                         </a>

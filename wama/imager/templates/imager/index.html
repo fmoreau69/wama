@@ -4,102 +4,191 @@
 {% block title %}Imager - AI Image Generation{% endblock %}
 
 {% block app_right_panel_settings %}
-<!-- Model -->
-<div class="mb-3">
-    <label for="model" class="form-label small fw-bold text-light">
-        <i class="fas fa-robot"></i> Modèle
-    </label>
-    <select class="form-select form-select-sm bg-dark text-white border-secondary" id="model" name="model">
-        {% for value, label in models_choices %}
-        <option value="{{ value }}" {% if value == user_settings.default_model %}selected{% endif %}>
-            {{ label }}
-        </option>
-        {% endfor %}
-    </select>
-</div>
+<!-- IMAGE SETTINGS -->
+<div id="imageSettings">
+    <h6 class="text-light mb-3 border-bottom border-secondary pb-2">
+        <i class="fas fa-image text-primary"></i> Paramètres Image
+    </h6>
 
-<!-- Dimensions -->
-<div class="row mb-3">
-    <div class="col-6">
-        <label for="width" class="form-label small fw-bold text-light">
-            <i class="fas fa-arrows-alt-h"></i> Largeur
+    <!-- Model -->
+    <div class="mb-3">
+        <label for="model" class="form-label small fw-bold text-light">
+            <i class="fas fa-robot"></i> Modèle
         </label>
-        <select class="form-select form-select-sm bg-dark text-white border-secondary" id="width" name="width">
-            <option value="256">256px</option>
-            <option value="512" selected>512px</option>
-            <option value="768">768px</option>
-            <option value="1024">1024px</option>
+        <select class="form-select form-select-sm bg-dark text-white border-secondary" id="model" name="model">
+            {% for value, label in models_choices %}
+            <option value="{{ value }}" {% if value == user_settings.default_model %}selected{% endif %}>
+                {{ label }}
+            </option>
+            {% endfor %}
         </select>
     </div>
-    <div class="col-6">
-        <label for="height" class="form-label small fw-bold text-light">
-            <i class="fas fa-arrows-alt-v"></i> Hauteur
+
+    <!-- Dimensions -->
+    <div class="row mb-3">
+        <div class="col-6">
+            <label for="width" class="form-label small fw-bold text-light">
+                <i class="fas fa-arrows-alt-h"></i> Largeur
+            </label>
+            <select class="form-select form-select-sm bg-dark text-white border-secondary" id="width" name="width">
+                <option value="256">256px</option>
+                <option value="512" selected>512px</option>
+                <option value="768">768px</option>
+                <option value="1024">1024px</option>
+            </select>
+        </div>
+        <div class="col-6">
+            <label for="height" class="form-label small fw-bold text-light">
+                <i class="fas fa-arrows-alt-v"></i> Hauteur
+            </label>
+            <select class="form-select form-select-sm bg-dark text-white border-secondary" id="height" name="height">
+                <option value="256">256px</option>
+                <option value="512" selected>512px</option>
+                <option value="768">768px</option>
+                <option value="1024">1024px</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Num Images -->
+    <div class="mb-3">
+        <label for="num_images" class="form-label small fw-bold text-light">
+            <i class="fas fa-images"></i> Nombre d'images
         </label>
-        <select class="form-select form-select-sm bg-dark text-white border-secondary" id="height" name="height">
-            <option value="256">256px</option>
-            <option value="512" selected>512px</option>
-            <option value="768">768px</option>
-            <option value="1024">1024px</option>
+        <select class="form-select form-select-sm bg-dark text-white border-secondary" id="num_images" name="num_images">
+            <option value="1" selected>1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
         </select>
     </div>
-</div>
 
-<!-- Num Images -->
-<div class="mb-3">
-    <label for="num_images" class="form-label small fw-bold text-light">
-        <i class="fas fa-images"></i> Nombre d'images
-    </label>
-    <select class="form-select form-select-sm bg-dark text-white border-secondary" id="num_images" name="num_images">
-        <option value="1" selected>1</option>
-        <option value="2">2</option>
-        <option value="3">3</option>
-        <option value="4">4</option>
-    </select>
-</div>
-
-<!-- Steps -->
-<div class="mb-3">
-    <label for="steps" class="form-label small fw-bold text-light">
-        <i class="fas fa-shoe-prints"></i> Steps: <span id="steps_value">30</span>
-    </label>
-    <input type="range" class="form-range" id="steps" name="steps"
-           min="10" max="100" step="5" value="30">
-    <small class="text-muted">Plus = meilleure qualité</small>
-</div>
-
-<!-- Guidance Scale -->
-<div class="mb-3">
-    <label for="guidance_scale" class="form-label small fw-bold text-light">
-        <i class="fas fa-sliders-h"></i> Guidance: <span id="guidance_value">7.5</span>
-    </label>
-    <input type="range" class="form-range" id="guidance_scale" name="guidance_scale"
-           min="1" max="20" step="0.5" value="7.5">
-    <small class="text-muted">Suivi du prompt</small>
-</div>
-
-<!-- Seed -->
-<div class="mb-3">
-    <label for="seed" class="form-label small fw-bold text-light">
-        <i class="fas fa-seedling"></i> Seed (optionnel)
-    </label>
-    <input type="number" class="form-control form-control-sm bg-dark text-white border-secondary"
-           id="seed" name="seed" placeholder="Aléatoire si vide">
-</div>
-
-<!-- Upscale -->
-<div class="mb-3">
-    <div class="form-check">
-        <input class="form-check-input" type="checkbox" id="upscale" name="upscale">
-        <label class="form-check-label small text-light" for="upscale">
-            <i class="fas fa-expand-arrows-alt"></i> Upscale (x2)
+    <!-- Steps -->
+    <div class="mb-3">
+        <label for="steps" class="form-label small fw-bold text-light">
+            <i class="fas fa-shoe-prints"></i> Steps: <span id="steps_value">30</span>
         </label>
+        <input type="range" class="form-range" id="steps" name="steps"
+               min="10" max="100" step="5" value="30">
+        <small class="text-muted">Plus = meilleure qualité</small>
     </div>
+
+    <!-- Guidance Scale -->
+    <div class="mb-3">
+        <label for="guidance_scale" class="form-label small fw-bold text-light">
+            <i class="fas fa-sliders-h"></i> Guidance: <span id="guidance_value">7.5</span>
+        </label>
+        <input type="range" class="form-range" id="guidance_scale" name="guidance_scale"
+               min="1" max="20" step="0.5" value="7.5">
+        <small class="text-muted">Suivi du prompt</small>
+    </div>
+
+    <!-- Seed -->
+    <div class="mb-3">
+        <label for="seed" class="form-label small fw-bold text-light">
+            <i class="fas fa-seedling"></i> Seed (optionnel)
+        </label>
+        <input type="number" class="form-control form-control-sm bg-dark text-white border-secondary"
+               id="seed" name="seed" placeholder="Aléatoire si vide">
+    </div>
+
+    <!-- Upscale -->
+    <div class="mb-3">
+        <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="upscale" name="upscale">
+            <label class="form-check-label small text-light" for="upscale">
+                <i class="fas fa-expand-arrows-alt"></i> Upscale (x2)
+            </label>
+        </div>
+    </div>
+
+    <!-- Reset Button -->
+    <button class="btn btn-outline-secondary btn-sm w-100" id="resetOptions">
+        <i class="fas fa-undo"></i> Réinitialiser
+    </button>
 </div>
 
-<!-- Reset Button -->
-<button class="btn btn-outline-secondary btn-sm w-100" id="resetOptions">
-    <i class="fas fa-undo"></i> Réinitialiser
-</button>
+<!-- VIDEO SETTINGS -->
+<div id="videoSettings" style="display: none;">
+    <h6 class="text-light mb-3 border-bottom border-success pb-2">
+        <i class="fas fa-film text-success"></i> Paramètres Vidéo
+    </h6>
+
+    <!-- Video Model -->
+    <div class="mb-3">
+        <label for="panel_video_model" class="form-label small fw-bold text-light">
+            <i class="fas fa-robot"></i> Modèle
+        </label>
+        <select class="form-select form-select-sm bg-dark text-white border-secondary" id="panel_video_model">
+            {% for value, label in video_models %}
+            <option value="{{ value }}">{{ label }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <!-- Resolution -->
+    <div class="mb-3">
+        <label for="panel_video_resolution" class="form-label small fw-bold text-light">
+            <i class="fas fa-expand"></i> Résolution
+        </label>
+        <select class="form-select form-select-sm bg-dark text-white border-secondary" id="panel_video_resolution">
+            <option value="480p" selected>480p (832×480)</option>
+            <option value="720p">720p (1280×720)</option>
+        </select>
+    </div>
+
+    <!-- Duration -->
+    <div class="mb-3">
+        <label for="panel_video_duration" class="form-label small fw-bold text-light">
+            <i class="fas fa-clock"></i> Durée: <span id="panel_video_duration_value">5</span>s
+        </label>
+        <input type="range" class="form-range" id="panel_video_duration"
+               min="1" max="15" step="1" value="5">
+    </div>
+
+    <!-- FPS -->
+    <div class="mb-3">
+        <label for="panel_video_fps" class="form-label small fw-bold text-light">
+            <i class="fas fa-tachometer-alt"></i> FPS
+        </label>
+        <select class="form-select form-select-sm bg-dark text-white border-secondary" id="panel_video_fps">
+            <option value="16" selected>16 fps</option>
+            <option value="24">24 fps</option>
+        </select>
+    </div>
+
+    <!-- Steps -->
+    <div class="mb-3">
+        <label for="panel_video_steps" class="form-label small fw-bold text-light">
+            <i class="fas fa-shoe-prints"></i> Steps: <span id="panel_video_steps_value">30</span>
+        </label>
+        <input type="range" class="form-range" id="panel_video_steps"
+               min="10" max="50" step="5" value="30">
+    </div>
+
+    <!-- Guidance Scale -->
+    <div class="mb-3">
+        <label for="panel_video_guidance" class="form-label small fw-bold text-light">
+            <i class="fas fa-sliders-h"></i> Guidance: <span id="panel_video_guidance_value">5.0</span>
+        </label>
+        <input type="range" class="form-range" id="panel_video_guidance"
+               min="1" max="10" step="0.5" value="5">
+    </div>
+
+    <!-- Seed -->
+    <div class="mb-3">
+        <label for="panel_video_seed" class="form-label small fw-bold text-light">
+            <i class="fas fa-seedling"></i> Seed (optionnel)
+        </label>
+        <input type="number" class="form-control form-control-sm bg-dark text-white border-secondary"
+               id="panel_video_seed" placeholder="Aléatoire si vide">
+    </div>
+
+    <!-- Reset Button -->
+    <button class="btn btn-outline-secondary btn-sm w-100" id="resetVideoOptions">
+        <i class="fas fa-undo"></i> Réinitialiser
+    </button>
+</div>
 {% endblock %}
 
 {% block app_right_panel_actions %}
@@ -117,6 +206,29 @@
 {% endblock %}
 
 {% block imager_content %}
+<!-- Tab Navigation -->
+<ul class="nav nav-tabs mb-4" id="generatorTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="image-tab" data-bs-toggle="tab" data-bs-target="#imageTab"
+                type="button" role="tab" aria-controls="imageTab" aria-selected="true">
+            <i class="fas fa-image"></i> Images
+            <span class="badge bg-secondary ms-1" id="imageQueueCount">{{ image_generations.count }}</span>
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="video-tab" data-bs-toggle="tab" data-bs-target="#videoTab"
+                type="button" role="tab" aria-controls="videoTab" aria-selected="false">
+            <i class="fas fa-film"></i> Videos
+            <span class="badge bg-secondary ms-1" id="videoQueueCount">{{ video_generations.count }}</span>
+        </button>
+    </li>
+</ul>
+
+<!-- Tab Content -->
+<div class="tab-content" id="generatorTabsContent">
+    <!-- IMAGE TAB -->
+    <div class="tab-pane fade show active" id="imageTab" role="tabpanel" aria-labelledby="image-tab">
+
 <!-- Prompt Input Section -->
 <div class="row mb-4">
     <div class="col-12">
@@ -126,34 +238,159 @@
                     <i class="fas fa-magic"></i> Créer une nouvelle génération d'image
                 </h5>
 
-                <form id="generationForm">
-                    <!-- Prompt -->
+                <form id="generationForm" enctype="multipart/form-data">
+                    <!-- Generation Mode Selection -->
                     <div class="mb-3">
-                        <label for="prompt" class="form-label text-light">
-                            Prompt <span class="text-danger">*</span>
-                        </label>
-                        <textarea class="form-control bg-dark text-white border-secondary" id="prompt" name="prompt" rows="3"
-                                  placeholder="Décrivez l'image que vous voulez générer..."
-                                  required></textarea>
-                        <small class="text-white-50">
-                            Soyez descriptif ! Exemple : "Un paysage de montagne majestueux au coucher du soleil, style peinture à l'huile, couleurs vibrantes"
-                        </small>
+                        <label class="form-label text-light">Mode de génération</label>
+                        <div class="btn-group w-100 flex-wrap" role="group" aria-label="Mode de génération">
+                            {% for mode_value, mode_label, mode_icon in generation_modes %}
+                            <input type="radio" class="btn-check" name="generation_mode" id="mode_{{ mode_value }}"
+                                   value="{{ mode_value }}" {% if forloop.first %}checked{% endif %} autocomplete="off">
+                            <label class="btn btn-outline-primary btn-sm" for="mode_{{ mode_value }}">
+                                <i class="{{ mode_icon }}"></i> {{ mode_label }}
+                            </label>
+                            {% endfor %}
+                        </div>
                     </div>
 
-                    <!-- Negative Prompt -->
-                    <div class="mb-3">
-                        <label for="negative_prompt" class="form-label text-light">
-                            Prompt négatif (optionnel)
-                        </label>
-                        <textarea class="form-control bg-dark text-white border-secondary" id="negative_prompt" name="negative_prompt" rows="2"
-                                  placeholder="Ce qu'il faut éviter dans l'image..."></textarea>
-                        <small class="text-white-50">
-                            Exemple : "flou, basse qualité, déformé, filigrane"
-                        </small>
+                    <!-- TXT2IMG Section (default) -->
+                    <div id="section_txt2img" class="mode-section">
+                        <!-- Prompt -->
+                        <div class="mb-3">
+                            <label for="prompt" class="form-label text-light">
+                                Prompt <span class="text-danger">*</span>
+                            </label>
+                            <textarea class="form-control bg-dark text-white border-secondary" id="prompt" name="prompt" rows="3"
+                                      placeholder="Décrivez l'image que vous voulez générer..."></textarea>
+                            <small class="text-white-50">
+                                Soyez descriptif ! Exemple : "Un paysage de montagne majestueux au coucher du soleil, style peinture à l'huile, couleurs vibrantes"
+                            </small>
+                        </div>
+
+                        <!-- Negative Prompt -->
+                        <div class="mb-3">
+                            <label for="negative_prompt" class="form-label text-light">
+                                Prompt négatif (optionnel)
+                            </label>
+                            <textarea class="form-control bg-dark text-white border-secondary" id="negative_prompt" name="negative_prompt" rows="2"
+                                      placeholder="Ce qu'il faut éviter dans l'image..."></textarea>
+                            <small class="text-white-50">
+                                Exemple : "flou, basse qualité, déformé, filigrane"
+                            </small>
+                        </div>
+                    </div>
+
+                    <!-- FILE2IMG Section -->
+                    <div id="section_file2img" class="mode-section" style="display: none;">
+                        <div class="mb-3">
+                            <label class="form-label text-light">
+                                Fichier de prompts <span class="text-danger">*</span>
+                            </label>
+                            <div class="drop-zone bg-secondary bg-opacity-25 border border-secondary border-2 border-dashed rounded p-4 text-center"
+                                 id="promptFileDropZone">
+                                <i class="fas fa-file-upload fa-2x mb-2 text-white-50"></i>
+                                <p class="mb-1 text-white-50">Déposez un fichier de prompts ici</p>
+                                <p class="small text-white-50">(.txt, .json, .yaml)</p>
+                                <input type="file" class="d-none" id="promptFileInput" name="prompt_file"
+                                       accept=".txt,.json,.yaml,.yml">
+                                <button type="button" class="btn btn-outline-light btn-sm" onclick="document.getElementById('promptFileInput').click()">
+                                    <i class="fas fa-folder-open"></i> Parcourir
+                                </button>
+                            </div>
+                            <div id="promptFilePreview" class="mt-2 d-none">
+                                <span class="badge bg-info"><i class="fas fa-file"></i> <span id="promptFileName"></span></span>
+                                <button type="button" class="btn btn-link btn-sm text-danger" id="removePromptFile">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                            <small class="text-white-50">
+                                Format TXT : un prompt par ligne. Format JSON/YAML : liste de prompts avec paramètres optionnels.
+                            </small>
+                        </div>
+                    </div>
+
+                    <!-- DESCRIBE2IMG Section -->
+                    <div id="section_describe2img" class="mode-section" style="display: none;">
+                        <div class="mb-3">
+                            <label class="form-label text-light">
+                                Image à décrire <span class="text-danger">*</span>
+                            </label>
+                            <div class="drop-zone bg-secondary bg-opacity-25 border border-secondary border-2 border-dashed rounded p-4 text-center"
+                                 id="describeImageDropZone">
+                                <i class="fas fa-search-plus fa-2x mb-2 text-white-50"></i>
+                                <p class="mb-1 text-white-50">Déposez une image ici</p>
+                                <p class="small text-white-50">Un prompt sera généré automatiquement</p>
+                                <input type="file" class="d-none" id="describeImageInput" name="reference_image_describe"
+                                       accept="image/*">
+                                <button type="button" class="btn btn-outline-light btn-sm" onclick="document.getElementById('describeImageInput').click()">
+                                    <i class="fas fa-folder-open"></i> Parcourir
+                                </button>
+                            </div>
+                            <img id="describeImagePreview" class="img-fluid mt-2 d-none rounded" style="max-height: 200px;">
+                        </div>
+                        <div class="mb-3">
+                            <label for="prompt_style" class="form-label text-light">Style du prompt</label>
+                            <select class="form-select bg-dark text-white border-secondary" id="prompt_style" name="prompt_style">
+                                <option value="detailed">Détaillé (qualité photo)</option>
+                                <option value="simple">Simple (minimaliste)</option>
+                                <option value="artistic">Artistique (peinture)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- STYLE2IMG / IMG2IMG Section -->
+                    <div id="section_img2img" class="mode-section" style="display: none;">
+                        <div class="mb-3">
+                            <label class="form-label text-light">
+                                Image de référence <span class="text-danger">*</span>
+                            </label>
+                            <div class="drop-zone bg-secondary bg-opacity-25 border border-secondary border-2 border-dashed rounded p-4 text-center"
+                                 id="referenceImageDropZone">
+                                <i class="fas fa-image fa-2x mb-2 text-white-50"></i>
+                                <p class="mb-1 text-white-50">Déposez une image de référence ici</p>
+                                <input type="file" class="d-none" id="referenceImageInput" name="reference_image"
+                                       accept="image/*">
+                                <button type="button" class="btn btn-outline-light btn-sm" onclick="document.getElementById('referenceImageInput').click()">
+                                    <i class="fas fa-folder-open"></i> Parcourir
+                                </button>
+                            </div>
+                            <img id="referenceImagePreview" class="img-fluid mt-2 d-none rounded" style="max-height: 200px;">
+                        </div>
+
+                        <!-- Prompt for img2img/style (optional for style, recommended for img2img) -->
+                        <div class="mb-3">
+                            <label for="img2img_prompt" class="form-label text-light">
+                                Prompt <span id="img2img_prompt_required" class="text-white-50">(optionnel)</span>
+                            </label>
+                            <textarea class="form-control bg-dark text-white border-secondary" id="img2img_prompt" name="img2img_prompt" rows="2"
+                                      placeholder="Description de l'image souhaitée..."></textarea>
+                        </div>
+
+                        <!-- Image Strength slider -->
+                        <div class="mb-3">
+                            <label for="image_strength" class="form-label text-light">
+                                <i class="fas fa-sliders-h"></i> Force de l'image : <span id="image_strength_value">75%</span>
+                            </label>
+                            <input type="range" class="form-range" id="image_strength" name="image_strength"
+                                   min="0" max="100" step="5" value="75">
+                            <div class="d-flex justify-content-between">
+                                <small class="text-white-50">0% = ignorer l'image</small>
+                                <small class="text-white-50">100% = copie exacte</small>
+                            </div>
+                        </div>
+
+                        <!-- Negative Prompt for img2img -->
+                        <div class="mb-3">
+                            <label for="img2img_negative_prompt" class="form-label text-light">
+                                Prompt négatif (optionnel)
+                            </label>
+                            <textarea class="form-control bg-dark text-white border-secondary" id="img2img_negative_prompt" name="img2img_negative_prompt" rows="2"
+                                      placeholder="Ce qu'il faut éviter..."></textarea>
+                        </div>
                     </div>
 
                     <!-- Submit Button -->
-                    <div class="text-end">
+                    <div class="text-end mt-3">
                         <button type="submit" class="btn btn-primary" id="submitBtn">
                             <i class="fas fa-plus"></i> Ajouter à la file
                         </button>
@@ -189,12 +426,12 @@
 <div class="row">
     <div class="col-12">
         <h4 class="mb-3 text-light">
-            <i class="fas fa-list"></i> File d'attente
-            <span class="badge bg-secondary" id="queueCount">{{ generations.count }}</span>
+            <i class="fas fa-list"></i> File d'attente images
+            <span class="badge bg-secondary" id="queueCount">{{ image_generations.count }}</span>
         </h4>
 
         <div id="generationsQueue">
-            {% for gen in generations %}
+            {% for gen in image_generations %}
             <div class="card mb-3 bg-dark border-secondary" data-id="{{ gen.id }}">
                 <div class="card-body">
                     <div class="row align-items-center">
@@ -316,6 +553,349 @@
         </div>
     </div>
 </div>
+
+    </div><!-- End Image Tab -->
+
+    <!-- VIDEO TAB -->
+    <div class="tab-pane fade" id="videoTab" role="tabpanel" aria-labelledby="video-tab">
+
+<!-- Video Prompt Input Section -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card bg-dark border-secondary">
+            <div class="card-body">
+                <h5 class="text-light mb-3">
+                    <i class="fas fa-film"></i> Créer une nouvelle génération de vidéo
+                </h5>
+
+                <form id="videoGenerationForm" enctype="multipart/form-data">
+                    <!-- Video Generation Mode Selection -->
+                    <div class="mb-3">
+                        <label class="form-label text-light">Mode de génération</label>
+                        <div class="btn-group" role="group" aria-label="Mode de génération vidéo">
+                            <input type="radio" class="btn-check" name="video_generation_mode" id="video_mode_txt2vid"
+                                   value="txt2vid" checked autocomplete="off">
+                            <label class="btn btn-outline-success btn-sm" for="video_mode_txt2vid">
+                                <i class="fas fa-keyboard"></i> Text to Video
+                            </label>
+                            <input type="radio" class="btn-check" name="video_generation_mode" id="video_mode_img2vid"
+                                   value="img2vid" autocomplete="off">
+                            <label class="btn btn-outline-success btn-sm" for="video_mode_img2vid">
+                                <i class="fas fa-image"></i> Image to Video
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- TXT2VID Section -->
+                    <div id="section_txt2vid" class="video-mode-section">
+                        <!-- Prompt -->
+                        <div class="mb-3">
+                            <label for="video_prompt" class="form-label text-light">
+                                Prompt <span class="text-danger">*</span>
+                            </label>
+                            <textarea class="form-control bg-dark text-white border-secondary" id="video_prompt" name="video_prompt" rows="3"
+                                      placeholder="Décrivez la vidéo que vous voulez générer..."></textarea>
+                            <small class="text-white-50">
+                                Exemple : "Un paysage de montagne au lever du soleil, les nuages se déplacent lentement, rayons de lumière dorée"
+                            </small>
+                        </div>
+
+                        <!-- Negative Prompt -->
+                        <div class="mb-3">
+                            <label for="video_negative_prompt" class="form-label text-light">
+                                Prompt négatif (optionnel)
+                            </label>
+                            <textarea class="form-control bg-dark text-white border-secondary" id="video_negative_prompt" name="video_negative_prompt" rows="2"
+                                      placeholder="Ce qu'il faut éviter dans la vidéo..."></textarea>
+                            <small class="text-white-50">
+                                Exemple : "flou, basse qualité, déformé, texte, filigrane"
+                            </small>
+                        </div>
+                    </div>
+
+                    <!-- IMG2VID Section -->
+                    <div id="section_img2vid" class="video-mode-section" style="display: none;">
+                        <div class="mb-3">
+                            <label class="form-label text-light">
+                                Image de référence <span class="text-danger">*</span>
+                            </label>
+                            <div class="drop-zone bg-secondary bg-opacity-25 border border-secondary border-2 border-dashed rounded p-4 text-center"
+                                 id="videoImageDropZone">
+                                <i class="fas fa-image fa-2x mb-2 text-white-50"></i>
+                                <p class="mb-1 text-white-50">Déposez une image ici pour l'animer</p>
+                                <input type="file" class="d-none" id="videoImageInput" name="video_reference_image"
+                                       accept="image/*">
+                                <button type="button" class="btn btn-outline-light btn-sm" onclick="document.getElementById('videoImageInput').click()">
+                                    <i class="fas fa-folder-open"></i> Parcourir
+                                </button>
+                            </div>
+                            <img id="videoImagePreview" class="img-fluid mt-2 d-none rounded" style="max-height: 200px;">
+                        </div>
+
+                        <!-- Prompt for img2vid -->
+                        <div class="mb-3">
+                            <label for="video_img2vid_prompt" class="form-label text-light">
+                                Prompt (mouvement souhaité) <span class="text-danger">*</span>
+                            </label>
+                            <textarea class="form-control bg-dark text-white border-secondary" id="video_img2vid_prompt" name="video_img2vid_prompt" rows="2"
+                                      placeholder="Décrivez le mouvement ou l'animation souhaitée..."></textarea>
+                            <small class="text-white-50">
+                                Exemple : "les feuilles bougent doucement avec le vent, les nuages défilent dans le ciel"
+                            </small>
+                        </div>
+
+                        <!-- Negative Prompt for img2vid -->
+                        <div class="mb-3">
+                            <label for="video_img2vid_negative_prompt" class="form-label text-light">
+                                Prompt négatif (optionnel)
+                            </label>
+                            <textarea class="form-control bg-dark text-white border-secondary" id="video_img2vid_negative_prompt" name="video_img2vid_negative_prompt" rows="2"
+                                      placeholder="Ce qu'il faut éviter..."></textarea>
+                        </div>
+                    </div>
+
+                    <!-- Video Parameters -->
+                    <div class="card bg-secondary bg-opacity-25 border-secondary mt-3">
+                        <div class="card-header py-2">
+                            <i class="fas fa-sliders-h"></i> Paramètres vidéo
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <!-- Model -->
+                                <div class="col-md-6 mb-3">
+                                    <label for="video_model" class="form-label text-light">Modèle</label>
+                                    <select class="form-select form-select-sm bg-dark text-white border-secondary" id="video_model" name="video_model">
+                                        {% for value, label in video_models %}
+                                        <option value="{{ value }}">{{ label }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    <small class="text-white-50">1.3B : ~8GB VRAM | 5B : ~24GB VRAM</small>
+                                </div>
+
+                                <!-- Resolution -->
+                                <div class="col-md-6 mb-3">
+                                    <label for="video_resolution" class="form-label text-light">Résolution</label>
+                                    <select class="form-select form-select-sm bg-dark text-white border-secondary" id="video_resolution" name="video_resolution">
+                                        <option value="480p" selected>480p (832×480)</option>
+                                        <option value="720p">720p (1280×720)</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <!-- Duration -->
+                                <div class="col-md-4 mb-3">
+                                    <label for="video_duration" class="form-label text-light">
+                                        Durée : <span id="video_duration_value">5</span>s
+                                    </label>
+                                    <input type="range" class="form-range" id="video_duration" name="video_duration"
+                                           min="1" max="15" step="1" value="5">
+                                </div>
+
+                                <!-- FPS -->
+                                <div class="col-md-4 mb-3">
+                                    <label for="video_fps" class="form-label text-light">FPS</label>
+                                    <select class="form-select form-select-sm bg-dark text-white border-secondary" id="video_fps" name="video_fps">
+                                        <option value="16" selected>16 fps</option>
+                                        <option value="24">24 fps</option>
+                                    </select>
+                                </div>
+
+                                <!-- Seed -->
+                                <div class="col-md-4 mb-3">
+                                    <label for="video_seed" class="form-label text-light">Seed</label>
+                                    <input type="number" class="form-control form-control-sm bg-dark text-white border-secondary"
+                                           id="video_seed" name="video_seed" placeholder="Aléatoire">
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <!-- Steps -->
+                                <div class="col-md-6 mb-3">
+                                    <label for="video_steps" class="form-label text-light">
+                                        Steps : <span id="video_steps_value">30</span>
+                                    </label>
+                                    <input type="range" class="form-range" id="video_steps" name="video_steps"
+                                           min="10" max="50" step="5" value="30">
+                                </div>
+
+                                <!-- Guidance Scale -->
+                                <div class="col-md-6 mb-3">
+                                    <label for="video_guidance_scale" class="form-label text-light">
+                                        Guidance : <span id="video_guidance_value">5.0</span>
+                                    </label>
+                                    <input type="range" class="form-range" id="video_guidance_scale" name="video_guidance_scale"
+                                           min="1" max="10" step="0.5" value="5">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Submit Button -->
+                    <div class="text-end mt-3">
+                        <button type="submit" class="btn btn-success" id="videoSubmitBtn">
+                            <i class="fas fa-plus"></i> Ajouter à la file vidéo
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<hr class="border-secondary">
+
+<!-- Video Global Progress -->
+<div class="row mb-3">
+    <div class="col-12">
+        <div class="card bg-dark border-secondary">
+            <div class="card-body py-2">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h6 class="mb-0 text-light">
+                        <i class="fas fa-chart-line"></i> Progression globale vidéos
+                    </h6>
+                    <small class="text-white-50" id="videoGlobalProgressStats">0/0 terminé</small>
+                </div>
+                <div class="progress" style="height: 20px;">
+                    <div class="progress-bar bg-success" id="videoGlobalProgressBar" role="progressbar" style="width: 0%">0%</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Video Queue -->
+<div class="row">
+    <div class="col-12">
+        <h4 class="mb-3 text-light">
+            <i class="fas fa-list"></i> File d'attente vidéos
+            <span class="badge bg-success" id="videoQueueCountInner">{{ video_generations.count }}</span>
+        </h4>
+
+        <div id="videoGenerationsQueue">
+            {% for gen in video_generations %}
+            <div class="card mb-3 bg-dark border-success" data-id="{{ gen.id }}">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <!-- Info Column -->
+                        <div class="col-md-4">
+                            <h6 class="text-light mb-1">
+                                <i class="fas fa-film text-success"></i> Vidéo #{{ gen.id }}
+                            </h6>
+                            <p class="text-white-50 mb-1" style="font-size: 0.9rem;">
+                                {{ gen.prompt|truncatechars:100 }}
+                            </p>
+                            <small class="text-white-50">
+                                <i class="fas fa-robot"></i> {{ gen.model }}
+                                • {{ gen.video_resolution }}
+                                • {{ gen.video_duration }}s @ {{ gen.video_fps }}fps
+                            </small>
+                        </div>
+
+                        <!-- Progress Column -->
+                        <div class="col-md-4">
+                            <div class="mb-2">
+                                <span class="badge
+                                    {% if gen.status == 'PENDING' %}bg-secondary
+                                    {% elif gen.status == 'RUNNING' %}bg-warning
+                                    {% elif gen.status == 'SUCCESS' %}bg-success
+                                    {% elif gen.status == 'FAILURE' %}bg-danger
+                                    {% endif %}">
+                                    {{ gen.status }}
+                                </span>
+                            </div>
+                            <div class="progress" style="height: 24px;">
+                                <div class="progress-bar bg-success" role="progressbar"
+                                     style="width: {{ gen.progress }}%;">
+                                    {{ gen.progress }}%
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Actions Column -->
+                        <div class="col-md-4 text-end">
+                            <div class="btn-group" role="group">
+                                <!-- Settings button - always visible except when running -->
+                                {% if gen.status != 'RUNNING' %}
+                                <button class="btn btn-outline-light btn-sm video-settings-btn" data-id="{{ gen.id }}"
+                                        title="Paramètres">
+                                    <i class="fas fa-cog"></i>
+                                </button>
+                                {% endif %}
+
+                                <!-- Start/Restart button -->
+                                {% if gen.status == 'RUNNING' %}
+                                <button class="btn btn-secondary btn-sm" disabled>
+                                    <i class="fas fa-spinner fa-spin"></i>
+                                </button>
+                                {% elif gen.status == 'SUCCESS' or gen.status == 'FAILURE' %}
+                                <button class="btn btn-warning btn-sm video-restart-btn" data-id="{{ gen.id }}"
+                                        title="Relancer">
+                                    <i class="fas fa-redo"></i>
+                                </button>
+                                {% else %}
+                                <button class="btn btn-success btn-sm video-start-btn" data-id="{{ gen.id }}"
+                                        title="Démarrer">
+                                    <i class="fas fa-play"></i>
+                                </button>
+                                {% endif %}
+
+                                <!-- Download button -->
+                                {% if gen.status == 'SUCCESS' and gen.output_video %}
+                                <button class="btn btn-success btn-sm video-download-btn" data-id="{{ gen.id }}"
+                                        title="Télécharger">
+                                    <i class="fas fa-download"></i>
+                                </button>
+                                {% endif %}
+
+                                <button class="btn btn-danger btn-sm video-delete-btn" data-id="{{ gen.id }}"
+                                        title="Supprimer">
+                                    <i class="fas fa-trash-alt"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Generated Video (if SUCCESS) -->
+                    {% if gen.status == 'SUCCESS' and gen.output_video %}
+                    <div class="row mt-3">
+                        <div class="col-12">
+                            <video controls class="w-100 rounded" style="max-height: 400px;">
+                                <source src="{{ gen.output_video.url }}" type="video/mp4">
+                                Votre navigateur ne supporte pas la lecture vidéo.
+                            </video>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Error Message (if FAILURE) -->
+                    {% if gen.status == 'FAILURE' and gen.error_message %}
+                    <div class="row mt-2">
+                        <div class="col-12">
+                            <div class="alert alert-danger mb-0">
+                                <i class="fas fa-exclamation-triangle"></i>
+                                {{ gen.error_message }}
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% empty %}
+            <div class="card bg-dark border-success">
+                <div class="card-body text-center text-white-50 py-4">
+                    <i class="fas fa-film fa-3x mb-3"></i>
+                    <p class="mb-0">Aucune génération vidéo en attente. Créez-en une ci-dessus !</p>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+    </div><!-- End Video Tab -->
+</div><!-- End Tab Content -->
+
 {% endblock imager_content %}
 
 {% block extra_modals %}
@@ -447,9 +1027,141 @@
         </div>
     </div>
 </div>
+
+<!-- Video Settings Modal -->
+<div class="modal fade" id="videoSettingsModal" tabindex="-1" aria-labelledby="videoSettingsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content bg-dark text-white border-success">
+            <div class="modal-header border-success">
+                <h5 class="modal-title" id="videoSettingsModalLabel">
+                    <i class="fas fa-film text-success"></i> Paramètres vidéo #<span id="video_modal_gen_id"></span>
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="videoSettingsForm">
+                    <input type="hidden" id="video_settings_gen_id" name="generation_id">
+
+                    <!-- Prompt -->
+                    <div class="mb-3">
+                        <label for="video_settings_prompt" class="form-label">Prompt</label>
+                        <textarea class="form-control bg-dark text-white border-secondary" id="video_settings_prompt" name="prompt" rows="3"></textarea>
+                    </div>
+
+                    <!-- Negative Prompt -->
+                    <div class="mb-3">
+                        <label for="video_settings_negative_prompt" class="form-label">Prompt négatif</label>
+                        <textarea class="form-control bg-dark text-white border-secondary" id="video_settings_negative_prompt" name="negative_prompt" rows="2"></textarea>
+                    </div>
+
+                    <div class="row">
+                        <!-- Model -->
+                        <div class="col-md-6 mb-3">
+                            <label for="video_settings_model" class="form-label">Modèle</label>
+                            <select class="form-select bg-dark text-white border-secondary" id="video_settings_model" name="model">
+                                {% for value, label in video_models %}
+                                <option value="{{ value }}">{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <!-- Resolution -->
+                        <div class="col-md-6 mb-3">
+                            <label for="video_settings_resolution" class="form-label">Résolution</label>
+                            <select class="form-select bg-dark text-white border-secondary" id="video_settings_resolution" name="video_resolution">
+                                <option value="480p">480p (832×480)</option>
+                                <option value="720p">720p (1280×720)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <!-- Duration -->
+                        <div class="col-md-4 mb-3">
+                            <label for="video_settings_duration" class="form-label">
+                                Durée : <span id="video_settings_duration_value">5</span>s
+                            </label>
+                            <input type="range" class="form-range" id="video_settings_duration" name="video_duration"
+                                   min="1" max="15" step="1" value="5"
+                                   oninput="document.getElementById('video_settings_duration_value').textContent = this.value">
+                        </div>
+
+                        <!-- FPS -->
+                        <div class="col-md-4 mb-3">
+                            <label for="video_settings_fps" class="form-label">FPS</label>
+                            <select class="form-select bg-dark text-white border-secondary" id="video_settings_fps" name="video_fps">
+                                <option value="16">16 fps</option>
+                                <option value="24">24 fps</option>
+                            </select>
+                        </div>
+
+                        <!-- Seed -->
+                        <div class="col-md-4 mb-3">
+                            <label for="video_settings_seed" class="form-label">Seed</label>
+                            <input type="number" class="form-control bg-dark text-white border-secondary" id="video_settings_seed" name="seed"
+                                   placeholder="Aléatoire si vide">
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <!-- Steps -->
+                        <div class="col-md-6 mb-3">
+                            <label for="video_settings_steps" class="form-label">
+                                Steps : <span id="video_settings_steps_value">30</span>
+                            </label>
+                            <input type="range" class="form-range" id="video_settings_steps" name="steps"
+                                   min="10" max="50" step="5" value="30"
+                                   oninput="document.getElementById('video_settings_steps_value').textContent = this.value">
+                        </div>
+
+                        <!-- Guidance Scale -->
+                        <div class="col-md-6 mb-3">
+                            <label for="video_settings_guidance" class="form-label">
+                                Guidance : <span id="video_settings_guidance_value">5.0</span>
+                            </label>
+                            <input type="range" class="form-range" id="video_settings_guidance" name="guidance_scale"
+                                   min="1" max="10" step="0.5" value="5"
+                                   oninput="document.getElementById('video_settings_guidance_value').textContent = this.value">
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer border-success">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                <button type="button" class="btn btn-success" id="saveVideoSettingsBtn">
+                    <i class="fas fa-play"></i> Enregistrer et démarrer
+                </button>
+                <button type="button" class="btn btn-primary" id="saveVideoSettingsOnlyBtn">
+                    <i class="fas fa-save"></i> Enregistrer
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock extra_modals %}
 
 {% block app_scripts %}
+<style>
+    /* Drop zone styles */
+    .drop-zone {
+        transition: all 0.3s ease;
+    }
+    .drop-zone.dragover {
+        background-color: rgba(13, 110, 253, 0.2) !important;
+        border-color: #0d6efd !important;
+    }
+    .drop-zone:hover {
+        background-color: rgba(255, 255, 255, 0.1) !important;
+    }
+    .border-dashed {
+        border-style: dashed !important;
+    }
+    /* Mode button group responsive */
+    .btn-group.flex-wrap > .btn-check:checked + .btn {
+        background-color: #0d6efd;
+        color: white;
+    }
+</style>
 <script>
     // Inject Django URLs and CSRF token into JavaScript
     window.IMAGER_CONFIG = {
@@ -465,7 +1177,10 @@
             startAll: "{% url 'imager:start_all' %}",
             clearAll: "{% url 'imager:clear_all' %}",
             getSettings: "{% url 'imager:get_settings' 0 %}",
-            saveSettings: "{% url 'imager:save_settings' 0 %}"
+            saveSettings: "{% url 'imager:save_settings' 0 %}",
+            autoPrompt: "{% url 'imager:auto_prompt' %}",
+            batchChildren: "{% url 'imager:batch_children' 0 %}",
+            startBatch: "{% url 'imager:start_batch' 0 %}"
         },
         csrfToken: "{{ csrf_token }}"
     };

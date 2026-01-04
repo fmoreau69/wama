@@ -8,7 +8,7 @@
 
     <!-- Search -->
     <div class="filemanager-search">
-        <input type="search" id="filemanager-tree-filter" name="filemanager-tree-filter" class="form-control form-control-sm" placeholder="Rechercher..." autocomplete="search">
+        <input type="text" id="filemanager-tree-filter" name="filemanager-tree-filter" class="form-control form-control-sm" placeholder="Rechercher..." autocomplete="off" data-1p-ignore="true" data-lpignore="true" data-form-type="other">
     </div>
 
     <!-- Drop Zone for Upload -->
@@ -33,6 +33,7 @@
         apiDeleteUrl: '{% url "filemanager:api_delete" %}',
         apiDeleteAllUrl: '{% url "filemanager:api_delete_all" %}',
         apiRenameUrl: '{% url "filemanager:api_rename" %}',
+        apiMoveUrl: '{% url "filemanager:api_move" %}',
         apiInfoUrl: '{% url "filemanager:api_info" %}',
         apiPreviewUrl: '{% url "filemanager:api_preview" %}',
         apiImportUrl: '{% url "filemanager:api_import" %}',

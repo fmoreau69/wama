@@ -1,6 +1,11 @@
 """
 WAMA Imager - Views
-Image generation using imaginAIry
+Image generation using Diffusers with multi-modal support:
+- txt2img: Text to image (standard)
+- file2img: Batch from prompt file (txt/json/yaml)
+- describe2img: Auto-prompt from reference image via BLIP
+- style2img: Style transfer from reference image
+- img2img: Image to image transformation
 """
 
 from django.shortcuts import render, redirect, get_object_or_404
@@ -10,10 +15,12 @@ from django.contrib.auth.decorators import login_required
 from django.core.files.base import ContentFile
 from django.core.cache import cache
 from django.utils import timezone
+from django.conf import settings
 from django.db.models import Q
 import os
 import json
 import logging
+from pathlib import Path
 
 from .models import ImageGeneration, UserSettings
 from wama.accounts.views import get_or_create_anonymous_user
@@ -25,8 +32,11 @@ def index(request):
     """Main page showing generation queue"""
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
 
-    # Get user's generations
-    generations = ImageGeneration.objects.filter(user=user).order_by('-created_at')
+    # Get user's generations (exclude batch children from main list)
+    generations = ImageGeneration.objects.filter(
+        user=user,
+        parent_generation__isnull=True  # Only show top-level generations
+    ).order_by('-created_at')
 
     # Get or create user settings
     user_settings, _ = UserSettings.objects.get_or_create(user=user)
@@ -52,13 +62,44 @@ def index(request):
         backend_available = False
         available_backends = {}
 
+    # Generation mode choices for UI - Images
+    image_modes = [
+        ('txt2img', 'Text to Image', 'fas fa-keyboard'),
+        ('file2img', 'File (Batch)', 'fas fa-file-alt'),
+        ('describe2img', 'Describe', 'fas fa-search-plus'),
+        ('style2img', 'Style Transfer', 'fas fa-palette'),
+        ('img2img', 'Img2Img', 'fas fa-exchange-alt'),
+    ]
+
+    # Generation mode choices for UI - Videos
+    video_modes = [
+        ('txt2vid', 'Text to Video', 'fas fa-keyboard'),
+        ('img2vid', 'Image to Video', 'fas fa-image'),
+    ]
+
+    # Video model choices
+    video_models = [
+        ('wan-t2v-1.3b', 'Wan T2V 1.3B (~8GB VRAM) - Text-to-Video'),
+        ('wan-i2v-14b', 'Wan I2V 14B (~24GB VRAM) - Image-to-Video'),
+    ]
+
+    # Separate image and video generations
+    image_generations = generations.exclude(generation_mode__in=['txt2vid', 'img2vid'])
+    video_generations = generations.filter(generation_mode__in=['txt2vid', 'img2vid'])
+
     context = {
         'generations': generations,
+        'image_generations': image_generations,
+        'video_generations': video_generations,
         'user_settings': user_settings,
         'models_choices': models_choices,
+        'video_models': video_models,
         'backend_name': backend_name,
         'backend_available': backend_available,
         'available_backends': available_backends,
+        'image_modes': image_modes,
+        'video_modes': video_modes,
+        'generation_modes': image_modes,  # Keep for backward compatibility
     }
 
     return render(request, 'imager/index.html', context)
@@ -66,55 +107,462 @@ def index(request):
 
 @require_http_methods(["POST"])
 def create_generation(request):
-    """Create a new image generation task"""
+    """Create a new image generation task (routes to appropriate handler based on mode)"""
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
 
     try:
-        # Get parameters from request
-        prompt = request.POST.get('prompt', '').strip()
-        if not prompt:
-            return JsonResponse({'error': 'Prompt is required'}, status=400)
+        # Get generation mode
+        generation_mode = request.POST.get('generation_mode', 'txt2img')
 
-        negative_prompt = request.POST.get('negative_prompt', '').strip()
-        model = request.POST.get('model', 'openjourney-v4')
-        width = int(request.POST.get('width', 512))
-        height = int(request.POST.get('height', 512))
-        steps = int(request.POST.get('steps', 30))
-        guidance_scale = float(request.POST.get('guidance_scale', 7.5))
-        seed = request.POST.get('seed')
-        if seed:
-            seed = int(seed)
+        # Route to appropriate handler
+        if generation_mode == 'file2img':
+            return handle_file2img(request, user)
+        elif generation_mode == 'describe2img':
+            return handle_describe2img(request, user)
+        elif generation_mode in ('style2img', 'img2img'):
+            return handle_img2img(request, user, generation_mode)
+        elif generation_mode == 'txt2vid':
+            return handle_txt2vid(request, user)
+        elif generation_mode == 'img2vid':
+            return handle_img2vid(request, user)
         else:
-            seed = None
-        num_images = int(request.POST.get('num_images', 1))
-        upscale = request.POST.get('upscale', 'false').lower() == 'true'
+            # Default: txt2img mode
+            return handle_txt2img(request, user)
 
-        # Create generation object
-        generation = ImageGeneration.objects.create(
+    except Exception as e:
+        logger.error(f"Error creating generation: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+def handle_txt2img(request, user):
+    """Handle standard text-to-image generation"""
+    prompt = request.POST.get('prompt', '').strip()
+    if not prompt:
+        return JsonResponse({'error': 'Prompt is required'}, status=400)
+
+    negative_prompt = request.POST.get('negative_prompt', '').strip()
+    model = request.POST.get('model', 'openjourney-v4')
+    width = int(request.POST.get('width', 512))
+    height = int(request.POST.get('height', 512))
+    steps = int(request.POST.get('steps', 30))
+    guidance_scale = float(request.POST.get('guidance_scale', 7.5))
+    seed = request.POST.get('seed')
+    if seed:
+        seed = int(seed)
+    else:
+        seed = None
+    num_images = int(request.POST.get('num_images', 1))
+    upscale = request.POST.get('upscale', 'false').lower() == 'true'
+
+    # Create generation object
+    generation = ImageGeneration.objects.create(
+        user=user,
+        generation_mode='txt2img',
+        prompt=prompt,
+        negative_prompt=negative_prompt,
+        model=model,
+        width=width,
+        height=height,
+        steps=steps,
+        guidance_scale=guidance_scale,
+        seed=seed,
+        num_images=num_images,
+        upscale=upscale,
+        status='PENDING'
+    )
+
+    logger.info(f"Created txt2img generation #{generation.id} for user {user.username}")
+
+    return JsonResponse({
+        'success': True,
+        'generation_id': generation.id,
+        'message': 'Generation created successfully'
+    })
+
+
+def handle_file2img(request, user):
+    """Handle batch generation from prompt file (txt/json/yaml)"""
+    from .utils.prompt_parser import parse_prompt_file, validate_prompt_config
+
+    prompt_file = request.FILES.get('prompt_file')
+    if not prompt_file:
+        return JsonResponse({'error': 'No prompt file provided'}, status=400)
+
+    # Default parameters for batch
+    model = request.POST.get('model', 'openjourney-v4')
+    width = int(request.POST.get('width', 512))
+    height = int(request.POST.get('height', 512))
+    steps = int(request.POST.get('steps', 30))
+    guidance_scale = float(request.POST.get('guidance_scale', 7.5))
+
+    # Save file temporarily to parse it
+    import tempfile
+    with tempfile.NamedTemporaryFile(delete=False, suffix=Path(prompt_file.name).suffix) as tmp:
+        for chunk in prompt_file.chunks():
+            tmp.write(chunk)
+        tmp_path = tmp.name
+
+    try:
+        # Parse prompts from file
+        prompts = parse_prompt_file(tmp_path)
+
+        if not prompts:
+            return JsonResponse({'error': 'No valid prompts found in file'}, status=400)
+
+        # Create parent generation (container)
+        parent = ImageGeneration.objects.create(
             user=user,
-            prompt=prompt,
-            negative_prompt=negative_prompt,
+            generation_mode='file2img',
+            prompt=f"Batch: {len(prompts)} prompts from {prompt_file.name}",
             model=model,
             width=width,
             height=height,
             steps=steps,
             guidance_scale=guidance_scale,
-            seed=seed,
-            num_images=num_images,
-            upscale=upscale,
-            status='PENDING'
+            status='SUCCESS',  # Parent is just a container
+        )
+        parent.prompt_file.save(prompt_file.name, prompt_file)
+
+        # Create child generations for each prompt
+        children_ids = []
+        for prompt_data in prompts:
+            validated = validate_prompt_config(prompt_data)
+
+            child = ImageGeneration.objects.create(
+                user=user,
+                generation_mode='txt2img',
+                parent_generation=parent,
+                prompt=validated.get('prompt', ''),
+                negative_prompt=validated.get('negative_prompt', ''),
+                model=validated.get('model', model),
+                width=validated.get('width', width),
+                height=validated.get('height', height),
+                steps=validated.get('steps', steps),
+                guidance_scale=validated.get('guidance_scale', guidance_scale),
+                seed=validated.get('seed'),
+                num_images=validated.get('num_images', 1),
+                status='PENDING'
+            )
+            children_ids.append(child.id)
+
+        logger.info(f"Created batch generation #{parent.id} with {len(children_ids)} children for user {user.username}")
+
+        return JsonResponse({
+            'success': True,
+            'parent_id': parent.id,
+            'children_ids': children_ids,
+            'count': len(children_ids),
+            'message': f'Created {len(children_ids)} generation(s) from file'
+        })
+
+    finally:
+        # Clean up temp file
+        os.unlink(tmp_path)
+
+
+def handle_describe2img(request, user):
+    """Handle describe-to-image: auto-generate prompt from reference image using BLIP"""
+    reference_image = request.FILES.get('reference_image')
+    if not reference_image:
+        return JsonResponse({'error': 'No reference image provided'}, status=400)
+
+    model = request.POST.get('model', 'openjourney-v4')
+    width = int(request.POST.get('width', 512))
+    height = int(request.POST.get('height', 512))
+    steps = int(request.POST.get('steps', 30))
+    guidance_scale = float(request.POST.get('guidance_scale', 7.5))
+    prompt_style = request.POST.get('prompt_style', 'detailed')
+
+    # Create generation with placeholder prompt
+    generation = ImageGeneration.objects.create(
+        user=user,
+        generation_mode='describe2img',
+        prompt='[Generating prompt from image...]',
+        model=model,
+        width=width,
+        height=height,
+        steps=steps,
+        guidance_scale=guidance_scale,
+        status='PENDING'
+    )
+    generation.reference_image.save(reference_image.name, reference_image)
+
+    # Generate auto-prompt from image
+    try:
+        from .utils.auto_prompt import generate_prompt_from_image
+
+        auto_prompt = generate_prompt_from_image(
+            generation.reference_image.path,
+            style=prompt_style
         )
 
-        logger.info(f"Created generation #{generation.id} for user {user.username}")
+        generation.prompt = auto_prompt
+        generation.auto_prompt = auto_prompt
+        generation.save()
+
+        logger.info(f"Created describe2img generation #{generation.id} with auto-prompt for user {user.username}")
 
         return JsonResponse({
             'success': True,
             'generation_id': generation.id,
-            'message': 'Generation created successfully'
+            'auto_prompt': auto_prompt,
+            'message': 'Generation created with auto-generated prompt'
         })
 
     except Exception as e:
-        logger.error(f"Error creating generation: {str(e)}")
+        logger.error(f"Error generating auto-prompt: {e}")
+        # Keep the generation but mark error
+        generation.prompt = f"[Auto-prompt failed: {str(e)}]"
+        generation.status = 'FAILURE'
+        generation.error_message = str(e)
+        generation.save()
+
+        return JsonResponse({
+            'error': f'Failed to generate prompt from image: {str(e)}',
+            'generation_id': generation.id
+        }, status=500)
+
+
+def handle_img2img(request, user, mode):
+    """Handle img2img and style2img: image-to-image transformation"""
+    reference_image = request.FILES.get('reference_image')
+    if not reference_image:
+        return JsonResponse({'error': 'No reference image provided'}, status=400)
+
+    prompt = request.POST.get('prompt', '').strip()
+    negative_prompt = request.POST.get('negative_prompt', '').strip()
+    model = request.POST.get('model', 'openjourney-v4')
+    width = int(request.POST.get('width', 512))
+    height = int(request.POST.get('height', 512))
+    steps = int(request.POST.get('steps', 30))
+    guidance_scale = float(request.POST.get('guidance_scale', 7.5))
+    image_strength = float(request.POST.get('image_strength', 0.75))
+    seed = request.POST.get('seed')
+    if seed:
+        seed = int(seed)
+    else:
+        seed = None
+    num_images = int(request.POST.get('num_images', 1))
+
+    # For style2img mode, if no prompt is provided, generate one
+    if mode == 'style2img' and not prompt:
+        prompt = "in the style of the reference image"
+
+    # Create generation
+    generation = ImageGeneration.objects.create(
+        user=user,
+        generation_mode=mode,
+        prompt=prompt or '[No prompt - pure img2img]',
+        negative_prompt=negative_prompt,
+        model=model,
+        width=width,
+        height=height,
+        steps=steps,
+        guidance_scale=guidance_scale,
+        seed=seed,
+        num_images=num_images,
+        image_strength=image_strength,
+        status='PENDING'
+    )
+    generation.reference_image.save(reference_image.name, reference_image)
+
+    logger.info(f"Created {mode} generation #{generation.id} for user {user.username}")
+
+    return JsonResponse({
+        'success': True,
+        'generation_id': generation.id,
+        'mode': mode,
+        'message': f'{mode} generation created successfully'
+    })
+
+
+def handle_txt2vid(request, user):
+    """Handle text-to-video generation"""
+    prompt = request.POST.get('prompt', '').strip()
+    if not prompt:
+        return JsonResponse({'error': 'Prompt is required'}, status=400)
+
+    negative_prompt = request.POST.get('negative_prompt', '').strip()
+    model = request.POST.get('model', 'wan-t2v-1.3b')
+    video_duration = float(request.POST.get('video_duration', 5.0))
+    video_fps = int(request.POST.get('video_fps', 16))
+    video_resolution = request.POST.get('video_resolution', '480p')
+    steps = int(request.POST.get('steps', 50))
+    guidance_scale = float(request.POST.get('guidance_scale', 5.0))
+    seed = request.POST.get('seed')
+    if seed:
+        seed = int(seed)
+    else:
+        seed = None
+
+    # Create generation object
+    generation = ImageGeneration.objects.create(
+        user=user,
+        generation_mode='txt2vid',
+        prompt=prompt,
+        negative_prompt=negative_prompt,
+        model=model,
+        video_duration=video_duration,
+        video_fps=video_fps,
+        video_resolution=video_resolution,
+        steps=steps,
+        guidance_scale=guidance_scale,
+        seed=seed,
+        status='PENDING'
+    )
+
+    logger.info(f"Created txt2vid generation #{generation.id} for user {user.username}")
+
+    return JsonResponse({
+        'success': True,
+        'generation_id': generation.id,
+        'message': 'Video generation created successfully'
+    })
+
+
+def handle_img2vid(request, user):
+    """Handle image-to-video generation"""
+    reference_image = request.FILES.get('reference_image')
+    if not reference_image:
+        return JsonResponse({'error': 'Reference image is required'}, status=400)
+
+    prompt = request.POST.get('prompt', '').strip()
+    negative_prompt = request.POST.get('negative_prompt', '').strip()
+    model = request.POST.get('model', 'wan-i2v-14b')
+    video_duration = float(request.POST.get('video_duration', 5.0))
+    video_fps = int(request.POST.get('video_fps', 16))
+    video_resolution = request.POST.get('video_resolution', '480p')
+    steps = int(request.POST.get('steps', 50))
+    guidance_scale = float(request.POST.get('guidance_scale', 5.0))
+    seed = request.POST.get('seed')
+    if seed:
+        seed = int(seed)
+    else:
+        seed = None
+
+    # Create generation object
+    generation = ImageGeneration.objects.create(
+        user=user,
+        generation_mode='img2vid',
+        prompt=prompt or 'animate this image',
+        negative_prompt=negative_prompt,
+        model=model,
+        video_duration=video_duration,
+        video_fps=video_fps,
+        video_resolution=video_resolution,
+        steps=steps,
+        guidance_scale=guidance_scale,
+        seed=seed,
+        status='PENDING'
+    )
+    generation.reference_image.save(reference_image.name, reference_image)
+
+    logger.info(f"Created img2vid generation #{generation.id} for user {user.username}")
+
+    return JsonResponse({
+        'success': True,
+        'generation_id': generation.id,
+        'message': 'Image-to-video generation created successfully'
+    })
+
+
+@require_http_methods(["POST"])
+def generate_auto_prompt(request):
+    """Generate prompt from uploaded image using BLIP (AJAX endpoint)"""
+    reference_image = request.FILES.get('reference_image')
+    if not reference_image:
+        return JsonResponse({'error': 'No image provided'}, status=400)
+
+    prompt_style = request.POST.get('prompt_style', 'detailed')
+
+    import tempfile
+    with tempfile.NamedTemporaryFile(delete=False, suffix=Path(reference_image.name).suffix) as tmp:
+        for chunk in reference_image.chunks():
+            tmp.write(chunk)
+        tmp_path = tmp.name
+
+    try:
+        from .utils.auto_prompt import generate_prompt_from_image
+
+        auto_prompt = generate_prompt_from_image(tmp_path, style=prompt_style)
+
+        return JsonResponse({
+            'success': True,
+            'prompt': auto_prompt
+        })
+
+    except Exception as e:
+        logger.error(f"Error generating auto-prompt: {e}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+    finally:
+        os.unlink(tmp_path)
+
+
+def get_batch_children(request, parent_id):
+    """Get children of a batch generation"""
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+
+    try:
+        parent = get_object_or_404(ImageGeneration, id=parent_id, user=user)
+        children = ImageGeneration.objects.filter(parent_generation=parent).order_by('id')
+
+        children_data = []
+        for child in children:
+            children_data.append({
+                'id': child.id,
+                'prompt': child.prompt[:100] + ('...' if len(child.prompt) > 100 else ''),
+                'status': child.status,
+                'progress': child.progress,
+                'generated_images': child.generated_images,
+            })
+
+        return JsonResponse({
+            'parent_id': parent.id,
+            'count': children.count(),
+            'children': children_data
+        })
+
+    except Exception as e:
+        logger.error(f"Error getting batch children: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@require_http_methods(["POST"])
+def start_batch(request, parent_id):
+    """Start all pending children of a batch generation"""
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+
+    try:
+        parent = get_object_or_404(ImageGeneration, id=parent_id, user=user)
+        children = ImageGeneration.objects.filter(
+            parent_generation=parent,
+            status='PENDING'
+        )
+
+        if not children.exists():
+            return JsonResponse({'error': 'No pending children to start'}, status=400)
+
+        from .tasks import generate_image_task
+
+        started_count = 0
+        for child in children:
+            task = generate_image_task.delay(child.id)
+            child.status = 'RUNNING'
+            child.progress = 0
+            child.save()
+            started_count += 1
+
+        logger.info(f"Started {started_count} batch children for parent #{parent_id}")
+
+        return JsonResponse({
+            'success': True,
+            'started': started_count,
+            'message': f'Started {started_count} generation(s)'
+        })
+
+    except Exception as e:
+        logger.error(f"Error starting batch: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
 
 
@@ -129,15 +577,22 @@ def start_generation(request, generation_id):
         if generation.status == 'RUNNING':
             return JsonResponse({'error': 'Generation already running'}, status=400)
 
-        # Import here to avoid circular imports
-        from .tasks import generate_image_task
+        # Reset progress and clear cache
+        generation.progress = 0
+        generation.save()
+        cache.delete(f"imager_progress_{generation_id}")
 
-        # Start Celery task
-        task = generate_image_task.delay(generation.id)
+        # Import tasks - use video task for video modes
+        from .tasks import generate_image_task, generate_video_task
+
+        # Start appropriate Celery task based on mode
+        if generation.is_video_generation:
+            task = generate_video_task.delay(generation.id)
+        else:
+            task = generate_image_task.delay(generation.id)
 
         # Update status
         generation.status = 'RUNNING'
-        generation.progress = 0
         generation.save()
 
         logger.info(f"Started generation #{generation.id}, task_id: {task.id}")
@@ -167,14 +622,20 @@ def restart_generation(request, generation_id):
         # Reset status and progress
         generation.status = 'PENDING'
         generation.progress = 0
-        generation.error_message = None
+        generation.error_message = ""
         generation.save()
 
-        # Import here to avoid circular imports
-        from .tasks import generate_image_task
+        # Clear progress cache to avoid showing old values
+        cache.delete(f"imager_progress_{generation_id}")
 
-        # Start Celery task
-        task = generate_image_task.delay(generation.id)
+        # Import tasks - use video task for video modes
+        from .tasks import generate_image_task, generate_video_task
+
+        # Start appropriate Celery task based on mode
+        if generation.is_video_generation:
+            task = generate_video_task.delay(generation.id)
+        else:
+            task = generate_image_task.delay(generation.id)
 
         # Update status
         generation.status = 'RUNNING'
@@ -204,11 +665,19 @@ def start_all_generations(request):
         if not pending.exists():
             return JsonResponse({'error': 'No pending generations'}, status=400)
 
-        from .tasks import generate_image_task
+        from .tasks import generate_image_task, generate_video_task
 
         started_count = 0
         for generation in pending:
-            task = generate_image_task.delay(generation.id)
+            # Clear progress cache before starting
+            cache.delete(f"imager_progress_{generation.id}")
+
+            # Use appropriate task based on mode
+            if generation.is_video_generation:
+                task = generate_video_task.delay(generation.id)
+            else:
+                task = generate_image_task.delay(generation.id)
+
             generation.status = 'RUNNING'
             generation.progress = 0
             generation.save()
@@ -235,16 +704,22 @@ def progress(request, generation_id):
 
         # Get progress from cache (more real-time) or fallback to DB
         cached_progress = cache.get(f"imager_progress_{generation_id}")
-        progress = cached_progress if cached_progress is not None else generation.progress
+        progress_value = cached_progress if cached_progress is not None else generation.progress
 
         data = {
             'id': generation.id,
             'status': generation.status,
-            'progress': progress,
+            'progress': progress_value,
             'error_message': generation.error_message,
             'generated_images': generation.generated_images,
             'duration': generation.duration_display,
+            'output_type': generation.output_type,
+            'is_video': generation.is_video_generation,
         }
+
+        # Include video URL if available
+        if generation.output_video:
+            data['output_video_url'] = generation.output_video.url
 
         return JsonResponse(data)
 
@@ -254,38 +729,34 @@ def progress(request, generation_id):
 
 
 def global_progress(request):
-    """Get overall progress for all user generations"""
+    """Get overall progress for all user generations (optimized single query)"""
+    from django.db.models import Count, Case, When, IntegerField, Avg
+
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
 
     try:
-        generations = ImageGeneration.objects.filter(user=user)
+        # Single aggregated query instead of 7+ separate queries
+        stats = ImageGeneration.objects.filter(
+            user=user,
+            parent_generation__isnull=True  # Only top-level generations
+        ).aggregate(
+            total=Count('id'),
+            pending=Count(Case(When(status='PENDING', then=1), output_field=IntegerField())),
+            running=Count(Case(When(status='RUNNING', then=1), output_field=IntegerField())),
+            success=Count(Case(When(status='SUCCESS', then=1), output_field=IntegerField())),
+            failure=Count(Case(When(status='FAILURE', then=1), output_field=IntegerField())),
+            avg_progress=Avg('progress'),
+        )
 
-        if not generations.exists():
-            return JsonResponse({
-                'total': 0,
-                'pending': 0,
-                'running': 0,
-                'success': 0,
-                'failure': 0,
-                'overall_progress': 0
-            })
-
-        total = generations.count()
-        pending = generations.filter(status='PENDING').count()
-        running = generations.filter(status='RUNNING').count()
-        success = generations.filter(status='SUCCESS').count()
-        failure = generations.filter(status='FAILURE').count()
-
-        # Calculate overall progress
-        total_progress = sum(g.progress for g in generations)
-        overall_progress = int(total_progress / total) if total > 0 else 0
+        total = stats['total'] or 0
+        overall_progress = int(stats['avg_progress'] or 0)
 
         return JsonResponse({
             'total': total,
-            'pending': pending,
-            'running': running,
-            'success': success,
-            'failure': failure,
+            'pending': stats['pending'] or 0,
+            'running': stats['running'] or 0,
+            'success': stats['success'] or 0,
+            'failure': stats['failure'] or 0,
             'overall_progress': overall_progress
         })
 
@@ -295,12 +766,28 @@ def global_progress(request):
 
 
 def download(request, generation_id):
-    """Download generated images as a zip file"""
+    """Download generated images or video"""
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
 
     try:
         generation = get_object_or_404(ImageGeneration, id=generation_id, user=user)
 
+        # Handle video download
+        if generation.is_video_generation:
+            if not generation.output_video:
+                return HttpResponse("No video generated yet", status=404)
+
+            video_path = generation.output_video.path
+            if os.path.exists(video_path):
+                return FileResponse(
+                    open(video_path, 'rb'),
+                    as_attachment=True,
+                    filename=f"video_{generation.id}.mp4",
+                    content_type='video/mp4'
+                )
+            return HttpResponse("Video file not found", status=404)
+
+        # Handle image download
         if not generation.generated_images:
             return HttpResponse("No images generated yet", status=404)
 
@@ -328,7 +815,7 @@ def download(request, generation_id):
         return response
 
     except Exception as e:
-        logger.error(f"Error downloading images: {str(e)}")
+        logger.error(f"Error downloading: {str(e)}")
         return HttpResponse(f"Error: {str(e)}", status=500)
 
 
@@ -347,6 +834,15 @@ def delete_generation(request, generation_id):
                     os.remove(image_path)
                 except Exception as e:
                     logger.warning(f"Failed to delete image {image_path}: {str(e)}")
+
+        # Delete video file if exists
+        if generation.output_video:
+            try:
+                video_path = generation.output_video.path
+                if os.path.exists(video_path):
+                    os.remove(video_path)
+            except Exception as e:
+                logger.warning(f"Failed to delete video: {str(e)}")
 
         generation.delete()
         logger.info(f"Deleted generation #{generation_id}")
@@ -502,17 +998,25 @@ def get_generation_settings(request, generation_id):
 
         data = {
             'id': generation.id,
+            'generation_mode': generation.generation_mode,
             'prompt': generation.prompt,
             'negative_prompt': generation.negative_prompt or '',
+            'auto_prompt': generation.auto_prompt or '',
             'model': generation.model,
             'width': generation.width,
             'height': generation.height,
             'steps': generation.steps,
             'guidance_scale': generation.guidance_scale,
+            'image_strength': generation.image_strength,
+            'reference_image_url': generation.reference_image.url if generation.reference_image else None,
             'seed': generation.seed,
             'num_images': generation.num_images,
             'upscale': generation.upscale,
             'status': generation.status,
+            # Video-specific fields
+            'video_duration': generation.video_duration,
+            'video_fps': generation.video_fps,
+            'video_resolution': generation.video_resolution,
         }
 
         return JsonResponse(data)
@@ -568,6 +1072,19 @@ def save_generation_settings(request, generation_id):
 
         if 'upscale' in request.POST:
             generation.upscale = request.POST.get('upscale', 'false').lower() == 'true'
+
+        if 'image_strength' in request.POST:
+            generation.image_strength = float(request.POST.get('image_strength', 0.75))
+
+        # Video-specific fields
+        if 'video_duration' in request.POST:
+            generation.video_duration = int(request.POST.get('video_duration', 5))
+
+        if 'video_fps' in request.POST:
+            generation.video_fps = int(request.POST.get('video_fps', 16))
+
+        if 'video_resolution' in request.POST:
+            generation.video_resolution = request.POST.get('video_resolution', '480p')
 
         generation.save()
 

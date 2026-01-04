@@ -1,0 +1,117 @@
+{% extends 'common/app_modern_base.html' %}
+{% load static %}
+
+{% block app_icon %}<i class="fas fa-search-plus text-info"></i>{% endblock %}
+{% block app_title %}Content Describer{% endblock %}
+{% block app_description %}Description et synthese automatiques de contenus multimedia avec l'IA{% endblock %}
+
+{% block console_content_id %}describer-console-content{% endblock %}
+{% block console_url %}{% url 'describer:console' %}{% endblock %}
+
+{% block queue_content %}
+    {% block describer_content %}
+    {# Le contenu principal de Describer #}
+    {% endblock %}
+{% endblock %}
+
+{% block about_content %}
+<div class="info-card">
+    <h3><i class="fas fa-search-plus me-2"></i>A propos de Describer</h3>
+
+    <div class="mb-4">
+        <h5>Qu'est-ce que Describer ?</h5>
+        <p class="text-light">
+            Describer est une application d'analyse et de synthese de contenus multimedia integree a WAMA.
+            Elle utilise des modeles d'IA pour decrire des images, resumer des textes, transcrire des audios
+            et analyser des videos.
+        </p>
+    </div>
+
+    <div class="mb-4">
+        <h5>Fonctionnalites</h5>
+        <ul class="text-light">
+            <li><strong>Images</strong> : Description visuelle automatique avec BLIP</li>
+            <li><strong>Videos</strong> : Analyse de scenes + transcription audio</li>
+            <li><strong>Audios</strong> : Transcription avec Whisper + resume</li>
+            <li><strong>Textes/PDF</strong> : Resume et synthese avec BART/Pegasus</li>
+            <li><strong>Publications scientifiques</strong> : Extraction des points cles</li>
+        </ul>
+    </div>
+
+    <div class="mb-4">
+        <h5>Formats de sortie</h5>
+        <ul class="text-light">
+            <li><strong>Resume court</strong> : Synthese concise</li>
+            <li><strong>Description detaillee</strong> : Analyse complete</li>
+            <li><strong>Synthese scientifique</strong> : Format academique</li>
+            <li><strong>Points cles</strong> : Liste a puces</li>
+        </ul>
+    </div>
+
+    <div>
+        <h5>Technologie</h5>
+        <p class="text-light">
+            Propulse par des modeles open-source : BLIP pour les images,
+            BART/Pegasus pour le resume de texte, et Whisper pour la transcription audio.
+        </p>
+    </div>
+</div>
+{% endblock %}
+
+{% block help_content %}
+<div class="info-card">
+    <h3><i class="fas fa-question-circle me-2"></i>Guide d'utilisation</h3>
+
+    <div class="mb-4">
+        <h5><i class="fas fa-file-upload me-2"></i>Telecharger des fichiers</h5>
+        <ul class="text-light">
+            <li>Glissez-deposez vos fichiers dans la zone de telechargement</li>
+            <li>Ou cliquez sur "Parcourir" pour selectionner manuellement</li>
+            <li>Formats supportes : Images, Videos, Audio, PDF, DOCX, TXT, MD</li>
+            <li>Le type de contenu est detecte automatiquement</li>
+        </ul>
+    </div>
+
+    <div class="mb-4">
+        <h5><i class="fas fa-cog me-2"></i>Options de description</h5>
+        <ul class="text-light">
+            <li><strong>Format</strong> : Choisissez entre resume, detaille, scientifique ou points cles</li>
+            <li><strong>Langue</strong> : Francais, Anglais ou detection automatique</li>
+            <li><strong>Longueur</strong> : Ajustez la longueur maximale du resume</li>
+        </ul>
+    </div>
+
+    <div class="mb-4">
+        <h5><i class="fas fa-play me-2"></i>Lancer le traitement</h5>
+        <ul class="text-light">
+            <li>Cliquez sur "Demarrer" pour lancer la description</li>
+            <li>Suivez la progression en temps reel</li>
+            <li>Le resultat apparait dans la colonne "Description"</li>
+        </ul>
+    </div>
+
+    <div class="mb-4">
+        <h5><i class="fas fa-download me-2"></i>Telecharger les resultats</h5>
+        <ul class="text-light">
+            <li>Telechargez le resultat au format texte</li>
+            <li>Utilisez "Telecharger tout" pour un ZIP de tous les resultats</li>
+        </ul>
+    </div>
+
+    <div class="alert alert-info">
+        <h6><i class="fas fa-lightbulb me-2"></i>Astuce</h6>
+        <p class="mb-0">
+            Pour les publications scientifiques, utilisez le format "Synthese scientifique"
+            pour obtenir une structure academique avec les points cles.
+        </p>
+    </div>
+</div>
+{% endblock %}
+
+{% block footer_text %}
+    Describer - AI Content Description | WAMA
+{% endblock %}
+
+{% block app_scripts %}
+{# Scripts specifiques a Describer #}
+{% endblock %}

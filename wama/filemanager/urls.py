@@ -14,6 +14,7 @@ urlpatterns = [
     path('api/delete/', views.api_delete, name='api_delete'),
     path('api/delete-all/', views.api_delete_all, name='api_delete_all'),
     path('api/rename/', views.api_rename, name='api_rename'),
+    path('api/move/', views.api_move, name='api_move'),
     path('api/info/', views.api_info, name='api_info'),
     path('api/preview/', views.api_preview, name='api_preview'),
     path('api/import/', views.api_import_to_app, name='api_import'),

@@ -1,4 +1,6 @@
+anthropic>=0.40.0
 celery>=5.5.2
+python-dotenv>=1.0.0
 deep-translator>=1.11.4
 Django>=5.2.1
 django-auth-ldap>=5.2.0

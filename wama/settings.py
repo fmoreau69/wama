@@ -1,6 +1,9 @@
 import os, logging, socket
 from pathlib import Path
+from dotenv import load_dotenv
 
+# Load environment variables from .env file
+load_dotenv()
 
 # Fonctionnalités conditionnelles
 ENABLE_CELERY = True
@@ -111,11 +114,12 @@ INSTALLED_APPS = [
     'wama.common',       # Composants communs à toutes les apps
     'wama.accounts',
     'wama.anonymizer',
-    'wama.synthesizer',
-    'wama.transcriber',
-    'wama.imager',
+    'wama.describer',    # AI Content Description
     'wama.enhancer',     # AI Image/Video Upscaling
     'wama.filemanager',  # File browser sidebar
+    'wama.imager',
+    'wama.synthesizer',
+    'wama.transcriber',
 ]
 
 # Middleware
@@ -204,3 +208,7 @@ if ENABLE_CELERY:
     CELERY_ACCEPT_CONTENT = ['application/json']
     CELERY_TASK_SERIALIZER = 'json'
     CELERY_RESULT_SERIALIZER = 'json'
+
+# Anthropic API Configuration (for AI Chat feature)
+# Set your API key here or use ANTHROPIC_API_KEY environment variable
+ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY', None)

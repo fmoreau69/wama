@@ -84,7 +84,61 @@
                     'url': config.apiTreeUrl || '/filemanager/api/tree/',
                     'dataType': 'json'
                 },
-                'check_callback': true,
+                'check_callback': function(operation, node, parent, position, more) {
+                    // Allow move only within temp folder (for internal tree moves)
+                    if (operation === 'move_node') {
+                        // Get tree instance from the container, not from the node
+                        const treeContainer = document.getElementById('filemanager-tree');
+                        const inst = treeContainer ? $.jstree.reference(treeContainer) : null;
+
+                        if (!inst) {
+                            console.warn('[FileManager] Could not get tree instance for move check');
+                            return false;
+                        }
+
+                        // Check if source is in temp folder
+                        const sourcePath = node.data?.path || '';
+                        const isSourceInTemp = sourcePath.includes('/temp') || sourcePath.includes('\\temp');
+
+                        if (!isSourceInTemp) {
+                            console.log('[FileManager] Move denied: source not in temp folder', sourcePath);
+                            return false;
+                        }
+
+                        // Get parent node
+                        let parentNode;
+                        if (typeof parent === 'string') {
+                            parentNode = inst.get_node(parent);
+                        } else {
+                            parentNode = parent;
+                        }
+
+                        if (!parentNode || parentNode.id === '#') {
+                            console.log('[FileManager] Move denied: invalid parent node');
+                            return false;
+                        }
+
+                        // Check if destination is in temp folder
+                        const destPath = parentNode.data?.path || '';
+                        const parentId = parentNode.id || '';
+
+                        // Valid destinations:
+                        // 1. The 'temp' node itself
+                        // 2. Any folder whose path contains '/temp' or '\temp'
+                        // 3. Any folder whose id starts with 'folder_users_' (subfolders in temp)
+                        const isDestInTemp = parentId === 'temp' ||
+                                            destPath.includes('/temp') ||
+                                            destPath.includes('\\temp') ||
+                                            parentId.startsWith('folder_users_');
+
+                        if (!isDestInTemp) {
+                            console.log('[FileManager] Move denied: destination not in temp folder', parentId, destPath);
+                        }
+
+                        return isDestInTemp;
+                    }
+                    return true;
+                },
                 'multiple': true
             },
             'plugins': ['contextmenu', 'search', 'wholerow', 'dnd', 'types'],
@@ -107,10 +161,13 @@
             },
             'dnd': {
                 'is_draggable': function(nodes) {
-                    // Only files can be dragged
+                    // Allow all files to be dragged (for external drag to apps)
+                    // Internal move restrictions are handled by check_callback
                     return nodes.every(n => n.type === 'file');
                 },
-                'copy': true,
+                'copy': false,  // Move, not copy
+                'inside_pos': 'last',
+                'touch': 'selected',
                 'use_html5': true
             }
         });
@@ -122,6 +179,14 @@
         $(treeContainer).on('dblclick.jstree', '.jstree-anchor', handleDoubleClick);
         $(treeContainer).on('loaded.jstree', handleTreeLoaded);
         $(treeContainer).on('refresh.jstree', handleTreeRefreshed);
+
+        // Save tree state when nodes are opened/closed
+        $(treeContainer).on('open_node.jstree close_node.jstree', function() {
+            saveTreeState();
+        });
+
+        // Handle internal move (drag & drop within tree)
+        $(treeContainer).on('move_node.jstree', handleMoveNode);
 
         // Setup external drag & drop
         setupExternalDragDrop(treeContainer);
@@ -200,14 +265,125 @@
         }
     }
 
+    async function handleMoveNode(e, data) {
+        const node = data.node;
+        const newParent = data.parent;
+        const oldParent = data.old_parent;
+
+        // If same parent, no need to move on server
+        if (newParent === oldParent) return;
+
+        const sourcePath = node.data?.path;
+        if (!sourcePath) {
+            console.error('[FileManager] No source path for move');
+            refreshTree();
+            return;
+        }
+
+        // Get destination folder path
+        let destPath;
+        if (newParent === 'temp') {
+            // Moving to root of temp folder - need to get the actual path
+            const tempNode = tree.get_node('temp');
+            destPath = tempNode?.data?.path;
+        } else {
+            const parentNode = tree.get_node(newParent);
+            destPath = parentNode?.data?.path;
+        }
+
+        if (!destPath) {
+            console.error('[FileManager] No destination path for move');
+            refreshTree();
+            return;
+        }
+
+        console.log('[FileManager] Moving', sourcePath, 'to', destPath);
+
+        try {
+            const response = await fetch(config.apiMoveUrl || '/filemanager/api/move/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify({
+                    source: sourcePath,
+                    destination: destPath
+                })
+            });
+
+            const result = await response.json();
+
+            if (result.moved) {
+                showToast('Fichier déplacé', 'success');
+                // Update node data with new path
+                node.data.path = result.new_path;
+            } else {
+                showToast(result.error || 'Erreur lors du déplacement', 'danger');
+                refreshTree();
+            }
+        } catch (error) {
+            console.error('[FileManager] Move error:', error);
+            showToast('Erreur lors du déplacement', 'danger');
+            refreshTree();
+        }
+    }
+
     function handleTreeLoaded() {
         console.log('FileManager tree loaded');
 
         // Store initial tree state for change detection
         fetchTreeHash();
 
-        // Auto-expand folder corresponding to current app
+        // Restore opened folders state from localStorage (for temp folder)
+        restoreTreeState();
+
+        // Always auto-expand folder corresponding to current app
         autoExpandCurrentAppFolder();
+    }
+
+    function getTreeStateKey() {
+        return 'filemanager_tree_state';
+    }
+
+    function saveTreeState() {
+        if (!tree) return;
+
+        // Get all opened nodes
+        const allOpenedNodes = tree.get_state().core.open;
+
+        // Only save temp folder nodes (not app folders)
+        const appFolders = ['anonymizer', 'describer', 'enhancer', 'imager', 'synthesizer', 'transcriber'];
+        const tempNodes = allOpenedNodes.filter(nodeId => {
+            // Keep only temp-related nodes
+            return nodeId === 'temp' || nodeId.startsWith('folder_users_');
+        });
+
+        localStorage.setItem(getTreeStateKey(), JSON.stringify(tempNodes));
+        console.log('[FileManager] Tree state saved:', tempNodes.length, 'temp nodes open');
+    }
+
+    function restoreTreeState() {
+        if (!tree) return;
+
+        const saved = localStorage.getItem(getTreeStateKey());
+        if (!saved) return;
+
+        try {
+            const openedNodes = JSON.parse(saved);
+            if (Array.isArray(openedNodes) && openedNodes.length > 0) {
+                // Open each saved node
+                openedNodes.forEach(nodeId => {
+                    if (tree.get_node(nodeId)) {
+                        tree.open_node(nodeId, false, false);
+                    }
+                });
+                console.log('[FileManager] Tree state restored:', openedNodes.length, 'nodes');
+            }
+        } catch (e) {
+            console.warn('[FileManager] Could not restore tree state:', e);
+            localStorage.removeItem(getTreeStateKey());
+        }
     }
 
     async function fetchTreeHash() {
@@ -226,8 +402,11 @@
         // Update hash after refresh
         fetchTreeHash();
 
-        // Re-expand current app folder
-        setTimeout(autoExpandCurrentAppFolder, 100);
+        // Restore opened folders state and expand current app
+        setTimeout(() => {
+            restoreTreeState();
+            autoExpandCurrentAppFolder();
+        }, 100);
     }
 
     function autoExpandCurrentAppFolder() {
@@ -239,12 +418,23 @@
 
         // Map of app names to their tree node IDs
         const appFolderMap = {
-            'enhancer': ['enhancer', 'enhancer_input', 'enhancer_output'],
             'anonymizer': ['anonymizer', 'anonymizer_input', 'anonymizer_output'],
+            'describer': ['describer', 'describer_input', 'describer_output'],
+            'enhancer': ['enhancer', 'enhancer_input', 'enhancer_output'],
+            'imager': ['imager', 'imager_prompts', 'imager_references', 'imager_output_image', 'imager_output_video'],
             'synthesizer': ['synthesizer', 'synthesizer_input', 'synthesizer_output'],
             'transcriber': ['transcriber', 'transcriber_input', 'transcriber_output'],
-            'imager': ['imager', 'imager_output'],
         };
+
+        // Close all app folders first (except current app)
+        Object.keys(appFolderMap).forEach(appName => {
+            if (appName !== currentApp) {
+                const mainNode = tree.get_node(appName);
+                if (mainNode && tree.is_open(mainNode)) {
+                    tree.close_node(mainNode);
+                }
+            }
+        });
 
         const nodesToOpen = appFolderMap[currentApp];
 

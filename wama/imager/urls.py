@@ -35,4 +35,9 @@ urlpatterns = [
     # Individual generation settings
     path('settings/<int:generation_id>/', views.get_generation_settings, name='get_settings'),
     path('settings/<int:generation_id>/save/', views.save_generation_settings, name='save_settings'),
+
+    # Multi-modal generation endpoints
+    path('auto-prompt/', views.generate_auto_prompt, name='auto_prompt'),
+    path('batch/<int:parent_id>/children/', views.get_batch_children, name='batch_children'),
+    path('batch/<int:parent_id>/start/', views.start_batch, name='start_batch'),
 ]

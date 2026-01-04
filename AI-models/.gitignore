@@ -18,6 +18,10 @@ anonymizer/yolo/*.weights
 enhancer/onnx/*.onnx
 enhancer/onnx/*.pth
 
+# Imager Wan Video models
+imager/wan/
+imager/wan/**
+
 # Common AI model formats
 *.h5
 *.pb
@@ -35,5 +39,8 @@ enhancer/onnx/*.pth
 !README.md
 !DOWNLOAD_MODELS.md
 !.gitignore
+!.gitkeep
 !*/README.md
 !*/DOWNLOAD_MODELS.md
+!*/.gitkeep
+!*/*/.gitkeep

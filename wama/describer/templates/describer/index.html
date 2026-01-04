@@ -1,0 +1,347 @@
+{% extends 'describer/base.html' %}
+{% load static %}
+
+{% block title %}Describer - Content Description{% endblock %}
+
+{% block app_right_panel_settings %}
+<!-- Output Format -->
+<div class="mb-3">
+    <label for="output_format" class="form-label small fw-bold text-light">
+        <i class="fas fa-align-left"></i> Format de sortie
+    </label>
+    <select class="form-select form-select-sm bg-dark text-white border-secondary" id="output_format" name="output_format">
+        {% for value, label in output_format_choices %}
+        <option value="{{ value }}" {% if value == 'detailed' %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+    </select>
+</div>
+
+<!-- Language -->
+<div class="mb-3">
+    <label for="output_language" class="form-label small fw-bold text-light">
+        <i class="fas fa-language"></i> Langue de sortie
+    </label>
+    <select class="form-select form-select-sm bg-dark text-white border-secondary" id="output_language" name="output_language">
+        {% for value, label in language_choices %}
+        <option value="{{ value }}" {% if value == 'fr' %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+    </select>
+</div>
+
+<!-- Max Length -->
+<div class="mb-3">
+    <label for="max_length" class="form-label small fw-bold text-light">
+        <i class="fas fa-text-width"></i> Longueur max: <span id="max_length_value">500</span> mots
+    </label>
+    <input type="range" class="form-range" id="max_length" name="max_length" min="100" max="2000" step="50" value="500">
+</div>
+
+<!-- Info Box -->
+<div class="alert alert-info py-2 small" role="alert">
+    <i class="fas fa-info-circle"></i> <strong>Types supportes:</strong><br>
+    <small>
+        - Images: JPG, PNG, GIF, WebP<br>
+        - Videos: MP4, AVI, MOV, MKV<br>
+        - Audio: MP3, WAV, FLAC, OGG<br>
+        - Texte: PDF, DOCX, TXT, MD
+    </small>
+</div>
+{% endblock %}
+
+{% block app_right_panel_actions %}
+<div class="d-grid gap-2">
+    <button class="btn btn-success btn-sm" id="startAllBtn">
+        <i class="fas fa-play"></i> Demarrer tout
+    </button>
+    <button class="btn btn-info btn-sm" id="downloadAllBtn">
+        <i class="fas fa-download"></i> Telecharger tout
+    </button>
+    <button class="btn btn-outline-danger btn-sm" id="clearAllBtn">
+        <i class="fas fa-trash"></i> Tout effacer
+    </button>
+</div>
+{% endblock %}
+
+{% block describer_content %}
+
+<!-- Upload Zone -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="drop-zone" id="dropZone">
+            <i class="fas fa-cloud-upload-alt fa-3x mb-3 text-info"></i>
+            <h5>Glissez-deposez vos fichiers ici</h5>
+            <p class="text-light mb-3">ou cliquez pour parcourir</p>
+            <p class="small text-white-50">
+                Images, Videos, Audio, PDF, DOCX, TXT, MD
+            </p>
+            <input type="file" id="fileInput" multiple
+                   accept="image/*,video/*,audio/*,.pdf,.docx,.txt,.md,.csv"
+                   style="display: none;">
+            <button class="btn btn-info mt-2" id="browseBtn">
+                <i class="fas fa-folder-open"></i> Parcourir
+            </button>
+        </div>
+    </div>
+</div>
+
+<hr class="border-secondary">
+
+<!-- Global Progress Bar -->
+<div class="row mb-3">
+    <div class="col-12">
+        <div class="card" style="background: #212529; border: 1px solid #495057;">
+            <div class="card-body py-2">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h6 class="mb-0 text-light">
+                        <i class="fas fa-chart-line"></i> Progression globale
+                    </h6>
+                    <small class="text-white-50" id="globalProgressStats">
+                        {{ success_count }}/{{ descriptions.count }} termine
+                    </small>
+                </div>
+                <div class="progress" style="height: 20px;">
+                    <div class="progress-bar bg-info" id="globalProgressBar" role="progressbar" style="width: 0%">0%</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Descriptions Queue -->
+<div class="row">
+    <div class="col-12">
+        <h4 class="mb-3">
+            <i class="fas fa-list"></i> File d'attente
+            <span class="badge bg-info" id="queueCount">{{ descriptions.count }}</span>
+        </h4>
+
+        <div id="descriptionQueue">
+            {% for desc in descriptions %}
+            <div class="synthesis-card {% if desc.status == 'RUNNING' %}processing{% elif desc.status == 'SUCCESS' %}success{% elif desc.status == 'FAILURE' %}error{% endif %}"
+                 data-id="{{ desc.id }}">
+                <div class="row align-items-center">
+                    <!-- File Info -->
+                    <div class="col-md-3">
+                        <strong>
+                            <i class="fas {{ desc.get_type_icon }}"></i>
+                            <span class="filename">{{ desc.filename }}</span>
+                        </strong>
+                        <br>
+                        <small class="text-white-50">
+                            <span class="badge bg-secondary">{{ desc.detected_type|upper }}</span>
+                            {{ desc.format_file_size }}
+                        </small>
+                    </div>
+
+                    <!-- Options -->
+                    <div class="col-md-2">
+                        <small>
+                            <i class="fas fa-align-left"></i> {{ desc.get_output_format_display }}<br>
+                            <i class="fas fa-language"></i> {{ desc.get_output_language_display }}<br>
+                            <i class="fas fa-text-width"></i> {{ desc.max_length }} mots
+                        </small>
+                    </div>
+
+                    <!-- Result Preview -->
+                    <div class="col-md-3">
+                        {% if desc.result_text %}
+                        <small class="text-light result-preview" style="max-height: 60px; overflow: hidden; display: block;">
+                            {{ desc.result_text|truncatechars:150 }}
+                        </small>
+                        {% else %}
+                        <small class="text-white-50">
+                            {{ desc.properties|default:"En attente de traitement" }}
+                        </small>
+                        {% endif %}
+                    </div>
+
+                    <!-- Status & Progress -->
+                    <div class="col-md-2">
+                        <span class="badge status-badge
+                            {% if desc.status == 'PENDING' %}bg-secondary
+                            {% elif desc.status == 'RUNNING' %}bg-warning
+                            {% elif desc.status == 'SUCCESS' %}bg-success
+                            {% elif desc.status == 'FAILURE' %}bg-danger
+                            {% endif %}">
+                            {{ desc.get_status_display }}
+                        </span>
+                        <div class="progress mt-2" style="height: 8px;">
+                            <div class="progress-bar bg-info progress-fill" style="width: {{ desc.progress }}%"></div>
+                        </div>
+                        <small class="text-light progress-text">{{ desc.progress }}%</small>
+                    </div>
+
+                    <!-- Actions -->
+                    <div class="col-md-2">
+                        <div class="btn-group-actions">
+                            {% if desc.status != 'RUNNING' %}
+                            <button class="btn btn-sm btn-primary start-btn"
+                                    data-id="{{ desc.id }}"
+                                    title="Demarrer">
+                                <i class="fas fa-play"></i>
+                            </button>
+                            <button class="btn btn-sm btn-secondary settings-btn"
+                                    data-id="{{ desc.id }}"
+                                    data-output-format="{{ desc.output_format }}"
+                                    data-output-language="{{ desc.output_language }}"
+                                    data-max-length="{{ desc.max_length }}"
+                                    title="Parametres">
+                                <i class="fas fa-cog"></i>
+                            </button>
+                            {% endif %}
+
+                            {% if desc.status == 'SUCCESS' %}
+                            <button class="btn btn-sm btn-success preview-btn"
+                                    data-id="{{ desc.id }}"
+                                    title="Voir le resultat">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                            <a href="{% url 'describer:download' desc.id %}"
+                               class="btn btn-sm btn-info download-btn"
+                               title="Telecharger">
+                                <i class="fas fa-download"></i>
+                            </a>
+                            {% endif %}
+
+                            <button class="btn btn-sm btn-danger delete-btn"
+                                    data-id="{{ desc.id }}"
+                                    title="Supprimer">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% empty %}
+            <div class="text-center py-5 empty-queue">
+                <i class="fas fa-inbox fa-3x mb-3 text-white-50"></i>
+                <p class="text-white-50">Aucun fichier dans la file d'attente</p>
+                <p class="text-white-50">Uploadez des fichiers pour commencer</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_modals %}
+<!-- Result Preview Modal -->
+<div class="modal fade" id="resultModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-file-alt"></i> <span id="resultModalTitle">Resultat</span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="resultLoader" class="text-center py-4">
+                    <div class="spinner-border text-info" role="status">
+                        <span class="visually-hidden">Chargement...</span>
+                    </div>
+                </div>
+                <div id="resultContent" style="display: none;">
+                    <div class="card" style="background: #1e1e1e; border: 1px solid #495057;">
+                        <div class="card-body">
+                            <pre id="resultText" style="color: #d4d4d4; white-space: pre-wrap; word-wrap: break-word; font-family: 'Segoe UI', Arial, sans-serif; font-size: 14px; line-height: 1.6; margin: 0; max-height: 500px; overflow-y: auto;"></pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <a href="#" class="btn btn-info" id="resultDownloadBtn">
+                    <i class="fas fa-download"></i> Telecharger
+                </a>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Per-Description Settings Modal -->
+<div class="modal fade" id="settingsModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-cog"></i> Parametres de description
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="settingsForm">
+                    <input type="hidden" id="settingsDescriptionId" name="description_id">
+
+                    <!-- Output Format -->
+                    <div class="mb-3">
+                        <label for="settingsOutputFormat" class="form-label">
+                            <i class="fas fa-align-left"></i> Format de sortie
+                        </label>
+                        <select class="form-select" id="settingsOutputFormat" name="output_format">
+                            {% for value, label in output_format_choices %}
+                            <option value="{{ value }}">{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- Language -->
+                    <div class="mb-3">
+                        <label for="settingsOutputLanguage" class="form-label">
+                            <i class="fas fa-language"></i> Langue de sortie
+                        </label>
+                        <select class="form-select" id="settingsOutputLanguage" name="output_language">
+                            {% for value, label in language_choices %}
+                            <option value="{{ value }}">{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- Max Length -->
+                    <div class="mb-3">
+                        <label for="settingsMaxLength" class="form-label">
+                            <i class="fas fa-text-width"></i> Longueur max: <span id="settingsMaxLengthValue">500</span> mots
+                        </label>
+                        <input type="range" class="form-range" id="settingsMaxLength" name="max_length"
+                               min="100" max="2000" step="50" value="500">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                <button type="button" class="btn btn-primary" id="saveSettingsBtn">
+                    <i class="fas fa-save"></i> Enregistrer
+                </button>
+                <button type="button" class="btn btn-success" id="saveAndStartBtn">
+                    <i class="fas fa-play"></i> Enregistrer et demarrer
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block javascript %}
+{{ block.super }}
+<script>
+    // Configuration for JavaScript
+    window.DESCRIBER_CONFIG = {
+        urls: {
+            upload: "{% url 'describer:upload' %}",
+            start: "{% url 'describer:start' pk=0 %}",
+            progress: "{% url 'describer:progress' pk=0 %}",
+            globalProgress: "{% url 'describer:global_progress' %}",
+            delete: "{% url 'describer:delete' pk=0 %}",
+            download: "{% url 'describer:download' pk=0 %}",
+            preview: "{% url 'describer:preview' pk=0 %}",
+            startAll: "{% url 'describer:start_all' %}",
+            downloadAll: "{% url 'describer:download_all' %}",
+            clearAll: "{% url 'describer:clear_all' %}",
+            console: "{% url 'describer:console' %}",
+            updateOptions: "{% url 'describer:update_options' pk=0 %}"
+        },
+        csrfToken: "{{ csrf_token }}"
+    };
+</script>
+<script src="{% static 'describer/js/index.js' %}"></script>
+{% endblock %}

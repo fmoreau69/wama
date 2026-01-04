@@ -23,11 +23,15 @@ app.conf.worker_concurrency = 4
 # Explicitly list apps with Celery tasks
 app.autodiscover_tasks([
     'wama.anonymizer',
+    'wama.describer',
     'wama.synthesizer',
     'wama.transcriber',
     'wama.enhancer',
     'wama.imager',
 ])
+
+# Also load tasks from non-standard module names (workers.py)
+app.autodiscover_tasks(['wama.describer'], related_name='workers')
 
 @app.task(bind=True)
 def debug_task(self):

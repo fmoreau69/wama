@@ -27,6 +27,11 @@ class GenerationParams:
     num_images: int = 1
     upscale: bool = False
 
+    # Multi-modal generation parameters
+    generation_mode: str = "txt2img"  # txt2img, img2img, style2img, describe2img
+    reference_image: Optional[str] = None  # Path to reference image
+    image_strength: float = 0.75  # Influence of reference image (0=ignore, 1=copy)
+
 
 @dataclass
 class GenerationResult:

@@ -51,6 +51,24 @@ def build_file_tree(user):
             'type': 'folder'
         },
         {
+            'id': 'anonymizer',
+            'text': 'Anonymizer',
+            'icon': 'fa fa-user-secret text-danger',
+            'children': [
+                {'id': 'anonymizer_input', 'text': 'Input', 'path': 'anonymizer/input', 'icon': 'fa fa-folder text-secondary'},
+                {'id': 'anonymizer_output', 'text': 'Output', 'path': 'anonymizer/output', 'icon': 'fa fa-folder text-success'},
+            ]
+        },
+        {
+            'id': 'describer',
+            'text': 'Describer',
+            'icon': 'fa fa-search-plus text-info',
+            'children': [
+                {'id': 'describer_input', 'text': 'Input', 'path': 'describer/input', 'icon': 'fa fa-folder text-secondary'},
+                {'id': 'describer_output', 'text': 'Output', 'path': 'describer/output', 'icon': 'fa fa-folder text-success'},
+            ]
+        },
+        {
             'id': 'enhancer',
             'text': 'Enhancer',
             'icon': 'fa fa-magic text-info',
@@ -60,12 +78,14 @@ def build_file_tree(user):
             ]
         },
         {
-            'id': 'anonymizer',
-            'text': 'Anonymizer',
-            'icon': 'fa fa-user-secret text-danger',
+            'id': 'imager',
+            'text': 'Imager',
+            'icon': 'fa fa-image text-success',
             'children': [
-                {'id': 'anonymizer_input', 'text': 'Input', 'path': 'anonymizer/input', 'icon': 'fa fa-folder text-secondary'},
-                {'id': 'anonymizer_output', 'text': 'Output', 'path': 'anonymizer/output', 'icon': 'fa fa-folder text-success'},
+                {'id': 'imager_prompts', 'text': 'Prompts', 'path': 'imager/input/prompts', 'icon': 'fa fa-file-alt text-secondary'},
+                {'id': 'imager_references', 'text': 'References', 'path': 'imager/input/references', 'icon': 'fa fa-image text-secondary'},
+                {'id': 'imager_output_image', 'text': 'Images', 'path': f'imager/output/image/{user_id}', 'icon': 'fa fa-image text-success'},
+                {'id': 'imager_output_video', 'text': 'Vidéos', 'path': f'imager/output/video/{user_id}', 'icon': 'fa fa-film text-success'},
             ]
         },
         {
@@ -84,14 +104,6 @@ def build_file_tree(user):
             'children': [
                 {'id': 'transcriber_input', 'text': 'Input', 'path': 'transcriber/input', 'icon': 'fa fa-folder text-secondary'},
                 {'id': 'transcriber_output', 'text': 'Output', 'path': 'transcriber/output', 'icon': 'fa fa-folder text-success'},
-            ]
-        },
-        {
-            'id': 'imager',
-            'text': 'Imager',
-            'icon': 'fa fa-image text-success',
-            'children': [
-                {'id': 'imager_output', 'text': 'Output', 'path': f'imager/outputs/{user_id}', 'icon': 'fa fa-folder text-success'},
             ]
         },
     ]
@@ -215,15 +227,18 @@ def api_search(request):
     # Search in all user-accessible folders
     search_paths = [
         f'users/{user.id}/temp',
-        'enhancer/input',
-        'enhancer/output',
         'anonymizer/input',
         'anonymizer/output',
+        'describer/input',
+        'describer/output',
+        'enhancer/input',
+        'enhancer/output',
+        f'imager/output/image/{user.id}',
+        f'imager/output/video/{user.id}',
         'synthesizer/input',
         'synthesizer/output',
         'transcriber/input',
         'transcriber/output',
-        f'imager/outputs/{user.id}',
     ]
 
     for search_path in search_paths:
@@ -534,6 +549,81 @@ def api_rename(request):
         return JsonResponse({'error': str(e)}, status=500)
 
 
+@require_POST
+def api_move(request):
+    """Move a file to a different folder (only within temp folder)."""
+    user = get_user(request)
+
+    try:
+        data = json.loads(request.body)
+        source_path = data.get('source', '')
+        dest_folder = data.get('destination', '')
+    except (json.JSONDecodeError, ValueError):
+        source_path = request.POST.get('source', '')
+        dest_folder = request.POST.get('destination', '')
+
+    if not source_path or not dest_folder:
+        return HttpResponseBadRequest('Missing source or destination')
+
+    # Security check - source must be allowed
+    if not is_path_allowed(source_path, user):
+        return JsonResponse({'error': 'Access denied to source'}, status=403)
+
+    # Only allow moves within user's temp folder
+    temp_prefix = f'users/{user.id}/temp'
+    if not source_path.startswith(temp_prefix):
+        return JsonResponse({'error': 'Déplacement autorisé uniquement dans le dossier temporaire'}, status=403)
+
+    if not dest_folder.startswith(temp_prefix):
+        return JsonResponse({'error': 'Destination doit être dans le dossier temporaire'}, status=403)
+
+    try:
+        source_full = Path(settings.MEDIA_ROOT) / source_path
+        dest_dir_full = Path(settings.MEDIA_ROOT) / dest_folder
+
+        if not source_full.exists():
+            return JsonResponse({'error': 'Fichier source non trouvé'}, status=404)
+
+        if not source_full.is_file():
+            return JsonResponse({'error': 'Seuls les fichiers peuvent être déplacés'}, status=400)
+
+        # Create destination directory if it doesn't exist
+        dest_dir_full.mkdir(parents=True, exist_ok=True)
+
+        # Build destination path
+        dest_full = dest_dir_full / source_full.name
+
+        # Handle duplicate names
+        if dest_full.exists():
+            stem = dest_full.stem
+            suffix = dest_full.suffix
+            counter = 1
+            while dest_full.exists():
+                dest_full = dest_dir_full / f"{stem}_{counter}{suffix}"
+                counter += 1
+
+        # Move the file
+        import shutil
+        shutil.move(str(source_full), str(dest_full))
+
+        new_path = f"{dest_folder}/{dest_full.name}"
+
+        # Update UserFile if exists
+        UserFile.objects.filter(user=user, file=source_path).update(
+            file=new_path,
+            original_name=dest_full.name
+        )
+
+        return JsonResponse({
+            'moved': True,
+            'old_path': source_path,
+            'new_path': new_path
+        })
+    except Exception as e:
+        logger.error(f"Error moving {source_path} to {dest_folder}: {e}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
 def api_download(request, path):
     """Download a file."""
     user = get_user(request)
@@ -675,11 +765,12 @@ def is_path_allowed(path, user):
 
     # Allow app folders (TODO: add per-user filtering for app files)
     allowed_prefixes = [
-        'enhancer/',
         'anonymizer/',
+        'describer/',
+        'enhancer/',
+        'imager/',
         'synthesizer/',
         'transcriber/',
-        'imager/',
     ]
 
     for prefix in allowed_prefixes:
@@ -711,7 +802,9 @@ def api_import_to_app(request):
         return HttpResponseBadRequest('Missing path or app parameter')
 
     # Validate app name
-    valid_apps = ['enhancer', 'anonymizer', 'synthesizer', 'transcriber']
+    # All apps accept file imports:
+    # - Imager: accepts prompt files (.txt/.json/.yaml) and reference images
+    valid_apps = ['anonymizer', 'describer', 'enhancer', 'imager', 'synthesizer', 'transcriber']
     if target_app not in valid_apps:
         return JsonResponse({'error': f'Invalid app: {target_app}'}, status=400)
 
@@ -726,10 +819,14 @@ def api_import_to_app(request):
 
     try:
         # Import based on target app
-        if target_app == 'enhancer':
-            result = import_to_enhancer(source_path, user)
-        elif target_app == 'anonymizer':
+        if target_app == 'anonymizer':
             result = import_to_anonymizer(source_path, user)
+        elif target_app == 'describer':
+            result = import_to_describer(source_path, user)
+        elif target_app == 'enhancer':
+            result = import_to_enhancer(source_path, user)
+        elif target_app == 'imager':
+            result = import_to_imager(source_path, user)
         elif target_app == 'synthesizer':
             result = import_to_synthesizer(source_path, user)
         elif target_app == 'transcriber':
@@ -741,6 +838,45 @@ def api_import_to_app(request):
     except Exception as e:
         logger.error(f"Error importing {file_path} to {target_app}: {e}")
         return JsonResponse({'error': str(e)}, status=500)
+
+
+def import_to_describer(source_path, user):
+    """Import a file to Describer app."""
+    from wama.describer.models import Description
+    import shutil
+
+    # Copy file to describer input folder
+    dest_dir = Path(settings.MEDIA_ROOT) / 'describer' / 'input'
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    dest_path = dest_dir / source_path.name
+
+    # Handle duplicate names
+    if dest_path.exists():
+        stem = dest_path.stem
+        suffix = dest_path.suffix
+        counter = 1
+        while dest_path.exists():
+            dest_path = dest_dir / f"{stem}_{counter}{suffix}"
+            counter += 1
+
+    shutil.copy2(source_path, dest_path)
+
+    # Create Description record
+    relative_path = f'describer/input/{dest_path.name}'
+
+    description = Description.objects.create(user=user)
+    description.input_file.name = relative_path
+    description.filename = dest_path.name
+    description.file_size = dest_path.stat().st_size
+    description.save()
+
+    return {
+        'imported': True,
+        'app': 'describer',
+        'id': description.id,
+        'filename': dest_path.name,
+        'path': relative_path,
+    }
 
 
 def import_to_enhancer(source_path, user):
@@ -775,6 +911,82 @@ def import_to_enhancer(source_path, user):
         'imported': True,
         'app': 'enhancer',
         'id': enhancement.id,
+        'filename': dest_path.name,
+        'path': relative_path,
+    }
+
+
+def import_to_imager(source_path, user):
+    """
+    Import a file to Imager app.
+    Supports:
+    - Text files (.txt, .json, .yaml, .yml) -> batch prompts
+    - Image files -> reference images for img2img/style/describe modes
+    """
+    from wama.imager.models import ImageGeneration
+    import shutil
+
+    ext = source_path.suffix.lower()
+
+    # Determine file type and destination
+    if ext in ('.txt', '.json', '.yaml', '.yml'):
+        # Prompt file for batch generation
+        dest_dir = Path(settings.MEDIA_ROOT) / 'imager' / 'input' / 'prompts'
+        file_type = 'prompt_file'
+        generation_mode = 'file2img'
+    elif ext in ('.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp'):
+        # Reference image for img2img/style/describe
+        dest_dir = Path(settings.MEDIA_ROOT) / 'imager' / 'input' / 'references'
+        file_type = 'reference_image'
+        generation_mode = 'describe2img'  # Default, user can change mode
+    else:
+        raise ValueError(f"Format not supported for Imager: {ext}")
+
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    dest_path = dest_dir / source_path.name
+
+    # Handle duplicate names
+    if dest_path.exists():
+        stem = dest_path.stem
+        suffix = dest_path.suffix
+        counter = 1
+        while dest_path.exists():
+            dest_path = dest_dir / f"{stem}_{counter}{suffix}"
+            counter += 1
+
+    shutil.copy2(source_path, dest_path)
+
+    # Create ImageGeneration record
+    if file_type == 'prompt_file':
+        # For prompt files, we just save the file reference
+        # The actual batch will be created when user opens Imager
+        generation = ImageGeneration.objects.create(
+            user=user,
+            generation_mode=generation_mode,
+            prompt=f'Batch from {dest_path.name} (pending)',
+            status='PENDING',
+        )
+        relative_path = f'imager/input/prompts/{dest_path.name}'
+        generation.prompt_file.name = relative_path
+        generation.save()
+    else:
+        # For reference images, create a describe2img generation
+        generation = ImageGeneration.objects.create(
+            user=user,
+            generation_mode=generation_mode,
+            prompt='[Awaiting prompt generation]',
+            status='PENDING',
+        )
+        relative_path = f'imager/input/references/{dest_path.name}'
+        generation.reference_image.name = relative_path
+        generation.save()
+
+    return {
+        'imported': True,
+        'app': 'imager',
+        'id': generation.id,
+        'type': file_type,
+        'mode': generation_mode,
         'filename': dest_path.name,
         'path': relative_path,
     }
