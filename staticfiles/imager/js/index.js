@@ -21,6 +21,7 @@
         initializeVideoTab();
         initializeTabPersistence();
         initializeRightPanelSync();
+        initializeModelDescriptions();
         startProgressPolling();
     });
 
@@ -1500,6 +1501,46 @@
             console.error('Error saving video settings:', error);
             showNotification('Erreur lors de la sauvegarde des paramètres vidéo', 'danger');
         });
+    }
+
+    /**
+     * Initialize model description tooltips
+     * Shows model descriptions below dropdowns when selection changes
+     */
+    function initializeModelDescriptions() {
+        // Find all model selects with tooltip support
+        const modelSelects = document.querySelectorAll('.model-select-with-tooltip');
+
+        modelSelects.forEach(select => {
+            // Get the description element (sibling small.model-description)
+            const descriptionElement = select.parentElement.querySelector('.model-description');
+
+            if (descriptionElement) {
+                // Update description on change
+                select.addEventListener('change', function() {
+                    updateModelDescription(this, descriptionElement);
+                });
+
+                // Show initial description
+                updateModelDescription(select, descriptionElement);
+            }
+        });
+    }
+
+    /**
+     * Update model description element based on selected option
+     */
+    function updateModelDescription(selectElement, descriptionElement) {
+        const selectedOption = selectElement.options[selectElement.selectedIndex];
+        const description = selectedOption.getAttribute('data-description') || '';
+
+        if (description) {
+            descriptionElement.textContent = description;
+            descriptionElement.style.display = 'block';
+        } else {
+            descriptionElement.textContent = '';
+            descriptionElement.style.display = 'none';
+        }
     }
 
 })();

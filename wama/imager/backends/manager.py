@@ -215,17 +215,59 @@ class BackendManager:
         for backend_name in self.BACKEND_PRIORITY:
             if backend_name in self._backends:
                 backend_class = self._backends[backend_name]
-                return [
-                    (name, info[0])
-                    for name, info in backend_class.SUPPORTED_MODELS.items()
-                ]
+                result = []
+                for name, info in backend_class.SUPPORTED_MODELS.items():
+                    # Support both old tuple format and new dict format
+                    if isinstance(info, dict):
+                        result.append((name, info.get('name', name)))
+                    else:
+                        result.append((name, info[0]))
+                return result
 
         # Fallback to any registered backend
         for backend_class in self._backends.values():
-            return [
-                (name, info[0])
-                for name, info in backend_class.SUPPORTED_MODELS.items()
-            ]
+            result = []
+            for name, info in backend_class.SUPPORTED_MODELS.items():
+                if isinstance(info, dict):
+                    result.append((name, info.get('name', name)))
+                else:
+                    result.append((name, info[0]))
+            return result
+
+        return []
+
+    def get_models_with_info_fast(self) -> List[Dict]:
+        """
+        Get models list with full info (including descriptions) without checking availability.
+        Good for UI display with tooltips.
+
+        Returns:
+            List of dicts with model_id, name, description, vram, etc.
+        """
+        # Use diffusers models by default (most comprehensive list)
+        for backend_name in self.BACKEND_PRIORITY:
+            if backend_name in self._backends:
+                backend_class = self._backends[backend_name]
+                result = []
+                for model_id, info in backend_class.SUPPORTED_MODELS.items():
+                    if isinstance(info, dict):
+                        result.append({
+                            'id': model_id,
+                            'name': info.get('name', model_id),
+                            'description': info.get('description', ''),
+                            'vram': info.get('vram', ''),
+                            'pipeline': info.get('pipeline', 'sd'),
+                        })
+                    else:
+                        # Old tuple format: (name, hf_id)
+                        result.append({
+                            'id': model_id,
+                            'name': info[0] if isinstance(info, tuple) else str(info),
+                            'description': '',
+                            'vram': '',
+                            'pipeline': 'sd',
+                        })
+                return result
 
         return []
 
@@ -326,6 +368,17 @@ def get_models_choices_fast() -> List[Tuple[str, str]]:
         List of (model_name, display_name) tuples.
     """
     return get_manager().get_models_choices_fast()
+
+
+def get_models_with_info_fast() -> List[Dict]:
+    """
+    Get models list with full info (including descriptions) without heavy imports.
+    Use this for UI display with tooltips.
+
+    Returns:
+        List of dicts with model_id, name, description, vram, etc.
+    """
+    return get_manager().get_models_with_info_fast()
 
 
 def get_backend_info_fast() -> Dict:

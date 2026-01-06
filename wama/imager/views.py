@@ -43,10 +43,11 @@ def index(request):
 
     # Get available models from backend system (fast method - no heavy imports)
     try:
-        from .backends import get_models_choices_fast, get_backend_info_fast
+        from .backends import get_models_choices_fast, get_models_with_info_fast, get_backend_info_fast
 
         # Use fast methods to avoid slow torch/diffusers imports during page load
         models_choices = get_models_choices_fast()
+        models_info = get_models_with_info_fast()  # Full info with descriptions
         backend_info = get_backend_info_fast()
 
         backend_name = backend_info['backend_name']
@@ -57,6 +58,10 @@ def index(request):
         models_choices = [
             ('openjourney-v4', 'OpenJourney v4'),
             ('stable-diffusion-v1-5', 'Stable Diffusion 1.5'),
+        ]
+        models_info = [
+            {'id': 'openjourney-v4', 'name': 'OpenJourney v4', 'description': 'Style Midjourney', 'vram': '4GB'},
+            {'id': 'stable-diffusion-v1-5', 'name': 'Stable Diffusion 1.5', 'description': 'Modèle classique', 'vram': '4GB'},
         ]
         backend_name = "Unknown"
         backend_available = False
@@ -77,10 +82,20 @@ def index(request):
         ('img2vid', 'Image to Video', 'fas fa-image'),
     ]
 
-    # Video model choices
+    # Video model choices with descriptions
     video_models = [
-        ('wan-t2v-1.3b', 'Wan T2V 1.3B (~8GB VRAM) - Text-to-Video'),
-        ('wan-i2v-14b', 'Wan I2V 14B (~24GB VRAM) - Image-to-Video'),
+        ('wan-t2v-1.3b', 'Wan T2V 1.3B'),
+        ('wan-i2v-14b', 'Wan I2V 14B'),
+        ('hunyuan-t2v-480p', 'HunyuanVideo T2V 480p'),
+        ('hunyuan-t2v-720p', 'HunyuanVideo T2V 720p'),
+        ('hunyuan-i2v-480p', 'HunyuanVideo I2V 480p'),
+    ]
+    video_models_info = [
+        {'id': 'wan-t2v-1.3b', 'name': 'Wan T2V 1.3B', 'description': 'Text-to-Video - 8GB VRAM - Rapide et efficace', 'vram': '8GB', 'type': 't2v'},
+        {'id': 'wan-i2v-14b', 'name': 'Wan I2V 14B', 'description': 'Image-to-Video - 24GB VRAM - Haute qualité', 'vram': '24GB', 'type': 'i2v'},
+        {'id': 'hunyuan-t2v-480p', 'name': 'HunyuanVideo T2V 480p', 'description': 'Text-to-Video 480p - 14GB VRAM avec offload - Excellente qualité', 'vram': '14GB', 'type': 't2v'},
+        {'id': 'hunyuan-t2v-720p', 'name': 'HunyuanVideo T2V 720p', 'description': 'Text-to-Video 720p - 24GB VRAM - Haute résolution', 'vram': '24GB', 'type': 't2v'},
+        {'id': 'hunyuan-i2v-480p', 'name': 'HunyuanVideo I2V 480p', 'description': 'Image-to-Video 480p - 14GB VRAM avec offload - Animation d\'images', 'vram': '14GB', 'type': 'i2v'},
     ]
 
     # Separate image and video generations
@@ -93,7 +108,9 @@ def index(request):
         'video_generations': video_generations,
         'user_settings': user_settings,
         'models_choices': models_choices,
+        'models_info': models_info,  # Model info with descriptions for tooltips
         'video_models': video_models,
+        'video_models_info': video_models_info,  # Video model info with descriptions
         'backend_name': backend_name,
         'backend_available': backend_available,
         'available_backends': available_backends,

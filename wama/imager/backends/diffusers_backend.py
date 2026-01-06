@@ -28,51 +28,101 @@ class DiffusersBackend(ImageGenerationBackend):
     display_name = "Diffusers (Hugging Face)"
 
     # Map generic model names to Hugging Face model IDs
+    # Format: (display_name, hf_model_id, description, vram_required)
     SUPPORTED_MODELS = {
+        # HunyuanImage 2.1 - High quality 2K images (NEW)
+        "hunyuan-image-2.1": {
+            "name": "HunyuanImage 2.1",
+            "hf_id": "hunyuanvideo-community/HunyuanImage-2.1-Diffusers",
+            "description": "Génération 2K (2048px) - 24GB VRAM - Qualité exceptionnelle",
+            "vram": "24GB",
+            "pipeline": "hunyuan",
+            "min_resolution": 2048,
+        },
+
         # Stable Diffusion models
-        "stable-diffusion-v1-5": (
-            "Stable Diffusion 1.5",
-            "stable-diffusion-v1-5/stable-diffusion-v1-5"
-        ),
-        "stable-diffusion-2-1": (
-            "Stable Diffusion 2.1",
-            "stabilityai/stable-diffusion-2-1"
-        ),
-        "stable-diffusion-xl": (
-            "Stable Diffusion XL",
-            "stabilityai/stable-diffusion-xl-base-1.0"
-        ),
+        "stable-diffusion-v1-5": {
+            "name": "Stable Diffusion 1.5",
+            "hf_id": "stable-diffusion-v1-5/stable-diffusion-v1-5",
+            "description": "Modèle classique - 4GB VRAM - Rapide et polyvalent",
+            "vram": "4GB",
+            "pipeline": "sd",
+        },
+        "stable-diffusion-2-1": {
+            "name": "Stable Diffusion 2.1",
+            "hf_id": "stabilityai/stable-diffusion-2-1",
+            "description": "Version améliorée - 6GB VRAM - Meilleure cohérence",
+            "vram": "6GB",
+            "pipeline": "sd",
+        },
+        "stable-diffusion-xl": {
+            "name": "Stable Diffusion XL",
+            "hf_id": "stabilityai/stable-diffusion-xl-base-1.0",
+            "description": "Haute résolution - 10GB VRAM - Images détaillées",
+            "vram": "10GB",
+            "pipeline": "sdxl",
+        },
 
         # Artistic models
-        "openjourney-v4": (
-            "OpenJourney v4",
-            "prompthero/openjourney-v4"
-        ),
-        "dreamlike-art-2": (
-            "Dreamlike Art 2.0",
-            "dreamlike-art/dreamlike-diffusion-1.0"
-        ),
-        "dreamshaper-8": (
-            "DreamShaper 8",
-            "Lykon/DreamShaper"
-        ),
-        "deliberate-v2": (
-            "Deliberate v2",
-            "XpucT/Deliberate"
-        ),
+        "openjourney-v4": {
+            "name": "OpenJourney v4",
+            "hf_id": "prompthero/openjourney-v4",
+            "description": "Style Midjourney - 4GB VRAM - Art créatif",
+            "vram": "4GB",
+            "pipeline": "sd",
+        },
+        "dreamlike-art-2": {
+            "name": "Dreamlike Art 2.0",
+            "hf_id": "dreamlike-art/dreamlike-diffusion-1.0",
+            "description": "Style artistique - 4GB VRAM - Images oniriques",
+            "vram": "4GB",
+            "pipeline": "sd",
+        },
+        "dreamshaper-8": {
+            "name": "DreamShaper 8",
+            "hf_id": "Lykon/DreamShaper",
+            "description": "Polyvalent - 4GB VRAM - Excellent rapport qualité/vitesse",
+            "vram": "4GB",
+            "pipeline": "sd",
+        },
+        "deliberate-v2": {
+            "name": "Deliberate v2",
+            "hf_id": "XpucT/Deliberate",
+            "description": "Réaliste/Artistique - 4GB VRAM - Très détaillé",
+            "vram": "4GB",
+            "pipeline": "sd",
+        },
 
         # Realistic models
-        "realistic-vision-v5": (
-            "Realistic Vision V5",
-            "SG161222/Realistic_Vision_V5.1_noVAE"
-        ),
+        "realistic-vision-v5": {
+            "name": "Realistic Vision V5",
+            "hf_id": "SG161222/Realistic_Vision_V5.1_noVAE",
+            "description": "Photoréaliste - 4GB VRAM - Portraits et paysages",
+            "vram": "4GB",
+            "pipeline": "sd",
+        },
 
         # Anime models
-        "anything-v5": (
-            "Anything V5",
-            "stablediffusionapi/anything-v5"
-        ),
+        "anything-v5": {
+            "name": "Anything V5",
+            "hf_id": "stablediffusionapi/anything-v5",
+            "description": "Style anime - 4GB VRAM - Illustrations manga",
+            "vram": "4GB",
+            "pipeline": "sd",
+        },
     }
+
+    # Legacy support: map old format to new
+    @classmethod
+    def _get_model_info(cls, model_name: str) -> dict:
+        """Get model info, supporting both old tuple and new dict formats."""
+        model_info = cls.SUPPORTED_MODELS.get(model_name)
+        if model_info is None:
+            return None
+        if isinstance(model_info, tuple):
+            # Old format: (name, hf_id)
+            return {"name": model_info[0], "hf_id": model_info[1], "pipeline": "sd"}
+        return model_info
 
     def __init__(self):
         super().__init__()
@@ -113,9 +163,60 @@ class DiffusersBackend(ImageGenerationBackend):
             logger.warning("[Diffusers] No GPU detected, using CPU (slow)")
             return "cpu"
 
+    def _load_sd_pipeline(self, model_id: str):
+        """Load a standard Stable Diffusion pipeline."""
+        from diffusers import StableDiffusionPipeline
+
+        dtype = self._torch.float16 if self._device == "cuda" else self._torch.float32
+
+        return StableDiffusionPipeline.from_pretrained(
+            model_id,
+            torch_dtype=dtype,
+            use_safetensors=True,
+            safety_checker=None,
+        )
+
+    def _load_sdxl_pipeline(self, model_id: str):
+        """Load a Stable Diffusion XL pipeline."""
+        from diffusers import StableDiffusionXLPipeline
+
+        dtype = self._torch.float16 if self._device == "cuda" else self._torch.float32
+
+        return StableDiffusionXLPipeline.from_pretrained(
+            model_id,
+            torch_dtype=dtype,
+            use_safetensors=True,
+            variant="fp16" if dtype == self._torch.float16 else None
+        )
+
+    def _load_hunyuan_pipeline(self, model_id: str):
+        """Load a HunyuanImage 2.1 pipeline."""
+        from diffusers import HunyuanImagePipeline
+
+        logger.info("[Diffusers] Loading HunyuanImage 2.1 pipeline...")
+        logger.info("[Diffusers] Note: This model only supports 2K resolution (2048x2048)")
+
+        pipe = HunyuanImagePipeline.from_pretrained(
+            model_id,
+            torch_dtype=self._torch.bfloat16,
+        )
+
+        # Use CPU offload for memory efficiency (24GB required for 2K)
+        logger.info("[Diffusers] Enabling CPU offload for HunyuanImage...")
+        pipe.enable_model_cpu_offload()
+
+        # Enable VAE tiling for large images
+        try:
+            pipe.vae.enable_tiling()
+            logger.info("[Diffusers] VAE tiling enabled for HunyuanImage")
+        except Exception as e:
+            logger.debug(f"[Diffusers] VAE tiling not available: {e}")
+
+        return pipe
+
     def load(self, model_name: str = None) -> bool:
         """
-        Load a Stable Diffusion model.
+        Load a Stable Diffusion or Hunyuan model.
 
         Args:
             model_name: Model name (will be mapped to HuggingFace model ID).
@@ -126,8 +227,14 @@ class DiffusersBackend(ImageGenerationBackend):
         if model_name is None:
             model_name = "stable-diffusion-v1-5"
 
-        # Map to HuggingFace model ID
-        model_id = self.map_model_name(model_name)
+        # Get model info
+        model_info = self._get_model_info(model_name)
+        if model_info is None:
+            # Fallback: use model_name as HuggingFace ID
+            model_info = {"name": model_name, "hf_id": model_name, "pipeline": "sd"}
+
+        model_id = model_info["hf_id"]
+        pipeline_type = model_info.get("pipeline", "sd")
 
         # Check if already loaded
         if self._loaded and self._current_model == model_id:
@@ -141,74 +248,64 @@ class DiffusersBackend(ImageGenerationBackend):
             self._torch = torch
             self._device = self._get_device()
 
-            logger.info(f"Loading model {model_id} on {self._device}...")
+            logger.info(f"[Diffusers] Loading model: {model_info.get('name', model_name)}")
+            logger.info(f"[Diffusers] HuggingFace ID: {model_id}")
+            logger.info(f"[Diffusers] Pipeline type: {pipeline_type}")
 
             # Unload previous model if any
             if self._pipe is not None:
                 self.unload()
 
-            # Determine dtype based on device
-            if self._device == "cuda":
-                dtype = torch.float16
+            # Load based on pipeline type
+            if pipeline_type == "hunyuan":
+                # HunyuanImage 2.1 pipeline
+                self._pipe = self._load_hunyuan_pipeline(model_id)
+            elif pipeline_type == "sdxl":
+                # Stable Diffusion XL pipeline
+                self._pipe = self._load_sdxl_pipeline(model_id)
             else:
-                dtype = torch.float32
+                # Standard Stable Diffusion pipeline
+                self._pipe = self._load_sd_pipeline(model_id)
 
-            # Check if it's an XL model
-            is_xl = "xl" in model_id.lower()
-
-            if is_xl:
-                from diffusers import StableDiffusionXLPipeline
-                self._pipe = StableDiffusionXLPipeline.from_pretrained(
-                    model_id,
-                    torch_dtype=dtype,
-                    use_safetensors=True,
-                    variant="fp16" if dtype == torch.float16 else None
-                )
-            else:
-                self._pipe = StableDiffusionPipeline.from_pretrained(
-                    model_id,
-                    torch_dtype=dtype,
-                    use_safetensors=True,
-                    safety_checker=None,  # Disable NSFW filter for faster processing
-                )
-
-            # Use faster scheduler (with fallback if incompatible)
-            try:
-                scheduler_config = dict(self._pipe.scheduler.config)
-                # Fix incompatible settings for some models
-                if scheduler_config.get('final_sigmas_type') == 'zero':
-                    scheduler_config['final_sigmas_type'] = 'sigma_min'
-                self._pipe.scheduler = DPMSolverMultistepScheduler.from_config(scheduler_config)
-            except Exception as scheduler_error:
-                logger.warning(f"Could not use DPMSolver scheduler, using default: {scheduler_error}")
-
-            # Move to device
-            logger.info(f"[Diffusers] Moving pipeline to {self._device}...")
-            self._pipe = self._pipe.to(self._device)
-            logger.info(f"[Diffusers] Pipeline moved to {self._device}")
-
-            # Enable memory optimizations
-            if self._device == "cuda":
+            # Skip scheduler and device setup for Hunyuan (uses CPU offload)
+            if pipeline_type != "hunyuan":
+                # Use faster scheduler (with fallback if incompatible)
                 try:
-                    self._pipe.enable_attention_slicing()
-                    logger.info("[Diffusers] Attention slicing enabled")
-                except Exception:
-                    pass
+                    scheduler_config = dict(self._pipe.scheduler.config)
+                    # Fix incompatible settings for some models
+                    if scheduler_config.get('final_sigmas_type') == 'zero':
+                        scheduler_config['final_sigmas_type'] = 'sigma_min'
+                    self._pipe.scheduler = DPMSolverMultistepScheduler.from_config(scheduler_config)
+                except Exception as scheduler_error:
+                    logger.warning(f"Could not use DPMSolver scheduler, using default: {scheduler_error}")
 
-                # Try to enable xformers for better memory efficiency
-                try:
-                    self._pipe.enable_xformers_memory_efficient_attention()
-                    logger.info("[Diffusers] xformers memory efficient attention enabled")
-                except Exception as e:
-                    logger.debug(f"[Diffusers] xformers not available: {e}")
+                # Move to device
+                logger.info(f"[Diffusers] Moving pipeline to {self._device}...")
+                self._pipe = self._pipe.to(self._device)
+                logger.info(f"[Diffusers] Pipeline moved to {self._device}")
 
-                # Log VRAM usage after loading
-                try:
-                    allocated = self._torch.cuda.memory_allocated(0) / (1024 ** 3)
-                    reserved = self._torch.cuda.memory_reserved(0) / (1024 ** 3)
-                    logger.info(f"[Diffusers] GPU memory: {allocated:.1f}GB allocated, {reserved:.1f}GB reserved")
-                except Exception:
-                    pass
+                # Enable memory optimizations
+                if self._device == "cuda":
+                    try:
+                        self._pipe.enable_attention_slicing()
+                        logger.info("[Diffusers] Attention slicing enabled")
+                    except Exception:
+                        pass
+
+                    # Try to enable xformers for better memory efficiency
+                    try:
+                        self._pipe.enable_xformers_memory_efficient_attention()
+                        logger.info("[Diffusers] xformers memory efficient attention enabled")
+                    except Exception as e:
+                        logger.debug(f"[Diffusers] xformers not available: {e}")
+
+                    # Log VRAM usage after loading
+                    try:
+                        allocated = self._torch.cuda.memory_allocated(0) / (1024 ** 3)
+                        reserved = self._torch.cuda.memory_reserved(0) / (1024 ** 3)
+                        logger.info(f"[Diffusers] GPU memory: {allocated:.1f}GB allocated, {reserved:.1f}GB reserved")
+                    except Exception:
+                        pass
 
             self._current_model = model_id
             self._loaded = True

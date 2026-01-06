@@ -11,7 +11,7 @@ Imager utilise la bibliothèque [imaginAIry](https://github.com/brycedrennan/ima
 - **Génération d'images par IA** : Créez des images à partir de descriptions textuelles
 - **Modèles multiples** : Support de OpenJourney v4, Dreamlike Art 2.0, Stable Diffusion 2.1 et 1.5
 - **Paramètres personnalisables** :
-  - Dimensions d'image (256px à 1024px)
+  - Dimensions d'image (256px à 2048px)
   - Prompts négatifs pour exclure des éléments
   - Nombre de steps (qualité vs vitesse)
   - Guidance scale (adhérence au prompt)

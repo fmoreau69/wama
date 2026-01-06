@@ -186,6 +186,28 @@ class ImageGeneration(models.Model):
         """Check if this is a video generation task"""
         return self.generation_mode in ('txt2vid', 'img2vid')
 
+    @property
+    def output_images(self):
+        """Return list of image URLs for display in templates"""
+        import os
+        from django.conf import settings
+
+        if not self.generated_images:
+            return []
+
+        urls = []
+        for path in self.generated_images:
+            if os.path.exists(path):
+                # Convert absolute path to relative URL
+                try:
+                    rel_path = os.path.relpath(path, settings.MEDIA_ROOT)
+                    url = f"{settings.MEDIA_URL}{rel_path.replace(os.sep, '/')}"
+                    urls.append(url)
+                except ValueError:
+                    # Path is not under MEDIA_ROOT, try to build URL anyway
+                    urls.append(path)
+        return urls
+
     def calculate_video_frames(self):
         """Calculate number of frames based on duration and fps (must be 4k+1)"""
         raw_frames = int(self.video_duration * self.video_fps)

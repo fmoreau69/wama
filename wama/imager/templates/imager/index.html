@@ -15,13 +15,17 @@
         <label for="model" class="form-label small fw-bold text-light">
             <i class="fas fa-robot"></i> Modèle
         </label>
-        <select class="form-select form-select-sm bg-dark text-white border-secondary" id="model" name="model">
-            {% for value, label in models_choices %}
-            <option value="{{ value }}" {% if value == user_settings.default_model %}selected{% endif %}>
-                {{ label }}
+        <select class="form-select form-select-sm bg-dark text-white border-secondary model-select-with-tooltip" id="model" name="model">
+            {% for model in models_info %}
+            <option value="{{ model.id }}"
+                    data-description="{{ model.description }}"
+                    data-vram="{{ model.vram }}"
+                    {% if model.id == user_settings.default_model %}selected{% endif %}>
+                {{ model.name }}{% if model.vram %} ({{ model.vram }}){% endif %}
             </option>
             {% endfor %}
         </select>
+        <small class="text-muted model-description" id="model_description"></small>
     </div>
 
     <!-- Dimensions -->
@@ -35,6 +39,7 @@
                 <option value="512" selected>512px</option>
                 <option value="768">768px</option>
                 <option value="1024">1024px</option>
+                <option value="2048">2048px</option>
             </select>
         </div>
         <div class="col-6">
@@ -46,6 +51,7 @@
                 <option value="512" selected>512px</option>
                 <option value="768">768px</option>
                 <option value="1024">1024px</option>
+                <option value="2048">2048px</option>
             </select>
         </div>
     </div>
@@ -119,11 +125,17 @@
         <label for="panel_video_model" class="form-label small fw-bold text-light">
             <i class="fas fa-robot"></i> Modèle
         </label>
-        <select class="form-select form-select-sm bg-dark text-white border-secondary" id="panel_video_model">
-            {% for value, label in video_models %}
-            <option value="{{ value }}">{{ label }}</option>
+        <select class="form-select form-select-sm bg-dark text-white border-secondary model-select-with-tooltip" id="panel_video_model">
+            {% for model in video_models_info %}
+            <option value="{{ model.id }}"
+                    data-description="{{ model.description }}"
+                    data-vram="{{ model.vram }}"
+                    data-type="{{ model.type }}">
+                {{ model.name }}{% if model.vram %} ({{ model.vram }}){% endif %}
+            </option>
             {% endfor %}
         </select>
+        <small class="text-muted model-description" id="panel_video_model_description"></small>
     </div>
 
     <!-- Resolution -->
@@ -516,12 +528,16 @@
                     {% if gen.status == 'SUCCESS' and gen.output_images %}
                     <div class="row mt-3">
                         <div class="col-12">
-                            <div class="d-flex flex-wrap gap-2">
+                            <div class="d-flex flex-wrap gap-2 image-preview-row">
                                 {% for img_url in gen.output_images %}
-                                <div class="generated-image-preview">
-                                    <img src="{{ img_url }}" alt="Generated Image"
-                                         style="max-width: 200px; max-height: 200px; border-radius: 8px; cursor: pointer;"
-                                         onclick="window.open('{{ img_url }}', '_blank')">
+                                <div class="generated-image-preview"
+                                     style="flex: 0 0 calc(25% - 6px); max-width: calc(25% - 6px); min-width: 100px;">
+                                    <img src="{{ img_url }}" alt="Generated Image {{ forloop.counter }}"
+                                         class="img-thumbnail bg-dark border-secondary"
+                                         style="width: 100%; height: auto; max-height: 150px; object-fit: cover; cursor: pointer; transition: transform 0.2s;"
+                                         onclick="window.open('{{ img_url }}', '_blank')"
+                                         onmouseover="this.style.transform='scale(1.05)'"
+                                         onmouseout="this.style.transform='scale(1)'">
                                 </div>
                                 {% endfor %}
                             </div>
@@ -664,12 +680,17 @@
                                 <!-- Model -->
                                 <div class="col-md-6 mb-3">
                                     <label for="video_model" class="form-label text-light">Modèle</label>
-                                    <select class="form-select form-select-sm bg-dark text-white border-secondary" id="video_model" name="video_model">
-                                        {% for value, label in video_models %}
-                                        <option value="{{ value }}">{{ label }}</option>
+                                    <select class="form-select form-select-sm bg-dark text-white border-secondary model-select-with-tooltip" id="video_model" name="video_model">
+                                        {% for model in video_models_info %}
+                                        <option value="{{ model.id }}"
+                                                data-description="{{ model.description }}"
+                                                data-vram="{{ model.vram }}"
+                                                data-type="{{ model.type }}">
+                                            {{ model.name }}{% if model.vram %} ({{ model.vram }}){% endif %}
+                                        </option>
                                         {% endfor %}
                                     </select>
-                                    <small class="text-white-50">1.3B : ~8GB VRAM | 5B : ~24GB VRAM</small>
+                                    <small class="text-muted model-description" id="video_model_description"></small>
                                 </div>
 
                                 <!-- Resolution -->
@@ -929,11 +950,16 @@
                         <!-- Model -->
                         <div class="col-md-6 mb-3">
                             <label for="settings_model" class="form-label">Modèle</label>
-                            <select class="form-select bg-dark text-white border-secondary" id="settings_model" name="model">
-                                {% for value, label in models_choices %}
-                                <option value="{{ value }}">{{ label }}</option>
+                            <select class="form-select bg-dark text-white border-secondary model-select-with-tooltip" id="settings_model" name="model">
+                                {% for model in models_info %}
+                                <option value="{{ model.id }}"
+                                        data-description="{{ model.description }}"
+                                        data-vram="{{ model.vram }}">
+                                    {{ model.name }}{% if model.vram %} ({{ model.vram }}){% endif %}
+                                </option>
                                 {% endfor %}
                             </select>
+                            <small class="text-muted model-description" id="settings_model_description"></small>
                         </div>
 
                         <!-- Number of images -->
@@ -957,6 +983,7 @@
                                 <option value="512">512px</option>
                                 <option value="768">768px</option>
                                 <option value="1024">1024px</option>
+                                <option value="2048">2048px</option>
                             </select>
                         </div>
 
@@ -968,6 +995,7 @@
                                 <option value="512">512px</option>
                                 <option value="768">768px</option>
                                 <option value="1024">1024px</option>
+                                <option value="2048">2048px</option>
                             </select>
                         </div>
                     </div>
@@ -1058,11 +1086,17 @@
                         <!-- Model -->
                         <div class="col-md-6 mb-3">
                             <label for="video_settings_model" class="form-label">Modèle</label>
-                            <select class="form-select bg-dark text-white border-secondary" id="video_settings_model" name="model">
-                                {% for value, label in video_models %}
-                                <option value="{{ value }}">{{ label }}</option>
+                            <select class="form-select bg-dark text-white border-secondary model-select-with-tooltip" id="video_settings_model" name="model">
+                                {% for model in video_models_info %}
+                                <option value="{{ model.id }}"
+                                        data-description="{{ model.description }}"
+                                        data-vram="{{ model.vram }}"
+                                        data-type="{{ model.type }}">
+                                    {{ model.name }}{% if model.vram %} ({{ model.vram }}){% endif %}
+                                </option>
                                 {% endfor %}
                             </select>
+                            <small class="text-muted model-description" id="video_settings_model_description"></small>
                         </div>
 
                         <!-- Resolution -->
