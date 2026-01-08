@@ -281,10 +281,15 @@ class HunyuanVideoBackend(ImageGenerationBackend):
 
         try:
             # Set up generator for reproducibility
-            generator = None
-            if params.seed is not None:
-                generator = torch.Generator(device="cuda").manual_seed(params.seed)
-                logger.info(f"[HunyuanVideo] Using seed: {params.seed}")
+            # With CPU offload, generator must be on CPU
+            seed_used = params.seed
+            if seed_used is None:
+                seed_used = torch.randint(0, 2**32, (1,)).item()
+                logger.info(f"[HunyuanVideo] Generated random seed: {seed_used}")
+            else:
+                logger.info(f"[HunyuanVideo] Using provided seed: {seed_used}")
+
+            generator = torch.Generator(device="cpu").manual_seed(seed_used)
 
             # Clear CUDA cache
             if torch.cuda.is_available():
@@ -341,7 +346,8 @@ class HunyuanVideoBackend(ImageGenerationBackend):
 
             return GenerationResult(
                 success=True,
-                video_frames=video_frames
+                video_frames=video_frames,
+                seed_used=seed_used
             )
 
         except Exception as e:

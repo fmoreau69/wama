@@ -369,15 +369,22 @@ class DiffusersBackend(ImageGenerationBackend):
             import torch
             from PIL import Image
 
+            # Check if this is a HunyuanImage model
+            model_info = self._get_model_info(params.model)
+            is_hunyuan = model_info and model_info.get("pipeline") == "hunyuan"
+
+            # For HunyuanImage with CPU offload, generator must be on CPU
+            generator_device = "cpu" if is_hunyuan else self._device
+
             # Setup generator for reproducibility
             generator = None
             seed_used = params.seed
             if seed_used is not None:
-                generator = torch.Generator(device=self._device).manual_seed(seed_used)
+                generator = torch.Generator(device=generator_device).manual_seed(seed_used)
             else:
                 # Generate a random seed for reproducibility
                 seed_used = torch.randint(0, 2**32, (1,)).item()
-                generator = torch.Generator(device=self._device).manual_seed(seed_used)
+                generator = torch.Generator(device=generator_device).manual_seed(seed_used)
 
             # Build prompt
             prompt = params.prompt
@@ -403,19 +410,43 @@ class DiffusersBackend(ImageGenerationBackend):
                     base_progress = int((i / params.num_images) * 100)
                     progress_callback(base_progress)
 
+                # Clear CUDA cache before generation
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+                    gc.collect()
+
                 # Generate single image
                 with torch.inference_mode():
-                    result = self._pipe(
-                        prompt=prompt,
-                        negative_prompt=negative_prompt if negative_prompt else None,
-                        width=params.width,
-                        height=params.height,
-                        num_inference_steps=params.steps,
-                        guidance_scale=params.guidance_scale,
-                        generator=generator,
-                        num_images_per_prompt=1,
-                        callback_on_step_end=step_callback,
-                    )
+                    if is_hunyuan:
+                        # HunyuanImage has different parameters
+                        # Force 2K resolution for HunyuanImage
+                        width = max(params.width, 2048)
+                        height = max(params.height, 2048)
+                        logger.info(f"[Diffusers] HunyuanImage forcing 2K: {width}x{height}")
+
+                        result = self._pipe(
+                            prompt=prompt,
+                            negative_prompt=negative_prompt if negative_prompt else None,
+                            height=height,
+                            width=width,
+                            num_inference_steps=params.steps,
+                            guidance_scale=params.guidance_scale,
+                            generator=generator,
+                            callback_on_step_end=step_callback,
+                        )
+                    else:
+                        # Standard SD/SDXL generation
+                        result = self._pipe(
+                            prompt=prompt,
+                            negative_prompt=negative_prompt if negative_prompt else None,
+                            width=params.width,
+                            height=params.height,
+                            num_inference_steps=params.steps,
+                            guidance_scale=params.guidance_scale,
+                            generator=generator,
+                            num_images_per_prompt=1,
+                            callback_on_step_end=step_callback,
+                        )
 
                 if result.images:
                     img = result.images[0]
@@ -428,7 +459,7 @@ class DiffusersBackend(ImageGenerationBackend):
 
                 # Create new generator with incremented seed for next image
                 if params.num_images > 1:
-                    generator = torch.Generator(device=self._device).manual_seed(seed_used + i + 1)
+                    generator = torch.Generator(device=generator_device).manual_seed(seed_used + i + 1)
 
             if progress_callback:
                 progress_callback(100)
@@ -440,7 +471,9 @@ class DiffusersBackend(ImageGenerationBackend):
             )
 
         except Exception as e:
+            import traceback
             logger.error(f"Generation failed: {e}")
+            logger.error(f"Traceback:\n{traceback.format_exc()}")
             return GenerationResult(
                 success=False,
                 images=[],

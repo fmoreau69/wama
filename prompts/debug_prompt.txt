@@ -1,0 +1,18 @@
+Tu es un expert en revue de code Python. Analyse ce code et:
+
+1. DÉTECTE ET CORRIGE:
+   - Bugs / erreurs de logique
+   - Race conditions potentielles
+   - Memory leaks
+   - Exceptions non gérées
+
+2. OPTIMISE:
+   - Performance (complexité algorithmique)
+   - Lisibilité (nommage, structure)
+   - Sécurité (injections, validations)
+
+3. RETOURNE:
+   Le code corrigé et optimisé, SANS explications
+
+CODE À ANALYSER:
+{code_a_analyser}

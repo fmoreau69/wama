@@ -1,46 +1,103 @@
+# =============================================================================
 # AI Models - Git Ignore Configuration
+# =============================================================================
+# This file excludes large AI model files from Git while preserving
+# the directory structure needed for the application to function.
 #
-# By default, exclude large model files from Git.
-# Keep directory structure and documentation files.
+# Models are downloaded automatically when needed by WAMA.
+# =============================================================================
 
-# Synthesizer TTS models
-synthesizer/tts/tts/
-*.pth
-*.onnx
-*.bin
-*.safetensors
+# -----------------------------------------------------------------------------
+# HuggingFace Cache Directories (auto-downloaded models)
+# -----------------------------------------------------------------------------
+# These contain downloaded models from HuggingFace Hub
+models--*/
+.locks/
+xet/
+hub/
+huggingface/
 
-# Anonymizer YOLO models (future)
-anonymizer/yolo/*.pt
-anonymizer/yolo/*.weights
+# -----------------------------------------------------------------------------
+# Imager Models
+# -----------------------------------------------------------------------------
+# Wan Video models (Text-to-Video, Image-to-Video)
+imager/wan/models--*/
+imager/wan/.locks/
+imager/wan/xet/
 
-# Enhancer ONNX models (future)
+# HunyuanVideo models
+imager/hunyuan/models--*/
+imager/hunyuan/.locks/
+imager/hunyuan/hub/
+
+# Diffusers models cache
+imager/diffusers/
+
+# -----------------------------------------------------------------------------
+# Enhancer Models (ONNX upscaling models)
+# -----------------------------------------------------------------------------
 enhancer/onnx/*.onnx
 enhancer/onnx/*.pth
 
-# Imager Wan Video models
-imager/wan/
-imager/wan/**
+# -----------------------------------------------------------------------------
+# Synthesizer Models (TTS, Bark, Whisper)
+# -----------------------------------------------------------------------------
+# Bark models (text-to-speech)
+synthesizer/bark/huggingface/
+synthesizer/bark/suno/
+synthesizer/bark/torch/
+synthesizer/bark/matplotlib/
+synthesizer/bark/whisper/
 
-# Common AI model formats
+# TTS models
+synthesizer/tts/tts/
+
+# -----------------------------------------------------------------------------
+# Anonymizer Models (YOLO, SAM)
+# -----------------------------------------------------------------------------
+anonymizer/yolo/*.pt
+anonymizer/yolo/*.weights
+anonymizer/sam/*.pth
+anonymizer/sam/*.pt
+
+# -----------------------------------------------------------------------------
+# Common AI Model File Formats
+# -----------------------------------------------------------------------------
+# PyTorch models
+*.pt
+*.pth
+*.bin
+*.safetensors
+
+# TensorFlow/Keras models
 *.h5
 *.pb
 *.tflite
+
+# ONNX models
+*.onnx
+*.engine
+
+# Other frameworks
 *.mlmodel
 *.caffemodel
 *.pkl
 *.pickle
-*.pt
-*.pth
-*.onnx
-*.engine
 
-# Keep these files
-!README.md
-!DOWNLOAD_MODELS.md
+# Large data files
+*.npy
+*.npz
+
+# -----------------------------------------------------------------------------
+# Exceptions - Keep these files
+# -----------------------------------------------------------------------------
 !.gitignore
 !.gitkeep
-!*/README.md
-!*/DOWNLOAD_MODELS.md
+!README.md
+!DOWNLOAD_MODELS.md
+!*.md
+
+# Keep .gitkeep in all subdirectories
 !*/.gitkeep
 !*/*/.gitkeep
+!*/*/*/.gitkeep

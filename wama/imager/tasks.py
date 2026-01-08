@@ -254,33 +254,69 @@ def generate_video_task(self, generation_id):
         push_console_line(user_id, f"[Imager Video] Prompt: {generation.prompt[:80]}{'...' if len(generation.prompt) > 80 else ''}")
         logger.info(f"Starting video generation #{generation_id} ({mode_label})")
 
-        # Import Wan video backend
-        push_console_line(user_id, f"[Imager Video] Importing Wan backend...")
-        try:
-            from .backends.wan_video_backend import WanVideoBackend, VideoGenerationParams
-            push_console_line(user_id, f"[Imager Video] ✓ Wan backend imported")
-        except ImportError as e:
-            error_msg = f"Wan video backend not available: {e}"
-            logger.error(error_msg)
-            logger.error(traceback.format_exc())
-            generation.status = 'FAILURE'
-            generation.error_message = error_msg
-            generation.save()
-            push_console_line(user_id, f"[Imager Video] ✗ Error: {error_msg}")
-            return {'error': error_msg}
+        # Detect which backend to use based on model name
+        model_name = generation.model
+        is_hunyuan_model = model_name.startswith('hunyuan-')
 
-        # Check if Wan is available
-        push_console_line(user_id, f"[Imager Video] Checking Wan availability (torch, diffusers)...")
-        if not WanVideoBackend.is_available():
-            error_msg = "Wan video backend not available. Please install diffusers with Wan support."
-            logger.error(error_msg)
-            generation.status = 'FAILURE'
-            generation.error_message = error_msg
-            generation.save()
-            push_console_line(user_id, f"[Imager Video] ✗ Error: {error_msg}")
-            push_console_line(user_id, f"[Imager Video] Install with: pip install diffusers transformers accelerate")
-            return {'error': error_msg}
-        push_console_line(user_id, f"[Imager Video] ✓ Wan backend available")
+        if is_hunyuan_model:
+            # Use HunyuanVideo backend
+            push_console_line(user_id, f"[Imager Video] Importing HunyuanVideo backend...")
+            try:
+                from .backends.hunyuan_video_backend import HunyuanVideoBackend, HunyuanVideoParams
+                backend_class = HunyuanVideoBackend
+                params_class = HunyuanVideoParams
+                push_console_line(user_id, f"[Imager Video] ✓ HunyuanVideo backend imported")
+            except ImportError as e:
+                error_msg = f"HunyuanVideo backend not available: {e}"
+                logger.error(error_msg)
+                logger.error(traceback.format_exc())
+                generation.status = 'FAILURE'
+                generation.error_message = error_msg
+                generation.save()
+                push_console_line(user_id, f"[Imager Video] ✗ Error: {error_msg}")
+                return {'error': error_msg}
+
+            # Check availability
+            push_console_line(user_id, f"[Imager Video] Checking HunyuanVideo availability...")
+            if not HunyuanVideoBackend.is_available():
+                error_msg = "HunyuanVideo backend not available. Need CUDA with 14GB+ VRAM."
+                logger.error(error_msg)
+                generation.status = 'FAILURE'
+                generation.error_message = error_msg
+                generation.save()
+                push_console_line(user_id, f"[Imager Video] ✗ Error: {error_msg}")
+                return {'error': error_msg}
+            push_console_line(user_id, f"[Imager Video] ✓ HunyuanVideo backend available")
+        else:
+            # Use Wan video backend
+            push_console_line(user_id, f"[Imager Video] Importing Wan backend...")
+            try:
+                from .backends.wan_video_backend import WanVideoBackend, VideoGenerationParams
+                backend_class = WanVideoBackend
+                params_class = VideoGenerationParams
+                push_console_line(user_id, f"[Imager Video] ✓ Wan backend imported")
+            except ImportError as e:
+                error_msg = f"Wan video backend not available: {e}"
+                logger.error(error_msg)
+                logger.error(traceback.format_exc())
+                generation.status = 'FAILURE'
+                generation.error_message = error_msg
+                generation.save()
+                push_console_line(user_id, f"[Imager Video] ✗ Error: {error_msg}")
+                return {'error': error_msg}
+
+            # Check if Wan is available
+            push_console_line(user_id, f"[Imager Video] Checking Wan availability (torch, diffusers)...")
+            if not WanVideoBackend.is_available():
+                error_msg = "Wan video backend not available. Please install diffusers with Wan support."
+                logger.error(error_msg)
+                generation.status = 'FAILURE'
+                generation.error_message = error_msg
+                generation.save()
+                push_console_line(user_id, f"[Imager Video] ✗ Error: {error_msg}")
+                push_console_line(user_id, f"[Imager Video] Install with: pip install diffusers transformers accelerate")
+                return {'error': error_msg}
+            push_console_line(user_id, f"[Imager Video] ✓ Wan backend available")
 
         # Create output directory
         output_dir = os.path.join(settings.MEDIA_ROOT, 'imager', 'output', 'video', str(generation.user.id))
@@ -292,7 +328,7 @@ def generate_video_task(self, generation_id):
         cache.set(f"imager_progress_{generation_id}", 5, timeout=7200)  # 2 hour timeout for videos
 
         # Initialize backend
-        backend = WanVideoBackend()
+        backend = backend_class()
         push_console_line(user_id, f"[Imager Video] Loading model: {generation.model}")
         push_console_line(user_id, f"[Imager Video] ⏳ This may take several minutes on first run (downloading ~5-10GB)...")
 
@@ -336,21 +372,36 @@ def generate_video_task(self, generation_id):
             reference_image_path = generation.reference_image.path
             push_console_line(user_id, f"[Imager Video] Reference image: {os.path.basename(reference_image_path)}")
 
-        # Create video generation parameters
-        params = VideoGenerationParams(
-            prompt=generation.prompt,
-            negative_prompt=generation.negative_prompt,
-            model=generation.model,
-            width=width,
-            height=height,
-            num_frames=num_frames,
-            fps=generation.video_fps,
-            guidance_scale=generation.guidance_scale,
-            num_inference_steps=generation.steps,
-            seed=generation.seed,
-            generation_mode=generation.generation_mode,
-            reference_image=reference_image_path,
-        )
+        # Create video generation parameters (different structure per backend)
+        if is_hunyuan_model:
+            params = params_class(
+                prompt=generation.prompt,
+                negative_prompt=generation.negative_prompt,
+                model=generation.model,
+                width=width,
+                height=height,
+                num_frames=num_frames,
+                num_inference_steps=generation.steps,
+                guidance_scale=generation.guidance_scale,
+                seed=generation.seed,
+                fps=generation.video_fps,
+                reference_image=reference_image_path,
+            )
+        else:
+            params = params_class(
+                prompt=generation.prompt,
+                negative_prompt=generation.negative_prompt,
+                model=generation.model,
+                width=width,
+                height=height,
+                num_frames=num_frames,
+                fps=generation.video_fps,
+                guidance_scale=generation.guidance_scale,
+                num_inference_steps=generation.steps,
+                seed=generation.seed,
+                generation_mode=generation.generation_mode,
+                reference_image=reference_image_path,
+            )
 
         last_progress_log = 0
 
@@ -374,7 +425,17 @@ def generate_video_task(self, generation_id):
         logger.info(f"Generating video with {num_frames} frames at {width}x{height}")
 
         generation_start = time.time()
-        result = backend.generate_video(params, progress_callback)
+
+        # Call the appropriate generation method based on backend
+        if is_hunyuan_model:
+            result = backend.generate(params, progress_callback)
+            video_frames = result.video_frames
+            seed_used = result.seed_used
+        else:
+            result = backend.generate_video(params, progress_callback)
+            video_frames = result.video_frames
+            seed_used = result.seed_used
+
         generation_time = time.time() - generation_start
 
         if not result.success:
@@ -387,12 +448,12 @@ def generate_video_task(self, generation_id):
             return {'error': error_msg}
 
         push_console_line(user_id, f"[Imager Video] ✓ Generation complete in {generation_time:.1f}s")
-        push_console_line(user_id, f"[Imager Video] Seed used: {result.seed_used}")
+        push_console_line(user_id, f"[Imager Video] Seed used: {seed_used}")
 
         generation.progress = 85
         generation.save()
         cache.set(f"imager_progress_{generation_id}", 85, timeout=7200)
-        push_console_line(user_id, f"[Imager Video] Exporting {len(result.video_frames)} frames to MP4...")
+        push_console_line(user_id, f"[Imager Video] Exporting {len(video_frames)} frames to MP4...")
 
         # Export video to MP4
         # Include model name in filename for easy identification
@@ -401,7 +462,7 @@ def generate_video_task(self, generation_id):
         video_path = os.path.join(output_dir, video_filename)
 
         export_start = time.time()
-        if not backend.export_video(result.video_frames, video_path, fps=generation.video_fps):
+        if not backend.export_video(video_frames, video_path, fps=generation.video_fps):
             error_msg = "Failed to export video to MP4"
             logger.error(error_msg)
             generation.status = 'FAILURE'
@@ -433,7 +494,7 @@ def generate_video_task(self, generation_id):
             push_console_line(user_id, f"[Imager Video] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
             push_console_line(user_id, f"[Imager Video] ✓ SUCCESS! Generation #{generation_id}")
             push_console_line(user_id, f"[Imager Video]   Duration: {generation.video_duration}s")
-            push_console_line(user_id, f"[Imager Video]   Seed: {result.seed_used}")
+            push_console_line(user_id, f"[Imager Video]   Seed: {seed_used}")
             push_console_line(user_id, f"[Imager Video]   Total time: {total_time:.1f}s")
             push_console_line(user_id, f"[Imager Video] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
@@ -447,7 +508,7 @@ def generate_video_task(self, generation_id):
             'success': True,
             'generation_id': generation_id,
             'video_path': video_path,
-            'seed': result.seed_used,
+            'seed': seed_used,
         }
 
     except Exception as e:

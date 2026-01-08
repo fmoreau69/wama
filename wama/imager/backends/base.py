@@ -35,11 +35,16 @@ class GenerationParams:
 
 @dataclass
 class GenerationResult:
-    """Result of image generation."""
+    """Result of image/video generation."""
     success: bool
-    images: List[Image.Image]
+    images: List[Image.Image] = None
     seed_used: Optional[int] = None
     error: Optional[str] = None
+    video_frames: Optional[List] = None  # For video generation
+
+    def __post_init__(self):
+        if self.images is None:
+            self.images = []
 
 
 class ImageGenerationBackend(ABC):
