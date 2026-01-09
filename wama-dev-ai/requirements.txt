@@ -1,0 +1,15 @@
+# WAMA Dev AI - Dependencies
+#
+# Install with: pip install -r wama-dev-ai/requirements.txt
+
+# Rich - Beautiful terminal output
+rich>=13.0.0
+
+# Ollama - Local LLM interface
+ollama>=0.1.0
+
+# Optional: ChromaDB for persistent semantic search
+# chromadb>=0.4.0
+
+# Optional: Tree-sitter for code parsing
+# tree-sitter>=0.20.0

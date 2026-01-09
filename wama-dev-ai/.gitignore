@@ -1,0 +1,23 @@
+# WAMA Dev AI - Git Ignore
+
+# Outputs and backups
+outputs/*
+!outputs/.gitkeep
+
+# Cache
+.cache/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Keep these
+!.gitignore
+!.gitkeep
