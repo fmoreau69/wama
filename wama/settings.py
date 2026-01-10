@@ -120,6 +120,8 @@ INSTALLED_APPS = [
     'wama.imager',
     'wama.synthesizer',
     'wama.transcriber',
+    # WAMA Lab - Experimental/Research applications
+    'wama_lab.face_analyzer',
 ]
 
 # Middleware

@@ -1,0 +1,145 @@
+{% extends 'common/app_modern_base.html' %}
+{% load static %}
+
+{% block app_icon %}<i class="fas fa-user-circle text-info"></i>{% endblock %}
+{% block app_title %}Face Analyzer{% endblock %}
+{% block app_description %}Analyse faciale en temps réel : rythme cardiaque, oculométrie, émotions{% endblock %}
+
+{% block console_content_id %}face-analyzer-console-content{% endblock %}
+{# Disable console for Face Analyzer - no log endpoint yet #}
+{% block console_url %}{% endblock %}
+
+{% block queue_content %}
+    {% block face_analyzer_content %}
+    {# Le contenu principal de Face Analyzer #}
+    {% endblock %}
+{% endblock %}
+
+{% block about_content %}
+<div class="info-card">
+    <h3><i class="fas fa-flask me-2"></i>WAMA Lab - Face Analyzer</h3>
+
+    <div class="mb-4">
+        <h5>Qu'est-ce que Face Analyzer ?</h5>
+        <p class="text-light">
+            Face Analyzer est une application de recherche qui analyse les signaux physiologiques
+            à partir de vidéo faciale. Elle extrait des indicateurs de santé et de comportement
+            de manière non-invasive.
+        </p>
+    </div>
+
+    <div class="mb-4">
+        <h5>Indicateurs mesurés</h5>
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card bg-dark border-danger mb-3">
+                    <div class="card-body">
+                        <h6 class="card-title text-danger"><i class="fas fa-heartbeat"></i> Cardiovasculaire</h6>
+                        <ul class="card-text small mb-0">
+                            <li>Fréquence cardiaque (HR)</li>
+                            <li>Variabilité cardiaque (HRV)</li>
+                            <li>SpO2 (estimation)</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card bg-dark border-success mb-3">
+                    <div class="card-body">
+                        <h6 class="card-title text-success"><i class="fas fa-lungs"></i> Respiration</h6>
+                        <ul class="card-text small mb-0">
+                            <li>Fréquence respiratoire</li>
+                            <li>Amplitude respiratoire</li>
+                            <li>Pattern respiratoire</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card bg-dark border-info mb-3">
+                    <div class="card-body">
+                        <h6 class="card-title text-info"><i class="fas fa-eye"></i> Oculométrie</h6>
+                        <ul class="card-text small mb-0">
+                            <li>Direction du regard</li>
+                            <li>Diamètre pupillaire</li>
+                            <li>Fréquence de clignements</li>
+                            <li>PERCLOS (fatigue)</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card bg-dark border-warning mb-3">
+                    <div class="card-body">
+                        <h6 class="card-title text-warning"><i class="fas fa-smile"></i> Émotions</h6>
+                        <ul class="card-text small mb-0">
+                            <li>7 émotions de base (Ekman)</li>
+                            <li>Valence / Arousal</li>
+                            <li>Micro-expressions</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="alert alert-warning">
+        <i class="fas fa-flask"></i>
+        <strong>Application expérimentale :</strong> Les mesures sont des estimations à but de recherche
+        et ne doivent pas être utilisées à des fins médicales.
+    </div>
+</div>
+{% endblock %}
+
+{% block help_content %}
+<div class="info-card">
+    <h3><i class="fas fa-question-circle me-2"></i>Guide d'utilisation</h3>
+
+    <div class="mb-4">
+        <h5>Modes d'analyse</h5>
+        <div class="card bg-dark mb-2">
+            <div class="card-body">
+                <h6 class="text-info"><i class="fas fa-video"></i> Temps réel (Webcam)</h6>
+                <p class="text-light mb-0">
+                    Analyse en direct via votre webcam. Idéal pour des tests rapides et du monitoring.
+                </p>
+            </div>
+        </div>
+        <div class="card bg-dark mb-2">
+            <div class="card-body">
+                <h6 class="text-info"><i class="fas fa-file-video"></i> Post-traitement (Vidéo)</h6>
+                <p class="text-light mb-0">
+                    Analyse complète d'un fichier vidéo enregistré. Génère un rapport détaillé et une vidéo annotée.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <div class="mb-4">
+        <h5>Recommandations</h5>
+        <ul class="text-light">
+            <li><strong>Éclairage :</strong> Préférez un éclairage naturel et uniforme</li>
+            <li><strong>Position :</strong> Gardez le visage bien visible, de face</li>
+            <li><strong>Stabilité :</strong> Minimisez les mouvements pour de meilleures mesures rPPG</li>
+            <li><strong>Résolution :</strong> Utilisez au minimum 480p, idéalement 720p ou plus</li>
+            <li><strong>FPS :</strong> 30 fps minimum, 60 fps recommandé pour les micro-expressions</li>
+        </ul>
+    </div>
+
+    <div class="mb-4">
+        <h5>Technologies utilisées</h5>
+        <ul class="text-light">
+            <li><strong>MediaPipe</strong> - Détection faciale et tracking</li>
+            <li><strong>rPPG</strong> - Photopléthysmographie à distance</li>
+            <li><strong>FER</strong> - Reconnaissance d'émotions faciales</li>
+        </ul>
+    </div>
+</div>
+{% endblock %}
+
+{% block footer_text %}
+    WAMA Lab - Face Analyzer | Recherche
+{% endblock %}
+
+{% block app_scripts %}
+{% endblock %}

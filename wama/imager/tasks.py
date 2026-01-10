@@ -207,21 +207,29 @@ def generate_image_task(self, generation_id):
         }
 
     except Exception as e:
-        logger.error(f"Error in generate_image_task for generation #{generation_id}: {str(e)}")
+        import traceback
+        error_traceback = traceback.format_exc()
+        error_msg = f"{type(e).__name__}: {str(e)}"
+        logger.error(f"Error in generate_image_task for generation #{generation_id}: {error_msg}")
+        logger.error(f"Full traceback:\n{error_traceback}")
 
         try:
             generation = ImageGeneration.objects.get(id=generation_id)
             user_id = generation.user.id
             generation.status = 'FAILURE'
-            generation.error_message = str(e)
+            generation.error_message = error_msg
             generation.completed_at = timezone.now()
             generation.save()
             cache.set(f"imager_progress_{generation_id}", 0, timeout=3600)
-            push_console_line(user_id, f"[Imager] ✗ Generation #{generation_id} failed: {str(e)}")
+            push_console_line(user_id, f"[Imager] ✗ Generation #{generation_id} failed: {error_msg}")
+            # Log traceback to console for debugging
+            for line in error_traceback.split('\n')[-10:]:  # Last 10 lines of traceback
+                if line.strip():
+                    push_console_line(user_id, f"[Imager] {line}")
         except Exception as save_error:
             logger.error(f"Failed to save error state: {str(save_error)}")
 
-        return {'error': str(e)}
+        return {'error': error_msg}
 
 
 @shared_task(bind=True)

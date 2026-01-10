@@ -28,33 +28,48 @@
         <small class="text-muted model-description" id="model_description"></small>
     </div>
 
-    <!-- Dimensions -->
-    <div class="row mb-3">
-        <div class="col-6">
-            <label for="width" class="form-label small fw-bold text-light">
-                <i class="fas fa-arrows-alt-h"></i> Largeur
-            </label>
-            <select class="form-select form-select-sm bg-dark text-white border-secondary" id="width" name="width">
-                <option value="256">256px</option>
-                <option value="512" selected>512px</option>
-                <option value="768">768px</option>
-                <option value="1024">1024px</option>
-                <option value="2048">2048px</option>
-            </select>
-        </div>
-        <div class="col-6">
-            <label for="height" class="form-label small fw-bold text-light">
-                <i class="fas fa-arrows-alt-v"></i> Hauteur
-            </label>
-            <select class="form-select form-select-sm bg-dark text-white border-secondary" id="height" name="height">
-                <option value="256">256px</option>
-                <option value="512" selected>512px</option>
-                <option value="768">768px</option>
-                <option value="1024">1024px</option>
-                <option value="2048">2048px</option>
-            </select>
-        </div>
+    <!-- Resolution -->
+    <div class="mb-3">
+        <label for="resolution" class="form-label small fw-bold text-light">
+            <i class="fas fa-expand"></i> Résolution
+        </label>
+        <select class="form-select form-select-sm bg-dark text-white border-secondary" id="resolution" name="resolution">
+            <optgroup label="Carré (1:1)">
+                <option value="512x512" selected>512x512 (1:1)</option>
+                <option value="768x768">768x768 (1:1)</option>
+                <option value="1024x1024">1024x1024 (1:1)</option>
+                <option value="2048x2048">2048x2048 (1:1) 2K</option>
+            </optgroup>
+            <optgroup label="Paysage (16:9)">
+                <option value="896x512">896x512 (16:9)</option>
+                <option value="1344x768">1344x768 (16:9)</option>
+                <option value="1920x1088">1920x1088 (16:9) HD</option>
+                <option value="2048x1152">2048x1152 (16:9) 2K</option>
+            </optgroup>
+            <optgroup label="Portrait (9:16)">
+                <option value="512x896">512x896 (9:16)</option>
+                <option value="768x1344">768x1344 (9:16)</option>
+                <option value="1088x1920">1088x1920 (9:16) HD</option>
+                <option value="1152x2048">1152x2048 (9:16) 2K</option>
+            </optgroup>
+            <optgroup label="Paysage (4:3)">
+                <option value="680x512">680x512 (4:3)</option>
+                <option value="1024x768">1024x768 (4:3)</option>
+            </optgroup>
+            <optgroup label="Portrait (3:4)">
+                <option value="512x680">512x680 (3:4)</option>
+                <option value="768x1024">768x1024 (3:4)</option>
+            </optgroup>
+            <optgroup label="Cinématique (21:9)">
+                <option value="1192x512">1192x512 (21:9)</option>
+                <option value="2048x880">2048x880 (21:9) 2K</option>
+            </optgroup>
+        </select>
+        <small class="text-warning" id="resolution_warning" style="display: none;"></small>
     </div>
+    <!-- Hidden fields for width/height -->
+    <input type="hidden" id="width" name="width" value="512">
+    <input type="hidden" id="height" name="height" value="512">
 
     <!-- Num Images -->
     <div class="mb-3">
@@ -975,28 +990,45 @@
                     </div>
 
                     <div class="row">
-                        <!-- Width -->
-                        <div class="col-md-6 mb-3">
-                            <label for="settings_width" class="form-label">Largeur</label>
-                            <select class="form-select bg-dark text-white border-secondary" id="settings_width" name="width">
-                                <option value="256">256px</option>
-                                <option value="512">512px</option>
-                                <option value="768">768px</option>
-                                <option value="1024">1024px</option>
-                                <option value="2048">2048px</option>
+                        <!-- Resolution -->
+                        <div class="col-12 mb-3">
+                            <label for="settings_resolution" class="form-label">Résolution</label>
+                            <select class="form-select bg-dark text-white border-secondary" id="settings_resolution" name="resolution">
+                                <optgroup label="Carré (1:1)">
+                                    <option value="512x512">512x512 (1:1)</option>
+                                    <option value="768x768">768x768 (1:1)</option>
+                                    <option value="1024x1024">1024x1024 (1:1)</option>
+                                    <option value="2048x2048">2048x2048 (1:1) 2K</option>
+                                </optgroup>
+                                <optgroup label="Paysage (16:9)">
+                                    <option value="896x512">896x512 (16:9)</option>
+                                    <option value="1344x768">1344x768 (16:9)</option>
+                                    <option value="1920x1088">1920x1088 (16:9) HD</option>
+                                    <option value="2048x1152">2048x1152 (16:9) 2K</option>
+                                </optgroup>
+                                <optgroup label="Portrait (9:16)">
+                                    <option value="512x896">512x896 (9:16)</option>
+                                    <option value="768x1344">768x1344 (9:16)</option>
+                                    <option value="1088x1920">1088x1920 (9:16) HD</option>
+                                    <option value="1152x2048">1152x2048 (9:16) 2K</option>
+                                </optgroup>
+                                <optgroup label="Paysage (4:3)">
+                                    <option value="680x512">680x512 (4:3)</option>
+                                    <option value="1024x768">1024x768 (4:3)</option>
+                                </optgroup>
+                                <optgroup label="Portrait (3:4)">
+                                    <option value="512x680">512x680 (3:4)</option>
+                                    <option value="768x1024">768x1024 (3:4)</option>
+                                </optgroup>
+                                <optgroup label="Cinématique (21:9)">
+                                    <option value="1192x512">1192x512 (21:9)</option>
+                                    <option value="2048x880">2048x880 (21:9) 2K</option>
+                                </optgroup>
                             </select>
-                        </div>
-
-                        <!-- Height -->
-                        <div class="col-md-6 mb-3">
-                            <label for="settings_height" class="form-label">Hauteur</label>
-                            <select class="form-select bg-dark text-white border-secondary" id="settings_height" name="height">
-                                <option value="256">256px</option>
-                                <option value="512">512px</option>
-                                <option value="768">768px</option>
-                                <option value="1024">1024px</option>
-                                <option value="2048">2048px</option>
-                            </select>
+                            <small class="text-warning" id="settings_resolution_warning" style="display: none;"></small>
+                            <!-- Hidden fields for width/height in modal -->
+                            <input type="hidden" id="settings_width" name="width" value="512">
+                            <input type="hidden" id="settings_height" name="height" value="512">
                         </div>
                     </div>
 
@@ -1214,7 +1246,8 @@
             saveSettings: "{% url 'imager:save_settings' 0 %}",
             autoPrompt: "{% url 'imager:auto_prompt' %}",
             batchChildren: "{% url 'imager:batch_children' 0 %}",
-            startBatch: "{% url 'imager:start_batch' 0 %}"
+            startBatch: "{% url 'imager:start_batch' 0 %}",
+            modelResolutions: "{% url 'imager:api_model_resolutions' %}"
         },
         csrfToken: "{{ csrf_token }}"
     };

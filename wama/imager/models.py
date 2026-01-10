@@ -8,6 +8,141 @@ from django.contrib.auth.models import User
 from django.core.validators import MinValueValidator, MaxValueValidator, FileExtensionValidator
 
 
+# =============================================================================
+# Resolution Presets Configuration
+# =============================================================================
+
+# Image resolution presets by aspect ratio
+IMAGE_RESOLUTION_PRESETS = {
+    # Square (1:1)
+    "512x512": {"width": 512, "height": 512, "label": "512x512 (1:1)", "ratio": "1:1"},
+    "768x768": {"width": 768, "height": 768, "label": "768x768 (1:1)", "ratio": "1:1"},
+    "1024x1024": {"width": 1024, "height": 1024, "label": "1024x1024 (1:1)", "ratio": "1:1"},
+    "2048x2048": {"width": 2048, "height": 2048, "label": "2048x2048 (1:1) 2K", "ratio": "1:1"},
+
+    # Landscape 16:9
+    "896x512": {"width": 896, "height": 512, "label": "896x512 (16:9)", "ratio": "16:9"},
+    "1344x768": {"width": 1344, "height": 768, "label": "1344x768 (16:9)", "ratio": "16:9"},
+    "1920x1088": {"width": 1920, "height": 1088, "label": "1920x1088 (16:9) HD", "ratio": "16:9"},
+    "2048x1152": {"width": 2048, "height": 1152, "label": "2048x1152 (16:9) 2K", "ratio": "16:9"},
+
+    # Portrait 9:16
+    "512x896": {"width": 512, "height": 896, "label": "512x896 (9:16)", "ratio": "9:16"},
+    "768x1344": {"width": 768, "height": 1344, "label": "768x1344 (9:16)", "ratio": "9:16"},
+    "1088x1920": {"width": 1088, "height": 1920, "label": "1088x1920 (9:16) HD", "ratio": "9:16"},
+    "1152x2048": {"width": 1152, "height": 2048, "label": "1152x2048 (9:16) 2K", "ratio": "9:16"},
+
+    # Landscape 4:3
+    "680x512": {"width": 680, "height": 512, "label": "680x512 (4:3)", "ratio": "4:3"},
+    "1024x768": {"width": 1024, "height": 768, "label": "1024x768 (4:3)", "ratio": "4:3"},
+
+    # Portrait 3:4
+    "512x680": {"width": 512, "height": 680, "label": "512x680 (3:4)", "ratio": "3:4"},
+    "768x1024": {"width": 768, "height": 1024, "label": "768x1024 (3:4)", "ratio": "3:4"},
+
+    # Cinematic 21:9
+    "1192x512": {"width": 1192, "height": 512, "label": "1192x512 (21:9)", "ratio": "21:9"},
+    "2048x880": {"width": 2048, "height": 880, "label": "2048x880 (21:9) 2K", "ratio": "21:9"},
+}
+
+# Model-specific resolution configurations
+MODEL_RESOLUTION_CONFIG = {
+    # HunyuanImage 2.1 - Requires 2K resolution
+    "hunyuan-image-2.1": {
+        "min_size": 1024,
+        "max_size": 2048,
+        "default": "2048x2048",
+        "recommended": ["2048x2048", "2048x1152", "1152x2048", "2048x880"],
+        "vram_warning": "24GB+ VRAM recommended for 2K generation",
+    },
+
+    # Stable Diffusion 1.5 - Standard SD models
+    "stable-diffusion-v1-5": {
+        "min_size": 256,
+        "max_size": 768,
+        "default": "512x512",
+        "recommended": ["512x512", "768x768", "896x512", "512x896", "680x512", "512x680"],
+    },
+    "openjourney-v4": {
+        "min_size": 256,
+        "max_size": 768,
+        "default": "512x512",
+        "recommended": ["512x512", "768x768", "896x512", "512x896"],
+    },
+    "dreamshaper-8": {
+        "min_size": 256,
+        "max_size": 768,
+        "default": "512x512",
+        "recommended": ["512x512", "768x768", "896x512", "512x896"],
+    },
+    "deliberate-v2": {
+        "min_size": 256,
+        "max_size": 768,
+        "default": "512x512",
+        "recommended": ["512x512", "768x768", "896x512", "512x896"],
+    },
+    "realistic-vision-v5": {
+        "min_size": 256,
+        "max_size": 768,
+        "default": "512x512",
+        "recommended": ["512x512", "768x768", "896x512", "512x896"],
+    },
+    "anything-v5": {
+        "min_size": 256,
+        "max_size": 768,
+        "default": "512x512",
+        "recommended": ["512x512", "768x768", "896x512", "512x896"],
+    },
+    "dreamlike-art-2": {
+        "min_size": 256,
+        "max_size": 768,
+        "default": "512x512",
+        "recommended": ["512x512", "768x768", "896x512", "512x896"],
+    },
+
+    # Stable Diffusion 2.1 - Slightly larger
+    "stable-diffusion-2-1": {
+        "min_size": 256,
+        "max_size": 1024,
+        "default": "768x768",
+        "recommended": ["768x768", "1024x1024", "896x512", "512x896"],
+    },
+
+    # SDXL - Large resolution support
+    "stable-diffusion-xl": {
+        "min_size": 512,
+        "max_size": 1536,
+        "default": "1024x1024",
+        "recommended": ["1024x1024", "1344x768", "768x1344", "1920x1088", "1088x1920"],
+        "vram_warning": "10GB+ VRAM recommended for 1024+ resolution",
+    },
+}
+
+# Default config for unknown models
+DEFAULT_MODEL_RESOLUTION_CONFIG = {
+    "min_size": 256,
+    "max_size": 1024,
+    "default": "512x512",
+    "recommended": ["512x512", "768x768", "896x512", "512x896"],
+}
+
+
+def get_model_resolution_config(model_name: str) -> dict:
+    """Get resolution configuration for a model."""
+    return MODEL_RESOLUTION_CONFIG.get(model_name, DEFAULT_MODEL_RESOLUTION_CONFIG)
+
+
+def get_recommended_resolutions(model_name: str) -> list:
+    """Get list of recommended resolution presets for a model."""
+    config = get_model_resolution_config(model_name)
+    recommended_keys = config.get("recommended", ["512x512"])
+    return [
+        {"key": key, **IMAGE_RESOLUTION_PRESETS[key]}
+        for key in recommended_keys
+        if key in IMAGE_RESOLUTION_PRESETS
+    ]
+
+
 class ImageGeneration(models.Model):
     """Model for an image generation task"""
 
@@ -34,8 +169,8 @@ class ImageGeneration(models.Model):
     ]
 
     VIDEO_RESOLUTION_CHOICES = [
-        ('480p', '480p (832x480)'),
-        ('720p', '720p (1280x720)'),
+        ('480p', '480p (832x480) 16:9'),
+        ('720p', '720p (1280x720) 16:9'),
     ]
 
     user = models.ForeignKey(User, on_delete=models.CASCADE)

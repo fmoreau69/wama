@@ -22,6 +22,7 @@
         initializeTabPersistence();
         initializeRightPanelSync();
         initializeModelDescriptions();
+        initializeResolutionSelectors();
         startProgressPolling();
     });
 
@@ -141,13 +142,18 @@
             resetBtn.addEventListener('click', function() {
                 // Reset model to first option
                 const modelSelect = document.getElementById('model');
-                if (modelSelect) modelSelect.selectedIndex = 0;
+                if (modelSelect) {
+                    modelSelect.selectedIndex = 0;
+                    // Trigger resolution update for new model
+                    updateResolutionsForModel(modelSelect.value);
+                }
 
-                // Reset dimensions
-                const widthSelect = document.getElementById('width');
-                const heightSelect = document.getElementById('height');
-                if (widthSelect) widthSelect.value = '512';
-                if (heightSelect) heightSelect.value = '512';
+                // Reset resolution
+                const resolutionSelect = document.getElementById('resolution');
+                if (resolutionSelect) {
+                    resolutionSelect.value = '512x512';
+                    updateWidthHeightFromResolution(resolutionSelect.value, 'width', 'height');
+                }
 
                 // Reset num images
                 const numImagesSelect = document.getElementById('num_images');
@@ -1315,9 +1321,33 @@
                 document.getElementById('settings_prompt').value = data.prompt || '';
                 document.getElementById('settings_negative_prompt').value = data.negative_prompt || '';
                 document.getElementById('settings_model').value = data.model || '';
-                document.getElementById('settings_width').value = data.width || 512;
-                document.getElementById('settings_height').value = data.height || 512;
                 document.getElementById('settings_num_images').value = data.num_images || 1;
+
+                // Set resolution from width/height
+                const width = data.width || 512;
+                const height = data.height || 512;
+                const resolution = getResolutionFromWidthHeight(width, height);
+                const resolutionSelect = document.getElementById('settings_resolution');
+                if (resolutionSelect) {
+                    // Check if resolution exists in options
+                    let found = false;
+                    for (let option of resolutionSelect.options) {
+                        if (option.value === resolution) {
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (found) {
+                        resolutionSelect.value = resolution;
+                    } else {
+                        // Default to 512x512 if resolution not found
+                        resolutionSelect.value = '512x512';
+                    }
+                    updateWidthHeightFromResolution(resolutionSelect.value, 'settings_width', 'settings_height');
+                }
+
+                // Update recommended resolutions for the model
+                updateResolutionsForModel(data.model || '', 'settings_resolution', 'settings_resolution_warning');
 
                 // Steps
                 const stepsEl = document.getElementById('settings_steps');
@@ -1541,6 +1571,135 @@
             descriptionElement.textContent = '';
             descriptionElement.style.display = 'none';
         }
+    }
+
+    /**
+     * Initialize resolution selectors
+     * Handles resolution dropdown changes and model-specific resolution recommendations
+     */
+    function initializeResolutionSelectors() {
+        // Main panel resolution selector
+        const resolutionSelect = document.getElementById('resolution');
+        if (resolutionSelect) {
+            resolutionSelect.addEventListener('change', function() {
+                updateWidthHeightFromResolution(this.value, 'width', 'height');
+            });
+            // Initialize with current value
+            updateWidthHeightFromResolution(resolutionSelect.value, 'width', 'height');
+        }
+
+        // Settings modal resolution selector
+        const settingsResolutionSelect = document.getElementById('settings_resolution');
+        if (settingsResolutionSelect) {
+            settingsResolutionSelect.addEventListener('change', function() {
+                updateWidthHeightFromResolution(this.value, 'settings_width', 'settings_height');
+            });
+        }
+
+        // Model change triggers resolution update
+        const modelSelect = document.getElementById('model');
+        if (modelSelect) {
+            modelSelect.addEventListener('change', function() {
+                updateResolutionsForModel(this.value);
+            });
+            // Initialize with current model
+            updateResolutionsForModel(modelSelect.value);
+        }
+
+        // Settings modal model change
+        const settingsModelSelect = document.getElementById('settings_model');
+        if (settingsModelSelect) {
+            settingsModelSelect.addEventListener('change', function() {
+                updateResolutionsForModel(this.value, 'settings_resolution', 'settings_resolution_warning');
+            });
+        }
+    }
+
+    /**
+     * Update hidden width/height fields from resolution value
+     */
+    function updateWidthHeightFromResolution(resolution, widthId, heightId) {
+        const parts = resolution.split('x');
+        if (parts.length === 2) {
+            const widthField = document.getElementById(widthId);
+            const heightField = document.getElementById(heightId);
+            if (widthField) widthField.value = parts[0];
+            if (heightField) heightField.value = parts[1];
+        }
+    }
+
+    /**
+     * Update resolution options based on model selection
+     * Fetches recommended resolutions from API and highlights them
+     */
+    function updateResolutionsForModel(modelName, resolutionSelectId = 'resolution', warningId = 'resolution_warning') {
+        const resolutionSelect = document.getElementById(resolutionSelectId);
+        const warningEl = document.getElementById(warningId);
+
+        if (!resolutionSelect) return;
+
+        // Fetch model-specific resolutions from API
+        const url = config.urls.modelResolutions + '?model=' + encodeURIComponent(modelName);
+
+        fetch(url)
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    console.warn('Error fetching resolutions:', data.error);
+                    return;
+                }
+
+                const recommendedKeys = data.recommended || [];
+                const defaultResolution = data.default || '512x512';
+                const vramWarning = data.vram_warning || '';
+
+                // Update warning message
+                if (warningEl) {
+                    if (vramWarning) {
+                        warningEl.textContent = vramWarning;
+                        warningEl.style.display = 'block';
+                    } else {
+                        warningEl.style.display = 'none';
+                    }
+                }
+
+                // Highlight recommended options and set default
+                const options = resolutionSelect.querySelectorAll('option');
+                options.forEach(option => {
+                    const isRecommended = recommendedKeys.includes(option.value);
+                    // Add visual indicator for recommended resolutions
+                    if (isRecommended) {
+                        if (!option.textContent.includes('★')) {
+                            option.textContent = '★ ' + option.textContent;
+                        }
+                        option.style.fontWeight = 'bold';
+                    } else {
+                        option.textContent = option.textContent.replace('★ ', '');
+                        option.style.fontWeight = 'normal';
+                    }
+                });
+
+                // Set default resolution for this model if current value is not recommended
+                if (recommendedKeys.length > 0 && !recommendedKeys.includes(resolutionSelect.value)) {
+                    resolutionSelect.value = defaultResolution;
+                    // Update hidden fields
+                    if (resolutionSelectId === 'resolution') {
+                        updateWidthHeightFromResolution(defaultResolution, 'width', 'height');
+                    } else if (resolutionSelectId === 'settings_resolution') {
+                        updateWidthHeightFromResolution(defaultResolution, 'settings_width', 'settings_height');
+                    }
+                }
+            })
+            .catch(error => {
+                console.warn('Error fetching model resolutions:', error);
+            });
+    }
+
+    /**
+     * Get resolution string from width and height
+     */
+    function getResolutionFromWidthHeight(width, height) {
+        return width + 'x' + height;
     }
 
 })();

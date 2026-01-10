@@ -6,6 +6,7 @@ WAMA, <i>"Web App for Media Automation"</i>, is a web application developed by F
 
 <ins>Planned developments include</ins>: <br />
 - WAMA Anonymizer: Automatic blurring of objects in photos/videos <br />
+- WAMA Describer: Automatic description and summarisation of multimedia content using AI <br />
 - WAMA Enhancer: Improvement of the resolution and quality of photos/videos <br />
 - WAMA Imager: automatic image generation based on prompt text <br />
 - WAMA Synthesizer: Automatic voice synthesis from text files <br />

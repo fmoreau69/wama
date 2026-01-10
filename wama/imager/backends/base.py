@@ -133,13 +133,24 @@ class ImageGenerationBackend(ABC):
             Backend-specific model identifier.
         """
         if model_name in self.SUPPORTED_MODELS:
-            return self.SUPPORTED_MODELS[model_name][1]
+            model_info = self.SUPPORTED_MODELS[model_name]
+            # Support both old tuple format (name, model_id) and new dict format
+            if isinstance(model_info, dict):
+                return model_info.get("hf_id", model_name)
+            elif isinstance(model_info, (tuple, list)) and len(model_info) >= 2:
+                return model_info[1]
+            else:
+                return model_name
 
         # Default fallback
         logger.warning(f"Model '{model_name}' not found, using default")
         if self.SUPPORTED_MODELS:
             first_key = list(self.SUPPORTED_MODELS.keys())[0]
-            return self.SUPPORTED_MODELS[first_key][1]
+            model_info = self.SUPPORTED_MODELS[first_key]
+            if isinstance(model_info, dict):
+                return model_info.get("hf_id", first_key)
+            elif isinstance(model_info, (tuple, list)) and len(model_info) >= 2:
+                return model_info[1]
 
         return model_name
 

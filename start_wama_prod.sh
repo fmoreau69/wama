@@ -79,6 +79,23 @@ else
 fi
 
 # ------------------------------------------------------
+# GPU/CUDA CLEANUP (important pour HunyuanImage et autres modèles lourds)
+# ------------------------------------------------------
+echo "=== Clearing GPU memory and CUDA cache ==="
+python -c "
+import torch
+if torch.cuda.is_available():
+    print(f'GPU detected: {torch.cuda.get_device_name(0)}')
+    print(f'Memory before cleanup: {torch.cuda.memory_allocated()/1024**3:.2f}GB allocated')
+    torch.cuda.empty_cache()
+    torch.cuda.synchronize()
+    print(f'Memory after cleanup: {torch.cuda.memory_allocated()/1024**3:.2f}GB allocated')
+    print('CUDA cache cleared successfully')
+else:
+    print('No GPU detected, skipping CUDA cleanup')
+" 2>/dev/null || echo "CUDA cleanup skipped (torch not available or no GPU)"
+
+# ------------------------------------------------------
 # CELERY WORKER
 # ------------------------------------------------------
 if ! pgrep -f "celery.*worker" > /dev/null; then
@@ -87,6 +104,9 @@ if ! pgrep -f "celery.*worker" > /dev/null; then
     export COQUI_TOS_AGREED=1
     # Set TTS home directory to centralized AI-models directory
     export TTS_HOME=$PROJECT_DIR/AI-models/synthesizer/tts
+    # CUDA environment variables for better error handling
+    export CUDA_LAUNCH_BLOCKING=0
+    export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
     celery -A wama worker \
         --loglevel=INFO \
         --concurrency=$CELERY_WORKERS \

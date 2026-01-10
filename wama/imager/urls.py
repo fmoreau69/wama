@@ -40,4 +40,8 @@ urlpatterns = [
     path('auto-prompt/', views.generate_auto_prompt, name='auto_prompt'),
     path('batch/<int:parent_id>/children/', views.get_batch_children, name='batch_children'),
     path('batch/<int:parent_id>/start/', views.start_batch, name='start_batch'),
+
+    # API endpoints for model configuration
+    path('api/model-resolutions/', views.api_model_resolutions, name='api_model_resolutions'),
+    path('api/resolutions/', views.api_all_resolutions, name='api_all_resolutions'),
 ]

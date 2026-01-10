@@ -18,6 +18,8 @@ urlpatterns = [
     path('imager/', include(('wama.imager.urls', 'imager'), namespace='imager')),
     path('synthesizer/', include(('wama.synthesizer.urls', 'synthesizer'), namespace='synthesizer')),
     path('transcriber/', include(('wama.transcriber.urls', 'transcriber'), namespace='transcriber')),
+    # WAMA Lab - Experimental/Research applications
+    path('lab/', include(('wama_lab.urls', 'wama_lab'), namespace='wama_lab')),
     path('favicon.ico', RedirectView.as_view(url=staticfiles_storage.url('images/favicon.ico'))),
     path('ping/', lambda request: HttpResponse("Django OK via Apache")),
     path('admin/', admin.site.urls),

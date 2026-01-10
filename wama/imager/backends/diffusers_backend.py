@@ -28,16 +28,18 @@ class DiffusersBackend(ImageGenerationBackend):
     display_name = "Diffusers (Hugging Face)"
 
     # Map generic model names to Hugging Face model IDs
-    # Format: (display_name, hf_model_id, description, vram_required)
+    # Format: dict with name, hf_id, description, vram, pipeline, min_resolution, max_resolution
     SUPPORTED_MODELS = {
-        # HunyuanImage 2.1 - High quality 2K images (NEW)
+        # HunyuanImage 2.1 - High quality images (supports 1024-2048)
         "hunyuan-image-2.1": {
             "name": "HunyuanImage 2.1",
             "hf_id": "hunyuanvideo-community/HunyuanImage-2.1-Diffusers",
-            "description": "Génération 2K (2048px) - 24GB VRAM - Qualité exceptionnelle",
+            "description": "Haute qualité 1K-2K - 24GB VRAM - Support 16:9, 9:16, 21:9",
             "vram": "24GB",
             "pipeline": "hunyuan",
-            "min_resolution": 2048,
+            "min_resolution": 1024,
+            "max_resolution": 2048,
+            "recommended_resolutions": ["2048x2048", "2048x1152", "1152x2048", "2048x880"],
         },
 
         # Stable Diffusion models
@@ -47,6 +49,9 @@ class DiffusersBackend(ImageGenerationBackend):
             "description": "Modèle classique - 4GB VRAM - Rapide et polyvalent",
             "vram": "4GB",
             "pipeline": "sd",
+            "min_resolution": 256,
+            "max_resolution": 768,
+            "recommended_resolutions": ["512x512", "768x768", "896x512", "512x896"],
         },
         "stable-diffusion-2-1": {
             "name": "Stable Diffusion 2.1",
@@ -54,6 +59,9 @@ class DiffusersBackend(ImageGenerationBackend):
             "description": "Version améliorée - 6GB VRAM - Meilleure cohérence",
             "vram": "6GB",
             "pipeline": "sd",
+            "min_resolution": 256,
+            "max_resolution": 1024,
+            "recommended_resolutions": ["768x768", "1024x1024", "896x512", "512x896"],
         },
         "stable-diffusion-xl": {
             "name": "Stable Diffusion XL",
@@ -61,6 +69,9 @@ class DiffusersBackend(ImageGenerationBackend):
             "description": "Haute résolution - 10GB VRAM - Images détaillées",
             "vram": "10GB",
             "pipeline": "sdxl",
+            "min_resolution": 512,
+            "max_resolution": 1536,
+            "recommended_resolutions": ["1024x1024", "1344x768", "768x1344", "1920x1088"],
         },
 
         # Artistic models
@@ -70,6 +81,9 @@ class DiffusersBackend(ImageGenerationBackend):
             "description": "Style Midjourney - 4GB VRAM - Art créatif",
             "vram": "4GB",
             "pipeline": "sd",
+            "min_resolution": 256,
+            "max_resolution": 768,
+            "recommended_resolutions": ["512x512", "768x768", "896x512", "512x896"],
         },
         "dreamlike-art-2": {
             "name": "Dreamlike Art 2.0",
@@ -77,6 +91,9 @@ class DiffusersBackend(ImageGenerationBackend):
             "description": "Style artistique - 4GB VRAM - Images oniriques",
             "vram": "4GB",
             "pipeline": "sd",
+            "min_resolution": 256,
+            "max_resolution": 768,
+            "recommended_resolutions": ["512x512", "768x768", "896x512", "512x896"],
         },
         "dreamshaper-8": {
             "name": "DreamShaper 8",
@@ -84,6 +101,9 @@ class DiffusersBackend(ImageGenerationBackend):
             "description": "Polyvalent - 4GB VRAM - Excellent rapport qualité/vitesse",
             "vram": "4GB",
             "pipeline": "sd",
+            "min_resolution": 256,
+            "max_resolution": 768,
+            "recommended_resolutions": ["512x512", "768x768", "896x512", "512x896"],
         },
         "deliberate-v2": {
             "name": "Deliberate v2",
@@ -91,6 +111,9 @@ class DiffusersBackend(ImageGenerationBackend):
             "description": "Réaliste/Artistique - 4GB VRAM - Très détaillé",
             "vram": "4GB",
             "pipeline": "sd",
+            "min_resolution": 256,
+            "max_resolution": 768,
+            "recommended_resolutions": ["512x512", "768x768", "896x512", "512x896"],
         },
 
         # Realistic models
@@ -100,6 +123,9 @@ class DiffusersBackend(ImageGenerationBackend):
             "description": "Photoréaliste - 4GB VRAM - Portraits et paysages",
             "vram": "4GB",
             "pipeline": "sd",
+            "min_resolution": 256,
+            "max_resolution": 768,
+            "recommended_resolutions": ["512x512", "768x768", "896x512", "512x896"],
         },
 
         # Anime models
@@ -109,6 +135,9 @@ class DiffusersBackend(ImageGenerationBackend):
             "description": "Style anime - 4GB VRAM - Illustrations manga",
             "vram": "4GB",
             "pipeline": "sd",
+            "min_resolution": 256,
+            "max_resolution": 768,
+            "recommended_resolutions": ["512x512", "768x768", "896x512", "512x896"],
         },
     }
 
@@ -191,19 +220,45 @@ class DiffusersBackend(ImageGenerationBackend):
 
     def _load_hunyuan_pipeline(self, model_id: str):
         """Load a HunyuanImage 2.1 pipeline."""
+        import gc
         from diffusers import HunyuanImagePipeline
 
         logger.info("[Diffusers] Loading HunyuanImage 2.1 pipeline...")
         logger.info("[Diffusers] Note: This model only supports 2K resolution (2048x2048)")
+
+        # Aggressive CUDA cleanup before loading this heavy model
+        if self._torch.cuda.is_available():
+            logger.info("[Diffusers] Clearing CUDA memory before HunyuanImage load...")
+            self._torch.cuda.empty_cache()
+            self._torch.cuda.synchronize()
+            gc.collect()
+            # Reset CUDA context by initializing device
+            try:
+                self._torch.cuda.init()
+                logger.info(f"[Diffusers] CUDA initialized, device: {self._torch.cuda.get_device_name(0)}")
+            except Exception as e:
+                logger.warning(f"[Diffusers] CUDA init warning: {e}")
 
         pipe = HunyuanImagePipeline.from_pretrained(
             model_id,
             torch_dtype=self._torch.bfloat16,
         )
 
-        # Use CPU offload for memory efficiency (24GB required for 2K)
-        logger.info("[Diffusers] Enabling CPU offload for HunyuanImage...")
-        pipe.enable_model_cpu_offload()
+        # Use sequential CPU offload - slower but more stable than model_cpu_offload
+        # This moves each layer one at a time instead of whole components
+        logger.info("[Diffusers] Enabling sequential CPU offload for HunyuanImage (stable mode)...")
+        try:
+            pipe.enable_sequential_cpu_offload()
+            logger.info("[Diffusers] Sequential CPU offload enabled successfully")
+        except Exception as e:
+            logger.warning(f"[Diffusers] Sequential offload failed, trying model offload: {e}")
+            try:
+                pipe.enable_model_cpu_offload()
+                logger.info("[Diffusers] Model CPU offload enabled as fallback")
+            except Exception as e2:
+                logger.error(f"[Diffusers] All CPU offload methods failed: {e2}")
+                # Last resort: move to GPU directly (needs 24GB+ VRAM)
+                pipe = pipe.to(self._device)
 
         # Enable VAE tiling for large images
         try:
@@ -211,6 +266,13 @@ class DiffusersBackend(ImageGenerationBackend):
             logger.info("[Diffusers] VAE tiling enabled for HunyuanImage")
         except Exception as e:
             logger.debug(f"[Diffusers] VAE tiling not available: {e}")
+
+        # Enable attention slicing for memory efficiency
+        try:
+            pipe.enable_attention_slicing("max")
+            logger.info("[Diffusers] Attention slicing enabled for HunyuanImage")
+        except Exception as e:
+            logger.debug(f"[Diffusers] Attention slicing not available: {e}")
 
         return pipe
 
@@ -410,30 +472,61 @@ class DiffusersBackend(ImageGenerationBackend):
                     base_progress = int((i / params.num_images) * 100)
                     progress_callback(base_progress)
 
-                # Clear CUDA cache before generation
+                # Aggressive CUDA cache clearing before generation
                 if torch.cuda.is_available():
                     torch.cuda.empty_cache()
+                    torch.cuda.synchronize()
                     gc.collect()
+                    # Log available memory
+                    free_mem = torch.cuda.get_device_properties(0).total_memory - torch.cuda.memory_allocated(0)
+                    logger.info(f"[Diffusers] GPU memory available: {free_mem / 1024**3:.1f}GB")
 
                 # Generate single image
                 with torch.inference_mode():
                     if is_hunyuan:
-                        # HunyuanImage has different parameters
-                        # Force 2K resolution for HunyuanImage
-                        width = max(params.width, 2048)
-                        height = max(params.height, 2048)
-                        logger.info(f"[Diffusers] HunyuanImage forcing 2K: {width}x{height}")
+                        # HunyuanImage - use requested resolution but ensure minimum 1024
+                        # Recommended: 2048x2048, 2048x1152 (16:9), 1152x2048 (9:16)
+                        width = params.width
+                        height = params.height
 
-                        result = self._pipe(
-                            prompt=prompt,
-                            negative_prompt=negative_prompt if negative_prompt else None,
-                            height=height,
-                            width=width,
-                            num_inference_steps=params.steps,
-                            guidance_scale=params.guidance_scale,
-                            generator=generator,
-                            callback_on_step_end=step_callback,
-                        )
+                        # Ensure minimum size (1024 recommended for quality)
+                        min_size = model_info.get("min_resolution", 1024)
+                        if width < min_size:
+                            logger.warning(f"[Diffusers] Width {width} below minimum {min_size}, adjusting")
+                            width = min_size
+                        if height < min_size:
+                            logger.warning(f"[Diffusers] Height {height} below minimum {min_size}, adjusting")
+                            height = min_size
+
+                        # Ensure dimensions are multiples of 8 (required by diffusion models)
+                        width = (width // 8) * 8
+                        height = (height // 8) * 8
+
+                        logger.info(f"[Diffusers] HunyuanImage generation parameters:")
+                        logger.info(f"[Diffusers]   Resolution: {width}x{height}")
+                        logger.info(f"[Diffusers]   Steps: {params.steps}")
+                        logger.info(f"[Diffusers]   Guidance: {params.guidance_scale}")
+                        logger.info(f"[Diffusers]   Seed: {seed_used}")
+                        logger.info(f"[Diffusers]   Prompt: {prompt[:100]}...")
+
+                        try:
+                            # HunyuanImage uses distilled_guidance_scale instead of guidance_scale
+                            result = self._pipe(
+                                prompt=prompt,
+                                negative_prompt=negative_prompt if negative_prompt else None,
+                                height=height,
+                                width=width,
+                                num_inference_steps=params.steps,
+                                distilled_guidance_scale=params.guidance_scale,
+                                generator=generator,
+                                callback_on_step_end=step_callback,
+                            )
+                            logger.info(f"[Diffusers] HunyuanImage generation complete, result type: {type(result)}")
+                        except Exception as gen_error:
+                            import traceback
+                            logger.error(f"[Diffusers] HunyuanImage pipeline error: {type(gen_error).__name__}: {gen_error}")
+                            logger.error(f"[Diffusers] Pipeline traceback:\n{traceback.format_exc()}")
+                            raise
                     else:
                         # Standard SD/SDXL generation
                         result = self._pipe(
@@ -472,12 +565,14 @@ class DiffusersBackend(ImageGenerationBackend):
 
         except Exception as e:
             import traceback
-            logger.error(f"Generation failed: {e}")
-            logger.error(f"Traceback:\n{traceback.format_exc()}")
+            error_msg = f"{type(e).__name__}: {str(e)}"
+            error_traceback = traceback.format_exc()
+            logger.error(f"[Diffusers] Generation failed: {error_msg}")
+            logger.error(f"[Diffusers] Full traceback:\n{error_traceback}")
             return GenerationResult(
                 success=False,
                 images=[],
-                error=str(e)
+                error=error_msg
             )
 
     def _generate_img2img(
@@ -583,11 +678,15 @@ class DiffusersBackend(ImageGenerationBackend):
             )
 
         except Exception as e:
-            logger.error(f"Img2Img generation failed: {e}")
+            import traceback
+            error_msg = f"{type(e).__name__}: {str(e)}"
+            error_traceback = traceback.format_exc()
+            logger.error(f"[Diffusers] Img2Img generation failed: {error_msg}")
+            logger.error(f"[Diffusers] Full traceback:\n{error_traceback}")
             return GenerationResult(
                 success=False,
                 images=[],
-                error=str(e)
+                error=error_msg
             )
 
     def _load_img2img_pipeline(self) -> bool:

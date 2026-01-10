@@ -1115,3 +1115,69 @@ def save_generation_settings(request, generation_id):
     except Exception as e:
         logger.error(f"Error saving generation settings: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
+
+
+@require_http_methods(["GET"])
+def api_model_resolutions(request):
+    """
+    API endpoint to get recommended resolutions for a model.
+
+    GET /imager/api/model-resolutions/?model=hunyuan-image-2.1
+
+    Returns:
+        {
+            "model": "hunyuan-image-2.1",
+            "config": {
+                "min_size": 1024,
+                "max_size": 2048,
+                "default": "2048x2048",
+                "vram_warning": "...",
+            },
+            "resolutions": [
+                {"key": "2048x2048", "width": 2048, "height": 2048, "label": "...", "ratio": "1:1"},
+                ...
+            ]
+        }
+    """
+    from .models import (
+        get_model_resolution_config,
+        get_recommended_resolutions,
+        IMAGE_RESOLUTION_PRESETS
+    )
+
+    model_name = request.GET.get('model', 'stable-diffusion-v1-5')
+
+    config = get_model_resolution_config(model_name)
+    resolutions = get_recommended_resolutions(model_name)
+
+    return JsonResponse({
+        'model': model_name,
+        'config': config,
+        'resolutions': resolutions,
+        'all_presets': IMAGE_RESOLUTION_PRESETS,
+    })
+
+
+@require_http_methods(["GET"])
+def api_all_resolutions(request):
+    """
+    API endpoint to get all available resolution presets.
+
+    GET /imager/api/resolutions/
+
+    Returns all resolution presets grouped by ratio.
+    """
+    from .models import IMAGE_RESOLUTION_PRESETS
+
+    # Group by ratio
+    by_ratio = {}
+    for key, preset in IMAGE_RESOLUTION_PRESETS.items():
+        ratio = preset['ratio']
+        if ratio not in by_ratio:
+            by_ratio[ratio] = []
+        by_ratio[ratio].append({'key': key, **preset})
+
+    return JsonResponse({
+        'presets': IMAGE_RESOLUTION_PRESETS,
+        'by_ratio': by_ratio,
+    })

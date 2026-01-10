@@ -1,0 +1,267 @@
+{% extends 'face_analyzer/base.html' %}
+{% load static %}
+
+{% block face_analyzer_content %}
+<div class="container-fluid py-4">
+    <!-- Mode Selection Cards -->
+    <div class="row justify-content-center mb-4">
+        <div class="col-12">
+            <h4 class="text-light mb-4"><i class="fas fa-flask me-2"></i>Sélectionnez un mode d'analyse</h4>
+        </div>
+
+        <!-- Real-time Mode Card -->
+        <div class="col-md-6 col-lg-5 mb-4">
+            <div class="card bg-dark border-info h-100 mode-card" data-mode="realtime">
+                <div class="card-header bg-info bg-opacity-25 border-info">
+                    <h5 class="card-title mb-0 text-info">
+                        <i class="fas fa-video me-2"></i>Analyse Temps Réel
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <p class="card-text text-light">
+                        Analysez votre visage en direct via la webcam. Idéal pour des tests rapides
+                        et du monitoring en temps réel.
+                    </p>
+                    <ul class="list-unstyled text-secondary small">
+                        <li><i class="fas fa-check text-success me-2"></i>Détection instantanée</li>
+                        <li><i class="fas fa-check text-success me-2"></i>Graphiques temps réel</li>
+                        <li><i class="fas fa-check text-success me-2"></i>Export des données</li>
+                    </ul>
+                </div>
+                <div class="card-footer bg-transparent border-info">
+                    <a href="{% url 'wama_lab:face_analyzer:realtime' %}" class="btn btn-info w-100">
+                        <i class="fas fa-play me-2"></i>Démarrer
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Video Post-processing Card -->
+        <div class="col-md-6 col-lg-5 mb-4">
+            <div class="card bg-dark border-success h-100 mode-card" data-mode="video">
+                <div class="card-header bg-success bg-opacity-25 border-success">
+                    <h5 class="card-title mb-0 text-success">
+                        <i class="fas fa-file-video me-2"></i>Post-traitement Vidéo
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <p class="card-text text-light">
+                        Analysez un fichier vidéo enregistré. Génère un rapport complet et
+                        une vidéo annotée avec tous les indicateurs.
+                    </p>
+                    <ul class="list-unstyled text-secondary small">
+                        <li><i class="fas fa-check text-success me-2"></i>Analyse complète</li>
+                        <li><i class="fas fa-check text-success me-2"></i>Rapport détaillé PDF</li>
+                        <li><i class="fas fa-check text-success me-2"></i>Vidéo annotée exportable</li>
+                    </ul>
+                </div>
+                <div class="card-footer bg-transparent border-success">
+                    <a href="{% url 'wama_lab:face_analyzer:video' %}" class="btn btn-success w-100">
+                        <i class="fas fa-upload me-2"></i>Importer une vidéo
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Sessions -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card bg-dark border-secondary">
+                <div class="card-header bg-secondary bg-opacity-25 border-secondary d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0 text-light">
+                        <i class="fas fa-history me-2"></i>Sessions récentes
+                    </h5>
+                    <button class="btn btn-sm btn-outline-secondary" id="refreshSessions">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div id="sessionsContainer">
+                        <div class="text-center text-secondary py-4">
+                            <i class="fas fa-spinner fa-spin fa-2x mb-3"></i>
+                            <p>Chargement des sessions...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block app_scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const sessionsContainer = document.getElementById('sessionsContainer');
+    const refreshBtn = document.getElementById('refreshSessions');
+
+    // Load sessions on page load
+    loadSessions();
+
+    // Refresh button
+    refreshBtn.addEventListener('click', loadSessions);
+
+    async function loadSessions() {
+        try {
+            sessionsContainer.innerHTML = `
+                <div class="text-center text-secondary py-4">
+                    <i class="fas fa-spinner fa-spin fa-2x mb-3"></i>
+                    <p>Chargement des sessions...</p>
+                </div>
+            `;
+
+            const response = await fetch("{% url 'wama_lab:face_analyzer:list_sessions' %}");
+            const data = await response.json();
+
+            if (data.sessions && data.sessions.length > 0) {
+                renderSessions(data.sessions);
+            } else {
+                sessionsContainer.innerHTML = `
+                    <div class="text-center text-secondary py-4">
+                        <i class="fas fa-folder-open fa-3x mb-3 opacity-50"></i>
+                        <p>Aucune session récente</p>
+                        <p class="small">Démarrez une analyse temps réel ou importez une vidéo pour commencer.</p>
+                    </div>
+                `;
+            }
+        } catch (error) {
+            console.error('Error loading sessions:', error);
+            sessionsContainer.innerHTML = `
+                <div class="text-center text-danger py-4">
+                    <i class="fas fa-exclamation-triangle fa-2x mb-3"></i>
+                    <p>Erreur lors du chargement des sessions</p>
+                </div>
+            `;
+        }
+    }
+
+    function renderSessions(sessions) {
+        const html = `
+            <div class="table-responsive">
+                <table class="table table-dark table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>Mode</th>
+                            <th>Fichier</th>
+                            <th>Statut</th>
+                            <th>Date</th>
+                            <th>Durée</th>
+                            <th class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${sessions.map(session => renderSessionRow(session)).join('')}
+                    </tbody>
+                </table>
+            </div>
+        `;
+        sessionsContainer.innerHTML = html;
+
+        // Attach event listeners
+        document.querySelectorAll('.delete-session').forEach(btn => {
+            btn.addEventListener('click', deleteSession);
+        });
+    }
+
+    function renderSessionRow(session) {
+        const modeIcon = session.mode === 'realtime' ? 'fa-video text-info' : 'fa-file-video text-success';
+        const modeLabel = session.mode === 'realtime' ? 'Temps réel' : 'Vidéo';
+
+        const statusBadge = getStatusBadge(session.status);
+        const duration = session.duration ? formatDuration(session.duration) : '-';
+        const fileName = session.input_file ? session.input_file.split('/').pop() : 'Webcam';
+
+        return `
+            <tr>
+                <td><i class="fas ${modeIcon} me-2"></i>${modeLabel}</td>
+                <td class="text-truncate" style="max-width: 200px;" title="${fileName}">${fileName}</td>
+                <td>${statusBadge}</td>
+                <td>${formatDate(session.created_at)}</td>
+                <td>${duration}</td>
+                <td class="text-end">
+                    <div class="btn-group btn-group-sm">
+                        ${session.status === 'completed' ? `
+                            <a href="${session.mode === 'realtime' ? '{% url "wama_lab:face_analyzer:realtime" %}' : '{% url "wama_lab:face_analyzer:video" %}'}?session=${session.id}"
+                               class="btn btn-outline-primary" title="Voir les résultats">
+                                <i class="fas fa-eye"></i>
+                            </a>
+                        ` : ''}
+                        <button class="btn btn-outline-danger delete-session" data-session-id="${session.id}" title="Supprimer">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `;
+    }
+
+    function getStatusBadge(status) {
+        const badges = {
+            'pending': '<span class="badge bg-secondary">En attente</span>',
+            'processing': '<span class="badge bg-warning">En cours</span>',
+            'completed': '<span class="badge bg-success">Terminé</span>',
+            'failed': '<span class="badge bg-danger">Échec</span>'
+        };
+        return badges[status] || badges['pending'];
+    }
+
+    function formatDate(dateString) {
+        const date = new Date(dateString);
+        return date.toLocaleDateString('fr-FR', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    }
+
+    function formatDuration(seconds) {
+        const mins = Math.floor(seconds / 60);
+        const secs = Math.floor(seconds % 60);
+        return `${mins}:${secs.toString().padStart(2, '0')}`;
+    }
+
+    async function deleteSession(e) {
+        const sessionId = e.currentTarget.dataset.sessionId;
+        if (!confirm('Êtes-vous sûr de vouloir supprimer cette session ?')) return;
+
+        try {
+            const response = await fetch(`/lab/face-analyzer/api/sessions/${sessionId}/delete/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}',
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (response.ok) {
+                loadSessions();
+            } else {
+                alert('Erreur lors de la suppression');
+            }
+        } catch (error) {
+            console.error('Error deleting session:', error);
+            alert('Erreur lors de la suppression');
+        }
+    }
+});
+</script>
+
+<style>
+.mode-card {
+    transition: transform 0.2s, box-shadow 0.2s;
+    cursor: pointer;
+}
+
+.mode-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+}
+
+.mode-card .card-footer .btn {
+    font-weight: 600;
+}
+</style>
+{% endblock %}

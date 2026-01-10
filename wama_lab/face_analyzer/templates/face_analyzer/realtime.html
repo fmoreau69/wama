@@ -1,0 +1,870 @@
+{% extends 'face_analyzer/base.html' %}
+{% load static %}
+
+{% block face_analyzer_content %}
+<div class="container-fluid py-3">
+    <div class="row">
+        <!-- Left Panel: Video & Controls -->
+        <div class="col-lg-6 mb-3">
+            <!-- Video Container -->
+            <div class="card bg-dark border-info mb-3">
+                <div class="card-header bg-info bg-opacity-25 border-info d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0 text-info">
+                        <i class="fas fa-video me-2"></i>Webcam
+                    </h5>
+                    <div class="d-flex align-items-center gap-2">
+                        <span id="fpsCounter" class="badge bg-secondary">-- FPS</span>
+                        <span id="connectionStatus" class="badge bg-warning">Non connecté</span>
+                    </div>
+                </div>
+                <div class="card-body p-0 position-relative">
+                    <!-- Video Element -->
+                    <video id="webcamVideo" class="w-100" autoplay playsinline muted style="background: #000;"></video>
+                    <!-- Canvas Overlay -->
+                    <canvas id="overlayCanvas" class="position-absolute top-0 start-0 w-100 h-100" style="pointer-events: none;"></canvas>
+                    <!-- Hidden canvas for frame capture -->
+                    <canvas id="captureCanvas" style="display: none;"></canvas>
+                </div>
+            </div>
+
+            <!-- Controls -->
+            <div class="card bg-dark border-secondary mb-3">
+                <div class="card-body">
+                    <div class="row g-3">
+                        <!-- Camera Selection -->
+                        <div class="col-md-6">
+                            <label class="form-label text-light small">Caméra</label>
+                            <select id="cameraSelect" class="form-select form-select-sm bg-dark text-light border-secondary">
+                                <option value="">Sélectionner une caméra...</option>
+                            </select>
+                        </div>
+                        <!-- Resolution -->
+                        <div class="col-md-6">
+                            <label class="form-label text-light small">Résolution</label>
+                            <select id="resolutionSelect" class="form-select form-select-sm bg-dark text-light border-secondary">
+                                <option value="640x480">640×480 (VGA)</option>
+                                <option value="1280x720" selected>1280×720 (HD)</option>
+                                <option value="1920x1080">1920×1080 (FHD)</option>
+                            </select>
+                        </div>
+                        <!-- Emotion Backend -->
+                        <div class="col-md-6">
+                            <label class="form-label text-light small">Backend émotions</label>
+                            <select id="emotionBackend" class="form-select form-select-sm bg-dark text-light border-secondary">
+                                <option value="fer">FER (rapide)</option>
+                                <option value="deepface" selected>DeepFace (complet)</option>
+                            </select>
+                        </div>
+                        <!-- Age/Gender Toggle -->
+                        <div class="col-md-6">
+                            <label class="form-label text-light small">Options DeepFace</label>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="enableAgeGender" checked>
+                                <label class="form-check-label text-light small" for="enableAgeGender">
+                                    <i class="fas fa-user-tag me-1"></i>Âge & Genre
+                                </label>
+                            </div>
+                        </div>
+                        <!-- Analysis Options -->
+                        <div class="col-12">
+                            <label class="form-label text-light small">Modules d'analyse</label>
+                            <div class="d-flex flex-wrap gap-2">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="enableRPPG" checked>
+                                    <label class="form-check-label text-danger small" for="enableRPPG">
+                                        <i class="fas fa-heartbeat me-1"></i>rPPG
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="enableEyes" checked>
+                                    <label class="form-check-label text-info small" for="enableEyes">
+                                        <i class="fas fa-eye me-1"></i>Oculométrie
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="enableEmotions" checked>
+                                    <label class="form-check-label text-warning small" for="enableEmotions">
+                                        <i class="fas fa-smile me-1"></i>Émotions
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="enableRespiration" checked>
+                                    <label class="form-check-label text-success small" for="enableRespiration">
+                                        <i class="fas fa-lungs me-1"></i>Respiration
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Action Buttons -->
+                        <div class="col-12">
+                            <div class="d-flex gap-2">
+                                <button id="startBtn" class="btn btn-success flex-grow-1">
+                                    <i class="fas fa-play me-2"></i>Démarrer l'analyse
+                                </button>
+                                <button id="stopBtn" class="btn btn-danger flex-grow-1" disabled>
+                                    <i class="fas fa-stop me-2"></i>Arrêter
+                                </button>
+                                <button id="exportBtn" class="btn btn-outline-info" disabled>
+                                    <i class="fas fa-download me-2"></i>Export
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Live Metrics Display -->
+            <div class="row g-2">
+                <!-- Heart Rate -->
+                <div class="col-6 col-md-2">
+                    <div class="card bg-dark border-danger h-100">
+                        <div class="card-body text-center p-2">
+                            <i class="fas fa-heartbeat text-danger"></i>
+                            <div id="hrValue" class="fs-4 text-danger fw-bold">--</div>
+                            <div class="small text-secondary">BPM</div>
+                        </div>
+                    </div>
+                </div>
+                <!-- SpO2 -->
+                <div class="col-6 col-md-2">
+                    <div class="card bg-dark border-primary h-100">
+                        <div class="card-body text-center p-2">
+                            <i class="fas fa-tint text-primary"></i>
+                            <div id="spo2Value" class="fs-4 text-primary fw-bold">--</div>
+                            <div class="small text-secondary">SpO2 %</div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Respiration -->
+                <div class="col-6 col-md-2">
+                    <div class="card bg-dark border-success h-100">
+                        <div class="card-body text-center p-2">
+                            <i class="fas fa-lungs text-success"></i>
+                            <div id="rrValue" class="fs-4 text-success fw-bold">--</div>
+                            <div class="small text-secondary">Resp/min</div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Blink Rate -->
+                <div class="col-6 col-md-2">
+                    <div class="card bg-dark border-info h-100">
+                        <div class="card-body text-center p-2">
+                            <i class="fas fa-eye text-info"></i>
+                            <div id="blinkValue" class="fs-4 text-info fw-bold">--</div>
+                            <div class="small text-secondary">Clignt/min</div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Age (DeepFace) -->
+                <div class="col-6 col-md-2" id="ageCard">
+                    <div class="card bg-dark border-warning h-100">
+                        <div class="card-body text-center p-2">
+                            <i class="fas fa-birthday-cake text-warning"></i>
+                            <div id="ageValue" class="fs-4 text-warning fw-bold">--</div>
+                            <div class="small text-secondary">Âge</div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Gender (DeepFace) -->
+                <div class="col-6 col-md-2" id="genderCard">
+                    <div class="card bg-dark border-secondary h-100">
+                        <div class="card-body text-center p-2">
+                            <i id="genderIcon" class="fas fa-user text-secondary"></i>
+                            <div id="genderValue" class="fs-4 text-light fw-bold">--</div>
+                            <div class="small text-secondary">Genre</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Panel: Charts -->
+        <div class="col-lg-6">
+            <!-- Heart Rate Chart -->
+            <div class="card bg-dark border-danger mb-3">
+                <div class="card-header bg-danger bg-opacity-25 border-danger py-2">
+                    <h6 class="mb-0 text-danger">
+                        <i class="fas fa-heartbeat me-2"></i>Fréquence Cardiaque
+                    </h6>
+                </div>
+                <div class="card-body p-2">
+                    <canvas id="hrChart" height="120"></canvas>
+                </div>
+            </div>
+
+            <!-- HRV Chart -->
+            <div class="card bg-dark border-warning mb-3">
+                <div class="card-header bg-warning bg-opacity-25 border-warning py-2">
+                    <h6 class="mb-0 text-warning">
+                        <i class="fas fa-wave-square me-2"></i>Variabilité Cardiaque (HRV)
+                    </h6>
+                </div>
+                <div class="card-body p-2">
+                    <canvas id="hrvChart" height="100"></canvas>
+                </div>
+            </div>
+
+            <!-- Emotions Chart -->
+            <div class="card bg-dark border-warning mb-3">
+                <div class="card-header bg-warning bg-opacity-25 border-warning py-2">
+                    <h6 class="mb-0 text-warning">
+                        <i class="fas fa-smile me-2"></i>Émotions
+                    </h6>
+                </div>
+                <div class="card-body p-2">
+                    <canvas id="emotionsChart" height="100"></canvas>
+                </div>
+            </div>
+
+            <!-- Eye Tracking Chart -->
+            <div class="card bg-dark border-info mb-3">
+                <div class="card-header bg-info bg-opacity-25 border-info py-2">
+                    <h6 class="mb-0 text-info">
+                        <i class="fas fa-eye me-2"></i>Oculométrie
+                    </h6>
+                </div>
+                <div class="card-body p-2">
+                    <div class="row">
+                        <div class="col-6">
+                            <canvas id="gazeChart" height="100"></canvas>
+                        </div>
+                        <div class="col-6">
+                            <canvas id="pupilChart" height="100"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Respiration Chart -->
+            <div class="card bg-dark border-success">
+                <div class="card-header bg-success bg-opacity-25 border-success py-2">
+                    <h6 class="mb-0 text-success">
+                        <i class="fas fa-lungs me-2"></i>Respiration
+                    </h6>
+                </div>
+                <div class="card-body p-2">
+                    <canvas id="respirationChart" height="100"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block app_scripts %}
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-streaming@2.0.0/dist/chartjs-plugin-streaming.min.js"></script>
+
+<script>
+// Configuration
+const CONFIG = {
+    API_URL: "{% url 'wama_lab:face_analyzer:process_frame' %}",
+    CSRF_TOKEN: "{{ csrf_token }}",
+    FRAME_INTERVAL: 100,  // ms between frames (10 FPS for analysis)
+    CHART_DURATION: 30000,  // 30 seconds of data
+};
+
+// State
+let isAnalyzing = false;
+let webcamStream = null;
+let animationFrameId = null;
+let lastFrameTime = 0;
+let frameCount = 0;
+let fpsUpdateInterval = null;
+
+// DOM Elements
+const webcamVideo = document.getElementById('webcamVideo');
+const overlayCanvas = document.getElementById('overlayCanvas');
+const captureCanvas = document.getElementById('captureCanvas');
+const overlayCtx = overlayCanvas.getContext('2d');
+const captureCtx = captureCanvas.getContext('2d');
+
+const startBtn = document.getElementById('startBtn');
+const stopBtn = document.getElementById('stopBtn');
+const exportBtn = document.getElementById('exportBtn');
+const cameraSelect = document.getElementById('cameraSelect');
+const resolutionSelect = document.getElementById('resolutionSelect');
+const connectionStatus = document.getElementById('connectionStatus');
+const fpsCounter = document.getElementById('fpsCounter');
+
+// Charts
+let charts = {};
+const chartColors = {
+    hr: 'rgb(220, 53, 69)',
+    hrv: 'rgb(255, 193, 7)',
+    emotions: 'rgb(255, 193, 7)',
+    gaze: 'rgb(13, 202, 240)',
+    pupil: 'rgb(13, 110, 253)',
+    respiration: 'rgb(25, 135, 84)'
+};
+
+// Initialize
+document.addEventListener('DOMContentLoaded', function() {
+    initializeCharts();
+    enumerateCameras();
+    setupEventListeners();
+});
+
+function setupEventListeners() {
+    startBtn.addEventListener('click', startAnalysis);
+    stopBtn.addEventListener('click', stopAnalysis);
+    exportBtn.addEventListener('click', exportData);
+    cameraSelect.addEventListener('change', switchCamera);
+    resolutionSelect.addEventListener('change', updateResolution);
+}
+
+async function enumerateCameras() {
+    try {
+        // Request permission first
+        await navigator.mediaDevices.getUserMedia({ video: true });
+
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const cameras = devices.filter(d => d.kind === 'videoinput');
+
+        cameraSelect.innerHTML = cameras.map((cam, i) => `
+            <option value="${cam.deviceId}">${cam.label || 'Caméra ' + (i + 1)}</option>
+        `).join('');
+
+        if (cameras.length > 0) {
+            startWebcam(cameras[0].deviceId);
+        }
+    } catch (err) {
+        console.error('Error enumerating cameras:', err);
+        connectionStatus.textContent = 'Erreur caméra';
+        connectionStatus.className = 'badge bg-danger';
+    }
+}
+
+async function startWebcam(deviceId) {
+    try {
+        if (webcamStream) {
+            webcamStream.getTracks().forEach(t => t.stop());
+        }
+
+        const [width, height] = resolutionSelect.value.split('x').map(Number);
+
+        const constraints = {
+            video: {
+                deviceId: deviceId ? { exact: deviceId } : undefined,
+                width: { ideal: width },
+                height: { ideal: height },
+                frameRate: { ideal: 30 }
+            }
+        };
+
+        webcamStream = await navigator.mediaDevices.getUserMedia(constraints);
+        webcamVideo.srcObject = webcamStream;
+
+        webcamVideo.onloadedmetadata = () => {
+            overlayCanvas.width = webcamVideo.videoWidth;
+            overlayCanvas.height = webcamVideo.videoHeight;
+            captureCanvas.width = webcamVideo.videoWidth;
+            captureCanvas.height = webcamVideo.videoHeight;
+
+            connectionStatus.textContent = 'Connecté';
+            connectionStatus.className = 'badge bg-success';
+        };
+    } catch (err) {
+        console.error('Error starting webcam:', err);
+        connectionStatus.textContent = 'Erreur';
+        connectionStatus.className = 'badge bg-danger';
+    }
+}
+
+function switchCamera() {
+    startWebcam(cameraSelect.value);
+}
+
+function updateResolution() {
+    if (webcamStream) {
+        startWebcam(cameraSelect.value);
+    }
+}
+
+function initializeCharts() {
+    // Heart Rate Chart
+    charts.hr = new Chart(document.getElementById('hrChart'), {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: [{
+                label: 'BPM',
+                data: [],
+                borderColor: chartColors.hr,
+                backgroundColor: 'rgba(220, 53, 69, 0.1)',
+                fill: true,
+                tension: 0.4,
+                pointRadius: 0
+            }]
+        },
+        options: getChartOptions('BPM', 40, 180)
+    });
+
+    // HRV Chart
+    charts.hrv = new Chart(document.getElementById('hrvChart'), {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: [{
+                label: 'RMSSD (ms)',
+                data: [],
+                borderColor: chartColors.hrv,
+                backgroundColor: 'rgba(255, 193, 7, 0.1)',
+                fill: true,
+                tension: 0.4,
+                pointRadius: 0
+            }]
+        },
+        options: getChartOptions('ms', 0, 100)
+    });
+
+    // Emotions Chart (Bar)
+    charts.emotions = new Chart(document.getElementById('emotionsChart'), {
+        type: 'bar',
+        data: {
+            labels: ['Neutre', 'Joie', 'Tristesse', 'Colère', 'Surprise', 'Peur', 'Dégoût'],
+            datasets: [{
+                label: 'Intensité',
+                data: [0, 0, 0, 0, 0, 0, 0],
+                backgroundColor: [
+                    'rgba(108, 117, 125, 0.7)',
+                    'rgba(255, 193, 7, 0.7)',
+                    'rgba(13, 110, 253, 0.7)',
+                    'rgba(220, 53, 69, 0.7)',
+                    'rgba(13, 202, 240, 0.7)',
+                    'rgba(111, 66, 193, 0.7)',
+                    'rgba(25, 135, 84, 0.7)'
+                ],
+                borderWidth: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    max: 1,
+                    grid: { color: 'rgba(255,255,255,0.1)' },
+                    ticks: { color: '#aaa' }
+                },
+                x: {
+                    grid: { display: false },
+                    ticks: { color: '#aaa', font: { size: 10 } }
+                }
+            }
+        }
+    });
+
+    // Gaze Chart (Scatter)
+    charts.gaze = new Chart(document.getElementById('gazeChart'), {
+        type: 'scatter',
+        data: {
+            datasets: [{
+                label: 'Direction du regard',
+                data: [{ x: 0, y: 0 }],
+                backgroundColor: chartColors.gaze,
+                pointRadius: 8
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: {
+                    min: -1, max: 1,
+                    title: { display: true, text: 'Horizontal', color: '#aaa' },
+                    grid: { color: 'rgba(255,255,255,0.1)' },
+                    ticks: { color: '#aaa' }
+                },
+                y: {
+                    min: -1, max: 1,
+                    title: { display: true, text: 'Vertical', color: '#aaa' },
+                    grid: { color: 'rgba(255,255,255,0.1)' },
+                    ticks: { color: '#aaa' }
+                }
+            }
+        }
+    });
+
+    // Pupil Chart
+    charts.pupil = new Chart(document.getElementById('pupilChart'), {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: [
+                {
+                    label: 'Gauche',
+                    data: [],
+                    borderColor: 'rgb(13, 110, 253)',
+                    tension: 0.4,
+                    pointRadius: 0
+                },
+                {
+                    label: 'Droite',
+                    data: [],
+                    borderColor: 'rgb(13, 202, 240)',
+                    tension: 0.4,
+                    pointRadius: 0
+                }
+            ]
+        },
+        options: getChartOptions('mm', 2, 8)
+    });
+
+    // Respiration Chart
+    charts.respiration = new Chart(document.getElementById('respirationChart'), {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: [{
+                label: 'Resp/min',
+                data: [],
+                borderColor: chartColors.respiration,
+                backgroundColor: 'rgba(25, 135, 84, 0.1)',
+                fill: true,
+                tension: 0.4,
+                pointRadius: 0
+            }]
+        },
+        options: getChartOptions('Resp/min', 8, 25)
+    });
+}
+
+function getChartOptions(unit, min, max) {
+    return {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: { duration: 0 },
+        plugins: {
+            legend: { display: false }
+        },
+        scales: {
+            x: {
+                display: false
+            },
+            y: {
+                min: min,
+                max: max,
+                grid: { color: 'rgba(255,255,255,0.1)' },
+                ticks: {
+                    color: '#aaa',
+                    callback: v => v + ' ' + unit
+                }
+            }
+        }
+    };
+}
+
+async function startAnalysis() {
+    if (!webcamStream) {
+        alert('Veuillez d\'abord connecter une caméra');
+        return;
+    }
+
+    isAnalyzing = true;
+    startBtn.disabled = true;
+    stopBtn.disabled = false;
+    exportBtn.disabled = false;
+
+    connectionStatus.textContent = 'Analyse...';
+    connectionStatus.className = 'badge bg-info';
+
+    // Start FPS counter
+    frameCount = 0;
+    fpsUpdateInterval = setInterval(() => {
+        fpsCounter.textContent = frameCount + ' FPS';
+        frameCount = 0;
+    }, 1000);
+
+    // Start analysis loop
+    processFrameLoop();
+}
+
+function stopAnalysis() {
+    isAnalyzing = false;
+    startBtn.disabled = false;
+    stopBtn.disabled = true;
+
+    if (fpsUpdateInterval) {
+        clearInterval(fpsUpdateInterval);
+    }
+
+    connectionStatus.textContent = 'Connecté';
+    connectionStatus.className = 'badge bg-success';
+}
+
+async function processFrameLoop() {
+    if (!isAnalyzing) return;
+
+    const now = performance.now();
+    if (now - lastFrameTime >= CONFIG.FRAME_INTERVAL) {
+        lastFrameTime = now;
+        await processFrame();
+    }
+
+    requestAnimationFrame(processFrameLoop);
+}
+
+async function processFrame() {
+    try {
+        // Capture frame
+        captureCtx.drawImage(webcamVideo, 0, 0);
+        const imageData = captureCanvas.toDataURL('image/jpeg', 0.8);
+
+        // Get enabled modules
+        const modules = {
+            rppg: document.getElementById('enableRPPG').checked,
+            eyes: document.getElementById('enableEyes').checked,
+            emotions: document.getElementById('enableEmotions').checked,
+            respiration: document.getElementById('enableRespiration').checked
+        };
+
+        // Get emotion backend settings
+        const emotionBackend = document.getElementById('emotionBackend').value;
+        const enableAgeGender = document.getElementById('enableAgeGender').checked;
+
+        // Send to server
+        const response = await fetch(CONFIG.API_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': CONFIG.CSRF_TOKEN
+            },
+            body: JSON.stringify({
+                image: imageData,
+                timestamp: Date.now(),
+                modules: modules,
+                emotion_backend: emotionBackend,
+                enable_age_gender: enableAgeGender
+            })
+        });
+
+        if (!response.ok) throw new Error('Server error');
+
+        const data = await response.json();
+        frameCount++;
+
+        // Update UI
+        updateMetricsDisplay(data);
+        updateCharts(data);
+        drawOverlay(data);
+
+    } catch (err) {
+        console.error('Frame processing error:', err);
+    }
+}
+
+function updateMetricsDisplay(data) {
+    // Get the actual data object (might be nested in 'data' key)
+    const metrics = data.data || data;
+
+    if (metrics.rppg) {
+        document.getElementById('hrValue').textContent = metrics.rppg.heart_rate?.toFixed(0) || '--';
+        document.getElementById('spo2Value').textContent = metrics.rppg.spo2?.toFixed(0) || '--';
+    }
+
+    if (metrics.respiration) {
+        document.getElementById('rrValue').textContent = metrics.respiration.respiratory_rate?.toFixed(0) || '--';
+    }
+
+    if (metrics.eye_tracking) {
+        document.getElementById('blinkValue').textContent = metrics.eye_tracking.blink?.blink_rate?.toFixed(0) || '--';
+    }
+
+    // Age and Gender (DeepFace)
+    if (metrics.emotions) {
+        const age = metrics.emotions.age;
+        const gender = metrics.emotions.gender;
+
+        if (age !== undefined && age !== null) {
+            document.getElementById('ageValue').textContent = age;
+        } else {
+            document.getElementById('ageValue').textContent = '--';
+        }
+
+        if (gender) {
+            document.getElementById('genderValue').textContent = gender === 'Man' ? 'Homme' : (gender === 'Woman' ? 'Femme' : gender);
+            // Update icon
+            const genderIcon = document.getElementById('genderIcon');
+            if (gender === 'Man') {
+                genderIcon.className = 'fas fa-mars text-info';
+            } else if (gender === 'Woman') {
+                genderIcon.className = 'fas fa-venus text-pink';
+            } else {
+                genderIcon.className = 'fas fa-user text-secondary';
+            }
+        } else {
+            document.getElementById('genderValue').textContent = '--';
+        }
+    }
+}
+
+function updateCharts(data) {
+    const timestamp = new Date().toLocaleTimeString();
+    const maxDataPoints = 60;
+
+    // Heart Rate
+    if (data.rppg?.heart_rate) {
+        addDataPoint(charts.hr, timestamp, data.rppg.heart_rate, maxDataPoints);
+    }
+
+    // HRV
+    if (data.rppg?.hrv?.rmssd) {
+        addDataPoint(charts.hrv, timestamp, data.rppg.hrv.rmssd, maxDataPoints);
+    }
+
+    // Emotions
+    if (data.emotions) {
+        const emotionMap = ['neutral', 'happy', 'sad', 'angry', 'surprise', 'fear', 'disgust'];
+        charts.emotions.data.datasets[0].data = emotionMap.map(e => data.emotions[e] || 0);
+        charts.emotions.update('none');
+    }
+
+    // Gaze
+    if (data.eye_tracking?.gaze) {
+        charts.gaze.data.datasets[0].data = [{
+            x: data.eye_tracking.gaze.horizontal || 0,
+            y: data.eye_tracking.gaze.vertical || 0
+        }];
+        charts.gaze.update('none');
+    }
+
+    // Pupil
+    if (data.eye_tracking?.pupils) {
+        addDataPoint(charts.pupil, timestamp, data.eye_tracking.pupils.left_diameter, maxDataPoints, 0);
+        addDataPoint(charts.pupil, timestamp, data.eye_tracking.pupils.right_diameter, maxDataPoints, 1);
+    }
+
+    // Respiration
+    if (data.respiration?.rate) {
+        addDataPoint(charts.respiration, timestamp, data.respiration.rate, maxDataPoints);
+    }
+}
+
+function addDataPoint(chart, label, value, maxPoints, datasetIndex = 0) {
+    chart.data.labels.push(label);
+    chart.data.datasets[datasetIndex].data.push(value);
+
+    if (chart.data.labels.length > maxPoints) {
+        chart.data.labels.shift();
+        chart.data.datasets.forEach(ds => ds.data.shift());
+    }
+
+    chart.update('none');
+}
+
+function drawOverlay(data) {
+    overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+
+    if (!data.face_detected) {
+        // Draw "No face" message
+        overlayCtx.fillStyle = 'rgba(220, 53, 69, 0.8)';
+        overlayCtx.font = '24px Arial';
+        overlayCtx.textAlign = 'center';
+        overlayCtx.fillText('Aucun visage détecté', overlayCanvas.width / 2, 50);
+        return;
+    }
+
+    // Draw face bounding box
+    if (data.face_bbox) {
+        const [x, y, w, h] = data.face_bbox;
+        overlayCtx.strokeStyle = '#0dcaf0';
+        overlayCtx.lineWidth = 2;
+        overlayCtx.strokeRect(x, y, w, h);
+    }
+
+    // Draw eye tracking
+    if (data.eye_tracking) {
+        // Draw gaze direction
+        if (data.eye_tracking.gaze && data.eye_tracking.eye_centers) {
+            const { left, right } = data.eye_tracking.eye_centers;
+            const gaze = data.eye_tracking.gaze;
+
+            overlayCtx.strokeStyle = '#0dcaf0';
+            overlayCtx.lineWidth = 2;
+
+            // Left eye gaze
+            if (left) {
+                overlayCtx.beginPath();
+                overlayCtx.moveTo(left.x, left.y);
+                overlayCtx.lineTo(left.x + gaze.horizontal * 50, left.y + gaze.vertical * 50);
+                overlayCtx.stroke();
+            }
+
+            // Right eye gaze
+            if (right) {
+                overlayCtx.beginPath();
+                overlayCtx.moveTo(right.x, right.y);
+                overlayCtx.lineTo(right.x + gaze.horizontal * 50, right.y + gaze.vertical * 50);
+                overlayCtx.stroke();
+            }
+        }
+    }
+
+    // Draw dominant emotion
+    if (data.emotions && data.emotions.dominant) {
+        overlayCtx.fillStyle = '#ffc107';
+        overlayCtx.font = 'bold 18px Arial';
+        overlayCtx.textAlign = 'left';
+        overlayCtx.fillText(
+            data.emotions.dominant.toUpperCase(),
+            10,
+            overlayCanvas.height - 10
+        );
+    }
+
+    // Draw heart rate on face
+    if (data.rppg?.heart_rate) {
+        overlayCtx.fillStyle = '#dc3545';
+        overlayCtx.font = 'bold 24px Arial';
+        overlayCtx.textAlign = 'right';
+        overlayCtx.fillText(
+            '❤ ' + data.rppg.heart_rate.toFixed(0) + ' BPM',
+            overlayCanvas.width - 10,
+            30
+        );
+    }
+}
+
+function exportData() {
+    // Collect all chart data
+    const exportObj = {
+        timestamp: new Date().toISOString(),
+        heart_rate: charts.hr.data.datasets[0].data,
+        hrv: charts.hrv.data.datasets[0].data,
+        respiration: charts.respiration.data.datasets[0].data,
+        pupil_left: charts.pupil.data.datasets[0].data,
+        pupil_right: charts.pupil.data.datasets[1].data
+    };
+
+    // Download as JSON
+    const blob = new Blob([JSON.stringify(exportObj, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `face_analyzer_${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+}
+</script>
+
+<style>
+#webcamVideo {
+    max-height: 400px;
+    object-fit: contain;
+}
+
+.card {
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+}
+
+.form-check-input:checked {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+}
+</style>
+{% endblock %}
