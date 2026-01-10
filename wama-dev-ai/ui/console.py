@@ -41,6 +41,9 @@ class Console:
             highlight=True,
         )
         self._spinner = None
+        self._input_history: List[str] = []
+        self._history_index: int = -1
+        self._current_draft: str = ""
 
     # =========================================================================
     # Basic Output
@@ -298,13 +301,61 @@ class Console:
     # =========================================================================
 
     def prompt(self, message: str, default: str = "") -> str:
-        """Get input from user."""
+        """Get input from user with history support."""
+        # Check if prompt_toolkit is available
+        try:
+            from prompt_toolkit import prompt as pt_prompt
+            from prompt_toolkit.history import InMemoryHistory
+            from prompt_toolkit.formatted_text import HTML
+            _has_prompt_toolkit = True
+        except ImportError:
+            _has_prompt_toolkit = False
+
+        if _has_prompt_toolkit:
+            try:
+                history = InMemoryHistory()
+                for item in self._input_history:
+                    history.append_string(item)
+
+                # Use prompt_toolkit's built-in prompt display
+                user_input = pt_prompt(
+                    HTML(f'<style fg="cyan">{message}</style>: '),
+                    history=history,
+                    default=default
+                )
+
+                # Add to history
+                if user_input.strip() and (not self._input_history or self._input_history[-1] != user_input):
+                    self._input_history.append(user_input)
+
+                return user_input
+            except Exception as e:
+                # If prompt_toolkit fails, fall back to Rich
+                pass
+
+        # Fallback to Rich's basic prompt (no history navigation)
         from rich.prompt import Prompt
-        return Prompt.ask(
+        user_input = Prompt.ask(
             f"[{THEME['prompt']}]{message}[/]",
             default=default,
             console=self._console,
         )
+
+        # Still track history for potential future use
+        if user_input.strip() and (not self._input_history or self._input_history[-1] != user_input):
+            self._input_history.append(user_input)
+
+        return user_input
+
+    def get_history(self) -> List[str]:
+        """Get input history."""
+        return self._input_history.copy()
+
+    def clear_history(self):
+        """Clear input history."""
+        self._input_history.clear()
+        self._history_index = -1
+        self._current_draft = ""
 
     def confirm(self, message: str, default: bool = False) -> bool:
         """Get yes/no confirmation."""

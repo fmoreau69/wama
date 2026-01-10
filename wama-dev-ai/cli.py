@@ -12,7 +12,7 @@ Usage:
 
 import sys
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 import argparse
 
 # Add parent directory to path for imports
@@ -229,55 +229,159 @@ class WAMADevAI:
             console.info("Type /help for available commands")
 
     def _handle_request(self, request: str):
-        """Handle a natural language request."""
+        """Handle a natural language request with agentic tool loop."""
         console.thinking("Analyzing your request...")
 
-        # Step 1: Find relevant files
-        console.info("Searching for relevant files...")
-        files = self.files.find_for_task(request, top_k=5)
-
-        if files:
-            console.file_list([f.path for f in files], "Relevant files")
-
-            # Read file contents
-            file_contents = []
-            for f in files[:3]:  # Limit to 3 files for context
-                try:
-                    content = f.path.read_text(encoding='utf-8')
-                    file_contents.append(f"### {f.relative_path}\n```python\n{content[:2000]}\n```")
-                except Exception:
-                    pass
-
-            context = "\n\n".join(file_contents)
-        else:
-            context = "No specific files found."
-
-        # Step 2: Generate response
+        # Load system prompt
         system_prompt = self._load_prompt("system.txt")
+
+        # Build initial user prompt (no pre-loaded file content to avoid hallucination)
         user_prompt = f"""User request: {request}
 
-Relevant code context:
-{context}
+IMPORTANT: Make ONE tool call, then STOP and wait for results.
+Start by searching for relevant files with search_files.
+Do NOT assume file paths - wait for search results first."""
 
-Please analyze this request and help the user. If you need to make changes,
-use the appropriate tools (read_file, edit_file, etc.) to implement them."""
+        # Agentic loop - continue until no more tool calls
+        max_iterations = 10
+        iteration = 0
+        messages = []
 
-        console.print()
+        while iteration < max_iterations:
+            iteration += 1
+            console.print()
 
-        # Stream response
-        full_response = ""
-        console.print(f"[bold cyan]🤖 Assistant:[/]")
+            if iteration == 1:
+                console.print(f"[bold cyan]🤖 Assistant:[/]")
+            else:
+                console.print(f"[bold cyan]🤖 Assistant (continuing):[/]")
 
-        for chunk in self.llm.stream(user_prompt, model="dev", system_prompt=system_prompt):
-            console.print(chunk, end="")
-            full_response += chunk
+            # Stream response, but stop after first tool call
+            full_response = ""
+            tool_call_detected = False
+            printed_length = 0
 
-        console.print("\n")
+            for chunk in self.llm.stream(user_prompt, model="dev", system_prompt=system_prompt, history=messages):
+                full_response += chunk
 
-        # Check for tool calls
-        tool_calls = self.tools.parse_tool_calls(full_response)
-        if tool_calls:
-            self._execute_tool_calls(tool_calls)
+                # Check if we've completed a tool call (closing tag or end of JSON)
+                if not tool_call_detected and self._has_complete_tool_call(full_response):
+                    tool_call_detected = True
+                    # Truncate at the end of the tool call
+                    full_response = self._truncate_after_tool_call(full_response)
+                    # Print only the part not yet printed
+                    remaining = full_response[printed_length:]
+                    if remaining:
+                        console.print(remaining, end="")
+                    console.print()
+                    break
+
+                # Print chunk as it arrives
+                console.print(chunk, end="")
+                printed_length += len(chunk)
+
+            if not tool_call_detected:
+                console.print()  # Newline if no tool call
+
+            console.print()
+
+            # Save to message history
+            messages.append({"role": "assistant", "content": full_response})
+
+            # Check for tool calls
+            tool_calls = self.tools.parse_tool_calls(full_response)
+
+            # Debug: show if tool calls were found
+            if tool_calls:
+                console.info(f"Found {len(tool_calls)} tool call(s)")
+            else:
+                console.warning("No tool calls detected in response")
+                # Show a snippet for debugging
+                if '"name"' in full_response and '"arguments"' in full_response:
+                    console.warning("Response contains JSON-like tool call but wasn't parsed")
+
+            if not tool_calls:
+                # No more tool calls, we're done
+                break
+
+            # Execute tool calls and collect results
+            tool_results = self._execute_tool_calls_with_results(tool_calls)
+
+            if not tool_results:
+                # All tools were skipped or failed
+                break
+
+            # Build follow-up prompt with tool results
+            results_text = "\n\n".join([
+                f"### Tool: {r['tool']}\n**Result:**\n```\n{r['output'][:4000]}\n```"
+                for r in tool_results
+            ])
+
+            user_prompt = f"""ORIGINAL REQUEST: {request}
+
+Tool execution results:
+
+{results_text}
+
+Continue with the ORIGINAL REQUEST above. Focus on what the user asked for.
+If you need more information, use more tools (ONE at a time).
+If you're ready to make changes, use edit_file.
+Remember: the user wants preview navigation with arrow keys in the file manager."""
+
+            # Add user follow-up to history BEFORE next iteration
+            # (stream() adds it to its local copy, but we need it in our history too)
+            messages.append({"role": "user", "content": user_prompt})
+
+        if iteration >= max_iterations:
+            console.warning("Maximum iterations reached. Stopping.")
+
+    def _execute_tool_calls_with_results(self, calls: List[ToolCall]) -> List[Dict[str, Any]]:
+        """Execute tool calls and return results for the agentic loop."""
+        results = []
+
+        for call in calls:
+            tool = self.tools.get(call.tool_name)
+            if not tool:
+                console.warning(f"Unknown tool: {call.tool_name}")
+                continue
+
+            # Show what we're about to do
+            args_display = ", ".join(f"{k}={repr(v)[:50]}" for k, v in call.arguments.items())
+            console.info(f"📎 {call.tool_name}({args_display})")
+
+            if tool.requires_confirmation:
+                if not console.confirm("Execute this tool?", default=False):
+                    console.info("Skipped by user")
+                    results.append({
+                        "tool": call.tool_name,
+                        "output": "SKIPPED: User declined to execute this tool."
+                    })
+                    continue
+
+            result = self.tools.execute(call)
+
+            if result.success:
+                console.success(f"✓ {call.tool_name} completed")
+                # Show preview of output - larger for read_file
+                if result.output:
+                    max_preview = 2000 if call.tool_name == "read_file" else 500
+                    preview = result.output[:max_preview]
+                    if len(result.output) > max_preview:
+                        preview += f"\n... ({len(result.output)} chars total)"
+                    console.code(preview, language="text")
+
+                results.append({
+                    "tool": call.tool_name,
+                    "output": result.output
+                })
+            else:
+                console.error(f"✗ {call.tool_name} failed: {result.error}")
+                results.append({
+                    "tool": call.tool_name,
+                    "output": f"ERROR: {result.error}"
+                })
+
+        return results
 
     def _execute_tool_calls(self, calls: List[ToolCall]):
         """Execute tool calls from the LLM response."""
@@ -301,6 +405,44 @@ use the appropriate tools (read_file, edit_file, etc.) to implement them."""
                     console.code(result.output[:500], language="text")
             else:
                 console.error(f"Tool failed: {result.error}")
+
+    # =========================================================================
+    # Tool Call Detection Helpers
+    # =========================================================================
+
+    def _has_complete_tool_call(self, text: str) -> bool:
+        """Check if text contains a complete tool call (JSON format)."""
+        import re
+        # List of tool names to detect
+        tool_names = 'search_files|search_content|read_file|write_file|edit_file|list_directory|run_command|get_project_info'
+
+        # Look for complete JSON tool calls - simpler patterns
+        patterns = [
+            r'</tool_call>',  # End of XML format
+            rf'"name"\s*:\s*"({tool_names})"\s*,\s*"arguments"\s*:\s*\{{[^}}]+\}}',  # JSON with tool name and args
+        ]
+        for pattern in patterns:
+            if re.search(pattern, text, re.DOTALL):
+                return True
+        return False
+
+    def _truncate_after_tool_call(self, text: str) -> str:
+        """Truncate text after the first complete tool call."""
+        import re
+        tool_names = 'search_files|search_content|read_file|write_file|edit_file|list_directory|run_command|get_project_info'
+
+        # Find end of XML tool call
+        xml_match = re.search(r'</tool_call>', text)
+        if xml_match:
+            return text[:xml_match.end()]
+
+        # Find end of JSON tool call with arguments
+        # Match: {"name": "tool", "arguments": {...}}
+        json_match = re.search(rf'"name"\s*:\s*"({tool_names})"\s*,\s*"arguments"\s*:\s*\{{[^}}]+\}}\s*\}}', text, re.DOTALL)
+        if json_match:
+            return text[:json_match.end()]
+
+        return text
 
     # =========================================================================
     # Commands

@@ -55,61 +55,106 @@ class ModelConfig:
 # Available models for each role
 # Configured for RTX 4090 (24GB VRAM)
 MODELS = {
+    # -------------------------------------------------------------------------
+    # Development Models
+    # -------------------------------------------------------------------------
     "dev": ModelConfig(
-        name="Qwen Coder 32B",
-        ollama_id="qwen2.5-coder:32b",
-        description="Expert Python/Django developer for writing code",
-        context_length=32768,
-        temperature=0.7,
-        role="dev"
+        name="Qwen3 30B Instruct",
+        ollama_id="qwen3:30b-instruct",
+        description="Primary developer model for Python/Django/FastAPI code generation",
+        context_length=256000,
+        temperature=0.6,
+        role="dev",
     ),
+
+    "coder": ModelConfig(
+        name="Qwen3 Coder 30B",
+        ollama_id="qwen3-coder:30b",
+        description="Specialized coding model for complex implementations",
+        context_length=128000,
+        temperature=0.4,
+        role="dev",
+    ),
+
     "debug": ModelConfig(
         name="DeepSeek Coder V2 16B",
         ollama_id="deepseek-coder-v2:16b",
-        description="Code reviewer and debugger",
+        description="Code reviewer, debugger and patch generator",
         context_length=16384,
-        temperature=0.3,
-        role="debug"
+        temperature=0.2,
+        role="debug",
     ),
+
     "architect": ModelConfig(
-        name="Llama 3.1 70B",
-        ollama_id="llama3.1:70b",
-        description="System architect for design and planning (CPU offload)",
-        context_length=32768,
+        name="Qwen3 30B Thinking",
+        ollama_id="qwen3:30b-thinking",
+        description="System architect and reasoning model",
+        context_length=256000,
         temperature=0.5,
-        role="architect"
+        role="architect",
     ),
+
+    # -------------------------------------------------------------------------
+    # Fast Models (for quick tasks)
+    # -------------------------------------------------------------------------
+    "fast": ModelConfig(
+        name="Qwen3 14B",
+        ollama_id="qwen3:14b-q8_0",
+        description="Fast model for quick tasks and small refactors",
+        context_length=40000,
+        temperature=0.7,
+        role="dev",
+    ),
+
+    "ultra_fast": ModelConfig(
+        name="Qwen3 8B",
+        ollama_id="qwen3:8b-q8_0",
+        description="Ultra-fast model for trivial tasks and simple edits",
+        context_length=32000,
+        temperature=0.7,
+        role="dev",
+    ),
+
+    # -------------------------------------------------------------------------
+    # Vision Models
+    # -------------------------------------------------------------------------
     "vision": ModelConfig(
-        name="Llava 34B",
+        name="LLaVA 34B",
         ollama_id="llava:34b",
-        description="Vision model for image analysis",
+        description="High-quality vision model for detailed image analysis",
         context_length=8192,
         temperature=0.7,
-        role="vision"
+        role="vision",
     ),
+
     "vision_fast": ModelConfig(
         name="Llama 3.2 Vision 11B",
         ollama_id="llama3.2-vision:11b",
-        description="Fast vision model for image analysis",
+        description="Fast vision model for UI screenshots and quick analysis",
         context_length=8192,
         temperature=0.7,
-        role="vision"
+        role="vision",
     ),
+
+    "vision_lite": ModelConfig(
+        name="Qwen2.5 VL 7B",
+        ollama_id="qwen2.5vl:7b",
+        description="Lightweight vision model for rapid UI prototyping",
+        context_length=8192,
+        temperature=0.7,
+        role="vision",
+    ),
+
+    # -------------------------------------------------------------------------
+    # Embeddings
+    # -------------------------------------------------------------------------
     "embed": ModelConfig(
         name="Nomic Embed Text",
-        ollama_id="nomic-embed-text",
-        description="Fast text embeddings for semantic search",
+        ollama_id="nomic-embed-text:latest",
+        description="Text embeddings for semantic search and RAG",
         context_length=8192,
         temperature=0.0,
-        role="embed"
-    ),
-    "fast": ModelConfig(
-        name="DeepSeek Coder V2 16B",
-        ollama_id="deepseek-coder-v2:16b",
-        description="Fast model for quick tasks",
-        context_length=16384,
-        temperature=0.7,
-        role="dev"
+        role="embed",
     ),
 }
 
@@ -125,7 +170,7 @@ EXCLUDE_DIRS = {
     ".git", ".idea", ".vscode",
     "__pycache__", ".pytest_cache", ".mypy_cache",
     "AI-outputs", "wama-dev-ai/outputs",
-    "media", "static", "staticfiles",
+    "media", "staticfiles",  # Keep "static" - source static files are there!
     "dist", "build", "eggs", ".eggs",
     "AI-models",  # Large model files
 }
@@ -184,24 +229,55 @@ class WorkflowConfig:
 
 
 WORKFLOWS = {
+    # -------------------------------------------------------------------------
+    # Development Workflows
+    # -------------------------------------------------------------------------
     "quick": WorkflowConfig(
         name="Quick Fix",
-        description="Fast single-model fix",
-        models=["fast"],
+        description="Ultra-fast single-model fix for trivial tasks",
+        models=["ultra_fast"],
     ),
     "standard": WorkflowConfig(
         name="Standard",
-        description="Dev + Debug workflow",
+        description="Dev + Debug workflow for typical tasks",
         models=["dev", "debug"],
     ),
     "full": WorkflowConfig(
         name="Full Review",
-        description="Dev + Debug + Architect",
+        description="Dev + Debug + Architect for complex features",
         models=["dev", "debug", "architect"],
     ),
+    "code": WorkflowConfig(
+        name="Code Focus",
+        description="Specialized coding model + debug review",
+        models=["coder", "debug"],
+    ),
+
+    # -------------------------------------------------------------------------
+    # UI/Frontend Workflows
+    # -------------------------------------------------------------------------
+    "ui": WorkflowConfig(
+        name="UI Design",
+        description="Vision analysis + fast coding for UI/frontend work",
+        models=["vision_lite", "coder"],
+    ),
+    "ui_full": WorkflowConfig(
+        name="UI Design (Full)",
+        description="Detailed vision analysis + full review for complex UI",
+        models=["vision_fast", "coder", "debug"],
+    ),
+
+    # -------------------------------------------------------------------------
+    # Analysis Workflows
+    # -------------------------------------------------------------------------
     "vision": WorkflowConfig(
-        name="Vision",
-        description="Full workflow with image analysis",
-        models=["dev", "debug", "architect", "vision"],
+        name="Vision Analysis",
+        description="Full workflow with detailed image analysis",
+        models=["vision", "dev", "debug"],
+    ),
+    "analyze": WorkflowConfig(
+        name="Analyze Only",
+        description="Architect reasoning without code changes",
+        models=["architect"],
     ),
 }

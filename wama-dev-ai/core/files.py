@@ -244,7 +244,7 @@ class FileDiscovery:
         """
         Find files relevant to a task description.
 
-        Combines keyword search with semantic search.
+        Combines keyword search with semantic search and glob patterns.
 
         Args:
             task_description: Description of the task
@@ -258,19 +258,41 @@ class FileDiscovery:
 
         # 1. Extract keywords and search
         keywords = self._extract_keywords(task_description)
-        logger.debug(f"Keywords extracted: {keywords[:5]}")
+        logger.debug(f"Keywords extracted: {keywords[:10]}")
 
-        for keyword in keywords[:5]:  # Top 5 keywords
-            logger.debug(f"Searching for: {keyword}")
-            for info in self.find_by_content(keyword)[:3]:
-                if info.path not in seen_paths:
-                    results.append(info)
-                    seen_paths.add(info.path)
+        # 2. First, try glob patterns (for compound terms like filemanager)
+        for keyword in keywords[:5]:
+            if '*' in keyword:
+                logger.debug(f"Glob search for: {keyword}")
+                for info in self.find_by_name(keyword)[:5]:
+                    if info.path not in seen_paths:
+                        info.relevance_score = 100  # High priority for glob matches
+                        results.append(info)
+                        seen_paths.add(info.path)
+
+        # 3. Search in paths (directory/file names) - higher priority
+        for keyword in keywords[:5]:
+            if '*' not in keyword:
+                logger.debug(f"Path search for: {keyword}")
+                for info in self.find_by_name(f"*{keyword}*")[:3]:
+                    if info.path not in seen_paths:
+                        info.relevance_score = 50
+                        results.append(info)
+                        seen_paths.add(info.path)
+
+        # 4. Content search for remaining keywords
+        for keyword in keywords[:5]:
+            if '*' not in keyword:
+                logger.debug(f"Content search for: {keyword}")
+                for info in self.find_by_content(keyword)[:3]:
+                    if info.path not in seen_paths:
+                        results.append(info)
+                        seen_paths.add(info.path)
 
         logger.debug(f"Keyword search found {len(results)} files")
 
-        # 2. Semantic search if available
-        if self._llm:
+        # 5. Semantic search if available and we don't have enough results
+        if self._llm and len(results) < top_k:
             logger.debug("Running semantic search...")
             for info in self.find_semantic(task_description, top_k=5):
                 if info.path not in seen_paths:
@@ -278,13 +300,16 @@ class FileDiscovery:
                     seen_paths.add(info.path)
             logger.debug(f"After semantic search: {len(results)} files")
 
-        # 3. Add important files that might be relevant
+        # 6. Add important files that might be relevant
         for info in self._get_important_files():
             if info.path not in seen_paths:
                 # Check if file name matches any keyword
-                if any(kw.lower() in info.path.name.lower() for kw in keywords):
+                if any(kw.lower() in info.path.name.lower() for kw in keywords if '*' not in kw):
                     results.append(info)
                     seen_paths.add(info.path)
+
+        # Sort by relevance score (higher first)
+        results.sort(key=lambda f: -f.relevance_score)
 
         logger.debug(f"Total files found: {len(results)}")
         return results[:top_k]
@@ -434,7 +459,37 @@ class FileDiscovery:
         return dot_product / (norm_a * norm_b)
 
     def _extract_keywords(self, text: str) -> List[str]:
-        """Extract keywords from text."""
+        """Extract keywords from text, including compound terms."""
+        # Common compound terms in WAMA that should stay together
+        compound_terms = {
+            'file manager': 'filemanager',
+            'file-manager': 'filemanager',
+            'filemanager': 'filemanager',
+            'file_manager': 'filemanager',
+            'eye tracking': 'eye_tracking',
+            'eye-tracking': 'eye_tracking',
+            'face analyzer': 'face_analyzer',
+            'face-analyzer': 'face_analyzer',
+            'text to speech': 'synthesizer',
+            'text-to-speech': 'synthesizer',
+            'speech synthesis': 'synthesizer',
+            'image generation': 'imager',
+            'video generation': 'imager',
+            'audio transcription': 'transcriber',
+            'media description': 'describer',
+        }
+
+        text_lower = text.lower()
+        keywords = []
+
+        # First, extract compound terms
+        for phrase, canonical in compound_terms.items():
+            if phrase in text_lower:
+                keywords.append(canonical)
+                # Also add the glob pattern for directory search
+                if canonical == 'filemanager':
+                    keywords.append('*filemanager*')
+
         # Remove common words
         stopwords = {
             'the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been',
@@ -449,7 +504,8 @@ class FileDiscovery:
             'there', 'when', 'where', 'why', 'how', 'all', 'any', 'this',
             'that', 'these', 'those', 'i', 'me', 'my', 'we', 'our', 'you',
             'your', 'he', 'him', 'his', 'she', 'her', 'it', 'its', 'they',
-            'them', 'their', 'what', 'which', 'who', 'whom',
+            'them', 'their', 'what', 'which', 'who', 'whom', 'add', 'want',
+            'need', 'like', 'please', 'help', 'create', 'make', 'using',
             # French
             'le', 'la', 'les', 'un', 'une', 'des', 'du', 'de', 'et', 'ou',
             'je', 'tu', 'il', 'elle', 'nous', 'vous', 'ils', 'elles',
@@ -458,22 +514,30 @@ class FileDiscovery:
             'qui', 'que', 'quoi', 'dont', 'où', 'pour', 'par', 'sur',
             'avec', 'sans', 'sous', 'dans', 'en', 'au', 'aux',
             'est', 'sont', 'être', 'avoir', 'faire', 'dit', 'fait',
-            'peut', 'peux', 'veut', 'veux', 'dois', 'doit',
+            'peut', 'peux', 'veut', 'veux', 'dois', 'doit', 'ajouter',
+            'vouloir', 'besoin', 'fichier', 'fichiers',
         }
 
-        # Extract words
-        words = re.findall(r'\b[a-zA-Z_][a-zA-Z0-9_]*\b', text.lower())
+        # Extract individual words
+        words = re.findall(r'\b[a-zA-Z_][a-zA-Z0-9_]*\b', text_lower)
 
-        # Filter and rank
-        keywords = [w for w in words if w not in stopwords and len(w) > 2]
+        # Filter and add to keywords
+        for w in words:
+            if w not in stopwords and len(w) > 2 and w not in keywords:
+                keywords.append(w)
 
-        # Count frequency
+        # Prioritize: compound terms first, then by frequency
         freq = {}
-        for w in keywords:
-            freq[w] = freq.get(w, 0) + 1
+        for w in words:
+            if w not in stopwords:
+                freq[w] = freq.get(w, 0) + 1
 
-        # Sort by frequency
-        return sorted(set(keywords), key=lambda w: -freq[w])
+        # Sort non-compound keywords by frequency
+        compound_kws = [k for k in keywords if k in compound_terms.values() or '*' in k]
+        other_kws = [k for k in keywords if k not in compound_kws]
+        other_kws = sorted(other_kws, key=lambda w: -freq.get(w, 0))
+
+        return compound_kws + other_kws
 
     def _load_cache(self):
         """Load embedding cache from disk."""

@@ -167,6 +167,7 @@ class LLMClient:
         model: str = "dev",
         system_prompt: Optional[str] = None,
         callback: Optional[Callable[[str], None]] = None,
+        history: Optional[List[Dict]] = None,
     ) -> Generator[str, None, None]:
         """
         Stream response chunks for real-time display.
@@ -176,6 +177,7 @@ class LLMClient:
             model: Model role or ID
             system_prompt: Optional system prompt
             callback: Optional callback for each chunk
+            history: Optional conversation history (list of {"role": ..., "content": ...})
 
         Yields:
             Response chunks as they arrive
@@ -185,7 +187,17 @@ class LLMClient:
         messages = []
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
-        messages.append({"role": "user", "content": prompt})
+
+        # Add conversation history if provided
+        if history:
+            messages.extend(history)
+            # Don't add prompt again if it's already the last message in history
+            if history and history[-1].get("role") == "user" and history[-1].get("content") == prompt:
+                pass  # Already included
+            else:
+                messages.append({"role": "user", "content": prompt})
+        else:
+            messages.append({"role": "user", "content": prompt})
 
         for chunk in self._client.chat(
             model=model_config.ollama_id,
