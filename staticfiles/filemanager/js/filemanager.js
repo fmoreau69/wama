@@ -14,6 +14,11 @@
     let autoRefreshInterval = null;
     const AUTO_REFRESH_DELAY = 5000; // Check every 5 seconds
 
+    // Preview navigation state
+    let currentPreviewNode = null;
+    let previewSiblings = [];
+    let previewIndex = -1;
+
     // Initialize on DOM ready
     document.addEventListener('DOMContentLoaded', init);
 
@@ -118,6 +123,24 @@
                             return false;
                         }
 
+                        // Prevent moving a folder into itself or its children
+                        if (node.type === 'folder') {
+                            // Check if parent is the node itself
+                            if (parentNode.id === node.id) {
+                                console.log('[FileManager] Move denied: cannot move folder into itself');
+                                return false;
+                            }
+                            // Check if parent is a descendant of the node
+                            let checkNode = parentNode;
+                            while (checkNode && checkNode.id !== '#') {
+                                if (checkNode.id === node.id) {
+                                    console.log('[FileManager] Move denied: cannot move folder into its child');
+                                    return false;
+                                }
+                                checkNode = inst.get_node(checkNode.parent);
+                            }
+                        }
+
                         // Check if destination is in temp folder
                         const destPath = parentNode.data?.path || '';
                         const parentId = parentNode.id || '';
@@ -161,14 +184,22 @@
             },
             'dnd': {
                 'is_draggable': function(nodes) {
-                    // Allow all files to be dragged (for external drag to apps)
+                    // Allow files and folders to be dragged within temp folder
                     // Internal move restrictions are handled by check_callback
-                    return nodes.every(n => n.type === 'file');
+                    const result = nodes.every(n => {
+                        const path = n.data?.path || '';
+                        const isInTemp = path.includes('/temp') || path.includes('\\temp');
+                        const isDraggable = isInTemp && (n.type === 'file' || n.type === 'folder');
+                        console.log('[FileManager DND] is_draggable check:', n.text, 'path:', path, 'isInTemp:', isInTemp, 'type:', n.type, 'result:', isDraggable);
+                        return isDraggable;
+                    });
+                    return result;
                 },
                 'copy': false,  // Move, not copy
                 'inside_pos': 'last',
                 'touch': 'selected',
-                'use_html5': true
+                'large_drop_target': true,
+                'large_drag_target': true
             }
         });
 
@@ -187,6 +218,17 @@
 
         // Handle internal move (drag & drop within tree)
         $(treeContainer).on('move_node.jstree', handleMoveNode);
+
+        // Debug: listen for dnd events
+        $(document).on('dnd_start.vakata', function(e, data) {
+            console.log('[FileManager DND] dnd_start event fired', data);
+        });
+        $(document).on('dnd_move.vakata', function(e, data) {
+            console.log('[FileManager DND] dnd_move event fired');
+        });
+        $(document).on('dnd_stop.vakata', function(e, data) {
+            console.log('[FileManager DND] dnd_stop event fired', data);
+        });
 
         // Setup external drag & drop
         setupExternalDragDrop(treeContainer);
@@ -269,6 +311,7 @@
         const node = data.node;
         const newParent = data.parent;
         const oldParent = data.old_parent;
+        const isFolder = node.type === 'folder';
 
         // If same parent, no need to move on server
         if (newParent === oldParent) return;
@@ -297,7 +340,7 @@
             return;
         }
 
-        console.log('[FileManager] Moving', sourcePath, 'to', destPath);
+        console.log('[FileManager] Moving', isFolder ? 'folder' : 'file', sourcePath, 'to', destPath);
 
         try {
             const response = await fetch(config.apiMoveUrl || '/filemanager/api/move/', {
@@ -315,9 +358,18 @@
             const result = await response.json();
 
             if (result.moved) {
-                showToast('Fichier déplacé', 'success');
+                const message = isFolder ? 'Dossier déplacé' : 'Fichier déplacé';
+                showToast(message, 'success');
+
                 // Update node data with new path
                 node.data.path = result.new_path;
+
+                // If it's a folder, we need to update all children paths
+                if (isFolder && node.children_d && node.children_d.length > 0) {
+                    const oldPrefix = sourcePath;
+                    const newPrefix = result.new_path;
+                    updateChildrenPaths(node, oldPrefix, newPrefix);
+                }
             } else {
                 showToast(result.error || 'Erreur lors du déplacement', 'danger');
                 refreshTree();
@@ -327,6 +379,22 @@
             showToast('Erreur lors du déplacement', 'danger');
             refreshTree();
         }
+    }
+
+    function updateChildrenPaths(parentNode, oldPrefix, newPrefix) {
+        // Recursively update paths of all children
+        if (!parentNode.children_d) return;
+
+        parentNode.children_d.forEach(childId => {
+            const childNode = tree.get_node(childId);
+            if (childNode && childNode.data && childNode.data.path) {
+                const oldPath = childNode.data.path;
+                if (oldPath.startsWith(oldPrefix)) {
+                    childNode.data.path = oldPath.replace(oldPrefix, newPrefix);
+                    console.log('[FileManager] Updated child path:', oldPath, '->', childNode.data.path);
+                }
+            }
+        });
     }
 
     function handleTreeLoaded() {
@@ -463,6 +531,10 @@
         const path = node.data?.path;
         if (!path) return;
 
+        // Store current node and find siblings for navigation
+        currentPreviewNode = node;
+        updatePreviewSiblings(node);
+
         fetch(`${config.apiPreviewUrl || '/filemanager/api/preview/'}?path=${encodeURIComponent(path)}`)
             .then(res => res.json())
             .then(data => {
@@ -476,6 +548,54 @@
                 console.error('Preview error:', err);
                 showToast('Erreur lors du chargement de l\'aperçu', 'danger');
             });
+    }
+
+    function updatePreviewSiblings(node) {
+        // Get parent node to find siblings
+        const parentId = node.parent;
+        if (!parentId || !tree) {
+            previewSiblings = [node];
+            previewIndex = 0;
+            return;
+        }
+
+        const parentNode = tree.get_node(parentId);
+        if (!parentNode || !parentNode.children) {
+            previewSiblings = [node];
+            previewIndex = 0;
+            return;
+        }
+
+        // Get all file siblings (not folders) that are previewable
+        previewSiblings = parentNode.children
+            .map(childId => tree.get_node(childId))
+            .filter(child => child && child.type === 'file' && isPreviewable(child));
+
+        // Find current index
+        previewIndex = previewSiblings.findIndex(s => s.id === node.id);
+        if (previewIndex === -1) {
+            previewSiblings = [node];
+            previewIndex = 0;
+        }
+
+        console.log(`[FileManager] Preview navigation: ${previewIndex + 1}/${previewSiblings.length} files`);
+    }
+
+    function isPreviewable(node) {
+        // Check if file extension is previewable
+        const name = node.text || '';
+        const ext = name.split('.').pop()?.toLowerCase();
+        const previewableExts = [
+            // Images
+            'jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico',
+            // Videos
+            'mp4', 'webm', 'mov', 'avi', 'mkv', 'wmv', 'flv',
+            // Audio
+            'mp3', 'wav', 'ogg', 'flac', 'm4a', 'aac',
+            // Text
+            'txt', 'md', 'json', 'xml', 'csv', 'log', 'py', 'js', 'css', 'html', 'yml', 'yaml'
+        ];
+        return previewableExts.includes(ext);
     }
 
     function downloadFile(node) {
@@ -920,7 +1040,102 @@
     // === MODALS ===
 
     function setupPreviewModal() {
-        // Modal will be created dynamically
+        // Set up keyboard navigation for preview modal
+        document.addEventListener('keydown', function(e) {
+            const modal = document.getElementById('filePreviewModal');
+            if (!modal || !modal.classList.contains('show')) return;
+
+            // Ignore if user is typing in an input
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+            if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                navigatePreview(-1);
+            } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+                e.preventDefault();
+                navigatePreview(1);
+            } else if (e.key === 'Escape') {
+                // Let Bootstrap handle Escape
+            }
+        });
+    }
+
+    function navigatePreview(direction) {
+        if (previewSiblings.length <= 1) return;
+
+        const newIndex = previewIndex + direction;
+        if (newIndex < 0 || newIndex >= previewSiblings.length) return;
+
+        const nextNode = previewSiblings[newIndex];
+        if (!nextNode) return;
+
+        // Update index and preview
+        previewIndex = newIndex;
+        currentPreviewNode = nextNode;
+
+        // Fetch and show the new preview
+        const path = nextNode.data?.path;
+        if (!path) return;
+
+        // Show loading state
+        const modal = document.getElementById('filePreviewModal');
+        if (modal) {
+            const container = modal.querySelector('.preview-container');
+            container.innerHTML = '<div class="text-center py-5"><i class="fa fa-spinner fa-spin fa-2x"></i></div>';
+        }
+
+        fetch(`${config.apiPreviewUrl || '/filemanager/api/preview/'}?path=${encodeURIComponent(path)}`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.preview_url || data.text_content !== undefined) {
+                    updatePreviewContent(data);
+                } else {
+                    showToast('Aperçu non disponible pour ce type de fichier', 'warning');
+                }
+            })
+            .catch(err => {
+                console.error('Preview navigation error:', err);
+                showToast('Erreur lors du chargement de l\'aperçu', 'danger');
+            });
+    }
+
+    function updatePreviewContent(data) {
+        const modal = document.getElementById('filePreviewModal');
+        if (!modal) return;
+
+        const title = modal.querySelector('.modal-title');
+        const container = modal.querySelector('.preview-container');
+        const counter = modal.querySelector('.preview-counter');
+        const prevBtn = modal.querySelector('.preview-nav-prev');
+        const nextBtn = modal.querySelector('.preview-nav-next');
+
+        // Update title with counter
+        title.textContent = data.name;
+        if (counter) {
+            counter.textContent = `${previewIndex + 1} / ${previewSiblings.length}`;
+        }
+
+        // Update navigation button states
+        if (prevBtn) prevBtn.classList.toggle('disabled', previewIndex === 0);
+        if (nextBtn) nextBtn.classList.toggle('disabled', previewIndex === previewSiblings.length - 1);
+
+        // Update content
+        if (data.mime.startsWith('image/')) {
+            container.innerHTML = `<img src="${data.preview_url}" alt="${data.name}" style="max-width:100%; max-height:70vh;">`;
+        } else if (data.mime.startsWith('video/')) {
+            container.innerHTML = `
+                <video controls autoplay muted style="max-width:100%; max-height:70vh;">
+                    <source src="${data.preview_url}" type="${data.mime}">
+                </video>
+            `;
+        } else if (data.mime.startsWith('audio/')) {
+            container.innerHTML = `<audio src="${data.preview_url}" controls autoplay style="width:100%;"></audio>`;
+        } else if (data.text_content !== undefined) {
+            const escapedContent = escapeHtml(data.text_content);
+            container.innerHTML = `<pre class="text-preview" style="background:#0d1117;border:1px solid #374151;border-radius:6px;padding:15px;max-height:60vh;overflow:auto;white-space:pre-wrap;word-wrap:break-word;font-family:'Consolas','Monaco',monospace;font-size:0.85rem;color:#e2e8f0;margin:0;">${escapedContent}</pre>`;
+        } else {
+            container.innerHTML = `<p class="text-muted">Aperçu non disponible pour ce type de fichier</p>`;
+        }
     }
 
     function showPreviewModal(data) {
@@ -935,22 +1150,67 @@
                     <div class="modal-content bg-dark text-white">
                         <div class="modal-header border-secondary">
                             <h5 class="modal-title"></h5>
+                            <div class="preview-header-controls ms-auto me-3">
+                                <span class="preview-counter badge bg-secondary"></span>
+                            </div>
                             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                         </div>
-                        <div class="modal-body">
+                        <div class="modal-body position-relative">
+                            <!-- Navigation arrows -->
+                            <button class="preview-nav-btn preview-nav-prev" onclick="window.FileManagerNav && window.FileManagerNav.prev()" title="Précédent (←)">
+                                <i class="fa fa-chevron-left"></i>
+                            </button>
+                            <button class="preview-nav-btn preview-nav-next" onclick="window.FileManagerNav && window.FileManagerNav.next()" title="Suivant (→)">
+                                <i class="fa fa-chevron-right"></i>
+                            </button>
                             <div class="preview-container"></div>
+                        </div>
+                        <div class="modal-footer border-secondary py-2">
+                            <small class="text-muted">Utilisez les flèches ← → pour naviguer</small>
                         </div>
                     </div>
                 </div>
             `;
             document.body.appendChild(modal);
+
+            // Expose navigation functions globally for onclick handlers
+            window.FileManagerNav = {
+                prev: () => navigatePreview(-1),
+                next: () => navigatePreview(1)
+            };
         }
 
         const title = modal.querySelector('.modal-title');
         const container = modal.querySelector('.preview-container');
+        const counter = modal.querySelector('.preview-counter');
+        const prevBtn = modal.querySelector('.preview-nav-prev');
+        const nextBtn = modal.querySelector('.preview-nav-next');
 
+        // Update title
         title.textContent = data.name;
 
+        // Update navigation counter and button visibility
+        if (previewSiblings.length > 1) {
+            if (counter) {
+                counter.textContent = `${previewIndex + 1} / ${previewSiblings.length}`;
+                counter.style.display = '';
+            }
+            if (prevBtn) {
+                prevBtn.style.display = '';
+                prevBtn.classList.toggle('disabled', previewIndex === 0);
+            }
+            if (nextBtn) {
+                nextBtn.style.display = '';
+                nextBtn.classList.toggle('disabled', previewIndex === previewSiblings.length - 1);
+            }
+        } else {
+            // Hide navigation if only one file
+            if (counter) counter.style.display = 'none';
+            if (prevBtn) prevBtn.style.display = 'none';
+            if (nextBtn) nextBtn.style.display = 'none';
+        }
+
+        // Update content based on mime type
         if (data.mime.startsWith('image/')) {
             container.innerHTML = `<img src="${data.preview_url}" alt="${data.name}" style="max-width:100%; max-height:70vh;">`;
         } else if (data.mime.startsWith('video/')) {

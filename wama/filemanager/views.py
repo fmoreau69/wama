@@ -551,7 +551,7 @@ def api_rename(request):
 
 @require_POST
 def api_move(request):
-    """Move a file to a different folder (only within temp folder)."""
+    """Move a file or folder to a different location (only within temp folder)."""
     user = get_user(request)
 
     try:
@@ -578,14 +578,21 @@ def api_move(request):
         return JsonResponse({'error': 'Destination doit être dans le dossier temporaire'}, status=403)
 
     try:
+        import shutil
         source_full = Path(settings.MEDIA_ROOT) / source_path
         dest_dir_full = Path(settings.MEDIA_ROOT) / dest_folder
 
         if not source_full.exists():
-            return JsonResponse({'error': 'Fichier source non trouvé'}, status=404)
+            return JsonResponse({'error': 'Source non trouvée'}, status=404)
 
-        if not source_full.is_file():
-            return JsonResponse({'error': 'Seuls les fichiers peuvent être déplacés'}, status=400)
+        is_folder = source_full.is_dir()
+
+        # Prevent moving a folder into itself or its subdirectories
+        if is_folder:
+            dest_resolved = dest_dir_full.resolve()
+            source_resolved = source_full.resolve()
+            if dest_resolved == source_resolved or str(dest_resolved).startswith(str(source_resolved) + os.sep):
+                return JsonResponse({'error': 'Impossible de déplacer un dossier dans lui-même'}, status=400)
 
         # Create destination directory if it doesn't exist
         dest_dir_full.mkdir(parents=True, exist_ok=True)
@@ -595,30 +602,49 @@ def api_move(request):
 
         # Handle duplicate names
         if dest_full.exists():
-            stem = dest_full.stem
-            suffix = dest_full.suffix
+            stem = source_full.stem
+            suffix = source_full.suffix if not is_folder else ''
             counter = 1
             while dest_full.exists():
-                dest_full = dest_dir_full / f"{stem}_{counter}{suffix}"
+                if is_folder:
+                    dest_full = dest_dir_full / f"{stem}_{counter}"
+                else:
+                    dest_full = dest_dir_full / f"{stem}_{counter}{suffix}"
                 counter += 1
 
-        # Move the file
-        import shutil
+        # Move the file or folder
         shutil.move(str(source_full), str(dest_full))
 
         new_path = f"{dest_folder}/{dest_full.name}"
 
-        # Update UserFile if exists
-        UserFile.objects.filter(user=user, file=source_path).update(
-            file=new_path,
-            original_name=dest_full.name
-        )
+        if is_folder:
+            # Update all UserFile records that were inside this folder
+            old_prefix = source_path + '/'
+            new_prefix = new_path + '/'
+            user_files = UserFile.objects.filter(user=user, file__startswith=old_prefix)
+            for uf in user_files:
+                uf.file = uf.file.replace(old_prefix, new_prefix, 1)
+                uf.save()
 
-        return JsonResponse({
-            'moved': True,
-            'old_path': source_path,
-            'new_path': new_path
-        })
+            return JsonResponse({
+                'moved': True,
+                'is_folder': True,
+                'old_path': source_path,
+                'new_path': new_path
+            })
+        else:
+            # Update UserFile if exists
+            UserFile.objects.filter(user=user, file=source_path).update(
+                file=new_path,
+                original_name=dest_full.name
+            )
+
+            return JsonResponse({
+                'moved': True,
+                'is_folder': False,
+                'old_path': source_path,
+                'new_path': new_path
+            })
     except Exception as e:
         logger.error(f"Error moving {source_path} to {dest_folder}: {e}")
         return JsonResponse({'error': str(e)}, status=500)

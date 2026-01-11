@@ -11,6 +11,8 @@ Usage:
 """
 
 import sys
+import json
+import re
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 import argparse
@@ -239,13 +241,21 @@ class WAMADevAI:
         user_prompt = f"""User request: {request}
 
 IMPORTANT: Make ONE tool call, then STOP and wait for results.
-Start by searching for relevant files with search_files.
+
+SMART SEARCH STRATEGY:
+1. Use search_content(query) to find SPECIFIC functions/keywords and their LINE NUMBERS
+2. Then read_file with start_line/end_line around those line numbers
+3. This is MUCH faster than reading entire files section by section
+
+Example: To find a preview function, search_content("showPreview") will show you exactly which files and lines contain it.
+
 Do NOT assume file paths - wait for search results first."""
 
         # Agentic loop - continue until no more tool calls
-        max_iterations = 10
+        max_iterations = 15
         iteration = 0
         messages = []
+        executed_tool_calls = set()  # Track executed calls to prevent loops
 
         while iteration < max_iterations:
             iteration += 1
@@ -304,6 +314,42 @@ Do NOT assume file paths - wait for search results first."""
                 # No more tool calls, we're done
                 break
 
+            # Check for duplicate/looping tool calls
+            new_tool_calls = []
+            for call in tool_calls:
+                # Create a signature for this tool call
+                call_sig = self._get_tool_call_signature(call)
+
+                # Debug: show the signature being checked
+                console.print(f"[dim]  Checking: {call_sig[:80]}...[/]" if len(call_sig) > 80 else f"[dim]  Checking: {call_sig}[/]")
+
+                if call_sig in executed_tool_calls:
+                    console.warning(f"⚠ Duplicate tool call detected: {call.tool_name}")
+                    console.warning(f"  This sig: {call_sig[:80]}")
+                    # Show what's in history for debugging
+                    console.print("[dim]  Previously executed:[/]")
+                    for prev_sig in list(executed_tool_calls)[-5:]:  # Last 5
+                        console.print(f"[dim]    - {prev_sig[:60]}...[/]")
+                    console.warning("  Skipping this call.")
+                    # Don't break immediately - just skip this call and continue
+                    # Add guidance to help LLM progress
+                    messages.append({"role": "user", "content": f"""
+You already executed: {call.tool_name}({call.arguments})
+
+Use the results from before. If you need MORE of a file, use DIFFERENT line numbers.
+If you have enough information, proceed to edit_file."""})
+                else:
+                    new_tool_calls.append(call)
+                    executed_tool_calls.add(call_sig)
+                    console.print(f"[dim]  → New call, adding to history[/]")
+
+            if not new_tool_calls:
+                # All calls were duplicates
+                console.error("All tool calls were duplicates. Stopping to prevent infinite loop.")
+                break
+
+            tool_calls = new_tool_calls
+
             # Execute tool calls and collect results
             tool_results = self._execute_tool_calls_with_results(tool_calls)
 
@@ -324,9 +370,9 @@ Tool execution results:
 {results_text}
 
 Continue with the ORIGINAL REQUEST above. Focus on what the user asked for.
-If you need more information, use more tools (ONE at a time).
-If you're ready to make changes, use edit_file.
-Remember: the user wants preview navigation with arrow keys in the file manager."""
+IMPORTANT: Do NOT repeat tool calls you already made. Check your history.
+If you need more of a large file, use read_file with start_line/end_line.
+If you're ready to make changes, use edit_file with exact strings from the file."""
 
             # Add user follow-up to history BEFORE next iteration
             # (stream() adds it to its local copy, but we need it in our history too)
@@ -410,9 +456,20 @@ Remember: the user wants preview navigation with arrow keys in the file manager.
     # Tool Call Detection Helpers
     # =========================================================================
 
+    def _get_tool_call_signature(self, call: ToolCall) -> str:
+        """Create a unique signature for a tool call to detect duplicates."""
+        # For read_file, include start_line/end_line to allow reading different sections
+        # For other tools, just use the full arguments
+        args = call.arguments.copy()
+
+        # Normalize path argument
+        if 'path' in args:
+            args['path'] = str(args['path']).replace('\\', '/')
+
+        return f"{call.tool_name}:{json.dumps(args, sort_keys=True)}"
+
     def _has_complete_tool_call(self, text: str) -> bool:
         """Check if text contains a complete tool call (JSON format)."""
-        import re
         # List of tool names to detect
         tool_names = 'search_files|search_content|read_file|write_file|edit_file|list_directory|run_command|get_project_info'
 
@@ -428,7 +485,6 @@ Remember: the user wants preview navigation with arrow keys in the file manager.
 
     def _truncate_after_tool_call(self, text: str) -> str:
         """Truncate text after the first complete tool call."""
-        import re
         tool_names = 'search_files|search_content|read_file|write_file|edit_file|list_directory|run_command|get_project_info'
 
         # Find end of XML tool call

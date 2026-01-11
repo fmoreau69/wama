@@ -696,3 +696,103 @@ body > footer {
     font-size: 0.85rem;
     z-index: 10;
 }
+
+/* === PREVIEW MODAL NAVIGATION === */
+
+/* Navigation buttons (arrows) */
+.preview-nav-btn {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 48px;
+    height: 48px;
+    border: none;
+    background: rgba(0, 0, 0, 0.5);
+    color: white;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    transition: all 0.2s ease;
+    z-index: 100;
+    opacity: 0.7;
+}
+
+.preview-nav-btn:hover {
+    background: rgba(102, 126, 234, 0.8);
+    opacity: 1;
+    transform: translateY(-50%) scale(1.1);
+}
+
+.preview-nav-btn:active {
+    transform: translateY(-50%) scale(0.95);
+}
+
+.preview-nav-btn.disabled {
+    opacity: 0.2;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+.preview-nav-prev {
+    left: 10px;
+}
+
+.preview-nav-next {
+    right: 10px;
+}
+
+/* Counter badge in header */
+.preview-counter {
+    font-size: 0.8rem;
+    font-weight: normal;
+}
+
+/* Preview modal adjustments */
+#filePreviewModal .modal-body {
+    min-height: 200px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#filePreviewModal .preview-container {
+    width: 100%;
+    text-align: center;
+}
+
+#filePreviewModal .preview-container img,
+#filePreviewModal .preview-container video {
+    max-width: calc(100% - 120px); /* Account for navigation arrows */
+    margin: 0 auto;
+    display: block;
+}
+
+/* Footer hint */
+#filePreviewModal .modal-footer {
+    justify-content: center;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .preview-nav-btn {
+        width: 36px;
+        height: 36px;
+        font-size: 1rem;
+    }
+
+    .preview-nav-prev {
+        left: 5px;
+    }
+
+    .preview-nav-next {
+        right: 5px;
+    }
+
+    #filePreviewModal .preview-container img,
+    #filePreviewModal .preview-container video {
+        max-width: calc(100% - 80px);
+    }
+}

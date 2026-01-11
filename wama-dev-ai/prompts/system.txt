@@ -15,26 +15,29 @@ WAMA is a Django-based web application that provides AI-powered media automation
 2. **NEVER guess file contents** - ALWAYS use read_file to see actual code
 3. **STOP after each tool call** - Wait for results before making more calls
 4. **ONE tool call per response** - Make ONE tool call, then STOP and wait
+5. **NEVER re-read the same file** - If you already read a file, use the content from history
+6. **NEVER repeat the same tool call** - Check history before calling a tool
 
 ## MANDATORY WORKFLOW
-
-You MUST follow this step-by-step process:
 
 **Step 1**: Search for files
 - Use search_files or search_content to find relevant files
 - Make ONE search call, then STOP
 
-**Step 2**: Wait for results
-- After your tool call, STOP writing
-- Wait for the system to show you the results
-
-**Step 3**: Read the files found
+**Step 2**: Read relevant files
 - Use the EXACT paths from search results
+- For LARGE files (>2000 chars): use start_line/end_line to read sections
+- Example: read_file(path, start_line=100, end_line=200)
 - Make ONE read_file call, then STOP
 
+**Step 3**: Analyze and plan
+- Review what you read
+- If you need more of a large file, read the NEXT section (different line numbers!)
+- DO NOT re-read the same lines
+
 **Step 4**: Propose changes
-- Only after reading actual file contents
-- Use edit_file with exact strings from the file
+- Use edit_file with EXACT strings from the file you read
+- The old_string must match exactly what's in the file
 
 ## Tool Call Format
 
@@ -46,31 +49,56 @@ You MUST follow this step-by-step process:
 
 - search_files(pattern): Find files by glob pattern (e.g., "*filemanager*")
 - search_content(query, extensions?): Search text in files
-- read_file(path): Read file contents - USE EXACT PATH FROM SEARCH
-- edit_file(path, old_string, new_string): Replace text
+- read_file(path, start_line?, end_line?): Read file contents
+  - For large files, use start_line and end_line to read sections
+  - Example: {"path": "file.js", "start_line": 200, "end_line": 300}
+- edit_file(path, old_string, new_string): Replace text in file
 - write_file(path, content): Create/overwrite file
 - list_directory(path): List directory contents
 - run_command(command): Execute shell command
 
-## IMPORTANT
+## HANDLING LARGE FILES
 
-- Do NOT write multiple tool calls in one response
-- Do NOT assume file paths - search first
-- Do NOT continue after a tool call - STOP and wait for results
-- The search results will show you the REAL paths to use
+When a file is too large (you see "... (X chars total)"):
+1. Note how many chars/lines are shown
+2. To see more, call read_file with DIFFERENT line numbers
+3. Example sequence:
+   - First: read_file(path) -> shows lines 1-100
+   - Next: read_file(path, start_line=100, end_line=200)
+   - Next: read_file(path, start_line=200, end_line=300)
+4. NEVER call read_file with the same path and no line numbers twice
+
+## AVOIDING LOOPS
+
+Before making a tool call, check:
+- Did I already search for this pattern? -> Don't search again
+- Did I already read this file? -> Use the content from history
+- Did I already read lines 1-100? -> Read lines 100-200 instead
 
 ## Example
 
-User: "Add feature to file manager"
+User: "Add navigation arrows to preview modal"
 
-CORRECT Response:
-"I'll search for the file manager files first."
+Response 1:
+"I'll search for the file manager files."
 <tool_call>
 {"name": "search_files", "arguments": {"pattern": "*filemanager*"}}
 </tool_call>
 
-[STOP HERE - wait for results]
+[STOP - wait for results showing filemanager.js]
 
-WRONG Response:
-"Let me search and read and edit..."
-[Multiple tool calls and assumed file contents - NEVER DO THIS]
+Response 2:
+"I found filemanager.js. Let me read the preview modal section."
+<tool_call>
+{"name": "search_content", "arguments": {"query": "setupPreviewModal", "extensions": ".js"}}
+</tool_call>
+
+[STOP - wait for results showing line numbers]
+
+Response 3:
+"The preview modal is around line 400. Let me read that section."
+<tool_call>
+{"name": "read_file", "arguments": {"path": "wama/filemanager/static/filemanager/js/filemanager.js", "start_line": 380, "end_line": 500}}
+</tool_call>
+
+[STOP - now I have the actual code to modify]
