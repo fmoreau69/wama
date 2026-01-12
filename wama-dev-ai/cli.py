@@ -42,9 +42,13 @@ class WAMADevAI:
     def __init__(self):
         self.llm = LLMClient()
         self.files = FileDiscovery(llm_client=self.llm)
-        self.tools = ToolRegistry()
+        self.tools = ToolRegistry(llm=self.llm)  # Pass LLM for semantic search (RAG)
         self.diff_renderer = DiffRenderer(console._console)
         self._conversation_mode = False
+        # Persistent conversation state
+        self._last_request = None
+        self._last_messages = []
+        self._last_executed_calls = set()
 
     # =========================================================================
     # Main Entry Points
@@ -237,8 +241,38 @@ class WAMADevAI:
         # Load system prompt
         system_prompt = self._load_prompt("system.txt")
 
-        # Build initial user prompt (no pre-loaded file content to avoid hallucination)
-        user_prompt = f"""User request: {request}
+        # Detect if this is a continuation request
+        continue_keywords = ['continue', 'poursuivre', 'poursuit', 'continue', 'go on', 'keep going', 'suite', 'poursuis']
+        is_continuation = (
+            self._last_request and
+            self._last_messages and
+            any(kw in request.lower() for kw in continue_keywords)
+        )
+
+        if is_continuation:
+            console.info(f"📌 Continuing previous request: {self._last_request[:50]}...")
+            original_request = self._last_request
+            messages = self._last_messages.copy()
+            executed_tool_calls = self._last_executed_calls.copy()
+            # Add continuation prompt
+            user_prompt = f"""The user asked you to continue.
+
+ORIGINAL REQUEST: {original_request}
+
+IMPORTANT: You have already gathered information. NOW YOU MUST SYNTHESIZE IT.
+DO NOT make any more tool calls. Instead:
+1. Review all the information you collected in the conversation above
+2. Provide a complete, structured answer to the original request
+3. Use markdown formatting (tables, bullet points) for clarity
+
+YOUR FINAL ANSWER:"""
+        else:
+            # New request - reset context
+            original_request = request
+            messages = []
+            executed_tool_calls = set()
+            # Build initial user prompt
+            user_prompt = f"""User request: {request}
 
 IMPORTANT: Make ONE tool call, then STOP and wait for results.
 
@@ -251,14 +285,16 @@ Example: To find a preview function, search_content("showPreview") will show you
 
 Do NOT assume file paths - wait for search results first."""
 
+        # Save current request
+        self._last_request = original_request
+
         # Agentic loop - continue until no more tool calls
-        max_iterations = 15
+        max_iterations = 25
         iteration = 0
-        messages = []
-        executed_tool_calls = set()  # Track executed calls to prevent loops
 
         while iteration < max_iterations:
             iteration += 1
+            remaining_iterations = max_iterations - iteration
             console.print()
 
             if iteration == 1:
@@ -266,12 +302,21 @@ Do NOT assume file paths - wait for search results first."""
             else:
                 console.print(f"[bold cyan]🤖 Assistant (continuing):[/]")
 
+            # Add iteration reminder to system prompt when getting close to limit
+            iteration_reminder = ""
+            if remaining_iterations <= 5:
+                iteration_reminder = f"\n\n⚠️ IMPORTANT: Only {remaining_iterations} iterations remaining. You MUST provide a final answer soon. Synthesize what you have learned and respond to the user."
+            elif remaining_iterations <= 10:
+                iteration_reminder = f"\n\n📝 Note: {remaining_iterations} iterations remaining. Start preparing your final answer."
+
+            current_system_prompt = system_prompt + iteration_reminder
+
             # Stream response, but stop after first tool call
             full_response = ""
             tool_call_detected = False
             printed_length = 0
 
-            for chunk in self.llm.stream(user_prompt, model="dev", system_prompt=system_prompt, history=messages):
+            for chunk in self.llm.stream(user_prompt, model="dev", system_prompt=current_system_prompt, history=messages):
                 full_response += chunk
 
                 # Check if we've completed a tool call (closing tag or end of JSON)
@@ -344,8 +389,23 @@ If you have enough information, proceed to edit_file."""})
                     console.print(f"[dim]  → New call, adding to history[/]")
 
             if not new_tool_calls:
-                # All calls were duplicates
-                console.error("All tool calls were duplicates. Stopping to prevent infinite loop.")
+                # All calls were duplicates - force synthesis
+                console.warning("⚠ Duplicate tool calls detected. Forcing synthesis...")
+                # Ask for synthesis one more time
+                synthesis_prompt = f"""ORIGINAL REQUEST: {original_request}
+
+⚠️ You've already gathered a lot of information but made a duplicate tool call.
+NOW YOU MUST PROVIDE YOUR FINAL ANSWER.
+
+DO NOT make any more tool calls. Synthesize what you have learned and provide a clear, structured response.
+Use markdown formatting (tables, bullet points) for clarity.
+
+YOUR FINAL ANSWER:"""
+                messages.append({"role": "user", "content": synthesis_prompt})
+                # Run one final synthesis pass
+                for chunk in self.llm.stream(synthesis_prompt, model="dev", system_prompt=system_prompt, history=messages):
+                    console.print(chunk, end="")
+                console.print("\n")
                 break
 
             tool_calls = new_tool_calls
@@ -363,7 +423,7 @@ If you have enough information, proceed to edit_file."""})
                 for r in tool_results
             ])
 
-            user_prompt = f"""ORIGINAL REQUEST: {request}
+            user_prompt = f"""ORIGINAL REQUEST: {original_request}
 
 Tool execution results:
 
@@ -378,8 +438,12 @@ If you're ready to make changes, use edit_file with exact strings from the file.
             # (stream() adds it to its local copy, but we need it in our history too)
             messages.append({"role": "user", "content": user_prompt})
 
+        # Save conversation state for potential continuation
+        self._last_messages = messages.copy()
+        self._last_executed_calls = executed_tool_calls.copy()
+
         if iteration >= max_iterations:
-            console.warning("Maximum iterations reached. Stopping.")
+            console.warning("Maximum iterations reached. You can type 'poursuivre' to continue.")
 
     def _execute_tool_calls_with_results(self, calls: List[ToolCall]) -> List[Dict[str, Any]]:
         """Execute tool calls and return results for the agentic loop."""

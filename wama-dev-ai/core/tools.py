@@ -46,15 +46,17 @@ class ToolRegistry:
 
     Tools allow the LLM to:
     - Read files
-    - Search for files
+    - Search for files (including semantic search with embeddings)
     - Edit files
     - Run commands
     - Get project info
     """
 
-    def __init__(self, base_dir: Path = BASE_DIR):
+    def __init__(self, base_dir: Path = BASE_DIR, llm=None):
         self._tools: Dict[str, Tool] = {}
         self._base_dir = base_dir
+        self._llm = llm  # Reference to LLM for semantic search
+        self._embedding_cache: Dict[str, List[float]] = {}
         self._register_builtin_tools()
 
     def register(self, tool: Tool):
@@ -264,10 +266,11 @@ class ToolRegistry:
         # Search Content
         self.register(Tool(
             name="search_content",
-            description="Search for text in files (grep-like)",
+            description="Search for text in files (grep-like). Use path to limit search to a specific folder.",
             parameters={
                 "query": {"type": "string", "description": "Text to search for"},
                 "extensions": {"type": "string", "description": "File extensions (comma-separated, e.g., '.py,.js')", "required": False},
+                "path": {"type": "string", "description": "Folder to search in (e.g., 'wama/describer')", "required": False},
             },
             function=self._search_content
         ))
@@ -299,6 +302,17 @@ class ToolRegistry:
             description="Get information about the project structure",
             parameters={},
             function=self._get_project_info
+        ))
+
+        # Find Related (Semantic Search with RAG)
+        self.register(Tool(
+            name="find_related",
+            description="Semantic search - find files related to a query using AI embeddings. Best for broad questions.",
+            parameters={
+                "query": {"type": "string", "description": "Natural language query (e.g., 'authentication', 'image processing')"},
+                "top_k": {"type": "integer", "description": "Number of results to return (default: 5)", "required": False},
+            },
+            function=self._find_related
         ))
 
     def _read_file(self, path: str, start_line: int = None, end_line: int = None) -> str:
@@ -377,23 +391,31 @@ class ToolRegistry:
         results = sorted(set(results))
         return "\n".join(results[:50])  # Limit to 50 results
 
-    def _search_content(self, query: str, extensions: str = ".py") -> str:
-        """Search for content in files."""
+    def _search_content(self, query: str, extensions: str = ".py", path: str = None) -> str:
+        """Search for content in files, optionally limited to a specific folder."""
         ext_list = [e.strip() for e in extensions.split(",")]
         results = []
+
+        # Determine search root
+        if path:
+            search_root = self._resolve_path(path)
+            if not search_root.exists():
+                return f"Path not found: {path}"
+        else:
+            search_root = self._base_dir
 
         for ext in ext_list:
             if not ext.startswith("."):
                 ext = f".{ext}"
 
-            for path in self._base_dir.rglob(f"*{ext}"):
-                if not self._should_include(path):
+            for file_path in search_root.rglob(f"*{ext}"):
+                if not self._should_include(file_path):
                     continue
 
                 try:
-                    content = path.read_text(encoding='utf-8', errors='ignore')
+                    content = file_path.read_text(encoding='utf-8', errors='ignore')
                     if query.lower() in content.lower():
-                        rel = path.relative_to(self._base_dir)
+                        rel = file_path.relative_to(self._base_dir)
                         # Find matching lines
                         for i, line in enumerate(content.splitlines(), 1):
                             if query.lower() in line.lower():
@@ -407,7 +429,8 @@ class ToolRegistry:
                     break
 
         if not results:
-            return f"No matches found for '{query}'"
+            search_info = f" in '{path}'" if path else ""
+            return f"No matches found for '{query}'{search_info}"
 
         return "\n".join(results)
 
@@ -469,6 +492,88 @@ class ToolRegistry:
                 info.append(f"  📁 {name}/")
 
         return "\n".join(info)
+
+    def _find_related(self, query: str, top_k: int = 5) -> str:
+        """
+        Find files semantically related to a query using embeddings.
+        Falls back to keyword search if LLM is not available.
+        """
+        CODE_EXTENSIONS = {'.py', '.js', '.html', '.css', '.json', '.yaml', '.yml', '.md', '.txt'}
+
+        if self._llm is None:
+            # Fallback to keyword search
+            return self._search_content(query, extensions=",".join(CODE_EXTENSIONS))
+
+        try:
+            # Get query embedding
+            query_embedding = self._llm.embed(query)
+        except Exception as e:
+            # Fallback if embedding fails
+            return f"Embedding failed ({e}), falling back to keyword search:\n" + \
+                   self._search_content(query, extensions=",".join(CODE_EXTENSIONS))
+
+        # Collect candidate files and compute similarities
+        candidates = []
+
+        for ext in CODE_EXTENSIONS:
+            for path in self._base_dir.rglob(f"*{ext}"):
+                if not self._should_include(path):
+                    continue
+
+                try:
+                    file_embedding = self._get_file_embedding(path)
+                    if file_embedding:
+                        similarity = self._cosine_similarity(query_embedding, file_embedding)
+                        rel_path = path.relative_to(self._base_dir)
+                        candidates.append((rel_path, similarity))
+                except Exception:
+                    continue
+
+        if not candidates:
+            return f"No files found for query: {query}"
+
+        # Sort by similarity (descending) and take top_k
+        candidates.sort(key=lambda x: -x[1])
+        top_results = candidates[:top_k]
+
+        # Format results
+        results = [f"Files related to '{query}' (by semantic similarity):\n"]
+        for i, (path, score) in enumerate(top_results, 1):
+            results.append(f"{i}. {path} (score: {score:.3f})")
+
+        return "\n".join(results)
+
+    def _get_file_embedding(self, path: Path) -> Optional[List[float]]:
+        """Get or compute embedding for a file."""
+        cache_key = str(path)
+
+        if cache_key in self._embedding_cache:
+            return self._embedding_cache[cache_key]
+
+        try:
+            content = path.read_text(encoding='utf-8', errors='ignore')
+            # Truncate for embedding efficiency (first ~2000 chars)
+            content = content[:2000]
+
+            embedding = self._llm.embed(content)
+            self._embedding_cache[cache_key] = embedding
+            return embedding
+        except Exception:
+            return None
+
+    def _cosine_similarity(self, vec1: List[float], vec2: List[float]) -> float:
+        """Compute cosine similarity between two vectors."""
+        if not vec1 or not vec2 or len(vec1) != len(vec2):
+            return 0.0
+
+        dot_product = sum(a * b for a, b in zip(vec1, vec2))
+        norm1 = sum(a * a for a in vec1) ** 0.5
+        norm2 = sum(b * b for b in vec2) ** 0.5
+
+        if norm1 == 0 or norm2 == 0:
+            return 0.0
+
+        return dot_product / (norm1 * norm2)
 
     def _resolve_path(self, path: str) -> Path:
         """Resolve a path relative to base directory."""

@@ -169,7 +169,7 @@ EXCLUDE_DIRS = {
     "node_modules", "site-packages",
     ".git", ".idea", ".vscode",
     "__pycache__", ".pytest_cache", ".mypy_cache",
-    "AI-outputs", "wama-dev-ai/outputs",
+    "wama-dev-ai/outputs",
     "media", "staticfiles",  # Keep "static" - source static files are there!
     "dist", "build", "eggs", ".eggs",
     "AI-models",  # Large model files
