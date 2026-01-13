@@ -106,6 +106,16 @@ def build_file_tree(user):
                 {'id': 'transcriber_output', 'text': 'Output', 'path': 'transcriber/output', 'icon': 'fa fa-folder text-success'},
             ]
         },
+        # WAMA Lab applications
+        {
+            'id': 'face_analyzer',
+            'text': 'Face Analyzer',
+            'icon': 'fa fa-smile text-info',
+            'children': [
+                {'id': 'face_analyzer_input', 'text': 'Input', 'path': 'face_analyzer/input', 'icon': 'fa fa-folder text-secondary'},
+                {'id': 'face_analyzer_output', 'text': 'Output', 'path': 'face_analyzer/output', 'icon': 'fa fa-folder text-success'},
+            ]
+        },
     ]
 
     for folder_config in folders_config:

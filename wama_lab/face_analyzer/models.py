@@ -8,17 +8,17 @@ import os
 
 
 def analysis_upload_path(instance, filename):
-    """Generate upload path for analysis files."""
+    """Generate upload path for analysis input files."""
     ext = filename.split('.')[-1]
     new_filename = f"{uuid.uuid4().hex}.{ext}"
-    return os.path.join('face_analyzer', 'uploads', new_filename)
+    return os.path.join('face_analyzer', 'input', new_filename)
 
 
 def result_upload_path(instance, filename):
-    """Generate upload path for result files."""
+    """Generate upload path for analysis output files."""
     ext = filename.split('.')[-1]
     new_filename = f"{uuid.uuid4().hex}.{ext}"
-    return os.path.join('face_analyzer', 'results', new_filename)
+    return os.path.join('face_analyzer', 'output', new_filename)
 
 
 class AnalysisSession(models.Model):

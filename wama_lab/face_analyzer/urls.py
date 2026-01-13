@@ -17,6 +17,7 @@ urlpatterns = [
     path('api/sessions/', views.list_sessions, name='list_sessions'),
     path('api/sessions/create/', views.create_session, name='create_session'),
     path('api/sessions/<uuid:session_id>/start/', views.start_analysis, name='start_analysis'),
+    path('api/sessions/<uuid:session_id>/cancel/', views.cancel_analysis, name='cancel_analysis'),
     path('api/sessions/<uuid:session_id>/status/', views.get_session_status, name='session_status'),
     path('api/sessions/<uuid:session_id>/frames/', views.get_frame_data, name='frame_data'),
     path('api/sessions/<uuid:session_id>/delete/', views.delete_session, name='delete_session'),

@@ -28,6 +28,7 @@ app.autodiscover_tasks([
     'wama.transcriber',
     'wama.enhancer',
     'wama.imager',
+    'wama_lab.face_analyzer',
 ])
 
 # Also load tasks from non-standard module names (workers.py)

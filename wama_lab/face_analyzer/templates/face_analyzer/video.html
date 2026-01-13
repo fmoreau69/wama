@@ -453,14 +453,12 @@ async function startAnalysis() {
     try {
         // Create session and upload video
         const formData = new FormData();
-        formData.append('video', videoInput.uploadFile);
+        formData.append('video_file', videoInput.uploadFile);
         formData.append('mode', 'video');
-        formData.append('config', JSON.stringify({
-            rppg: document.getElementById('enableRPPG').checked,
-            eyes: document.getElementById('enableEyes').checked,
-            emotions: document.getElementById('enableEmotions').checked,
-            respiration: document.getElementById('enableRespiration').checked
-        }));
+        formData.append('enable_rppg', document.getElementById('enableRPPG').checked);
+        formData.append('enable_eye_tracking', document.getElementById('enableEyes').checked);
+        formData.append('enable_emotions', document.getElementById('enableEmotions').checked);
+        formData.append('enable_respiration', document.getElementById('enableRespiration').checked);
 
         const createResponse = await fetch(CONFIG.CREATE_SESSION_URL, {
             method: 'POST',
@@ -572,9 +570,24 @@ async function loadExistingSession(existingSessionId) {
     }
 }
 
-function cancelAnalysis() {
+async function cancelAnalysis() {
+    if (!sessionId) return;
+
+    try {
+        const response = await fetch(`/lab/face-analyzer/api/sessions/${sessionId}/cancel/`, {
+            method: 'POST',
+            headers: { 'X-CSRFToken': CONFIG.CSRF_TOKEN }
+        });
+
+        const data = await response.json();
+        if (data.success) {
+            console.log('Cancellation requested');
+        }
+    } catch (error) {
+        console.error('Cancel error:', error);
+    }
+
     isAnalyzing = false;
-    // TODO: Send cancel request to server
     resetAnalysisUI();
 }
 

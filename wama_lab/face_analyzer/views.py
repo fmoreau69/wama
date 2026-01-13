@@ -14,8 +14,18 @@ import os
 from .models import AnalysisSession, AnalysisFrame
 from .pipeline import FaceAnalysisPipeline, PipelineConfig, AnalysisMode
 from .rppg import RPPGMethod
+from wama.common.utils.console_utils import push_console_line
 
 logger = logging.getLogger(__name__)
+
+
+def _console(user_id: int, message: str) -> None:
+    """Send message to WAMA console."""
+    try:
+        push_console_line(user_id, f"[Face Analyzer] {message}")
+        logger.info(message)
+    except Exception as e:
+        logger.warning(f"Failed to push console line: {e}")
 
 # Configure logging format if not already configured
 if not logger.handlers:
@@ -85,7 +95,12 @@ def video_view(request, session_id=None):
 @require_http_methods(["POST"])
 def create_session(request):
     """Create a new analysis session."""
+    user_id = request.user.id
+    _console(user_id, f"Creating new session for user: {request.user.username}")
     logger.info(f"Creating new session for user: {request.user.username}")
+    logger.debug(f"POST data: {dict(request.POST)}")
+    logger.debug(f"FILES: {list(request.FILES.keys())}")
+
     try:
         mode = request.POST.get('mode', 'video')
         config = {
@@ -103,6 +118,7 @@ def create_session(request):
             config=config,
             status=AnalysisSession.Status.PENDING
         )
+        _console(user_id, f"Session created: {session.id}")
         logger.info(f"Session created: {session.id}")
 
         # Handle file upload for video mode
@@ -110,7 +126,13 @@ def create_session(request):
             video_file = request.FILES['video_file']
             session.input_file = video_file
             session.save()
+            _console(user_id, f"Video uploaded: {video_file.name} ({video_file.size} bytes)")
+            _console(user_id, f"Saved to: {session.input_file.path}")
             logger.info(f"Video file uploaded: {video_file.name} ({video_file.size} bytes)")
+            logger.info(f"Video saved to: {session.input_file.path}")
+        elif mode == 'video':
+            _console(user_id, "WARNING: No video file found in request!")
+            logger.warning(f"No video_file in request.FILES. Available keys: {list(request.FILES.keys())}")
 
         return JsonResponse({
             'success': True,
@@ -119,6 +141,7 @@ def create_session(request):
 
     except Exception as e:
         logger.error(f"Error creating session: {e}", exc_info=True)
+        _console(user_id, f"ERROR creating session: {e}")
         return JsonResponse({
             'success': False,
             'error': str(e)
@@ -129,9 +152,15 @@ def create_session(request):
 @require_http_methods(["POST"])
 def start_analysis(request, session_id):
     """Start analysis for a session."""
+    from .tasks import process_video_task
+
     session = get_object_or_404(AnalysisSession, id=session_id, user=request.user)
+    user_id = request.user.id
+    _console(user_id, f"Starting analysis for session: {session_id}")
+    logger.info(f"Starting analysis for session: {session_id}")
 
     if session.status == AnalysisSession.Status.PROCESSING:
+        _console(user_id, "Analysis already in progress")
         return JsonResponse({
             'success': False,
             'error': 'Analysis already in progress'
@@ -142,18 +171,44 @@ def start_analysis(request, session_id):
         session.started_at = timezone.now()
         session.save()
 
-        # TODO: Start Celery task for video processing
-        # For now, return success and process synchronously for small files
+        # Check if input file exists
+        if session.mode == 'video':
+            if session.input_file:
+                _console(user_id, f"Input file: {session.input_file.path}")
+                logger.info(f"Input file path: {session.input_file.path}")
+                if os.path.exists(session.input_file.path):
+                    _console(user_id, f"File exists, size: {os.path.getsize(session.input_file.path)} bytes")
+                else:
+                    _console(user_id, "ERROR: Input file does not exist on disk!")
+                    logger.error(f"Input file does not exist: {session.input_file.path}")
+                    return JsonResponse({
+                        'success': False,
+                        'error': 'Input file not found on disk'
+                    }, status=400)
+            else:
+                _console(user_id, "ERROR: No input file associated with session!")
+                logger.error("No input file for video session")
+                return JsonResponse({
+                    'success': False,
+                    'error': 'No input file uploaded'
+                }, status=400)
+
+        # Start Celery task for video processing
         if session.mode == 'video' and session.input_file:
-            # This should be a Celery task for production
-            _process_video_sync(session)
+            _console(user_id, "Launching async video processing task...")
+            task = process_video_task.delay(str(session.id))
+            _console(user_id, f"Task queued: {task.id}")
+            logger.info(f"Celery task {task.id} queued for session {session_id}")
 
         return JsonResponse({
             'success': True,
-            'message': 'Analysis started'
+            'message': 'Analysis started',
+            'task_id': task.id if session.mode == 'video' else None
         })
 
     except Exception as e:
+        logger.error(f"Error starting analysis: {e}", exc_info=True)
+        _console(user_id, f"ERROR: {e}")
         session.status = AnalysisSession.Status.FAILED
         session.error_message = str(e)
         session.save()
@@ -168,7 +223,8 @@ def _process_video_sync(session: AnalysisSession):
     """Process video synchronously (for development/small files)."""
     import cv2
 
-    logger.info(f"Starting video processing for session: {session.id}")
+    user_id = session.user_id
+    _console(user_id, f"Starting video processing for session: {session.id}")
 
     try:
         config = PipelineConfig(
@@ -180,62 +236,76 @@ def _process_video_sync(session: AnalysisSession):
             mode=AnalysisMode.POSTPROCESS,
             enable_overlay=True
         )
-        logger.debug(f"Pipeline config: rPPG={config.enable_rppg}, Eyes={config.enable_eye_tracking}, "
-                     f"Emotions={config.enable_emotions}, Respiration={config.enable_respiration}")
+        modules_enabled = []
+        if config.enable_rppg:
+            modules_enabled.append("rPPG")
+        if config.enable_eye_tracking:
+            modules_enabled.append("Eye Tracking")
+        if config.enable_emotions:
+            modules_enabled.append("Emotions")
+        if config.enable_respiration:
+            modules_enabled.append("Respiration")
+        _console(user_id, f"Modules enabled: {', '.join(modules_enabled)}")
 
         pipeline = FaceAnalysisPipeline(config)
-        logger.info("Pipeline initialized")
+        _console(user_id, "Pipeline initialized")
 
         input_path = session.input_file.path
-        logger.info(f"Input video: {input_path}")
+        _console(user_id, f"Input video: {os.path.basename(input_path)}")
 
         # Generate output path
         output_filename = f"{session.id}_output.mp4"
-        output_dir = os.path.join(settings.MEDIA_ROOT, 'face_analyzer', 'results')
+        output_dir = os.path.join(settings.MEDIA_ROOT, 'face_analyzer', 'output')
         os.makedirs(output_dir, exist_ok=True)
         output_path = os.path.join(output_dir, output_filename)
-        logger.info(f"Output video: {output_path}")
+
+        last_progress = 0
 
         def progress_callback(progress):
+            nonlocal last_progress
             session.progress = progress * 100
             session.save(update_fields=['progress'])
-            if int(progress * 100) % 10 == 0:
-                logger.info(f"Processing progress: {progress * 100:.0f}%")
+            current_pct = int(progress * 100)
+            if current_pct >= last_progress + 10:
+                _console(user_id, f"Processing progress: {current_pct}%")
+                last_progress = current_pct
 
-        logger.info("Starting video analysis...")
+        _console(user_id, "Starting video analysis...")
         results = pipeline.process_video(input_path, output_path, progress_callback)
-        logger.info(f"Video analysis complete: {len(results)} frames processed")
+        _console(user_id, f"Video analysis complete: {len(results)} frames processed")
 
         # Save results
-        logger.info("Saving frame results to database...")
+        from .tasks import convert_numpy_types
+        _console(user_id, "Saving frame results to database...")
         for i, result in enumerate(results):
             AnalysisFrame.objects.create(
                 session=session,
                 frame_number=i,
-                timestamp=result.timestamp,
-                face_detected=result.face_detected,
-                head_pose=result.head_pose,
-                rppg_data=result.rppg.to_dict() if result.rppg else None,
-                eye_tracking_data=result.eye_tracking.to_dict() if result.eye_tracking else None,
-                emotion_data=result.emotions.to_dict() if result.emotions else None,
-                respiration_data=result.respiration.to_dict() if result.respiration else None,
-                processing_time_ms=result.processing_time_ms
+                timestamp=float(result.timestamp) if result.timestamp else 0.0,
+                face_detected=bool(result.face_detected),
+                head_pose=convert_numpy_types(result.head_pose) if result.head_pose else None,
+                rppg_data=convert_numpy_types(result.rppg.to_dict()) if result.rppg else None,
+                eye_tracking_data=convert_numpy_types(result.eye_tracking.to_dict()) if result.eye_tracking else None,
+                emotion_data=convert_numpy_types(result.emotions.to_dict()) if result.emotions else None,
+                respiration_data=convert_numpy_types(result.respiration.to_dict()) if result.respiration else None,
+                processing_time_ms=float(result.processing_time_ms) if result.processing_time_ms else 0.0
             )
 
         # Calculate summary statistics
-        logger.info("Calculating summary statistics...")
-        session.results_summary = _calculate_summary(results)
-        session.output_file.name = f'face_analyzer/results/{output_filename}'
+        _console(user_id, "Calculating summary statistics...")
+        session.results_summary = convert_numpy_types(_calculate_summary(results))
+        session.output_file.name = f'face_analyzer/output/{output_filename}'
         session.status = AnalysisSession.Status.COMPLETED
         session.completed_at = timezone.now()
         session.progress = 100
         session.save()
 
         pipeline.close()
-        logger.info(f"Session {session.id} completed successfully")
+        _console(user_id, f"✓ Session completed successfully!")
 
     except Exception as e:
         logger.error(f"Error processing video for session {session.id}: {e}", exc_info=True)
+        _console(user_id, f"✗ Error: {str(e)}")
         session.status = AnalysisSession.Status.FAILED
         session.error_message = str(e)
         session.save()
@@ -316,15 +386,52 @@ def _calculate_summary(results):
 @require_http_methods(["GET"])
 def get_session_status(request, session_id):
     """Get session status and progress."""
+    from django.core.cache import cache
+
     session = get_object_or_404(AnalysisSession, id=session_id, user=request.user)
+
+    # Get real-time progress from cache if processing
+    progress = session.progress
+    status_message = None
+    if session.status == AnalysisSession.Status.PROCESSING:
+        cached_progress = cache.get(f"face_analyzer_progress_{session_id}")
+        if cached_progress is not None:
+            progress = cached_progress
+        status_message = cache.get(f"face_analyzer_status_{session_id}")
 
     return JsonResponse({
         'id': str(session.id),
         'status': session.status,
-        'progress': session.progress,
+        'progress': progress,
+        'status_message': status_message,
         'error_message': session.error_message,
         'results_summary': session.results_summary,
-        'output_url': session.output_file.url if session.output_file else None
+        'output_url': session.output_file.url if session.output_file else None,
+        'input_file': session.input_file.url if session.input_file else None
+    })
+
+
+@login_required
+@require_http_methods(["POST"])
+def cancel_analysis(request, session_id):
+    """Cancel a running analysis."""
+    from .tasks import stop_face_analyzer
+
+    session = get_object_or_404(AnalysisSession, id=session_id, user=request.user)
+    user_id = request.user.id
+
+    if session.status != AnalysisSession.Status.PROCESSING:
+        return JsonResponse({
+            'success': False,
+            'error': 'No analysis in progress'
+        })
+
+    _console(user_id, f"Cancellation requested for session: {session_id}")
+    stop_face_analyzer(user_id)
+
+    return JsonResponse({
+        'success': True,
+        'message': 'Cancellation requested'
     })
 
 
@@ -353,18 +460,22 @@ def get_frame_data(request, session_id):
 
 
 @login_required
-@require_http_methods(["DELETE"])
+@require_http_methods(["POST", "DELETE"])
 def delete_session(request, session_id):
     """Delete an analysis session."""
+    logger.info(f"Deleting session {session_id} for user {request.user.username}")
     session = get_object_or_404(AnalysisSession, id=session_id, user=request.user)
 
     # Delete associated files
     if session.input_file:
+        logger.debug(f"Deleting input file: {session.input_file.path}")
         session.input_file.delete()
     if session.output_file:
+        logger.debug(f"Deleting output file: {session.output_file.path}")
         session.output_file.delete()
 
     session.delete()
+    logger.info(f"Session {session_id} deleted successfully")
 
     return JsonResponse({'success': True})
 
