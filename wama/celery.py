@@ -24,10 +24,10 @@ app.conf.worker_concurrency = 4
 app.autodiscover_tasks([
     'wama.anonymizer',
     'wama.describer',
-    'wama.synthesizer',
-    'wama.transcriber',
     'wama.enhancer',
     'wama.imager',
+    'wama.synthesizer',
+    'wama.transcriber',
     'wama_lab.face_analyzer',
 ])
 
