@@ -84,6 +84,36 @@
     </div>
 </div>
 
+<!-- URL Upload Section -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card bg-dark border-secondary">
+            <div class="card-body">
+                <h6 class="text-light mb-3">
+                    <i class="fas fa-link"></i> Télécharger depuis une URL
+                </h6>
+                <form id="media-url-form" method="post" enctype="multipart/form-data" action="{% url 'describer:upload' %}">
+                    {% csrf_token %}
+                    <div class="input-group">
+                        <input type="text"
+                               class="form-control bg-dark text-white border-secondary"
+                               id="media_url"
+                               name="media_url"
+                               placeholder="Collez l'URL du média ici..."
+                               aria-label="Media URL">
+                        <button class="btn btn-primary" type="submit">
+                            <i class="fas fa-download"></i> Télécharger
+                        </button>
+                    </div>
+                    <small class="text-white-50 mt-2 d-block">
+                        Exemple: https://example.com/video.mp4 ou lien YouTube
+                    </small>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
 <hr class="border-secondary">
 
 <!-- Global Progress Bar -->

@@ -20,7 +20,8 @@ from django.core.cache import cache
 from django.conf import settings
 
 from .models import Description
-from wama.accounts.views import get_or_create_anonymous_user
+from ..accounts.views import get_or_create_anonymous_user
+from ..common.utils.video_utils import upload_media_from_url
 
 logger = logging.getLogger(__name__)
 

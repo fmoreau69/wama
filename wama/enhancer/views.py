@@ -12,8 +12,9 @@ from django.core.cache import cache
 from PIL import Image
 
 from .models import Enhancement, UserSettings
-from wama.accounts.views import get_or_create_anonymous_user
-from wama.common.utils.console_utils import get_console_lines, get_celery_worker_logs
+from ..accounts.views import get_or_create_anonymous_user
+from ..common.utils.console_utils import get_console_lines, get_celery_worker_logs
+from ..common.utils.video_utils import upload_media_from_url
 
 logger = logging.getLogger(__name__)
 

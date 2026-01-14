@@ -2,6 +2,10 @@
 .claude/
 media/
 docs/
+logs/
+wama-analysis/results
+wama-analysis/ui_screenshots
+**/migrations/0*.py
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -86,6 +90,7 @@ celerybeat-schedule
 
 # virtualenv
 venv/
+venv_win/
 venv_linux/
 ENV/
 
@@ -95,6 +100,7 @@ ENV/
 # Rope project settings
 .ropeproject
 
+tmpclaude*
 .DS_Store
 *.sqlite3
 *.rdb
