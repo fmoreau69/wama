@@ -24,4 +24,7 @@ urlpatterns = [
 
     # Real-time analysis API
     path('api/realtime/frame/', views.process_frame_realtime, name='process_frame'),
+    
+    # Console
+    path('console/', views.console_content, name='console'),
 ]

@@ -1,0 +1,14 @@
+# Face Analyzer Dependencies
+# ==========================
+
+# Core computer vision
+opencv-python>=4.8.0
+numpy>=1.24.0
+
+# Signal processing
+scipy>=1.11.0
+
+# Note: The following are typically already installed with WAMA:
+# - Django
+# - Pillow
+# - celery (for async video processing)

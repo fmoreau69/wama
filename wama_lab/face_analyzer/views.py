@@ -14,7 +14,7 @@ import os
 from .models import AnalysisSession, AnalysisFrame
 from .pipeline import FaceAnalysisPipeline, PipelineConfig, AnalysisMode
 from .rppg import RPPGMethod
-from wama.common.utils.console_utils import push_console_line
+from wama.common.utils.console_utils import push_console_line, get_console_lines
 
 logger = logging.getLogger(__name__)
 
@@ -440,22 +440,186 @@ def cancel_analysis(request, session_id):
 def get_frame_data(request, session_id):
     """Get frame data for a session (for chart visualization)."""
     session = get_object_or_404(AnalysisSession, id=session_id, user=request.user)
+    user_id = request.user.id
 
+    # Get all frames (or paginated if needed)
     start_frame = int(request.GET.get('start', 0))
-    end_frame = int(request.GET.get('end', 1000))
+    end_frame = int(request.GET.get('end', 10000))  # Increased default limit
 
-    frames = AnalysisFrame.objects.filter(
+    frames_queryset = AnalysisFrame.objects.filter(
         session=session,
         frame_number__gte=start_frame,
         frame_number__lt=end_frame
-    ).values(
-        'frame_number', 'timestamp', 'face_detected',
-        'head_pose', 'rppg_data', 'eye_tracking_data',
-        'emotion_data', 'respiration_data'
-    )
+    ).order_by('frame_number')
+
+    total_frames = frames_queryset.count()
+    # Only log once per request to avoid spam
+    logger.debug(f"Loading {total_frames} frames for session {session_id}")
+
+    # Transform frames to match frontend expected format
+    transformed_frames = []
+    frames_with_rppg = 0
+    frames_with_hrv = 0
+    frames_with_respiration = 0
+    
+    for frame in frames_queryset:
+        frame_data = {
+            'frame_number': frame.frame_number,
+            'timestamp': float(frame.timestamp),
+            'face_detected': frame.face_detected,
+        }
+
+        # Transform rppg_data to rppg
+        if frame.rppg_data:
+            rppg = frame.rppg_data.copy()
+            frames_with_rppg += 1
+            
+            # Ensure heart_rate is available
+            if 'heart_rate' not in rppg and 'hr' in rppg:
+                rppg['heart_rate'] = rppg['hr']
+            
+            # HRV structure: hrv is already a dict with rmssd, sdnn, etc. from HRVMetrics.to_dict()
+            # Check if hrv exists and has rmssd
+            if 'hrv' in rppg:
+                if isinstance(rppg['hrv'], dict) and 'rmssd' in rppg['hrv']:
+                    frames_with_hrv += 1
+                # hrv is already in correct format from HRVMetrics.to_dict()
+            elif 'rmssd' in rppg:
+                # If rmssd is at top level, wrap it in hrv
+                rppg['hrv'] = {'rmssd': rppg['rmssd']}
+                frames_with_hrv += 1
+            
+            frame_data['rppg'] = rppg
+        else:
+            frame_data['rppg'] = None
+
+        # Transform emotion_data to emotions
+        if frame.emotion_data:
+            emotions = frame.emotion_data.copy()
+            # Ensure dominant is available
+            if 'dominant' not in emotions and 'dominant_emotion' in emotions:
+                emotions['dominant'] = emotions['dominant_emotion']
+            # Normalize emotion keys to lowercase
+            normalized_emotions = {}
+            for key, value in emotions.items():
+                if key not in ['dominant', 'dominant_emotion', 'age', 'gender']:
+                    normalized_emotions[key.lower()] = value
+            emotions.update(normalized_emotions)
+            frame_data['emotions'] = emotions
+        else:
+            frame_data['emotions'] = None
+
+        # Transform eye_tracking_data to eye_tracking
+        if frame.eye_tracking_data:
+            eye_tracking = frame.eye_tracking_data.copy()
+            # Ensure perclos is available
+            if 'perclos' not in eye_tracking:
+                eye_tracking['perclos'] = eye_tracking.get('perclos_value', 0)
+            # Ensure blink_detected is available
+            if 'blink_detected' not in eye_tracking:
+                eye_tracking['blink_detected'] = eye_tracking.get('blink', {}).get('detected', False)
+            frame_data['eye_tracking'] = eye_tracking
+        else:
+            frame_data['eye_tracking'] = None
+
+        # Transform respiration_data to respiration
+        if frame.respiration_data:
+            respiration = frame.respiration_data.copy()
+            frames_with_respiration += 1
+            
+            # Ensure rate is available (from RespirationResult.to_dict(), it's 'respiratory_rate')
+            if 'rate' not in respiration and 'respiratory_rate' in respiration:
+                respiration['rate'] = respiration['respiratory_rate']
+            
+            frame_data['respiration'] = respiration
+        else:
+            frame_data['respiration'] = None
+
+        # Add face_bbox from head_pose if available
+        if frame.head_pose and 'bbox' in frame.head_pose:
+            frame_data['face_bbox'] = frame.head_pose['bbox']
+        elif frame.head_pose and 'face_bbox' in frame.head_pose:
+            frame_data['face_bbox'] = frame.head_pose['face_bbox']
+
+        transformed_frames.append(frame_data)
+
+    # Only log to console once, use debug for repeated calls
+    if frames_with_rppg > 0 or frames_with_respiration > 0:
+        _console(user_id, f"Data transformation: {frames_with_rppg} frames with rPPG, {frames_with_hrv} with HRV, {frames_with_respiration} with respiration")
+    logger.debug(f"Data transformation: {frames_with_rppg} frames with rPPG, {frames_with_hrv} with HRV, {frames_with_respiration} with respiration")
+
+    # Transform summary from results_summary
+    summary = {}
+    if session.results_summary:
+        summary_data = session.results_summary
+        logger.debug(f"Summary data keys: {list(summary_data.keys())}")
+        
+        # Map summary fields to frontend expected format
+        if 'heart_rate' in summary_data:
+            hr_stats = summary_data['heart_rate']
+            summary['avg_heart_rate'] = hr_stats.get('mean', 0)
+        elif 'avg_heart_rate' in summary_data:
+            summary['avg_heart_rate'] = summary_data['avg_heart_rate']
+
+        # HRV: Calculate from frames if not in summary
+        if 'hrv' in summary_data:
+            hrv_stats = summary_data['hrv']
+            if isinstance(hrv_stats, dict):
+                summary['avg_hrv'] = hrv_stats.get('mean', 0)
+            else:
+                summary['avg_hrv'] = hrv_stats
+        elif 'avg_hrv' in summary_data:
+            summary['avg_hrv'] = summary_data['avg_hrv']
+        else:
+            # Calculate HRV average from frames
+            hrv_values = []
+            for frame_data in transformed_frames:
+                if frame_data.get('rppg') and frame_data['rppg'].get('hrv'):
+                    rmssd = frame_data['rppg']['hrv'].get('rmssd')
+                    if rmssd is not None:
+                        hrv_values.append(rmssd)
+            if hrv_values:
+                import numpy as np
+                summary['avg_hrv'] = float(np.mean(hrv_values))
+                # Only log once
+                logger.debug(f"Calculated avg HRV from {len(hrv_values)} frames: {summary['avg_hrv']:.1f}")
+
+        if 'respiratory_rate' in summary_data:
+            rr_stats = summary_data['respiratory_rate']
+            summary['avg_respiration'] = rr_stats.get('mean', 0)
+        elif 'avg_respiration' in summary_data:
+            summary['avg_respiration'] = summary_data['avg_respiration']
+        else:
+            # Calculate respiration average from frames
+            rr_values = []
+            for frame_data in transformed_frames:
+                if frame_data.get('respiration'):
+                    rate = frame_data['respiration'].get('rate') or frame_data['respiration'].get('respiratory_rate')
+                    if rate is not None:
+                        rr_values.append(rate)
+            if rr_values:
+                import numpy as np
+                summary['avg_respiration'] = float(np.mean(rr_values))
+                # Only log once
+                logger.debug(f"Calculated avg respiration from {len(rr_values)} frames: {summary['avg_respiration']:.1f}")
+
+        # Get dominant emotion from distribution
+        if 'emotion_distribution' in summary_data:
+            emotion_dist = summary_data['emotion_distribution']
+            if emotion_dist:
+                summary['dominant_emotion'] = max(emotion_dist.items(), key=lambda x: x[1])[0]
+        elif 'dominant_emotion' in summary_data:
+            summary['dominant_emotion'] = summary_data['dominant_emotion']
+
+    logger.debug(f"Returning {len(transformed_frames)} frames and summary: {summary}")
+    # Only log to console once per unique request
+    if not hasattr(request, '_face_analyzer_logged'):
+        _console(user_id, f"Returning {len(transformed_frames)} frames for visualization")
+        request._face_analyzer_logged = True
 
     return JsonResponse({
-        'frames': list(frames)
+        'frames': transformed_frames,
+        'summary': summary
     })
 
 
@@ -494,6 +658,18 @@ def list_sessions(request):
 
 
 # Real-time analysis API endpoints
+
+@login_required
+@require_http_methods(["GET"])
+def console_content(request):
+    """Get console output for the current user."""
+    user = request.user
+    console_lines = get_console_lines(user.id, limit=100)
+    
+    return JsonResponse({
+        'output': console_lines
+    })
+
 
 @require_http_methods(["POST"])
 def process_frame_realtime(request):

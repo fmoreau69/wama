@@ -8,7 +8,7 @@ Face Analyzer requires several Python packages for computer vision and machine l
 
 ```bash
 cd wama_lab/face_analyzer
-pip install -r requirements.txt
+pip install -r requirements/windows.txt
 ```
 
 ### Manual Install

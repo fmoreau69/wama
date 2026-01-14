@@ -1,0 +1,13 @@
+# Face Analyzer Windows Dependencies
+# ==========================
+
+-r base.txt
+
+# Face detection and tracking
+mediapipe>=0.10.0
+
+# Emotion recognition
+fer>=22.5.0  # Facial Expression Recognition (lightweight)
+deepface>=0.0.79  # Advanced facial analysis (emotions, age, gender)
+tf-keras  # Required for DeepFace with TensorFlow 2.20+
+# Note: Both use TensorFlow, which will be installed as dependency
