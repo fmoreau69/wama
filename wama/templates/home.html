@@ -162,23 +162,26 @@
 
     <hr>
 
-    <!-- Applications disponibles -->
+    <!-- Applications génériques -->
     <div class="row mb-4">
       <div class="col-12">
-        <h4 class="mb-3"><i class="fas fa-tools"></i> Available Applications</h4>
+        <h4 class="mb-3"><i class="fas fa-tools"></i> WAMA App</h4>
+<!--        <p class="mb-2" style="font-size: 0.9em;">
+          Applications génériques
+        </p>-->
         <div class="row g-3">
 
           <!-- Anonymizer -->
           <div class="col-md-6 col-lg-4">
             <div class="card h-100" style="background: #212529; border: 1px solid #495057;">
-              <div class="card-body">
+              <div class="card-body d-flex flex-column">
                 <h5 class="card-title text-light">
                   <i class="fas fa-file-video text-primary"></i> Anonymizer
                 </h5>
-                <p class="card-text text-light">
+                <p class="card-text text-light flex-grow-1">
                   Automatic blurring of objects in photos/videos
                 </p>
-                <a href="{% url 'anonymizer:index' %}" class="btn btn-primary">
+                <a href="{% url 'anonymizer:index' %}" class="btn btn-primary mt-auto">
                   <i class="fas fa-arrow-right"></i> Open
                 </a>
               </div>
@@ -188,14 +191,14 @@
           <!-- Describer -->
           <div class="col-md-6 col-lg-4">
             <div class="card h-100" style="background: #212529; border: 1px solid #495057;">
-              <div class="card-body">
+              <div class="card-body d-flex flex-column">
                 <h5 class="card-title text-light">
                   <i class="fas fa-search-plus text-info"></i> Describer
                 </h5>
-                <p class="card-text text-light">
+                <p class="card-text text-light flex-grow-1">
                   AI-powered content description and summarization
                 </p>
-                <a href="{% url 'describer:index' %}" class="btn btn-info">
+                <a href="{% url 'describer:index' %}" class="btn btn-info mt-auto">
                   <i class="fas fa-arrow-right"></i> Open
                 </a>
               </div>
@@ -205,14 +208,14 @@
           <!-- Enhancer -->
           <div class="col-md-6 col-lg-4">
             <div class="card h-100" style="background: #212529; border: 1px solid #495057;">
-              <div class="card-body">
+              <div class="card-body d-flex flex-column">
                 <h5 class="card-title text-light">
                   <i class="fas fa-wand-magic-sparkles text-danger"></i> Enhancer
                 </h5>
-                <p class="card-text text-light">
+                <p class="card-text text-light flex-grow-1">
                   AI-powered image/video upscaling and quality enhancement
                 </p>
-                <a href="{% url 'enhancer:index' %}" class="btn btn-danger">
+                <a href="{% url 'enhancer:index' %}" class="btn btn-danger mt-auto">
                   <i class="fas fa-arrow-right"></i> Open
                 </a>
               </div>
@@ -222,14 +225,14 @@
           <!-- Imager -->
           <div class="col-md-6 col-lg-4">
             <div class="card h-100" style="background: #212529; border: 1px solid #495057;">
-              <div class="card-body">
+              <div class="card-body d-flex flex-column">
                 <h5 class="card-title text-light">
                   <i class="fas fa-magic text-warning"></i> Imager
                 </h5>
-                <p class="card-text text-light">
+                <p class="card-text text-light flex-grow-1">
                   AI-powered image generation from text descriptions
                 </p>
-                <a href="{% url 'imager:index' %}" class="btn btn-warning">
+                <a href="{% url 'imager:index' %}" class="btn btn-warning mt-auto">
                   <i class="fas fa-arrow-right"></i> Open
                 </a>
               </div>
@@ -239,14 +242,14 @@
           <!-- Synthesizer -->
           <div class="col-md-6 col-lg-4">
             <div class="card h-100" style="background: #212529; border: 1px solid #495057;">
-              <div class="card-body">
+              <div class="card-body d-flex flex-column">
                 <h5 class="card-title text-light">
                   <i class="fas fa-microphone-alt text-success"></i> Synthesizer
                 </h5>
-                <p class="card-text text-light">
+                <p class="card-text text-light flex-grow-1">
                   Automatic voice synthesis from text files
                 </p>
-                <a href="{% url 'synthesizer:index' %}" class="btn btn-success">
+                <a href="{% url 'synthesizer:index' %}" class="btn btn-success mt-auto">
                   <i class="fas fa-arrow-right"></i> Open
                 </a>
               </div>
@@ -256,14 +259,49 @@
           <!-- Transcriber -->
           <div class="col-md-6 col-lg-4">
             <div class="card h-100" style="background: #212529; border: 1px solid #495057;">
-              <div class="card-body">
+              <div class="card-body d-flex flex-column">
                 <h5 class="card-title text-light">
                   <i class="fas fa-file-audio text-info"></i> Transcriber
                 </h5>
-                <p class="card-text text-light">
+                <p class="card-text text-light flex-grow-1">
                   Automatic transcription of audio files into text
                 </p>
-                <a href="{% url 'transcriber:index' %}" class="btn btn-info">
+                <a href="{% url 'transcriber:index' %}" class="btn btn-info mt-auto">
+                  <i class="fas fa-arrow-right"></i> Open
+                </a>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <hr>
+
+    <!-- Applications WAMA Lab -->
+    <div class="row mb-4">
+      <div class="col-12">
+        <h4 class="mb-3">
+          <i class="fas fa-flask"></i> WAMA Lab 
+          <span class="badge bg-secondary ms-2">Research</span>
+        </h4>
+<!--        <p class="mb-3" style="font-size: 0.9em;">
+          Applications expérimentales développées pour la recherche
+        </p>-->
+        <div class="row g-3">
+
+          <!-- Face Analyzer -->
+          <div class="col-md-6 col-lg-4">
+            <div class="card h-100" style="background: #212529; border: 1px solid #495057;">
+              <div class="card-body d-flex flex-column">
+                <h5 class="card-title text-light">
+                  <i class="fas fa-user-circle text-info"></i> Face Analyzer
+                </h5>
+                <p class="card-text text-light flex-grow-1">
+                  Non-invasive physiological signal analysis from facial video: heart rate, HRV, eye tracking, emotions, respiration
+                </p>
+                <a href="{% url 'wama_lab:face_analyzer:index' %}" class="btn btn-info mt-auto">
                   <i class="fas fa-arrow-right"></i> Open
                 </a>
               </div>
