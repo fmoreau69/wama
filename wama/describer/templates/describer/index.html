@@ -154,7 +154,11 @@
                     <div class="col-md-3">
                         <strong>
                             <i class="fas {{ desc.get_type_icon }}"></i>
-                            <span class="filename">{{ desc.filename }}</span>
+                            <button type="button" class="btn btn-link p-0 text-decoration-none preview-media-link filename"
+                                    data-preview-url="{% url 'common:unified_preview' 'describer' desc.id %}"
+                                    style="color: inherit;">
+                                {{ desc.filename }}
+                            </button>
                         </strong>
                         <br>
                         <small class="text-white-50">
@@ -374,4 +378,5 @@
     };
 </script>
 <script src="{% static 'describer/js/index.js' %}"></script>
+<script src="{% static 'common/js/media-preview.js' %}"></script>
 {% endblock %}

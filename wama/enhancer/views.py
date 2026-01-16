@@ -36,23 +36,108 @@ class IndexView(View):
 
 @require_POST
 def upload(request):
-    """Upload and analyze image/video file."""
+    """Upload and analyze image/video file, or download from URL."""
     logger.info("=== UPLOAD START ===")
 
+    # Check for URL upload first
+    media_url = request.POST.get('media_url', '').strip()
     file = request.FILES.get('file')
-    if not file:
-        logger.error("Upload failed: No file provided")
-        return HttpResponseBadRequest('Missing file')
+
+    if not file and not media_url:
+        logger.error("Upload failed: No file or URL provided")
+        return HttpResponseBadRequest('Missing file or URL')
 
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     logger.info(f"Upload by user: {user.username} (ID: {user.id})")
 
+    image_extensions = ['.jpg', '.jpeg', '.png', '.bmp', '.tif', '.tiff', '.webp', '.heic']
+    video_extensions = ['.mp4', '.webm', '.mkv', '.flv', '.gif', '.avi', '.mov', '.mpg', '.qt', '.3gp']
+
+    # Handle URL download
+    if media_url and not file:
+        try:
+            import tempfile
+            from django.core.files import File
+
+            logger.info(f"[Enhancer] Downloading media from URL: {media_url}")
+
+            # Download to temp directory
+            temp_dir = tempfile.mkdtemp()
+            downloaded_path = upload_media_from_url(media_url, temp_dir)
+            filename = os.path.basename(downloaded_path)
+
+            logger.info(f"[Enhancer] Downloaded to: {downloaded_path}")
+
+            # Detect media type
+            file_ext = os.path.splitext(filename)[1].lower()
+            if file_ext in image_extensions:
+                media_type = 'image'
+            elif file_ext in video_extensions:
+                media_type = 'video'
+            else:
+                logger.error(f"Unsupported format: {file_ext}")
+                # Cleanup
+                try:
+                    os.remove(downloaded_path)
+                    os.rmdir(temp_dir)
+                except OSError:
+                    pass
+                return JsonResponse({'error': 'Format non supporté'}, status=400)
+
+            logger.info(f"Detected media type: {media_type}")
+
+            # Get user settings for defaults
+            user_settings, _ = UserSettings.objects.get_or_create(user=user)
+            logger.info(f"User settings: model={user_settings.default_ai_model}, denoise={user_settings.default_denoise}, blend={user_settings.default_blend_factor}")
+
+            # Create enhancement with the downloaded file
+            with open(downloaded_path, 'rb') as f:
+                django_file = File(f, name=filename)
+
+                enhancement = Enhancement.objects.create(
+                    user=user,
+                    media_type=media_type,
+                    input_file=django_file,
+                    ai_model=user_settings.default_ai_model,
+                    denoise=user_settings.default_denoise,
+                    blend_factor=user_settings.default_blend_factor,
+                )
+
+            # Cleanup temp file
+            try:
+                os.remove(downloaded_path)
+                os.rmdir(temp_dir)
+            except OSError:
+                pass
+
+            logger.info(f"Created Enhancement ID: {enhancement.id}")
+
+            # Analyze file
+            try:
+                _analyze_media(enhancement)
+                logger.info(f"Media analyzed: {enhancement.width}x{enhancement.height}")
+            except Exception as e:
+                logger.warning(f"Could not analyze media: {e}")
+
+            return JsonResponse({
+                'id': enhancement.id,
+                'media_type': enhancement.media_type,
+                'input_url': enhancement.input_file.url,
+                'input_filename': enhancement.get_input_filename(),
+                'width': enhancement.width,
+                'height': enhancement.height,
+                'file_size': enhancement.file_size,
+                'status': enhancement.status,
+            })
+
+        except Exception as e:
+            logger.error(f"[Enhancer] URL download failed: {e}")
+            return JsonResponse({'error': f'Download failed: {str(e)}'}, status=400)
+
+    # Handle regular file upload
     # Detect media type
     file_ext = os.path.splitext(file.name)[1].lower()
     logger.info(f"File: {file.name} (extension: {file_ext}, size: {file.size} bytes)")
-
-    image_extensions = ['.jpg', '.jpeg', '.png', '.bmp', '.tif', '.tiff', '.webp', '.heic']
-    video_extensions = ['.mp4', '.webm', '.mkv', '.flv', '.gif', '.avi', '.mov', '.mpg', '.qt', '.3gp']
 
     if file_ext in image_extensions:
         media_type = 'image'

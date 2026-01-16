@@ -174,7 +174,13 @@
                         {% endif %}
                     </td>
                     <td>
-                        <div class="fw-semibold">{{ e.get_input_filename }}</div>
+                        <div class="fw-semibold">
+                            <button type="button" class="btn btn-link p-0 text-decoration-none preview-media-link"
+                                    data-preview-url="{% url 'common:unified_preview' 'enhancer' e.id %}"
+                                    style="color: inherit;">
+                                {{ e.get_input_filename }}
+                            </button>
+                        </div>
                         <div class="d-flex align-items-center gap-2 mt-1">
                             <a href="{{ e.input_file.url }}" target="_blank" class="text-info small">
                                 <i class="fas fa-link"></i> Voir le fichier
@@ -260,4 +266,5 @@
     });
 </script>
 <script src="{% static 'enhancer/js/index.js' %}"></script>
+<script src="{% static 'common/js/media-preview.js' %}"></script>
 {% endblock %}

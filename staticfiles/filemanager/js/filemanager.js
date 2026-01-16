@@ -184,13 +184,10 @@
             },
             'dnd': {
                 'is_draggable': function(nodes) {
-                    // Allow files and folders to be dragged within temp folder
+                    // Allow ALL files and folders to be dragged (for external drop to apps)
                     // Internal move restrictions are handled by check_callback
                     const result = nodes.every(n => {
-                        const path = n.data?.path || '';
-                        const isInTemp = path.includes('/temp') || path.includes('\\temp');
-                        const isDraggable = isInTemp && (n.type === 'file' || n.type === 'folder');
-                        console.log('[FileManager DND] is_draggable check:', n.text, 'path:', path, 'isInTemp:', isInTemp, 'type:', n.type, 'result:', isDraggable);
+                        const isDraggable = n.type === 'file' || n.type === 'folder';
                         return isDraggable;
                     });
                     return result;
@@ -199,7 +196,9 @@
                 'inside_pos': 'last',
                 'touch': 'selected',
                 'large_drop_target': true,
-                'large_drag_target': true
+                'large_drag_target': true,
+                'drag_selection': false,  // Don't drag selection, just the clicked node
+                'always_copy': false
             }
         });
 
@@ -219,15 +218,30 @@
         // Handle internal move (drag & drop within tree)
         $(treeContainer).on('move_node.jstree', handleMoveNode);
 
-        // Debug: listen for dnd events
+        // Handle vakata dnd events for external drops
+        // vakata.dnd doesn't use native HTML5 drag events, so we need to track the dragged data globally
         $(document).on('dnd_start.vakata', function(e, data) {
             console.log('[FileManager DND] dnd_start event fired', data);
-        });
-        $(document).on('dnd_move.vakata', function(e, data) {
-            console.log('[FileManager DND] dnd_move event fired');
+            // Store the dragged node data globally for external drops
+            if (data.data && data.data.nodes && data.data.nodes.length > 0) {
+                const nodeId = data.data.nodes[0];
+                const node = tree.get_node(nodeId);
+                if (node && node.type === 'file' && node.data?.path) {
+                    window._fileManagerDragData = {
+                        path: node.data.path,
+                        name: node.text,
+                        mime: node.data.mime || 'application/octet-stream'
+                    };
+                    console.log('[FileManager DND] Stored drag data:', window._fileManagerDragData);
+                }
+            }
         });
         $(document).on('dnd_stop.vakata', function(e, data) {
             console.log('[FileManager DND] dnd_stop event fired', data);
+            // Clear the drag data after a delay (to allow drop handlers to read it and perform imports)
+            setTimeout(function() {
+                window._fileManagerDragData = null;
+            }, 500);
         });
 
         // Setup external drag & drop
@@ -1022,18 +1036,94 @@
     // === EXTERNAL DRAG & DROP ===
 
     function setupExternalDragDrop(treeContainer) {
-        // Make files draggable to external drop zones
-        $(treeContainer).on('dragstart', '.jstree-anchor', function(e) {
-            const node = tree.get_node(e.target);
-            if (node && node.type === 'file' && node.data?.path) {
-                e.originalEvent.dataTransfer.setData('text/plain', node.data.path);
-                e.originalEvent.dataTransfer.setData('application/x-wama-file', JSON.stringify({
-                    path: node.data.path,
-                    name: node.text,
-                    mime: node.data.mime
-                }));
-                e.originalEvent.dataTransfer.effectAllowed = 'copy';
+        // Track the current drop zone element during vakata drag
+        let currentDropZone = null;
+
+        // Find all WAMA drop zones (elements with .drop-zone class)
+        function findDropZoneAt(x, y) {
+            const dropZones = document.querySelectorAll('.drop-zone');
+            for (const zone of dropZones) {
+                const rect = zone.getBoundingClientRect();
+                if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
+                    return zone;
+                }
             }
+            return null;
+        }
+
+        // Get app name from drop zone
+        function getAppFromDropZone(zone) {
+            if (!zone) return null;
+            const id = zone.id || '';
+            if (id === 'dropZone') return 'describer';
+            if (id === 'dropZoneEnhancer') return 'enhancer';
+            if (id === 'dropZoneTranscriber' || id.includes('transcriber')) return 'transcriber';
+            if (id === 'dropZoneAnonymizer' || id.includes('anonymizer')) return 'anonymizer';
+            // Try to get from data attribute
+            return zone.dataset.wamaApp || null;
+        }
+
+        // Listen to vakata dnd move events to detect drop zones
+        $(document).on('dnd_move.vakata', function(e, data) {
+            // Only handle if we have file drag data
+            if (!window._fileManagerDragData) return;
+
+            const x = data.event.pageX;
+            const y = data.event.pageY;
+            const dropZone = findDropZoneAt(x, y);
+
+            // Remove highlight from previous drop zone
+            if (currentDropZone && currentDropZone !== dropZone) {
+                currentDropZone.classList.remove('dragover', 'drag-over');
+            }
+
+            // Add highlight to new drop zone
+            if (dropZone) {
+                dropZone.classList.add('dragover', 'drag-over');
+                currentDropZone = dropZone;
+
+                // Change cursor to indicate drop is allowed
+                if (data.helper) {
+                    data.helper.find('.jstree-icon').first().removeClass('jstree-er').addClass('jstree-ok');
+                }
+            } else {
+                currentDropZone = null;
+            }
+        });
+
+        // Handle vakata dnd stop - perform the actual drop
+        $(document).on('dnd_stop.vakata', function(e, data) {
+            const dragData = window._fileManagerDragData;
+
+            // Remove highlight from drop zone
+            if (currentDropZone) {
+                currentDropZone.classList.remove('dragover', 'drag-over');
+            }
+
+            // Check if we dropped on a valid drop zone
+            if (dragData && currentDropZone) {
+                const app = getAppFromDropZone(currentDropZone);
+                console.log('[FileManager DND] Dropping on app:', app, 'file:', dragData.path);
+
+                if (app && dragData.path) {
+                    // Perform the import
+                    importToApp(dragData.path, app)
+                        .then(result => {
+                            if (result.imported) {
+                                showToast(`Fichier importé vers ${app}`, 'success');
+                                // Reload the page to show the new file in the app's queue
+                                window.location.reload();
+                            }
+                        })
+                        .catch(error => {
+                            console.error('[FileManager DND] Import error:', error);
+                            showToast('Erreur d\'import: ' + error.message, 'danger');
+                        });
+                }
+            }
+
+            currentDropZone = null;
+            // Clear drag data is handled by the other dnd_stop handler
         });
     }
 
@@ -1389,19 +1479,30 @@
      * @returns {object|null} - The file data or null
      */
     function getFileManagerData(event) {
-        const wamaData = event.dataTransfer.getData('application/x-wama-file');
-        if (wamaData) {
-            try {
-                return JSON.parse(wamaData);
-            } catch (e) {
-                return null;
+        // First, try native dataTransfer (for HTML5 drag events)
+        if (event && event.dataTransfer) {
+            const wamaData = event.dataTransfer.getData('application/x-wama-file');
+            if (wamaData) {
+                try {
+                    return JSON.parse(wamaData);
+                } catch (e) {
+                    // Continue to fallbacks
+                }
+            }
+
+            // Fallback to plain text (path only)
+            const textData = event.dataTransfer.getData('text/plain');
+            if (textData && !textData.startsWith('http') && textData.includes('/')) {
+                return { path: textData };
             }
         }
 
-        // Fallback to plain text (path only)
-        const textData = event.dataTransfer.getData('text/plain');
-        if (textData && !textData.startsWith('http') && textData.includes('/')) {
-            return { path: textData };
+        // Fallback to global variable (for vakata.dnd which doesn't use native dataTransfer)
+        if (window._fileManagerDragData) {
+            const dragData = window._fileManagerDragData;
+            // Clear it after use to prevent stale data
+            window._fileManagerDragData = null;
+            return dragData;
         }
 
         return null;

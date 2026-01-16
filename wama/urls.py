@@ -11,6 +11,7 @@ urlpatterns = [
     path('', views.home, name='home'),
     path('api/ai-chat/', views.ai_chat, name='ai_chat'),
     path('accounts/', include(('wama.accounts.urls', 'accounts'), namespace='accounts')),
+    path('common/', include(('wama.common.urls', 'common'), namespace='common')),
     path('anonymizer/', include(('wama.anonymizer.urls', 'anonymizer'), namespace='anonymizer')),
     path('describer/', include(('wama.describer.urls', 'describer'), namespace='describer')),
     path('enhancer/', include(('wama.enhancer.urls', 'enhancer'), namespace='enhancer')),

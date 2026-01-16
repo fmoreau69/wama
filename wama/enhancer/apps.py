@@ -11,7 +11,20 @@ class EnhancerConfig(AppConfig):
 
     def ready(self):
         """Called when Django starts - check and download models if needed."""
-        # Only run in main process (not in reloader or other subprocesses)
+        # Register for unified preview
+        from wama.common.utils.preview_utils import register_app_preview
+        from .models import Enhancement
+
+        register_app_preview(
+            app_name='enhancer',
+            model_class=Enhancement,
+            file_field='input_file',
+            user_field='user',
+            width_field='width',
+            height_field='height'
+        )
+
+        # Only run model download in main process (not in reloader or other subprocesses)
         import os
         if os.environ.get('RUN_MAIN') != 'true':
             return

@@ -146,7 +146,7 @@ def upload(request):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     cache.set(f"user_{user.id}_preprocessing_enabled", preprocess_requested, timeout=30 * 24 * 3600)
 
-    from .utils.video_utils import is_video_file, extract_audio_from_video
+    from ..common.utils.video_utils import is_video_file, extract_audio_from_video
 
     # Vérifier si c'est une vidéo
     if is_video_file(file.name):
@@ -233,7 +233,7 @@ def upload_youtube(request):
     cache.set(f"user_{user.id}_preprocessing_enabled", preprocess_requested, timeout=30 * 24 * 3600)
 
     try:
-        from .utils.video_utils import download_youtube_audio
+        from ..common.utils.video_utils import download_youtube_audio
         from django.core.files.base import ContentFile
         import tempfile
 

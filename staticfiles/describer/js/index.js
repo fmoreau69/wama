@@ -72,6 +72,71 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // === URL Upload Form ===
+    const mediaUrlForm = document.getElementById('media-url-form');
+    if (mediaUrlForm) {
+        mediaUrlForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const mediaUrlInput = this.querySelector('input[name="media_url"]');
+            const mediaUrl = mediaUrlInput ? mediaUrlInput.value.trim() : '';
+
+            if (!mediaUrl) {
+                showToast('Veuillez entrer une URL de média.', 'warning');
+                return;
+            }
+
+            // Show loading state
+            const submitBtn = this.querySelector('button[type="submit"]');
+            const originalBtnHtml = submitBtn ? submitBtn.innerHTML : '';
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Téléchargement...';
+            }
+
+            try {
+                const formData = new FormData();
+                formData.append('media_url', mediaUrl);
+                formData.append('output_format', outputFormat ? outputFormat.value : 'detailed');
+                formData.append('output_language', outputLanguage ? outputLanguage.value : 'fr');
+                formData.append('max_length', maxLength ? maxLength.value : '500');
+
+                const response = await fetch(config.urls.upload, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': config.csrfToken
+                    },
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (data.error) {
+                    showToast('Erreur: ' + data.error, 'danger');
+                    return;
+                }
+
+                // Add item to queue
+                addQueueItem(data);
+                updateQueueCount();
+                showToast('Média téléchargé avec succès!', 'success');
+
+                // Clear the form
+                mediaUrlInput.value = '';
+
+            } catch (error) {
+                console.error('URL upload error:', error);
+                showToast('Erreur lors du téléchargement depuis l\'URL', 'danger');
+            } finally {
+                // Restore button
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = originalBtnHtml;
+                }
+            }
+        });
+    }
+
     function handleFileSelect(e) {
         if (e.target.files.length > 0) {
             handleFiles(e.target.files);
@@ -137,12 +202,18 @@ document.addEventListener('DOMContentLoaded', function() {
         card.className = 'synthesis-card';
         card.dataset.id = data.id;
 
+        const previewUrl = `/common/preview/describer/${data.id}/`;
+
         card.innerHTML = `
             <div class="row align-items-center">
                 <div class="col-md-3">
                     <strong>
                         <i class="fas ${data.type_icon || 'fa-file'}"></i>
-                        <span class="filename">${data.filename}</span>
+                        <button type="button" class="btn btn-link p-0 text-decoration-none preview-media-link filename"
+                                data-preview-url="${previewUrl}"
+                                style="color: inherit;">
+                            ${data.filename}
+                        </button>
                     </strong>
                     <br>
                     <small class="text-white-50">
@@ -192,6 +263,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
         queueContainer.appendChild(card);
         bindCardEvents(card);
+
+        // Initialize preview for new item
+        if (typeof initMediaPreview === 'function') {
+            initMediaPreview();
+        }
     }
 
     function getFormatLabel(format) {

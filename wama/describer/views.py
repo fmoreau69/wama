@@ -57,13 +57,88 @@ class IndexView(TemplateView):
 
 @require_POST
 def upload(request):
-    """Handle file upload."""
+    """Handle file upload or URL download."""
     user = get_user(request)
 
-    if 'file' not in request.FILES:
-        return JsonResponse({'error': 'No file provided'}, status=400)
+    # Check for URL upload first
+    media_url = request.POST.get('media_url', '').strip()
+    uploaded_file = request.FILES.get('file')
 
-    uploaded_file = request.FILES['file']
+    if not uploaded_file and not media_url:
+        return JsonResponse({'error': 'No file or URL provided'}, status=400)
+
+    # Handle URL download
+    if media_url and not uploaded_file:
+        try:
+            import tempfile
+            from django.core.files import File
+
+            logger.info(f"[Describer] Downloading media from URL: {media_url}")
+
+            # Download to temp directory
+            temp_dir = tempfile.mkdtemp()
+            downloaded_path = upload_media_from_url(media_url, temp_dir)
+            filename = os.path.basename(downloaded_path)
+
+            logger.info(f"[Describer] Downloaded to: {downloaded_path}")
+
+            # Create the model with the downloaded file
+            ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else ''
+            detected_type = detect_type_from_extension(ext)
+
+            # Get options from request
+            output_format = request.POST.get('output_format', 'detailed')
+            output_language = request.POST.get('output_language', 'fr')
+            max_length = int(request.POST.get('max_length', 500))
+
+            # Create description with the downloaded file
+            with open(downloaded_path, 'rb') as f:
+                django_file = File(f, name=filename)
+                file_size = os.path.getsize(downloaded_path)
+
+                description = Description.objects.create(
+                    user=user,
+                    input_file=django_file,
+                    filename=filename,
+                    file_size=file_size,
+                    detected_type=detected_type,
+                    output_format=output_format,
+                    output_language=output_language,
+                    max_length=max_length,
+                )
+
+            # Cleanup temp file
+            try:
+                os.remove(downloaded_path)
+                os.rmdir(temp_dir)
+            except OSError:
+                pass
+
+            # Get file properties
+            properties = get_file_properties(description)
+            description.properties = properties
+            description.save()
+
+            logger.info(f"[Describer] Created Description ID: {description.id}")
+
+            return JsonResponse({
+                'id': description.id,
+                'filename': description.filename,
+                'file_size': description.format_file_size(),
+                'detected_type': description.detected_type,
+                'type_icon': description.get_type_icon(),
+                'output_format': description.output_format,
+                'output_language': description.output_language,
+                'max_length': description.max_length,
+                'status': description.status,
+                'properties': description.properties,
+            })
+
+        except Exception as e:
+            logger.error(f"[Describer] URL download failed: {e}")
+            return JsonResponse({'error': f'Download failed: {str(e)}'}, status=400)
+
+    # Handle regular file upload
     filename = uploaded_file.name
 
     # Detect content type from extension

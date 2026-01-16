@@ -143,11 +143,19 @@ document.addEventListener('DOMContentLoaded', function () {
       ? '<i class="fas fa-image text-info"></i> Image'
       : '<i class="fas fa-video text-warning"></i> Vidéo';
 
+    const previewUrl = `/common/preview/enhancer/${data.id}/`;
+
     row.innerHTML = `
       <td class="fw-bold text-center">#${data.id}</td>
       <td class="text-center">${mediaIcon}</td>
       <td>
-        <div class="fw-semibold">${escapeHtml(data.input_filename || 'Fichier')}</div>
+        <div class="fw-semibold">
+          <button type="button" class="btn btn-link p-0 text-decoration-none preview-media-link"
+                  data-preview-url="${previewUrl}"
+                  style="color: inherit;">
+            ${escapeHtml(data.input_filename || 'Fichier')}
+          </button>
+        </div>
         <div class="d-flex align-items-center gap-2 mt-1">
           <a href="${data.input_url}" target="_blank" class="text-info small">
             <i class="fas fa-link"></i> Voir le fichier
@@ -189,6 +197,11 @@ document.addEventListener('DOMContentLoaded', function () {
     createSettingsModal(data);
     bindRowActions(row);
     updateDownloadAllState();
+
+    // Initialize preview for new item
+    if (typeof initMediaPreview === 'function') {
+      initMediaPreview();
+    }
   }
 
   function createSettingsModal(data) {
@@ -676,9 +689,75 @@ document.addEventListener('DOMContentLoaded', function () {
       .catch(error => console.error('Error updating global progress:', error));
   }
 
+  // === URL Upload Form ===
+  function initUrlUpload() {
+    const mediaUrlForm = document.getElementById('media-url-form');
+    if (!mediaUrlForm) return;
+
+    mediaUrlForm.addEventListener('submit', async function(e) {
+      e.preventDefault();
+
+      const mediaUrlInput = this.querySelector('input[name="media_url"]');
+      const mediaUrl = mediaUrlInput ? mediaUrlInput.value.trim() : '';
+
+      if (!mediaUrl) {
+        alert('Veuillez entrer une URL de média.');
+        return;
+      }
+
+      // Show loading state
+      const submitBtn = this.querySelector('button[type="submit"]');
+      const originalBtnHtml = submitBtn ? submitBtn.innerHTML : '';
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Téléchargement...';
+      }
+
+      try {
+        const formData = new FormData();
+        formData.append('media_url', mediaUrl);
+
+        const response = await fetch(config.uploadUrl, {
+          method: 'POST',
+          headers: csrfHeaders(),
+          body: formData
+        });
+
+        const data = await response.json();
+
+        if (data.error) {
+          throw new Error(data.error);
+        }
+
+        // Add item to queue
+        data.status = data.status || 'PENDING';
+        appendRow(data);
+
+        // Clear the form
+        mediaUrlInput.value = '';
+
+        // Show success message
+        if (window.FileManager && window.FileManager.showToast) {
+          window.FileManager.showToast('Média téléchargé avec succès!', 'success');
+        }
+
+      } catch (error) {
+        console.error('URL upload error:', error);
+        alert('Erreur lors du téléchargement: ' + error.message);
+      } finally {
+        // Restore button
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = originalBtnHtml;
+        }
+      }
+    });
+  }
+
   // Initialize
   initUpload();
   initDragDrop();
+  initUrlUpload();
   initExistingRows();
   initBulkActions();
   bindRowActions(document);

@@ -71,7 +71,7 @@ class Media(models.Model):
     )
 
     use_segmentation = models.BooleanField(
-        default=False,
+        default=True,
         verbose_name='Use segmentation models',
         help_text='Automatically determined by precision level'
     )
@@ -168,7 +168,7 @@ class UserSettings(models.Model):
     )
 
     use_segmentation = models.BooleanField(
-        default=False,
+        default=True,
         verbose_name='Use segmentation models',
         help_text='Automatically determined by precision level'
     )
