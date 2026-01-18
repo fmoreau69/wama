@@ -125,6 +125,26 @@
                             </div>
                         </div>
 
+                        <!-- Emotion Backend Selection -->
+                        <div class="col-md-6">
+                            <label class="form-label text-light small">Backend émotions</label>
+                            <select id="emotionBackend" class="form-select form-select-sm bg-dark text-light border-secondary">
+                                <option value="fer">FER (rapide)</option>
+                                <option value="deepface" selected>DeepFace (complet)</option>
+                            </select>
+                        </div>
+
+                        <!-- Age/Gender Toggle -->
+                        <div class="col-md-6">
+                            <label class="form-label text-light small">Options DeepFace</label>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="enableAgeGender" checked>
+                                <label class="form-check-label text-light small" for="enableAgeGender">
+                                    <i class="fas fa-user-tag me-1"></i>Âge & Genre
+                                </label>
+                            </div>
+                        </div>
+
                         <!-- Action Buttons -->
                         <div class="col-12">
                             <div class="d-flex gap-2">
@@ -159,43 +179,78 @@
 
             <!-- Summary Metrics -->
             <div class="row g-2" id="metricsRow" style="display: none;">
-                <div class="col-6 col-md-3">
+                <div class="col-6 col-md-2">
                     <div class="card bg-dark border-danger h-100">
                         <div class="card-body text-center p-2">
                             <i class="fas fa-heartbeat text-danger"></i>
-                            <div class="small text-secondary">Fréq. Cardiaque</div>
                             <div id="avgHR" class="fs-5 text-danger fw-bold">--</div>
-                            <div class="small text-secondary">moy. BPM</div>
+                            <div class="small text-secondary">BPM moy.</div>
                         </div>
                     </div>
                 </div>
-                <div class="col-6 col-md-3">
-                    <div class="card bg-dark border-warning h-100">
+                <div class="col-6 col-md-2">
+                    <div class="card bg-dark border-primary h-100">
                         <div class="card-body text-center p-2">
-                            <i class="fas fa-wave-square text-warning"></i>
-                            <div class="small text-secondary">HRV (RMSSD)</div>
-                            <div id="avgHRV" class="fs-5 text-warning fw-bold">--</div>
-                            <div class="small text-secondary">moy. ms</div>
+                            <i class="fas fa-tint text-primary"></i>
+                            <div id="avgSpO2" class="fs-5 text-primary fw-bold">--</div>
+                            <div class="small text-secondary">SpO2 %</div>
                         </div>
                     </div>
                 </div>
-                <div class="col-6 col-md-3">
+                <div class="col-6 col-md-2">
                     <div class="card bg-dark border-success h-100">
                         <div class="card-body text-center p-2">
                             <i class="fas fa-lungs text-success"></i>
-                            <div class="small text-secondary">Respiration</div>
                             <div id="avgRR" class="fs-5 text-success fw-bold">--</div>
-                            <div class="small text-secondary">moy. /min</div>
+                            <div class="small text-secondary">Resp/min</div>
                         </div>
                     </div>
                 </div>
-                <div class="col-6 col-md-3">
+                <div class="col-6 col-md-2">
+                    <div class="card bg-dark border-info h-100">
+                        <div class="card-body text-center p-2">
+                            <i class="fas fa-eye text-info"></i>
+                            <div id="avgBlink" class="fs-5 text-info fw-bold">--</div>
+                            <div class="small text-secondary">Clignt/min</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-2" id="ageCard">
+                    <div class="card bg-dark border-warning h-100">
+                        <div class="card-body text-center p-2">
+                            <i class="fas fa-birthday-cake text-warning"></i>
+                            <div id="detectedAge" class="fs-5 text-warning fw-bold">--</div>
+                            <div class="small text-secondary">Âge</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-2" id="genderCard">
+                    <div class="card bg-dark border-secondary h-100">
+                        <div class="card-body text-center p-2">
+                            <i id="genderIcon" class="fas fa-user text-secondary"></i>
+                            <div id="detectedGender" class="fs-5 text-light fw-bold">--</div>
+                            <div class="small text-secondary">Genre</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Second row: HRV and Emotion -->
+            <div class="row g-2 mt-1" id="metricsRow2" style="display: none;">
+                <div class="col-6">
+                    <div class="card bg-dark border-warning h-100">
+                        <div class="card-body text-center p-2">
+                            <i class="fas fa-wave-square text-warning"></i>
+                            <span class="small text-secondary ms-2">HRV (RMSSD)</span>
+                            <span id="avgHRV" class="fs-6 text-warning fw-bold ms-2">-- ms</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-6">
                     <div class="card bg-dark border-info h-100">
                         <div class="card-body text-center p-2">
                             <i class="fas fa-smile text-info"></i>
-                            <div class="small text-secondary">Émotion dominante</div>
-                            <div id="dominantEmotion" class="fs-5 text-info fw-bold">--</div>
-                            <div class="small text-secondary">&nbsp;</div>
+                            <span class="small text-secondary ms-2">Émotion dominante</span>
+                            <span id="dominantEmotion" class="fs-6 text-info fw-bold ms-2">--</span>
                         </div>
                     </div>
                 </div>
@@ -225,10 +280,11 @@
 
             <!-- HRV Chart -->
             <div class="card bg-dark border-warning mb-3">
-                <div class="card-header bg-warning bg-opacity-25 border-warning py-2">
+                <div class="card-header bg-warning bg-opacity-25 border-warning py-2 d-flex justify-content-between">
                     <h6 class="mb-0 text-warning">
                         <i class="fas fa-wave-square me-2"></i>Variabilité Cardiaque (HRV)
                     </h6>
+                    <span class="badge bg-warning text-dark" id="currentHRV">-- ms</span>
                 </div>
                 <div class="card-body p-2">
                     <canvas id="hrvChart" height="100"></canvas>
@@ -237,10 +293,11 @@
 
             <!-- Emotions Chart -->
             <div class="card bg-dark border-warning mb-3">
-                <div class="card-header bg-warning bg-opacity-25 border-warning py-2">
+                <div class="card-header bg-warning bg-opacity-25 border-warning py-2 d-flex justify-content-between">
                     <h6 class="mb-0 text-warning">
                         <i class="fas fa-smile me-2"></i>Émotions (évolution)
                     </h6>
+                    <span class="badge bg-warning text-dark" id="currentEmotion">--</span>
                 </div>
                 <div class="card-body p-2">
                     <canvas id="emotionsChart" height="120"></canvas>
@@ -249,10 +306,11 @@
 
             <!-- Eye Tracking -->
             <div class="card bg-dark border-info mb-3">
-                <div class="card-header bg-info bg-opacity-25 border-info py-2">
+                <div class="card-header bg-info bg-opacity-25 border-info py-2 d-flex justify-content-between">
                     <h6 class="mb-0 text-info">
                         <i class="fas fa-eye me-2"></i>Oculométrie
                     </h6>
+                    <span class="badge bg-info text-dark" id="currentPERCLOS">-- %</span>
                 </div>
                 <div class="card-body p-2">
                     <small class="text-secondary">PERCLOS (fatigue) &amp; Clignements</small>
@@ -268,10 +326,11 @@
 
             <!-- Respiration Chart -->
             <div class="card bg-dark border-success">
-                <div class="card-header bg-success bg-opacity-25 border-success py-2">
+                <div class="card-header bg-success bg-opacity-25 border-success py-2 d-flex justify-content-between">
                     <h6 class="mb-0 text-success">
                         <i class="fas fa-lungs me-2"></i>Respiration
                     </h6>
+                    <span class="badge bg-success" id="currentRespiration">-- /min</span>
                 </div>
                 <div class="card-body p-2">
                     <canvas id="respirationChart" height="100"></canvas>
@@ -379,13 +438,23 @@ function setupGlobalErrorHandlers() {
     });
 }
 
+let isSeeking = false;  // Flag to prevent progress bar update while user is dragging
+
 function setupEventListeners() {
     // File input
     videoInput.addEventListener('change', handleFileSelect);
 
     // Video controls
     playPauseBtn.addEventListener('click', togglePlayPause);
+
+    // Progress bar: prevent update conflicts while user is dragging
+    progressBar.addEventListener('mousedown', () => { isSeeking = true; });
+    progressBar.addEventListener('touchstart', () => { isSeeking = true; });
     progressBar.addEventListener('input', seekVideo);
+    progressBar.addEventListener('mouseup', () => { isSeeking = false; });
+    progressBar.addEventListener('touchend', () => { isSeeking = false; });
+    progressBar.addEventListener('change', () => { isSeeking = false; seekVideo(); });
+
     videoPlayer.addEventListener('timeupdate', updateProgress);
     videoPlayer.addEventListener('loadedmetadata', onVideoLoaded);
 
@@ -506,8 +575,11 @@ function seekVideo() {
 }
 
 function updateProgress() {
-    const progress = (videoPlayer.currentTime / videoPlayer.duration) * 100;
-    progressBar.value = progress;
+    // Don't update progress bar while user is dragging it
+    if (!isSeeking) {
+        const progress = (videoPlayer.currentTime / videoPlayer.duration) * 100;
+        progressBar.value = progress;
+    }
     currentTimeEl.textContent = formatTime(videoPlayer.currentTime);
 
     // Update overlay and charts sync
@@ -537,6 +609,8 @@ async function startAnalysis() {
         formData.append('enable_eye_tracking', document.getElementById('enableEyes').checked);
         formData.append('enable_emotions', document.getElementById('enableEmotions').checked);
         formData.append('enable_respiration', document.getElementById('enableRespiration').checked);
+        formData.append('emotion_backend', document.getElementById('emotionBackend').value);
+        formData.append('enable_age_gender', document.getElementById('enableAgeGender').checked);
 
         const createResponse = await fetch(CONFIG.CREATE_SESSION_URL, {
             method: 'POST',
@@ -947,13 +1021,12 @@ function initializeCharts() {
                     spanGaps: true
                 }] 
             },
-            options: { 
-                ...chartOptions, 
-                scales: { 
-                    x: { display: true, title: { display: true, text: 'Temps', color: '#aaa' } },
-                    ...chartOptions.scales, 
-                    y: { ...chartOptions.scales.y, min: 40, max: 180, title: { display: true, text: 'BPM', color: '#aaa' } } 
-                } 
+            options: {
+                ...chartOptions,
+                scales: {
+                    x: { display: true, title: { display: true, text: 'Temps', color: '#aaa' }, ...chartOptions.scales.x },
+                    y: { ...chartOptions.scales.y, suggestedMin: 50, suggestedMax: 120, title: { display: true, text: 'BPM', color: '#aaa' } }
+                }
             }
         });
     }
@@ -1100,13 +1173,12 @@ function initializeCharts() {
                     spanGaps: true
                 }] 
             },
-            options: { 
-                ...chartOptions, 
-                scales: { 
-                    x: { display: true, title: { display: true, text: 'Temps', color: '#aaa' } },
-                    ...chartOptions.scales, 
-                    y: { ...chartOptions.scales.y, min: 8, max: 25, title: { display: true, text: 'Resp/min', color: '#aaa' } } 
-                } 
+            options: {
+                ...chartOptions,
+                scales: {
+                    x: { display: true, title: { display: true, text: 'Temps', color: '#aaa' }, ...chartOptions.scales.x },
+                    y: { ...chartOptions.scales.y, suggestedMin: 10, suggestedMax: 20, title: { display: true, text: 'Resp/min', color: '#aaa' } }
+                }
             }
         });
     }
@@ -1264,21 +1336,29 @@ function populateCharts() {
 
 function aggregateBlinkData(frames) {
     const buckets = {};
+    let totalBlinks = 0;
+
     frames.forEach(f => {
         if (f.eye_tracking?.blink_detected) {
             const second = Math.floor(f.timestamp);
             buckets[second] = (buckets[second] || 0) + 1;
+            totalBlinks++;
         }
     });
 
-    const maxSecond = Math.max(...Object.keys(buckets).map(Number), 0);
+    // Use the last frame's timestamp (video duration) instead of last blink
+    const lastTimestamp = frames.length > 0 ? frames[frames.length - 1].timestamp : 0;
+    const maxSecond = Math.ceil(lastTimestamp);
+
     const labels = [];
     const values = [];
     for (let i = 0; i <= maxSecond; i++) {
         labels.push(formatTime(i));
         values.push(buckets[i] || 0);
     }
-    return { labels, values };
+
+    console.log(`Blink aggregation: ${totalBlinks} blinks over ${maxSecond} seconds`);
+    return { labels, values, totalBlinks, durationSeconds: maxSecond };
 }
 
 function updateSummaryMetrics() {
@@ -1294,23 +1374,63 @@ function updateSummaryMetrics() {
     const summary = analysisData.summary;
     console.log('Updating summary metrics:', summary);
 
-    const avgHR = summary.avg_heart_rate;
-    const avgHRV = summary.avg_hrv;
-    const avgRR = summary.avg_respiration;
-    const dominantEmotion = summary.dominant_emotion;
-
+    // Heart Rate
     if (document.getElementById('avgHR')) {
-        document.getElementById('avgHR').textContent = (avgHR !== undefined && avgHR !== null) ? avgHR.toFixed(0) : '--';
+        document.getElementById('avgHR').textContent = summary.avg_heart_rate?.toFixed(0) || '--';
     }
-    if (document.getElementById('avgHRV')) {
-        document.getElementById('avgHRV').textContent = (avgHRV !== undefined && avgHRV !== null) ? avgHRV.toFixed(1) : '--';
+
+    // SpO2
+    if (document.getElementById('avgSpO2')) {
+        document.getElementById('avgSpO2').textContent = summary.avg_spo2?.toFixed(0) || '--';
     }
+
+    // Respiration
     if (document.getElementById('avgRR')) {
-        document.getElementById('avgRR').textContent = (avgRR !== undefined && avgRR !== null) ? avgRR.toFixed(1) : '--';
+        document.getElementById('avgRR').textContent = summary.avg_respiration?.toFixed(1) || '--';
     }
+
+    // Blink rate
+    if (document.getElementById('avgBlink')) {
+        document.getElementById('avgBlink').textContent = summary.avg_blink_rate?.toFixed(1) || '--';
+    }
+
+    // Age
+    if (document.getElementById('detectedAge')) {
+        document.getElementById('detectedAge').textContent = summary.detected_age || '--';
+    }
+
+    // Gender
+    if (document.getElementById('detectedGender')) {
+        const gender = summary.detected_gender;
+        if (gender) {
+            document.getElementById('detectedGender').textContent = gender === 'Man' ? 'Homme' : (gender === 'Woman' ? 'Femme' : gender);
+            const genderIcon = document.getElementById('genderIcon');
+            if (genderIcon) {
+                if (gender === 'Man') {
+                    genderIcon.className = 'fas fa-mars text-info';
+                } else if (gender === 'Woman') {
+                    genderIcon.className = 'fas fa-venus text-pink';
+                }
+            }
+        } else {
+            document.getElementById('detectedGender').textContent = '--';
+        }
+    }
+
+    // HRV (RMSSD)
+    if (document.getElementById('avgHRV')) {
+        const hrvValue = summary.avg_hrv?.toFixed(1);
+        document.getElementById('avgHRV').textContent = hrvValue ? hrvValue + ' ms' : '-- ms';
+    }
+
+    // Dominant Emotion
     if (document.getElementById('dominantEmotion')) {
-        document.getElementById('dominantEmotion').textContent = dominantEmotion || '--';
+        document.getElementById('dominantEmotion').textContent = summary.dominant_emotion || '--';
     }
+
+    // Show the second metrics row
+    const metricsRow2 = document.getElementById('metricsRow2');
+    if (metricsRow2) metricsRow2.style.display = 'flex';
 }
 
 function calculateSummaryFromFrames() {
@@ -1320,6 +1440,10 @@ function calculateSummaryFromFrames() {
     const hrValues = [];
     const hrvValues = [];
     const rrValues = [];
+    const spo2Values = [];
+    const blinkRates = [];
+    const ages = [];
+    const genders = {};
     const emotions = {};
 
     frames.forEach(f => {
@@ -1329,11 +1453,26 @@ function calculateSummaryFromFrames() {
         if (f.rppg && f.rppg.hrv && f.rppg.hrv.rmssd !== undefined && f.rppg.hrv.rmssd !== null) {
             hrvValues.push(f.rppg.hrv.rmssd);
         }
+        if (f.rppg && f.rppg.spo2 !== undefined && f.rppg.spo2 !== null && f.rppg.spo2 > 0) {
+            spo2Values.push(f.rppg.spo2);
+        }
         if (f.respiration && f.respiration.rate !== undefined && f.respiration.rate !== null) {
             rrValues.push(f.respiration.rate);
         }
-        if (f.emotions && f.emotions.dominant) {
-            emotions[f.emotions.dominant] = (emotions[f.emotions.dominant] || 0) + 1;
+        if (f.eye_tracking && f.eye_tracking.blink?.blink_rate !== undefined) {
+            blinkRates.push(f.eye_tracking.blink.blink_rate);
+        }
+        if (f.emotions) {
+            if (f.emotions.age !== undefined && f.emotions.age !== null) {
+                ages.push(f.emotions.age);
+            }
+            if (f.emotions.gender) {
+                genders[f.emotions.gender] = (genders[f.emotions.gender] || 0) + 1;
+            }
+            const dominant = f.emotions.dominant_emotion || f.emotions.dominant;
+            if (dominant) {
+                emotions[dominant] = (emotions[dominant] || 0) + 1;
+            }
         }
     });
 
@@ -1346,6 +1485,20 @@ function calculateSummaryFromFrames() {
     }
     if (rrValues.length > 0) {
         summary.avg_respiration = rrValues.reduce((a, b) => a + b, 0) / rrValues.length;
+    }
+    if (spo2Values.length > 0) {
+        summary.avg_spo2 = spo2Values.reduce((a, b) => a + b, 0) / spo2Values.length;
+    }
+    if (blinkRates.length > 0) {
+        summary.avg_blink_rate = blinkRates.reduce((a, b) => a + b, 0) / blinkRates.length;
+    }
+    if (ages.length > 0) {
+        // Use median age for better accuracy
+        ages.sort((a, b) => a - b);
+        summary.detected_age = ages[Math.floor(ages.length / 2)];
+    }
+    if (Object.keys(genders).length > 0) {
+        summary.detected_gender = Object.entries(genders).reduce((a, b) => a[1] > b[1] ? a : b)[0];
     }
     if (Object.keys(emotions).length > 0) {
         summary.dominant_emotion = Object.entries(emotions).reduce((a, b) => a[1] > b[1] ? a : b)[0];
@@ -1376,19 +1529,80 @@ function updateOverlayAtTime(time) {
         overlayCtx.strokeRect(x, y, w, h);
     }
 
-    // Draw HR
+    // Update HR badge and overlay
+    const hrBadge = document.getElementById('currentHR');
     if (frame.rppg?.heart_rate) {
         overlayCtx.fillStyle = '#dc3545';
         overlayCtx.font = 'bold 20px Arial';
+        overlayCtx.textAlign = 'left';
         overlayCtx.fillText('❤ ' + frame.rppg.heart_rate.toFixed(0) + ' BPM', 10, 30);
-        document.getElementById('currentHR').textContent = frame.rppg.heart_rate.toFixed(0) + ' BPM';
+        if (hrBadge) hrBadge.textContent = frame.rppg.heart_rate.toFixed(0) + ' BPM';
+    } else {
+        if (hrBadge) hrBadge.textContent = '-- BPM';
     }
 
-    // Draw emotion
-    if (frame.emotions?.dominant) {
-        overlayCtx.fillStyle = '#ffc107';
+    // Update SpO2 on overlay
+    if (frame.rppg?.spo2 && frame.rppg.spo2 > 0) {
+        overlayCtx.fillStyle = '#0d6efd';
         overlayCtx.font = 'bold 16px Arial';
-        overlayCtx.fillText(frame.emotions.dominant.toUpperCase(), 10, videoOverlay.height - 10);
+        overlayCtx.textAlign = 'left';
+        overlayCtx.fillText('SpO2: ' + frame.rppg.spo2.toFixed(0) + '%', 10, 52);
+    }
+
+    // Update HRV badge
+    const hrvBadge = document.getElementById('currentHRV');
+    if (frame.rppg?.hrv?.rmssd) {
+        if (hrvBadge) hrvBadge.textContent = frame.rppg.hrv.rmssd.toFixed(1) + ' ms';
+    } else {
+        if (hrvBadge) hrvBadge.textContent = '-- ms';
+    }
+
+    // Update Emotion badge and Age/Gender on overlay
+    const emotionBadge = document.getElementById('currentEmotion');
+    if (frame.emotions) {
+        const emotion = frame.emotions.dominant_emotion || frame.emotions.dominant;
+        if (emotion) {
+            overlayCtx.fillStyle = '#ffc107';
+            overlayCtx.font = 'bold 16px Arial';
+            overlayCtx.textAlign = 'left';
+            overlayCtx.fillText(emotion.toUpperCase(), 10, videoOverlay.height - 10);
+            if (emotionBadge) emotionBadge.textContent = emotion.charAt(0).toUpperCase() + emotion.slice(1);
+        }
+
+        // Age/Gender on overlay (top right)
+        if (frame.emotions.age || frame.emotions.gender) {
+            overlayCtx.fillStyle = '#aaa';
+            overlayCtx.font = '14px Arial';
+            overlayCtx.textAlign = 'right';
+            let infoText = '';
+            if (frame.emotions.gender) {
+                infoText = frame.emotions.gender === 'Man' ? '♂' : (frame.emotions.gender === 'Woman' ? '♀' : '');
+            }
+            if (frame.emotions.age) {
+                infoText += ' ' + frame.emotions.age + ' ans';
+            }
+            overlayCtx.fillText(infoText.trim(), videoOverlay.width - 10, videoOverlay.height - 10);
+        }
+    } else {
+        if (emotionBadge) emotionBadge.textContent = '--';
+    }
+
+    // Update PERCLOS badge
+    const perclosBadge = document.getElementById('currentPERCLOS');
+    if (frame.eye_tracking?.perclos !== undefined) {
+        const perclosValue = (frame.eye_tracking.perclos * 100).toFixed(0);
+        if (perclosBadge) perclosBadge.textContent = perclosValue + ' %';
+    } else {
+        if (perclosBadge) perclosBadge.textContent = '-- %';
+    }
+
+    // Update Respiration badge
+    const respBadge = document.getElementById('currentRespiration');
+    const respRate = frame.respiration?.rate || frame.respiration?.respiratory_rate;
+    if (respRate !== undefined && respRate !== null) {
+        if (respBadge) respBadge.textContent = respRate.toFixed(1) + ' /min';
+    } else {
+        if (respBadge) respBadge.textContent = '-- /min';
     }
 }
 
@@ -1496,14 +1710,35 @@ function formatFileSize(bytes) {
     display: flex;
     align-items: center;
     justify-content: center;
+    width: 100vw;
+    height: 100vh;
+}
+
+#videoContainer:fullscreen #playerZone,
+#videoContainer:-webkit-full-screen #playerZone {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 #videoContainer:fullscreen #videoPlayer,
 #videoContainer:-webkit-full-screen #videoPlayer {
     max-height: 100vh;
     max-width: 100vw;
-    width: auto;
-    height: auto;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+#videoContainer:fullscreen #videoOverlay,
+#videoContainer:-webkit-full-screen #videoOverlay {
+    max-height: 100vh;
+    max-width: 100vw;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
 }
 
 #videoContainer:fullscreen #uploadZone,

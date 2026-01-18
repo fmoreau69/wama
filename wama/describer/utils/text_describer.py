@@ -4,48 +4,110 @@ Text and PDF description/summarization.
 
 import os
 import logging
+import re
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
 # Global model cache
 _summarizer = None
+_summarizer_device = None  # Track current device
 
 
-def get_summarizer(model_name: str = None):
+def reset_cuda():
+    """Reset CUDA state after an error."""
+    try:
+        import torch
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            torch.cuda.synchronize()
+    except Exception as e:
+        logger.warning(f"Failed to reset CUDA: {e}")
+
+
+def get_summarizer(model_name: str = None, force_cpu: bool = False):
     """Load and cache summarization pipeline."""
-    global _summarizer
+    global _summarizer, _summarizer_device
 
-    if _summarizer is None:
-        logger.info("Loading summarization model...")
+    target_device = -1 if force_cpu else None
 
-        try:
-            from transformers import pipeline
-            import torch
+    if _summarizer is not None and (target_device is None or target_device == _summarizer_device):
+        return _summarizer
 
-            # Choose model based on available resources
-            if model_name is None:
-                # Use multilingual model for better French support
-                model_name = "facebook/bart-large-cnn"
+    logger.info("Loading summarization model...")
 
+    try:
+        from transformers import pipeline
+        import torch
+
+        # Choose model based on available resources
+        if model_name is None:
+            # Use multilingual model for better French support
+            model_name = "facebook/bart-large-cnn"
+
+        if target_device is None:
             device = 0 if torch.cuda.is_available() else -1
+        else:
+            device = target_device
 
-            _summarizer = pipeline(
-                "summarization",
-                model=model_name,
-                device=device
-            )
+        _summarizer = pipeline(
+            "summarization",
+            model=model_name,
+            device=device
+        )
+        _summarizer_device = device
 
-            logger.info(f"Summarization model loaded: {model_name}")
+        device_name = "CUDA" if device >= 0 else "CPU"
+        logger.info(f"Summarization model loaded: {model_name} on {device_name}")
 
-        except ImportError as e:
-            logger.error(f"Failed to import transformers: {e}")
-            raise ImportError(
-                "transformers library not installed. "
-                "Run: pip install transformers torch"
-            )
+    except ImportError as e:
+        logger.error(f"Failed to import transformers: {e}")
+        raise ImportError(
+            "transformers library not installed. "
+            "Run: pip install transformers torch"
+        )
 
     return _summarizer
+
+
+def sanitize_text_for_model(text: str) -> str:
+    """
+    Sanitize text to prevent CUDA tokenization errors.
+    Removes or replaces problematic characters.
+    """
+    if not text:
+        return text
+
+    # Replace common problematic Unicode characters
+    replacements = {
+        '\u2018': "'",  # Left single quote
+        '\u2019': "'",  # Right single quote
+        '\u201c': '"',  # Left double quote
+        '\u201d': '"',  # Right double quote
+        '\u2013': '-',  # En dash
+        '\u2014': '-',  # Em dash
+        '\u2026': '...',  # Ellipsis
+        '\u00a0': ' ',  # Non-breaking space
+        '\u200b': '',   # Zero-width space
+        '\ufeff': '',   # BOM
+    }
+
+    for old, new in replacements.items():
+        text = text.replace(old, new)
+
+    # Remove control characters except newlines and tabs
+    text = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]', '', text)
+
+    # Normalize multiple spaces
+    text = re.sub(r' +', ' ', text)
+
+    # Ensure text is not too long for tokenizer (BART max is 1024 tokens)
+    # Rough estimate: 1 token ≈ 4 characters for English
+    max_chars = 4000
+    if len(text) > max_chars:
+        text = text[:max_chars]
+
+    return text.strip()
 
 
 def extract_text_from_file(file_path: str) -> str:
@@ -212,6 +274,8 @@ def describe_text(description, set_progress, set_partial, console):
         console(user_id, f"Processing {len(chunks)} text chunks...")
 
         summaries = []
+        cuda_failed = False  # Track if CUDA has failed
+
         for i, chunk in enumerate(chunks):
             if len(chunk.split()) < 50:
                 # Skip very short chunks
@@ -230,13 +294,47 @@ def describe_text(description, set_progress, set_partial, console):
                 else:
                     min_len, max_len = 80, 200
 
+                # Sanitize chunk to prevent tokenization errors
+                clean_chunk = sanitize_text_for_model(chunk)
+                if not clean_chunk or len(clean_chunk.split()) < 30:
+                    continue
+
+                # If CUDA failed before, use CPU
+                if cuda_failed:
+                    summarizer = get_summarizer(force_cpu=True)
+
                 summary = summarizer(
-                    chunk,
+                    clean_chunk,
                     max_length=max_len,
                     min_length=min_len,
                     do_sample=False
                 )
                 summaries.append(summary[0]['summary_text'])
+
+            except RuntimeError as e:
+                error_str = str(e)
+                if 'CUDA' in error_str or 'device-side assert' in error_str:
+                    logger.warning(f"CUDA error on chunk {i}, switching to CPU: {e}")
+                    reset_cuda()
+                    cuda_failed = True
+
+                    # Retry on CPU
+                    try:
+                        summarizer = get_summarizer(force_cpu=True)
+                        clean_chunk = sanitize_text_for_model(chunk)
+                        if clean_chunk and len(clean_chunk.split()) >= 30:
+                            summary = summarizer(
+                                clean_chunk,
+                                max_length=max_len,
+                                min_length=min_len,
+                                do_sample=False
+                            )
+                            summaries.append(summary[0]['summary_text'])
+                            console(user_id, f"Chunk {i+1} processed on CPU (fallback)")
+                    except Exception as cpu_error:
+                        logger.warning(f"CPU fallback also failed for chunk {i}: {cpu_error}")
+                else:
+                    logger.warning(f"Error summarizing chunk {i}: {e}")
 
             except Exception as e:
                 logger.warning(f"Error summarizing chunk {i}: {e}")
@@ -254,13 +352,37 @@ def describe_text(description, set_progress, set_partial, console):
         if len(combined.split()) > max_length * 2:
             console(user_id, "Condensing final summary...")
             try:
+                clean_combined = sanitize_text_for_model(combined)
+                if cuda_failed:
+                    summarizer = get_summarizer(force_cpu=True)
+
                 final = summarizer(
-                    combined,
+                    clean_combined,
                     max_length=max_length,
                     min_length=min(50, max_length // 2),
                     do_sample=False
                 )
                 combined = final[0]['summary_text']
+            except RuntimeError as e:
+                if 'CUDA' in str(e) or 'device-side assert' in str(e):
+                    logger.warning(f"CUDA error in final summary, trying CPU: {e}")
+                    reset_cuda()
+                    try:
+                        summarizer = get_summarizer(force_cpu=True)
+                        clean_combined = sanitize_text_for_model(combined)
+                        final = summarizer(
+                            clean_combined,
+                            max_length=max_length,
+                            min_length=min(50, max_length // 2),
+                            do_sample=False
+                        )
+                        combined = final[0]['summary_text']
+                    except:
+                        words = combined.split()[:max_length]
+                        combined = ' '.join(words) + '...'
+                else:
+                    words = combined.split()[:max_length]
+                    combined = ' '.join(words) + '...'
             except:
                 # If fails, just truncate
                 words = combined.split()[:max_length]

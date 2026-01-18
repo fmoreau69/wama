@@ -57,7 +57,7 @@ def describe_audio(description, set_progress, set_partial, console):
         console(user_id, "Summarizing transcript...")
         set_partial(description, "Generating summary...")
 
-        from .text_describer import get_summarizer, chunk_text
+        from .text_describer import get_summarizer, chunk_text, sanitize_text_for_model, reset_cuda
 
         summarizer = get_summarizer()
 
@@ -66,6 +66,7 @@ def describe_audio(description, set_progress, set_partial, console):
         # Chunk and summarize
         chunks = chunk_text(transcript, max_tokens=1024)
         summaries = []
+        cuda_failed = False
 
         for i, chunk in enumerate(chunks):
             if len(chunk.split()) < 50:
@@ -75,15 +76,49 @@ def describe_audio(description, set_progress, set_partial, console):
             set_progress(description, progress)
 
             try:
+                # Sanitize chunk to prevent tokenization errors
+                clean_chunk = sanitize_text_for_model(chunk)
+                if not clean_chunk or len(clean_chunk.split()) < 30:
+                    continue
+
+                if cuda_failed:
+                    summarizer = get_summarizer(force_cpu=True)
+
                 summary = summarizer(
-                    chunk,
+                    clean_chunk,
                     max_length=150,
                     min_length=50,
                     do_sample=False
                 )
                 summaries.append(summary[0]['summary_text'])
+
+            except RuntimeError as e:
+                error_str = str(e)
+                if 'CUDA' in error_str or 'device-side assert' in error_str:
+                    logger.warning(f"CUDA error on chunk {i}, switching to CPU: {e}")
+                    reset_cuda()
+                    cuda_failed = True
+
+                    # Retry on CPU
+                    try:
+                        summarizer = get_summarizer(force_cpu=True)
+                        clean_chunk = sanitize_text_for_model(chunk)
+                        if clean_chunk and len(clean_chunk.split()) >= 30:
+                            summary = summarizer(
+                                clean_chunk,
+                                max_length=150,
+                                min_length=50,
+                                do_sample=False
+                            )
+                            summaries.append(summary[0]['summary_text'])
+                            console(user_id, f"Chunk {i+1} processed on CPU (fallback)")
+                    except Exception as cpu_error:
+                        logger.warning(f"CPU fallback also failed for chunk {i}: {cpu_error}")
+                else:
+                    logger.warning(f"Error summarizing chunk {i}: {e}")
+
             except Exception as e:
-                logger.warning(f"Error summarizing chunk: {e}")
+                logger.warning(f"Error summarizing chunk {i}: {e}")
                 continue
 
         if not summaries:
@@ -95,13 +130,37 @@ def describe_audio(description, set_progress, set_partial, console):
             # Final summarization if needed
             if len(combined.split()) > max_length * 2:
                 try:
+                    clean_combined = sanitize_text_for_model(combined)
+                    if cuda_failed:
+                        summarizer = get_summarizer(force_cpu=True)
+
                     final = summarizer(
-                        combined,
+                        clean_combined,
                         max_length=max_length,
                         min_length=min(50, max_length // 2),
                         do_sample=False
                     )
                     combined = final[0]['summary_text']
+                except RuntimeError as e:
+                    if 'CUDA' in str(e) or 'device-side assert' in str(e):
+                        logger.warning(f"CUDA error in final summary, trying CPU: {e}")
+                        reset_cuda()
+                        try:
+                            summarizer = get_summarizer(force_cpu=True)
+                            clean_combined = sanitize_text_for_model(combined)
+                            final = summarizer(
+                                clean_combined,
+                                max_length=max_length,
+                                min_length=min(50, max_length // 2),
+                                do_sample=False
+                            )
+                            combined = final[0]['summary_text']
+                        except:
+                            words = combined.split()[:max_length]
+                            combined = ' '.join(words) + '...'
+                    else:
+                        words = combined.split()[:max_length]
+                        combined = ' '.join(words) + '...'
                 except:
                     words = combined.split()[:max_length]
                     combined = ' '.join(words) + '...'

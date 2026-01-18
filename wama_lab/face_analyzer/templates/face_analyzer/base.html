@@ -23,69 +23,226 @@
         <p class="text-light">
             Face Analyzer est une application de recherche qui analyse les signaux physiologiques
             à partir de vidéo faciale. Elle extrait des indicateurs de santé et de comportement
-            de manière non-invasive.
+            de manière non-invasive en utilisant des algorithmes de vision par ordinateur et
+            d'apprentissage profond.
         </p>
     </div>
 
     <div class="mb-4">
-        <h5>Indicateurs mesurés</h5>
-        <div class="row">
-            <div class="col-md-6">
-                <div class="card bg-dark border-danger mb-3">
-                    <div class="card-body">
-                        <h6 class="card-title text-danger"><i class="fas fa-heartbeat"></i> Cardiovasculaire</h6>
-                        <ul class="card-text small mb-0">
-                            <li>Fréquence cardiaque (HR)</li>
-                            <li>Variabilité cardiaque (HRV)</li>
-                            <li>SpO2 (estimation)</li>
-                        </ul>
-                    </div>
+        <h5>Technologies et librairies utilisées</h5>
+
+        <!-- MediaPipe -->
+        <div class="card bg-dark border-primary mb-3">
+            <div class="card-header bg-primary bg-opacity-25 border-primary">
+                <h6 class="mb-0 text-primary"><i class="fas fa-face-smile me-2"></i>MediaPipe Face Mesh</h6>
+            </div>
+            <div class="card-body">
+                <p class="text-light small mb-2">
+                    Framework Google pour la détection et le tracking de 468 points faciaux en temps réel.
+                    Utilisé pour l'extraction des ROI (régions d'intérêt) et le suivi oculaire.
+                </p>
+                <div class="d-flex flex-wrap gap-2 mb-2">
+                    <span class="badge bg-secondary">Détection faciale</span>
+                    <span class="badge bg-secondary">Landmarks 3D</span>
+                    <span class="badge bg-secondary">Eye tracking</span>
+                    <span class="badge bg-secondary">Head pose</span>
+                </div>
+                <div class="small">
+                    <a href="https://github.com/google/mediapipe" target="_blank" class="text-info me-3">
+                        <i class="fab fa-github me-1"></i>GitHub
+                    </a>
+                    <a href="https://arxiv.org/abs/1906.06440" target="_blank" class="text-warning">
+                        <i class="fas fa-file-alt me-1"></i>Publication
+                    </a>
                 </div>
             </div>
-            <div class="col-md-6">
-                <div class="card bg-dark border-success mb-3">
-                    <div class="card-body">
-                        <h6 class="card-title text-success"><i class="fas fa-lungs"></i> Respiration</h6>
-                        <ul class="card-text small mb-0">
-                            <li>Fréquence respiratoire</li>
-                            <li>Amplitude respiratoire</li>
-                            <li>Pattern respiratoire</li>
-                        </ul>
-                    </div>
+        </div>
+
+        <!-- rPPG -->
+        <div class="card bg-dark border-danger mb-3">
+            <div class="card-header bg-danger bg-opacity-25 border-danger">
+                <h6 class="mb-0 text-danger"><i class="fas fa-heartbeat me-2"></i>rPPG (Remote Photoplethysmography)</h6>
+            </div>
+            <div class="card-body">
+                <p class="text-light small mb-2">
+                    Technique de mesure des signaux cardiovasculaires à partir des variations subtiles
+                    de couleur de la peau causées par le flux sanguin. Implémentation basée sur rPPG-Toolbox.
+                </p>
+                <div class="d-flex flex-wrap gap-2 mb-2">
+                    <span class="badge bg-danger">Fréquence cardiaque (HR)</span>
+                    <span class="badge bg-danger">Variabilité cardiaque (HRV)</span>
+                    <span class="badge bg-danger">SpO2 (estimation)</span>
+                    <span class="badge bg-success">Fréquence respiratoire</span>
+                </div>
+                <p class="text-secondary small mb-2">
+                    <strong>Méthodes supportées :</strong> GREEN, CHROM, POS, ICA, LGI, PBV
+                </p>
+                <div class="small">
+                    <a href="https://github.com/ubicomplab/rPPG-Toolbox" target="_blank" class="text-info me-3">
+                        <i class="fab fa-github me-1"></i>rPPG-Toolbox
+                    </a>
+                    <a href="https://arxiv.org/abs/2210.00716" target="_blank" class="text-warning">
+                        <i class="fas fa-file-alt me-1"></i>Publication (NeurIPS 2023)
+                    </a>
                 </div>
             </div>
-            <div class="col-md-6">
-                <div class="card bg-dark border-info mb-3">
-                    <div class="card-body">
-                        <h6 class="card-title text-info"><i class="fas fa-eye"></i> Oculométrie</h6>
-                        <ul class="card-text small mb-0">
-                            <li>Direction du regard</li>
-                            <li>Diamètre pupillaire</li>
-                            <li>Fréquence de clignements</li>
-                            <li>PERCLOS (fatigue)</li>
-                        </ul>
-                    </div>
+        </div>
+
+        <!-- FER -->
+        <div class="card bg-dark border-warning mb-3">
+            <div class="card-header bg-warning bg-opacity-25 border-warning">
+                <h6 class="mb-0 text-warning"><i class="fas fa-smile me-2"></i>FER (Facial Expression Recognition)</h6>
+            </div>
+            <div class="card-body">
+                <p class="text-light small mb-2">
+                    Librairie légère pour la reconnaissance d'émotions faciales basée sur un CNN
+                    entraîné sur FER2013. Mode rapide recommandé pour le temps réel.
+                </p>
+                <div class="d-flex flex-wrap gap-2 mb-2">
+                    <span class="badge bg-warning text-dark">Angry</span>
+                    <span class="badge bg-warning text-dark">Disgust</span>
+                    <span class="badge bg-warning text-dark">Fear</span>
+                    <span class="badge bg-warning text-dark">Happy</span>
+                    <span class="badge bg-warning text-dark">Sad</span>
+                    <span class="badge bg-warning text-dark">Surprise</span>
+                    <span class="badge bg-warning text-dark">Neutral</span>
+                </div>
+                <p class="text-secondary small mb-2">
+                    <strong>Avantages :</strong> Rapide, léger (~50ms/frame), bon pour le temps réel
+                </p>
+                <div class="small">
+                    <a href="https://github.com/justinshenk/fer" target="_blank" class="text-info me-3">
+                        <i class="fab fa-github me-1"></i>GitHub
+                    </a>
+                    <a href="https://arxiv.org/abs/1307.0414" target="_blank" class="text-warning">
+                        <i class="fas fa-file-alt me-1"></i>FER2013 Dataset
+                    </a>
                 </div>
             </div>
-            <div class="col-md-6">
-                <div class="card bg-dark border-warning mb-3">
-                    <div class="card-body">
-                        <h6 class="card-title text-warning"><i class="fas fa-smile"></i> Émotions</h6>
-                        <ul class="card-text small mb-0">
-                            <li>7 émotions de base (Ekman)</li>
-                            <li>Valence / Arousal</li>
-                            <li>Micro-expressions</li>
-                        </ul>
-                    </div>
+        </div>
+
+        <!-- DeepFace -->
+        <div class="card bg-dark border-info mb-3">
+            <div class="card-header bg-info bg-opacity-25 border-info">
+                <h6 class="mb-0 text-info"><i class="fas fa-brain me-2"></i>DeepFace</h6>
+            </div>
+            <div class="card-body">
+                <p class="text-light small mb-2">
+                    Framework complet d'analyse faciale supportant plusieurs backends (VGG-Face, Facenet,
+                    OpenFace, DeepFace, ArcFace). Fournit une analyse plus riche incluant âge et genre.
+                </p>
+                <div class="d-flex flex-wrap gap-2 mb-2">
+                    <span class="badge bg-info text-dark">7 émotions</span>
+                    <span class="badge bg-info text-dark">Estimation d'âge</span>
+                    <span class="badge bg-info text-dark">Détection de genre</span>
+                    <span class="badge bg-info text-dark">Reconnaissance faciale</span>
+                </div>
+                <p class="text-secondary small mb-2">
+                    <strong>Avantages :</strong> Plus précis, analyse complète (âge/genre)<br>
+                    <strong>Inconvénients :</strong> Plus lent (~200ms/frame), modèles plus lourds
+                </p>
+                <div class="small">
+                    <a href="https://github.com/serengil/deepface" target="_blank" class="text-info me-3">
+                        <i class="fab fa-github me-1"></i>GitHub
+                    </a>
+                    <a href="https://ieeexplore.ieee.org/document/9259802" target="_blank" class="text-warning">
+                        <i class="fas fa-file-alt me-1"></i>Publication (IEEE)
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Eye Tracking -->
+        <div class="card bg-dark border-success mb-3">
+            <div class="card-header bg-success bg-opacity-25 border-success">
+                <h6 class="mb-0 text-success"><i class="fas fa-eye me-2"></i>Oculométrie</h6>
+            </div>
+            <div class="card-body">
+                <p class="text-light small mb-2">
+                    Module d'analyse oculaire basé sur les landmarks MediaPipe. Calcul de la direction
+                    du regard, détection des clignements et estimation de la fatigue via PERCLOS.
+                </p>
+                <div class="d-flex flex-wrap gap-2 mb-2">
+                    <span class="badge bg-success">Direction du regard (H/V)</span>
+                    <span class="badge bg-success">Diamètre pupillaire</span>
+                    <span class="badge bg-success">Clignements</span>
+                    <span class="badge bg-success">PERCLOS</span>
+                </div>
+                <p class="text-secondary small mb-2">
+                    <strong>PERCLOS :</strong> Percentage of Eye Closure - indicateur de somnolence/fatigue
+                    basé sur le pourcentage de temps où les yeux sont fermés à plus de 80%.
+                </p>
+                <div class="small">
+                    <a href="https://arxiv.org/abs/2004.02660" target="_blank" class="text-warning">
+                        <i class="fas fa-file-alt me-1"></i>Eye Tracking Survey
+                    </a>
                 </div>
             </div>
         </div>
     </div>
 
+    <div class="mb-4">
+        <h5>Tableau récapitulatif</h5>
+        <div class="table-responsive">
+            <table class="table table-dark table-sm table-bordered">
+                <thead>
+                    <tr>
+                        <th>Module</th>
+                        <th>Mesures</th>
+                        <th>Backend</th>
+                        <th>Performance</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><span class="text-danger"><i class="fas fa-heartbeat"></i> rPPG</span></td>
+                        <td>HR, HRV (RMSSD, SDNN), SpO2</td>
+                        <td>rPPG-Toolbox (CHROM)</td>
+                        <td>~30ms/frame</td>
+                    </tr>
+                    <tr>
+                        <td><span class="text-success"><i class="fas fa-lungs"></i> Respiration</span></td>
+                        <td>Fréquence, Amplitude, Pattern</td>
+                        <td>Signal processing</td>
+                        <td>~5ms/frame</td>
+                    </tr>
+                    <tr>
+                        <td><span class="text-warning"><i class="fas fa-smile"></i> Émotions</span></td>
+                        <td>7 émotions de base</td>
+                        <td>FER / DeepFace</td>
+                        <td>~50ms / ~200ms</td>
+                    </tr>
+                    <tr>
+                        <td><span class="text-info"><i class="fas fa-user-tag"></i> Âge/Genre</span></td>
+                        <td>Âge estimé, Genre</td>
+                        <td>DeepFace uniquement</td>
+                        <td>inclus DeepFace</td>
+                    </tr>
+                    <tr>
+                        <td><span class="text-info"><i class="fas fa-eye"></i> Oculométrie</span></td>
+                        <td>Gaze, Pupilles, Blinks, PERCLOS</td>
+                        <td>MediaPipe</td>
+                        <td>~10ms/frame</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
     <div class="alert alert-warning">
-        <i class="fas fa-flask"></i>
+        <i class="fas fa-flask me-2"></i>
         <strong>Application expérimentale :</strong> Les mesures sont des estimations à but de recherche
-        et ne doivent pas être utilisées à des fins médicales.
+        et ne doivent pas être utilisées à des fins médicales ou diagnostiques.
+    </div>
+
+    <div class="alert alert-info">
+        <i class="fas fa-book me-2"></i>
+        <strong>Références additionnelles :</strong>
+        <ul class="mb-0 mt-2 small">
+            <li>Verkruysse et al. (2008) - <em>"Remote plethysmographic imaging using ambient light"</em></li>
+            <li>De Haan & Jeanne (2013) - <em>"Robust Pulse Rate from Chrominance-Based rPPG"</em></li>
+            <li>Ekman & Friesen (1978) - <em>"Facial Action Coding System (FACS)"</em></li>
+        </ul>
     </div>
 </div>
 {% endblock %}
@@ -98,40 +255,95 @@
         <h5>Modes d'analyse</h5>
         <div class="card bg-dark mb-2">
             <div class="card-body">
-                <h6 class="text-info"><i class="fas fa-video"></i> Temps réel (Webcam)</h6>
-                <p class="text-light mb-0">
+                <h6 class="text-info"><i class="fas fa-video me-2"></i>Temps réel (Webcam)</h6>
+                <p class="text-light small mb-0">
                     Analyse en direct via votre webcam. Idéal pour des tests rapides et du monitoring.
+                    Latence réduite, affichage instantané des métriques.
                 </p>
             </div>
         </div>
         <div class="card bg-dark mb-2">
             <div class="card-body">
-                <h6 class="text-info"><i class="fas fa-file-video"></i> Post-traitement (Vidéo)</h6>
-                <p class="text-light mb-0">
-                    Analyse complète d'un fichier vidéo enregistré. Génère un rapport détaillé et une vidéo annotée.
+                <h6 class="text-info"><i class="fas fa-file-video me-2"></i>Post-traitement (Vidéo)</h6>
+                <p class="text-light small mb-0">
+                    Analyse complète d'un fichier vidéo enregistré. Génère des graphiques temporels,
+                    un résumé statistique et une vidéo annotée avec les mesures superposées.
                 </p>
             </div>
         </div>
     </div>
 
     <div class="mb-4">
-        <h5>Recommandations</h5>
-        <ul class="text-light">
-            <li><strong>Éclairage :</strong> Préférez un éclairage naturel et uniforme</li>
-            <li><strong>Position :</strong> Gardez le visage bien visible, de face</li>
-            <li><strong>Stabilité :</strong> Minimisez les mouvements pour de meilleures mesures rPPG</li>
-            <li><strong>Résolution :</strong> Utilisez au minimum 480p, idéalement 720p ou plus</li>
-            <li><strong>FPS :</strong> 30 fps minimum, 60 fps recommandé pour les micro-expressions</li>
-        </ul>
+        <h5>Configuration des modules</h5>
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card bg-dark border-warning mb-2">
+                    <div class="card-body py-2">
+                        <h6 class="text-warning small"><i class="fas fa-smile me-2"></i>Backend émotions</h6>
+                        <ul class="small mb-0 text-light">
+                            <li><strong>FER (rapide) :</strong> ~50ms, 7 émotions</li>
+                            <li><strong>DeepFace (complet) :</strong> ~200ms, + âge/genre</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card bg-dark border-info mb-2">
+                    <div class="card-body py-2">
+                        <h6 class="text-info small"><i class="fas fa-user-tag me-2"></i>Âge & Genre</h6>
+                        <p class="small mb-0 text-light">
+                            Disponible uniquement avec DeepFace.
+                            Estimation basée sur l'apparence faciale.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <div class="mb-4">
-        <h5>Technologies utilisées</h5>
-        <ul class="text-light">
-            <li><strong>MediaPipe</strong> - Détection faciale et tracking</li>
-            <li><strong>rPPG</strong> - Photopléthysmographie à distance</li>
-            <li><strong>FER</strong> - Reconnaissance d'émotions faciales</li>
-        </ul>
+        <h5>Recommandations pour de bonnes mesures</h5>
+        <div class="row">
+            <div class="col-md-6">
+                <ul class="text-light small">
+                    <li><strong>Éclairage :</strong> Naturel et uniforme, éviter contre-jour</li>
+                    <li><strong>Position :</strong> Visage de face, bien cadré</li>
+                    <li><strong>Stabilité :</strong> Minimiser les mouvements (rPPG)</li>
+                </ul>
+            </div>
+            <div class="col-md-6">
+                <ul class="text-light small">
+                    <li><strong>Résolution :</strong> 720p minimum, 1080p recommandé</li>
+                    <li><strong>FPS :</strong> 30 fps min, 60 fps pour micro-expressions</li>
+                    <li><strong>Durée :</strong> 30s minimum pour HRV fiable</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="mb-4">
+        <h5>Interprétation des mesures</h5>
+        <div class="table-responsive">
+            <table class="table table-dark table-sm small">
+                <thead>
+                    <tr><th>Mesure</th><th>Plage normale</th><th>Signification</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>HR</td><td>60-100 BPM</td><td>Fréquence cardiaque au repos</td></tr>
+                    <tr><td>HRV (RMSSD)</td><td>20-100 ms</td><td>Plus élevé = meilleure récupération</td></tr>
+                    <tr><td>SpO2</td><td>95-100%</td><td>Saturation en oxygène (estimation)</td></tr>
+                    <tr><td>Respiration</td><td>12-20/min</td><td>Fréquence respiratoire au repos</td></tr>
+                    <tr><td>PERCLOS</td><td>&lt;15%</td><td>&gt;15% = signes de fatigue</td></tr>
+                    <tr><td>Clignements</td><td>15-20/min</td><td>Fréquence normale au repos</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="alert alert-secondary small">
+        <i class="fas fa-keyboard me-2"></i>
+        <strong>Raccourcis vidéo :</strong>
+        Espace = Play/Pause | Flèches = ±10s | &lt; &gt; = Frame par frame
     </div>
 </div>
 {% endblock %}

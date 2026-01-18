@@ -11,6 +11,7 @@ more-itertools
 numpy
 opencv_python
 pillow
+psutil
 python_ldap
 PySide6
 pytube

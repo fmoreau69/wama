@@ -275,7 +275,7 @@
                     <div>
                         <h3>Pour quoi faire ?</h3>
                         <ul>
-                            <li>Traiter images, vidéos, audio</li>
+                            <li>Traiter images, vidéos, audio, textes</li>
                             <li>Automatiser les tâches répétitives</li>
                             <li>Exploiter l'IA sans expertise</li>
                             <li>Intégrer dans nos workflows</li>
@@ -287,23 +287,19 @@
 
         <!-- Slide 4: Applications principales -->
         <div class="slide">
-            <h2>🛠️ Les 8 applications principales</h2>
+            <h2>🛠️ Les 6 applications principales</h2>
             <div class="grid">
                 <div class="card">
-                    <h4><span class="emoji">🎭</span>Anonymizer</h4>
-                    <p>Flouter visages, textes, corps automatiquement</p>
+                    <h4><span class="emoji">🎭</span>Anonymizer / <span class="emoji">🔍</span>Detector</h4>
+                    <p>Flouter visages, textes, corps automatiquement</p><p>Détecter objets dans les vidéos</p>
                 </div>
                 <div class="card">
-                    <h4><span class="emoji">🔍</span>Detector</h4>
-                    <p>Détecter objets dans les vidéos</p>
-                </div>
-                <div class="card">
-                    <h4><span class="emoji">🎨</span>Imager</h4>
-                    <p>Générer images depuis du texte</p>
+                    <h4><span class="emoji">🎨</span>Imager / <span class="emoji">🎬</span>Video Gen</h4>
+                    <p>Générer images depuis du texte, des images, ...</p><p>Créer vidéos depuis descriptions, images, ...</p>
                 </div>
                 <div class="card">
                     <h4><span class="emoji">📝</span>Describer</h4>
-                    <p>Décrire images en texte</p>
+                    <p>Décrire n'importe quel média en texte</p>
                 </div>
                 <div class="card">
                     <h4><span class="emoji">🎤</span>Transcriber</h4>
@@ -316,10 +312,6 @@
                 <div class="card">
                     <h4><span class="emoji">✨</span>Enhancer</h4>
                     <p>Améliorer qualité vidéo/audio</p>
-                </div>
-                <div class="card">
-                    <h4><span class="emoji">🎬</span>Video Gen</h4>
-                    <p>Créer vidéos depuis descriptions</p>
                 </div>
             </div>
         </div>
@@ -358,7 +350,7 @@
                     <div>
                         <h3>Objectif</h3>
                         <p style="font-size: 1.2em; line-height: 1.8;">
-                            Séparer les applications <span class="highlight">génériques</span> des applications 
+                            Séparer les applications <span class="highlight">génériques</span> des applications
                             <span class="highlight">spécifiques à la recherche</span>
                         </p>
                         <ul style="margin-top: 30px;">
@@ -381,7 +373,80 @@
             </div>
         </div>
 
-        <!-- Slide 7: Avantages -->
+        <!-- Slide 7: Face Analyzer -->
+        <div class="slide">
+            <h2>👤 Face Analyzer : analyse faciale non-invasive</h2>
+            <div class="content">
+                <p style="font-size: 1.2em; margin-bottom: 25px;">
+                    Extraction de signaux physiologiques à partir de vidéo faciale en <span class="highlight">temps réel</span> ou <span class="highlight">post-traitement</span>
+                </p>
+                <div class="grid" style="grid-template-columns: repeat(3, 1fr); gap: 20px;">
+                    <div class="card" style="padding: 15px;">
+                        <h4 style="font-size: 1.1em; margin-bottom: 10px;">❤️ rPPG</h4>
+                        <p style="font-size: 0.9em; line-height: 1.4;">
+                            Fréquence cardiaque, HRV, SpO2<br>
+                            <span style="opacity: 0.7;">rPPG-Toolbox • CHROM/POS</span>
+                        </p>
+                        <div style="font-size: 0.75em; margin-top: 10px; opacity: 0.8;">
+                            📄 <a href="https://arxiv.org/abs/2210.00716" target="_blank" style="color: #ffd700;">NeurIPS 2023</a>
+                        </div>
+                    </div>
+                    <div class="card" style="padding: 15px;">
+                        <h4 style="font-size: 1.1em; margin-bottom: 10px;">😊 Émotions</h4>
+                        <p style="font-size: 0.9em; line-height: 1.4;">
+                            7 émotions de base (Ekman)<br>
+                            <span style="opacity: 0.7;">FER (rapide) / DeepFace (complet)</span>
+                        </p>
+                        <div style="font-size: 0.75em; margin-top: 10px; opacity: 0.8;">
+                            📄 <a href="https://ieeexplore.ieee.org/document/9259802" target="_blank" style="color: #ffd700;">IEEE 2020</a>
+                        </div>
+                    </div>
+                    <div class="card" style="padding: 15px;">
+                        <h4 style="font-size: 1.1em; margin-bottom: 10px;">👁️ Oculométrie</h4>
+                        <p style="font-size: 0.9em; line-height: 1.4;">
+                            Regard, pupilles, clignements, PERCLOS<br>
+                            <span style="opacity: 0.7;">MediaPipe Face Mesh</span>
+                        </p>
+                        <div style="font-size: 0.75em; margin-top: 10px; opacity: 0.8;">
+                            📄 <a href="https://arxiv.org/abs/1906.06440" target="_blank" style="color: #ffd700;">CVPR 2019</a>
+                        </div>
+                    </div>
+                    <div class="card" style="padding: 15px;">
+                        <h4 style="font-size: 1.1em; margin-bottom: 10px;">🫁 Respiration</h4>
+                        <p style="font-size: 0.9em; line-height: 1.4;">
+                            Fréquence, amplitude, pattern<br>
+                            <span style="opacity: 0.7;">Signal processing</span>
+                        </p>
+                    </div>
+                    <div class="card" style="padding: 15px;">
+                        <h4 style="font-size: 1.1em; margin-bottom: 10px;">👤 Âge & Genre</h4>
+                        <p style="font-size: 0.9em; line-height: 1.4;">
+                            Estimation démographique<br>
+                            <span style="opacity: 0.7;">DeepFace uniquement</span>
+                        </p>
+                        <div style="font-size: 0.75em; margin-top: 10px; opacity: 0.8;">
+                            🔗 <a href="https://github.com/serengil/deepface" target="_blank" style="color: #ffd700;">GitHub</a>
+                        </div>
+                    </div>
+                    <div class="card" style="padding: 15px;">
+                        <h4 style="font-size: 1.1em; margin-bottom: 10px;">📊 Visualisation</h4>
+                        <p style="font-size: 0.9em; line-height: 1.4;">
+                            Graphiques temps réel, overlay vidéo<br>
+                            <span style="opacity: 0.7;">Export JSON/CSV</span>
+                        </p>
+                    </div>
+                </div>
+                <p style="text-align: center; margin-top: 25px; font-size: 1em; opacity: 0.9;">
+                    🔗 Repos :
+                    <a href="https://github.com/ubicomplab/rPPG-Toolbox" target="_blank" style="color: #ffd700;">rPPG-Toolbox</a> •
+                    <a href="https://github.com/google/mediapipe" target="_blank" style="color: #ffd700;">MediaPipe</a> •
+                    <a href="https://github.com/justinshenk/fer" target="_blank" style="color: #ffd700;">FER</a> •
+                    <a href="https://github.com/serengil/deepface" target="_blank" style="color: #ffd700;">DeepFace</a>
+                </p>
+            </div>
+        </div>
+
+        <!-- Slide 8: Avantages -->
         <div class="slide">
             <h2>✅ Pourquoi WAMA change la donne</h2>
             <div class="grid">
@@ -412,7 +477,7 @@
             </div>
         </div>
 
-        <!-- Slide 8: Feuille de route -->
+        <!-- Slide 9: Feuille de route -->
         <div class="slide">
             <h2>🗺️ Feuille de route</h2>
             <div class="content">
@@ -438,7 +503,7 @@
             </div>
         </div>
 
-        <!-- Slide 9: Conclusion -->
+        <!-- Slide 10: Conclusion -->
         <div class="slide">
             <h2>🎯 En résumé</h2>
             <div class="content" style="text-align: center;">
@@ -460,7 +525,7 @@
     </div>
 
     <div class="slide-number">
-        <span id="current-slide">1</span> / <span id="total-slides">9</span>
+        <span id="current-slide">1</span> / <span id="total-slides">10</span>
     </div>
 
     <div class="navigation">
