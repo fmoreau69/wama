@@ -5,20 +5,73 @@ from django.db import models
 from django.conf import settings
 import uuid
 import os
+from pathlib import Path
+
+
+def get_unique_filename(directory: str, filename: str) -> str:
+    """
+    Generate a unique filename, keeping the original name if possible.
+    Only adds UUID suffix if a file with the same name already exists.
+
+    Args:
+        directory: Full path to the target directory
+        filename: Original filename
+
+    Returns:
+        Unique filename (original or with UUID suffix)
+    """
+    # Ensure directory exists
+    Path(directory).mkdir(parents=True, exist_ok=True)
+
+    # Check if file already exists
+    target_path = os.path.join(directory, filename)
+    if not os.path.exists(target_path):
+        return filename
+
+    # File exists, add UUID suffix
+    name, ext = os.path.splitext(filename)
+    unique_filename = f"{name}_{uuid.uuid4().hex[:8]}{ext}"
+    return unique_filename
 
 
 def analysis_upload_path(instance, filename):
-    """Generate upload path for analysis input files."""
-    ext = filename.split('.')[-1]
-    new_filename = f"{uuid.uuid4().hex}.{ext}"
-    return os.path.join('face_analyzer', 'input', new_filename)
+    """
+    Generate upload path for analysis input files.
+    Structure: face_analyzer/<user_id>/input/<original_filename>
+
+    Keeps the original filename unless it already exists,
+    in which case a short UUID suffix is added.
+    """
+    user_id = instance.user.id if instance.user else 0
+
+    # Build the directory path
+    relative_dir = os.path.join('face_analyzer', str(user_id), 'input')
+    full_dir = os.path.join(settings.MEDIA_ROOT, relative_dir)
+
+    # Get unique filename
+    unique_filename = get_unique_filename(full_dir, filename)
+
+    return os.path.join(relative_dir, unique_filename)
 
 
 def result_upload_path(instance, filename):
-    """Generate upload path for analysis output files."""
-    ext = filename.split('.')[-1]
-    new_filename = f"{uuid.uuid4().hex}.{ext}"
-    return os.path.join('face_analyzer', 'output', new_filename)
+    """
+    Generate upload path for analysis output files.
+    Structure: face_analyzer/<user_id>/output/<original_filename>
+
+    Keeps the original filename unless it already exists,
+    in which case a short UUID suffix is added.
+    """
+    user_id = instance.user.id if instance.user else 0
+
+    # Build the directory path
+    relative_dir = os.path.join('face_analyzer', str(user_id), 'output')
+    full_dir = os.path.join(settings.MEDIA_ROOT, relative_dir)
+
+    # Get unique filename
+    unique_filename = get_unique_filename(full_dir, filename)
+
+    return os.path.join(relative_dir, unique_filename)
 
 
 class AnalysisSession(models.Model):

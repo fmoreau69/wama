@@ -21,9 +21,10 @@ TTS_HOME.mkdir(parents=True, exist_ok=True)
 os.environ.setdefault("TTS_HOME", str(TTS_HOME))
 
 # Set Bark models directory
+# NOTE: We no longer set XDG_CACHE_HOME globally here because it affects ALL HuggingFace downloads
+# Bark will use XDG_CACHE_HOME which is set temporarily in _ensure_bark_loaded()
 BARK_HOME = settings.BASE_DIR / "AI-models" / "synthesizer" / "bark"
 BARK_HOME.mkdir(parents=True, exist_ok=True)
-os.environ.setdefault("XDG_CACHE_HOME", str(BARK_HOME))
 os.environ.setdefault("SUNO_USE_SMALL_MODELS", "False")  # Use full models for best quality
 
 # Fix for PyTorch 2.6+ weights_only=True default behavior with Bark
@@ -131,6 +132,13 @@ def _ensure_bark_loaded():
         try:
             logger.info("Lazy importing Bark library...")
             # Note: torch.load is already patched at module level for PyTorch 2.6+ compatibility
+
+            # Set XDG_CACHE_HOME temporarily for Bark model downloads
+            # This MUST be done before importing bark to ensure models go to the right place
+            # We save/restore the original value to avoid affecting other HuggingFace downloads
+            original_xdg_cache = os.environ.get('XDG_CACHE_HOME')
+            os.environ['XDG_CACHE_HOME'] = str(BARK_HOME)
+            logger.info(f"Bark: Setting XDG_CACHE_HOME={BARK_HOME} for model downloads")
 
             from bark import SAMPLE_RATE, generate_audio, preload_models
 

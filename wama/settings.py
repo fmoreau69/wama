@@ -13,9 +13,24 @@ DEBUG = True
 
 # Répertoires de base
 BASE_DIR = Path(__file__).resolve().parent.parent
-MODELS_ROOT = BASE_DIR / "anonymizer" / "models"
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+
+# Centralized AI Models directory
+# All AI models are now stored in AI-models/ at project root, organized by application
+AI_MODELS_DIR = BASE_DIR / "AI-models"
+AI_MODELS_DIR.mkdir(parents=True, exist_ok=True)
+
+# Legacy MODELS_ROOT (deprecated - use AI_MODELS_DIR / "anonymizer" / "models--ultralytics--yolo")
+MODELS_ROOT = AI_MODELS_DIR / "anonymizer" / "models--ultralytics--yolo"
+
+# HuggingFace cache configuration - MUST be set before any HF imports
+# This provides a default fallback location for HuggingFace models
+# Individual apps can override with their own HF_HUB_CACHE settings
+HF_DEFAULT_CACHE = AI_MODELS_DIR / "huggingface"
+HF_DEFAULT_CACHE.mkdir(parents=True, exist_ok=True)
+# Set HF_HOME as fallback - apps with specific needs will override
+os.environ.setdefault('HF_HOME', str(HF_DEFAULT_CACHE))
 
 # Anonymizer media paths
 MEDIA_INPUT_URL = '/media/anonymizer/input'

@@ -9,6 +9,7 @@ from . import views
 
 urlpatterns = [
     path('', views.home, name='home'),
+    path('presentation/', views.presentation, name='presentation'),
     path('api/ai-chat/', views.ai_chat, name='ai_chat'),
     path('accounts/', include(('wama.accounts.urls', 'accounts'), namespace='accounts')),
     path('common/', include(('wama.common.urls', 'common'), namespace='common')),

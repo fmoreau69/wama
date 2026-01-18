@@ -1,6 +1,17 @@
 """
 YOLO Model Manager - Automatic download and management of YOLO models
 Based on https://github.com/ultralytics/assets/releases
+
+Model directory structure:
+AI-models/anonymizer/models--ultralytics--yolo/
+├── classify/           # Classification models
+├── detect/             # Detection models
+│   ├── faces/          # Face-specific detection
+│   ├── faces&plates/   # Face + Plate detection
+│   └── *.pt            # Generic detection models
+├── obb/                # Oriented Bounding Box
+├── pose/               # Pose estimation
+└── segment/            # Segmentation models
 """
 
 import os
@@ -12,8 +23,8 @@ from wama.settings import BASE_DIR
 
 logger = logging.getLogger(__name__)
 
-# Dossier racine des modèles
-MODELS_ROOT = os.path.join(BASE_DIR, "anonymizer", "models")
+# Dossier racine des modèles YOLO (nouvelle organisation centralisée)
+MODELS_ROOT = os.path.join(BASE_DIR, "AI-models", "anonymizer", "models--ultralytics--yolo")
 
 # Définition des modèles YOLO officiels disponibles
 # Format: {model_type: {model_name: (version, url_pattern)}}
@@ -299,46 +310,99 @@ def infer_model_type(model_name: str) -> Optional[str]:
 def get_installed_models() -> Dict[str, List[Dict]]:
     """
     Get list of all installed models with their info.
+    Handles nested directory structure: mode/specialty/model.pt
+    Supports both PyTorch (.pt) and ONNX (.onnx) formats.
+
+    Models are sorted by file size (ascending) to respect the n, s, m, l, x order
+    (nano < small < medium < large < extra-large).
 
     Returns:
-        Dictionary mapping model type to list of model info dicts
+        Dictionary mapping model type (or type/specialty) to list of model info dicts
     """
     installed = {}
 
+    # Supported model extensions
+    MODEL_EXTENSIONS = ['*.pt', '*.onnx']
+
     ensure_model_directories()
 
+    def get_model_format(filename: str) -> str:
+        """Return model format based on extension."""
+        if filename.endswith('.onnx'):
+            return 'onnx'
+        return 'pytorch'
+
+    def scan_directory_for_models(directory: Path) -> List[Dict]:
+        """Scan a directory for model files (.pt and .onnx)."""
+        models = []
+        for ext in MODEL_EXTENSIONS:
+            for model_file in directory.glob(ext):
+                if model_file.is_file():
+                    models.append(model_file)
+        return models
+
+    # Scan all model types defined in OFFICIAL_MODELS
     for model_type in OFFICIAL_MODELS.keys():
         type_dir = Path(MODELS_ROOT) / model_type
         if not type_dir.exists():
             continue
 
+        # Get models directly in the type directory
         models = []
-        for model_file in type_dir.glob('*.pt'):
+        for model_file in scan_directory_for_models(type_dir):
             model_info = {
                 'name': model_file.name,
                 'type': model_type,
+                'specialty': None,
                 'path': str(model_file),
                 'size': model_file.stat().st_size,
+                'format': get_model_format(model_file.name),
                 'official': model_file.name in OFFICIAL_MODELS.get(model_type, {}),
             }
             models.append(model_info)
 
         if models:
-            installed[model_type] = sorted(models, key=lambda x: x['name'])
+            # Sort by file size (ascending) - smaller models first (n, s, m, l, x)
+            installed[model_type] = sorted(models, key=lambda x: x['size'])
+
+        # Check for specialty subdirectories (e.g., detect/faces/, detect/faces&plates/)
+        for subdir in type_dir.iterdir():
+            if subdir.is_dir():
+                specialty = subdir.name
+                specialty_key = f"{model_type}/{specialty}"
+                specialty_models = []
+
+                for model_file in scan_directory_for_models(subdir):
+                    model_info = {
+                        'name': model_file.name,
+                        'type': model_type,
+                        'specialty': specialty,
+                        'path': str(model_file),
+                        'size': model_file.stat().st_size,
+                        'format': get_model_format(model_file.name),
+                        'official': False,  # Specialty models are custom
+                    }
+                    specialty_models.append(model_info)
+
+                if specialty_models:
+                    # Sort by file size (ascending) - smaller models first
+                    installed[specialty_key] = sorted(specialty_models, key=lambda x: x['size'])
 
     # Also check root directory for legacy models
     root_models = []
-    for model_file in Path(MODELS_ROOT).glob('*.pt'):
-        if model_file.is_file():
-            root_models.append({
-                'name': model_file.name,
-                'type': 'root',
-                'path': str(model_file),
-                'size': model_file.stat().st_size,
-                'official': False,
-            })
+    for model_file in scan_directory_for_models(Path(MODELS_ROOT)):
+        root_models.append({
+            'name': model_file.name,
+            'type': 'root',
+            'specialty': None,
+            'path': str(model_file),
+            'size': model_file.stat().st_size,
+            'format': get_model_format(model_file.name),
+            'official': False,
+        })
 
     if root_models:
-        installed['root'] = sorted(root_models, key=lambda x: x['name'])
+        # Sort by file size (ascending)
+        installed['root'] = sorted(root_models, key=lambda x: x['size'])
 
     return installed

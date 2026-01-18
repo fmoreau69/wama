@@ -130,11 +130,21 @@ def process_video_task(self, session_id: str):
         pipeline = FaceAnalysisPipeline(config)
         _console(user_id, "Pipeline initialized")
 
-        # Generate output path
-        output_filename = f"{session_id}_output.mp4"
-        output_dir = os.path.join(settings.MEDIA_ROOT, 'face_analyzer', 'output')
+        # Generate output path (per-user directory, based on input filename)
+        user_id = session.user.id if session.user else 0
+        input_basename = os.path.basename(input_path)
+        input_name, input_ext = os.path.splitext(input_basename)
+        output_filename = f"{input_name}_output.mp4"
+
+        output_dir = os.path.join(settings.MEDIA_ROOT, 'face_analyzer', str(user_id), 'output')
         os.makedirs(output_dir, exist_ok=True)
+
+        # Check if output file exists, add UUID if needed
         output_path = os.path.join(output_dir, output_filename)
+        if os.path.exists(output_path):
+            import uuid
+            output_filename = f"{input_name}_output_{uuid.uuid4().hex[:8]}.mp4"
+            output_path = os.path.join(output_dir, output_filename)
 
         last_progress = 0
 
@@ -159,6 +169,17 @@ def process_video_task(self, session_id: str):
 
         results = pipeline.process_video(input_path, output_path, progress_callback)
         _console(user_id, f"Video analysis complete: {len(results)} frames processed")
+
+        # Convert video to web-compatible format (H.264)
+        set_session_progress(session_id, 91, "Converting video to web format...")
+        _console(user_id, "Converting video to web-compatible format...")
+        try:
+            from wama.common.utils.video_utils import convert_video_to_web_compatible
+            convert_video_to_web_compatible(output_path)
+            _console(user_id, "Video conversion complete")
+        except Exception as conv_error:
+            _console(user_id, f"Warning: Video conversion failed: {conv_error}")
+            logger.warning(f"Video conversion failed: {conv_error}")
 
         # Save results to database
         set_session_progress(session_id, 92, "Saving results to database...")
@@ -192,7 +213,7 @@ def process_video_task(self, session_id: str):
         session.results_summary = convert_numpy_types(_calculate_summary(results))
 
         # Finalize session
-        session.output_file.name = f'face_analyzer/output/{output_filename}'
+        session.output_file.name = f'face_analyzer/{user_id}/output/{output_filename}'
         session.status = AnalysisSession.Status.COMPLETED
         session.completed_at = timezone.now()
         session.progress = 100

@@ -677,7 +677,8 @@ body > footer {
 #dropZoneEnhancer.drag-over,
 #dropZoneAnonymizer.drag-over,
 #dropZone.drag-over,
-#dropZoneTranscriber.drag-over {
+#dropZoneTranscriber.drag-over,
+#dropZoneFaceAnalyzer.drag-over {
     transform: scale(1.01);
     transition: all 0.2s ease;
 }
@@ -795,4 +796,24 @@ body > footer {
     #filePreviewModal .preview-container video {
         max-width: calc(100% - 80px);
     }
+}
+
+/* === WAMA LAB CATEGORY === */
+/* Subtle visual distinction for experimental WAMA Lab apps */
+.jstree-default-dark #wama_lab > .jstree-anchor {
+    color: #7dd3fc;
+    font-style: italic;
+    font-size: 0.85rem;
+    opacity: 0.85;
+}
+
+.jstree-default-dark #wama_lab > .jstree-anchor:hover {
+    opacity: 1;
+}
+
+/* Indent WAMA Lab children slightly */
+.jstree-default-dark #wama_lab > .jstree-children {
+    border-left: 1px dashed rgba(125, 211, 252, 0.3);
+    margin-left: 8px;
+    padding-left: 8px;
 }

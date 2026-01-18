@@ -496,7 +496,13 @@
 
         // Get current app from URL pathname (e.g., /anonymizer/ -> anonymizer)
         const pathParts = window.location.pathname.split('/').filter(p => p);
-        const currentApp = pathParts[0];
+        let currentApp = pathParts[0];
+
+        // Handle WAMA Lab apps with nested URL structure (e.g., /lab/face-analyzer/)
+        if (currentApp === 'lab' && pathParts.length > 1) {
+            // Convert URL format (face-analyzer) to folder ID format (face_analyzer)
+            currentApp = pathParts[1].replace(/-/g, '_');
+        }
 
         // Map of app names to their tree node IDs
         const appFolderMap = {
@@ -506,17 +512,29 @@
             'imager': ['imager', 'imager_prompts', 'imager_references', 'imager_output_image', 'imager_output_video'],
             'synthesizer': ['synthesizer', 'synthesizer_input', 'synthesizer_output'],
             'transcriber': ['transcriber', 'transcriber_input', 'transcriber_output'],
+            // WAMA Lab apps (nested under wama_lab)
+            'face_analyzer': ['wama_lab', 'face_analyzer', 'face_analyzer_input', 'face_analyzer_output'],
         };
 
         // Close all app folders first (except current app)
         Object.keys(appFolderMap).forEach(appName => {
             if (appName !== currentApp) {
+                // Close main app node
                 const mainNode = tree.get_node(appName);
                 if (mainNode && tree.is_open(mainNode)) {
                     tree.close_node(mainNode);
                 }
             }
         });
+
+        // Also close wama_lab if current app is not a WAMA Lab app
+        const wamaLabApps = ['face_analyzer'];
+        if (!wamaLabApps.includes(currentApp)) {
+            const wamaLabNode = tree.get_node('wama_lab');
+            if (wamaLabNode && tree.is_open(wamaLabNode)) {
+                tree.close_node(wamaLabNode);
+            }
+        }
 
         const nodesToOpen = appFolderMap[currentApp];
 
@@ -1059,6 +1077,7 @@
             if (id === 'dropZoneEnhancer') return 'enhancer';
             if (id === 'dropZoneTranscriber' || id.includes('transcriber')) return 'transcriber';
             if (id === 'dropZoneAnonymizer' || id.includes('anonymizer')) return 'anonymizer';
+            if (id === 'dropZoneFaceAnalyzer' || id.includes('face_analyzer') || id.includes('face-analyzer')) return 'face_analyzer';
             // Try to get from data attribute
             return zone.dataset.wamaApp || null;
         }
@@ -1111,8 +1130,14 @@
                         .then(result => {
                             if (result.imported) {
                                 showToast(`Fichier importé vers ${app}`, 'success');
-                                // Reload the page to show the new file in the app's queue
-                                window.location.reload();
+                                // Handle app-specific redirects
+                                if (app === 'face_analyzer' && result.id) {
+                                    // Redirect to Face Analyzer video page with session
+                                    window.location.href = `/lab/face-analyzer/video/?session=${result.id}`;
+                                } else {
+                                    // Reload the page to show the new file in the app's queue
+                                    window.location.reload();
+                                }
                             }
                         })
                         .catch(error => {

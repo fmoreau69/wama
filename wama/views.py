@@ -23,6 +23,11 @@ def home(request):
     return render(request, 'home.html', context)
 
 
+def presentation(request):
+    """WAMA presentation slideshow."""
+    return render(request, 'includes/wama_presentation.html')
+
+
 @require_http_methods(["POST"])
 @csrf_protect
 @staff_member_required

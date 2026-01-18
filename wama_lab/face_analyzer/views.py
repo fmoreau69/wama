@@ -253,11 +253,21 @@ def _process_video_sync(session: AnalysisSession):
         input_path = session.input_file.path
         _console(user_id, f"Input video: {os.path.basename(input_path)}")
 
-        # Generate output path
-        output_filename = f"{session.id}_output.mp4"
-        output_dir = os.path.join(settings.MEDIA_ROOT, 'face_analyzer', 'output')
+        # Generate output path (per-user directory, based on input filename)
+        user_folder_id = session.user.id if session.user else 0
+        input_basename = os.path.basename(input_path)
+        input_name, input_ext = os.path.splitext(input_basename)
+        output_filename = f"{input_name}_output.mp4"
+
+        output_dir = os.path.join(settings.MEDIA_ROOT, 'face_analyzer', str(user_folder_id), 'output')
         os.makedirs(output_dir, exist_ok=True)
+
+        # Check if output file exists, add UUID if needed
         output_path = os.path.join(output_dir, output_filename)
+        if os.path.exists(output_path):
+            import uuid
+            output_filename = f"{input_name}_output_{uuid.uuid4().hex[:8]}.mp4"
+            output_path = os.path.join(output_dir, output_filename)
 
         last_progress = 0
 
@@ -294,7 +304,7 @@ def _process_video_sync(session: AnalysisSession):
         # Calculate summary statistics
         _console(user_id, "Calculating summary statistics...")
         session.results_summary = convert_numpy_types(_calculate_summary(results))
-        session.output_file.name = f'face_analyzer/output/{output_filename}'
+        session.output_file.name = f'face_analyzer/{user_folder_id}/output/{output_filename}'
         session.status = AnalysisSession.Status.COMPLETED
         session.completed_at = timezone.now()
         session.progress = 100
@@ -496,14 +506,25 @@ def get_frame_data(request, session_id):
         # Transform emotion_data to emotions
         if frame.emotion_data:
             emotions = frame.emotion_data.copy()
+
+            # Flatten nested emotions structure (from EmotionResult.to_dict())
+            # The structure is: { 'emotions': {...}, 'dominant_emotion': ..., ... }
+            # We need to flatten 'emotions' dict to top level for chart access
+            if 'emotions' in emotions and isinstance(emotions['emotions'], dict):
+                nested_emotions = emotions.pop('emotions')
+                for key, value in nested_emotions.items():
+                    emotions[key.lower()] = value
+
             # Ensure dominant is available
             if 'dominant' not in emotions and 'dominant_emotion' in emotions:
                 emotions['dominant'] = emotions['dominant_emotion']
-            # Normalize emotion keys to lowercase
+
+            # Normalize remaining emotion keys to lowercase
             normalized_emotions = {}
             for key, value in emotions.items():
-                if key not in ['dominant', 'dominant_emotion', 'age', 'gender']:
-                    normalized_emotions[key.lower()] = value
+                if key not in ['dominant', 'dominant_emotion', 'age', 'gender', 'confidence', 'valence', 'arousal', 'timestamp', 'gender_confidence']:
+                    if isinstance(value, (int, float)):
+                        normalized_emotions[key.lower()] = value
             emotions.update(normalized_emotions)
             frame_data['emotions'] = emotions
         else:
@@ -515,9 +536,9 @@ def get_frame_data(request, session_id):
             # Ensure perclos is available
             if 'perclos' not in eye_tracking:
                 eye_tracking['perclos'] = eye_tracking.get('perclos_value', 0)
-            # Ensure blink_detected is available
+            # Ensure blink_detected is available (BlinkResult.to_dict() uses 'is_blinking')
             if 'blink_detected' not in eye_tracking:
-                eye_tracking['blink_detected'] = eye_tracking.get('blink', {}).get('detected', False)
+                eye_tracking['blink_detected'] = eye_tracking.get('blink', {}).get('is_blinking', False)
             frame_data['eye_tracking'] = eye_tracking
         else:
             frame_data['eye_tracking'] = None
@@ -543,10 +564,22 @@ def get_frame_data(request, session_id):
 
         transformed_frames.append(frame_data)
 
+    # Count frames with emotions
+    frames_with_emotions = sum(1 for f in transformed_frames if f.get('emotions'))
+
     # Only log to console once, use debug for repeated calls
-    if frames_with_rppg > 0 or frames_with_respiration > 0:
-        _console(user_id, f"Data transformation: {frames_with_rppg} frames with rPPG, {frames_with_hrv} with HRV, {frames_with_respiration} with respiration")
-    logger.debug(f"Data transformation: {frames_with_rppg} frames with rPPG, {frames_with_hrv} with HRV, {frames_with_respiration} with respiration")
+    if frames_with_rppg > 0 or frames_with_respiration > 0 or frames_with_emotions > 0:
+        _console(user_id, f"Data: {frames_with_rppg} rPPG, {frames_with_hrv} HRV, {frames_with_emotions} emotions, {frames_with_respiration} respiration")
+
+    # Debug: log sample frame data structure
+    if transformed_frames:
+        sample = transformed_frames[len(transformed_frames) // 2]  # Middle frame
+        if sample.get('emotions'):
+            logger.info(f"Sample emotions data: {list(sample['emotions'].keys())}")
+        if sample.get('rppg') and sample['rppg'].get('hrv'):
+            logger.info(f"Sample HRV data: {sample['rppg']['hrv']}")
+
+    logger.debug(f"Data transformation: {frames_with_rppg} frames with rPPG, {frames_with_hrv} with HRV, {frames_with_emotions} with emotions, {frames_with_respiration} with respiration")
 
     # Transform summary from results_summary
     summary = {}

@@ -6,11 +6,11 @@ from django.utils.translation import gettext_lazy as _
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
-from wama.settings import BASE_DIR
+from wama.settings import BASE_DIR, AI_MODELS_DIR
 import os
 
-# Model path
-MODEL_PATH = os.path.join(BASE_DIR, "anonymizer", "models", "yolov11s.pt")
+# Model path - now points to centralized AI-models directory
+MODEL_PATH = os.path.join(AI_MODELS_DIR, "anonymizer", "models--ultralytics--yolo", "detect", "yolo11s.pt")
 
 # Optional: utility for splitting templates
 @register.filter(name='split')
@@ -157,8 +157,8 @@ class UserSettings(models.Model):
 
     model_to_use = models.CharField(
         max_length=255,
-        default='yolov8n.pt',
-        help_text='YOLO model filename located in anonymizer/models'
+        default='detect/yolov8n.pt',
+        help_text='YOLO model path (e.g., detect/yolo11n.pt or detect/faces/yolov9s-face-lindevs.pt)'
     )
 
     precision_level = models.IntegerField(

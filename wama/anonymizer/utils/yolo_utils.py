@@ -12,29 +12,43 @@ from .model_manager import (
 # Types de modèles disponibles
 MODEL_TYPES = ['detect', 'segment', 'classify', 'pose', 'obb']
 
+# Supported model file extensions
+MODEL_EXTENSIONS = ['.pt', '.onnx']
+
 logger = logging.getLogger(__name__)
 
 
 def get_model_path(filename: str, auto_download: bool = True) -> str:
     """
     Retourne le chemin absolu d'un modèle YOLO.
-    Recherche d'abord dans la racine, puis dans les sous-dossiers par type.
-    Si auto_download est True et que le modèle est officiel, le télécharge automatiquement.
+    Supporte les formats PyTorch (.pt) et ONNX (.onnx).
+
+    Recherche dans l'ordre:
+    1. Chemin direct si path contient des séparateurs
+    2. Racine MODELS_ROOT
+    3. Sous-dossiers par type (detect/, segment/, etc.)
+    4. Sous-dossiers spécialisés (detect/faces/, detect/faces&plates/, etc.)
 
     Args:
-        filename: Nom du fichier modèle (ex: 'yolov8n.pt' ou 'detect/yolov8n.pt')
-        auto_download: Si True, télécharge le modèle s'il n'existe pas
+        filename: Nom du fichier modèle. Formats acceptés:
+            - 'model.pt' ou 'model.onnx' (recherche dans tous les dossiers)
+            - 'detect/model.pt' (recherche dans le type detect)
+            - 'detect/faces/model.pt' (chemin exact avec spécialité)
 
     Returns:
         Chemin absolu vers le fichier modèle
     """
+    def is_model_file(path: str) -> bool:
+        """Check if path is a valid model file."""
+        return os.path.isfile(path) and any(path.endswith(ext) for ext in MODEL_EXTENSIONS)
+
     # Si le chemin contient déjà un séparateur, utiliser directement
     if '/' in filename or '\\' in filename:
-        path = os.path.join(MODELS_ROOT, filename)
-        if os.path.isfile(path):
+        path = os.path.join(MODELS_ROOT, filename.replace('/', os.sep))
+        if is_model_file(path):
             return path
-        # Try auto-download if enabled
-        if auto_download:
+        # Try auto-download if enabled (only for official models, .pt only)
+        if auto_download and filename.endswith('.pt'):
             downloaded_path = auto_download_model(filename)
             if downloaded_path:
                 return downloaded_path
@@ -42,17 +56,29 @@ def get_model_path(filename: str, auto_download: bool = True) -> str:
 
     # Rechercher d'abord dans la racine (compatibilité ascendante)
     root_path = os.path.join(MODELS_ROOT, filename)
-    if os.path.isfile(root_path):
+    if is_model_file(root_path):
         return root_path
 
-    # Rechercher dans les sous-dossiers
+    # Rechercher dans les sous-dossiers par type
     for model_type in MODEL_TYPES:
-        type_path = os.path.join(MODELS_ROOT, model_type, filename)
-        if os.path.isfile(type_path):
+        type_dir = os.path.join(MODELS_ROOT, model_type)
+
+        # Vérifier directement dans le dossier type
+        type_path = os.path.join(type_dir, filename)
+        if is_model_file(type_path):
             return type_path
 
-    # Si non trouvé et auto_download activé, essayer de télécharger
-    if auto_download:
+        # Rechercher dans les sous-dossiers spécialisés (faces/, faces&plates/, etc.)
+        if os.path.isdir(type_dir):
+            for subdir in os.listdir(type_dir):
+                subdir_path = os.path.join(type_dir, subdir)
+                if os.path.isdir(subdir_path):
+                    specialty_path = os.path.join(subdir_path, filename)
+                    if is_model_file(specialty_path):
+                        return specialty_path
+
+    # Si non trouvé et auto_download activé, essayer de télécharger (PT only)
+    if auto_download and filename.endswith('.pt'):
         logger.info(f"Model {filename} not found locally, attempting auto-download...")
         downloaded_path = auto_download_model(filename)
         if downloaded_path:
@@ -89,7 +115,7 @@ def get_all_class_choices():
 
 def list_available_models() -> List[str]:
     """
-    List model files available in anonymizer/models directory.
+    List model files available in AI-models/anonymizer/models--ultralytics--yolo directory.
     Returns filenames from root directory only (for backward compatibility).
     """
     if not os.path.isdir(MODELS_ROOT):
@@ -122,13 +148,19 @@ def list_models_by_type() -> Dict[str, List[str]]:
 
 def get_model_choices_grouped() -> List[Tuple[str, List[Tuple[str, str]]]]:
     """
-    Get model choices grouped by type for use in Django forms.
+    Get model choices grouped by type and specialty for use in Django forms.
+    Supports nested structure: mode/specialty/model.pt
+    Supports both PyTorch (.pt) and ONNX (.onnx) formats.
 
     Returns:
         List of tuples (group_name, [(value, label), ...])
-        Example: [('Detection', [('detect/yolov8n.pt', 'yolov8n.pt'), ...])]
+        Example: [
+            ('Detection', [('detect/yolov8n.pt', 'yolov8n.pt (5.4 MB)'), ...]),
+            ('Detection - Faces', [('detect/faces/model.pt', 'model.pt (12.3 MB)'), ...]),
+        ]
     """
-    models_by_type = list_models_by_type()
+    # Get installed models from model_manager (now includes specialty and format info)
+    installed = get_installed_models()
     grouped_choices = []
 
     type_labels = {
@@ -140,22 +172,63 @@ def get_model_choices_grouped() -> List[Tuple[str, List[Tuple[str, str]]]]:
         'obb': 'Oriented Bounding Box'
     }
 
-    for model_type, models in sorted(models_by_type.items()):
-        if not models:
+    specialty_labels = {
+        'faces': 'Faces',
+        'faces&plates': 'Faces & Plates',
+        'plates': 'Plates',
+    }
+
+    # Sort keys to ensure consistent ordering (base types first, then specialties)
+    sorted_keys = sorted(installed.keys(), key=lambda k: (
+        0 if k == 'root' else 1,  # root first
+        k.count('/'),  # then by depth (base types before specialties)
+        k  # then alphabetically
+    ))
+
+    for key in sorted_keys:
+        models_list = installed[key]
+        if not models_list:
             continue
 
-        group_label = type_labels.get(model_type, model_type.capitalize())
-        group_choices = []
+        # Determine group label
+        if '/' in key and key.count('/') == 1:
+            # It's a specialty (e.g., 'detect/faces')
+            model_type, specialty = key.split('/')
+            base_label = type_labels.get(model_type, model_type.capitalize())
+            specialty_label = specialty_labels.get(specialty, specialty.replace('&', ' & ').title())
+            group_label = f"{base_label} - {specialty_label}"
+        else:
+            # It's a base type
+            group_label = type_labels.get(key, key.capitalize())
 
-        for model_name in models:
-            # For root models, use filename only (backward compatibility)
-            if model_type == 'root':
+        group_choices = []
+        for model_info in models_list:
+            model_name = model_info['name']
+            model_type = model_info['type']
+            specialty = model_info.get('specialty')
+            model_format = model_info.get('format', 'pytorch')
+
+            # Build the value path
+            if key == 'root':
                 value = model_name
+            elif specialty:
+                value = f"{model_type}/{specialty}/{model_name}"
             else:
-                # For categorized models, use type/filename format
                 value = f"{model_type}/{model_name}"
 
-            label = model_name
+            # Build label with size and format info
+            size_mb = model_info.get('size', 0) / (1024 * 1024)
+            parts = [model_name]
+
+            # Add format badge for ONNX models
+            if model_format == 'onnx':
+                parts.append('[ONNX]')
+
+            # Add size info
+            if size_mb > 0:
+                parts.append(f"({size_mb:.1f} MB)")
+
+            label = ' '.join(parts)
             group_choices.append((value, label))
 
         grouped_choices.append((group_label, group_choices))

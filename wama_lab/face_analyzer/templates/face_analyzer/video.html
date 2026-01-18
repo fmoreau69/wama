@@ -18,7 +18,8 @@
                     <!-- Upload Zone (shown when no video) -->
                     <div id="uploadZone" class="p-5 text-center">
                         <input type="file" id="videoInput" accept="video/*" class="d-none">
-                        <div class="upload-area py-5 border border-2 border-dashed border-secondary rounded"
+                        <div class="upload-area drop-zone py-5 border border-2 border-dashed border-secondary rounded"
+                             id="dropZoneFaceAnalyzer"
                              onclick="document.getElementById('videoInput').click()">
                             <i class="fas fa-cloud-upload-alt fa-4x text-secondary mb-3"></i>
                             <p class="text-light mb-2">Glissez-déposez une vidéo ici</p>
@@ -63,6 +64,9 @@
                         </button>
                         <button class="btn btn-outline-secondary btn-sm" id="skipForward" title="Avancer 10s">
                             <i class="fas fa-forward"></i>
+                        </button>
+                        <button class="btn btn-outline-info btn-sm ms-3" id="fullscreenBtn" title="Plein écran">
+                            <i class="fas fa-expand" id="fullscreenIcon"></i>
                         </button>
                     </div>
 
@@ -251,19 +255,13 @@
                     </h6>
                 </div>
                 <div class="card-body p-2">
-                    <div class="row">
-                        <div class="col-6">
-                            <small class="text-secondary">PERCLOS (fatigue)</small>
-                            <div style="height: 80px; position: relative;">
-                                <canvas id="perclosChart"></canvas>
-                            </div>
-                        </div>
-                        <div class="col-6">
-                            <small class="text-secondary">Clignements</small>
-                            <div style="height: 80px; position: relative;">
-                                <canvas id="blinkChart"></canvas>
-                            </div>
-                        </div>
+                    <small class="text-secondary">PERCLOS (fatigue) &amp; Clignements</small>
+                    <div style="height: 150px; position: relative;">
+                        <canvas id="perclosChart"></canvas>
+                    </div>
+                    <small class="text-secondary mt-2 d-block">Fréquence des clignements (par seconde)</small>
+                    <div style="height: 100px; position: relative;">
+                        <canvas id="blinkChart"></canvas>
                     </div>
                 </div>
             </div>
@@ -301,6 +299,7 @@ let analysisData = null;
 let isAnalyzing = false;
 let charts = {};
 let progressPollTimeout = null; // Track polling timeout to allow cleanup
+let currentVideoFilename = null; // Track current video filename
 
 // DOM Elements
 const videoInput = document.getElementById('videoInput');
@@ -403,6 +402,29 @@ function setupEventListeners() {
     document.getElementById('stepBackward').addEventListener('click', () => videoPlayer.currentTime -= 1/30);
     document.getElementById('stepForward').addEventListener('click', () => videoPlayer.currentTime += 1/30);
 
+    // Fullscreen button
+    document.getElementById('fullscreenBtn').addEventListener('click', toggleFullscreen);
+
+    // Handle fullscreen change events
+    document.addEventListener('fullscreenchange', updateFullscreenIcon);
+    document.addEventListener('webkitfullscreenchange', updateFullscreenIcon);
+
+    // Double-click video for fullscreen
+    videoPlayer.addEventListener('dblclick', toggleFullscreen);
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', (e) => {
+        // Only handle if not in an input field
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+        if (e.key === 'f' || e.key === 'F') {
+            toggleFullscreen();
+        } else if (e.key === ' ') {
+            e.preventDefault();
+            togglePlayPause();
+        }
+    });
+
     // Analysis controls
     analyzeBtn.addEventListener('click', startAnalysis);
     cancelBtn.addEventListener('click', cancelAnalysis);
@@ -446,10 +468,19 @@ function handleFile(file) {
     controlsCard.style.display = 'block';
     analysisCard.style.display = 'block';
 
-    document.getElementById('videoInfo').textContent = `${file.name} (${formatFileSize(file.size)})`;
+    // Store filename and update header
+    currentVideoFilename = file.name;
+    updateVideoInfo(file.name, formatFileSize(file.size));
 
     // Store file for upload
     videoInput.uploadFile = file;
+}
+
+function updateVideoInfo(filename, filesize = null, isOutput = false) {
+    const videoInfo = document.getElementById('videoInfo');
+    const badge = isOutput ? '<span class="badge bg-success ms-2">Résultat</span>' : '';
+    const size = filesize ? ` (${filesize})` : '';
+    videoInfo.innerHTML = `<span class="text-light">${filename}</span>${size}${badge}`;
 }
 
 function onVideoLoaded() {
@@ -615,18 +646,18 @@ async function loadAnalysisResults() {
         console.log('Already loading results, skipping...');
         return;
     }
-    
+
     isLoadingResults = true;
-    
+
     try {
         const response = await fetch(`/lab/face-analyzer/api/sessions/${sessionId}/frames/`);
-        
+
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
-        
+
         analysisData = await response.json();
-        
+
         console.log('Analysis data loaded:', {
             framesCount: analysisData.frames?.length || 0,
             hasSummary: !!analysisData.summary,
@@ -639,6 +670,23 @@ async function loadAnalysisResults() {
             resetAnalysisUI();
             isLoadingResults = false;
             return;
+        }
+
+        // Fetch session status to get output video URL
+        const statusResponse = await fetch(`/lab/face-analyzer/api/sessions/${sessionId}/status/`);
+        if (statusResponse.ok) {
+            const statusData = await statusResponse.json();
+            if (statusData.output_url) {
+                // Switch to output video
+                const currentTime = videoPlayer.currentTime;
+                videoPlayer.src = statusData.output_url;
+                videoPlayer.currentTime = currentTime;
+
+                // Extract filename from URL and update header
+                const outputFilename = statusData.output_url.split('/').pop();
+                updateVideoInfo(outputFilename, null, true);
+                console.log('Switched to output video:', outputFilename);
+            }
         }
 
         // Show results UI
@@ -670,27 +718,35 @@ async function loadExistingSession(existingSessionId) {
         console.log('Already loading session or results, skipping...');
         return;
     }
-    
+
     isLoadingExistingSession = true;
     sessionId = existingSessionId;
-    
+
     try {
         const statusResponse = await fetch(`/lab/face-analyzer/api/sessions/${sessionId}/status/`);
-        
+
         if (!statusResponse.ok) {
             throw new Error(`HTTP error! status: ${statusResponse.status}`);
         }
-        
+
         const statusData = await statusResponse.json();
+        console.log('Session status:', statusData.status);
 
         if (statusData.status === 'completed') {
-            // Load video file
-            if (statusData.input_file) {
-                videoPlayer.src = statusData.input_file;
+            // Prefer output video if available, otherwise use input
+            const videoUrl = statusData.output_url || statusData.input_file;
+            const isOutput = !!statusData.output_url;
+
+            if (videoUrl) {
+                videoPlayer.src = videoUrl;
                 uploadZone.classList.add('d-none');
                 playerZone.classList.remove('d-none');
                 controlsCard.style.display = 'block';
                 analysisCard.style.display = 'block';
+
+                // Extract filename from URL and update header
+                const filename = videoUrl.split('/').pop();
+                updateVideoInfo(filename, null, isOutput);
             }
 
             // Only load results once
@@ -699,6 +755,18 @@ async function loadExistingSession(existingSessionId) {
             } else {
                 console.log('Analysis data already loaded, skipping reload');
             }
+        } else if (statusData.status === 'pending' && statusData.input_file) {
+            // Session pending - load input video for analysis
+            videoPlayer.src = statusData.input_file;
+            uploadZone.classList.add('d-none');
+            playerZone.classList.remove('d-none');
+            controlsCard.style.display = 'block';
+            analysisCard.style.display = 'block';
+
+            // Extract filename from URL and update header
+            const filename = statusData.input_file.split('/').pop();
+            updateVideoInfo(filename, null, false);
+            console.log('Loaded pending session with input file:', filename);
         }
     } catch (error) {
         console.error('Error loading session:', error);
@@ -750,6 +818,57 @@ function resetAnalysisUI() {
     document.getElementById('analysisProgress').style.display = 'none';
 }
 
+// Current video time for chart synchronization
+let currentVideoTime = 0;
+
+// Custom Chart.js plugin for vertical time line
+const verticalLinePlugin = {
+    id: 'verticalLine',
+    afterDraw: (chart) => {
+        if (!analysisData || !analysisData.frames || analysisData.frames.length === 0) return;
+
+        const ctx = chart.ctx;
+        const xScale = chart.scales.x;
+        const yScale = chart.scales.y;
+
+        // Find the data index closest to current video time
+        let dataIndex = 0;
+        for (let i = 0; i < analysisData.frames.length; i++) {
+            if (analysisData.frames[i].timestamp >= currentVideoTime) {
+                dataIndex = i;
+                break;
+            }
+            dataIndex = i;
+        }
+
+        // Get pixel position for this data point
+        const x = xScale.getPixelForValue(dataIndex);
+
+        if (x >= xScale.left && x <= xScale.right) {
+            ctx.save();
+            ctx.beginPath();
+            ctx.moveTo(x, yScale.top);
+            ctx.lineTo(x, yScale.bottom);
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+            ctx.stroke();
+
+            // Draw small triangle at top
+            ctx.beginPath();
+            ctx.moveTo(x - 5, yScale.top);
+            ctx.lineTo(x + 5, yScale.top);
+            ctx.lineTo(x, yScale.top + 8);
+            ctx.closePath();
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+            ctx.fill();
+            ctx.restore();
+        }
+    }
+};
+
+// Register the plugin globally
+Chart.register(verticalLinePlugin);
+
 function initializeCharts() {
     // Destroy existing charts if they exist
     Object.keys(charts).forEach(key => {
@@ -759,21 +878,42 @@ function initializeCharts() {
         }
     });
 
-        const chartOptions = {
+    const chartOptions = {
         responsive: true,
         maintainAspectRatio: true,
         animation: false,
-        plugins: { 
+        plugins: {
             legend: { display: false },
             tooltip: {
                 enabled: true,
                 mode: 'index',
-                intersect: false
+                intersect: false,
+                callbacks: {
+                    title: (items) => {
+                        if (items.length > 0 && analysisData && analysisData.frames) {
+                            const frame = analysisData.frames[items[0].dataIndex];
+                            return frame ? formatTime(frame.timestamp) : '';
+                        }
+                        return '';
+                    }
+                }
             }
         },
         scales: {
-            x: { 
-                display: false
+            x: {
+                display: true,
+                grid: { color: 'rgba(255,255,255,0.05)' },
+                ticks: {
+                    color: '#888',
+                    maxTicksLimit: 10,
+                    callback: function(value, index) {
+                        // Show time label every few ticks
+                        if (analysisData && analysisData.frames && analysisData.frames[value]) {
+                            return formatTime(analysisData.frames[value].timestamp);
+                        }
+                        return '';
+                    }
+                }
             },
             y: {
                 grid: { color: 'rgba(255,255,255,0.1)' },
@@ -835,13 +975,12 @@ function initializeCharts() {
                     spanGaps: true
                 }] 
             },
-            options: { 
-                ...chartOptions, 
-                scales: { 
-                    x: { display: true, title: { display: true, text: 'Temps', color: '#aaa' } },
-                    ...chartOptions.scales, 
-                    y: { ...chartOptions.scales.y, min: 0, max: 100, title: { display: true, text: 'ms', color: '#aaa' } } 
-                } 
+            options: {
+                ...chartOptions,
+                scales: {
+                    x: { display: true, title: { display: true, text: 'Temps', color: '#aaa' }, ...chartOptions.scales.x },
+                    y: { ...chartOptions.scales.y, beginAtZero: true, suggestedMax: 150, title: { display: true, text: 'RMSSD (ms)', color: '#aaa' } }
+                }
             }
         });
     }
@@ -865,32 +1004,59 @@ function initializeCharts() {
         });
     }
 
-    // PERCLOS
+    // PERCLOS with blink markers
     const perclosCanvas = document.getElementById('perclosChart');
     if (perclosCanvas) {
         charts.perclos = new Chart(perclosCanvas, {
             type: 'line',
-            data: { 
-                labels: [], 
-                datasets: [{ 
-                    data: [], 
-                    borderColor: '#0dcaf0', 
-                    tension: 0.4, 
-                    pointRadius: 1,
-                    pointHoverRadius: 3,
-                    fill: true, 
-                    backgroundColor: 'rgba(13,202,240,0.2)' 
-                }] 
+            data: {
+                labels: [],
+                datasets: [
+                    {
+                        label: 'PERCLOS',
+                        data: [],
+                        borderColor: '#0dcaf0',
+                        tension: 0.4,
+                        pointRadius: 1,
+                        pointHoverRadius: 3,
+                        fill: true,
+                        backgroundColor: 'rgba(13,202,240,0.2)',
+                        order: 1
+                    },
+                    {
+                        label: 'Clignements',
+                        data: [],
+                        type: 'scatter',
+                        borderColor: '#ffc107',
+                        backgroundColor: '#ffc107',
+                        pointRadius: 6,
+                        pointStyle: 'triangle',
+                        showLine: false,
+                        order: 0
+                    }
+                ]
             },
-            options: { 
-                ...chartOptions, 
-                scales: { 
-                    x: { display: false },
-                    ...chartOptions.scales, 
-                    y: { ...chartOptions.scales.y, min: 0, max: 100 } 
+            options: {
+                ...chartOptions,
+                scales: {
+                    ...chartOptions.scales,
+                    x: {
+                        ...chartOptions.scales.x,
+                        display: true,
+                        title: { display: true, text: 'Temps', color: '#aaa' }
+                    },
+                    y: { ...chartOptions.scales.y, min: 0, max: 100, title: { display: true, text: '%', color: '#aaa' } }
                 },
-                maintainAspectRatio: true,
-                aspectRatio: 2
+                plugins: {
+                    ...chartOptions.plugins,
+                    legend: {
+                        display: true,
+                        position: 'top',
+                        align: 'end',
+                        labels: { color: '#aaa', boxWidth: 12, padding: 8, font: { size: 10 } }
+                    }
+                },
+                maintainAspectRatio: false
             }
         });
     }
@@ -900,15 +1066,18 @@ function initializeCharts() {
     if (blinkCanvas) {
         charts.blink = new Chart(blinkCanvas, {
             type: 'bar',
-            data: { labels: [], datasets: [{ data: [], backgroundColor: '#0dcaf0' }] },
+            data: { labels: [], datasets: [{ label: 'Clignements/s', data: [], backgroundColor: '#0dcaf0' }] },
             options: {
                 ...chartOptions,
                 scales: {
-                    x: { display: false },
-                    ...chartOptions.scales
+                    x: {
+                        ...chartOptions.scales.x,
+                        display: true,
+                        title: { display: true, text: 'Temps', color: '#aaa' }
+                    },
+                    y: { ...chartOptions.scales.y, beginAtZero: true, title: { display: true, text: 'Nb', color: '#aaa' } }
                 },
-                maintainAspectRatio: true,
-                aspectRatio: 2
+                maintainAspectRatio: false
             }
         });
     }
@@ -989,7 +1158,17 @@ function populateCharts() {
             }
             return null;
         });
-        
+
+        // Debug: show sample HRV data
+        const framesWithHrv = frames.filter(f => f.rppg && f.rppg.hrv && f.rppg.hrv.rmssd);
+        if (framesWithHrv.length > 0) {
+            console.log('Sample HRV data:', framesWithHrv[0].rppg.hrv);
+            const hrvValues = hrvData.filter(v => v !== null);
+            if (hrvValues.length > 0) {
+                console.log(`HRV range: min=${Math.min(...hrvValues).toFixed(1)}, max=${Math.max(...hrvValues).toFixed(1)}, avg=${(hrvValues.reduce((a,b) => a+b, 0) / hrvValues.length).toFixed(1)}`);
+            }
+        }
+
         charts.hrv.data.labels = labels;
         charts.hrv.data.datasets[0].data = hrvData;
         charts.hrv.update('none');
@@ -1000,20 +1179,35 @@ function populateCharts() {
     if (charts.emotions) {
         const emotionKeys = ['neutral', 'happy', 'sad', 'angry', 'surprise'];
         charts.emotions.data.labels = labels;
+
+        // Debug: log sample emotion data
+        const framesWithEmotions = frames.filter(f => f.emotions && typeof f.emotions === 'object');
+        console.log(`Emotions chart: ${framesWithEmotions.length} frames with emotion data out of ${frames.length}`);
+        if (framesWithEmotions.length > 0) {
+            console.log('Sample emotion data:', framesWithEmotions[0].emotions);
+        }
+
         emotionKeys.forEach((key, i) => {
             if (charts.emotions.data.datasets[i]) {
-                charts.emotions.data.datasets[i].data = frames.map(f => {
+                const emotionData = frames.map(f => {
                     if (f.emotions && typeof f.emotions === 'object') {
                         return f.emotions[key] || f.emotions[key.toLowerCase()] || 0;
                     }
                     return 0;
                 });
+                charts.emotions.data.datasets[i].data = emotionData;
+
+                // Debug: count non-zero values for this emotion
+                const nonZero = emotionData.filter(v => v > 0).length;
+                if (nonZero > 0) {
+                    console.log(`  ${key}: ${nonZero} non-zero values`);
+                }
             }
         });
         charts.emotions.update('none');
     }
 
-    // PERCLOS
+    // PERCLOS with blink markers
     if (charts.perclos) {
         const perclosData = frames.map(f => {
             if (f.eye_tracking && typeof f.eye_tracking === 'object') {
@@ -1022,9 +1216,23 @@ function populateCharts() {
             }
             return 0;
         });
+
+        // Extract blink events as scatter points (show at Y=80 when blink detected)
+        const blinkData = frames.map((f, i) => {
+            if (f.eye_tracking && (f.eye_tracking.blink_detected || f.eye_tracking.blink?.is_blinking)) {
+                return 80; // Fixed Y position for blink markers
+            }
+            return null;
+        });
+
         charts.perclos.data.labels = labels;
         charts.perclos.data.datasets[0].data = perclosData;
+        charts.perclos.data.datasets[1].data = blinkData;
         charts.perclos.update('none');
+
+        // Debug: count blinks
+        const blinkCount = blinkData.filter(v => v !== null).length;
+        console.log(`PERCLOS chart: ${blinkCount} blinks detected out of ${frames.length} frames`);
     }
 
     // Blink (aggregate per second)
@@ -1185,7 +1393,21 @@ function updateOverlayAtTime(time) {
 }
 
 function updateChartIndicator(time) {
-    // TODO: Draw vertical line on charts at current time position
+    // Update global time variable for the vertical line plugin
+    currentVideoTime = time;
+
+    // Request chart updates (throttled to avoid performance issues)
+    if (!updateChartIndicator.pending) {
+        updateChartIndicator.pending = true;
+        requestAnimationFrame(() => {
+            Object.values(charts).forEach(chart => {
+                if (chart) {
+                    chart.update('none'); // 'none' mode for faster update without animation
+                }
+            });
+            updateChartIndicator.pending = false;
+        });
+    }
 }
 
 function exportResults() {
@@ -1198,6 +1420,36 @@ function exportResults() {
     a.download = `face_analysis_${sessionId || 'export'}.json`;
     a.click();
     URL.revokeObjectURL(url);
+}
+
+// Fullscreen functions
+function toggleFullscreen() {
+    const videoContainer = document.getElementById('videoContainer');
+
+    if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+        // Enter fullscreen
+        if (videoContainer.requestFullscreen) {
+            videoContainer.requestFullscreen();
+        } else if (videoContainer.webkitRequestFullscreen) {
+            videoContainer.webkitRequestFullscreen();
+        }
+    } else {
+        // Exit fullscreen
+        if (document.exitFullscreen) {
+            document.exitFullscreen();
+        } else if (document.webkitExitFullscreen) {
+            document.webkitExitFullscreen();
+        }
+    }
+}
+
+function updateFullscreenIcon() {
+    const icon = document.getElementById('fullscreenIcon');
+    if (document.fullscreenElement || document.webkitFullscreenElement) {
+        icon.className = 'fas fa-compress';
+    } else {
+        icon.className = 'fas fa-expand';
+    }
 }
 
 // Utility functions
@@ -1235,6 +1487,28 @@ function formatFileSize(bytes) {
 
 .progress {
     border-radius: 0.25rem;
+}
+
+/* Fullscreen styles */
+#videoContainer:fullscreen,
+#videoContainer:-webkit-full-screen {
+    background: #000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#videoContainer:fullscreen #videoPlayer,
+#videoContainer:-webkit-full-screen #videoPlayer {
+    max-height: 100vh;
+    max-width: 100vw;
+    width: auto;
+    height: auto;
+}
+
+#videoContainer:fullscreen #uploadZone,
+#videoContainer:-webkit-full-screen #uploadZone {
+    display: none !important;
 }
 </style>
 {% endblock %}

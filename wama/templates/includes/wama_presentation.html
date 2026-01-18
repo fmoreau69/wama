@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Présentation WAMA</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1a1a1a;
+            overflow: hidden;
+        }
+
+        .slide-container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
+
+        .slide {
+            width: 100%;
+            height: 100%;
+            display: none;
+            padding: 60px 80px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .slide.active {
+            display: flex;
+        }
+
+        h1 {
+            font-size: 3.5em;
+            margin-bottom: 30px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        h2 {
+            font-size: 2.5em;
+            margin-bottom: 40px;
+            border-bottom: 3px solid rgba(255,255,255,0.3);
+            padding-bottom: 20px;
+        }
+
+        h3 {
+            font-size: 1.8em;
+            margin: 30px 0 20px 0;
+            color: #ffd700;
+        }
+
+        .subtitle {
+            font-size: 1.5em;
+            opacity: 0.9;
+            margin-top: 20px;
+        }
+
+        .content {
+            font-size: 1.3em;
+            line-height: 1.8;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 30px;
+            margin-top: 30px;
+        }
+
+        .card {
+            background: rgba(255,255,255,0.1);
+            padding: 25px;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .card h4 {
+            font-size: 1.5em;
+            margin-bottom: 15px;
+            color: #ffd700;
+        }
+
+        .card p {
+            font-size: 1.1em;
+            line-height: 1.6;
+        }
+
+        ul {
+            list-style: none;
+            margin-top: 20px;
+        }
+
+        li {
+            margin: 15px 0;
+            padding-left: 35px;
+            position: relative;
+            font-size: 1.2em;
+        }
+
+        li:before {
+            content: "→";
+            position: absolute;
+            left: 0;
+            color: #ffd700;
+            font-weight: bold;
+            font-size: 1.3em;
+        }
+
+        .navigation {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            display: flex;
+            gap: 15px;
+            z-index: 1000;
+        }
+
+        button {
+            background: rgba(255,255,255,0.2);
+            border: 2px solid white;
+            color: white;
+            padding: 15px 30px;
+            font-size: 1.1em;
+            border-radius: 50px;
+            cursor: pointer;
+            backdrop-filter: blur(10px);
+            transition: all 0.3s;
+        }
+
+        button:hover {
+            background: rgba(255,255,255,0.4);
+            transform: scale(1.05);
+        }
+
+        .slide-number {
+            position: fixed;
+            bottom: 30px;
+            left: 30px;
+            font-size: 1.2em;
+            color: white;
+            background: rgba(0,0,0,0.3);
+            padding: 10px 20px;
+            border-radius: 25px;
+        }
+
+        .highlight {
+            background: rgba(255,215,0,0.3);
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+
+        .timeline {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 40px;
+            position: relative;
+        }
+
+        .timeline:before {
+            content: "";
+            position: absolute;
+            top: 50px;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: rgba(255,255,255,0.3);
+        }
+
+        .timeline-item {
+            text-align: center;
+            flex: 1;
+            position: relative;
+        }
+
+        .timeline-year {
+            background: rgba(255,215,0,0.9);
+            color: #333;
+            padding: 10px 20px;
+            border-radius: 25px;
+            font-weight: bold;
+            display: inline-block;
+            margin-bottom: 20px;
+        }
+
+        .timeline-content {
+            font-size: 1em;
+            margin-top: 30px;
+        }
+
+        .two-columns {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+            margin-top: 30px;
+        }
+
+        .emoji {
+            font-size: 2em;
+            margin-right: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="slide-container">
+        <!-- Slide 1: Titre -->
+        <div class="slide active">
+            <h1>🎬 WAMA</h1>
+            <div class="subtitle">Web App for Media Automation</div>
+            <div class="subtitle" style="font-size: 1.2em; margin-top: 40px;">Plateforme IA pour l'automatisation multimédia au Lescot</div>
+        </div>
+
+        <!-- Slide 2: Le contexte -->
+        <div class="slide">
+            <h2>📊 Notre besoin au Lescot</h2>
+            <div class="content">
+                <p style="font-size: 1.4em; margin-bottom: 30px;">Dans nos expérimentations, nous utilisons massivement la vidéo et les médias</p>
+                
+                <div class="timeline">
+                    <div class="timeline-item">
+                        <div class="timeline-year">2015-2018</div>
+                        <div class="timeline-content">
+                            <strong>Prospect</strong><br>
+                            1440h de vidéo<br>
+                            Pointage manuel des trajectoires
+                        </div>
+                    </div>
+                    <div class="timeline-item">
+                        <div class="timeline-year">2016-2019</div>
+                        <div class="timeline-content">
+                            <strong>Autoconduct</strong><br>
+                            Monitoring conducteur<br>
+                            IA encore peu mature
+                        </div>
+                    </div>
+                    <div class="timeline-item">
+                        <div class="timeline-year">2020</div>
+                        <div class="timeline-content">
+                            <strong>Oculométrie</strong><br>
+                            Reconnaissance d'objets<br>
+                            Plugin temps réel
+                        </div>
+                    </div>
+                </div>
+
+                <p style="margin-top: 50px; font-size: 1.3em; text-align: center;">
+                    <span class="highlight">Il nous fallait une solution unifiée et moderne</span>
+                </p>
+            </div>
+        </div>
+
+        <!-- Slide 3: Qu'est-ce que WAMA -->
+        <div class="slide">
+            <h2>💡 Qu'est-ce que WAMA ?</h2>
+            <div class="content">
+                <div class="two-columns">
+                    <div>
+                        <h3>Une plateforme tout-en-un</h3>
+                        <ul>
+                            <li>Hébergée en interne (UGE)</li>
+                            <li>Open source et gratuite</li>
+                            <li>Personnalisable à volonté</li>
+                            <li>Évolutive avec l'état de l'art</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h3>Pour quoi faire ?</h3>
+                        <ul>
+                            <li>Traiter images, vidéos, audio</li>
+                            <li>Automatiser les tâches répétitives</li>
+                            <li>Exploiter l'IA sans expertise</li>
+                            <li>Intégrer dans nos workflows</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 4: Applications principales -->
+        <div class="slide">
+            <h2>🛠️ Les 8 applications principales</h2>
+            <div class="grid">
+                <div class="card">
+                    <h4><span class="emoji">🎭</span>Anonymizer</h4>
+                    <p>Flouter visages, textes, corps automatiquement</p>
+                </div>
+                <div class="card">
+                    <h4><span class="emoji">🔍</span>Detector</h4>
+                    <p>Détecter objets dans les vidéos</p>
+                </div>
+                <div class="card">
+                    <h4><span class="emoji">🎨</span>Imager</h4>
+                    <p>Générer images depuis du texte</p>
+                </div>
+                <div class="card">
+                    <h4><span class="emoji">📝</span>Describer</h4>
+                    <p>Décrire images en texte</p>
+                </div>
+                <div class="card">
+                    <h4><span class="emoji">🎤</span>Transcriber</h4>
+                    <p>Convertir audio en texte</p>
+                </div>
+                <div class="card">
+                    <h4><span class="emoji">🔊</span>Synthesizer</h4>
+                    <p>Générer voix depuis du texte</p>
+                </div>
+                <div class="card">
+                    <h4><span class="emoji">✨</span>Enhancer</h4>
+                    <p>Améliorer qualité vidéo/audio</p>
+                </div>
+                <div class="card">
+                    <h4><span class="emoji">🎬</span>Video Gen</h4>
+                    <p>Créer vidéos depuis descriptions</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 5: Cas d'usage Lescot -->
+        <div class="slide">
+            <h2>🔬 Cas d'usage au Lescot</h2>
+            <div class="content">
+                <div class="card" style="margin-bottom: 20px;">
+                    <h4>Anonymisation RGPD</h4>
+                    <p>Photos, vidéos, transcriptions audio pour respecter la confidentialité des participants</p>
+                </div>
+                
+                <div class="card" style="margin-bottom: 20px;">
+                    <h4>Standardisation des consignes</h4>
+                    <p>Avatars + voix de synthèse pour des consignes identiques entre participants</p>
+                </div>
+                
+                <div class="card" style="margin-bottom: 20px;">
+                    <h4>Analyse vidéo assistée</h4>
+                    <p>Détection automatique d'objets, segmentation, annotation pour gagner du temps</p>
+                </div>
+
+                <div class="card">
+                    <h4>Préparation de stimuli</h4>
+                    <p>Transformation contrôlée d'images/vidéos (luminosité, cadrage, orientation)</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 6: WAMA Lab -->
+        <div class="slide">
+            <h2>🧪 WAMA Lab : la brique métier</h2>
+            <div class="content">
+                <div class="two-columns">
+                    <div>
+                        <h3>Objectif</h3>
+                        <p style="font-size: 1.2em; line-height: 1.8;">
+                            Séparer les applications <span class="highlight">génériques</span> des applications 
+                            <span class="highlight">spécifiques à la recherche</span>
+                        </p>
+                        <ul style="margin-top: 30px;">
+                            <li>Environnements isolés</li>
+                            <li>Modèles spécialisés</li>
+                            <li>Tests expérimentaux</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h3>Exemples futures</h3>
+                        <ul>
+                            <li>Analyse de scènes de conduite</li>
+                            <li>Détection de comportements</li>
+                            <li>Synchronisation multi-capteurs</li>
+                            <li>Reconstruction 3D</li>
+                            <li>Cinématique de la marche</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 7: Avantages -->
+        <div class="slide">
+            <h2>✅ Pourquoi WAMA change la donne</h2>
+            <div class="grid">
+                <div class="card">
+                    <h4>🏠 Hébergement interne</h4>
+                    <p>Sécurité, contrôle, pas de fuite de données sensibles</p>
+                </div>
+                <div class="card">
+                    <h4>🆓 Gratuit et illimité</h4>
+                    <p>Pas de coût de licence, utilisation sans limite</p>
+                </div>
+                <div class="card">
+                    <h4>🔄 Reproductibilité</h4>
+                    <p>Versions figées, logs, traçabilité scientifique</p>
+                </div>
+                <div class="card">
+                    <h4>🚀 Évolutif</h4>
+                    <p>Ajout facile de nouveaux modèles et fonctionnalités</p>
+                </div>
+                <div class="card">
+                    <h4>🔌 Intégrable</h4>
+                    <p>API pour automatiser les workflows de recherche</p>
+                </div>
+                <div class="card">
+                    <h4>🎓 Bac à sable</h4>
+                    <p>Tester de nouvelles applications IA sans risque</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 8: Feuille de route -->
+        <div class="slide">
+            <h2>🗺️ Feuille de route</h2>
+            <div class="content">
+                <div class="card" style="margin-bottom: 15px; background: rgba(255,215,0,0.2);">
+                    <h4>Phase 1 : Mise en production</h4>
+                    <p>HTTPS, gestion utilisateurs, stockage externe, documentation</p>
+                </div>
+                
+                <div class="card" style="margin-bottom: 15px; background: rgba(100,149,237,0.2);">
+                    <h4>Phase 2 : Industrialisation</h4>
+                    <p>Tests automatiques, API complète, mises à jour hebdomadaires</p>
+                </div>
+                
+                <div class="card" style="margin-bottom: 15px; background: rgba(144,238,144,0.2);">
+                    <h4>Phase 3 : Enrichissement</h4>
+                    <p>Nouvelles fonctionnalités, WAMA Lab, applications métier</p>
+                </div>
+
+                <div class="card" style="background: rgba(255,182,193,0.2);">
+                    <h4>Phase 4 : Intelligence</h4>
+                    <p>Chatbot vocal, assistant IA interactif, automation avancée</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 9: Conclusion -->
+        <div class="slide">
+            <h2>🎯 En résumé</h2>
+            <div class="content" style="text-align: center;">
+                <p style="font-size: 1.8em; margin: 40px 0; line-height: 1.6;">
+                    WAMA = <span class="highlight">Plateforme unifiée</span> pour tous nos besoins multimédia
+                </p>
+                
+                <div style="font-size: 1.3em; line-height: 2; margin: 50px 0;">
+                    <p>✨ Anonymiser • Générer • Analyser • Enrichir</p>
+                    <p>🔒 Sécurisé • Open source • Évolutif</p>
+                    <p>🧪 Prêt pour la recherche au Lescot</p>
+                </div>
+
+                <p style="font-size: 2em; margin-top: 60px; color: #ffd700;">
+                    Place à la démonstration ! 🚀
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <div class="slide-number">
+        <span id="current-slide">1</span> / <span id="total-slides">9</span>
+    </div>
+
+    <div class="navigation">
+        <a href="/" id="back-home" style="text-decoration: none;">
+            <button type="button">🏠 WAMA</button>
+        </a>
+        <button id="prev">← Précédent</button>
+        <button id="next">Suivant →</button>
+    </div>
+
+    <script>
+        let currentSlide = 0;
+        const slides = document.querySelectorAll('.slide');
+        const totalSlides = slides.length;
+        
+        document.getElementById('total-slides').textContent = totalSlides;
+
+        function showSlide(n) {
+            slides[currentSlide].classList.remove('active');
+            currentSlide = (n + totalSlides) % totalSlides;
+            slides[currentSlide].classList.add('active');
+            document.getElementById('current-slide').textContent = currentSlide + 1;
+        }
+
+        document.getElementById('next').addEventListener('click', () => {
+            showSlide(currentSlide + 1);
+        });
+
+        document.getElementById('prev').addEventListener('click', () => {
+            showSlide(currentSlide - 1);
+        });
+
+        // Navigation au clavier
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight' || e.key === ' ') {
+                showSlide(currentSlide + 1);
+            } else if (e.key === 'ArrowLeft') {
+                showSlide(currentSlide - 1);
+            } else if (e.key === 'Escape') {
+                window.location.href = '/';
+            }
+        });
+    </script>
+</body>
+</html>

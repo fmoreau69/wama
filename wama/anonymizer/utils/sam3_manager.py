@@ -8,12 +8,12 @@ import logging
 from pathlib import Path
 from typing import Dict, Tuple, Optional
 
+from wama.settings import AI_MODELS_DIR
+
 logger = logging.getLogger(__name__)
 
-# SAM3 model cache directory
-SAM3_MODELS_DIR = os.path.join(
-    os.path.dirname(__file__), '..', '..', '..', 'AI-models', 'sam3'
-)
+# SAM3 model cache directory (HuggingFace format in centralized AI-models)
+SAM3_MODELS_DIR = str(AI_MODELS_DIR / "anonymizer" / "models--facebook--sam3")
 
 
 def check_sam3_installed() -> bool:
@@ -82,6 +82,37 @@ def setup_hf_auth(token: str) -> bool:
         return False
 
 
+def check_sam3_models_cached() -> bool:
+    """
+    Check if SAM3 models are already cached locally.
+
+    HuggingFace cache structure:
+    models--facebook--sam3/
+    ├── blobs/          # Contains actual model files
+    ├── refs/           # Reference files
+    └── snapshots/      # Model snapshots
+
+    Returns:
+        True if models appear to be cached locally
+    """
+    if not os.path.exists(SAM3_MODELS_DIR):
+        return False
+
+    # Check for HuggingFace cache structure
+    blobs_dir = os.path.join(SAM3_MODELS_DIR, 'blobs')
+    snapshots_dir = os.path.join(SAM3_MODELS_DIR, 'snapshots')
+
+    # Models are cached if blobs directory exists and has files
+    if os.path.exists(blobs_dir) and os.listdir(blobs_dir):
+        return True
+
+    # Or if snapshots directory exists and has content
+    if os.path.exists(snapshots_dir) and os.listdir(snapshots_dir):
+        return True
+
+    return False
+
+
 def get_sam3_status() -> Dict:
     """
     Get comprehensive SAM3 installation and configuration status.
@@ -90,15 +121,17 @@ def get_sam3_status() -> Dict:
         Dict containing:
         - installed: bool - whether SAM3 package is installed
         - hf_authenticated: bool - whether HuggingFace token is configured
+        - models_cached: bool - whether models are already downloaded locally
         - models_dir: str - path to SAM3 models directory
         - models_dir_exists: bool - whether models directory exists
-        - ready: bool - whether SAM3 is ready to use (installed + authenticated)
+        - ready: bool - whether SAM3 is ready to use
         - version: str - SAM3 version if installed, None otherwise
         - error: str - error message if any
     """
     status = {
         'installed': False,
         'hf_authenticated': False,
+        'models_cached': False,
         'models_dir': SAM3_MODELS_DIR,
         'models_dir_exists': os.path.exists(SAM3_MODELS_DIR),
         'ready': False,
@@ -115,14 +148,27 @@ def get_sam3_status() -> Dict:
         status['error'] = f"SAM3 not installed: {e}"
         return status
 
+    # Check if models are already cached locally
+    status['models_cached'] = check_sam3_models_cached()
+
     # Check HuggingFace authentication
     status['hf_authenticated'] = check_hf_auth()
 
-    if not status['hf_authenticated']:
-        status['error'] = "HuggingFace token not configured"
-
-    # Ready if both installed and authenticated
-    status['ready'] = status['installed'] and status['hf_authenticated']
+    # Ready if:
+    # - SAM3 is installed AND
+    # - Either models are cached locally OR HF is authenticated (for download)
+    if status['models_cached']:
+        # Models already downloaded, no need for HF auth
+        status['ready'] = True
+        status['error'] = None
+    elif status['hf_authenticated']:
+        # Can download models with HF auth
+        status['ready'] = True
+        status['error'] = None
+    else:
+        # Need HF auth to download models
+        status['ready'] = False
+        status['error'] = "HuggingFace token required to download SAM3 models"
 
     return status
 

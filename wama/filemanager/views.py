@@ -106,14 +106,22 @@ def build_file_tree(user):
                 {'id': 'transcriber_output', 'text': 'Output', 'path': 'transcriber/output', 'icon': 'fa fa-folder text-success'},
             ]
         },
-        # WAMA Lab applications
+        # WAMA Lab applications (experimental)
         {
-            'id': 'face_analyzer',
-            'text': 'Face Analyzer',
-            'icon': 'fa fa-smile text-info',
+            'id': 'wama_lab',
+            'text': 'WAMA Lab',
+            'icon': 'fa fa-flask text-info',
+            'is_category': True,
             'children': [
-                {'id': 'face_analyzer_input', 'text': 'Input', 'path': 'face_analyzer/input', 'icon': 'fa fa-folder text-secondary'},
-                {'id': 'face_analyzer_output', 'text': 'Output', 'path': 'face_analyzer/output', 'icon': 'fa fa-folder text-success'},
+                {
+                    'id': 'face_analyzer',
+                    'text': 'Face Analyzer',
+                    'icon': 'fa fa-smile text-info',
+                    'children': [
+                        {'id': 'face_analyzer_input', 'text': 'Input', 'path': f'face_analyzer/{user_id}/input', 'icon': 'fa fa-folder text-secondary'},
+                        {'id': 'face_analyzer_output', 'text': 'Output', 'path': f'face_analyzer/{user_id}/output', 'icon': 'fa fa-folder text-success'},
+                    ]
+                },
             ]
         },
     ]
@@ -807,6 +815,7 @@ def is_path_allowed(path, user):
         'imager/',
         'synthesizer/',
         'transcriber/',
+        'face_analyzer/',
     ]
 
     for prefix in allowed_prefixes:
@@ -840,7 +849,7 @@ def api_import_to_app(request):
     # Validate app name
     # All apps accept file imports:
     # - Imager: accepts prompt files (.txt/.json/.yaml) and reference images
-    valid_apps = ['anonymizer', 'describer', 'enhancer', 'imager', 'synthesizer', 'transcriber']
+    valid_apps = ['anonymizer', 'describer', 'enhancer', 'imager', 'synthesizer', 'transcriber', 'face_analyzer']
     if target_app not in valid_apps:
         return JsonResponse({'error': f'Invalid app: {target_app}'}, status=400)
 
@@ -867,6 +876,8 @@ def api_import_to_app(request):
             result = import_to_synthesizer(source_path, user)
         elif target_app == 'transcriber':
             result = import_to_transcriber(source_path, user)
+        elif target_app == 'face_analyzer':
+            result = import_to_face_analyzer(source_path, user)
         else:
             return JsonResponse({'error': 'App not supported'}, status=400)
 
@@ -1186,6 +1197,48 @@ def import_to_transcriber(source_path, user):
         'imported': True,
         'app': 'transcriber',
         'id': transcript.id,
+        'filename': dest_path.name,
+        'path': relative_path,
+    }
+
+
+def import_to_face_analyzer(source_path, user):
+    """Import a video file to Face Analyzer app."""
+    from wama_lab.face_analyzer.models import AnalysisSession
+    import shutil
+
+    # Copy file to face_analyzer per-user input folder
+    user_id = user.id
+    dest_dir = Path(settings.MEDIA_ROOT) / 'face_analyzer' / str(user_id) / 'input'
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    dest_path = dest_dir / source_path.name
+
+    # Handle duplicate names
+    if dest_path.exists():
+        stem = dest_path.stem
+        suffix = dest_path.suffix
+        counter = 1
+        while dest_path.exists():
+            dest_path = dest_dir / f"{stem}_{counter}{suffix}"
+            counter += 1
+
+    shutil.copy2(source_path, dest_path)
+
+    # Create AnalysisSession record
+    relative_path = f'face_analyzer/{user_id}/input/{dest_path.name}'
+
+    session = AnalysisSession.objects.create(
+        user=user,
+        mode=AnalysisSession.AnalysisMode.VIDEO,
+        status=AnalysisSession.Status.PENDING
+    )
+    session.input_file.name = relative_path
+    session.save()
+
+    return {
+        'imported': True,
+        'app': 'face_analyzer',
+        'id': str(session.id),
         'filename': dest_path.name,
         'path': relative_path,
     }

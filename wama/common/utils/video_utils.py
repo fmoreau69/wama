@@ -371,3 +371,84 @@ def is_audio_file(filename: str) -> bool:
     }
     ext = os.path.splitext(filename)[1].lower()
     return ext in audio_extensions
+
+
+def convert_video_to_web_compatible(input_path: str, output_path: Optional[str] = None) -> str:
+    """
+    Convertit une vidéo en format compatible web (H.264/AAC dans conteneur MP4).
+
+    Cette fonction est nécessaire car OpenCV écrit des vidéos avec le codec mp4v
+    qui n'est pas lisible directement dans les navigateurs web.
+
+    Args:
+        input_path: Chemin vers la vidéo source
+        output_path: Chemin de sortie (optionnel, sinon remplace le fichier source)
+
+    Returns:
+        str: Chemin vers la vidéo convertie
+
+    Raises:
+        RuntimeError: Si ffmpeg n'est pas trouvé ou si la conversion échoue
+    """
+    ffmpeg = _get_ffmpeg_path()
+    if not ffmpeg:
+        logger.warning("ffmpeg not found - video may not play in browser")
+        return input_path
+
+    if not os.path.exists(input_path):
+        raise FileNotFoundError(f"Video file not found: {input_path}")
+
+    # Si pas de chemin de sortie, créer un fichier temporaire puis remplacer
+    replace_original = output_path is None
+    if replace_original:
+        output_path = input_path.replace('.mp4', '_web.mp4')
+
+    try:
+        # Convertir en H.264 avec AAC audio
+        # -c:v libx264: codec vidéo H.264
+        # -preset fast: bon compromis vitesse/qualité
+        # -crf 23: qualité (18-28, plus bas = meilleure qualité)
+        # -c:a aac: codec audio AAC
+        # -movflags +faststart: permet le streaming progressif
+        cmd = [
+            ffmpeg,
+            "-i", input_path,
+            "-c:v", "libx264",
+            "-preset", "fast",
+            "-crf", "23",
+            "-c:a", "aac",
+            "-b:a", "128k",
+            "-movflags", "+faststart",
+            "-y",  # Overwrite output
+            output_path
+        ]
+
+        logger.info(f"Converting video to web-compatible format: {input_path}")
+        result = subprocess.run(
+            cmd,
+            check=True,
+            capture_output=True,
+            text=True
+        )
+
+        if not os.path.exists(output_path):
+            raise RuntimeError("Video conversion failed: output file not created")
+
+        # Si on remplace l'original, supprimer l'ancien et renommer le nouveau
+        if replace_original:
+            os.remove(input_path)
+            os.rename(output_path, input_path)
+            output_path = input_path
+
+        logger.info(f"Video converted successfully: {output_path}")
+        return output_path
+
+    except subprocess.CalledProcessError as e:
+        error_msg = f"ffmpeg conversion failed: {e.stderr}"
+        logger.error(error_msg)
+        # Ne pas lever d'exception, retourner le fichier original
+        logger.warning("Returning original video file")
+        return input_path
+    except Exception as e:
+        logger.error(f"Video conversion error: {e}")
+        return input_path
