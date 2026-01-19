@@ -131,7 +131,7 @@
         <!-- Onglet File d'attente -->
         <div class="tab-pane fade show active" id="queue-pane" role="tabpanel">
             {% block queue_content %}
-            <p class="text-muted">Contenu de la file d'attente</p>
+            <p>Contenu de la file d'attente</p>
             {% endblock %}
         </div>
 
@@ -140,7 +140,7 @@
             <div class="console-container">
                 <div id="{% block console_content_id %}console-content{% endblock %}"
                      data-console-url="{% block console_url %}{% endblock %}">
-                    <p class="text-muted">Chargement des logs...</p>
+                    <p>Chargement des logs...</p>
                 </div>
             </div>
         </div>
@@ -172,7 +172,7 @@
 
 {% block right_panel_settings %}
 {% block app_right_panel_settings %}
-<p class="text-muted small">Sélectionnez un fichier pour voir les options</p>
+<p class="small">Sélectionnez un fichier pour voir les options</p>
 {% endblock %}
 {% endblock %}
 

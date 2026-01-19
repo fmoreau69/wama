@@ -931,6 +931,18 @@ def import_to_enhancer(source_path, user):
     from wama.enhancer.models import Enhancement
     import shutil
 
+    # Detect media type from extension
+    image_extensions = ['.jpg', '.jpeg', '.png', '.bmp', '.tif', '.tiff', '.webp', '.heic']
+    video_extensions = ['.mp4', '.webm', '.mkv', '.flv', '.gif', '.avi', '.mov', '.mpg', '.qt', '.3gp']
+
+    ext = source_path.suffix.lower()
+    if ext in image_extensions:
+        media_type = 'image'
+    elif ext in video_extensions:
+        media_type = 'video'
+    else:
+        raise ValueError(f"Unsupported file format: {ext}")
+
     # Copy file to enhancer input folder
     dest_dir = Path(settings.MEDIA_ROOT) / 'enhancer' / 'input'
     dest_dir.mkdir(parents=True, exist_ok=True)
@@ -950,7 +962,10 @@ def import_to_enhancer(source_path, user):
     # Create Enhancement record - set path directly to avoid duplicate upload
     relative_path = f'enhancer/input/{dest_path.name}'
 
-    enhancement = Enhancement.objects.create(user=user)
+    enhancement = Enhancement.objects.create(
+        user=user,
+        media_type=media_type
+    )
     enhancement.input_file.name = relative_path
     enhancement.save()
 
@@ -960,6 +975,7 @@ def import_to_enhancer(source_path, user):
         'id': enhancement.id,
         'filename': dest_path.name,
         'path': relative_path,
+        'media_type': media_type,
     }
 
 

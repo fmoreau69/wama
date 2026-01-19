@@ -13,6 +13,7 @@ imageio-ffmpeg>=0.4.9
 #mod-wsgi>=5.0.2
 more-itertools>=10.7.0
 numpy>=2.3.3
+ollama>=0.4.0
 opencv_python>=4.11.0.86
 pillow>=11.2.1
 psutil>=5.9.0

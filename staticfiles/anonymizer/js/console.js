@@ -15,7 +15,7 @@ document.addEventListener('DOMContentLoaded', function () {
       .then((data) => {
         const lines = data.output || [];
         if (!lines.length) {
-          consoleContainer.innerHTML = '<p class="text-muted mb-0">Aucun log disponible.</p>';
+          consoleContainer.innerHTML = '<p class="mb-0">Aucun log disponible.</p>';
           return;
         }
         consoleContainer.innerHTML = lines

@@ -9,6 +9,7 @@ imageio-ffmpeg
 #mod-wsgi
 more-itertools
 numpy
+ollama
 opencv_python
 pillow
 psutil

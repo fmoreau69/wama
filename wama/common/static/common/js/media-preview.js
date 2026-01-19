@@ -194,7 +194,7 @@
                         <div class="preview-container d-flex justify-content-center align-items-center" style="min-height: 300px; background: #1a1a1a;"></div>
                     </div>
                     <div class="modal-footer border-secondary py-2">
-                        <small class="preview-meta text-muted"></small>
+                        <small class="preview-meta"></small>
                     </div>
                 </div>
             </div>

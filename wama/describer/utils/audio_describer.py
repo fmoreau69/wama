@@ -88,7 +88,8 @@ def describe_audio(description, set_progress, set_partial, console):
                     clean_chunk,
                     max_length=150,
                     min_length=50,
-                    do_sample=False
+                    do_sample=False,
+                    truncation=True
                 )
                 summaries.append(summary[0]['summary_text'])
 
@@ -108,7 +109,8 @@ def describe_audio(description, set_progress, set_partial, console):
                                 clean_chunk,
                                 max_length=150,
                                 min_length=50,
-                                do_sample=False
+                                do_sample=False,
+                                truncation=True
                             )
                             summaries.append(summary[0]['summary_text'])
                             console(user_id, f"Chunk {i+1} processed on CPU (fallback)")
@@ -116,6 +118,11 @@ def describe_audio(description, set_progress, set_partial, console):
                         logger.warning(f"CPU fallback also failed for chunk {i}: {cpu_error}")
                 else:
                     logger.warning(f"Error summarizing chunk {i}: {e}")
+
+            except IndexError as e:
+                # "index out of range in self" - tokenizer issue
+                logger.warning(f"Tokenizer error on chunk {i}: {e}")
+                continue
 
             except Exception as e:
                 logger.warning(f"Error summarizing chunk {i}: {e}")
@@ -138,7 +145,8 @@ def describe_audio(description, set_progress, set_partial, console):
                         clean_combined,
                         max_length=max_length,
                         min_length=min(50, max_length // 2),
-                        do_sample=False
+                        do_sample=False,
+                        truncation=True
                     )
                     combined = final[0]['summary_text']
                 except RuntimeError as e:
@@ -152,7 +160,8 @@ def describe_audio(description, set_progress, set_partial, console):
                                 clean_combined,
                                 max_length=max_length,
                                 min_length=min(50, max_length // 2),
-                                do_sample=False
+                                do_sample=False,
+                                truncation=True
                             )
                             combined = final[0]['summary_text']
                         except:

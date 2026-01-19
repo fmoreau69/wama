@@ -256,7 +256,7 @@ document.addEventListener("DOMContentLoaded", function() {
                             <div class="preview-container d-flex justify-content-center align-items-center" style="min-height: 300px;"></div>
                         </div>
                         <div class="modal-footer border-secondary py-2">
-                            <small class="preview-meta text-muted"></small>
+                            <small class="preview-meta"></small>
                         </div>
                     </div>
                 </div>
@@ -295,7 +295,7 @@ document.addEventListener("DOMContentLoaded", function() {
                 <div class="video-error-message d-none text-center p-4">
                     <i class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i>
                     <h5>Lecture impossible</h5>
-                    <p class="text-muted mb-2">Le codec de cette vidéo n'est pas supporté par le navigateur.</p>
+                    <p class="mb-2">Le codec de cette vidéo n'est pas supporté par le navigateur.</p>
                     <a href="${data.url}" download class="btn btn-outline-light btn-sm">
                         <i class="fas fa-download me-2"></i>Télécharger le fichier
                     </a>
@@ -319,7 +319,7 @@ document.addEventListener("DOMContentLoaded", function() {
                 <div class="video-error-message d-none text-center p-4">
                     <i class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i>
                     <h5>Lecture impossible</h5>
-                    <p class="text-muted mb-2">Le codec de cette vidéo n'est pas supporté par le navigateur.</p>
+                    <p class="mb-2">Le codec de cette vidéo n'est pas supporté par le navigateur.</p>
                     <a href="${data.url}" download class="btn btn-outline-light btn-sm">
                         <i class="fas fa-download me-2"></i>Télécharger le fichier
                     </a>

@@ -18,19 +18,19 @@
                 </div>
                 <div class="card-body">
                     <div class="row mb-2">
-                        <div class="col-4 text-muted">Nom d'utilisateur</div>
+                        <div class="col-4">Nom d'utilisateur</div>
                         <div class="col-8">{{ selected_user.username }}</div>
                     </div>
                     <div class="row mb-2">
-                        <div class="col-4 text-muted">Nom complet</div>
+                        <div class="col-4">Nom complet</div>
                         <div class="col-8">{{ selected_user.first_name }} {{ selected_user.last_name }}</div>
                     </div>
                     <div class="row mb-2">
-                        <div class="col-4 text-muted">Email</div>
+                        <div class="col-4">Email</div>
                         <div class="col-8">{{ selected_user.email|default:"-" }}</div>
                     </div>
                     <div class="row">
-                        <div class="col-4 text-muted">Inscrit le</div>
+                        <div class="col-4">Inscrit le</div>
                         <div class="col-8">{{ selected_user.date_joined|date:"d/m/Y H:i" }}</div>
                     </div>
                 </div>
@@ -47,7 +47,7 @@
                         <i class="fas fa-user-edit me-2"></i> Modifier mon profil
                     </a>
                     {% else %}
-                    <p class="text-muted mb-0">Vous ne pouvez pas modifier ce profil.</p>
+                    <p class="mb-0">Vous ne pouvez pas modifier ce profil.</p>
                     {% endif %}
                 </div>
             </div>

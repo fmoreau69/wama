@@ -1249,7 +1249,7 @@
             const escapedContent = escapeHtml(data.text_content);
             container.innerHTML = `<pre class="text-preview" style="background:#0d1117;border:1px solid #374151;border-radius:6px;padding:15px;max-height:60vh;overflow:auto;white-space:pre-wrap;word-wrap:break-word;font-family:'Consolas','Monaco',monospace;font-size:0.85rem;color:#e2e8f0;margin:0;">${escapedContent}</pre>`;
         } else {
-            container.innerHTML = `<p class="text-muted">Aperçu non disponible pour ce type de fichier</p>`;
+            container.innerHTML = `<p>Aperçu non disponible pour ce type de fichier</p>`;
         }
     }
 
@@ -1281,7 +1281,7 @@
                             <div class="preview-container"></div>
                         </div>
                         <div class="modal-footer border-secondary py-2">
-                            <small class="text-muted">Utilisez les flèches ← → pour naviguer</small>
+                            <small>Utilisez les flèches ← → pour naviguer</small>
                         </div>
                     </div>
                 </div>
@@ -1336,7 +1336,7 @@
                 <div class="video-error-message d-none text-center p-4">
                     <i class="fa fa-exclamation-triangle fa-3x text-warning mb-3"></i>
                     <h5>Lecture impossible</h5>
-                    <p class="text-muted mb-2">Le codec de cette vidéo n'est pas supporté par le navigateur.</p>
+                    <p class="mb-2">Le codec de cette vidéo n'est pas supporté par le navigateur.</p>
                     <a href="${data.preview_url}" download class="btn btn-outline-light btn-sm">
                         <i class="fa fa-download me-2"></i>Télécharger le fichier
                     </a>
@@ -1372,7 +1372,7 @@
         } else if (data.error) {
             container.innerHTML = `<p class="text-danger"><i class="fa fa-exclamation-triangle me-2"></i>${escapeHtml(data.error)}</p>`;
         } else {
-            container.innerHTML = `<p class="text-muted">Aperçu non disponible pour ce type de fichier</p>`;
+            container.innerHTML = `<p>Aperçu non disponible pour ce type de fichier</p>`;
         }
 
         const bsModal = new bootstrap.Modal(modal);

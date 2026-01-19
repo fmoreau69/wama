@@ -241,14 +241,16 @@ def process_audio_track(file_path: str, max_words: int, console, user_id: int) -
 
         # Summarize if too long
         if transcript and len(transcript.split()) > max_words:
-            from .text_describer import get_summarizer
+            from .text_describer import get_summarizer, sanitize_text_for_model
 
+            clean_transcript = sanitize_text_for_model(transcript[:4000])
             summarizer = get_summarizer()
             summary = summarizer(
-                transcript[:4000],  # Limit input
+                clean_transcript,
                 max_length=max_words,
                 min_length=min(30, max_words // 2),
-                do_sample=False
+                do_sample=False,
+                truncation=True
             )
             return summary[0]['summary_text']
 

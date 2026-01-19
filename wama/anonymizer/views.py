@@ -191,6 +191,8 @@ def handle_uploaded_media_file(media_file, output_path):
 
 def add_media_to_db(media, vid_or_path):
     """Populate the Media model with metadata from a video or image."""
+    need_release = False
+
     if isinstance(vid_or_path, str):
         mime_type, _ = mimetypes.guess_type(vid_or_path)
         if mime_type and mime_type.startswith("image/"):
@@ -206,23 +208,36 @@ def add_media_to_db(media, vid_or_path):
                 return
             except Exception as e:
                 raise ValueError(f"Error opening image: {e}")
+        else:
+            # It's a video file path - open it with VideoCapture
+            vid = cv2.VideoCapture(vid_or_path)
+            need_release = True
+    else:
+        # It's already a VideoCapture object
+        vid = vid_or_path
 
     # Video processing
-    vid = vid_or_path
-    fps = vid.get(cv2.CAP_PROP_FPS)
-    if not fps or fps <= 0:
-        fps = 25  # Default fallback
+    try:
+        if not vid.isOpened():
+            raise ValueError(f"Could not open video file")
 
-    media.fps = fps
-    media.width = int(vid.get(cv2.CAP_PROP_FRAME_WIDTH))
-    media.height = int(vid.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    total_frames = vid.get(cv2.CAP_PROP_FRAME_COUNT)
-    media.duration_inSec = total_frames / fps if fps > 0 else 0
-    media.duration_inMinSec = f"{int(media.duration_inSec // 60)}:{int(media.duration_inSec % 60):02d}"
-    media.properties = f"{media.width}x{media.height} ({media.fps:.2f}fps)"
-    media.media_type = "video"
+        fps = vid.get(cv2.CAP_PROP_FPS)
+        if not fps or fps <= 0:
+            fps = 25  # Default fallback
 
-    media.save()
+        media.fps = fps
+        media.width = int(vid.get(cv2.CAP_PROP_FRAME_WIDTH))
+        media.height = int(vid.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        total_frames = vid.get(cv2.CAP_PROP_FRAME_COUNT)
+        media.duration_inSec = total_frames / fps if fps > 0 else 0
+        media.duration_inMinSec = f"{int(media.duration_inSec // 60)}:{int(media.duration_inSec % 60):02d}"
+        media.properties = f"{media.width}x{media.height} ({media.fps:.2f}fps)"
+        media.media_type = "video"
+
+        media.save()
+    finally:
+        if need_release:
+            vid.release()
 
 
 class ProcessView(View):

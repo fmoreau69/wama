@@ -193,14 +193,14 @@ def _analyze_media(enhancement: Enhancement):
             with Image.open(file_path) as img:
                 enhancement.width, enhancement.height = img.size
         except Exception as e:
-            print(f"Could not analyze image: {e}")
+            logger.warning(f"Could not analyze image: {e}")
 
     elif enhancement.media_type == 'video':
+        # Try ffprobe first
         try:
             import subprocess
             import json
 
-            # Use ffprobe to get video info
             result = subprocess.run(
                 [
                     'ffprobe',
@@ -214,13 +214,32 @@ def _analyze_media(enhancement: Enhancement):
                 text=True,
             )
 
-            data = json.loads(result.stdout or '{}')
-            stream = (data.get('streams') or [{}])[0]
-            enhancement.width = int(stream.get('width', 0))
-            enhancement.height = int(stream.get('height', 0))
-            enhancement.duration = float(stream.get('duration', 0))
+            if result.returncode == 0 and result.stdout:
+                data = json.loads(result.stdout)
+                stream = (data.get('streams') or [{}])[0]
+                enhancement.width = int(stream.get('width', 0))
+                enhancement.height = int(stream.get('height', 0))
+                enhancement.duration = float(stream.get('duration', 0))
+            else:
+                raise Exception(f"ffprobe failed: {result.stderr}")
+
         except Exception as e:
-            print(f"Could not analyze video: {e}")
+            logger.warning(f"ffprobe failed, trying OpenCV: {e}")
+            # Fallback to OpenCV
+            try:
+                import cv2
+                vid = cv2.VideoCapture(file_path)
+                if vid.isOpened():
+                    enhancement.width = int(vid.get(cv2.CAP_PROP_FRAME_WIDTH))
+                    enhancement.height = int(vid.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                    fps = vid.get(cv2.CAP_PROP_FPS) or 25
+                    total_frames = vid.get(cv2.CAP_PROP_FRAME_COUNT)
+                    enhancement.duration = total_frames / fps if fps > 0 else 0
+                    vid.release()
+                else:
+                    logger.warning(f"OpenCV could not open video: {file_path}")
+            except Exception as cv_error:
+                logger.warning(f"OpenCV fallback failed: {cv_error}")
 
     enhancement.save(update_fields=['width', 'height', 'duration', 'file_size'])
 

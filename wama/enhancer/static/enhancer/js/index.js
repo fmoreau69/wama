@@ -635,7 +635,7 @@ document.addEventListener('DOMContentLoaded', function () {
       if (existingEmpty) return;
       const row = document.createElement('tr');
       row.className = 'empty-row';
-      row.innerHTML = '<td colspan="8" class="text-center text-muted py-4">Aucun fichier en attente.</td>';
+      row.innerHTML = '<td colspan="8" class="text-center py-4">Aucun fichier en attente.</td>';
       tbody.appendChild(row);
     } else if (existingEmpty) {
       existingEmpty.remove();

@@ -8,7 +8,7 @@
 
     <!-- Content -->
     <div class="right-panel-content">
-        <!-- Preview Section -->
+<!--        &lt;!&ndash; Preview Section &ndash;&gt;
         <div class="right-panel-section" id="preview-section">
             <div class="right-panel-section-title">
                 <i class="fas fa-eye me-1"></i> Aperçu
@@ -19,10 +19,10 @@
                     <p>Sélectionnez un fichier<br>pour l'aperçu</p>
                 </div>
                 <div id="preview-media" style="display: none;">
-                    <!-- Dynamic preview content -->
+                    &lt;!&ndash; Dynamic preview content &ndash;&gt;
                 </div>
             </div>
-        </div>
+        </div>-->
 
         <!-- Settings Section - Will be populated by apps -->
         <div class="right-panel-section" id="settings-section">
@@ -31,7 +31,7 @@
             </div>
             <div id="global-settings-container">
                 {% block right_panel_settings %}
-                <p class="text-muted small">Aucun paramètre disponible</p>
+                <p class="small">Aucun paramètre disponible</p>
                 {% endblock %}
             </div>
         </div>
@@ -86,7 +86,7 @@
                 `;
             } else {
                 mediaContainer.innerHTML = `
-                    <div class="text-center text-muted py-3">
+                    <div class="text-center py-3">
                         <i class="fas fa-file fa-2x mb-2"></i>
                         <p class="small mb-0">Aperçu non disponible</p>
                     </div>

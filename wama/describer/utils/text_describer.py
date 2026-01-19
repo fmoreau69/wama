@@ -74,6 +74,7 @@ def sanitize_text_for_model(text: str) -> str:
     """
     Sanitize text to prevent CUDA tokenization errors.
     Removes or replaces problematic characters.
+    BART model works best with clean ASCII-like text.
     """
     if not text:
         return text
@@ -90,20 +91,63 @@ def sanitize_text_for_model(text: str) -> str:
         '\u00a0': ' ',  # Non-breaking space
         '\u200b': '',   # Zero-width space
         '\ufeff': '',   # BOM
+        '\u00ab': '"',  # French left quote «
+        '\u00bb': '"',  # French right quote »
+        '\u2022': '-',  # Bullet
+        '\u2023': '-',  # Triangle bullet
+        '\u25aa': '-',  # Square bullet
+        '\u00b7': '-',  # Middle dot
+        '\u2212': '-',  # Minus sign
+        '\u00ad': '',   # Soft hyphen
+        '\u200c': '',   # Zero-width non-joiner
+        '\u200d': '',   # Zero-width joiner
+        '\uf0b7': '-',  # Private use bullet
+        '\uf0a7': '-',  # Private use symbol
     }
 
     for old, new in replacements.items():
         text = text.replace(old, new)
 
+    # Normalize French accented characters to ASCII equivalents for BART
+    # (BART is trained on English and may not handle accents well)
+    accent_map = {
+        'à': 'a', 'â': 'a', 'ä': 'a', 'á': 'a', 'ã': 'a',
+        'è': 'e', 'ê': 'e', 'ë': 'e', 'é': 'e',
+        'ì': 'i', 'î': 'i', 'ï': 'i', 'í': 'i',
+        'ò': 'o', 'ô': 'o', 'ö': 'o', 'ó': 'o', 'õ': 'o',
+        'ù': 'u', 'û': 'u', 'ü': 'u', 'ú': 'u',
+        'ç': 'c', 'ñ': 'n', 'ÿ': 'y', 'ý': 'y',
+        'À': 'A', 'Â': 'A', 'Ä': 'A', 'Á': 'A', 'Ã': 'A',
+        'È': 'E', 'Ê': 'E', 'Ë': 'E', 'É': 'E',
+        'Ì': 'I', 'Î': 'I', 'Ï': 'I', 'Í': 'I',
+        'Ò': 'O', 'Ô': 'O', 'Ö': 'O', 'Ó': 'O', 'Õ': 'O',
+        'Ù': 'U', 'Û': 'U', 'Ü': 'U', 'Ú': 'U',
+        'Ç': 'C', 'Ñ': 'N', 'Ÿ': 'Y', 'Ý': 'Y',
+        'œ': 'oe', 'Œ': 'OE', 'æ': 'ae', 'Æ': 'AE',
+        '°': ' degrees ', '€': ' euros ', '£': ' pounds ',
+        '©': '(c)', '®': '(R)', '™': '(TM)',
+    }
+
+    for old, new in accent_map.items():
+        text = text.replace(old, new)
+
     # Remove control characters except newlines and tabs
     text = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]', '', text)
 
-    # Normalize multiple spaces
-    text = re.sub(r' +', ' ', text)
+    # Remove any remaining non-ASCII characters that might cause issues
+    text = text.encode('ascii', 'ignore').decode('ascii')
+
+    # Normalize whitespace
+    text = re.sub(r'\s+', ' ', text)
+
+    # Remove very long words (often garbage from PDF extraction)
+    words = text.split()
+    words = [w for w in words if len(w) <= 50]
+    text = ' '.join(words)
 
     # Ensure text is not too long for tokenizer (BART max is 1024 tokens)
     # Rough estimate: 1 token ≈ 4 characters for English
-    max_chars = 4000
+    max_chars = 3500  # Be more conservative
     if len(text) > max_chars:
         text = text[:max_chars]
 
@@ -307,7 +351,8 @@ def describe_text(description, set_progress, set_partial, console):
                     clean_chunk,
                     max_length=max_len,
                     min_length=min_len,
-                    do_sample=False
+                    do_sample=False,
+                    truncation=True
                 )
                 summaries.append(summary[0]['summary_text'])
 
@@ -327,7 +372,8 @@ def describe_text(description, set_progress, set_partial, console):
                                 clean_chunk,
                                 max_length=max_len,
                                 min_length=min_len,
-                                do_sample=False
+                                do_sample=False,
+                                truncation=True
                             )
                             summaries.append(summary[0]['summary_text'])
                             console(user_id, f"Chunk {i+1} processed on CPU (fallback)")
@@ -335,6 +381,11 @@ def describe_text(description, set_progress, set_partial, console):
                         logger.warning(f"CPU fallback also failed for chunk {i}: {cpu_error}")
                 else:
                     logger.warning(f"Error summarizing chunk {i}: {e}")
+
+            except IndexError as e:
+                # "index out of range in self" - tokenizer issue
+                logger.warning(f"Tokenizer error on chunk {i}: {e}")
+                continue
 
             except Exception as e:
                 logger.warning(f"Error summarizing chunk {i}: {e}")
@@ -360,7 +411,8 @@ def describe_text(description, set_progress, set_partial, console):
                     clean_combined,
                     max_length=max_length,
                     min_length=min(50, max_length // 2),
-                    do_sample=False
+                    do_sample=False,
+                    truncation=True
                 )
                 combined = final[0]['summary_text']
             except RuntimeError as e:
@@ -374,7 +426,8 @@ def describe_text(description, set_progress, set_partial, console):
                             clean_combined,
                             max_length=max_length,
                             min_length=min(50, max_length // 2),
-                            do_sample=False
+                            do_sample=False,
+                            truncation=True
                         )
                         combined = final[0]['summary_text']
                     except:

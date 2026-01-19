@@ -25,7 +25,7 @@
             </option>
             {% endfor %}
         </select>
-        <small class="text-muted model-description" id="model_description"></small>
+        <small class="model-description" id="model_description"></small>
     </div>
 
     <!-- Resolution -->
@@ -91,7 +91,7 @@
         </label>
         <input type="range" class="form-range" id="steps" name="steps"
                min="10" max="100" step="5" value="30">
-        <small class="text-muted">Plus = meilleure qualité</small>
+        <small>Plus = meilleure qualité</small>
     </div>
 
     <!-- Guidance Scale -->
@@ -101,7 +101,7 @@
         </label>
         <input type="range" class="form-range" id="guidance_scale" name="guidance_scale"
                min="1" max="20" step="0.5" value="7.5">
-        <small class="text-muted">Suivi du prompt</small>
+        <small>Suivi du prompt</small>
     </div>
 
     <!-- Seed -->
@@ -150,7 +150,7 @@
             </option>
             {% endfor %}
         </select>
-        <small class="text-muted model-description" id="panel_video_model_description"></small>
+        <small class="model-description" id="panel_video_model_description"></small>
     </div>
 
     <!-- Resolution -->
@@ -685,14 +685,14 @@
                         </div>
                     </div>
 
-                    <!-- Video Parameters -->
+<!--                    &lt;!&ndash; Video Parameters &ndash;&gt;
                     <div class="card bg-secondary bg-opacity-25 border-secondary mt-3">
                         <div class="card-header py-2">
                             <i class="fas fa-sliders-h"></i> Paramètres vidéo
                         </div>
                         <div class="card-body">
                             <div class="row">
-                                <!-- Model -->
+                                &lt;!&ndash; Model &ndash;&gt;
                                 <div class="col-md-6 mb-3">
                                     <label for="video_model" class="form-label text-light">Modèle</label>
                                     <select class="form-select form-select-sm bg-dark text-white border-secondary model-select-with-tooltip" id="video_model" name="video_model">
@@ -705,10 +705,10 @@
                                         </option>
                                         {% endfor %}
                                     </select>
-                                    <small class="text-muted model-description" id="video_model_description"></small>
+                                    <small class="model-description" id="video_model_description"></small>
                                 </div>
 
-                                <!-- Resolution -->
+                                &lt;!&ndash; Resolution &ndash;&gt;
                                 <div class="col-md-6 mb-3">
                                     <label for="video_resolution" class="form-label text-light">Résolution</label>
                                     <select class="form-select form-select-sm bg-dark text-white border-secondary" id="video_resolution" name="video_resolution">
@@ -719,7 +719,7 @@
                             </div>
 
                             <div class="row">
-                                <!-- Duration -->
+                                &lt;!&ndash; Duration &ndash;&gt;
                                 <div class="col-md-4 mb-3">
                                     <label for="video_duration" class="form-label text-light">
                                         Durée : <span id="video_duration_value">5</span>s
@@ -728,7 +728,7 @@
                                            min="1" max="15" step="1" value="5">
                                 </div>
 
-                                <!-- FPS -->
+                                &lt;!&ndash; FPS &ndash;&gt;
                                 <div class="col-md-4 mb-3">
                                     <label for="video_fps" class="form-label text-light">FPS</label>
                                     <select class="form-select form-select-sm bg-dark text-white border-secondary" id="video_fps" name="video_fps">
@@ -737,7 +737,7 @@
                                     </select>
                                 </div>
 
-                                <!-- Seed -->
+                                &lt;!&ndash; Seed &ndash;&gt;
                                 <div class="col-md-4 mb-3">
                                     <label for="video_seed" class="form-label text-light">Seed</label>
                                     <input type="number" class="form-control form-control-sm bg-dark text-white border-secondary"
@@ -746,7 +746,7 @@
                             </div>
 
                             <div class="row">
-                                <!-- Steps -->
+                                &lt;!&ndash; Steps &ndash;&gt;
                                 <div class="col-md-6 mb-3">
                                     <label for="video_steps" class="form-label text-light">
                                         Steps : <span id="video_steps_value">30</span>
@@ -755,7 +755,7 @@
                                            min="10" max="50" step="5" value="30">
                                 </div>
 
-                                <!-- Guidance Scale -->
+                                &lt;!&ndash; Guidance Scale &ndash;&gt;
                                 <div class="col-md-6 mb-3">
                                     <label for="video_guidance_scale" class="form-label text-light">
                                         Guidance : <span id="video_guidance_value">5.0</span>
@@ -765,7 +765,7 @@
                                 </div>
                             </div>
                         </div>
-                    </div>
+                    </div>-->
 
                     <!-- Submit Button -->
                     <div class="text-end mt-3">
@@ -974,7 +974,7 @@
                                 </option>
                                 {% endfor %}
                             </select>
-                            <small class="text-muted model-description" id="settings_model_description"></small>
+                            <small class="model-description" id="settings_model_description"></small>
                         </div>
 
                         <!-- Number of images -->
@@ -1128,7 +1128,7 @@
                                 </option>
                                 {% endfor %}
                             </select>
-                            <small class="text-muted model-description" id="video_settings_model_description"></small>
+                            <small class="model-description" id="video_settings_model_description"></small>
                         </div>
 
                         <!-- Resolution -->

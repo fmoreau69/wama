@@ -20,8 +20,23 @@
       const chatInput = document.getElementById('ai-chat-input');
       const chatMessages = document.getElementById('ai-chat-messages');
       const chatSubmit = document.getElementById('ai-chat-submit');
+      const providerSelect = document.getElementById('ai-provider');
+      const modelSelect = document.getElementById('ai-model');
+      const modelContainer = document.getElementById('model-container');
 
-      function addMessage(content, isUser = false, isError = false) {
+      // Show/hide model selector based on provider
+      function updateModelVisibility() {
+        if (providerSelect.value === 'wama-dev-ai') {
+          modelContainer.style.display = 'block';
+        } else {
+          modelContainer.style.display = 'none';
+        }
+      }
+
+      providerSelect.addEventListener('change', updateModelVisibility);
+      updateModelVisibility();
+
+      function addMessage(content, isUser = false, isError = false, modelInfo = null) {
         // Clear placeholder if exists
         const placeholder = chatMessages.querySelector('.text-muted.text-center');
         if (placeholder) placeholder.remove();
@@ -37,6 +52,14 @@
         bubble.style.wordBreak = 'break-word';
         bubble.textContent = content;
 
+        // Add model info badge for assistant messages
+        if (!isUser && !isError && modelInfo) {
+          const modelBadge = document.createElement('div');
+          modelBadge.className = 'small mt-1';
+          modelBadge.textContent = modelInfo;
+          bubble.appendChild(modelBadge);
+        }
+
         messageDiv.appendChild(bubble);
         chatMessages.appendChild(messageDiv);
         chatMessages.scrollTop = chatMessages.scrollHeight;
@@ -46,12 +69,15 @@
         const placeholder = chatMessages.querySelector('.text-muted.text-center');
         if (placeholder) placeholder.remove();
 
+        const provider = providerSelect.value;
+        const providerName = provider === 'claude' ? 'Claude' : 'wama-dev-ai';
+
         const loadingDiv = document.createElement('div');
         loadingDiv.id = 'ai-loading';
         loadingDiv.className = 'mb-3';
         loadingDiv.innerHTML = `
           <div class="d-inline-block p-3 rounded-3 bg-secondary text-white">
-            <i class="fas fa-spinner fa-spin me-2"></i> Thinking...
+            <i class="fas fa-spinner fa-spin me-2"></i> ${providerName} is thinking...
           </div>
         `;
         chatMessages.appendChild(loadingDiv);
@@ -81,6 +107,17 @@
         // Show loading indicator
         addLoadingIndicator();
 
+        // Build request body
+        const requestBody = {
+          message: message,
+          provider: providerSelect.value
+        };
+
+        // Add model if using wama-dev-ai
+        if (providerSelect.value === 'wama-dev-ai') {
+          requestBody.model = modelSelect.value;
+        }
+
         try {
           const response = await fetch('/api/ai-chat/', {
             method: 'POST',
@@ -88,7 +125,7 @@
               'Content-Type': 'application/json',
               'X-CSRFToken': '{{ csrf_token }}'
             },
-            body: JSON.stringify({ message: message })
+            body: JSON.stringify(requestBody)
           });
 
           removeLoadingIndicator();
@@ -96,7 +133,7 @@
           const data = await response.json();
 
           if (data.success) {
-            addMessage(data.response);
+            addMessage(data.response, false, false, data.model);
           } else {
             addMessage(data.error || 'An error occurred', false, true);
           }
@@ -140,11 +177,32 @@
         <h4 class="mb-3"><i class="fas fa-comments"></i> AI Assistant <span class="badge bg-secondary">Admin</span></h4>
         <div class="card" style="background: #212529; border: 1px solid #495057;">
           <div class="card-body">
+            <!-- Provider Selection -->
+            <div class="row mb-3">
+              <div class="col-md-6">
+                <label class="form-label small">Provider</label>
+                <select id="ai-provider" class="form-select form-select-sm" style="background: #1a1d21; border: 1px solid #495057; color: #fff;">
+                  <option value="wama-dev-ai" selected>wama-dev-ai (Local/Ollama)</option>
+                  <option value="claude">Claude (Anthropic API)</option>
+                </select>
+              </div>
+              <div class="col-md-6" id="model-container">
+                <label class="form-label small">Model</label>
+                <select id="ai-model" class="form-select form-select-sm" style="background: #1a1d21; border: 1px solid #495057; color: #fff;">
+                  <option value="fast" selected>Qwen3 14B (Fast)</option>
+                  <option value="ultra_fast">Qwen3 8B (Ultra Fast)</option>
+                  <option value="dev">Qwen3 30B (Dev)</option>
+                  <option value="coder">Qwen3 Coder 30B</option>
+                  <option value="architect">Qwen3 30B Thinking</option>
+                </select>
+              </div>
+            </div>
             <!-- Chat Messages Container -->
             <div id="ai-chat-messages" class="mb-3" style="max-height: 400px; overflow-y: auto; min-height: 100px; background: #1a1d21; border-radius: 8px; padding: 15px;">
               <div class="text-center py-4">
                 <i class="fas fa-robot fa-2x mb-2"></i>
                 <p class="mb-0">Ask me anything about WAMA or get help with tasks.</p>
+                <p class="small mt-2">Using local AI by default (wama-dev-ai)</p>
               </div>
             </div>
             <!-- Input Form -->
