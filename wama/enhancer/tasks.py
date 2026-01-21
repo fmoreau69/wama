@@ -310,12 +310,19 @@ def _enhance_video(enhancement: Enhancement, user_id: int) -> dict:
         _set_progress(enhancement.id, 10)
 
         frame_pattern = os.path.join(frames_dir, 'frame_%05d.png')
-        subprocess.run([
+        logger.info(f"Extracting frames from {input_path} to {frame_pattern}")
+        extract_result = subprocess.run([
             'ffmpeg',
+            '-y',  # Overwrite output files without asking
             '-i', input_path,
             '-qscale:v', '1',
             frame_pattern
-        ], check=True, capture_output=True)
+        ], capture_output=True, text=True)
+
+        if extract_result.returncode != 0:
+            logger.error(f"ffmpeg frame extraction failed with return code {extract_result.returncode}")
+            logger.error(f"ffmpeg stderr: {extract_result.stderr}")
+            raise RuntimeError(f"ffmpeg frame extraction failed: {extract_result.stderr}")
 
         # Count frames
         frame_files = sorted([f for f in os.listdir(frames_dir) if f.endswith('.png')])
@@ -363,9 +370,8 @@ def _enhance_video(enhancement: Enhancement, user_id: int) -> dict:
         _console(user_id, "Encoding video...")
         _set_progress(enhancement.id, 80)
 
-        output_dir = os.path.dirname(input_path).replace('input', 'output')
-        os.makedirs(output_dir, exist_ok=True)
-        output_path = os.path.join(output_dir, output_filename)
+        # Use temp file for ffmpeg output (not in media/ to avoid conflict with storage deletion)
+        output_path = os.path.join(temp_dir, output_filename)
 
         enhanced_pattern = os.path.join(enhanced_dir, 'frame_%05d.png')
 
@@ -382,8 +388,10 @@ def _enhance_video(enhancement: Enhancement, user_id: int) -> dict:
         fps = eval(probe_result.stdout.strip()) if probe_result.stdout.strip() else 30
 
         # Encode video
-        subprocess.run([
+        logger.info(f"Running ffmpeg to encode video to: {output_path}")
+        encode_result = subprocess.run([
             'ffmpeg',
+            '-y',  # Overwrite output file without asking
             '-framerate', str(fps),
             '-i', enhanced_pattern,
             '-c:v', 'libx264',
@@ -391,8 +399,21 @@ def _enhance_video(enhancement: Enhancement, user_id: int) -> dict:
             '-crf', '18',
             '-pix_fmt', 'yuv420p',
             output_path
-        ], check=True, capture_output=True)
+        ], capture_output=True, text=True)
 
+        if encode_result.returncode != 0:
+            logger.error(f"ffmpeg encoding failed with return code {encode_result.returncode}")
+            logger.error(f"ffmpeg stderr: {encode_result.stderr}")
+            raise RuntimeError(f"ffmpeg encoding failed: {encode_result.stderr}")
+
+        # Verify output file was created
+        if not os.path.exists(output_path):
+            logger.error(f"ffmpeg did not create output file at {output_path}")
+            logger.error(f"ffmpeg stdout: {encode_result.stdout}")
+            logger.error(f"ffmpeg stderr: {encode_result.stderr}")
+            raise FileNotFoundError(f"ffmpeg did not create output file at {output_path}")
+
+        logger.info(f"Video encoded successfully, file size: {os.path.getsize(output_path)} bytes")
         _set_progress(enhancement.id, 95)
 
         # Delete old output file if it exists
@@ -447,13 +468,8 @@ def _enhance_video(enhancement: Enhancement, user_id: int) -> dict:
 
         _console(user_id, f"Video encoding complete")
 
-        # Clean up
+        # Clean up temp directory (includes encoded video and all frames)
         shutil.rmtree(temp_dir)
-        if os.path.exists(output_path):
-            try:
-                os.remove(output_path)
-            except:
-                pass
 
         return {'ok': True, 'output_width': output_width, 'output_height': output_height, 'frames': total_frames}
 

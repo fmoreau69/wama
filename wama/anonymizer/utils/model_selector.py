@@ -67,19 +67,29 @@ def scan_installed_models() -> Dict[str, Dict]:
             'detect/yolov8n.pt': {
                 'path': '/path/to/model',
                 'type': 'detect',
+                'specialty': None,
                 'name': 'yolov8n.pt',
                 'classes': {'0': 'person', '1': 'bicycle', ...},
                 'class_list': ['person', 'bicycle', ...]
+            },
+            'detect/faces/yolov9s-face-lindevs.pt': {
+                'path': '/path/to/model',
+                'type': 'detect',
+                'specialty': 'faces',
+                'name': 'yolov9s-face-lindevs.pt',
+                ...
             }
         }
     """
     installed = get_installed_models()
     models_info = {}
 
-    for model_type, models_list in installed.items():
+    for category_key, models_list in installed.items():
         for model_info in models_list:
             model_name = model_info['name']
             model_path = model_info['path']
+            base_type = model_info.get('type', category_key)
+            specialty = model_info.get('specialty')
 
             # Get classes from this model
             classes = get_model_classes(model_path)
@@ -87,19 +97,22 @@ def scan_installed_models() -> Dict[str, Dict]:
             if not classes:
                 continue
 
-            # Create model identifier
-            if model_type == 'root':
+            # Create model identifier with full path including specialty
+            if category_key == 'root':
                 model_id = model_name
+            elif specialty:
+                model_id = f"{base_type}/{specialty}/{model_name}"
             else:
-                model_id = f"{model_type}/{model_name}"
+                model_id = f"{base_type}/{model_name}"
 
             models_info[model_id] = {
                 'path': model_path,
-                'type': model_type,
+                'type': base_type,
+                'specialty': specialty,
                 'name': model_name,
                 'classes': classes,
                 'class_list': list(classes.values()),
-                'official': model_info['official'],
+                'official': model_info.get('official', False),
             }
 
     return models_info
@@ -202,6 +215,7 @@ def select_best_models(classes_to_blur: List[str],
                 'path': installed_models[best_model]['path'],
                 'name': installed_models[best_model]['name'],
                 'type': installed_models[best_model]['type'],
+                'specialty': installed_models[best_model].get('specialty'),
                 'classes': sorted(list(best_classes)),
             })
             covered_classes.update(best_classes)

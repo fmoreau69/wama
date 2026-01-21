@@ -38,6 +38,7 @@ from .utils.sam3_manager import (
 from ..accounts.views import get_or_create_anonymous_user
 from ..settings import MEDIA_ROOT, MEDIA_INPUT_ROOT, MEDIA_OUTPUT_ROOT
 from ..common.utils.console_utils import get_console_lines, get_celery_worker_logs
+from ..common.utils.video_utils import get_media_info
 from ..common.utils.video_utils import upload_media_from_url
 
 
@@ -190,36 +191,23 @@ def handle_uploaded_media_file(media_file, output_path):
 
 
 def add_media_to_db(media, vid_or_path):
-    """Populate the Media model with metadata from a video or image."""
-    need_release = False
-
+    """Populate the Media model with metadata from a video or image using common utility."""
     if isinstance(vid_or_path, str):
-        mime_type, _ = mimetypes.guess_type(vid_or_path)
-        if mime_type and mime_type.startswith("image/"):
-            try:
-                with Image.open(vid_or_path) as img:
-                    media.width, media.height = img.size
-                media.fps = 1
-                media.duration_inSec = 0
-                media.duration_inMinSec = "0:00"
-                media.properties = f"{media.width}x{media.height} (1fps)"
-                media.media_type = "image"
-                media.save()
-                return
-            except Exception as e:
-                raise ValueError(f"Error opening image: {e}")
-        else:
-            # It's a video file path - open it with VideoCapture
-            vid = cv2.VideoCapture(vid_or_path)
-            need_release = True
+        # It's a file path - use the common utility
+        info = get_media_info(vid_or_path)
+        media.width = info['width']
+        media.height = info['height']
+        media.fps = info['fps']
+        media.duration_inSec = info['duration']
+        media.duration_inMinSec = f"{int(info['duration'] // 60)}:{int(info['duration'] % 60):02d}"
+        media.properties = info['properties']
+        media.media_type = info['media_type']
+        media.save()
     else:
-        # It's already a VideoCapture object
+        # It's already a VideoCapture object - process directly
         vid = vid_or_path
-
-    # Video processing
-    try:
         if not vid.isOpened():
-            raise ValueError(f"Could not open video file")
+            raise ValueError("Could not open video file")
 
         fps = vid.get(cv2.CAP_PROP_FPS)
         if not fps or fps <= 0:
@@ -233,11 +221,7 @@ def add_media_to_db(media, vid_or_path):
         media.duration_inMinSec = f"{int(media.duration_inSec // 60)}:{int(media.duration_inSec % 60):02d}"
         media.properties = f"{media.width}x{media.height} ({media.fps:.2f}fps)"
         media.media_type = "video"
-
         media.save()
-    finally:
-        if need_release:
-            vid.release()
 
 
 class ProcessView(View):

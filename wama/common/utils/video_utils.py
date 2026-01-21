@@ -42,6 +42,117 @@ def _get_ffmpeg_path() -> Optional[str]:
     return None
 
 
+def get_ffprobe_path() -> Optional[str]:
+    """Trouve le chemin vers ffprobe."""
+    ffprobe = shutil.which("ffprobe")
+    if ffprobe:
+        return ffprobe
+
+    candidates = [
+        r"C:\ffmpeg\bin\ffprobe.exe",
+        r"C:\Program Files\ffmpeg\bin\ffprobe.exe",
+        r"C:\Program Files (x86)\ffmpeg\bin\ffprobe.exe",
+        "/usr/bin/ffprobe",
+        "/usr/local/bin/ffprobe",
+        "/opt/homebrew/bin/ffprobe",
+        "/mnt/c/ffmpeg/bin/ffprobe.exe",
+        "/mnt/c/Program Files/ffmpeg/bin/ffprobe.exe",
+    ]
+
+    for candidate in candidates:
+        if os.path.exists(candidate):
+            return candidate
+    return None
+
+
+def get_media_info(file_path: str) -> dict:
+    """
+    Extract metadata from an image or video file.
+
+    Args:
+        file_path: Path to the media file
+
+    Returns:
+        dict with keys:
+            - media_type: 'image' or 'video'
+            - width: int
+            - height: int
+            - fps: float (1 for images)
+            - duration: float in seconds (0 for images)
+            - file_size: int in bytes
+            - properties: str formatted as "WxH (fps)"
+
+    Raises:
+        FileNotFoundError: If file does not exist
+        ValueError: If file cannot be opened or analyzed
+    """
+    import cv2
+    from PIL import Image
+    import mimetypes
+
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"File does not exist: {file_path}")
+
+    file_size = os.path.getsize(file_path)
+    mime_type, _ = mimetypes.guess_type(file_path)
+
+    result = {
+        'media_type': None,
+        'width': 0,
+        'height': 0,
+        'fps': 0,
+        'duration': 0,
+        'file_size': file_size,
+        'properties': '',
+    }
+
+    # Check if it's an image
+    if mime_type and mime_type.startswith("image/"):
+        try:
+            with Image.open(file_path) as img:
+                result['width'], result['height'] = img.size
+            result['media_type'] = 'image'
+            result['fps'] = 1
+            result['duration'] = 0
+            result['properties'] = f"{result['width']}x{result['height']} (1fps)"
+            logger.info(f"Image analyzed: {result['width']}x{result['height']}")
+            return result
+        except Exception as e:
+            raise ValueError(f"Error opening image: {e}")
+
+    # Assume it's a video
+    vid = None
+    try:
+        vid = cv2.VideoCapture(file_path)
+        if not vid.isOpened():
+            raise ValueError(f"Could not open video file: {file_path}")
+
+        fps = vid.get(cv2.CAP_PROP_FPS)
+        if not fps or fps <= 0:
+            fps = 25  # Default fallback
+
+        width = int(vid.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height = int(vid.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        total_frames = vid.get(cv2.CAP_PROP_FRAME_COUNT)
+        duration = total_frames / fps if fps > 0 else 0
+
+        result['media_type'] = 'video'
+        result['width'] = width
+        result['height'] = height
+        result['fps'] = fps
+        result['duration'] = duration
+        result['properties'] = f"{width}x{height} ({fps:.2f}fps)"
+
+        logger.info(f"Video analyzed: {width}x{height}, fps={fps:.2f}, duration={duration:.2f}s")
+        return result
+
+    except Exception as e:
+        raise ValueError(f"Error analyzing video: {e}")
+    finally:
+        if vid is not None:
+            vid.release()
+
+
 def upload_media_from_url(url, output_path):
     """Download a media file from a URL using yt_dlp (with robust options) or direct HTTP.
 

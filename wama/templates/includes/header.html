@@ -11,7 +11,7 @@
                 <ul class="dropdown-menu dropdown-menu-dark" aria-labelledby="appsDropdown">
                     <li>
                         <a class="dropdown-item d-flex align-items-center {% if 'anonymizer' in request.path %}active{% endif %}" href="{% url 'anonymizer:index' %}">
-                            <i class="fas fa-file-video me-2"></i> Anonymizer
+                            <i class="fas fa-user-secret text-danger me-2"></i> Anonymizer
                         </a>
                     </li>
                     <li>
@@ -21,22 +21,22 @@
                     </li>
                     <li>
                         <a class="dropdown-item d-flex align-items-center {% if 'enhancer' in request.path %}active{% endif %}" href="{% url 'enhancer:index' %}">
-                            <i class="fas fa-wand-magic-sparkles me-2"></i> Enhancer
+                            <i class="fas fa-magic text-info me-2"></i> Enhancer
                         </a>
                     </li>
                     <li>
                         <a class="dropdown-item d-flex align-items-center {% if 'imager' in request.path %}active{% endif %}" href="{% url 'imager:index' %}">
-                            <i class="fas fa-magic me-2"></i> Imager
+                            <i class="fas fa-image text-success me-2"></i> Imager
                         </a>
                     </li>
                     <li>
                         <a class="dropdown-item d-flex align-items-center {% if 'synthesizer' in request.path %}active{% endif %}" href="{% url 'synthesizer:index' %}">
-                            <i class="fas fa-microphone-alt me-2"></i> Synthesizer
+                            <i class="fas fa-microphone text-primary me-2"></i> Synthesizer
                         </a>
                     </li>
                     <li>
                         <a class="dropdown-item d-flex align-items-center {% if 'transcriber' in request.path %}active{% endif %}" href="{% url 'transcriber:index' %}">
-                            <i class="fas fa-file-audio me-2"></i> Transcriber
+                            <i class="fas fa-file-alt text-warning me-2"></i> Transcriber
                         </a>
                     </li>
                     <!-- WAMA Lab - Experimental/Research -->
@@ -46,7 +46,7 @@
                     </li>
                     <li>
                         <a class="dropdown-item d-flex align-items-center {% if 'face-analyzer' in request.path %}active{% endif %}" href="{% url 'wama_lab:face_analyzer:index' %}">
-                            <i class="fas fa-user-circle text-info me-2"></i> Face Analyzer
+                            <i class="fas fa-smile text-info me-2"></i> Face Analyzer
                         </a>
                     </li>
                 </ul>

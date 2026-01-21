@@ -137,8 +137,8 @@ MODELS = {
     ),
 
     "vision_lite": ModelConfig(
-        name="Qwen2.5 VL 7B",
-        ollama_id="qwen2.5vl:7b",
+        name="Qwen3 VL 7B",
+        ollama_id="qwen3-vl:7b",
         description="Lightweight vision model for rapid UI prototyping",
         context_length=8192,
         temperature=0.7,

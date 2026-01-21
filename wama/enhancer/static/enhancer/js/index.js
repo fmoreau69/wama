@@ -36,6 +36,7 @@ document.addEventListener('DOMContentLoaded', function () {
         throw new Error(data.error);
       }
 
+      console.log('[Enhancer] Upload response:', data);
       data.status = data.status || 'PENDING';
       appendRow(data);
     } catch (error) {
@@ -156,11 +157,11 @@ document.addEventListener('DOMContentLoaded', function () {
             ${escapeHtml(data.input_filename || 'Fichier')}
           </button>
         </div>
-        <div class="d-flex align-items-center gap-2 mt-1">
+/*        <div class="d-flex align-items-center gap-2 mt-1">
           <a href="${data.input_url}" target="_blank" class="text-info small">
             <i class="fas fa-link"></i> Voir le fichier
           </a>
-        </div>
+        </div>*/
       </td>
       <td class="text-center small">${data.width}x${data.height}</td>
       <td class="text-center small"><span class="badge bg-info">En attente</span></td>

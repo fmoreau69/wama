@@ -498,13 +498,11 @@
                         <!-- Actions Column -->
                         <div class="col-md-4 text-end">
                             <div class="btn-group" role="group">
-                                <!-- Settings button - always visible except when running -->
-                                {% if gen.status != 'RUNNING' %}
+                                <!-- Settings button - always visible -->
                                 <button class="btn btn-outline-light btn-sm settings-btn" data-id="{{ gen.id }}"
                                         title="Paramètres">
                                     <i class="fas fa-cog"></i>
                                 </button>
-                                {% endif %}
 
                                 <!-- Start/Restart button -->
                                 {% if gen.status == 'RUNNING' %}
@@ -550,7 +548,7 @@
                                     <img src="{{ img_url }}" alt="Generated Image {{ forloop.counter }}"
                                          class="img-thumbnail bg-dark border-secondary"
                                          style="width: 100%; height: auto; max-height: 150px; object-fit: cover; cursor: pointer; transition: transform 0.2s;"
-                                         onclick="window.open('{{ img_url }}', '_blank')"
+                                         onclick="openImagePreview('{{ img_url }}', 'Image #{{ gen.id }}-{{ forloop.counter }}')"
                                          onmouseover="this.style.transform='scale(1.05)'"
                                          onmouseout="this.style.transform='scale(1)'">
                                 </div>
@@ -851,13 +849,11 @@
                         <!-- Actions Column -->
                         <div class="col-md-4 text-end">
                             <div class="btn-group" role="group">
-                                <!-- Settings button - always visible except when running -->
-                                {% if gen.status != 'RUNNING' %}
+                                <!-- Settings button - always visible -->
                                 <button class="btn btn-outline-light btn-sm video-settings-btn" data-id="{{ gen.id }}"
                                         title="Paramètres">
                                     <i class="fas fa-cog"></i>
                                 </button>
-                                {% endif %}
 
                                 <!-- Start/Restart button -->
                                 {% if gen.status == 'RUNNING' %}
@@ -896,10 +892,22 @@
                     {% if gen.status == 'SUCCESS' and gen.output_video %}
                     <div class="row mt-3">
                         <div class="col-12">
-                            <video controls class="w-100 rounded" style="max-height: 400px;">
-                                <source src="{{ gen.output_video.url }}" type="video/mp4">
-                                Votre navigateur ne supporte pas la lecture vidéo.
-                            </video>
+                            <div class="video-preview-container position-relative rounded overflow-hidden"
+                                 style="cursor: pointer; max-width: 400px;"
+                                 onclick="openVideoPreview('{{ gen.output_video.url }}', 'Vidéo #{{ gen.id }}')">
+                                <video class="w-100 rounded" style="max-height: 200px; pointer-events: none;"
+                                       preload="metadata">
+                                    <source src="{{ gen.output_video.url }}" type="video/mp4">
+                                </video>
+                                <div class="position-absolute top-50 start-50 translate-middle">
+                                    <div class="btn btn-light btn-lg rounded-circle shadow" style="width: 60px; height: 60px;">
+                                        <i class="fas fa-play text-dark" style="margin-left: 3px;"></i>
+                                    </div>
+                                </div>
+                                <div class="position-absolute bottom-0 start-0 end-0 bg-dark bg-opacity-75 text-white text-center py-1">
+                                    <small><i class="fas fa-expand-alt me-1"></i>Cliquer pour agrandir</small>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     {% endif %}
@@ -1227,7 +1235,47 @@
         background-color: #0d6efd;
         color: white;
     }
+    /* Video preview container hover effect */
+    .video-preview-container:hover .btn-light {
+        transform: scale(1.1);
+        transition: transform 0.2s ease;
+    }
 </style>
+<!-- Media preview functionality -->
+<script src="{% static 'common/js/media-preview.js' %}"></script>
+<script>
+    /**
+     * Open image preview in modal
+     */
+    function openImagePreview(url, name) {
+        if (typeof showPreviewModal === 'function') {
+            showPreviewModal({
+                url: url,
+                name: name || 'Image générée',
+                mime_type: 'image/png'
+            });
+        } else {
+            // Fallback: open in new tab
+            window.open(url, '_blank');
+        }
+    }
+
+    /**
+     * Open video preview in modal
+     */
+    function openVideoPreview(url, name) {
+        if (typeof showPreviewModal === 'function') {
+            showPreviewModal({
+                url: url,
+                name: name || 'Vidéo générée',
+                mime_type: 'video/mp4'
+            });
+        } else {
+            // Fallback: open in new tab
+            window.open(url, '_blank');
+        }
+    }
+</script>
 <script>
     // Inject Django URLs and CSRF token into JavaScript
     window.IMAGER_CONFIG = {

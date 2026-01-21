@@ -24,15 +24,16 @@ def get_model_path(filename: str, auto_download: bool = True) -> str:
     Supporte les formats PyTorch (.pt) et ONNX (.onnx).
 
     Recherche dans l'ordre:
-    1. Chemin direct si path contient des séparateurs
-    2. Racine MODELS_ROOT
-    3. Sous-dossiers par type (detect/, segment/, etc.)
-    4. Sous-dossiers spécialisés (detect/faces/, detect/faces&plates/, etc.)
+    1. Chemin direct si path contient des séparateurs (type/specialty/model.pt)
+    2. Si type/model.pt n'existe pas, recherche dans les sous-dossiers de type/
+    3. Racine MODELS_ROOT
+    4. Sous-dossiers par type (detect/, segment/, etc.)
+    5. Sous-dossiers spécialisés (detect/faces/, detect/faces&plates/, etc.)
 
     Args:
         filename: Nom du fichier modèle. Formats acceptés:
             - 'model.pt' ou 'model.onnx' (recherche dans tous les dossiers)
-            - 'detect/model.pt' (recherche dans le type detect)
+            - 'detect/model.pt' (recherche dans le type detect et ses sous-dossiers)
             - 'detect/faces/model.pt' (chemin exact avec spécialité)
 
     Returns:
@@ -47,6 +48,23 @@ def get_model_path(filename: str, auto_download: bool = True) -> str:
         path = os.path.join(MODELS_ROOT, filename.replace('/', os.sep))
         if is_model_file(path):
             return path
+
+        # Si le chemin est type/model.pt (un seul séparateur) et n'existe pas,
+        # rechercher dans les sous-dossiers de type/
+        parts = filename.replace('\\', '/').split('/')
+        if len(parts) == 2:
+            model_type, model_name = parts
+            type_dir = os.path.join(MODELS_ROOT, model_type)
+            if os.path.isdir(type_dir):
+                # Rechercher dans les sous-dossiers spécialisés
+                for subdir in os.listdir(type_dir):
+                    subdir_path = os.path.join(type_dir, subdir)
+                    if os.path.isdir(subdir_path):
+                        specialty_path = os.path.join(subdir_path, model_name)
+                        if is_model_file(specialty_path):
+                            logger.info(f"Model found in specialty folder: {subdir}/{model_name}")
+                            return specialty_path
+
         # Try auto-download if enabled (only for official models, .pt only)
         if auto_download and filename.endswith('.pt'):
             downloaded_path = auto_download_model(filename)
