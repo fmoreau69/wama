@@ -13,13 +13,21 @@ imager/
 
 ## Available Models
 
+### Text-to-Video (TI2V)
+
+| Model            | ID            | Size | VRAM Required |
+|------------------|---------------|------|---------------|
+| Wan 2.2 TI2V 5B | `wan-ti2v-5b` | ~5GB | ~8GB |
+
+**Hugging Face**: [Wan-AI/Wan2.2-TI2V-5B-Diffusers](https://huggingface.co/Wan-AI/Wan2.2-TI2V-5B-Diffusers)
+
 ### Text-to-Video (T2V)
 
-| Model | ID | Size | VRAM Required |
-|-------|-----|------|---------------|
-| Wan 2.1 T2V 1.3B | `wan-t2v-1.3b` | ~5GB | ~8GB |
+| Model           | ID            | Size | VRAM Required |
+|-----------------|---------------|------|---------------|
+| Wan 2.2 T2V 14B | `wan-t2v-14b` | ~25GB | ~24GB+ |
 
-**Hugging Face**: [Wan-AI/Wan2.1-T2V-1.3B-Diffusers](https://huggingface.co/Wan-AI/Wan2.1-T2V-1.3B-Diffusers)
+**Hugging Face**: [Wan-AI/Wan2.2-T2V-A14B-Diffusers](https://huggingface.co/Wan-AI/Wan2.2-T2V-A14B-Diffusers)
 
 ### Image-to-Video (I2V)
 
@@ -36,7 +44,8 @@ The download location is `AI-models/imager/wan/`.
 
 ### First-time download times (approximate)
 
-- **Wan T2V 1.3B**: 5-10 minutes (~5GB)
+- **Wan TI2V 5B**: 5-10 minutes (~16GB)
+- **Wan T2V 14B**: 20-40 minutes (~25GB)
 - **Wan I2V 14B**: 20-40 minutes (~25GB)
 
 ## Manual Download
@@ -81,11 +90,12 @@ pip install git+https://github.com/huggingface/diffusers
 
 ## Disk Usage
 
-| Model | Disk Space |
-|-------|------------|
-| Wan T2V 1.3B | ~5GB |
-| Wan I2V 14B | ~25GB |
-| **Total (all models)** | **~30GB** |
+| Model                  | Disk Space |
+|------------------------|------------|
+| Wan TI2V 5B            | ~16GB       |
+| Wan T2V 14B            | ~25GB      |
+| Wan I2V 14B            | ~25GB      |
+| **Total (all models)** | **~30GB**  |
 
 ## Clearing Cache
 

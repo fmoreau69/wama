@@ -207,7 +207,7 @@ def _enhance_image(enhancement: Enhancement, user_id: int) -> dict:
 
         # Save output file directly to storage to force overwrite without Django's uniqueness check
         from django.core.files.storage import default_storage
-        output_storage_path = os.path.join('enhancer/output', output_filename)
+        output_storage_path = f'enhancer/{enhancement.user_id}/output/{output_filename}'
 
         # Force delete if exists (handles orphaned files)
         if default_storage.exists(output_storage_path):
@@ -426,7 +426,7 @@ def _enhance_video(enhancement: Enhancement, user_id: int) -> dict:
 
         # Save output file directly to storage to force overwrite without Django's uniqueness check
         from django.core.files.storage import default_storage
-        output_storage_path = os.path.join('enhancer/output', output_filename)
+        output_storage_path = f'enhancer/{enhancement.user_id}/output/{output_filename}'
 
         # Force delete if exists (handles orphaned files)
         if default_storage.exists(output_storage_path):

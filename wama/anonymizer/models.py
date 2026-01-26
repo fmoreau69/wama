@@ -7,6 +7,7 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 
 from wama.settings import BASE_DIR, AI_MODELS_DIR
+from wama.common.utils.media_paths import upload_to_user_input
 import os
 
 # Model path - now points to centralized AI-models directory
@@ -28,7 +29,7 @@ def default_classes2blur():
 class Media(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="media")
     title = models.CharField(max_length=255, blank=True)
-    file = models.FileField(upload_to='anonymizer/input/')
+    file = models.FileField(upload_to=upload_to_user_input('anonymizer'))
     file_ext = models.CharField(max_length=255)
     media_type = models.CharField(max_length=10, choices=[('video', 'Vidéo'), ('image', 'Image'), ('audio', 'Audio'),], default='video')
     uploaded_at = models.DateTimeField(auto_now_add=True)

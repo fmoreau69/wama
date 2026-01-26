@@ -6,6 +6,7 @@ Image generation using Diffusers with multi-modal input support
 from django.db import models
 from django.contrib.auth.models import User
 from django.core.validators import MinValueValidator, MaxValueValidator, FileExtensionValidator
+from wama.common.utils.media_paths import UploadToUserPath
 
 
 # =============================================================================
@@ -189,7 +190,7 @@ class ImageGeneration(models.Model):
 
     # Prompt file for batch processing (file2img mode)
     prompt_file = models.FileField(
-        upload_to='imager/input/prompts/',
+        upload_to=UploadToUserPath('imager', 'input/prompts'),
         null=True,
         blank=True,
         validators=[FileExtensionValidator(['txt', 'json', 'yaml', 'yml'])],
@@ -198,7 +199,7 @@ class ImageGeneration(models.Model):
 
     # Reference image for img2img/style/describe modes
     reference_image = models.ImageField(
-        upload_to='imager/input/references/',
+        upload_to=UploadToUserPath('imager', 'input/references'),
         null=True,
         blank=True,
         help_text="Reference image for img2img, style transfer, or auto-describe"
@@ -280,7 +281,7 @@ class ImageGeneration(models.Model):
 
     # Video output
     output_video = models.FileField(
-        upload_to='imager/videos/',
+        upload_to=UploadToUserPath('imager', 'output/video'),
         null=True,
         blank=True,
         help_text="Generated video file"

@@ -84,14 +84,16 @@ def index(request):
 
     # Video model choices with descriptions
     video_models = [
-        ('wan-t2v-1.3b', 'Wan T2V 1.3B'),
+        ('wan-ti2v-5b', 'Wan TI2V 5B'),
+        ('wan-t2v-14b', 'Wan T2V 14B'),
         ('wan-i2v-14b', 'Wan I2V 14B'),
         ('hunyuan-t2v-480p', 'HunyuanVideo T2V 480p'),
         ('hunyuan-t2v-720p', 'HunyuanVideo T2V 720p'),
         ('hunyuan-i2v-480p', 'HunyuanVideo I2V 480p'),
     ]
     video_models_info = [
-        {'id': 'wan-t2v-1.3b', 'name': 'Wan T2V 1.3B', 'description': 'Text-to-Video - 8GB VRAM - Rapide et efficace', 'vram': '8GB', 'type': 't2v'},
+        {'id': 'wan-ti2v-5b', 'name': 'Wan TI2V 5B', 'description': 'text&image-to-video - 16GB VRAM - Rapide et efficace', 'vram': '8GB', 'type': 'ti2v'},
+        {'id': 'wan-t2v-14b', 'name': 'Wan T2V 14B', 'description': 'Text-to-Video - 24GB VRAM - Haute qualité', 'vram': '24GB', 'type': 't2v'},
         {'id': 'wan-i2v-14b', 'name': 'Wan I2V 14B', 'description': 'Image-to-Video - 24GB VRAM - Haute qualité', 'vram': '24GB', 'type': 'i2v'},
         {'id': 'hunyuan-t2v-480p', 'name': 'HunyuanVideo T2V 480p', 'description': 'Text-to-Video 480p - 14GB VRAM avec offload - Excellente qualité', 'vram': '14GB', 'type': 't2v'},
         {'id': 'hunyuan-t2v-720p', 'name': 'HunyuanVideo T2V 720p', 'description': 'Text-to-Video 720p - 24GB VRAM - Haute résolution', 'vram': '24GB', 'type': 't2v'},
@@ -633,8 +635,20 @@ def restart_generation(request, generation_id):
     try:
         generation = get_object_or_404(ImageGeneration, id=generation_id, user=user)
 
+        # Check if generation is stuck in RUNNING state
         if generation.status == 'RUNNING':
-            return JsonResponse({'error': 'Generation is already running'}, status=400)
+            # Allow restart if stuck for more than 30 minutes (or 2 hours for video)
+            from datetime import timedelta
+            max_running_time = timedelta(hours=2) if generation.is_video_generation else timedelta(minutes=30)
+            time_running = timezone.now() - generation.updated_at
+
+            if time_running < max_running_time:
+                return JsonResponse({
+                    'error': 'Generation is currently running. If it seems stuck, wait a few more minutes or use force reset.',
+                    'time_running': str(time_running).split('.')[0]
+                }, status=400)
+            else:
+                logger.warning(f"Generation #{generation.id} was stuck in RUNNING for {time_running}, allowing restart")
 
         # Reset status and progress
         generation.status = 'PENDING'
@@ -1181,3 +1195,39 @@ def api_all_resolutions(request):
         'presets': IMAGE_RESOLUTION_PRESETS,
         'by_ratio': by_ratio,
     })
+
+
+@require_http_methods(["POST"])
+def force_reset_generation(request, generation_id):
+    """
+    Force reset a stuck generation's status to FAILURE.
+    This allows the user to restart a generation that got stuck in RUNNING state.
+    """
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+
+    try:
+        generation = get_object_or_404(ImageGeneration, id=generation_id, user=user)
+
+        old_status = generation.status
+
+        # Reset status to FAILURE
+        generation.status = 'FAILURE'
+        generation.progress = 0
+        generation.error_message = f"Génération réinitialisée manuellement (ancien statut: {old_status})"
+        generation.save()
+
+        # Clear progress cache
+        cache.delete(f"imager_progress_{generation_id}")
+
+        logger.info(f"Force reset generation #{generation.id} from {old_status} to FAILURE")
+
+        return JsonResponse({
+            'success': True,
+            'old_status': old_status,
+            'new_status': 'FAILURE',
+            'message': 'Generation reset to FAILURE. You can now restart it.'
+        })
+
+    except Exception as e:
+        logger.error(f"Error force resetting generation: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)

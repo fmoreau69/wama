@@ -104,6 +104,17 @@
             });
         }
 
+        // Force reset button for stuck image generations
+        const forceResetImageBtn = document.getElementById('forceResetImageBtn');
+        if (forceResetImageBtn) {
+            forceResetImageBtn.addEventListener('click', function() {
+                const genId = document.getElementById('settings_gen_id').value;
+                if (confirm('Êtes-vous sûr de vouloir forcer la réinitialisation de cette génération ?\n\nCette action marquera la génération comme échouée et vous permettra de la relancer.')) {
+                    forceResetImageGeneration(genId);
+                }
+            });
+        }
+
         // Download all button
         const downloadAllBtn = document.getElementById('downloadAllBtn');
         if (downloadAllBtn) {
@@ -260,6 +271,17 @@
         if (saveVideoSettingsOnlyBtn) {
             saveVideoSettingsOnlyBtn.addEventListener('click', function() {
                 saveVideoSettings(false);
+            });
+        }
+
+        // Force reset button for stuck generations
+        const forceResetVideoBtn = document.getElementById('forceResetVideoBtn');
+        if (forceResetVideoBtn) {
+            forceResetVideoBtn.addEventListener('click', function() {
+                const genId = document.getElementById('video_settings_gen_id').value;
+                if (confirm('Êtes-vous sûr de vouloir forcer la réinitialisation de cette génération ?\n\nCette action marquera la génération comme échouée et vous permettra de la relancer.')) {
+                    forceResetGeneration(genId);
+                }
             });
         }
     }
@@ -1365,6 +1387,13 @@
                 // Upscale
                 document.getElementById('settings_upscale').checked = data.upscale || false;
 
+                // Show/hide force reset button based on status
+                const forceResetBtn = document.getElementById('forceResetImageBtn');
+                if (forceResetBtn) {
+                    // Show force reset button if status is RUNNING (likely stuck)
+                    forceResetBtn.style.display = (data.status === 'RUNNING') ? 'inline-block' : 'none';
+                }
+
                 // Show modal
                 const modal = new bootstrap.Modal(document.getElementById('generationSettingsModal'));
                 modal.show();
@@ -1470,6 +1499,13 @@
                 guidanceEl.value = data.guidance_scale || 5;
                 document.getElementById('video_settings_guidance_value').textContent = guidanceEl.value;
 
+                // Show/hide force reset button based on status
+                const forceResetBtn = document.getElementById('forceResetVideoBtn');
+                if (forceResetBtn) {
+                    // Show force reset button if status is RUNNING (likely stuck)
+                    forceResetBtn.style.display = (data.status === 'RUNNING') ? 'inline-block' : 'none';
+                }
+
                 // Show modal
                 const modal = new bootstrap.Modal(document.getElementById('videoSettingsModal'));
                 modal.show();
@@ -1530,6 +1566,78 @@
         .catch(error => {
             console.error('Error saving video settings:', error);
             showNotification('Erreur lors de la sauvegarde des paramètres vidéo', 'danger');
+        });
+    }
+
+    /**
+     * Force reset a stuck generation to FAILURE status
+     */
+    function forceResetGeneration(genId) {
+        const url = config.urls.forceReset.replace('0', genId);
+
+        fetch(url, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': config.csrfToken
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification('Génération réinitialisée. Vous pouvez maintenant la relancer.', 'success');
+
+                // Close modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('videoSettingsModal'));
+                if (modal) modal.hide();
+
+                // Ensure video tab stays active
+                localStorage.setItem('imager_active_tab', 'video');
+
+                // Refresh page to show updated status
+                setTimeout(() => location.reload(), 500);
+            } else {
+                showNotification('Erreur : ' + (data.error || 'Erreur inconnue'), 'danger');
+            }
+        })
+        .catch(error => {
+            console.error('Error force resetting generation:', error);
+            showNotification('Erreur lors de la réinitialisation', 'danger');
+        });
+    }
+
+    /**
+     * Force reset a stuck image generation to FAILURE status
+     */
+    function forceResetImageGeneration(genId) {
+        const url = config.urls.forceReset.replace('0', genId);
+
+        fetch(url, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': config.csrfToken
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification('Génération réinitialisée. Vous pouvez maintenant la relancer.', 'success');
+
+                // Close modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('generationSettingsModal'));
+                if (modal) modal.hide();
+
+                // Ensure image tab stays active
+                localStorage.setItem('imager_active_tab', 'image');
+
+                // Refresh page to show updated status
+                setTimeout(() => location.reload(), 500);
+            } else {
+                showNotification('Erreur : ' + (data.error || 'Erreur inconnue'), 'danger');
+            }
+        })
+        .catch(error => {
+            console.error('Error force resetting image generation:', error);
+            showNotification('Erreur lors de la réinitialisation', 'danger');
         });
     }
 

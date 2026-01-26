@@ -9,6 +9,7 @@ from .models import Media, UserSettings
 from anonymizer import anonymize
 from .utils.media_utils import get_input_media_path
 from .utils.yolo_utils import get_model_path
+from wama.common.utils.media_paths import get_app_media_path
 from .utils.sam3_manager import check_sam3_installed, validate_sam3_prompt
 from wama.common.utils.console_utils import push_console_line
 
@@ -54,7 +55,7 @@ def process_single_media(self, media_id):
         )
 
         kwargs = {
-            'media_path': get_input_media_path(media.file.name),
+            'media_path': get_input_media_path(media.file.name, user.id),
             'file_ext': media.file_ext,
             'classes2blur': media.classes2blur if ms_custom else user_settings.classes2blur,
             'blur_ratio': media.blur_ratio if ms_custom else user_settings.blur_ratio,
@@ -250,7 +251,11 @@ def start_process(**kwargs):
     if user_id:
         push_console_line(user_id, f"Using YOLO with classes: {kwargs.get('classes2blur', [])}")
 
-    model = anonymize.Anonymize()
+    # Get user-specific paths
+    source_dir = get_app_media_path('anonymizer', user_id, 'input') if user_id else None
+    dest_dir = get_app_media_path('anonymizer', user_id, 'output') if user_id else None
+
+    model = anonymize.Anonymize(source_dir=source_dir, destination_dir=dest_dir)
     anonymize.Anonymize.load_model(model, **kwargs)
     anonymize.Anonymize.process(model, **kwargs)
 

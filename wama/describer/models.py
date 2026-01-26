@@ -6,6 +6,7 @@ AI-powered content description and summarization
 from django.db import models
 from django.contrib.auth import get_user_model
 from django.core.validators import FileExtensionValidator
+from wama.common.utils.media_paths import upload_to_user_input, upload_to_user_output
 
 User = get_user_model()
 
@@ -53,7 +54,7 @@ class Description(models.Model):
 
     # Source file
     input_file = models.FileField(
-        upload_to='describer/input/',
+        upload_to=upload_to_user_input('describer'),
         validators=[FileExtensionValidator(
             allowed_extensions=[
                 'jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp',
@@ -91,7 +92,7 @@ class Description(models.Model):
     # Result
     result_text = models.TextField(blank=True)
     result_file = models.FileField(
-        upload_to='describer/output/',
+        upload_to=upload_to_user_output('describer'),
         blank=True,
         null=True
     )

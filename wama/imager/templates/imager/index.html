@@ -1084,6 +1084,10 @@
                 </form>
             </div>
             <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-danger me-auto" id="forceResetImageBtn" style="display: none;"
+                        title="Réinitialiser une génération bloquée">
+                    <i class="fas fa-exclamation-triangle"></i> Force Reset
+                </button>
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
                 <button type="button" class="btn btn-success" id="saveSettingsBtn">
                     <i class="fas fa-play"></i> Enregistrer et démarrer
@@ -1201,6 +1205,10 @@
                 </form>
             </div>
             <div class="modal-footer border-success">
+                <button type="button" class="btn btn-danger me-auto" id="forceResetVideoBtn" style="display: none;"
+                        title="Réinitialiser une génération bloquée">
+                    <i class="fas fa-exclamation-triangle"></i> Force Reset
+                </button>
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
                 <button type="button" class="btn btn-success" id="saveVideoSettingsBtn">
                     <i class="fas fa-play"></i> Enregistrer et démarrer
@@ -1295,7 +1303,8 @@
             autoPrompt: "{% url 'imager:auto_prompt' %}",
             batchChildren: "{% url 'imager:batch_children' 0 %}",
             startBatch: "{% url 'imager:start_batch' 0 %}",
-            modelResolutions: "{% url 'imager:api_model_resolutions' %}"
+            modelResolutions: "{% url 'imager:api_model_resolutions' %}",
+            forceReset: "{% url 'imager:force_reset' 0 %}"
         },
         csrfToken: "{{ csrf_token }}"
     };

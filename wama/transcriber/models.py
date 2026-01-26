@@ -1,10 +1,11 @@
 from django.db import models
 from django.contrib.auth.models import User
+from wama.common.utils.media_paths import upload_to_user_input
 
 
 class Transcript(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='transcripts')
-    audio = models.FileField(upload_to='transcriber/input/')
+    audio = models.FileField(upload_to=upload_to_user_input('transcriber'))
     created_at = models.DateTimeField(auto_now_add=True)
 
     # Options

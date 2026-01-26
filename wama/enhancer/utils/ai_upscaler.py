@@ -65,7 +65,15 @@ MODELS_INFO = {
 
 class AIUpscaler:
     """
-    AI-based image upscaler using ONNX Runtime with DirectML.
+    AI-based image upscaler using ONNX Runtime.
+
+    Supports multiple GPU backends:
+    - CUDA (Linux/WSL with NVIDIA GPU) - recommended for Linux
+    - DirectML (Windows with GPU) - recommended for Windows
+    - CoreML (macOS)
+    - CPU (fallback)
+
+    The appropriate backend is automatically selected based on availability.
 
     This is a simplified version of QualityScaler's AI_upscale class,
     adapted for Django/Celery integration.
@@ -122,11 +130,38 @@ class AIUpscaler:
         try:
             import onnxruntime as ort
 
-            # Set up DirectML provider for Windows GPU acceleration
-            providers = [
-                ('DmlExecutionProvider', {'device_id': self.device_id}),
-                'CPUExecutionProvider'
-            ]
+            # Get available providers
+            available_providers = ort.get_available_providers()
+            logger.info(f"Available ONNX providers: {available_providers}")
+
+            # Build provider list based on what's available (priority order)
+            providers = []
+
+            # CUDA (Linux/WSL with NVIDIA GPU)
+            if 'CUDAExecutionProvider' in available_providers:
+                providers.append(('CUDAExecutionProvider', {'device_id': self.device_id}))
+                logger.info(f"Using CUDA GPU (device {self.device_id})")
+
+            # TensorRT (Linux with NVIDIA GPU - fastest)
+            if 'TensorrtExecutionProvider' in available_providers:
+                # TensorRT is faster but CUDA is more compatible, keep CUDA as primary
+                pass
+
+            # DirectML (Windows with GPU)
+            if 'DmlExecutionProvider' in available_providers:
+                providers.append(('DmlExecutionProvider', {'device_id': self.device_id}))
+                logger.info(f"Using DirectML GPU (device {self.device_id})")
+
+            # CoreML (macOS)
+            if 'CoreMLExecutionProvider' in available_providers:
+                providers.append('CoreMLExecutionProvider')
+                logger.info("Using CoreML (macOS)")
+
+            # Always add CPU as fallback
+            providers.append('CPUExecutionProvider')
+
+            if len(providers) == 1:
+                logger.warning("No GPU provider available, using CPU only (slow)")
 
             # Create inference session
             self.session = ort.InferenceSession(
@@ -134,13 +169,15 @@ class AIUpscaler:
                 providers=providers
             )
 
+            # Log which provider is actually being used
+            actual_providers = self.session.get_providers()
             logger.info(f"Loaded model: {self.model_name}")
-            logger.info(f"Using device: {self.device_id}")
+            logger.info(f"Active providers: {actual_providers}")
 
         except ImportError:
             raise ImportError(
-                "onnxruntime-directml is required for AI upscaling. "
-                "Install it with: pip install onnxruntime-directml"
+                "onnxruntime is required for AI upscaling. "
+                "Install it with: pip install onnxruntime-gpu (Linux) or onnxruntime-directml (Windows)"
             )
         except Exception as e:
             raise RuntimeError(f"Failed to load model {self.model_name}: {e}")

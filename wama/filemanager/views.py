@@ -55,8 +55,8 @@ def build_file_tree(user):
             'text': 'Anonymizer',
             'icon': 'fa fa-user-secret text-danger',
             'children': [
-                {'id': 'anonymizer_input', 'text': 'Input', 'path': 'anonymizer/input', 'icon': 'fa fa-folder text-secondary'},
-                {'id': 'anonymizer_output', 'text': 'Output', 'path': 'anonymizer/output', 'icon': 'fa fa-folder text-success'},
+                {'id': 'anonymizer_input', 'text': 'Input', 'path': f'anonymizer/{user_id}/input', 'icon': 'fa fa-folder text-secondary'},
+                {'id': 'anonymizer_output', 'text': 'Output', 'path': f'anonymizer/{user_id}/output', 'icon': 'fa fa-folder text-success'},
             ]
         },
         {
@@ -64,8 +64,8 @@ def build_file_tree(user):
             'text': 'Describer',
             'icon': 'fa fa-search-plus text-info',
             'children': [
-                {'id': 'describer_input', 'text': 'Input', 'path': 'describer/input', 'icon': 'fa fa-folder text-secondary'},
-                {'id': 'describer_output', 'text': 'Output', 'path': 'describer/output', 'icon': 'fa fa-folder text-success'},
+                {'id': 'describer_input', 'text': 'Input', 'path': f'describer/{user_id}/input', 'icon': 'fa fa-folder text-secondary'},
+                {'id': 'describer_output', 'text': 'Output', 'path': f'describer/{user_id}/output', 'icon': 'fa fa-folder text-success'},
             ]
         },
         {
@@ -73,8 +73,8 @@ def build_file_tree(user):
             'text': 'Enhancer',
             'icon': 'fa fa-magic text-info',
             'children': [
-                {'id': 'enhancer_input', 'text': 'Input', 'path': 'enhancer/input', 'icon': 'fa fa-folder text-secondary'},
-                {'id': 'enhancer_output', 'text': 'Output', 'path': 'enhancer/output', 'icon': 'fa fa-folder text-success'},
+                {'id': 'enhancer_input', 'text': 'Input', 'path': f'enhancer/{user_id}/input', 'icon': 'fa fa-folder text-secondary'},
+                {'id': 'enhancer_output', 'text': 'Output', 'path': f'enhancer/{user_id}/output', 'icon': 'fa fa-folder text-success'},
             ]
         },
         {
@@ -82,10 +82,10 @@ def build_file_tree(user):
             'text': 'Imager',
             'icon': 'fa fa-image text-success',
             'children': [
-                {'id': 'imager_prompts', 'text': 'Prompts', 'path': 'imager/input/prompts', 'icon': 'fa fa-file-alt text-secondary'},
-                {'id': 'imager_references', 'text': 'References', 'path': 'imager/input/references', 'icon': 'fa fa-image text-secondary'},
-                {'id': 'imager_output_image', 'text': 'Images', 'path': f'imager/output/image/{user_id}', 'icon': 'fa fa-image text-success'},
-                {'id': 'imager_output_video', 'text': 'Vidéos', 'path': f'imager/output/video/{user_id}', 'icon': 'fa fa-film text-success'},
+                {'id': 'imager_prompts', 'text': 'Prompts', 'path': f'imager/{user_id}/input/prompts', 'icon': 'fa fa-file-alt text-secondary'},
+                {'id': 'imager_references', 'text': 'References', 'path': f'imager/{user_id}/input/references', 'icon': 'fa fa-image text-secondary'},
+                {'id': 'imager_output_image', 'text': 'Images', 'path': f'imager/{user_id}/output/image', 'icon': 'fa fa-image text-success'},
+                {'id': 'imager_output_video', 'text': 'Vidéos', 'path': f'imager/{user_id}/output/video', 'icon': 'fa fa-film text-success'},
             ]
         },
         {
@@ -93,8 +93,8 @@ def build_file_tree(user):
             'text': 'Synthesizer',
             'icon': 'fa fa-microphone text-primary',
             'children': [
-                {'id': 'synthesizer_input', 'text': 'Input', 'path': 'synthesizer/input', 'icon': 'fa fa-folder text-secondary'},
-                {'id': 'synthesizer_output', 'text': 'Output', 'path': 'synthesizer/output', 'icon': 'fa fa-folder text-success'},
+                {'id': 'synthesizer_input', 'text': 'Input', 'path': f'synthesizer/{user_id}/input', 'icon': 'fa fa-folder text-secondary'},
+                {'id': 'synthesizer_output', 'text': 'Output', 'path': f'synthesizer/{user_id}/output', 'icon': 'fa fa-folder text-success'},
             ]
         },
         {
@@ -102,8 +102,8 @@ def build_file_tree(user):
             'text': 'Transcriber',
             'icon': 'fa fa-file-alt text-warning',
             'children': [
-                {'id': 'transcriber_input', 'text': 'Input', 'path': 'transcriber/input', 'icon': 'fa fa-folder text-secondary'},
-                {'id': 'transcriber_output', 'text': 'Output', 'path': 'transcriber/output', 'icon': 'fa fa-folder text-success'},
+                {'id': 'transcriber_input', 'text': 'Input', 'path': f'transcriber/{user_id}/input', 'icon': 'fa fa-folder text-secondary'},
+                {'id': 'transcriber_output', 'text': 'Output', 'path': f'transcriber/{user_id}/output', 'icon': 'fa fa-folder text-success'},
             ]
         },
         # WAMA Lab applications (experimental)
@@ -245,18 +245,20 @@ def api_search(request):
     # Search in all user-accessible folders
     search_paths = [
         f'users/{user.id}/temp',
-        'anonymizer/input',
-        'anonymizer/output',
-        'describer/input',
-        'describer/output',
-        'enhancer/input',
-        'enhancer/output',
-        f'imager/output/image/{user.id}',
-        f'imager/output/video/{user.id}',
-        'synthesizer/input',
-        'synthesizer/output',
-        'transcriber/input',
-        'transcriber/output',
+        f'anonymizer/{user.id}/input',
+        f'anonymizer/{user.id}/output',
+        f'describer/{user.id}/input',
+        f'describer/{user.id}/output',
+        f'enhancer/{user.id}/input',
+        f'enhancer/{user.id}/output',
+        f'imager/{user.id}/input/prompts',
+        f'imager/{user.id}/input/references',
+        f'imager/{user.id}/output/image',
+        f'imager/{user.id}/output/video',
+        f'synthesizer/{user.id}/input',
+        f'synthesizer/{user.id}/output',
+        f'transcriber/{user.id}/input',
+        f'transcriber/{user.id}/output',
     ]
 
     for search_path in search_paths:
@@ -890,10 +892,11 @@ def api_import_to_app(request):
 def import_to_describer(source_path, user):
     """Import a file to Describer app."""
     from wama.describer.models import Description
+    from wama.common.utils.media_paths import get_app_media_path
     import shutil
 
-    # Copy file to describer input folder
-    dest_dir = Path(settings.MEDIA_ROOT) / 'describer' / 'input'
+    # Copy file to user-specific describer input folder
+    dest_dir = get_app_media_path('describer', user.id, 'input')
     dest_dir.mkdir(parents=True, exist_ok=True)
     dest_path = dest_dir / source_path.name
 
@@ -908,8 +911,8 @@ def import_to_describer(source_path, user):
 
     shutil.copy2(source_path, dest_path)
 
-    # Create Description record
-    relative_path = f'describer/input/{dest_path.name}'
+    # Create Description record with user-specific path
+    relative_path = f'describer/{user.id}/input/{dest_path.name}'
 
     description = Description.objects.create(user=user)
     description.input_file.name = relative_path
@@ -929,6 +932,8 @@ def import_to_describer(source_path, user):
 def import_to_enhancer(source_path, user):
     """Import a file to Enhancer app."""
     from wama.enhancer.models import Enhancement
+    from wama.common.utils.video_utils import get_media_info
+    from wama.common.utils.media_paths import get_app_media_path
     import shutil
 
     # Detect media type from extension
@@ -943,8 +948,8 @@ def import_to_enhancer(source_path, user):
     else:
         raise ValueError(f"Unsupported file format: {ext}")
 
-    # Copy file to enhancer input folder
-    dest_dir = Path(settings.MEDIA_ROOT) / 'enhancer' / 'input'
+    # Copy file to user-specific enhancer input folder
+    dest_dir = get_app_media_path('enhancer', user.id, 'input')
     dest_dir.mkdir(parents=True, exist_ok=True)
     dest_path = dest_dir / source_path.name
 
@@ -959,12 +964,19 @@ def import_to_enhancer(source_path, user):
 
     shutil.copy2(source_path, dest_path)
 
-    # Create Enhancement record - set path directly to avoid duplicate upload
-    relative_path = f'enhancer/input/{dest_path.name}'
+    # Get media info (dimensions, duration, etc.)
+    media_info = get_media_info(str(dest_path))
+
+    # Create Enhancement record with user-specific path
+    relative_path = f'enhancer/{user.id}/input/{dest_path.name}'
 
     enhancement = Enhancement.objects.create(
         user=user,
-        media_type=media_type
+        media_type=media_type,
+        width=media_info['width'],
+        height=media_info['height'],
+        duration=media_info['duration'],
+        file_size=media_info['file_size'],
     )
     enhancement.input_file.name = relative_path
     enhancement.save()
@@ -976,6 +988,8 @@ def import_to_enhancer(source_path, user):
         'filename': dest_path.name,
         'path': relative_path,
         'media_type': media_type,
+        'width': media_info['width'],
+        'height': media_info['height'],
     }
 
 
@@ -987,21 +1001,24 @@ def import_to_imager(source_path, user):
     - Image files -> reference images for img2img/style/describe modes
     """
     from wama.imager.models import ImageGeneration
+    from wama.common.utils.media_paths import get_app_media_path
     import shutil
 
     ext = source_path.suffix.lower()
 
-    # Determine file type and destination
+    # Determine file type and destination (user-specific paths)
     if ext in ('.txt', '.json', '.yaml', '.yml'):
         # Prompt file for batch generation
-        dest_dir = Path(settings.MEDIA_ROOT) / 'imager' / 'input' / 'prompts'
+        dest_dir = get_app_media_path('imager', user.id, 'input/prompts')
         file_type = 'prompt_file'
         generation_mode = 'file2img'
+        subfolder = 'input/prompts'
     elif ext in ('.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp'):
         # Reference image for img2img/style/describe
-        dest_dir = Path(settings.MEDIA_ROOT) / 'imager' / 'input' / 'references'
+        dest_dir = get_app_media_path('imager', user.id, 'input/references')
         file_type = 'reference_image'
         generation_mode = 'describe2img'  # Default, user can change mode
+        subfolder = 'input/references'
     else:
         raise ValueError(f"Format not supported for Imager: {ext}")
 
@@ -1019,7 +1036,9 @@ def import_to_imager(source_path, user):
 
     shutil.copy2(source_path, dest_path)
 
-    # Create ImageGeneration record
+    # Create ImageGeneration record with user-specific path
+    relative_path = f'imager/{user.id}/{subfolder}/{dest_path.name}'
+
     if file_type == 'prompt_file':
         # For prompt files, we just save the file reference
         # The actual batch will be created when user opens Imager
@@ -1029,7 +1048,6 @@ def import_to_imager(source_path, user):
             prompt=f'Batch from {dest_path.name} (pending)',
             status='PENDING',
         )
-        relative_path = f'imager/input/prompts/{dest_path.name}'
         generation.prompt_file.name = relative_path
         generation.save()
     else:
@@ -1040,7 +1058,6 @@ def import_to_imager(source_path, user):
             prompt='[Awaiting prompt generation]',
             status='PENDING',
         )
-        relative_path = f'imager/input/references/{dest_path.name}'
         generation.reference_image.name = relative_path
         generation.save()
 
@@ -1059,12 +1076,13 @@ def import_to_anonymizer(source_path, user):
     """Import a file to Anonymizer app."""
     from wama.anonymizer.models import Media
     from wama.anonymizer.views import add_media_to_db
+    from wama.common.utils.media_paths import get_app_media_path
     from django.core.files import File
     import shutil
     import mimetypes
 
-    # Copy file to anonymizer input folder
-    dest_dir = Path(settings.MEDIA_ROOT) / 'anonymizer' / 'input'
+    # Copy file to user-specific anonymizer input folder
+    dest_dir = get_app_media_path('anonymizer', user.id, 'input')
     dest_dir.mkdir(parents=True, exist_ok=True)
     dest_path = dest_dir / source_path.name
 
@@ -1091,8 +1109,8 @@ def import_to_anonymizer(source_path, user):
     else:
         media_type = 'video'  # Default
 
-    # Create Media record with proper fields
-    relative_path = f'anonymizer/input/{dest_path.name}'
+    # Create Media record with user-specific path
+    relative_path = f'anonymizer/{user.id}/input/{dest_path.name}'
 
     media = Media.objects.create(
         user=user,
@@ -1119,7 +1137,7 @@ def import_to_anonymizer(source_path, user):
 def import_to_synthesizer(source_path, user):
     """Import a text file to Synthesizer app."""
     from wama.synthesizer.models import VoiceSynthesis
-    from django.core.files import File
+    from wama.common.utils.media_paths import get_app_media_path
     import shutil
 
     # Validate file extension
@@ -1128,8 +1146,8 @@ def import_to_synthesizer(source_path, user):
     if ext not in allowed_extensions:
         raise ValueError(f"Format non supporté. Formats acceptés: {', '.join(allowed_extensions)}")
 
-    # Create destination directory
-    dest_dir = Path(settings.MEDIA_ROOT) / 'synthesizer' / 'input'
+    # Copy file to user-specific synthesizer input folder
+    dest_dir = get_app_media_path('synthesizer', user.id, 'input')
     dest_dir.mkdir(parents=True, exist_ok=True)
     dest_path = dest_dir / source_path.name
 
@@ -1144,8 +1162,8 @@ def import_to_synthesizer(source_path, user):
 
     shutil.copy2(source_path, dest_path)
 
-    # Create VoiceSynthesis record
-    relative_path = str(dest_path.relative_to(settings.MEDIA_ROOT))
+    # Create VoiceSynthesis record with user-specific path
+    relative_path = f'synthesizer/{user.id}/input/{dest_path.name}'
 
     synthesis = VoiceSynthesis.objects.create(
         user=user,
@@ -1184,10 +1202,11 @@ def import_to_synthesizer(source_path, user):
 def import_to_transcriber(source_path, user):
     """Import a file to Transcriber app."""
     from wama.transcriber.models import Transcript
+    from wama.common.utils.media_paths import get_app_media_path
     import shutil
 
-    # Copy file to transcriber input folder
-    dest_dir = Path(settings.MEDIA_ROOT) / 'transcriber' / 'input'
+    # Copy file to user-specific transcriber input folder
+    dest_dir = get_app_media_path('transcriber', user.id, 'input')
     dest_dir.mkdir(parents=True, exist_ok=True)
     dest_path = dest_dir / source_path.name
 
@@ -1202,8 +1221,8 @@ def import_to_transcriber(source_path, user):
 
     shutil.copy2(source_path, dest_path)
 
-    # Create Transcript record
-    relative_path = f'transcriber/input/{dest_path.name}'
+    # Create Transcript record with user-specific path
+    relative_path = f'transcriber/{user.id}/input/{dest_path.name}'
 
     transcript = Transcript.objects.create(user=user)
     transcript.audio.name = relative_path

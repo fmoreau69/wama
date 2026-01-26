@@ -1,7 +1,7 @@
 """
 WAMA Imager - Wan Video Backend
 
-Video generation using Wan 2.1/2.2 models via Hugging Face Diffusers.
+Video generation using Wan 2.2 models via Hugging Face Diffusers.
 Supports Text-to-Video and Image-to-Video generation.
 
 Models are stored in AI-models/imager/wan/ for centralized management.
@@ -58,7 +58,7 @@ class VideoGenerationParams:
     """Parameters for video generation."""
     prompt: str
     negative_prompt: Optional[str] = None
-    model: str = "wan-t2v-1.3b"
+    model: str = "wan-ti2v-5b"
     width: int = 832
     height: int = 480
     num_frames: int = 81  # Should be 4k+1 (e.g., 81 = 4*20+1)
@@ -84,15 +84,17 @@ class VideoGenerationResult:
 
 class WanVideoBackend(ImageGenerationBackend):
     """
-    Video generation backend using Wan 2.1/2.2 models.
+    Video generation backend using Wan 2.2 models.
 
     This backend supports:
-    - Text-to-Video (txt2vid) using Wan2.1-T2V-1.3B or larger models
     - Image-to-Video (img2vid) using Wan2.2-TI2V-5B
+    - Text-to-Video (txt2vid) using Wan2.2-T2V-14B
+    - Image-to-Video (img2vid) using Wan2.2-I2V-14B
 
     VRAM Requirements:
-    - wan-t2v-1.3b: ~8GB VRAM
     - wan-ti2v-5b: ~24GB VRAM (supports both txt2vid and img2vid)
+    - wan-t2v-14b: ~24GB VRAM (txt2vid only)
+    - wan-i2v-14b: ~24GB VRAM (img2vid only)
     """
 
     name = "wan_video"
@@ -100,9 +102,13 @@ class WanVideoBackend(ImageGenerationBackend):
 
     # Map model names to Hugging Face model IDs
     SUPPORTED_MODELS = {
-        "wan-t2v-1.3b": (
-            "Wan 2.1 T2V 1.3B (~8GB)",
-            "Wan-AI/Wan2.1-T2V-1.3B-Diffusers"
+        "wan-ti2v-5b": (
+            "Wan 2.2 TI2V 5B (~8GB)",
+            "Wan-AI/Wan2.2-TI2V-5B-Diffusers"
+        ),
+        "wan-t2v-14b": (
+            "Wan 2.2 T2V 14B (~24GB)",
+            "Wan-AI/Wan2.2-T2V-A14B-Diffusers"
         ),
         "wan-i2v-14b": (
             "Wan 2.2 I2V 14B (~24GB)",

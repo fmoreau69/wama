@@ -69,8 +69,8 @@ def generate_image_task(self, generation_id):
         push_console_line(user_id, f"[Imager] Using backend: {backend.display_name}")
         logger.info(f"Using backend: {backend.name} ({backend.display_name})")
 
-        # Create output directory
-        output_dir = os.path.join(settings.MEDIA_ROOT, 'imager', 'output', 'image', str(generation.user.id))
+        # Create output directory (user-specific path)
+        output_dir = os.path.join(settings.MEDIA_ROOT, 'imager', str(generation.user.id), 'output', 'image')
         os.makedirs(output_dir, exist_ok=True)
 
         generation.progress = 10
@@ -235,7 +235,7 @@ def generate_image_task(self, generation_id):
 @shared_task(bind=True)
 def generate_video_task(self, generation_id):
     """
-    Celery task to generate videos using Wan 2.1/2.2.
+    Celery task to generate videos using Wan 2.2.
 
     Supports:
     - txt2vid: Text-to-Video generation
@@ -326,8 +326,8 @@ def generate_video_task(self, generation_id):
                 return {'error': error_msg}
             push_console_line(user_id, f"[Imager Video] ✓ Wan backend available")
 
-        # Create output directory
-        output_dir = os.path.join(settings.MEDIA_ROOT, 'imager', 'output', 'video', str(generation.user.id))
+        # Create output directory (user-specific path)
+        output_dir = os.path.join(settings.MEDIA_ROOT, 'imager', str(generation.user.id), 'output', 'video')
         os.makedirs(output_dir, exist_ok=True)
         push_console_line(user_id, f"[Imager Video] Output dir: {output_dir}")
 
@@ -390,7 +390,7 @@ def generate_video_task(self, generation_id):
                 height=height,
                 num_frames=num_frames,
                 num_inference_steps=generation.steps,
-                guidance_scale=generation.guidance_scale,
+                cfg_scale=generation.guidance_scale,
                 seed=generation.seed,
                 fps=generation.video_fps,
                 reference_image=reference_image_path,

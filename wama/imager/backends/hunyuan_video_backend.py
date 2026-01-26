@@ -54,7 +54,7 @@ class HunyuanVideoParams:
     height: int = 480
     num_frames: int = 121  # ~5 seconds at 24fps
     num_inference_steps: int = 50
-    guidance_scale: float = 6.0
+    cfg_scale: float = 6.0
     flow_shift: float = 5.0
     seed: Optional[int] = None
     fps: int = 24
@@ -322,7 +322,7 @@ class HunyuanVideoBackend(ImageGenerationBackend):
                         width=params.width,
                         num_frames=params.num_frames,
                         num_inference_steps=params.num_inference_steps,
-                        guidance_scale=model_config["cfg_scale"],
+                        cfg_scale=model_config["cfg_scale"],
                         generator=generator,
                         callback_on_step_end=callback_on_step_end,
                     )
@@ -335,7 +335,7 @@ class HunyuanVideoBackend(ImageGenerationBackend):
                         width=params.width,
                         num_frames=params.num_frames,
                         num_inference_steps=params.num_inference_steps,
-                        guidance_scale=model_config["cfg_scale"],
+                        cfg_scale=model_config["cfg_scale"],
                         generator=generator,
                         callback_on_step_end=callback_on_step_end,
                     )

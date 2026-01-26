@@ -37,6 +37,7 @@ class IndexView(View):
 @require_POST
 def upload(request):
     """Upload and analyze image/video file, or download from URL."""
+    print("=== ENHANCER UPLOAD CALLED ===")  # DEBUG
     logger.info("=== UPLOAD START ===")
 
     # Check for URL upload first

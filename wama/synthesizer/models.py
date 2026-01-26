@@ -6,6 +6,7 @@ Gère la synthèse vocale (Text-to-Speech)
 from django.db import models
 from django.contrib.auth import get_user_model
 from django.core.validators import FileExtensionValidator
+from wama.common.utils.media_paths import upload_to_user_input, upload_to_user_output
 
 User = get_user_model()
 
@@ -75,7 +76,7 @@ class VoiceSynthesis(models.Model):
 
     # Fichier texte source
     text_file = models.FileField(
-        upload_to='synthesizer/input/',
+        upload_to=upload_to_user_input('synthesizer'),
         validators=[FileExtensionValidator(allowed_extensions=['txt', 'pdf', 'docx', 'csv', 'md'])],
         help_text="Fichier texte à synthétiser"
     )
@@ -88,7 +89,7 @@ class VoiceSynthesis(models.Model):
 
     # Fichier de référence vocale (pour le clonage)
     voice_reference = models.FileField(
-        upload_to='synthesizer/input/',
+        upload_to=upload_to_user_input('synthesizer'),
         blank=True,
         null=True,
         validators=[FileExtensionValidator(allowed_extensions=['wav', 'mp3', 'flac', 'ogg'])],
@@ -135,7 +136,7 @@ class VoiceSynthesis(models.Model):
 
     # Résultat
     audio_output = models.FileField(
-        upload_to='synthesizer/output/',
+        upload_to=upload_to_user_output('synthesizer'),
         blank=True,
         null=True,
         help_text="Fichier audio généré"

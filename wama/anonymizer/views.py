@@ -40,6 +40,7 @@ from ..settings import MEDIA_ROOT, MEDIA_INPUT_ROOT, MEDIA_OUTPUT_ROOT
 from ..common.utils.console_utils import get_console_lines, get_celery_worker_logs
 from ..common.utils.video_utils import get_media_info
 from ..common.utils.video_utils import upload_media_from_url
+from ..common.utils.media_paths import get_app_media_path, ensure_app_media_dirs
 
 
 class IndexView(View):
@@ -65,14 +66,18 @@ class IndexView(View):
                     if not path:
                         continue
                     try:
+                        # Get user-specific input directory
+                        user_input_dir = get_app_media_path('anonymizer', user.id, 'input')
+                        user_input_dir.mkdir(parents=True, exist_ok=True)
+
                         if is_url(path):
-                            video_path = upload_media_from_url(path, MEDIA_INPUT_ROOT)
+                            video_path = upload_media_from_url(path, str(user_input_dir))
                         else:
                             if not os.path.isfile(path):
                                 raise FileNotFoundError("Local path not found or inaccessible")
                             filename = os.path.basename(path)
-                            unique_filename = get_unique_filename(MEDIA_INPUT_ROOT, filename)
-                            dest_path = os.path.join(MEDIA_INPUT_ROOT, unique_filename)
+                            unique_filename = get_unique_filename(str(user_input_dir), filename)
+                            dest_path = os.path.join(str(user_input_dir), unique_filename)
                             with open(path, 'rb') as src, open(dest_path, 'wb') as dst:
                                 dst.write(src.read())
                             video_path = dest_path
@@ -85,7 +90,7 @@ class IndexView(View):
                 return JsonResponse({'success': True, 'added': added, 'errors': failed})
 
             # Case 2: direct upload (file or URL)
-            video_path = upload_from_url(request)
+            video_path = upload_from_url(request, user)
             media_result = process_media(video_path, user)
             if isinstance(media_result, dict) and media_result.get('is_valid'):
                 return JsonResponse({'success': True, 'media': media_result})
@@ -129,7 +134,9 @@ def process_media(video_path, user):
     try:
         filename = os.path.basename(video_path)
         ext = os.path.splitext(filename)[1]
-        media = Media.objects.create(file=f'anonymizer/input/{filename}', file_ext=ext, user=user)
+        # Use user-specific path
+        relative_path = f'anonymizer/{user.id}/input/{filename}'
+        media = Media.objects.create(file=relative_path, file_ext=ext, user=user)
 
         mime_type, _ = mimetypes.guess_type(video_path)
         if mime_type and mime_type.startswith("video/"):
@@ -155,12 +162,15 @@ def process_media(video_path, user):
         return str(e)
 
 
-def upload_from_url(request):
+def upload_from_url(request, user):
     """Handle media from either an uploaded file or a form URL."""
     media_file = request.FILES.get('file')
     media_url = request.POST.get('media_url')
-    output_path = MEDIA_INPUT_ROOT
-    os.makedirs(output_path, exist_ok=True)
+
+    # Use user-specific input directory
+    output_path = get_app_media_path('anonymizer', user.id, 'input')
+    output_path.mkdir(parents=True, exist_ok=True)
+    output_path = str(output_path)
 
     if media_file:
         return handle_uploaded_media_file(media_file, output_path)
@@ -486,7 +496,7 @@ def download_media(request):
     print(f"[download_media] Media found: {media.file.name} (ext: {media.file_ext}, processed: {media.processed})")
 
     # Generate blurred output file path
-    media_path = get_blurred_media_path(media.file.name, media.file_ext)
+    media_path = get_blurred_media_path(media.file.name, media.file_ext, media.user_id)
     blurred_filename = os.path.basename(media_path)
     print(f"[download_media] Looking for file: {media_path}")
 
@@ -541,7 +551,7 @@ def download_all_media(request):
 
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
         for media in processed_medias:
-            file_path = get_blurred_media_path(media.file.name, media.file_ext)
+            file_path = get_blurred_media_path(media.file.name, media.file_ext, media.user_id)
             print(f"[download_all_media] Looking for: {file_path}")
 
             if os.path.exists(file_path):
@@ -893,7 +903,7 @@ def clear_all_media(request):
 
             # Delete output file (blurred media) - derive path from input filename
             try:
-                output_path = get_blurred_media_path(media.file.name, media.file_ext)
+                output_path = get_blurred_media_path(media.file.name, media.file_ext, media.user_id)
                 if os.path.exists(output_path):
                     os.remove(output_path)
                     print(f"[clear_all_media] Deleted output file: {output_path}")

@@ -631,6 +631,160 @@ ul.modal-menu ul {
     z-index: 1;
 }
 
+/*  === TEXT VISIBILITY ON DARK BACKGROUND === */
+/* Fix for Bootstrap's muted text colors that don't contrast well with dark themes */
+
+/* Base text colors for dark theme */
+body {
+    color: #e5e7eb;
+}
+
+/* Paragraphs and icons in dark containers */
+.bg-dark p,
+.card.bg-dark p,
+.modal-content p,
+.info-card p,
+.container > p,
+.container-fluid > p {
+    color: #e5e7eb;
+}
+
+.bg-dark i.fas,
+.bg-dark i.far,
+.bg-dark i.fab,
+.card.bg-dark i.fas,
+.modal-content i.fas,
+.info-card i.fas {
+    color: #e5e7eb;
+}
+
+/* Preserve colored icons */
+i.text-primary { color: #0d6efd !important; }
+i.text-secondary { color: #6c757d !important; }
+i.text-success { color: #198754 !important; }
+i.text-danger { color: #dc3545 !important; }
+i.text-warning { color: #ffc107 !important; }
+i.text-info { color: #0dcaf0 !important; }
+i.text-light { color: #f8f9fa !important; }
+i.text-white { color: #fff !important; }
+
+/* Text-muted - lighter for dark backgrounds */
+.bg-dark .text-muted,
+.card.bg-dark .text-muted,
+.modal-content .text-muted {
+    color: #9ca3af !important;
+}
+
+/* Small text in dark containers */
+.bg-dark small,
+.bg-dark .small,
+.card.bg-dark small,
+.card.bg-dark .small,
+.modal-content small,
+.modal-content .small,
+.info-card small,
+.info-card .small {
+    color: #d1d5db !important;
+}
+
+/* Card text in dark cards */
+.card.bg-dark .card-text,
+.bg-dark .card-text {
+    color: #e5e7eb !important;
+}
+
+/* IMPORTANT: Alerts keep their default dark text on light backgrounds */
+/* Use wildcard to ensure ALL child elements inherit the alert color */
+.alert-info,
+.alert-info *,
+.modal-content .alert-info,
+.modal-content .alert-info *,
+.info-card .alert-info,
+.info-card .alert-info * {
+    color: #055160 !important;
+}
+
+.alert-warning,
+.alert-warning *,
+.modal-content .alert-warning,
+.modal-content .alert-warning *,
+.info-card .alert-warning,
+.info-card .alert-warning * {
+    color: #664d03 !important;
+}
+
+.alert-success,
+.alert-success *,
+.modal-content .alert-success,
+.modal-content .alert-success *,
+.info-card .alert-success,
+.info-card .alert-success * {
+    color: #0f5132 !important;
+}
+
+.alert-danger,
+.alert-danger *,
+.modal-content .alert-danger,
+.modal-content .alert-danger *,
+.info-card .alert-danger,
+.info-card .alert-danger * {
+    color: #842029 !important;
+}
+
+.alert-primary,
+.alert-primary *,
+.modal-content .alert-primary,
+.modal-content .alert-primary *,
+.info-card .alert-primary,
+.info-card .alert-primary * {
+    color: #084298 !important;
+}
+
+.alert-secondary,
+.alert-secondary *,
+.modal-content .alert-secondary,
+.modal-content .alert-secondary *,
+.info-card .alert-secondary,
+.info-card .alert-secondary * {
+    color: #41464b !important;
+}
+
+.alert-light,
+.alert-light *,
+.modal-content .alert-light,
+.modal-content .alert-light *,
+.info-card .alert-light,
+.info-card .alert-light * {
+    color: #636464 !important;
+}
+
+.alert-dark,
+.alert-dark *,
+.modal-content .alert-dark,
+.modal-content .alert-dark *,
+.info-card .alert-dark,
+.info-card .alert-dark * {
+    color: #141619 !important;
+}
+
+/* Form labels in dark containers */
+.bg-dark .form-label.small,
+.modal-content .form-label.small {
+    color: #f3f4f6 !important;
+}
+
+/* Table cells in dark tables */
+.table-dark td.small,
+.table-dark td .small,
+.table-dark small {
+    color: #d1d5db !important;
+}
+
+/* White-50 utility - more visible on dark backgrounds */
+.text-white-50 {
+    color: rgba(255, 255, 255, 0.7) !important;
+}
+
 /*  === HOME PAGE === */
 .home-wrapper {
     padding: 20px 0;

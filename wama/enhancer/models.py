@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import User
+from wama.common.utils.media_paths import upload_to_user_input, upload_to_user_output
 
 
 class Enhancement(models.Model):
@@ -34,8 +35,8 @@ class Enhancement(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     # Input/Output files
-    input_file = models.FileField(upload_to='enhancer/input/')
-    output_file = models.FileField(upload_to='enhancer/output/', blank=True, null=True)
+    input_file = models.FileField(upload_to=upload_to_user_input('enhancer'))
+    output_file = models.FileField(upload_to=upload_to_user_output('enhancer'), blank=True, null=True)
 
     # Media properties
     width = models.IntegerField(default=0)

@@ -98,7 +98,8 @@ Current model sizes (approximate):
 - Synthesizer TTS (xtts_v2): ~1.8GB
 - Synthesizer Bark: ~1.2GB
 - Enhancer ONNX (all 7 models): ~101MB
-- Imager Wan T2V 1.3B: ~5GB
+- Imager Wan TI2V 5B: ~16GB
+- Imager Wan T2V 14B: ~25GB (optional, high-end GPU required)
 - Imager Wan I2V 14B: ~25GB (optional, high-end GPU required)
 - Anonymizer YOLO (all models): ~TBD
 

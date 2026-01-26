@@ -56,6 +56,45 @@ class ModelConfig:
 # Configured for RTX 4090 (24GB VRAM)
 MODELS = {
     # -------------------------------------------------------------------------
+    # Prompt & Language Models
+    # -------------------------------------------------------------------------
+    "prompt_enricher": ModelConfig(
+        name="Gemma 3 4B",
+        ollama_id="gemma3:4b",
+        description="Default prompt enrichment, structuring and normalization",
+        context_length=128000,
+        temperature=0.3,
+        role="prompt",
+    ),
+
+    "prompt_enricher_premium": ModelConfig(
+        name="Gemma 3 12B",
+        ollama_id="gemma3:12b",
+        description="Advanced prompt enrichment for complex or creative prompts",
+        context_length=128000,
+        temperature=0.25,
+        role="prompt",
+    ),
+
+    "translator": ModelConfig(
+        name="TranslateGemma 12B",
+        ollama_id="translategemma:12b",
+        description="High-quality multilingual translation and prompt localization",
+        context_length=128000,
+        temperature=0.2,
+        role="translate",
+    ),
+
+    "orchestrator": ModelConfig(
+        name="GPT-OSS 20B",
+        ollama_id="gpt-oss:20b",
+        description="Task routing, intent analysis, orchestration and decision-making",
+        context_length=8192,
+        temperature=0.4,
+        role="architect",
+    ),
+
+    # -------------------------------------------------------------------------
     # Development Models
     # -------------------------------------------------------------------------
     "dev": ModelConfig(
@@ -137,8 +176,8 @@ MODELS = {
     ),
 
     "vision_lite": ModelConfig(
-        name="Qwen3 VL 7B",
-        ollama_id="qwen3-vl:7b",
+        name="Qwen3 VL 8B",
+        ollama_id="qwen3-vl:8b",
         description="Lightweight vision model for rapid UI prototyping",
         context_length=8192,
         temperature=0.7,
@@ -230,6 +269,30 @@ class WorkflowConfig:
 
 WORKFLOWS = {
     # -------------------------------------------------------------------------
+    # Prompt Enrichment
+    # -------------------------------------------------------------------------
+    "prompt_enrich": WorkflowConfig(
+        name="Prompt Enrichment",
+        description="Manual prompt + automatic enrichment before execution",
+        models=["prompt_enricher"],
+    ),
+    "prompt_full": WorkflowConfig(
+        name="Prompt Enrichment + Reasoning",
+        description="Enriched prompt followed by reasoning and execution",
+        models=["prompt_enricher", "architect"],
+    ),
+    "prompt_full_premium": WorkflowConfig(
+        name="Prompt Enrichment Premium",
+        description="Enriched prompt (complex) followed by reasoning and execution",
+        models=["prompt_enricher_premium", "architect"],
+    ),
+    "rag_prompt": WorkflowConfig(
+        name="RAG + Prompt",
+        description="Embedding + prompt enrichment + reasoning",
+        models=["embed", "prompt_enricher", "architect"],
+    ),
+
+    # -------------------------------------------------------------------------
     # Development Workflows
     # -------------------------------------------------------------------------
     "quick": WorkflowConfig(
@@ -274,6 +337,11 @@ WORKFLOWS = {
         name="Vision Analysis",
         description="Full workflow with detailed image analysis",
         models=["vision", "dev", "debug"],
+    ),
+    "vision_prompt": WorkflowConfig(
+        name="Vision + Prompt Enrichment",
+        description="Image analysis followed by structured prompt enrichment",
+        models=["vision_lite", "prompt_enricher", "dev"],
     ),
     "analyze": WorkflowConfig(
         name="Analyze Only",
