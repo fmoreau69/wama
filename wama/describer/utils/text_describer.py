@@ -9,6 +9,9 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
+# Import model configuration (sets up cache paths)
+from .model_config import get_model_info, setup_model_environment
+
 # Global model cache
 _summarizer = None
 _summarizer_device = None  # Track current device
@@ -36,14 +39,22 @@ def get_summarizer(model_name: str = None, force_cpu: bool = False):
 
     logger.info("Loading summarization model...")
 
+    # Ensure environment is set up
+    setup_model_environment()
+
     try:
         from transformers import pipeline
         import torch
 
+        # Get model info from centralized config
+        model_info = get_model_info('bart')
+
         # Choose model based on available resources
         if model_name is None:
-            # Use multilingual model for better French support
-            model_name = "facebook/bart-large-cnn"
+            model_name = model_info['model_id']
+
+        cache_dir = str(model_info['local_dir'])
+        logger.info(f"Loading {model_name} from cache: {cache_dir}")
 
         if target_device is None:
             device = 0 if torch.cuda.is_available() else -1
@@ -53,7 +64,8 @@ def get_summarizer(model_name: str = None, force_cpu: bool = False):
         _summarizer = pipeline(
             "summarization",
             model=model_name,
-            device=device
+            device=device,
+            model_kwargs={"cache_dir": cache_dir}
         )
         _summarizer_device = device
 

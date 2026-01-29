@@ -13,18 +13,24 @@ from pathlib import Path
 # See: https://coqui.ai/cpml
 os.environ.setdefault("COQUI_TOS_AGREED", "1")
 
-# Set TTS home directory to centralized AI-models directory
-# All AI models are now stored in AI-models/ at project root
+# Import centralized model configuration
 from django.conf import settings
-TTS_HOME = settings.BASE_DIR / "AI-models" / "synthesizer" / "tts"
-TTS_HOME.mkdir(parents=True, exist_ok=True)
-os.environ.setdefault("TTS_HOME", str(TTS_HOME))
 
-# Set Bark models directory
-# NOTE: We no longer set XDG_CACHE_HOME globally here because it affects ALL HuggingFace downloads
-# Bark will use XDG_CACHE_HOME which is set temporarily in _ensure_bark_loaded()
-BARK_HOME = settings.BASE_DIR / "AI-models" / "synthesizer" / "bark"
-BARK_HOME.mkdir(parents=True, exist_ok=True)
+try:
+    from .utils.model_config import get_coqui_directory, get_bark_directory, setup_model_environment
+    MODEL_CONFIG_AVAILABLE = True
+    TTS_HOME = get_coqui_directory()
+    BARK_HOME = get_bark_directory()
+    setup_model_environment()
+except ImportError:
+    MODEL_CONFIG_AVAILABLE = False
+    # Fallback to legacy paths
+    TTS_HOME = settings.BASE_DIR / "AI-models" / "synthesizer" / "tts"
+    BARK_HOME = settings.BASE_DIR / "AI-models" / "synthesizer" / "bark"
+    TTS_HOME.mkdir(parents=True, exist_ok=True)
+    BARK_HOME.mkdir(parents=True, exist_ok=True)
+    os.environ.setdefault("TTS_HOME", str(TTS_HOME))
+
 os.environ.setdefault("SUNO_USE_SMALL_MODELS", "False")  # Use full models for best quality
 
 # Fix for PyTorch 2.6+ weights_only=True default behavior with Bark

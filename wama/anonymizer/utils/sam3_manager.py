@@ -12,8 +12,15 @@ from wama.settings import AI_MODELS_DIR
 
 logger = logging.getLogger(__name__)
 
-# SAM3 model cache directory (HuggingFace format in centralized AI-models)
-SAM3_MODELS_DIR = str(AI_MODELS_DIR / "anonymizer" / "models--facebook--sam3")
+# Import centralized model configuration
+try:
+    from .model_config import get_sam3_dir
+    MODEL_CONFIG_AVAILABLE = True
+    SAM3_MODELS_DIR = str(get_sam3_dir())
+except ImportError:
+    MODEL_CONFIG_AVAILABLE = False
+    # Fallback to legacy path
+    SAM3_MODELS_DIR = str(AI_MODELS_DIR / "anonymizer" / "models--facebook--sam3")
 
 
 def check_sam3_installed() -> bool:

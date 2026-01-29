@@ -15,6 +15,15 @@ from .base import ImageGenerationBackend, GenerationParams, GenerationResult
 
 logger = logging.getLogger(__name__)
 
+# Import centralized model configuration
+try:
+    from wama.imager.utils.model_config import get_stable_diffusion_directory
+    _SD_CACHE_DIR = str(get_stable_diffusion_directory())
+    logger.info(f"[Diffusers] Using cache directory: {_SD_CACHE_DIR}")
+except ImportError:
+    _SD_CACHE_DIR = None
+    logger.warning("[Diffusers] model_config not available, using default HF cache")
+
 
 class DiffusersBackend(ImageGenerationBackend):
     """
@@ -107,7 +116,7 @@ class DiffusersBackend(ImageGenerationBackend):
         },
         "deliberate-v2": {
             "name": "Deliberate v2",
-            "hf_id": "XpucT/Deliberate",
+            "hf_id": "stablediffusionapi/deliberate-v2",
             "description": "Réaliste/Artistique - 4GB VRAM - Très détaillé",
             "vram": "4GB",
             "pipeline": "sd",
@@ -198,12 +207,16 @@ class DiffusersBackend(ImageGenerationBackend):
 
         dtype = self._torch.float16 if self._device == "cuda" else self._torch.float32
 
-        return StableDiffusionPipeline.from_pretrained(
-            model_id,
-            torch_dtype=dtype,
-            use_safetensors=True,
-            safety_checker=None,
-        )
+        kwargs = {
+            "torch_dtype": dtype,
+            "use_safetensors": True,
+            "safety_checker": None,
+        }
+        if _SD_CACHE_DIR:
+            kwargs["cache_dir"] = _SD_CACHE_DIR
+            logger.info(f"[Diffusers] Loading from cache: {_SD_CACHE_DIR}")
+
+        return StableDiffusionPipeline.from_pretrained(model_id, **kwargs)
 
     def _load_sdxl_pipeline(self, model_id: str):
         """Load a Stable Diffusion XL pipeline."""
@@ -211,12 +224,16 @@ class DiffusersBackend(ImageGenerationBackend):
 
         dtype = self._torch.float16 if self._device == "cuda" else self._torch.float32
 
-        return StableDiffusionXLPipeline.from_pretrained(
-            model_id,
-            torch_dtype=dtype,
-            use_safetensors=True,
-            variant="fp16" if dtype == self._torch.float16 else None
-        )
+        kwargs = {
+            "torch_dtype": dtype,
+            "use_safetensors": True,
+            "variant": "fp16" if dtype == self._torch.float16 else None,
+        }
+        if _SD_CACHE_DIR:
+            kwargs["cache_dir"] = _SD_CACHE_DIR
+            logger.info(f"[Diffusers] Loading SDXL from cache: {_SD_CACHE_DIR}")
+
+        return StableDiffusionXLPipeline.from_pretrained(model_id, **kwargs)
 
     def _load_hunyuan_pipeline(self, model_id: str):
         """Load a HunyuanImage 2.1 pipeline."""
@@ -239,10 +256,18 @@ class DiffusersBackend(ImageGenerationBackend):
             except Exception as e:
                 logger.warning(f"[Diffusers] CUDA init warning: {e}")
 
-        pipe = HunyuanImagePipeline.from_pretrained(
-            model_id,
-            torch_dtype=self._torch.bfloat16,
-        )
+        kwargs = {
+            "torch_dtype": self._torch.bfloat16,
+        }
+        # HunyuanImage uses its own cache directory
+        try:
+            from wama.imager.utils.model_config import get_hunyuan_directory
+            kwargs["cache_dir"] = str(get_hunyuan_directory())
+            logger.info(f"[Diffusers] Loading HunyuanImage from cache: {kwargs['cache_dir']}")
+        except ImportError:
+            pass
+
+        pipe = HunyuanImagePipeline.from_pretrained(model_id, **kwargs)
 
         # Use sequential CPU offload - slower but more stable than model_cpu_offload
         # This moves each layer one at a time instead of whole components
@@ -708,19 +733,23 @@ class DiffusersBackend(ImageGenerationBackend):
 
             if is_xl:
                 from diffusers import StableDiffusionXLImg2ImgPipeline
-                self._pipe_img2img = StableDiffusionXLImg2ImgPipeline.from_pretrained(
-                    model_id,
-                    torch_dtype=dtype,
-                    use_safetensors=True,
-                    variant="fp16" if dtype == torch.float16 else None
-                )
+                kwargs = {
+                    "torch_dtype": dtype,
+                    "use_safetensors": True,
+                    "variant": "fp16" if dtype == torch.float16 else None,
+                }
+                if _SD_CACHE_DIR:
+                    kwargs["cache_dir"] = _SD_CACHE_DIR
+                self._pipe_img2img = StableDiffusionXLImg2ImgPipeline.from_pretrained(model_id, **kwargs)
             else:
-                self._pipe_img2img = StableDiffusionImg2ImgPipeline.from_pretrained(
-                    model_id,
-                    torch_dtype=dtype,
-                    use_safetensors=True,
-                    safety_checker=None,
-                )
+                kwargs = {
+                    "torch_dtype": dtype,
+                    "use_safetensors": True,
+                    "safety_checker": None,
+                }
+                if _SD_CACHE_DIR:
+                    kwargs["cache_dir"] = _SD_CACHE_DIR
+                self._pipe_img2img = StableDiffusionImg2ImgPipeline.from_pretrained(model_id, **kwargs)
 
             # Use faster scheduler
             try:

@@ -72,11 +72,15 @@ MODEL_FILES = {
 
 
 def get_models_directory() -> Path:
-    """Get the AI-onnx models directory path (centralized in AI-models/)."""
-    from django.conf import settings
-    base_dir = Path(settings.BASE_DIR)
-    models_dir = base_dir / 'AI-models' / 'enhancer' / 'onnx'
-    return models_dir
+    """Get the ONNX models directory path from centralized configuration."""
+    try:
+        from .model_config import get_models_directory as get_dir
+        return get_dir()
+    except ImportError:
+        # Fallback to legacy path
+        from django.conf import settings
+        base_dir = Path(settings.BASE_DIR)
+        return base_dir / 'AI-models' / 'enhancer' / 'onnx'
 
 
 def ensure_models_directory() -> Path:

@@ -3,6 +3,7 @@
  *
  * Unified media preview functionality for all WAMA applications.
  * Handles video, audio, image, and document previews in a modal.
+ * Includes fullscreen support for images.
  *
  * Usage:
  *   1. Include this script in your template
@@ -21,11 +22,19 @@
 (function() {
     'use strict';
 
+    // Current preview data for fullscreen
+    let currentPreviewData = null;
+
     // Auto-initialize when DOM is ready
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', initMediaPreview);
+        document.addEventListener('DOMContentLoaded', init);
     } else {
+        init();
+    }
+
+    function init() {
         initMediaPreview();
+        setupKeyboardHandlers();
     }
 
     /**
@@ -74,6 +83,32 @@
     }
 
     /**
+     * Setup keyboard handlers for fullscreen.
+     */
+    function setupKeyboardHandlers() {
+        document.addEventListener('keydown', function(e) {
+            // Ignore if user is typing in an input
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+            // Check if fullscreen is open
+            const fullscreenOverlay = document.getElementById('wamaFullscreenOverlay');
+            if (fullscreenOverlay && e.key === 'Escape') {
+                e.preventDefault();
+                closeFullscreen();
+            }
+        });
+    }
+
+    /**
+     * Escape HTML special characters.
+     */
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    /**
      * Show the preview modal with the given media data.
      */
     function showPreviewModal(data) {
@@ -81,6 +116,9 @@
             showPreviewError('No media URL available');
             return;
         }
+
+        // Store current data for fullscreen
+        currentPreviewData = data;
 
         let modal = document.getElementById('wamaMediaPreviewModal');
 
@@ -127,12 +165,31 @@
 
             container.appendChild(audioContainer);
         } else if (mimeType.startsWith('image/')) {
+            // Create wrapper with fullscreen button
+            const wrapper = document.createElement('div');
+            wrapper.className = 'preview-image-wrapper';
+            wrapper.ondblclick = function() {
+                openFullscreen(data.url, data.name);
+            };
+
             const img = document.createElement('img');
             img.src = data.url;
             img.className = 'img-fluid';
             img.style.maxHeight = '70vh';
             img.alt = data.name || 'Image preview';
-            container.appendChild(img);
+            wrapper.appendChild(img);
+
+            const fullscreenBtn = document.createElement('button');
+            fullscreenBtn.className = 'preview-fullscreen-btn';
+            fullscreenBtn.title = 'Plein écran (double-clic)';
+            fullscreenBtn.innerHTML = '<i class="fas fa-expand"></i>';
+            fullscreenBtn.onclick = function(e) {
+                e.stopPropagation();
+                openFullscreen(data.url, data.name);
+            };
+            wrapper.appendChild(fullscreenBtn);
+
+            container.appendChild(wrapper);
         } else if (mimeType === 'application/pdf') {
             const iframe = document.createElement('iframe');
             iframe.src = data.url;
@@ -172,6 +229,7 @@
             const audio = container.querySelector('audio');
             if (video) video.pause();
             if (audio) audio.pause();
+            currentPreviewData = null;
         }, { once: true });
     }
 
@@ -194,12 +252,50 @@
                         <div class="preview-container d-flex justify-content-center align-items-center" style="min-height: 300px; background: #1a1a1a;"></div>
                     </div>
                     <div class="modal-footer border-secondary py-2">
-                        <small class="preview-meta"></small>
+                        <small class="preview-meta text-muted"></small>
                     </div>
                 </div>
             </div>
         `;
         return modal;
+    }
+
+    /**
+     * Open fullscreen overlay for an image.
+     */
+    function openFullscreen(imageUrl, imageName) {
+        // Remove existing overlay if any
+        closeFullscreen();
+
+        const overlay = document.createElement('div');
+        overlay.id = 'wamaFullscreenOverlay';
+        overlay.onclick = function(e) {
+            if (e.target === overlay) closeFullscreen();
+        };
+
+        overlay.innerHTML = `
+            <button class="fullscreen-close-btn" onclick="event.stopPropagation(); window.closeWamaFullscreen()" title="Fermer (Échap)">
+                <i class="fas fa-times"></i>
+            </button>
+            <img src="${imageUrl}" alt="${escapeHtml(imageName || 'Image')}" onclick="event.stopPropagation()">
+            <div class="fullscreen-info">
+                <span class="filename">${escapeHtml(imageName || 'Image')}</span>
+            </div>
+        `;
+
+        document.body.appendChild(overlay);
+        document.body.style.overflow = 'hidden';
+    }
+
+    /**
+     * Close fullscreen overlay.
+     */
+    function closeFullscreen() {
+        const overlay = document.getElementById('wamaFullscreenOverlay');
+        if (overlay) {
+            overlay.remove();
+            document.body.style.overflow = '';
+        }
     }
 
     /**
@@ -212,12 +308,20 @@
             return;
         }
 
-        // Fallback to alert
-        alert('Preview error: ' + message);
+        // Try Bootstrap toast
+        if (typeof showToast === 'function') {
+            showToast(message, 'danger');
+            return;
+        }
+
+        // Fallback to console
+        console.error('Preview error:', message);
     }
 
     // Export functions to window for external use
     window.initMediaPreview = initMediaPreview;
     window.showPreviewModal = showPreviewModal;
+    window.openWamaFullscreen = openFullscreen;
+    window.closeWamaFullscreen = closeFullscreen;
 
 })();

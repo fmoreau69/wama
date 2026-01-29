@@ -20,17 +20,21 @@ from django.conf import settings
 # This ensures models are downloaded to the correct location
 def _setup_hf_cache():
     """Set up Hugging Face cache directory before any HF imports."""
-    base_dir = Path(settings.BASE_DIR)
-    models_dir = base_dir / "AI-models" / "imager" / "wan"
-    models_dir.mkdir(parents=True, exist_ok=True)
-    models_dir_str = str(models_dir)
+    try:
+        from wama.imager.utils.model_config import setup_hf_cache_for_wan
+        return setup_hf_cache_for_wan()
+    except ImportError:
+        # Fallback to legacy path
+        base_dir = Path(settings.BASE_DIR)
+        models_dir = base_dir / "AI-models" / "imager" / "wan"
+        models_dir.mkdir(parents=True, exist_ok=True)
+        models_dir_str = str(models_dir)
 
-    # Set multiple environment variables to ensure HF downloads here
-    os.environ['HF_HUB_CACHE'] = models_dir_str
-    os.environ['HF_HOME'] = models_dir_str
-    os.environ['HUGGINGFACE_HUB_CACHE'] = models_dir_str
+        os.environ['HF_HUB_CACHE'] = models_dir_str
+        os.environ['HF_HOME'] = models_dir_str
+        os.environ['HUGGINGFACE_HUB_CACHE'] = models_dir_str
 
-    return models_dir_str
+        return models_dir_str
 
 # Call this at module load time (before any HF imports)
 _WAN_MODELS_DIR = _setup_hf_cache()
@@ -268,28 +272,40 @@ class WanVideoBackend(ImageGenerationBackend):
             # Video generation (especially VAE decode) needs significant memory
             logger.info(f"[Wan] Detected VRAM: {vram_gb:.1f}GB")
 
+            # Clear CUDA cache before loading to maximize available memory
+            if self._device == "cuda":
+                torch.cuda.empty_cache()
+                gc.collect()
+
             # Determine strategy based on VRAM:
-            # - 32GB+: Full GPU (A100, etc.)
-            # - 16-32GB: CPU offload recommended (RTX 4090, 3090 - VAE decode can OOM)
-            # - <16GB: CPU offload required
-            if self._device == "cuda" and vram_gb >= 32:
-                logger.info(f"[Wan] High VRAM ({vram_gb:.1f}GB >= 32GB), using full GPU...")
+            # - 48GB+: Full GPU (A100 80GB, etc.)
+            # - 32-48GB: Model CPU offload (A100 40GB, etc.)
+            # - 24-32GB: Sequential CPU offload (RTX 4090, 3090 - T5 encoder can OOM)
+            # - <24GB: Sequential CPU offload required
+            if self._device == "cuda" and vram_gb >= 48:
+                logger.info(f"[Wan] High VRAM ({vram_gb:.1f}GB >= 48GB), using full GPU...")
                 self._pipe_t2v = self._pipe_t2v.to(self._device)
                 logger.info(f"[Wan] Pipeline moved to {self._device}")
-            elif self._device == "cuda":
-                # For 16-32GB GPUs (including RTX 4090), use CPU offload
-                # This prevents OOM during VAE decode which needs extra memory
-                logger.info(f"[Wan] VRAM ({vram_gb:.1f}GB) - using CPU offload for stability...")
-                logger.info("[Wan] Note: CPU offload moves model parts to GPU only when needed")
-                logger.info("[Wan] This is slower but prevents out-of-memory during VAE decode")
+            elif self._device == "cuda" and vram_gb >= 32:
+                # For 32-48GB GPUs, use regular CPU offload
+                logger.info(f"[Wan] VRAM ({vram_gb:.1f}GB) - using model CPU offload...")
                 self._pipe_t2v.enable_model_cpu_offload()
-                logger.info("[Wan] CPU offload enabled")
+                logger.info("[Wan] Model CPU offload enabled")
+            elif self._device == "cuda":
+                # For 24-32GB GPUs (RTX 4090, 3090), use SEQUENTIAL CPU offload
+                # This is more aggressive - offloads at layer level, not component level
+                # Required because T5 encoder alone is ~5GB and can OOM with regular offload
+                logger.info(f"[Wan] VRAM ({vram_gb:.1f}GB < 32GB) - using sequential CPU offload...")
+                logger.info("[Wan] Sequential offload moves individual layers to GPU as needed")
+                logger.info("[Wan] This is slower but prevents OOM during T5 encoding")
+                self._pipe_t2v.enable_sequential_cpu_offload()
+                logger.info("[Wan] Sequential CPU offload enabled")
             else:
                 logger.info(f"[Wan] Moving pipeline to {self._device}...")
                 self._pipe_t2v = self._pipe_t2v.to(self._device)
                 logger.info(f"[Wan] Pipeline moved to {self._device}")
 
-            # Enable VAE optimizations regardless of offload mode
+            # Enable memory optimizations regardless of offload mode
             try:
                 self._pipe_t2v.enable_vae_slicing()
                 logger.info("[Wan] VAE slicing enabled (reduces memory during decode)")
@@ -301,6 +317,13 @@ class WanVideoBackend(ImageGenerationBackend):
                 logger.info("[Wan] VAE tiling enabled")
             except Exception as e:
                 logger.debug(f"[Wan] VAE tiling not available: {e}")
+
+            # Enable attention slicing to reduce memory during inference
+            try:
+                self._pipe_t2v.enable_attention_slicing("auto")
+                logger.info("[Wan] Attention slicing enabled (reduces peak memory)")
+            except Exception as e:
+                logger.debug(f"[Wan] Attention slicing not available: {e}")
 
             self._current_model = model_id
             self._loaded = True

@@ -1155,13 +1155,30 @@
     // === MODALS ===
 
     function setupPreviewModal() {
-        // Set up keyboard navigation for preview modal
+        // Set up keyboard navigation for preview modal and fullscreen
         document.addEventListener('keydown', function(e) {
-            const modal = document.getElementById('filePreviewModal');
-            if (!modal || !modal.classList.contains('show')) return;
-
             // Ignore if user is typing in an input
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+            // Check if fullscreen is open
+            const fullscreenOverlay = document.getElementById('imageFullscreenOverlay');
+            if (fullscreenOverlay) {
+                if (e.key === 'Escape') {
+                    e.preventDefault();
+                    window.FileManagerFullscreen.close();
+                } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    window.FileManagerFullscreen.navigate(-1);
+                } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    window.FileManagerFullscreen.navigate(1);
+                }
+                return;
+            }
+
+            // Check if preview modal is open
+            const modal = document.getElementById('filePreviewModal');
+            if (!modal || !modal.classList.contains('show')) return;
 
             if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
                 e.preventDefault();
@@ -1173,6 +1190,129 @@
                 // Let Bootstrap handle Escape
             }
         });
+
+        // Setup fullscreen API
+        setupFullscreen();
+    }
+
+    // === FULLSCREEN ===
+
+    function setupFullscreen() {
+        window.FileManagerFullscreen = {
+            open: openFullscreen,
+            close: closeFullscreen,
+            navigate: navigateFullscreen
+        };
+    }
+
+    function openFullscreen(imageUrl, imageName) {
+        // Remove existing overlay if any
+        closeFullscreen();
+
+        const overlay = document.createElement('div');
+        overlay.id = 'imageFullscreenOverlay';
+        overlay.onclick = function(e) {
+            if (e.target === overlay) closeFullscreen();
+        };
+
+        // Build navigation buttons if there are siblings
+        let navPrev = '';
+        let navNext = '';
+        let infoBar = '';
+
+        if (previewSiblings.length > 1) {
+            const isFirst = previewIndex === 0;
+            const isLast = previewIndex === previewSiblings.length - 1;
+
+            navPrev = `
+                <button class="fullscreen-nav-btn fullscreen-nav-prev ${isFirst ? 'disabled' : ''}"
+                        onclick="event.stopPropagation(); window.FileManagerFullscreen.navigate(-1)" title="Précédent (←)">
+                    <i class="fa fa-chevron-left"></i>
+                </button>
+            `;
+            navNext = `
+                <button class="fullscreen-nav-btn fullscreen-nav-next ${isLast ? 'disabled' : ''}"
+                        onclick="event.stopPropagation(); window.FileManagerFullscreen.navigate(1)" title="Suivant (→)">
+                    <i class="fa fa-chevron-right"></i>
+                </button>
+            `;
+            infoBar = `
+                <div class="fullscreen-info">
+                    <span class="filename">${escapeHtml(imageName)}</span>
+                    <span class="counter">${previewIndex + 1} / ${previewSiblings.length}</span>
+                </div>
+            `;
+        } else {
+            infoBar = `
+                <div class="fullscreen-info">
+                    <span class="filename">${escapeHtml(imageName)}</span>
+                </div>
+            `;
+        }
+
+        overlay.innerHTML = `
+            <button class="fullscreen-close-btn" onclick="event.stopPropagation(); window.FileManagerFullscreen.close()" title="Fermer (Échap)">
+                <i class="fa fa-times"></i>
+            </button>
+            ${navPrev}
+            <img src="${imageUrl}" alt="${escapeHtml(imageName)}" onclick="event.stopPropagation()">
+            ${navNext}
+            ${infoBar}
+        `;
+
+        document.body.appendChild(overlay);
+        document.body.style.overflow = 'hidden';
+    }
+
+    function closeFullscreen() {
+        const overlay = document.getElementById('imageFullscreenOverlay');
+        if (overlay) {
+            overlay.remove();
+            document.body.style.overflow = '';
+        }
+    }
+
+    function navigateFullscreen(direction) {
+        if (previewSiblings.length <= 1) return;
+
+        const newIndex = previewIndex + direction;
+        if (newIndex < 0 || newIndex >= previewSiblings.length) return;
+
+        const nextNode = previewSiblings[newIndex];
+        previewIndex = newIndex;
+
+        // Fetch new preview data
+        fetch(`${config.apiPreviewUrl || '/filemanager/api/preview/'}?path=${encodeURIComponent(nextNode.data.path)}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.mime && data.mime.startsWith('image/')) {
+                    // Update fullscreen image
+                    const overlay = document.getElementById('imageFullscreenOverlay');
+                    if (overlay) {
+                        const img = overlay.querySelector('img');
+                        const filename = overlay.querySelector('.filename');
+                        const counter = overlay.querySelector('.counter');
+                        const prevBtn = overlay.querySelector('.fullscreen-nav-prev');
+                        const nextBtn = overlay.querySelector('.fullscreen-nav-next');
+
+                        if (img) img.src = data.preview_url;
+                        if (filename) filename.textContent = data.name;
+                        if (counter) counter.textContent = `${previewIndex + 1} / ${previewSiblings.length}`;
+                        if (prevBtn) prevBtn.classList.toggle('disabled', previewIndex === 0);
+                        if (nextBtn) nextBtn.classList.toggle('disabled', previewIndex === previewSiblings.length - 1);
+                    }
+
+                    // Also update the preview modal in background
+                    updatePreviewContent(data);
+                } else {
+                    // Not an image, close fullscreen and update modal
+                    closeFullscreen();
+                    updatePreviewContent(data);
+                }
+            })
+            .catch(err => {
+                console.error('Failed to navigate fullscreen:', err);
+            });
     }
 
     function navigatePreview(direction) {
@@ -1236,7 +1376,14 @@
 
         // Update content
         if (data.mime.startsWith('image/')) {
-            container.innerHTML = `<img src="${data.preview_url}" alt="${data.name}" style="max-width:100%; max-height:70vh;">`;
+            container.innerHTML = `
+                <div class="preview-image-wrapper" ondblclick="window.FileManagerFullscreen.open('${data.preview_url}', '${escapeHtml(data.name)}')">
+                    <img src="${data.preview_url}" alt="${data.name}" style="max-width:100%; max-height:70vh;">
+                    <button class="preview-fullscreen-btn" onclick="event.stopPropagation(); window.FileManagerFullscreen.open('${data.preview_url}', '${escapeHtml(data.name)}')" title="Plein écran (double-clic)">
+                        <i class="fa fa-expand"></i>
+                    </button>
+                </div>
+            `;
         } else if (data.mime.startsWith('video/')) {
             container.innerHTML = `
                 <video controls autoplay muted style="max-width:100%; max-height:70vh;">
@@ -1327,7 +1474,14 @@
 
         // Update content based on mime type
         if (data.mime.startsWith('image/')) {
-            container.innerHTML = `<img src="${data.preview_url}" alt="${data.name}" style="max-width:100%; max-height:70vh;">`;
+            container.innerHTML = `
+                <div class="preview-image-wrapper" ondblclick="window.FileManagerFullscreen.open('${data.preview_url}', '${escapeHtml(data.name)}')">
+                    <img src="${data.preview_url}" alt="${data.name}" style="max-width:100%; max-height:70vh;">
+                    <button class="preview-fullscreen-btn" onclick="event.stopPropagation(); window.FileManagerFullscreen.open('${data.preview_url}', '${escapeHtml(data.name)}')" title="Plein écran (double-clic)">
+                        <i class="fa fa-expand"></i>
+                    </button>
+                </div>
+            `;
         } else if (data.mime.startsWith('video/')) {
             container.innerHTML = `
                 <video controls autoplay muted style="max-width:100%; max-height:70vh;">

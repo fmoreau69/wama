@@ -286,7 +286,14 @@ document.addEventListener("DOMContentLoaded", function() {
         const mimeType = data.mime_type || '';
 
         if (mimeType.startsWith('image/')) {
-            container.innerHTML = `<img src="${data.url}" alt="${data.name}" style="max-width:100%; max-height:70vh; object-fit: contain;">`;
+            container.innerHTML = `
+                <div class="preview-image-wrapper" ondblclick="openAnonymizerFullscreen('${data.url}', '${escapeHtmlAttr(data.name)}')">
+                    <img src="${data.url}" alt="${data.name}" style="max-width:100%; max-height:70vh; object-fit: contain;">
+                    <button class="preview-fullscreen-btn" onclick="event.stopPropagation(); openAnonymizerFullscreen('${data.url}', '${escapeHtmlAttr(data.name)}')" title="Plein écran (double-clic)">
+                        <i class="fas fa-expand"></i>
+                    </button>
+                </div>
+            `;
         } else if (mimeType.startsWith('video/')) {
             container.innerHTML = `
                 <video controls autoplay muted style="max-width:100%; max-height:70vh;">
@@ -594,4 +601,52 @@ document.addEventListener("DOMContentLoaded", function() {
 
     // Poll every second
     setInterval(checkDownloadAll, 1000);
+});
+
+// === FULLSCREEN FUNCTIONS (Global scope for inline handlers) ===
+
+function escapeHtmlAttr(text) {
+    if (!text) return '';
+    return text.replace(/'/g, "\\'").replace(/"/g, '\\"');
+}
+
+function openAnonymizerFullscreen(imageUrl, imageName) {
+    closeAnonymizerFullscreen();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'wamaFullscreenOverlay';
+    overlay.onclick = function(e) {
+        if (e.target === overlay) closeAnonymizerFullscreen();
+    };
+
+    overlay.innerHTML = `
+        <button class="fullscreen-close-btn" onclick="event.stopPropagation(); closeAnonymizerFullscreen()" title="Fermer (Échap)">
+            <i class="fas fa-times"></i>
+        </button>
+        <img src="${imageUrl}" alt="${imageName || 'Image'}" onclick="event.stopPropagation()">
+        <div class="fullscreen-info">
+            <span class="filename">${imageName || 'Image'}</span>
+        </div>
+    `;
+
+    document.body.appendChild(overlay);
+    document.body.style.overflow = 'hidden';
+}
+
+function closeAnonymizerFullscreen() {
+    const overlay = document.getElementById('wamaFullscreenOverlay');
+    if (overlay) {
+        overlay.remove();
+        document.body.style.overflow = '';
+    }
+}
+
+// Keyboard handler for fullscreen
+document.addEventListener('keydown', function(e) {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    const fullscreenOverlay = document.getElementById('wamaFullscreenOverlay');
+    if (fullscreenOverlay && e.key === 'Escape') {
+        e.preventDefault();
+        closeAnonymizerFullscreen();
+    }
 });

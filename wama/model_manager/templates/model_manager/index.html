@@ -1,0 +1,547 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Model Manager - WAMA{% endblock %}
+
+{% block extra_css %}
+<style>
+    .model-card {
+        background: #2b3035;
+        border: 1px solid #495057;
+        border-radius: 8px;
+        padding: 15px;
+        margin-bottom: 15px;
+        transition: all 0.3s ease;
+    }
+    .model-card:hover {
+        border-color: #0dcaf0;
+        box-shadow: 0 0 10px rgba(13, 202, 240, 0.2);
+    }
+    .model-card.loaded {
+        border-left: 4px solid #28a745;
+    }
+    .model-card.downloaded {
+        border-left: 4px solid #0dcaf0;
+    }
+    .model-card.not-downloaded {
+        border-left: 4px solid #6c757d;
+        opacity: 0.7;
+    }
+    .memory-card {
+        background: linear-gradient(135deg, #1a1a2e 0%, #2b3035 100%);
+        border: 1px solid #495057;
+        border-radius: 12px;
+        padding: 20px;
+    }
+    .memory-bar {
+        height: 24px;
+        border-radius: 6px;
+        background: #1a1d20;
+        overflow: hidden;
+    }
+    .memory-bar-fill {
+        height: 100%;
+        transition: width 0.5s ease;
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        padding-right: 8px;
+        font-size: 0.75rem;
+        font-weight: bold;
+    }
+    .memory-bar-fill.gpu {
+        background: linear-gradient(90deg, #28a745, #ffc107);
+    }
+    .memory-bar-fill.ram {
+        background: linear-gradient(90deg, #0dcaf0, #6f42c1);
+    }
+    .memory-bar-fill.high {
+        background: linear-gradient(90deg, #ffc107, #dc3545);
+    }
+    .type-badge {
+        font-size: 0.7rem;
+        padding: 3px 8px;
+        border-radius: 4px;
+        text-transform: uppercase;
+        font-weight: 600;
+    }
+    .type-vision { background: #6f42c1; color: white; }
+    .type-diffusion { background: #fd7e14; color: white; }
+    .type-speech { background: #20c997; color: white; }
+    .type-vlm { background: #0dcaf0; color: #000; }
+    .type-llm { background: #6610f2; color: white; }
+    .type-summarization { background: #17a2b8; color: white; }
+    .type-upscaling { background: #e83e8c; color: white; }
+    .source-badge {
+        font-size: 0.65rem;
+        padding: 2px 6px;
+        border-radius: 3px;
+        background: #495057;
+        color: #adb5bd;
+    }
+    .filter-tabs {
+        border-bottom: 1px solid #495057;
+        margin-bottom: 20px;
+    }
+    .filter-tabs .nav-link {
+        color: #adb5bd;
+        border: none;
+        padding: 10px 16px;
+        border-radius: 0;
+        transition: all 0.2s ease;
+    }
+    .filter-tabs .nav-link:hover {
+        color: #fff;
+        background: rgba(255,255,255,0.05);
+    }
+    .filter-tabs .nav-link.active {
+        color: #0dcaf0;
+        background: transparent;
+        border-bottom: 2px solid #0dcaf0;
+    }
+    .stats-badge {
+        font-size: 2rem;
+        font-weight: 700;
+    }
+    .btn-action {
+        padding: 6px 12px;
+        font-size: 0.85rem;
+    }
+    .model-name {
+        font-weight: 600;
+        color: #e9ecef;
+    }
+    .model-desc {
+        font-size: 0.85rem;
+        color: #adb5bd;
+    }
+    .model-meta {
+        font-size: 0.75rem;
+        color: #9ca3af;
+    }
+    /* Override text-muted for dark background */
+    .memory-card .text-muted,
+    .model-card .text-muted {
+        color: #9ca3af !important;
+    }
+    .memory-card small.text-muted {
+        color: #b0b7bf !important;
+    }
+    .loading-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0,0,0,0.7);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+    }
+    .loading-overlay.show {
+        display: flex;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col">
+            <h1 class="mb-1"><i class="fas fa-microchip me-2 text-info"></i>Model Manager</h1>
+            <p class="text-muted mb-0">Manage AI models across all WAMA applications</p>
+        </div>
+        <div class="col-auto d-flex align-items-center gap-2">
+            <button class="btn btn-outline-info btn-action" id="btn-refresh" title="Refresh model list">
+                <i class="fas fa-sync-alt me-1"></i> Refresh
+            </button>
+            <button class="btn btn-outline-danger btn-action" id="btn-clear-gpu" title="Clear all GPU memory">
+                <i class="fas fa-memory me-1"></i> Clear GPU
+            </button>
+        </div>
+    </div>
+
+    <!-- Memory Stats Cards -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="memory-card h-100">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="mb-0"><i class="fas fa-microchip me-2 text-success"></i>GPU</h5>
+                    {% if gpu_info %}
+                    <span class="badge bg-dark">{{ gpu_info.device_name }}</span>
+                    {% endif %}
+                </div>
+                {% if gpu_info %}
+                <div class="memory-bar mb-2">
+                    <div class="memory-bar-fill gpu {% if gpu_info.utilization_percent > 80 %}high{% endif %}"
+                         style="width: {{ gpu_info.utilization_percent }}%"
+                         id="gpu-bar">
+                        {{ gpu_info.utilization_percent }}%
+                    </div>
+                </div>
+                <div class="d-flex justify-content-between">
+                    <small class="text-muted">Used: <span id="gpu-used">{{ gpu_info.allocated_gb }}</span> GB</small>
+                    <small class="text-muted">Free: <span id="gpu-free">{{ gpu_info.free_gb }}</span> GB</small>
+                    <small class="text-muted">Total: {{ gpu_info.total_gb }} GB</small>
+                </div>
+                {% else %}
+                <p class="text-muted mb-0"><i class="fas fa-exclamation-circle me-2"></i>No GPU detected</p>
+                {% endif %}
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="memory-card h-100">
+                <h5 class="mb-3"><i class="fas fa-memory me-2 text-info"></i>System RAM</h5>
+                <div class="memory-bar mb-2">
+                    <div class="memory-bar-fill ram {% if system_info.percent > 80 %}high{% endif %}"
+                         style="width: {{ system_info.percent }}%"
+                         id="ram-bar">
+                        {{ system_info.percent }}%
+                    </div>
+                </div>
+                <div class="d-flex justify-content-between">
+                    <small class="text-muted">Used: {{ system_info.used_gb }} GB</small>
+                    <small class="text-muted">Free: {{ system_info.available_gb }} GB</small>
+                    <small class="text-muted">Total: {{ system_info.total_gb }} GB</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="memory-card h-100">
+                <h5 class="mb-3"><i class="fas fa-cube me-2 text-warning"></i>Models</h5>
+                <div class="row text-center">
+                    <div class="col-4">
+                        <div class="stats-badge text-info">{{ total_models }}</div>
+                        <small class="text-muted d-block">Total</small>
+                    </div>
+                    <div class="col-4">
+                        <div class="stats-badge text-success">{{ loaded_models }}</div>
+                        <small class="text-muted d-block">Loaded</small>
+                    </div>
+                    <div class="col-4">
+                        <div class="stats-badge text-warning">{{ downloaded_models }}</div>
+                        <small class="text-muted d-block">Downloaded</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filter Tabs -->
+    <ul class="nav filter-tabs" id="type-filter">
+        <li class="nav-item">
+            <a class="nav-link active" href="#" data-filter="all">
+                <i class="fas fa-th me-1"></i> All
+                <span class="badge bg-secondary ms-1" id="count-all">0</span>
+            </a>
+        </li>
+    </ul>
+
+    <!-- Models Grid -->
+    <div class="row" id="models-grid">
+        <!-- Loading placeholder -->
+        <div class="col-12 text-center py-5" id="models-loading">
+            <div class="spinner-border text-info mb-3" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <h5 class="text-muted">Loading models...</h5>
+        </div>
+    </div>
+</div>
+
+<!-- Loading Overlay -->
+<div class="loading-overlay" id="loading-overlay">
+    <div class="text-center text-white">
+        <div class="spinner-border text-info mb-3" role="status" style="width: 3rem; height: 3rem;">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+        <h5 id="loading-message">Processing...</h5>
+    </div>
+</div>
+{% endblock %}
+
+{% block javascript %}
+{{ block.super }}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const csrfToken = '{{ csrf_token }}';
+    const loadingOverlay = document.getElementById('loading-overlay');
+    const loadingMessage = document.getElementById('loading-message');
+    const modelsGrid = document.getElementById('models-grid');
+    const filterTabs = document.getElementById('type-filter');
+
+    function showLoading(message) {
+        loadingMessage.textContent = message || 'Processing...';
+        loadingOverlay.classList.add('show');
+    }
+
+    function hideLoading() {
+        loadingOverlay.classList.remove('show');
+    }
+
+    function updateMemoryDisplay(memory) {
+        if (!memory) return;
+
+        const gpuBar = document.getElementById('gpu-bar');
+        const gpuUsed = document.getElementById('gpu-used');
+        const gpuFree = document.getElementById('gpu-free');
+
+        if (gpuBar && memory.utilization_percent !== undefined) {
+            gpuBar.style.width = memory.utilization_percent + '%';
+            gpuBar.textContent = memory.utilization_percent + '%';
+            gpuBar.classList.toggle('high', memory.utilization_percent > 80);
+        }
+        if (gpuUsed) gpuUsed.textContent = memory.allocated_gb;
+        if (gpuFree) gpuFree.textContent = memory.free_gb;
+    }
+
+    function updateStats(models) {
+        const total = models.length;
+        const loaded = models.filter(m => m.is_loaded).length;
+        const downloaded = models.filter(m => m.is_downloaded).length;
+
+        document.querySelector('.stats-badge.text-info').textContent = total;
+        document.querySelector('.stats-badge.text-success').textContent = loaded;
+        document.querySelector('.stats-badge.text-warning').textContent = downloaded;
+        document.getElementById('count-all').textContent = total;
+    }
+
+    function buildFilterTabs(models) {
+        // Group by type
+        const types = {};
+        models.forEach(m => {
+            types[m.type] = (types[m.type] || 0) + 1;
+        });
+
+        // Add type tabs
+        Object.entries(types).sort().forEach(([type, count]) => {
+            const li = document.createElement('li');
+            li.className = 'nav-item';
+            li.innerHTML = `
+                <a class="nav-link" href="#" data-filter="${type}">
+                    ${type.charAt(0).toUpperCase() + type.slice(1)}
+                    <span class="badge bg-secondary ms-1">${count}</span>
+                </a>
+            `;
+            filterTabs.appendChild(li);
+        });
+
+        // Attach filter handlers
+        filterTabs.querySelectorAll('.nav-link').forEach(link => {
+            link.addEventListener('click', function(e) {
+                e.preventDefault();
+                filterTabs.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+                this.classList.add('active');
+
+                const filter = this.dataset.filter;
+                document.querySelectorAll('.model-item').forEach(item => {
+                    if (filter === 'all' || item.dataset.type === filter) {
+                        item.style.display = '';
+                    } else {
+                        item.style.display = 'none';
+                    }
+                });
+            });
+        });
+    }
+
+    function truncate(str, len) {
+        if (!str) return '-';
+        return str.length > len ? str.substring(0, len) + '...' : str;
+    }
+
+    function renderModels(models) {
+        if (!models || models.length === 0) {
+            modelsGrid.innerHTML = `
+                <div class="col-12 text-center py-5">
+                    <i class="fas fa-cube fa-3x text-muted mb-3"></i>
+                    <h5 class="text-muted">No models found</h5>
+                    <p class="text-muted">Click "Refresh" to scan for available models.</p>
+                </div>
+            `;
+            return;
+        }
+
+        modelsGrid.innerHTML = models.map(model => `
+            <div class="col-xl-3 col-lg-4 col-md-6 model-item" data-type="${model.type}" data-loaded="${model.is_loaded}">
+                <div class="model-card ${model.is_loaded ? 'loaded' : (model.is_downloaded ? 'downloaded' : 'not-downloaded')}">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <div>
+                            <span class="type-badge type-${model.type} me-1">${model.type}</span>
+                            <span class="source-badge">${model.source}</span>
+                        </div>
+                        ${model.is_loaded ?
+                            '<span class="badge bg-success"><i class="fas fa-circle fa-xs me-1"></i>Loaded</span>' :
+                            (model.is_downloaded ?
+                                '<span class="badge bg-info"><i class="fas fa-download fa-xs me-1"></i>Ready</span>' :
+                                '<span class="badge bg-secondary"><i class="fas fa-cloud fa-xs me-1"></i>Not downloaded</span>'
+                            )
+                        }
+                    </div>
+
+                    <h6 class="model-name mb-1">${model.name}</h6>
+                    <p class="model-desc mb-2">${truncate(model.description, 60)}</p>
+
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div class="model-meta">
+                            ${model.vram_gb ? `<span class="me-2" title="VRAM required"><i class="fas fa-microchip text-success"></i> ${model.vram_gb}GB</span>` : ''}
+                            ${model.ram_gb ? `<span title="RAM required"><i class="fas fa-memory text-info"></i> ${model.ram_gb}GB</span>` : ''}
+                        </div>
+                        ${model.is_loaded ?
+                            `<button class="btn btn-sm btn-outline-warning btn-unload" data-model="${model.id}" title="Unload from memory">
+                                <i class="fas fa-eject"></i>
+                            </button>` : ''
+                        }
+                    </div>
+
+                    ${model.hf_id ? `
+                        <div class="model-meta mt-2">
+                            <i class="fas fa-link me-1"></i>
+                            <a href="https://huggingface.co/${model.hf_id}" target="_blank" class="text-info text-decoration-none">
+                                ${truncate(model.hf_id, 40)}
+                            </a>
+                        </div>
+                    ` : ''}
+                </div>
+            </div>
+        `).join('');
+
+        // Attach unload handlers
+        attachUnloadHandlers();
+    }
+
+    function attachUnloadHandlers() {
+        document.querySelectorAll('.btn-unload').forEach(btn => {
+            btn.addEventListener('click', async function() {
+                const modelId = this.dataset.model;
+                const modelName = this.closest('.model-card').querySelector('.model-name').textContent;
+
+                if (!confirm(`Unload "${modelName}" from memory?`)) return;
+
+                showLoading('Unloading model...');
+
+                try {
+                    const response = await fetch('{% url "model_manager:api_unload_model" %}', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': csrfToken
+                        },
+                        body: JSON.stringify({ model_id: modelId })
+                    });
+                    const data = await response.json();
+
+                    if (data.success) {
+                        updateMemoryDisplay(data.memory);
+                        loadModels();  // Reload models list
+                    } else {
+                        alert('Failed to unload: ' + (data.error || data.message));
+                    }
+                } catch (err) {
+                    alert('Error: ' + err.message);
+                } finally {
+                    hideLoading();
+                }
+            });
+        });
+    }
+
+    async function loadModels() {
+        try {
+            const response = await fetch('{% url "model_manager:api_models_list" %}');
+            const data = await response.json();
+
+            if (data.success) {
+                // Clear existing type tabs (keep only "All")
+                filterTabs.querySelectorAll('.nav-item:not(:first-child)').forEach(el => el.remove());
+
+                renderModels(data.models);
+                updateStats(data.models);
+                buildFilterTabs(data.models);
+            } else {
+                modelsGrid.innerHTML = `
+                    <div class="col-12 text-center py-5">
+                        <i class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i>
+                        <h5 class="text-muted">Error loading models</h5>
+                        <p class="text-muted">${data.error || 'Unknown error'}</p>
+                    </div>
+                `;
+            }
+        } catch (err) {
+            modelsGrid.innerHTML = `
+                <div class="col-12 text-center py-5">
+                    <i class="fas fa-exclamation-triangle fa-3x text-danger mb-3"></i>
+                    <h5 class="text-muted">Connection error</h5>
+                    <p class="text-muted">${err.message}</p>
+                </div>
+            `;
+        }
+    }
+
+    // Clear GPU button
+    document.getElementById('btn-clear-gpu').addEventListener('click', async function() {
+        if (!confirm('Clear all GPU memory? This will unload all loaded models.')) return;
+
+        showLoading('Clearing GPU memory...');
+
+        try {
+            const response = await fetch('{% url "model_manager:api_clear_gpu" %}', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': csrfToken
+                }
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                updateMemoryDisplay(data.memory);
+                loadModels();  // Reload models list
+            } else {
+                alert('Failed to clear GPU: ' + (data.error || data.message));
+            }
+        } catch (err) {
+            alert('Error: ' + err.message);
+        } finally {
+            hideLoading();
+        }
+    });
+
+    // Refresh button
+    document.getElementById('btn-refresh').addEventListener('click', async function() {
+        showLoading('Scanning for models...');
+
+        try {
+            await fetch('{% url "model_manager:api_refresh_models" %}', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': csrfToken
+                }
+            });
+            await loadModels();
+        } catch (err) {
+            alert('Error: ' + err.message);
+        } finally {
+            hideLoading();
+        }
+    });
+
+    // Auto-refresh memory stats every 10 seconds
+    setInterval(async function() {
+        try {
+            const response = await fetch('{% url "model_manager:api_memory_stats" %}');
+            const data = await response.json();
+            if (data.success && data.gpu) {
+                updateMemoryDisplay(data.gpu);
+            }
+        } catch (err) {
+            // Silent fail for background refresh
+        }
+    }, 10000);
+
+    // Initial load - non-blocking
+    loadModels();
+});
+</script>
+{% endblock %}

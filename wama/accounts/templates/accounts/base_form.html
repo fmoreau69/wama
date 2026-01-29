@@ -1,5 +1,17 @@
 {% extends 'base.html' %}
 
+{% block extra_css %}
+<style>
+    /* Form label visibility on dark background */
+    .card.bg-dark .form-label {
+        color: #e5e7eb !important;
+    }
+    .card.bg-dark .form-text {
+        color: #9ca3af !important;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid py-4">
     <div class="row justify-content-center">

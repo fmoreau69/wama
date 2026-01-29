@@ -16,8 +16,24 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# Model information
+# Import centralized model configuration
+try:
+    from .model_config import ENHANCER_MODELS, get_models_directory, get_model_path
+    MODEL_CONFIG_AVAILABLE = True
+except ImportError:
+    MODEL_CONFIG_AVAILABLE = False
+    ENHANCER_MODELS = {}
+
+# Model information - use centralized config or fallback
 MODELS_INFO = {
+    key: {
+        'scale': config['scale'],
+        'vram_usage': config['vram_usage'],
+        'description': config['description'],
+        'file': config['file']
+    }
+    for key, config in ENHANCER_MODELS.items()
+} if MODEL_CONFIG_AVAILABLE else {
     'RealESR_Gx4': {
         'scale': 4,
         'vram_usage': 2.5,
@@ -108,8 +124,11 @@ class AIUpscaler:
 
         # Find models directory
         if models_dir is None:
-            from wama.settings import BASE_DIR
-            models_dir = os.path.join(BASE_DIR, 'AI-models', 'enhancer', 'onnx')
+            if MODEL_CONFIG_AVAILABLE:
+                models_dir = str(get_models_directory())
+            else:
+                from wama.settings import BASE_DIR
+                models_dir = os.path.join(BASE_DIR, 'AI-models', 'enhancer', 'onnx')
 
         self.models_dir = models_dir
         self.model_path = os.path.join(models_dir, self.model_info['file'])

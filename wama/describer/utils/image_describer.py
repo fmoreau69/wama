@@ -7,6 +7,9 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
+# Import model configuration (sets up cache paths)
+from .model_config import get_model_info, setup_model_environment
+
 # Global model cache
 _blip_processor = None
 _blip_model = None
@@ -19,14 +22,22 @@ def get_blip_model():
     if _blip_processor is None or _blip_model is None:
         logger.info("Loading BLIP model...")
 
+        # Ensure environment is set up
+        setup_model_environment()
+
         try:
             from transformers import BlipProcessor, BlipForConditionalGeneration
             import torch
 
-            model_name = "Salesforce/blip-image-captioning-large"
+            # Get model info from centralized config
+            model_info = get_model_info('blip')
+            model_name = model_info['model_id']
+            cache_dir = str(model_info['local_dir'])
 
-            _blip_processor = BlipProcessor.from_pretrained(model_name)
-            _blip_model = BlipForConditionalGeneration.from_pretrained(model_name)
+            logger.info(f"Loading {model_name} from cache: {cache_dir}")
+
+            _blip_processor = BlipProcessor.from_pretrained(model_name, cache_dir=cache_dir, use_fast=True)
+            _blip_model = BlipForConditionalGeneration.from_pretrained(model_name, cache_dir=cache_dir)
 
             # Move to GPU if available
             if torch.cuda.is_available():

@@ -14,6 +14,7 @@ urlpatterns = [
     # Unified preview endpoint: /common/preview/<app_name>/<pk>/
     path('preview/<str:app_name>/<int:pk>/', preview_utils.unified_preview, name='unified_preview'),
 
-    # System stats endpoint
+    # System stats endpoints
     path('api/system-stats/', views.system_stats, name='system_stats'),
+    path('api/system-stats/full/', views.system_stats_full, name='system_stats_full'),
 ]

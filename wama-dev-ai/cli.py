@@ -24,7 +24,10 @@ from rich.live import Live
 from rich.spinner import Spinner
 from rich.markdown import Markdown
 
-from config import BASE_DIR, MODELS, WORKFLOWS, PROMPTS_DIR, OUTPUT_DIR
+from config import (
+    BASE_DIR, MODELS, WORKFLOWS, PROMPTS_DIR, OUTPUT_DIR,
+    select_model_for_role, select_best_dev_model, get_memory_status
+)
 from ui.console import console
 from ui.diff import DiffRenderer
 from core.llm import LLMClient
@@ -48,7 +51,57 @@ class WAMADevAI:
         # Persistent conversation state
         self._last_request = None
         self._last_messages = []
+
         self._last_executed_calls = set()
+
+        # Adaptive model selection based on available memory
+        self._selected_model_key = None
+        self._selected_model = None
+        self._select_adaptive_model()
+
+    def _select_adaptive_model(self, role: str = "dev", verbose: bool = True):
+        """
+        Select the best model for the given role based on available memory.
+
+        Args:
+            role: Model role (dev, debug, architect, vision)
+            verbose: Print selection details
+        """
+        try:
+            mem_status = get_memory_status()
+
+            if verbose:
+                console.print(f"[dim]💾 Memory: {mem_status['available_gb']:.1f} GiB available "
+                            f"({mem_status['usable_gb']:.1f} GiB usable)[/]")
+
+            self._selected_model_key, self._selected_model = select_model_for_role(
+                role=role,
+                verbose=False
+            )
+
+            if verbose:
+                console.print(f"[dim]🤖 Model: {self._selected_model.name} "
+                            f"({self._selected_model.ram_required_gb:.0f} GiB)[/]")
+
+        except RuntimeError as e:
+            console.error(f"Model selection failed: {e}")
+            # Ultimate fallback to ultra_fast
+            self._selected_model_key = "ultra_fast"
+            self._selected_model = MODELS.get("ultra_fast")
+            if self._selected_model:
+                console.warning(f"Falling back to {self._selected_model.name}")
+            else:
+                raise RuntimeError("No models available - check your configuration")
+
+    def refresh_model_selection(self, role: str = "dev"):
+        """
+        Refresh model selection (useful if memory situation has changed).
+
+        Args:
+            role: Model role to select for
+        """
+        console.info("Refreshing model selection...")
+        self._select_adaptive_model(role=role, verbose=True)
 
     # =========================================================================
     # Main Entry Points
@@ -177,6 +230,9 @@ class WAMADevAI:
         console.print("  [dim]/search[/]   - Search files")
         console.print("  [dim]/read[/]     - Read a file")
         console.print("  [dim]/workflow[/] - Run a workflow")
+        console.print("  [dim]/models[/]   - Show models")
+        console.print("  [dim]/memory[/]   - Memory status")
+        console.print("  [dim]/refresh[/]  - Re-select model")
         console.print("  [dim]/exit[/]     - Exit")
         console.print()
 
@@ -223,6 +279,12 @@ class WAMADevAI:
 
         elif cmd == "models":
             self._cmd_models()
+
+        elif cmd == "memory":
+            self._cmd_memory()
+
+        elif cmd == "refresh":
+            self.refresh_model_selection()
 
         elif cmd == "clear":
             console.clear()
@@ -316,7 +378,7 @@ Do NOT assume file paths - wait for search results first."""
             tool_call_detected = False
             printed_length = 0
 
-            for chunk in self.llm.stream(user_prompt, model="dev", system_prompt=current_system_prompt, history=messages):
+            for chunk in self.llm.stream(user_prompt, model=self._selected_model_key, system_prompt=current_system_prompt, history=messages):
                 full_response += chunk
 
                 # Check if we've completed a tool call (closing tag or end of JSON)
@@ -403,7 +465,7 @@ Use markdown formatting (tables, bullet points) for clarity.
 YOUR FINAL ANSWER:"""
                 messages.append({"role": "user", "content": synthesis_prompt})
                 # Run one final synthesis pass
-                for chunk in self.llm.stream(synthesis_prompt, model="dev", system_prompt=system_prompt, history=messages):
+                for chunk in self.llm.stream(synthesis_prompt, model=self._selected_model_key, system_prompt=system_prompt, history=messages):
                     console.print(chunk, end="")
                 console.print("\n")
                 break
@@ -578,6 +640,8 @@ If you're ready to make changes, use edit_file with exact strings from the file.
 [cyan]/read <path>[/]       Read and display a file
 [cyan]/workflow[/]          Run a development workflow
 [cyan]/models[/]            Show available models
+[cyan]/memory[/]            Show memory status and available models
+[cyan]/refresh[/]           Re-select model based on current memory
 [cyan]/clear[/]             Clear the screen
 [cyan]/exit[/]              Exit the application
 
@@ -588,6 +652,11 @@ Just type your request in natural language:
 - "Add a new API endpoint for..."
 - "Explain how the imager backend works"
 - "Refactor the transcriber to..."
+
+[bold]Adaptive Model Selection[/bold]
+
+The best model is automatically selected based on available RAM.
+Use [cyan]/memory[/] to see which models can run on your system.
         """, title="Help")
 
     def _cmd_search(self, query: str):
@@ -655,6 +724,50 @@ Just type your request in natural language:
             })
 
         console.table(data, columns=["role", "name", "model_id", "status"])
+
+    def _cmd_memory(self):
+        """Show memory status and available models."""
+        mem_status = get_memory_status()
+
+        console.section("Memory Status")
+        console.print(f"  Total RAM:     [bold]{mem_status['total_gb']:.1f} GiB[/]")
+        console.print(f"  Available:     [bold green]{mem_status['available_gb']:.1f} GiB[/]")
+        console.print(f"  Safety margin: [dim]{mem_status['safety_margin_gb']:.1f} GiB[/]")
+        console.print(f"  Usable:        [bold cyan]{mem_status['usable_gb']:.1f} GiB[/]")
+        console.print()
+
+        console.print(f"  [bold]Current model:[/] {self._selected_model.name} ({self._selected_model_key})")
+        console.print(f"  [dim]RAM required: {self._selected_model.ram_required_gb:.0f} GiB[/]")
+        console.print()
+
+        console.section("Available Models (fit in memory)")
+        if mem_status['available_models']:
+            data = []
+            for m in mem_status['available_models']:
+                is_current = m['key'] == self._selected_model_key
+                data.append({
+                    "key": f"[bold cyan]{m['key']}[/]" if is_current else m['key'],
+                    "name": m['name'],
+                    "role": m['role'],
+                    "ram": f"{m['ram_required_gb']:.0f} GiB",
+                    "priority": str(m['priority']),
+                })
+            console.table(data, columns=["key", "name", "role", "ram", "priority"])
+        else:
+            console.warning("No models fit in available memory!")
+
+        if mem_status['unavailable_models']:
+            console.section("Unavailable Models (need more RAM)")
+            data = []
+            for m in mem_status['unavailable_models']:
+                data.append({
+                    "key": f"[dim]{m['key']}[/]",
+                    "name": m['name'],
+                    "ram": f"[red]{m['ram_required_gb']:.0f} GiB[/]",
+                })
+            console.table(data, columns=["key", "name", "ram"])
+
+        console.print("\n[dim]Use /refresh to re-select model after freeing memory[/]")
 
     # =========================================================================
     # Utilities

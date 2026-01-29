@@ -1,8 +1,10 @@
 import json
 from pathlib import Path
 from typing import List, Dict, Optional
-from huggingface_hub import HfApi, hf_hub_download, snapshot_download
+from huggingface_hub import HfApi, hf_hub_download, snapshot_download, list_models
 import requests
+
+from sources.ollama import OllamaConnector
 
 
 class WAMAModelManager:
@@ -12,6 +14,45 @@ class WAMAModelManager:
         self.download_path = self.base_path / "downloaded"
         self.registry = self.load_registry()
         self.hf_api = HfApi()
+        self.ollama = OllamaConnector()
+
+    def sync_ollama_models(self):
+        """Synchronise le registre avec les modèles Ollama installés"""
+        if not self.ollama.ollama_available:
+            print("Ollama is not available")
+            return
+
+        ollama_models = self.ollama.list_installed_models()
+
+        for model in ollama_models:
+            model_id = model["id"]
+
+            # Ajouter ou mettre à jour dans le registre
+            if model_id not in self.registry["models"]:
+                # Nouveau modèle détecté
+                self.registry["models"][model_id] = {
+                    **model,
+                    "local_path": str(self.ollama.ollama_models_path),
+                    "compatible_apps": self._infer_compatible_apps(model_id)
+                }
+            else:
+                # Mettre à jour le statut
+                self.registry["models"][model_id]["downloaded"] = True
+
+        self.save_registry()
+
+    def _infer_compatible_apps(self, model_name: str) -> List[str]:
+        """Déduit les apps compatibles selon le nom du modèle"""
+        apps = []
+
+        if "llava" in model_name.lower():
+            apps.append("describer")  # Vision-Language
+        elif any(x in model_name.lower() for x in ["llama", "mistral", "phi", "gemma"]):
+            apps.append("chatbot")  # LLM classique
+        elif "codellama" in model_name.lower():
+            apps.extend(["chatbot", "code-assistant"])
+
+        return apps
 
     def load_registry(self) -> Dict:
         """Charge le registre des modèles"""
@@ -163,3 +204,88 @@ class WAMAModelManager:
                 self.registry["app_models_mapping"][app][task].append(model_id)
 
         self.save_registry()
+
+    def discover_new_models(self, category=None):
+        """Découvre de nouveaux modèles depuis HuggingFace"""
+        # Mapping des catégories WAMA vers tâches HF
+        task_mapping = {
+            "text-to-image": "text-to-image",
+            "speech-to-text": "automatic-speech-recognition",
+            "text-to-speech": "text-to-speech",
+            "object-detection": "object-detection",
+            "segmentation": "image-segmentation"
+        }
+
+        new_models = []
+        for wama_cat, hf_task in task_mapping.items():
+            if category and category != wama_cat:
+                continue
+
+            # Recherche sur HF avec filtres
+            models = list_models(
+                task=hf_task,
+                sort="downloads",
+                direction=-1,
+                limit=20,
+                library="transformers"  # ou "diffusers", etc.
+            )
+
+            for model in models:
+                if not self.is_in_registry(model.modelId):
+                    new_models.append({
+                        "id": self.generate_id(model.modelId),
+                        "name": model.modelId,
+                        "category": wama_cat,
+                        "source": "huggingface",
+                        "repo": model.modelId,
+                        "downloads": model.downloads,
+                        "last_updated": model.lastModified.isoformat()
+                    })
+
+        return new_models
+
+    def verify_model_links(self):
+        """Vérifie que tous les liens de téléchargement sont valides"""
+        results = {"valid": [], "broken": []}
+
+        for model in self.registry["models"]:
+            try:
+                if model["source"] == "huggingface":
+                    # Vérifier l'existence du repo HF
+                    info = self.hf_api.model_info(model["repo"])
+                    results["valid"].append(model["id"])
+                else:
+                    # Vérifier l'URL directe
+                    response = requests.head(model["url"], timeout=5)
+                    if response.status_code == 200:
+                        results["valid"].append(model["id"])
+                    else:
+                        results["broken"].append(model["id"])
+            except:
+                results["broken"].append(model["id"])
+
+        return results
+
+    def suggest_updates(self):
+        """Propose des mises à jour pour les modèles téléchargés"""
+        suggestions = []
+
+        for model in self.registry["models"]:
+            if not model.get("downloaded"):
+                continue
+
+            if model["source"] == "huggingface":
+                info = self.hf_api.model_info(model["repo"])
+                if info.lastModified.isoformat() > model["last_updated"]:
+                    suggestions.append({
+                        "id": model["id"],
+                        "current_version": model["last_updated"],
+                        "new_version": info.lastModified.isoformat(),
+                        "size": model.get("size_gb", "unknown")
+                    })
+
+        return suggestions
+
+    def auto_update(self, model_id):
+        """Met à jour automatiquement un modèle"""
+        return self.download_model(model_id, force=True)

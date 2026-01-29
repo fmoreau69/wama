@@ -2,8 +2,8 @@
 YOLO Model Manager - Automatic download and management of YOLO models
 Based on https://github.com/ultralytics/assets/releases
 
-Model directory structure:
-AI-models/anonymizer/models--ultralytics--yolo/
+Model directory structure (centralized):
+AI-models/models/vision/yolo/
 ├── classify/           # Classification models
 ├── detect/             # Detection models
 │   ├── faces/          # Face-specific detection
@@ -23,8 +23,15 @@ from wama.settings import BASE_DIR
 
 logger = logging.getLogger(__name__)
 
-# Dossier racine des modèles YOLO (nouvelle organisation centralisée)
-MODELS_ROOT = os.path.join(BASE_DIR, "AI-models", "anonymizer", "models--ultralytics--yolo")
+# Import centralized model configuration
+try:
+    from .model_config import get_yolo_root, YOLO_TYPES, ensure_yolo_directories
+    MODEL_CONFIG_AVAILABLE = True
+    MODELS_ROOT = str(get_yolo_root())
+except ImportError:
+    MODEL_CONFIG_AVAILABLE = False
+    # Fallback to legacy path
+    MODELS_ROOT = os.path.join(BASE_DIR, "AI-models", "anonymizer", "models--ultralytics--yolo")
 
 # Définition des modèles YOLO officiels disponibles
 # Format: {model_type: {model_name: (version, url_pattern)}}

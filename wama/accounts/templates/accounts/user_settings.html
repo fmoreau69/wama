@@ -1,5 +1,17 @@
 {% extends 'base.html' %}
 
+{% block extra_css %}
+<style>
+    /* Profile page label visibility */
+    .card.bg-dark .row .col-4 {
+        color: #9ca3af;
+    }
+    .card.bg-dark .row .col-8 {
+        color: #e5e7eb;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid py-4">
     <div class="row justify-content-center">

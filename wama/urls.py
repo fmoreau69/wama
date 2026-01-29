@@ -20,6 +20,7 @@ urlpatterns = [
     path('imager/', include(('wama.imager.urls', 'imager'), namespace='imager')),
     path('synthesizer/', include(('wama.synthesizer.urls', 'synthesizer'), namespace='synthesizer')),
     path('transcriber/', include(('wama.transcriber.urls', 'transcriber'), namespace='transcriber')),
+    path('model-manager/', include(('wama.model_manager.urls', 'model_manager'), namespace='model_manager')),
     # WAMA Lab - Experimental/Research applications
     path('lab/', include(('wama_lab.urls', 'wama_lab'), namespace='wama_lab')),
     path('favicon.ico', RedirectView.as_view(url=staticfiles_storage.url('images/favicon.ico'))),

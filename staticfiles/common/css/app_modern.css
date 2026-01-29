@@ -669,13 +669,23 @@ i.text-light { color: #f8f9fa !important; }
 i.text-white { color: #fff !important; }
 
 /* Text-muted - lighter for dark backgrounds */
+/* Global fix since the entire app uses dark theme */
+.text-muted {
+    color: #9ca3af !important;
+}
+
 .bg-dark .text-muted,
 .card.bg-dark .text-muted,
 .modal-content .text-muted {
     color: #9ca3af !important;
 }
 
-/* Small text in dark containers */
+/* Small text - global fix for dark theme */
+small,
+.small {
+    color: #d1d5db !important;
+}
+
 .bg-dark small,
 .bg-dark .small,
 .card.bg-dark small,
@@ -767,10 +777,21 @@ i.text-white { color: #fff !important; }
     color: #141619 !important;
 }
 
-/* Form labels in dark containers */
+/* Form labels - ensure visibility on dark theme */
+.form-label {
+    color: #e5e7eb !important;
+}
+
+.form-label.small,
 .bg-dark .form-label.small,
 .modal-content .form-label.small {
     color: #f3f4f6 !important;
+}
+
+/* Form help text */
+.form-text,
+small.form-text {
+    color: #9ca3af !important;
 }
 
 /* Table cells in dark tables */
@@ -783,6 +804,31 @@ i.text-white { color: #fff !important; }
 /* White-50 utility - more visible on dark backgrounds */
 .text-white-50 {
     color: rgba(255, 255, 255, 0.7) !important;
+}
+
+/*  === AI ASSISTANT CHAT === */
+#ai-chat-messages {
+    color: #e5e7eb;
+}
+
+#ai-chat-messages p,
+#ai-chat-messages .small,
+#ai-chat-messages small,
+#ai-chat-messages i.fas,
+#ai-chat-messages i.far,
+#ai-chat-messages i.fab {
+    color: #e5e7eb !important;
+}
+
+#ai-chat-messages .text-muted {
+    color: #9ca3af !important;
+}
+
+/* AI Assistant form labels (Provider, Model selectors) */
+/* Target cards with dark backgrounds on home page */
+.card .card-body .form-label.small,
+.card .card-body label.small {
+    color: #e5e7eb !important;
 }
 
 /*  === HOME PAGE === */

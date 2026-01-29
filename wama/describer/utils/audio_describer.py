@@ -8,6 +8,9 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
+# Import model configuration (sets up cache paths)
+from .model_config import get_model_path, setup_model_environment
+
 
 def describe_audio(description, set_progress, set_partial, console):
     """
@@ -198,13 +201,27 @@ def describe_audio(description, set_progress, set_partial, console):
 
 def transcribe_audio(file_path: str, console, user_id: int) -> str:
     """Transcribe audio using Whisper."""
+    # Ensure environment is set up
+    setup_model_environment()
+
+    # Get whisper cache directory
+    whisper_dir = get_model_path('whisper')
+    os.environ['WHISPER_CACHE'] = str(whisper_dir)
+
     try:
         # Try faster-whisper first
         try:
             from faster_whisper import WhisperModel
 
             console(user_id, "Using faster-whisper...")
-            model = WhisperModel("base", device="auto", compute_type="auto")
+            logger.info(f"Whisper cache directory: {whisper_dir}")
+
+            model = WhisperModel(
+                "base",
+                device="auto",
+                compute_type="auto",
+                download_root=str(whisper_dir)
+            )
             segments, info = model.transcribe(file_path)
 
             transcript = ' '.join([segment.text for segment in segments])
@@ -218,7 +235,10 @@ def transcribe_audio(file_path: str, console, user_id: int) -> str:
             import whisper
 
             console(user_id, "Using openai-whisper...")
-            model = whisper.load_model("base")
+            logger.info(f"Whisper cache directory: {whisper_dir}")
+
+            # Set whisper download root
+            model = whisper.load_model("base", download_root=str(whisper_dir))
             result = model.transcribe(file_path)
 
             return result["text"].strip()

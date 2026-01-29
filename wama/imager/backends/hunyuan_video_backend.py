@@ -19,16 +19,21 @@ from django.conf import settings
 # IMPORTANT: Set HF_HUB_CACHE BEFORE importing diffusers/transformers
 def _setup_hf_cache():
     """Set up Hugging Face cache directory before any HF imports."""
-    base_dir = Path(settings.BASE_DIR)
-    models_dir = base_dir / "AI-models" / "imager" / "hunyuan"
-    models_dir.mkdir(parents=True, exist_ok=True)
-    models_dir_str = str(models_dir)
+    try:
+        from wama.imager.utils.model_config import setup_hf_cache_for_hunyuan
+        return setup_hf_cache_for_hunyuan()
+    except ImportError:
+        # Fallback to legacy path
+        base_dir = Path(settings.BASE_DIR)
+        models_dir = base_dir / "AI-models" / "imager" / "hunyuan"
+        models_dir.mkdir(parents=True, exist_ok=True)
+        models_dir_str = str(models_dir)
 
-    os.environ['HF_HUB_CACHE'] = models_dir_str
-    os.environ['HF_HOME'] = models_dir_str
-    os.environ['HUGGINGFACE_HUB_CACHE'] = models_dir_str
+        os.environ['HF_HUB_CACHE'] = models_dir_str
+        os.environ['HF_HOME'] = models_dir_str
+        os.environ['HUGGINGFACE_HUB_CACHE'] = models_dir_str
 
-    return models_dir_str
+        return models_dir_str
 
 _HUNYUAN_MODELS_DIR = _setup_hf_cache()
 

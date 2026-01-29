@@ -13,6 +13,12 @@ except Exception:  # pragma: no cover
     AudioPreprocessor = None  # type: ignore
 
 try:
+    from .utils.model_config import load_whisper_model, get_whisper_download_root
+    WHISPER_CONFIG_AVAILABLE = True
+except Exception:  # pragma: no cover
+    WHISPER_CONFIG_AVAILABLE = False
+
+try:
     import whisper  # optional dependency; small/medium models as needed
 except Exception:  # pragma: no cover
     whisper = None
@@ -152,8 +158,11 @@ def transcribe(self, transcript_id: int):
             _set_progress(t, 20)
             _set_partial_text(t.id, "📥 Chargement du modèle Whisper...\n\n")
 
-            # Charger le modèle Whisper
-            model = whisper.load_model('base', device=DEVICE)
+            # Charger le modèle Whisper avec cache centralisé
+            if WHISPER_CONFIG_AVAILABLE:
+                model = load_whisper_model('base', device=DEVICE)
+            else:
+                model = whisper.load_model('base', device=DEVICE)
             _console(t.user_id, f"Modèle Whisper chargé sur {DEVICE}")
             _set_progress(t, 30)
             _set_partial_text(t.id, "🎯 Transcription en cours...\n\nCela peut prendre quelques instants selon la durée de l'audio.\n")
@@ -241,7 +250,11 @@ def transcribe_without_preprocessing(self, transcript_id: int):
                 raise RuntimeError('No STT engine available (install whisper or speech_to_text_transcriptor)')
 
             _set_partial_text(t.id, "📥 Chargement du modèle Whisper...\n\n")
-            model = whisper.load_model('base', device=DEVICE)
+            # Charger le modèle Whisper avec cache centralisé
+            if WHISPER_CONFIG_AVAILABLE:
+                model = load_whisper_model('base', device=DEVICE)
+            else:
+                model = whisper.load_model('base', device=DEVICE)
             _console(t.user_id, f"Moteur Whisper (base) en cours...")
             _set_progress(t, 20)
             _set_partial_text(t.id, "🎯 Transcription en cours...\n\n")

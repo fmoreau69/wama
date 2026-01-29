@@ -77,7 +77,12 @@
                         {% if is_admin %}
                         <li>
                             <a class="dropdown-item d-flex align-items-center" href="{% url 'accounts:user-management' %}">
-                                <i class="fas fa-users-cog me-2"></i> Gestion
+                                <i class="fas fa-users-cog me-2"></i> Users
+                            </a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item d-flex align-items-center" href="{% url 'model_manager:index' %}">
+                                <i class="fas fa-microchip me-2"></i> Models
                             </a>
                         </li>
                         {% endif %}

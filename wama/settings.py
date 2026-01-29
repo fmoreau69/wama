@@ -16,21 +16,94 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
-# Centralized AI Models directory
-# All AI models are now stored in AI-models/ at project root, organized by application
+# =============================================================================
+# CENTRALIZED AI MODELS CONFIGURATION
+# =============================================================================
+# All AI models are stored in AI-models/ at project root, organized by type/task
+# This allows multiple applications to share the same models
+
 AI_MODELS_DIR = BASE_DIR / "AI-models"
 AI_MODELS_DIR.mkdir(parents=True, exist_ok=True)
 
-# Legacy MODELS_ROOT (deprecated - use AI_MODELS_DIR / "anonymizer" / "models--ultralytics--yolo")
+# New centralized model paths (organized by domain, then by model family)
+# Structure: models/<domain>/<model_family>/
+MODEL_PATHS = {
+    # Vision models (detection, segmentation, pose, classification)
+    'vision': {
+        'root': AI_MODELS_DIR / "models" / "vision",
+        # YOLO models (all types: detect, segment, pose, classify, obb)
+        'yolo': AI_MODELS_DIR / "models" / "vision" / "yolo",
+        # SAM models (Segment Anything Model)
+        'sam': AI_MODELS_DIR / "models" / "vision" / "sam",
+    },
+    # Upscaling/Enhancement models (ONNX)
+    'upscaling': {
+        'root': AI_MODELS_DIR / "models" / "upscaling",
+        'onnx': AI_MODELS_DIR / "models" / "upscaling" / "onnx",
+    },
+    # Speech models (ASR, TTS)
+    'speech': {
+        'root': AI_MODELS_DIR / "models" / "speech",
+        'whisper': AI_MODELS_DIR / "models" / "speech" / "whisper",
+        'coqui': AI_MODELS_DIR / "models" / "speech" / "coqui",
+        'bark': AI_MODELS_DIR / "models" / "speech" / "bark",
+    },
+    # Diffusion models (image/video generation)
+    'diffusion': {
+        'root': AI_MODELS_DIR / "models" / "diffusion",
+        'wan': AI_MODELS_DIR / "models" / "diffusion" / "wan",
+        'hunyuan': AI_MODELS_DIR / "models" / "diffusion" / "hunyuan",
+        'stable_diffusion': AI_MODELS_DIR / "models" / "diffusion" / "stable-diffusion",
+    },
+    # Vision-Language models (BLIP, LLaVA, etc.)
+    'vision_language': {
+        'root': AI_MODELS_DIR / "models" / "vision-language",
+        'blip': AI_MODELS_DIR / "models" / "vision-language" / "blip",
+        'bart': AI_MODELS_DIR / "models" / "vision-language" / "bart",
+    },
+    # LLM models (reference to Ollama)
+    'llm': {
+        'root': AI_MODELS_DIR / "models" / "llm",
+    },
+    # HuggingFace cache (shared)
+    'cache': {
+        'huggingface': AI_MODELS_DIR / "cache" / "huggingface",
+    },
+}
+
+# Create all model directories
+for category in MODEL_PATHS.values():
+    for path in category.values():
+        path.mkdir(parents=True, exist_ok=True)
+
+# =============================================================================
+# LEGACY PATHS (for backward compatibility during migration)
+# =============================================================================
+# These will be removed after full migration to MODEL_PATHS
+
+# Legacy MODELS_ROOT (deprecated - use MODEL_PATHS['detection']['yolo'])
 MODELS_ROOT = AI_MODELS_DIR / "anonymizer" / "models--ultralytics--yolo"
 
-# HuggingFace cache configuration - MUST be set before any HF imports
-# This provides a default fallback location for HuggingFace models
-# Individual apps can override with their own HF_HUB_CACHE settings
-HF_DEFAULT_CACHE = AI_MODELS_DIR / "huggingface"
-HF_DEFAULT_CACHE.mkdir(parents=True, exist_ok=True)
-# Set HF_HOME as fallback - apps with specific needs will override
+# Legacy per-app paths (deprecated)
+LEGACY_MODEL_PATHS = {
+    'anonymizer_yolo': AI_MODELS_DIR / "anonymizer" / "models--ultralytics--yolo",
+    'anonymizer_sam': AI_MODELS_DIR / "anonymizer" / "models--facebook--sam3",
+    'enhancer_onnx': AI_MODELS_DIR / "enhancer" / "onnx",
+    'imager_wan': AI_MODELS_DIR / "imager" / "wan",
+    'imager_hunyuan': AI_MODELS_DIR / "imager" / "hunyuan",
+    'synthesizer_tts': AI_MODELS_DIR / "synthesizer" / "tts",
+    'synthesizer_bark': AI_MODELS_DIR / "synthesizer" / "bark",
+}
+
+# =============================================================================
+# HUGGINGFACE CONFIGURATION
+# =============================================================================
+# HuggingFace cache - MUST be set before any HF imports
+
+HF_DEFAULT_CACHE = MODEL_PATHS['cache']['huggingface']
 os.environ.setdefault('HF_HOME', str(HF_DEFAULT_CACHE))
+os.environ.setdefault('HF_HUB_CACHE', str(HF_DEFAULT_CACHE))
+os.environ.setdefault('HUGGINGFACE_HUB_CACHE', str(HF_DEFAULT_CACHE))
 
 # Anonymizer media paths
 MEDIA_INPUT_URL = '/media/anonymizer/input'
@@ -135,6 +208,7 @@ INSTALLED_APPS = [
     'wama.imager',
     'wama.synthesizer',
     'wama.transcriber',
+    'wama.model_manager',  # AI Models Manager
     # WAMA Lab - Experimental/Research applications
     'wama_lab.face_analyzer',
 ]
