@@ -26,6 +26,7 @@ app.autodiscover_tasks([
     'wama.describer',
     'wama.enhancer',
     'wama.imager',
+    'wama.model_manager',
     'wama.synthesizer',
     'wama.transcriber',
     'wama_lab.face_analyzer',

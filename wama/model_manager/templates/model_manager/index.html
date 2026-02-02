@@ -142,6 +142,123 @@
     .loading-overlay.show {
         display: flex;
     }
+    /* Memory Management Section */
+    .cleaner-status {
+        font-size: 0.85rem;
+    }
+    .cleaner-status .status-indicator {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        display: inline-block;
+        margin-right: 6px;
+    }
+    .cleaner-status .status-running {
+        background: #28a745;
+        box-shadow: 0 0 6px #28a745;
+        animation: pulse 2s infinite;
+    }
+    .cleaner-status .status-stopped {
+        background: #dc3545;
+    }
+    @keyframes pulse {
+        0% { opacity: 1; }
+        50% { opacity: 0.5; }
+        100% { opacity: 1; }
+    }
+    .idle-model-item {
+        background: #3a3f44;
+        border-radius: 6px;
+        padding: 10px;
+        margin-bottom: 8px;
+    }
+    .idle-model-item:hover {
+        background: #4a4f54;
+    }
+    .memory-action-btn {
+        min-width: 120px;
+    }
+    .cleanup-history {
+        max-height: 200px;
+        overflow-y: auto;
+    }
+    .cleanup-history-item {
+        font-size: 0.8rem;
+        padding: 6px 10px;
+        border-left: 3px solid #28a745;
+        background: #2d3238;
+        margin-bottom: 4px;
+    }
+    /* Multi-select styles */
+    .model-checkbox {
+        width: 18px;
+        height: 18px;
+        cursor: pointer;
+    }
+    .model-card.selected {
+        border: 2px solid #0dcaf0;
+        box-shadow: 0 0 15px rgba(13, 202, 240, 0.3);
+    }
+    /* Format badges */
+    .format-badge {
+        font-size: 0.65rem;
+        padding: 2px 6px;
+        border-radius: 3px;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+    .format-safetensors { background: #28a745; color: white; }
+    .format-onnx { background: #fd7e14; color: white; }
+    .format-pt { background: #6c757d; color: white; }
+    .format-bin { background: #495057; color: white; }
+    .format-unknown { background: #343a40; color: #adb5bd; }
+    /* Filter bar */
+    .filter-bar {
+        background: #2b3035;
+        border-radius: 8px;
+        padding: 12px 15px;
+        margin-bottom: 15px;
+    }
+    .filter-select {
+        background: #1a1d20;
+        border: 1px solid #495057;
+        color: #e9ecef;
+        font-size: 0.85rem;
+    }
+    .filter-select:focus {
+        border-color: #0dcaf0;
+        box-shadow: 0 0 0 0.2rem rgba(13, 202, 240, 0.25);
+    }
+    /* Selection toolbar */
+    .selection-toolbar {
+        background: linear-gradient(135deg, #1a1a2e 0%, #0d6efd22 100%);
+        border: 1px solid #0d6efd;
+        border-radius: 8px;
+        padding: 12px 15px;
+        margin-bottom: 15px;
+        display: none;
+    }
+    .selection-toolbar.show {
+        display: flex;
+    }
+    /* Conversion panel */
+    .conversion-panel {
+        background: #1a1d20;
+        border: 1px solid #495057;
+        border-radius: 8px;
+        padding: 15px;
+        margin-top: 10px;
+    }
+    /* Backup status */
+    .backup-status {
+        font-size: 0.8rem;
+    }
+    .backup-status.available {
+        color: #28a745;
+    }
+    .backup-status.unavailable {
+        color: #dc3545;
+    }
 </style>
 {% endblock %}
 
@@ -229,15 +346,190 @@
         </div>
     </div>
 
-    <!-- Filter Tabs -->
-    <ul class="nav filter-tabs" id="type-filter">
-        <li class="nav-item">
-            <a class="nav-link active" href="#" data-filter="all">
-                <i class="fas fa-th me-1"></i> All
-                <span class="badge bg-secondary ms-1" id="count-all">0</span>
-            </a>
-        </li>
-    </ul>
+    <!-- Disk Space Card -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="memory-card">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="mb-0"><i class="fas fa-hdd me-2 text-primary"></i>Disk Space</h5>
+                    <span class="badge bg-dark" id="disk-drive">-</span>
+                </div>
+                <div class="memory-bar mb-2">
+                    <div class="memory-bar-fill ram" id="disk-bar" style="width: 0%">0%</div>
+                </div>
+                <div class="d-flex justify-content-between">
+                    <small class="text-muted">Used: <span id="disk-used">-</span> GB</small>
+                    <small class="text-muted">Free: <span id="disk-free">-</span> GB</small>
+                    <small class="text-muted">Total: <span id="disk-total">-</span> GB</small>
+                </div>
+                <div class="mt-2">
+                    <small id="disk-warning" class="text-warning" style="display: none;">
+                        <i class="fas fa-exclamation-triangle me-1"></i>
+                        <span id="disk-warning-text"></span>
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Memory Management Section -->
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <div class="memory-card h-100">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="mb-0">
+                        <i class="fas fa-broom me-2 text-warning"></i>Memory Cleaner
+                    </h5>
+                    <div class="cleaner-status">
+                        <span class="status-indicator" id="cleaner-indicator"></span>
+                        <span id="cleaner-status-text">Loading...</span>
+                    </div>
+                </div>
+
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <div class="d-flex flex-wrap gap-2">
+                            <button class="btn btn-outline-warning btn-sm memory-action-btn" id="btn-cleanup-idle" title="Unload idle models">
+                                <i class="fas fa-clock me-1"></i> Clean Idle
+                            </button>
+                            <button class="btn btn-outline-danger btn-sm memory-action-btn" id="btn-aggressive-cleanup" title="Aggressive cleanup">
+                                <i class="fas fa-fire me-1"></i> Aggressive
+                            </button>
+                            <button class="btn btn-outline-info btn-sm memory-action-btn" id="btn-clear-gpu-cache" title="Clear GPU cache only">
+                                <i class="fas fa-microchip me-1"></i> GPU Cache
+                            </button>
+                            <button class="btn btn-outline-secondary btn-sm memory-action-btn" id="btn-force-gc" title="Force garbage collection">
+                                <i class="fas fa-recycle me-1"></i> Force GC
+                            </button>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="d-flex flex-wrap gap-2 justify-content-md-end mt-2 mt-md-0">
+                            <button class="btn btn-success btn-sm" id="btn-cleaner-start" title="Start auto cleaner">
+                                <i class="fas fa-play me-1"></i> Start Auto
+                            </button>
+                            <button class="btn btn-secondary btn-sm" id="btn-cleaner-stop" title="Stop auto cleaner">
+                                <i class="fas fa-stop me-1"></i> Stop Auto
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Process Memory -->
+                <div class="row">
+                    <div class="col-md-4">
+                        <small class="text-muted d-block mb-1">Process RSS</small>
+                        <span id="process-rss" class="text-info">-</span> GB
+                    </div>
+                    <div class="col-md-4">
+                        <small class="text-muted d-block mb-1">Tracked Models</small>
+                        <span id="tracked-total" class="text-warning">-</span> MB
+                    </div>
+                    <div class="col-md-4">
+                        <small class="text-muted d-block mb-1">Idle Threshold</small>
+                        <span id="idle-threshold" class="text-secondary">-</span> sec
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="memory-card h-100">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="mb-0">
+                        <i class="fas fa-hourglass-half me-2 text-warning"></i>Idle Models
+                    </h5>
+                    <span class="badge bg-warning" id="idle-count">0</span>
+                </div>
+
+                <div id="idle-models-list" style="max-height: 150px; overflow-y: auto;">
+                    <p class="text-muted small mb-0">No idle models detected</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filter Bar -->
+    <div class="filter-bar">
+        <div class="row align-items-center g-3">
+            <div class="col-auto">
+                <label class="text-muted small me-2">Type:</label>
+                <select class="form-select form-select-sm filter-select d-inline-block w-auto" id="filter-type">
+                    <option value="all">All Types</option>
+                </select>
+            </div>
+            <div class="col-auto">
+                <label class="text-muted small me-2">App:</label>
+                <select class="form-select form-select-sm filter-select d-inline-block w-auto" id="filter-source">
+                    <option value="all">All Apps</option>
+                </select>
+            </div>
+            <div class="col-auto">
+                <label class="text-muted small me-2">Format:</label>
+                <select class="form-select form-select-sm filter-select d-inline-block w-auto" id="filter-format">
+                    <option value="all">All Formats</option>
+                    <option value="safetensors">Safetensors</option>
+                    <option value="onnx">ONNX</option>
+                    <option value="pt">PyTorch (.pt/.pth)</option>
+                    <option value="bin">Binary (.bin)</option>
+                    <option value="gguf">GGUF (Ollama)</option>
+                    <option value="unknown">Unknown</option>
+                </select>
+            </div>
+            <div class="col-auto">
+                <label class="text-muted small me-2">Status:</label>
+                <select class="form-select form-select-sm filter-select d-inline-block w-auto" id="filter-status">
+                    <option value="all">All</option>
+                    <option value="loaded">Loaded</option>
+                    <option value="downloaded">Downloaded</option>
+                    <option value="not-downloaded">Not Downloaded</option>
+                    <option value="needs-conversion">Needs Conversion</option>
+                </select>
+            </div>
+            <div class="col-auto ms-auto">
+                <div class="form-check">
+                    <input class="form-check-input model-checkbox" type="checkbox" id="select-all-visible">
+                    <label class="form-check-label text-muted small" for="select-all-visible">Select All</label>
+                </div>
+            </div>
+            <div class="col-auto">
+                <span class="text-muted small">
+                    <span id="filtered-count">0</span> / <span id="total-count">0</span> models
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Selection Toolbar -->
+    <div class="selection-toolbar" id="selection-toolbar">
+        <div class="d-flex align-items-center justify-content-between w-100">
+            <div>
+                <span class="text-info me-3"><span id="selected-count">0</span> selected</span>
+                <button class="btn btn-sm btn-outline-secondary me-2" id="btn-clear-selection">
+                    <i class="fas fa-times me-1"></i>Clear
+                </button>
+            </div>
+            <div class="d-flex gap-2">
+                <button class="btn btn-sm btn-success" id="btn-convert-selected" title="Convert selected models">
+                    <i class="fas fa-exchange-alt me-1"></i>Convert to Safetensors
+                </button>
+                <button class="btn btn-sm btn-warning" id="btn-convert-onnx-selected" title="Convert to ONNX">
+                    <i class="fas fa-cogs me-1"></i>Convert to ONNX
+                </button>
+                <button class="btn btn-sm btn-info" id="btn-backup-selected" title="Backup to remote">
+                    <i class="fas fa-cloud-upload-alt me-1"></i>Backup
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Backup Status -->
+    <div class="mb-3 d-flex align-items-center gap-3">
+        <span class="backup-status" id="backup-status">
+            <i class="fas fa-circle-notch fa-spin me-1"></i>Checking backup...
+        </span>
+        <small class="text-muted" id="backup-path"></small>
+    </div>
 
     <!-- Models Grid -->
     <div class="row" id="models-grid">
@@ -270,7 +562,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const loadingOverlay = document.getElementById('loading-overlay');
     const loadingMessage = document.getElementById('loading-message');
     const modelsGrid = document.getElementById('models-grid');
-    const filterTabs = document.getElementById('type-filter');
 
     function showLoading(message) {
         loadingMessage.textContent = message || 'Processing...';
@@ -305,54 +596,75 @@ document.addEventListener('DOMContentLoaded', function() {
         document.querySelector('.stats-badge.text-info').textContent = total;
         document.querySelector('.stats-badge.text-success').textContent = loaded;
         document.querySelector('.stats-badge.text-warning').textContent = downloaded;
-        document.getElementById('count-all').textContent = total;
     }
 
-    function buildFilterTabs(models) {
-        // Group by type
-        const types = {};
-        models.forEach(m => {
-            types[m.type] = (types[m.type] || 0) + 1;
-        });
-
-        // Add type tabs
-        Object.entries(types).sort().forEach(([type, count]) => {
-            const li = document.createElement('li');
-            li.className = 'nav-item';
-            li.innerHTML = `
-                <a class="nav-link" href="#" data-filter="${type}">
-                    ${type.charAt(0).toUpperCase() + type.slice(1)}
-                    <span class="badge bg-secondary ms-1">${count}</span>
-                </a>
-            `;
-            filterTabs.appendChild(li);
-        });
-
-        // Attach filter handlers
-        filterTabs.querySelectorAll('.nav-link').forEach(link => {
-            link.addEventListener('click', function(e) {
-                e.preventDefault();
-                filterTabs.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
-                this.classList.add('active');
-
-                const filter = this.dataset.filter;
-                document.querySelectorAll('.model-item').forEach(item => {
-                    if (filter === 'all' || item.dataset.type === filter) {
-                        item.style.display = '';
-                    } else {
-                        item.style.display = 'none';
-                    }
-                });
-            });
-        });
-    }
 
     function truncate(str, len) {
         if (!str) return '-';
         return str.length > len ? str.substring(0, len) + '...' : str;
     }
 
+    // Store all models for filtering
+    let allModels = [];
+    let selectedModels = new Set();
+
+    function getFormatBadgeClass(format) {
+        if (!format) return 'format-unknown';
+        const f = format.toLowerCase();
+        if (f.includes('safetensors')) return 'format-safetensors';
+        if (f.includes('onnx')) return 'format-onnx';
+        if (f.includes('pt')) return 'format-pt';
+        if (f.includes('bin')) return 'format-bin';
+        return 'format-unknown';
+    }
+
+    function needsConversion(model) {
+        // Model needs conversion if:
+        // 1. It has a known format AND a preferred format
+        // 2. The formats are different
+        // 3. It's downloaded (can't convert what we don't have)
+        if (!model.format || !model.preferred_format) return false;
+        if (!model.is_downloaded) return false;
+
+        // Normalize formats for comparison
+        const currentFormat = model.format.toLowerCase();
+        const preferredFormat = model.preferred_format.toLowerCase();
+
+        // Consider pt and pth as equivalent for comparison
+        const normalizeFormat = (f) => {
+            if (f === 'pth') return 'pt';
+            return f;
+        };
+
+        return normalizeFormat(currentFormat) !== normalizeFormat(preferredFormat);
+    }
+
+    function matchesFormat(modelFormat, filterFormat) {
+        // Handle special cases for format matching
+        if (!modelFormat) modelFormat = '';
+        if (!filterFormat) filterFormat = '';
+
+        const model = modelFormat.toLowerCase();
+        const filter = filterFormat.toLowerCase();
+
+        // Special case: filter 'pt' should match both 'pt' and 'pth'
+        if (filter === 'pt') {
+            return model === 'pt' || model === 'pth';
+        }
+
+        // Special case: filter 'unknown' matches empty or 'unknown'
+        if (filter === 'unknown') {
+            return model === '' || model === 'unknown';
+        }
+
+        // Exact match or contains (for cases like 'safetensors')
+        return model === filter || model.includes(filter);
+    }
+
     function renderModels(models) {
+        allModels = models;
+        document.getElementById('total-count').textContent = models.length;
+
         if (!models || models.length === 0) {
             modelsGrid.innerHTML = `
                 <div class="col-12 text-center py-5">
@@ -365,10 +677,19 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         modelsGrid.innerHTML = models.map(model => `
-            <div class="col-xl-3 col-lg-4 col-md-6 model-item" data-type="${model.type}" data-loaded="${model.is_loaded}">
-                <div class="model-card ${model.is_loaded ? 'loaded' : (model.is_downloaded ? 'downloaded' : 'not-downloaded')}">
+            <div class="col-xl-3 col-lg-4 col-md-6 model-item ${selectedModels.has(model.id) ? 'selected' : ''}"
+                 data-type="${model.type}"
+                 data-source="${model.source}"
+                 data-format="${model.format || ''}"
+                 data-loaded="${model.is_loaded}"
+                 data-downloaded="${model.is_downloaded}"
+                 data-needs-conversion="${needsConversion(model)}"
+                 data-model-id="${model.id}">
+                <div class="model-card ${model.is_loaded ? 'loaded' : (model.is_downloaded ? 'downloaded' : 'not-downloaded')} ${selectedModels.has(model.id) ? 'selected' : ''}">
                     <div class="d-flex justify-content-between align-items-start mb-2">
-                        <div>
+                        <div class="d-flex align-items-center">
+                            <input type="checkbox" class="form-check-input model-checkbox me-2 model-select-cb"
+                                   data-model-id="${model.id}" ${selectedModels.has(model.id) ? 'checked' : ''}>
                             <span class="type-badge type-${model.type} me-1">${model.type}</span>
                             <span class="source-badge">${model.source}</span>
                         </div>
@@ -384,7 +705,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     <h6 class="model-name mb-1">${model.name}</h6>
                     <p class="model-desc mb-2">${truncate(model.description, 60)}</p>
 
-                    <div class="d-flex justify-content-between align-items-center">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
                         <div class="model-meta">
                             ${model.vram_gb ? `<span class="me-2" title="VRAM required"><i class="fas fa-microchip text-success"></i> ${model.vram_gb}GB</span>` : ''}
                             ${model.ram_gb ? `<span title="RAM required"><i class="fas fa-memory text-info"></i> ${model.ram_gb}GB</span>` : ''}
@@ -396,11 +717,42 @@ document.addEventListener('DOMContentLoaded', function() {
                         }
                     </div>
 
+                    <!-- Format info -->
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            ${model.format ?
+                                `<span class="format-badge ${getFormatBadgeClass(model.format)}">${model.format}</span>` :
+                                '<span class="format-badge format-unknown">Unknown</span>'
+                            }
+                            ${needsConversion(model) ?
+                                `<span class="badge bg-warning text-dark ms-1" title="Recommended: ${model.preferred_format}">
+                                    <i class="fas fa-exchange-alt fa-xs"></i>
+                                </span>` : ''
+                            }
+                        </div>
+                        ${model.can_convert_to && model.can_convert_to.length > 0 ?
+                            `<div class="dropdown">
+                                <button class="btn btn-sm btn-outline-success dropdown-toggle py-0" type="button"
+                                        data-bs-toggle="dropdown" title="Convert">
+                                    <i class="fas fa-exchange-alt"></i>
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-dark">
+                                    ${model.can_convert_to.map(fmt =>
+                                        `<li><a class="dropdown-item btn-convert-single" href="#"
+                                                data-model-id="${model.id}" data-target="${fmt}">
+                                            Convert to ${fmt}
+                                        </a></li>`
+                                    ).join('')}
+                                </ul>
+                            </div>` : ''
+                        }
+                    </div>
+
                     ${model.hf_id ? `
                         <div class="model-meta mt-2">
                             <i class="fas fa-link me-1"></i>
                             <a href="https://huggingface.co/${model.hf_id}" target="_blank" class="text-info text-decoration-none">
-                                ${truncate(model.hf_id, 40)}
+                                ${truncate(model.hf_id, 35)}
                             </a>
                         </div>
                     ` : ''}
@@ -408,8 +760,11 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
         `).join('');
 
-        // Attach unload handlers
+        // Attach handlers
         attachUnloadHandlers();
+        attachSelectionHandlers();
+        attachConversionHandlers();
+        applyFilters();
     }
 
     function attachUnloadHandlers() {
@@ -448,18 +803,387 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    async function loadModels() {
+    // =========================================================================
+    // Filter Functions
+    // =========================================================================
+
+    function buildFilterOptions(models) {
+        // Build type options
+        const types = [...new Set(models.map(m => m.type))].sort();
+        const typeSelect = document.getElementById('filter-type');
+        typeSelect.innerHTML = '<option value="all">All Types</option>' +
+            types.map(t => `<option value="${t}">${t.charAt(0).toUpperCase() + t.slice(1)}</option>`).join('');
+
+        // Build source options
+        const sources = [...new Set(models.map(m => m.source))].sort();
+        const sourceSelect = document.getElementById('filter-source');
+        sourceSelect.innerHTML = '<option value="all">All Apps</option>' +
+            sources.map(s => `<option value="${s}">${s}</option>`).join('');
+    }
+
+    function applyFilters() {
+        const typeFilter = document.getElementById('filter-type').value;
+        const sourceFilter = document.getElementById('filter-source').value;
+        const formatFilter = document.getElementById('filter-format').value;
+        const statusFilter = document.getElementById('filter-status').value;
+
+        let visibleCount = 0;
+
+        document.querySelectorAll('.model-item').forEach(item => {
+            let visible = true;
+
+            // Type filter
+            if (typeFilter !== 'all' && item.dataset.type !== typeFilter) {
+                visible = false;
+            }
+
+            // Source filter
+            if (visible && sourceFilter !== 'all' && item.dataset.source !== sourceFilter) {
+                visible = false;
+            }
+
+            // Format filter
+            if (visible && formatFilter !== 'all') {
+                const modelFormat = item.dataset.format || '';
+                if (!matchesFormat(modelFormat, formatFilter)) {
+                    visible = false;
+                }
+            }
+
+            // Status filter
+            if (visible && statusFilter !== 'all') {
+                if (statusFilter === 'loaded' && item.dataset.loaded !== 'true') {
+                    visible = false;
+                } else if (statusFilter === 'downloaded' && item.dataset.downloaded !== 'true') {
+                    visible = false;
+                } else if (statusFilter === 'not-downloaded' && item.dataset.downloaded !== 'false') {
+                    visible = false;
+                } else if (statusFilter === 'needs-conversion' && item.dataset.needsConversion !== 'true') {
+                    visible = false;
+                }
+            }
+
+            item.style.display = visible ? '' : 'none';
+            if (visible) visibleCount++;
+        });
+
+        document.getElementById('filtered-count').textContent = visibleCount;
+    }
+
+    // Attach filter event listeners
+    ['filter-type', 'filter-source', 'filter-format', 'filter-status'].forEach(id => {
+        document.getElementById(id).addEventListener('change', applyFilters);
+    });
+
+    // =========================================================================
+    // Selection Functions
+    // =========================================================================
+
+    function updateSelectionToolbar() {
+        const toolbar = document.getElementById('selection-toolbar');
+        const countSpan = document.getElementById('selected-count');
+
+        countSpan.textContent = selectedModels.size;
+
+        if (selectedModels.size > 0) {
+            toolbar.classList.add('show');
+        } else {
+            toolbar.classList.remove('show');
+        }
+    }
+
+    function attachSelectionHandlers() {
+        // Individual checkboxes
+        document.querySelectorAll('.model-select-cb').forEach(cb => {
+            cb.addEventListener('change', function() {
+                const modelId = this.dataset.modelId;
+                const card = this.closest('.model-card');
+                const item = this.closest('.model-item');
+
+                if (this.checked) {
+                    selectedModels.add(modelId);
+                    card.classList.add('selected');
+                    item.classList.add('selected');
+                } else {
+                    selectedModels.delete(modelId);
+                    card.classList.remove('selected');
+                    item.classList.remove('selected');
+                }
+
+                updateSelectionToolbar();
+            });
+        });
+    }
+
+    // Select all visible
+    document.getElementById('select-all-visible').addEventListener('change', function() {
+        const checked = this.checked;
+        document.querySelectorAll('.model-item').forEach(item => {
+            if (item.style.display !== 'none') {
+                const cb = item.querySelector('.model-select-cb');
+                const modelId = cb.dataset.modelId;
+                const card = item.querySelector('.model-card');
+
+                cb.checked = checked;
+                if (checked) {
+                    selectedModels.add(modelId);
+                    card.classList.add('selected');
+                    item.classList.add('selected');
+                } else {
+                    selectedModels.delete(modelId);
+                    card.classList.remove('selected');
+                    item.classList.remove('selected');
+                }
+            }
+        });
+        updateSelectionToolbar();
+    });
+
+    // Clear selection
+    document.getElementById('btn-clear-selection').addEventListener('click', function() {
+        selectedModels.clear();
+        document.querySelectorAll('.model-select-cb').forEach(cb => {
+            cb.checked = false;
+        });
+        document.querySelectorAll('.model-card.selected').forEach(card => {
+            card.classList.remove('selected');
+        });
+        document.querySelectorAll('.model-item.selected').forEach(item => {
+            item.classList.remove('selected');
+        });
+        document.getElementById('select-all-visible').checked = false;
+        updateSelectionToolbar();
+    });
+
+    // =========================================================================
+    // Conversion Functions
+    // =========================================================================
+
+    function attachConversionHandlers() {
+        document.querySelectorAll('.btn-convert-single').forEach(btn => {
+            btn.addEventListener('click', async function(e) {
+                e.preventDefault();
+                const modelId = this.dataset.modelId;
+                const targetFormat = this.dataset.target;
+
+                await convertModel(modelId, targetFormat);
+            });
+        });
+    }
+
+    async function convertModel(modelId, targetFormat) {
+        showLoading(`Converting to ${targetFormat}...`);
+
         try {
-            const response = await fetch('{% url "model_manager:api_models_list" %}');
+            const response = await fetch('{% url "model_manager:api_convert_and_backup" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify({
+                    model_path: modelId,
+                    target_format: targetFormat,
+                    backup_after: true
+                })
+            });
             const data = await response.json();
 
             if (data.success) {
-                // Clear existing type tabs (keep only "All")
-                filterTabs.querySelectorAll('.nav-item:not(:first-child)').forEach(el => el.remove());
+                let msg = `Conversion successful!\nOutput: ${data.conversion.target_path}`;
+                if (data.backup && data.backup.success) {
+                    msg += `\n\nBackup: ${data.backup.dest_path}`;
+                }
+                alert(msg);
+                loadModels();
+            } else {
+                alert('Conversion failed: ' + (data.error || 'Unknown error'));
+            }
+        } catch (err) {
+            alert('Error: ' + err.message);
+        } finally {
+            hideLoading();
+        }
+    }
+
+    // Convert selected to safetensors
+    document.getElementById('btn-convert-selected').addEventListener('click', async function() {
+        if (selectedModels.size === 0) {
+            alert('No models selected');
+            return;
+        }
+
+        if (!confirm(`Convert ${selectedModels.size} model(s) to safetensors?`)) return;
+
+        showLoading('Converting models...');
+
+        let successCount = 0;
+        let failCount = 0;
+
+        for (const modelId of selectedModels) {
+            try {
+                const response = await fetch('{% url "model_manager:api_convert_and_backup" %}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrfToken
+                    },
+                    body: JSON.stringify({
+                        model_path: modelId,
+                        target_format: 'safetensors',
+                        backup_after: true
+                    })
+                });
+                const data = await response.json();
+                if (data.success) successCount++;
+                else failCount++;
+            } catch (err) {
+                failCount++;
+            }
+        }
+
+        hideLoading();
+        alert(`Conversion complete!\nSuccess: ${successCount}\nFailed: ${failCount}`);
+        loadModels();
+    });
+
+    // Convert selected to ONNX
+    document.getElementById('btn-convert-onnx-selected').addEventListener('click', async function() {
+        if (selectedModels.size === 0) {
+            alert('No models selected');
+            return;
+        }
+
+        if (!confirm(`Convert ${selectedModels.size} model(s) to ONNX?`)) return;
+
+        showLoading('Converting models to ONNX...');
+
+        let successCount = 0;
+        let failCount = 0;
+
+        for (const modelId of selectedModels) {
+            try {
+                const response = await fetch('{% url "model_manager:api_convert_and_backup" %}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrfToken
+                    },
+                    body: JSON.stringify({
+                        model_path: modelId,
+                        target_format: 'onnx',
+                        backup_after: true
+                    })
+                });
+                const data = await response.json();
+                if (data.success) successCount++;
+                else failCount++;
+            } catch (err) {
+                failCount++;
+            }
+        }
+
+        hideLoading();
+        alert(`Conversion complete!\nSuccess: ${successCount}\nFailed: ${failCount}`);
+        loadModels();
+    });
+
+    // Backup selected
+    document.getElementById('btn-backup-selected').addEventListener('click', async function() {
+        if (selectedModels.size === 0) {
+            alert('No models selected');
+            return;
+        }
+
+        if (!confirm(`Backup ${selectedModels.size} model(s) to remote storage?`)) return;
+
+        showLoading('Backing up models...');
+
+        let successCount = 0;
+        let failCount = 0;
+
+        for (const modelId of selectedModels) {
+            try {
+                const response = await fetch('{% url "model_manager:api_backup_model" %}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrfToken
+                    },
+                    body: JSON.stringify({
+                        source_path: modelId,
+                        model_name: modelId.split(':').pop(),
+                        model_type: 'unknown',
+                        format_type: 'models'
+                    })
+                });
+                const data = await response.json();
+                if (data.success) successCount++;
+                else failCount++;
+            } catch (err) {
+                failCount++;
+            }
+        }
+
+        hideLoading();
+        alert(`Backup complete!\nSuccess: ${successCount}\nFailed: ${failCount}`);
+    });
+
+    // =========================================================================
+    // Backup Status
+    // =========================================================================
+
+    async function loadBackupStatus() {
+        try {
+            const response = await fetch('{% url "model_manager:api_backup_status" %}');
+            const data = await response.json();
+
+            const statusEl = document.getElementById('backup-status');
+            const pathEl = document.getElementById('backup-path');
+
+            if (data.success && data.available) {
+                statusEl.innerHTML = '<i class="fas fa-check-circle me-1"></i>Remote backup available';
+                statusEl.className = 'backup-status available';
+                pathEl.textContent = data.remote_path;
+            } else {
+                statusEl.innerHTML = '<i class="fas fa-times-circle me-1"></i>Remote backup unavailable';
+                statusEl.className = 'backup-status unavailable';
+                pathEl.textContent = data.remote_path || '';
+            }
+        } catch (err) {
+            document.getElementById('backup-status').innerHTML =
+                '<i class="fas fa-exclamation-triangle me-1"></i>Error checking backup';
+            document.getElementById('backup-status').className = 'backup-status unavailable';
+        }
+    }
+
+    async function loadModels() {
+        try {
+            const response = await fetch('{% url "model_manager:api_models_db" %}');
+            const data = await response.json();
+
+            if (data.success) {
+                // Log sample data for debugging
+                if (data.models && data.models.length > 0) {
+                    const sample = data.models[0];
+                    console.log('[ModelManager] Sample model from API:', {
+                        name: sample.name,
+                        format: sample.format,
+                        preferred_format: sample.preferred_format,
+                        vram_gb: sample.vram_gb,
+                        is_downloaded: sample.is_downloaded
+                    });
+
+                    // Check if formats are missing
+                    const missingFormats = data.models.filter(m => !m.format).length;
+                    if (missingFormats > data.models.length / 2) {
+                        console.warn(`[ModelManager] ${missingFormats}/${data.models.length} models have empty format. Click "Refresh" to sync.`);
+                    }
+                }
 
                 renderModels(data.models);
                 updateStats(data.models);
-                buildFilterTabs(data.models);
+                buildFilterOptions(data.models);
             } else {
                 modelsGrid.innerHTML = `
                     <div class="col-12 text-center py-5">
@@ -508,17 +1232,25 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Refresh button
+    // Refresh button - triggers full sync from sources to database
     document.getElementById('btn-refresh').addEventListener('click', async function() {
-        showLoading('Scanning for models...');
+        showLoading('Syncing models from sources...');
 
         try {
-            await fetch('{% url "model_manager:api_refresh_models" %}', {
+            const response = await fetch('{% url "model_manager:api_sync_models" %}', {
                 method: 'POST',
                 headers: {
+                    'Content-Type': 'application/json',
                     'X-CSRFToken': csrfToken
-                }
+                },
+                body: JSON.stringify({})
             });
+            const data = await response.json();
+
+            if (data.success) {
+                console.log(`Sync: +${data.added}, ~${data.updated}, -${data.removed}`);
+            }
+
             await loadModels();
         } catch (err) {
             alert('Error: ' + err.message);
@@ -542,6 +1274,359 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Initial load - non-blocking
     loadModels();
+    loadBackupStatus();
+    loadDiskSpace();
+
+    // =========================================================================
+    // Disk Space Functions
+    // =========================================================================
+
+    function updateDiskDisplay(disk) {
+        if (!disk) return;
+
+        const diskBar = document.getElementById('disk-bar');
+        const diskUsed = document.getElementById('disk-used');
+        const diskFree = document.getElementById('disk-free');
+        const diskTotal = document.getElementById('disk-total');
+        const diskDrive = document.getElementById('disk-drive');
+        const diskWarning = document.getElementById('disk-warning');
+        const diskWarningText = document.getElementById('disk-warning-text');
+
+        const percent = disk.percent || 0;
+        diskBar.style.width = percent + '%';
+        diskBar.textContent = percent + '%';
+
+        // Change color based on usage
+        if (percent > 90) {
+            diskBar.className = 'memory-bar-fill high';
+        } else if (percent > 75) {
+            diskBar.className = 'memory-bar-fill gpu';
+        } else {
+            diskBar.className = 'memory-bar-fill ram';
+        }
+
+        if (diskUsed) diskUsed.textContent = disk.used_gb || '-';
+        if (diskFree) diskFree.textContent = disk.free_gb || '-';
+        if (diskTotal) diskTotal.textContent = disk.total_gb || '-';
+        if (diskDrive) diskDrive.textContent = disk.drive || disk.source || 'Local';
+
+        // Show warning if low space
+        const freeGb = disk.free_gb || 0;
+        if (freeGb < 20) {
+            diskWarning.style.display = 'inline';
+            diskWarningText.textContent = `Low disk space! Only ${freeGb.toFixed(1)} GB free. Consider cleaning up before downloading new models.`;
+        } else if (freeGb < 50) {
+            diskWarning.style.display = 'inline';
+            diskWarningText.textContent = `Disk space getting low: ${freeGb.toFixed(1)} GB free.`;
+        } else {
+            diskWarning.style.display = 'none';
+        }
+    }
+
+    async function loadDiskSpace() {
+        try {
+            const response = await fetch('{% url "model_manager:api_disk_space" %}');
+            const data = await response.json();
+            if (data.success && data.disk) {
+                updateDiskDisplay(data.disk);
+            }
+        } catch (err) {
+            console.error('Error loading disk space:', err);
+        }
+    }
+
+    async function checkDiskSpaceForDownload(requiredGb, safetyMarginGb = 5) {
+        try {
+            const response = await fetch(
+                `{% url "model_manager:api_check_disk_space" %}?required_gb=${requiredGb}&safety_margin=${safetyMarginGb}`
+            );
+            const data = await response.json();
+            return data;
+        } catch (err) {
+            console.error('Error checking disk space:', err);
+            return { success: false, has_space: false, message: 'Error checking disk space' };
+        }
+    }
+
+    // Refresh disk space every 30 seconds
+    setInterval(loadDiskSpace, 30000);
+
+    // =========================================================================
+    // Memory Management Functions
+    // =========================================================================
+
+    function updateCleanerStatus(status) {
+        const indicator = document.getElementById('cleaner-indicator');
+        const statusText = document.getElementById('cleaner-status-text');
+        const btnStart = document.getElementById('btn-cleaner-start');
+        const btnStop = document.getElementById('btn-cleaner-stop');
+
+        if (status.running) {
+            indicator.className = 'status-indicator status-running';
+            statusText.textContent = 'Running';
+            btnStart.disabled = true;
+            btnStop.disabled = false;
+        } else {
+            indicator.className = 'status-indicator status-stopped';
+            statusText.textContent = 'Stopped';
+            btnStart.disabled = false;
+            btnStop.disabled = true;
+        }
+
+        document.getElementById('idle-threshold').textContent = status.idle_threshold || '-';
+    }
+
+    function updateIdleModels(idleModels) {
+        const container = document.getElementById('idle-models-list');
+        const countBadge = document.getElementById('idle-count');
+
+        countBadge.textContent = idleModels.length;
+
+        if (idleModels.length === 0) {
+            container.innerHTML = '<p class="text-muted small mb-0">No idle models detected</p>';
+            return;
+        }
+
+        container.innerHTML = idleModels.map(m => `
+            <div class="idle-model-item d-flex justify-content-between align-items-center">
+                <div>
+                    <span class="text-light">${m.model_id}</span>
+                    <br><small class="text-muted">${m.size_mb.toFixed(1)} MB · Idle ${m.idle_time_minutes.toFixed(0)} min</small>
+                </div>
+                <button class="btn btn-sm btn-outline-warning btn-unload-idle" data-model="${m.model_id}" title="Unload">
+                    <i class="fas fa-eject"></i>
+                </button>
+            </div>
+        `).join('');
+
+        // Attach unload handlers
+        container.querySelectorAll('.btn-unload-idle').forEach(btn => {
+            btn.addEventListener('click', async function() {
+                const modelId = this.dataset.model;
+                await unloadModelById(modelId);
+            });
+        });
+    }
+
+    async function loadCleanerStatus() {
+        try {
+            const response = await fetch('{% url "model_manager:api_cleaner_status" %}');
+            const data = await response.json();
+            if (data.success) {
+                updateCleanerStatus(data.status);
+            }
+        } catch (err) {
+            console.error('Error loading cleaner status:', err);
+        }
+    }
+
+    async function loadIdleModels() {
+        try {
+            const response = await fetch('{% url "model_manager:api_idle_models" %}?threshold=300');
+            const data = await response.json();
+            if (data.success) {
+                updateIdleModels(data.idle_models);
+            }
+        } catch (err) {
+            console.error('Error loading idle models:', err);
+        }
+    }
+
+    async function loadDetailedMemory() {
+        try {
+            const response = await fetch('{% url "model_manager:api_memory_detailed" %}');
+            const data = await response.json();
+            if (data.success) {
+                document.getElementById('process-rss').textContent = data.ram.process_rss_gb.toFixed(2);
+            }
+        } catch (err) {
+            console.error('Error loading detailed memory:', err);
+        }
+    }
+
+    async function loadTrackedModels() {
+        try {
+            const response = await fetch('{% url "model_manager:api_tracked_models" %}');
+            const data = await response.json();
+            if (data.success) {
+                document.getElementById('tracked-total').textContent = data.total_tracked_mb.toFixed(0);
+            }
+        } catch (err) {
+            console.error('Error loading tracked models:', err);
+        }
+    }
+
+    async function unloadModelById(modelId) {
+        showLoading('Unloading model...');
+        try {
+            const response = await fetch('{% url "model_manager:api_unload_model_by_id" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify({ model_id: modelId })
+            });
+            const data = await response.json();
+            if (data.success) {
+                loadIdleModels();
+                loadTrackedModels();
+                loadModels();
+            } else {
+                alert('Failed: ' + data.message);
+            }
+        } catch (err) {
+            alert('Error: ' + err.message);
+        } finally {
+            hideLoading();
+        }
+    }
+
+    // Cleanup Idle Models
+    document.getElementById('btn-cleanup-idle').addEventListener('click', async function() {
+        showLoading('Cleaning idle models...');
+        try {
+            const response = await fetch('{% url "model_manager:api_cleanup_idle" %}', {
+                method: 'POST',
+                headers: { 'X-CSRFToken': csrfToken }
+            });
+            const data = await response.json();
+            if (data.success) {
+                alert(`Cleaned ${data.models_unloaded.length} models. RAM: ${data.ram_before_percent}% → ${data.ram_after_percent}%`);
+                loadModels();
+                loadIdleModels();
+                loadTrackedModels();
+            } else {
+                alert('Failed: ' + data.message);
+            }
+        } catch (err) {
+            alert('Error: ' + err.message);
+        } finally {
+            hideLoading();
+        }
+    });
+
+    // Aggressive Cleanup
+    document.getElementById('btn-aggressive-cleanup').addEventListener('click', async function() {
+        if (!confirm('This will unload ALL models and clear all caches. Continue?')) return;
+
+        showLoading('Aggressive cleanup in progress...');
+        try {
+            const response = await fetch('{% url "model_manager:api_aggressive_cleanup" %}', {
+                method: 'POST',
+                headers: { 'X-CSRFToken': csrfToken }
+            });
+            const data = await response.json();
+            if (data.success) {
+                alert(`Aggressive cleanup done!\n` +
+                      `Models unloaded: ${data.models_unloaded.length}\n` +
+                      `Memory freed: ~${data.memory_freed_mb.toFixed(0)} MB\n` +
+                      `GC collected: ${data.gc_collected} objects\n` +
+                      `RAM: ${data.ram_before_percent}% → ${data.ram_after_percent}%`);
+                loadModels();
+                loadIdleModels();
+                loadTrackedModels();
+            } else {
+                alert('Failed: ' + data.message);
+            }
+        } catch (err) {
+            alert('Error: ' + err.message);
+        } finally {
+            hideLoading();
+        }
+    });
+
+    // Clear GPU Cache
+    document.getElementById('btn-clear-gpu-cache').addEventListener('click', async function() {
+        showLoading('Clearing GPU cache...');
+        try {
+            const response = await fetch('{% url "model_manager:api_clear_gpu_cache" %}', {
+                method: 'POST',
+                headers: { 'X-CSRFToken': csrfToken }
+            });
+            const data = await response.json();
+            if (data.success) {
+                alert('GPU cache cleared');
+                // Update GPU display
+                const resp2 = await fetch('{% url "model_manager:api_memory_stats" %}');
+                const mem = await resp2.json();
+                if (mem.success && mem.gpu) {
+                    updateMemoryDisplay(mem.gpu);
+                }
+            } else {
+                alert('Failed: ' + data.message);
+            }
+        } catch (err) {
+            alert('Error: ' + err.message);
+        } finally {
+            hideLoading();
+        }
+    });
+
+    // Force GC
+    document.getElementById('btn-force-gc').addEventListener('click', async function() {
+        showLoading('Running garbage collection...');
+        try {
+            const response = await fetch('{% url "model_manager:api_force_gc" %}', {
+                method: 'POST',
+                headers: { 'X-CSRFToken': csrfToken }
+            });
+            const data = await response.json();
+            if (data.success) {
+                alert(`GC collected ${data.gc_collected} objects. RAM: ${data.ram_percent}%`);
+                loadDetailedMemory();
+            }
+        } catch (err) {
+            alert('Error: ' + err.message);
+        } finally {
+            hideLoading();
+        }
+    });
+
+    // Start Auto Cleaner
+    document.getElementById('btn-cleaner-start').addEventListener('click', async function() {
+        try {
+            const response = await fetch('{% url "model_manager:api_cleaner_start" %}', {
+                method: 'POST',
+                headers: { 'X-CSRFToken': csrfToken }
+            });
+            const data = await response.json();
+            if (data.success) {
+                updateCleanerStatus(data.status);
+            }
+        } catch (err) {
+            alert('Error: ' + err.message);
+        }
+    });
+
+    // Stop Auto Cleaner
+    document.getElementById('btn-cleaner-stop').addEventListener('click', async function() {
+        try {
+            const response = await fetch('{% url "model_manager:api_cleaner_stop" %}', {
+                method: 'POST',
+                headers: { 'X-CSRFToken': csrfToken }
+            });
+            const data = await response.json();
+            if (data.success) {
+                updateCleanerStatus(data.status);
+            }
+        } catch (err) {
+            alert('Error: ' + err.message);
+        }
+    });
+
+    // Initial load of memory management data
+    loadCleanerStatus();
+    loadIdleModels();
+    loadDetailedMemory();
+    loadTrackedModels();
+
+    // Refresh memory data every 15 seconds
+    setInterval(() => {
+        loadIdleModels();
+        loadDetailedMemory();
+        loadTrackedModels();
+    }, 15000);
 });
 </script>
 {% endblock %}

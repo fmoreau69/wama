@@ -30,8 +30,17 @@ HUNYUAN_DIR = MODEL_PATHS.get('diffusion', {}).get('hunyuan',
 STABLE_DIFFUSION_DIR = MODEL_PATHS.get('diffusion', {}).get('stable_diffusion',
     settings.AI_MODELS_DIR / "models" / "diffusion" / "stable-diffusion")
 
+COGVIDEOX_DIR = MODEL_PATHS.get('diffusion', {}).get('cogvideox',
+    settings.AI_MODELS_DIR / "models" / "diffusion" / "cogvideox")
+
+LTX_DIR = MODEL_PATHS.get('diffusion', {}).get('ltx',
+    settings.AI_MODELS_DIR / "models" / "diffusion" / "ltx")
+
+MOCHI_DIR = MODEL_PATHS.get('diffusion', {}).get('mochi',
+    settings.AI_MODELS_DIR / "models" / "diffusion" / "mochi")
+
 # Ensure directories exist
-for dir_path in [WAN_DIR, HUNYUAN_DIR, STABLE_DIFFUSION_DIR]:
+for dir_path in [WAN_DIR, HUNYUAN_DIR, STABLE_DIFFUSION_DIR, COGVIDEOX_DIR, LTX_DIR, MOCHI_DIR]:
     Path(dir_path).mkdir(parents=True, exist_ok=True)
 
 # =============================================================================
@@ -95,6 +104,103 @@ HUNYUAN_MODELS = {
         'vram_gb': 14,
         'description': 'HunyuanVideo 1.5 I2V 480p',
     },
+    'hunyuan-image-2.1': {
+        'model_id': 'hunyuan-image-2.1',
+        'hf_id': 'hunyuanvideo-community/HunyuanImage-2.1-Diffusers',
+        'type': 'image',
+        'mode': 't2i',
+        'vram_gb': 16,
+        'description': 'HunyuanImage 2.1 - High quality image generation',
+    },
+}
+
+# CogVideoX Models
+COGVIDEOX_MODELS = {
+    'cogvideox-2b': {
+        'model_id': 'cogvideox-2b',
+        'hf_id': 'THUDM/CogVideoX-2b',
+        'type': 'video',
+        'mode': 't2v',
+        'vram_gb': 4,
+        'disk_gb': 6,
+        'fps': 8,
+        'resolution': '720x480',
+        'description': 'CogVideoX 2B - Fast and efficient (4GB VRAM)',
+    },
+    'cogvideox-5b': {
+        'model_id': 'cogvideox-5b',
+        'hf_id': 'THUDM/CogVideoX-5b',
+        'type': 'video',
+        'mode': 't2v',
+        'vram_gb': 5,
+        'disk_gb': 12,
+        'fps': 8,
+        'resolution': '720x480',
+        'description': 'CogVideoX 5B - Higher quality (5GB VRAM)',
+    },
+    'cogvideox-5b-i2v': {
+        'model_id': 'cogvideox-5b-i2v',
+        'hf_id': 'THUDM/CogVideoX-5b-I2V',
+        'type': 'video',
+        'mode': 'i2v',
+        'vram_gb': 5,
+        'disk_gb': 12,
+        'fps': 8,
+        'resolution': '720x480',
+        'description': 'CogVideoX 5B I2V - Animate images (5GB VRAM)',
+    },
+}
+
+# LTX-Video Models
+LTX_MODELS = {
+    'ltx-video-2b': {
+        'model_id': 'ltx-video-2b',
+        'hf_id': 'Lightricks/LTX-Video',
+        'type': 'video',
+        'mode': 't2v',
+        'vram_gb': 8,
+        'disk_gb': 5,
+        'fps': 24,
+        'resolution': '704x480',
+        'description': 'LTX-Video 2B - Fast text-to-video (8GB VRAM)',
+    },
+    'ltx-video-0.9.8': {
+        'model_id': 'ltx-video-0.9.8',
+        'hf_id': 'Lightricks/LTX-Video-0.9.8-dev',
+        'type': 'video',
+        'mode': 't2v',
+        'vram_gb': 10,
+        'disk_gb': 6,
+        'fps': 24,
+        'resolution': '704x480',
+        'description': 'LTX-Video 0.9.8 - Latest version (10GB VRAM)',
+    },
+    'ltx-video-0.9.8-distilled': {
+        'model_id': 'ltx-video-0.9.8-distilled',
+        'hf_id': 'Lightricks/LTX-Video-0.9.8-distilled',
+        'type': 'video',
+        'mode': 't2v',
+        'vram_gb': 6,
+        'disk_gb': 4,
+        'fps': 24,
+        'resolution': '704x480',
+        'description': 'LTX-Video 0.9.8 Distilled - Light VRAM (6GB)',
+    },
+}
+
+# Mochi Models
+MOCHI_MODELS = {
+    'mochi-1-preview': {
+        'model_id': 'mochi-1-preview',
+        'hf_id': 'genmo/mochi-1-preview',
+        'type': 'video',
+        'mode': 't2v',
+        'vram_gb': 22,
+        'disk_gb': 18,
+        'fps': 30,
+        'resolution': '848x480',
+        'description': 'Mochi-1 Preview - High quality 30fps (22GB VRAM)',
+    },
 }
 
 # Stable Diffusion Models (image generation)
@@ -153,6 +259,9 @@ STABLE_DIFFUSION_MODELS = {
 IMAGER_MODELS = {
     **WAN_MODELS,
     **HUNYUAN_MODELS,
+    **COGVIDEOX_MODELS,
+    **LTX_MODELS,
+    **MOCHI_MODELS,
     **STABLE_DIFFUSION_MODELS,
 }
 
@@ -220,6 +329,12 @@ def get_model_info(model_name: str) -> dict:
         info['cache_dir'] = str(WAN_DIR)
     elif model_name in HUNYUAN_MODELS:
         info['cache_dir'] = str(HUNYUAN_DIR)
+    elif model_name in COGVIDEOX_MODELS:
+        info['cache_dir'] = str(COGVIDEOX_DIR)
+    elif model_name in LTX_MODELS:
+        info['cache_dir'] = str(LTX_DIR)
+    elif model_name in MOCHI_MODELS:
+        info['cache_dir'] = str(MOCHI_DIR)
     else:
         info['cache_dir'] = str(STABLE_DIFFUSION_DIR)
 
@@ -236,15 +351,39 @@ def list_available_models() -> dict:
     return {
         'wan': WAN_MODELS,
         'hunyuan': HUNYUAN_MODELS,
+        'cogvideox': COGVIDEOX_MODELS,
+        'ltx': LTX_MODELS,
+        'mochi': MOCHI_MODELS,
         'stable_diffusion': STABLE_DIFFUSION_MODELS,
     }
 
 
 def get_video_models() -> dict:
-    """Get all video generation models (Wan + Hunyuan)."""
-    return {**WAN_MODELS, **HUNYUAN_MODELS}
+    """Get all video generation models."""
+    return {
+        **WAN_MODELS,
+        **HUNYUAN_MODELS,
+        **COGVIDEOX_MODELS,
+        **LTX_MODELS,
+        **MOCHI_MODELS,
+    }
 
 
 def get_image_models() -> dict:
     """Get all image generation models (Stable Diffusion)."""
     return STABLE_DIFFUSION_MODELS
+
+
+def get_cogvideox_directory() -> Path:
+    """Get the CogVideoX models directory path."""
+    return Path(COGVIDEOX_DIR)
+
+
+def get_ltx_directory() -> Path:
+    """Get the LTX-Video models directory path."""
+    return Path(LTX_DIR)
+
+
+def get_mochi_directory() -> Path:
+    """Get the Mochi models directory path."""
+    return Path(MOCHI_DIR)

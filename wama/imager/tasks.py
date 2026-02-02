@@ -264,10 +264,21 @@ def generate_video_task(self, generation_id):
 
         # Detect which backend to use based on model name
         model_name = generation.model
-        is_hunyuan_model = model_name.startswith('hunyuan-')
+        backend_type = None
 
-        if is_hunyuan_model:
-            # Use HunyuanVideo backend
+        if model_name.startswith('hunyuan-'):
+            backend_type = 'hunyuan'
+        elif model_name.startswith('cogvideox-'):
+            backend_type = 'cogvideox'
+        elif model_name.startswith('ltx-'):
+            backend_type = 'ltx'
+        elif model_name.startswith('mochi-'):
+            backend_type = 'mochi'
+        else:
+            backend_type = 'wan'  # Default to Wan
+
+        # Import and initialize the appropriate backend
+        if backend_type == 'hunyuan':
             push_console_line(user_id, f"[Imager Video] Importing HunyuanVideo backend...")
             try:
                 from .backends.hunyuan_video_backend import HunyuanVideoBackend, HunyuanVideoParams
@@ -284,7 +295,6 @@ def generate_video_task(self, generation_id):
                 push_console_line(user_id, f"[Imager Video] ✗ Error: {error_msg}")
                 return {'error': error_msg}
 
-            # Check availability
             push_console_line(user_id, f"[Imager Video] Checking HunyuanVideo availability...")
             if not HunyuanVideoBackend.is_available():
                 error_msg = "HunyuanVideo backend not available. Need CUDA with 14GB+ VRAM."
@@ -295,8 +305,93 @@ def generate_video_task(self, generation_id):
                 push_console_line(user_id, f"[Imager Video] ✗ Error: {error_msg}")
                 return {'error': error_msg}
             push_console_line(user_id, f"[Imager Video] ✓ HunyuanVideo backend available")
+
+        elif backend_type == 'cogvideox':
+            push_console_line(user_id, f"[Imager Video] Importing CogVideoX backend...")
+            try:
+                from .backends.cogvideox_backend import CogVideoXBackend, CogVideoXParams
+                backend_class = CogVideoXBackend
+                params_class = CogVideoXParams
+                push_console_line(user_id, f"[Imager Video] ✓ CogVideoX backend imported")
+            except ImportError as e:
+                error_msg = f"CogVideoX backend not available: {e}"
+                logger.error(error_msg)
+                logger.error(traceback.format_exc())
+                generation.status = 'FAILURE'
+                generation.error_message = error_msg
+                generation.save()
+                push_console_line(user_id, f"[Imager Video] ✗ Error: {error_msg}")
+                return {'error': error_msg}
+
+            push_console_line(user_id, f"[Imager Video] Checking CogVideoX availability...")
+            if not CogVideoXBackend.is_available():
+                error_msg = "CogVideoX backend not available. Need CUDA with 4GB+ VRAM."
+                logger.error(error_msg)
+                generation.status = 'FAILURE'
+                generation.error_message = error_msg
+                generation.save()
+                push_console_line(user_id, f"[Imager Video] ✗ Error: {error_msg}")
+                return {'error': error_msg}
+            push_console_line(user_id, f"[Imager Video] ✓ CogVideoX backend available")
+
+        elif backend_type == 'ltx':
+            push_console_line(user_id, f"[Imager Video] Importing LTX-Video backend...")
+            try:
+                from .backends.ltx_video_backend import LTXVideoBackend, LTXVideoParams
+                backend_class = LTXVideoBackend
+                params_class = LTXVideoParams
+                push_console_line(user_id, f"[Imager Video] ✓ LTX-Video backend imported")
+            except ImportError as e:
+                error_msg = f"LTX-Video backend not available: {e}"
+                logger.error(error_msg)
+                logger.error(traceback.format_exc())
+                generation.status = 'FAILURE'
+                generation.error_message = error_msg
+                generation.save()
+                push_console_line(user_id, f"[Imager Video] ✗ Error: {error_msg}")
+                return {'error': error_msg}
+
+            push_console_line(user_id, f"[Imager Video] Checking LTX-Video availability...")
+            if not LTXVideoBackend.is_available():
+                error_msg = "LTX-Video backend not available. Need CUDA with 6GB+ VRAM."
+                logger.error(error_msg)
+                generation.status = 'FAILURE'
+                generation.error_message = error_msg
+                generation.save()
+                push_console_line(user_id, f"[Imager Video] ✗ Error: {error_msg}")
+                return {'error': error_msg}
+            push_console_line(user_id, f"[Imager Video] ✓ LTX-Video backend available")
+
+        elif backend_type == 'mochi':
+            push_console_line(user_id, f"[Imager Video] Importing Mochi backend...")
+            try:
+                from .backends.mochi_backend import MochiBackend, MochiParams
+                backend_class = MochiBackend
+                params_class = MochiParams
+                push_console_line(user_id, f"[Imager Video] ✓ Mochi backend imported")
+            except ImportError as e:
+                error_msg = f"Mochi backend not available: {e}"
+                logger.error(error_msg)
+                logger.error(traceback.format_exc())
+                generation.status = 'FAILURE'
+                generation.error_message = error_msg
+                generation.save()
+                push_console_line(user_id, f"[Imager Video] ✗ Error: {error_msg}")
+                return {'error': error_msg}
+
+            push_console_line(user_id, f"[Imager Video] Checking Mochi availability...")
+            if not MochiBackend.is_available():
+                error_msg = "Mochi backend not available. Need CUDA with 16GB+ VRAM (22GB recommended)."
+                logger.error(error_msg)
+                generation.status = 'FAILURE'
+                generation.error_message = error_msg
+                generation.save()
+                push_console_line(user_id, f"[Imager Video] ✗ Error: {error_msg}")
+                return {'error': error_msg}
+            push_console_line(user_id, f"[Imager Video] ✓ Mochi backend available")
+
         else:
-            # Use Wan video backend
+            # Default: Wan video backend
             push_console_line(user_id, f"[Imager Video] Importing Wan backend...")
             try:
                 from .backends.wan_video_backend import WanVideoBackend, VideoGenerationParams
@@ -313,7 +408,6 @@ def generate_video_task(self, generation_id):
                 push_console_line(user_id, f"[Imager Video] ✗ Error: {error_msg}")
                 return {'error': error_msg}
 
-            # Check if Wan is available
             push_console_line(user_id, f"[Imager Video] Checking Wan availability (torch, diffusers)...")
             if not WanVideoBackend.is_available():
                 error_msg = "Wan video backend not available. Please install diffusers with Wan support."
@@ -381,7 +475,7 @@ def generate_video_task(self, generation_id):
             push_console_line(user_id, f"[Imager Video] Reference image: {os.path.basename(reference_image_path)}")
 
         # Create video generation parameters (different structure per backend)
-        if is_hunyuan_model:
+        if backend_type == 'hunyuan':
             params = params_class(
                 prompt=generation.prompt,
                 negative_prompt=generation.negative_prompt,
@@ -395,7 +489,55 @@ def generate_video_task(self, generation_id):
                 fps=generation.video_fps,
                 reference_image=reference_image_path,
             )
+        elif backend_type == 'cogvideox':
+            # CogVideoX: fixed 49 frames, 8 fps
+            params = params_class(
+                prompt=generation.prompt,
+                negative_prompt=generation.negative_prompt,
+                model=generation.model,
+                width=720,  # CogVideoX fixed resolution
+                height=480,
+                num_frames=49,  # Fixed for CogVideoX
+                num_inference_steps=generation.steps,
+                guidance_scale=generation.guidance_scale,
+                seed=generation.seed,
+                fps=8,
+                reference_image=reference_image_path,
+            )
+        elif backend_type == 'ltx':
+            # LTX-Video: 24 fps, flexible resolution (must be divisible by 32)
+            ltx_width = (width // 32) * 32
+            ltx_height = (height // 32) * 32
+            ltx_frames = ((num_frames - 1) // 8) * 8 + 1  # Must be 8n+1
+            params = params_class(
+                prompt=generation.prompt,
+                negative_prompt=generation.negative_prompt or "worst quality, inconsistent motion, blurry, jittery, distorted",
+                model=generation.model,
+                width=ltx_width,
+                height=ltx_height,
+                num_frames=ltx_frames,
+                num_inference_steps=generation.steps,
+                guidance_scale=generation.guidance_scale,
+                seed=generation.seed,
+                fps=24,
+            )
+        elif backend_type == 'mochi':
+            # Mochi: 30 fps, max 84 frames
+            mochi_frames = min(num_frames, 84)
+            params = params_class(
+                prompt=generation.prompt,
+                negative_prompt=generation.negative_prompt,
+                model=generation.model,
+                width=848,  # Mochi default resolution
+                height=480,
+                num_frames=mochi_frames,
+                num_inference_steps=generation.steps,
+                guidance_scale=generation.guidance_scale,
+                seed=generation.seed,
+                fps=30,
+            )
         else:
+            # Wan backend
             params = params_class(
                 prompt=generation.prompt,
                 negative_prompt=generation.negative_prompt,
@@ -435,11 +577,13 @@ def generate_video_task(self, generation_id):
         generation_start = time.time()
 
         # Call the appropriate generation method based on backend
-        if is_hunyuan_model:
+        if backend_type in ('hunyuan', 'cogvideox', 'ltx', 'mochi'):
+            # These backends use .generate() method
             result = backend.generate(params, progress_callback)
             video_frames = result.video_frames
             seed_used = result.seed_used
         else:
+            # Wan uses .generate_video() method
             result = backend.generate_video(params, progress_callback)
             video_frames = result.video_frames
             seed_used = result.seed_used
