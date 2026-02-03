@@ -228,7 +228,11 @@ def start_process(**kwargs):
                     if user_id:
                         push_console_line(user_id, f"Using SAM3 with prompt: {sam3_prompt[:50]}...")
 
-                    processor = SAM3Processor()
+                    # Get user-specific paths for SAM3
+                    source_dir = get_app_media_path('anonymizer', user_id, 'input') if user_id else None
+                    dest_dir = get_app_media_path('anonymizer', user_id, 'output') if user_id else None
+
+                    processor = SAM3Processor(source_dir=source_dir, destination_dir=dest_dir)
                     processor.load_model('auto')
                     processor.process(**kwargs)
 
@@ -251,7 +255,7 @@ def start_process(**kwargs):
     if user_id:
         push_console_line(user_id, f"Using YOLO with classes: {kwargs.get('classes2blur', [])}")
 
-    # Get user-specific paths
+    # Get user-specific paths for YOLO
     source_dir = get_app_media_path('anonymizer', user_id, 'input') if user_id else None
     dest_dir = get_app_media_path('anonymizer', user_id, 'output') if user_id else None
 

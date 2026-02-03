@@ -39,8 +39,14 @@ LTX_DIR = MODEL_PATHS.get('diffusion', {}).get('ltx',
 MOCHI_DIR = MODEL_PATHS.get('diffusion', {}).get('mochi',
     settings.AI_MODELS_DIR / "models" / "diffusion" / "mochi")
 
+FLUX_DIR = MODEL_PATHS.get('diffusion', {}).get('flux',
+    settings.AI_MODELS_DIR / "models" / "diffusion" / "flux")
+
+LOGO_DIR = MODEL_PATHS.get('diffusion', {}).get('logo',
+    settings.AI_MODELS_DIR / "models" / "diffusion" / "logo")
+
 # Ensure directories exist
-for dir_path in [WAN_DIR, HUNYUAN_DIR, STABLE_DIFFUSION_DIR, COGVIDEOX_DIR, LTX_DIR, MOCHI_DIR]:
+for dir_path in [WAN_DIR, HUNYUAN_DIR, STABLE_DIFFUSION_DIR, COGVIDEOX_DIR, LTX_DIR, MOCHI_DIR, FLUX_DIR, LOGO_DIR]:
     Path(dir_path).mkdir(parents=True, exist_ok=True)
 
 # =============================================================================
@@ -255,6 +261,87 @@ STABLE_DIFFUSION_MODELS = {
     },
 }
 
+# =============================================================================
+# LOGO GENERATION MODELS
+# =============================================================================
+# Specialized models for logo and brand design generation
+
+LOGO_MODELS = {
+    # FLUX.1-dev + LoRA for Logo Design
+    'flux-lora-logo-design': {
+        'model_id': 'flux-lora-logo-design',
+        'hf_id': 'Shakker-Labs/FLUX.1-dev-LoRA-Logo-Design',
+        'base_model': 'black-forest-labs/FLUX.1-dev',
+        'type': 'image',
+        'pipeline': 'flux',
+        'model_type': 'lora',
+        'category': 'logo',
+        'trigger_words': ['wablogo', 'logo', 'Minimalist'],
+        'lora_scale': 0.8,
+        'vram_gb': 16,
+        'disk_gb': 24,
+        'resolution': 1024,
+        'min_resolution': 512,
+        'max_resolution': 1024,
+        'license': 'flux-1-dev-non-commercial',
+        'description': 'FLUX Logo Design LoRA - Excellent quality logos (16GB VRAM)',
+        'prompt_tips': [
+            'Dual concept: "cat and coffee"',
+            'Font integration: "a book with the word M"',
+            'Text placement: "Below the graphic is the word coffee"',
+        ],
+    },
+
+    # LogoRedmond V2 - SDXL + LoRA
+    'logo-redmond-v2': {
+        'model_id': 'logo-redmond-v2',
+        'hf_id': 'artificialguybr/LogoRedmond-LogoLoraForSDXL-V2',
+        'base_model': 'stabilityai/stable-diffusion-xl-base-1.0',
+        'type': 'image',
+        'pipeline': 'sdxl',
+        'model_type': 'lora',
+        'category': 'logo',
+        'trigger_words': ['LogoRedAF'],
+        'lora_scale': 0.7,
+        'vram_gb': 10,
+        'disk_gb': 7,
+        'resolution': 1024,
+        'min_resolution': 512,
+        'max_resolution': 1024,
+        'license': 'creativeml-openrail-m',
+        'description': 'LogoRedmond V2 (SDXL LoRA) - Commercial OK (10GB VRAM)',
+        'prompt_tips': [
+            'Use trigger word: LogoRedAF',
+            'Add style: detailed, minimalist, colorful, black and white',
+            'Simple prompts work best',
+        ],
+    },
+
+    # Amazing Logos V2 - Full SD 1.5 fine-tune
+    'amazing-logos-v2': {
+        'model_id': 'amazing-logos-v2',
+        'hf_id': 'iamkaikai/amazing-logos-v2',
+        'type': 'image',
+        'pipeline': 'sd',
+        'model_type': 'full_finetune',
+        'category': 'logo',
+        'trigger_words': [],
+        'vram_gb': 4,
+        'disk_gb': 2,
+        'resolution': 512,
+        'min_resolution': 256,
+        'max_resolution': 768,
+        'license': 'creativeml-openrail-m',
+        'description': 'Amazing Logos V2 (SD 1.5) - Commercial OK (4GB VRAM)',
+        'prompt_format': '{template} + [company name] + [concept & country] + [industry] + {template}',
+        'prompt_tips': [
+            'Format: Simple elegant logo for [Name], [letter/shape] [country], [industry], successful vibe, minimalist',
+            'Shapes: circle, square, triangle, diamond, hexagon, spiral, wave',
+            'Add "black and white" for monochrome',
+        ],
+    },
+}
+
 # Combined models dictionary
 IMAGER_MODELS = {
     **WAN_MODELS,
@@ -263,6 +350,7 @@ IMAGER_MODELS = {
     **LTX_MODELS,
     **MOCHI_MODELS,
     **STABLE_DIFFUSION_MODELS,
+    **LOGO_MODELS,
 }
 
 
@@ -335,6 +423,12 @@ def get_model_info(model_name: str) -> dict:
         info['cache_dir'] = str(LTX_DIR)
     elif model_name in MOCHI_MODELS:
         info['cache_dir'] = str(MOCHI_DIR)
+    elif model_name in LOGO_MODELS:
+        # Logo models - use FLUX_DIR for FLUX-based, LOGO_DIR for others
+        if info.get('pipeline') == 'flux':
+            info['cache_dir'] = str(FLUX_DIR)
+        else:
+            info['cache_dir'] = str(LOGO_DIR)
     else:
         info['cache_dir'] = str(STABLE_DIFFUSION_DIR)
 
@@ -355,6 +449,7 @@ def list_available_models() -> dict:
         'ltx': LTX_MODELS,
         'mochi': MOCHI_MODELS,
         'stable_diffusion': STABLE_DIFFUSION_MODELS,
+        'logo': LOGO_MODELS,
     }
 
 
@@ -387,3 +482,44 @@ def get_ltx_directory() -> Path:
 def get_mochi_directory() -> Path:
     """Get the Mochi models directory path."""
     return Path(MOCHI_DIR)
+
+
+def get_flux_directory() -> Path:
+    """Get the FLUX models directory path."""
+    return Path(FLUX_DIR)
+
+
+def get_logo_directory() -> Path:
+    """Get the Logo models directory path."""
+    return Path(LOGO_DIR)
+
+
+def get_logo_models() -> dict:
+    """Get all logo generation models."""
+    return LOGO_MODELS
+
+
+def is_logo_model(model_name: str) -> bool:
+    """Check if a model is a logo generation model."""
+    return model_name in LOGO_MODELS
+
+
+def is_lora_model(model_name: str) -> bool:
+    """Check if a model uses LoRA."""
+    if model_name not in IMAGER_MODELS:
+        return False
+    return IMAGER_MODELS[model_name].get('model_type') == 'lora'
+
+
+def get_model_trigger_words(model_name: str) -> list:
+    """Get trigger words for a model (used in prompt preprocessing)."""
+    if model_name not in IMAGER_MODELS:
+        return []
+    return IMAGER_MODELS[model_name].get('trigger_words', [])
+
+
+def get_model_prompt_tips(model_name: str) -> list:
+    """Get prompt tips for a model."""
+    if model_name not in IMAGER_MODELS:
+        return []
+    return IMAGER_MODELS[model_name].get('prompt_tips', [])

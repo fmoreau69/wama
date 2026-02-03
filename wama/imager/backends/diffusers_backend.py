@@ -17,12 +17,32 @@ logger = logging.getLogger(__name__)
 
 # Import centralized model configuration
 try:
-    from wama.imager.utils.model_config import get_stable_diffusion_directory
+    from wama.imager.utils.model_config import (
+        get_stable_diffusion_directory,
+        get_flux_directory,
+        get_logo_directory,
+        LOGO_MODELS,
+        is_lora_model,
+        get_model_trigger_words,
+    )
     _SD_CACHE_DIR = str(get_stable_diffusion_directory())
+    _FLUX_CACHE_DIR = str(get_flux_directory())
+    _LOGO_CACHE_DIR = str(get_logo_directory())
     logger.info(f"[Diffusers] Using cache directory: {_SD_CACHE_DIR}")
+    logger.info(f"[Diffusers] FLUX cache directory: {_FLUX_CACHE_DIR}")
+    logger.info(f"[Diffusers] Logo cache directory: {_LOGO_CACHE_DIR}")
 except ImportError:
     _SD_CACHE_DIR = None
+    _FLUX_CACHE_DIR = None
+    _LOGO_CACHE_DIR = None
+    LOGO_MODELS = {}
     logger.warning("[Diffusers] model_config not available, using default HF cache")
+
+    def is_lora_model(model_name):
+        return False
+
+    def get_model_trigger_words(model_name):
+        return []
 
 
 class DiffusersBackend(ImageGenerationBackend):
@@ -148,6 +168,58 @@ class DiffusersBackend(ImageGenerationBackend):
             "max_resolution": 768,
             "recommended_resolutions": ["512x512", "768x768", "896x512", "512x896"],
         },
+
+        # =================================================================
+        # LOGO GENERATION MODELS
+        # =================================================================
+
+        # FLUX.1-dev + LoRA for Logo Design
+        "flux-lora-logo-design": {
+            "name": "FLUX Logo Design LoRA",
+            "hf_id": "Shakker-Labs/FLUX.1-dev-LoRA-Logo-Design",
+            "base_model": "black-forest-labs/FLUX.1-dev",
+            "description": "Logo Design - 16GB VRAM - Excellent quality logos",
+            "vram": "16GB",
+            "pipeline": "flux",
+            "model_type": "lora",
+            "category": "logo",
+            "trigger_words": ["wablogo", "logo", "Minimalist"],
+            "lora_scale": 0.8,
+            "min_resolution": 512,
+            "max_resolution": 1024,
+            "recommended_resolutions": ["1024x1024", "768x768", "1024x768", "768x1024"],
+        },
+
+        # LogoRedmond V2 - SDXL + LoRA
+        "logo-redmond-v2": {
+            "name": "LogoRedmond V2 (SDXL)",
+            "hf_id": "artificialguybr/LogoRedmond-LogoLoraForSDXL-V2",
+            "base_model": "stabilityai/stable-diffusion-xl-base-1.0",
+            "description": "Logo Generation - 10GB VRAM - Commercial OK",
+            "vram": "10GB",
+            "pipeline": "sdxl",
+            "model_type": "lora",
+            "category": "logo",
+            "trigger_words": ["LogoRedAF"],
+            "lora_scale": 0.7,
+            "min_resolution": 512,
+            "max_resolution": 1024,
+            "recommended_resolutions": ["1024x1024", "768x768", "1024x768", "768x1024"],
+        },
+
+        # Amazing Logos V2 - Full SD 1.5 fine-tune
+        "amazing-logos-v2": {
+            "name": "Amazing Logos V2",
+            "hf_id": "iamkaikai/amazing-logos-v2",
+            "description": "Logo Generation - 4GB VRAM - Commercial OK",
+            "vram": "4GB",
+            "pipeline": "sd",
+            "model_type": "full_finetune",
+            "category": "logo",
+            "min_resolution": 256,
+            "max_resolution": 768,
+            "recommended_resolutions": ["512x512", "512x768", "768x512"],
+        },
     }
 
     # Legacy support: map old format to new
@@ -235,6 +307,106 @@ class DiffusersBackend(ImageGenerationBackend):
 
         return StableDiffusionXLPipeline.from_pretrained(model_id, **kwargs)
 
+    def _load_flux_pipeline(self, model_info: dict):
+        """
+        Load a FLUX pipeline, optionally with LoRA.
+
+        Args:
+            model_info: Model configuration dictionary containing base_model, hf_id, etc.
+        """
+        import gc
+        from diffusers import FluxPipeline
+
+        base_model = model_info.get('base_model', 'black-forest-labs/FLUX.1-dev')
+        lora_repo = model_info.get('hf_id')
+        model_type = model_info.get('model_type', 'base')
+        lora_scale = model_info.get('lora_scale', 0.8)
+
+        logger.info(f"[Diffusers] Loading FLUX pipeline: {base_model}")
+
+        # Aggressive CUDA cleanup before loading this heavy model
+        if self._torch.cuda.is_available():
+            logger.info("[Diffusers] Clearing CUDA memory before FLUX load...")
+            self._torch.cuda.empty_cache()
+            self._torch.cuda.synchronize()
+            gc.collect()
+
+        kwargs = {
+            "torch_dtype": self._torch.bfloat16,
+        }
+
+        if _FLUX_CACHE_DIR:
+            kwargs["cache_dir"] = _FLUX_CACHE_DIR
+            logger.info(f"[Diffusers] Loading FLUX from cache: {_FLUX_CACHE_DIR}")
+
+        # Load base FLUX pipeline
+        pipe = FluxPipeline.from_pretrained(base_model, **kwargs)
+
+        # Load LoRA weights if this is a LoRA model
+        if model_type == 'lora' and lora_repo:
+            logger.info(f"[Diffusers] Loading LoRA weights from: {lora_repo}")
+            try:
+                pipe.load_lora_weights(lora_repo)
+                logger.info(f"[Diffusers] LoRA weights loaded, fusing with scale {lora_scale}")
+                pipe.fuse_lora(lora_scale=lora_scale)
+                logger.info("[Diffusers] LoRA fused successfully")
+            except Exception as e:
+                logger.warning(f"[Diffusers] Could not load LoRA weights: {e}")
+                # Continue without LoRA
+
+        # Enable CPU offload for memory efficiency
+        logger.info("[Diffusers] Enabling CPU offload for FLUX...")
+        try:
+            pipe.enable_model_cpu_offload()
+            logger.info("[Diffusers] Model CPU offload enabled for FLUX")
+        except Exception as e:
+            logger.warning(f"[Diffusers] CPU offload failed, moving to device: {e}")
+            pipe = pipe.to(self._device)
+
+        return pipe
+
+    def _load_sdxl_with_lora(self, model_info: dict):
+        """
+        Load SDXL pipeline with LoRA weights.
+
+        Args:
+            model_info: Model configuration dictionary containing base_model, hf_id, etc.
+        """
+        from diffusers import StableDiffusionXLPipeline
+
+        base_model = model_info.get('base_model', 'stabilityai/stable-diffusion-xl-base-1.0')
+        lora_repo = model_info.get('hf_id')
+        lora_scale = model_info.get('lora_scale', 0.7)
+
+        logger.info(f"[Diffusers] Loading SDXL with LoRA: {base_model}")
+        logger.info(f"[Diffusers] LoRA source: {lora_repo}")
+
+        dtype = self._torch.float16 if self._device == "cuda" else self._torch.float32
+
+        kwargs = {
+            "torch_dtype": dtype,
+            "use_safetensors": True,
+            "variant": "fp16" if dtype == self._torch.float16 else None,
+        }
+        if _SD_CACHE_DIR:
+            kwargs["cache_dir"] = _SD_CACHE_DIR
+
+        # Load base SDXL pipeline
+        pipe = StableDiffusionXLPipeline.from_pretrained(base_model, **kwargs)
+
+        # Load LoRA weights
+        if lora_repo:
+            logger.info(f"[Diffusers] Loading SDXL LoRA from: {lora_repo}")
+            try:
+                pipe.load_lora_weights(lora_repo)
+                logger.info(f"[Diffusers] SDXL LoRA loaded, fusing with scale {lora_scale}")
+                pipe.fuse_lora(lora_scale=lora_scale)
+                logger.info("[Diffusers] SDXL LoRA fused successfully")
+            except Exception as e:
+                logger.warning(f"[Diffusers] Could not load SDXL LoRA: {e}")
+
+        return pipe
+
     def _load_hunyuan_pipeline(self, model_id: str):
         """Load a HunyuanImage 2.1 pipeline."""
         import gc
@@ -303,7 +475,13 @@ class DiffusersBackend(ImageGenerationBackend):
 
     def load(self, model_name: str = None) -> bool:
         """
-        Load a Stable Diffusion or Hunyuan model.
+        Load a Stable Diffusion, FLUX, or Hunyuan model.
+
+        Supports:
+        - Standard SD/SDXL models
+        - FLUX models with optional LoRA
+        - SDXL with LoRA (e.g., logo models)
+        - HunyuanImage models
 
         Args:
             model_name: Model name (will be mapped to HuggingFace model ID).
@@ -322,6 +500,7 @@ class DiffusersBackend(ImageGenerationBackend):
 
         model_id = model_info["hf_id"]
         pipeline_type = model_info.get("pipeline", "sd")
+        model_type = model_info.get("model_type", "base")  # base, lora, full_finetune
 
         # Check if already loaded
         if self._loaded and self._current_model == model_id:
@@ -338,24 +517,34 @@ class DiffusersBackend(ImageGenerationBackend):
             logger.info(f"[Diffusers] Loading model: {model_info.get('name', model_name)}")
             logger.info(f"[Diffusers] HuggingFace ID: {model_id}")
             logger.info(f"[Diffusers] Pipeline type: {pipeline_type}")
+            logger.info(f"[Diffusers] Model type: {model_type}")
+
+            # Store model info for prompt preprocessing
+            self._current_model_info = model_info
 
             # Unload previous model if any
             if self._pipe is not None:
                 self.unload()
 
             # Load based on pipeline type
-            if pipeline_type == "hunyuan":
+            if pipeline_type == "flux":
+                # FLUX pipeline (with optional LoRA)
+                self._pipe = self._load_flux_pipeline(model_info)
+            elif pipeline_type == "hunyuan":
                 # HunyuanImage 2.1 pipeline
                 self._pipe = self._load_hunyuan_pipeline(model_id)
             elif pipeline_type == "sdxl":
-                # Stable Diffusion XL pipeline
-                self._pipe = self._load_sdxl_pipeline(model_id)
+                # SDXL pipeline - check if it uses LoRA
+                if model_type == "lora":
+                    self._pipe = self._load_sdxl_with_lora(model_info)
+                else:
+                    self._pipe = self._load_sdxl_pipeline(model_id)
             else:
                 # Standard Stable Diffusion pipeline
                 self._pipe = self._load_sd_pipeline(model_id)
 
-            # Skip scheduler and device setup for Hunyuan (uses CPU offload)
-            if pipeline_type != "hunyuan":
+            # Skip scheduler and device setup for models using CPU offload
+            if pipeline_type not in ("hunyuan", "flux"):
                 # Use faster scheduler (with fallback if incompatible)
                 try:
                     scheduler_config = dict(self._pipe.scheduler.config)
@@ -456,12 +645,14 @@ class DiffusersBackend(ImageGenerationBackend):
             import torch
             from PIL import Image
 
-            # Check if this is a HunyuanImage model
+            # Check model pipeline type
             model_info = self._get_model_info(params.model)
             is_hunyuan = model_info and model_info.get("pipeline") == "hunyuan"
+            is_flux = model_info and model_info.get("pipeline") == "flux"
+            is_logo = model_info and model_info.get("category") == "logo"
 
-            # For HunyuanImage with CPU offload, generator must be on CPU
-            generator_device = "cpu" if is_hunyuan else self._device
+            # For models with CPU offload, generator must be on CPU
+            generator_device = "cpu" if (is_hunyuan or is_flux) else self._device
 
             # Setup generator for reproducibility
             generator = None
@@ -473,9 +664,21 @@ class DiffusersBackend(ImageGenerationBackend):
                 seed_used = torch.randint(0, 2**32, (1,)).item()
                 generator = torch.Generator(device=generator_device).manual_seed(seed_used)
 
-            # Build prompt
+            # Build prompt - prepend trigger words for LoRA models
             prompt = params.prompt
             negative_prompt = params.negative_prompt or ""
+
+            # Prepend trigger words for logo/LoRA models
+            if model_info:
+                trigger_words = model_info.get('trigger_words', [])
+                if trigger_words:
+                    # Check if trigger words are already in prompt (case-insensitive)
+                    prompt_lower = prompt.lower()
+                    words_to_add = [w for w in trigger_words if w.lower() not in prompt_lower]
+                    if words_to_add:
+                        trigger_prefix = ', '.join(words_to_add)
+                        prompt = f"{trigger_prefix}, {prompt}"
+                        logger.info(f"[Diffusers] Added trigger words: {trigger_prefix}")
 
             generated_images: List[Image.Image] = []
 
@@ -550,6 +753,56 @@ class DiffusersBackend(ImageGenerationBackend):
                         except Exception as gen_error:
                             import traceback
                             logger.error(f"[Diffusers] HunyuanImage pipeline error: {type(gen_error).__name__}: {gen_error}")
+                            logger.error(f"[Diffusers] Pipeline traceback:\n{traceback.format_exc()}")
+                            raise
+                    elif is_flux:
+                        # FLUX generation - different parameters than SD/SDXL
+                        width = params.width
+                        height = params.height
+
+                        # Ensure minimum size (512 recommended for FLUX)
+                        min_size = model_info.get("min_resolution", 512)
+                        max_size = model_info.get("max_resolution", 1024)
+                        if width < min_size:
+                            logger.warning(f"[Diffusers] Width {width} below minimum {min_size}, adjusting")
+                            width = min_size
+                        if height < min_size:
+                            logger.warning(f"[Diffusers] Height {height} below minimum {min_size}, adjusting")
+                            height = min_size
+                        if width > max_size:
+                            logger.warning(f"[Diffusers] Width {width} above maximum {max_size}, adjusting")
+                            width = max_size
+                        if height > max_size:
+                            logger.warning(f"[Diffusers] Height {height} above maximum {max_size}, adjusting")
+                            height = max_size
+
+                        # Ensure dimensions are multiples of 8
+                        width = (width // 8) * 8
+                        height = (height // 8) * 8
+
+                        logger.info(f"[Diffusers] FLUX generation parameters:")
+                        logger.info(f"[Diffusers]   Resolution: {width}x{height}")
+                        logger.info(f"[Diffusers]   Steps: {params.steps}")
+                        logger.info(f"[Diffusers]   Guidance: {params.guidance_scale}")
+                        logger.info(f"[Diffusers]   Seed: {seed_used}")
+                        logger.info(f"[Diffusers]   Prompt: {prompt[:100]}...")
+
+                        try:
+                            # FLUX uses guidance_scale (not distilled_guidance_scale)
+                            # FLUX does NOT support negative_prompt natively
+                            result = self._pipe(
+                                prompt=prompt,
+                                height=height,
+                                width=width,
+                                num_inference_steps=params.steps,
+                                guidance_scale=params.guidance_scale,
+                                generator=generator,
+                                callback_on_step_end=step_callback,
+                            )
+                            logger.info(f"[Diffusers] FLUX generation complete, result type: {type(result)}")
+                        except Exception as gen_error:
+                            import traceback
+                            logger.error(f"[Diffusers] FLUX pipeline error: {type(gen_error).__name__}: {gen_error}")
                             logger.error(f"[Diffusers] Pipeline traceback:\n{traceback.format_exc()}")
                             raise
                     else:

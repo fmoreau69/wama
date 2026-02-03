@@ -257,6 +257,8 @@ class BackendManager:
                             'description': info.get('description', ''),
                             'vram': info.get('vram', ''),
                             'pipeline': info.get('pipeline', 'sd'),
+                            'category': info.get('category', 'general'),
+                            'trigger_words': info.get('trigger_words', []),
                         })
                     else:
                         # Old tuple format: (name, hf_id)

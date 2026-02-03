@@ -4,6 +4,31 @@
 {% block title %}Transcriber - Speech To Text{% endblock %}
 
 {% block app_right_panel_settings %}
+<!-- Backend Selection -->
+<div class="mb-3">
+    <label class="form-label small fw-bold text-light">
+        <i class="fas fa-microchip"></i> Moteur de transcription
+    </label>
+    <select id="backendSelect" class="form-select form-select-sm">
+        <option value="auto" {% if selected_backend == 'auto' %}selected{% endif %}>Auto (meilleur disponible)</option>
+        {% for backend in backends %}
+        <option value="{{ backend.name }}" {% if selected_backend == backend.name %}selected{% endif %}>
+            {{ backend.display_name }}{% if backend.supports_diarization %} (diarisation){% endif %}
+        </option>
+        {% endfor %}
+    </select>
+</div>
+
+<!-- Hotwords Input -->
+<div class="mb-3">
+    <label class="form-label small fw-bold text-light">
+        <i class="fas fa-tags"></i> Mots-clés contextuels
+    </label>
+    <textarea id="hotwordsInput" class="form-control form-control-sm"
+              rows="2" placeholder="Noms propres, termes techniques...">{{ user_hotwords }}</textarea>
+    <small class="text-muted">Séparés par des virgules</small>
+</div>
+
 <!-- Preprocessing Toggle -->
 <div class="mb-3">
     <div class="form-check form-switch">
@@ -19,17 +44,26 @@
     </small>
 </div>
 
+<!-- Diarization Toggle (VibeVoice only) -->
+<div class="mb-3 vibevoice-option" id="diarizationOption" style="display: none;">
+    <div class="form-check form-switch">
+        <input class="form-check-input" type="checkbox" id="diarizationToggle" checked>
+        <label class="form-check-label small fw-bold text-light" for="diarizationToggle">
+            <i class="fas fa-users"></i> Identifier les locuteurs
+        </label>
+    </div>
+</div>
+
 <!-- Info Box -->
 <div class="alert alert-info py-2 small" role="alert">
-    <i class="fas fa-info-circle"></i> <strong>Prétraitement:</strong><br>
+    <i class="fas fa-info-circle"></i> <strong>Moteurs:</strong><br>
     <small>
-        • Convertit en mono 16kHz<br>
-        • Réduit le bruit de fond<br>
-        • Optimise les niveaux
+        • <strong>VibeVoice</strong>: Diarisation, timestamps, 60min max<br>
+        • <strong>Whisper</strong>: Rapide, polyvalent
     </small>
 </div>
 
-<!-- Preprocessing Info Button -->
+<!-- Info Button -->
 <button type="button" class="btn btn-outline-info btn-sm w-100"
         data-bs-toggle="modal" data-bs-target="#preprocessingModal">
     <i class="fas fa-question-circle"></i> En savoir plus
@@ -61,10 +95,35 @@
       progressUrlTemplate: '{% url "transcriber:progress" 0 %}',
       deleteUrlTemplate: '{% url "transcriber:delete" 0 %}',
       downloadUrlTemplate: '{% url "transcriber:download" 0 %}',
+      downloadSrtUrlTemplate: '{% url "transcriber:download_srt" 0 %}',
+      segmentsUrlTemplate: '{% url "transcriber:segments" 0 %}',
+      settingsUrlTemplate: '{% url "transcriber:save_settings" 0 %}',
       startAllUrl: '{% url "transcriber:start_all" %}',
       clearUrl: '{% url "transcriber:clear_all" %}',
       preprocessingUrl: '{% url "transcriber:set_preprocessing" %}',
+      backendsUrl: '{% url "transcriber:backends" %}',
+      userSettingsUrl: '{% url "transcriber:get_user_settings" %}',
+      saveUserSettingsUrl: '{% url "transcriber:save_user_settings" %}',
       preprocessingEnabled: {{ preprocessing_enabled|yesno:"true,false" }},
+    });
+
+    // Show/hide VibeVoice-specific options based on backend selection
+    document.addEventListener('DOMContentLoaded', function() {
+        const backendSelect = document.getElementById('backendSelect');
+        const diarizationOption = document.getElementById('diarizationOption');
+
+        function updateVibeVoiceOptions() {
+            if (backendSelect.value === 'vibevoice') {
+                diarizationOption.style.display = 'block';
+            } else {
+                diarizationOption.style.display = 'none';
+            }
+        }
+
+        if (backendSelect) {
+            backendSelect.addEventListener('change', updateVibeVoiceOptions);
+            updateVibeVoiceOptions();
+        }
     });
 </script>
 <script src="{% static 'transcriber/js/index.js' %}"></script>
@@ -179,13 +238,13 @@
             <table class="table table-bordered table-dark align-middle" id="transcriber-queue">
                 <thead>
                 <tr class="text-center">
-                    <th style="width: 80px;">ID</th>
+                    <th style="width: 60px;">ID</th>
                     <th>Audio</th>
-                    <th style="width: 140px;">Properties</th>
-                    <th style="width: 120px;">Duration</th>
-                    <th style="width: 120px;">Status</th>
-                    <th style="width: 220px;">Progress</th>
-                    <th style="width: 160px;">Actions</th>
+                    <th style="width: 120px;">Properties</th>
+                    <th style="width: 100px;">Duration</th>
+                    <th style="width: 100px;">Status</th>
+                    <th style="width: 180px;">Progress</th>
+                    <th style="width: 180px;">Actions</th>
                 </tr>
                 </thead>
                 <tbody>
@@ -217,11 +276,19 @@
                         <div class="btn-group" role="group">
                             <a class="btn btn-success btn-sm download-btn {% if not t.text %}disabled{% endif %}"
                                {% if not t.text %}aria-disabled="true" tabindex="-1"{% endif %}
-                               href="{% url 'transcriber:download' t.id %}">
-                                <i class="fas fa-download"></i>
+                               href="{% url 'transcriber:download' t.id %}"
+                               title="Télécharger TXT">
+                                <i class="fas fa-file-alt"></i>
+                            </a>
+                            <a class="btn btn-info btn-sm download-srt-btn {% if not t.text %}disabled{% endif %}"
+                               {% if not t.text %}aria-disabled="true" tabindex="-1"{% endif %}
+                               href="{% url 'transcriber:download_srt' t.id %}"
+                               title="Télécharger SRT (sous-titres)">
+                                <i class="fas fa-closed-captioning"></i>
                             </a>
                             <button class="btn btn-danger btn-sm js-delete-transcript"
-                                    data-delete-url="{% url 'transcriber:delete' t.id %}">
+                                    data-delete-url="{% url 'transcriber:delete' t.id %}"
+                                    title="Supprimer">
                                 <i class="fas fa-trash-alt"></i>
                             </button>
                         </div>

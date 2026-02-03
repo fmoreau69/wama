@@ -30,4 +30,14 @@ urlpatterns = [
     path('preprocessing/toggle/', views.toggle_preprocessing, name='toggle_preprocessing'),
     path('preprocessing/status/', views.preprocessing_status, name='preprocessing_status'),
     path('preprocessing/set/', views.set_preprocessing_preference, name='set_preprocessing'),
+
+    # VibeVoice-related endpoints
+    path('backends/', views.get_backends, name='backends'),
+    path('segments/<int:pk>/', views.get_segments, name='segments'),
+    path('download_srt/<int:pk>/', views.download_srt, name='download_srt'),
+    path('settings/<int:pk>/', views.save_settings, name='save_settings'),
+
+    # User-level settings
+    path('user_settings/', views.get_user_transcriber_settings, name='get_user_settings'),
+    path('user_settings/save/', views.save_user_transcriber_settings, name='save_user_settings'),
 ]

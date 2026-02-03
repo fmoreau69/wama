@@ -118,12 +118,25 @@ class IndexView(View):
         user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
         transcripts = Transcript.objects.filter(user=user).order_by('-id')
 
-        # Récupérer les préférences de prétraitement de l'utilisateur
+        # Récupérer les préférences utilisateur
         enable_preprocessing = cache.get(f"user_{user.id}_preprocessing_enabled", True)
+        selected_backend = cache.get(f"user_{user.id}_transcriber_backend", 'auto')
+        user_hotwords = cache.get(f"user_{user.id}_transcriber_hotwords", '')
+
+        # Get available backends
+        backends = []
+        try:
+            from .backends import get_backends_info
+            backends = get_backends_info()
+        except ImportError:
+            backends = [{'name': 'whisper', 'display_name': 'Whisper', 'available': True}]
 
         return render(request, 'transcriber/index.html', {
             'transcripts': transcripts,
             'preprocessing_enabled': enable_preprocessing,
+            'selected_backend': selected_backend,
+            'user_hotwords': user_hotwords,
+            'backends': backends,
         })
 
 
@@ -142,11 +155,27 @@ def upload(request):
         return HttpResponseBadRequest('Missing file')
 
     preprocess_requested = str(request.POST.get('preprocess_audio', '')).lower() in ('1', 'true', 'on')
-    # Persist preference for future uploads
+    backend_requested = request.POST.get('backend', 'auto')
+    hotwords_requested = request.POST.get('hotwords', '')
+
+    # Persist preferences for future uploads
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    cache.set(f"user_{user.id}_preprocessing_enabled", preprocess_requested, timeout=30 * 24 * 3600)
+    cache_timeout = 30 * 24 * 3600
+    cache.set(f"user_{user.id}_preprocessing_enabled", preprocess_requested, timeout=cache_timeout)
+    if backend_requested:
+        cache.set(f"user_{user.id}_transcriber_backend", backend_requested, timeout=cache_timeout)
+    if hotwords_requested:
+        cache.set(f"user_{user.id}_transcriber_hotwords", hotwords_requested, timeout=cache_timeout)
 
     from ..common.utils.video_utils import is_video_file, extract_audio_from_video
+
+    # Common transcript fields
+    transcript_fields = {
+        'user': user,
+        'preprocess_audio': preprocess_requested,
+        'backend': backend_requested,
+        'hotwords': hotwords_requested,
+    }
 
     # Vérifier si c'est une vidéo
     if is_video_file(file.name):
@@ -173,9 +202,8 @@ def upload(request):
 
             # Créer le transcript avec l'audio extrait
             t = Transcript.objects.create(
-                user=user,
                 audio=audio_django_file,
-                preprocess_audio=preprocess_requested,
+                **transcript_fields
             )
 
             # Nettoyer les fichiers temporaires
@@ -192,9 +220,8 @@ def upload(request):
     else:
         # Fichier audio normal
         t = Transcript.objects.create(
-            user=user,
             audio=file,
-            preprocess_audio=preprocess_requested,
+            **transcript_fields
         )
 
     _describe_audio(t)
@@ -206,6 +233,8 @@ def upload(request):
         'properties': t.properties,
         'duration_display': t.duration_display,
         'preprocess_audio': t.preprocess_audio,
+        'backend': t.backend,
+        'hotwords': t.hotwords,
     })
 
 
@@ -540,3 +569,226 @@ def global_progress(request):
         })
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
+
+
+# =============================================================================
+# NEW: VibeVoice-related views
+# =============================================================================
+
+def get_backends(request):
+    """
+    Get list of available transcription backends.
+
+    Returns:
+        JSON with backend info including availability and features.
+    """
+    try:
+        from .backends import get_backends_info
+        backends = get_backends_info()
+        return JsonResponse({
+            'backends': backends,
+            'default': 'auto',
+        })
+    except ImportError:
+        return JsonResponse({
+            'backends': [
+                {
+                    'name': 'whisper',
+                    'display_name': 'Whisper (OpenAI)',
+                    'available': True,
+                    'supports_diarization': False,
+                    'supports_timestamps': True,
+                    'supports_hotwords': False,
+                }
+            ],
+            'default': 'whisper',
+        })
+
+
+def get_segments(request, pk: int):
+    """
+    Get transcript segments with speaker and timestamp info.
+
+    Returns:
+        JSON with segments array containing speaker_id, start_time, end_time, text.
+    """
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    t = get_object_or_404(Transcript, pk=pk, user=user)
+
+    # Try to get segments from database first
+    from .models import TranscriptSegment
+    segments = TranscriptSegment.objects.filter(transcript=t).order_by('order')
+
+    if segments.exists():
+        segments_data = [
+            {
+                'id': seg.id,
+                'speaker_id': seg.speaker_id,
+                'start_time': seg.start_time,
+                'end_time': seg.end_time,
+                'text': seg.text,
+                'confidence': seg.confidence,
+                'time_range': seg.format_time_range(),
+            }
+            for seg in segments
+        ]
+    elif t.segments_json:
+        # Fallback to JSON backup
+        segments_data = t.segments_json
+    else:
+        segments_data = []
+
+    # Get unique speakers
+    speakers = list(set(s.get('speaker_id', '') for s in segments_data if s.get('speaker_id')))
+
+    return JsonResponse({
+        'id': t.id,
+        'has_segments': len(segments_data) > 0,
+        'segment_count': len(segments_data),
+        'speaker_count': len(speakers),
+        'speakers': speakers,
+        'segments': segments_data,
+        'backend': t.used_backend,
+    })
+
+
+def download_srt(request, pk: int):
+    """
+    Download transcript as SRT subtitle file.
+
+    Returns:
+        SRT file with speaker labels and timestamps.
+    """
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    t = get_object_or_404(Transcript, pk=pk, user=user)
+
+    from .models import TranscriptSegment
+
+    # Get segments
+    segments = TranscriptSegment.objects.filter(transcript=t).order_by('order')
+
+    if not segments.exists():
+        # If no segments, create a single segment from full text
+        if not t.text:
+            return HttpResponseBadRequest('No transcript content')
+
+        # Generate simple SRT without timestamps
+        srt_content = f"1\n00:00:00,000 --> 00:00:00,000\n{t.text}\n\n"
+    else:
+        # Generate SRT from segments
+        srt_content = ""
+        for i, seg in enumerate(segments, 1):
+            srt_content += seg.to_srt_entry(i)
+
+    # Return as file
+    buffer = io.BytesIO(srt_content.encode('utf-8'))
+    buffer.seek(0)
+    return FileResponse(
+        buffer,
+        as_attachment=True,
+        filename=f"transcript_{t.id}.srt",
+        content_type='text/plain; charset=utf-8'
+    )
+
+
+@require_POST
+def save_settings(request, pk: int):
+    """
+    Save transcript settings (backend, hotwords, etc.) before processing.
+
+    Expected JSON body:
+    {
+        "backend": "whisper" | "vibevoice" | "auto",
+        "hotwords": "term1, term2, ...",
+        "enable_diarization": true,
+        "temperature": 0.0,
+        "max_tokens": 32768
+    }
+    """
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    t = get_object_or_404(Transcript, pk=pk, user=user)
+
+    try:
+        data = json.loads(request.body.decode('utf-8'))
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        data = {}
+
+    # Update fields
+    if 'backend' in data:
+        t.backend = data['backend']
+    if 'hotwords' in data:
+        t.hotwords = data['hotwords']
+    if 'enable_diarization' in data:
+        t.enable_diarization = bool(data['enable_diarization'])
+    if 'temperature' in data:
+        t.temperature = float(data['temperature'])
+    if 'max_tokens' in data:
+        t.max_tokens = int(data['max_tokens'])
+    if 'preprocess_audio' in data:
+        t.preprocess_audio = bool(data['preprocess_audio'])
+
+    t.save()
+
+    return JsonResponse({
+        'id': t.id,
+        'backend': t.backend,
+        'hotwords': t.hotwords,
+        'enable_diarization': t.enable_diarization,
+        'temperature': t.temperature,
+        'max_tokens': t.max_tokens,
+        'preprocess_audio': t.preprocess_audio,
+    })
+
+
+@require_POST
+def save_user_transcriber_settings(request):
+    """
+    Save user-level transcriber settings (cached).
+
+    Expected JSON body:
+    {
+        "backend": "whisper" | "vibevoice" | "auto",
+        "hotwords": "default hotwords",
+        "enable_diarization": true,
+        "preprocessing_enabled": true
+    }
+    """
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+
+    try:
+        data = json.loads(request.body.decode('utf-8'))
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        data = {}
+
+    # Cache settings
+    cache_timeout = 30 * 24 * 3600  # 30 days
+
+    if 'backend' in data:
+        cache.set(f"user_{user.id}_transcriber_backend", data['backend'], timeout=cache_timeout)
+    if 'hotwords' in data:
+        cache.set(f"user_{user.id}_transcriber_hotwords", data['hotwords'], timeout=cache_timeout)
+    if 'enable_diarization' in data:
+        cache.set(f"user_{user.id}_transcriber_diarization", data['enable_diarization'], timeout=cache_timeout)
+    if 'preprocessing_enabled' in data:
+        cache.set(f"user_{user.id}_preprocessing_enabled", data['preprocessing_enabled'], timeout=cache_timeout)
+
+    return JsonResponse({
+        'backend': cache.get(f"user_{user.id}_transcriber_backend", 'auto'),
+        'hotwords': cache.get(f"user_{user.id}_transcriber_hotwords", ''),
+        'enable_diarization': cache.get(f"user_{user.id}_transcriber_diarization", True),
+        'preprocessing_enabled': cache.get(f"user_{user.id}_preprocessing_enabled", True),
+    })
+
+
+def get_user_transcriber_settings(request):
+    """
+    Get user-level transcriber settings.
+    """
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+
+    return JsonResponse({
+        'backend': cache.get(f"user_{user.id}_transcriber_backend", 'auto'),
+        'hotwords': cache.get(f"user_{user.id}_transcriber_hotwords", ''),
+        'enable_diarization': cache.get(f"user_{user.id}_transcriber_diarization", True),
+        'preprocessing_enabled': cache.get(f"user_{user.id}_preprocessing_enabled", True),
+    })

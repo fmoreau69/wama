@@ -24,8 +24,13 @@ MODEL_PATHS = getattr(settings, 'MODEL_PATHS', {})
 WHISPER_DIR = MODEL_PATHS.get('speech', {}).get('whisper',
     settings.AI_MODELS_DIR / "models" / "speech" / "whisper")
 
-# Ensure directory exists
+# VibeVoice models directory
+VIBEVOICE_DIR = MODEL_PATHS.get('speech', {}).get('vibevoice',
+    settings.AI_MODELS_DIR / "models" / "speech" / "vibevoice")
+
+# Ensure directories exist
 WHISPER_DIR.mkdir(parents=True, exist_ok=True)
+VIBEVOICE_DIR.mkdir(parents=True, exist_ok=True)
 
 # =============================================================================
 # MODEL DEFINITIONS
@@ -67,6 +72,29 @@ TRANSCRIBER_MODELS = {
         'size_gb': 2.87,
         'description': 'Best accuracy, slowest',
     },
+}
+
+# VibeVoice ASR models (Microsoft)
+VIBEVOICE_MODELS = {
+    'vibevoice-asr': {
+        'model_id': 'vibevoice-asr',
+        'hf_model_id': 'microsoft/VibeVoice-ASR',
+        'type': 'speech-to-text',
+        'size_gb': 18,
+        'vram_gb': 16,
+        'description': 'VibeVoice ASR - Diarization + timestamps (16GB+ VRAM)',
+        'supports_diarization': True,
+        'supports_timestamps': True,
+        'supports_hotwords': True,
+        'max_audio_minutes': 60,
+        'languages': '50+',
+    },
+}
+
+# Combined models dictionary
+TRANSCRIBER_MODELS = {
+    **TRANSCRIBER_MODELS,
+    **VIBEVOICE_MODELS,
 }
 
 # Default model

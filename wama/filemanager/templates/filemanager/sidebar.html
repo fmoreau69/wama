@@ -8,7 +8,22 @@
 
     <!-- Search -->
     <div class="filemanager-search">
-        <input type="text" id="filemanager-tree-filter" name="filemanager-tree-filter" class="form-control form-control-sm" placeholder="Rechercher..." autocomplete="off" data-1p-ignore="true" data-lpignore="true" data-form-type="other">
+        <form autocomplete="off" onsubmit="return false;">
+            <input type="search"
+                   id="filemanager-tree-filter"
+                   class="form-control form-control-sm"
+                   placeholder="Rechercher..."
+                   autocomplete="off"
+                   autocorrect="off"
+                   autocapitalize="off"
+                   spellcheck="false"
+                   data-1p-ignore="true"
+                   data-lpignore="true"
+                   data-form-type="other"
+                   data-bwignore="true"
+                   aria-autocomplete="none"
+                   role="searchbox">
+        </form>
     </div>
 
     <!-- Drop Zone for Upload -->
