@@ -342,7 +342,20 @@ class DiffusersBackend(ImageGenerationBackend):
         # Load base FLUX pipeline
         pipe = FluxPipeline.from_pretrained(base_model, **kwargs)
 
-        # Load LoRA weights if this is a LoRA model
+        # Apply memory strategy FIRST (before LoRA) for faster LoRA fusion on GPU
+        try:
+            from wama.model_manager.services.memory_manager import MemoryManager
+            pipe = MemoryManager.apply_strategy_for_model(
+                pipeline=pipe,
+                model_type='flux',
+                device=self._device,
+                headroom_gb=4.0  # Extra headroom for LoRA operations
+            )
+        except ImportError:
+            logger.warning("[Diffusers] MemoryManager not available, using default GPU loading")
+            pipe = pipe.to(self._device)
+
+        # Load LoRA weights AFTER moving to GPU (much faster fusion)
         if model_type == 'lora' and lora_repo:
             logger.info(f"[Diffusers] Loading LoRA weights from: {lora_repo}")
             try:
@@ -353,15 +366,6 @@ class DiffusersBackend(ImageGenerationBackend):
             except Exception as e:
                 logger.warning(f"[Diffusers] Could not load LoRA weights: {e}")
                 # Continue without LoRA
-
-        # Enable CPU offload for memory efficiency
-        logger.info("[Diffusers] Enabling CPU offload for FLUX...")
-        try:
-            pipe.enable_model_cpu_offload()
-            logger.info("[Diffusers] Model CPU offload enabled for FLUX")
-        except Exception as e:
-            logger.warning(f"[Diffusers] CPU offload failed, moving to device: {e}")
-            pipe = pipe.to(self._device)
 
         return pipe
 
@@ -441,20 +445,21 @@ class DiffusersBackend(ImageGenerationBackend):
 
         pipe = HunyuanImagePipeline.from_pretrained(model_id, **kwargs)
 
-        # Use sequential CPU offload - slower but more stable than model_cpu_offload
-        # This moves each layer one at a time instead of whole components
-        logger.info("[Diffusers] Enabling sequential CPU offload for HunyuanImage (stable mode)...")
+        # Use centralized MemoryManager to determine and apply optimal strategy
         try:
-            pipe.enable_sequential_cpu_offload()
-            logger.info("[Diffusers] Sequential CPU offload enabled successfully")
-        except Exception as e:
-            logger.warning(f"[Diffusers] Sequential offload failed, trying model offload: {e}")
+            from wama.model_manager.services.memory_manager import MemoryManager
+            pipe = MemoryManager.apply_strategy_for_model(
+                pipeline=pipe,
+                model_type='hunyuan-image',
+                device=self._device,
+                headroom_gb=4.0  # HunyuanImage needs more headroom for 2K images
+            )
+        except ImportError:
+            # Fallback if MemoryManager not available
+            logger.warning("[Diffusers] MemoryManager not available, using sequential offload")
             try:
-                pipe.enable_model_cpu_offload()
-                logger.info("[Diffusers] Model CPU offload enabled as fallback")
-            except Exception as e2:
-                logger.error(f"[Diffusers] All CPU offload methods failed: {e2}")
-                # Last resort: move to GPU directly (needs 24GB+ VRAM)
+                pipe.enable_sequential_cpu_offload()
+            except Exception:
                 pipe = pipe.to(self._device)
 
         # Enable VAE tiling for large images
@@ -543,7 +548,7 @@ class DiffusersBackend(ImageGenerationBackend):
                 # Standard Stable Diffusion pipeline
                 self._pipe = self._load_sd_pipeline(model_id)
 
-            # Skip scheduler and device setup for models using CPU offload
+            # Skip scheduler and device setup for models using CPU offload (handled in their loaders)
             if pipeline_type not in ("hunyuan", "flux"):
                 # Use faster scheduler (with fallback if incompatible)
                 try:
@@ -555,10 +560,20 @@ class DiffusersBackend(ImageGenerationBackend):
                 except Exception as scheduler_error:
                     logger.warning(f"Could not use DPMSolver scheduler, using default: {scheduler_error}")
 
-                # Move to device
-                logger.info(f"[Diffusers] Moving pipeline to {self._device}...")
-                self._pipe = self._pipe.to(self._device)
-                logger.info(f"[Diffusers] Pipeline moved to {self._device}")
+                # Use centralized MemoryManager for optimal memory strategy
+                model_type_key = 'sdxl' if pipeline_type == 'sdxl' else 'sd15'
+                try:
+                    from wama.model_manager.services.memory_manager import MemoryManager
+                    self._pipe = MemoryManager.apply_strategy_for_model(
+                        pipeline=self._pipe,
+                        model_type=model_type_key,
+                        device=self._device,
+                        headroom_gb=2.0
+                    )
+                except ImportError:
+                    # Fallback if MemoryManager not available
+                    logger.warning("[Diffusers] MemoryManager not available, using direct GPU loading")
+                    self._pipe = self._pipe.to(self._device)
 
                 # Enable memory optimizations
                 if self._device == "cuda":
@@ -611,6 +626,9 @@ class DiffusersBackend(ImageGenerationBackend):
         Returns:
             GenerationResult with generated images.
         """
+        logger.info(f"[Diffusers] >>> generate() called with model={params.model}, mode={params.generation_mode}")
+        logger.info(f"[Diffusers]     prompt='{params.prompt[:80]}...', size={params.width}x{params.height}, steps={params.steps}")
+
         if not self._loaded or self._pipe is None:
             if not self.load(params.model):
                 return GenerationResult(
@@ -641,9 +659,20 @@ class DiffusersBackend(ImageGenerationBackend):
         progress_callback: Optional[Callable[[int], None]] = None
     ) -> GenerationResult:
         """Generate images from text prompt (standard txt2img)."""
+        logger.info(f"[Diffusers] >>> _generate_txt2img() started")
+
         try:
             import torch
             from PIL import Image
+
+            # Log GPU state at generation start
+            if torch.cuda.is_available():
+                try:
+                    allocated = torch.cuda.memory_allocated(0) / (1024 ** 3)
+                    reserved = torch.cuda.memory_reserved(0) / (1024 ** 3)
+                    logger.info(f"[Diffusers] GPU at generation start: {allocated:.2f}GB allocated, {reserved:.2f}GB reserved")
+                except Exception:
+                    pass
 
             # Check model pipeline type
             model_info = self._get_model_info(params.model)

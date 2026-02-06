@@ -46,12 +46,14 @@ class ModelSyncService:
             self._registry = ModelRegistry()
         return self._registry
 
-    def full_sync(self, remove_missing: bool = False) -> SyncResult:
+    def full_sync(self, remove_missing: bool = False, delete_missing: bool = False) -> SyncResult:
         """
         Perform a full sync of all models from all sources.
 
         Args:
             remove_missing: If True, mark models not found in sources as unavailable
+            delete_missing: If True, delete models not found in sources from the database
+                           (takes precedence over remove_missing)
 
         Returns:
             SyncResult with counts and any errors
@@ -87,7 +89,17 @@ class ModelSyncService:
                         result.errors.append(error_msg)
 
                 # Handle models no longer in sources
-                if remove_missing:
+                if delete_missing:
+                    # Delete models that no longer exist on disk
+                    missing_models = AIModel.objects.exclude(model_key__in=seen_keys)
+                    removed_count = missing_models.count()
+                    if removed_count > 0:
+                        deleted_keys = list(missing_models.values_list('model_key', flat=True))
+                        logger.info(f"Deleting {removed_count} models no longer on disk: {deleted_keys[:5]}...")
+                        missing_models.delete()
+                    result.removed = removed_count
+                elif remove_missing:
+                    # Just mark as unavailable (legacy behavior)
                     removed_count = AIModel.objects.exclude(
                         model_key__in=seen_keys
                     ).update(is_available=False)

@@ -744,10 +744,35 @@ document.addEventListener('DOMContentLoaded', function() {
             console.log('[settings_modal.js] Response data:', data);
             if (data.success) {
                 console.log('[settings_modal.js] Media restarted successfully');
+
+                // Reset progress bar to 0% immediately
+                const tr = document.querySelector(`tr[data-media-id="${mediaId}"]`);
+                if (tr) {
+                    const progressBar = tr.querySelector('.progress-bar');
+                    if (progressBar) {
+                        progressBar.style.width = '0%';
+                        progressBar.innerText = '0%';
+                    }
+                    // Update status badge
+                    const statusBadge = tr.querySelector('td:nth-child(6) .badge');
+                    if (statusBadge) {
+                        statusBadge.className = 'badge bg-warning';
+                        statusBadge.textContent = 'En cours';
+                    }
+                    tr.dataset.mediaProcessed = 'false';
+                }
+
+                // Start polling for this media's progress
+                // This function is defined in process.js and exposed globally
+                if (typeof window.startMediaProgressPolling === 'function') {
+                    console.log(`[settings_modal.js] Starting progress polling for media ${mediaId}`);
+                    window.startMediaProgressPolling(mediaId);
+                } else {
+                    console.warn('[settings_modal.js] startMediaProgressPolling not available, progress may not update');
+                }
+
                 if (typeof window.refreshMediaTable === 'function') {
                     window.refreshMediaTable();
-                } else {
-                    location.reload();
                 }
             } else {
                 console.error('[settings_modal.js] Restart failed:', data.error);

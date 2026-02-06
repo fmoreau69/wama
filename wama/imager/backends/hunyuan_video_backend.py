@@ -220,9 +220,18 @@ class HunyuanVideoBackend(ImageGenerationBackend):
             )
             logger.info("[HunyuanVideo] Pipeline loaded")
 
-            # Enable memory optimizations
-            logger.info("[HunyuanVideo] Enabling CPU offload for memory efficiency...")
-            self._pipe.enable_model_cpu_offload()
+            # Use centralized MemoryManager for optimal memory strategy
+            try:
+                from wama.model_manager.services.memory_manager import MemoryManager
+                self._pipe = MemoryManager.apply_strategy_for_model(
+                    pipeline=self._pipe,
+                    model_type='hunyuan-video',
+                    device=self._device,
+                    headroom_gb=4.0
+                )
+            except ImportError:
+                logger.warning("[HunyuanVideo] MemoryManager not available, using default CPU offload")
+                self._pipe.enable_model_cpu_offload()
 
             # Enable VAE tiling
             try:

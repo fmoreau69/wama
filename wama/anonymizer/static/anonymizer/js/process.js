@@ -172,6 +172,7 @@ document.addEventListener("DOMContentLoaded", function() {
 
     window.initProcessControls = initProcessControls;
     window.initMediaPreview = initMediaPreview;
+    window.startMediaProgressPolling = startMediaProgressPolling;  // Expose for settings_modal.js
     initProcessControls();
     initMediaPreview();
 

@@ -1,6 +1,6 @@
 # Model Manager Services
 from .model_registry import ModelRegistry, ModelInfo, ModelType, ModelSource
-from .memory_manager import MemoryManager
+from .memory_manager import MemoryManager, MemoryStrategy, MODEL_SIZE_PRESETS
 from .format_converter import FormatConverter, ConversionResult, ConversionSuggestion
 from .memory_monitor import WAMAMemoryMonitor, RAMUsage, GPUUsage, MemorySnapshot
 from .memory_tracker import WAMAMemoryTracker, TrackedModel, IdleModel, LargeObject
@@ -21,8 +21,10 @@ __all__ = [
     'ModelInfo',
     'ModelType',
     'ModelSource',
-    # Memory Manager (legacy)
+    # Memory Manager
     'MemoryManager',
+    'MemoryStrategy',
+    'MODEL_SIZE_PRESETS',
     # Format Converter
     'FormatConverter',
     'ConversionResult',

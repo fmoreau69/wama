@@ -28,8 +28,20 @@ def generate_image_task(self, generation_id):
     """
     from .models import ImageGeneration
 
+    logger.info(f"[Imager] === Task received for generation #{generation_id} ===")
+
     try:
         generation = ImageGeneration.objects.get(id=generation_id)
+
+        # Check if already completed - skip if SUCCESS or FAILURE
+        if generation.status in ('SUCCESS', 'FAILURE'):
+            logger.warning(f"[Imager] Generation #{generation_id} already has status {generation.status}, skipping")
+            return {'skipped': True, 'reason': f'already_{generation.status.lower()}', 'generation_id': generation_id}
+
+        # Note: We don't check for RUNNING status here because the view sets it
+        # to RUNNING right after calling delay(). The view is responsible for
+        # preventing duplicate launches via its own checks.
+
         generation.status = 'RUNNING'
         generation.progress = 0
         generation.save()
@@ -79,6 +91,7 @@ def generate_image_task(self, generation_id):
         push_console_line(user_id, f"[Imager] Loading model: {generation.model}")
 
         # Load the model
+        logger.info(f"[Imager] >>> Calling backend.load({generation.model})...")
         if not backend.load(generation.model):
             error_msg = f"Failed to load model: {generation.model}"
             logger.error(error_msg)
@@ -87,6 +100,9 @@ def generate_image_task(self, generation_id):
             generation.save()
             push_console_line(user_id, f"[Imager] Error: {error_msg}")
             return {'error': error_msg}
+
+        logger.info(f"[Imager] <<< backend.load() completed successfully")
+        push_console_line(user_id, f"[Imager] Model loaded on {backend.device}")
 
         generation.progress = 20
         generation.save()
@@ -132,8 +148,15 @@ def generate_image_task(self, generation_id):
             cache.set(f"imager_progress_{generation_id}", mapped_progress, timeout=3600)
 
         # Generate images
-        logger.info(f"Generating {generation.num_images} image(s) with model {generation.model}")
+        logger.info(f"[Imager] >>> Calling backend.generate() with {generation.num_images} image(s), model={generation.model}")
+        logger.info(f"[Imager]     size={generation.width}x{generation.height}, steps={generation.steps}, guidance={generation.guidance_scale}")
+
+        import time
+        gen_start = time.time()
         result = backend.generate(params, progress_callback)
+        gen_duration = time.time() - gen_start
+
+        logger.info(f"[Imager] <<< backend.generate() completed in {gen_duration:.2f}s, success={result.success}")
 
         if not result.success:
             error_msg = result.error or "Unknown generation error"

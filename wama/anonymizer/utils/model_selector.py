@@ -1,6 +1,15 @@
 """
 Automatic Model Selection System
 Selects the best models based on requested classes to blur.
+
+This module can use either:
+1. The centralized Model Manager database (preferred, faster)
+2. Direct filesystem scanning (fallback)
+
+The Model Manager integration provides:
+- Faster model discovery (no need to load YOLO models)
+- Centralized model catalog
+- Consistent model information across all WAMA apps
 """
 
 import os
@@ -17,14 +26,67 @@ from .yolo_utils import get_model_path
 
 logger = logging.getLogger(__name__)
 
+# Flag to enable/disable Model Manager integration
+USE_MODEL_MANAGER_DB = True
+
 
 # Cache pour éviter de recharger les modèles à chaque fois
 _MODEL_CLASSES_CACHE: Dict[str, Dict[str, str]] = {}
+
+# Known classes for specialty ONNX models (when metadata extraction is not possible)
+# Maps specialty directory name to expected classes
+SPECIALTY_MODEL_CLASSES = {
+    'faces': {'0': 'face'},
+    'plates': {'0': 'plate'},
+    'faces&plates': {'0': 'face', '1': 'plate'},
+}
+
+# Class name aliases for flexible matching between user requests and model classes
+# Maps user-friendly names to all possible model class names
+CLASS_ALIASES = {
+    'plate': {'license_plate', 'license plate', 'licenseplate', 'plate', 'number_plate'},
+    'license_plate': {'plate', 'license plate', 'licenseplate', 'number_plate'},
+    'face': {'face', 'faces'},
+}
+
+
+def normalize_class_name(class_name: str) -> str:
+    """Normalize a class name for consistent comparison."""
+    return class_name.lower().replace(' ', '_').replace('-', '_')
+
+
+def classes_match(requested: str, model_class: str) -> bool:
+    """
+    Check if a requested class matches a model class, considering aliases.
+
+    Args:
+        requested: The class name requested by the user
+        model_class: The class name from the model
+
+    Returns:
+        True if they match (directly or via alias)
+    """
+    req_lower = normalize_class_name(requested)
+    model_lower = normalize_class_name(model_class)
+
+    # Direct match
+    if req_lower == model_lower:
+        return True
+
+    # Check aliases
+    req_aliases = CLASS_ALIASES.get(req_lower, {req_lower})
+    model_aliases = CLASS_ALIASES.get(model_lower, {model_lower})
+
+    # Match if model class is in requested aliases or vice versa
+    return model_lower in req_aliases or req_lower in model_aliases
 
 
 def get_model_classes(model_path: str) -> Dict[str, str]:
     """
     Extract class names from a YOLO model.
+
+    Supports both PyTorch (.pt) and ONNX (.onnx) formats.
+    For ONNX models in specialty directories (faces, plates), uses predefined class mapping.
 
     Args:
         model_path: Absolute path to the model file
@@ -37,6 +99,18 @@ def get_model_classes(model_path: str) -> Dict[str, str]:
     if model_path in _MODEL_CLASSES_CACHE:
         return _MODEL_CLASSES_CACHE[model_path]
 
+    model_path_lower = model_path.lower()
+    is_onnx = model_path_lower.endswith('.onnx')
+
+    # For ONNX models in specialty directories, use predefined classes
+    if is_onnx:
+        classes = _get_onnx_model_classes(model_path)
+        if classes:
+            _MODEL_CLASSES_CACHE[model_path] = classes
+            logger.info(f"Loaded {len(classes)} classes from ONNX model {os.path.basename(model_path)}")
+            return classes
+
+    # For PyTorch models, use ultralytics YOLO to extract classes
     try:
         model = YOLO(model_path)
         # Get class names from model
@@ -56,30 +130,160 @@ def get_model_classes(model_path: str) -> Dict[str, str]:
         return {}
 
 
-def scan_installed_models() -> Dict[str, Dict]:
+def _get_onnx_model_classes(model_path: str) -> Dict[str, str]:
     """
-    Scan all installed models and extract their available classes.
+    Get classes for an ONNX model.
+
+    First tries to extract from ONNX metadata, then falls back to specialty directory mapping.
+
+    Args:
+        model_path: Path to ONNX model file
+
+    Returns:
+        Dictionary mapping class IDs to class names, or empty dict if not found
+    """
+    # Try to determine specialty from path
+    path_parts = model_path.replace('\\', '/').split('/')
+
+    # Look for specialty directory in path (e.g., detect/faces/, detect/plates/)
+    for i, part in enumerate(path_parts):
+        if part in SPECIALTY_MODEL_CLASSES:
+            classes = SPECIALTY_MODEL_CLASSES[part]
+            logger.info(f"[ModelSelector] ONNX model in '{part}' directory: using predefined classes {list(classes.values())}")
+            return classes
+
+    # Try to extract from ONNX metadata
+    try:
+        import onnxruntime as ort
+
+        session = ort.InferenceSession(model_path, providers=['CPUExecutionProvider'])
+        metadata = session.get_modelmeta()
+
+        # Some ONNX models store class names in custom metadata
+        if metadata.custom_metadata_map:
+            # Look for names/classes in metadata
+            for key in ['names', 'classes', 'class_names']:
+                if key in metadata.custom_metadata_map:
+                    import json
+                    try:
+                        names_data = json.loads(metadata.custom_metadata_map[key])
+                        if isinstance(names_data, dict):
+                            return {str(k): v.lower() for k, v in names_data.items()}
+                        elif isinstance(names_data, list):
+                            return {str(i): v.lower() for i, v in enumerate(names_data)}
+                    except json.JSONDecodeError:
+                        pass
+
+        logger.debug(f"[ModelSelector] No class metadata found in ONNX model: {os.path.basename(model_path)}")
+
+    except ImportError:
+        logger.debug("[ModelSelector] onnxruntime not available for ONNX metadata extraction")
+    except Exception as e:
+        logger.debug(f"[ModelSelector] Could not extract ONNX metadata: {e}")
+
+    return {}
+
+
+def _get_models_from_model_manager_db() -> Optional[Dict[str, Dict]]:
+    """
+    Get Anonymizer models from the centralized Model Manager database.
+
+    This provides faster model discovery than scanning the filesystem,
+    as the Model Manager caches model information including classes.
+
+    Returns:
+        Dictionary of models or None if Model Manager is unavailable
+    """
+    if not USE_MODEL_MANAGER_DB:
+        return None
+
+    try:
+        from wama.model_manager.models import AIModel
+
+        # Query only Anonymizer YOLO models
+        db_models = AIModel.objects.filter(
+            source='anonymizer',
+            is_available=True,
+            is_downloaded=True
+        )
+
+        if not db_models.exists():
+            logger.debug("[ModelSelector] No models found in Model Manager DB, will use filesystem scan")
+            return None
+
+        models_info = {}
+
+        for db_model in db_models:
+            extra_info = db_model.extra_info or {}
+
+            # Skip non-YOLO models (e.g., SAM3)
+            if 'yolo' not in db_model.model_key.lower():
+                continue
+
+            model_path = extra_info.get('path') or db_model.local_path
+            if not model_path:
+                continue
+
+            # Get model identifier in Anonymizer format
+            model_id = extra_info.get('model_id')
+            if not model_id:
+                # Build from components
+                yolo_type = extra_info.get('yolo_type', 'detect')
+                specialty = extra_info.get('specialty')
+                if specialty:
+                    model_id = f"{yolo_type}/{specialty}/{db_model.name}"
+                else:
+                    model_id = f"{yolo_type}/{db_model.name}"
+
+            # Get classes - try from DB first, then load if needed
+            class_list = extra_info.get('class_list', [])
+
+            if not class_list:
+                # Classes not in DB, need to load them
+                classes = get_model_classes(model_path)
+                class_list = list(classes.values()) if classes else []
+            else:
+                # Build classes dict from list
+                classes = {str(i): c for i, c in enumerate(class_list)}
+
+            if not class_list:
+                # Still no classes, skip this model
+                continue
+
+            models_info[model_id] = {
+                'path': model_path,
+                'type': extra_info.get('yolo_type', 'detect'),
+                'specialty': extra_info.get('specialty'),
+                'name': db_model.name,
+                'classes': classes if classes else {str(i): c for i, c in enumerate(class_list)},
+                'class_list': class_list,
+                'official': False,  # Can be enhanced later
+                'from_db': True,  # Flag to indicate source
+            }
+
+        if models_info:
+            logger.info(f"[ModelSelector] Loaded {len(models_info)} models from Model Manager DB")
+            return models_info
+
+        return None
+
+    except ImportError:
+        logger.debug("[ModelSelector] Model Manager not available, using filesystem scan")
+        return None
+    except Exception as e:
+        logger.warning(f"[ModelSelector] Error reading from Model Manager DB: {e}")
+        return None
+
+
+def _scan_installed_models_filesystem() -> Dict[str, Dict]:
+    """
+    Scan installed models directly from the filesystem.
+
+    This is the fallback method when Model Manager DB is unavailable.
+    It loads each model to extract class information.
 
     Returns:
         Dictionary mapping model identifier to model info with classes
-        Example:
-        {
-            'detect/yolov8n.pt': {
-                'path': '/path/to/model',
-                'type': 'detect',
-                'specialty': None,
-                'name': 'yolov8n.pt',
-                'classes': {'0': 'person', '1': 'bicycle', ...},
-                'class_list': ['person', 'bicycle', ...]
-            },
-            'detect/faces/yolov9s-face-lindevs.pt': {
-                'path': '/path/to/model',
-                'type': 'detect',
-                'specialty': 'faces',
-                'name': 'yolov9s-face-lindevs.pt',
-                ...
-            }
-        }
     """
     installed = get_installed_models()
     models_info = {}
@@ -113,7 +317,49 @@ def scan_installed_models() -> Dict[str, Dict]:
                 'classes': classes,
                 'class_list': list(classes.values()),
                 'official': model_info.get('official', False),
+                'from_db': False,
             }
+
+    return models_info
+
+
+def scan_installed_models() -> Dict[str, Dict]:
+    """
+    Scan all installed models and extract their available classes.
+
+    Uses the centralized Model Manager database when available (faster),
+    falls back to direct filesystem scanning if DB is unavailable.
+
+    Returns:
+        Dictionary mapping model identifier to model info with classes
+        Example:
+        {
+            'detect/yolov8n.pt': {
+                'path': '/path/to/model',
+                'type': 'detect',
+                'specialty': None,
+                'name': 'yolov8n.pt',
+                'classes': {'0': 'person', '1': 'bicycle', ...},
+                'class_list': ['person', 'bicycle', ...]
+            },
+            'detect/faces/yolov9s-face-lindevs.pt': {
+                'path': '/path/to/model',
+                'type': 'detect',
+                'specialty': 'faces',
+                'name': 'yolov9s-face-lindevs.pt',
+                ...
+            }
+        }
+    """
+    # Try Model Manager DB first (faster)
+    models_info = _get_models_from_model_manager_db()
+
+    if models_info is not None and len(models_info) > 0:
+        return models_info
+
+    # Fallback to filesystem scan
+    logger.info("[ModelSelector] Using filesystem scan for model discovery")
+    models_info = _scan_installed_models_filesystem()
 
     return models_info
 
@@ -144,8 +390,11 @@ def find_models_for_classes(classes_to_blur: List[str],
         model_classes = model_info['class_list']
 
         for cls in classes_to_blur:
-            if cls in model_classes:
-                class_to_models[cls].append(model_id)
+            # Check if any model class matches the requested class (with alias support)
+            for model_cls in model_classes:
+                if classes_match(cls, model_cls):
+                    class_to_models[cls].append(model_id)
+                    break  # Found a match, no need to check other model classes
 
     return class_to_models
 
@@ -340,8 +589,8 @@ def should_use_segmentation(precision_level: int) -> bool:
     Returns:
         True if segmentation should be used
     """
-    # Use segmentation for precision levels above 65
-    return precision_level >= 65
+    # Use segmentation for precision levels at or above 50 (balanced and higher)
+    return precision_level >= 50
 
 
 def select_model_by_precision(classes_to_blur: List[str],
@@ -505,3 +754,265 @@ def get_model_selection_info(classes_to_blur: List[str],
             'unsupported_classes': selection['unsupported_classes'],
             'recommendations': selection['recommendations'],
         }
+
+
+# =============================================================================
+# PARALLEL DETECTION - Multi-model selection with precision awareness
+# =============================================================================
+
+# Specialty classes that have dedicated detection models
+SPECIALTY_CLASSES = {'face', 'plate', 'license plate', 'license_plate'}
+
+
+def select_best_models_by_precision(classes_to_blur: List[str],
+                                     precision_level: int = 50) -> Dict:
+    """
+    Select the best models considering precision level for parallel detection.
+
+    This function determines which models are needed to cover all requested classes,
+    potentially returning multiple models when specialty classes (face, plate) are
+    mixed with COCO classes.
+
+    For high precision (>=65), prefers segmentation models when available.
+    Groups classes by model capability and returns multiple models if needed.
+
+    Args:
+        classes_to_blur: List of class names to detect (e.g., ['face', 'person', 'car'])
+        precision_level: 0=Quick, 50=Balanced, 100=Precise
+
+    Returns:
+        {
+            'models_to_use': [
+                {'id': 'segment/yolo11m-seg.pt', 'path': '...', 'classes': ['person', 'car']},
+                {'id': 'detect/faces/yolov9s-face.pt', 'path': '...', 'classes': ['face']},
+            ],
+            'unsupported_classes': [...],
+            'coverage': 1.0,
+        }
+    """
+    if not classes_to_blur:
+        return {
+            'models_to_use': [],
+            'coverage': 0,
+            'unsupported_classes': [],
+        }
+
+    # Determine preferences based on precision level
+    model_size = get_model_size_from_precision(precision_level)
+    prefer_segmentation = should_use_segmentation(precision_level)
+    prefer_small = model_size in ['n', 's']
+
+    # Scan available models
+    installed_models = scan_installed_models()
+
+    # Normalize classes to lowercase
+    classes_lower = [c.lower() for c in classes_to_blur]
+
+    # Separate specialty classes (face, plate) from COCO classes
+    specialty_classes = [c for c in classes_lower if c in SPECIALTY_CLASSES]
+    coco_classes = [c for c in classes_lower if c not in SPECIALTY_CLASSES]
+
+    models_to_use = []
+    covered_classes = set()
+
+    # 1. Handle specialty classes with dedicated models
+    for specialty in specialty_classes:
+        model_id = _find_specialty_model(specialty, installed_models, model_size)
+        if model_id:
+            model_info = installed_models[model_id]
+            models_to_use.append({
+                'id': model_id,
+                'path': model_info['path'],
+                'name': model_info['name'],
+                'type': model_info['type'],
+                'classes': [specialty],
+            })
+            covered_classes.add(specialty)
+        else:
+            logger.warning(f"[ModelSelector] No specialty model found for: {specialty}")
+
+    # 2. Handle COCO classes with general model
+    remaining_coco = [c for c in coco_classes if c not in covered_classes]
+    if remaining_coco:
+        model_id = _find_coco_model(remaining_coco, installed_models,
+                                     prefer_segmentation, model_size)
+        if model_id:
+            model_info = installed_models[model_id]
+            supported = [c for c in remaining_coco if c in model_info['class_list']]
+            if supported:
+                models_to_use.append({
+                    'id': model_id,
+                    'path': model_info['path'],
+                    'name': model_info['name'],
+                    'type': model_info['type'],
+                    'classes': supported,
+                })
+                covered_classes.update(supported)
+        else:
+            logger.warning(f"[ModelSelector] No COCO model found for: {remaining_coco}")
+
+    # Calculate coverage
+    unsupported = [c for c in classes_lower if c not in covered_classes]
+    coverage = len(covered_classes) / len(classes_lower) if classes_lower else 0
+
+    logger.info(f"[ModelSelector] Selected {len(models_to_use)} model(s) for {len(classes_lower)} classes "
+                f"(coverage: {coverage:.0%}, precision: {precision_level})")
+
+    return {
+        'models_to_use': models_to_use,
+        'unsupported_classes': unsupported,
+        'coverage': coverage,
+    }
+
+
+def _find_specialty_model(specialty_class: str, installed: Dict,
+                           model_size: str) -> Optional[str]:
+    """
+    Find the best specialty model for a given class (face, plate).
+
+    Specialty models are stored in subdirectories like detect/faces/, detect/plates/.
+
+    Args:
+        specialty_class: The specialty class name ('face', 'plate')
+        installed: Dict of installed models from scan_installed_models()
+        model_size: Preferred model size ('n', 's', 'm', 'l', 'x')
+
+    Returns:
+        Model identifier or None if not found
+    """
+    # Map class names to specialty directories
+    specialty_dirs = {
+        'face': ['faces', 'faces&plates'],
+        'plate': ['plates', 'faces&plates'],
+        'license plate': ['plates', 'faces&plates'],
+        'license_plate': ['plates', 'faces&plates'],
+    }
+
+    target_dirs = specialty_dirs.get(specialty_class, [])
+
+    candidates = []
+
+    for model_id, model_info in installed.items():
+        # Check if this is a specialty model
+        if not model_info.get('specialty'):
+            continue
+
+        specialty = model_info['specialty']
+
+        # Check if this specialty matches what we need
+        if specialty not in target_dirs:
+            continue
+
+        # Check if model supports the class (with alias support)
+        model_supports_class = any(
+            classes_match(specialty_class, model_cls)
+            for model_cls in model_info['class_list']
+        )
+        if not model_supports_class:
+            continue
+
+        # Score this candidate
+        score = 0
+
+        # Prefer models matching the requested size
+        model_name = model_info['name'].lower()
+        if model_size in model_name:
+            score += 5
+
+        # Prefer larger models for higher precision
+        if 'x' in model_name:
+            score += 1
+        elif 'l' in model_name:
+            score += 2
+        elif 'm' in model_name:
+            score += 3
+        elif 's' in model_name:
+            score += 4
+        elif 'n' in model_name:
+            score += 5
+
+        # Prefer models that specialize in just this class (faces/ over faces&plates/)
+        if len(target_dirs) > 0 and specialty == target_dirs[0]:
+            score += 2
+
+        candidates.append((model_id, score))
+
+    if candidates:
+        # Sort by score (higher is better)
+        candidates.sort(key=lambda x: x[1], reverse=True)
+        return candidates[0][0]
+
+    return None
+
+
+def _find_coco_model(classes: List[str], installed: Dict,
+                      prefer_seg: bool, model_size: str) -> Optional[str]:
+    """
+    Find the best model for COCO classes.
+
+    Prefers segmentation models if prefer_seg is True and they're available.
+    Prefers YOLO11 over YOLOv8.
+
+    Args:
+        classes: List of COCO class names to detect
+        installed: Dict of installed models
+        prefer_seg: Whether to prefer segmentation models
+        model_size: Preferred model size ('n', 's', 'm', 'l', 'x')
+
+    Returns:
+        Model identifier or None if not found
+    """
+    candidates = []
+
+    for model_id, model_info in installed.items():
+        # Skip specialty models for COCO classes
+        if model_info.get('specialty'):
+            continue
+
+        model_classes = model_info['class_list']
+
+        # Check if model covers all requested classes (with alias support)
+        all_covered = True
+        for requested_cls in classes:
+            if not any(classes_match(requested_cls, model_cls) for model_cls in model_classes):
+                all_covered = False
+                break
+        if not all_covered:
+            continue
+
+        score = 0
+        model_name = model_info['name'].lower()
+        model_type = model_info['type']
+
+        # Prefer segmentation if requested
+        if prefer_seg:
+            if model_type == 'segment':
+                score += 20
+            else:
+                score += 0  # Detection model when segmentation preferred
+        else:
+            if model_type == 'detect':
+                score += 10
+
+        # Prefer models matching the requested size
+        if model_size in model_name:
+            score += 10
+
+        # Prefer YOLO11 over YOLOv8
+        if 'yolo11' in model_name:
+            score += 5
+        elif 'yolov8' in model_name:
+            score += 3
+
+        # Prefer official models
+        if model_info.get('official'):
+            score += 2
+
+        candidates.append((model_id, score))
+
+    if candidates:
+        # Sort by score (higher is better)
+        candidates.sort(key=lambda x: x[1], reverse=True)
+        return candidates[0][0]
+
+    return None

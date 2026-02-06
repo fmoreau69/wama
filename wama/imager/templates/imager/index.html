@@ -1253,10 +1253,39 @@
 <script src="{% static 'common/js/media-preview.js' %}"></script>
 <script>
     /**
-     * Open image preview in modal
+     * Open image preview in modal with prev/next navigation.
+     * Collects all visible generated images on the page.
      */
     function openImagePreview(url, name) {
-        if (typeof showPreviewModal === 'function') {
+        if (typeof showPreviewModalWithNav === 'function') {
+            // Collect all generated images on the page
+            const allImages = document.querySelectorAll('.generated-image-preview img');
+            const items = [];
+            let currentIndex = 0;
+
+            allImages.forEach(function(img, i) {
+                items.push({
+                    url: img.src,
+                    name: img.alt || 'Image générée',
+                    mime_type: 'image/png'
+                });
+                // Match by URL (normalize both for comparison)
+                if (img.src === url || img.src.endsWith(url) || url.endsWith(new URL(img.src).pathname)) {
+                    currentIndex = i;
+                }
+            });
+
+            if (items.length > 0) {
+                showPreviewModalWithNav(items[currentIndex], items, currentIndex);
+            } else {
+                // Fallback: single image, no navigation
+                showPreviewModalWithNav({
+                    url: url,
+                    name: name || 'Image générée',
+                    mime_type: 'image/png'
+                }, [], -1);
+            }
+        } else if (typeof showPreviewModal === 'function') {
             showPreviewModal({
                 url: url,
                 name: name || 'Image générée',

@@ -941,15 +941,21 @@ def api_models_db(request):
 def api_sync_models(request):
     """
     API: Trigger a manual model sync.
+
+    Request body options:
+        clean: bool - Mark missing models as unavailable (legacy)
+        delete_missing: bool - Delete models that no longer exist on disk (default: True)
     """
     from .services.model_sync import get_sync_service
 
     try:
         data = json.loads(request.body) if request.body else {}
         clean = data.get('clean', False)
+        # Delete missing models by default to avoid orphaned entries after rename/delete
+        delete_missing = data.get('delete_missing', True)
 
         sync_service = get_sync_service()
-        result = sync_service.full_sync(remove_missing=clean)
+        result = sync_service.full_sync(remove_missing=clean, delete_missing=delete_missing)
 
         return JsonResponse({
             'success': result.success,

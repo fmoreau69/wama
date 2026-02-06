@@ -411,6 +411,27 @@ class ModelRegistry:
                     logger.debug(f"[ModelRegistry] YOLO {model_name}: format={model_format}, preferred={preferred}")
                     convert_options = self._get_conversion_options(model_format, ModelType.VISION)
 
+                    # Build model identifier matching the Anonymizer's model_selector format
+                    # Format: {type}/{specialty}/{name} or {type}/{name}
+                    if specialty:
+                        model_id = f"{model_type}/{specialty}/{model_name}"
+                    else:
+                        model_id = f"{model_type}/{model_name}"
+
+                    # Extra info with all details needed by Anonymizer's model_selector
+                    extra_info = {
+                        'path': model_path,
+                        'yolo_type': model_type,  # detect, segment, pose, etc.
+                        'specialty': specialty or None,  # faces, plates, faces&plates, or None
+                        'size_bytes': model.get('size', 0),
+                        'model_id': model_id,  # Anonymizer-style model identifier
+                    }
+
+                    # Try to get class list for the model (cached for performance)
+                    class_list = self._get_yolo_model_classes(model_path, specialty)
+                    if class_list:
+                        extra_info['class_list'] = class_list
+
                     self._models[f"anonymizer:yolo:{model_name}"] = ModelInfo(
                         id=f"anonymizer:yolo:{model_name}",
                         name=model_name,
@@ -419,7 +440,7 @@ class ModelRegistry:
                         description=desc,
                         vram_gb=round(size_gb * 2, 1),  # Estimate VRAM as 2x model size
                         is_downloaded=True,
-                        extra_info={'path': model_path, 'type': model_type},
+                        extra_info=extra_info,
                         backend_ref='anonymizer',
                         format=model_format,
                         preferred_format=preferred,
@@ -810,6 +831,76 @@ class ModelRegistry:
             'total': total,
             'percentage': round((compliant / total * 100) if total > 0 else 100, 1),
         }
+
+    # Cache for YOLO model classes to avoid reloading models
+    _yolo_classes_cache: Dict[str, List[str]] = {}
+
+    # Known classes for specialty models (when YOLO loading is slow/unavailable)
+    SPECIALTY_KNOWN_CLASSES = {
+        'faces': ['face'],
+        'plates': ['plate', 'license_plate'],
+        'faces&plates': ['face', 'plate'],
+    }
+
+    def _get_yolo_model_classes(self, model_path: str, specialty: str = None) -> List[str]:
+        """
+        Get the class list for a YOLO model.
+
+        Uses a cache to avoid repeatedly loading models. For specialty models,
+        uses known class mappings when available.
+
+        Args:
+            model_path: Path to the YOLO model file
+            specialty: Specialty directory name (faces, plates, etc.)
+
+        Returns:
+            List of class names the model supports, or empty list if unknown
+        """
+        if not model_path:
+            return []
+
+        # Check cache first
+        if model_path in self._yolo_classes_cache:
+            return self._yolo_classes_cache[model_path]
+
+        # For specialty models, use known classes (fast path)
+        if specialty and specialty in self.SPECIALTY_KNOWN_CLASSES:
+            classes = self.SPECIALTY_KNOWN_CLASSES[specialty]
+            self._yolo_classes_cache[model_path] = classes
+            return classes
+
+        # Try to load classes from model (slower, but accurate)
+        try:
+            # For ONNX models, try to get classes from path-based inference
+            if model_path.lower().endswith('.onnx'):
+                # Check specialty from path
+                path_lower = model_path.lower().replace('\\', '/')
+                for spec, classes in self.SPECIALTY_KNOWN_CLASSES.items():
+                    if f'/{spec}/' in path_lower:
+                        self._yolo_classes_cache[model_path] = classes
+                        return classes
+                # Unknown ONNX model, return empty (will be filled by Anonymizer)
+                return []
+
+            # For PyTorch models, load via YOLO
+            from ultralytics import YOLO
+            model = YOLO(model_path)
+
+            # Get class names
+            if hasattr(model, 'names') and model.names:
+                classes = [str(v).lower() for v in model.names.values()]
+            elif hasattr(model.model, 'names'):
+                classes = [str(v).lower() for v in model.model.names.values()]
+            else:
+                classes = []
+
+            self._yolo_classes_cache[model_path] = classes
+            logger.debug(f"[ModelRegistry] Loaded {len(classes)} classes from {Path(model_path).name}")
+            return classes
+
+        except Exception as e:
+            logger.debug(f"[ModelRegistry] Could not load classes from {model_path}: {e}")
+            return []
 
     def _detect_model_format(self, model_path: Optional[str]) -> str:
         """

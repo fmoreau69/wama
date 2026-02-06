@@ -277,33 +277,26 @@ class WanVideoBackend(ImageGenerationBackend):
                 torch.cuda.empty_cache()
                 gc.collect()
 
-            # Determine strategy based on VRAM:
-            # - 48GB+: Full GPU (A100 80GB, etc.)
-            # - 32-48GB: Model CPU offload (A100 40GB, etc.)
-            # - 24-32GB: Sequential CPU offload (RTX 4090, 3090 - T5 encoder can OOM)
-            # - <24GB: Sequential CPU offload required
-            if self._device == "cuda" and vram_gb >= 48:
-                logger.info(f"[Wan] High VRAM ({vram_gb:.1f}GB >= 48GB), using full GPU...")
-                self._pipe_t2v = self._pipe_t2v.to(self._device)
-                logger.info(f"[Wan] Pipeline moved to {self._device}")
-            elif self._device == "cuda" and vram_gb >= 32:
-                # For 32-48GB GPUs, use regular CPU offload
-                logger.info(f"[Wan] VRAM ({vram_gb:.1f}GB) - using model CPU offload...")
-                self._pipe_t2v.enable_model_cpu_offload()
-                logger.info("[Wan] Model CPU offload enabled")
-            elif self._device == "cuda":
-                # For 24-32GB GPUs (RTX 4090, 3090), use SEQUENTIAL CPU offload
-                # This is more aggressive - offloads at layer level, not component level
-                # Required because T5 encoder alone is ~5GB and can OOM with regular offload
-                logger.info(f"[Wan] VRAM ({vram_gb:.1f}GB < 32GB) - using sequential CPU offload...")
-                logger.info("[Wan] Sequential offload moves individual layers to GPU as needed")
-                logger.info("[Wan] This is slower but prevents OOM during T5 encoding")
-                self._pipe_t2v.enable_sequential_cpu_offload()
-                logger.info("[Wan] Sequential CPU offload enabled")
-            else:
-                logger.info(f"[Wan] Moving pipeline to {self._device}...")
-                self._pipe_t2v = self._pipe_t2v.to(self._device)
-                logger.info(f"[Wan] Pipeline moved to {self._device}")
+            # Use centralized MemoryManager for optimal memory strategy
+            try:
+                from wama.model_manager.services.memory_manager import MemoryManager
+                self._pipe_t2v = MemoryManager.apply_strategy_for_model(
+                    pipeline=self._pipe_t2v,
+                    model_type='wan-t2v',
+                    device=self._device,
+                    headroom_gb=4.0  # Video generation needs more headroom
+                )
+            except ImportError:
+                # Fallback: use original VRAM-based logic
+                logger.warning("[Wan] MemoryManager not available, using built-in VRAM logic")
+                if self._device == "cuda" and vram_gb >= 48:
+                    self._pipe_t2v = self._pipe_t2v.to(self._device)
+                elif self._device == "cuda" and vram_gb >= 32:
+                    self._pipe_t2v.enable_model_cpu_offload()
+                elif self._device == "cuda":
+                    self._pipe_t2v.enable_sequential_cpu_offload()
+                else:
+                    self._pipe_t2v = self._pipe_t2v.to(self._device)
 
             # Enable memory optimizations regardless of offload mode
             try:
@@ -371,44 +364,34 @@ class WanVideoBackend(ImageGenerationBackend):
             )
             logger.info("[Wan I2V] Pipeline loaded")
 
-            # Enable offloading for low VRAM (I2V 14B needs ~28GB in bfloat16)
-            vram_gb = self._get_vram_gb()
-            logger.info(f"[Wan I2V] Detected VRAM: {vram_gb:.1f}GB")
+            # Use centralized MemoryManager for optimal memory strategy
+            try:
+                from wama.model_manager.services.memory_manager import MemoryManager
+                self._pipe_i2v = MemoryManager.apply_strategy_for_model(
+                    pipeline=self._pipe_i2v,
+                    model_type='wan-i2v',
+                    device=self._device,
+                    headroom_gb=4.0  # I2V needs extra headroom for image processing
+                )
+            except ImportError:
+                # Fallback: use original VRAM-based logic
+                vram_gb = self._get_vram_gb()
+                logger.warning("[Wan I2V] MemoryManager not available, using built-in VRAM logic")
+                if self._device == "cuda" and vram_gb >= 32:
+                    self._pipe_i2v = self._pipe_i2v.to(self._device)
+                elif self._device == "cuda" and vram_gb >= 20:
+                    self._pipe_i2v.enable_model_cpu_offload()
+                elif self._device == "cuda":
+                    self._pipe_i2v.enable_sequential_cpu_offload()
+                else:
+                    self._pipe_i2v = self._pipe_i2v.to(self._device)
 
-            # I2V 14B needs ~28GB VRAM (14B params * 2 bytes for bfloat16)
-            # RTX 4090 (24GB) needs CPU offload, but RTX 3090 Ti / A100 can run fully
-            if self._device == "cuda" and vram_gb >= 32:
-                # Enough VRAM for full model
-                logger.info(f"[Wan I2V] Sufficient VRAM ({vram_gb:.1f}GB >= 32GB), using full GPU...")
-                self._pipe_i2v = self._pipe_i2v.to(self._device)
-                try:
-                    self._pipe_i2v.enable_vae_tiling()
-                    logger.info("[Wan I2V] VAE tiling enabled")
-                except Exception:
-                    pass
-                logger.info(f"[Wan I2V] Pipeline moved to {self._device}")
-            elif self._device == "cuda" and vram_gb >= 20:
-                # 20-32GB: Use model CPU offload (moves modules to GPU only when needed)
-                logger.info(f"[Wan I2V] VRAM ({vram_gb:.1f}GB) - using smart CPU offload...")
-                logger.info("[Wan I2V] Note: I2V 14B (~28GB) is larger than your VRAM")
-                logger.info("[Wan I2V] Generation will be slower due to CPU<->GPU transfers")
-                self._pipe_i2v.enable_model_cpu_offload()
-                try:
-                    self._pipe_i2v.enable_vae_tiling()
-                    logger.info("[Wan I2V] VAE tiling enabled")
-                except Exception:
-                    pass
-                logger.info("[Wan I2V] CPU offload enabled")
-            elif self._device == "cuda":
-                # <20GB: Use sequential CPU offload (more aggressive, slower but less VRAM)
-                logger.info(f"[Wan I2V] Low VRAM ({vram_gb:.1f}GB < 20GB), using sequential CPU offload...")
-                logger.warning("[Wan I2V] ⚠ I2V on low VRAM will be VERY slow. Consider using T2V instead.")
-                self._pipe_i2v.enable_sequential_cpu_offload()
-                logger.info("[Wan I2V] Sequential CPU offload enabled")
-            else:
-                logger.info(f"[Wan I2V] Moving pipeline to {self._device}...")
-                self._pipe_i2v = self._pipe_i2v.to(self._device)
-                logger.info(f"[Wan I2V] Pipeline moved to {self._device}")
+            # Enable VAE tiling for I2V
+            try:
+                self._pipe_i2v.enable_vae_tiling()
+                logger.info("[Wan I2V] VAE tiling enabled")
+            except Exception:
+                pass
 
             logger.info("[Wan I2V] ✓ I2V pipeline loaded successfully")
             return True

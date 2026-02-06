@@ -486,7 +486,21 @@
                     <option value="needs-conversion">Needs Conversion</option>
                 </select>
             </div>
-            <div class="col-auto ms-auto">
+            <div class="col-auto">
+                <div class="input-group input-group-sm" style="width: 220px;">
+                    <span class="input-group-text bg-dark border-secondary">
+                        <i class="fas fa-search text-muted"></i>
+                    </span>
+                    <input type="text" class="form-control bg-dark border-secondary text-light"
+                           id="search-input" placeholder="Search models..."
+                           style="font-size: 0.85rem;">
+                    <button class="btn btn-outline-secondary" type="button" id="search-clear"
+                            title="Clear search" style="display: none;">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="col-auto">
                 <div class="form-check">
                     <input class="form-check-input model-checkbox" type="checkbox" id="select-all-visible">
                     <label class="form-check-label text-muted small" for="select-all-visible">Select All</label>
@@ -684,7 +698,10 @@ document.addEventListener('DOMContentLoaded', function() {
                  data-loaded="${model.is_loaded}"
                  data-downloaded="${model.is_downloaded}"
                  data-needs-conversion="${needsConversion(model)}"
-                 data-model-id="${model.id}">
+                 data-model-id="${model.id}"
+                 data-name="${(model.name || '').replace(/"/g, '&quot;')}"
+                 data-description="${(model.description || '').replace(/"/g, '&quot;')}"
+                 data-model-key="${(model.model_key || '').replace(/"/g, '&quot;')}">
                 <div class="model-card ${model.is_loaded ? 'loaded' : (model.is_downloaded ? 'downloaded' : 'not-downloaded')} ${selectedModels.has(model.id) ? 'selected' : ''}">
                     <div class="d-flex justify-content-between align-items-start mb-2">
                         <div class="d-flex align-items-center">
@@ -826,14 +843,32 @@ document.addEventListener('DOMContentLoaded', function() {
         const sourceFilter = document.getElementById('filter-source').value;
         const formatFilter = document.getElementById('filter-format').value;
         const statusFilter = document.getElementById('filter-status').value;
+        const searchQuery = document.getElementById('search-input').value.toLowerCase().trim();
+
+        // Show/hide clear button based on search query
+        const clearBtn = document.getElementById('search-clear');
+        clearBtn.style.display = searchQuery ? 'block' : 'none';
 
         let visibleCount = 0;
 
         document.querySelectorAll('.model-item').forEach(item => {
             let visible = true;
 
+            // Search filter - check name, description, and model_key
+            if (searchQuery) {
+                const name = (item.dataset.name || '').toLowerCase();
+                const description = (item.dataset.description || '').toLowerCase();
+                const modelKey = (item.dataset.modelKey || '').toLowerCase();
+
+                if (!name.includes(searchQuery) &&
+                    !description.includes(searchQuery) &&
+                    !modelKey.includes(searchQuery)) {
+                    visible = false;
+                }
+            }
+
             // Type filter
-            if (typeFilter !== 'all' && item.dataset.type !== typeFilter) {
+            if (visible && typeFilter !== 'all' && item.dataset.type !== typeFilter) {
                 visible = false;
             }
 
@@ -873,6 +908,20 @@ document.addEventListener('DOMContentLoaded', function() {
     // Attach filter event listeners
     ['filter-type', 'filter-source', 'filter-format', 'filter-status'].forEach(id => {
         document.getElementById(id).addEventListener('change', applyFilters);
+    });
+
+    // Search input - apply filters on typing with debounce
+    let searchTimeout;
+    document.getElementById('search-input').addEventListener('input', function() {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(applyFilters, 200);
+    });
+
+    // Clear search button
+    document.getElementById('search-clear').addEventListener('click', function() {
+        document.getElementById('search-input').value = '';
+        this.style.display = 'none';
+        applyFilters();
     });
 
     // =========================================================================
