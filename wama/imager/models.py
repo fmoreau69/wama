@@ -76,7 +76,7 @@ MODEL_RESOLUTION_CONFIG = {
         "default": "512x512",
         "recommended": ["512x512", "768x768", "896x512", "512x896"],
     },
-    "deliberate-v2": {
+    "deliberate-v6": {
         "min_size": 256,
         "max_size": 768,
         "default": "512x512",

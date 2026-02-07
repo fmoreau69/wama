@@ -514,6 +514,62 @@ class MemoryManager:
                 logger.error(f"[MemoryManager] Last resort also failed: {e2}")
             return pipeline
 
+    # =========================================================================
+    # Pipeline Loading (centralized format handling)
+    # =========================================================================
+
+    @staticmethod
+    def load_pipeline(pipeline_class, model_id: str, **kwargs):
+        """
+        Load a Diffusers pipeline with automatic safetensors-to-bin fallback.
+
+        Centralizes format handling so backends don't duplicate this logic.
+        Tries safetensors first (faster, safer), falls back to .bin if unavailable.
+
+        Args:
+            pipeline_class: The Diffusers pipeline class (e.g., StableDiffusionPipeline)
+            model_id: HuggingFace model ID or local path
+            **kwargs: Additional arguments passed to from_pretrained()
+
+        Returns:
+            The loaded pipeline instance
+        """
+        try:
+            return pipeline_class.from_pretrained(model_id, **kwargs)
+        except EnvironmentError as e:
+            if kwargs.get('use_safetensors', False):
+                logger.warning(
+                    f"[MemoryManager] No safetensors weights found for {model_id}, "
+                    f"falling back to PyTorch .bin format"
+                )
+                kwargs['use_safetensors'] = False
+                return pipeline_class.from_pretrained(model_id, **kwargs)
+            raise
+
+    @staticmethod
+    def load_single_file_pipeline(pipeline_class, repo_id: str, filename: str, cache_dir: str = None, **kwargs):
+        """
+        Load a Diffusers pipeline from a single safetensors/ckpt file on HuggingFace.
+
+        Used for models that are distributed as single checkpoint files
+        (e.g., XpucT/Deliberate) rather than in diffusers multi-folder format.
+
+        Args:
+            pipeline_class: The Diffusers pipeline class (e.g., StableDiffusionPipeline)
+            repo_id: HuggingFace repo ID (e.g., 'XpucT/Deliberate')
+            filename: Weight file name (e.g., 'Deliberate_v6.safetensors')
+            cache_dir: Optional cache directory for downloaded files
+            **kwargs: Additional arguments passed to from_single_file()
+
+        Returns:
+            The loaded pipeline instance
+        """
+        # Build HuggingFace URL for from_single_file
+        hf_url = f"https://huggingface.co/{repo_id}/blob/main/{filename}"
+        logger.info(f"[MemoryManager] Loading single-file model: {repo_id}/{filename}")
+
+        return pipeline_class.from_single_file(hf_url, **kwargs)
+
     @staticmethod
     def apply_strategy_for_model(
         pipeline,

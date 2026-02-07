@@ -1220,14 +1220,26 @@
         }
 
         // Show/hide error message
-        const errorEl = card.querySelector('.text-danger');
-        if (data.error_message && !errorEl) {
-            const statusCol = card.querySelector('.col-md-3');
-            if (statusCol) {
-                const errorHtml = `<small class="text-danger d-block mt-1">
-                    <i class="fas fa-exclamation-triangle"></i> ${data.error_message.substring(0, 50)}
-                </small>`;
-                statusCol.insertAdjacentHTML('beforeend', errorHtml);
+        if (data.error_message && data.status === 'FAILURE') {
+            // Show error: update existing or create new
+            let errorSmall = card.querySelector('small.text-danger');
+            if (errorSmall) {
+                errorSmall.innerHTML = `<i class="fas fa-exclamation-triangle"></i> ${data.error_message.substring(0, 50)}`;
+            }
+            // Also update Django-rendered alert if present
+            const alertEl = card.querySelector('.alert-danger');
+            if (alertEl) {
+                alertEl.innerHTML = `<i class="fas fa-exclamation-triangle"></i> ${data.error_message}`;
+            }
+        } else {
+            // Clear errors when status is not FAILURE or no error message
+            const errorSmall = card.querySelector('small.text-danger');
+            if (errorSmall) errorSmall.remove();
+            // Remove Django-rendered error alert row
+            const alertEl = card.querySelector('.alert-danger');
+            if (alertEl) {
+                const alertRow = alertEl.closest('.row');
+                if (alertRow) alertRow.remove();
             }
         }
 
@@ -1340,6 +1352,46 @@
                 // Populate modal with data
                 document.getElementById('modal_gen_id').textContent = data.id;
                 document.getElementById('settings_gen_id').value = data.id;
+
+                // Mode display
+                const modeLabels = {
+                    'txt2img': 'Text to Image',
+                    'file2img': 'File to Image',
+                    'describe2img': 'Describe to Image',
+                    'style2img': 'Style Transfer',
+                    'img2img': 'Image to Image',
+                };
+                const modeBadge = document.getElementById('settings_mode_badge');
+                modeBadge.textContent = modeLabels[data.generation_mode] || data.generation_mode;
+
+                // Reference image
+                const refCol = document.getElementById('settings_reference_col');
+                const refImg = document.getElementById('settings_reference_img');
+                const strengthCol = document.getElementById('settings_strength_col');
+                const hasRef = data.reference_image_url && ['img2img', 'style2img', 'describe2img'].includes(data.generation_mode);
+                refCol.style.display = hasRef ? '' : 'none';
+                if (hasRef) {
+                    refImg.src = data.reference_image_url;
+                }
+
+                // Image strength (for img2img/style2img)
+                const hasStrength = ['img2img', 'style2img'].includes(data.generation_mode);
+                strengthCol.style.display = hasStrength ? '' : 'none';
+                if (hasStrength) {
+                    const strengthEl = document.getElementById('settings_image_strength');
+                    strengthEl.value = data.image_strength || 0.75;
+                    document.getElementById('settings_strength_value').textContent = strengthEl.value;
+                }
+
+                // Auto-generated prompt (describe2img)
+                const autoPromptRow = document.getElementById('settings_auto_prompt_row');
+                if (data.generation_mode === 'describe2img' && data.auto_prompt) {
+                    autoPromptRow.style.display = '';
+                    document.getElementById('settings_auto_prompt').textContent = data.auto_prompt;
+                } else {
+                    autoPromptRow.style.display = 'none';
+                }
+
                 document.getElementById('settings_prompt').value = data.prompt || '';
                 document.getElementById('settings_negative_prompt').value = data.negative_prompt || '';
                 document.getElementById('settings_model').value = data.model || '';
@@ -1423,6 +1475,12 @@
         formData.append('num_images', document.getElementById('settings_num_images').value);
         formData.append('upscale', document.getElementById('settings_upscale').checked ? 'true' : 'false');
 
+        // Image strength (only sent if the control is visible)
+        const strengthCol = document.getElementById('settings_strength_col');
+        if (strengthCol && strengthCol.style.display !== 'none') {
+            formData.append('image_strength', document.getElementById('settings_image_strength').value);
+        }
+
         fetch(url, {
             method: 'POST',
             headers: {
@@ -1473,6 +1531,24 @@
                 // Populate modal with data
                 document.getElementById('video_modal_gen_id').textContent = data.id;
                 document.getElementById('video_settings_gen_id').value = data.id;
+
+                // Mode display
+                const videoModeLabels = {
+                    'txt2vid': 'Text to Video',
+                    'img2vid': 'Image to Video',
+                };
+                const videoModeBadge = document.getElementById('video_settings_mode_badge');
+                videoModeBadge.textContent = videoModeLabels[data.generation_mode] || data.generation_mode;
+
+                // Reference image (for img2vid)
+                const videoRefCol = document.getElementById('video_settings_reference_col');
+                const videoRefImg = document.getElementById('video_settings_reference_img');
+                const hasVideoRef = data.reference_image_url && data.generation_mode === 'img2vid';
+                videoRefCol.style.display = hasVideoRef ? '' : 'none';
+                if (hasVideoRef) {
+                    videoRefImg.src = data.reference_image_url;
+                }
+
                 document.getElementById('video_settings_prompt').value = data.prompt || '';
                 document.getElementById('video_settings_negative_prompt').value = data.negative_prompt || '';
                 document.getElementById('video_settings_model').value = data.model || 'wan-t2v-1.3b';

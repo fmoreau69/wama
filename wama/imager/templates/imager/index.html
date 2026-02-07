@@ -957,6 +957,40 @@
                 <form id="settingsForm">
                     <input type="hidden" id="settings_gen_id" name="generation_id">
 
+                    <!-- Mode + Reference Image -->
+                    <div class="row mb-3" id="settings_mode_row">
+                        <div class="col-md-4">
+                            <label class="form-label">Mode</label>
+                            <div>
+                                <span class="badge bg-info fs-6" id="settings_mode_badge"></span>
+                            </div>
+                        </div>
+                        <div class="col-md-8" id="settings_reference_col" style="display: none;">
+                            <label class="form-label">Image de référence</label>
+                            <div class="d-flex align-items-start gap-3">
+                                <img id="settings_reference_img" src="" alt="Référence"
+                                     class="img-thumbnail bg-dark border-secondary"
+                                     style="max-height: 120px; max-width: 180px; object-fit: contain; cursor: pointer;"
+                                     onclick="if(this.src) openImagePreview(this.src, 'Image de référence')">
+                                <div class="flex-grow-1" id="settings_strength_col" style="display: none;">
+                                    <label for="settings_image_strength" class="form-label">
+                                        Influence : <span id="settings_strength_value">0.75</span>
+                                    </label>
+                                    <input type="range" class="form-range" id="settings_image_strength" name="image_strength"
+                                           min="0" max="1" step="0.05" value="0.75"
+                                           oninput="document.getElementById('settings_strength_value').textContent = this.value">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Auto-generated prompt (describe2img) -->
+                    <div class="mb-3" id="settings_auto_prompt_row" style="display: none;">
+                        <label class="form-label">Prompt auto-généré</label>
+                        <div class="form-control bg-dark text-white-50 border-secondary" id="settings_auto_prompt"
+                             style="min-height: 40px; font-style: italic; font-size: 0.9rem;"></div>
+                    </div>
+
                     <!-- Prompt -->
                     <div class="mb-3">
                         <label for="settings_prompt" class="form-label">Prompt</label>
@@ -1113,6 +1147,23 @@
             <div class="modal-body">
                 <form id="videoSettingsForm">
                     <input type="hidden" id="video_settings_gen_id" name="generation_id">
+
+                    <!-- Mode + Reference Image -->
+                    <div class="row mb-3" id="video_settings_mode_row">
+                        <div class="col-md-4">
+                            <label class="form-label">Mode</label>
+                            <div>
+                                <span class="badge bg-success fs-6" id="video_settings_mode_badge"></span>
+                            </div>
+                        </div>
+                        <div class="col-md-8" id="video_settings_reference_col" style="display: none;">
+                            <label class="form-label">Image de référence</label>
+                            <img id="video_settings_reference_img" src="" alt="Référence"
+                                 class="img-thumbnail bg-dark border-secondary"
+                                 style="max-height: 120px; max-width: 180px; object-fit: contain; cursor: pointer;"
+                                 onclick="if(this.src) openImagePreview(this.src, 'Image de référence')">
+                        </div>
+                    </div>
 
                     <!-- Prompt -->
                     <div class="mb-3">

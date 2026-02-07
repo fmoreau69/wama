@@ -134,10 +134,11 @@ class DiffusersBackend(ImageGenerationBackend):
             "max_resolution": 768,
             "recommended_resolutions": ["512x512", "768x768", "896x512", "512x896"],
         },
-        "deliberate-v2": {
-            "name": "Deliberate v2",
-            "hf_id": "stablediffusionapi/deliberate-v2",
-            "description": "Réaliste/Artistique - 4GB VRAM - Très détaillé",
+        "deliberate-v6": {
+            "name": "Deliberate v6",
+            "hf_id": "XpucT/Deliberate",
+            "single_file": "Deliberate_v6.safetensors",
+            "description": "Réaliste/Artistique - 4GB VRAM - Très détaillé, tokens: mj, cinematic",
             "vram": "4GB",
             "pipeline": "sd",
             "min_resolution": 256,
@@ -222,11 +223,20 @@ class DiffusersBackend(ImageGenerationBackend):
         },
     }
 
-    # Legacy support: map old format to new
+    # Backward-compatibility aliases for renamed models
+    _MODEL_ALIASES = {
+        "deliberate-v2": "deliberate-v6",
+    }
+
     @classmethod
     def _get_model_info(cls, model_name: str) -> dict:
         """Get model info, supporting both old tuple and new dict formats."""
-        model_info = cls.SUPPORTED_MODELS.get(model_name)
+        # Check aliases for renamed models
+        resolved_name = cls._MODEL_ALIASES.get(model_name, model_name)
+        if resolved_name != model_name:
+            logger.info(f"[Diffusers] Model alias: {model_name} -> {resolved_name}")
+
+        model_info = cls.SUPPORTED_MODELS.get(resolved_name)
         if model_info is None:
             return None
         if isinstance(model_info, tuple):
@@ -273,12 +283,26 @@ class DiffusersBackend(ImageGenerationBackend):
             logger.warning("[Diffusers] No GPU detected, using CPU (slow)")
             return "cpu"
 
-    def _load_sd_pipeline(self, model_id: str):
+    def _load_sd_pipeline(self, model_id: str, model_info: dict = None):
         """Load a standard Stable Diffusion pipeline."""
         from diffusers import StableDiffusionPipeline
+        from wama.model_manager.services.memory_manager import MemoryManager
 
         dtype = self._torch.float16 if self._device == "cuda" else self._torch.float32
 
+        # Single-file loading (e.g., XpucT/Deliberate with single safetensors)
+        single_file = model_info.get("single_file") if model_info else None
+        if single_file:
+            logger.info(f"[Diffusers] Loading single-file model: {model_id}/{single_file}")
+            kwargs = {
+                "torch_dtype": dtype,
+                "safety_checker": None,
+            }
+            return MemoryManager.load_single_file_pipeline(
+                StableDiffusionPipeline, model_id, single_file, **kwargs
+            )
+
+        # Standard diffusers-format loading
         kwargs = {
             "torch_dtype": dtype,
             "use_safetensors": True,
@@ -288,11 +312,12 @@ class DiffusersBackend(ImageGenerationBackend):
             kwargs["cache_dir"] = _SD_CACHE_DIR
             logger.info(f"[Diffusers] Loading from cache: {_SD_CACHE_DIR}")
 
-        return StableDiffusionPipeline.from_pretrained(model_id, **kwargs)
+        return MemoryManager.load_pipeline(StableDiffusionPipeline, model_id, **kwargs)
 
     def _load_sdxl_pipeline(self, model_id: str):
         """Load a Stable Diffusion XL pipeline."""
         from diffusers import StableDiffusionXLPipeline
+        from wama.model_manager.services.memory_manager import MemoryManager
 
         dtype = self._torch.float16 if self._device == "cuda" else self._torch.float32
 
@@ -305,7 +330,7 @@ class DiffusersBackend(ImageGenerationBackend):
             kwargs["cache_dir"] = _SD_CACHE_DIR
             logger.info(f"[Diffusers] Loading SDXL from cache: {_SD_CACHE_DIR}")
 
-        return StableDiffusionXLPipeline.from_pretrained(model_id, **kwargs)
+        return MemoryManager.load_pipeline(StableDiffusionXLPipeline, model_id, **kwargs)
 
     def _load_flux_pipeline(self, model_info: dict):
         """
@@ -377,6 +402,7 @@ class DiffusersBackend(ImageGenerationBackend):
             model_info: Model configuration dictionary containing base_model, hf_id, etc.
         """
         from diffusers import StableDiffusionXLPipeline
+        from wama.model_manager.services.memory_manager import MemoryManager
 
         base_model = model_info.get('base_model', 'stabilityai/stable-diffusion-xl-base-1.0')
         lora_repo = model_info.get('hf_id')
@@ -396,7 +422,7 @@ class DiffusersBackend(ImageGenerationBackend):
             kwargs["cache_dir"] = _SD_CACHE_DIR
 
         # Load base SDXL pipeline
-        pipe = StableDiffusionXLPipeline.from_pretrained(base_model, **kwargs)
+        pipe = MemoryManager.load_pipeline(StableDiffusionXLPipeline, base_model, **kwargs)
 
         # Load LoRA weights
         if lora_repo:
@@ -546,7 +572,7 @@ class DiffusersBackend(ImageGenerationBackend):
                     self._pipe = self._load_sdxl_pipeline(model_id)
             else:
                 # Standard Stable Diffusion pipeline
-                self._pipe = self._load_sd_pipeline(model_id)
+                self._pipe = self._load_sd_pipeline(model_id, model_info)
 
             # Skip scheduler and device setup for models using CPU offload (handled in their loaders)
             if pipeline_type not in ("hunyuan", "flux"):
@@ -1013,6 +1039,8 @@ class DiffusersBackend(ImageGenerationBackend):
             else:
                 dtype = torch.float32
 
+            from wama.model_manager.services.memory_manager import MemoryManager
+
             if is_xl:
                 from diffusers import StableDiffusionXLImg2ImgPipeline
                 kwargs = {
@@ -1022,7 +1050,7 @@ class DiffusersBackend(ImageGenerationBackend):
                 }
                 if _SD_CACHE_DIR:
                     kwargs["cache_dir"] = _SD_CACHE_DIR
-                self._pipe_img2img = StableDiffusionXLImg2ImgPipeline.from_pretrained(model_id, **kwargs)
+                self._pipe_img2img = MemoryManager.load_pipeline(StableDiffusionXLImg2ImgPipeline, model_id, **kwargs)
             else:
                 kwargs = {
                     "torch_dtype": dtype,
@@ -1031,7 +1059,7 @@ class DiffusersBackend(ImageGenerationBackend):
                 }
                 if _SD_CACHE_DIR:
                     kwargs["cache_dir"] = _SD_CACHE_DIR
-                self._pipe_img2img = StableDiffusionImg2ImgPipeline.from_pretrained(model_id, **kwargs)
+                self._pipe_img2img = MemoryManager.load_pipeline(StableDiffusionImg2ImgPipeline, model_id, **kwargs)
 
             # Use faster scheduler
             try:

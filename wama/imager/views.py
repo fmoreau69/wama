@@ -618,8 +618,9 @@ def start_generation(request, generation_id):
         if generation.status == 'RUNNING':
             return JsonResponse({'error': 'Generation already running'}, status=400)
 
-        # Reset progress and clear cache
+        # Reset progress, error message and clear cache
         generation.progress = 0
+        generation.error_message = ""
         generation.save()
         cache.delete(f"imager_progress_{generation_id}")
 

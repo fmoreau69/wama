@@ -251,13 +251,14 @@ STABLE_DIFFUSION_MODELS = {
         'vram_gb': 4,
         'description': 'Realistic Vision V5 - Photorealistic',
     },
-    'deliberate-v2': {
-        'model_id': 'deliberate-v2',
-        'hf_id': 'stablediffusionapi/deliberate-v2',
+    'deliberate-v6': {
+        'model_id': 'deliberate-v6',
+        'hf_id': 'XpucT/Deliberate',
+        'single_file': 'Deliberate_v6.safetensors',
         'type': 'image',
         'pipeline': 'sd',
         'vram_gb': 4,
-        'description': 'Deliberate v2 - Realistic/Artistic',
+        'description': 'Deliberate v6 - Realistic/Artistic (by XpucT)',
     },
 }
 
