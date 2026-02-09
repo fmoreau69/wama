@@ -300,6 +300,22 @@ if ENABLE_CELERY:
     CELERY_TASK_SERIALIZER = 'json'
     CELERY_RESULT_SERIALIZER = 'json'
 
+    # Queue routing: GPU-heavy tasks → 'gpu' queue, light tasks → 'default'
+    CELERY_TASK_ROUTES = {
+        'wama.anonymizer.tasks.*': {'queue': 'gpu'},
+        'wama.imager.tasks.*': {'queue': 'gpu'},
+        'wama.enhancer.tasks.*': {'queue': 'gpu'},
+        'wama.synthesizer.workers.*': {'queue': 'gpu'},
+        'wama.transcriber.workers.*': {'queue': 'gpu'},
+        'wama.describer.workers.*': {'queue': 'gpu'},
+        'wama_lab.face_analyzer.tasks.*': {'queue': 'gpu'},
+        'wama.model_manager.tasks.*': {'queue': 'default'},
+    }
+    CELERY_TASK_DEFAULT_QUEUE = 'default'
+
+# TTS Microservice URL (FastAPI service for preloaded TTS models)
+TTS_SERVICE_URL = os.environ.get('TTS_SERVICE_URL', 'http://localhost:8001')
+
 # Anthropic API Configuration (for AI Chat feature)
 # Set your API key here or use ANTHROPIC_API_KEY environment variable
 ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY', None)

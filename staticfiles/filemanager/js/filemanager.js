@@ -210,8 +210,14 @@
         $(treeContainer).on('loaded.jstree', handleTreeLoaded);
         $(treeContainer).on('refresh.jstree', handleTreeRefreshed);
 
-        // Save tree state when nodes are opened/closed
-        $(treeContainer).on('open_node.jstree close_node.jstree', function() {
+        // Save tree state when nodes are opened/closed + add tooltips on open
+        $(treeContainer).on('open_node.jstree', function(e, data) {
+            saveTreeState();
+            // Add tooltips to newly revealed children
+            const nodeEl = document.getElementById(data.node.id);
+            if (nodeEl) setTimeout(() => addFilenameTitles(nodeEl), 50);
+        });
+        $(treeContainer).on('close_node.jstree', function() {
             saveTreeState();
         });
 
@@ -411,6 +417,18 @@
         });
     }
 
+    function addFilenameTitles(container) {
+        // Add title attribute to all tree anchors for full filename tooltip on hover
+        const anchors = (container || treeContainer).querySelectorAll('.jstree-anchor');
+        anchors.forEach(anchor => {
+            // Get text content without the icon
+            const text = anchor.textContent.trim();
+            if (text && anchor.getAttribute('title') !== text) {
+                anchor.setAttribute('title', text);
+            }
+        });
+    }
+
     function handleTreeLoaded() {
         console.log('FileManager tree loaded');
 
@@ -422,6 +440,9 @@
 
         // Always auto-expand folder corresponding to current app
         autoExpandCurrentAppFolder();
+
+        // Add tooltips with full filenames
+        setTimeout(() => addFilenameTitles(), 200);
     }
 
     function getTreeStateKey() {
@@ -488,6 +509,7 @@
         setTimeout(() => {
             restoreTreeState();
             autoExpandCurrentAppFolder();
+            addFilenameTitles();
         }, 100);
     }
 
@@ -1077,6 +1099,7 @@
             if (id === 'dropZoneEnhancer') return 'enhancer';
             if (id === 'dropZoneTranscriber' || id.includes('transcriber')) return 'transcriber';
             if (id === 'dropZoneAnonymizer' || id.includes('anonymizer')) return 'anonymizer';
+            if (id === 'dropZoneSynthesizer' || id.includes('synthesizer')) return 'synthesizer';
             if (id === 'dropZoneFaceAnalyzer' || id.includes('face_analyzer') || id.includes('face-analyzer')) return 'face_analyzer';
             // Try to get from data attribute
             return zone.dataset.wamaApp || null;
@@ -1238,14 +1261,14 @@
             `;
             infoBar = `
                 <div class="fullscreen-info">
-                    <span class="filename">${escapeHtml(imageName)}</span>
+                    <span class="filename" title="${escapeHtml(imageName)}">${escapeHtml(imageName)}</span>
                     <span class="counter">${previewIndex + 1} / ${previewSiblings.length}</span>
                 </div>
             `;
         } else {
             infoBar = `
                 <div class="fullscreen-info">
-                    <span class="filename">${escapeHtml(imageName)}</span>
+                    <span class="filename" title="${escapeHtml(imageName)}">${escapeHtml(imageName)}</span>
                 </div>
             `;
         }
@@ -1296,7 +1319,7 @@
                         const nextBtn = overlay.querySelector('.fullscreen-nav-next');
 
                         if (img) img.src = data.preview_url;
-                        if (filename) filename.textContent = data.name;
+                        if (filename) { filename.textContent = data.name; filename.title = data.name; }
                         if (counter) counter.textContent = `${previewIndex + 1} / ${previewSiblings.length}`;
                         if (prevBtn) prevBtn.classList.toggle('disabled', previewIndex === 0);
                         if (nextBtn) nextBtn.classList.toggle('disabled', previewIndex === previewSiblings.length - 1);

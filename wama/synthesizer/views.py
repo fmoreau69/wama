@@ -7,6 +7,7 @@ import os
 import io
 import zipfile
 import logging
+from django.conf import settings
 from django.shortcuts import render, get_object_or_404
 from django.views import View
 from django.views.generic import TemplateView
@@ -20,6 +21,8 @@ from django.core.validators import FileExtensionValidator
 from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
 
+import requests as http_requests
+
 from .models import VoiceSynthesis, VoicePreset
 from wama.common.utils.console_utils import (
     get_console_lines,
@@ -29,26 +32,18 @@ from wama.accounts.views import get_or_create_anonymous_user
 
 logger = logging.getLogger(__name__)
 
-# Don't import TTS worker functions at module level to avoid blocking Gunicorn startup
-# Import them lazily when needed
-_get_tts_model = None
-_get_default_speaker_wav = None
+# TTS microservice URL
+TTS_SERVICE_URL = getattr(settings, 'TTS_SERVICE_URL', 'http://localhost:8001')
+
+# Lazy import for Celery task (avoids importing heavy TTS libs at Gunicorn startup)
 synthesize_voice = None
 
 def _ensure_workers_imported():
-    """Lazy import of worker functions to avoid blocking Gunicorn startup."""
-    global _get_tts_model, _get_default_speaker_wav, synthesize_voice
-
-    if _get_tts_model is None:
-        try:
-            from .workers import _get_tts_model as gtm, _get_default_speaker_wav as gds, synthesize_voice as sv
-            _get_tts_model = gtm
-            _get_default_speaker_wav = gds
-            synthesize_voice = sv
-            logger.info("TTS worker functions imported successfully")
-        except Exception as e:
-            logger.error(f"Failed to import TTS worker functions: {e}")
-            raise
+    """Lazy import of synthesize_voice Celery task."""
+    global synthesize_voice
+    if synthesize_voice is None:
+        from .workers import synthesize_voice as sv
+        synthesize_voice = sv
 
 
 class IndexView(View):
@@ -109,6 +104,9 @@ def upload(request):
             speed = float(request.POST.get('speed', 1.0))
             pitch = float(request.POST.get('pitch', 1.0))
             emotion_intensity = float(request.POST.get('emotion_intensity', 1.0))
+            # Higgs Audio specific options
+            multi_speaker = request.POST.get('multi_speaker', '0') == '1'
+            scene_description = request.POST.get('scene_description', '')
         except (ValueError, TypeError) as e:
             return JsonResponse({
                 'error': f'Paramètres invalides: {str(e)}'
@@ -130,7 +128,9 @@ def upload(request):
             speed=speed,
             pitch=pitch,
             emotion_intensity=emotion_intensity,
-            voice_reference=voice_reference
+            voice_reference=voice_reference,
+            multi_speaker=multi_speaker,
+            scene_description=scene_description,
         )
 
         # Extraire le texte et mettre à jour les métadonnées
@@ -255,6 +255,9 @@ def upload_text(request):
             speed = float(request.POST.get('speed', 1.0))
             pitch = float(request.POST.get('pitch', 1.0))
             emotion_intensity = float(request.POST.get('emotion_intensity', 1.0))
+            # Higgs Audio specific options
+            multi_speaker = request.POST.get('multi_speaker', '0') == '1'
+            scene_description = request.POST.get('scene_description', '')
         except (ValueError, TypeError) as e:
             return JsonResponse({
                 'error': f'Paramètres invalides: {str(e)}'
@@ -276,7 +279,9 @@ def upload_text(request):
             speed=speed,
             pitch=pitch,
             emotion_intensity=emotion_intensity,
-            voice_reference=voice_reference
+            voice_reference=voice_reference,
+            multi_speaker=multi_speaker,
+            scene_description=scene_description,
         )
 
         # Mettre à jour les métadonnées
@@ -486,7 +491,7 @@ def download(request, pk: int):
     return FileResponse(
         synthesis.audio_output.open('rb'),
         as_attachment=True,
-        filename=f"voice_synthesis_{synthesis.id}.wav"
+        filename=os.path.basename(synthesis.audio_output.name)
     )
 
 
@@ -572,6 +577,8 @@ def start_all(request):
         speed = request.POST.get('speed')
         pitch = request.POST.get('pitch')
         voice_reference = request.FILES.get('voice_reference')
+        multi_speaker_raw = request.POST.get('multi_speaker')
+        scene_description_raw = request.POST.get('scene_description')
     except Exception as e:
         return JsonResponse({
             'error': f'Erreur lors de la récupération des options: {str(e)}'
@@ -609,6 +616,14 @@ def start_all(request):
                 except:
                     pass
             synthesis.voice_reference = voice_reference
+            options_changed = True
+        if multi_speaker_raw is not None:
+            new_ms = multi_speaker_raw == '1'
+            if synthesis.multi_speaker != new_ms:
+                synthesis.multi_speaker = new_ms
+                options_changed = True
+        if scene_description_raw is not None and synthesis.scene_description != scene_description_raw:
+            synthesis.scene_description = scene_description_raw
             options_changed = True
 
         if options_changed:
@@ -743,6 +758,10 @@ def update_options(request, pk: int):
         synthesis.pitch = float(request.POST['pitch'])
     if 'emotion_intensity' in request.POST:
         synthesis.emotion_intensity = float(request.POST['emotion_intensity'])
+    if 'multi_speaker' in request.POST:
+        synthesis.multi_speaker = request.POST['multi_speaker'] == '1'
+    if 'scene_description' in request.POST:
+        synthesis.scene_description = request.POST['scene_description']
 
     # Voice reference
     if 'voice_reference' in request.FILES:
@@ -870,12 +889,11 @@ def voice_preview(request):
 def voice_preview_stream(request, preview_id):
     """
     Génère et stream l'audio en temps réel via SSE (Server-Sent Events).
+    Uses the TTS microservice for instant generation (model already preloaded).
     """
     from django.http import StreamingHttpResponse
     import json
     import base64
-    import tempfile
-    import os
     import re
 
     logger.info(f"voice_preview_stream called with preview_id: {preview_id}")
@@ -883,158 +901,99 @@ def voice_preview_stream(request, preview_id):
     # Récupérer les paramètres depuis le cache
     preview_data = cache.get(f'voice_preview_{preview_id}')
 
-    logger.info(f"Preview data from cache: {preview_data is not None}")
-
     if not preview_data:
         logger.error(f"Preview data not found for id: {preview_id}")
         return JsonResponse({'error': 'Preview not found or expired'}, status=404)
 
     def generate_audio_stream():
         """
-        Générateur qui produit l'audio par chunks avec le vrai moteur TTS.
+        Générateur qui produit l'audio par chunks via le TTS microservice.
         Format SSE: data: {json}\n\n
         """
         try:
-            print(f"[VOICE_PREVIEW] Starting audio stream generation for preview_id: {preview_id}", flush=True)
-
-            # Import TTS worker functions lazily
-            try:
-                _ensure_workers_imported()
-                print("[VOICE_PREVIEW] Worker functions imported successfully", flush=True)
-            except Exception as import_error:
-                error_msg = f"Failed to import TTS worker functions: {str(import_error)}"
-                logger.error(error_msg)
-                yield f"data: {json.dumps({'event': 'error', 'message': error_msg})}\n\n"
-                return
-
             # Marquer comme en cours
             preview_data['status'] = 'generating'
             cache.set(f'voice_preview_{preview_id}', preview_data, timeout=300)
 
             # Envoyer un événement de début
-            yield f"data: {json.dumps({'event': 'start', 'message': 'Chargement du modèle TTS...'})}\n\n"
-            logger.info("Sent start event")
+            yield f"data: {json.dumps({'event': 'start', 'message': 'Génération audio...'})}\n\n"
 
-            # Charger le modèle TTS
             tts_model_name = preview_data.get('tts_model', 'xtts_v2')
-            logger.info(f"Loading TTS model: {tts_model_name}")
+            language = preview_data.get('language', 'fr')
+            voice_preset = preview_data.get('voice_preset', 'default')
+            speed = preview_data.get('speed', 1.0)
+            pitch = preview_data.get('pitch', 1.0)
 
-            try:
-                tts = _get_tts_model(tts_model_name)
-                logger.info(f"TTS model loaded successfully: {tts_model_name}")
-            except Exception as model_error:
-                error_msg = f"Erreur lors du chargement du modèle {tts_model_name}: {str(model_error)}"
-                logger.error(error_msg)
-                yield f"data: {json.dumps({'event': 'error', 'message': error_msg})}\n\n"
-                return
-
-            yield f"data: {json.dumps({'event': 'progress', 'progress': 10, 'sentence': f'Modèle {tts_model_name} chargé'})}\n\n"
+            yield f"data: {json.dumps({'event': 'progress', 'progress': 10, 'sentence': f'Modèle {tts_model_name} (service TTS)'})}\n\n"
 
             # Diviser le texte en phrases
             text = preview_data['text']
             sentences = re.split(r'(?<=[.!?])\s+', text)
             sentences = [s.strip() for s in sentences if s.strip()]
 
-            # Créer un dossier temporaire pour les fichiers audio
-            temp_dir = tempfile.mkdtemp(prefix='voice_preview_')
+            # Générer l'audio phrase par phrase via le TTS service
+            for i, sentence in enumerate(sentences):
+                progress = int(10 + ((i + 1) / len(sentences)) * 80)
+                yield f"data: {json.dumps({'event': 'progress', 'progress': progress, 'sentence': sentence[:80]})}\n\n"
 
-            try:
-                # Paramètres de base pour TTS
-                language = preview_data.get('language', 'fr')
-                voice_preset = preview_data.get('voice_preset', 'default')
-
-                # Préparer les kwargs de base selon le modèle
-                base_kwargs = {}
-
-                # Configuration spécifique selon le modèle
-                if tts_model_name == 'xtts_v2':
-                    # XTTS v2 est multilingue et nécessite speaker_wav
-                    base_kwargs['language'] = language
-                    default_speaker = _get_default_speaker_wav(voice_preset)
-                    if default_speaker and os.path.exists(default_speaker):
-                        base_kwargs['speaker_wav'] = default_speaker
-                        yield f"data: {json.dumps({'event': 'info', 'message': f'Voix de référence: {os.path.basename(default_speaker)}'})}\n\n"
-                    else:
-                        yield f"data: {json.dumps({'event': 'error', 'message': 'XTTS v2 nécessite une voix de référence.'})}\n\n"
-                        return
-                else:
-                    # Autres modèles (Tacotron2, etc.) : pas de paramètre language
-                    # Ils utilisent leur langue par défaut
-                    print(f"[VOICE_PREVIEW] Using {tts_model_name} without language parameter", flush=True)
-
-                # Générer l'audio phrase par phrase
-                audio_chunks_files = []
-
-                for i, sentence in enumerate(sentences):
-                    # Calcul de la progression
-                    progress = int(10 + ((i + 1) / len(sentences)) * 80)
-
-                    yield f"data: {json.dumps({'event': 'progress', 'progress': progress, 'sentence': sentence[:80]})}\n\n"
-
-                    # Générer l'audio pour cette phrase
-                    chunk_file = os.path.join(temp_dir, f'chunk_{i}.wav')
-
-                    kwargs = base_kwargs.copy()
-                    kwargs['text'] = sentence
-                    kwargs['file_path'] = chunk_file
-
-                    try:
-                        print(f"[VOICE_PREVIEW] Generating audio for sentence {i+1}/{len(sentences)}: {sentence[:50]}...", flush=True)
-                        tts.tts_to_file(**kwargs)
-                        print(f"[VOICE_PREVIEW] Audio generated successfully for sentence {i+1}", flush=True)
-                        audio_chunks_files.append(chunk_file)
-
-                        # Appliquer les transformations speed et pitch
-                        speed = preview_data.get('speed', 1.0)
-                        pitch = preview_data.get('pitch', 1.0)
-
-                        processed_file = chunk_file
-                        if speed != 1.0 or pitch != 1.0:
-                            from .utils.audio_processor import process_audio_output
-                            print(f"[VOICE_PREVIEW] Applying speed={speed}, pitch={pitch}", flush=True)
-                            processed_output = os.path.join(temp_dir, f'chunk_{i}_processed.wav')
-                            processed_file = process_audio_output(chunk_file, speed=speed, pitch=pitch, output_path=processed_output)
-                            print(f"[VOICE_PREVIEW] Audio processed", flush=True)
-
-                        # Lire le fichier audio et l'encoder en base64
-                        with open(processed_file, 'rb') as f:
-                            audio_data = f.read()
-                            audio_base64 = base64.b64encode(audio_data).decode('utf-8')
-
-                        # Envoyer le chunk audio
-                        print(f"[VOICE_PREVIEW] Sending audio chunk {i+1}, size: {len(audio_base64)} bytes", flush=True)
-                        yield f"data: {json.dumps({'event': 'audio', 'data': audio_base64, 'format': 'wav', 'index': i})}\n\n"
-                        print(f"[VOICE_PREVIEW] Audio chunk {i+1} sent successfully", flush=True)
-
-                    except Exception as tts_error:
-                        error_msg = f"Erreur lors de la génération de la phrase {i+1}: {str(tts_error)}"
-                        print(f"[VOICE_PREVIEW] ERROR: {error_msg}", flush=True)
-                        yield f"data: {json.dumps({'event': 'error', 'message': error_msg})}\n\n"
-                        return
-
-                # Tous les chunks sont générés
-                yield f"data: {json.dumps({'event': 'progress', 'progress': 95, 'sentence': 'Finalisation...'})}\n\n"
-
-                # Message de fin
-                yield f"data: {json.dumps({'event': 'end', 'message': f'Génération terminée: {len(sentences)} phrases'})}\n\n"
-
-            finally:
-                # Nettoyage des fichiers temporaires
-                import shutil
                 try:
-                    shutil.rmtree(temp_dir)
-                except Exception:
-                    pass
+                    # Call TTS microservice
+                    resp = http_requests.post(
+                        f"{TTS_SERVICE_URL}/tts",
+                        json={
+                            'text': sentence,
+                            'model': tts_model_name,
+                            'language': language,
+                            'voice_preset': voice_preset,
+                        },
+                        timeout=60,
+                    )
+                    resp.raise_for_status()
+                    wav_bytes = resp.content
 
-        except ImportError as e:
-            error_msg = f"TTS library not available: {str(e)}. Install with: pip install TTS"
-            logger.error(f"Import error: {error_msg}")
-            yield f"data: {json.dumps({'event': 'error', 'message': error_msg})}\n\n"
+                    # Apply speed/pitch post-processing if needed
+                    if speed != 1.0 or pitch != 1.0:
+                        import tempfile
+                        from .utils.audio_processor import process_audio_output
+                        tmp_in = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
+                        tmp_in.write(wav_bytes)
+                        tmp_in.close()
+                        processed_path = process_audio_output(tmp_in.name, speed=speed, pitch=pitch)
+                        with open(processed_path, 'rb') as pf:
+                            wav_bytes = pf.read()
+                        # Cleanup
+                        for p in [tmp_in.name, processed_path]:
+                            try:
+                                os.remove(p)
+                            except OSError:
+                                pass
+
+                    audio_base64 = base64.b64encode(wav_bytes).decode('utf-8')
+                    yield f"data: {json.dumps({'event': 'audio', 'data': audio_base64, 'format': 'wav', 'index': i})}\n\n"
+
+                except http_requests.ConnectionError:
+                    yield f"data: {json.dumps({'event': 'error', 'message': f'Service TTS indisponible ({TTS_SERVICE_URL}). Vérifiez que le service est démarré.'})}\n\n"
+                    return
+                except http_requests.HTTPError as e:
+                    detail = ""
+                    try:
+                        detail = e.response.json().get("detail", "")
+                    except Exception:
+                        detail = str(e)
+                    yield f"data: {json.dumps({'event': 'error', 'message': f'Erreur TTS: {detail}'})}\n\n"
+                    return
+                except Exception as tts_error:
+                    yield f"data: {json.dumps({'event': 'error', 'message': f'Erreur génération phrase {i+1}: {str(tts_error)}'})}\n\n"
+                    return
+
+            yield f"data: {json.dumps({'event': 'progress', 'progress': 95, 'sentence': 'Finalisation...'})}\n\n"
+            yield f"data: {json.dumps({'event': 'end', 'message': f'Génération terminée: {len(sentences)} phrases'})}\n\n"
+
         except Exception as e:
             import traceback
             error_details = traceback.format_exc()
             logger.error(f"Error in voice_preview_stream: {error_details}")
-            yield f"data: {json.dumps({'event': 'error', 'message': f'Erreur TTS: {str(e)}', 'details': error_details.split(chr(10))[-3:]})}\n\n"
+            yield f"data: {json.dumps({'event': 'error', 'message': f'Erreur: {str(e)}'})}\n\n"
         finally:
             logger.info(f"Stream generator completed for preview_id: {preview_id}")
 

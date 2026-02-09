@@ -816,18 +816,56 @@ def select_best_models_by_precision(classes_to_blur: List[str],
     covered_classes = set()
 
     # 1. Handle specialty classes with dedicated models
-    for specialty in specialty_classes:
-        model_id = _find_specialty_model(specialty, installed_models, model_size)
-        if model_id:
+    # When multiple specialty classes are requested, first try to find a single model
+    # that covers all of them (e.g., faces&plates model for ['face', 'plate'])
+    if len(specialty_classes) > 1:
+        combined_model = _find_combined_specialty_model(
+            specialty_classes, installed_models, model_size
+        )
+        if combined_model:
+            model_id = combined_model
             model_info = installed_models[model_id]
             models_to_use.append({
                 'id': model_id,
                 'path': model_info['path'],
                 'name': model_info['name'],
                 'type': model_info['type'],
-                'classes': [specialty],
+                'classes': list(specialty_classes),
             })
-            covered_classes.add(specialty)
+            covered_classes.update(specialty_classes)
+            logger.info(f"[ModelSelector] Combined model {model_id} covers all specialty classes: "
+                        f"{specialty_classes}")
+
+    # Fall back to per-class search for any uncovered specialty classes
+    for specialty in specialty_classes:
+        if specialty in covered_classes:
+            continue
+
+        model_id = _find_specialty_model(specialty, installed_models, model_size)
+        if model_id:
+            model_info = installed_models[model_id]
+            # Check if this model also covers other uncovered specialty classes
+            model_classes = [specialty]
+            for other_specialty in specialty_classes:
+                if other_specialty == specialty or other_specialty in covered_classes:
+                    continue
+                other_supported = any(
+                    classes_match(other_specialty, model_cls)
+                    for model_cls in model_info['class_list']
+                )
+                if other_supported:
+                    model_classes.append(other_specialty)
+                    logger.info(f"[ModelSelector] Model {model_id} also covers '{other_specialty}' "
+                                f"- consolidating with '{specialty}'")
+
+            models_to_use.append({
+                'id': model_id,
+                'path': model_info['path'],
+                'name': model_info['name'],
+                'type': model_info['type'],
+                'classes': model_classes,
+            })
+            covered_classes.update(model_classes)
         else:
             logger.warning(f"[ModelSelector] No specialty model found for: {specialty}")
 
@@ -871,6 +909,8 @@ def _find_specialty_model(specialty_class: str, installed: Dict,
     Find the best specialty model for a given class (face, plate).
 
     Specialty models are stored in subdirectories like detect/faces/, detect/plates/.
+    Detection models are preferred over segmentation models for specialty classes,
+    as specialty segmentation models tend to produce more false positives.
 
     Args:
         specialty_class: The specialty class name ('face', 'plate')
@@ -914,6 +954,13 @@ def _find_specialty_model(specialty_class: str, installed: Dict,
         # Score this candidate
         score = 0
 
+        # Prefer detection models over segmentation for specialty classes
+        # Specialty segmentation models tend to produce more false positives
+        model_type = model_info.get('type', 'detect')
+        if model_type == 'detect':
+            score += 10
+        # Segmentation models get no bonus (effectively penalized)
+
         # Prefer models matching the requested size
         model_name = model_info['name'].lower()
         if model_size in model_name:
@@ -940,7 +987,81 @@ def _find_specialty_model(specialty_class: str, installed: Dict,
     if candidates:
         # Sort by score (higher is better)
         candidates.sort(key=lambda x: x[1], reverse=True)
-        return candidates[0][0]
+        selected = candidates[0][0]
+        logger.info(f"[ModelSelector] Specialty model for '{specialty_class}': {selected} "
+                     f"(score={candidates[0][1]}, candidates={len(candidates)})")
+        return selected
+
+    return None
+
+
+def _find_combined_specialty_model(specialty_classes: List[str], installed: Dict,
+                                    model_size: str) -> Optional[str]:
+    """
+    Find a single model that covers ALL requested specialty classes.
+
+    When multiple specialty classes are requested (e.g., ['face', 'plate']),
+    this tries to find a combined model (e.g., faces&plates/) that handles
+    all of them, avoiding the parallel detection pipeline.
+
+    Args:
+        specialty_classes: List of specialty class names (e.g., ['face', 'plate'])
+        installed: Dict of installed models from scan_installed_models()
+        model_size: Preferred model size ('n', 's', 'm', 'l', 'x')
+
+    Returns:
+        Model identifier or None if no single model covers all classes
+    """
+    candidates = []
+
+    for model_id, model_info in installed.items():
+        if not model_info.get('specialty'):
+            continue
+
+        # Check if this model supports ALL requested specialty classes
+        covers_all = True
+        for specialty in specialty_classes:
+            supported = any(
+                classes_match(specialty, model_cls)
+                for model_cls in model_info['class_list']
+            )
+            if not supported:
+                covers_all = False
+                break
+
+        if not covers_all:
+            continue
+
+        # Score this candidate (same logic as _find_specialty_model)
+        score = 0
+
+        model_type = model_info.get('type', 'detect')
+        if model_type == 'detect':
+            score += 10
+
+        model_name = model_info['name'].lower()
+        if model_size in model_name:
+            score += 5
+
+        if 'x' in model_name:
+            score += 1
+        elif 'l' in model_name:
+            score += 2
+        elif 'm' in model_name:
+            score += 3
+        elif 's' in model_name:
+            score += 4
+        elif 'n' in model_name:
+            score += 5
+
+        candidates.append((model_id, score))
+
+    if candidates:
+        candidates.sort(key=lambda x: x[1], reverse=True)
+        selected = candidates[0][0]
+        logger.info(f"[ModelSelector] Combined specialty model: {selected} "
+                     f"(score={candidates[0][1]}, covers={specialty_classes})")
+        return selected
 
     return None
 

@@ -29,6 +29,7 @@ class VoiceSynthesis(models.Model):
         ('vits', 'VITS (Fast, Good Quality)'),
         ('tacotron2', 'Tacotron2 (Classic, Stable)'),
         ('speedy_speech', 'SpeedySpeech (Very Fast)'),
+        ('higgs_audio', 'Higgs Audio v2 (Multi-Speaker, Voice Cloning, 24GB VRAM)'),
     ]
 
     LANGUAGE_CHOICES = [
@@ -132,6 +133,17 @@ class VoiceSynthesis(models.Model):
     emotion_intensity = models.FloatField(
         default=1.0,
         help_text="Intensité émotionnelle (0.0 = neutre, 2.0 = très expressif)"
+    )
+
+    # Higgs Audio specific options
+    multi_speaker = models.BooleanField(
+        default=False,
+        help_text="Mode multi-speaker avec tags [S1], [S2] (Higgs Audio)"
+    )
+
+    scene_description = models.TextField(
+        blank=True,
+        help_text="Description de la scène pour le mode multi-speaker Higgs Audio"
     )
 
     # Résultat

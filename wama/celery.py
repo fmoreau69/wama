@@ -16,8 +16,8 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'wama.settings')
 
 app = Celery('wama')
 app.config_from_object('django.conf:settings', namespace='CELERY')
-app.conf.worker_pool = "threads"
-app.conf.worker_concurrency = 4
+# Pool and concurrency are configured per-worker via CLI flags in start scripts
+# (gpu worker = solo/1, default worker = prefork/autoscale)
 
 # Auto-discover tasks in all installed apps
 # Explicitly list apps with Celery tasks

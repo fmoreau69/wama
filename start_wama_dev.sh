@@ -7,6 +7,7 @@ set -e
 echo "=== Stopping old processes if any ==="
 pkill -f "manage.py runserver" || true
 pkill -f "celery" || true
+pkill -f "uvicorn tts_service" || true
 pkill -f "redis-server" || true
 
 sleep 2
@@ -82,24 +83,64 @@ else:
 " 2>/dev/null || echo "CUDA cleanup skipped (torch not available or no GPU)"
 
 # ------------------------------------------------------
-# CELERY WORKER (mode solo pour Windows/WSL compatibility)
+# TTS SERVICE (FastAPI, preloads XTTS v2)
 # ------------------------------------------------------
-if ! pgrep -f "celery.*worker" > /dev/null; then
-    echo "=== Starting Celery Worker (solo mode) ==="
-    # Accept Coqui TTS terms of service for non-commercial use
-    export COQUI_TOS_AGREED=1
-    # Set TTS home directory within the project
-    export TTS_HOME=$PROJECT_DIR/AI-models/synthesizer/tts
-    # CUDA environment variables for better error handling
-    export CUDA_LAUNCH_BLOCKING=0
-    export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
-    celery -A wama worker \
-        --loglevel=INFO \
-        --pool=solo \
-        --detach \
-        --logfile $LOG_DIR/celery-worker.log
+if ! pgrep -f "uvicorn tts_service" > /dev/null; then
+    echo "=== Starting TTS Service (port 8001) ==="
+    python -m uvicorn tts_service:app \
+        --host 0.0.0.0 \
+        --port 8001 \
+        --workers 1 \
+        --log-level info &
+    echo "Waiting for TTS Service to load model..."
+    for i in $(seq 1 60); do
+        if curl -s http://localhost:8001/health > /dev/null 2>&1; then
+            echo "TTS Service ready!"
+            break
+        fi
+        sleep 2
+    done
 else
-    echo "Celery worker is already running."
+    echo "TTS Service is already running."
+fi
+
+# ------------------------------------------------------
+# CELERY WORKERS (2 workers: gpu + default)
+# ------------------------------------------------------
+# Environment variables for AI models
+export COQUI_TOS_AGREED=1
+export TTS_HOME=$PROJECT_DIR/AI-models/synthesizer/tts
+export CUDA_LAUNCH_BLOCKING=0
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+
+# GPU Worker: handles all GPU-intensive AI tasks (1 task at a time)
+# Queue: gpu (anonymizer, imager, enhancer, synthesizer, transcriber, describer)
+if ! pgrep -f "celery.*gpu@" > /dev/null; then
+    echo "=== Starting Celery GPU Worker (solo) ==="
+    celery -A wama worker \
+        --pool=solo \
+        --queues=gpu \
+        --hostname=gpu@%h \
+        --loglevel=INFO \
+        --detach \
+        --logfile $LOG_DIR/celery-gpu.log
+else
+    echo "Celery GPU worker is already running."
+fi
+
+# Default Worker: handles light tasks (model_manager, periodic tasks)
+# Pool solo for WSL compatibility
+if ! pgrep -f "celery.*default@" > /dev/null; then
+    echo "=== Starting Celery Default Worker (solo) ==="
+    celery -A wama worker \
+        --pool=solo \
+        --queues=default,celery \
+        --hostname=default@%h \
+        --loglevel=INFO \
+        --detach \
+        --logfile $LOG_DIR/celery-default.log
+else
+    echo "Celery Default worker is already running."
 fi
 
 # ------------------------------------------------------
@@ -129,4 +170,5 @@ python manage.py runserver 0.0.0.0:$DJANGO_PORT --settings=$DJANGO_SETTINGS_MODU
 echo ""
 echo "=== Shutting down... ==="
 pkill -f "celery" || true
+pkill -f "uvicorn tts_service" || true
 echo "=== WAMA development stack stopped ==="

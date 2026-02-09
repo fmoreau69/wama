@@ -1,18 +1,16 @@
 # Gunicorn configuration file
-import multiprocessing
-import os
 import logging
-import threading
 
 # Server socket
 bind = "0.0.0.0:8000"
 
-# Worker processes
-workers = 9
-worker_class = "sync"
+# Worker processes - 4 stable workers, always available
+workers = 4
+worker_class = "gthread"
+threads = 2  # 4 workers x 2 threads = 8 concurrent requests
 
 # Timeout
-# Increased to 120 seconds to allow for TTS model loading on first request
+# 120s to allow for first-request model loading via lazy imports
 timeout = 120
 graceful_timeout = 30
 keepalive = 5
@@ -30,15 +28,13 @@ proc_name = "wama"
 daemon = True
 pidfile = "logs/gunicorn.pid"
 
+# Restart workers after handling N requests (prevents memory leaks)
+max_requests = 1000
+max_requests_jitter = 50
+
+
 # Worker lifecycle hooks
 def post_worker_init(worker):
-    """
-    Called just after a worker has been initialized.
-
-    NOTE: TTS model preloading is DISABLED to avoid memory issues.
-    With 9 workers × 1.8GB model = ~16GB RAM required.
-    Models are loaded on-demand (lazy loading) instead.
-    The 120s timeout allows first-request model loading.
-    """
+    """Called just after a worker has been initialized."""
     logger = logging.getLogger('gunicorn.error')
-    logger.info(f"[Worker {worker.pid}] Worker initialized (TTS preloading disabled)")
+    logger.info(f"[Worker {worker.pid}] Worker initialized")

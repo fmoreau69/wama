@@ -299,7 +299,8 @@ class DiffusersBackend(ImageGenerationBackend):
                 "safety_checker": None,
             }
             return MemoryManager.load_single_file_pipeline(
-                StableDiffusionPipeline, model_id, single_file, **kwargs
+                StableDiffusionPipeline, model_id, single_file,
+                cache_dir=_SD_CACHE_DIR, **kwargs
             )
 
         # Standard diffusers-format loading

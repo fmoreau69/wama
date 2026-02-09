@@ -149,45 +149,56 @@ def process_single_media(self, media_id):
                 # Return immediately - the chord callback will handle completion
                 return {"processing": "parallel", "media_id": media.id, "models": len(parallel_info['models'])}
 
+            elif not parallel_info['parallel'] and len(parallel_info['models']) == 1:
+                # Single model selected by ModelSelector - use it directly
+                # This overrides the user's default model when it doesn't support
+                # the requested classes (e.g., user has yolo11n.pt but needs face detection)
+                selected = parallel_info['models'][0]
+                from .utils.yolo_utils import get_model_path as _gmp
+                kwargs['model_path'] = _gmp(selected['id'])
+                push_console_line(user.id, f"Auto-selected model: {selected['id']} for classes {selected['classes']}")
+                logger.info(f"[ModelSelection] Using ModelSelector result: {selected['id']} (overriding user default)")
+
         # ======================================================================
         # SINGLE MODEL PATH: Standard processing (existing flow)
         # ======================================================================
-        # Model selection: prefer media-specific model, then user's global model, otherwise auto-select
-        try:
-            from .utils.yolo_utils import get_model_path as _gmp
-            from .utils.model_selector import select_model_by_precision
+        # Model selection (only if not already set by parallel check above)
+        if 'model_path' not in kwargs:
+            try:
+                from .utils.yolo_utils import get_model_path as _gmp
+                from .utils.model_selector import select_model_by_precision
 
-            # Priority: 1) Media-specific model, 2) User's global model, 3) Auto-select
-            model_to_use = None
+                # Priority: 1) Media-specific model, 2) User's global model, 3) Auto-select
+                model_to_use = None
 
-            # Check if media has a specific model set (only if customised)
-            if ms_custom and media.model_to_use and media.model_to_use.strip():
-                model_to_use = media.model_to_use.strip()
-                push_console_line(user.id, f"Using media-specific model: {model_to_use}")
-            # Otherwise check user's global setting
-            elif hasattr(user_settings, 'model_to_use') and user_settings.model_to_use and user_settings.model_to_use.strip():
-                model_to_use = user_settings.model_to_use.strip()
-                push_console_line(user.id, f"Using user's global model: {model_to_use}")
+                # Check if media has a specific model set (only if customised)
+                if ms_custom and media.model_to_use and media.model_to_use.strip():
+                    model_to_use = media.model_to_use.strip()
+                    push_console_line(user.id, f"Using media-specific model: {model_to_use}")
+                # Otherwise check user's global setting
+                elif hasattr(user_settings, 'model_to_use') and user_settings.model_to_use and user_settings.model_to_use.strip():
+                    model_to_use = user_settings.model_to_use.strip()
+                    push_console_line(user.id, f"Using user's global model: {model_to_use}")
 
-            if model_to_use:
-                kwargs['model_path'] = _gmp(model_to_use)
-            else:
-                # Auto-select model based on precision level and classes
-                selected_model = select_model_by_precision(
-                    classes_to_blur=kwargs['classes2blur'],
-                    precision_level=precision_level
-                )
+                if model_to_use:
+                    kwargs['model_path'] = _gmp(model_to_use)
+                else:
+                    # Auto-select model based on precision level and classes
+                    selected_model = select_model_by_precision(
+                        classes_to_blur=kwargs['classes2blur'],
+                        precision_level=precision_level
+                    )
 
-                if selected_model:
-                    kwargs['model_path'] = _gmp(selected_model)
-                    push_console_line(user.id, f"Auto-selected model (precision {precision_level}): {selected_model}")
-                # Fallback to custom face/plate model if needed
-                elif any(c in kwargs['classes2blur'] for c in ['face', 'plate']):
-                    kwargs['model_path'] = _gmp("yolov8m_faces&plates_720p.pt")
-                    push_console_line(user.id, f"Using custom face/plate model")
-        except Exception as e:
-            push_console_line(user.id, f"Warning: Model selection failed ({e}), using default")
-            pass
+                    if selected_model:
+                        kwargs['model_path'] = _gmp(selected_model)
+                        push_console_line(user.id, f"Auto-selected model (precision {precision_level}): {selected_model}")
+                    # Fallback to custom face/plate model if needed
+                    elif any(c in kwargs['classes2blur'] for c in ['face', 'plate']):
+                        kwargs['model_path'] = _gmp("yolov8m_faces&plates_720p.pt")
+                        push_console_line(user.id, f"Using custom face/plate model")
+            except Exception as e:
+                push_console_line(user.id, f"Warning: Model selection failed ({e}), using default")
+                pass
 
         # Vérifie si un stop a été demandé
         if cache.get(f"stop_process_{user.id}", False):

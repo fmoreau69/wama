@@ -110,8 +110,15 @@ class WhisperBackend(SpeechToTextBackend):
                 from ..utils.model_config import load_whisper_model
                 self._model = load_whisper_model(model_name, device=self._device)
             except ImportError:
-                # Fallback to default whisper loading
-                self._model = whisper.load_model(model_name, device=self._device)
+                # Fallback: still try to use centralized directory
+                try:
+                    from ..utils.model_config import get_whisper_download_root
+                    download_root = str(get_whisper_download_root())
+                except ImportError:
+                    download_root = None
+                self._model = whisper.load_model(
+                    model_name, device=self._device, download_root=download_root
+                )
 
             self._loaded = True
             self._current_model = model_name

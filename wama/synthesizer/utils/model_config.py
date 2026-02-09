@@ -28,9 +28,14 @@ COQUI_DIR = MODEL_PATHS.get('speech', {}).get('coqui',
 BARK_DIR = MODEL_PATHS.get('speech', {}).get('bark',
     settings.AI_MODELS_DIR / "models" / "speech" / "bark")
 
+# Higgs Audio models directory
+HIGGS_DIR = MODEL_PATHS.get('speech', {}).get('higgs',
+    settings.AI_MODELS_DIR / "models" / "speech" / "higgs")
+
 # Ensure directories exist
 Path(COQUI_DIR).mkdir(parents=True, exist_ok=True)
 Path(BARK_DIR).mkdir(parents=True, exist_ok=True)
+Path(HIGGS_DIR).mkdir(parents=True, exist_ok=True)
 
 # =============================================================================
 # MODEL DEFINITIONS
@@ -81,6 +86,17 @@ SYNTHESIZER_MODELS = {
         'voice_cloning': False,
         'description': 'Bark - Natural, emotional TTS with sound effects',
         'languages': ['en', 'fr', 'es', 'de', 'it', 'pt', 'pl', 'tr', 'ru', 'nl', 'cs', 'zh-cn', 'ja', 'ko'],
+    },
+    'higgs_audio': {
+        'model_id': 'bosonai/higgs-audio-v2-generation-3B-base',
+        'tokenizer_id': 'bosonai/higgs-audio-v2-tokenizer',
+        'type': 'tts',
+        'engine': 'higgs',
+        'multilingual': True,
+        'voice_cloning': True,
+        'multi_speaker': True,
+        'description': 'Higgs Audio v2 - Multi-speaker, Voice Cloning (24GB VRAM)',
+        'languages': ['en', 'fr', 'es', 'de', 'it', 'pt', 'zh-cn', 'ja', 'ko'],
     },
 }
 
@@ -146,6 +162,8 @@ def get_model_info(model_name: str = None) -> dict:
         info['cache_dir'] = str(COQUI_DIR)
     elif info['engine'] == 'bark':
         info['cache_dir'] = str(BARK_DIR)
+    elif info['engine'] == 'higgs':
+        info['cache_dir'] = str(HIGGS_DIR)
 
     return info
 
@@ -160,9 +178,10 @@ def list_available_models() -> dict:
     result = {}
 
     for key, config in SYNTHESIZER_MODELS.items():
+        cache_dirs = {'coqui': str(COQUI_DIR), 'bark': str(BARK_DIR), 'higgs': str(HIGGS_DIR)}
         result[key] = {
             **config,
-            'cache_dir': str(COQUI_DIR) if config['engine'] == 'coqui' else str(BARK_DIR),
+            'cache_dir': cache_dirs.get(config['engine'], str(COQUI_DIR)),
         }
 
     return result
@@ -193,3 +212,18 @@ def get_coqui_models() -> dict:
 def get_bark_models() -> dict:
     """Get all Bark models."""
     return get_models_by_engine('bark')
+
+
+def get_higgs_directory() -> Path:
+    """
+    Get the Higgs Audio models directory path.
+
+    Returns:
+        Path to the Higgs Audio models directory
+    """
+    return Path(HIGGS_DIR)
+
+
+def get_higgs_models() -> dict:
+    """Get all Higgs Audio models."""
+    return get_models_by_engine('higgs')

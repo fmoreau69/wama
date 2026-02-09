@@ -16,8 +16,27 @@
     </select>
 </div>
 
+<!-- Higgs Audio options (hidden by default, shown when higgs_audio selected) -->
+<div id="higgsOptions" style="display: none;">
+    <div class="form-check form-switch mb-2 mt-2">
+        <input class="form-check-input" type="checkbox" id="multi_speaker">
+        <label class="form-check-label text-light small" for="multi_speaker">
+            <i class="fas fa-users"></i> Mode Multi-Speaker
+        </label>
+    </div>
+    <div id="sceneDescGroup" style="display: none;" class="mb-3">
+        <label class="form-label text-light small">
+            <i class="fas fa-scroll"></i> Description de scène
+        </label>
+        <textarea class="form-control form-control-sm bg-dark text-light border-secondary"
+                  id="scene_description" rows="2"
+                  placeholder="Ex: [S1] est une femme douce, [S2] est un homme grave"></textarea>
+        <small class="text-muted">Utilisez [S1], [S2], etc. dans le texte pour attribuer les dialogues</small>
+    </div>
+</div>
+
 <!-- Language -->
-<div class="mb-3">
+<div id="languageGroup" class="mb-3">
     <label for="language" class="form-label small fw-bold text-light">
         <i class="fas fa-language"></i> Langue
     </label>
@@ -29,7 +48,7 @@
 </div>
 
 <!-- Voice Preset -->
-<div class="mb-3">
+<div id="voicePresetGroup" class="mb-3">
     <label for="voice_preset" class="form-label small fw-bold text-light">
         <i class="fas fa-microphone"></i> Voix
     </label>
@@ -112,7 +131,7 @@
 <!-- Upload Zone -->
 <div class="row mb-4">
     <div class="col-12">
-        <div class="drop-zone" id="dropZone" data-upload-url="{% url 'synthesizer:upload' %}" data-csrf-token="{{ csrf_token }}">
+        <div class="drop-zone" id="dropZoneSynthesizer" data-upload-url="{% url 'synthesizer:upload' %}" data-csrf-token="{{ csrf_token }}">
             <i class="fas fa-file-upload fa-3x mb-3 text-primary"></i>
             <h5>Glissez-déposez vos fichiers texte ici</h5>
             <p class="text-light mb-3">ou cliquez pour parcourir</p>

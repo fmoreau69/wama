@@ -36,8 +36,48 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // === Higgs Audio model toggle ===
+    function toggleHiggsOptions(modelValue) {
+        const higgsOptions = document.getElementById('higgsOptions');
+        const languageGroup = document.getElementById('languageGroup');
+        const voicePresetGroup = document.getElementById('voicePresetGroup');
+        const isHiggs = modelValue === 'higgs_audio';
+
+        if (higgsOptions) higgsOptions.style.display = isHiggs ? 'block' : 'none';
+        // Higgs handles language internally, hide language/voice preset selectors
+        if (languageGroup) languageGroup.style.display = isHiggs ? 'none' : '';
+        if (voicePresetGroup) voicePresetGroup.style.display = isHiggs ? 'none' : '';
+    }
+
+    const ttsModelSelect = document.getElementById('tts_model');
+    if (ttsModelSelect) {
+        ttsModelSelect.addEventListener('change', (e) => toggleHiggsOptions(e.target.value));
+        // Initialize on page load
+        toggleHiggsOptions(ttsModelSelect.value);
+    }
+
+    const multiSpeakerCheckbox = document.getElementById('multi_speaker');
+    if (multiSpeakerCheckbox) {
+        multiSpeakerCheckbox.addEventListener('change', (e) => {
+            const sceneDescGroup = document.getElementById('sceneDescGroup');
+            if (sceneDescGroup) sceneDescGroup.style.display = e.target.checked ? 'block' : 'none';
+        });
+    }
+
+    // Helper: append Higgs-specific fields to FormData
+    function appendHiggsFields(formData) {
+        const multiSpeaker = document.getElementById('multi_speaker');
+        if (multiSpeaker) {
+            formData.append('multi_speaker', multiSpeaker.checked ? '1' : '0');
+        }
+        const sceneDesc = document.getElementById('scene_description');
+        if (sceneDesc && sceneDesc.value.trim()) {
+            formData.append('scene_description', sceneDesc.value.trim());
+        }
+    }
+
     // Drag & Drop
-    const dropZone = document.getElementById('dropZone');
+    const dropZone = document.getElementById('dropZoneSynthesizer');
     const fileInput = document.getElementById('fileInput');
     const browseBtn = document.getElementById('browseBtn');
 
@@ -236,6 +276,7 @@ document.addEventListener('DOMContentLoaded', function() {
         formData.append('voice_preset', document.getElementById('settingsVoicePreset').value);
         formData.append('speed', document.getElementById('settingsSpeed').value);
         formData.append('pitch', document.getElementById('settingsPitch').value);
+        appendHiggsFields(formData);
 
         const voiceRef = document.getElementById('settingsVoiceRef');
         if (voiceRef && voiceRef.files[0]) {
@@ -319,6 +360,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 formData.append('voice_preset', document.getElementById('voice_preset').value);
                 formData.append('speed', document.getElementById('speed').value);
                 formData.append('pitch', document.getElementById('pitch').value);
+                appendHiggsFields(formData);
 
                 const voiceRef = document.getElementById('voice_reference');
                 if (voiceRef && voiceRef.files[0]) {
@@ -469,6 +511,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 formData.append('voice_preset', document.getElementById('voice_preset').value);
                 formData.append('speed', document.getElementById('speed').value);
                 formData.append('pitch', document.getElementById('pitch').value);
+                appendHiggsFields(formData);
 
                 const voiceRef = document.getElementById('voice_reference');
                 if (voiceRef && voiceRef.files[0]) {
@@ -548,6 +591,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 formData.append('voice_preset', document.getElementById('voice_preset').value);
                 formData.append('speed', document.getElementById('speed').value);
                 formData.append('pitch', document.getElementById('pitch').value);
+                appendHiggsFields(formData);
 
                 const voiceRef = document.getElementById('voice_reference');
                 if (voiceRef && voiceRef.files[0]) {
@@ -755,6 +799,7 @@ document.addEventListener('DOMContentLoaded', function() {
         formData.append('voice_preset', document.getElementById('voice_preset').value);
         formData.append('speed', document.getElementById('speed').value);
         formData.append('pitch', document.getElementById('pitch').value);
+        appendHiggsFields(formData);
 
         const voiceRef = document.getElementById('voice_reference');
         if (voiceRef && voiceRef.files[0]) {

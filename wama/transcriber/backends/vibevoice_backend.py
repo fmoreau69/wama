@@ -101,6 +101,15 @@ class VibeVoiceBackend(SpeechToTextBackend):
 
             logger.info(f"[VibeVoice] Loading model: {model_path}")
 
+            # Get centralized cache directory
+            try:
+                from ..utils.model_config import VIBEVOICE_DIR
+                cache_dir = str(VIBEVOICE_DIR)
+            except ImportError:
+                cache_dir = None
+            if cache_dir:
+                logger.info(f"[VibeVoice] Cache directory: {cache_dir}")
+
             # Clear CUDA cache before loading
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
@@ -109,19 +118,27 @@ class VibeVoiceBackend(SpeechToTextBackend):
 
             # Load processor
             logger.info("[VibeVoice] Loading processor...")
+            processor_kwargs = {
+                "language_model_pretrained_name": "Qwen/Qwen2.5-7B",
+            }
+            if cache_dir:
+                processor_kwargs["cache_dir"] = cache_dir
             self._processor = VibeVoiceASRProcessor.from_pretrained(
-                model_path,
-                language_model_pretrained_name="Qwen/Qwen2.5-7B"
+                model_path, **processor_kwargs
             )
 
             # Load model with optimizations
             logger.info("[VibeVoice] Loading model (this may take a while)...")
+            model_kwargs = {
+                "dtype": torch.bfloat16,
+                "device_map": "auto",
+                "attn_implementation": "sdpa",
+                "trust_remote_code": True,
+            }
+            if cache_dir:
+                model_kwargs["cache_dir"] = cache_dir
             self._model = VibeVoiceASRForConditionalGeneration.from_pretrained(
-                model_path,
-                dtype=torch.bfloat16,
-                device_map="auto",
-                attn_implementation="sdpa",
-                trust_remote_code=True
+                model_path, **model_kwargs
             )
 
             self._model.eval()
