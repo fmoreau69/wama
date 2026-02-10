@@ -11,6 +11,8 @@ from django.core.cache import cache
 from django.db import close_old_connections
 from django.conf import settings
 
+from wama.common.utils.console_utils import push_console_line
+
 logger = logging.getLogger(__name__)
 
 
@@ -30,15 +32,22 @@ def _set_partial(description, text: str) -> None:
     cache.set(cache_key, text, timeout=3600)
 
 
-def _console(user_id: int, message: str) -> None:
+def _console(user_id: int, message: str, level: str = None) -> None:
     """Add message to console output."""
-    cache_key = f"describer_console_{user_id}"
-    lines = cache.get(cache_key, [])
-    lines.append(message)
-    # Keep last 100 lines
-    if len(lines) > 100:
-        lines = lines[-100:]
-    cache.set(cache_key, lines, timeout=3600)
+    try:
+        if level is None:
+            msg_lower = message.lower()
+            if any(w in msg_lower for w in ['error', 'failed', '\u2717', 'erreur']):
+                level = 'error'
+            elif any(w in msg_lower for w in ['warning', 'attention']):
+                level = 'warning'
+            elif any(w in msg_lower for w in ['[debug]', '[parallel']):
+                level = 'debug'
+            else:
+                level = 'info'
+        push_console_line(user_id, message, level=level, app='describer')
+    except Exception:
+        pass
 
 
 @shared_task(bind=True)

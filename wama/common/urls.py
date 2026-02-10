@@ -17,4 +17,7 @@ urlpatterns = [
     # System stats endpoints
     path('api/system-stats/', views.system_stats, name='system_stats'),
     path('api/system-stats/full/', views.system_stats_full, name='system_stats_full'),
+
+    # Centralized console endpoint (role-based filtering)
+    path('api/console/', views.console_content, name='console'),
 ]

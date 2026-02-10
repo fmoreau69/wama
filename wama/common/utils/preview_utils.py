@@ -149,19 +149,19 @@ def synthesizer_preview_adapter(synthesis, request):
 
 def transcriber_preview_adapter(transcript, request):
     """Custom adapter for Transcriber Transcript model."""
-    if not transcript.audio_file:
+    if not transcript.audio:
         return {'error': 'No audio file available'}
 
-    audio_url = request.build_absolute_uri(transcript.audio_file.url)
-    mime_type, _ = mimetypes.guess_type(transcript.audio_file.path)
+    audio_url = request.build_absolute_uri(transcript.audio.url)
+    mime_type, _ = mimetypes.guess_type(transcript.audio.path)
 
     data = {
-        "name": os.path.basename(transcript.audio_file.name),
+        "name": os.path.basename(transcript.audio.name),
         "url": audio_url,
         "mime_type": mime_type or "audio/wav",
     }
 
-    if hasattr(transcript, 'duration') and transcript.duration:
-        data["duration"] = transcript.duration
+    if hasattr(transcript, 'duration_display') and transcript.duration_display:
+        data["duration"] = transcript.duration_display
 
     return data

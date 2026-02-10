@@ -25,10 +25,20 @@ def _set_progress(enhancement_id: int, percent: int) -> None:
         pass
 
 
-def _console(user_id: int, message: str) -> None:
+def _console(user_id: int, message: str, level: str = None) -> None:
     """Push console message to user."""
     try:
-        push_console_line(user_id, f"[Enhancer] {message}")
+        if level is None:
+            msg_lower = message.lower()
+            if any(w in msg_lower for w in ['error', 'failed', '\u2717', 'erreur']):
+                level = 'error'
+            elif any(w in msg_lower for w in ['warning', 'attention']):
+                level = 'warning'
+            elif any(w in msg_lower for w in ['[debug]', '[parallel']):
+                level = 'debug'
+            else:
+                level = 'info'
+        push_console_line(user_id, message, level=level, app='enhancer')
     except Exception:
         pass
 

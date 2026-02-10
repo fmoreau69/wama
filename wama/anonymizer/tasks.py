@@ -26,6 +26,25 @@ from .parallel_detection import (
 
 logger = logging.getLogger(__name__)
 
+
+def _console(user_id: int, message: str, level: str = None) -> None:
+    """Push console message to user."""
+    try:
+        if level is None:
+            msg_lower = message.lower()
+            if any(w in msg_lower for w in ['error', 'failed', '\u2717', 'erreur']):
+                level = 'error'
+            elif any(w in msg_lower for w in ['warning', 'attention']):
+                level = 'warning'
+            elif any(w in msg_lower for w in ['[debug]', '[parallel']):
+                level = 'debug'
+            else:
+                level = 'info'
+        push_console_line(user_id, message, level=level, app='anonymizer')
+    except Exception:
+        pass
+
+
 # ----------------------------------------------------------------------
 # Tâche principale pour traiter un média
 # ----------------------------------------------------------------------
@@ -36,6 +55,19 @@ def process_single_media(self, media_id):
     """
 
     close_old_connections()
+
+    # Dedup: check if another task already owns this media
+    owner_key = f"anon_task_owner:media:{media_id}"
+    current_owner = cache.get(owner_key)
+    my_task_id = self.request.id
+
+    if current_owner and current_owner != my_task_id:
+        logger.info(f"[Dedup] Skipping media {media_id}: already owned by task {current_owner}")
+        return {"skipped": True, "media_id": media_id, "reason": "duplicate"}
+
+    # Claim ownership
+    cache.set(owner_key, my_task_id, timeout=7200)
+    cache.set(f"anon_lock:media:{media_id}", True, timeout=7200)
 
     try:
         media = Media.objects.get(pk=media_id)
@@ -56,7 +88,7 @@ def process_single_media(self, media_id):
         print(f"[process_single_media] DEBUG: media.use_sam3={media.use_sam3}, user_settings.use_sam3={user_settings.use_sam3}")
         print(f"[process_single_media] DEBUG: media.sam3_prompt='{media.sam3_prompt}', user_settings.sam3_prompt='{user_settings.sam3_prompt}'")
         print(f"[process_single_media] DEBUG: Final use_sam3={use_sam3}, sam3_prompt='{sam3_prompt}'")
-        push_console_line(user.id, f"[DEBUG] SAM3 settings: use_sam3={use_sam3}, prompt='{sam3_prompt[:30] if sam3_prompt else ''}'")
+        _console(user.id, f"[DEBUG] SAM3 settings: use_sam3={use_sam3}, prompt='{sam3_prompt[:30] if sam3_prompt else ''}'")
 
         # Determine if this is an image (interpolation doesn't apply to images)
         image_extensions = ['.jpg', '.jpeg', '.png', '.bmp', '.gif', '.webp', '.tiff', '.tif']
@@ -115,24 +147,24 @@ def process_single_media(self, media_id):
         logger.info(f"[ParallelCheck] use_sam3={use_sam3}, user_specified_model={user_specified_model}")
         logger.info(f"[ParallelCheck] specialty_classes_requested={specialty_classes_requested}, should_check_parallel={should_check_parallel}")
         logger.info(f"[ParallelCheck] classes2blur={kwargs['classes2blur']}, precision_level={precision_level}")
-        push_console_line(user.id, f"[Parallel Check] SAM3={use_sam3}, user_model={user_specified_model}, specialty={specialty_classes_requested}")
+        _console(user.id, f"[Parallel Check] SAM3={use_sam3}, user_model={user_specified_model}, specialty={specialty_classes_requested}")
 
         if should_check_parallel:
             parallel_info = needs_parallel_detection(kwargs['classes2blur'], precision_level)
 
             logger.info(f"[ParallelCheck] parallel_info: parallel={parallel_info.get('parallel')}, "
                         f"models={len(parallel_info.get('models', []))}, coverage={parallel_info.get('coverage')}")
-            push_console_line(user.id, f"[Parallel Check] parallel={parallel_info.get('parallel')}, "
+            _console(user.id, f"[Parallel Check] parallel={parallel_info.get('parallel')}, "
                               f"models={len(parallel_info.get('models', []))}")
 
             if parallel_info.get('unsupported_classes'):
-                push_console_line(user.id, f"[Parallel Check] Unsupported classes: {parallel_info['unsupported_classes']}")
+                _console(user.id, f"[Parallel Check] Unsupported classes: {parallel_info['unsupported_classes']}")
 
             if parallel_info['parallel'] and len(parallel_info['models']) > 1:
                 # Multiple models needed - use parallel detection workflow
-                push_console_line(user.id, f"[Parallel] Detected {len(parallel_info['models'])} models needed")
+                _console(user.id, f"[Parallel] Detected {len(parallel_info['models'])} models needed")
                 for m in parallel_info['models']:
-                    push_console_line(user.id, f"  - {m['id']}: {m['classes']}")
+                    _console(user.id, f"  - {m['id']}: {m['classes']}")
 
                 # Add paths to kwargs for parallel tasks
                 kwargs['source_dir'] = str(get_app_media_path('anonymizer', user.id, 'input'))
@@ -141,7 +173,7 @@ def process_single_media(self, media_id):
 
                 # Reset progress
                 set_media_progress(media.id, 0)
-                push_console_line(user.id, f"[Parallel] Launching parallel detection for media {media.id}...")
+                _console(user.id, f"[Parallel] Launching parallel detection for media {media.id}...")
 
                 # Launch parallel detection workflow (chord: group of detections + merge callback)
                 launch_parallel_detection(media.id, parallel_info['models'], kwargs)
@@ -156,7 +188,7 @@ def process_single_media(self, media_id):
                 selected = parallel_info['models'][0]
                 from .utils.yolo_utils import get_model_path as _gmp
                 kwargs['model_path'] = _gmp(selected['id'])
-                push_console_line(user.id, f"Auto-selected model: {selected['id']} for classes {selected['classes']}")
+                _console(user.id, f"Auto-selected model: {selected['id']} for classes {selected['classes']}")
                 logger.info(f"[ModelSelection] Using ModelSelector result: {selected['id']} (overriding user default)")
 
         # ======================================================================
@@ -174,11 +206,11 @@ def process_single_media(self, media_id):
                 # Check if media has a specific model set (only if customised)
                 if ms_custom and media.model_to_use and media.model_to_use.strip():
                     model_to_use = media.model_to_use.strip()
-                    push_console_line(user.id, f"Using media-specific model: {model_to_use}")
+                    _console(user.id, f"Using media-specific model: {model_to_use}")
                 # Otherwise check user's global setting
                 elif hasattr(user_settings, 'model_to_use') and user_settings.model_to_use and user_settings.model_to_use.strip():
                     model_to_use = user_settings.model_to_use.strip()
-                    push_console_line(user.id, f"Using user's global model: {model_to_use}")
+                    _console(user.id, f"Using user's global model: {model_to_use}")
 
                 if model_to_use:
                     kwargs['model_path'] = _gmp(model_to_use)
@@ -191,13 +223,13 @@ def process_single_media(self, media_id):
 
                     if selected_model:
                         kwargs['model_path'] = _gmp(selected_model)
-                        push_console_line(user.id, f"Auto-selected model (precision {precision_level}): {selected_model}")
+                        _console(user.id, f"Auto-selected model (precision {precision_level}): {selected_model}")
                     # Fallback to custom face/plate model if needed
                     elif any(c in kwargs['classes2blur'] for c in ['face', 'plate']):
                         kwargs['model_path'] = _gmp("yolov8m_faces&plates_720p.pt")
-                        push_console_line(user.id, f"Using custom face/plate model")
+                        _console(user.id, f"Using custom face/plate model")
             except Exception as e:
-                push_console_line(user.id, f"Warning: Model selection failed ({e}), using default")
+                _console(user.id, f"Warning: Model selection failed ({e}), using default")
                 pass
 
         # Vérifie si un stop a été demandé
@@ -207,19 +239,19 @@ def process_single_media(self, media_id):
 
         # Reset progress at start
         set_media_progress(media.id, 0)
-        push_console_line(user.id, f"Start processing media {media.id} ...")
+        _console(user.id, f"Start processing media {media.id} ...")
 
         # Load model (early progress)
         try:
             cache.set(f"media_stage_{media.id}", "loading_model", timeout=3600)
             set_media_progress(media.id, 5)
-            push_console_line(user.id, f"Loading model for media {media.id} ...")
+            _console(user.id, f"Loading model for media {media.id} ...")
         except Exception:
             pass
 
         # Run process with simulated progress
         set_media_progress(media.id, 10)
-        push_console_line(user.id, f"Running anonymization for media {media.id} ...")
+        _console(user.id, f"Running anonymization for media {media.id} ...")
 
         # Estimate processing time based on media type and size (rough estimate)
         # Video: ~60 seconds, Image: ~10 seconds
@@ -251,17 +283,26 @@ def process_single_media(self, media_id):
             media.processed = True
             media.save(update_fields=["processed"])
             set_media_progress(media.id, 100)
-            push_console_line(user.id, f"Finished media {media.id} ✔")
+            _console(user.id, f"Finished media {media.id} ✔")
         except media.__class__.DoesNotExist:
-            push_console_line(user.id, f"Warning: Media {media.id} was deleted during processing")
+            _console(user.id, f"Warning: Media {media.id} was deleted during processing")
             return {"error": "Media was deleted", "media_id": media_id}
+        finally:
+            # Release dedup locks
+            cache.delete(f"anon_lock:media:{media_id}")
+            cache.delete(f"anon_task_owner:media:{media_id}")
 
         return {"processed": media.id}
 
     except Exception as e:
         print(f"Erreur sur media {media_id}: {e}")
-        push_console_line(user.id, f"Error on media {media_id}: {e}")
-        # mark as failed state (keep last known progress)
+        try:
+            _console(user.id, f"Error on media {media_id}: {e}")
+        except Exception:
+            pass
+        # Release dedup locks on error
+        cache.delete(f"anon_lock:media:{media_id}")
+        cache.delete(f"anon_task_owner:media:{media_id}")
         return {"error": str(e), "media_id": media_id}
 
 
@@ -285,7 +326,7 @@ def start_process(**kwargs):
     print(f"[start_process] DEBUG: sam3_prompt='{sam3_prompt}' (type={type(sam3_prompt)})")
     print(f"[start_process] DEBUG: Condition check: use_sam3={bool(use_sam3)}, sam3_prompt={bool(sam3_prompt)}, strip={bool(sam3_prompt and sam3_prompt.strip())}")
     if user_id:
-        push_console_line(user_id, f"[DEBUG] use_sam3={use_sam3}, sam3_prompt='{sam3_prompt[:30] if sam3_prompt else ''}'...")
+        _console(user_id, f"[DEBUG] use_sam3={use_sam3}, sam3_prompt='{sam3_prompt[:30] if sam3_prompt else ''}'...")
 
     # Route to SAM3 if enabled and prompt provided
     if use_sam3 and sam3_prompt and sam3_prompt.strip():
@@ -296,7 +337,7 @@ def start_process(**kwargs):
             error_msg = "SAM3 not installed. Falling back to YOLO."
             print(f"Warning: {error_msg}")
             if user_id:
-                push_console_line(user_id, f"Warning: {error_msg}")
+                _console(user_id, f"Warning: {error_msg}")
             # Fall through to YOLO
         else:
             # Validate prompt
@@ -305,7 +346,7 @@ def start_process(**kwargs):
                 error_msg = f"Invalid SAM3 prompt: {error}. Falling back to YOLO."
                 print(f"Warning: {error_msg}")
                 if user_id:
-                    push_console_line(user_id, f"Warning: {error_msg}")
+                    _console(user_id, f"Warning: {error_msg}")
                 # Fall through to YOLO
             else:
                 # Use SAM3 processor
@@ -313,7 +354,7 @@ def start_process(**kwargs):
                     from anonymizer.sam3_processor import SAM3Processor
 
                     if user_id:
-                        push_console_line(user_id, f"Using SAM3 with prompt: {sam3_prompt[:50]}...")
+                        _console(user_id, f"Using SAM3 with prompt: {sam3_prompt[:50]}...")
 
                     # Get user-specific paths for SAM3
                     source_dir = get_app_media_path('anonymizer', user_id, 'input') if user_id else None
@@ -321,26 +362,35 @@ def start_process(**kwargs):
 
                     processor = SAM3Processor(source_dir=source_dir, destination_dir=dest_dir)
                     processor.load_model('auto')
+
+                    # Progress callback → console (throttled to every 10%)
+                    _last_pct = [0]
+                    def _sam3_progress(pct):
+                        if user_id and (pct - _last_pct[0] >= 10 or pct >= 100):
+                            _last_pct[0] = pct
+                            _console(user_id, f"SAM3 progress: {pct}%")
+
+                    kwargs['progress_callback'] = _sam3_progress
                     processor.process(**kwargs)
 
                     if user_id:
-                        push_console_line(user_id, f"SAM3 processing complete")
+                        _console(user_id, f"SAM3 processing complete")
                     return
                 except ImportError as e:
                     error_msg = f"SAM3 import error: {e}. Falling back to YOLO."
                     print(f"Warning: {error_msg}")
                     if user_id:
-                        push_console_line(user_id, f"Warning: {error_msg}")
+                        _console(user_id, f"Warning: {error_msg}")
                 except Exception as e:
                     error_msg = f"SAM3 processing error: {e}. Falling back to YOLO."
                     print(f"Warning: {error_msg}")
                     if user_id:
-                        push_console_line(user_id, f"Warning: {error_msg}")
+                        _console(user_id, f"Warning: {error_msg}")
 
     # Default: Use YOLO-based Anonymize
     print(f"[YOLO] Process started for media: {media_path} ...")
     if user_id:
-        push_console_line(user_id, f"Using YOLO with classes: {kwargs.get('classes2blur', [])}")
+        _console(user_id, f"Using YOLO with classes: {kwargs.get('classes2blur', [])}")
 
     # Get user-specific paths for YOLO
     source_dir = get_app_media_path('anonymizer', user_id, 'input') if user_id else None
@@ -387,15 +437,21 @@ def process_user_media_batch(self, user_id):
 
     if not medias_list.exists():
         logger.warning(f"[process_user_media_batch] No media to process for user {user.username}")
+        cache.delete(f"anon_lock:batch:{user_id}")
         return {"processed": 0}
 
     task_ids = []
     for media in medias_list:
+        # Set individual media lock before dispatching
+        cache.set(f"anon_lock:media:{media.id}", True, timeout=7200)
         # Chaque média est traité dans sa propre tâche Celery
         logger.info(f"[process_user_media_batch] Launching task for media {media.id} ({media.title})")
         task = process_single_media.delay(media.id)
         task_ids.append(task.id)
         logger.info(f"[process_user_media_batch] Task {task.id} launched for media {media.id}")
+
+    # Clear batch lock (individual media locks remain until tasks complete)
+    cache.delete(f"anon_lock:batch:{user_id}")
 
     logger.info(f"[process_user_media_batch] Total tasks launched: {len(task_ids)}")
     return {"queued_tasks": task_ids, "total": medias_list.count()}
@@ -475,7 +531,7 @@ def detect_with_model(self, media_id, model_id, model_path, classes_to_detect, *
         user_id = media.user_id
 
         logger.info(f"[Sequential] detect_with_model started: media={media_id}, model={model_id} ({model_index + 1}/{total_models})")
-        push_console_line(user_id, f"[Detection {model_index + 1}/{total_models}] {model_id}...")
+        _console(user_id, f"[Detection {model_index + 1}/{total_models}] {model_id}...")
 
         # Calculate progress: detection phase is 0-45%, blur phase is 45-100%
         # Each model gets an equal share of the detection phase
@@ -503,7 +559,7 @@ def detect_with_model(self, media_id, model_id, model_path, classes_to_detect, *
         # Count detections
         det_count = sum(len(dets) for dets in results.get('frame_detections', {}).values())
         logger.info(f"[Sequential] detect_with_model complete: model={model_id}, detections={det_count}")
-        push_console_line(user_id, f"[Detection {model_index + 1}/{total_models}] {det_count} detections")
+        _console(user_id, f"[Detection {model_index + 1}/{total_models}] {det_count} detections")
 
         # Update progress at end of this detection
         set_media_progress(media_id, end_pct)
@@ -521,7 +577,7 @@ def detect_with_model(self, media_id, model_id, model_path, classes_to_detect, *
     except Exception as e:
         logger.error(f"[Parallel] detect_with_model failed: model={model_id}, error={e}")
         try:
-            push_console_line(media.user_id, f"[Parallel] Error in {model_id}: {e}")
+            _console(media.user_id, f"[Parallel] Error in {model_id}: {e}")
         except:
             pass
         return {
@@ -579,7 +635,7 @@ def merge_and_blur_detections(self, detection_results=None, media_id=None, **kwa
             model_ids = [r['model_id'] for r in detection_results if r.get('success')]
             failed_models = [r['model_id'] for r in detection_results if not r.get('success')]
             if failed_models:
-                push_console_line(user_id, f"[Parallel] Warning: {len(failed_models)} model(s) failed")
+                _console(user_id, f"[Parallel] Warning: {len(failed_models)} model(s) failed")
                 logger.warning(f"[Parallel] Failed models: {failed_models}")
         else:
             # Single result (shouldn't happen, but handle gracefully)
@@ -590,16 +646,16 @@ def merge_and_blur_detections(self, detection_results=None, media_id=None, **kwa
         if not model_ids:
             raise Exception("No model IDs available - cannot merge detections")
 
-        push_console_line(user_id, f"[Parallel] Merging results from {len(model_ids)} model(s)...")
+        _console(user_id, f"[Parallel] Merging results from {len(model_ids)} model(s)...")
 
         # Merge all detections from cache
         merged = merge_all_detections(media_id, model_ids)
 
         total_detections = sum(len(dets) for dets in merged.get('frame_detections', {}).values())
-        push_console_line(user_id, f"[Parallel] Total merged detections: {total_detections}")
+        _console(user_id, f"[Parallel] Total merged detections: {total_detections}")
 
         # Apply blurring with merged detections (45% -> 100%)
-        push_console_line(user_id, f"[Blur] Applying blur to {total_detections} detections...")
+        _console(user_id, f"[Blur] Applying blur to {total_detections} detections...")
         set_media_progress(media_id, 45)
 
         processor = MergedBlurProcessor(
@@ -625,7 +681,11 @@ def merge_and_blur_detections(self, detection_results=None, media_id=None, **kwa
         media.save(update_fields=['processed'])
         set_media_progress(media_id, 100)
 
-        push_console_line(user_id, f"[Parallel] Complete! ✓ ({len(model_ids)} models, {total_detections} detections)")
+        # Release dedup locks (parallel path completion)
+        cache.delete(f"anon_lock:media:{media_id}")
+        cache.delete(f"anon_task_owner:media:{media_id}")
+
+        _console(user_id, f"[Parallel] Complete! ✓ ({len(model_ids)} models, {total_detections} detections)")
         logger.info(f"[Parallel] merge_and_blur_detections complete: media={media_id}")
 
         return {
@@ -638,9 +698,12 @@ def merge_and_blur_detections(self, detection_results=None, media_id=None, **kwa
     except Exception as e:
         logger.error(f"[Parallel] merge_and_blur_detections failed: media={media_id}, error={e}")
         try:
-            push_console_line(user_id, f"[Parallel] Merge error: {e}")
+            _console(user_id, f"[Parallel] Merge error: {e}")
         except:
             pass
+        # Release dedup locks on error
+        cache.delete(f"anon_lock:media:{media_id}")
+        cache.delete(f"anon_task_owner:media:{media_id}")
         return {
             'success': False,
             'media_id': media_id,

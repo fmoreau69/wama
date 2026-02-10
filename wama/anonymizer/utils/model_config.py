@@ -46,8 +46,8 @@ YOLO_ROOT = MODEL_PATHS.get('vision', {}).get('yolo',
 SAM_ROOT = MODEL_PATHS.get('vision', {}).get('sam',
     settings.AI_MODELS_DIR / "models" / "vision" / "sam")
 
-# SAM3 specific directory (HuggingFace cache structure)
-SAM3_DIR = SAM_ROOT / "sam3"
+# SAM3 specific directory (HuggingFace cache structure: models--facebook--sam3/)
+SAM3_DIR = SAM_ROOT / "models--facebook--sam3"
 
 # Ensure directories exist
 for dir_path in [VISION_ROOT, YOLO_ROOT, SAM_ROOT, SAM3_DIR]:

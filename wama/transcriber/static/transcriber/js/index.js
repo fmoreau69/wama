@@ -2,7 +2,7 @@ document.addEventListener('DOMContentLoaded', function () {
   const config = window.TRANSCRIBER_APP || {};
   const csrfToken = config.csrfToken;
   const fileInput = document.getElementById('transcriber-file');
-  const queueTable = document.getElementById('transcriber-queue');
+  const queueContainer = document.getElementById('transcriptQueue');
   const speakButton = document.getElementById('transcriber-speak-btn');
   const liveOutput = document.getElementById('live-transcription-output');
   const liveStatus = document.getElementById('live-transcription-status');
@@ -23,45 +23,48 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   function csrfHeaders(extra = {}) {
-    return Object.assign({}, extra, {
-      'X-CSRFToken': csrfToken,
+    return Object.assign({}, extra, { 'X-CSRFToken': csrfToken });
+  }
+
+  function escapeHtml(str) {
+    return (str || '').replace(/[&<>"']/g, function (m) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m];
     });
   }
 
+  // ======================================================================
+  // Upload
+  // ======================================================================
   async function uploadFile(file) {
     const body = new FormData();
     body.append('file', file);
     body.append('preprocess_audio', preprocessEnabled ? '1' : '0');
 
+    // Include current panel settings
+    const backendSel = document.getElementById('backendSelect');
+    const hotwordsIn = document.getElementById('hotwordsInput');
+    if (backendSel) body.append('backend', backendSel.value);
+    if (hotwordsIn) body.append('hotwords', hotwordsIn.value);
+
     try {
       const response = await fetch(config.uploadUrl, {
-        method: 'POST',
-        headers: csrfHeaders(),
-        body,
+        method: 'POST', headers: csrfHeaders(), body,
       });
-
       const data = await response.json();
-
-      if (data.error) {
-        throw new Error(data.error);
-      }
-
+      if (data.error) throw new Error(data.error);
       data.status = data.status || 'PENDING';
-      appendRow(data);
+      appendCard(data);
     } catch (error) {
       alert(`Erreur pour ${file.name}: ${error.message}`);
     }
   }
 
   async function handleFiles(files) {
-    for (const file of files) {
-      await uploadFile(file);
-    }
+    for (const file of files) await uploadFile(file);
   }
 
   function initUpload() {
     if (!fileInput) return;
-
     fileInput.addEventListener('change', function () {
       if (!this.files.length) return;
       handleFiles(this.files);
@@ -72,81 +75,40 @@ document.addEventListener('DOMContentLoaded', function () {
   function initDragDrop() {
     const dropZone = document.getElementById('dropZoneTranscriber');
     const browseBtn = document.getElementById('transcriber-browse-btn');
-
     if (!dropZone || !fileInput) return;
 
-    // Click on drop zone to open file dialog
-    dropZone.addEventListener('click', (e) => {
-      if (e.target !== browseBtn) {
-        fileInput.click();
-      }
-    });
-
-    // Browse button
-    if (browseBtn) {
-      browseBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        fileInput.click();
-      });
-    }
-
-    // Drag over
-    dropZone.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      dropZone.classList.add('drag-over');
-    });
-
-    // Drag leave
-    dropZone.addEventListener('dragleave', () => {
-      dropZone.classList.remove('drag-over');
-    });
-
-    // Drop
+    dropZone.addEventListener('click', (e) => { if (e.target !== browseBtn) fileInput.click(); });
+    if (browseBtn) browseBtn.addEventListener('click', (e) => { e.stopPropagation(); fileInput.click(); });
+    dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
     dropZone.addEventListener('drop', async (e) => {
       e.preventDefault();
       dropZone.classList.remove('drag-over');
 
-      // Check if this is a FileManager drop
       if (window.FileManager && window.FileManager.getFileManagerData) {
         const fileData = window.FileManager.getFileManagerData(e);
         if (fileData && fileData.path) {
-          // Handle FileManager import
           try {
             const result = await window.FileManager.importToApp(fileData.path, 'transcriber');
-            if (result.imported) {
-              window.location.reload();
-            }
+            if (result.imported) window.location.reload();
           } catch (error) {
             console.error('FileManager import error:', error);
-            if (window.FileManager.showToast) {
-              window.FileManager.showToast('Erreur d\'import: ' + error.message, 'danger');
-            }
           }
           return;
         }
       }
-
-      // Regular file drop
-      const files = e.dataTransfer.files;
-      if (files.length > 0) {
-        handleFiles(files);
-      }
+      if (e.dataTransfer.files.length > 0) handleFiles(e.dataTransfer.files);
     });
   }
 
   function initYoutube() {
     const youtubeUrl = document.getElementById('youtubeUrl');
     const youtubeBtn = document.getElementById('youtubeSubmitBtn');
-
     if (!youtubeUrl || !youtubeBtn) return;
 
     youtubeBtn.addEventListener('click', async () => {
       const url = youtubeUrl.value.trim();
-
-      if (!url) {
-        alert('Veuillez entrer une URL YouTube');
-        return;
-      }
+      if (!url) { alert('Veuillez entrer une URL YouTube'); return; }
 
       youtubeBtn.disabled = true;
       youtubeBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Téléchargement...';
@@ -155,24 +117,12 @@ document.addEventListener('DOMContentLoaded', function () {
         const body = new FormData();
         body.append('youtube_url', url);
         body.append('preprocess_audio', preprocessEnabled ? '1' : '0');
-
-        const response = await fetch(config.uploadYoutubeUrl, {
-          method: 'POST',
-          headers: csrfHeaders(),
-          body,
-        });
-
+        const response = await fetch(config.uploadYoutubeUrl, { method: 'POST', headers: csrfHeaders(), body });
         const data = await response.json();
-
-        if (data.error) {
-          throw new Error(data.error);
-        }
-
+        if (data.error) throw new Error(data.error);
         data.status = data.status || 'PENDING';
-        appendRow(data);
+        appendCard(data);
         youtubeUrl.value = '';
-
-        alert(`Vidéo YouTube téléchargée: ${data.video_title || 'Succès'}`);
       } catch (error) {
         alert(`Erreur YouTube: ${error.message}`);
       } finally {
@@ -181,70 +131,378 @@ document.addEventListener('DOMContentLoaded', function () {
       }
     });
 
-    // Allow Enter key
-    youtubeUrl.addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') {
-        youtubeBtn.click();
-      }
-    });
+    youtubeUrl.addEventListener('keypress', (e) => { if (e.key === 'Enter') youtubeBtn.click(); });
   }
 
-  function appendRow(data) {
-    if (!queueTable) return;
-    const tbody = queueTable.querySelector('tbody');
-    if (!tbody) return;
+  // ======================================================================
+  // Card rendering
+  // ======================================================================
+  function appendCard(data) {
+    if (!queueContainer) return;
+    removeEmptyState();
 
-    const existingEmpty = tbody.querySelector('.empty-row');
-    if (existingEmpty) {
-      existingEmpty.remove();
-    }
+    const card = document.createElement('div');
+    card.className = 'synthesis-card';
+    card.dataset.id = data.id;
+    card.dataset.status = (data.status || 'PENDING').toUpperCase();
 
-    const row = document.createElement('tr');
-    row.dataset.id = data.id;
-    row.dataset.status = (data.status || 'PENDING').toUpperCase();
-    row.dataset.preprocess = data.preprocess_audio ? 'true' : 'false';
-    row.innerHTML = `
-      <td class="fw-bold text-center">#${data.id}</td>
-      <td>
-        <div class="fw-semibold">${escapeHtml(data.audio_label || data.audio_name || 'Audio')}</div>
-        <div class="d-flex align-items-center gap-2 mt-1">
-          <a href="${data.audio_url}" target="_blank" class="text-info small"><i class="fas fa-link"></i> Voir le fichier</a>
-          <span class="badge bg-warning text-dark preprocess-badge${data.preprocess_audio ? '' : ' d-none'}">Prétraité</span>
+    const label = escapeHtml(data.audio_label || data.audio_name || 'Audio');
+    const duration = escapeHtml(data.duration_display || '--:--');
+    const props = escapeHtml(data.properties || 'En attente');
+    const backend = escapeHtml(data.backend || 'auto');
+
+    const previewUrl = config.previewUrlTemplate ? getUrl(config.previewUrlTemplate, data.id) : '';
+
+    card.innerHTML = `
+      <div class="row align-items-center">
+        <div class="col-md-3">
+          <button type="button" class="btn btn-link p-0 text-decoration-none preview-media-link filename"
+                  data-preview-url="${escapeHtml(previewUrl)}"
+                  style="color: inherit;">
+            <i class="fas fa-file-audio"></i> ${label}
+          </button><br>
+          <small class="text-white-50">
+            ${duration}
+            ${data.preprocess_audio ? '<span class="badge bg-warning text-dark ms-1">Prétraité</span>' : ''}
+          </small>
         </div>
-      </td>
-      <td class="text-center small">${escapeHtml(data.properties || '-')}</td>
-      <td class="text-center fw-semibold">${escapeHtml(data.duration_display || '--:--')}</td>
-      <td class="status text-uppercase text-center">${data.status || 'PENDING'}</td>
-      <td>
-        <div class="progress" style="height: 24px;">
-          <div class="progress-bar" role="progressbar" style="width: 0%;">0%</div>
+        <div class="col-md-2">
+          <small>
+            <i class="fas fa-microchip"></i> ${backend}<br>
+          </small>
         </div>
-      </td>
-      <td class="text-center">
-        <div class="btn-group" role="group">
-          <a class="btn btn-success btn-sm download-btn disabled" aria-disabled="true" tabindex="-1"
-             href="${getUrl(config.downloadUrlTemplate, data.id)}">
-            <i class="fas fa-download"></i>
-          </a>
-          <button class="btn btn-danger btn-sm js-delete-transcript"
-                  data-delete-url="${getUrl(config.deleteUrlTemplate, data.id)}">
-            <i class="fas fa-trash-alt"></i>
-          </button>
+        <div class="col-md-2">
+          <small class="text-white-50">${props}</small>
         </div>
-      </td>
-    `;
-    tbody.prepend(row);
-    bindRowActions(row);
+        <div class="col-md-2">
+          <span class="badge status-badge bg-secondary">PENDING</span>
+          <div class="progress mt-2" style="height: 8px;">
+            <div class="progress-bar bg-info progress-fill" style="width: 0%"></div>
+          </div>
+          <small class="text-light progress-text">0%</small>
+        </div>
+        <div class="col-md-3">
+          <div class="btn-group-actions">
+            <button class="btn btn-sm btn-primary start-btn" data-id="${data.id}" title="Démarrer">
+              <i class="fas fa-play"></i>
+            </button>
+            <button class="btn btn-sm btn-secondary settings-btn" data-id="${data.id}"
+                    data-backend="${escapeHtml(data.backend || 'auto')}"
+                    data-hotwords="${escapeHtml(data.hotwords || '')}"
+                    data-preprocess="${data.preprocess_audio ? 'true' : 'false'}"
+                    data-diarization="true"
+                    data-temperature="0"
+                    data-max-tokens="32768"
+                    title="Paramètres">
+              <i class="fas fa-cog"></i>
+            </button>
+            <button class="btn btn-sm btn-danger delete-btn" data-id="${data.id}" title="Supprimer">
+              <i class="fas fa-trash"></i>
+            </button>
+          </div>
+        </div>
+      </div>`;
+
+    queueContainer.prepend(card);
+    bindCardActions(card);
+    if (window.initMediaPreview) window.initMediaPreview();
     updateDownloadAllState();
   }
 
+  function updateCard(id, data) {
+    const card = queueContainer ? queueContainer.querySelector(`.synthesis-card[data-id="${id}"]`) : null;
+    if (!card) { stopPolling(id); return; }
+
+    const progress = Math.min(100, Math.max(0, data.progress || 0));
+    const status = (data.status || 'PENDING').toUpperCase();
+
+    // Update progress bar
+    const bar = card.querySelector('.progress-fill');
+    const progressText = card.querySelector('.progress-text');
+    if (bar) bar.style.width = `${progress}%`;
+    if (progressText) progressText.textContent = `${progress}%`;
+
+    // Update status badge
+    const badge = card.querySelector('.status-badge');
+    if (badge) {
+      badge.textContent = status;
+      badge.className = 'badge status-badge ' + ({
+        PENDING: 'bg-secondary', RUNNING: 'bg-warning',
+        SUCCESS: 'bg-success', FAILURE: 'bg-danger'
+      }[status] || 'bg-secondary');
+    }
+
+    // Update card class
+    card.className = 'synthesis-card' + ({
+      RUNNING: ' processing', SUCCESS: ' success', FAILURE: ' error'
+    }[status] || '');
+    card.dataset.status = status;
+
+    // Update live transcription display
+    updateLiveTranscriptionFromQueue(id, status, data.partial_text);
+
+    // When done, rebuild actions to show download buttons
+    if (['SUCCESS', 'FAILURE'].includes(status) || progress >= 100) {
+      stopPolling(id);
+      rebuildActions(card, id, status);
+    }
+
+    updateDownloadAllState();
+  }
+
+  function rebuildActions(card, id, status) {
+    const actionsDiv = card.querySelector('.btn-group-actions');
+    if (!actionsDiv) return;
+
+    let html = '';
+
+    if (status !== 'RUNNING') {
+      html += `<button class="btn btn-sm btn-primary start-btn" data-id="${id}" title="Démarrer"><i class="fas fa-play"></i></button>`;
+      html += `<button class="btn btn-sm btn-secondary settings-btn" data-id="${id}" title="Paramètres"><i class="fas fa-cog"></i></button>`;
+    }
+
+    if (status === 'SUCCESS') {
+      html += `<button class="btn btn-sm btn-success preview-btn" data-id="${id}" title="Voir le résultat"><i class="fas fa-eye"></i></button>`;
+      html += `<a href="${getUrl(config.downloadUrlTemplate, id)}" class="btn btn-sm btn-info download-txt-btn" title="TXT"><i class="fas fa-file-alt"></i></a>`;
+      html += `<a href="${getUrl(config.downloadSrtUrlTemplate, id)}" class="btn btn-sm btn-info download-srt-btn" title="SRT"><i class="fas fa-closed-captioning"></i></a>`;
+    }
+
+    html += `<button class="btn btn-sm btn-danger delete-btn" data-id="${id}" title="Supprimer"><i class="fas fa-trash"></i></button>`;
+
+    actionsDiv.innerHTML = html;
+
+    // Re-copy data-attributes from old settings btn if any exist on the card
+    // Settings btn needs data-attributes; they'll be populated from server on next open
+    const settingsBtn = actionsDiv.querySelector('.settings-btn');
+    if (settingsBtn) {
+      settingsBtn.dataset.backend = card.dataset.backend || 'auto';
+      settingsBtn.dataset.hotwords = card.dataset.hotwords || '';
+      settingsBtn.dataset.preprocess = card.dataset.preprocess || 'false';
+      settingsBtn.dataset.diarization = card.dataset.diarization || 'true';
+      settingsBtn.dataset.temperature = card.dataset.temperature || '0';
+      settingsBtn.dataset.maxTokens = card.dataset.maxTokens || '32768';
+    }
+
+    bindCardActions(card);
+  }
+
+  // ======================================================================
+  // Card actions
+  // ======================================================================
+  function bindCardActions(scope) {
+    const root = scope || document;
+
+    root.querySelectorAll('.start-btn').forEach(btn => {
+      if (btn.dataset.bound === '1') return;
+      btn.dataset.bound = '1';
+      btn.addEventListener('click', () => handleStart(btn.dataset.id));
+    });
+
+    root.querySelectorAll('.settings-btn').forEach(btn => {
+      if (btn.dataset.bound === '1') return;
+      btn.dataset.bound = '1';
+      btn.addEventListener('click', () => openSettingsModal(btn));
+    });
+
+    root.querySelectorAll('.preview-btn').forEach(btn => {
+      if (btn.dataset.bound === '1') return;
+      btn.dataset.bound = '1';
+      btn.addEventListener('click', () => openResultModal(btn.dataset.id));
+    });
+
+    root.querySelectorAll('.delete-btn').forEach(btn => {
+      if (btn.dataset.bound === '1') return;
+      btn.dataset.bound = '1';
+      btn.addEventListener('click', () => handleDelete(btn.dataset.id));
+    });
+  }
+
+  function handleStart(id) {
+    const url = getUrl(config.startUrlTemplate, id);
+    const card = queueContainer.querySelector(`.synthesis-card[data-id="${id}"]`);
+
+    fetch(url, {
+      method: 'POST',
+      headers: csrfHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({}),
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (data.error) {
+          alert(data.error);
+          return;
+        }
+        // Update card to RUNNING state
+        if (card) {
+          card.dataset.status = 'RUNNING';
+          card.className = 'synthesis-card processing';
+          const badge = card.querySelector('.status-badge');
+          if (badge) { badge.textContent = 'RUNNING'; badge.className = 'badge status-badge bg-warning'; }
+          const bar = card.querySelector('.progress-fill');
+          if (bar) bar.style.width = '0%';
+          const pt = card.querySelector('.progress-text');
+          if (pt) pt.textContent = '0%';
+
+          // Hide start+settings buttons during processing
+          const actions = card.querySelector('.btn-group-actions');
+          if (actions) {
+            actions.querySelectorAll('.start-btn, .settings-btn').forEach(b => b.style.display = 'none');
+          }
+        }
+        startPolling(id);
+      })
+      .catch(err => alert(err.message || 'Erreur'));
+  }
+
+  function handleDelete(id) {
+    if (!confirm('Supprimer cette transcription ?')) return;
+
+    const url = getUrl(config.deleteUrlTemplate, id);
+    fetch(url, {
+      method: 'POST',
+      headers: csrfHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({}),
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (!data.deleted) throw new Error('Suppression impossible');
+        const card = queueContainer.querySelector(`.synthesis-card[data-id="${id}"]`);
+        if (card) card.remove();
+        stopPolling(id);
+        insertEmptyStateIfNeeded();
+        updateDownloadAllState();
+      })
+      .catch(err => alert(err.message || 'Erreur lors de la suppression'));
+  }
+
+  // ======================================================================
+  // Settings modal
+  // ======================================================================
+  function openSettingsModal(btn) {
+    const modal = document.getElementById('settingsModal');
+    if (!modal) return;
+
+    document.getElementById('settingsTranscriptId').value = btn.dataset.id;
+    document.getElementById('settingsBackend').value = btn.dataset.backend || 'auto';
+    document.getElementById('settingsHotwords').value = btn.dataset.hotwords || '';
+    document.getElementById('settingsPreprocess').checked = btn.dataset.preprocess === 'true';
+    document.getElementById('settingsDiarization').checked = btn.dataset.diarization !== 'false';
+
+    const temp = parseFloat(btn.dataset.temperature) || 0;
+    document.getElementById('settingsTemperature').value = temp;
+    document.getElementById('settingsTemperatureValue').textContent = temp;
+
+    document.getElementById('settingsMaxTokens').value = parseInt(btn.dataset.maxTokens) || 32768;
+
+    const bsModal = new bootstrap.Modal(modal);
+    bsModal.show();
+  }
+
+  function saveSettings(andStart) {
+    const id = document.getElementById('settingsTranscriptId').value;
+    if (!id) return;
+
+    const payload = {
+      backend: document.getElementById('settingsBackend').value,
+      hotwords: document.getElementById('settingsHotwords').value,
+      preprocess_audio: document.getElementById('settingsPreprocess').checked,
+      enable_diarization: document.getElementById('settingsDiarization').checked,
+      temperature: parseFloat(document.getElementById('settingsTemperature').value) || 0,
+      max_tokens: parseInt(document.getElementById('settingsMaxTokens').value) || 32768,
+    };
+
+    const url = getUrl(config.settingsUrlTemplate, id);
+    fetch(url, {
+      method: 'POST',
+      headers: csrfHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify(payload),
+    })
+      .then(r => r.json())
+      .then(data => {
+        // Close modal
+        const modal = bootstrap.Modal.getInstance(document.getElementById('settingsModal'));
+        if (modal) modal.hide();
+
+        // Update card's data-attributes and options display
+        const card = queueContainer.querySelector(`.synthesis-card[data-id="${id}"]`);
+        if (card) {
+          // Store on card for future use
+          card.dataset.backend = payload.backend;
+          card.dataset.hotwords = payload.hotwords;
+          card.dataset.preprocess = payload.preprocess_audio ? 'true' : 'false';
+          card.dataset.diarization = payload.enable_diarization ? 'true' : 'false';
+          card.dataset.temperature = payload.temperature;
+          card.dataset.maxTokens = payload.max_tokens;
+
+          // Update settings button data-attributes
+          const settingsBtn = card.querySelector('.settings-btn');
+          if (settingsBtn) {
+            settingsBtn.dataset.backend = payload.backend;
+            settingsBtn.dataset.hotwords = payload.hotwords;
+            settingsBtn.dataset.preprocess = payload.preprocess_audio ? 'true' : 'false';
+            settingsBtn.dataset.diarization = payload.enable_diarization ? 'true' : 'false';
+            settingsBtn.dataset.temperature = payload.temperature;
+            settingsBtn.dataset.maxTokens = payload.max_tokens;
+          }
+
+          // Update options column display
+          const optionsCol = card.querySelectorAll('.col-md-2')[0];
+          if (optionsCol) {
+            let optHtml = `<small><i class="fas fa-microchip"></i> ${escapeHtml(payload.backend)}<br>`;
+            if (payload.hotwords) optHtml += `<i class="fas fa-tags"></i> ${escapeHtml(payload.hotwords.substring(0, 20))}${payload.hotwords.length > 20 ? '...' : ''}<br>`;
+            if (payload.enable_diarization) optHtml += `<i class="fas fa-users"></i> Diarisation`;
+            optHtml += '</small>';
+            optionsCol.innerHTML = optHtml;
+          }
+        }
+
+        if (andStart) handleStart(id);
+      })
+      .catch(err => alert(err.message || 'Erreur lors de la sauvegarde'));
+  }
+
+  // ======================================================================
+  // Result modal
+  // ======================================================================
+  function openResultModal(id) {
+    const modal = document.getElementById('resultModal');
+    if (!modal) return;
+
+    const resultText = document.getElementById('resultText');
+    const title = document.getElementById('resultModalTitle');
+    const dlBtn = document.getElementById('resultDownloadBtn');
+    const srtBtn = document.getElementById('resultSrtBtn');
+
+    if (title) title.textContent = `Transcription #${id}`;
+    if (resultText) resultText.textContent = 'Chargement...';
+    if (dlBtn) dlBtn.href = getUrl(config.downloadUrlTemplate, id);
+    if (srtBtn) srtBtn.href = getUrl(config.downloadSrtUrlTemplate, id);
+
+    const bsModal = new bootstrap.Modal(modal);
+    bsModal.show();
+
+    // Fetch the text via progress endpoint (it has partial_text)
+    fetch(getUrl(config.progressUrlTemplate, id))
+      .then(r => r.json())
+      .then(data => {
+        if (resultText) {
+          resultText.textContent = data.partial_text || '(Aucun texte disponible)';
+        }
+      })
+      .catch(() => {
+        if (resultText) resultText.textContent = 'Erreur de chargement';
+      });
+  }
+
+  // ======================================================================
+  // Polling
+  // ======================================================================
   function startPolling(id) {
     if (pollers.has(id)) return;
-
     const interval = setInterval(() => {
       fetch(getUrl(config.progressUrlTemplate, id))
-        .then((response) => response.json())
-        .then((data) => updateRow(id, data))
+        .then(r => r.json())
+        .then(data => updateCard(id, data))
         .catch(() => stopPolling(id));
     }, 1200);
     pollers.set(id, interval);
@@ -252,106 +510,171 @@ document.addEventListener('DOMContentLoaded', function () {
 
   function stopPolling(id) {
     const interval = pollers.get(id);
-    if (interval) {
-      clearInterval(interval);
-      pollers.delete(id);
+    if (interval) { clearInterval(interval); pollers.delete(id); }
+  }
+
+  // ======================================================================
+  // Empty state
+  // ======================================================================
+  function removeEmptyState() {
+    if (!queueContainer) return;
+    const empty = queueContainer.querySelector('.empty-queue');
+    if (empty) empty.remove();
+  }
+
+  function insertEmptyStateIfNeeded() {
+    if (!queueContainer) return;
+    const hasCards = queueContainer.querySelectorAll('.synthesis-card').length > 0;
+    if (!hasCards && !queueContainer.querySelector('.empty-queue')) {
+      const div = document.createElement('div');
+      div.className = 'text-center py-5 empty-queue';
+      div.innerHTML = '<i class="fas fa-inbox fa-3x mb-3 text-white-50"></i><p class="text-white-50">Aucune transcription en attente</p>';
+      queueContainer.appendChild(div);
     }
   }
 
-  function updateRow(id, data) {
-    const row = queueTable ? queueTable.querySelector(`tr[data-id="${id}"]`) : null;
-    if (!row) {
-      stopPolling(id);
-      return;
+  // ======================================================================
+  // Bulk actions
+  // ======================================================================
+  function initBulkActions() {
+    if (startProcessBtn) startProcessBtn.addEventListener('click', handleStartAll);
+    if (clearAllBtn) clearAllBtn.addEventListener('click', handleClearAll);
+    if (downloadAllBtn) {
+      downloadAllBtn.addEventListener('click', () => {
+        window.location.href = config.startAllUrl.replace('start_all', 'download_all');
+      });
+    }
+    if (preprocessToggle) {
+      preprocessToggle.checked = preprocessEnabled;
+      preprocessToggle.addEventListener('change', () => {
+        preprocessEnabled = preprocessToggle.checked;
+        persistPreprocessingPreference(preprocessEnabled);
+      });
     }
 
-    const bar = row.querySelector('.progress-bar');
-    const statusCell = row.querySelector('.status');
-    const downloadBtn = row.querySelector('.download-btn');
-
-    const progress = Math.min(100, Math.max(0, data.progress || 0));
-    const status = (data.status || 'PENDING').toUpperCase();
-
-    if (bar) {
-      bar.style.width = `${progress}%`;
-      bar.textContent = `${progress}%`;
-    }
-    if (statusCell) {
-      statusCell.textContent = status;
-    }
-    row.dataset.status = status;
-
-    // Update live transcription display if this is the first running transcript
-    updateLiveTranscriptionFromQueue(id, status, data.partial_text);
-
-    if (['SUCCESS', 'FAILURE'].includes(status) || progress >= 100) {
-      stopPolling(id);
-    }
-
-    if (status === 'SUCCESS' && downloadBtn) {
-      downloadBtn.classList.remove('disabled');
-      downloadBtn.removeAttribute('aria-disabled');
-      downloadBtn.removeAttribute('tabindex');
-    }
-    updateDownloadAllState();
+    // Settings modal buttons
+    const saveBtn = document.getElementById('saveSettingsBtn');
+    const saveStartBtn = document.getElementById('saveAndStartBtn');
+    if (saveBtn) saveBtn.addEventListener('click', () => saveSettings(false));
+    if (saveStartBtn) saveStartBtn.addEventListener('click', () => saveSettings(true));
   }
 
-  function bindRowActions(scope) {
-    const deleteButtons = (scope || document).querySelectorAll('.js-delete-transcript');
-    deleteButtons.forEach((btn) => {
-      if (btn.dataset.bound === '1') return;
-      btn.dataset.bound = '1';
-      btn.addEventListener('click', () => handleDelete(btn));
-    });
-  }
-
-  function handleDelete(button) {
-    const url = button.dataset.deleteUrl;
-    if (!url || !confirm('Supprimer cette transcription ?')) {
-      return;
-    }
-    button.disabled = true;
-    fetch(url, {
+  function handleStartAll() {
+    if (!config.startAllUrl) return;
+    startProcessBtn.disabled = true;
+    fetch(config.startAllUrl, {
       method: 'POST',
       headers: csrfHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({}),
     })
-      .then((response) => response.json())
-      .then((data) => {
-        if (!data.deleted) {
-          throw new Error('Suppression impossible');
-        }
-        const row = button.closest('tr');
-        if (row) {
-          const id = row.dataset.id;
-          row.remove();
-          stopPolling(id);
-          insertEmptyRowIfNeeded();
-          updateDownloadAllState();
-        }
+      .then(r => r.json())
+      .then(data => {
+        const started = data.started_ids || [];
+        if (!started.length) { alert('Aucune transcription à démarrer.'); return; }
+        started.forEach(id => startPolling(id));
+        // Reload to get fresh card states
+        window.location.reload();
       })
-      .catch((error) => {
-        alert(error.message || 'Erreur lors de la suppression');
-      })
-      .finally(() => {
-        button.disabled = false;
-      });
+      .catch(err => alert(err.message || 'Erreur'))
+      .finally(() => { startProcessBtn.disabled = false; });
   }
 
-  function initExistingRows() {
-    if (!queueTable) return;
-    queueTable.querySelectorAll('tbody tr[data-id]').forEach((row) => {
-      const id = row.dataset.id;
-      const status = (row.dataset.status || '').toUpperCase();
-      applyPreprocessBadge(row, row.dataset.preprocess === 'true');
-      bindRowActions(row);
-      if (['PENDING', 'RUNNING', 'STARTED'].includes(status)) {
-        startPolling(id);
-      }
+  function handleClearAll() {
+    if (!config.clearUrl) return;
+    if (!confirm('Supprimer toutes les transcriptions ?')) return;
+
+    clearAllBtn.disabled = true;
+    fetch(config.clearUrl, {
+      method: 'POST',
+      headers: csrfHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({}),
+    })
+      .then(r => r.json())
+      .then(() => {
+        if (queueContainer) {
+          queueContainer.querySelectorAll('.synthesis-card').forEach(c => c.remove());
+        }
+        pollers.forEach((_, id) => stopPolling(id));
+        insertEmptyStateIfNeeded();
+        updateDownloadAllState();
+      })
+      .catch(err => alert(err.message || 'Erreur'))
+      .finally(() => { clearAllBtn.disabled = false; });
+  }
+
+  function updateDownloadAllState() {
+    if (!downloadAllBtn || !queueContainer) return;
+    const hasSuccess = !!queueContainer.querySelector('.synthesis-card[data-status="SUCCESS"]');
+    downloadAllBtn.disabled = !hasSuccess;
+  }
+
+  function persistPreprocessingPreference(enabled) {
+    const endpoint = config.preprocessingUrl || toggleDatasetUrl;
+    if (!endpoint) return;
+    fetch(endpoint, {
+      method: 'POST',
+      headers: csrfHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ enabled }),
+    }).catch(() => {
+      if (preprocessToggle) preprocessToggle.checked = !enabled;
     });
-    updateDownloadAllState();
   }
 
+  // ======================================================================
+  // Live transcription
+  // ======================================================================
+  function updateLiveTranscriptionFromQueue(transcriptId, status, partialText) {
+    if (!liveOutput || !liveStatus) return;
+    if (speakButton && speakButton.classList.contains('active')) return;
+
+    const firstRunning = queueContainer ? queueContainer.querySelector('.synthesis-card[data-status="RUNNING"]') : null;
+
+    if (!firstRunning) {
+      if (liveOutput.textContent !== 'Appuyez sur Speak puis commencez à parler pour voir le texte apparaître ici en temps réel.') {
+        liveOutput.textContent = 'Aucune transcription en cours.';
+        liveStatus.textContent = 'En attente...';
+      }
+      return;
+    }
+
+    if (firstRunning.dataset.id !== String(transcriptId)) return;
+
+    if (status === 'RUNNING') {
+      liveStatus.textContent = `Transcription #${transcriptId} en cours...`;
+    } else if (status === 'SUCCESS') {
+      liveStatus.textContent = `Transcription #${transcriptId} terminée`;
+    } else if (status === 'FAILURE') {
+      liveStatus.textContent = `Transcription #${transcriptId} échouée`;
+    }
+
+    if (partialText && partialText.trim()) {
+      displayTextWithHighlight(partialText);
+    }
+  }
+
+  function displayTextWithHighlight(text) {
+    if (!liveOutput) return;
+    const words = text.split(/(\s+)/);
+    let lastWordIndex = -1;
+    for (let i = words.length - 1; i >= 0; i--) {
+      if (words[i].trim().length > 0) { lastWordIndex = i; break; }
+    }
+    if (lastWordIndex >= 0) {
+      const htmlParts = words.map((word, index) => {
+        if (index === lastWordIndex) {
+          return `<mark style="background-color: #ffc107; color: #000; padding: 2px 4px; border-radius: 3px;">${escapeHtml(word)}</mark>`;
+        }
+        return escapeHtml(word);
+      });
+      liveOutput.innerHTML = htmlParts.join('');
+    } else {
+      liveOutput.textContent = text;
+    }
+  }
+
+  // ======================================================================
+  // Speech recognition
+  // ======================================================================
   function initSpeech() {
     if (!speakButton || !liveOutput || !liveStatus) return;
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -370,353 +693,87 @@ document.addEventListener('DOMContentLoaded', function () {
     let finalTranscript = '';
 
     recognition.onstart = () => {
-      listening = true;
-      finalTranscript = '';
+      listening = true; finalTranscript = '';
       speakButton.classList.add('active');
       speakButton.innerHTML = '<i class="fas fa-stop"></i> Stop';
       liveStatus.textContent = 'Écoute en cours...';
     };
-
     recognition.onerror = (event) => {
       liveStatus.textContent = `Erreur: ${event.error}`;
       speakButton.classList.remove('active');
       speakButton.innerHTML = '<i class="fas fa-microphone"></i> Speak';
       listening = false;
     };
-
     recognition.onend = () => {
       speakButton.classList.remove('active');
       speakButton.innerHTML = '<i class="fas fa-microphone"></i> Speak';
       listening = false;
       liveStatus.textContent = finalTranscript ? 'Session terminée' : 'En attente...';
     };
-
     recognition.onresult = (event) => {
       let interimTranscript = '';
-      for (let i = event.resultIndex; i < event.results.length; i += 1) {
+      for (let i = event.resultIndex; i < event.results.length; i++) {
         const transcript = event.results[i][0].transcript;
-        if (event.results[i].isFinal) {
-          finalTranscript += transcript + '\n';
-        } else {
-          interimTranscript += transcript;
-        }
+        if (event.results[i].isFinal) finalTranscript += transcript + '\n';
+        else interimTranscript += transcript;
       }
-
-      // Combine final and interim transcripts
       const fullText = (finalTranscript + interimTranscript).trim();
-
-      if (!fullText || fullText === '...') {
-        liveOutput.textContent = '...';
-        return;
-      }
-
-      // Highlight last word during transcription
-      const words = fullText.split(/(\s+)/); // Split keeping whitespace
-
-      if (words.length > 0) {
-        // Find the last non-whitespace word
-        let lastWordIndex = -1;
-        for (let i = words.length - 1; i >= 0; i--) {
-          if (words[i].trim().length > 0) {
-            lastWordIndex = i;
-            break;
-          }
-        }
-
-        if (lastWordIndex >= 0) {
-          // Build HTML with highlighted last word
-          const htmlParts = words.map((word, index) => {
-            if (index === lastWordIndex) {
-              return `<mark style="background-color: #ffc107; color: #000; padding: 2px 4px; border-radius: 3px;">${escapeHtml(word)}</mark>`;
-            }
-            return escapeHtml(word);
-          });
-
-          liveOutput.innerHTML = htmlParts.join('');
-        } else {
-          liveOutput.textContent = fullText;
-        }
-      } else {
-        liveOutput.textContent = fullText || '...';
-      }
+      if (fullText && fullText !== '...') displayTextWithHighlight(fullText);
+      else liveOutput.textContent = '...';
     };
 
     speakButton.addEventListener('click', () => {
-      if (listening) {
-        recognition.stop();
-      } else {
-        try {
-          recognition.start();
-        } catch (error) {
-          console.error(error);
-        }
-      }
+      if (listening) recognition.stop();
+      else try { recognition.start(); } catch (e) { console.error(e); }
     });
   }
 
-  function initBulkActions() {
-    if (startProcessBtn) {
-      startProcessBtn.addEventListener('click', handleStartAll);
-    }
-    if (clearAllBtn) {
-      clearAllBtn.addEventListener('click', handleClearAll);
-    }
-    if (downloadAllBtn) {
-      downloadAllBtn.addEventListener('click', () => {
-        window.location.href = config.startAllUrl.replace('start_all', 'download_all');
-      });
-    }
-    if (preprocessToggle) {
-      preprocessToggle.checked = preprocessEnabled;
-      preprocessToggle.addEventListener('change', () => {
-        preprocessEnabled = preprocessToggle.checked;
-        persistPreprocessingPreference(preprocessEnabled);
-      });
-    }
-  }
-
-  function handleStartAll() {
-    if (!config.startAllUrl || !queueTable) return;
-    startProcessBtn.disabled = true;
-    fetch(config.startAllUrl, {
-      method: 'POST',
-      headers: csrfHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ preprocessing: preprocessEnabled }),
-    })
-      .then((response) => response.json())
-      .then((data) => {
-        const started = data.started_ids || [];
-        if (!started.length) {
-          alert('Aucune transcription à démarrer.');
-          return;
-        }
-        started.forEach((id) => {
-          const row = queueTable.querySelector(`tr[data-id="${id}"]`);
-          if (row) {
-            row.dataset.preprocess = preprocessEnabled ? 'true' : 'false';
-            applyPreprocessBadge(row, preprocessEnabled);
-          }
-          startPolling(id);
-        });
-      })
-      .catch((error) => {
-        alert(error.message || 'Erreur lors du démarrage des transcriptions.');
-      })
-      .finally(() => {
-        startProcessBtn.disabled = false;
-      });
-  }
-
-  function handleClearAll() {
-    if (!config.clearUrl || !queueTable) return;
-    if (!confirm('Supprimer toutes les transcriptions ?')) {
-      return;
-    }
-    clearAllBtn.disabled = true;
-    fetch(config.clearUrl, {
-      method: 'POST',
-      headers: csrfHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({}),
-    })
-      .then((response) => response.json())
-      .then(() => {
-        queueTable.querySelectorAll('tbody tr[data-id]').forEach((row) => row.remove());
-        pollers.forEach((_, id) => stopPolling(id));
-        insertEmptyRowIfNeeded(true);
-        updateDownloadAllState();
-      })
-      .catch((error) => {
-        alert(error.message || 'Erreur lors de la suppression.');
-      })
-      .finally(() => {
-        clearAllBtn.disabled = false;
-      });
-  }
-
-  function insertEmptyRowIfNeeded(force = false) {
-    if (!queueTable) return;
-    const tbody = queueTable.querySelector('tbody');
-    if (!tbody) return;
-    const hasRows = tbody.querySelectorAll('tr[data-id]').length > 0;
-    const existingEmpty = tbody.querySelector('.empty-row');
-    if (!hasRows || force) {
-      if (existingEmpty) return;
-      const row = document.createElement('tr');
-      row.className = 'empty-row';
-      row.innerHTML =
-        '<td colspan="7" class="text-center py-4">Aucune transcription en attente.</td>';
-      tbody.appendChild(row);
-    } else if (existingEmpty) {
-      existingEmpty.remove();
-    }
-  }
-
-  function updateDownloadAllState() {
-    if (!downloadAllBtn || !queueTable) return;
-    const hasSuccess = !!queueTable.querySelector('tbody tr[data-status="SUCCESS"]');
-    if (hasSuccess) {
-      downloadAllBtn.removeAttribute('disabled');
-    } else {
-      downloadAllBtn.setAttribute('disabled', 'true');
-    }
-  }
-
-  function persistPreprocessingPreference(enabled) {
-    const endpoint = config.preprocessingUrl || toggleDatasetUrl;
-    if (!endpoint) return;
-    fetch(endpoint, {
-      method: 'POST',
-      headers: csrfHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ enabled }),
-    }).catch(() => {
-      if (preprocessToggle) {
-        preprocessToggle.checked = !enabled;
-      }
-    });
-  }
-
-  function applyPreprocessBadge(row, enabled) {
-    if (!row) return;
-    const badge = row.querySelector('.preprocess-badge');
-    if (!badge) return;
-    if (enabled) {
-      badge.classList.remove('d-none');
-    } else {
-      badge.classList.add('d-none');
-    }
-  }
-
-  function escapeHtml(str) {
-    return (str || '').replace(/[&<>"']/g, function (match) {
-      const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
-      return map[match];
-    });
-  }
-
-  function updateLiveTranscriptionFromQueue(transcriptId, status, partialText) {
-    // Only update if not in speech mode and this is the first running transcript
-    if (!liveOutput || !liveStatus) return;
-
-    // Check if speak mode is active
-    if (speakButton && speakButton.classList.contains('active')) {
-      return; // Don't override speech mode
-    }
-
-    // Find the first RUNNING transcript
-    const firstRunning = queueTable ? queueTable.querySelector('tbody tr[data-status="RUNNING"]') : null;
-
-    if (!firstRunning) {
-      // No running transcripts, show default message
-      if (liveOutput.textContent !== 'Appuyez sur Speak puis commencez à parler pour voir le texte apparaître ici en temps réel.') {
-        liveOutput.textContent = 'Aucune transcription en cours.';
-        liveStatus.textContent = 'En attente...';
-      }
-      return;
-    }
-
-    const firstRunningId = firstRunning.dataset.id;
-
-    // Only update if this is the first running transcript
-    if (firstRunningId !== String(transcriptId)) {
-      return;
-    }
-
-    // Update status
-    if (status === 'RUNNING') {
-      liveStatus.textContent = `Transcription #${transcriptId} en cours...`;
-    } else if (status === 'SUCCESS') {
-      liveStatus.textContent = `Transcription #${transcriptId} terminée ✓`;
-      // Keep showing the text for a few seconds after completion
-      setTimeout(() => {
-        if (firstRunning.dataset.status === 'SUCCESS') {
-          liveOutput.textContent = 'Aucune transcription en cours.';
-          liveStatus.textContent = 'En attente...';
-        }
-      }, 3000);
-    } else if (status === 'FAILURE') {
-      liveStatus.textContent = `Transcription #${transcriptId} échouée ✗`;
-    }
-
-    // Display partial text with last word highlighting
-    if (partialText && partialText.trim()) {
-      displayTextWithHighlight(partialText);
-    }
-  }
-
-  function displayTextWithHighlight(text) {
-    if (!liveOutput) return;
-
-    // Split text into words while keeping whitespace
-    const words = text.split(/(\s+)/);
-
-    if (words.length === 0) {
-      liveOutput.textContent = text;
-      return;
-    }
-
-    // Find the last non-whitespace word
-    let lastWordIndex = -1;
-    for (let i = words.length - 1; i >= 0; i--) {
-      if (words[i].trim().length > 0) {
-        lastWordIndex = i;
-        break;
-      }
-    }
-
-    if (lastWordIndex >= 0) {
-      // Build HTML with highlighted last word
-      const htmlParts = words.map((word, index) => {
-        if (index === lastWordIndex) {
-          return `<mark style="background-color: #ffc107; color: #000; padding: 2px 4px; border-radius: 3px;">${escapeHtml(word)}</mark>`;
-        }
-        return escapeHtml(word);
-      });
-
-      liveOutput.innerHTML = htmlParts.join('');
-    } else {
-      liveOutput.textContent = text;
-    }
-  }
-
+  // ======================================================================
+  // Global progress
+  // ======================================================================
   function updateGlobalProgress() {
     if (!config.globalProgressUrl) return;
-
     fetch(config.globalProgressUrl)
-      .then(response => response.json())
+      .then(r => r.json())
       .then(data => {
-        const progressBar = document.getElementById('globalProgressBar');
-        const statsText = document.getElementById('globalProgressStats');
-
-        if (progressBar && statsText) {
-          const progress = data.overall_progress || 0;
-          progressBar.style.width = progress + '%';
-          progressBar.textContent = progress + '%';
-
-          statsText.textContent = `${data.success}/${data.total} terminé`;
-
-          // Update progress bar color based on status
-          progressBar.className = 'progress-bar';
-          if (data.failure > 0) {
-            progressBar.classList.add('bg-danger');
-          } else if (data.running > 0) {
-            progressBar.classList.add('progress-bar-animated', 'progress-bar-striped');
-          } else if (data.success === data.total && data.total > 0) {
-            progressBar.classList.add('bg-success');
-          }
+        const bar = document.getElementById('globalProgressBar');
+        const stats = document.getElementById('globalProgressStats');
+        if (bar && stats) {
+          const p = data.overall_progress || 0;
+          bar.style.width = p + '%';
+          bar.textContent = p + '%';
+          stats.textContent = `${data.success}/${data.total} terminé`;
+          bar.className = 'progress-bar';
+          if (data.failure > 0) bar.classList.add('bg-danger');
+          else if (data.running > 0) bar.classList.add('progress-bar-animated', 'progress-bar-striped');
+          else if (data.success === data.total && data.total > 0) bar.classList.add('bg-success');
         }
       })
-      .catch(error => console.error('Error updating global progress:', error));
+      .catch(err => console.error('Error updating global progress:', err));
+  }
+
+  // ======================================================================
+  // Init
+  // ======================================================================
+  function initExistingCards() {
+    if (!queueContainer) return;
+    queueContainer.querySelectorAll('.synthesis-card[data-id]').forEach(card => {
+      const status = (card.dataset.status || '').toUpperCase();
+      bindCardActions(card);
+      if (['PENDING', 'RUNNING', 'STARTED'].includes(status)) {
+        startPolling(card.dataset.id);
+      }
+    });
+    updateDownloadAllState();
   }
 
   initUpload();
   initDragDrop();
   initYoutube();
-  initExistingRows();
+  initExistingCards();
   initSpeech();
   initBulkActions();
-  bindRowActions(document);
 
-  // Update global progress every 2 seconds
   updateGlobalProgress();
   setInterval(updateGlobalProgress, 2000);
 });

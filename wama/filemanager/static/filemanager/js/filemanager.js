@@ -419,7 +419,9 @@
 
     function addFilenameTitles(container) {
         // Add title attribute to all tree anchors for full filename tooltip on hover
-        const anchors = (container || treeContainer).querySelectorAll('.jstree-anchor');
+        const el = container || document.getElementById('filemanager-tree');
+        if (!el) return;
+        const anchors = el.querySelectorAll('.jstree-anchor');
         anchors.forEach(anchor => {
             // Get text content without the icon
             const text = anchor.textContent.trim();

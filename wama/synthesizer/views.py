@@ -24,10 +24,7 @@ from django.core.files.base import ContentFile
 import requests as http_requests
 
 from .models import VoiceSynthesis, VoicePreset
-from wama.common.utils.console_utils import (
-    get_console_lines,
-    get_celery_worker_logs,
-)
+from wama.common.utils.console_utils import get_console_lines
 from wama.accounts.views import get_or_create_anonymous_user
 
 logger = logging.getLogger(__name__)
@@ -552,10 +549,8 @@ def console_content(request):
     Récupère le contenu de la console.
     """
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    lines = get_console_lines(user.id, limit=100)
-    celery_lines = get_celery_worker_logs(limit=100)
-    combined = (celery_lines + lines)[-200:]
-    return JsonResponse({'output': combined})
+    all_lines = get_console_lines(user.id, limit=200)
+    return JsonResponse({'output': all_lines})
 
 
 @require_POST

@@ -13,7 +13,7 @@ from PIL import Image
 
 from .models import Enhancement, UserSettings
 from ..accounts.views import get_or_create_anonymous_user
-from ..common.utils.console_utils import get_console_lines, get_celery_worker_logs
+from ..common.utils.console_utils import get_console_lines
 from ..common.utils.video_utils import upload_media_from_url, get_media_info
 
 logger = logging.getLogger(__name__)
@@ -480,10 +480,7 @@ def console_content(request):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
 
     # Récupère les logs depuis le cache et Celery
-    console_lines = get_console_lines(user.id, limit=100)
-    celery_lines = get_celery_worker_logs(limit=100)
-    all_lines = (celery_lines + console_lines)[-200:]
-
+    all_lines = get_console_lines(user.id, limit=200)
     return JsonResponse({'output': all_lines})
 
 

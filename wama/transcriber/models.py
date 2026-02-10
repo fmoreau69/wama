@@ -44,6 +44,11 @@ class Transcript(models.Model):
         return f"Transcript {self.id} ({self.user.username})"
 
     @property
+    def filename(self):
+        import os
+        return os.path.basename(self.audio.name)
+
+    @property
     def has_segments(self) -> bool:
         """Check if transcript has segments with diarization."""
         return self.segments.exists()

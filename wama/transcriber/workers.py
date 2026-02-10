@@ -41,10 +41,20 @@ def _set_progress(transcript: Transcript, value: int, *, force: bool = False) ->
     Transcript.objects.filter(pk=transcript.id).update(progress=value)
 
 
-def _console(user_id: int, message: str) -> None:
+def _console(user_id: int, message: str, level: str = None) -> None:
     """Send message to user's console."""
     try:
-        push_console_line(user_id, f"[Transcriber] {message}")
+        if level is None:
+            msg_lower = message.lower()
+            if any(w in msg_lower for w in ['error', 'failed', '\u2717', 'erreur']):
+                level = 'error'
+            elif any(w in msg_lower for w in ['warning', 'attention']):
+                level = 'warning'
+            elif any(w in msg_lower for w in ['[debug]', '[parallel']):
+                level = 'debug'
+            else:
+                level = 'info'
+        push_console_line(user_id, message, level=level, app='transcriber')
     except Exception:
         pass
 
@@ -266,5 +276,5 @@ def transcribe_without_preprocessing(self, transcript_id: int):
     # Update transcript to disable preprocessing
     Transcript.objects.filter(pk=transcript_id).update(preprocess_audio=False)
 
-    # Delegate to main task
-    return transcribe(self, transcript_id)
+    # Delegate to main task (Celery injects self automatically for bind=True)
+    return transcribe(transcript_id)

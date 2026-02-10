@@ -22,6 +22,6 @@ class TranscriberConfig(AppConfig):
             app_name='transcriber',
             model_class=Transcript,
             adapter=transcriber_preview_adapter,
-            file_field='audio_file',
+            file_field='audio',
             user_field='user'
         )

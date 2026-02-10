@@ -17,6 +17,24 @@ from wama.common.utils.console_utils import push_console_line
 logger = logging.getLogger(__name__)
 
 
+def _console(user_id: int, message: str, level: str = None) -> None:
+    """Push console message to user."""
+    try:
+        if level is None:
+            msg_lower = message.lower()
+            if any(w in msg_lower for w in ['error', 'failed', '\u2717', 'erreur']):
+                level = 'error'
+            elif any(w in msg_lower for w in ['warning', 'attention']):
+                level = 'warning'
+            elif any(w in msg_lower for w in ['[debug]', '[parallel']):
+                level = 'debug'
+            else:
+                level = 'info'
+        push_console_line(user_id, message, level=level, app='imager')
+    except Exception:
+        pass
+
+
 @shared_task(bind=True)
 def generate_image_task(self, generation_id):
     """
@@ -47,7 +65,7 @@ def generate_image_task(self, generation_id):
         generation.save()
 
         user_id = generation.user.id
-        push_console_line(user_id, f"[Imager] Starting generation #{generation_id}: {generation.prompt[:50]}...")
+        _console(user_id, f"[Imager] Starting generation #{generation_id}: {generation.prompt[:50]}...")
         logger.info(f"Starting image generation #{generation_id}")
 
         # Import backend system
@@ -64,7 +82,7 @@ def generate_image_task(self, generation_id):
 
         # Check available backends
         available = get_available_backends()
-        push_console_line(user_id, f"[Imager] Available backends: {available}")
+        _console(user_id, f"[Imager] Available backends: {available}")
         logger.info(f"Available backends: {available}")
 
         # Get the best available backend
@@ -75,10 +93,10 @@ def generate_image_task(self, generation_id):
             generation.status = 'FAILURE'
             generation.error_message = error_msg
             generation.save()
-            push_console_line(user_id, f"[Imager] Error: {error_msg}")
+            _console(user_id, f"[Imager] Error: {error_msg}")
             return {'error': error_msg}
 
-        push_console_line(user_id, f"[Imager] Using backend: {backend.display_name}")
+        _console(user_id, f"[Imager] Using backend: {backend.display_name}")
         logger.info(f"Using backend: {backend.name} ({backend.display_name})")
 
         # Create output directory (user-specific path)
@@ -88,7 +106,7 @@ def generate_image_task(self, generation_id):
         generation.progress = 10
         generation.save()
         cache.set(f"imager_progress_{generation_id}", 10, timeout=3600)
-        push_console_line(user_id, f"[Imager] Loading model: {generation.model}")
+        _console(user_id, f"[Imager] Loading model: {generation.model}")
 
         # Load the model
         logger.info(f"[Imager] >>> Calling backend.load({generation.model})...")
@@ -98,11 +116,11 @@ def generate_image_task(self, generation_id):
             generation.status = 'FAILURE'
             generation.error_message = error_msg
             generation.save()
-            push_console_line(user_id, f"[Imager] Error: {error_msg}")
+            _console(user_id, f"[Imager] Error: {error_msg}")
             return {'error': error_msg}
 
         logger.info(f"[Imager] <<< backend.load() completed successfully")
-        push_console_line(user_id, f"[Imager] Model loaded on {backend.device}")
+        _console(user_id, f"[Imager] Model loaded on {backend.device}")
 
         generation.progress = 20
         generation.save()
@@ -111,15 +129,15 @@ def generate_image_task(self, generation_id):
         # Log generation mode
         mode_desc = generation.generation_mode or 'txt2img'
         if mode_desc in ('img2img', 'style2img') and generation.reference_image:
-            push_console_line(user_id, f"[Imager] {mode_desc}: Generating {generation.num_images} image(s) on {backend.device} (strength={generation.image_strength:.0%})...")
+            _console(user_id, f"[Imager] {mode_desc}: Generating {generation.num_images} image(s) on {backend.device} (strength={generation.image_strength:.0%})...")
         else:
-            push_console_line(user_id, f"[Imager] Generating {generation.num_images} image(s) on {backend.device}...")
+            _console(user_id, f"[Imager] Generating {generation.num_images} image(s) on {backend.device}...")
 
         # Get reference image path if applicable
         reference_image_path = None
         if generation.reference_image:
             reference_image_path = generation.reference_image.path
-            push_console_line(user_id, f"[Imager] Using reference image: {os.path.basename(reference_image_path)}")
+            _console(user_id, f"[Imager] Using reference image: {os.path.basename(reference_image_path)}")
 
         # Create generation parameters with multi-modal support
         params = GenerationParams(
@@ -164,13 +182,13 @@ def generate_image_task(self, generation_id):
             generation.status = 'FAILURE'
             generation.error_message = error_msg
             generation.save()
-            push_console_line(user_id, f"[Imager] Error: {error_msg}")
+            _console(user_id, f"[Imager] Error: {error_msg}")
             return {'error': error_msg}
 
         generation.progress = 90
         generation.save()
         cache.set(f"imager_progress_{generation_id}", 90, timeout=3600)
-        push_console_line(user_id, f"[Imager] Saving {len(result.images)} image(s)...")
+        _console(user_id, f"[Imager] Saving {len(result.images)} image(s)...")
 
         # Save generated images
         # Include model name in filename for easy identification
@@ -192,7 +210,7 @@ def generate_image_task(self, generation_id):
             generation.status = 'FAILURE'
             generation.error_message = error_msg
             generation.save()
-            push_console_line(user_id, f"[Imager] Error: {error_msg}")
+            _console(user_id, f"[Imager] Error: {error_msg}")
             return {'error': error_msg}
 
         # Update generation with results
@@ -210,9 +228,9 @@ def generate_image_task(self, generation_id):
 
             generation.save()
             cache.set(f"imager_progress_{generation_id}", 100, timeout=3600)
-            push_console_line(
+            _console(
                 user_id,
-                f"[Imager] ✓ Generated {len(generated_paths)} image(s) for #{generation_id} "
+                f"[Imager] \u2713 Generated {len(generated_paths)} image(s) for #{generation_id} "
                 f"(seed: {result.seed_used})"
             )
         except ImageGeneration.DoesNotExist:
@@ -244,11 +262,11 @@ def generate_image_task(self, generation_id):
             generation.completed_at = timezone.now()
             generation.save()
             cache.set(f"imager_progress_{generation_id}", 0, timeout=3600)
-            push_console_line(user_id, f"[Imager] ✗ Generation #{generation_id} failed: {error_msg}")
+            _console(user_id, f"[Imager] ✗ Generation #{generation_id} failed: {error_msg}")
             # Log traceback to console for debugging
             for line in error_traceback.split('\n')[-10:]:  # Last 10 lines of traceback
                 if line.strip():
-                    push_console_line(user_id, f"[Imager] {line}")
+                    _console(user_id, f"[Imager] {line}")
         except Exception as save_error:
             logger.error(f"Failed to save error state: {str(save_error)}")
 
@@ -279,10 +297,10 @@ def generate_video_task(self, generation_id):
         user_id = generation.user.id
         mode_label = "Text-to-Video" if generation.generation_mode == 'txt2vid' else "Image-to-Video"
 
-        push_console_line(user_id, f"[Imager Video] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-        push_console_line(user_id, f"[Imager Video] Starting {mode_label} generation #{generation_id}")
-        push_console_line(user_id, f"[Imager Video] Model: {generation.model}")
-        push_console_line(user_id, f"[Imager Video] Prompt: {generation.prompt[:80]}{'...' if len(generation.prompt) > 80 else ''}")
+        _console(user_id, f"[Imager Video] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        _console(user_id, f"[Imager Video] Starting {mode_label} generation #{generation_id}")
+        _console(user_id, f"[Imager Video] Model: {generation.model}")
+        _console(user_id, f"[Imager Video] Prompt: {generation.prompt[:80]}{'...' if len(generation.prompt) > 80 else ''}")
         logger.info(f"Starting video generation #{generation_id} ({mode_label})")
 
         # Detect which backend to use based on model name
@@ -302,12 +320,12 @@ def generate_video_task(self, generation_id):
 
         # Import and initialize the appropriate backend
         if backend_type == 'hunyuan':
-            push_console_line(user_id, f"[Imager Video] Importing HunyuanVideo backend...")
+            _console(user_id, f"[Imager Video] Importing HunyuanVideo backend...")
             try:
                 from .backends.hunyuan_video_backend import HunyuanVideoBackend, HunyuanVideoParams
                 backend_class = HunyuanVideoBackend
                 params_class = HunyuanVideoParams
-                push_console_line(user_id, f"[Imager Video] ✓ HunyuanVideo backend imported")
+                _console(user_id, f"[Imager Video] ✓ HunyuanVideo backend imported")
             except ImportError as e:
                 error_msg = f"HunyuanVideo backend not available: {e}"
                 logger.error(error_msg)
@@ -315,27 +333,27 @@ def generate_video_task(self, generation_id):
                 generation.status = 'FAILURE'
                 generation.error_message = error_msg
                 generation.save()
-                push_console_line(user_id, f"[Imager Video] ✗ Error: {error_msg}")
+                _console(user_id, f"[Imager Video] ✗ Error: {error_msg}")
                 return {'error': error_msg}
 
-            push_console_line(user_id, f"[Imager Video] Checking HunyuanVideo availability...")
+            _console(user_id, f"[Imager Video] Checking HunyuanVideo availability...")
             if not HunyuanVideoBackend.is_available():
                 error_msg = "HunyuanVideo backend not available. Need CUDA with 14GB+ VRAM."
                 logger.error(error_msg)
                 generation.status = 'FAILURE'
                 generation.error_message = error_msg
                 generation.save()
-                push_console_line(user_id, f"[Imager Video] ✗ Error: {error_msg}")
+                _console(user_id, f"[Imager Video] ✗ Error: {error_msg}")
                 return {'error': error_msg}
-            push_console_line(user_id, f"[Imager Video] ✓ HunyuanVideo backend available")
+            _console(user_id, f"[Imager Video] ✓ HunyuanVideo backend available")
 
         elif backend_type == 'cogvideox':
-            push_console_line(user_id, f"[Imager Video] Importing CogVideoX backend...")
+            _console(user_id, f"[Imager Video] Importing CogVideoX backend...")
             try:
                 from .backends.cogvideox_backend import CogVideoXBackend, CogVideoXParams
                 backend_class = CogVideoXBackend
                 params_class = CogVideoXParams
-                push_console_line(user_id, f"[Imager Video] ✓ CogVideoX backend imported")
+                _console(user_id, f"[Imager Video] ✓ CogVideoX backend imported")
             except ImportError as e:
                 error_msg = f"CogVideoX backend not available: {e}"
                 logger.error(error_msg)
@@ -343,27 +361,27 @@ def generate_video_task(self, generation_id):
                 generation.status = 'FAILURE'
                 generation.error_message = error_msg
                 generation.save()
-                push_console_line(user_id, f"[Imager Video] ✗ Error: {error_msg}")
+                _console(user_id, f"[Imager Video] ✗ Error: {error_msg}")
                 return {'error': error_msg}
 
-            push_console_line(user_id, f"[Imager Video] Checking CogVideoX availability...")
+            _console(user_id, f"[Imager Video] Checking CogVideoX availability...")
             if not CogVideoXBackend.is_available():
                 error_msg = "CogVideoX backend not available. Need CUDA with 4GB+ VRAM."
                 logger.error(error_msg)
                 generation.status = 'FAILURE'
                 generation.error_message = error_msg
                 generation.save()
-                push_console_line(user_id, f"[Imager Video] ✗ Error: {error_msg}")
+                _console(user_id, f"[Imager Video] ✗ Error: {error_msg}")
                 return {'error': error_msg}
-            push_console_line(user_id, f"[Imager Video] ✓ CogVideoX backend available")
+            _console(user_id, f"[Imager Video] ✓ CogVideoX backend available")
 
         elif backend_type == 'ltx':
-            push_console_line(user_id, f"[Imager Video] Importing LTX-Video backend...")
+            _console(user_id, f"[Imager Video] Importing LTX-Video backend...")
             try:
                 from .backends.ltx_video_backend import LTXVideoBackend, LTXVideoParams
                 backend_class = LTXVideoBackend
                 params_class = LTXVideoParams
-                push_console_line(user_id, f"[Imager Video] ✓ LTX-Video backend imported")
+                _console(user_id, f"[Imager Video] ✓ LTX-Video backend imported")
             except ImportError as e:
                 error_msg = f"LTX-Video backend not available: {e}"
                 logger.error(error_msg)
@@ -371,27 +389,27 @@ def generate_video_task(self, generation_id):
                 generation.status = 'FAILURE'
                 generation.error_message = error_msg
                 generation.save()
-                push_console_line(user_id, f"[Imager Video] ✗ Error: {error_msg}")
+                _console(user_id, f"[Imager Video] ✗ Error: {error_msg}")
                 return {'error': error_msg}
 
-            push_console_line(user_id, f"[Imager Video] Checking LTX-Video availability...")
+            _console(user_id, f"[Imager Video] Checking LTX-Video availability...")
             if not LTXVideoBackend.is_available():
                 error_msg = "LTX-Video backend not available. Need CUDA with 6GB+ VRAM."
                 logger.error(error_msg)
                 generation.status = 'FAILURE'
                 generation.error_message = error_msg
                 generation.save()
-                push_console_line(user_id, f"[Imager Video] ✗ Error: {error_msg}")
+                _console(user_id, f"[Imager Video] ✗ Error: {error_msg}")
                 return {'error': error_msg}
-            push_console_line(user_id, f"[Imager Video] ✓ LTX-Video backend available")
+            _console(user_id, f"[Imager Video] ✓ LTX-Video backend available")
 
         elif backend_type == 'mochi':
-            push_console_line(user_id, f"[Imager Video] Importing Mochi backend...")
+            _console(user_id, f"[Imager Video] Importing Mochi backend...")
             try:
                 from .backends.mochi_backend import MochiBackend, MochiParams
                 backend_class = MochiBackend
                 params_class = MochiParams
-                push_console_line(user_id, f"[Imager Video] ✓ Mochi backend imported")
+                _console(user_id, f"[Imager Video] ✓ Mochi backend imported")
             except ImportError as e:
                 error_msg = f"Mochi backend not available: {e}"
                 logger.error(error_msg)
@@ -399,28 +417,28 @@ def generate_video_task(self, generation_id):
                 generation.status = 'FAILURE'
                 generation.error_message = error_msg
                 generation.save()
-                push_console_line(user_id, f"[Imager Video] ✗ Error: {error_msg}")
+                _console(user_id, f"[Imager Video] ✗ Error: {error_msg}")
                 return {'error': error_msg}
 
-            push_console_line(user_id, f"[Imager Video] Checking Mochi availability...")
+            _console(user_id, f"[Imager Video] Checking Mochi availability...")
             if not MochiBackend.is_available():
                 error_msg = "Mochi backend not available. Need CUDA with 16GB+ VRAM (22GB recommended)."
                 logger.error(error_msg)
                 generation.status = 'FAILURE'
                 generation.error_message = error_msg
                 generation.save()
-                push_console_line(user_id, f"[Imager Video] ✗ Error: {error_msg}")
+                _console(user_id, f"[Imager Video] ✗ Error: {error_msg}")
                 return {'error': error_msg}
-            push_console_line(user_id, f"[Imager Video] ✓ Mochi backend available")
+            _console(user_id, f"[Imager Video] ✓ Mochi backend available")
 
         else:
             # Default: Wan video backend
-            push_console_line(user_id, f"[Imager Video] Importing Wan backend...")
+            _console(user_id, f"[Imager Video] Importing Wan backend...")
             try:
                 from .backends.wan_video_backend import WanVideoBackend, VideoGenerationParams
                 backend_class = WanVideoBackend
                 params_class = VideoGenerationParams
-                push_console_line(user_id, f"[Imager Video] ✓ Wan backend imported")
+                _console(user_id, f"[Imager Video] ✓ Wan backend imported")
             except ImportError as e:
                 error_msg = f"Wan video backend not available: {e}"
                 logger.error(error_msg)
@@ -428,25 +446,25 @@ def generate_video_task(self, generation_id):
                 generation.status = 'FAILURE'
                 generation.error_message = error_msg
                 generation.save()
-                push_console_line(user_id, f"[Imager Video] ✗ Error: {error_msg}")
+                _console(user_id, f"[Imager Video] ✗ Error: {error_msg}")
                 return {'error': error_msg}
 
-            push_console_line(user_id, f"[Imager Video] Checking Wan availability (torch, diffusers)...")
+            _console(user_id, f"[Imager Video] Checking Wan availability (torch, diffusers)...")
             if not WanVideoBackend.is_available():
                 error_msg = "Wan video backend not available. Please install diffusers with Wan support."
                 logger.error(error_msg)
                 generation.status = 'FAILURE'
                 generation.error_message = error_msg
                 generation.save()
-                push_console_line(user_id, f"[Imager Video] ✗ Error: {error_msg}")
-                push_console_line(user_id, f"[Imager Video] Install with: pip install diffusers transformers accelerate")
+                _console(user_id, f"[Imager Video] ✗ Error: {error_msg}")
+                _console(user_id, f"[Imager Video] Install with: pip install diffusers transformers accelerate")
                 return {'error': error_msg}
-            push_console_line(user_id, f"[Imager Video] ✓ Wan backend available")
+            _console(user_id, f"[Imager Video] ✓ Wan backend available")
 
         # Create output directory (user-specific path)
         output_dir = os.path.join(settings.MEDIA_ROOT, 'imager', str(generation.user.id), 'output', 'video')
         os.makedirs(output_dir, exist_ok=True)
-        push_console_line(user_id, f"[Imager Video] Output dir: {output_dir}")
+        _console(user_id, f"[Imager Video] Output dir: {output_dir}")
 
         generation.progress = 5
         generation.save()
@@ -454,8 +472,8 @@ def generate_video_task(self, generation_id):
 
         # Initialize backend
         backend = backend_class()
-        push_console_line(user_id, f"[Imager Video] Loading model: {generation.model}")
-        push_console_line(user_id, f"[Imager Video] ⏳ This may take several minutes on first run (downloading ~5-10GB)...")
+        _console(user_id, f"[Imager Video] Loading model: {generation.model}")
+        _console(user_id, f"[Imager Video] ⏳ This may take several minutes on first run (downloading ~5-10GB)...")
 
         model_load_start = time.time()
 
@@ -466,11 +484,11 @@ def generate_video_task(self, generation_id):
             generation.status = 'FAILURE'
             generation.error_message = error_msg
             generation.save()
-            push_console_line(user_id, f"[Imager Video] ✗ Error: {error_msg}")
+            _console(user_id, f"[Imager Video] ✗ Error: {error_msg}")
             return {'error': error_msg}
 
         model_load_time = time.time() - model_load_start
-        push_console_line(user_id, f"[Imager Video] ✓ Model loaded in {model_load_time:.1f}s")
+        _console(user_id, f"[Imager Video] ✓ Model loaded in {model_load_time:.1f}s")
 
         generation.progress = 20
         generation.save()
@@ -483,19 +501,19 @@ def generate_video_task(self, generation_id):
         num_frames = generation.calculate_video_frames()
         estimated_duration = num_frames / generation.video_fps
 
-        push_console_line(user_id, f"[Imager Video] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-        push_console_line(user_id, f"[Imager Video] Parameters:")
-        push_console_line(user_id, f"[Imager Video]   Resolution: {width}x{height}")
-        push_console_line(user_id, f"[Imager Video]   Frames: {num_frames} ({estimated_duration:.1f}s @ {generation.video_fps}fps)")
-        push_console_line(user_id, f"[Imager Video]   Steps: {generation.steps}")
-        push_console_line(user_id, f"[Imager Video]   Guidance: {generation.guidance_scale}")
-        push_console_line(user_id, f"[Imager Video] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        _console(user_id, f"[Imager Video] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        _console(user_id, f"[Imager Video] Parameters:")
+        _console(user_id, f"[Imager Video]   Resolution: {width}x{height}")
+        _console(user_id, f"[Imager Video]   Frames: {num_frames} ({estimated_duration:.1f}s @ {generation.video_fps}fps)")
+        _console(user_id, f"[Imager Video]   Steps: {generation.steps}")
+        _console(user_id, f"[Imager Video]   Guidance: {generation.guidance_scale}")
+        _console(user_id, f"[Imager Video] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
         # Get reference image path if applicable
         reference_image_path = None
         if generation.reference_image and generation.generation_mode == 'img2vid':
             reference_image_path = generation.reference_image.path
-            push_console_line(user_id, f"[Imager Video] Reference image: {os.path.basename(reference_image_path)}")
+            _console(user_id, f"[Imager Video] Reference image: {os.path.basename(reference_image_path)}")
 
         # Create video generation parameters (different structure per backend)
         if backend_type == 'hunyuan':
@@ -590,11 +608,11 @@ def generate_video_task(self, generation_id):
             # Log every 10%
             if progress >= last_progress_log + 10:
                 elapsed = time.time() - generation_start
-                push_console_line(user_id, f"[Imager Video] Generation: {progress}% (elapsed: {elapsed:.0f}s)")
+                _console(user_id, f"[Imager Video] Generation: {progress}% (elapsed: {elapsed:.0f}s)")
                 last_progress_log = progress
 
         # Generate video
-        push_console_line(user_id, f"[Imager Video] ⏳ Starting video generation... This may take 5-30 minutes.")
+        _console(user_id, f"[Imager Video] ⏳ Starting video generation... This may take 5-30 minutes.")
         logger.info(f"Generating video with {num_frames} frames at {width}x{height}")
 
         generation_start = time.time()
@@ -619,16 +637,16 @@ def generate_video_task(self, generation_id):
             generation.status = 'FAILURE'
             generation.error_message = error_msg
             generation.save()
-            push_console_line(user_id, f"[Imager Video] ✗ Generation failed: {error_msg}")
+            _console(user_id, f"[Imager Video] ✗ Generation failed: {error_msg}")
             return {'error': error_msg}
 
-        push_console_line(user_id, f"[Imager Video] ✓ Generation complete in {generation_time:.1f}s")
-        push_console_line(user_id, f"[Imager Video] Seed used: {seed_used}")
+        _console(user_id, f"[Imager Video] ✓ Generation complete in {generation_time:.1f}s")
+        _console(user_id, f"[Imager Video] Seed used: {seed_used}")
 
         generation.progress = 85
         generation.save()
         cache.set(f"imager_progress_{generation_id}", 85, timeout=7200)
-        push_console_line(user_id, f"[Imager Video] Exporting {len(video_frames)} frames to MP4...")
+        _console(user_id, f"[Imager Video] Exporting {len(video_frames)} frames to MP4...")
 
         # Export video to MP4
         # Include model name in filename for easy identification
@@ -643,12 +661,12 @@ def generate_video_task(self, generation_id):
             generation.status = 'FAILURE'
             generation.error_message = error_msg
             generation.save()
-            push_console_line(user_id, f"[Imager Video] ✗ Export failed: {error_msg}")
+            _console(user_id, f"[Imager Video] ✗ Export failed: {error_msg}")
             return {'error': error_msg}
 
         export_time = time.time() - export_start
         file_size_mb = os.path.getsize(video_path) / (1024 * 1024) if os.path.exists(video_path) else 0
-        push_console_line(user_id, f"[Imager Video] ✓ Exported in {export_time:.1f}s ({file_size_mb:.1f} MB)")
+        _console(user_id, f"[Imager Video] ✓ Exported in {export_time:.1f}s ({file_size_mb:.1f} MB)")
 
         # Update generation with results
         try:
@@ -666,12 +684,12 @@ def generate_video_task(self, generation_id):
             cache.set(f"imager_progress_{generation_id}", 100, timeout=7200)
 
             total_time = time.time() - task_start_time
-            push_console_line(user_id, f"[Imager Video] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-            push_console_line(user_id, f"[Imager Video] ✓ SUCCESS! Generation #{generation_id}")
-            push_console_line(user_id, f"[Imager Video]   Duration: {generation.video_duration}s")
-            push_console_line(user_id, f"[Imager Video]   Seed: {seed_used}")
-            push_console_line(user_id, f"[Imager Video]   Total time: {total_time:.1f}s")
-            push_console_line(user_id, f"[Imager Video] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+            _console(user_id, f"[Imager Video] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+            _console(user_id, f"[Imager Video] ✓ SUCCESS! Generation #{generation_id}")
+            _console(user_id, f"[Imager Video]   Duration: {generation.video_duration}s")
+            _console(user_id, f"[Imager Video]   Seed: {seed_used}")
+            _console(user_id, f"[Imager Video]   Total time: {total_time:.1f}s")
+            _console(user_id, f"[Imager Video] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
         except ImageGeneration.DoesNotExist:
             logger.warning(f"Generation {generation_id} was deleted during processing")
@@ -699,10 +717,10 @@ def generate_video_task(self, generation_id):
             generation.completed_at = timezone.now()
             generation.save()
             cache.set(f"imager_progress_{generation_id}", 0, timeout=7200)
-            push_console_line(user_id, f"[Imager Video] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-            push_console_line(user_id, f"[Imager Video] ✗ FAILED! Generation #{generation_id}")
-            push_console_line(user_id, f"[Imager Video] Error: {str(e)}")
-            push_console_line(user_id, f"[Imager Video] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+            _console(user_id, f"[Imager Video] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+            _console(user_id, f"[Imager Video] ✗ FAILED! Generation #{generation_id}")
+            _console(user_id, f"[Imager Video] Error: {str(e)}")
+            _console(user_id, f"[Imager Video] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
         except Exception as save_error:
             logger.error(f"Failed to save error state: {str(save_error)}")
 

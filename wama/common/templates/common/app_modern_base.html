@@ -149,9 +149,42 @@
 
         <!-- Onglet Console -->
         <div class="tab-pane fade" id="console-pane" role="tabpanel">
+            {% if is_dev or is_admin %}
+            <div class="console-toolbar d-flex align-items-center gap-3 mb-2 p-2 bg-dark rounded" style="border: 1px solid #495057;">
+                <div class="d-flex align-items-center gap-2">
+                    <span class="text-muted small me-1">Niveaux :</span>
+                    <div class="form-check form-check-inline mb-0">
+                        <input class="form-check-input console-level-filter" type="checkbox" id="filter-info" value="info" checked>
+                        <label class="form-check-label small" style="color: #8ec8e8;" for="filter-info">Info</label>
+                    </div>
+                    <div class="form-check form-check-inline mb-0">
+                        <input class="form-check-input console-level-filter" type="checkbox" id="filter-warning" value="warning" checked>
+                        <label class="form-check-label text-warning small" for="filter-warning">Warning</label>
+                    </div>
+                    <div class="form-check form-check-inline mb-0">
+                        <input class="form-check-input console-level-filter" type="checkbox" id="filter-error" value="error" checked>
+                        <label class="form-check-label text-danger small" for="filter-error">Error</label>
+                    </div>
+                    <div class="form-check form-check-inline mb-0">
+                        <input class="form-check-input console-level-filter" type="checkbox" id="filter-debug" value="debug">
+                        <label class="form-check-label text-secondary small" for="filter-debug">Debug</label>
+                    </div>
+                </div>
+                {% if is_admin %}
+                <div class="ms-auto">
+                    <div class="form-check form-switch mb-0">
+                        <input class="form-check-input" type="checkbox" id="filter-all-apps">
+                        <label class="form-check-label text-light small" for="filter-all-apps">Toutes les applications</label>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
             <div class="console-container">
                 <div id="{% block console_content_id %}console-content{% endblock %}"
-                     data-console-url="{% block console_url %}{% endblock %}">
+                     data-console-url="{% url 'common:console' %}"
+                     data-app-name="{% block console_app_name %}system{% endblock %}"
+                     data-user-role="{{ user_role }}">
                     <p>Chargement des logs...</p>
                 </div>
             </div>

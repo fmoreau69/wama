@@ -18,10 +18,7 @@ from django.views.decorators.http import require_POST
 from django.utils.encoding import smart_str
 
 from .models import Transcript
-from wama.common.utils.console_utils import (
-    get_console_lines,
-    get_celery_worker_logs,
-)
+from wama.common.utils.console_utils import get_console_lines
 from wama.accounts.views import get_or_create_anonymous_user
 
 
@@ -312,42 +309,43 @@ def upload_youtube(request):
         }, status=500)
 
 
+@require_POST
 def start(request, pk: int):
     """
-    Démarre la transcription d'un fichier audio.
-    Utilise le prétraitement par défaut sauf si désactivé.
+    Démarre ou relance la transcription d'un fichier audio.
+    Utilise les paramètres individuels du transcript (backend, preprocess_audio, etc.).
     """
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     t = get_object_or_404(Transcript, pk=pk, user=user)
 
-    # Récupérer la préférence de prétraitement
-    # Priorité: paramètre URL > préférence utilisateur > défaut (True)
-    use_preprocessing = request.GET.get('preprocessing')
-    if use_preprocessing is not None:
-        use_preprocessing = use_preprocessing.lower() == 'true'
-        cache.set(f"user_{user.id}_preprocessing_enabled", use_preprocessing, timeout=30 * 24 * 3600)
-    else:
-        use_preprocessing = cache.get(
-            f"user_{user.id}_preprocessing_enabled",
-            t.preprocess_audio if t.preprocess_audio is not None else True,
-        )
+    if t.status == 'RUNNING':
+        return JsonResponse({'error': 'Transcription déjà en cours'}, status=409)
 
-    # Choisir la tâche appropriée
-    if use_preprocessing:
-        from .workers import transcribe
+    # Reset for relaunch
+    from .models import TranscriptSegment
+    TranscriptSegment.objects.filter(transcript=t).delete()
+    t.status = 'PENDING'
+    t.progress = 0
+    t.text = ''
+    t.segments_json = None
+    t.language = ''
+    t.used_backend = ''
+    cache.set(f"transcriber_progress_{t.id}", 0, timeout=3600)
+
+    # Use the transcript's own preprocess_audio setting
+    from .workers import transcribe, transcribe_without_preprocessing
+    if t.preprocess_audio:
         task = transcribe.delay(t.id)
     else:
-        from .workers import transcribe_without_preprocessing
         task = transcribe_without_preprocessing.delay(t.id)
 
     t.task_id = task.id
     t.status = 'RUNNING'
-    t.preprocess_audio = use_preprocessing
-    t.save(update_fields=['task_id', 'status', 'preprocess_audio'])
+    t.save()
 
     return JsonResponse({
         'task_id': task.id,
-        'preprocessing': use_preprocessing,
+        'status': 'RUNNING',
     })
 
 
@@ -401,57 +399,49 @@ def delete(request, pk: int):
 def console_content(request):
     """Retourne un flux textuel des logs en cours pour affichage console (via Redis/Cache + logs Celery)."""
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    console_lines = get_console_lines(user.id, limit=100)
-    celery_lines = get_celery_worker_logs(limit=100)
-    all_lines = (celery_lines + console_lines)[-200:]
+    all_lines = get_console_lines(user.id, limit=200)
     return JsonResponse({'output': all_lines})
 
 
 @require_POST
 def start_all(request):
     """
-    Démarre toutes les transcriptions en attente.
-    Respecte la préférence de prétraitement de l'utilisateur.
+    Démarre toutes les transcriptions non terminées.
+    Respecte les paramètres individuels de chaque transcript.
     """
-    # Récupérer la préférence de prétraitement
-    payload = {}
-    if request.body:
-        try:
-            payload = json.loads(request.body.decode('utf-8'))
-        except Exception:
-            payload = {}
-    use_preprocessing = payload.get('preprocessing')
-    if use_preprocessing is None:
-        use_preprocessing = cache.get(f"user_{user.id}_preprocessing_enabled", True)
-    else:
-        use_preprocessing = bool(use_preprocessing)
-        user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    cache.set(f"user_{user.id}_preprocessing_enabled", use_preprocessing, timeout=30 * 24 * 3600)
-
-    if use_preprocessing:
-        from .workers import transcribe
-        task_func = transcribe
-    else:
-        from .workers import transcribe_without_preprocessing
-        task_func = transcribe_without_preprocessing
+    from .workers import transcribe, transcribe_without_preprocessing
+    from .models import TranscriptSegment
 
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     qs = Transcript.objects.filter(user=user).exclude(status='SUCCESS')
     started = []
-    for transcript in qs:
-        if transcript.status == 'RUNNING':
+    for t in qs:
+        if t.status == 'RUNNING':
             continue
-        task = task_func.delay(transcript.id)
-        transcript.task_id = task.id
-        transcript.status = 'RUNNING'
-        transcript.preprocess_audio = use_preprocessing
-        transcript.save(update_fields=['task_id', 'status', 'preprocess_audio'])
-        started.append(transcript.id)
+
+        # Reset for relaunch
+        TranscriptSegment.objects.filter(transcript=t).delete()
+        t.progress = 0
+        t.text = ''
+        t.segments_json = None
+        t.language = ''
+        t.used_backend = ''
+        cache.set(f"transcriber_progress_{t.id}", 0, timeout=3600)
+
+        # Use transcript's own preprocess setting
+        if t.preprocess_audio:
+            task = transcribe.delay(t.id)
+        else:
+            task = transcribe_without_preprocessing.delay(t.id)
+
+        t.task_id = task.id
+        t.status = 'RUNNING'
+        t.save()
+        started.append(t.id)
 
     return JsonResponse({
         'started_ids': started,
         'count': len(started),
-        'preprocessing': use_preprocessing,
     })
 
 

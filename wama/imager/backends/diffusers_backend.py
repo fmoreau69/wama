@@ -365,33 +365,34 @@ class DiffusersBackend(ImageGenerationBackend):
             kwargs["cache_dir"] = _FLUX_CACHE_DIR
             logger.info(f"[Diffusers] Loading FLUX from cache: {_FLUX_CACHE_DIR}")
 
-        # Load base FLUX pipeline
+        # Load base FLUX pipeline (stays on CPU)
         pipe = FluxPipeline.from_pretrained(base_model, **kwargs)
 
-        # Apply memory strategy FIRST (before LoRA) for faster LoRA fusion on GPU
-        try:
-            from wama.model_manager.services.memory_manager import MemoryManager
-            pipe = MemoryManager.apply_strategy_for_model(
-                pipeline=pipe,
-                model_type='flux',
-                device=self._device,
-                headroom_gb=4.0  # Extra headroom for LoRA operations
-            )
-        except ImportError:
-            logger.warning("[Diffusers] MemoryManager not available, using default GPU loading")
-            pipe = pipe.to(self._device)
-
-        # Load LoRA weights AFTER moving to GPU (much faster fusion)
+        # Load and fuse LoRA BEFORE applying memory strategy (while still on CPU)
+        # Fusing on a CPU-offloaded pipeline hangs, so we must fuse first
         if model_type == 'lora' and lora_repo:
             logger.info(f"[Diffusers] Loading LoRA weights from: {lora_repo}")
             try:
                 pipe.load_lora_weights(lora_repo)
                 logger.info(f"[Diffusers] LoRA weights loaded, fusing with scale {lora_scale}")
                 pipe.fuse_lora(lora_scale=lora_scale)
+                pipe.unload_lora_weights()
                 logger.info("[Diffusers] LoRA fused successfully")
             except Exception as e:
                 logger.warning(f"[Diffusers] Could not load LoRA weights: {e}")
-                # Continue without LoRA
+
+        # Apply memory strategy AFTER LoRA fusion
+        try:
+            from wama.model_manager.services.memory_manager import MemoryManager
+            pipe = MemoryManager.apply_strategy_for_model(
+                pipeline=pipe,
+                model_type='flux',
+                device=self._device,
+                headroom_gb=4.0
+            )
+        except ImportError:
+            logger.warning("[Diffusers] MemoryManager not available, using default GPU loading")
+            pipe = pipe.to(self._device)
 
         return pipe
 

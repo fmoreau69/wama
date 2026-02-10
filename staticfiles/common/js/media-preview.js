@@ -232,17 +232,16 @@
             return video;
         } else if (mimeType.startsWith('audio/')) {
             const audioContainer = document.createElement('div');
-            audioContainer.className = 'text-center p-4';
+            audioContainer.className = 'wama-audio-preview text-center w-100 p-4';
 
             const icon = document.createElement('i');
-            icon.className = 'fas fa-music fa-5x text-info mb-4';
+            icon.className = 'fas fa-music fa-5x text-info mb-4 d-block';
             audioContainer.appendChild(icon);
 
             const audio = document.createElement('audio');
             audio.src = data.url;
             audio.controls = true;
             audio.className = 'w-100';
-            audio.style.maxWidth = '500px';
             audioContainer.appendChild(audio);
 
             return audioContainer;

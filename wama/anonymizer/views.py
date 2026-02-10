@@ -37,7 +37,7 @@ from .utils.sam3_manager import (
 
 from ..accounts.views import get_or_create_anonymous_user
 from ..settings import MEDIA_ROOT, MEDIA_INPUT_ROOT, MEDIA_OUTPUT_ROOT
-from ..common.utils.console_utils import get_console_lines, get_celery_worker_logs
+from ..common.utils.console_utils import get_console_lines
 from ..common.utils.video_utils import get_media_info
 from ..common.utils.video_utils import upload_media_from_url
 from ..common.utils.media_paths import get_app_media_path, ensure_app_media_dirs
@@ -252,12 +252,21 @@ class ProcessView(View):
             user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
             logger.info(f"[ProcessView] Starting process for user {user.id} ({user.username})")
 
+            # Dedup: check batch lock
+            batch_lock_key = f"anon_lock:batch:{user.id}"
+            if cache.get(batch_lock_key):
+                logger.info(f"[ProcessView] Batch already running for user {user.id}")
+                return JsonResponse({"task_id": None, "error": "Un traitement est déjà en cours"}, status=409)
+
             # Get all user media (not just unprocessed)
             all_medias = Media.objects.filter(user=user).order_by('id')
 
             if not all_medias.exists():
                 logger.warning(f"[ProcessView] No media found for user {user.username}")
                 return JsonResponse({"task_id": None, "error": "No media to process"})
+
+            # Set batch lock before dispatching
+            cache.set(batch_lock_key, True, timeout=7200)
 
             # Reset all media to allow reprocessing
             for media in all_medias:
@@ -266,6 +275,8 @@ class ProcessView(View):
                 media.save(update_fields=['processed', 'blur_progress'])
                 # Clear cache for this media
                 cache.delete(f"media_progress_{media.id}")
+                # Set individual media lock
+                cache.set(f"anon_lock:media:{media.id}", True, timeout=7200)
                 logger.info(f"[ProcessView] Reset media {media.id} for reprocessing")
 
             batch_medias = list(all_medias.values_list('id', flat=True))
@@ -330,9 +341,7 @@ def preview_media(request, media_id):
 def console_content(request):
     """Retourne un flux textuel des logs en cours pour affichage console (via Redis/Cache + logs Celery)."""
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    console_lines = get_console_lines(user.id, limit=100)
-    celery_lines = get_celery_worker_logs(limit=100)
-    all_lines = (celery_lines + console_lines)[-200:]
+    all_lines = get_console_lines(user.id, limit=200)
     return JsonResponse({'output': all_lines})
 
 
@@ -587,6 +596,12 @@ def stop_process_view(request):
         cache.delete(f"user_task_{user_id}")
         cache.delete(f"process_progress_{user_id}")
         stop_process(user_id)  # set stop flag pour toutes les tasks individuelles
+
+    # Clear all dedup locks for this user
+    cache.delete(f"anon_lock:batch:{user_id}")
+    for m in Media.objects.filter(user_id=user_id):
+        cache.delete(f"anon_lock:media:{m.id}")
+        cache.delete(f"anon_task_owner:media:{m.id}")
 
     return JsonResponse({"status": "stopped"})
 
@@ -893,7 +908,12 @@ def clear_all_media(request):
 
     user_medias = Media.objects.filter(user=user)
     if user_medias.exists():
+        # Clear dedup locks
+        cache.delete(f"anon_lock:batch:{user.id}")
         for media in user_medias:
+            cache.delete(f"anon_lock:media:{media.id}")
+            cache.delete(f"anon_task_owner:media:{media.id}")
+
             # Delete input file
             if media.file:
                 try:
@@ -926,6 +946,10 @@ def clear_media(request):
         return JsonResponse({'success': False, 'error': 'Media not found'}, status=404)
 
     try:
+        # Clear dedup lock for this media
+        cache.delete(f"anon_lock:media:{media_id}")
+        cache.delete(f"anon_task_owner:media:{media_id}")
+
         Media.objects.filter(pk=media_id).update(MSValues_customised=0)
         media.file.delete()
         media.delete()
@@ -1320,6 +1344,18 @@ def restart_media(request):
 
         media = Media.objects.get(pk=media_id)
         logger.info(f"[restart_media] Found media: {media.title} (id={media.id})")
+
+        # Dedup: check media lock
+        lock_key = f"anon_lock:media:{media_id}"
+        if cache.get(lock_key):
+            logger.info(f"[restart_media] Media {media_id} already locked (in progress)")
+            return JsonResponse({
+                'success': False,
+                'error': 'Ce média est déjà en cours de traitement'
+            }, status=409)
+
+        # Set lock before dispatching
+        cache.set(lock_key, True, timeout=7200)
 
         # Reset processing status
         media.processed = False

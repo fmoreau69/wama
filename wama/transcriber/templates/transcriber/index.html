@@ -3,6 +3,8 @@
 
 {% block title %}Transcriber - Speech To Text{% endblock %}
 
+{% block console_app_name %}transcriber{% endblock %}
+
 {% block app_right_panel_settings %}
 <!-- Backend Selection -->
 <div class="mb-3">
@@ -98,6 +100,7 @@
       downloadSrtUrlTemplate: '{% url "transcriber:download_srt" 0 %}',
       segmentsUrlTemplate: '{% url "transcriber:segments" 0 %}',
       settingsUrlTemplate: '{% url "transcriber:save_settings" 0 %}',
+      previewUrlTemplate: '{% url "common:unified_preview" "transcriber" 0 %}',
       startAllUrl: '{% url "transcriber:start_all" %}',
       clearUrl: '{% url "transcriber:clear_all" %}',
       preprocessingUrl: '{% url "transcriber:set_preprocessing" %}',
@@ -126,6 +129,7 @@
         }
     });
 </script>
+<script src="{% static 'common/js/media-preview.js' %}"></script>
 <script src="{% static 'transcriber/js/index.js' %}"></script>
 {% endblock %}
 
@@ -232,83 +236,260 @@
     <div class="col-12">
         <h4 class="mb-3">
             <i class="fas fa-list"></i> File d'attente
+            <span class="badge bg-info" id="queueCount">{{ transcripts|length }}</span>
         </h4>
 
-        <div class="table-responsive">
-            <table class="table table-bordered table-dark align-middle" id="transcriber-queue">
-                <thead>
-                <tr class="text-center">
-                    <th style="width: 60px;">ID</th>
-                    <th>Audio</th>
-                    <th style="width: 120px;">Properties</th>
-                    <th style="width: 100px;">Duration</th>
-                    <th style="width: 100px;">Status</th>
-                    <th style="width: 180px;">Progress</th>
-                    <th style="width: 180px;">Actions</th>
-                </tr>
-                </thead>
-                <tbody>
-                {% for t in transcripts %}
-                <tr data-id="{{ t.id }}" data-status="{{ t.status }}" data-preprocess="{{ t.preprocess_audio|yesno:'true,false' }}">
-                    <td class="fw-bold text-center">#{{ t.id }}</td>
-                    <td>
-                        <div class="fw-semibold">{{ t.audio.name|cut:"transcriber/input/" }}</div>
-                        <div class="d-flex align-items-center gap-2 mt-1">
-                            <a href="{{ t.audio.url }}" target="_blank" class="text-info small">
-                                <i class="fas fa-link"></i> Voir le fichier
-                            </a>
-                            <span class="badge bg-warning text-dark preprocess-badge {% if not t.preprocess_audio %}d-none{% endif %}">
-                Prétraité
-              </span>
+        <div id="transcriptQueue">
+            {% for t in transcripts %}
+            <div class="synthesis-card {% if t.status == 'RUNNING' %}processing{% elif t.status == 'SUCCESS' %}success{% elif t.status == 'FAILURE' %}error{% endif %}"
+                 data-id="{{ t.id }}" data-status="{{ t.status }}">
+                <div class="row align-items-center">
+                    <!-- File Info -->
+                    <div class="col-md-3">
+                        <button type="button" class="btn btn-link p-0 text-decoration-none preview-media-link filename"
+                                data-preview-url="{% url 'common:unified_preview' 'transcriber' t.id %}"
+                                style="color: inherit;">
+                            <i class="fas fa-file-audio"></i>
+                            {{ t.filename }}
+                        </button>
+                        <br>
+                        <small class="text-white-50">
+                            {{ t.duration_display|default:"--:--" }}
+                            {% if t.preprocess_audio %}
+                            <span class="badge bg-warning text-dark ms-1">Prétraité</span>
+                            {% endif %}
+                        </small>
+                    </div>
+
+                    <!-- Options -->
+                    <div class="col-md-2">
+                        <small>
+                            <i class="fas fa-microchip"></i> {{ t.backend|default:"auto" }}<br>
+                            {% if t.hotwords %}
+                            <i class="fas fa-tags"></i> {{ t.hotwords|truncatechars:20 }}<br>
+                            {% endif %}
+                            {% if t.enable_diarization %}
+                            <i class="fas fa-users"></i> Diarisation
+                            {% endif %}
+                        </small>
+                    </div>
+
+                    <!-- Result Preview -->
+                    <div class="col-md-2">
+                        {% if t.text %}
+                        <small class="text-light result-preview" style="max-height: 60px; overflow: hidden; display: block;">
+                            {{ t.text|truncatechars:120 }}
+                        </small>
+                        {% else %}
+                        <small class="text-white-50">
+                            {{ t.properties|default:"En attente" }}
+                        </small>
+                        {% endif %}
+                    </div>
+
+                    <!-- Status & Progress -->
+                    <div class="col-md-2">
+                        <span class="badge status-badge
+                            {% if t.status == 'PENDING' %}bg-secondary
+                            {% elif t.status == 'RUNNING' %}bg-warning
+                            {% elif t.status == 'SUCCESS' %}bg-success
+                            {% elif t.status == 'FAILURE' %}bg-danger
+                            {% endif %}">
+                            {{ t.status }}
+                        </span>
+                        <div class="progress mt-2" style="height: 8px;">
+                            <div class="progress-bar bg-info progress-fill" style="width: {{ t.progress }}%"></div>
                         </div>
-                    </td>
-                    <td class="text-center small">{{ t.properties|default:"-" }}</td>
-                    <td class="text-center fw-semibold">{{ t.duration_display|default:"--:--" }}</td>
-                    <td class="status text-uppercase text-center">{{ t.status }}</td>
-                    <td>
-                        <div class="progress" style="height: 24px;">
-                            <div class="progress-bar" role="progressbar" style="width: {{ t.progress }}%;">
-                                {{ t.progress }}%
-                            </div>
-                        </div>
-                    </td>
-                    <td class="text-center">
-                        <div class="btn-group" role="group">
-                            <a class="btn btn-success btn-sm download-btn {% if not t.text %}disabled{% endif %}"
-                               {% if not t.text %}aria-disabled="true" tabindex="-1"{% endif %}
-                               href="{% url 'transcriber:download' t.id %}"
+                        <small class="text-light progress-text">{{ t.progress }}%</small>
+                    </div>
+
+                    <!-- Actions -->
+                    <div class="col-md-3">
+                        <div class="btn-group-actions">
+                            {% if t.status != 'RUNNING' %}
+                            <button class="btn btn-sm btn-primary start-btn"
+                                    data-id="{{ t.id }}"
+                                    title="Démarrer">
+                                <i class="fas fa-play"></i>
+                            </button>
+                            <button class="btn btn-sm btn-secondary settings-btn"
+                                    data-id="{{ t.id }}"
+                                    data-backend="{{ t.backend }}"
+                                    data-hotwords="{{ t.hotwords }}"
+                                    data-preprocess="{{ t.preprocess_audio|yesno:'true,false' }}"
+                                    data-diarization="{{ t.enable_diarization|yesno:'true,false' }}"
+                                    data-temperature="{{ t.temperature }}"
+                                    data-max-tokens="{{ t.max_tokens }}"
+                                    title="Paramètres">
+                                <i class="fas fa-cog"></i>
+                            </button>
+                            {% endif %}
+
+                            {% if t.status == 'SUCCESS' %}
+                            <button class="btn btn-sm btn-success preview-btn"
+                                    data-id="{{ t.id }}"
+                                    title="Voir le résultat">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                            <a href="{% url 'transcriber:download' t.id %}"
+                               class="btn btn-sm btn-info download-txt-btn"
                                title="Télécharger TXT">
                                 <i class="fas fa-file-alt"></i>
                             </a>
-                            <a class="btn btn-info btn-sm download-srt-btn {% if not t.text %}disabled{% endif %}"
-                               {% if not t.text %}aria-disabled="true" tabindex="-1"{% endif %}
-                               href="{% url 'transcriber:download_srt' t.id %}"
-                               title="Télécharger SRT (sous-titres)">
+                            <a href="{% url 'transcriber:download_srt' t.id %}"
+                               class="btn btn-sm btn-info download-srt-btn"
+                               title="Télécharger SRT">
                                 <i class="fas fa-closed-captioning"></i>
                             </a>
-                            <button class="btn btn-danger btn-sm js-delete-transcript"
-                                    data-delete-url="{% url 'transcriber:delete' t.id %}"
+                            {% endif %}
+
+                            <button class="btn btn-sm btn-danger delete-btn"
+                                    data-id="{{ t.id }}"
                                     title="Supprimer">
-                                <i class="fas fa-trash-alt"></i>
+                                <i class="fas fa-trash"></i>
                             </button>
                         </div>
-                    </td>
-                </tr>
-                {% empty %}
-                <tr class="empty-row">
-                    <td colspan="7" class="text-center py-4">Aucune transcription en attente.</td>
-                </tr>
-                {% endfor %}
-                </tbody>
-            </table>
+                    </div>
+                </div>
+            </div>
+            {% empty %}
+            <div class="text-center py-5 empty-queue">
+                <i class="fas fa-inbox fa-3x mb-3 text-white-50"></i>
+                <p class="text-white-50">Aucune transcription en attente</p>
+                <p class="text-white-50">Uploadez des fichiers audio pour commencer</p>
+            </div>
+            {% endfor %}
         </div>
     </div>
 </div>
 
 {% endblock %}
 
-<!-- Modal Prétraitement - doit être hors du block transcriber_content pour être au niveau du body -->
 {% block extra_modals %}
+<!-- Per-Transcript Settings Modal -->
+<div class="modal fade" id="settingsModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-cog"></i> Paramètres de transcription
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="settingsForm">
+                    <input type="hidden" id="settingsTranscriptId" name="transcript_id">
+
+                    <!-- Backend -->
+                    <div class="mb-3">
+                        <label for="settingsBackend" class="form-label">
+                            <i class="fas fa-microchip"></i> Moteur de transcription
+                        </label>
+                        <select class="form-select" id="settingsBackend" name="backend">
+                            <option value="auto">Auto (meilleur disponible)</option>
+                            {% for backend in backends %}
+                            <option value="{{ backend.name }}">
+                                {{ backend.display_name }}{% if backend.supports_diarization %} (diarisation){% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- Hotwords -->
+                    <div class="mb-3">
+                        <label for="settingsHotwords" class="form-label">
+                            <i class="fas fa-tags"></i> Mots-clés contextuels
+                        </label>
+                        <textarea class="form-control" id="settingsHotwords" name="hotwords"
+                                  rows="2" placeholder="Noms propres, termes techniques..."></textarea>
+                        <small class="text-muted">Séparés par des virgules</small>
+                    </div>
+
+                    <!-- Preprocessing Toggle -->
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="settingsPreprocess" name="preprocess_audio">
+                            <label class="form-check-label" for="settingsPreprocess">
+                                <i class="fas fa-wand-magic-sparkles"></i> Prétraitement audio
+                            </label>
+                        </div>
+                        <small class="text-muted">Normalisation + réduction de bruit</small>
+                    </div>
+
+                    <!-- Diarization Toggle -->
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="settingsDiarization" name="enable_diarization">
+                            <label class="form-check-label" for="settingsDiarization">
+                                <i class="fas fa-users"></i> Identifier les locuteurs
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Temperature -->
+                    <div class="mb-3">
+                        <label for="settingsTemperature" class="form-label">
+                            <i class="fas fa-temperature-half"></i> Temperature: <span id="settingsTemperatureValue">0.0</span>
+                        </label>
+                        <input type="range" class="form-range" id="settingsTemperature" name="temperature"
+                               min="0" max="1" step="0.1" value="0"
+                               oninput="document.getElementById('settingsTemperatureValue').textContent = this.value">
+                    </div>
+
+                    <!-- Max Tokens -->
+                    <div class="mb-3">
+                        <label for="settingsMaxTokens" class="form-label">
+                            <i class="fas fa-text-width"></i> Max tokens
+                        </label>
+                        <input type="number" class="form-control" id="settingsMaxTokens" name="max_tokens"
+                               min="1024" max="131072" value="32768">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                <button type="button" class="btn btn-primary" id="saveSettingsBtn">
+                    <i class="fas fa-save"></i> Enregistrer
+                </button>
+                <button type="button" class="btn btn-success" id="saveAndStartBtn">
+                    <i class="fas fa-play"></i> Enregistrer et démarrer
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Result Preview Modal -->
+<div class="modal fade" id="resultModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-file-alt"></i> <span id="resultModalTitle">Résultat</span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="card" style="background: #1e1e1e; border: 1px solid #495057;">
+                    <div class="card-body">
+                        <pre id="resultText" style="color: #d4d4d4; white-space: pre-wrap; word-wrap: break-word; font-family: 'Segoe UI', Arial, sans-serif; font-size: 14px; line-height: 1.6; margin: 0; max-height: 500px; overflow-y: auto;"></pre>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <a href="#" class="btn btn-info" id="resultDownloadBtn">
+                    <i class="fas fa-download"></i> Télécharger TXT
+                </a>
+                <a href="#" class="btn btn-warning" id="resultSrtBtn">
+                    <i class="fas fa-closed-captioning"></i> Télécharger SRT
+                </a>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Info Prétraitement Modal -->
 <div class="modal fade" id="preprocessingModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content" style="background-color: #ffffff !important; color: #000000 !important;">
@@ -324,15 +505,6 @@
                     <li><strong>Réduction de bruit</strong> : Élimine le bruit de fond</li>
                     <li><strong>Ajustement du volume</strong> : Optimise les niveaux sonores</li>
                 </ul>
-
-                <h6 class="mt-3">Quand l'utiliser ?</h6>
-                <ul>
-                    <li>✅ Enregistrements avec du bruit ambiant</li>
-                    <li>✅ Audio de mauvaise qualité</li>
-                    <li>✅ Enregistrements de réunions ou conférences</li>
-                    <li>❌ Studios d'enregistrement professionnels (déjà optimisés)</li>
-                </ul>
-
                 <div class="alert alert-info">
                     <i class="fas fa-clock"></i>
                     Le prétraitement ajoute 2-5 secondes par minute d'audio.

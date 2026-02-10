@@ -21,6 +21,20 @@
     display: block;
 }
 
+/* === AUDIO PREVIEW === */
+
+#wamaMediaPreviewModal .wama-audio-preview {
+    min-width: 0;
+    flex: 1 1 100%;
+}
+
+#wamaMediaPreviewModal .wama-audio-preview audio {
+    display: block;
+    width: 100%;
+    min-height: 54px;
+    border-radius: 8px;
+}
+
 /* === IMAGE WRAPPER FOR FULLSCREEN === */
 
 .preview-image-wrapper {
