@@ -103,6 +103,52 @@ def _preprocess_audio(transcript: Transcript, audio_path: str) -> str:
         return audio_path
 
 
+def _get_output_stem(transcript: Transcript, backend_name: str) -> str:
+    """Build the output filename stem: {input_stem}_{backend}."""
+    input_stem = os.path.splitext(os.path.basename(transcript.audio.name))[0]
+    return f"{input_stem}_{backend_name}" if backend_name else input_stem
+
+
+def _get_output_dir(transcript: Transcript) -> str:
+    """Get (and create) the output directory for a transcript."""
+    from wama.common.utils.media_paths import get_app_media_path
+    output_dir = get_app_media_path('transcriber', transcript.user_id, 'output')
+    output_dir.mkdir(parents=True, exist_ok=True)
+    return str(output_dir)
+
+
+def _save_output_files(transcript: Transcript, backend_name: str) -> None:
+    """Save TXT and SRT files to the transcriber output folder."""
+    try:
+        output_dir = _get_output_dir(transcript)
+        stem = _get_output_stem(transcript, backend_name)
+
+        # Save TXT
+        txt_path = os.path.join(output_dir, f"{stem}.txt")
+        with open(txt_path, 'w', encoding='utf-8') as f:
+            f.write(transcript.text or '')
+
+        # Save SRT
+        segments = TranscriptSegment.objects.filter(transcript=transcript).order_by('order')
+        if segments.exists():
+            srt_content = ""
+            for i, seg in enumerate(segments, 1):
+                srt_content += seg.to_srt_entry(i)
+        elif transcript.text:
+            srt_content = f"1\n00:00:00,000 --> 00:00:00,000\n{transcript.text}\n\n"
+        else:
+            srt_content = ""
+
+        if srt_content:
+            srt_path = os.path.join(output_dir, f"{stem}.srt")
+            with open(srt_path, 'w', encoding='utf-8') as f:
+                f.write(srt_content)
+
+        _console(transcript.user_id, f"Fichiers de sortie sauvegardés: {stem}.txt / .srt")
+    except Exception as e:
+        _console(transcript.user_id, f"Avertissement: sauvegarde fichiers de sortie échouée ({e})")
+
+
 def _save_segments(transcript: Transcript, result: 'TranscriptionResult') -> int:
     """
     Save transcription segments to database.
@@ -222,8 +268,12 @@ def transcribe(self, transcript_id: int):
             _console(t.user_id, f"{num_segments} segments avec diarisation sauvegardés")
 
         _set_partial_text(t.id, t.text)
-        _set_progress(t, 100)
+        _set_progress(t, 90)
         t.save(update_fields=['text', 'language', 'used_backend', 'status', 'segments_json'])
+
+        # Step 6: Save output files (TXT + SRT) to output folder
+        _save_output_files(t, backend.name)
+        _set_progress(t, 100)
 
         _console(t.user_id, f"Transcription {t.id} terminée ({backend.display_name}) ✓")
 

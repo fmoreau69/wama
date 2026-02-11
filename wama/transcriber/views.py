@@ -364,20 +364,55 @@ def progress(request, pk: int):
     })
 
 
+def _output_stem(t: Transcript) -> str:
+    """Build output filename stem: {input_stem}_{backend}."""
+    input_stem = os.path.splitext(t.filename)[0]
+    return f"{input_stem}_{t.used_backend}" if t.used_backend else input_stem
+
+
 def download(request, pk: int):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     t = get_object_or_404(Transcript, pk=pk, user=user)
     if not t.text:
         return HttpResponseBadRequest('No transcript yet')
-    # Créer un buffer BytesIO pour FileResponse
+
+    stem = _output_stem(t)
+
+    # Serve saved file from disk if it exists
+    from wama.common.utils.media_paths import get_app_media_path
+    disk_path = get_app_media_path('transcriber', user.id, 'output') / f"{stem}.txt"
+    if disk_path.exists():
+        return FileResponse(
+            open(disk_path, 'rb'),
+            as_attachment=True,
+            filename=f"{stem}.txt",
+            content_type='text/plain; charset=utf-8'
+        )
+
+    # Fallback: generate on the fly
     buffer = io.BytesIO(t.text.encode('utf-8'))
     buffer.seek(0)
     return FileResponse(
         buffer,
         as_attachment=True,
-        filename=f"transcript_{t.id}.txt",
+        filename=f"{stem}.txt",
         content_type='text/plain; charset=utf-8'
     )
+
+
+def _cleanup_output_files(t: Transcript, user_id: int) -> None:
+    """Remove output TXT/SRT files for a transcript."""
+    if t.used_backend:
+        try:
+            from wama.common.utils.media_paths import get_app_media_path
+            output_dir = get_app_media_path('transcriber', user_id, 'output')
+            stem = _output_stem(t)
+            for ext in ('.txt', '.srt'):
+                path = output_dir / f"{stem}{ext}"
+                if path.exists():
+                    path.unlink()
+        except Exception:
+            pass
 
 
 @require_POST
@@ -385,6 +420,7 @@ def delete(request, pk: int):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     t = get_object_or_404(Transcript, pk=pk, user=user)
     audio_path = t.audio.path
+    _cleanup_output_files(t, user.id)
     t.audio.delete(save=False)
     t.delete()
     if os.path.exists(audio_path):
@@ -453,6 +489,7 @@ def clear_all(request):
     for transcript in transcripts:
         cleared.append(transcript.id)
         audio_path = transcript.audio.path
+        _cleanup_output_files(transcript, user.id)
         transcript.audio.delete(save=False)
         if os.path.exists(audio_path):
             try:
@@ -472,8 +509,8 @@ def download_all(request):
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as archive:
         for transcript in transcripts:
-            filename = f"transcript_{transcript.id}.txt"
-            archive.writestr(filename, transcript.text or '')
+            stem = _output_stem(transcript)
+            archive.writestr(f"{stem}.txt", transcript.text or '')
     buffer.seek(0)
     return FileResponse(buffer, as_attachment=True, filename="transcripts.zip")
 
@@ -652,31 +689,39 @@ def download_srt(request, pk: int):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     t = get_object_or_404(Transcript, pk=pk, user=user)
 
+    stem = _output_stem(t)
+
+    # Serve saved file from disk if it exists
+    from wama.common.utils.media_paths import get_app_media_path
+    disk_path = get_app_media_path('transcriber', user.id, 'output') / f"{stem}.srt"
+    if disk_path.exists():
+        return FileResponse(
+            open(disk_path, 'rb'),
+            as_attachment=True,
+            filename=f"{stem}.srt",
+            content_type='text/plain; charset=utf-8'
+        )
+
+    # Fallback: generate on the fly
     from .models import TranscriptSegment
 
-    # Get segments
     segments = TranscriptSegment.objects.filter(transcript=t).order_by('order')
 
     if not segments.exists():
-        # If no segments, create a single segment from full text
         if not t.text:
             return HttpResponseBadRequest('No transcript content')
-
-        # Generate simple SRT without timestamps
         srt_content = f"1\n00:00:00,000 --> 00:00:00,000\n{t.text}\n\n"
     else:
-        # Generate SRT from segments
         srt_content = ""
         for i, seg in enumerate(segments, 1):
             srt_content += seg.to_srt_entry(i)
 
-    # Return as file
     buffer = io.BytesIO(srt_content.encode('utf-8'))
     buffer.seek(0)
     return FileResponse(
         buffer,
         as_attachment=True,
-        filename=f"transcript_{t.id}.srt",
+        filename=f"{stem}.srt",
         content_type='text/plain; charset=utf-8'
     )
 
