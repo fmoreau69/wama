@@ -42,4 +42,9 @@ urlpatterns = [
     path('presets/', views.list_voice_presets, name='list_presets'),
     path('presets/create/', views.create_voice_preset, name='create_preset'),
     path('presets/delete/<int:pk>/', views.delete_voice_preset, name='delete_preset'),
+
+    # Custom Voices (persistent cloning)
+    path('custom-voices/', views.list_custom_voices, name='list_custom_voices'),
+    path('custom-voices/upload/', views.upload_custom_voice, name='upload_custom_voice'),
+    path('custom-voices/delete/<int:pk>/', views.delete_custom_voice, name='delete_custom_voice'),
 ]

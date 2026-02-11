@@ -240,9 +240,6 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('settingsPitch').value = pitch;
             document.getElementById('settingsPitchValue').textContent = pitch;
 
-            // Clear voice reference input
-            document.getElementById('settingsVoiceRef').value = '';
-
             // Show modal
             if (settingsModalInstance) {
                 settingsModalInstance.show();
@@ -277,11 +274,6 @@ document.addEventListener('DOMContentLoaded', function() {
         formData.append('speed', document.getElementById('settingsSpeed').value);
         formData.append('pitch', document.getElementById('settingsPitch').value);
         appendHiggsFields(formData);
-
-        const voiceRef = document.getElementById('settingsVoiceRef');
-        if (voiceRef && voiceRef.files[0]) {
-            formData.append('voice_reference', voiceRef.files[0]);
-        }
 
         try {
             // Save settings
@@ -362,10 +354,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 formData.append('pitch', document.getElementById('pitch').value);
                 appendHiggsFields(formData);
 
-                const voiceRef = document.getElementById('voice_reference');
-                if (voiceRef && voiceRef.files[0]) {
-                    formData.append('voice_reference', voiceRef.files[0]);
-                }
 
                 const response = await fetch(URLS.startAll, {
                     method: 'POST',
@@ -513,10 +501,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 formData.append('pitch', document.getElementById('pitch').value);
                 appendHiggsFields(formData);
 
-                const voiceRef = document.getElementById('voice_reference');
-                if (voiceRef && voiceRef.files[0]) {
-                    formData.append('voice_reference', voiceRef.files[0]);
-                }
 
                 const response = await fetch(URLS.uploadText, {
                     method: 'POST',
@@ -593,10 +577,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 formData.append('pitch', document.getElementById('pitch').value);
                 appendHiggsFields(formData);
 
-                const voiceRef = document.getElementById('voice_reference');
-                if (voiceRef && voiceRef.files[0]) {
-                    formData.append('voice_reference', voiceRef.files[0]);
-                }
 
                 const response = await fetch(URLS.voicePreview, {
                     method: 'POST',
@@ -801,11 +781,6 @@ document.addEventListener('DOMContentLoaded', function() {
         formData.append('pitch', document.getElementById('pitch').value);
         appendHiggsFields(formData);
 
-        const voiceRef = document.getElementById('voice_reference');
-        if (voiceRef && voiceRef.files[0]) {
-            formData.append('voice_reference', voiceRef.files[0]);
-        }
-
         try {
             const response = await fetch(URLS.upload, {
                 method: 'POST',
@@ -841,209 +816,194 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Voice Recording Feature
+    // === Custom Voice Management ===
+    const customVoiceModal = document.getElementById('customVoiceModal');
+    const customVoiceModalInstance = customVoiceModal ? new bootstrap.Modal(customVoiceModal) : null;
+    const customVoiceAudioInput = document.getElementById('customVoiceAudio');
+
+    // Voice recording state
     let mediaRecorder = null;
     let audioChunks = [];
     let recordingStartTime = null;
     let recordingTimerInterval = null;
 
+    let reopenSettingsAfterCustomVoice = false;
+
+    function openCustomVoiceModal() {
+        if (!customVoiceModalInstance) return;
+        document.getElementById('customVoiceName').value = '';
+        if (customVoiceAudioInput) customVoiceAudioInput.value = '';
+        const resultDiv = document.getElementById('recordingResult');
+        if (resultDiv) resultDiv.style.display = 'none';
+
+        // If settings modal is open, hide it first and flag for reopen
+        if (settingsModal && settingsModal.classList.contains('show')) {
+            reopenSettingsAfterCustomVoice = true;
+            settingsModalInstance.hide();
+            settingsModal.addEventListener('hidden.bs.modal', function showCustomVoice() {
+                settingsModal.removeEventListener('hidden.bs.modal', showCustomVoice);
+                customVoiceModalInstance.show();
+            }, { once: true });
+        } else {
+            reopenSettingsAfterCustomVoice = false;
+            customVoiceModalInstance.show();
+        }
+    }
+
+    // Reopen settings modal when custom voice modal closes
+    if (customVoiceModal) {
+        customVoiceModal.addEventListener('hidden.bs.modal', () => {
+            if (reopenSettingsAfterCustomVoice && settingsModalInstance) {
+                reopenSettingsAfterCustomVoice = false;
+                settingsModalInstance.show();
+            }
+        });
+    }
+
+    // All "Ajouter une voix" buttons (panel + settings modal) use the same class
+    document.querySelectorAll('.add-custom-voice-btn').forEach(btn => {
+        btn.addEventListener('click', openCustomVoiceModal);
+    });
+
+    // Microphone recording inside the custom voice modal
     const recordVoiceBtn = document.getElementById('recordVoiceBtn');
     const stopRecordingBtn = document.getElementById('stopRecordingBtn');
     const recordingIndicator = document.getElementById('recordingIndicator');
     const recordingTimer = document.getElementById('recordingTimer');
-    const voiceReferenceInput = document.getElementById('voice_reference');
 
     if (recordVoiceBtn) {
         recordVoiceBtn.addEventListener('click', async () => {
             try {
-                // Demander l'accès au microphone
                 const stream = await navigator.mediaDevices.getUserMedia({
-                    audio: {
-                        echoCancellation: true,
-                        noiseSuppression: true,
-                        sampleRate: 22050
-                    }
+                    audio: { echoCancellation: true, noiseSuppression: true, sampleRate: 22050 }
                 });
 
-                // Créer le MediaRecorder
-                const options = { mimeType: 'audio/webm' };
-                mediaRecorder = new MediaRecorder(stream, options);
+                mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
                 audioChunks = [];
 
-                mediaRecorder.ondataavailable = (event) => {
-                    if (event.data.size > 0) {
-                        audioChunks.push(event.data);
-                    }
+                mediaRecorder.ondataavailable = (e) => {
+                    if (e.data.size > 0) audioChunks.push(e.data);
                 };
 
-                mediaRecorder.onstop = async () => {
-                    // Arrêter le timer
-                    if (recordingTimerInterval) {
-                        clearInterval(recordingTimerInterval);
-                        recordingTimerInterval = null;
-                    }
-
-                    // Arrêter toutes les pistes audio
+                mediaRecorder.onstop = () => {
+                    if (recordingTimerInterval) { clearInterval(recordingTimerInterval); recordingTimerInterval = null; }
                     stream.getTracks().forEach(track => track.stop());
 
-                    // Créer un blob audio
-                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    const blob = new Blob(audioChunks, { type: 'audio/webm' });
+                    const file = new File([blob], 'recorded_voice.webm', { type: 'audio/webm' });
+                    const dt = new DataTransfer();
+                    dt.items.add(file);
+                    if (customVoiceAudioInput) customVoiceAudioInput.files = dt.files;
 
-                    // Convertir en WAV si possible (pour meilleure compatibilité)
-                    // Sinon, utiliser le webm directement
-                    const file = new File([audioBlob], 'recorded_voice.webm', { type: 'audio/webm' });
-
-                    // Créer un DataTransfer pour assigner le fichier à l'input
-                    const dataTransfer = new DataTransfer();
-                    dataTransfer.items.add(file);
-                    voiceReferenceInput.files = dataTransfer.files;
-
-                    // Afficher une confirmation
-                    alert(`Enregistrement terminé ! Durée: ${recordingTimer.textContent}`);
-
-                    // Cacher l'indicateur
                     recordingIndicator.style.display = 'none';
                     recordVoiceBtn.disabled = false;
+
+                    // Show confirmation
+                    const resultDiv = document.getElementById('recordingResult');
+                    const resultText = document.getElementById('recordingResultText');
+                    if (resultDiv && resultText) {
+                        resultText.textContent = `Enregistrement capturé (${recordingTimer.textContent})`;
+                        resultDiv.style.display = 'block';
+                    }
                 };
 
-                // Démarrer l'enregistrement
                 mediaRecorder.start();
                 recordingStartTime = Date.now();
-
-                // Afficher l'indicateur
                 recordingIndicator.style.display = 'block';
                 recordVoiceBtn.disabled = true;
+                const resultDiv = document.getElementById('recordingResult');
+                if (resultDiv) resultDiv.style.display = 'none';
 
-                // Démarrer le timer
                 recordingTimerInterval = setInterval(() => {
                     const elapsed = Math.floor((Date.now() - recordingStartTime) / 1000);
                     recordingTimer.textContent = `${elapsed}s`;
-
-                    // Arrêter automatiquement après 10 secondes
-                    if (elapsed >= 10) {
-                        stopRecordingBtn.click();
-                    }
+                    if (elapsed >= 10 && stopRecordingBtn) stopRecordingBtn.click();
                 }, 100);
 
             } catch (error) {
                 console.error('Microphone access error:', error);
-                if (error.name === 'NotAllowedError') {
-                    alert('Accès au microphone refusé. Veuillez autoriser l\'accès au microphone dans les paramètres de votre navigateur.');
-                } else {
-                    alert('Erreur d\'accès au microphone: ' + error.message);
-                }
+                alert(error.name === 'NotAllowedError'
+                    ? 'Accès au microphone refusé. Veuillez autoriser l\'accès dans les paramètres du navigateur.'
+                    : 'Erreur micro: ' + error.message);
             }
         });
     }
 
     if (stopRecordingBtn) {
         stopRecordingBtn.addEventListener('click', () => {
-            if (mediaRecorder && mediaRecorder.state === 'recording') {
-                mediaRecorder.stop();
-            }
+            if (mediaRecorder && mediaRecorder.state === 'recording') mediaRecorder.stop();
         });
     }
 
-    // Voice Recording for Modal
-    const modalRecordVoiceBtn = document.getElementById('modalRecordVoiceBtn');
-    const modalStopRecordingBtn = document.getElementById('modalStopRecordingBtn');
-    const modalRecordingIndicator = document.getElementById('modalRecordingIndicator');
-    const modalRecordingTimer = document.getElementById('modalRecordingTimer');
-    const settingsVoiceRefInput = document.getElementById('settingsVoiceRef');
+    // Save custom voice
+    const saveCustomVoiceBtn = document.getElementById('saveCustomVoiceBtn');
+    if (saveCustomVoiceBtn) {
+        saveCustomVoiceBtn.addEventListener('click', async () => {
+            const name = document.getElementById('customVoiceName').value.trim();
+            const audioFile = customVoiceAudioInput ? customVoiceAudioInput.files[0] : null;
 
-    let modalMediaRecorder = null;
-    let modalAudioChunks = [];
-    let modalRecordingStartTime = null;
-    let modalRecordingTimerInterval = null;
+            if (!name || !audioFile) {
+                alert('Veuillez remplir le nom et sélectionner un fichier audio.');
+                return;
+            }
 
-    if (modalRecordVoiceBtn) {
-        modalRecordVoiceBtn.addEventListener('click', async () => {
+            saveCustomVoiceBtn.disabled = true;
+            saveCustomVoiceBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Envoi...';
+
             try {
-                // Demander l'accès au microphone
-                const stream = await navigator.mediaDevices.getUserMedia({
-                    audio: {
-                        echoCancellation: true,
-                        noiseSuppression: true,
-                        sampleRate: 22050
-                    }
+                const formData = new FormData();
+                formData.append('name', name);
+                formData.append('audio', audioFile);
+
+                const response = await fetch(URLS.uploadCustomVoice, {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': csrfToken },
+                    body: formData
                 });
 
-                // Créer le MediaRecorder
-                const options = { mimeType: 'audio/webm' };
-                modalMediaRecorder = new MediaRecorder(stream, options);
-                modalAudioChunks = [];
+                const data = await response.json();
 
-                modalMediaRecorder.ondataavailable = (event) => {
-                    if (event.data.size > 0) {
-                        modalAudioChunks.push(event.data);
-                    }
-                };
+                if (response.ok && data.id) {
+                    // Add option to both dropdowns
+                    const optionHtml = `<option value="cv_${data.id}">${data.name}</option>`;
+                    addCustomVoiceOption('customVoicesGroup', optionHtml, 'voice_preset');
+                    addCustomVoiceOption('settingsCustomVoicesGroup', optionHtml, 'settingsVoicePreset');
 
-                modalMediaRecorder.onstop = async () => {
-                    // Arrêter le timer
-                    if (modalRecordingTimerInterval) {
-                        clearInterval(modalRecordingTimerInterval);
-                        modalRecordingTimerInterval = null;
-                    }
+                    // Select the new voice in the panel dropdown
+                    document.getElementById('voice_preset').value = `cv_${data.id}`;
 
-                    // Arrêter toutes les pistes audio
-                    stream.getTracks().forEach(track => track.stop());
-
-                    // Créer un blob audio
-                    const audioBlob = new Blob(modalAudioChunks, { type: 'audio/webm' });
-
-                    // Créer un fichier
-                    const file = new File([audioBlob], 'recorded_voice.webm', { type: 'audio/webm' });
-
-                    // Créer un DataTransfer pour assigner le fichier à l'input
-                    const dataTransfer = new DataTransfer();
-                    dataTransfer.items.add(file);
-                    settingsVoiceRefInput.files = dataTransfer.files;
-
-                    // Afficher une confirmation
-                    alert(`Enregistrement terminé ! Durée: ${modalRecordingTimer.textContent}`);
-
-                    // Cacher l'indicateur
-                    modalRecordingIndicator.style.display = 'none';
-                    modalRecordVoiceBtn.disabled = false;
-                };
-
-                // Démarrer l'enregistrement
-                modalMediaRecorder.start();
-                modalRecordingStartTime = Date.now();
-
-                // Afficher l'indicateur
-                modalRecordingIndicator.style.display = 'block';
-                modalRecordVoiceBtn.disabled = true;
-
-                // Démarrer le timer
-                modalRecordingTimerInterval = setInterval(() => {
-                    const elapsed = Math.floor((Date.now() - modalRecordingStartTime) / 1000);
-                    modalRecordingTimer.textContent = `${elapsed}s`;
-
-                    // Arrêter automatiquement après 10 secondes
-                    if (elapsed >= 10) {
-                        modalStopRecordingBtn.click();
-                    }
-                }, 100);
-
-            } catch (error) {
-                console.error('Microphone access error:', error);
-                if (error.name === 'NotAllowedError') {
-                    alert('Accès au microphone refusé. Veuillez autoriser l\'accès au microphone dans les paramètres de votre navigateur.');
+                    if (customVoiceModalInstance) customVoiceModalInstance.hide();
                 } else {
-                    alert('Erreur d\'accès au microphone: ' + error.message);
+                    alert('Erreur: ' + (data.error || 'Échec de l\'enregistrement'));
                 }
+            } catch (error) {
+                console.error('Custom voice upload error:', error);
+                alert('Erreur: ' + error.message);
+            } finally {
+                saveCustomVoiceBtn.disabled = false;
+                saveCustomVoiceBtn.innerHTML = '<i class="fas fa-save"></i> Enregistrer';
             }
         });
     }
 
-    if (modalStopRecordingBtn) {
-        modalStopRecordingBtn.addEventListener('click', () => {
-            if (modalMediaRecorder && modalMediaRecorder.state === 'recording') {
-                modalMediaRecorder.stop();
+    function addCustomVoiceOption(groupId, optionHtml, selectId) {
+        let group = document.getElementById(groupId);
+        if (!group) {
+            // Create the optgroup if it doesn't exist yet
+            const select = document.getElementById(selectId);
+            if (!select) return;
+            group = document.createElement('optgroup');
+            group.id = groupId;
+            group.label = 'Voix personnalisées (clonage)';
+            // Insert after first optgroup (Voix intégrées)
+            const firstGroup = select.querySelector('optgroup');
+            if (firstGroup && firstGroup.nextSibling) {
+                select.insertBefore(group, firstGroup.nextSibling);
+            } else {
+                select.appendChild(group);
             }
-        });
+        }
+        group.insertAdjacentHTML('beforeend', optionHtml);
     }
 
 }); // Fin DOMContentLoaded

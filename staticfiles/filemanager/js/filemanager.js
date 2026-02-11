@@ -534,7 +534,7 @@
             'describer': ['describer', 'describer_input', 'describer_output'],
             'enhancer': ['enhancer', 'enhancer_input', 'enhancer_output'],
             'imager': ['imager', 'imager_prompts', 'imager_references', 'imager_output_image', 'imager_output_video'],
-            'synthesizer': ['synthesizer', 'synthesizer_input', 'synthesizer_output'],
+            'synthesizer': ['synthesizer', 'synthesizer_input', 'synthesizer_output', 'synthesizer_voices'],
             'transcriber': ['transcriber', 'transcriber_input', 'transcriber_output'],
             // WAMA Lab apps (nested under wama_lab)
             'face_analyzer': ['wama_lab', 'face_analyzer', 'face_analyzer_input', 'face_analyzer_output'],

@@ -6,6 +6,7 @@ import json
 import mimetypes
 import logging
 from pathlib import Path
+from urllib.parse import quote
 
 from django.conf import settings
 from django.http import JsonResponse, FileResponse, HttpResponseBadRequest
@@ -95,6 +96,7 @@ def build_file_tree(user):
             'children': [
                 {'id': 'synthesizer_input', 'text': 'Input', 'path': f'synthesizer/{user_id}/input', 'icon': 'fa fa-folder text-secondary'},
                 {'id': 'synthesizer_output', 'text': 'Output', 'path': f'synthesizer/{user_id}/output', 'icon': 'fa fa-folder text-success'},
+                {'id': 'synthesizer_voices', 'text': 'Custom_voices', 'path': f'synthesizer/{user_id}/custom_voices', 'icon': 'fa fa-user-circle text-info'},
             ]
         },
         {
@@ -257,6 +259,7 @@ def api_search(request):
         f'imager/{user.id}/output/video',
         f'synthesizer/{user.id}/input',
         f'synthesizer/{user.id}/output',
+        f'synthesizer/{user.id}/custom_voices',
         f'transcriber/{user.id}/input',
         f'transcriber/{user.id}/output',
     ]
@@ -752,7 +755,7 @@ def api_preview(request):
 
     # For images, videos and audio, return the media URL
     if mime_type.startswith(('image/', 'video/', 'audio/')):
-        media_url = f"{settings.MEDIA_URL}{file_path}"
+        media_url = settings.MEDIA_URL + quote(file_path)
         return JsonResponse({
             'preview_url': media_url,
             'mime': mime_type,

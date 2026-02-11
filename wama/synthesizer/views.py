@@ -16,14 +16,14 @@ from django.contrib.auth.decorators import login_required
 from django.utils.decorators import method_decorator
 from django.core.cache import cache
 from django.views.decorators.http import require_POST
-from django.utils.encoding import smart_str
+from django.utils.encoding import smart_str, iri_to_uri
 from django.core.validators import FileExtensionValidator
 from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
 
 import requests as http_requests
 
-from .models import VoiceSynthesis, VoicePreset
+from .models import VoiceSynthesis, VoicePreset, CustomVoice
 from wama.common.utils.console_utils import get_console_lines
 from wama.accounts.views import get_or_create_anonymous_user
 
@@ -53,9 +53,12 @@ class IndexView(View):
             is_public=True
         ) | VoicePreset.objects.filter(created_by=user)
 
+        custom_voices = CustomVoice.objects.filter(user=user)
+
         context = {
             'syntheses': syntheses,
             'voice_presets': voice_presets,
+            'custom_voices': custom_voices,
             'tts_models': VoiceSynthesis.TTS_MODEL_CHOICES,
             'languages': VoiceSynthesis.LANGUAGE_CHOICES,
             'voice_presets_choices': VoiceSynthesis.VOICE_PRESET_CHOICES,
@@ -419,7 +422,7 @@ def progress(request, pk: int):
     return JsonResponse({
         'progress': p,
         'status': synthesis.status,
-        'audio_url': synthesis.audio_output.url if synthesis.audio_output else None,
+        'audio_url': iri_to_uri(synthesis.audio_output.url) if synthesis.audio_output else None,
         'duration_display': synthesis.duration_display,
         'error': synthesis.error_message if synthesis.status == 'FAILURE' else None,
     })
@@ -505,7 +508,7 @@ def preview(request, pk: int):
         }, status=404)
 
     return JsonResponse({
-        'audio_url': synthesis.audio_output.url,
+        'audio_url': iri_to_uri(synthesis.audio_output.url),
         'duration': synthesis.duration_display,
         'properties': synthesis.properties,
     })
@@ -541,6 +544,50 @@ def delete(request, pk: int):
     synthesis.delete()
     cache.delete(f"synthesizer_progress_{pk}")
 
+    return JsonResponse({'deleted': pk})
+
+
+# ============================================================================
+# Custom Voices (persistent voice cloning files)
+# ============================================================================
+
+def list_custom_voices(request):
+    """Liste les voix personnalisées de l'utilisateur."""
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    voices = CustomVoice.objects.filter(user=user).values('id', 'name', 'created_at')
+    return JsonResponse({'voices': list(voices)})
+
+
+@require_POST
+def upload_custom_voice(request):
+    """Upload d'une voix personnalisée."""
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    name = request.POST.get('name', '').strip()
+    audio = request.FILES.get('audio')
+
+    if not name:
+        return JsonResponse({'error': 'Le nom est requis'}, status=400)
+    if not audio:
+        return JsonResponse({'error': 'Le fichier audio est requis'}, status=400)
+
+    ext = os.path.splitext(audio.name)[1][1:].lower()
+    if ext not in ('wav', 'mp3', 'flac', 'ogg'):
+        return JsonResponse({'error': 'Format non supporté (wav, mp3, flac, ogg)'}, status=400)
+
+    if CustomVoice.objects.filter(user=user, name=name).exists():
+        return JsonResponse({'error': f'Une voix "{name}" existe déjà'}, status=409)
+
+    cv = CustomVoice.objects.create(user=user, name=name, audio=audio)
+    return JsonResponse({'id': cv.id, 'name': cv.name})
+
+
+@require_POST
+def delete_custom_voice(request, pk: int):
+    """Supprime une voix personnalisée."""
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    cv = get_object_or_404(CustomVoice, pk=pk, user=user)
+    cv.audio.delete(save=False)
+    cv.delete()
     return JsonResponse({'deleted': pk})
 
 

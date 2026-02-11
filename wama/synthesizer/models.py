@@ -6,7 +6,7 @@ Gère la synthèse vocale (Text-to-Speech)
 from django.db import models
 from django.contrib.auth import get_user_model
 from django.core.validators import FileExtensionValidator
-from wama.common.utils.media_paths import upload_to_user_input, upload_to_user_output
+from wama.common.utils.media_paths import upload_to_user_input, upload_to_user_output, UploadToUserPath
 
 User = get_user_model()
 
@@ -303,3 +303,21 @@ class VoicePreset(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class CustomVoice(models.Model):
+    """Voix personnalisée persistante pour le clonage vocal."""
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='custom_voices')
+    name = models.CharField(max_length=100)
+    audio = models.FileField(
+        upload_to=UploadToUserPath('synthesizer', 'custom_voices'),
+        validators=[FileExtensionValidator(allowed_extensions=['wav', 'mp3', 'flac', 'ogg'])]
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['name']
+        unique_together = ['user', 'name']
+
+    def __str__(self):
+        return f"{self.name} ({self.user.username})"

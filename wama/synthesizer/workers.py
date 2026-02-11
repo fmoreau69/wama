@@ -287,6 +287,13 @@ def synthesize_voice(self, synthesis_id: int):
         speaker_wav = None
         if synthesis.voice_reference:
             speaker_wav = synthesis.voice_reference.path
+        elif synthesis.voice_preset.startswith('cv_'):
+            try:
+                from .models import CustomVoice
+                cv = CustomVoice.objects.get(pk=int(synthesis.voice_preset[3:]))
+                speaker_wav = cv.audio.path
+            except (ValueError, CustomVoice.DoesNotExist):
+                speaker_wav = _get_default_speaker_wav('default')
         elif synthesis.tts_model == 'xtts_v2':
             speaker_wav = _get_default_speaker_wav(synthesis.voice_preset)
 

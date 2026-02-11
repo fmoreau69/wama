@@ -55,10 +55,34 @@
         <i class="fas fa-microphone"></i> Voix
     </label>
     <select class="form-select form-select-sm bg-dark text-white border-secondary" id="voice_preset" name="voice_preset">
-        {% for value, label in voice_presets_choices %}
-        <option value="{{ value }}">{{ label }}</option>
-        {% endfor %}
+        <optgroup label="Voix intégrées">
+            <option value="default">Voix par défaut</option>
+            <option value="male_1">Voix masculine 1</option>
+            <option value="male_2">Voix masculine 2</option>
+            <option value="female_1">Voix féminine 1</option>
+            <option value="female_2">Voix féminine 2</option>
+        </optgroup>
+        <optgroup label="Voix personnalisées (clonage)" id="customVoicesGroup">
+            {% for cv in custom_voices %}
+            <option value="cv_{{ cv.id }}">{{ cv.name }}</option>
+            {% endfor %}
+        </optgroup>
+        <optgroup label="Bark (presets)">
+            <option value="bark_v2_en_0">Bark EN Speaker 0</option>
+            <option value="bark_v2_en_1">Bark EN Speaker 1</option>
+            <option value="bark_v2_en_2">Bark EN Speaker 2</option>
+            <option value="bark_v2_en_3">Bark EN Speaker 3</option>
+            <option value="bark_v2_en_4">Bark EN Speaker 4</option>
+            <option value="bark_v2_en_5">Bark EN Speaker 5</option>
+            <option value="bark_v2_fr_0">Bark FR Speaker 0</option>
+            <option value="bark_v2_fr_1">Bark FR Speaker 1</option>
+            <option value="bark_v2_es_0">Bark ES Speaker 0</option>
+            <option value="bark_v2_de_0">Bark DE Speaker 0</option>
+        </optgroup>
     </select>
+    <button type="button" class="btn btn-outline-light btn-sm w-100 mt-1 add-custom-voice-btn">
+        <i class="fas fa-plus"></i> Ajouter une voix
+    </button>
 </div>
 
 <!-- Speed -->
@@ -75,37 +99,6 @@
         <i class="fas fa-wave-square"></i> Hauteur: <span id="pitch_value">1.0</span>x
     </label>
     <input type="range" class="form-range" id="pitch" name="pitch" min="0.5" max="2.0" step="0.1" value="1.0">
-</div>
-
-<!-- Voice Reference -->
-<div class="mb-3">
-    <label for="voice_reference" class="form-label small fw-bold text-light">
-        <i class="fas fa-user-circle"></i> Voix de référence
-    </label>
-    <input type="file" class="form-control form-control-sm bg-dark text-white border-secondary"
-           id="voice_reference" accept="audio/*" name="voice_reference">
-    <small class="d-block mt-1">Audio 6-10s pour clonage</small>
-
-    <!-- Microphone Recording -->
-    <div class="mt-2">
-        <button type="button" class="btn btn-outline-info btn-sm w-100" id="recordVoiceBtn">
-            <i class="fas fa-microphone"></i> Enregistrer ma voix
-        </button>
-
-        <!-- Recording Indicator (hidden by default) -->
-        <div id="recordingIndicator" class="mt-2 p-2 bg-danger bg-opacity-25 rounded text-center" style="display: none;">
-            <div class="d-flex align-items-center justify-content-between">
-                <span class="text-danger">
-                    <i class="fas fa-circle fa-beat"></i> Enregistrement...
-                </span>
-                <span id="recordingTimer" class="badge bg-danger">0s</span>
-                <button type="button" class="btn btn-danger btn-sm" id="stopRecordingBtn">
-                    <i class="fas fa-stop"></i> Stop
-                </button>
-            </div>
-            <small class="d-block mt-1">Max 10s - Arrêt auto</small>
-        </div>
-    </div>
 </div>
 
 <!-- Reset Button -->
@@ -376,6 +369,57 @@
 {% endblock %}
 
 {% block extra_modals %}
+<!-- Custom Voice Upload Modal -->
+<div class="modal fade" id="customVoiceModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-microphone"></i> Ajouter une voix</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="customVoiceName" class="form-label">Nom</label>
+                    <input type="text" class="form-control" id="customVoiceName" placeholder="Ma voix" required>
+                </div>
+                <div class="mb-3">
+                    <label for="customVoiceAudio" class="form-label">Fichier audio (6-10s)</label>
+                    <input type="file" class="form-control" id="customVoiceAudio" accept=".wav,.mp3,.flac,.ogg">
+                    <small class="text-muted">WAV, MP3, FLAC ou OGG</small>
+                </div>
+                <div class="text-center text-muted small mb-2">ou</div>
+                <div>
+                    <button type="button" class="btn btn-outline-info btn-sm w-100" id="recordVoiceBtn">
+                        <i class="fas fa-microphone"></i> Enregistrer ma voix
+                    </button>
+                    <div id="recordingIndicator" class="mt-2 p-2 bg-danger bg-opacity-25 rounded text-center" style="display: none;">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <span class="text-danger">
+                                <i class="fas fa-circle fa-beat"></i> Enregistrement...
+                            </span>
+                            <span id="recordingTimer" class="badge bg-danger">0s</span>
+                            <button type="button" class="btn btn-danger btn-sm" id="stopRecordingBtn">
+                                <i class="fas fa-stop"></i> Stop
+                            </button>
+                        </div>
+                        <small class="d-block mt-1">Max 10s - Arrêt auto</small>
+                    </div>
+                    <div id="recordingResult" class="mt-2 p-2 bg-success bg-opacity-10 rounded text-center" style="display: none;">
+                        <i class="fas fa-check-circle text-success"></i>
+                        <span id="recordingResultText" class="small text-success"></span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Annuler</button>
+                <button type="button" class="btn btn-primary btn-sm" id="saveCustomVoiceBtn">
+                    <i class="fas fa-save"></i> Enregistrer
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Per-Media Settings Modal -->
 <div class="modal fade" id="settingsModal" tabindex="-1">
     <div class="modal-dialog">
@@ -420,10 +464,34 @@
                             <i class="fas fa-microphone"></i> Voix
                         </label>
                         <select class="form-select" id="settingsVoicePreset" name="voice_preset">
-                            {% for value, label in voice_presets_choices %}
-                            <option value="{{ value }}">{{ label }}</option>
-                            {% endfor %}
+                            <optgroup label="Voix intégrées">
+                                <option value="default">Voix par défaut</option>
+                                <option value="male_1">Voix masculine 1</option>
+                                <option value="male_2">Voix masculine 2</option>
+                                <option value="female_1">Voix féminine 1</option>
+                                <option value="female_2">Voix féminine 2</option>
+                            </optgroup>
+                            <optgroup label="Voix personnalisées (clonage)" id="settingsCustomVoicesGroup">
+                                {% for cv in custom_voices %}
+                                <option value="cv_{{ cv.id }}">{{ cv.name }}</option>
+                                {% endfor %}
+                            </optgroup>
+                            <optgroup label="Bark (presets)">
+                                <option value="bark_v2_en_0">Bark EN Speaker 0</option>
+                                <option value="bark_v2_en_1">Bark EN Speaker 1</option>
+                                <option value="bark_v2_en_2">Bark EN Speaker 2</option>
+                                <option value="bark_v2_en_3">Bark EN Speaker 3</option>
+                                <option value="bark_v2_en_4">Bark EN Speaker 4</option>
+                                <option value="bark_v2_en_5">Bark EN Speaker 5</option>
+                                <option value="bark_v2_fr_0">Bark FR Speaker 0</option>
+                                <option value="bark_v2_fr_1">Bark FR Speaker 1</option>
+                                <option value="bark_v2_es_0">Bark ES Speaker 0</option>
+                                <option value="bark_v2_de_0">Bark DE Speaker 0</option>
+                            </optgroup>
                         </select>
+                        <button type="button" class="btn btn-outline-secondary btn-sm w-100 mt-1 add-custom-voice-btn">
+                            <i class="fas fa-plus"></i> Ajouter une voix
+                        </button>
                     </div>
 
                     <!-- Speed -->
@@ -444,37 +512,6 @@
                         <input type="range" class="form-range" id="settingsPitch" name="pitch"
                                min="0.5" max="2.0" step="0.1" value="1.0"
                                oninput="document.getElementById('settingsPitchValue').textContent = this.value">
-                    </div>
-
-                    <!-- Voice Reference -->
-                    <div class="mb-3">
-                        <label for="settingsVoiceRef" class="form-label">
-                            <i class="fas fa-user-circle"></i> Voix de référence (clonage)
-                        </label>
-                        <input type="file" class="form-control" id="settingsVoiceRef"
-                               name="voice_reference" accept="audio/*">
-                        <small>Audio 6-10s pour clonage (optionnel)</small>
-
-                        <!-- Microphone Recording for Modal -->
-                        <div class="mt-2">
-                            <button type="button" class="btn btn-outline-info btn-sm w-100" id="modalRecordVoiceBtn">
-                                <i class="fas fa-microphone"></i> Enregistrer ma voix
-                            </button>
-
-                            <!-- Recording Indicator (hidden by default) -->
-                            <div id="modalRecordingIndicator" class="mt-2 p-2 bg-danger bg-opacity-25 rounded text-center" style="display: none;">
-                                <div class="d-flex align-items-center justify-content-between">
-                                    <span class="text-danger">
-                                        <i class="fas fa-circle fa-beat"></i> Enregistrement...
-                                    </span>
-                                    <span id="modalRecordingTimer" class="badge bg-danger">0s</span>
-                                    <button type="button" class="btn btn-danger btn-sm" id="modalStopRecordingBtn">
-                                        <i class="fas fa-stop"></i> Stop
-                                    </button>
-                                </div>
-                                <small class="d-block mt-1">Max 10s - Arrêt auto</small>
-                            </div>
-                        </div>
                     </div>
                 </form>
             </div>
@@ -571,7 +608,10 @@
             downloadAll: "{% url 'synthesizer:download_all' %}",
             clearAll: "{% url 'synthesizer:clear_all' %}",
             console: "{% url 'synthesizer:console' %}",
-            updateOptions: "/synthesizer/update-options/"
+            updateOptions: "/synthesizer/update-options/",
+            customVoices: "{% url 'synthesizer:list_custom_voices' %}",
+            uploadCustomVoice: "{% url 'synthesizer:upload_custom_voice' %}",
+            deleteCustomVoice: "/synthesizer/custom-voices/delete/"
         },
         csrfToken: "{{ csrf_token }}"
     };

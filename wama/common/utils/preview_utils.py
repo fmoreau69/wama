@@ -133,10 +133,12 @@ def anonymizer_preview_adapter(media, request):
 
 def synthesizer_preview_adapter(synthesis, request):
     """Custom adapter for Synthesizer VoiceSynthesis model - previews audio output."""
+    from django.utils.encoding import iri_to_uri
+
     if not synthesis.audio_output:
         return {'error': 'No audio available'}
 
-    audio_url = request.build_absolute_uri(synthesis.audio_output.url)
+    audio_url = request.build_absolute_uri(iri_to_uri(synthesis.audio_output.url))
 
     return {
         "name": os.path.basename(synthesis.audio_output.name),
@@ -149,10 +151,12 @@ def synthesizer_preview_adapter(synthesis, request):
 
 def transcriber_preview_adapter(transcript, request):
     """Custom adapter for Transcriber Transcript model."""
+    from django.utils.encoding import iri_to_uri
+
     if not transcript.audio:
         return {'error': 'No audio file available'}
 
-    audio_url = request.build_absolute_uri(transcript.audio.url)
+    audio_url = request.build_absolute_uri(iri_to_uri(transcript.audio.url))
     mime_type, _ = mimetypes.guess_type(transcript.audio.path)
 
     data = {
