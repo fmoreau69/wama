@@ -1,0 +1,147 @@
+{% extends 'common/app_modern_base.html' %}
+{% load static %}
+
+{% block app_icon %}<i class="fas fa-video text-warning"></i>{% endblock %}
+{% block app_title %}Cam Analyzer{% endblock %}
+{% block app_description %}Analyse multi-caméras synchronisées pour navette autonome{% endblock %}
+
+{% block console_content_id %}cam-analyzer-console-content{% endblock %}
+{% block console_url %}{% url 'wama_lab:cam_analyzer:console' %}{% endblock %}
+
+{% block extra_css %}
+{{ block.super }}
+<link rel="stylesheet" href="{% static 'cam_analyzer/css/cam_analyzer.css' %}">
+{% endblock %}
+
+{% block queue_content %}
+    {% block cam_analyzer_content %}
+    {% endblock %}
+{% endblock %}
+
+{% block about_content %}
+<div class="info-card">
+    <h3><i class="fas fa-flask me-2"></i>WAMA Lab - Cam Analyzer</h3>
+
+    <div class="mb-4">
+        <h5>Qu'est-ce que Cam Analyzer ?</h5>
+        <p class="text-light">
+            Cam Analyzer est une application de recherche pour l'analyse de vidéos multi-caméras
+            embarquées sur une navette autonome. Elle permet d'étudier la cohabitation et la sécurité
+            avec les usagers de la route grâce à la détection d'objets, le suivi et l'analyse temporelle.
+        </p>
+    </div>
+
+    <div class="mb-4">
+        <h5>Fonctionnalités</h5>
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card bg-dark border-warning mb-2">
+                    <div class="card-body py-2">
+                        <h6 class="text-warning small"><i class="fas fa-video me-2"></i>Multi-caméras</h6>
+                        <p class="small mb-0 text-light">
+                            Jusqu'à 4 caméras synchronisées (avant, arrière, gauche, droite)
+                            avec lecture simultanée.
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card bg-dark border-info mb-2">
+                    <div class="card-body py-2">
+                        <h6 class="text-info small"><i class="fas fa-crosshairs me-2"></i>Détection YOLO</h6>
+                        <p class="small mb-0 text-light">
+                            Détection et suivi d'objets (piétons, véhicules, cyclistes)
+                            avec les modèles YOLO11.
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card bg-dark border-success mb-2">
+                    <div class="card-body py-2">
+                        <h6 class="text-success small"><i class="fas fa-chart-bar me-2"></i>Analyse temporelle</h6>
+                        <p class="small mb-0 text-light">
+                            Timeline de proximité, segmentation temporelle (suivi rapproché,
+                            dépassement, croisement).
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card bg-dark border-danger mb-2">
+                    <div class="card-body py-2">
+                        <h6 class="text-danger small"><i class="fas fa-file-export me-2"></i>Export</h6>
+                        <p class="small mb-0 text-light">
+                            Export des résultats en CSV/JSON, vidéos annotées,
+                            rapports d'analyse.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="alert alert-warning">
+        <i class="fas fa-flask me-2"></i>
+        <strong>Application expérimentale :</strong> Cette application est en développement actif.
+        Les phases 2 (détection) et 3 (analytics) seront implémentées prochainement.
+    </div>
+</div>
+{% endblock %}
+
+{% block help_content %}
+<div class="info-card">
+    <h3><i class="fas fa-question-circle me-2"></i>Guide d'utilisation</h3>
+
+    <div class="mb-4">
+        <h5>Démarrage rapide</h5>
+        <ol class="text-light">
+            <li>Créez une nouvelle session via le bouton "Nouvelle session"</li>
+            <li>Glissez-déposez vos vidéos sur les zones de caméra correspondantes</li>
+            <li>Utilisez les contrôles de lecture pour naviguer dans les vidéos de manière synchronisée</li>
+            <li>Configurez un profil d'analyse (modèle, classes cibles, seuils)</li>
+            <li>Lancez l'analyse (Phase 2)</li>
+        </ol>
+    </div>
+
+    <div class="mb-4">
+        <h5>Positions des caméras</h5>
+        <div class="table-responsive">
+            <table class="table table-dark table-sm small">
+                <thead>
+                    <tr><th>Position</th><th>Description</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td><span class="text-info">Avant</span></td><td>Caméra frontale de la navette</td></tr>
+                    <tr><td><span class="text-info">Arrière</span></td><td>Caméra arrière</td></tr>
+                    <tr><td><span class="text-info">Gauche</span></td><td>Caméra latérale gauche</td></tr>
+                    <tr><td><span class="text-info">Droite</span></td><td>Caméra latérale droite</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="mb-4">
+        <h5>Classes COCO supportées</h5>
+        <div class="d-flex flex-wrap gap-2">
+            <span class="badge bg-warning text-dark">Person (0)</span>
+            <span class="badge bg-warning text-dark">Bicycle (1)</span>
+            <span class="badge bg-warning text-dark">Car (2)</span>
+            <span class="badge bg-warning text-dark">Motorcycle (3)</span>
+            <span class="badge bg-warning text-dark">Bus (5)</span>
+            <span class="badge bg-warning text-dark">Truck (7)</span>
+            <span class="badge bg-warning text-dark">Traffic light (9)</span>
+            <span class="badge bg-warning text-dark">Stop sign (11)</span>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block footer_text %}
+    WAMA Lab - Cam Analyzer | Recherche
+{% endblock %}
+
+{% block app_scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="{% static 'cam_analyzer/js/index.js' %}"></script>
+{% endblock %}

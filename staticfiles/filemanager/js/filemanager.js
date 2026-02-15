@@ -538,6 +538,7 @@
             'transcriber': ['transcriber', 'transcriber_input', 'transcriber_output'],
             // WAMA Lab apps (nested under wama_lab)
             'face_analyzer': ['wama_lab', 'face_analyzer', 'face_analyzer_input', 'face_analyzer_output'],
+            'cam_analyzer': ['wama_lab', 'cam_analyzer', 'cam_analyzer_input', 'cam_analyzer_output'],
         };
 
         // Close all app folders first (except current app)
@@ -552,7 +553,7 @@
         });
 
         // Also close wama_lab if current app is not a WAMA Lab app
-        const wamaLabApps = ['face_analyzer'];
+        const wamaLabApps = ['face_analyzer', 'cam_analyzer'];
         if (!wamaLabApps.includes(currentApp)) {
             const wamaLabNode = tree.get_node('wama_lab');
             if (wamaLabNode && tree.is_open(wamaLabNode)) {

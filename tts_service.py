@@ -194,8 +194,8 @@ def _load_higgs():
 
     logger.info(f"Loading Higgs Audio engine: {model_path}")
     _higgs_engine = HiggsAudioServeEngine(
-        model_path=model_path,
-        tokenizer_path=tokenizer_path,
+        model=model_path,
+        tokenizer=tokenizer_path,
         device="cuda",
     )
     _current_engine = "higgs"

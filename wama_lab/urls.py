@@ -7,4 +7,5 @@ app_name = 'wama_lab'
 
 urlpatterns = [
     path('face-analyzer/', include('wama_lab.face_analyzer.urls', namespace='face_analyzer')),
+    path('cam-analyzer/', include('wama_lab.cam_analyzer.urls', namespace='cam_analyzer')),
 ]

@@ -124,6 +124,15 @@ def build_file_tree(user):
                         {'id': 'face_analyzer_output', 'text': 'Output', 'path': f'face_analyzer/{user_id}/output', 'icon': 'fa fa-folder text-success'},
                     ]
                 },
+                {
+                    'id': 'cam_analyzer',
+                    'text': 'Cam Analyzer',
+                    'icon': 'fa fa-video text-warning',
+                    'children': [
+                        {'id': 'cam_analyzer_input', 'text': 'Input', 'path': f'cam_analyzer/{user_id}/input', 'icon': 'fa fa-folder text-secondary'},
+                        {'id': 'cam_analyzer_output', 'text': 'Output', 'path': f'cam_analyzer/{user_id}/output', 'icon': 'fa fa-folder text-success'},
+                    ]
+                },
             ]
         },
     ]
@@ -262,6 +271,10 @@ def api_search(request):
         f'synthesizer/{user.id}/custom_voices',
         f'transcriber/{user.id}/input',
         f'transcriber/{user.id}/output',
+        f'face_analyzer/{user.id}/input',
+        f'face_analyzer/{user.id}/output',
+        f'cam_analyzer/{user.id}/input',
+        f'cam_analyzer/{user.id}/output',
     ]
 
     for search_path in search_paths:
@@ -821,6 +834,7 @@ def is_path_allowed(path, user):
         'synthesizer/',
         'transcriber/',
         'face_analyzer/',
+        'cam_analyzer/',
     ]
 
     for prefix in allowed_prefixes:
@@ -854,7 +868,7 @@ def api_import_to_app(request):
     # Validate app name
     # All apps accept file imports:
     # - Imager: accepts prompt files (.txt/.json/.yaml) and reference images
-    valid_apps = ['anonymizer', 'describer', 'enhancer', 'imager', 'synthesizer', 'transcriber', 'face_analyzer']
+    valid_apps = ['anonymizer', 'describer', 'enhancer', 'imager', 'synthesizer', 'transcriber', 'face_analyzer', 'cam_analyzer']
     if target_app not in valid_apps:
         return JsonResponse({'error': f'Invalid app: {target_app}'}, status=400)
 
@@ -883,6 +897,8 @@ def api_import_to_app(request):
             result = import_to_transcriber(source_path, user)
         elif target_app == 'face_analyzer':
             result = import_to_face_analyzer(source_path, user)
+        elif target_app == 'cam_analyzer':
+            result = import_to_cam_analyzer(source_path, user)
         else:
             return JsonResponse({'error': 'App not supported'}, status=400)
 
@@ -1277,6 +1293,36 @@ def import_to_face_analyzer(source_path, user):
         'imported': True,
         'app': 'face_analyzer',
         'id': str(session.id),
+        'filename': dest_path.name,
+        'path': relative_path,
+    }
+
+
+def import_to_cam_analyzer(source_path, user):
+    """Import a video file to Cam Analyzer app (copies to input folder)."""
+    import shutil
+
+    user_id = user.id
+    dest_dir = Path(settings.MEDIA_ROOT) / 'cam_analyzer' / str(user_id) / 'input'
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    dest_path = dest_dir / source_path.name
+
+    # Handle duplicate names
+    if dest_path.exists():
+        stem = dest_path.stem
+        suffix = dest_path.suffix
+        counter = 1
+        while dest_path.exists():
+            dest_path = dest_dir / f"{stem}_{counter}{suffix}"
+            counter += 1
+
+    shutil.copy2(source_path, dest_path)
+
+    relative_path = f'cam_analyzer/{user_id}/input/{dest_path.name}'
+
+    return {
+        'imported': True,
+        'app': 'cam_analyzer',
         'filename': dest_path.name,
         'path': relative_path,
     }

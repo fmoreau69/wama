@@ -1,0 +1,360 @@
+{% extends 'cam_analyzer/base.html' %}
+{% load static %}
+
+{% block cam_analyzer_content %}
+<div class="container-fluid py-3">
+
+    <!-- Toolbar -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div class="d-flex align-items-center gap-2">
+            <button class="btn btn-warning btn-sm" id="newSessionBtn">
+                <i class="fas fa-plus me-1"></i> Nouvelle session
+            </button>
+            <select class="form-select form-select-sm bg-dark text-light border-secondary" id="sessionSelect" style="width: 250px;">
+                <option value="">-- Sélectionner une session --</option>
+                {% for session in sessions %}
+                <option value="{{ session.id }}">{{ session.name }}</option>
+                {% endfor %}
+            </select>
+            <button class="btn btn-outline-secondary btn-sm" id="deleteSessionBtn" title="Supprimer la session" disabled>
+                <i class="fas fa-trash"></i>
+            </button>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <select class="form-select form-select-sm bg-dark text-light border-secondary" id="profileSelect" style="width: 200px;">
+                <option value="">-- Profil d'analyse --</option>
+                {% for profile in profiles %}
+                <option value="{{ profile.id }}">{{ profile.name }}</option>
+                {% endfor %}
+            </select>
+            <button class="btn btn-outline-info btn-sm" id="editProfileBtn" title="Configurer le profil">
+                <i class="fas fa-cog"></i>
+            </button>
+            <button class="btn btn-success btn-sm" id="startAnalysisBtn" disabled>
+                <i class="fas fa-play me-1"></i> Analyser
+            </button>
+            <button class="btn btn-danger btn-sm" id="cancelAnalysisBtn" style="display:none">
+                <i class="fas fa-stop me-1"></i> Annuler
+            </button>
+        </div>
+    </div>
+
+    <!-- Camera Grid with Shuttle -->
+    <div class="camera-grid-wrapper">
+        <!-- Front camera (top) -->
+        <div class="camera-slot" data-position="front" id="slot-front">
+            <div class="camera-drop-zone" id="dropzone-front">
+                <div class="drop-placeholder">
+                    <i class="fas fa-video fa-2x mb-2"></i>
+                    <div class="small">Avant</div>
+                    <div class="text-muted small">Glisser une vidéo ici</div>
+                </div>
+                <video class="camera-video" id="video-front" style="display:none" muted></video>
+                <canvas class="detection-canvas" id="canvas-front"></canvas>
+                <div class="camera-info" id="info-front" style="display:none">
+                    <span class="badge bg-warning text-dark">Avant</span>
+                    <button class="btn btn-sm btn-outline-danger remove-camera-btn" data-position="front" title="Retirer">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Left camera -->
+        <div class="camera-slot" data-position="left" id="slot-left">
+            <div class="camera-drop-zone" id="dropzone-left">
+                <div class="drop-placeholder">
+                    <i class="fas fa-video fa-2x mb-2"></i>
+                    <div class="small">Gauche</div>
+                    <div class="text-muted small">Glisser une vidéo ici</div>
+                </div>
+                <video class="camera-video" id="video-left" style="display:none" muted></video>
+                <canvas class="detection-canvas" id="canvas-left"></canvas>
+                <div class="camera-info" id="info-left" style="display:none">
+                    <span class="badge bg-warning text-dark">Gauche</span>
+                    <button class="btn btn-sm btn-outline-danger remove-camera-btn" data-position="left" title="Retirer">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Shuttle (center) -->
+        <div class="shuttle-center" id="shuttleCenter">
+            <img src="{% static 'cam_analyzer/img/shuttle.svg' %}" alt="Navette" class="shuttle-svg" id="shuttleSvg">
+            <div class="shuttle-label">Navette</div>
+        </div>
+
+        <!-- Right camera -->
+        <div class="camera-slot" data-position="right" id="slot-right">
+            <div class="camera-drop-zone" id="dropzone-right">
+                <div class="drop-placeholder">
+                    <i class="fas fa-video fa-2x mb-2"></i>
+                    <div class="small">Droite</div>
+                    <div class="text-muted small">Glisser une vidéo ici</div>
+                </div>
+                <video class="camera-video" id="video-right" style="display:none" muted></video>
+                <canvas class="detection-canvas" id="canvas-right"></canvas>
+                <div class="camera-info" id="info-right" style="display:none">
+                    <span class="badge bg-warning text-dark">Droite</span>
+                    <button class="btn btn-sm btn-outline-danger remove-camera-btn" data-position="right" title="Retirer">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Rear camera (bottom) -->
+        <div class="camera-slot" data-position="rear" id="slot-rear">
+            <div class="camera-drop-zone" id="dropzone-rear">
+                <div class="drop-placeholder">
+                    <i class="fas fa-video fa-2x mb-2"></i>
+                    <div class="small">Arrière</div>
+                    <div class="text-muted small">Glisser une vidéo ici</div>
+                </div>
+                <video class="camera-video" id="video-rear" style="display:none" muted></video>
+                <canvas class="detection-canvas" id="canvas-rear"></canvas>
+                <div class="camera-info" id="info-rear" style="display:none">
+                    <span class="badge bg-warning text-dark">Arrière</span>
+                    <button class="btn btn-sm btn-outline-danger remove-camera-btn" data-position="rear" title="Retirer">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Analysis Progress Bar -->
+    <div class="analysis-progress mt-3" id="analysisProgress" style="display:none">
+        <div class="d-flex align-items-center gap-2 mb-1">
+            <i class="fas fa-spinner fa-spin text-warning"></i>
+            <span class="text-light small" id="progressLabel">Analyse en cours...</span>
+            <span class="text-warning small ms-auto" id="progressPercent">0%</span>
+        </div>
+        <div class="progress" style="height: 6px;">
+            <div class="progress-bar bg-warning progress-bar-striped progress-bar-animated"
+                 id="progressBar" role="progressbar" style="width: 0%"></div>
+        </div>
+    </div>
+
+    <!-- Results Summary -->
+    <div class="results-panel mt-3" id="resultsPanel" style="display:none">
+        <div class="card bg-dark border-success">
+            <div class="card-header bg-success bg-opacity-25 border-success d-flex justify-content-between align-items-center">
+                <h6 class="mb-0 text-light"><i class="fas fa-chart-bar me-2"></i>Résultats de l'analyse</h6>
+                <div class="d-flex align-items-center gap-2">
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-info" id="exportCsvBtn" title="Export CSV détections">
+                            <i class="fas fa-file-csv"></i>
+                        </button>
+                        <button class="btn btn-outline-info" id="exportJsonBtn" title="Export JSON complet">
+                            <i class="fas fa-file-code"></i>
+                        </button>
+                        <button class="btn btn-outline-info" id="exportSegmentsBtn" title="Export CSV segments">
+                            <i class="fas fa-film"></i>
+                        </button>
+                    </div>
+                    <button class="btn btn-sm btn-outline-secondary" id="closeResultsBtn"><i class="fas fa-times"></i></button>
+                </div>
+            </div>
+            <div class="card-body" id="resultsContent"></div>
+            <!-- Analytics Section (Phase 3) -->
+            <div class="card-body border-top border-secondary" id="analyticsSection" style="display:none">
+                <h6 class="text-light mb-3"><i class="fas fa-chart-line me-2"></i>Analytics</h6>
+                <div class="row g-3">
+                    <div class="col-md-8">
+                        <canvas id="proximityChart" height="200"></canvas>
+                    </div>
+                    <div class="col-md-4">
+                        <canvas id="classChart" height="200"></canvas>
+                    </div>
+                </div>
+                <div class="mt-3" id="segmentsSection">
+                    <h6 class="text-light mb-2"><i class="fas fa-film me-2"></i>Segments temporels</h6>
+                    <div id="segmentsList"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Synchronized Playback Controls -->
+    <div class="playback-controls mt-3" id="playbackControls" style="display:none">
+        <div class="d-flex align-items-center gap-3">
+            <button class="btn btn-sm btn-outline-light" id="syncPlayPauseBtn">
+                <i class="fas fa-play" id="playPauseIcon"></i>
+            </button>
+            <button class="btn btn-sm btn-outline-light" id="syncStopBtn">
+                <i class="fas fa-stop"></i>
+            </button>
+            <div class="flex-grow-1">
+                <input type="range" class="form-range" id="syncSeekBar" min="0" max="100" value="0" step="0.1">
+            </div>
+            <span class="text-light small" id="syncTimeDisplay">0:00 / 0:00</span>
+            <div class="d-flex align-items-center gap-1">
+                <label class="text-light small me-1">Vitesse:</label>
+                <select class="form-select form-select-sm bg-dark text-light border-secondary" id="playbackSpeed" style="width: 70px;">
+                    <option value="0.25">0.25x</option>
+                    <option value="0.5">0.5x</option>
+                    <option value="1" selected>1x</option>
+                    <option value="1.5">1.5x</option>
+                    <option value="2">2x</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <!-- Timeline (Phase 2 placeholder) -->
+    <div class="proximity-timeline mt-2" id="proximityTimeline" style="display:none">
+        <div class="timeline-bar" id="timelineBar">
+            <div class="timeline-cursor" id="timelineCursor"></div>
+        </div>
+        <div class="d-flex justify-content-between mt-1">
+            <small class="text-success">Sûr</small>
+            <small class="text-warning">Proche</small>
+            <small class="text-danger">Critique</small>
+        </div>
+    </div>
+
+    <!-- Bottom Panel: Sessions -->
+    <div class="mt-4">
+        <div class="card bg-dark border-secondary">
+            <div class="card-header bg-secondary bg-opacity-25 border-secondary d-flex justify-content-between align-items-center">
+                <h6 class="card-title mb-0 text-light">
+                    <i class="fas fa-history me-2"></i>Sessions récentes
+                </h6>
+                <button class="btn btn-sm btn-outline-secondary" id="refreshSessionsBtn">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
+            </div>
+            <div class="card-body p-0">
+                <div id="sessionsContainer">
+                    <div class="text-center text-secondary py-4">
+                        <i class="fas fa-spinner fa-spin fa-2x mb-3"></i>
+                        <p>Chargement des sessions...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Config JS -->
+<script>
+window.CAM_ANALYZER = {
+    csrfToken: '{{ csrf_token }}',
+    urls: {
+        listSessions: "{% url 'wama_lab:cam_analyzer:list_sessions' %}",
+        createSession: "{% url 'wama_lab:cam_analyzer:create_session' %}",
+        getSession: "/lab/cam-analyzer/api/sessions/",
+        deleteSession: "/lab/cam-analyzer/api/sessions/",
+        updateSession: "/lab/cam-analyzer/api/sessions/",
+        uploadCamera: "/lab/cam-analyzer/api/sessions/",
+        deleteCamera: "/lab/cam-analyzer/api/cameras/",
+        updateCameraPosition: "/lab/cam-analyzer/api/cameras/",
+        startAnalysis: "/lab/cam-analyzer/api/sessions/",
+        sessionStatus: "/lab/cam-analyzer/api/sessions/",
+        cancelAnalysis: "/lab/cam-analyzer/api/sessions/",
+        getDetections: "/lab/cam-analyzer/api/sessions/",
+        exportDetections: "/lab/cam-analyzer/api/sessions/",
+        exportJson: "/lab/cam-analyzer/api/sessions/",
+        exportSegments: "/lab/cam-analyzer/api/sessions/",
+        getSegments: "/lab/cam-analyzer/api/sessions/",
+        getAnalytics: "/lab/cam-analyzer/api/sessions/",
+        listProfiles: "{% url 'wama_lab:cam_analyzer:list_profiles' %}",
+        saveProfile: "{% url 'wama_lab:cam_analyzer:save_profile' %}",
+        deleteProfile: "/lab/cam-analyzer/api/profiles/",
+    },
+    availableModels: {{ available_models|safe }},
+    cocoClasses: {{ coco_classes|safe }},
+};
+</script>
+{% endblock %}
+
+{% block extra_modals %}
+{{ block.super }}
+<!-- Profile Configuration Modal -->
+<div class="modal fade" id="profileModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content bg-dark text-light">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title"><i class="fas fa-cog me-2"></i>Profil d'analyse</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Nom du profil</label>
+                    <input type="text" class="form-control bg-dark text-light border-secondary" id="profileName" placeholder="Mon profil">
+                </div>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Modèle YOLO</label>
+                        <select class="form-select bg-dark text-light border-secondary" id="profileModel">
+                            <option value="">-- Sélectionner --</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Tâche</label>
+                        <select class="form-select bg-dark text-light border-secondary" id="profileTaskType">
+                            <option value="detect">Détection</option>
+                            <option value="segment">Segmentation</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Confiance: <span id="confidenceValue">0.25</span></label>
+                        <input type="range" class="form-range" id="profileConfidence" min="0.05" max="0.95" step="0.05" value="0.25">
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">IoU: <span id="iouValue">0.45</span></label>
+                        <input type="range" class="form-range" id="profileIou" min="0.1" max="0.9" step="0.05" value="0.45">
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Tracker</label>
+                    <select class="form-select bg-dark text-light border-secondary" id="profileTracker">
+                        <option value="botsort">BoTSORT</option>
+                        <option value="bytetrack">ByteTrack</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Classes cibles</label>
+                    <div class="d-flex flex-wrap gap-2" id="classCheckboxes">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                <button type="button" class="btn btn-warning" id="saveProfileBtn">
+                    <i class="fas fa-save me-1"></i> Sauvegarder
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- New Session Modal -->
+<div class="modal fade" id="newSessionModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark text-light">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title"><i class="fas fa-plus me-2"></i>Nouvelle session</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Nom de la session</label>
+                    <input type="text" class="form-control bg-dark text-light border-secondary" id="newSessionName" placeholder="Session d'analyse...">
+                </div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                <button type="button" class="btn btn-warning" id="createSessionBtn">
+                    <i class="fas fa-plus me-1"></i> Créer
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

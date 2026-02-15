@@ -8,7 +8,7 @@ load_dotenv()
 # Fonctionnalités conditionnelles
 ENABLE_CELERY = True
 APPEND_SLASH = True
-ENABLE_LDAP = True
+ENABLE_LDAP = False
 DEBUG = True
 
 # Répertoires de base
@@ -47,6 +47,8 @@ MODEL_PATHS = {
         'whisper': AI_MODELS_DIR / "models" / "speech" / "whisper",
         'coqui': AI_MODELS_DIR / "models" / "speech" / "coqui",
         'bark': AI_MODELS_DIR / "models" / "speech" / "bark",
+        'higgs': AI_MODELS_DIR / "models" / "speech" / "higgs",
+        'vibevoice': AI_MODELS_DIR / "models" / "speech" / "vibevoice",
     },
     # Diffusion models (image/video generation)
     'diffusion': {
@@ -211,6 +213,7 @@ INSTALLED_APPS = [
     'wama.model_manager',  # AI Models Manager
     # WAMA Lab - Experimental/Research applications
     'wama_lab.face_analyzer',
+    'wama_lab.cam_analyzer',
 ]
 
 # Middleware
@@ -309,6 +312,7 @@ if ENABLE_CELERY:
         'wama.transcriber.workers.*': {'queue': 'gpu'},
         'wama.describer.workers.*': {'queue': 'gpu'},
         'wama_lab.face_analyzer.tasks.*': {'queue': 'gpu'},
+        'wama_lab.cam_analyzer.tasks.*': {'queue': 'gpu'},
         'wama.model_manager.tasks.*': {'queue': 'default'},
     }
     CELERY_TASK_DEFAULT_QUEUE = 'default'

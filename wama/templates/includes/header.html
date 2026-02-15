@@ -49,6 +49,11 @@
                             <i class="fas fa-smile text-info me-2"></i> Face Analyzer
                         </a>
                     </li>
+                    <li>
+                        <a class="dropdown-item d-flex align-items-center {% if 'cam-analyzer' in request.path %}active{% endif %}" href="{% url 'wama_lab:cam_analyzer:index' %}">
+                            <i class="fas fa-video text-warning me-2"></i> Cam Analyzer
+                        </a>
+                    </li>
                 </ul>
             </div>
         </div>
