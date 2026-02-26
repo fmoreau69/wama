@@ -8,7 +8,7 @@ load_dotenv()
 # Fonctionnalités conditionnelles
 ENABLE_CELERY = True
 APPEND_SLASH = True
-ENABLE_LDAP = False
+ENABLE_LDAP = True
 DEBUG = True
 
 # Répertoires de base

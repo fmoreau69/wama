@@ -24,6 +24,11 @@
         initializeModelDescriptions();
         initializeResolutionSelectors();
         startProgressPolling();
+
+        // Flag active processing for file manager (bg-warning = RUNNING status)
+        if (document.querySelector('#generationsQueue .badge.bg-warning, #videoGenerationsQueue .badge.bg-warning')) {
+            document.body.setAttribute('data-wama-processing', 'true');
+        }
     });
 
     /**
@@ -966,6 +971,7 @@
                 showNotification(`Génération ${type} démarrée !`, 'success');
                 // Immediately update UI
                 updateGenerationStatus(genId, 'RUNNING', 0, isVideo);
+                document.body.setAttribute('data-wama-processing', 'true');
             } else {
                 showNotification('Erreur : ' + (data.error || 'Erreur inconnue'), 'danger');
             }
@@ -1254,7 +1260,12 @@
 
         if (data.status === 'SUCCESS' && wasRunning && !reloadedGenerations.has(genId)) {
             reloadedGenerations.add(genId);
+            document.body.removeAttribute('data-wama-processing');
             setTimeout(() => location.reload(), 1000);
+        }
+
+        if (data.status === 'FAILURE' && wasRunning) {
+            document.body.removeAttribute('data-wama-processing');
         }
     }
 

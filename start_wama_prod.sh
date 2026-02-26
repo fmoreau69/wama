@@ -7,7 +7,11 @@ set -e
 echo "=== Stopping old processes if any ==="
 pkill -f "gunicorn wama.wsgi" || true
 pkill -f "celery" || true
-pkill -f "uvicorn tts_service" || true
+# Graceful stop: SIGTERM first, then wait, then SIGKILL
+if pkill -f "uvicorn tts_service" 2>/dev/null; then
+    sleep 3
+    pkill -9 -f "uvicorn tts_service" 2>/dev/null || true
+fi
 pkill -f "redis-server" || true
 
 sleep 2
@@ -100,20 +104,34 @@ else:
 # ------------------------------------------------------
 if ! pgrep -f "uvicorn tts_service" > /dev/null; then
     echo "=== Starting TTS Service (port 8001) ==="
-    python -m uvicorn tts_service:app \
+    export HIGGS_DISABLE_CUDA_GRAPHS=1
+    nohup python -m uvicorn tts_service:app \
         --host 0.0.0.0 \
         --port 8001 \
         --workers 1 \
         --log-level warning \
         > $LOG_DIR/tts-service.log 2>&1 &
-    echo "Waiting for TTS Service to load model..."
-    for i in $(seq 1 60); do
-        if curl -s http://localhost:8001/health > /dev/null 2>&1; then
-            echo "TTS Service ready!"
+    TTS_PID=$!
+    disown $TTS_PID
+    echo "TTS Service started (PID $TTS_PID), waiting for model to load..."
+    TTS_READY=0
+    # Wait up to 10 minutes (300 × 2s). First pass: wait for uvicorn to respond at all,
+    # then wait for status=="ok" (background model loading complete).
+    for i in $(seq 1 300); do
+        STATUS=$(curl -s http://localhost:8001/health 2>/dev/null \
+            | python3 -c "import sys,json; print(json.load(sys.stdin).get('status',''))" 2>/dev/null)
+        if [ "$STATUS" = "ok" ]; then
+            echo "TTS Service ready! (${i}x2s = $((i*2))s)"
+            TTS_READY=1
             break
+        elif [ "$STATUS" = "loading" ]; then
+            echo "TTS Service loading... ($((i*2))s)"
         fi
         sleep 2
     done
+    if [ $TTS_READY -eq 0 ]; then
+        echo "WARNING: TTS Service did not become ready after 600s - check $LOG_DIR/tts-service.log"
+    fi
 else
     echo "TTS Service is already running."
 fi

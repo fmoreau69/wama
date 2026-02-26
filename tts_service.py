@@ -95,6 +95,37 @@ try:
 except Exception as e:
     logger.warning(f"Could not patch LLAMA_ATTENTION_CLASSES: {e}")
 
+# Patch ALL_ATTENTION_FUNCTIONS for boson_multimodal (config._attn_implementation=None)
+try:
+    from transformers.modeling_utils import ALL_ATTENTION_FUNCTIONS
+    _patched_keys = []
+    # "eager" and None are used by boson_multimodal but missing in transformers 4.57+
+    for _key in (None, "eager"):
+        if _key not in ALL_ATTENTION_FUNCTIONS:
+            ALL_ATTENTION_FUNCTIONS[_key] = ALL_ATTENTION_FUNCTIONS["sdpa"]
+            _patched_keys.append(repr(_key))
+    if _patched_keys:
+        logger.info(f"Patched ALL_ATTENTION_FUNCTIONS: added {', '.join(_patched_keys)} → sdpa")
+except Exception as e:
+    logger.warning(f"Could not patch ALL_ATTENTION_FUNCTIONS: {e}")
+
+# Patch GenerationConfig.generation_kwargs (removed in transformers 4.57+, needed by boson_multimodal)
+try:
+    from transformers import GenerationConfig as _GC
+    if not hasattr(_GC, "generation_kwargs"):
+        _GC.generation_kwargs = {}
+        # Make it an instance-level dict so each config gets its own copy
+        _orig_gc_init = _GC.__init__
+        def _patched_gc_init(self, *args, **kwargs):
+            _orig_gc_init(self, *args, **kwargs)
+            if not isinstance(getattr(self, "generation_kwargs", None), dict):
+                self.generation_kwargs = {}
+        _GC.__init__ = _patched_gc_init
+        logger.info("Patched GenerationConfig.generation_kwargs for boson_multimodal")
+except Exception as e:
+    logger.warning(f"Could not patch GenerationConfig.generation_kwargs: {e}")
+
+
 # ---------------------------------------------------------------------------
 # FastAPI app
 # ---------------------------------------------------------------------------
@@ -108,11 +139,17 @@ app = FastAPI(title="WAMA TTS Service", version="1.0")
 # ---------------------------------------------------------------------------
 # Global model state
 # ---------------------------------------------------------------------------
+import threading
+
 _current_engine = None       # "coqui", "bark", or "higgs"
 _current_model_name = None   # e.g. "xtts_v2", "bark", "higgs_audio"
 _tts_instance = None         # Coqui TTS instance
 _bark_funcs = None           # {"generate_audio": ..., "SAMPLE_RATE": ...}
 _higgs_engine = None         # HiggsAudioServeEngine instance
+
+# Service readiness flag: False while models are loading at startup
+_service_ready = False
+_service_ready_lock = threading.Lock()
 
 # Coqui model name → HuggingFace model ID
 COQUI_MODEL_MAPPING = {
@@ -194,13 +231,19 @@ def _load_higgs():
 
     logger.info(f"Loading Higgs Audio engine: {model_path}")
     _higgs_engine = HiggsAudioServeEngine(
-        model=model_path,
-        tokenizer=tokenizer_path,
+        model_name_or_path=model_path,
+        audio_tokenizer_name_or_path=tokenizer_path,
         device="cuda",
     )
     _current_engine = "higgs"
     _current_model_name = "higgs_audio"
     logger.info("Higgs Audio engine loaded")
+
+    # Optional: disable CUDA graphs entirely for debugging.
+    # Set env var HIGGS_DISABLE_CUDA_GRAPHS=1 before starting the service.
+    if os.environ.get("HIGGS_DISABLE_CUDA_GRAPHS"):
+        _higgs_engine.model.decode_graph_runners.clear()
+        logger.warning("[Higgs debug] CUDA graphs DISABLED via HIGGS_DISABLE_CUDA_GRAPHS")
 
 
 def _switch_model(model_name: str):
@@ -339,7 +382,18 @@ def _generate_bark(text: str, language: str = "fr",
     return tmp.name
 
 
-def _generate_higgs(text: str, speaker_wav: str = None,
+_HIGGS_LANGUAGE_NAMES = {
+    "fr": "French", "en": "English", "de": "German", "es": "Spanish",
+    "it": "Italian", "pt": "Portuguese", "nl": "Dutch", "pl": "Polish",
+    "ru": "Russian", "zh": "Chinese", "ja": "Japanese", "ko": "Korean",
+    "ar": "Arabic", "tr": "Turkish", "sv": "Swedish", "da": "Danish",
+    "fi": "Finnish", "nb": "Norwegian", "cs": "Czech", "hu": "Hungarian",
+}
+
+
+def _generate_higgs(text: str, language: str = "fr",
+                    voice_preset: str = "default",
+                    speaker_wav: str = None,
                     multi_speaker: bool = False,
                     scene_description: str = "",
                     options: dict = None) -> str:
@@ -349,16 +403,36 @@ def _generate_higgs(text: str, speaker_wav: str = None,
 
     content_parts = []
 
-    # Voice cloning: load reference audio
-    if speaker_wav and os.path.exists(speaker_wav):
+    # System message with explicit language instruction
+    lang_name = _HIGGS_LANGUAGE_NAMES.get(language, language.capitalize())
+    system_message = Message(
+        role="system",
+        content=TextContent(text=f"Generate high-quality {lang_name} speech audio of the provided text.")
+    )
+
+    # Voice cloning: resolve reference audio path (direct path or preset fallback)
+    ref_wav = speaker_wav or _get_speaker_wav(voice_preset)
+    if ref_wav and os.path.exists(ref_wav):
+        logger.info(f"[Higgs] Voice reference: {ref_wav}")
+    else:
+        logger.warning(f"[Higgs] No voice reference found (speaker_wav={speaker_wav!r}, preset={voice_preset!r}) — using default voice")
+        ref_wav = None
+
+    if ref_wav:
+        import base64
+        from io import BytesIO
         import soundfile as sf_lib
-        audio_data, sr = sf_lib.read(speaker_wav, dtype="float32")
+        audio_data, sr = sf_lib.read(ref_wav, dtype="float32")
         if sr != 24000:
             from scipy.signal import resample
             num_samples = int(len(audio_data) * 24000 / sr)
             audio_data = resample(audio_data, num_samples).astype(np.float32)
             sr = 24000
-        content_parts.append(AudioContent(audio=audio_data, sampling_rate=sr))
+        # Encode as WAV bytes → base64 for AudioContent.raw_audio
+        buf = BytesIO()
+        sf_lib.write(buf, audio_data, 24000, format="WAV")
+        raw_b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+        content_parts.append(AudioContent(audio_url="placeholder", raw_audio=raw_b64))
 
     # Multi-speaker scene description
     final_text = text
@@ -368,18 +442,94 @@ def _generate_higgs(text: str, speaker_wav: str = None,
     content_parts.append(TextContent(text=final_text))
 
     chat_ml = ChatMLSample(messages=[
+        system_message,
         Message(role="user", content=content_parts)
     ])
 
+    # Estimate max tokens needed: ~300 tokens/sec is typical for Higgs codec
+    # Add generous headroom; worker timeout is 300s so cap at ~250s of audio
+    estimated_tokens = max(8192, len(text) * 20)  # rough upper bound
+    max_tokens = min(estimated_tokens, 75000)
+
+    # Diagnostic: log cache state before reset
+    try:
+        for bucket_len, kv_cache in _higgs_engine.kv_caches.items():
+            seq_len = kv_cache.get_seq_length()
+            logger.info(f"[Higgs diag] KV cache[{bucket_len}] seq_length BEFORE reset = {seq_len}")
+    except Exception as _e:
+        logger.warning(f"[Higgs diag] Could not read cache lengths: {_e}")
+
+    logger.info(f"[Higgs diag] max_tokens={max_tokens}, text_chars={len(text)}")
+    cuda_graph_keys = list(_higgs_engine.model.decode_graph_runners.keys()) if hasattr(_higgs_engine.model, "decode_graph_runners") else []
+    logger.info(f"[Higgs diag] CUDA graph runner keys: {cuda_graph_keys}")
+
     output = _higgs_engine.generate(
         chat_ml_sample=chat_ml,
-        max_new_tokens=2048,
+        max_new_tokens=max_tokens,
         temperature=0.3,
         top_p=0.95,
+        force_audio_gen=True,
     )
 
     if output.audio is None or len(output.audio) == 0:
         raise ValueError("Higgs Audio returned empty audio")
+
+    # Use actual sampling rate from engine (never hardcode 24000)
+    actual_sr = int(output.sampling_rate) if hasattr(output, 'sampling_rate') and output.sampling_rate else 24000
+    logger.info(f"Higgs audio: {len(output.audio)} samples @ {actual_sr} Hz = {len(output.audio)/actual_sr:.1f}s")
+
+    # Diagnostic: log usage stats and expected vs actual KV fill
+    completion_tokens = 0
+    if output.usage:
+        logger.info(f"[Higgs diag] Usage: {output.usage}")
+        completion_tokens = output.usage.get("completion_tokens", 0) if isinstance(output.usage, dict) else getattr(output.usage, "completion_tokens", 0)
+
+    # Diagnostic: log cache state after generation
+    try:
+        for bucket_len, kv_cache in _higgs_engine.kv_caches.items():
+            seq_len = kv_cache.get_seq_length()
+            logger.info(f"[Higgs diag] KV cache[{bucket_len}] seq_length AFTER = {seq_len}")
+    except Exception as _e:
+        logger.warning(f"[Higgs diag] Could not read cache lengths after generation: {_e}")
+
+    # Deep diagnostic: inspect actual key tensor values.
+    # Expected seq_len after generation ≈ prefill_len + completion_tokens.
+    # If seq_len stays at prefill_len, decode writes are broken (CUDA graph bug).
+    try:
+        kv_1024 = _higgs_engine.kv_caches.get(1024)
+        kv_4096 = _higgs_engine.kv_caches.get(4096)
+        # Use whichever bucket was actually used (larger of the two non-zero ones)
+        active_kv = None
+        for kv in (kv_4096, kv_1024):
+            if kv is not None and kv.layers[0].is_initialized:
+                active_kv = kv
+                break
+        if active_kv is not None:
+            keys = active_kv.layers[0].keys  # (batch, heads, max_len, head_dim)
+            seq_l0 = active_kv.get_seq_length(0)
+            seq_l1 = active_kv.get_seq_length(1)
+            expected = seq_l0 + completion_tokens  # rough: assumes seq_l0 = prefill_len
+            logger.info(
+                f"[Higgs diag] layer0 seq_len={seq_l0}, layer1 seq_len={seq_l1}, "
+                f"completion_tokens={completion_tokens}, expected_final≈{expected}"
+            )
+            # Sample positions: prefill boundary, +1, +10, +100, end of bucket
+            max_pos = keys.shape[2]
+            sample_positions = [
+                max(0, seq_l0 - 2), seq_l0, seq_l0 + 1,
+                min(seq_l0 + 10, max_pos - 1),
+                min(seq_l0 + 100, max_pos - 1),
+                max_pos - 1,
+            ]
+            # Deduplicate preserving order
+            seen = set()
+            sample_positions = [p for p in sample_positions if not (p in seen or seen.add(p))]
+            for pos in sample_positions:
+                v = keys[0, 0, pos, :4].cpu().float().tolist()
+                nz = any(x != 0.0 for x in v)
+                logger.info(f"[Higgs diag] keys[0,0,{pos},:4] = {[round(x,4) for x in v]}  {'NON-ZERO' if nz else 'ZERO'}")
+    except Exception as _e:
+        logger.warning(f"[Higgs diag] Deep key-value inspection failed: {_e}")
 
     combined = np.array(output.audio, dtype=np.float32)
     max_val = np.max(np.abs(combined))
@@ -388,7 +538,7 @@ def _generate_higgs(text: str, speaker_wav: str = None,
     combined_int16 = (combined * 32767).astype(np.int16)
 
     tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False, dir=str(PROJECT_DIR / "logs"))
-    write_wav(tmp.name, 24000, combined_int16)
+    write_wav(tmp.name, actual_sr, combined_int16)
     tmp.close()
     return tmp.name
 
@@ -420,8 +570,11 @@ def health():
     if torch.cuda.is_available():
         gpu_mem = torch.cuda.memory_allocated() / 1024**3
 
+    with _service_ready_lock:
+        ready = _service_ready
+
     return {
-        "status": "ok",
+        "status": "ok" if ready else "loading",
         "device": DEVICE,
         "loaded_model": _current_model_name,
         "engine": _current_engine,
@@ -448,7 +601,7 @@ def tts_endpoint(req: TTSRequest):
             )
         elif _current_engine == "higgs":
             wav_path = _generate_higgs(
-                req.text, req.speaker_wav,
+                req.text, req.language, req.voice_preset, req.speaker_wav,
                 req.multi_speaker, req.scene_description,
                 req.options,
             )
@@ -492,15 +645,29 @@ def load_model_endpoint(req: LoadModelRequest):
 # ---------------------------------------------------------------------------
 @app.on_event("startup")
 async def startup():
+    global _service_ready
+
     logger.info("=== TTS Service starting ===")
     logger.info(f"Device: {DEVICE}")
     logger.info(f"Coqui DIR: {COQUI_DIR}")
     logger.info(f"Bark DIR: {BARK_DIR}")
     logger.info(f"Higgs DIR: {HIGGS_DIR}")
 
-    try:
-        _switch_model("xtts_v2")
-        logger.info("XTTS v2 preloaded successfully")
-    except Exception as e:
-        logger.error(f"Failed to preload XTTS v2: {e}", exc_info=True)
-        logger.warning("TTS Service started without preloaded model - will load on first request")
+    # Run model preloading in a background thread so uvicorn can immediately
+    # serve requests (including /health).  The /health endpoint returns
+    # {"status": "loading"} until this thread marks _service_ready = True.
+    def _background_preload():
+        global _service_ready
+        try:
+            _switch_model("xtts_v2")
+            logger.info("XTTS v2 preloaded successfully — service ready")
+        except Exception as e:
+            logger.error(f"Failed to preload XTTS v2: {e}", exc_info=True)
+            logger.warning("TTS Service starting without preloaded model — will load on first request")
+        finally:
+            with _service_ready_lock:
+                _service_ready = True
+
+    t = threading.Thread(target=_background_preload, daemon=True, name="tts-preload")
+    t.start()
+    logger.info("Startup: model preloading started in background thread")

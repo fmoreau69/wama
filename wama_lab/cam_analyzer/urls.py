@@ -21,6 +21,7 @@ urlpatterns = [
     path('api/sessions/<uuid:session_id>/cameras/upload/', views.upload_camera, name='upload_camera'),
     path('api/cameras/<int:camera_id>/delete/', views.delete_camera, name='delete_camera'),
     path('api/cameras/<int:camera_id>/update-position/', views.update_camera_position, name='update_camera_position'),
+    path('api/cameras/<int:camera_id>/stream/', views.stream_video, name='stream_video'),
 
     # Analysis (Phase 2)
     path('api/sessions/<uuid:session_id>/start/', views.start_analysis, name='start_analysis'),

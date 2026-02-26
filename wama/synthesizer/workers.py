@@ -7,6 +7,8 @@ running on TTS_SERVICE_URL (default: http://localhost:8001).
 """
 
 import os
+import re
+import unicodedata
 import logging
 import tempfile
 import requests
@@ -29,7 +31,7 @@ logger = logging.getLogger(__name__)
 TTS_SERVICE_URL = getattr(settings, 'TTS_SERVICE_URL', 'http://localhost:8001')
 
 # Request timeout for TTS service (seconds)
-TTS_TIMEOUT = 120
+TTS_TIMEOUT = 300
 
 
 def _tts_via_service(text, model, language='fr', voice_preset='default',
@@ -82,7 +84,7 @@ def _tts_via_service(text, model, language='fr', voice_preset='default',
     except requests.HTTPError as e:
         detail = ""
         try:
-            detail = e.response.json().get("detail", "")
+            detail = e.response.json().get("detail") or ""
         except Exception:
             detail = e.response.text[:200] if e.response else ""
         raise RuntimeError(f"TTS service error: {detail or str(e)}")
@@ -320,8 +322,11 @@ def synthesize_voice(self, synthesis_id: int):
         _set_progress(synthesis, 90)
 
         with open(final_output, 'rb') as f:
-            # Build output filename from input name + model name
-            input_name = os.path.splitext(os.path.basename(synthesis.text_file.name))[0]
+            # Build output filename from input name + model name (sanitize special chars)
+            raw_name = os.path.splitext(os.path.basename(synthesis.text_file.name))[0]
+            # Normalize unicode (é → e, etc.) then keep only safe chars
+            normalized = unicodedata.normalize('NFKD', raw_name).encode('ascii', 'ignore').decode('ascii')
+            input_name = re.sub(r'[^\w\-]', '_', normalized).strip('_') or 'synthesis'
             audio_filename = f"{input_name}_{synthesis.tts_model}.wav"
             synthesis.audio_output.save(audio_filename, ContentFile(f.read()))
 

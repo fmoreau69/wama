@@ -52,129 +52,206 @@ class SystemMonitor:
             cls._instance = super().__new__(cls)
         return cls._instance
 
-    @staticmethod
-    def _get_windows_ram_from_wsl() -> Optional[Dict]:
-        """
-        Get Windows host RAM info when running in WSL.
-        Uses PowerShell to query Windows memory.
-        """
-        if not IS_WSL:
-            return None
+    # Absolute fallback paths for Windows executables (in case PATH is stripped)
+    _WMIC_PATHS = [
+        'wmic.exe',
+        '/mnt/c/Windows/System32/wbem/wmic.exe',
+    ]
+    _PS_PATHS = [
+        'powershell.exe',
+        '/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe',
+    ]
 
-        try:
-            # Use PowerShell to get Windows memory info
-            cmd = [
-                'powershell.exe', '-NoProfile', '-Command',
-                '(Get-CimInstance Win32_OperatingSystem | Select-Object TotalVisibleMemorySize, FreePhysicalMemory | ConvertTo-Json)'
-            ]
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=5,
-                creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, 'CREATE_NO_WINDOW') else 0
-            )
-
-            if result.returncode == 0 and result.stdout.strip():
-                import json
-                data = json.loads(result.stdout.strip())
-                # Values are in KB
-                total_kb = data.get('TotalVisibleMemorySize', 0)
-                free_kb = data.get('FreePhysicalMemory', 0)
-                total_gb = round(total_kb / (1024 * 1024), 2)
-                free_gb = round(free_kb / (1024 * 1024), 2)
-                used_gb = round(total_gb - free_gb, 2)
-                percent = round((used_gb / total_gb) * 100, 1) if total_gb > 0 else 0
-
-                return {
-                    'total_gb': total_gb,
-                    'used_gb': used_gb,
-                    'available_gb': free_gb,
-                    'free_gb': free_gb,
-                    'percent': percent,
-                    'source': 'windows_host',
-                }
-        except Exception as e:
-            logger.debug(f"Could not get Windows RAM from WSL: {e}")
-
+    @classmethod
+    def _find_win_exe(cls, candidates: list) -> Optional[str]:
+        """Return first accessible Windows executable from a list of candidates."""
+        for path in candidates:
+            found = shutil.which(path) or (path if os.path.exists(path) else None)
+            if found:
+                return found
         return None
 
     @staticmethod
-    def _get_windows_disk_from_wsl(drive: str = 'D') -> Optional[Dict]:
+    def _parse_wmic_output(stdout: str) -> Dict[str, int]:
+        """Parse wmic /value output into a {key: int} dict (handles \r\n line endings)."""
+        values = {}
+        for line in stdout.splitlines():
+            line = line.strip()
+            if '=' in line:
+                k, _, v = line.partition('=')
+                v = v.strip()
+                if v.isdigit():
+                    values[k.strip()] = int(v)
+        return values
+
+    @classmethod
+    def _get_windows_ram_from_wsl(cls) -> Optional[Dict]:
         """
-        Get Windows host disk info when running in WSL.
-        Uses PowerShell to query Windows disk.
+        Get Windows host RAM info when running in WSL.
+        Tries wmic.exe first (simpler), then PowerShell as fallback.
         """
         if not IS_WSL:
             return None
 
-        try:
-            cmd = [
-                'powershell.exe', '-NoProfile', '-Command',
-                f'(Get-PSDrive {drive} | Select-Object Used, Free | ConvertTo-Json)'
-            ]
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=5,
-                creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, 'CREATE_NO_WINDOW') else 0
-            )
+        # ── Method 1: wmic.exe ────────────────────────────────────────────────
+        wmic = cls._find_win_exe(cls._WMIC_PATHS)
+        if wmic:
+            try:
+                result = subprocess.run(
+                    [wmic, 'os', 'get', 'FreePhysicalMemory,TotalVisibleMemorySize', '/value'],
+                    capture_output=True, text=True, timeout=4,
+                )
+                if result.returncode == 0 and result.stdout.strip():
+                    vals = cls._parse_wmic_output(result.stdout)
+                    total_kb = vals.get('TotalVisibleMemorySize', 0)
+                    free_kb = vals.get('FreePhysicalMemory', 0)
+                    if total_kb > 0:
+                        total_gb = round(total_kb / (1024 * 1024), 2)
+                        free_gb = round(free_kb / (1024 * 1024), 2)
+                        used_gb = round(total_gb - free_gb, 2)
+                        percent = round((used_gb / total_gb) * 100, 1)
+                        return {
+                            'total_gb': total_gb,
+                            'used_gb': used_gb,
+                            'available_gb': free_gb,
+                            'free_gb': free_gb,
+                            'percent': percent,
+                            'source': 'windows_host',
+                        }
+            except Exception as e:
+                logger.debug(f"WSL wmic.exe RAM query failed: {e}")
 
+        # ── Method 2: PowerShell ──────────────────────────────────────────────
+        ps = cls._find_win_exe(cls._PS_PATHS)
+        if ps:
+            try:
+                result = subprocess.run(
+                    [ps, '-NoProfile', '-NonInteractive', '-Command',
+                     'Get-CimInstance Win32_OperatingSystem | '
+                     'Select-Object TotalVisibleMemorySize,FreePhysicalMemory | '
+                     'ConvertTo-Json'],
+                    capture_output=True, text=True, timeout=6,
+                )
+                if result.returncode == 0 and result.stdout.strip():
+                    import json
+                    stdout = result.stdout.strip().lstrip('\ufeff')  # strip BOM
+                    data = json.loads(stdout)
+                    total_kb = data.get('TotalVisibleMemorySize', 0)
+                    free_kb = data.get('FreePhysicalMemory', 0)
+                    if total_kb > 0:
+                        total_gb = round(total_kb / (1024 * 1024), 2)
+                        free_gb = round(free_kb / (1024 * 1024), 2)
+                        used_gb = round(total_gb - free_gb, 2)
+                        percent = round((used_gb / total_gb) * 100, 1)
+                        return {
+                            'total_gb': total_gb,
+                            'used_gb': used_gb,
+                            'available_gb': free_gb,
+                            'free_gb': free_gb,
+                            'percent': percent,
+                            'source': 'windows_host',
+                        }
+            except Exception as e:
+                logger.debug(f"WSL PowerShell RAM query failed: {e}")
+
+        logger.warning("WSL: cannot reach Windows host for RAM — falling back to Linux psutil values")
+        return None
+
+    @classmethod
+    def _get_windows_disk_from_wsl(cls, drive: str = 'D') -> Optional[Dict]:
+        """
+        Get Windows host disk info when running in WSL.
+        Uses PowerShell to query Windows disk (Get-PSDrive).
+        """
+        if not IS_WSL:
+            return None
+
+        ps = cls._find_win_exe(cls._PS_PATHS)
+        if not ps:
+            logger.warning("WSL: powershell.exe not found — cannot get Windows disk info")
+            return None
+
+        try:
+            result = subprocess.run(
+                [ps, '-NoProfile', '-NonInteractive', '-Command',
+                 f'Get-PSDrive {drive} | Select-Object Used,Free | ConvertTo-Json'],
+                capture_output=True, text=True, timeout=6,
+            )
             if result.returncode == 0 and result.stdout.strip():
                 import json
-                data = json.loads(result.stdout.strip())
+                stdout = result.stdout.strip().lstrip('\ufeff')
+                data = json.loads(stdout)
                 used_bytes = data.get('Used', 0)
                 free_bytes = data.get('Free', 0)
                 total_bytes = used_bytes + free_bytes
-
-                return {
-                    'total_gb': round(total_bytes / (1024**3), 1),
-                    'used_gb': round(used_bytes / (1024**3), 1),
-                    'free_gb': round(free_bytes / (1024**3), 1),
-                    'percent': round((used_bytes / total_bytes) * 100, 1) if total_bytes > 0 else 0,
-                    'source': 'windows_host',
-                    'drive': f'{drive}:',
-                }
+                if total_bytes > 0:
+                    return {
+                        'total_gb': round(total_bytes / (1024**3), 1),
+                        'used_gb': round(used_bytes / (1024**3), 1),
+                        'free_gb': round(free_bytes / (1024**3), 1),
+                        'percent': round((used_bytes / total_bytes) * 100, 1),
+                        'source': 'windows_host',
+                        'drive': f'{drive}:',
+                    }
         except Exception as e:
-            logger.debug(f"Could not get Windows disk from WSL: {e}")
+            logger.debug(f"WSL PowerShell disk query failed: {e}")
 
+        logger.warning(f"WSL: cannot reach Windows host for disk {drive}: — falling back to Linux psutil values")
         return None
 
-    @staticmethod
-    def _get_windows_cpu_from_wsl() -> Optional[Dict]:
+    @classmethod
+    def _get_windows_cpu_from_wsl(cls) -> Optional[Dict]:
         """
         Get Windows host CPU info when running in WSL.
+        Tries wmic.exe first, then PowerShell as fallback.
         """
         if not IS_WSL:
             return None
 
-        try:
-            # Use wmic for faster response
-            cmd = ['wmic.exe', 'cpu', 'get', 'loadpercentage', '/value']
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=3,
-                creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, 'CREATE_NO_WINDOW') else 0
-            )
+        cpu_count = psutil.cpu_count() if PSUTIL_AVAILABLE else None
 
-            if result.returncode == 0:
-                for line in result.stdout.split('\n'):
-                    if 'LoadPercentage' in line:
-                        percent = int(line.split('=')[1].strip())
-                        # Get CPU count from psutil (works in WSL)
-                        cpu_count = psutil.cpu_count() if PSUTIL_AVAILABLE else None
+        # ── Method 1: wmic.exe ────────────────────────────────────────────────
+        wmic = cls._find_win_exe(cls._WMIC_PATHS)
+        if wmic:
+            try:
+                result = subprocess.run(
+                    [wmic, 'cpu', 'get', 'loadpercentage', '/value'],
+                    capture_output=True, text=True, timeout=4,
+                )
+                if result.returncode == 0 and result.stdout.strip():
+                    vals = cls._parse_wmic_output(result.stdout)
+                    percent = vals.get('LoadPercentage')
+                    if percent is not None:
                         return {
                             'percent': percent,
                             'count': cpu_count,
                             'freq_mhz': None,
                             'source': 'windows_host',
                         }
-        except Exception as e:
-            logger.debug(f"Could not get Windows CPU from WSL: {e}")
+            except Exception as e:
+                logger.debug(f"WSL wmic.exe CPU query failed: {e}")
 
+        # ── Method 2: PowerShell ──────────────────────────────────────────────
+        ps = cls._find_win_exe(cls._PS_PATHS)
+        if ps:
+            try:
+                result = subprocess.run(
+                    [ps, '-NoProfile', '-NonInteractive', '-Command',
+                     '(Get-CimInstance Win32_Processor).LoadPercentage'],
+                    capture_output=True, text=True, timeout=6,
+                )
+                if result.returncode == 0 and result.stdout.strip():
+                    percent = int(result.stdout.strip())
+                    return {
+                        'percent': percent,
+                        'count': cpu_count,
+                        'freq_mhz': None,
+                        'source': 'windows_host',
+                    }
+            except Exception as e:
+                logger.debug(f"WSL PowerShell CPU query failed: {e}")
+
+        logger.warning("WSL: cannot reach Windows host for CPU — falling back to Linux psutil values")
         return None
 
     @classmethod

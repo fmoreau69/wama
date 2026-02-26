@@ -94,6 +94,7 @@ document.addEventListener("DOMContentLoaded", function() {
 
                         // Check if all polling is complete (all medias processed)
                         if (isRunning && Object.keys(progressIntervals).length === 0) {
+                            document.body.removeAttribute('data-wama-processing');
                             console.log('[process.js] All media polling complete, resetting button state');
 
                             // Stop global polling if exists
@@ -456,6 +457,7 @@ document.addEventListener("DOMContentLoaded", function() {
 
             taskId = data.task_id;
             isRunning = true;
+            document.body.setAttribute('data-wama-processing', 'true');
 
             // Polling progress per media row (upload page & process page)
             ["#medias", "#medias_process"].forEach(tableId => {

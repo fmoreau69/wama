@@ -25,8 +25,16 @@ def system_stats(request):
 def system_stats_full(request):
     """
     Return full system stats including debug info.
+    Also includes WSL detection info and which data source was used.
     """
-    return JsonResponse(SystemMonitor.get_all_stats())
+    from .services.system_monitor import IS_WSL
+    data = SystemMonitor.get_all_stats()
+    data['_meta'] = {
+        'is_wsl': IS_WSL,
+        'wmic': bool(SystemMonitor._find_win_exe(SystemMonitor._WMIC_PATHS)),
+        'powershell': bool(SystemMonitor._find_win_exe(SystemMonitor._PS_PATHS)),
+    }
+    return JsonResponse(data)
 
 
 @require_GET

@@ -481,9 +481,12 @@ document.addEventListener('DOMContentLoaded', function () {
         playPauseIcon.className = 'fas fa-pause';
 
         const speed = parseFloat(playbackSpeed.value);
+        const currentTime = parseFloat(syncSeekBar.value) || 0;
         positions.forEach(pos => {
             const video = document.getElementById(`video-${pos}`);
             if (video && video.src && cameras[pos]) {
+                const offset = cameras[pos].time_offset || 0;
+                video.currentTime = Math.max(0, currentTime + offset);
                 video.playbackRate = speed;
                 video.play().catch(() => {});
             }
@@ -527,13 +530,21 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     // Time update listener on each video
+    // Only the first active camera updates the seekbar to avoid conflicts
+    function getRefPosition() {
+        for (const pos of positions) {
+            if (cameras[pos]) return pos;
+        }
+        return null;
+    }
+
     function setupTimeSync() {
         positions.forEach(pos => {
             const video = document.getElementById(`video-${pos}`);
             if (!video) return;
 
             video.addEventListener('timeupdate', () => {
-                if (cameras[pos] && isPlaying) {
+                if (cameras[pos] && isPlaying && pos === getRefPosition()) {
                     const offset = cameras[pos].time_offset || 0;
                     const currentTime = video.currentTime - offset;
                     syncSeekBar.value = currentTime;

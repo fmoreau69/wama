@@ -7,9 +7,12 @@ import json
 import logging
 import os
 
+import mimetypes
+import re
+
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
-from django.http import FileResponse, JsonResponse
+from django.http import FileResponse, HttpResponse, JsonResponse, StreamingHttpResponse
 from django.shortcuts import render, get_object_or_404
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods
@@ -143,6 +146,57 @@ COCO_ROAD_CLASSES = {
 
 
 # =============================================================================
+# Video streaming with Range request support (for seeking)
+# =============================================================================
+
+@login_required
+@require_http_methods(["GET"])
+def stream_video(request, camera_id):
+    """Stream a camera video with HTTP Range support for seeking."""
+    camera = get_object_or_404(CameraView, id=camera_id, session__user=request.user)
+    if not camera.video_file:
+        return HttpResponse(status=404)
+
+    file_path = camera.video_file.path
+    if not os.path.isfile(file_path):
+        return HttpResponse(status=404)
+
+    file_size = os.path.getsize(file_path)
+    content_type = mimetypes.guess_type(file_path)[0] or 'video/mp4'
+
+    range_header = request.META.get('HTTP_RANGE', '')
+    range_match = re.match(r'bytes=(\d+)-(\d*)', range_header)
+
+    if range_match:
+        start = int(range_match.group(1))
+        end = int(range_match.group(2)) if range_match.group(2) else file_size - 1
+        end = min(end, file_size - 1)
+        length = end - start + 1
+
+        def file_iterator():
+            with open(file_path, 'rb') as f:
+                f.seek(start)
+                remaining = length
+                while remaining > 0:
+                    chunk_size = min(8192, remaining)
+                    data = f.read(chunk_size)
+                    if not data:
+                        break
+                    remaining -= len(data)
+                    yield data
+
+        response = StreamingHttpResponse(file_iterator(), status=206, content_type=content_type)
+        response['Content-Length'] = length
+        response['Content-Range'] = f'bytes {start}-{end}/{file_size}'
+    else:
+        response = FileResponse(open(file_path, 'rb'), content_type=content_type)
+        response['Content-Length'] = file_size
+
+    response['Accept-Ranges'] = 'bytes'
+    return response
+
+
+# =============================================================================
 # Main view
 # =============================================================================
 
@@ -181,7 +235,7 @@ def list_sessions(request):
                 'id': c.id,
                 'position': c.position,
                 'label': c.label,
-                'video_url': c.video_file.url if c.video_file else None,
+                'video_url': f'/lab/cam-analyzer/api/cameras/{c.id}/stream/' if c.video_file else None,
                 'duration': c.duration,
                 'fps': c.fps,
                 'width': c.width,
@@ -246,7 +300,7 @@ def get_session(request, session_id):
             'id': c.id,
             'position': c.position,
             'label': c.label,
-            'video_url': c.video_file.url if c.video_file else None,
+            'video_url': f'/lab/cam-analyzer/api/cameras/{c.id}/stream/' if c.video_file else None,
             'filename': os.path.basename(c.video_file.name) if c.video_file else '',
             'duration': c.duration,
             'fps': c.fps,
@@ -369,7 +423,7 @@ def upload_camera(request, session_id):
                 'id': camera.id,
                 'position': camera.position,
                 'label': camera.label,
-                'video_url': camera.video_file.url,
+                'video_url': f'/lab/cam-analyzer/api/cameras/{camera.id}/stream/',
                 'filename': video_file.name,
                 'duration': camera.duration,
                 'fps': camera.fps,

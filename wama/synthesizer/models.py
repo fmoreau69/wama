@@ -212,6 +212,17 @@ class VoiceSynthesis(models.Model):
     def __str__(self):
         return f"Synthesis #{self.id} - {self.user.username} - {self.status}"
 
+    def get_voice_preset_display(self):
+        """Resolve custom voice names (cv_<id>) to their actual name."""
+        if self.voice_preset and self.voice_preset.startswith('cv_'):
+            try:
+                cv = CustomVoice.objects.get(pk=int(self.voice_preset[3:]))
+                return cv.name
+            except (ValueError, CustomVoice.DoesNotExist):
+                pass
+        # Fallback to Django's default choices lookup
+        return dict(self.VOICE_PRESET_CHOICES).get(self.voice_preset, self.voice_preset)
+
     @property
     def filename(self):
         """Retourne le nom du fichier texte source."""

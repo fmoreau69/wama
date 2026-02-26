@@ -12,6 +12,7 @@
     let tree = null;
     let lastTreeHash = null;
     let autoRefreshInterval = null;
+    let wasProcessing = false;  // Track previous processing state for edge detection
     const AUTO_REFRESH_DELAY = 5000; // Check every 5 seconds
 
     // Preview navigation state
@@ -37,8 +38,22 @@
         setupCustomEventListeners();
     }
 
+    /**
+     * Detect if any WAMA app on the page is currently processing.
+     * Uses DOM indicators rendered by Django templates and set by app JS.
+     */
+    function isProcessingActive() {
+        return !!document.querySelector(
+            // Synthesizer, Transcriber, Describer: card with .processing class (Django template)
+            '.synthesis-card.processing, ' +
+            // Enhancer, Transcriber, Describer: row/card with data-status (Django template)
+            '[data-status="RUNNING"], ' +
+            // Anonymizer, Imager: body flag set by app JS
+            '[data-wama-processing]'
+        );
+    }
+
     function setupAutoRefresh() {
-        // Start periodic check for changes
         autoRefreshInterval = setInterval(checkForChanges, AUTO_REFRESH_DELAY);
     }
 
@@ -57,6 +72,19 @@
 
     async function checkForChanges() {
         if (!tree) return;
+
+        const processing = isProcessingActive();
+
+        // If processing just ended, force a refresh
+        if (wasProcessing && !processing) {
+            wasProcessing = false;
+            lastTreeHash = null;
+            refreshTree();
+            return;
+        }
+
+        wasProcessing = processing;
+        if (processing) return;  // Skip auto-refresh while processing
 
         try {
             const response = await fetch(config.apiTreeUrl || '/filemanager/api/tree/');
