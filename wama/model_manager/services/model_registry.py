@@ -63,6 +63,7 @@ class ModelType(Enum):
     LLM = "llm"
     SUMMARIZATION = "summarization"
     UPSCALING = "upscaling"
+    LIPSYNC = "lipsync"
 
 
 class ModelSource(Enum):
@@ -72,6 +73,7 @@ class ModelSource(Enum):
     WAMA_TRANSCRIBER = "transcriber"
     WAMA_SYNTHESIZER = "synthesizer"
     WAMA_ENHANCER = "enhancer"
+    WAMA_AVATARIZER = "avatarizer"
     OLLAMA = "ollama"
 
 
@@ -125,6 +127,7 @@ class ModelRegistry:
         self._discover_transcriber_models()
         self._discover_synthesizer_models()
         self._discover_enhancer_models()
+        self._discover_avatarizer_models()
         self._discover_ollama_models()
 
         # Log summary
@@ -1011,3 +1014,43 @@ class ModelRegistry:
             options.extend(['safetensors', 'onnx'])
 
         return options
+
+    def _discover_avatarizer_models(self):
+        """Discover Avatarizer app models (MuseTalk lip-sync pipeline)."""
+        try:
+            from django.conf import settings
+
+            lipsync_dir = Path(settings.BASE_DIR) / 'AI-models' / 'models' / 'lipsync'
+            if not lipsync_dir.exists():
+                return
+
+            # MuseTalk V1.5 (main model used by the avatarizer pipeline)
+            musetalk_v15 = lipsync_dir / 'musetalk' / 'musetalkV15' / 'unet.pth'
+            musetalk_v10 = lipsync_dir / 'musetalk' / 'musetalk' / 'pytorch_model.bin'
+
+            for model_id, unet_path, name, description in [
+                ('musetalk-v1.5', musetalk_v15, 'MuseTalk v1.5', 'Lip-sync pipeline v1.5 (UNet + DWPose + Whisper + SD-VAE + SyncNet)'),
+                ('musetalk-v1.0', musetalk_v10, 'MuseTalk v1.0', 'Lip-sync pipeline v1.0 (UNet + DWPose + Whisper + SD-VAE)'),
+            ]:
+                is_downloaded = unet_path.exists()
+                self._models[f"avatarizer:{model_id}"] = ModelInfo(
+                    id=f"avatarizer:{model_id}",
+                    name=name,
+                    model_type=ModelType.LIPSYNC,
+                    source=ModelSource.WAMA_AVATARIZER,
+                    description=description,
+                    hf_id='TMElyralab/MuseTalk',
+                    vram_gb=4.0,
+                    is_downloaded=is_downloaded,
+                    extra_info={
+                        'path': str(unet_path.parent),
+                        'pipeline': 'musetalk',
+                    },
+                    backend_ref='avatarizer',
+                    format='pth',
+                    preferred_format='pth',
+                    can_convert_to=[],
+                )
+
+        except Exception as e:
+            logger.debug(f"Could not discover Avatarizer models: {e}")

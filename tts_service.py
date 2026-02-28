@@ -43,7 +43,8 @@ DEFAULT_VOICES_DIR = PROJECT_DIR / "media" / "synthesizer" / "default_voices"
 DEFAULT_VOICES_DIR.mkdir(parents=True, exist_ok=True)
 
 # ---------------------------------------------------------------------------
-# Patches – applied BEFORE any model import
+# Imports légers – seul torch est chargé ici au niveau module
+# Les patches torchaudio et transformers sont appliqués en lazy dans _load_coqui/_load_higgs
 # ---------------------------------------------------------------------------
 import torch
 import numpy as np
@@ -58,72 +59,8 @@ def _patched_torch_load(*args, **kwargs):
     return _original_torch_load(*args, **kwargs)
 torch.load = _patched_torch_load
 
-# Patch torchaudio.load to use soundfile (torchcodec may not be available)
-try:
-    import torchaudio
-    import soundfile as sf
-
-    def _soundfile_load(uri, frame_offset=0, num_frames=-1, normalize=True,
-                        channels_first=True, format=None, buffer_size=4096,
-                        backend=None):
-        data, sample_rate = sf.read(
-            str(uri), dtype="float32",
-            start=frame_offset,
-            stop=frame_offset + num_frames if num_frames > 0 else None,
-            always_2d=True,
-        )
-        audio_tensor = torch.from_numpy(data)
-        if channels_first:
-            audio_tensor = audio_tensor.t()
-        return audio_tensor, sample_rate
-
-    torchaudio.load = _soundfile_load
-    logger.info("Patched torchaudio.load → soundfile backend")
-except Exception as e:
-    logger.warning(f"Could not patch torchaudio: {e}")
-
-# Patch LLAMA_ATTENTION_CLASSES for boson_multimodal compatibility
-try:
-    from transformers.models.llama import modeling_llama as _llama_module
-    if not hasattr(_llama_module, "LLAMA_ATTENTION_CLASSES"):
-        _llama_module.LLAMA_ATTENTION_CLASSES = {
-            "eager": _llama_module.LlamaAttention,
-            "sdpa": _llama_module.LlamaAttention,
-            "flash_attention_2": _llama_module.LlamaAttention,
-        }
-        logger.info("Patched LLAMA_ATTENTION_CLASSES for boson_multimodal")
-except Exception as e:
-    logger.warning(f"Could not patch LLAMA_ATTENTION_CLASSES: {e}")
-
-# Patch ALL_ATTENTION_FUNCTIONS for boson_multimodal (config._attn_implementation=None)
-try:
-    from transformers.modeling_utils import ALL_ATTENTION_FUNCTIONS
-    _patched_keys = []
-    # "eager" and None are used by boson_multimodal but missing in transformers 4.57+
-    for _key in (None, "eager"):
-        if _key not in ALL_ATTENTION_FUNCTIONS:
-            ALL_ATTENTION_FUNCTIONS[_key] = ALL_ATTENTION_FUNCTIONS["sdpa"]
-            _patched_keys.append(repr(_key))
-    if _patched_keys:
-        logger.info(f"Patched ALL_ATTENTION_FUNCTIONS: added {', '.join(_patched_keys)} → sdpa")
-except Exception as e:
-    logger.warning(f"Could not patch ALL_ATTENTION_FUNCTIONS: {e}")
-
-# Patch GenerationConfig.generation_kwargs (removed in transformers 4.57+, needed by boson_multimodal)
-try:
-    from transformers import GenerationConfig as _GC
-    if not hasattr(_GC, "generation_kwargs"):
-        _GC.generation_kwargs = {}
-        # Make it an instance-level dict so each config gets its own copy
-        _orig_gc_init = _GC.__init__
-        def _patched_gc_init(self, *args, **kwargs):
-            _orig_gc_init(self, *args, **kwargs)
-            if not isinstance(getattr(self, "generation_kwargs", None), dict):
-                self.generation_kwargs = {}
-        _GC.__init__ = _patched_gc_init
-        logger.info("Patched GenerationConfig.generation_kwargs for boson_multimodal")
-except Exception as e:
-    logger.warning(f"Could not patch GenerationConfig.generation_kwargs: {e}")
+# Note: torchaudio and transformers patches are applied lazily inside
+# _load_coqui() and _load_higgs() to avoid slowing down service startup.
 
 
 # ---------------------------------------------------------------------------
@@ -151,13 +88,15 @@ _higgs_engine = None         # HiggsAudioServeEngine instance
 _service_ready = False
 _service_ready_lock = threading.Lock()
 
-# Coqui model name → HuggingFace model ID
-COQUI_MODEL_MAPPING = {
-    "xtts_v2": "tts_models/multilingual/multi-dataset/xtts_v2",
-    "vits": "tts_models/en/vctk/vits",
-    "tacotron2": "tts_models/en/ljspeech/tacotron2-DDC",
-    "speedy_speech": "tts_models/en/ljspeech/speedy-speech",
-}
+# Constantes TTS partagées (modèles, langues, presets, mappings)
+import sys as _sys
+_sys.path.insert(0, str(PROJECT_DIR))
+from wama.common.tts.constants import (
+    COQUI_MODEL_MAPPING,
+    BARK_LANG_DEFAULTS,
+    HIGGS_LANGUAGE_NAMES as _HIGGS_LANGUAGE_NAMES,
+    PRESET_DOWNLOAD_MAPPING,
+)
 
 
 def _unload_current():
@@ -187,6 +126,30 @@ def _unload_current():
 def _load_coqui(model_name: str):
     """Load a Coqui TTS model."""
     global _current_engine, _current_model_name, _tts_instance
+
+    # Patch torchaudio.load → soundfile (torchcodec may not be available)
+    try:
+        import torchaudio
+        import soundfile as sf
+
+        def _soundfile_load(uri, frame_offset=0, num_frames=-1, normalize=True,
+                            channels_first=True, format=None, buffer_size=4096,
+                            backend=None):
+            data, sample_rate = sf.read(
+                str(uri), dtype="float32",
+                start=frame_offset,
+                stop=frame_offset + num_frames if num_frames > 0 else None,
+                always_2d=True,
+            )
+            audio_tensor = torch.from_numpy(data)
+            if channels_first:
+                audio_tensor = audio_tensor.t()
+            return audio_tensor, sample_rate
+
+        torchaudio.load = _soundfile_load
+        logger.info("Patched torchaudio.load → soundfile backend")
+    except Exception as e:
+        logger.warning(f"Could not patch torchaudio: {e}")
 
     from TTS.api import TTS
 
@@ -223,6 +186,46 @@ def _load_bark():
 def _load_higgs():
     """Load Higgs Audio v2 engine."""
     global _current_engine, _current_model_name, _higgs_engine
+
+    # Patches required by boson_multimodal against transformers 4.57+
+    # Applied here (lazily) to avoid ~60-90s import overhead at service startup.
+    try:
+        from transformers.models.llama import modeling_llama as _llama_module
+        if not hasattr(_llama_module, "LLAMA_ATTENTION_CLASSES"):
+            _llama_module.LLAMA_ATTENTION_CLASSES = {
+                "eager": _llama_module.LlamaAttention,
+                "sdpa": _llama_module.LlamaAttention,
+                "flash_attention_2": _llama_module.LlamaAttention,
+            }
+            logger.info("Patched LLAMA_ATTENTION_CLASSES for boson_multimodal")
+    except Exception as e:
+        logger.warning(f"Could not patch LLAMA_ATTENTION_CLASSES: {e}")
+
+    try:
+        from transformers.modeling_utils import ALL_ATTENTION_FUNCTIONS
+        _patched_keys = []
+        for _key in (None, "eager"):
+            if _key not in ALL_ATTENTION_FUNCTIONS:
+                ALL_ATTENTION_FUNCTIONS[_key] = ALL_ATTENTION_FUNCTIONS["sdpa"]
+                _patched_keys.append(repr(_key))
+        if _patched_keys:
+            logger.info(f"Patched ALL_ATTENTION_FUNCTIONS: added {', '.join(_patched_keys)} → sdpa")
+    except Exception as e:
+        logger.warning(f"Could not patch ALL_ATTENTION_FUNCTIONS: {e}")
+
+    try:
+        from transformers import GenerationConfig as _GC
+        if not hasattr(_GC, "generation_kwargs"):
+            _orig_gc_init = _GC.__init__
+            def _patched_gc_init(self, *args, **kwargs):
+                _orig_gc_init(self, *args, **kwargs)
+                if not isinstance(getattr(self, "generation_kwargs", None), dict):
+                    self.generation_kwargs = {}
+            _GC.__init__ = _patched_gc_init
+            _GC.generation_kwargs = {}
+            logger.info("Patched GenerationConfig.generation_kwargs for boson_multimodal")
+    except Exception as e:
+        logger.warning(f"Could not patch GenerationConfig.generation_kwargs: {e}")
 
     from boson_multimodal.serve.serve_engine import HiggsAudioServeEngine
 
@@ -286,15 +289,8 @@ def _get_speaker_wav(voice_preset: str) -> Optional[str]:
     except Exception:
         pass
 
-    # Preset → file mapping
-    _LJ_BASE = "https://github.com/idiap/coqui-ai-TTS/raw/main/tests/data/ljspeech/wavs"
-    preset_mapping = {
-        "default": ("default.wav", f"{_LJ_BASE}/LJ001-0001.wav"),
-        "male_1": ("male_1.wav", f"{_LJ_BASE}/LJ001-0015.wav"),
-        "male_2": ("male_2.wav", f"{_LJ_BASE}/LJ001-0020.wav"),
-        "female_1": ("female_1.wav", f"{_LJ_BASE}/LJ001-0010.wav"),
-        "female_2": ("female_2.wav", f"{_LJ_BASE}/LJ001-0025.wav"),
-    }
+    # Preset → file mapping (depuis wama.common.tts.constants)
+    preset_mapping = PRESET_DOWNLOAD_MAPPING
 
     # Download missing presets
     for name, (fname, url) in preset_mapping.items():
@@ -327,16 +323,8 @@ def _get_bark_speaker(voice_preset: str, language: str) -> str:
         if len(parts) == 2:
             return f"v2/{parts[0]}_speaker_{parts[1]}"
 
-    lang_defaults = {
-        "en": "v2/en_speaker_0", "fr": "v2/fr_speaker_0",
-        "es": "v2/es_speaker_0", "de": "v2/de_speaker_0",
-        "it": "v2/it_speaker_0", "pt": "v2/pt_speaker_0",
-        "pl": "v2/pl_speaker_0", "tr": "v2/tr_speaker_0",
-        "ru": "v2/ru_speaker_0", "nl": "v2/nl_speaker_0",
-        "cs": "v2/cs_speaker_0", "zh-cn": "v2/zh_speaker_0",
-        "ja": "v2/ja_speaker_0", "ko": "v2/ko_speaker_0",
-    }
-    return lang_defaults.get(language, "v2/en_speaker_0")
+    # lang_defaults depuis wama.common.tts.constants
+    return BARK_LANG_DEFAULTS.get(language, "v2/en_speaker_0")
 
 
 # ---------------------------------------------------------------------------
@@ -382,13 +370,7 @@ def _generate_bark(text: str, language: str = "fr",
     return tmp.name
 
 
-_HIGGS_LANGUAGE_NAMES = {
-    "fr": "French", "en": "English", "de": "German", "es": "Spanish",
-    "it": "Italian", "pt": "Portuguese", "nl": "Dutch", "pl": "Polish",
-    "ru": "Russian", "zh": "Chinese", "ja": "Japanese", "ko": "Korean",
-    "ar": "Arabic", "tr": "Turkish", "sv": "Swedish", "da": "Danish",
-    "fi": "Finnish", "nb": "Norwegian", "cs": "Czech", "hu": "Hungarian",
-}
+# _HIGGS_LANGUAGE_NAMES est importé depuis wama.common.tts.constants
 
 
 def _generate_higgs(text: str, language: str = "fr",
@@ -419,20 +401,8 @@ def _generate_higgs(text: str, language: str = "fr",
         ref_wav = None
 
     if ref_wav:
-        import base64
-        from io import BytesIO
-        import soundfile as sf_lib
-        audio_data, sr = sf_lib.read(ref_wav, dtype="float32")
-        if sr != 24000:
-            from scipy.signal import resample
-            num_samples = int(len(audio_data) * 24000 / sr)
-            audio_data = resample(audio_data, num_samples).astype(np.float32)
-            sr = 24000
-        # Encode as WAV bytes → base64 for AudioContent.raw_audio
-        buf = BytesIO()
-        sf_lib.write(buf, audio_data, 24000, format="WAV")
-        raw_b64 = base64.b64encode(buf.getvalue()).decode("ascii")
-        content_parts.append(AudioContent(audio_url="placeholder", raw_audio=raw_b64))
+        # Pass file path directly — serve_engine.py loads via librosa.load(audio_url)
+        content_parts.append(AudioContent(audio_url=ref_wav))
 
     # Multi-speaker scene description
     final_text = text
@@ -535,6 +505,16 @@ def _generate_higgs(text: str, language: str = "fr",
     max_val = np.max(np.abs(combined))
     if max_val > 0:
         combined = combined / max_val
+
+    # Resample to 48kHz if needed (Higgs native output is 24kHz)
+    target_sr = 48000
+    if actual_sr != target_sr:
+        from scipy.signal import resample as scipy_resample
+        num_samples = int(len(combined) * target_sr / actual_sr)
+        combined = scipy_resample(combined, num_samples).astype(np.float32)
+        logger.info(f"Resampled {actual_sr}Hz → {target_sr}Hz ({len(combined)} samples)")
+        actual_sr = target_sr
+
     combined_int16 = (combined * 32767).astype(np.int16)
 
     tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False, dir=str(PROJECT_DIR / "logs"))
@@ -585,6 +565,17 @@ def health():
 @app.post("/tts")
 def tts_endpoint(req: TTSRequest):
     """Generate audio from text. Returns raw WAV bytes."""
+    # Refuse requests while the service is still initialising so the caller
+    # can detect the "not ready" state and retry rather than blocking a GPU
+    # worker for the full model-loading time.
+    with _service_ready_lock:
+        ready = _service_ready
+    if not ready:
+        raise HTTPException(
+            status_code=503,
+            detail={"status": "loading", "message": "TTS service is still loading, retry shortly"},
+        )
+
     try:
         # Switch model if needed
         _switch_model(req.model)
@@ -652,6 +643,15 @@ async def startup():
     logger.info(f"Coqui DIR: {COQUI_DIR}")
     logger.info(f"Bark DIR: {BARK_DIR}")
     logger.info(f"Higgs DIR: {HIGGS_DIR}")
+
+    # TTS_SKIP_PRELOAD=1 → mark service ready immediately without loading any model.
+    # Useful in development to avoid the long XTTS v2 warm-up time; the model
+    # will be loaded on the first actual /tts request instead.
+    if os.environ.get("TTS_SKIP_PRELOAD", "0") == "1":
+        with _service_ready_lock:
+            _service_ready = True
+        logger.info("TTS_SKIP_PRELOAD=1 — service marked ready immediately (model loads on first request)")
+        return
 
     # Run model preloading in a background thread so uvicorn can immediately
     # serve requests (including /health).  The /health endpoint returns

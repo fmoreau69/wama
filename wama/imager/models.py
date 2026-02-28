@@ -291,6 +291,7 @@ class ImageGeneration(models.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='PENDING')
     progress = models.IntegerField(default=0, validators=[MinValueValidator(0), MaxValueValidator(100)])
     error_message = models.TextField(blank=True, default="")
+    task_id = models.CharField(max_length=255, blank=True, default="")
 
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)

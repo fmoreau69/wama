@@ -129,6 +129,16 @@ FORMAT_POLICY: Dict[str, FormatPolicyConfig] = {
         convertible_to=['onnx', 'safetensors'],
         description='Text and image embedding models',
     ),
+
+    # Lip-sync models (MuseTalk)
+    'lipsync': FormatPolicyConfig(
+        preferred_format='pth',
+        runtime='pytorch',
+        auto_convert=False,
+        keep_original=True,
+        convertible_to=[],
+        description='Lip-sync and avatar animation models (MuseTalk)',
+    ),
 }
 
 # Map ModelType enum values to policy categories
@@ -140,6 +150,7 @@ MODEL_TYPE_TO_CATEGORY = {
     'LLM': 'llm',
     'SUMMARIZATION': 'summarization',
     'UPSCALING': 'upscaling',
+    'LIPSYNC': 'lipsync',
 }
 
 # Map source to default category
@@ -150,6 +161,7 @@ SOURCE_TO_CATEGORY = {
     'describer': 'vlm',  # Default, can be speech for whisper
     'transcriber': 'speech',
     'synthesizer': 'speech',
+    'avatarizer': 'lipsync',
     'ollama': 'llm',
 }
 

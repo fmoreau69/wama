@@ -61,6 +61,16 @@ def build_file_tree(user):
             ]
         },
         {
+            'id': 'avatarizer',
+            'text': 'Avatarizer',
+            'icon': 'fa fa-user-circle text-info',
+            'children': [
+                {'id': 'avatarizer_input', 'text': 'Input', 'path': f'avatarizer/{user_id}/input', 'icon': 'fa fa-folder text-secondary'},
+                {'id': 'avatarizer_output', 'text': 'Output', 'path': f'avatarizer/{user_id}/output', 'icon': 'fa fa-folder text-success'},
+                {'id': 'avatarizer_gallery', 'text': 'Galerie', 'path': 'avatarizer/gallery', 'icon': 'fa fa-images text-info'},
+            ]
+        },
+        {
             'id': 'describer',
             'text': 'Describer',
             'icon': 'fa fa-search-plus text-info',

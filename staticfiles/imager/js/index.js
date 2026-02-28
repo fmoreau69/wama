@@ -790,7 +790,7 @@
             }, false);
         });
 
-        // Handle dropped files
+        // Handle dropped files (native HTML5 drag)
         dropZone.addEventListener('drop', function(e) {
             const files = e.dataTransfer.files;
             if (files.length > 0) {
@@ -798,6 +798,24 @@
                 if (onFileSelected) onFileSelected(files[0]);
             }
         }, false);
+
+        // Handle drop from FileManager sidebar (vakata DND — no native dataTransfer)
+        dropZone.addEventListener('filemanager:filedrop', async function(e) {
+            const { path, name, mime } = e.detail;
+            try {
+                const mediaUrl = (window.MEDIA_URL || '/media/') + path;
+                const response = await fetch(mediaUrl);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const blob = await response.blob();
+                const file = new File([blob], name || 'image', { type: blob.type || mime || 'image/jpeg' });
+                const dt = new DataTransfer();
+                dt.items.add(file);
+                fileInput.files = dt.files;
+                if (onFileSelected) onFileSelected(file);
+            } catch (err) {
+                console.error('[imager] FileManager drop failed:', err);
+            }
+        });
 
         // Handle file input change
         fileInput.addEventListener('change', function() {

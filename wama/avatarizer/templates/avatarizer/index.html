@@ -1,0 +1,635 @@
+{% extends 'common/app_modern_base.html' %}
+{% load static %}
+
+{% block title %}Avatarizer - Avatar animé{% endblock %}
+
+{% block app_icon %}<i class="fas fa-user-circle text-info"></i>{% endblock %}
+{% block app_title %}Avatarizer{% endblock %}
+{% block app_description %}Générez des vidéos d'avatars animés synchronisés avec l'audio TTS{% endblock %}
+
+{% block console_content_id %}avatarizer-console-content{% endblock %}
+{% block console_app_name %}avatarizer{% endblock %}
+
+{% block app_styles %}
+.avatar-card {
+    cursor: pointer;
+    border: 2px solid transparent;
+    border-radius: 8px;
+    overflow: hidden;
+    transition: border-color 0.2s, transform 0.2s;
+}
+.avatar-card:hover { transform: scale(1.03); }
+.avatar-card.selected { border-color: #0dcaf0; }
+.avatar-card img { width: 80px; height: 80px; object-fit: cover; border-radius: 6px; }
+.avatar-gallery-grid { display: flex; flex-wrap: wrap; gap: 10px; }
+.drop-zone {
+    border: 2px dashed #495057; border-radius: 8px; padding: 20px;
+    text-align: center; cursor: pointer; transition: border-color 0.2s;
+    background: #1a1d20;
+}
+.drop-zone.dragover { border-color: #0dcaf0; background: #1a2a30; }
+.video-section video { border-radius: 6px; background: #000; }
+/* Text drop zone : invisible par défaut, s'illumine sur dragover */
+#text-dropzone.drop-zone {
+    border: 2px dashed transparent;
+    border-radius: 8px;
+    padding: 6px 8px;
+    text-align: left;
+    cursor: default;
+    background: transparent;
+    transition: border-color 0.2s, background 0.2s;
+}
+#text-dropzone.drop-zone.dragover {
+    border-color: #0dcaf0;
+    background: #1a2a30;
+}
+{% endblock %}
+
+{# ===================================================================== #}
+{# RIGHT PANEL - Settings                                                 #}
+{# ===================================================================== #}
+{% block app_right_panel_settings %}
+
+<!-- Mode workflow -->
+<div class="mb-3">
+    <label class="form-label small fw-bold text-light"><i class="fas fa-exchange-alt"></i> Mode</label>
+    <div class="btn-group w-100" role="group">
+        <input type="radio" class="btn-check" name="workflow_mode" id="mode_pipeline" value="pipeline" checked>
+        <label class="btn btn-outline-info btn-sm" for="mode_pipeline">
+            <i class="fas fa-stream"></i> Pipeline
+        </label>
+        <input type="radio" class="btn-check" name="workflow_mode" id="mode_standalone" value="standalone">
+        <label class="btn btn-outline-secondary btn-sm" for="mode_standalone">
+            <i class="fas fa-upload"></i> Standalone
+        </label>
+    </div>
+</div>
+
+<!-- Paramètres Pipeline (TTS) -->
+<div id="pipelineSettings">
+    <div class="mb-2">
+        <label for="tts_model" class="form-label small fw-bold text-light"><i class="fas fa-robot"></i> Modèle TTS</label>
+        <select class="form-select form-select-sm bg-dark text-white border-secondary" id="tts_model">
+            {% for value, label in tts_models %}
+            <option value="{{ value }}" {% if value == 'xtts_v2' %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="mb-2">
+        <label for="language" class="form-label small fw-bold text-light"><i class="fas fa-language"></i> Langue</label>
+        <select class="form-select form-select-sm bg-dark text-white border-secondary" id="language">
+            {% for value, label in languages %}
+            <option value="{{ value }}" {% if value == 'fr' %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="mb-2">
+        <label for="voice_preset" class="form-label small fw-bold text-light"><i class="fas fa-microphone"></i> Voix</label>
+        <select class="form-select form-select-sm bg-dark text-white border-secondary" id="voice_preset">
+            <optgroup label="Voix intégrées">
+                <option value="default">Voix par défaut</option>
+                <option value="male_1">Voix masculine 1</option>
+                <option value="male_2">Voix masculine 2</option>
+                <option value="female_1">Voix féminine 1</option>
+                <option value="female_2">Voix féminine 2</option>
+            </optgroup>
+            <optgroup label="Voix personnalisées (clonage)">
+                {% for cv in custom_voices %}
+                <option value="cv_{{ cv.id }}">{{ cv.name }}</option>
+                {% endfor %}
+            </optgroup>
+            <optgroup label="Bark (presets)">
+                <option value="bark_v2_en_0">Bark EN Speaker 0</option>
+                <option value="bark_v2_en_1">Bark EN Speaker 1</option>
+                <option value="bark_v2_en_2">Bark EN Speaker 2</option>
+                <option value="bark_v2_en_3">Bark EN Speaker 3</option>
+                <option value="bark_v2_en_4">Bark EN Speaker 4</option>
+                <option value="bark_v2_en_5">Bark EN Speaker 5</option>
+                <option value="bark_v2_fr_0">Bark FR Speaker 0</option>
+                <option value="bark_v2_fr_1">Bark FR Speaker 1</option>
+                <option value="bark_v2_es_0">Bark ES Speaker 0</option>
+                <option value="bark_v2_de_0">Bark DE Speaker 0</option>
+            </optgroup>
+        </select>
+    </div>
+</div>
+
+<hr class="border-secondary">
+
+<!-- Paramètres MuseTalk -->
+<div class="mb-2">
+    <label class="form-label small fw-bold text-light"><i class="fas fa-sliders-h"></i> Pipeline MuseTalk</label>
+</div>
+
+<!-- Mode qualité -->
+<div class="mb-3">
+    <label class="form-label small text-light">Mode</label>
+    <div class="btn-group w-100" role="group">
+        <input type="radio" class="btn-check" name="quality_mode" id="qmode_fast" value="fast" checked>
+        <label class="btn btn-outline-secondary btn-sm" for="qmode_fast">
+            <i class="fas fa-bolt"></i> Rapide
+        </label>
+        <input type="radio" class="btn-check" name="quality_mode" id="qmode_quality" value="quality">
+        <label class="btn btn-outline-info btn-sm" for="qmode_quality">
+            <i class="fas fa-star"></i> Qualité
+        </label>
+    </div>
+    <small class="text-muted d-block mt-1" id="qmode_hint">MuseTalk seul — temps réel</small>
+</div>
+
+<!-- Décalage bbox -->
+<div class="mb-2">
+    <label for="bbox_shift" class="form-label small text-light">
+        Décalage visage : <span id="bbox_shift_val">0</span>
+    </label>
+    <input type="range" class="form-range" id="bbox_shift" min="-10" max="10" step="1" value="0">
+    <small class="text-muted">Ajustez si la zone détectée est mal positionnée</small>
+</div>
+
+<!-- CodeFormer enhancer (visible en mode qualité) -->
+<div id="enhancer_section">
+    <div class="form-check form-switch mb-2">
+        <input class="form-check-input" type="checkbox" id="use_enhancer">
+        <label class="form-check-label text-light small" for="use_enhancer">
+            Amélioration CodeFormer
+        </label>
+    </div>
+</div>
+
+{% endblock %}
+
+{# ===================================================================== #}
+{# RIGHT PANEL - Actions                                                  #}
+{# ===================================================================== #}
+{% block app_right_panel_actions %}
+<button id="btn-generate" class="btn btn-info w-100 mb-2" disabled>
+    <i class="fas fa-play-circle me-1"></i> Générer la vidéo
+</button>
+<button id="btn-clear-all" class="btn btn-outline-danger w-100 btn-sm">
+    <i class="fas fa-trash-alt me-1"></i> Vider l'historique
+</button>
+{% endblock %}
+
+{# ===================================================================== #}
+{# MAIN CONTENT (tab "File d'attente")                                    #}
+{# ===================================================================== #}
+{% block queue_content %}
+<div class="row g-3">
+
+    <!-- COLONNE GAUCHE : Saisie -->
+    <div class="col-md-5">
+
+        <!-- Tabs Pipeline / Standalone -->
+        <ul class="nav nav-tabs nav-tabs-sm mb-3" id="inputTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="tab-pipeline" data-bs-toggle="tab"
+                        data-bs-target="#pane-pipeline" type="button" role="tab">
+                    <i class="fas fa-stream me-1"></i>Pipeline
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="tab-standalone" data-bs-toggle="tab"
+                        data-bs-target="#pane-standalone" type="button" role="tab">
+                    <i class="fas fa-upload me-1"></i>Standalone
+                </button>
+            </li>
+        </ul>
+
+        <div class="tab-content" id="inputTabsContent">
+
+            <!-- Onglet Pipeline -->
+            <div class="tab-pane fade show active" id="pane-pipeline" role="tabpanel">
+                <div id="text-dropzone" class="drop-zone" data-wama-app="avatarizer">
+                    <label for="text_content" class="form-label small fw-bold text-light mb-1">
+                        <i class="fas fa-align-left"></i> Texte de la consigne
+                        <span class="text-muted ms-2" style="font-weight:normal;font-size:0.75rem;">
+                            <i class="fas fa-file-alt"></i> Glissez un .txt .pdf .docx ici
+                        </span>
+                    </label>
+                    <textarea class="form-control bg-dark text-light border-secondary"
+                              id="text_content" rows="6"
+                              placeholder="Entrez ici le texte de la consigne expérimentale…"></textarea>
+                    <small class="text-muted"><span id="word-count">0</span> mots</small>
+                </div>
+            </div>
+
+            <!-- Onglet Standalone -->
+            <div class="tab-pane fade" id="pane-standalone" role="tabpanel">
+                <div id="audio-dropzone" class="drop-zone mb-2" data-wama-app="avatarizer">
+                    <i class="fas fa-file-audio fa-2x text-muted mb-2"></i>
+                    <p class="text-muted mb-1">Glissez un fichier audio ici ou depuis le Filemanager</p>
+                    <small class="text-muted">WAV, MP3, OGG, FLAC</small>
+                    <input type="file" id="audio_input" accept=".wav,.mp3,.ogg,.flac" class="d-none">
+                </div>
+                <div id="audio-info" class="d-none">
+                    <span class="badge bg-secondary" id="audio-filename"></span>
+                    <button type="button" class="btn btn-sm btn-outline-danger ms-2" id="btn-remove-audio">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sélection de l'avatar -->
+        <div class="mt-3">
+            <label class="form-label small fw-bold text-light">
+                <i class="fas fa-user-circle"></i> Avatar
+            </label>
+
+            <!-- Galerie partagée -->
+            {% if gallery_images %}
+            <div class="avatar-gallery-grid mb-2" id="gallery-grid">
+                {% for img_name in gallery_images %}
+                <div class="avatar-card" data-avatar-source="gallery" data-avatar-name="{{ img_name }}">
+                    <img src="{{ media_url }}avatarizer/gallery/{{ img_name }}"
+                         alt="{{ img_name }}" title="{{ img_name }}">
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-muted small mb-2">
+                <i class="fas fa-info-circle"></i>
+                Aucun avatar dans la galerie. Ajoutez des images dans
+                <code>media/avatarizer/gallery/</code>.
+            </p>
+            {% endif %}
+
+            <!-- Upload d'une image personnalisée -->
+            <div id="avatar-upload-zone" class="drop-zone drop-zone-sm">
+                <i class="fas fa-image text-muted me-1"></i>
+                <span class="text-muted small">Ou importez votre photo (JPG, PNG)</span>
+                <input type="file" id="avatar_upload" accept=".jpg,.jpeg,.png,.webp" class="d-none">
+            </div>
+            <div id="avatar-upload-info" class="d-none mt-1">
+                <img id="avatar-upload-preview" src="" alt="preview"
+                     style="width:60px;height:60px;object-fit:cover;border-radius:6px;border:2px solid #0dcaf0">
+                <button type="button" class="btn btn-sm btn-outline-danger ms-2" id="btn-remove-avatar-upload">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        </div>
+
+    </div><!-- /col-md-5 -->
+
+    <!-- COLONNE DROITE : File d'attente -->
+    <div class="col-md-7">
+        <h6 class="text-light mb-2">
+            <i class="fas fa-film me-1"></i> Vidéos générées
+            <span class="badge bg-secondary ms-1" id="jobs-count">{{ jobs|length }}</span>
+        </h6>
+
+        <div id="jobs-container">
+            {% if jobs %}
+                {% for job in jobs %}
+                <div class="synthesis-card {% if job.status == 'RUNNING' %}processing{% elif job.status == 'SUCCESS' %}success{% elif job.status == 'FAILURE' %}error{% endif %}"
+                     id="job-{{ job.id }}" data-job-id="{{ job.id }}"
+                     data-status="{{ job.status }}" data-mode="{{ job.mode }}"
+                     data-text-preview="{{ job.text_content|truncatechars:60 }}">
+                    <div class="row align-items-center g-2">
+
+                        <!-- Col 1 : Avatar + miniature -->
+                        <div class="col-3 d-flex align-items-start gap-2">
+                            {% if job.avatar_source == 'gallery' and job.avatar_gallery_name %}
+                            <img src="{{ media_url }}avatarizer/gallery/{{ job.avatar_gallery_name }}"
+                                 style="width:48px;height:48px;object-fit:cover;border-radius:4px;flex-shrink:0;"
+                                 alt="{{ job.avatar_gallery_name }}">
+                            {% elif job.avatar_upload %}
+                            <img src="{{ job.avatar_upload.url }}"
+                                 style="width:48px;height:48px;object-fit:cover;border-radius:4px;flex-shrink:0;"
+                                 alt="Avatar">
+                            {% else %}
+                            <div style="width:48px;height:48px;border-radius:4px;background:#343a40;flex-shrink:0;display:flex;align-items:center;justify-content:center;">
+                                <i class="fas fa-user text-muted"></i>
+                            </div>
+                            {% endif %}
+                            <div>
+                                <strong class="text-light d-block">
+                                    {% if job.avatar_source == 'gallery' %}{{ job.avatar_gallery_name|default:"—"|truncatechars:14 }}{% else %}Photo importée{% endif %}
+                                </strong>
+                                <small class="text-white-50">
+                                    {{ job.get_mode_display }} &bull; {{ job.created_at|date:"H:i" }}
+                                </small>
+                            </div>
+                        </div>
+
+                        <!-- Col 2 : Paramètres -->
+                        <div class="col-3">
+                            <small class="job-params-display">
+                                {% if job.mode == 'pipeline' %}
+                                <i class="fas fa-robot"></i> {{ job.get_tts_model_display|truncatechars:12 }}<br>
+                                <i class="fas fa-language"></i> {{ job.language }}<br>
+                                <i class="fas fa-microphone"></i> {{ job.voice_preset|truncatechars:10 }}<br>
+                                {% else %}
+                                <i class="fas fa-upload"></i> Audio importé<br>
+                                {% endif %}
+                                <i class="fas fa-{% if job.quality_mode == 'quality' %}star{% else %}bolt{% endif %}"></i> {{ job.get_quality_mode_display }}{% if job.use_enhancer %} <span class="badge bg-secondary" style="font-size:0.6rem;">CF</span>{% endif %}{% if job.bbox_shift != 0 %} &bull; <i class="fas fa-arrows-alt-v"></i> {{ job.bbox_shift }}{% endif %}
+                            </small>
+                        </div>
+
+                        <!-- Col 3 : Étape / aperçu texte -->
+                        <div class="col-2">
+                            <small class="text-white-50 step-desc">
+                                {% if job.status == 'FAILURE' %}{{ job.error_message|truncatechars:50 }}
+                                {% elif job.status == 'SUCCESS' and job.mode == 'pipeline' and job.text_content %}"{{ job.text_content|truncatechars:50 }}"
+                                {% elif job.status == 'SUCCESS' %}Vidéo générée ✓
+                                {% elif job.status == 'RUNNING' %}En cours…
+                                {% else %}En attente{% endif %}
+                            </small>
+                        </div>
+
+                        <!-- Col 4 : Statut + progression -->
+                        <div class="col-2">
+                            <span class="badge job-status-badge
+                                {% if job.status == 'PENDING' %}bg-secondary
+                                {% elif job.status == 'RUNNING' %}bg-warning text-dark
+                                {% elif job.status == 'SUCCESS' %}bg-success
+                                {% elif job.status == 'FAILURE' %}bg-danger
+                                {% endif %}">{{ job.get_status_display }}</span>
+                            <div class="progress-bar-custom mt-2">
+                                <div class="progress-fill" style="width:{{ job.progress }}%"></div>
+                            </div>
+                            <small class="text-light progress-text">{{ job.progress }}%</small>
+                        </div>
+
+                        <!-- Col 5 : Actions -->
+                        <div class="col-2">
+                            <div class="btn-group-actions flex-wrap">
+                                {% if job.status != 'RUNNING' %}
+                                <button class="btn btn-sm btn-outline-warning btn-start-job"
+                                        data-job-id="{{ job.id }}" title="Relancer">
+                                    <i class="fas fa-redo"></i>
+                                </button>
+                                <button class="btn btn-sm btn-secondary btn-settings-job"
+                                        data-job-id="{{ job.id }}"
+                                        data-mode="{{ job.mode }}"
+                                        data-tts-model="{{ job.tts_model }}"
+                                        data-language="{{ job.language }}"
+                                        data-voice-preset="{{ job.voice_preset }}"
+                                        data-quality-mode="{{ job.quality_mode }}"
+                                        data-use-enhancer="{{ job.use_enhancer|yesno:'true,false' }}"
+                                        data-bbox-shift="{{ job.bbox_shift }}"
+                                        title="Paramètres">
+                                    <i class="fas fa-cog"></i>
+                                </button>
+                                {% endif %}
+                                {% if job.status == 'SUCCESS' and job.output_video %}
+                                <a href="{% url 'avatarizer:download' job.id %}"
+                                   class="btn btn-sm btn-info" title="Télécharger">
+                                    <i class="fas fa-download"></i>
+                                </a>
+                                {% endif %}
+                                <button class="btn btn-sm btn-danger btn-delete-job"
+                                        data-job-id="{{ job.id }}" title="Supprimer">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <!-- Prévisualisation vidéo (visible directement en SUCCESS) -->
+                    {% if job.status == 'SUCCESS' and job.output_video %}
+                    <div class="row mt-2" id="preview-row-{{ job.id }}">
+                        <div class="col-12">
+                            <video class="w-100" controls style="border-radius:6px;max-height:220px;">
+                                <source src="{{ media_url }}{{ job.output_video.name }}" type="video/mp4">
+                            </video>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div id="preview-row-{{ job.id }}"></div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            {% else %}
+            <div id="no-jobs-msg" class="text-center text-muted py-4">
+                <i class="fas fa-film fa-3x mb-2 d-block opacity-50"></i>
+                <p>Aucune vidéo générée pour l'instant.</p>
+                <p class="small">Configurez votre avatar et cliquez sur « Générer la vidéo ».</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+</div><!-- /row -->
+{% endblock %}
+
+{# ===================================================================== #}
+{# ABOUT                                                                  #}
+{# ===================================================================== #}
+{% block about_content %}
+<div class="info-card">
+    <h3><i class="fas fa-user-circle me-2"></i>À propos de l'Avatarizer</h3>
+    <div class="mb-3">
+        <h5>Qu'est-ce que l'Avatarizer ?</h5>
+        <p class="text-light">
+            L'Avatarizer génère des vidéos d'avatars animés synchronisés avec la parole,
+            idéales pour créer des consignes vidéo standardisées et engageantes pour les
+            expérimentations au Lescot.
+        </p>
+    </div>
+    <div class="mb-3">
+        <h5>Modes de fonctionnement</h5>
+        <ul class="text-light">
+            <li><strong>Pipeline</strong> : saisissez un texte → le service TTS génère l'audio → MuseTalk anime l'avatar</li>
+            <li><strong>Standalone</strong> : uploadez votre propre fichier audio → MuseTalk anime l'avatar</li>
+        </ul>
+    </div>
+    <div class="mb-3">
+        <h5>Avatars</h5>
+        <ul class="text-light">
+            <li><strong>Galerie partagée</strong> : avatars curatés par l'administrateur dans <code>media/avatarizer/gallery/</code></li>
+            <li><strong>Image personnalisée</strong> : importez n'importe quelle photo (JPG, PNG)</li>
+        </ul>
+    </div>
+    <div class="mb-3">
+        <h5>Technologie</h5>
+        <p class="text-light">
+            Basé sur <strong>MuseTalk v1.5</strong> (Tencent Music, MIT) : synchronisation labiale
+            temps réel à partir d'une image portrait et d'un signal audio. Amélioration optionnelle
+            par <strong>CodeFormer</strong> (restauration faciale haute qualité).
+        </p>
+    </div>
+</div>
+{% endblock %}
+
+{# ===================================================================== #}
+{# HELP                                                                   #}
+{# ===================================================================== #}
+{% block help_content %}
+<div class="info-card">
+    <h3><i class="fas fa-question-circle me-2"></i>Guide d'utilisation</h3>
+    <div class="mb-3">
+        <h5>Mode Pipeline (texte → TTS → avatar)</h5>
+        <ol class="text-light">
+            <li>Sélectionnez le mode <strong>Pipeline</strong> dans le panneau de droite</li>
+            <li>Saisissez le texte de la consigne</li>
+            <li>Choisissez le modèle TTS, la langue et la voix</li>
+            <li>Sélectionnez un avatar dans la galerie ou importez une photo</li>
+            <li>Cliquez sur <strong>Générer la vidéo</strong></li>
+        </ol>
+    </div>
+    <div class="mb-3">
+        <h5>Mode Standalone (audio existant)</h5>
+        <ol class="text-light">
+            <li>Sélectionnez le mode <strong>Standalone</strong></li>
+            <li>Glissez ou sélectionnez un fichier audio (WAV, MP3…)</li>
+            <li>Sélectionnez un avatar</li>
+            <li>Cliquez sur <strong>Générer la vidéo</strong></li>
+        </ol>
+    </div>
+    <div class="mb-3">
+        <h5>Paramètres MuseTalk</h5>
+        <ul class="text-light">
+            <li><strong>Mode Rapide</strong> : MuseTalk seul — temps réel, 6–8 GB VRAM</li>
+            <li><strong>Mode Qualité</strong> : MuseTalk + CodeFormer — meilleure netteté faciale, légèrement plus lent</li>
+            <li><strong>Décalage visage</strong> : si la zone de la bouche est mal détectée, ajustez de ±1 à ±5</li>
+            <li><strong>Amélioration CodeFormer</strong> : restauration faciale haute qualité (actif en mode Qualité)</li>
+        </ul>
+    </div>
+</div>
+{% endblock %}
+
+{# ===================================================================== #}
+{# MODAL — Paramètres d'un job                                           #}
+{# ===================================================================== #}
+{% block extra_modals %}
+<div class="modal fade" id="jobSettingsModal" tabindex="-1" aria-labelledby="jobSettingsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content bg-dark text-white border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title" id="jobSettingsModalLabel">
+                    <i class="fas fa-cog me-1"></i> Paramètres du job
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fermer"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="settingsJobId">
+
+                <!-- TTS (pipeline) -->
+                <div id="settingsPipelineSection">
+                    <h6 class="text-info mb-3"><i class="fas fa-stream me-1"></i>Paramètres TTS</h6>
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-4">
+                            <label for="settingsTtsModel" class="form-label small fw-bold text-light">
+                                <i class="fas fa-robot"></i> Modèle TTS
+                            </label>
+                            <select class="form-select form-select-sm bg-dark text-white border-secondary" id="settingsTtsModel">
+                                {% for value, label in tts_models %}
+                                <option value="{{ value }}">{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="settingsLanguage" class="form-label small fw-bold text-light">
+                                <i class="fas fa-language"></i> Langue
+                            </label>
+                            <select class="form-select form-select-sm bg-dark text-white border-secondary" id="settingsLanguage">
+                                {% for value, label in languages %}
+                                <option value="{{ value }}">{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="settingsVoicePreset" class="form-label small fw-bold text-light">
+                                <i class="fas fa-microphone"></i> Voix
+                            </label>
+                            <select class="form-select form-select-sm bg-dark text-white border-secondary" id="settingsVoicePreset">
+                                <optgroup label="Voix intégrées">
+                                    <option value="default">Voix par défaut</option>
+                                    <option value="male_1">Voix masculine 1</option>
+                                    <option value="male_2">Voix masculine 2</option>
+                                    <option value="female_1">Voix féminine 1</option>
+                                    <option value="female_2">Voix féminine 2</option>
+                                </optgroup>
+                                <optgroup label="Voix personnalisées (clonage)">
+                                    {% for cv in custom_voices %}
+                                    <option value="cv_{{ cv.id }}">{{ cv.name }}</option>
+                                    {% endfor %}
+                                </optgroup>
+                                <optgroup label="Bark (presets)">
+                                    <option value="bark_v2_en_0">Bark EN Speaker 0</option>
+                                    <option value="bark_v2_en_1">Bark EN Speaker 1</option>
+                                    <option value="bark_v2_en_2">Bark EN Speaker 2</option>
+                                    <option value="bark_v2_en_3">Bark EN Speaker 3</option>
+                                    <option value="bark_v2_en_4">Bark EN Speaker 4</option>
+                                    <option value="bark_v2_en_5">Bark EN Speaker 5</option>
+                                    <option value="bark_v2_fr_0">Bark FR Speaker 0</option>
+                                    <option value="bark_v2_fr_1">Bark FR Speaker 1</option>
+                                    <option value="bark_v2_es_0">Bark ES Speaker 0</option>
+                                    <option value="bark_v2_de_0">Bark DE Speaker 0</option>
+                                </optgroup>
+                            </select>
+                        </div>
+                    </div>
+                    <hr class="border-secondary">
+                </div>
+
+                <!-- MuseTalk params -->
+                <h6 class="text-info mb-3"><i class="fas fa-sliders-h me-1"></i>Paramètres MuseTalk</h6>
+                <div class="row g-3 mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold text-light">Mode</label>
+                        <div class="btn-group w-100" role="group">
+                            <input type="radio" class="btn-check" name="settings_quality_mode" id="sqmode_fast" value="fast">
+                            <label class="btn btn-outline-secondary btn-sm" for="sqmode_fast">
+                                <i class="fas fa-bolt"></i> Rapide
+                            </label>
+                            <input type="radio" class="btn-check" name="settings_quality_mode" id="sqmode_quality" value="quality">
+                            <label class="btn btn-outline-info btn-sm" for="sqmode_quality">
+                                <i class="fas fa-star"></i> Qualité
+                            </label>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-check form-switch mt-4">
+                            <input class="form-check-input" type="checkbox" id="settingsUseEnhancer">
+                            <label class="form-check-label text-light small" for="settingsUseEnhancer">
+                                Amélioration CodeFormer
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label for="settingsBboxShift" class="form-label small fw-bold text-light">
+                        Décalage visage : <span id="settingsBboxShiftVal">0</span>
+                    </label>
+                    <input type="range" class="form-range" id="settingsBboxShift" min="-10" max="10" step="1" value="0">
+                    <small class="text-muted">Ajustez si la zone de la bouche est mal détectée (±1 à ±5)</small>
+                </div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annuler</button>
+                <button type="button" class="btn btn-secondary" id="btnSettingsSave">
+                    <i class="fas fa-save me-1"></i> Sauvegarder
+                </button>
+                <button type="button" class="btn btn-warning" id="btnSettingsSaveStart">
+                    <i class="fas fa-play me-1"></i> Sauvegarder et relancer
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock extra_modals %}
+
+{# ===================================================================== #}
+{# SCRIPTS                                                                #}
+{# ===================================================================== #}
+{% block app_scripts %}
+<script>
+window.AVATARIZER_CONFIG = {
+    urls: {
+        create:        "{% url 'avatarizer:create' %}",
+        start:         "/avatarizer/start/",
+        progress:      "/avatarizer/progress/",
+        delete:        "/avatarizer/delete/",
+        download:      "/avatarizer/download/",
+        updateOptions: "/avatarizer/update-options/",
+        extractText:   "{% url 'avatarizer:extract_text' %}",
+    },
+    mediaUrl:  "{{ MEDIA_URL }}",
+    csrfToken: "{{ csrf_token }}",
+};
+</script>
+<script src="{% static 'avatarizer/js/index.js' %}"></script>
+{% endblock %}

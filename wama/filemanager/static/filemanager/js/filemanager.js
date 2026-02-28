@@ -559,6 +559,7 @@
         // Map of app names to their tree node IDs
         const appFolderMap = {
             'anonymizer': ['anonymizer', 'anonymizer_input', 'anonymizer_output'],
+            'avatarizer': ['avatarizer', 'avatarizer_input', 'avatarizer_output', 'avatarizer_gallery'],
             'describer': ['describer', 'describer_input', 'describer_output'],
             'enhancer': ['enhancer', 'enhancer_input', 'enhancer_output'],
             'imager': ['imager', 'imager_prompts', 'imager_references', 'imager_output_image', 'imager_output_video'],
@@ -1179,25 +1180,31 @@
                 console.log('[FileManager DND] Dropping on app:', app, 'file:', dragData.path);
 
                 if (app && dragData.path) {
-                    // Perform the import
-                    importToApp(dragData.path, app)
-                        .then(result => {
-                            if (result.imported) {
-                                showToast(`Fichier importé vers ${app}`, 'success');
-                                // Handle app-specific redirects
-                                if (app === 'face_analyzer' && result.id) {
-                                    // Redirect to Face Analyzer video page with session
-                                    window.location.href = `/lab/face-analyzer/video/?session=${result.id}`;
-                                } else {
-                                    // Reload the page to show the new file in the app's queue
-                                    window.location.reload();
+                    // Imager and Avatarizer use form-based file inputs: dispatch a custom event so the
+                    // drop zone can fetch the blob and populate the input itself.
+                    if (app === 'imager' || app === 'avatarizer') {
+                        currentDropZone.dispatchEvent(new CustomEvent('filemanager:filedrop', {
+                            detail: { path: dragData.path, name: dragData.name, mime: dragData.mime },
+                            bubbles: false,
+                        }));
+                    } else {
+                        // Other apps: server-side import → reload (or redirect for face_analyzer)
+                        importToApp(dragData.path, app)
+                            .then(result => {
+                                if (result.imported) {
+                                    showToast(`Fichier importé vers ${app}`, 'success');
+                                    if (app === 'face_analyzer' && result.id) {
+                                        window.location.href = `/lab/face-analyzer/video/?session=${result.id}`;
+                                    } else {
+                                        window.location.reload();
+                                    }
                                 }
-                            }
-                        })
-                        .catch(error => {
-                            console.error('[FileManager DND] Import error:', error);
-                            showToast('Erreur d\'import: ' + error.message, 'danger');
-                        });
+                            })
+                            .catch(error => {
+                                console.error('[FileManager DND] Import error:', error);
+                                showToast('Erreur d\'import: ' + error.message, 'danger');
+                            });
+                    }
                 }
             }
 

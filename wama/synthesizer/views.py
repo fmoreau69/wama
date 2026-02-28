@@ -522,6 +522,14 @@ def delete(request, pk: int):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     synthesis = get_object_or_404(VoiceSynthesis, pk=pk, user=user)
 
+    # Révoquer la tâche Celery si elle est en file ou en cours (libère le worker GPU)
+    if synthesis.task_id:
+        try:
+            from celery.result import AsyncResult
+            AsyncResult(synthesis.task_id).revoke(terminate=False)
+        except Exception:
+            pass
+
     # Supprimer les fichiers
     if synthesis.text_file:
         try:
@@ -713,6 +721,14 @@ def clear_all(request):
 
     for synthesis in syntheses:
         cleared.append(synthesis.id)
+
+        # Révoquer la tâche Celery si présente
+        if synthesis.task_id:
+            try:
+                from celery.result import AsyncResult
+                AsyncResult(synthesis.task_id).revoke(terminate=False)
+            except Exception:
+                pass
 
         # Supprimer les fichiers
         if synthesis.text_file:

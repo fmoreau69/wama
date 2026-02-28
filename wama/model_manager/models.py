@@ -20,6 +20,7 @@ class ModelType(models.TextChoices):
     LLM = 'llm', 'Large Language Model'
     SUMMARIZATION = 'summarization', 'Summarization'
     UPSCALING = 'upscaling', 'Upscaling'
+    LIPSYNC = 'lipsync', 'Lip Sync'
 
 
 class ModelSource(models.TextChoices):
@@ -30,6 +31,7 @@ class ModelSource(models.TextChoices):
     WAMA_TRANSCRIBER = 'transcriber', 'WAMA Transcriber'
     WAMA_SYNTHESIZER = 'synthesizer', 'WAMA Synthesizer'
     WAMA_ENHANCER = 'enhancer', 'WAMA Enhancer'
+    WAMA_AVATARIZER = 'avatarizer', 'WAMA Avatarizer'
     OLLAMA = 'ollama', 'Ollama'
     HUGGINGFACE = 'huggingface', 'HuggingFace'
     CUSTOM = 'custom', 'Custom'

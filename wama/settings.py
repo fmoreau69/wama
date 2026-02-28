@@ -210,6 +210,7 @@ INSTALLED_APPS = [
     'wama.imager',
     'wama.synthesizer',
     'wama.transcriber',
+    'wama.avatarizer',
     'wama.model_manager',  # AI Models Manager
     # WAMA Lab - Experimental/Research applications
     'wama_lab.face_analyzer',
@@ -311,11 +312,19 @@ if ENABLE_CELERY:
         'wama.synthesizer.workers.*': {'queue': 'gpu'},
         'wama.transcriber.workers.*': {'queue': 'gpu'},
         'wama.describer.workers.*': {'queue': 'gpu'},
+        'wama.avatarizer.workers.*': {'queue': 'gpu'},
         'wama_lab.face_analyzer.tasks.*': {'queue': 'gpu'},
         'wama_lab.cam_analyzer.tasks.*': {'queue': 'gpu'},
         'wama.model_manager.tasks.*': {'queue': 'default'},
     }
     CELERY_TASK_DEFAULT_QUEUE = 'default'
+
+    # Logging : les loggers wama.* propagent vers le handler Celery (logfile)
+    # worker_hijack_root_logger=True (défaut) → Celery prend en charge le root logger
+    # On s'assure que les loggers WAMA ne désactivent pas la propagation
+    CELERY_WORKER_HIJACK_ROOT_LOGGER = True
+    CELERY_WORKER_REDIRECT_STDOUTS = True
+    CELERY_WORKER_REDIRECT_STDOUTS_LEVEL = 'INFO'
 
 # TTS Microservice URL (FastAPI service for preloaded TTS models)
 TTS_SERVICE_URL = os.environ.get('TTS_SERVICE_URL', 'http://localhost:8001')

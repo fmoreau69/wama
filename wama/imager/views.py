@@ -591,6 +591,7 @@ def start_batch(request, parent_id):
             task = generate_image_task.delay(child.id)
             child.status = 'RUNNING'
             child.progress = 0
+            child.task_id = task.id
             child.save()
             started_count += 1
 
@@ -635,6 +636,7 @@ def start_generation(request, generation_id):
 
         # Update status
         generation.status = 'RUNNING'
+        generation.task_id = task.id
         generation.save()
 
         logger.info(f"Started generation #{generation.id}, task_id: {task.id}")
@@ -693,6 +695,7 @@ def restart_generation(request, generation_id):
 
         # Update status
         generation.status = 'RUNNING'
+        generation.task_id = task.id
         generation.save()
 
         logger.info(f"Restarted generation #{generation.id}, task_id: {task.id}")
@@ -734,6 +737,7 @@ def start_all_generations(request):
 
             generation.status = 'RUNNING'
             generation.progress = 0
+            generation.task_id = task.id
             generation.save()
             started_count += 1
             logger.info(f"Started generation #{generation.id}, task_id: {task.id}")
@@ -898,6 +902,14 @@ def delete_generation(request, generation_id):
             except Exception as e:
                 logger.warning(f"Failed to delete video: {str(e)}")
 
+        # Revoke Celery task if still queued/running
+        if generation.task_id:
+            try:
+                from celery.result import AsyncResult
+                AsyncResult(generation.task_id).revoke(terminate=False)
+            except Exception:
+                pass
+
         generation.delete()
         logger.info(f"Deleted generation #{generation_id}")
 
@@ -916,8 +928,14 @@ def clear_all(request):
     try:
         generations = ImageGeneration.objects.filter(user=user)
 
-        # Delete all generated images
+        # Revoke Celery tasks + delete files
+        from celery.result import AsyncResult
         for generation in generations:
+            if generation.task_id:
+                try:
+                    AsyncResult(generation.task_id).revoke(terminate=False)
+                except Exception:
+                    pass
             for image_path in generation.generated_images:
                 if os.path.exists(image_path):
                     try:

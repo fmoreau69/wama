@@ -7,6 +7,7 @@ from django.db import models
 from django.contrib.auth import get_user_model
 from django.core.validators import FileExtensionValidator
 from wama.common.utils.media_paths import upload_to_user_input, upload_to_user_output, UploadToUserPath
+from wama.common.tts.constants import TTS_MODEL_CHOICES, LANGUAGE_CHOICES, VOICE_PRESET_CHOICES
 
 User = get_user_model()
 
@@ -23,52 +24,10 @@ class VoiceSynthesis(models.Model):
         ('FAILURE', 'Échec'),
     ]
 
-    TTS_MODEL_CHOICES = [
-        ('xtts_v2', 'XTTS v2 (Multilingual, Voice Cloning)'),
-        ('bark', 'Bark (Natural, Emotional, Sound Effects)'),
-        ('vits', 'VITS (Fast, Good Quality)'),
-        ('tacotron2', 'Tacotron2 (Classic, Stable)'),
-        ('speedy_speech', 'SpeedySpeech (Very Fast)'),
-        ('higgs_audio', 'Higgs Audio v2 (Multi-Speaker, Voice Cloning, 24GB VRAM)'),
-    ]
-
-    LANGUAGE_CHOICES = [
-        ('en', 'English'),
-        ('fr', 'Français'),
-        ('es', 'Español'),
-        ('de', 'Deutsch'),
-        ('it', 'Italiano'),
-        ('pt', 'Português'),
-        ('pl', 'Polski'),
-        ('tr', 'Türkçe'),
-        ('ru', 'Русский'),
-        ('nl', 'Nederlands'),
-        ('cs', 'Čeština'),
-        ('ar', 'العربية'),
-        ('zh-cn', '中文'),
-        ('ja', '日本語'),
-        ('ko', '한국어'),
-    ]
-
-    VOICE_PRESET_CHOICES = [
-        ('default', 'Voix par défaut'),
-        ('male_1', 'Voix masculine 1'),
-        ('male_2', 'Voix masculine 2'),
-        ('female_1', 'Voix féminine 1'),
-        ('female_2', 'Voix féminine 2'),
-        ('custom', 'Voix personnalisée (clonage)'),
-        # Bark speaker presets
-        ('bark_v2_en_0', 'Bark EN Speaker 0'),
-        ('bark_v2_en_1', 'Bark EN Speaker 1'),
-        ('bark_v2_en_2', 'Bark EN Speaker 2'),
-        ('bark_v2_en_3', 'Bark EN Speaker 3'),
-        ('bark_v2_en_4', 'Bark EN Speaker 4'),
-        ('bark_v2_en_5', 'Bark EN Speaker 5'),
-        ('bark_v2_fr_0', 'Bark FR Speaker 0'),
-        ('bark_v2_fr_1', 'Bark FR Speaker 1'),
-        ('bark_v2_es_0', 'Bark ES Speaker 0'),
-        ('bark_v2_de_0', 'Bark DE Speaker 0'),
-    ]
+    # Choix TTS partagés — source : wama.common.tts.constants
+    TTS_MODEL_CHOICES    = TTS_MODEL_CHOICES
+    LANGUAGE_CHOICES     = LANGUAGE_CHOICES
+    VOICE_PRESET_CHOICES = VOICE_PRESET_CHOICES
 
     # Informations de base
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='voice_syntheses')

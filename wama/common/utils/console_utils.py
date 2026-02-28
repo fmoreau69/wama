@@ -105,12 +105,17 @@ def push_console_line(
             buf = buf[:maxlen]
         cache.set(key, buf, timeout=3600)
 
-    # Write to file log
+    # Write to file log (wama-console.log, no propagation)
     full_ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     _file_logger.info(
         "%s [%s] [%s] user=%s %s",
         full_ts, level.upper(), app, user_id, line,
     )
+
+    # Propagate to root logger so Celery worker logfile (celery-gpu.log) captures it
+    _prop_logger = logging.getLogger(f"wama.{app}")
+    _log_fn = getattr(_prop_logger, level if level in ("debug", "info", "warning", "error") else "info")
+    _log_fn("[%s] user=%s %s", app, user_id, line)
 
 
 # ---------------------------------------------------------------------------

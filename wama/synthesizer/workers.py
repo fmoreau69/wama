@@ -33,6 +33,10 @@ TTS_SERVICE_URL = getattr(settings, 'TTS_SERVICE_URL', 'http://localhost:8001')
 # Request timeout for TTS service (seconds)
 TTS_TIMEOUT = 300
 
+# Raised when the TTS service responds 503 "loading" — triggers a Celery retry
+class TTSServiceLoadingError(Exception):
+    pass
+
 
 def _tts_via_service(text, model, language='fr', voice_preset='default',
                      speaker_wav=None, multi_speaker=False,
@@ -71,7 +75,7 @@ def _tts_via_service(text, model, language='fr', voice_preset='default',
         resp = requests.post(
             f"{TTS_SERVICE_URL}/tts",
             json=payload,
-            timeout=TTS_TIMEOUT,
+            timeout=(5, TTS_TIMEOUT),  # (connect_timeout, read_timeout)
         )
         resp.raise_for_status()
     except requests.ConnectionError:
@@ -82,9 +86,21 @@ def _tts_via_service(text, model, language='fr', voice_preset='default',
     except requests.Timeout:
         raise RuntimeError(f"TTS service timed out after {TTS_TIMEOUT}s")
     except requests.HTTPError as e:
+        if e.response is not None and e.response.status_code == 503:
+            try:
+                # FastAPI wraps detail: {"detail": {"status": "loading", ...}}
+                body = e.response.json()
+                detail_obj = body.get("detail", {}) if isinstance(body, dict) else {}
+                if isinstance(detail_obj, dict) and detail_obj.get("status") == "loading":
+                    raise TTSServiceLoadingError(detail_obj.get("message", "TTS service is still loading"))
+            except TTSServiceLoadingError:
+                raise
+            except Exception:
+                pass
         detail = ""
         try:
-            detail = e.response.json().get("detail") or ""
+            detail_raw = e.response.json().get("detail") or ""
+            detail = str(detail_raw)
         except Exception:
             detail = e.response.text[:200] if e.response else ""
         raise RuntimeError(f"TTS service error: {detail or str(e)}")
@@ -238,7 +254,7 @@ def _split_text_into_chunks(text, max_chars):
     return chunks
 
 
-@shared_task(bind=True)
+@shared_task(bind=True, max_retries=60, default_retry_delay=10)
 def synthesize_voice(self, synthesis_id: int):
     """
     Tâche principale de synthèse vocale.
@@ -355,6 +371,25 @@ def synthesize_voice(self, synthesis_id: int):
             'duration': synthesis.duration_display,
             'word_count': synthesis.word_count,
         }
+
+    except TTSServiceLoadingError as e:
+        # TTS service is still starting — release the GPU worker and retry later.
+        retry_num = self.request.retries + 1
+        wait_msg = f"Service TTS en chargement, nouvelle tentative dans 10s ({retry_num}/60)..."
+        logger.info(f"synthesize_voice #{synthesis_id}: {wait_msg}")
+        synthesis.error_message = wait_msg
+        synthesis.save(update_fields=['error_message'])
+        _console(synthesis.user_id, wait_msg, level='warning')
+        try:
+            raise self.retry(exc=e, countdown=10)
+        except self.MaxRetriesExceededError:
+            # 60 retries × 10s = 10 minutes without TTS service → give up
+            synthesis.status = 'FAILURE'
+            synthesis.error_message = "Service TTS non disponible après 10 minutes d'attente (60 tentatives)"
+            synthesis.save(update_fields=['status', 'error_message'])
+            _set_progress(synthesis, 0)
+            _console(synthesis.user_id, "Erreur: service TTS non disponible après 10 minutes", level='error')
+            return {'ok': False, 'error': str(e)}
 
     except Exception as e:
         logger.error(f"Error in synthesize_voice task: {str(e)}", exc_info=True)

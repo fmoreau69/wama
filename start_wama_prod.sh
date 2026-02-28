@@ -104,6 +104,7 @@ else:
 # ------------------------------------------------------
 if ! pgrep -f "uvicorn tts_service" > /dev/null; then
     echo "=== Starting TTS Service (port 8001) ==="
+    export TTS_SKIP_PRELOAD=1
     export HIGGS_DISABLE_CUDA_GRAPHS=1
     nohup python -m uvicorn tts_service:app \
         --host 0.0.0.0 \
@@ -113,19 +114,21 @@ if ! pgrep -f "uvicorn tts_service" > /dev/null; then
         > $LOG_DIR/tts-service.log 2>&1 &
     TTS_PID=$!
     disown $TTS_PID
-    echo "TTS Service started (PID $TTS_PID), waiting for model to load..."
+    echo "TTS Service started (PID $TTS_PID), waiting for service to be ready..."
     TTS_READY=0
     # Wait up to 10 minutes (300 × 2s). First pass: wait for uvicorn to respond at all,
     # then wait for status=="ok" (background model loading complete).
     for i in $(seq 1 300); do
         STATUS=$(curl -s http://localhost:8001/health 2>/dev/null \
-            | python3 -c "import sys,json; print(json.load(sys.stdin).get('status',''))" 2>/dev/null)
+            | python3 -c "import sys,json; print(json.load(sys.stdin).get('status',''))" 2>/dev/null) || true
         if [ "$STATUS" = "ok" ]; then
-            echo "TTS Service ready! (${i}x2s = $((i*2))s)"
+            echo -e "\rTTS Service ready! ($((i*2))s)                    "
             TTS_READY=1
             break
         elif [ "$STATUS" = "loading" ]; then
-            echo "TTS Service loading... ($((i*2))s)"
+            printf "\rTTS Service loading... (%ds)   " $((i*2))
+        else
+            printf "\rTTS Service starting... (%ds)  " $((i*2))
         fi
         sleep 2
     done
