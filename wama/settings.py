@@ -329,6 +329,11 @@ if ENABLE_CELERY:
 # TTS Microservice URL (FastAPI service for preloaded TTS models)
 TTS_SERVICE_URL = os.environ.get('TTS_SERVICE_URL', 'http://localhost:8001')
 
+# Ollama host (AI Assistant on the home page)
+# If WAMA runs in WSL2 and Ollama runs on Windows, point this to the Windows IP:
+#   export OLLAMA_HOST=http://REDACTED_HOST_IP:11434
+OLLAMA_HOST = os.environ.get('OLLAMA_HOST', 'http://127.0.0.1:11434')
+
 # Anthropic API Configuration (for AI Chat feature)
 # Set your API key here or use ANTHROPIC_API_KEY environment variable
 ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY', None)

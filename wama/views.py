@@ -56,7 +56,8 @@ def _chat_with_ollama(message: str, model: str = "fast") -> dict:
     }
 
     ollama_model = MODEL_MAP.get(model, model)
-    ollama_url = "http://127.0.0.1:11434/api/chat"
+    ollama_host = getattr(settings, 'OLLAMA_HOST', 'http://127.0.0.1:11434').rstrip('/')
+    ollama_url = f"{ollama_host}/api/chat"
 
     try:
         # Use httpx directly with trust_env=False to bypass proxy
@@ -97,7 +98,9 @@ def _chat_with_ollama(message: str, model: str = "fast") -> dict:
 
     except httpx.ConnectError:
         return {
-            'error': 'Ollama server not running. Start it with: ollama serve',
+            'error': f'Ollama unreachable at {ollama_url}. '
+                     f'Check that Ollama is running (ollama serve) and that OLLAMA_HOST points to the correct address '
+                     f'(current: {ollama_host}).',
             'status': 503
         }
     except httpx.TimeoutException:
