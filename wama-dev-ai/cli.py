@@ -33,6 +33,7 @@ from ui.diff import DiffRenderer
 from core.llm import LLMClient
 from core.files import FileDiscovery
 from core.tools import ToolRegistry, ToolCall
+from core.history import ConversationHistory
 
 
 class WAMADevAI:
@@ -48,11 +49,13 @@ class WAMADevAI:
         self.tools = ToolRegistry(llm=self.llm)  # Pass LLM for semantic search (RAG)
         self.diff_renderer = DiffRenderer(console._console)
         self._conversation_mode = False
-        # Persistent conversation state
+        # Persistent conversation state (in-memory, per agentic loop)
         self._last_request = None
         self._last_messages = []
-
         self._last_executed_calls = set()
+
+        # Disk-backed history
+        self.history = ConversationHistory()
 
         # Adaptive model selection based on available memory
         self._selected_model_key = None
@@ -233,6 +236,8 @@ class WAMADevAI:
         console.print("  [dim]/models[/]   - Show models")
         console.print("  [dim]/memory[/]   - Memory status")
         console.print("  [dim]/refresh[/]  - Re-select model")
+        console.print("  [dim]/history[/]  - Show/resume past sessions")
+        console.print("  [dim]/summary[/]  - Summarize current conversation")
         console.print("  [dim]/exit[/]     - Exit")
         console.print()
 
@@ -286,6 +291,12 @@ class WAMADevAI:
         elif cmd == "refresh":
             self.refresh_model_selection()
 
+        elif cmd == "history":
+            self._cmd_history(args)
+
+        elif cmd == "summary":
+            self._cmd_summary(args)
+
         elif cmd == "clear":
             console.clear()
 
@@ -303,8 +314,11 @@ class WAMADevAI:
         # Load system prompt
         system_prompt = self._load_prompt("system.txt")
 
-        # Detect if this is a continuation request
-        continue_keywords = ['continue', 'poursuivre', 'poursuit', 'continue', 'go on', 'keep going', 'suite', 'poursuis']
+        # Detect if this is an explicit "continue/resume" request
+        continue_keywords = [
+            'continue', 'poursuivre', 'poursuit', 'go on', 'keep going',
+            'suite', 'poursuis', 'reprends', 'resume',
+        ]
         is_continuation = (
             self._last_request and
             self._last_messages and
@@ -329,10 +343,17 @@ DO NOT make any more tool calls. Instead:
 
 YOUR FINAL ANSWER:"""
         else:
-            # New request - reset context
+            # New request — inject the last few messages as sliding context window
+            # so follow-up questions (e.g. "Peux-tu faire les vérifications?") naturally
+            # carry the previous topic rather than starting from scratch.
             original_request = request
-            messages = []
             executed_tool_calls = set()
+
+            context_tail = self.history.tail(n=6)  # last 6 messages from history
+            if context_tail:
+                console.info(f"[dim]↩ Carrying {len(context_tail)} messages of prior context[/]")
+            messages = list(context_tail)
+
             # Build initial user prompt
             user_prompt = f"""User request: {request}
 
@@ -504,6 +525,9 @@ If you're ready to make changes, use edit_file with exact strings from the file.
         self._last_messages = messages.copy()
         self._last_executed_calls = executed_tool_calls.copy()
 
+        # Persist to disk so history survives CLI restart
+        self.history.save(original_request, self._last_messages)
+
         if iteration >= max_iterations:
             console.warning("Maximum iterations reached. You can type 'poursuivre' to continue.")
 
@@ -630,6 +654,96 @@ If you're ready to make changes, use edit_file with exact strings from the file.
     # Commands
     # =========================================================================
 
+    def _cmd_history(self, args: str):
+        """List past sessions and optionally resume one."""
+        sessions = self.history.list_sessions(limit=10)
+        if not sessions:
+            console.warning("No conversation history found.")
+            console.info(f"History is saved in: {self.history._session_file.parent}")
+            return
+
+        console.section("Conversation History")
+        for i, s in enumerate(sessions, 1):
+            ts = s['timestamp'][:16].replace('T', ' ')
+            is_current = s['session_id'] == self.history.session_id
+            tag = " [dim](current)[/]" if is_current else ""
+            console.print(f"  [bold cyan]{i}.[/] [{ts}]  ({s['message_count']} msgs){tag}")
+            console.print(f"     [dim]Request:[/] {s['last_request']}")
+            if s['last_reply_snippet']:
+                console.print(f"     [dim]Reply:  [/] {s['last_reply_snippet'][:100]}…")
+            console.print()
+
+        console.print("[dim]Enter a number to resume that session, or press Enter to cancel.[/]")
+        choice = console.prompt("Resume session").strip()
+
+        if not choice:
+            return
+
+        try:
+            idx = int(choice) - 1
+            if not (0 <= idx < len(sessions)):
+                raise ValueError
+        except ValueError:
+            console.warning("Invalid choice.")
+            return
+
+        selected = sessions[idx]
+        data = self.history.load_session(selected['session_id'])
+        if not data:
+            console.error("Could not load session.")
+            return
+
+        self._last_request = data.get('last_request', '')
+        self._last_messages = data.get('messages', [])
+        self._last_executed_calls = set()
+        # Update the live history tail so the next new request carries this context
+        self.history._messages = list(self._last_messages)
+        self.history._last_request = self._last_request
+
+        console.success(f"Session loaded: {selected['session_id']}")
+        console.info(f"Last request: {self._last_request[:80]}")
+        console.info("You can now continue with a follow-up question, or type 'poursuivre' to synthesize.")
+
+    def _cmd_summary(self, args: str):
+        """Ask the LLM to summarize the current (or a past) conversation."""
+        messages = self._last_messages
+        if not messages:
+            # Try loading the most recent session from disk
+            data = self.history.load_last()
+            if data:
+                messages = data.get('messages', [])
+                console.info(f"Summarizing last session: {data.get('session_id', '')}")
+            else:
+                console.warning("No conversation to summarize. Have a conversation first.")
+                return
+
+        # Build a condensed transcript
+        lines = []
+        for m in messages:
+            role = m.get('role', 'unknown')
+            content = m.get('content', '')[:600]
+            lines.append(f"[{role.upper()}]: {content}")
+        transcript = "\n\n".join(lines)
+
+        summary_prompt = f"""Here is a conversation transcript between a developer and an AI assistant.
+Please provide a concise summary (5-10 bullet points) covering:
+- What the developer was trying to do
+- What files/functions were explored
+- What conclusions or answers were reached
+- Any pending actions
+
+TRANSCRIPT:
+{transcript}
+
+SUMMARY:"""
+
+        console.section("Generating Summary")
+        console.print(f"[bold cyan]🤖 Summary:[/]")
+        system_prompt = self._load_prompt("system.txt")
+        for chunk in self.llm.stream(summary_prompt, model=self._selected_model_key, system_prompt=system_prompt):
+            console.print(chunk, end="")
+        console.print("\n")
+
     def _show_help(self):
         """Show help information."""
         console.panel("""
@@ -642,6 +756,8 @@ If you're ready to make changes, use edit_file with exact strings from the file.
 [cyan]/models[/]            Show available models
 [cyan]/memory[/]            Show memory status and available models
 [cyan]/refresh[/]           Re-select model based on current memory
+[cyan]/history[/]           List past sessions and optionally resume one
+[cyan]/summary[/]           Summarize the current (or last) conversation
 [cyan]/clear[/]             Clear the screen
 [cyan]/exit[/]              Exit the application
 
@@ -652,6 +768,10 @@ Just type your request in natural language:
 - "Add a new API endpoint for..."
 - "Explain how the imager backend works"
 - "Refactor the transcriber to..."
+
+Follow-up questions automatically carry the last few messages as context,
+so you can say "Et maintenant, peux-tu vérifier X?" and it will remember
+what you were discussing.
 
 [bold]Adaptive Model Selection[/bold]
 
