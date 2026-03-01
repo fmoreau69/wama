@@ -1,3 +1,5 @@
+import json
+
 from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
@@ -8,9 +10,10 @@ from django.urls import reverse
 from django.utils.decorators import method_decorator
 from django.views.generic import ListView, View, DetailView, TemplateView
 from django.views.generic.edit import CreateView, UpdateView
+from django.views.decorators.http import require_POST
 from functools import wraps
 
-from .models import LoginForm, UserRegistrationForm
+from .models import LoginForm, UserRegistrationForm, UserProfile
 from ..anonymizer.forms import UserSettingsEdit
 from ..anonymizer.models import UserSettings
 
@@ -184,6 +187,59 @@ def login_form(request):
     if not request.user.is_authenticated:
         return {"login_form": LoginForm()}
     return {}
+
+
+# =============================================================================
+# Profile Views
+# =============================================================================
+
+@login_required
+def profile_view(request):
+    """Unified profile page: user info + preferred language + API token."""
+    from rest_framework.authtoken.models import Token
+    from wama.common.tts.constants import LANGUAGE_CHOICES
+
+    token_obj, _ = Token.objects.get_or_create(user=request.user)
+    profile, _ = UserProfile.objects.get_or_create(user=request.user)
+
+    return render(request, 'accounts/profile.html', {
+        'token': token_obj.key,
+        'profile': profile,
+        'languages': LANGUAGE_CHOICES,
+    })
+
+
+@login_required
+@require_POST
+def language_update(request):
+    """AJAX: save preferred language to UserProfile."""
+    from wama.common.tts.constants import LANGUAGE_CHOICES
+
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'JSON invalide'}, status=400)
+
+    lang = data.get('language', 'fr')
+    valid_codes = [c[0] for c in LANGUAGE_CHOICES]
+    if lang not in valid_codes:
+        return JsonResponse({'error': f"Langue invalide : '{lang}'"}, status=400)
+
+    profile, _ = UserProfile.objects.get_or_create(user=request.user)
+    profile.preferred_language = lang
+    profile.save(update_fields=['preferred_language'])
+    return JsonResponse({'success': True, 'language': lang})
+
+
+@login_required
+@require_POST
+def token_regenerate(request):
+    """AJAX: delete existing DRF token and create a new one."""
+    from rest_framework.authtoken.models import Token
+
+    Token.objects.filter(user=request.user).delete()
+    token = Token.objects.create(user=request.user)
+    return JsonResponse({'success': True, 'token': token.key})
 
 
 def add_user(username, first_name, last_name, email):

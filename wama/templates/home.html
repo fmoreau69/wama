@@ -24,26 +24,75 @@
       const modelSelect = document.getElementById('ai-model');
       const modelContainer = document.getElementById('model-container');
 
-      // Show/hide model selector based on provider
-      function updateModelVisibility() {
-        if (providerSelect.value === 'wama-dev-ai') {
-          modelContainer.style.display = 'block';
-        } else {
-          modelContainer.style.display = 'none';
-        }
+      // localStorage key scoped to current user
+      const STORAGE_KEY = 'wama_chat_{{ request.user.username }}';
+      const MAX_HISTORY = 60; // max entries kept in storage
+      let chatHistory = [];   // [{type, content?, steps?, model?}]
+
+      // ── Persistence ──────────────────────────────────────────────────────
+      function saveChatHistory() {
+        try {
+          const slice = chatHistory.slice(-MAX_HISTORY);
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(slice));
+        } catch(e) { /* storage full – silently ignore */ }
       }
 
+      function clearChatHistory() {
+        chatHistory = [];
+        localStorage.removeItem(STORAGE_KEY);
+        chatMessages.innerHTML = `
+          <div class="text-center py-4">
+            <i class="fas fa-robot fa-2x mb-2"></i>
+            <p class="mb-0">Posez-moi une question ou demandez-moi d'agir sur WAMA.</p>
+            <p class="small mt-2 text-muted">Ex : "Liste mes fichiers temporaires" · "Ajoute biovam.mp4 à l'anonymizer avec SAM3" · "Lance le traitement"</p>
+          </div>`;
+      }
+
+      // ── Show/hide model selector based on provider ────────────────────────
+      function updateModelVisibility() {
+        modelContainer.style.display = providerSelect.value === 'wama-dev-ai' ? 'block' : 'none';
+      }
       providerSelect.addEventListener('change', updateModelVisibility);
       updateModelVisibility();
 
-      function addMessage(content, isUser = false, isError = false, modelInfo = null) {
-        // Clear placeholder if exists
-        const placeholder = chatMessages.querySelector('.text-center');
-        if (placeholder) placeholder.remove();
+      // ── Tool icon map ─────────────────────────────────────────────────────
+      const TOOL_ICONS = {
+        list_user_files:      '📂',
+        add_to_anonymizer:    '➕',
+        start_anonymizer:     '▶️',
+        get_anonymizer_status:'📊',
+        sam3_examples:        '💡',
+      };
 
+      // ── Render helpers (save=true when called from user action) ───────────
+      function renderToolSteps(steps) {
+        const stepsDiv = document.createElement('div');
+        stepsDiv.className = 'mb-2';
+        steps.forEach(step => {
+          const icon = TOOL_ICONS[step.tool] || '🔧';
+          const hasError = step.result && step.result.error;
+          const summary = hasError
+            ? `${icon} ${step.tool} → ❌ ${step.result.error}`
+            : `${icon} ${step.tool} → ✅`;
+          const details = document.createElement('details');
+          details.className = 'mb-1';
+          details.style.cssText = 'font-size:0.8em;';
+          const sumEl = document.createElement('summary');
+          sumEl.style.cssText = `cursor:pointer; color:${hasError ? '#ff6b6b' : '#6fcf97'}; user-select:none;`;
+          sumEl.textContent = summary;
+          const pre = document.createElement('pre');
+          pre.style.cssText = 'font-size:0.75em; background:#0d1117; color:#c9d1d9; border-radius:4px; padding:6px; max-height:120px; overflow-y:auto; white-space:pre-wrap; word-break:break-word; margin:4px 0 0 0;';
+          pre.textContent = JSON.stringify(step.result, null, 2);
+          details.appendChild(sumEl);
+          details.appendChild(pre);
+          stepsDiv.appendChild(details);
+        });
+        return stepsDiv;
+      }
+
+      function renderMessage(content, isUser, isError, modelInfo) {
         const messageDiv = document.createElement('div');
         messageDiv.className = `mb-3 ${isUser ? 'text-end' : ''}`;
-
         const bubble = document.createElement('div');
         bubble.className = `d-inline-block p-3 rounded-3 ${isUser ? 'bg-primary text-white' : isError ? 'bg-danger text-white' : 'bg-secondary text-white'}`;
         bubble.style.maxWidth = '85%';
@@ -51,35 +100,48 @@
         bubble.style.whiteSpace = 'pre-wrap';
         bubble.style.wordBreak = 'break-word';
         bubble.textContent = content;
-
-        // Add model info badge for assistant messages
         if (!isUser && !isError && modelInfo) {
-          const modelBadge = document.createElement('div');
-          modelBadge.className = 'small mt-1';
-          modelBadge.textContent = modelInfo;
-          bubble.appendChild(modelBadge);
+          const badge = document.createElement('div');
+          badge.className = 'small mt-1';
+          badge.textContent = modelInfo;
+          bubble.appendChild(badge);
         }
-
         messageDiv.appendChild(bubble);
-        chatMessages.appendChild(messageDiv);
+        return messageDiv;
+      }
+
+      // ── Public DOM mutators ───────────────────────────────────────────────
+      function addToolSteps(steps, save = true) {
+        if (!steps || steps.length === 0) return;
+        const placeholder = chatMessages.querySelector('.text-center');
+        if (placeholder) placeholder.remove();
+        chatMessages.appendChild(renderToolSteps(steps));
         chatMessages.scrollTop = chatMessages.scrollHeight;
+        if (save) {
+          chatHistory.push({ type: 'tool_steps', steps });
+          saveChatHistory();
+        }
+      }
+
+      function addMessage(content, isUser = false, isError = false, modelInfo = null, save = true) {
+        const placeholder = chatMessages.querySelector('.text-center');
+        if (placeholder) placeholder.remove();
+        chatMessages.appendChild(renderMessage(content, isUser, isError, modelInfo));
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+        if (save) {
+          chatHistory.push({ type: isUser ? 'user' : isError ? 'error' : 'assistant', content, model: modelInfo });
+          saveChatHistory();
+        }
       }
 
       function addLoadingIndicator() {
         const placeholder = chatMessages.querySelector('.text-center');
         if (placeholder) placeholder.remove();
-
-        const provider = providerSelect.value;
-        const providerName = provider === 'claude' ? 'Claude' : 'wama-dev-ai';
-
+        const providerName = providerSelect.value === 'claude' ? 'Claude' : 'wama-dev-ai';
         const loadingDiv = document.createElement('div');
         loadingDiv.id = 'ai-loading';
         loadingDiv.className = 'mb-3';
-        loadingDiv.innerHTML = `
-          <div class="d-inline-block p-3 rounded-3 bg-secondary text-white">
-            <i class="fas fa-spinner fa-spin me-2"></i> ${providerName} is thinking...
-          </div>
-        `;
+        loadingDiv.innerHTML = `<div class="d-inline-block p-3 rounded-3 bg-secondary text-white"><i class="fas fa-spinner fa-spin me-2"></i> ${providerName} is thinking...</div>`;
         chatMessages.appendChild(loadingDiv);
         chatMessages.scrollTop = chatMessages.scrollHeight;
       }
@@ -89,50 +151,62 @@
         if (loading) loading.remove();
       }
 
+      // ── Restore history on page load ──────────────────────────────────────
+      function loadChatHistory() {
+        try {
+          const saved = localStorage.getItem(STORAGE_KEY);
+          if (!saved) return;
+          chatHistory = JSON.parse(saved);
+          if (!chatHistory.length) return;
+          // Clear placeholder
+          chatMessages.innerHTML = '';
+          chatHistory.forEach(entry => {
+            if (entry.type === 'tool_steps') {
+              chatMessages.appendChild(renderToolSteps(entry.steps));
+            } else if (entry.type === 'user') {
+              chatMessages.appendChild(renderMessage(entry.content, true, false, null));
+            } else if (entry.type === 'assistant') {
+              chatMessages.appendChild(renderMessage(entry.content, false, false, entry.model));
+            } else if (entry.type === 'error') {
+              chatMessages.appendChild(renderMessage(entry.content, false, true, null));
+            }
+          });
+          chatMessages.scrollTop = chatMessages.scrollHeight;
+        } catch(e) {
+          localStorage.removeItem(STORAGE_KEY);
+        }
+      }
+      loadChatHistory();
+
+      // ── Clear button ──────────────────────────────────────────────────────
+      document.getElementById('ai-chat-clear').addEventListener('click', clearChatHistory);
+
+      // ── Submit handler ────────────────────────────────────────────────────
       chatForm.addEventListener('submit', async function(e) {
         e.preventDefault();
-
         const message = chatInput.value.trim();
         if (!message) return;
 
-        // Add user message
         addMessage(message, true);
         chatInput.value = '';
-
-        // Disable input while processing
         chatInput.disabled = true;
         chatSubmit.disabled = true;
         chatSubmit.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-
-        // Show loading indicator
         addLoadingIndicator();
 
-        // Build request body
-        const requestBody = {
-          message: message,
-          provider: providerSelect.value
-        };
-
-        // Add model if using wama-dev-ai
-        if (providerSelect.value === 'wama-dev-ai') {
-          requestBody.model = modelSelect.value;
-        }
+        const requestBody = { message, provider: providerSelect.value };
+        if (providerSelect.value === 'wama-dev-ai') requestBody.model = modelSelect.value;
 
         try {
           const response = await fetch('/api/ai-chat/', {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-CSRFToken': '{{ csrf_token }}'
-            },
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
             body: JSON.stringify(requestBody)
           });
-
           removeLoadingIndicator();
-
           const data = await response.json();
-
           if (data.success) {
+            if (data.tool_steps && data.tool_steps.length > 0) addToolSteps(data.tool_steps);
             addMessage(data.response, false, false, data.model);
           } else {
             addMessage(data.error || 'An error occurred', false, true);
@@ -141,7 +215,6 @@
           removeLoadingIndicator();
           addMessage('Network error: ' + error.message, false, true);
         } finally {
-          // Re-enable input
           chatInput.disabled = false;
           chatSubmit.disabled = false;
           chatSubmit.innerHTML = '<i class="fas fa-paper-plane"></i> Send';
@@ -174,7 +247,12 @@
     <!-- AI Chat (Admin Only) -->
     <div class="row mb-4">
       <div class="col-12">
-        <h4 class="mb-3"><i class="fas fa-comments"></i> AI Assistant <span class="badge bg-secondary">Admin</span></h4>
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h4 class="mb-0"><i class="fas fa-comments"></i> AI Assistant <span class="badge bg-secondary">Admin</span></h4>
+          <button id="ai-chat-clear" class="btn btn-outline-secondary btn-sm" title="Effacer la conversation">
+            <i class="fas fa-trash-alt me-1"></i> Effacer
+          </button>
+        </div>
         <div class="card" style="background: #212529; border: 1px solid #495057;">
           <div class="card-body">
             <!-- Provider Selection -->
@@ -201,8 +279,8 @@
             <div id="ai-chat-messages" class="mb-3" style="max-height: 400px; overflow-y: auto; min-height: 100px; background: #1a1d21; border-radius: 8px; padding: 15px;">
               <div class="text-center py-4">
                 <i class="fas fa-robot fa-2x mb-2"></i>
-                <p class="mb-0">Ask me anything about WAMA or get help with tasks.</p>
-                <p class="small mt-2">Using local AI by default (wama-dev-ai)</p>
+                <p class="mb-0">Posez-moi une question ou demandez-moi d'agir sur WAMA.</p>
+                <p class="small mt-2 text-muted">Ex : "Liste mes fichiers temporaires" · "Ajoute biovam.mp4 à l'anonymizer avec SAM3" · "Lance le traitement"</p>
               </div>
             </div>
             <!-- Input Form -->

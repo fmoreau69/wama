@@ -26,6 +26,10 @@ DJANGO_PORT=8000
 GUNICORN_WORKERS=4
 LOG_DIR=$PROJECT_DIR/logs
 
+# Ollama runs on Windows — WSL2 cannot reach 127.0.0.1:11434 directly.
+# The Windows host IP is resolved at startup; override with OLLAMA_HOST env var if needed.
+export OLLAMA_HOST=${OLLAMA_HOST:-http://$(ip route show | awk '/^default/{print $3; exit}'):11434}
+
 mkdir -p $LOG_DIR
 
 # ------------------------------------------------------

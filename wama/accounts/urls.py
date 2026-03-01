@@ -15,6 +15,11 @@ urlpatterns = [
     path('user/edit', views.UserEdit.as_view(), name='user-edit'),
     path('user/settings/edit/', views.UserSettingsUpdate.as_view(), name='settings-edit'),
 
+    # Profile
+    path('profile/', views.profile_view, name='profile'),
+    path('profile/language/', views.language_update, name='profile-language'),
+    path('profile/token/regenerate/', views.token_regenerate, name='token-regenerate'),
+
     # User Management (Admin only)
     path('users/', views.user_management, name='user-management'),
     path('users/new/', views.user_add, name='user-add'),

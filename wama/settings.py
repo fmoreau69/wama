@@ -215,7 +215,24 @@ INSTALLED_APPS = [
     # WAMA Lab - Experimental/Research applications
     'wama_lab.face_analyzer',
     'wama_lab.cam_analyzer',
+    # REST API
+    'rest_framework',
+    'rest_framework.authtoken',
 ]
+
+# Django REST Framework
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.TokenAuthentication',
+        'rest_framework.authentication.SessionAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ],
+    'DEFAULT_RENDERER_CLASSES': [
+        'rest_framework.renderers.JSONRenderer',
+    ],
+}
 
 # Middleware
 MIDDLEWARE = [

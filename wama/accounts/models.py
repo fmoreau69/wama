@@ -1,7 +1,35 @@
 from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
 from django.contrib.auth.decorators import user_passes_test
 from django.contrib.auth.models import User
+from django.db import models
+from django.db.models.signals import post_save
+from django.dispatch import receiver
 from django import forms
+
+from wama.common.tts.constants import LANGUAGE_CHOICES
+
+
+class UserProfile(models.Model):
+    """
+    WAMA-wide user preferences (cross-app).
+    Distinct from anonymizer.UserSettings which is anonymizer-specific.
+    """
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
+    preferred_language = models.CharField(
+        max_length=10,
+        choices=LANGUAGE_CHOICES,
+        default='fr',
+        verbose_name='Langue préférée',
+    )
+
+    def __str__(self):
+        return f"Profile({self.user.username})"
+
+
+@receiver(post_save, sender=User)
+def create_user_profile_signal(sender, instance, created, **kwargs):
+    if created:
+        UserProfile.objects.get_or_create(user=instance)
 
 
 class LoginForm(AuthenticationForm):

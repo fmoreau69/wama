@@ -44,7 +44,7 @@
     </label>
     <select class="form-select form-select-sm bg-dark text-white border-secondary" id="language" name="language">
         {% for value, label in languages %}
-        <option value="{{ value }}" {% if value == 'fr' %}selected{% endif %}>{{ label }}</option>
+        <option value="{{ value }}" {% if value == preferred_language %}selected{% endif %}>{{ label }}</option>
         {% endfor %}
     </select>
 </div>

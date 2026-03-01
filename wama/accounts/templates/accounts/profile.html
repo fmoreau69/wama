@@ -1,0 +1,225 @@
+{% extends 'base.html' %}
+
+{% block title %}Profil — WAMA{% endblock %}
+
+{% block extra_css %}
+<style>
+    .card.bg-dark .label-col { color: #9ca3af; }
+    .card.bg-dark .value-col { color: #e5e7eb; }
+    #tokenInput { font-family: monospace; letter-spacing: 0.05em; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row justify-content-center">
+        <div class="col-12 col-md-8 col-lg-6">
+
+            <!-- Header -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2 class="text-light mb-0">
+                    <i class="fas fa-user-circle me-2"></i>Profil
+                </h2>
+            </div>
+
+            <!-- ── Informations utilisateur ─────────────────────────────── -->
+            <div class="card bg-dark border-secondary mb-4">
+                <div class="card-header border-secondary">
+                    <h5 class="mb-0"><i class="fas fa-user me-2"></i>Informations utilisateur</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-2">
+                        <div class="col-4 label-col">Nom d'utilisateur</div>
+                        <div class="col-8 value-col">{{ request.user.username }}</div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-4 label-col">Nom complet</div>
+                        <div class="col-8 value-col">
+                            {{ request.user.first_name }} {{ request.user.last_name }}
+                        </div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-4 label-col">Email</div>
+                        <div class="col-8 value-col">{{ request.user.email|default:"—" }}</div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-4 label-col">Inscrit le</div>
+                        <div class="col-8 value-col">{{ request.user.date_joined|date:"d/m/Y H:i" }}</div>
+                    </div>
+                    <a href="{% url 'accounts:user-edit' %}" class="btn btn-outline-primary btn-sm">
+                        <i class="fas fa-pen me-1"></i> Modifier le profil
+                    </a>
+                </div>
+            </div>
+
+            <!-- ── Langue par défaut ────────────────────────────────────── -->
+            <div class="card bg-dark border-secondary mb-4">
+                <div class="card-header border-secondary">
+                    <h5 class="mb-0"><i class="fas fa-language me-2"></i>Langue par défaut</h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted small mb-3">
+                        Pré-sélectionnée dans les applications qui proposent un choix de langue (Synthesizer, etc.).
+                    </p>
+                    <div class="d-flex gap-2 align-items-center">
+                        <select id="languageSelect"
+                                class="form-select form-select-sm bg-dark text-white border-secondary"
+                                style="max-width: 220px;">
+                            {% for value, label in languages %}
+                            <option value="{{ value }}"
+                                {% if value == profile.preferred_language %}selected{% endif %}>
+                                {{ label }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <button id="saveLanguageBtn" class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-save me-1"></i> Enregistrer
+                        </button>
+                    </div>
+                    <div id="languageMsg" class="mt-2" style="display:none;"></div>
+                </div>
+            </div>
+
+            <!-- ── Token API ────────────────────────────────────────────── -->
+            <div class="card bg-dark border-secondary mb-4">
+                <div class="card-header border-secondary">
+                    <h5 class="mb-0"><i class="fas fa-key me-2"></i>Token API</h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted small mb-3">
+                        Utilisez ce token pour accéder à l'API WAMA depuis des scripts ou un bot Discord :
+                        <code class="text-light">Authorization: Token &lt;votre-token&gt;</code>
+                    </p>
+                    <div class="input-group mb-3">
+                        <input type="password" id="tokenInput"
+                               class="form-control bg-dark text-light border-secondary"
+                               value="{{ token }}" readonly>
+                        <button class="btn btn-outline-secondary" type="button" id="toggleTokenBtn"
+                                title="Afficher / masquer">
+                            <i class="fas fa-eye" id="toggleTokenIcon"></i>
+                        </button>
+                        <button class="btn btn-outline-secondary" type="button" id="copyTokenBtn"
+                                title="Copier dans le presse-papier">
+                            <i class="fas fa-copy"></i>
+                        </button>
+                    </div>
+
+                    <!-- Regenerate -->
+                    <button id="regenTokenBtn" class="btn btn-outline-danger btn-sm">
+                        <i class="fas fa-sync-alt me-1"></i> Regénérer le token
+                    </button>
+                    <div id="tokenMsg" class="mt-2" style="display:none;"></div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<!-- Confirmation modal for token regen -->
+<div class="modal fade" id="regenModal" tabindex="-1" aria-labelledby="regenModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title text-light" id="regenModalLabel">
+                    <i class="fas fa-exclamation-triangle text-warning me-2"></i>Regénérer le token
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-light">
+                L'ancien token sera immédiatement invalidé. Tout script ou bot l'utilisant devra être mis à jour.
+                <br><br>Confirmer la regénération ?
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                <button type="button" class="btn btn-danger" id="confirmRegenBtn">
+                    <i class="fas fa-sync-alt me-1"></i> Regénérer
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const LANGUAGE_URL  = "{% url 'accounts:profile-language' %}";
+const TOKEN_REGEN_URL = "{% url 'accounts:token-regenerate' %}";
+const CSRF_TOKEN    = "{{ csrf_token }}";
+
+// ── Helper ──────────────────────────────────────────────────────────────────
+function showMsg(el, text, isError = false) {
+    el.style.display = 'block';
+    el.className = 'mt-2 small ' + (isError ? 'text-danger' : 'text-success');
+    el.textContent = text;
+    setTimeout(() => { el.style.display = 'none'; }, 4000);
+}
+
+async function postJson(url, body) {
+    const resp = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN },
+        body: JSON.stringify(body),
+    });
+    return resp.json();
+}
+
+// ── Langue ──────────────────────────────────────────────────────────────────
+document.getElementById('saveLanguageBtn').addEventListener('click', async () => {
+    const lang = document.getElementById('languageSelect').value;
+    const msg  = document.getElementById('languageMsg');
+    try {
+        const data = await postJson(LANGUAGE_URL, { language: lang });
+        if (data.success) showMsg(msg, '✓ Langue enregistrée');
+        else showMsg(msg, data.error || 'Erreur', true);
+    } catch(e) {
+        showMsg(msg, 'Erreur réseau', true);
+    }
+});
+
+// ── Token : afficher / masquer ───────────────────────────────────────────────
+document.getElementById('toggleTokenBtn').addEventListener('click', () => {
+    const input = document.getElementById('tokenInput');
+    const icon  = document.getElementById('toggleTokenIcon');
+    if (input.type === 'password') {
+        input.type = 'text';
+        icon.className = 'fas fa-eye-slash';
+    } else {
+        input.type = 'password';
+        icon.className = 'fas fa-eye';
+    }
+});
+
+// ── Token : copier ──────────────────────────────────────────────────────────
+document.getElementById('copyTokenBtn').addEventListener('click', () => {
+    const val = document.getElementById('tokenInput').value;
+    navigator.clipboard.writeText(val).then(() => {
+        const msg = document.getElementById('tokenMsg');
+        showMsg(msg, '✓ Token copié dans le presse-papier');
+    });
+});
+
+// ── Token : regénérer ───────────────────────────────────────────────────────
+document.getElementById('regenTokenBtn').addEventListener('click', () => {
+    new bootstrap.Modal(document.getElementById('regenModal')).show();
+});
+
+document.getElementById('confirmRegenBtn').addEventListener('click', async () => {
+    bootstrap.Modal.getInstance(document.getElementById('regenModal')).hide();
+    const msg = document.getElementById('tokenMsg');
+    try {
+        const data = await postJson(TOKEN_REGEN_URL, {});
+        if (data.success) {
+            document.getElementById('tokenInput').value = data.token;
+            document.getElementById('tokenInput').type  = 'text';
+            document.getElementById('toggleTokenIcon').className = 'fas fa-eye-slash';
+            showMsg(msg, '✓ Nouveau token généré — mettez à jour vos scripts');
+        } else {
+            showMsg(msg, data.error || 'Erreur', true);
+        }
+    } catch(e) {
+        showMsg(msg, 'Erreur réseau', true);
+    }
+});
+</script>
+{% endblock %}
