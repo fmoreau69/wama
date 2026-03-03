@@ -152,6 +152,10 @@ export TTS_HOME=$PROJECT_DIR/AI-models/synthesizer/tts
 export CUDA_LAUNCH_BLOCKING=0
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
+# Suppress noisy but harmless framework warnings
+export TF_CPP_MIN_LOG_LEVEL=2          # Suppress TensorFlow C++ INFO/WARNING messages
+export PYTHONWARNINGS="ignore::FutureWarning:keras,ignore::DeprecationWarning:keras"  # Keras np.object FutureWarning
+
 # GPU Worker: handles all GPU-intensive AI tasks (1 task at a time)
 # Queue: gpu (anonymizer, imager, enhancer, synthesizer, transcriber, describer)
 if ! pgrep -f "celery.*gpu@" > /dev/null; then

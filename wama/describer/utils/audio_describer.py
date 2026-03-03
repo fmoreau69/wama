@@ -1,5 +1,8 @@
 """
 Audio description using Whisper transcription + summarization.
+
+Transcription is delegated to wama.common.utils.whisper_utils (faster-whisper,
+large-v3 by default) so that Transcriber and Describer share the same engine.
 """
 
 import os
@@ -7,9 +10,6 @@ import logging
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
-
-# Import model configuration (sets up cache paths)
-from .model_config import get_model_path, setup_model_environment
 
 
 def describe_audio(description, set_progress, set_partial, console):
@@ -35,20 +35,29 @@ def describe_audio(description, set_progress, set_partial, console):
     set_progress(description, 20)
 
     try:
-        # Transcribe audio
-        console(user_id, "Transcribing audio with Whisper...")
-        set_partial(description, "Loading Whisper model...")
+        # Transcribe audio with shared whisper_utils (faster-whisper, large-v3)
+        console(user_id, "Transcription audio avec Whisper (large-v3)…")
+        set_partial(description, "Chargement du modèle Whisper…")
 
-        transcript = transcribe_audio(file_path, console, user_id)
+        from wama.common.utils.whisper_utils import transcribe_audio as _transcribe
+        _result = _transcribe(file_path, model_name='large-v3')
+        transcript = _result.text
 
         if not transcript or not transcript.strip():
-            return "No speech detected in the audio file."
+            return "Aucune parole détectée dans le fichier audio."
 
         word_count = len(transcript.split())
-        console(user_id, f"Transcribed {word_count} words")
+        console(user_id, f"{word_count} mots transcrits")
 
         set_progress(description, 60)
         set_partial(description, transcript[:300] + "..." if len(transcript) > 300 else transcript)
+
+        # Meeting compte-rendu: bypass BART, use LLM directly
+        if output_format == 'meeting':
+            console(user_id, "Génération du compte-rendu de réunion (Ollama)…")
+            set_partial(description, "Rédaction du compte-rendu…")
+            from wama.common.utils.llm_utils import generate_meeting_summary
+            return generate_meeting_summary(transcript, language=output_language)
 
         # If short, just format the transcript
         if word_count <= max_length:
@@ -196,72 +205,6 @@ def describe_audio(description, set_progress, set_partial, console):
 
     except Exception as e:
         logger.exception(f"Error describing audio: {e}")
-        raise
-
-
-def transcribe_audio(file_path: str, console, user_id: int) -> str:
-    """Transcribe audio using Whisper."""
-    # Ensure environment is set up
-    setup_model_environment()
-
-    # Get whisper cache directory
-    whisper_dir = get_model_path('whisper')
-    os.environ['WHISPER_CACHE'] = str(whisper_dir)
-
-    try:
-        # Try faster-whisper first
-        try:
-            from faster_whisper import WhisperModel
-
-            console(user_id, "Using faster-whisper...")
-            logger.info(f"Whisper cache directory: {whisper_dir}")
-
-            model = WhisperModel(
-                "base",
-                device="auto",
-                compute_type="auto",
-                download_root=str(whisper_dir)
-            )
-            segments, info = model.transcribe(file_path)
-
-            transcript = ' '.join([segment.text for segment in segments])
-            return transcript.strip()
-
-        except ImportError:
-            pass
-
-        # Fall back to openai-whisper
-        try:
-            import whisper
-
-            console(user_id, "Using openai-whisper...")
-            logger.info(f"Whisper cache directory: {whisper_dir}")
-
-            # Set whisper download root
-            model = whisper.load_model("base", download_root=str(whisper_dir))
-            result = model.transcribe(file_path)
-
-            return result["text"].strip()
-
-        except ImportError:
-            pass
-
-        # Try using Transcriber module if available
-        try:
-            console(user_id, "Using Transcriber module...")
-            # This assumes the transcriber workers are available
-            from wama.transcriber.utils import transcribe_file
-            return transcribe_file(file_path)
-        except ImportError:
-            pass
-
-        raise ImportError(
-            "No Whisper implementation available. "
-            "Install: pip install faster-whisper or pip install openai-whisper"
-        )
-
-    except Exception as e:
-        logger.exception(f"Transcription failed: {e}")
         raise
 
 

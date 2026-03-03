@@ -309,6 +309,15 @@ def describe_text(description, set_progress, set_partial, console):
 
         set_progress(description, 30)
 
+        # Meeting compte-rendu: bypass BART, use LLM directly
+        if output_format == 'meeting':
+            console(user_id, "Génération du compte-rendu de réunion (Ollama)…")
+            set_partial(description, "Rédaction du compte-rendu…")
+            from wama.common.utils.llm_utils import generate_meeting_summary
+            result = generate_meeting_summary(text, language=output_language)
+            set_partial(description, result[:500])
+            return result
+
         # If text is short, just format it
         if word_count <= max_length:
             console(user_id, "Text is short, formatting directly...")

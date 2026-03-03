@@ -28,7 +28,7 @@
     </label>
     <textarea id="hotwordsInput" class="form-control form-control-sm"
               rows="2" placeholder="Noms propres, termes techniques...">{{ user_hotwords }}</textarea>
-    <small class="text-muted">Séparés par des virgules</small>
+    <small class="text-muted">Séparés par des virgules — <i>context biasing natif avec Qwen3-ASR</i></small>
 </div>
 
 <!-- Preprocessing Toggle -->
@@ -46,12 +46,43 @@
     </small>
 </div>
 
-<!-- Diarization Toggle (VibeVoice only) -->
-<div class="mb-3 vibevoice-option" id="diarizationOption" style="display: none;">
+<!-- Diarization Toggle -->
+<div class="mb-3" id="diarizationOption">
     <div class="form-check form-switch">
-        <input class="form-check-input" type="checkbox" id="diarizationToggle" checked>
+        <input class="form-check-input" type="checkbox" id="diarizationToggle" {% if global_diarization %}checked{% endif %}>
         <label class="form-check-label small fw-bold text-light" for="diarizationToggle">
             <i class="fas fa-users"></i> Identifier les locuteurs
+        </label>
+    </div>
+    <small class="d-block mt-1">Séparation des locuteurs (pyannote)</small>
+</div>
+
+<!-- Summary -->
+<div class="mb-2">
+    <div class="form-check form-switch">
+        <input class="form-check-input" type="checkbox" id="globalGenerateSummary" {% if global_generate_summary %}checked{% endif %}>
+        <label class="form-check-label small fw-bold text-light" for="globalGenerateSummary">
+            <i class="fas fa-file-lines"></i> Générer un résumé
+        </label>
+    </div>
+</div>
+<div class="mb-3 ms-3" id="globalSummaryTypeGroup" style="display: {% if global_generate_summary %}block{% else %}none{% endif %};">
+    <div class="form-check form-check-inline">
+        <input class="form-check-input" type="radio" name="globalSummaryType" id="globalSummaryTypeStructured" value="structured" {% if global_summary_type != 'meeting' %}checked{% endif %}>
+        <label class="form-check-label small text-light" for="globalSummaryTypeStructured">Structuré</label>
+    </div>
+    <div class="form-check form-check-inline">
+        <input class="form-check-input" type="radio" name="globalSummaryType" id="globalSummaryTypeMeeting" value="meeting" {% if global_summary_type == 'meeting' %}checked{% endif %}>
+        <label class="form-check-label small text-light" for="globalSummaryTypeMeeting">Réunion</label>
+    </div>
+</div>
+
+<!-- Coherence -->
+<div class="mb-3">
+    <div class="form-check form-switch">
+        <input class="form-check-input" type="checkbox" id="globalVerifyCoherence" {% if global_verify_coherence %}checked{% endif %}>
+        <label class="form-check-label small fw-bold text-light" for="globalVerifyCoherence">
+            <i class="fas fa-spell-check"></i> Vérifier la cohérence
         </label>
     </div>
 </div>
@@ -110,24 +141,7 @@
       preprocessingEnabled: {{ preprocessing_enabled|yesno:"true,false" }},
     });
 
-    // Show/hide VibeVoice-specific options based on backend selection
-    document.addEventListener('DOMContentLoaded', function() {
-        const backendSelect = document.getElementById('backendSelect');
-        const diarizationOption = document.getElementById('diarizationOption');
-
-        function updateVibeVoiceOptions() {
-            if (backendSelect.value === 'vibevoice') {
-                diarizationOption.style.display = 'block';
-            } else {
-                diarizationOption.style.display = 'none';
-            }
-        }
-
-        if (backendSelect) {
-            backendSelect.addEventListener('change', updateVibeVoiceOptions);
-            updateVibeVoiceOptions();
-        }
-    });
+    // Diarization is now always visible (uses pyannote, backend-agnostic)
 </script>
 <script src="{% static 'common/js/media-preview.js' %}"></script>
 <script src="{% static 'transcriber/js/index.js' %}"></script>
@@ -320,6 +334,9 @@
                                     data-diarization="{{ t.enable_diarization|yesno:'true,false' }}"
                                     data-temperature="{{ t.temperature }}"
                                     data-max-tokens="{{ t.max_tokens }}"
+                                    data-generate-summary="{{ t.generate_summary|yesno:'true,false' }}"
+                                    data-summary-type="{{ t.summary_type }}"
+                                    data-verify-coherence="{{ t.verify_coherence|yesno:'true,false' }}"
                                     title="Paramètres">
                                 <i class="fas fa-cog"></i>
                             </button>
@@ -421,9 +438,40 @@
                         <div class="form-check form-switch">
                             <input class="form-check-input" type="checkbox" id="settingsDiarization" name="enable_diarization">
                             <label class="form-check-label" for="settingsDiarization">
-                                <i class="fas fa-users"></i> Identifier les locuteurs
+                                <i class="fas fa-users"></i> Identifier les locuteurs (pyannote)
                             </label>
                         </div>
+                    </div>
+
+                    <!-- Summary -->
+                    <div class="mb-2">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="settingsGenerateSummary" name="generate_summary">
+                            <label class="form-check-label" for="settingsGenerateSummary">
+                                <i class="fas fa-file-lines"></i> Générer un résumé (LLM)
+                            </label>
+                        </div>
+                    </div>
+                    <div class="mb-3 ms-3" id="summaryTypeGroup" style="display: none;">
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="summary_type" id="summaryTypeStructured" value="structured" checked>
+                            <label class="form-check-label small" for="summaryTypeStructured">Résumé structuré</label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="summary_type" id="summaryTypeMeeting" value="meeting">
+                            <label class="form-check-label small" for="summaryTypeMeeting">Compte-rendu de réunion</label>
+                        </div>
+                    </div>
+
+                    <!-- Coherence verification -->
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="settingsVerifyCoherence" name="verify_coherence">
+                            <label class="form-check-label" for="settingsVerifyCoherence">
+                                <i class="fas fa-spell-check"></i> Vérifier la cohérence
+                            </label>
+                        </div>
+                        <small class="text-muted ms-4">Score + correction proposée côte à côte</small>
                     </div>
 
                     <!-- Temperature -->
@@ -461,7 +509,7 @@
 
 <!-- Result Preview Modal -->
 <div class="modal fade" id="resultModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-xl">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">
@@ -470,9 +518,59 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <div class="card" style="background: #1e1e1e; border: 1px solid #495057;">
-                    <div class="card-body">
-                        <pre id="resultText" style="color: #d4d4d4; white-space: pre-wrap; word-wrap: break-word; font-family: 'Segoe UI', Arial, sans-serif; font-size: 14px; line-height: 1.6; margin: 0; max-height: 500px; overflow-y: auto;"></pre>
+                <!-- Tabs -->
+                <ul class="nav nav-tabs mb-3" id="resultTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="tab-transcription-btn" data-bs-toggle="tab"
+                                data-bs-target="#tab-transcription" type="button" role="tab">
+                            <i class="fas fa-file-alt"></i> Transcription
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="tab-diarisation-btn" data-bs-toggle="tab"
+                                data-bs-target="#tab-diarisation" type="button" role="tab">
+                            <i class="fas fa-users"></i> Diarisation
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="tab-resume-btn" data-bs-toggle="tab"
+                                data-bs-target="#tab-resume" type="button" role="tab" style="display:none;">
+                            <i class="fas fa-file-lines"></i> Résumé
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="tab-coherence-btn" data-bs-toggle="tab"
+                                data-bs-target="#tab-coherence" type="button" role="tab" style="display:none;">
+                            <i class="fas fa-spell-check"></i> Cohérence
+                        </button>
+                    </li>
+                </ul>
+                <div class="tab-content">
+                    <!-- Transcription -->
+                    <div class="tab-pane fade show active" id="tab-transcription" role="tabpanel">
+                        <div class="card" style="background: #1e1e1e; border: 1px solid #495057;">
+                            <div class="card-body">
+                                <pre id="resultText" style="color: #d4d4d4; white-space: pre-wrap; word-wrap: break-word; font-family: 'Segoe UI', Arial, sans-serif; font-size: 14px; line-height: 1.6; margin: 0; max-height: 460px; overflow-y: auto;"></pre>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Diarisation -->
+                    <div class="tab-pane fade" id="tab-diarisation" role="tabpanel">
+                        <div id="diarisationContent" style="max-height: 480px; overflow-y: auto;">
+                            <p class="text-muted text-center py-3"><i class="fas fa-spinner fa-spin"></i> Chargement...</p>
+                        </div>
+                    </div>
+                    <!-- Résumé -->
+                    <div class="tab-pane fade" id="tab-resume" role="tabpanel">
+                        <div class="card" style="background: #1e1e1e; border: 1px solid #495057;">
+                            <div class="card-body">
+                                <div id="resumeContent" style="color: #d4d4d4; font-family: 'Segoe UI', Arial, sans-serif; font-size: 14px; line-height: 1.6; max-height: 460px; overflow-y: auto;"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Cohérence -->
+                    <div class="tab-pane fade" id="tab-coherence" role="tabpanel">
+                        <div id="coherenceContent"></div>
                     </div>
                 </div>
             </div>

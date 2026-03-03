@@ -40,6 +40,23 @@ class Transcript(models.Model):
     # Backend used for transcription (filled after processing)
     used_backend = models.CharField(max_length=32, blank=True, default='')
 
+    # Optional LLM summary (generated after transcription if requested)
+    generate_summary = models.BooleanField(default=False)
+    summary_type = models.CharField(
+        max_length=16,
+        choices=[('structured', 'Résumé structuré'), ('meeting', 'Compte-rendu de réunion')],
+        default='structured',
+    )
+    summary = models.TextField(blank=True, default='')
+    key_points = models.JSONField(null=True, blank=True)
+    action_items = models.JSONField(null=True, blank=True)
+
+    # Optional coherence check (score + notes + LLM-proposed correction)
+    verify_coherence = models.BooleanField(default=False)
+    coherence_score = models.IntegerField(null=True, blank=True)
+    coherence_notes = models.TextField(blank=True, default='')
+    coherence_suggestion = models.TextField(blank=True, default='')
+
     def __str__(self):
         return f"Transcript {self.id} ({self.user.username})"
 

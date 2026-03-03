@@ -106,15 +106,49 @@ def describe_content(self, description_id: int):
             raise ValueError(f"Unsupported content type: {content_type}")
 
         # Save result
-        _set_progress(description, 95)
-        _console(user_id, "Saving result...")
+        _set_progress(description, 90)
+        _console(user_id, "Sauvegarde du résultat…")
 
         description.result_text = result
         description.status = 'SUCCESS'
         description.save()
 
+        # Optional LLM summary via Ollama (skip if meeting format — already IS the summary)
+        if description.generate_summary and result and description.output_format != 'meeting':
+            try:
+                _console(user_id, "Génération du résumé LLM (Ollama)…")
+                from wama.common.utils.llm_utils import generate_structured_summary
+                summary_data = generate_structured_summary(
+                    result,
+                    content_hint=content_type,   # 'image', 'video', 'audio', 'text'
+                    language=description.output_language or 'fr',
+                )
+                description.summary = summary_data['summary']
+                description.save(update_fields=['summary'])
+                _console(user_id, "Résumé LLM généré ✓")
+            except Exception as llm_err:
+                _console(user_id, f"Avertissement: résumé LLM échoué ({llm_err})")
+
+        # Optional coherence verification via Ollama
+        if description.verify_coherence and result:
+            try:
+                _console(user_id, "Vérification de cohérence (Ollama)…")
+                from wama.common.utils.llm_utils import verify_text_coherence
+                coherence = verify_text_coherence(
+                    result,
+                    content_hint=content_type,
+                    language=description.output_language or 'fr',
+                )
+                description.coherence_score = coherence['score']
+                description.coherence_notes = '\n'.join(coherence['notes'])
+                description.coherence_suggestion = coherence['suggestion']
+                description.save(update_fields=['coherence_score', 'coherence_notes', 'coherence_suggestion'])
+                _console(user_id, f"Cohérence vérifiée — score: {coherence['score']}/100 ✓")
+            except Exception as coh_err:
+                _console(user_id, f"Avertissement: vérification cohérence échouée ({coh_err})")
+
         _set_progress(description, 100, force=True)
-        _console(user_id, f"Description completed for: {description.filename}")
+        _console(user_id, f"Description terminée: {description.filename}")
 
         return {'ok': True, 'id': description.id}
 

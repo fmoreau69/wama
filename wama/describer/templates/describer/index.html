@@ -38,6 +38,26 @@
     <input type="range" class="form-range" id="max_length" name="max_length" min="100" max="2000" step="50" value="500">
 </div>
 
+<!-- Summary -->
+<div class="mb-2">
+    <div class="form-check form-switch">
+        <input class="form-check-input" type="checkbox" id="globalGenerateSummary">
+        <label class="form-check-label small fw-bold text-light" for="globalGenerateSummary">
+            <i class="fas fa-file-lines"></i> Générer un résumé
+        </label>
+    </div>
+</div>
+
+<!-- Coherence -->
+<div class="mb-3">
+    <div class="form-check form-switch">
+        <input class="form-check-input" type="checkbox" id="globalVerifyCoherence">
+        <label class="form-check-label small fw-bold text-light" for="globalVerifyCoherence">
+            <i class="fas fa-spell-check"></i> Vérifier la cohérence
+        </label>
+    </div>
+</div>
+
 <!-- Info Box -->
 <div class="alert alert-info py-2 small" role="alert">
     <i class="fas fa-info-circle"></i> <strong>Types supportes:</strong><br>
@@ -221,6 +241,8 @@
                                     data-output-format="{{ desc.output_format }}"
                                     data-output-language="{{ desc.output_language }}"
                                     data-max-length="{{ desc.max_length }}"
+                                    data-generate-summary="{{ desc.generate_summary|yesno:'true,false' }}"
+                                    data-verify-coherence="{{ desc.verify_coherence|yesno:'true,false' }}"
                                     title="Parametres">
                                 <i class="fas fa-cog"></i>
                             </button>
@@ -263,7 +285,7 @@
 {% block extra_modals %}
 <!-- Result Preview Modal -->
 <div class="modal fade" id="resultModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-xl">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">
@@ -278,9 +300,47 @@
                     </div>
                 </div>
                 <div id="resultContent" style="display: none;">
-                    <div class="card" style="background: #1e1e1e; border: 1px solid #495057;">
-                        <div class="card-body">
-                            <pre id="resultText" style="color: #d4d4d4; white-space: pre-wrap; word-wrap: break-word; font-family: 'Segoe UI', Arial, sans-serif; font-size: 14px; line-height: 1.6; margin: 0; max-height: 500px; overflow-y: auto;"></pre>
+                    <!-- Tabs -->
+                    <ul class="nav nav-tabs mb-3" id="resultTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="tab-description-btn" data-bs-toggle="tab"
+                                    data-bs-target="#tab-description" type="button" role="tab">
+                                <i class="fas fa-file-alt"></i> Description
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="tab-resume-btn" data-bs-toggle="tab"
+                                    data-bs-target="#tab-resume" type="button" role="tab" style="display:none;">
+                                <i class="fas fa-file-lines"></i> Résumé
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="tab-coherence-btn" data-bs-toggle="tab"
+                                    data-bs-target="#tab-coherence" type="button" role="tab" style="display:none;">
+                                <i class="fas fa-spell-check"></i> Cohérence
+                            </button>
+                        </li>
+                    </ul>
+                    <div class="tab-content">
+                        <!-- Description -->
+                        <div class="tab-pane fade show active" id="tab-description" role="tabpanel">
+                            <div class="card" style="background: #1e1e1e; border: 1px solid #495057;">
+                                <div class="card-body">
+                                    <pre id="resultText" style="color: #d4d4d4; white-space: pre-wrap; word-wrap: break-word; font-family: 'Segoe UI', Arial, sans-serif; font-size: 14px; line-height: 1.6; margin: 0; max-height: 460px; overflow-y: auto;"></pre>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Résumé -->
+                        <div class="tab-pane fade" id="tab-resume" role="tabpanel">
+                            <div class="card" style="background: #1e1e1e; border: 1px solid #495057;">
+                                <div class="card-body">
+                                    <div id="resumeContent" style="color: #d4d4d4; font-family: 'Segoe UI', Arial, sans-serif; font-size: 14px; line-height: 1.6; max-height: 460px; overflow-y: auto;"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Cohérence -->
+                        <div class="tab-pane fade" id="tab-coherence" role="tabpanel">
+                            <div id="coherenceContent"></div>
                         </div>
                     </div>
                 </div>
@@ -340,6 +400,28 @@
                         </label>
                         <input type="range" class="form-range" id="settingsMaxLength" name="max_length"
                                min="100" max="2000" step="50" value="500">
+                    </div>
+
+                    <!-- Summary -->
+                    <div class="mb-2">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="settingsGenerateSummary" name="generate_summary">
+                            <label class="form-check-label" for="settingsGenerateSummary">
+                                <i class="fas fa-file-lines"></i> Générer un résumé LLM
+                            </label>
+                        </div>
+                        <small class="text-muted ms-4">Non applicable si format = Compte-rendu de réunion</small>
+                    </div>
+
+                    <!-- Coherence verification -->
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="settingsVerifyCoherence" name="verify_coherence">
+                            <label class="form-check-label" for="settingsVerifyCoherence">
+                                <i class="fas fa-spell-check"></i> Vérifier la cohérence
+                            </label>
+                        </div>
+                        <small class="text-muted ms-4">Score + correction proposée côte à côte</small>
                     </div>
                 </form>
             </div>

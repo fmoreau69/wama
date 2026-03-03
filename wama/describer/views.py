@@ -288,6 +288,10 @@ def progress(request, pk):
         response['result_text'] = description.result_text
         if description.result_file:
             response['result_url'] = description.result_file.url
+        response['summary'] = description.summary or ''
+        response['coherence_score'] = description.coherence_score
+        response['coherence_notes'] = description.coherence_notes or ''
+        response['coherence_suggestion'] = description.coherence_suggestion or ''
 
     if description.status == 'FAILURE':
         response['error'] = description.error_message
@@ -506,6 +510,10 @@ def update_options(request, pk):
         description.output_language = data['output_language']
     if 'max_length' in data:
         description.max_length = int(data['max_length'])
+    if 'generate_summary' in data:
+        description.generate_summary = bool(data['generate_summary'])
+    if 'verify_coherence' in data:
+        description.verify_coherence = bool(data['verify_coherence'])
 
     description.save()
 
@@ -514,4 +522,6 @@ def update_options(request, pk):
         'output_format': description.output_format,
         'output_language': description.output_language,
         'max_length': description.max_length,
+        'generate_summary': description.generate_summary,
+        'verify_coherence': description.verify_coherence,
     })

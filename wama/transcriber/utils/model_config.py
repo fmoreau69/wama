@@ -28,9 +28,14 @@ WHISPER_DIR = MODEL_PATHS.get('speech', {}).get('whisper',
 VIBEVOICE_DIR = MODEL_PATHS.get('speech', {}).get('vibevoice',
     settings.AI_MODELS_DIR / "models" / "speech" / "vibevoice")
 
+# Qwen3-ASR models directory
+QWEN_ASR_DIR = MODEL_PATHS.get('speech', {}).get('qwen_asr',
+    settings.AI_MODELS_DIR / "models" / "speech" / "qwen_asr")
+
 # Ensure directories exist
 WHISPER_DIR.mkdir(parents=True, exist_ok=True)
 VIBEVOICE_DIR.mkdir(parents=True, exist_ok=True)
+QWEN_ASR_DIR.mkdir(parents=True, exist_ok=True)
 
 # =============================================================================
 # MODEL DEFINITIONS
@@ -91,10 +96,37 @@ VIBEVOICE_MODELS = {
     },
 }
 
+# Qwen3-ASR models (Alibaba) — context biasing, 52 languages, low VRAM
+QWEN_ASR_MODELS = {
+    'qwen3-asr-0.6b': {
+        'model_id': 'Qwen/Qwen3-ASR-0.6B',
+        'hf_model_id': 'Qwen/Qwen3-ASR-0.6B',
+        'type': 'speech-to-text',
+        'size_gb': 1.5,
+        'vram_gb': 2,
+        'description': 'Qwen3-ASR 0.6B — rapide, context biasing, 52 langues (2 GB VRAM)',
+        'supports_hotwords': True,
+        'supports_timestamps': True,
+        'languages': '52',
+    },
+    'qwen3-asr-1.7b': {
+        'model_id': 'Qwen/Qwen3-ASR-1.7B',
+        'hf_model_id': 'Qwen/Qwen3-ASR-1.7B',
+        'type': 'speech-to-text',
+        'size_gb': 3.5,
+        'vram_gb': 4,
+        'description': 'Qwen3-ASR 1.7B — précis, context biasing, 52 langues (4 GB VRAM)',
+        'supports_hotwords': True,
+        'supports_timestamps': True,
+        'languages': '52',
+    },
+}
+
 # Combined models dictionary
 TRANSCRIBER_MODELS = {
     **TRANSCRIBER_MODELS,
     **VIBEVOICE_MODELS,
+    **QWEN_ASR_MODELS,
 }
 
 # Default model

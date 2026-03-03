@@ -69,13 +69,23 @@ def describe_video(description, set_progress, set_partial, console):
         set_progress(description, 60)
 
         # Extract and transcribe audio
-        audio_summary = ""
+        audio_transcript = ""
         if has_audio(file_path):
-            console(user_id, "Processing audio track...")
-            set_partial(description, "Transcribing audio...")
-
-            audio_summary = process_audio_track(file_path, max_length // 2, console, user_id)
+            console(user_id, "Traitement de la piste audio…")
+            set_partial(description, "Transcription audio…")
+            # For meeting format we need the full transcript (no BART shortening)
+            audio_transcript = process_audio_track(
+                file_path, max_length // 2, console, user_id,
+                skip_summarize=(output_format == 'meeting'),
+            )
             set_progress(description, 75)
+
+        # Meeting compte-rendu: skip frame analysis, use LLM on transcript
+        if output_format == 'meeting':
+            console(user_id, "Génération du compte-rendu de réunion (Ollama)…")
+            set_partial(description, "Rédaction du compte-rendu…")
+            from wama.common.utils.llm_utils import generate_meeting_summary
+            return generate_meeting_summary(audio_transcript, language=output_language)
 
         # Combine visual and audio descriptions
         console(user_id, "Generating video summary...")
@@ -83,7 +93,7 @@ def describe_video(description, set_progress, set_partial, console):
 
         result = combine_descriptions(
             frame_descriptions,
-            audio_summary,
+            audio_transcript,
             duration,
             output_format,
             max_length
@@ -214,7 +224,10 @@ def has_audio(file_path: str) -> bool:
         return False
 
 
-def process_audio_track(file_path: str, max_words: int, console, user_id: int) -> str:
+def process_audio_track(
+    file_path: str, max_words: int, console, user_id: int,
+    skip_summarize: bool = False,
+) -> str:
     """Extract and transcribe audio from video."""
     temp_audio = None
 
@@ -235,12 +248,13 @@ def process_audio_track(file_path: str, max_words: int, console, user_id: int) -
         if result.returncode != 0:
             return ""
 
-        # Transcribe
-        from .audio_describer import transcribe_audio
-        transcript = transcribe_audio(temp_audio, console, user_id)
+        # Transcribe via shared whisper_utils (faster-whisper, large-v3)
+        from wama.common.utils.whisper_utils import transcribe_audio as _transcribe
+        _result = _transcribe(temp_audio, model_name='large-v3')
+        transcript = _result.text
 
-        # Summarize if too long
-        if transcript and len(transcript.split()) > max_words:
+        # Optionally summarize with BART if too long (skip for meeting format)
+        if not skip_summarize and transcript and len(transcript.split()) > max_words:
             from .text_describer import get_summarizer, sanitize_text_for_model
 
             clean_transcript = sanitize_text_for_model(transcript[:4000])

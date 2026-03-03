@@ -119,14 +119,21 @@ class IndexView(View):
         enable_preprocessing = cache.get(f"user_{user.id}_preprocessing_enabled", True)
         selected_backend = cache.get(f"user_{user.id}_transcriber_backend", 'auto')
         user_hotwords = cache.get(f"user_{user.id}_transcriber_hotwords", '')
+        global_diarization = cache.get(f"user_{user.id}_transcriber_diarization", True)
+        global_generate_summary = cache.get(f"user_{user.id}_transcriber_generate_summary", False)
+        global_summary_type = cache.get(f"user_{user.id}_transcriber_summary_type", 'structured')
+        global_verify_coherence = cache.get(f"user_{user.id}_transcriber_verify_coherence", False)
 
-        # Get available backends
-        backends = []
-        try:
-            from .backends import get_backends_info
-            backends = get_backends_info()
-        except ImportError:
-            backends = [{'name': 'whisper', 'display_name': 'Whisper', 'available': True}]
+        # Get available backends — cached in Redis to avoid heavy imports on every page load
+        _BACKENDS_CACHE_KEY = 'transcriber_backends_info'
+        backends = cache.get(_BACKENDS_CACHE_KEY)
+        if backends is None:
+            try:
+                from .backends import get_backends_info
+                backends = get_backends_info()
+                cache.set(_BACKENDS_CACHE_KEY, backends, timeout=3600)  # 1 hour
+            except ImportError:
+                backends = [{'name': 'whisper', 'display_name': 'Whisper', 'available': True}]
 
         return render(request, 'transcriber/index.html', {
             'transcripts': transcripts,
@@ -134,6 +141,10 @@ class IndexView(View):
             'selected_backend': selected_backend,
             'user_hotwords': user_hotwords,
             'backends': backends,
+            'global_diarization': global_diarization,
+            'global_generate_summary': global_generate_summary,
+            'global_summary_type': global_summary_type,
+            'global_verify_coherence': global_verify_coherence,
         })
 
 
@@ -357,11 +368,23 @@ def progress(request, pk: int):
     # Get partial text for live display
     partial_text = cache.get(f"transcriber_partial_text_{t.id}", '')
 
-    return JsonResponse({
+    response_data = {
         'progress': p,
         'status': t.status,
-        'partial_text': partial_text
-    })
+        'partial_text': partial_text,
+    }
+
+    if t.status == 'SUCCESS':
+        response_data['text'] = t.text or ''
+        response_data['summary'] = t.summary or ''
+        response_data['summary_type'] = t.summary_type or 'structured'
+        response_data['key_points'] = t.key_points or []
+        response_data['action_items'] = t.action_items or []
+        response_data['coherence_score'] = t.coherence_score
+        response_data['coherence_notes'] = t.coherence_notes or ''
+        response_data['coherence_suggestion'] = t.coherence_suggestion or ''
+
+    return JsonResponse(response_data)
 
 
 def _output_stem(t: Transcript) -> str:
@@ -609,16 +632,15 @@ def get_backends(request):
     Returns:
         JSON with backend info including availability and features.
     """
-    try:
-        from .backends import get_backends_info
-        backends = get_backends_info()
-        return JsonResponse({
-            'backends': backends,
-            'default': 'auto',
-        })
-    except ImportError:
-        return JsonResponse({
-            'backends': [
+    _BACKENDS_CACHE_KEY = 'transcriber_backends_info'
+    backends = cache.get(_BACKENDS_CACHE_KEY)
+    if backends is None:
+        try:
+            from .backends import get_backends_info
+            backends = get_backends_info()
+            cache.set(_BACKENDS_CACHE_KEY, backends, timeout=3600)
+        except ImportError:
+            backends = [
                 {
                     'name': 'whisper',
                     'display_name': 'Whisper (OpenAI)',
@@ -627,9 +649,8 @@ def get_backends(request):
                     'supports_timestamps': True,
                     'supports_hotwords': False,
                 }
-            ],
-            'default': 'whisper',
-        })
+            ]
+    return JsonResponse({'backends': backends, 'default': 'auto'})
 
 
 def get_segments(request, pk: int):
@@ -761,6 +782,12 @@ def save_settings(request, pk: int):
         t.max_tokens = int(data['max_tokens'])
     if 'preprocess_audio' in data:
         t.preprocess_audio = bool(data['preprocess_audio'])
+    if 'generate_summary' in data:
+        t.generate_summary = bool(data['generate_summary'])
+    if 'summary_type' in data:
+        t.summary_type = data['summary_type']
+    if 'verify_coherence' in data:
+        t.verify_coherence = bool(data['verify_coherence'])
 
     t.save()
 
@@ -772,6 +799,9 @@ def save_settings(request, pk: int):
         'temperature': t.temperature,
         'max_tokens': t.max_tokens,
         'preprocess_audio': t.preprocess_audio,
+        'generate_summary': t.generate_summary,
+        'summary_type': t.summary_type,
+        'verify_coherence': t.verify_coherence,
     })
 
 
@@ -806,12 +836,21 @@ def save_user_transcriber_settings(request):
         cache.set(f"user_{user.id}_transcriber_diarization", data['enable_diarization'], timeout=cache_timeout)
     if 'preprocessing_enabled' in data:
         cache.set(f"user_{user.id}_preprocessing_enabled", data['preprocessing_enabled'], timeout=cache_timeout)
+    if 'generate_summary' in data:
+        cache.set(f"user_{user.id}_transcriber_generate_summary", data['generate_summary'], timeout=cache_timeout)
+    if 'summary_type' in data:
+        cache.set(f"user_{user.id}_transcriber_summary_type", data['summary_type'], timeout=cache_timeout)
+    if 'verify_coherence' in data:
+        cache.set(f"user_{user.id}_transcriber_verify_coherence", data['verify_coherence'], timeout=cache_timeout)
 
     return JsonResponse({
         'backend': cache.get(f"user_{user.id}_transcriber_backend", 'auto'),
         'hotwords': cache.get(f"user_{user.id}_transcriber_hotwords", ''),
         'enable_diarization': cache.get(f"user_{user.id}_transcriber_diarization", True),
         'preprocessing_enabled': cache.get(f"user_{user.id}_preprocessing_enabled", True),
+        'generate_summary': cache.get(f"user_{user.id}_transcriber_generate_summary", False),
+        'summary_type': cache.get(f"user_{user.id}_transcriber_summary_type", 'structured'),
+        'verify_coherence': cache.get(f"user_{user.id}_transcriber_verify_coherence", False),
     })
 
 
@@ -826,4 +865,7 @@ def get_user_transcriber_settings(request):
         'hotwords': cache.get(f"user_{user.id}_transcriber_hotwords", ''),
         'enable_diarization': cache.get(f"user_{user.id}_transcriber_diarization", True),
         'preprocessing_enabled': cache.get(f"user_{user.id}_preprocessing_enabled", True),
+        'generate_summary': cache.get(f"user_{user.id}_transcriber_generate_summary", False),
+        'summary_type': cache.get(f"user_{user.id}_transcriber_summary_type", 'structured'),
+        'verify_coherence': cache.get(f"user_{user.id}_transcriber_verify_coherence", False),
     })

@@ -35,6 +35,7 @@ class Description(models.Model):
         ('detailed', 'Description detaillee'),
         ('scientific', 'Synthese scientifique'),
         ('bullet_points', 'Points cles'),
+        ('meeting', 'Compte-rendu de reunion'),
     ]
 
     LANGUAGE_CHOICES = [
@@ -88,6 +89,16 @@ class Description(models.Model):
         default=500,
         help_text="Maximum length of summary in words"
     )
+
+    # Optional LLM summary (generated after description if requested)
+    generate_summary = models.BooleanField(default=False)
+    summary = models.TextField(blank=True)
+
+    # Optional coherence check (score + notes + LLM-proposed correction)
+    verify_coherence = models.BooleanField(default=False)
+    coherence_score = models.IntegerField(null=True, blank=True)
+    coherence_notes = models.TextField(blank=True)
+    coherence_suggestion = models.TextField(blank=True)
 
     # Result
     result_text = models.TextField(blank=True)

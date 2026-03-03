@@ -190,9 +190,12 @@ document.addEventListener('DOMContentLoaded', function () {
                     data-backend="${escapeHtml(data.backend || 'auto')}"
                     data-hotwords="${escapeHtml(data.hotwords || '')}"
                     data-preprocess="${data.preprocess_audio ? 'true' : 'false'}"
-                    data-diarization="true"
+                    data-diarization="${document.getElementById('diarizationToggle')?.checked !== false ? 'true' : 'false'}"
                     data-temperature="0"
                     data-max-tokens="32768"
+                    data-generate-summary="${document.getElementById('globalGenerateSummary')?.checked ? 'true' : 'false'}"
+                    data-summary-type="${document.querySelector('input[name=\'globalSummaryType\']:checked')?.value || 'structured'}"
+                    data-verify-coherence="${document.getElementById('globalVerifyCoherence')?.checked ? 'true' : 'false'}"
                     title="Paramètres">
               <i class="fas fa-cog"></i>
             </button>
@@ -254,6 +257,20 @@ document.addEventListener('DOMContentLoaded', function () {
     const actionsDiv = card.querySelector('.btn-group-actions');
     if (!actionsDiv) return;
 
+    // Capture ALL data-attributes from the existing settings-btn BEFORE destroying it
+    const oldBtn = actionsDiv.querySelector('.settings-btn');
+    const sd = oldBtn ? {
+      backend:         oldBtn.dataset.backend         || 'auto',
+      hotwords:        oldBtn.dataset.hotwords        || '',
+      preprocess:      oldBtn.dataset.preprocess      || 'false',
+      diarization:     oldBtn.dataset.diarization     || 'true',
+      temperature:     oldBtn.dataset.temperature     || '0',
+      maxTokens:       oldBtn.dataset.maxTokens       || '32768',
+      generateSummary: oldBtn.dataset.generateSummary || 'false',
+      summaryType:     oldBtn.dataset.summaryType     || 'structured',
+      verifyCoherence: oldBtn.dataset.verifyCoherence || 'false',
+    } : null;
+
     let html = '';
 
     if (status !== 'RUNNING') {
@@ -271,16 +288,18 @@ document.addEventListener('DOMContentLoaded', function () {
 
     actionsDiv.innerHTML = html;
 
-    // Re-copy data-attributes from old settings btn if any exist on the card
-    // Settings btn needs data-attributes; they'll be populated from server on next open
-    const settingsBtn = actionsDiv.querySelector('.settings-btn');
-    if (settingsBtn) {
-      settingsBtn.dataset.backend = card.dataset.backend || 'auto';
-      settingsBtn.dataset.hotwords = card.dataset.hotwords || '';
-      settingsBtn.dataset.preprocess = card.dataset.preprocess || 'false';
-      settingsBtn.dataset.diarization = card.dataset.diarization || 'true';
-      settingsBtn.dataset.temperature = card.dataset.temperature || '0';
-      settingsBtn.dataset.maxTokens = card.dataset.maxTokens || '32768';
+    // Restore saved data-attributes onto the new settings-btn
+    const newBtn = actionsDiv.querySelector('.settings-btn');
+    if (newBtn && sd) {
+      newBtn.dataset.backend         = sd.backend;
+      newBtn.dataset.hotwords        = sd.hotwords;
+      newBtn.dataset.preprocess      = sd.preprocess;
+      newBtn.dataset.diarization     = sd.diarization;
+      newBtn.dataset.temperature     = sd.temperature;
+      newBtn.dataset.maxTokens       = sd.maxTokens;
+      newBtn.dataset.generateSummary = sd.generateSummary;
+      newBtn.dataset.summaryType     = sd.summaryType;
+      newBtn.dataset.verifyCoherence = sd.verifyCoherence;
     }
 
     bindCardActions(card);
@@ -394,13 +413,44 @@ document.addEventListener('DOMContentLoaded', function () {
 
     document.getElementById('settingsMaxTokens').value = parseInt(btn.dataset.maxTokens) || 32768;
 
+    // New fields
+    const genSummary = btn.dataset.generateSummary === 'true';
+    const summaryType = btn.dataset.summaryType || 'structured';
+    const verifyCoherence = btn.dataset.verifyCoherence === 'true';
+
+    const genSumEl = document.getElementById('settingsGenerateSummary');
+    const summaryTypeGroup = document.getElementById('summaryTypeGroup');
+    if (genSumEl) {
+      genSumEl.checked = genSummary;
+      if (summaryTypeGroup) summaryTypeGroup.style.display = genSummary ? 'block' : 'none';
+    }
+    const stEl = document.querySelector(`input[name="summary_type"][value="${summaryType}"]`);
+    if (stEl) stEl.checked = true;
+
+    const vcEl = document.getElementById('settingsVerifyCoherence');
+    if (vcEl) vcEl.checked = verifyCoherence;
+
     const bsModal = new bootstrap.Modal(modal);
     bsModal.show();
   }
 
+  // Toggle summary type group visibility — both global panel and per-transcript modal
+  document.addEventListener('change', function(e) {
+    if (e.target && e.target.id === 'settingsGenerateSummary') {
+      const group = document.getElementById('summaryTypeGroup');
+      if (group) group.style.display = e.target.checked ? 'block' : 'none';
+    }
+    if (e.target && e.target.id === 'globalGenerateSummary') {
+      const group = document.getElementById('globalSummaryTypeGroup');
+      if (group) group.style.display = e.target.checked ? 'block' : 'none';
+    }
+  });
+
   function saveSettings(andStart) {
     const id = document.getElementById('settingsTranscriptId').value;
     if (!id) return;
+
+    const summaryTypeEl = document.querySelector('input[name="summary_type"]:checked');
 
     const payload = {
       backend: document.getElementById('settingsBackend').value,
@@ -409,6 +459,9 @@ document.addEventListener('DOMContentLoaded', function () {
       enable_diarization: document.getElementById('settingsDiarization').checked,
       temperature: parseFloat(document.getElementById('settingsTemperature').value) || 0,
       max_tokens: parseInt(document.getElementById('settingsMaxTokens').value) || 32768,
+      generate_summary: document.getElementById('settingsGenerateSummary')?.checked || false,
+      summary_type: summaryTypeEl ? summaryTypeEl.value : 'structured',
+      verify_coherence: document.getElementById('settingsVerifyCoherence')?.checked || false,
     };
 
     const url = getUrl(config.settingsUrlTemplate, id);
@@ -426,15 +479,16 @@ document.addEventListener('DOMContentLoaded', function () {
         // Update card's data-attributes and options display
         const card = queueContainer.querySelector(`.synthesis-card[data-id="${id}"]`);
         if (card) {
-          // Store on card for future use
           card.dataset.backend = payload.backend;
           card.dataset.hotwords = payload.hotwords;
           card.dataset.preprocess = payload.preprocess_audio ? 'true' : 'false';
           card.dataset.diarization = payload.enable_diarization ? 'true' : 'false';
           card.dataset.temperature = payload.temperature;
           card.dataset.maxTokens = payload.max_tokens;
+          card.dataset.generateSummary = payload.generate_summary ? 'true' : 'false';
+          card.dataset.summaryType = payload.summary_type;
+          card.dataset.verifyCoherence = payload.verify_coherence ? 'true' : 'false';
 
-          // Update settings button data-attributes
           const settingsBtn = card.querySelector('.settings-btn');
           if (settingsBtn) {
             settingsBtn.dataset.backend = payload.backend;
@@ -443,6 +497,9 @@ document.addEventListener('DOMContentLoaded', function () {
             settingsBtn.dataset.diarization = payload.enable_diarization ? 'true' : 'false';
             settingsBtn.dataset.temperature = payload.temperature;
             settingsBtn.dataset.maxTokens = payload.max_tokens;
+            settingsBtn.dataset.generateSummary = payload.generate_summary ? 'true' : 'false';
+            settingsBtn.dataset.summaryType = payload.summary_type;
+            settingsBtn.dataset.verifyCoherence = payload.verify_coherence ? 'true' : 'false';
           }
 
           // Update options column display
@@ -450,7 +507,9 @@ document.addEventListener('DOMContentLoaded', function () {
           if (optionsCol) {
             let optHtml = `<small><i class="fas fa-microchip"></i> ${escapeHtml(payload.backend)}<br>`;
             if (payload.hotwords) optHtml += `<i class="fas fa-tags"></i> ${escapeHtml(payload.hotwords.substring(0, 20))}${payload.hotwords.length > 20 ? '...' : ''}<br>`;
-            if (payload.enable_diarization) optHtml += `<i class="fas fa-users"></i> Diarisation`;
+            if (payload.enable_diarization) optHtml += `<i class="fas fa-users"></i> Diarisation<br>`;
+            if (payload.generate_summary) optHtml += `<i class="fas fa-file-lines"></i> Résumé<br>`;
+            if (payload.verify_coherence) optHtml += `<i class="fas fa-spell-check"></i> Cohérence`;
             optHtml += '</small>';
             optionsCol.innerHTML = optHtml;
           }
@@ -462,8 +521,148 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   // ======================================================================
-  // Result modal
+  // Result modal — tabbed interface
   // ======================================================================
+
+  const SPEAKER_COLORS = [
+    '#4e79a7', '#f28e2b', '#e15759', '#76b7b2',
+    '#59a14f', '#edc948', '#b07aa1', '#ff9da7',
+    '#9c755f', '#bab0ac',
+  ];
+  const speakerColorMap = {};
+  let speakerColorIdx = 0;
+
+  function getSpeakerColor(speaker) {
+    if (!speakerColorMap[speaker]) {
+      speakerColorMap[speaker] = SPEAKER_COLORS[speakerColorIdx % SPEAKER_COLORS.length];
+      speakerColorIdx++;
+    }
+    return speakerColorMap[speaker];
+  }
+
+  function renderDiarisation(segments) {
+    const container = document.getElementById('diarisationContent');
+    if (!container) return;
+
+    const withSpeakers = segments.filter(s => s.speaker_id);
+    if (!withSpeakers.length) {
+      container.innerHTML = '<p class="text-muted text-center py-4">Aucune donnée de diarisation disponible.</p>';
+      return;
+    }
+
+    // Reset color map for this transcript
+    Object.keys(speakerColorMap).forEach(k => delete speakerColorMap[k]);
+    speakerColorIdx = 0;
+
+    let html = '';
+    for (const seg of withSpeakers) {
+      const color = getSpeakerColor(seg.speaker_id);
+      const timeRange = seg.time_range || `${seg.start_time?.toFixed(1)}s → ${seg.end_time?.toFixed(1)}s`;
+      html += `
+        <div class="d-flex align-items-start mb-2 px-1">
+          <div style="min-width: 120px;">
+            <span class="badge me-1" style="background-color:${color}; color:#fff; font-size:0.75rem;">${escapeHtml(seg.speaker_id)}</span>
+            <small class="text-muted">${escapeHtml(timeRange)}</small>
+          </div>
+          <div class="ms-2 text-light" style="font-size:14px; line-height:1.5;">${escapeHtml(seg.text || '')}</div>
+        </div>`;
+    }
+    container.innerHTML = html;
+  }
+
+  function renderResume(data) {
+    const resumeEl = document.getElementById('resumeContent');
+    const tabBtn = document.getElementById('tab-resume-btn');
+    if (!resumeEl || !tabBtn) return;
+
+    if (!data.summary) {
+      tabBtn.style.display = 'none';
+      return;
+    }
+
+    tabBtn.style.display = '';
+
+    // Convert markdown-like content to simple HTML
+    let html = data.summary
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/### (.+)/g, '<h6 class="text-info mt-3 mb-1">$1</h6>')
+      .replace(/## (.+)/g, '<h5 class="text-warning mt-3 mb-2">$1</h5>')
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/^- (.+)$/gm, '<li>$1</li>')
+      .replace(/(<li>.*<\/li>\n?)+/g, m => `<ul>${m}</ul>`)
+      .replace(/\n\n/g, '<br><br>')
+      .replace(/\n/g, '<br>');
+
+    // Key points
+    if (data.key_points && data.key_points.length) {
+      html += '<h6 class="text-info mt-3">Points clés</h6><ul>';
+      data.key_points.forEach(p => { html += `<li>${escapeHtml(String(p))}</li>`; });
+      html += '</ul>';
+    }
+
+    // Action items
+    if (data.action_items && data.action_items.length) {
+      html += '<h6 class="text-warning mt-3">Actions à mener</h6><ul>';
+      data.action_items.forEach(a => { html += `<li>${escapeHtml(String(a))}</li>`; });
+      html += '</ul>';
+    }
+
+    resumeEl.innerHTML = html;
+  }
+
+  function renderCoherence(data, originalText) {
+    const container = document.getElementById('coherenceContent');
+    const tabBtn = document.getElementById('tab-coherence-btn');
+    if (!container || !tabBtn) return;
+
+    if (data.coherence_score === null || data.coherence_score === undefined) {
+      tabBtn.style.display = 'none';
+      return;
+    }
+
+    tabBtn.style.display = '';
+
+    const score = data.coherence_score;
+    const scoreColor = score >= 80 ? 'success' : score >= 50 ? 'warning' : 'danger';
+
+    let notesHtml = '';
+    if (data.coherence_notes) {
+      const notes = data.coherence_notes.split('\n').filter(l => l.trim());
+      notesHtml = '<ul class="mt-2">' + notes.map(n => `<li class="text-light small">${escapeHtml(n)}</li>`).join('') + '</ul>';
+    }
+
+    let sideBySide = '';
+    if (data.coherence_suggestion) {
+      sideBySide = `
+        <div class="row mt-3">
+          <div class="col-md-6">
+            <div class="card" style="background:#1e1e1e; border:1px solid #495057;">
+              <div class="card-header py-1 small text-muted">Texte original</div>
+              <div class="card-body p-2">
+                <pre style="color:#d4d4d4; white-space:pre-wrap; font-size:13px; max-height:300px; overflow-y:auto; margin:0;">${escapeHtml(originalText || '')}</pre>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="card" style="background:#1e2820; border:1px solid #2ea043;">
+              <div class="card-header py-1 small text-muted">Correction proposée</div>
+              <div class="card-body p-2">
+                <pre style="color:#7ee787; white-space:pre-wrap; font-size:13px; max-height:300px; overflow-y:auto; margin:0;">${escapeHtml(data.coherence_suggestion)}</pre>
+              </div>
+            </div>
+          </div>
+        </div>`;
+    }
+
+    container.innerHTML = `
+      <div class="d-flex align-items-center mb-2">
+        <span class="badge bg-${scoreColor} fs-5 me-3">${score}/100</span>
+        <span class="text-light">Score de cohérence</span>
+      </div>
+      ${notesHtml}
+      ${sideBySide}`;
+  }
+
   function openResultModal(id) {
     const modal = document.getElementById('resultModal');
     if (!modal) return;
@@ -478,20 +677,52 @@ document.addEventListener('DOMContentLoaded', function () {
     if (dlBtn) dlBtn.href = getUrl(config.downloadUrlTemplate, id);
     if (srtBtn) srtBtn.href = getUrl(config.downloadSrtUrlTemplate, id);
 
+    // Reset tabs visibility
+    const tabResumeBtn = document.getElementById('tab-resume-btn');
+    const tabCoherenceBtn = document.getElementById('tab-coherence-btn');
+    if (tabResumeBtn) tabResumeBtn.style.display = 'none';
+    if (tabCoherenceBtn) tabCoherenceBtn.style.display = 'none';
+
+    // Reset diarisation
+    const diarEl = document.getElementById('diarisationContent');
+    if (diarEl) diarEl.innerHTML = '<p class="text-muted text-center py-3"><i class="fas fa-spinner fa-spin"></i> Chargement...</p>';
+
+    // Activate transcription tab
+    const transcriptionTab = document.getElementById('tab-transcription-btn');
+    if (transcriptionTab) {
+      const bsTab = new bootstrap.Tab(transcriptionTab);
+      bsTab.show();
+    }
+
     const bsModal = new bootstrap.Modal(modal);
     bsModal.show();
 
-    // Fetch the text via progress endpoint (it has partial_text)
+    // 1. Fetch progress data (text + summary + coherence)
     fetch(getUrl(config.progressUrlTemplate, id))
       .then(r => r.json())
       .then(data => {
         if (resultText) {
-          resultText.textContent = data.partial_text || '(Aucun texte disponible)';
+          resultText.textContent = data.text || data.partial_text || '(Aucun texte disponible)';
         }
+        renderResume(data);
+        renderCoherence(data, data.text || data.partial_text || '');
       })
       .catch(() => {
         if (resultText) resultText.textContent = 'Erreur de chargement';
       });
+
+    // 2. Fetch segments for diarisation tab
+    if (config.segmentsUrlTemplate) {
+      fetch(getUrl(config.segmentsUrlTemplate, id))
+        .then(r => r.json())
+        .then(data => {
+          renderDiarisation(data.segments || []);
+        })
+        .catch(() => {
+          const diarEl2 = document.getElementById('diarisationContent');
+          if (diarEl2) diarEl2.innerHTML = '<p class="text-muted text-center py-4">Erreur de chargement des segments.</p>';
+        });
+    }
   }
 
   // ======================================================================
@@ -549,8 +780,24 @@ document.addEventListener('DOMContentLoaded', function () {
       preprocessToggle.addEventListener('change', () => {
         preprocessEnabled = preprocessToggle.checked;
         persistPreprocessingPreference(preprocessEnabled);
+        savePanelSettings();
       });
     }
+
+    // Auto-save all other panel settings on change
+    const panelBackendSel = document.getElementById('backendSelect');
+    const panelHotwordsIn = document.getElementById('hotwordsInput');
+    const panelDiarToggle = document.getElementById('diarizationToggle');
+    const panelGenSumm    = document.getElementById('globalGenerateSummary');
+    const panelVerifCoh   = document.getElementById('globalVerifyCoherence');
+    if (panelBackendSel) panelBackendSel.addEventListener('change', savePanelSettings);
+    if (panelHotwordsIn) panelHotwordsIn.addEventListener('blur', savePanelSettings);
+    if (panelDiarToggle) panelDiarToggle.addEventListener('change', savePanelSettings);
+    if (panelGenSumm)    panelGenSumm.addEventListener('change', savePanelSettings);
+    if (panelVerifCoh)   panelVerifCoh.addEventListener('change', savePanelSettings);
+    document.querySelectorAll('input[name="globalSummaryType"]').forEach(r =>
+      r.addEventListener('change', savePanelSettings)
+    );
 
     // Settings modal buttons
     const saveBtn = document.getElementById('saveSettingsBtn');
@@ -618,6 +865,30 @@ document.addEventListener('DOMContentLoaded', function () {
     }).catch(() => {
       if (preprocessToggle) preprocessToggle.checked = !enabled;
     });
+  }
+
+  function savePanelSettings() {
+    if (!config.saveUserSettingsUrl) return;
+    const backendSel  = document.getElementById('backendSelect');
+    const hotwordsIn  = document.getElementById('hotwordsInput');
+    const diarEl      = document.getElementById('diarizationToggle');
+    const genSummEl   = document.getElementById('globalGenerateSummary');
+    const summTypeEl  = document.querySelector('input[name="globalSummaryType"]:checked');
+    const verifEl     = document.getElementById('globalVerifyCoherence');
+    const payload = {
+      backend:               backendSel ? backendSel.value  : 'auto',
+      hotwords:              hotwordsIn ? hotwordsIn.value  : '',
+      enable_diarization:    diarEl     ? diarEl.checked    : true,
+      preprocessing_enabled: preprocessEnabled,
+      generate_summary:      genSummEl  ? genSummEl.checked : false,
+      summary_type:          summTypeEl ? summTypeEl.value  : 'structured',
+      verify_coherence:      verifEl    ? verifEl.checked   : false,
+    };
+    fetch(config.saveUserSettingsUrl, {
+      method: 'POST',
+      headers: csrfHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify(payload),
+    }).catch(() => {});
   }
 
   // ======================================================================

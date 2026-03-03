@@ -20,9 +20,13 @@ class TranscriberBackendManager:
     """
 
     # Priority order for auto-selection (first available wins)
+    # Note: qwen_asr is deliberately after whisper — it reports is_available()=True
+    # as soon as transformers is installed, but requires an explicit model download.
+    # Whisper (faster-whisper) is more reliable for auto mode.
     BACKEND_PRIORITY = [
-        'vibevoice',  # Best quality with diarization
-        'whisper',    # Good fallback
+        'vibevoice',   # Best quality: native diarization (16 GB VRAM)
+        'whisper',     # Reliable default: faster-whisper, many model sizes
+        'qwen_asr',    # Context biasing: select explicitly once model is downloaded
     ]
 
     _backends: Dict[str, Type[SpeechToTextBackend]] = {}
@@ -54,6 +58,13 @@ class TranscriberBackendManager:
             logger.debug("[TranscriberManager] Registered: vibevoice")
         except ImportError as e:
             logger.warning(f"[TranscriberManager] Could not import VibeVoiceBackend: {e}")
+
+        try:
+            from .qwen_asr_backend import QwenASRBackend
+            self._backends['qwen_asr'] = QwenASRBackend
+            logger.debug("[TranscriberManager] Registered: qwen_asr")
+        except ImportError as e:
+            logger.warning(f"[TranscriberManager] Could not import QwenASRBackend: {e}")
 
         logger.info(f"[TranscriberManager] Registered backends: {list(self._backends.keys())}")
 
@@ -154,7 +165,8 @@ class TranscriberBackendManager:
 
         raise RuntimeError(
             "No transcription backend available. "
-            "Install whisper (pip install openai-whisper) or vibevoice."
+            "Install faster-whisper (pip install faster-whisper) "
+            "or transformers+soundfile for Qwen3-ASR."
         )
 
     def get_backends_info(self) -> List[Dict]:

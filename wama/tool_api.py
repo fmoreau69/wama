@@ -33,17 +33,41 @@ from django.views.decorators.http import require_GET, require_POST
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
+# File extension sets
+# ---------------------------------------------------------------------------
+_VIDEO_EXTS = {'.mp4', '.avi', '.mov', '.mkv', '.webm', '.flv', '.m4v'}
+_IMAGE_EXTS = {'.jpg', '.jpeg', '.png', '.bmp', '.webp', '.gif'}
+_AUDIO_EXTS = {'.mp3', '.wav', '.flac', '.ogg', '.m4a'}
+_MEDIA_EXTS = _VIDEO_EXTS | _IMAGE_EXTS | _AUDIO_EXTS
+
+# Describer: all accepted extensions → detected content type
+_DESCRIBER_EXTS = (
+    _IMAGE_EXTS
+    | _VIDEO_EXTS
+    | _AUDIO_EXTS
+    | {'.txt', '.pdf', '.docx', '.md', '.csv'}
+)
+_DESCRIBER_TYPE_MAP = {
+    **{ext: 'image' for ext in _IMAGE_EXTS},
+    **{ext: 'video' for ext in _VIDEO_EXTS},
+    **{ext: 'audio' for ext in _AUDIO_EXTS},
+    '.txt': 'text', '.md': 'text', '.docx': 'text', '.csv': 'text',
+    '.pdf': 'pdf',
+}
+
+# Transcriber: audio + video
+_TRANSCRIBER_EXTS = _AUDIO_EXTS | _VIDEO_EXTS
+
+# ---------------------------------------------------------------------------
 # Folder mapping: logical name → MEDIA_ROOT-relative path template
 # ---------------------------------------------------------------------------
 _FOLDER_MAP = {
-    'temp':      'users/{user_id}/temp',
-    'anon_input': 'anonymizer/{user_id}/input',
-    'anon_output': 'anonymizer/{user_id}/output',
+    'temp':               'users/{user_id}/temp',
+    'anon_input':         'anonymizer/{user_id}/input',
+    'anon_output':        'anonymizer/{user_id}/output',
+    'transcriber_input':  'transcriber/{user_id}/input',
+    'describer_input':    'describer/{user_id}/input',
 }
-
-_VIDEO_EXTS = {'.mp4', '.avi', '.mov', '.mkv', '.webm', '.flv', '.m4v'}
-_IMAGE_EXTS = {'.jpg', '.jpeg', '.png', '.bmp', '.webp'}
-_MEDIA_EXTS = _VIDEO_EXTS | _IMAGE_EXTS
 
 
 # ===========================================================================
@@ -276,6 +300,844 @@ def sam3_examples() -> dict:
 
 
 # ===========================================================================
+# Imager tools
+# ===========================================================================
+
+def create_image(
+    user,
+    prompt: str,
+    model: str = 'openjourney-v4',
+    width: int = 512,
+    height: int = 512,
+    steps: int = 30,
+    guidance_scale: float = 7.5,
+    negative_prompt: str = '',
+    seed: int = None,
+    num_images: int = 1,
+) -> dict:
+    """
+    Create a txt2img generation job (status: PENDING).
+
+    Args:
+        user:            Django User instance
+        prompt:          Text prompt for generation (required)
+        model:           Model name (e.g. 'openjourney-v4', 'stable-diffusion-v1-5')
+        width:           Output width in pixels (256–2048)
+        height:          Output height in pixels (256–2048)
+        steps:           Diffusion steps (1–100, default 30)
+        guidance_scale:  Guidance scale (1.0–20.0, default 7.5)
+        negative_prompt: What to avoid in the image
+        seed:            Random seed for reproducibility (None = random)
+        num_images:      Number of images to generate (1–4)
+
+    Returns:
+        {"generation_id": int, "status": "pending", "model": str, "prompt": str}
+    """
+    if not prompt.strip():
+        return {'error': 'Le prompt est requis.'}
+
+    num_images = max(1, min(4, int(num_images)))
+    steps = max(1, min(100, int(steps)))
+    guidance_scale = max(1.0, min(20.0, float(guidance_scale)))
+    width = max(256, min(2048, int(width)))
+    height = max(256, min(2048, int(height)))
+
+    try:
+        from wama.imager.models import ImageGeneration
+        generation = ImageGeneration.objects.create(
+            user=user,
+            generation_mode='txt2img',
+            prompt=prompt.strip(),
+            negative_prompt=negative_prompt.strip(),
+            model=model,
+            width=width,
+            height=height,
+            steps=steps,
+            guidance_scale=guidance_scale,
+            seed=seed if seed else None,
+            num_images=num_images,
+            status='PENDING',
+        )
+    except Exception as e:
+        return {'error': f'Erreur création ImageGeneration : {e}'}
+
+    return {
+        'generation_id': generation.id,
+        'status': 'pending',
+        'model': model,
+        'prompt': prompt,
+        'width': width,
+        'height': height,
+        'steps': steps,
+        'num_images': num_images,
+    }
+
+
+def start_imager(user, generation_id: int = None) -> dict:
+    """
+    Launch Celery image generation task(s).
+
+    Args:
+        user:          Django User instance
+        generation_id: Specific job to start (None = all PENDING jobs)
+
+    Returns:
+        {"task_id": str, "status": "started", ...}
+    """
+    from wama.imager.models import ImageGeneration
+    from wama.imager.tasks import generate_image_task
+    from django.core.cache import cache
+
+    if generation_id is not None:
+        try:
+            generation = ImageGeneration.objects.get(pk=generation_id, user=user)
+        except ImageGeneration.DoesNotExist:
+            return {'error': f'Generation #{generation_id} introuvable ou non autorisée.'}
+
+        if generation.status == 'RUNNING':
+            return {'error': f'Generation #{generation_id} est déjà en cours.'}
+
+        generation.status = 'PENDING'
+        generation.progress = 0
+        generation.error_message = ''
+        generation.save(update_fields=['status', 'progress', 'error_message'])
+        cache.delete(f'imager_progress_{generation_id}')
+
+        task = generate_image_task.delay(generation.id)
+        generation.status = 'RUNNING'
+        generation.task_id = task.id
+        generation.save(update_fields=['status', 'task_id'])
+
+        return {'task_id': task.id, 'status': 'started', 'generation_id': generation_id}
+
+    else:
+        pending = ImageGeneration.objects.filter(user=user, status='PENDING')
+        if not pending.exists():
+            return {'error': 'Aucune génération en attente.'}
+
+        started = []
+        for gen in pending:
+            cache.delete(f'imager_progress_{gen.id}')
+            task = generate_image_task.delay(gen.id)
+            gen.status = 'RUNNING'
+            gen.task_id = task.id
+            gen.save(update_fields=['status', 'task_id'])
+            started.append(gen.id)
+
+        return {'status': 'started', 'generation_id': None, 'count': len(started), 'ids': started}
+
+
+def get_imager_status(user) -> dict:
+    """
+    Return status of the user's recent image generation jobs (last 10).
+
+    Returns:
+        {"jobs": [{"id", "prompt", "model", "status", "progress", "num_images", "images"}]}
+    """
+    from wama.imager.models import ImageGeneration
+    from django.core.cache import cache
+
+    jobs_qs = ImageGeneration.objects.filter(
+        user=user,
+        parent_generation__isnull=True,
+    ).order_by('-id')[:10]
+
+    jobs = []
+    for gen in jobs_qs:
+        cached_progress = cache.get(f'imager_progress_{gen.id}')
+        progress = cached_progress if cached_progress is not None else gen.progress
+        jobs.append({
+            'id': gen.id,
+            'prompt': gen.prompt[:80] + ('…' if len(gen.prompt) > 80 else ''),
+            'model': gen.model,
+            'status': gen.status,
+            'progress': progress,
+            'num_images': gen.num_images,
+            'images': len(gen.generated_images) if gen.generated_images else 0,
+        })
+    return {'jobs': jobs}
+
+
+# ===========================================================================
+# Enhancer tools
+# ===========================================================================
+
+_ENHANCER_VALID_MODELS = {
+    'RealESR_Gx4', 'RealESR_Animex4', 'BSRGANx2',
+    'BSRGANx4', 'RealESRGANx4', 'IRCNN_Mx1', 'IRCNN_Lx1',
+}
+
+
+def add_to_enhancer(
+    user,
+    file_path: str,
+    ai_model: str = 'RealESR_Gx4',
+    denoise: bool = False,
+    blend_factor: float = 0.0,
+) -> dict:
+    """
+    Register a file for enhancement and create the Enhancement DB entry.
+
+    Args:
+        user:         Django User instance
+        file_path:    Path relative to MEDIA_ROOT (from list_user_files)
+        ai_model:     Upscaling model (default: 'RealESR_Gx4')
+        denoise:      Apply denoising before upscaling (default: False)
+        blend_factor: 0.0 = full AI, 1.0 = original (default: 0.0)
+
+    Returns:
+        {"enhancement_id": int, "name": str, "media_type": str, "status": "pending"}
+    """
+    if ai_model not in _ENHANCER_VALID_MODELS:
+        return {'error': f"Modèle inconnu : '{ai_model}'. Disponibles : {', '.join(sorted(_ENHANCER_VALID_MODELS))}"}
+
+    blend_factor = max(0.0, min(1.0, float(blend_factor)))
+
+    # Resolve and validate source file
+    src = (Path(settings.MEDIA_ROOT) / file_path).resolve()
+    media_root = Path(settings.MEDIA_ROOT).resolve()
+    if not str(src).startswith(str(media_root)):
+        return {'error': 'Accès refusé : chemin hors de MEDIA_ROOT.'}
+    if not src.exists():
+        return {'error': f'Fichier introuvable : {file_path}'}
+
+    ext = src.suffix.lower()
+    if ext in _IMAGE_EXTS:
+        media_type = 'image'
+    elif ext in _VIDEO_EXTS:
+        media_type = 'video'
+    else:
+        return {'error': f'Format non supporté pour l\'enhancer : {ext}'}
+
+    try:
+        from django.core.files import File
+        from wama.enhancer.models import Enhancement
+        from wama.common.utils.video_utils import get_media_info
+
+        with open(str(src), 'rb') as f:
+            django_file = File(f, name=src.name)
+            enhancement = Enhancement.objects.create(
+                user=user,
+                media_type=media_type,
+                input_file=django_file,
+                ai_model=ai_model,
+                denoise=bool(denoise),
+                blend_factor=blend_factor,
+                status='PENDING',
+            )
+
+        # Analyse dimensions / durée
+        try:
+            info = get_media_info(enhancement.input_file.path)
+            enhancement.width     = info.get('width', 0)
+            enhancement.height    = info.get('height', 0)
+            enhancement.duration  = info.get('duration', 0)
+            enhancement.file_size = info.get('file_size', 0)
+            enhancement.save(update_fields=['width', 'height', 'duration', 'file_size'])
+        except Exception as e:
+            logger.warning(f'[tool_api] add_to_enhancer analyze failed: {e}')
+
+    except Exception as e:
+        return {'error': f'Erreur création Enhancement : {e}'}
+
+    return {
+        'enhancement_id': enhancement.id,
+        'name': src.name,
+        'media_type': media_type,
+        'ai_model': ai_model,
+        'status': 'pending',
+    }
+
+
+def start_enhancer(user, enhancement_id: int = None) -> dict:
+    """
+    Launch Celery enhancement task(s).
+
+    Args:
+        user:            Django User instance
+        enhancement_id:  Specific job to start (None = all PENDING jobs)
+
+    Returns:
+        {"task_id": str, "status": "started", ...}
+    """
+    from wama.enhancer.models import Enhancement
+    from wama.enhancer.tasks import enhance_media
+    from django.core.cache import cache
+
+    if enhancement_id is not None:
+        try:
+            enh = Enhancement.objects.get(pk=enhancement_id, user=user)
+        except Enhancement.DoesNotExist:
+            return {'error': f'Enhancement #{enhancement_id} introuvable ou non autorisé.'}
+
+        if enh.status == 'RUNNING':
+            return {'error': f'Enhancement #{enhancement_id} est déjà en cours.'}
+
+        enh.status = 'PENDING'
+        enh.progress = 0
+        enh.error_message = ''
+        enh.save(update_fields=['status', 'progress', 'error_message'])
+        cache.delete(f'enhancer_progress_{enhancement_id}')
+
+        task = enhance_media.delay(enh.id)
+        enh.status = 'RUNNING'
+        enh.task_id = task.id
+        enh.save(update_fields=['status', 'task_id'])
+
+        return {'task_id': task.id, 'status': 'started', 'enhancement_id': enhancement_id}
+
+    else:
+        pending = Enhancement.objects.filter(user=user, status='PENDING')
+        if not pending.exists():
+            return {'error': 'Aucun enhancement en attente.'}
+
+        started = []
+        for enh in pending:
+            cache.delete(f'enhancer_progress_{enh.id}')
+            task = enhance_media.delay(enh.id)
+            enh.status = 'RUNNING'
+            enh.task_id = task.id
+            enh.save(update_fields=['status', 'task_id'])
+            started.append(enh.id)
+
+        return {'status': 'started', 'enhancement_id': None, 'count': len(started), 'ids': started}
+
+
+def get_enhancer_status(user) -> dict:
+    """
+    Return status of the user's recent enhancement jobs (last 10).
+
+    Returns:
+        {"jobs": [{"id", "name", "media_type", "ai_model", "status", "progress"}]}
+    """
+    from wama.enhancer.models import Enhancement
+    from django.core.cache import cache
+
+    jobs_qs = Enhancement.objects.filter(user=user).order_by('-id')[:10]
+    jobs = []
+    for enh in jobs_qs:
+        cached = cache.get(f'enhancer_progress_{enh.id}')
+        progress = cached if cached is not None else enh.progress
+        jobs.append({
+            'id': enh.id,
+            'name': enh.get_input_filename(),
+            'media_type': enh.media_type,
+            'ai_model': enh.ai_model,
+            'status': enh.status,
+            'progress': progress,
+        })
+    return {'jobs': jobs}
+
+
+# ===========================================================================
+# Synthesizer tools
+# ===========================================================================
+
+def synthesize_text(
+    user,
+    text: str,
+    language: str = 'fr',
+    tts_model: str = 'xtts_v2',
+    voice_preset: str = 'default',
+    speed: float = 1.0,
+    pitch: float = 1.0,
+    emotion_intensity: float = 1.0,
+) -> dict:
+    """
+    Create a VoiceSynthesis job from raw text.
+
+    Args:
+        user:              Django User instance
+        text:              Text to synthesize (required)
+        language:          Language code (e.g. 'fr', 'en', 'es')
+        tts_model:         TTS model ('xtts_v2', 'higgs_audio_v2', etc.)
+        voice_preset:      Voice preset key ('default', 'male_1', 'female_1', etc.)
+        speed:             Speech speed 0.5–2.0 (default: 1.0)
+        pitch:             Voice pitch 0.5–2.0 (default: 1.0)
+        emotion_intensity: Emotional intensity 0.0–2.0 (default: 1.0)
+
+    Returns:
+        {"synthesis_id": int, "word_count": int, "duration_display": str, "status": "pending"}
+    """
+    import re as _re
+    text = text.strip()
+    if not text:
+        return {'error': 'Le texte est vide.'}
+
+    speed = max(0.5, min(2.0, float(speed)))
+    pitch = max(0.5, min(2.0, float(pitch)))
+    emotion_intensity = max(0.0, min(2.0, float(emotion_intensity)))
+
+    # Build a safe filename from the first few words
+    words = text.split()
+    safe_title = _re.sub(r'[^\w\s-]', '', ' '.join(words[:5]))[:50].strip()
+    filename = f"{safe_title or 'synthesizer'}.txt"
+
+    try:
+        from django.core.files.base import ContentFile
+        from wama.synthesizer.models import VoiceSynthesis
+
+        txt_file = ContentFile(text.encode('utf-8'), name=filename)
+
+        synthesis = VoiceSynthesis.objects.create(
+            user=user,
+            text_file=txt_file,
+            tts_model=tts_model,
+            language=language,
+            voice_preset=voice_preset,
+            speed=speed,
+            pitch=pitch,
+            emotion_intensity=emotion_intensity,
+        )
+
+        # Extract text and compute metadata
+        try:
+            from wama.synthesizer.utils.text_extractor import extract_text_from_file, clean_text_for_tts
+            extracted = extract_text_from_file(synthesis.text_file.path)
+            synthesis.text_content = clean_text_for_tts(extracted)
+        except Exception:
+            synthesis.text_content = text
+
+        synthesis.update_metadata()
+
+    except Exception as e:
+        return {'error': f'Erreur création VoiceSynthesis : {e}'}
+
+    return {
+        'synthesis_id': synthesis.id,
+        'word_count': synthesis.word_count,
+        'duration_display': synthesis.duration_display or '—',
+        'status': 'pending',
+        'model': tts_model,
+        'language': language,
+        'voice_preset': voice_preset,
+    }
+
+
+def start_synthesizer(user, synthesis_id: int = None) -> dict:
+    """
+    Launch Celery synthesis task(s).
+
+    Args:
+        user:          Django User instance
+        synthesis_id:  Specific job to start (None = all PENDING jobs)
+
+    Returns:
+        {"task_id": str, "status": "started", ...}
+    """
+    from wama.synthesizer.models import VoiceSynthesis
+    from wama.synthesizer.workers import synthesize_voice
+    from django.core.cache import cache
+
+    if synthesis_id is not None:
+        try:
+            synthesis = VoiceSynthesis.objects.get(pk=synthesis_id, user=user)
+        except VoiceSynthesis.DoesNotExist:
+            return {'error': f'Synthesis #{synthesis_id} introuvable ou non autorisée.'}
+
+        if synthesis.status == 'RUNNING':
+            return {'error': f'Synthesis #{synthesis_id} est déjà en cours.'}
+
+        synthesis.status = 'PENDING'
+        synthesis.progress = 0
+        synthesis.error_message = ''
+        if synthesis.audio_output:
+            try:
+                synthesis.audio_output.delete(save=False)
+            except Exception:
+                pass
+        synthesis.save(update_fields=['status', 'progress', 'error_message', 'audio_output'])
+        cache.set(f'synthesizer_progress_{synthesis.id}', 0, timeout=3600)
+
+        task = synthesize_voice.delay(synthesis.id)
+        synthesis.task_id = task.id
+        synthesis.status = 'RUNNING'
+        synthesis.save(update_fields=['task_id', 'status'])
+
+        return {'task_id': task.id, 'status': 'started', 'synthesis_id': synthesis_id}
+
+    else:
+        pending = VoiceSynthesis.objects.filter(user=user, status='PENDING')
+        if not pending.exists():
+            return {'error': 'Aucune synthèse en attente.'}
+
+        started = []
+        for synth in pending:
+            cache.set(f'synthesizer_progress_{synth.id}', 0, timeout=3600)
+            task = synthesize_voice.delay(synth.id)
+            synth.task_id = task.id
+            synth.status = 'RUNNING'
+            synth.save(update_fields=['task_id', 'status'])
+            started.append(synth.id)
+
+        return {'status': 'started', 'synthesis_id': None, 'count': len(started), 'ids': started}
+
+
+def get_synthesizer_status(user) -> dict:
+    """
+    Return status of the user's recent synthesis jobs (last 10).
+
+    Returns:
+        {"jobs": [{"id", "filename", "word_count", "duration_display", "model",
+                   "language", "voice_preset", "status", "progress", "audio_url"}]}
+    """
+    from wama.synthesizer.models import VoiceSynthesis
+    from django.core.cache import cache
+
+    jobs_qs = VoiceSynthesis.objects.filter(user=user).order_by('-id')[:10]
+    jobs = []
+    for synth in jobs_qs:
+        cached = cache.get(f'synthesizer_progress_{synth.id}')
+        progress = cached if cached is not None else (synth.progress or 0)
+        jobs.append({
+            'id': synth.id,
+            'filename': synth.filename,
+            'word_count': synth.word_count,
+            'duration_display': synth.duration_display or '—',
+            'model': synth.tts_model,
+            'language': synth.language,
+            'voice_preset': synth.voice_preset,
+            'status': synth.status,
+            'progress': progress,
+            'audio_url': synth.audio_output.url if synth.audio_output else None,
+        })
+    return {'jobs': jobs}
+
+
+# ===========================================================================
+# Describer tools
+# ===========================================================================
+
+def add_to_describer(
+    user,
+    file_path: str,
+    output_format: str = 'detailed',
+    output_language: str = 'fr',
+    max_length: int = 500,
+) -> dict:
+    """
+    Copy a file into the describer queue and create a Description DB entry.
+
+    Args:
+        user:            Django User instance
+        file_path:       Path relative to MEDIA_ROOT (from list_user_files)
+        output_format:   'summary' | 'detailed' | 'scientific' | 'bullet_points'
+        output_language: 'fr' | 'en' | 'auto'
+        max_length:      Maximum length of result in words (default: 500)
+
+    Returns:
+        {"description_id": int, "filename": str, "detected_type": str, "status": "pending"}
+    """
+    valid_formats = {'summary', 'detailed', 'scientific', 'bullet_points'}
+    if output_format not in valid_formats:
+        return {'error': f"Format invalide : '{output_format}'. Disponibles : {', '.join(sorted(valid_formats))}"}
+
+    src = (Path(settings.MEDIA_ROOT) / file_path).resolve()
+    media_root = Path(settings.MEDIA_ROOT).resolve()
+    if not str(src).startswith(str(media_root)):
+        return {'error': 'Accès refusé : chemin hors de MEDIA_ROOT.'}
+    if not src.exists():
+        return {'error': f'Fichier introuvable : {file_path}'}
+
+    ext = src.suffix.lower()
+    if ext not in _DESCRIBER_EXTS:
+        return {'error': f'Format non supporté par le Describer : {ext}'}
+
+    detected_type = _DESCRIBER_TYPE_MAP.get(ext, 'auto')
+
+    try:
+        from django.core.files import File
+        from wama.describer.models import Description
+
+        with open(str(src), 'rb') as f:
+            django_file = File(f, name=src.name)
+            description = Description.objects.create(
+                user=user,
+                input_file=django_file,
+                filename=src.name,
+                file_size=src.stat().st_size,
+                detected_type=detected_type,
+                output_format=output_format,
+                output_language=output_language,
+                max_length=int(max_length),
+            )
+    except Exception as e:
+        return {'error': f'Erreur création Description : {e}'}
+
+    return {
+        'description_id': description.id,
+        'filename': src.name,
+        'detected_type': detected_type,
+        'output_format': output_format,
+        'output_language': output_language,
+        'status': 'pending',
+    }
+
+
+def start_describer(user, description_id: int = None) -> dict:
+    """
+    Launch Celery description task(s).
+
+    Args:
+        user:           Django User instance
+        description_id: Specific job to start (None = all PENDING jobs)
+
+    Returns:
+        {"task_id": str, "status": "started", ...}
+    """
+    from wama.describer.models import Description
+    from wama.describer.workers import describe_content
+    from django.core.cache import cache
+
+    if description_id is not None:
+        try:
+            description = Description.objects.get(pk=description_id, user=user)
+        except Description.DoesNotExist:
+            return {'error': f'Description #{description_id} introuvable ou non autorisée.'}
+
+        if description.status == 'RUNNING':
+            return {'error': f'Description #{description_id} est déjà en cours.'}
+
+        description.status = 'RUNNING'
+        description.progress = 0
+        description.error_message = ''
+        description.result_text = ''
+        description.save(update_fields=['status', 'progress', 'error_message', 'result_text'])
+        cache.delete(f'describer_progress_{description_id}')
+        cache.delete(f'describer_partial_{description_id}')
+
+        task = describe_content.delay(description.id)
+        description.task_id = task.id
+        description.save(update_fields=['task_id'])
+
+        return {'task_id': task.id, 'status': 'started', 'description_id': description_id}
+
+    else:
+        pending = Description.objects.filter(user=user, status='PENDING')
+        if not pending.exists():
+            return {'error': 'Aucune description en attente.'}
+
+        started = []
+        for desc in pending:
+            cache.delete(f'describer_progress_{desc.id}')
+            desc.status = 'RUNNING'
+            desc.progress = 0
+            desc.result_text = ''
+            desc.save(update_fields=['status', 'progress', 'result_text'])
+            task = describe_content.delay(desc.id)
+            desc.task_id = task.id
+            desc.save(update_fields=['task_id'])
+            started.append(desc.id)
+
+        return {'status': 'started', 'description_id': None, 'count': len(started), 'ids': started}
+
+
+def get_describer_status(user) -> dict:
+    """
+    Return status of the user's recent description jobs (last 10).
+
+    Returns:
+        {"jobs": [{"id", "filename", "detected_type", "output_format", "status",
+                   "progress", "result_preview"}]}
+    """
+    from wama.describer.models import Description
+    from django.core.cache import cache
+
+    jobs_qs = Description.objects.filter(user=user).order_by('-id')[:10]
+    jobs = []
+    for desc in jobs_qs:
+        cached = cache.get(f'describer_progress_{desc.id}')
+        progress = cached if cached is not None else desc.progress
+        partial = cache.get(f'describer_partial_{desc.id}', '')
+        result_preview = None
+        if desc.result_text:
+            result_preview = (desc.result_text[:300] + '…') if len(desc.result_text) > 300 else desc.result_text
+        elif partial:
+            result_preview = (partial[:300] + '…') if len(partial) > 300 else partial
+
+        jobs.append({
+            'id': desc.id,
+            'filename': desc.filename or desc.input_filename,
+            'detected_type': desc.detected_type,
+            'output_format': desc.output_format,
+            'output_language': desc.output_language,
+            'status': desc.status,
+            'progress': progress,
+            'result_preview': result_preview,
+        })
+    return {'jobs': jobs}
+
+
+# ===========================================================================
+# Transcriber tools
+# ===========================================================================
+
+def add_to_transcriber(
+    user,
+    file_path: str,
+    backend: str = 'auto',
+    preprocess_audio: bool = False,
+    hotwords: str = '',
+    enable_diarization: bool = True,
+) -> dict:
+    """
+    Copy a file into the transcriber queue and create a Transcript DB entry.
+
+    Args:
+        user:               Django User instance
+        file_path:          Path relative to MEDIA_ROOT (audio or video file)
+        backend:            'auto' | 'whisper' | 'vibevoice'
+        preprocess_audio:   Apply audio preprocessing before transcription
+        hotwords:           Domain-specific terms to improve recognition
+        enable_diarization: Enable speaker diarization (VibeVoice only)
+
+    Returns:
+        {"transcript_id": int, "filename": str, "duration_display": str, "status": "pending"}
+    """
+    src = (Path(settings.MEDIA_ROOT) / file_path).resolve()
+    media_root = Path(settings.MEDIA_ROOT).resolve()
+    if not str(src).startswith(str(media_root)):
+        return {'error': 'Accès refusé : chemin hors de MEDIA_ROOT.'}
+    if not src.exists():
+        return {'error': f'Fichier introuvable : {file_path}'}
+
+    ext = src.suffix.lower()
+    if ext not in _TRANSCRIBER_EXTS:
+        exts_str = ', '.join(sorted(_TRANSCRIBER_EXTS))
+        return {'error': f'Format non supporté par le Transcriber : {ext}. Formats acceptés : {exts_str}'}
+
+    try:
+        from django.core.files import File
+        from wama.transcriber.models import Transcript
+
+        with open(str(src), 'rb') as f:
+            django_file = File(f, name=src.name)
+            transcript = Transcript.objects.create(
+                user=user,
+                audio=django_file,
+                backend=backend,
+                preprocess_audio=bool(preprocess_audio),
+                hotwords=hotwords or '',
+                enable_diarization=bool(enable_diarization),
+            )
+
+        # Populate duration / properties via ffprobe
+        try:
+            from wama.transcriber.views import _describe_audio
+            _describe_audio(transcript)
+        except Exception:
+            pass
+
+    except Exception as e:
+        return {'error': f'Erreur création Transcript : {e}'}
+
+    return {
+        'transcript_id': transcript.id,
+        'filename': transcript.filename,
+        'duration_display': transcript.duration_display or '—',
+        'properties': transcript.properties or '—',
+        'backend': backend,
+        'preprocess_audio': preprocess_audio,
+        'status': 'pending',
+    }
+
+
+def start_transcriber(user, transcript_id: int = None) -> dict:
+    """
+    Launch Celery transcription task(s).
+
+    Args:
+        user:          Django User instance
+        transcript_id: Specific job to start (None = all PENDING jobs)
+
+    Returns:
+        {"task_id": str, "status": "started", ...}
+    """
+    from wama.transcriber.models import Transcript, TranscriptSegment
+    from wama.transcriber.workers import transcribe, transcribe_without_preprocessing
+    from django.core.cache import cache
+
+    if transcript_id is not None:
+        try:
+            t = Transcript.objects.get(pk=transcript_id, user=user)
+        except Transcript.DoesNotExist:
+            return {'error': f'Transcript #{transcript_id} introuvable ou non autorisé.'}
+
+        if t.status == 'RUNNING':
+            return {'error': f'Transcript #{transcript_id} est déjà en cours.'}
+
+        t.status = 'PENDING'
+        t.progress = 0
+        t.text = ''
+        t.language = ''
+        t.used_backend = ''
+        t.save()
+        TranscriptSegment.objects.filter(transcript=t).delete()
+        cache.set(f'transcriber_progress_{t.id}', 0, timeout=3600)
+
+        task = transcribe.delay(t.id) if t.preprocess_audio else transcribe_without_preprocessing.delay(t.id)
+        t.task_id = task.id
+        t.status = 'RUNNING'
+        t.save()
+
+        return {'task_id': task.id, 'status': 'started', 'transcript_id': transcript_id}
+
+    else:
+        pending = Transcript.objects.filter(user=user, status='PENDING')
+        if not pending.exists():
+            return {'error': 'Aucune transcription en attente.'}
+
+        started = []
+        for t in pending:
+            TranscriptSegment.objects.filter(transcript=t).delete()
+            cache.set(f'transcriber_progress_{t.id}', 0, timeout=3600)
+            task = transcribe.delay(t.id) if t.preprocess_audio else transcribe_without_preprocessing.delay(t.id)
+            t.task_id = task.id
+            t.status = 'RUNNING'
+            t.save()
+            started.append(t.id)
+
+        return {'status': 'started', 'transcript_id': None, 'count': len(started), 'ids': started}
+
+
+def get_transcriber_status(user) -> dict:
+    """
+    Return status of the user's recent transcription jobs (last 10).
+
+    Returns:
+        {"jobs": [{"id", "filename", "duration_display", "backend", "used_backend",
+                   "language", "status", "progress", "text_preview"}]}
+    """
+    from wama.transcriber.models import Transcript
+    from django.core.cache import cache
+
+    jobs_qs = Transcript.objects.filter(user=user).order_by('-id')[:10]
+    jobs = []
+    for t in jobs_qs:
+        cached = cache.get(f'transcriber_progress_{t.id}')
+        progress = cached if cached is not None else t.progress
+        partial = cache.get(f'transcriber_partial_text_{t.id}', '')
+        text_preview = None
+        if t.text:
+            text_preview = (t.text[:300] + '…') if len(t.text) > 300 else t.text
+        elif partial:
+            text_preview = (partial[:300] + '…') if len(partial) > 300 else partial
+
+        jobs.append({
+            'id': t.id,
+            'filename': t.filename,
+            'duration_display': t.duration_display or '—',
+            'backend': t.backend,
+            'used_backend': t.used_backend or None,
+            'language': t.language or None,
+            'status': t.status,
+            'progress': progress,
+            'text_preview': text_preview,
+        })
+    return {'jobs': jobs}
+
+
+# ===========================================================================
 # Tool dispatcher (used by the agentic loop in views.py)
 # ===========================================================================
 
@@ -285,6 +1147,21 @@ TOOL_REGISTRY = {
     'start_anonymizer':      start_anonymizer,
     'get_anonymizer_status': get_anonymizer_status,
     'sam3_examples':         sam3_examples,
+    'create_image':          create_image,
+    'start_imager':          start_imager,
+    'get_imager_status':     get_imager_status,
+    'add_to_enhancer':       add_to_enhancer,
+    'start_enhancer':        start_enhancer,
+    'get_enhancer_status':   get_enhancer_status,
+    'synthesize_text':        synthesize_text,
+    'start_synthesizer':      start_synthesizer,
+    'get_synthesizer_status': get_synthesizer_status,
+    'add_to_describer':       add_to_describer,
+    'start_describer':        start_describer,
+    'get_describer_status':   get_describer_status,
+    'add_to_transcriber':     add_to_transcriber,
+    'start_transcriber':      start_transcriber,
+    'get_transcriber_status': get_transcriber_status,
 }
 
 # Metadata consumed by GET /api/v1/tools/ — update this when adding a new tool.
@@ -317,6 +1194,110 @@ TOOL_DESCRIPTIONS = {
     },
     'sam3_examples': {
         'description': "Retourne des exemples de prompts texte recommandés pour SAM3.",
+        'args': {},
+    },
+    'create_image': {
+        'description': "Crée un job de génération d'image (txt2img) en attente.",
+        'args': {
+            'prompt':          'str  — description de l\'image (requis)',
+            'model':           "str  — modèle (ex: 'openjourney-v4', 'stable-diffusion-v1-5', 'dreamshaper-8') (défaut: 'openjourney-v4')",
+            'width':           'int  — largeur en pixels 256–2048 (défaut: 512)',
+            'height':          'int  — hauteur en pixels 256–2048 (défaut: 512)',
+            'steps':           'int  — nombre de pas de diffusion 1–100 (défaut: 30)',
+            'guidance_scale':  'float — échelle de guidage 1.0–20.0 (défaut: 7.5)',
+            'negative_prompt': 'str  — ce qu\'il faut éviter dans l\'image (défaut: "")',
+            'seed':            'int|null — graine aléatoire pour reproductibilité (défaut: null)',
+            'num_images':      'int  — nombre d\'images à générer 1–4 (défaut: 1)',
+        },
+    },
+    'start_imager': {
+        'description': "Lance la génération Celery pour un job ou tous les jobs en attente.",
+        'args': {
+            'generation_id': 'int|null — ID retourné par create_image, ou null pour tous les jobs PENDING',
+        },
+    },
+    'get_imager_status': {
+        'description': "Retourne l'état des 10 derniers jobs Imager de l'utilisateur.",
+        'args': {},
+    },
+    'add_to_enhancer': {
+        'description': "Enregistre un fichier image/vidéo pour amélioration (upscaling/débruitage).",
+        'args': {
+            'file_path':    'str  — chemin relatif à MEDIA_ROOT (valeur "path" de list_user_files)',
+            'ai_model':     "str  — modèle IA : 'RealESR_Gx4' (défaut), 'RealESR_Animex4', 'BSRGANx2', 'BSRGANx4', 'RealESRGANx4', 'IRCNN_Mx1', 'IRCNN_Lx1'",
+            'denoise':      'bool — appliquer un débruitage avant l\'upscaling (défaut: false)',
+            'blend_factor': 'float — 0.0 = 100% IA, 1.0 = original (défaut: 0.0)',
+        },
+    },
+    'start_enhancer': {
+        'description': "Lance le traitement Celery de l'enhancer pour un ou tous les jobs en attente.",
+        'args': {
+            'enhancement_id': 'int|null — ID retourné par add_to_enhancer, ou null pour tous les PENDING',
+        },
+    },
+    'get_enhancer_status': {
+        'description': "Retourne l'état des 10 derniers jobs Enhancer de l'utilisateur.",
+        'args': {},
+    },
+    'synthesize_text': {
+        'description': "Crée un job de synthèse vocale à partir d'un texte brut.",
+        'args': {
+            'text':              'str   — texte à synthétiser (requis)',
+            'language':          "str   — code langue (ex: 'fr', 'en', 'es', 'de') (défaut: 'fr')",
+            'tts_model':         "str   — modèle TTS ('xtts_v2', 'higgs_audio_v2', etc.) (défaut: 'xtts_v2')",
+            'voice_preset':      "str   — preset de voix ('default', 'male_1', 'female_1', etc.) (défaut: 'default')",
+            'speed':             'float — vitesse de parole 0.5–2.0 (défaut: 1.0)',
+            'pitch':             'float — hauteur de la voix 0.5–2.0 (défaut: 1.0)',
+            'emotion_intensity': 'float — intensité émotionnelle 0.0–2.0 (défaut: 1.0)',
+        },
+    },
+    'start_synthesizer': {
+        'description': "Lance la synthèse Celery pour un job ou tous les jobs en attente.",
+        'args': {
+            'synthesis_id': 'int|null — ID retourné par synthesize_text, ou null pour tous les PENDING',
+        },
+    },
+    'get_synthesizer_status': {
+        'description': "Retourne l'état des 10 derniers jobs Synthesizer de l'utilisateur.",
+        'args': {},
+    },
+    'add_to_describer': {
+        'description': "Enregistre un fichier (image, vidéo, audio, texte, PDF) pour description/résumé IA.",
+        'args': {
+            'file_path':       'str  — chemin relatif à MEDIA_ROOT (valeur "path" de list_user_files)',
+            'output_format':   "str  — 'summary' (court), 'detailed' (défaut), 'scientific', 'bullet_points'",
+            'output_language': "str  — 'fr' (défaut), 'en', 'auto'",
+            'max_length':      'int  — longueur max du résultat en mots (défaut: 500)',
+        },
+    },
+    'start_describer': {
+        'description': "Lance le traitement Celery du Describer pour un job ou tous les jobs en attente.",
+        'args': {
+            'description_id': 'int|null — ID retourné par add_to_describer, ou null pour tous les PENDING',
+        },
+    },
+    'get_describer_status': {
+        'description': "Retourne l'état des 10 derniers jobs Describer, avec un aperçu du résultat.",
+        'args': {},
+    },
+    'add_to_transcriber': {
+        'description': "Enregistre un fichier audio ou vidéo pour transcription.",
+        'args': {
+            'file_path':          'str  — chemin relatif à MEDIA_ROOT (audio ou vidéo)',
+            'backend':            "str  — 'auto' (défaut), 'whisper', 'vibevoice'",
+            'preprocess_audio':   'bool — prétraitement audio avant transcription (défaut: false)',
+            'hotwords':           'str  — termes spécifiques au domaine séparés par des virgules',
+            'enable_diarization': 'bool — identification des locuteurs (VibeVoice) (défaut: true)',
+        },
+    },
+    'start_transcriber': {
+        'description': "Lance la transcription Celery pour un job ou tous les jobs en attente.",
+        'args': {
+            'transcript_id': 'int|null — ID retourné par add_to_transcriber, ou null pour tous les PENDING',
+        },
+    },
+    'get_transcriber_status': {
+        'description': "Retourne l'état des 10 derniers jobs Transcriber, avec un aperçu du texte.",
         'args': {},
     },
 }

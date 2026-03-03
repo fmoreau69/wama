@@ -250,6 +250,8 @@ document.addEventListener('DOMContentLoaded', function() {
                                 data-output-format="${data.output_format}"
                                 data-output-language="${data.output_language}"
                                 data-max-length="${data.max_length || 500}"
+                                data-generate-summary="${document.getElementById('globalGenerateSummary')?.checked ? 'true' : 'false'}"
+                                data-verify-coherence="${document.getElementById('globalVerifyCoherence')?.checked ? 'true' : 'false'}"
                                 title="Parametres">
                             <i class="fas fa-cog"></i>
                         </button>
@@ -275,7 +277,8 @@ document.addEventListener('DOMContentLoaded', function() {
             'summary': 'Resume court',
             'detailed': 'Description detaillee',
             'scientific': 'Synthese scientifique',
-            'bullet_points': 'Points cles'
+            'bullet_points': 'Points cles',
+            'meeting': 'Compte-rendu reunion'
         };
         return labels[format] || format;
     }
@@ -336,6 +339,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const outputFormat = btn.dataset.outputFormat;
         const outputLanguage = btn.dataset.outputLanguage;
         const maxLength = btn.dataset.maxLength;
+        const generateSummary = btn.dataset.generateSummary === 'true';
+        const verifyCoherence = btn.dataset.verifyCoherence === 'true';
 
         // Populate modal fields
         document.getElementById('settingsDescriptionId').value = id;
@@ -343,6 +348,12 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('settingsOutputLanguage').value = outputLanguage;
         document.getElementById('settingsMaxLength').value = maxLength;
         document.getElementById('settingsMaxLengthValue').textContent = maxLength;
+
+        const genSumEl = document.getElementById('settingsGenerateSummary');
+        if (genSumEl) genSumEl.checked = generateSummary;
+
+        const vcEl = document.getElementById('settingsVerifyCoherence');
+        if (vcEl) vcEl.checked = verifyCoherence;
 
         // Show modal
         if (settingsModalInstance) {
@@ -355,6 +366,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const outputFormat = document.getElementById('settingsOutputFormat').value;
         const outputLanguage = document.getElementById('settingsOutputLanguage').value;
         const maxLength = document.getElementById('settingsMaxLength').value;
+        const generateSummary = document.getElementById('settingsGenerateSummary')?.checked || false;
+        const verifyCoherence = document.getElementById('settingsVerifyCoherence')?.checked || false;
 
         try {
             const response = await fetch(config.urls.updateOptions.replace('/0/', `/${descriptionId}/`), {
@@ -366,7 +379,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 body: JSON.stringify({
                     output_format: outputFormat,
                     output_language: outputLanguage,
-                    max_length: parseInt(maxLength)
+                    max_length: parseInt(maxLength),
+                    generate_summary: generateSummary,
+                    verify_coherence: verifyCoherence,
                 })
             });
 
@@ -379,7 +394,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Update card display
                 const card = document.querySelector(`.synthesis-card[data-id="${descriptionId}"]`);
                 if (card) {
-                    updateCardSettings(card, outputFormat, outputLanguage, maxLength);
+                    updateCardSettings(card, outputFormat, outputLanguage, maxLength, generateSummary, verifyCoherence);
                 }
 
                 if (startAfterSave) {
@@ -397,23 +412,27 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    function updateCardSettings(card, outputFormat, outputLanguage, maxLength) {
+    function updateCardSettings(card, outputFormat, outputLanguage, maxLength, generateSummary, verifyCoherence) {
         // Update the settings button data attributes
         const settingsBtn = card.querySelector('.settings-btn');
         if (settingsBtn) {
             settingsBtn.dataset.outputFormat = outputFormat;
             settingsBtn.dataset.outputLanguage = outputLanguage;
             settingsBtn.dataset.maxLength = maxLength;
+            settingsBtn.dataset.generateSummary = generateSummary ? 'true' : 'false';
+            settingsBtn.dataset.verifyCoherence = verifyCoherence ? 'true' : 'false';
         }
 
         // Update the options display in the card
         const optionsCol = card.querySelector('.col-md-2 small');
         if (optionsCol && optionsCol.innerHTML.includes('fa-align-left')) {
-            optionsCol.innerHTML = `
+            let html = `
                 <i class="fas fa-align-left"></i> ${getFormatLabel(outputFormat)}<br>
                 <i class="fas fa-language"></i> ${getLanguageLabel(outputLanguage)}<br>
-                <i class="fas fa-text-width"></i> ${maxLength} mots
-            `;
+                <i class="fas fa-text-width"></i> ${maxLength} mots`;
+            if (generateSummary) html += `<br><i class="fas fa-file-lines"></i> Résumé`;
+            if (verifyCoherence) html += `<br><i class="fas fa-spell-check"></i> Cohérence`;
+            optionsCol.innerHTML = html;
         }
     }
 
@@ -616,7 +635,20 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // === Preview Modal ===
+    // === Preview Modal (tabbed) ===
+
+    function renderDescMarkdown(text) {
+        if (!text) return '';
+        return text
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/### (.+)/g, '<h6 class="text-info mt-3 mb-1">$1</h6>')
+            .replace(/## (.+)/g, '<h5 class="text-warning mt-3 mb-2">$1</h5>')
+            .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+            .replace(/^- (.+)$/gm, '<li>$1</li>')
+            .replace(/(<li>.*<\/li>\n?)+/g, m => `<ul>${m}</ul>`)
+            .replace(/\n\n/g, '<br><br>')
+            .replace(/\n/g, '<br>');
+    }
 
     async function showPreview(id) {
         const modal = new bootstrap.Modal(document.getElementById('resultModal'));
@@ -627,20 +659,80 @@ document.addEventListener('DOMContentLoaded', function() {
 
         loader.style.display = 'block';
         content.style.display = 'none';
+
+        // Reset tabs visibility
+        const tabResumeBtn = document.getElementById('tab-resume-btn');
+        const tabCoherenceBtn = document.getElementById('tab-coherence-btn');
+        if (tabResumeBtn) tabResumeBtn.style.display = 'none';
+        if (tabCoherenceBtn) tabCoherenceBtn.style.display = 'none';
+
+        // Activate description tab
+        const descTab = document.getElementById('tab-description-btn');
+        if (descTab) { try { new bootstrap.Tab(descTab).show(); } catch(e) {} }
+
         modal.show();
 
         try {
-            const response = await fetch(config.urls.preview.replace('/0/', `/${id}/`), {
-                headers: {
-                    'X-CSRFToken': config.csrfToken
-                }
+            // Use progress endpoint to get full data including summary/coherence
+            const response = await fetch(config.urls.progress.replace('/0/', `/${id}/`), {
+                headers: { 'X-CSRFToken': config.csrfToken }
             });
 
             const data = await response.json();
 
-            document.getElementById('resultModalTitle').textContent = data.filename || 'Resultat';
+            document.getElementById('resultModalTitle').textContent = `Description #${id}`;
             resultText.textContent = data.result_text || 'Aucun resultat disponible';
             downloadBtn.href = config.urls.download.replace('/0/', `/${id}/`);
+
+            // Résumé tab
+            const resumeContent = document.getElementById('resumeContent');
+            if (data.summary && resumeContent) {
+                resumeContent.innerHTML = renderDescMarkdown(data.summary);
+                if (tabResumeBtn) tabResumeBtn.style.display = '';
+            }
+
+            // Cohérence tab
+            const coherenceContent = document.getElementById('coherenceContent');
+            if (data.coherence_score !== null && data.coherence_score !== undefined && coherenceContent) {
+                const score = data.coherence_score;
+                const scoreColor = score >= 80 ? 'success' : score >= 50 ? 'warning' : 'danger';
+                let notesHtml = '';
+                if (data.coherence_notes) {
+                    const notes = data.coherence_notes.split('\n').filter(l => l.trim());
+                    notesHtml = '<ul class="mt-2">' + notes.map(n => `<li class="text-light small">${n.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</li>`).join('') + '</ul>';
+                }
+                let sideBySide = '';
+                if (data.coherence_suggestion) {
+                    const orig = (data.result_text || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+                    const sugg = data.coherence_suggestion.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+                    sideBySide = `
+                        <div class="row mt-3">
+                          <div class="col-md-6">
+                            <div class="card" style="background:#1e1e1e;border:1px solid #495057;">
+                              <div class="card-header py-1 small text-muted">Texte original</div>
+                              <div class="card-body p-2">
+                                <pre style="color:#d4d4d4;white-space:pre-wrap;font-size:13px;max-height:300px;overflow-y:auto;margin:0;">${orig}</pre>
+                              </div>
+                            </div>
+                          </div>
+                          <div class="col-md-6">
+                            <div class="card" style="background:#1e2820;border:1px solid #2ea043;">
+                              <div class="card-header py-1 small text-muted">Correction proposée</div>
+                              <div class="card-body p-2">
+                                <pre style="color:#7ee787;white-space:pre-wrap;font-size:13px;max-height:300px;overflow-y:auto;margin:0;">${sugg}</pre>
+                              </div>
+                            </div>
+                          </div>
+                        </div>`;
+                }
+                coherenceContent.innerHTML = `
+                    <div class="d-flex align-items-center mb-2">
+                        <span class="badge bg-${scoreColor} fs-5 me-3">${score}/100</span>
+                        <span class="text-light">Score de cohérence</span>
+                    </div>
+                    ${notesHtml}${sideBySide}`;
+                if (tabCoherenceBtn) tabCoherenceBtn.style.display = '';
+            }
 
             loader.style.display = 'none';
             content.style.display = 'block';

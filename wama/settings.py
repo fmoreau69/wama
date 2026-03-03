@@ -107,6 +107,12 @@ os.environ.setdefault('HF_HOME', str(HF_DEFAULT_CACHE))
 os.environ.setdefault('HF_HUB_CACHE', str(HF_DEFAULT_CACHE))
 os.environ.setdefault('HUGGINGFACE_HUB_CACHE', str(HF_DEFAULT_CACHE))
 
+# HuggingFace access token — required for gated models (pyannote/speaker-diarization-3.1).
+# Generate at https://huggingface.co/settings/tokens (read access).
+# You must also accept the model terms at https://huggingface.co/pyannote/speaker-diarization-3.1
+# If set to None, falls back to HF_TOKEN env var or ~/.cache/huggingface/token (huggingface-cli login).
+HUGGINGFACE_TOKEN = os.environ.get('HF_TOKEN', None)
+
 # Anonymizer media paths
 MEDIA_INPUT_URL = '/media/anonymizer/input'
 MEDIA_INPUT_ROOT = MEDIA_ROOT / 'anonymizer' / 'input'
