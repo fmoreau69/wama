@@ -205,7 +205,7 @@
                             {{ desc.result_text|truncatechars:150 }}
                         </small>
                         {% else %}
-                        <small class="text-white-50">
+                        <small class="text-white-50 result-preview">
                             {{ desc.properties|default:"En attente de traitement" }}
                         </small>
                         {% endif %}

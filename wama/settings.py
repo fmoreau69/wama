@@ -49,13 +49,20 @@ MODEL_PATHS = {
         'bark': AI_MODELS_DIR / "models" / "speech" / "bark",
         'higgs': AI_MODELS_DIR / "models" / "speech" / "higgs",
         'vibevoice': AI_MODELS_DIR / "models" / "speech" / "vibevoice",
+        'qwen_asr': AI_MODELS_DIR / "models" / "speech" / "qwen_asr",
+        'diarization': AI_MODELS_DIR / "models" / "speech" / "diarization",
     },
     # Diffusion models (image/video generation)
     'diffusion': {
         'root': AI_MODELS_DIR / "models" / "diffusion",
-        'wan': AI_MODELS_DIR / "models" / "diffusion" / "wan",
         'hunyuan': AI_MODELS_DIR / "models" / "diffusion" / "hunyuan",
         'stable_diffusion': AI_MODELS_DIR / "models" / "diffusion" / "stable-diffusion",
+        'cogvideox': AI_MODELS_DIR / "models" / "diffusion" / "cogvideox",
+        'ltx': AI_MODELS_DIR / "models" / "diffusion" / "ltx",
+        'mochi': AI_MODELS_DIR / "models" / "diffusion" / "mochi",
+        'flux': AI_MODELS_DIR / "models" / "diffusion" / "flux",
+        'logo': AI_MODELS_DIR / "models" / "diffusion" / "logo",
+        'qwen_image': AI_MODELS_DIR / "models" / "diffusion" / "qwen-image",
     },
     # Vision-Language models (BLIP, LLaVA, etc.)
     'vision_language': {

@@ -11,13 +11,9 @@
     <label class="form-label small fw-bold text-light">
         <i class="fas fa-microchip"></i> Moteur de transcription
     </label>
-    <select id="backendSelect" class="form-select form-select-sm">
+    <select id="backendSelect" class="form-select form-select-sm" data-selected="{{ selected_backend }}">
         <option value="auto" {% if selected_backend == 'auto' %}selected{% endif %}>Auto (meilleur disponible)</option>
-        {% for backend in backends %}
-        <option value="{{ backend.name }}" {% if selected_backend == backend.name %}selected{% endif %}>
-            {{ backend.display_name }}{% if backend.supports_diarization %} (diarisation){% endif %}
-        </option>
-        {% endfor %}
+        {# options injected asynchronously by loadBackendsAsync() #}
     </select>
 </div>
 
@@ -404,11 +400,7 @@
                         </label>
                         <select class="form-select" id="settingsBackend" name="backend">
                             <option value="auto">Auto (meilleur disponible)</option>
-                            {% for backend in backends %}
-                            <option value="{{ backend.name }}">
-                                {{ backend.display_name }}{% if backend.supports_diarization %} (diarisation){% endif %}
-                            </option>
-                            {% endfor %}
+                            {# options injected asynchronously by loadBackendsAsync() #}
                         </select>
                     </div>
 

@@ -155,13 +155,16 @@ class ModelRegistry:
         return [m for m in self._models.values() if m.is_loaded]
 
     def _discover_imager_models(self):
-        """Discover Imager app models (SD, Wan, Hunyuan, CogVideoX, LTX, Mochi)."""
+        """Discover Imager app models (HunyuanImage, SD, CogVideoX, LTX, Mochi, QwenImage)."""
         try:
             from wama.imager.utils.model_config import (
-                IMAGER_MODELS, WAN_MODELS, HUNYUAN_MODELS,
+                IMAGER_MODELS, HUNYUAN_MODELS,
                 COGVIDEOX_MODELS, LTX_MODELS, MOCHI_MODELS,
-                WAN_DIR, HUNYUAN_DIR, STABLE_DIFFUSION_DIR,
-                COGVIDEOX_DIR, LTX_DIR, MOCHI_DIR
+                QWEN_IMAGE_MODELS, LOGO_MODELS,
+                HUNYUAN_DIR, STABLE_DIFFUSION_DIR,
+                COGVIDEOX_DIR, LTX_DIR, MOCHI_DIR,
+                QWEN_IMAGE_DIR, FLUX_DIR, LOGO_DIR,
+                get_model_info,
             )
             from django.conf import settings
 
@@ -178,25 +181,18 @@ class ModelRegistry:
             except Exception:
                 pass
 
-            # HuggingFace cache directory
+            # HuggingFace cache directory (fallback check only)
             hf_cache = settings.MODEL_PATHS.get('cache', {}).get('huggingface')
 
             for model_id, config in IMAGER_MODELS.items():
                 is_loaded = model_id == loaded_model
                 hf_id = config.get('hf_id')
 
-                # Determine cache directory based on model type
-                if model_id in WAN_MODELS:
-                    cache_dir = Path(WAN_DIR)
-                elif model_id in HUNYUAN_MODELS:
-                    cache_dir = Path(HUNYUAN_DIR)
-                elif model_id in COGVIDEOX_MODELS:
-                    cache_dir = Path(COGVIDEOX_DIR)
-                elif model_id in LTX_MODELS:
-                    cache_dir = Path(LTX_DIR)
-                elif model_id in MOCHI_MODELS:
-                    cache_dir = Path(MOCHI_DIR)
-                else:
+                # Determine cache directory using centralized get_model_info()
+                try:
+                    model_info = get_model_info(model_id)
+                    cache_dir = Path(model_info['cache_dir'])
+                except Exception:
                     cache_dir = Path(STABLE_DIFFUSION_DIR)
 
                 # Check if model is downloaded

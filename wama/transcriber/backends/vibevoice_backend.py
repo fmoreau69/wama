@@ -96,9 +96,8 @@ class VibeVoiceBackend(SpeechToTextBackend):
             return True
 
         try:
+            import os
             import torch
-            from vibevoice.modular.modeling_vibevoice_asr import VibeVoiceASRForConditionalGeneration
-            from vibevoice.processor.vibevoice_asr_processor import VibeVoiceASRProcessor
 
             if self._model is not None:
                 self.unload()
@@ -117,6 +116,14 @@ class VibeVoiceBackend(SpeechToTextBackend):
                 logger.info(f"[VibeVoice] Cache: {cache_dir}")
             except Exception:
                 pass
+
+            # ── CRITICAL: set HF_HUB_CACHE BEFORE importing vibevoice/transformers ─
+            if cache_dir:
+                os.environ['HF_HUB_CACHE'] = cache_dir
+                os.environ['HUGGINGFACE_HUB_CACHE'] = cache_dir
+
+            from vibevoice.modular.modeling_vibevoice_asr import VibeVoiceASRForConditionalGeneration
+            from vibevoice.processor.vibevoice_asr_processor import VibeVoiceASRProcessor
 
             # Free VRAM before loading the 7B model
             torch.cuda.empty_cache()

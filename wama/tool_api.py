@@ -306,7 +306,7 @@ def sam3_examples() -> dict:
 def create_image(
     user,
     prompt: str,
-    model: str = 'openjourney-v4',
+    model: str = 'hunyuan-image-2.1',
     width: int = 512,
     height: int = 512,
     steps: int = 30,
@@ -321,7 +321,7 @@ def create_image(
     Args:
         user:            Django User instance
         prompt:          Text prompt for generation (required)
-        model:           Model name (e.g. 'openjourney-v4', 'stable-diffusion-v1-5')
+        model:           Model name (e.g. 'hunyuan-image-2.1', 'stable-diffusion-xl')
         width:           Output width in pixels (256–2048)
         height:          Output height in pixels (256–2048)
         steps:           Diffusion steps (1–100, default 30)
@@ -1200,7 +1200,7 @@ TOOL_DESCRIPTIONS = {
         'description': "Crée un job de génération d'image (txt2img) en attente.",
         'args': {
             'prompt':          'str  — description de l\'image (requis)',
-            'model':           "str  — modèle (ex: 'openjourney-v4', 'stable-diffusion-v1-5', 'dreamshaper-8') (défaut: 'openjourney-v4')",
+            'model':           "str  — modèle (ex: 'hunyuan-image-2.1', 'stable-diffusion-xl', 'dreamshaper-8') (défaut: 'hunyuan-image-2.1')",
             'width':           'int  — largeur en pixels 256–2048 (défaut: 512)',
             'height':          'int  — hauteur en pixels 256–2048 (défaut: 512)',
             'steps':           'int  — nombre de pas de diffusion 1–100 (défaut: 30)',

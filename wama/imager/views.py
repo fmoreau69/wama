@@ -56,11 +56,13 @@ def index(request):
     except ImportError:
         # Fallback to default models if backend system not available
         models_choices = [
-            ('openjourney-v4', 'OpenJourney v4'),
+            ('hunyuan-image-2.1', 'HunyuanDiT Image 2.1'),
+            ('stable-diffusion-xl', 'Stable Diffusion XL'),
             ('stable-diffusion-v1-5', 'Stable Diffusion 1.5'),
         ]
         models_info = [
-            {'id': 'openjourney-v4', 'name': 'OpenJourney v4', 'description': 'Style Midjourney', 'vram': '4GB'},
+            {'id': 'hunyuan-image-2.1', 'name': 'HunyuanDiT Image 2.1', 'description': 'Modèle image haute qualité', 'vram': '12GB'},
+            {'id': 'stable-diffusion-xl', 'name': 'Stable Diffusion XL', 'description': 'Modèle SDXL 1024px', 'vram': '8GB'},
             {'id': 'stable-diffusion-v1-5', 'name': 'Stable Diffusion 1.5', 'description': 'Modèle classique', 'vram': '4GB'},
         ]
         backend_name = "Unknown"
@@ -84,42 +86,22 @@ def index(request):
 
     # Video model choices with descriptions
     video_models = [
-        # CogVideoX - Lightweight
-        ('cogvideox-2b', 'CogVideoX 2B'),
+        # CogVideoX
         ('cogvideox-5b', 'CogVideoX 5B'),
         ('cogvideox-5b-i2v', 'CogVideoX 5B I2V'),
         # LTX-Video - Fast
-        ('ltx-video-2b', 'LTX-Video 2B'),
         ('ltx-video-0.9.8-distilled', 'LTX-Video Distilled'),
         # Mochi - High quality
         ('mochi-1-preview', 'Mochi-1 Preview'),
-        # Wan
-        ('wan-ti2v-5b', 'Wan TI2V 5B'),
-        ('wan-t2v-14b', 'Wan T2V 14B'),
-        ('wan-i2v-14b', 'Wan I2V 14B'),
-        # HunyuanVideo
-        ('hunyuan-t2v-480p', 'HunyuanVideo T2V 480p'),
-        ('hunyuan-t2v-720p', 'HunyuanVideo T2V 720p'),
-        ('hunyuan-i2v-480p', 'HunyuanVideo I2V 480p'),
     ]
     video_models_info = [
-        # CogVideoX - Lightweight (4-5GB VRAM)
-        {'id': 'cogvideox-2b', 'name': 'CogVideoX 2B', 'description': 'Text-to-Video - 4GB VRAM - Fast and efficient', 'vram': '4GB', 'type': 't2v', 'fps': 8, 'disk': '6GB'},
+        # CogVideoX (5-12GB VRAM)
         {'id': 'cogvideox-5b', 'name': 'CogVideoX 5B', 'description': 'Text-to-Video - 5GB VRAM - Higher quality', 'vram': '5GB', 'type': 't2v', 'fps': 8, 'disk': '12GB'},
         {'id': 'cogvideox-5b-i2v', 'name': 'CogVideoX 5B I2V', 'description': 'Image-to-Video - 5GB VRAM - Animate images', 'vram': '5GB', 'type': 'i2v', 'fps': 8, 'disk': '12GB'},
-        # LTX-Video - Fast (6-10GB VRAM)
-        {'id': 'ltx-video-2b', 'name': 'LTX-Video 2B', 'description': 'Text-to-Video 24fps - 8GB VRAM - Fast', 'vram': '8GB', 'type': 't2v', 'fps': 24, 'disk': '5GB'},
-        {'id': 'ltx-video-0.9.8-distilled', 'name': 'LTX-Video Distilled', 'description': 'Text-to-Video 24fps - 6GB VRAM - Light', 'vram': '6GB', 'type': 't2v', 'fps': 24, 'disk': '4GB'},
+        # LTX-Video - Fast (6GB VRAM)
+        {'id': 'ltx-video-0.9.8-distilled', 'name': 'LTX-Video Distilled', 'description': 'Text-to-Video 24fps - 6GB VRAM - Fast and light', 'vram': '6GB', 'type': 't2v', 'fps': 24, 'disk': '4GB'},
         # Mochi - High quality (22GB VRAM)
         {'id': 'mochi-1-preview', 'name': 'Mochi-1 Preview', 'description': 'Text-to-Video 30fps - 22GB VRAM - High quality', 'vram': '22GB', 'type': 't2v', 'fps': 30, 'disk': '18GB'},
-        # Wan
-        {'id': 'wan-ti2v-5b', 'name': 'Wan TI2V 5B', 'description': 'text&image-to-video - 16GB VRAM - Rapide et efficace', 'vram': '8GB', 'type': 'ti2v'},
-        {'id': 'wan-t2v-14b', 'name': 'Wan T2V 14B', 'description': 'Text-to-Video - 24GB VRAM - Haute qualité', 'vram': '24GB', 'type': 't2v'},
-        {'id': 'wan-i2v-14b', 'name': 'Wan I2V 14B', 'description': 'Image-to-Video - 24GB VRAM - Haute qualité', 'vram': '24GB', 'type': 'i2v'},
-        # HunyuanVideo
-        {'id': 'hunyuan-t2v-480p', 'name': 'HunyuanVideo T2V 480p', 'description': 'Text-to-Video 480p - 14GB VRAM avec offload - Excellente qualité', 'vram': '14GB', 'type': 't2v'},
-        {'id': 'hunyuan-t2v-720p', 'name': 'HunyuanVideo T2V 720p', 'description': 'Text-to-Video 720p - 24GB VRAM - Haute résolution', 'vram': '24GB', 'type': 't2v'},
-        {'id': 'hunyuan-i2v-480p', 'name': 'HunyuanVideo I2V 480p', 'description': 'Image-to-Video 480p - 14GB VRAM avec offload - Animation d\'images', 'vram': '14GB', 'type': 'i2v'},
     ]
 
     # Separate image and video generations
@@ -182,7 +164,7 @@ def handle_txt2img(request, user):
         return JsonResponse({'error': 'Prompt is required'}, status=400)
 
     negative_prompt = request.POST.get('negative_prompt', '').strip()
-    model = request.POST.get('model', 'openjourney-v4')
+    model = request.POST.get('model', 'stable-diffusion-v1-5')
     width = int(request.POST.get('width', 512))
     height = int(request.POST.get('height', 512))
     steps = int(request.POST.get('steps', 30))
@@ -230,7 +212,7 @@ def handle_file2img(request, user):
         return JsonResponse({'error': 'No prompt file provided'}, status=400)
 
     # Default parameters for batch
-    model = request.POST.get('model', 'openjourney-v4')
+    model = request.POST.get('model', 'stable-diffusion-v1-5')
     width = int(request.POST.get('width', 512))
     height = int(request.POST.get('height', 512))
     steps = int(request.POST.get('steps', 30))
@@ -307,7 +289,7 @@ def handle_describe2img(request, user):
     if not reference_image:
         return JsonResponse({'error': 'No reference image provided'}, status=400)
 
-    model = request.POST.get('model', 'openjourney-v4')
+    model = request.POST.get('model', 'stable-diffusion-v1-5')
     width = int(request.POST.get('width', 512))
     height = int(request.POST.get('height', 512))
     steps = int(request.POST.get('steps', 30))
@@ -372,7 +354,7 @@ def handle_img2img(request, user, mode):
 
     prompt = request.POST.get('prompt', '').strip()
     negative_prompt = request.POST.get('negative_prompt', '').strip()
-    model = request.POST.get('model', 'openjourney-v4')
+    model = request.POST.get('model', 'stable-diffusion-v1-5')
     width = int(request.POST.get('width', 512))
     height = int(request.POST.get('height', 512))
     steps = int(request.POST.get('steps', 30))
@@ -424,7 +406,7 @@ def handle_txt2vid(request, user):
         return JsonResponse({'error': 'Prompt is required'}, status=400)
 
     negative_prompt = request.POST.get('negative_prompt', '').strip()
-    model = request.POST.get('model', 'wan-t2v-1.3b')
+    model = request.POST.get('model', 'cogvideox-5b')
     video_duration = float(request.POST.get('video_duration', 5.0))
     video_fps = int(request.POST.get('video_fps', 16))
     video_resolution = request.POST.get('video_resolution', '480p')
@@ -469,7 +451,7 @@ def handle_img2vid(request, user):
 
     prompt = request.POST.get('prompt', '').strip()
     negative_prompt = request.POST.get('negative_prompt', '').strip()
-    model = request.POST.get('model', 'wan-i2v-14b')
+    model = request.POST.get('model', 'cogvideox-5b-i2v')
     video_duration = float(request.POST.get('video_duration', 5.0))
     video_fps = int(request.POST.get('video_fps', 16))
     video_resolution = request.POST.get('video_resolution', '480p')

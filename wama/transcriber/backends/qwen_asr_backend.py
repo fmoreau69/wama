@@ -175,14 +175,23 @@ class QwenASRBackend(SpeechToTextBackend):
             return True
 
         try:
+            import os
             import torch
-            from transformers import AutoProcessor, AutoModelForSpeechSeq2Seq
 
             if self._model is not None:
                 self.unload()
 
             self._device, self._dtype = self._get_device_and_dtype()
             cache_dir = self._get_cache_dir()
+
+            # ── CRITICAL: set HF_HUB_CACHE BEFORE importing transformers ──────
+            # This ensures ALL sub-downloads (tokenizer, config, weights) go to
+            # the correct model-specific directory, not the global HF cache.
+            if cache_dir:
+                os.environ['HF_HUB_CACHE'] = cache_dir
+                os.environ['HUGGINGFACE_HUB_CACHE'] = cache_dir
+
+            from transformers import AutoProcessor, AutoModelForSpeechSeq2Seq
 
             logger.info(
                 f"[QwenASR] Loading '{model_id}' on {self._device}"

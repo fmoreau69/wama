@@ -64,12 +64,6 @@ MODEL_RESOLUTION_CONFIG = {
         "default": "512x512",
         "recommended": ["512x512", "768x768", "896x512", "512x896", "680x512", "512x680"],
     },
-    "openjourney-v4": {
-        "min_size": 256,
-        "max_size": 768,
-        "default": "512x512",
-        "recommended": ["512x512", "768x768", "896x512", "512x896"],
-    },
     "dreamshaper-8": {
         "min_size": 256,
         "max_size": 768,
@@ -77,12 +71,6 @@ MODEL_RESOLUTION_CONFIG = {
         "recommended": ["512x512", "768x768", "896x512", "512x896"],
     },
     "deliberate-v6": {
-        "min_size": 256,
-        "max_size": 768,
-        "default": "512x512",
-        "recommended": ["512x512", "768x768", "896x512", "512x896"],
-    },
-    "realistic-vision-v5": {
         "min_size": 256,
         "max_size": 768,
         "default": "512x512",
@@ -116,6 +104,21 @@ MODEL_RESOLUTION_CONFIG = {
         "default": "1024x1024",
         "recommended": ["1024x1024", "1344x768", "768x1344", "1920x1088", "1088x1920"],
         "vram_warning": "10GB+ VRAM recommended for 1024+ resolution",
+    },
+    # Qwen Image 2 models - 2K native resolution
+    "qwen-image-2": {
+        "min_size": 512,
+        "max_size": 2048,
+        "default": "1024x1024",
+        "recommended": ["1024x1024", "2048x2048", "2048x1152", "1152x2048"],
+        "vram_warning": "16GB+ VRAM required",
+    },
+    "qwen-image-edit": {
+        "min_size": 512,
+        "max_size": 2048,
+        "default": "1024x1024",
+        "recommended": ["1024x1024", "2048x2048", "2048x1152", "1152x2048"],
+        "vram_warning": "12GB+ VRAM required",
     },
 }
 
@@ -230,7 +233,7 @@ class ImageGeneration(models.Model):
     )
 
     # Model and size settings
-    model = models.CharField(max_length=100, default="openjourney-v4", help_text="AI model to use")
+    model = models.CharField(max_length=100, default="stable-diffusion-v1-5", help_text="AI model to use")
     width = models.IntegerField(default=512, validators=[MinValueValidator(64), MaxValueValidator(2048)])
     height = models.IntegerField(default=512, validators=[MinValueValidator(64), MaxValueValidator(2048)])
 
@@ -379,7 +382,7 @@ class UserSettings(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='imager_settings')
 
     # Default generation settings
-    default_model = models.CharField(max_length=100, default="openjourney-v4")
+    default_model = models.CharField(max_length=100, default="stable-diffusion-v1-5")
     default_width = models.IntegerField(default=512)
     default_height = models.IntegerField(default=512)
     default_steps = models.IntegerField(default=30)

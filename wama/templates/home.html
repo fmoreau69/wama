@@ -181,6 +181,17 @@
       // ── Clear button ──────────────────────────────────────────────────────
       document.getElementById('ai-chat-clear').addEventListener('click', clearChatHistory);
 
+      // ── Build Ollama-format history from local chatHistory ────────────────
+      function buildHistory() {
+        const hist = [];
+        for (const entry of chatHistory) {
+          if (entry.type === 'user')      hist.push({ role: 'user',      content: entry.content });
+          else if (entry.type === 'assistant') hist.push({ role: 'assistant', content: entry.content });
+          // skip tool_steps and error entries — not useful as LLM context
+        }
+        return hist.slice(-20); // cap to last 10 exchanges
+      }
+
       // ── Submit handler ────────────────────────────────────────────────────
       chatForm.addEventListener('submit', async function(e) {
         e.preventDefault();
@@ -194,7 +205,7 @@
         chatSubmit.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
         addLoadingIndicator();
 
-        const requestBody = { message, provider: providerSelect.value };
+        const requestBody = { message, provider: providerSelect.value, history: buildHistory() };
         if (providerSelect.value === 'wama-dev-ai') requestBody.model = modelSelect.value;
 
         try {
@@ -267,11 +278,11 @@
               <div class="col-md-6" id="model-container">
                 <label class="form-label small">Model</label>
                 <select id="ai-model" class="form-select form-select-sm" style="background: #1a1d21; border: 1px solid #495057; color: #fff;">
-                  <option value="fast" selected>Qwen3 14B (Fast)</option>
-                  <option value="ultra_fast">Qwen3 8B (Ultra Fast)</option>
-                  <option value="dev">Qwen3 30B (Dev)</option>
-                  <option value="coder">Qwen3 Coder 30B</option>
-                  <option value="architect">Qwen3 30B Thinking</option>
+                  <option value="fast" selected>Qwen3.5 9B (Fast)</option>
+                  <option value="ultra_fast">Qwen3.5 4B (Ultra Fast)</option>
+                  <option value="dev">Qwen3.5 35B-A3B (Dev)</option>
+                  <option value="coder">Qwen3.5 35B-A3B (Coder)</option>
+                  <option value="architect">Qwen3.5 35B-A3B (Architect)</option>
                 </select>
               </div>
             </div>

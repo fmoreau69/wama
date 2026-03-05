@@ -1038,12 +1038,48 @@ document.addEventListener('DOMContentLoaded', function () {
     updateDownloadAllState();
   }
 
+  // ======================================================================
+  // Async backends loading (non-blocking)
+  // ======================================================================
+  async function loadBackendsAsync() {
+    if (!config.backendsUrl) return;
+    try {
+      const resp = await fetch(config.backendsUrl);
+      if (!resp.ok) return;
+      const data = await resp.json();
+      const backends = data.backends || [];
+      if (!backends.length) return;
+
+      const options = backends.map(b => {
+        const label = b.display_name + (b.supports_diarization ? ' (diarisation)' : '');
+        return `<option value="${escapeHtml(b.name)}">${escapeHtml(label)}</option>`;
+      }).join('');
+
+      // Populate global panel selector and restore saved value
+      const globalSel = document.getElementById('backendSelect');
+      if (globalSel) {
+        const savedValue = globalSel.dataset.selected || 'auto';
+        globalSel.insertAdjacentHTML('beforeend', options);
+        globalSel.value = savedValue;
+      }
+
+      // Populate settings modal selector (value set when modal opens)
+      const settingsSel = document.getElementById('settingsBackend');
+      if (settingsSel) {
+        settingsSel.insertAdjacentHTML('beforeend', options);
+      }
+    } catch (_) {
+      // silently ignore — "Auto" remains functional
+    }
+  }
+
   initUpload();
   initDragDrop();
   initYoutube();
   initExistingCards();
   initSpeech();
   initBulkActions();
+  loadBackendsAsync();
 
   updateGlobalProgress();
   setInterval(updateGlobalProgress, 2000);

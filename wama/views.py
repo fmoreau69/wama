@@ -37,7 +37,7 @@ Anonymizer:
 - sam3_examples(): Get examples of SAM3 text prompts for segmentation.
 
 Imager:
-- create_image(prompt, model="openjourney-v4", width=512, height=512, steps=30, guidance_scale=7.5, negative_prompt="", seed=null, num_images=1): Create a text-to-image generation job (status: pending). Returns generation_id.
+- create_image(prompt, model="hunyuan-image-2.1", width=1024, height=1024, steps=30, guidance_scale=7.5, negative_prompt="", seed=null, num_images=1): Create a text-to-image generation job (status: pending). Returns generation_id.
 - start_imager(generation_id=null): Launch image generation. Provide generation_id from create_image, or null to start all pending jobs.
 - get_imager_status(): Get status and progress of the user's recent image generation jobs.
 
@@ -91,12 +91,12 @@ def presentation(request):
 
 
 _OLLAMA_MODEL_MAP = {
-    'dev':        'qwen3:30b-instruct',
-    'coder':      'qwen3-coder:30b',
-    'debug':      'deepseek-coder-v2:16b',
-    'architect':  'qwen3:30b-thinking',
-    'fast':       'qwen3:14b-q8_0',
-    'ultra_fast': 'qwen3:8b-q8_0',
+    'dev':        'qwen3.5:35b-a3b',       # was: qwen3:30b-instruct
+    'coder':      'qwen3.5:35b-a3b',       # was: qwen3-coder:30b (no Qwen3.5-Coder yet)
+    'debug':      'deepseek-coder-v2:16b', # unchanged
+    'architect':  'qwen3.5:35b-a3b',       # was: qwen3:30b-thinking (unified think/nothink)
+    'fast':       'qwen3.5:9b',            # was: qwen3:14b-q8_0
+    'ultra_fast': 'qwen3.5:4b',            # was: qwen3:8b-q8_0
 }
 
 
@@ -178,7 +178,7 @@ def _parse_tool_call(text: str) -> dict | None:
     return None
 
 
-def _chat_with_ollama(message: str, model: str = "fast", user=None) -> dict:
+def _chat_with_ollama(message: str, model: str = "fast", user=None, history: list = None) -> dict:
     """
     Agentic chat with local Ollama server.
 
@@ -191,6 +191,7 @@ def _chat_with_ollama(message: str, model: str = "fast", user=None) -> dict:
         message: User message
         model:   Model key from _OLLAMA_MODEL_MAP
         user:    Django User instance (required for tool execution)
+        history: Prior conversation turns as list of {role, content} dicts
 
     Returns:
         dict with success, response, model, usage, tool_steps
@@ -200,8 +201,11 @@ def _chat_with_ollama(message: str, model: str = "fast", user=None) -> dict:
     ollama_model = _OLLAMA_MODEL_MAP.get(model, model)
     system_prompt = WAMA_SYSTEM_PROMPT + (WAMA_TOOLS_PROMPT if user else "")
 
+    # Build messages: system + prior history (capped) + current user message
+    prior = (history or [])[-20:]  # keep last 10 exchanges max
     messages = [
         {"role": "system", "content": system_prompt},
+        *prior,
         {"role": "user",   "content": message},
     ]
 
@@ -260,12 +264,13 @@ def _chat_with_ollama(message: str, model: str = "fast", user=None) -> dict:
     }
 
 
-def _chat_with_claude(message: str) -> dict:
+def _chat_with_claude(message: str, history: list = None) -> dict:
     """
     Chat with Anthropic Claude API.
 
     Args:
         message: User message
+        history: Prior conversation turns as list of {role, content} dicts
 
     Returns:
         dict with success, response, model, and usage info
@@ -300,10 +305,11 @@ def _chat_with_claude(message: str) -> dict:
         else:
             client = anthropic.Anthropic(api_key=api_key)
 
+        prior = (history or [])[-20:]
         response = client.messages.create(
             model="claude-sonnet-4-20250514",
             max_tokens=4096,
-            messages=[{"role": "user", "content": message}],
+            messages=[*prior, {"role": "user", "content": message}],
             system=WAMA_SYSTEM_PROMPT
         )
 
@@ -354,16 +360,17 @@ def ai_chat(request):
         message = data.get('message', '').strip()
         provider = data.get('provider', 'wama-dev-ai')  # Default to local
         model = data.get('model', 'fast')  # Default Ollama model
+        history = data.get('history', [])  # Prior conversation turns
 
         if not message:
             return JsonResponse({'error': 'Message is required'}, status=400)
 
         # Route to appropriate provider
         if provider == 'claude':
-            result = _chat_with_claude(message)
+            result = _chat_with_claude(message, history=history)
         else:
             # Default: wama-dev-ai (Ollama) — pass user for tool-calling support
-            result = _chat_with_ollama(message, model, user=request.user)
+            result = _chat_with_ollama(message, model, user=request.user, history=history)
 
         # Check for errors
         if 'error' in result:

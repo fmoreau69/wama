@@ -321,6 +321,11 @@ document.addEventListener('DOMContentLoaded', function() {
     // Bind events for existing cards
     document.querySelectorAll('.synthesis-card').forEach(bindCardEvents);
 
+    // Resume polling for cards already in RUNNING state (e.g. after page reload)
+    document.querySelectorAll('.synthesis-card.processing').forEach(card => {
+        startPolling(card.dataset.id);
+    });
+
     // === Settings Modal ===
     const settingsModal = document.getElementById('settingsModal');
     const settingsModalInstance = settingsModal ? new bootstrap.Modal(settingsModal) : null;

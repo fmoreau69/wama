@@ -36,8 +36,28 @@ def _load_pipeline(hf_token: Optional[str] = None):
     if _pipeline is not None:
         return _pipeline
 
-    from pyannote.audio import Pipeline
+    import os
     import torch
+
+    # ── CRITICAL: set HF_HUB_CACHE BEFORE importing pyannote/huggingface_hub ──
+    # This routes all sub-downloads (weights, configs) to speech/diarization/
+    # instead of the global AI-models/cache/huggingface/ fallback.
+    try:
+        from pathlib import Path
+        from django.conf import settings as _s
+        _dia_dir = _s.MODEL_PATHS.get('speech', {}).get(
+            'diarization',
+            _s.AI_MODELS_DIR / "models" / "speech" / "diarization"
+        )
+        Path(_dia_dir).mkdir(parents=True, exist_ok=True)
+        _cache = str(_dia_dir)
+        os.environ['HF_HUB_CACHE'] = _cache
+        os.environ['HUGGINGFACE_HUB_CACHE'] = _cache
+        logger.info(f"[pyannote] Cache → {_cache}")
+    except Exception:
+        pass
+
+    from pyannote.audio import Pipeline
 
     # Resolve HuggingFace token from argument or Django settings
     token = hf_token

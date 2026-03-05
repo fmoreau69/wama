@@ -325,153 +325,48 @@ def describe_text(description, set_progress, set_partial, console):
             set_partial(description, result[:500])
             return result
 
-        # Load summarizer
-        set_partial(description, "Loading summarization model...")
-        console(user_id, "Loading AI model...")
-
-        summarizer = get_summarizer()
-
+        # Use Ollama LLM for summarization (replaces BART pipeline)
+        console(user_id, "Génération du résumé LLM (Ollama)…")
+        set_partial(description, "Génération du résumé en cours…")
         set_progress(description, 50)
-        console(user_id, "Generating summary...")
 
-        # Chunk long text
-        chunks = chunk_text(text, max_tokens=1024)
-        console(user_id, f"Processing {len(chunks)} text chunks...")
+        try:
+            from wama.common.utils.llm_utils import generate_structured_summary
+            summary_data = generate_structured_summary(
+                text, content_hint='text', language=output_language or 'fr',
+            )
+            set_progress(description, 85)
 
-        summaries = []
-        cuda_failed = False  # Track if CUDA has failed
+            if output_format == 'bullet_points' and summary_data['key_points']:
+                lines = [f"- {p}" for p in summary_data['key_points']]
+                if summary_data['action_items']:
+                    lines += ['', 'Actions :'] + [f"- {a}" for a in summary_data['action_items']]
+                result = '\n'.join(lines)
+            elif output_format == 'scientific':
+                parts = [summary_data['summary']]
+                if summary_data['key_points']:
+                    parts += ['', 'Key points:'] + [f"- {p}" for p in summary_data['key_points']]
+                body = '\n'.join(parts)
+                result = f"Summary:\n\n{body}\n\n---\nThis summary was generated automatically using AI-based text summarization."
+            elif output_format == 'detailed':
+                parts = [summary_data['summary']]
+                if summary_data['key_points']:
+                    parts += ['', 'Points clés :'] + [f"- {p}" for p in summary_data['key_points']]
+                if summary_data['action_items']:
+                    parts += ['', 'Actions :'] + [f"- {a}" for a in summary_data['action_items']]
+                result = '\n'.join(parts)
+            else:  # 'summary'
+                result = summary_data['summary']
 
-        for i, chunk in enumerate(chunks):
-            if len(chunk.split()) < 50:
-                # Skip very short chunks
-                continue
-
-            progress = 50 + int((i / len(chunks)) * 30)
-            set_progress(description, progress)
-            set_partial(description, f"Processing chunk {i+1}/{len(chunks)}...")
-
-            try:
-                # Calculate lengths based on output format
-                if output_format == 'summary':
-                    min_len, max_len = 30, 80
-                elif output_format == 'bullet_points':
-                    min_len, max_len = 50, 150
-                else:
-                    min_len, max_len = 80, 200
-
-                # Sanitize chunk to prevent tokenization errors
-                clean_chunk = sanitize_text_for_model(chunk)
-                if not clean_chunk or len(clean_chunk.split()) < 30:
-                    continue
-
-                # If CUDA failed before, use CPU
-                if cuda_failed:
-                    summarizer = get_summarizer(force_cpu=True)
-
-                summary = summarizer(
-                    clean_chunk,
-                    max_length=max_len,
-                    min_length=min_len,
-                    do_sample=False,
-                    truncation=True
-                )
-                summaries.append(summary[0]['summary_text'])
-
-            except RuntimeError as e:
-                error_str = str(e)
-                if 'CUDA' in error_str or 'device-side assert' in error_str:
-                    logger.warning(f"CUDA error on chunk {i}, switching to CPU: {e}")
-                    reset_cuda()
-                    cuda_failed = True
-
-                    # Retry on CPU
-                    try:
-                        summarizer = get_summarizer(force_cpu=True)
-                        clean_chunk = sanitize_text_for_model(chunk)
-                        if clean_chunk and len(clean_chunk.split()) >= 30:
-                            summary = summarizer(
-                                clean_chunk,
-                                max_length=max_len,
-                                min_length=min_len,
-                                do_sample=False,
-                                truncation=True
-                            )
-                            summaries.append(summary[0]['summary_text'])
-                            console(user_id, f"Chunk {i+1} processed on CPU (fallback)")
-                    except Exception as cpu_error:
-                        logger.warning(f"CPU fallback also failed for chunk {i}: {cpu_error}")
-                else:
-                    logger.warning(f"Error summarizing chunk {i}: {e}")
-
-            except IndexError as e:
-                # "index out of range in self" - tokenizer issue
-                logger.warning(f"Tokenizer error on chunk {i}: {e}")
-                continue
-
-            except Exception as e:
-                logger.warning(f"Error summarizing chunk {i}: {e}")
-                continue
-
-        if not summaries:
-            return "Could not generate summary from the content."
-
-        # Combine summaries
-        combined = ' '.join(summaries)
-
-        set_progress(description, 85)
-
-        # If combined is still too long, summarize again
-        if len(combined.split()) > max_length * 2:
-            console(user_id, "Condensing final summary...")
-            try:
-                clean_combined = sanitize_text_for_model(combined)
-                if cuda_failed:
-                    summarizer = get_summarizer(force_cpu=True)
-
-                final = summarizer(
-                    clean_combined,
-                    max_length=max_length,
-                    min_length=min(50, max_length // 2),
-                    do_sample=False,
-                    truncation=True
-                )
-                combined = final[0]['summary_text']
-            except RuntimeError as e:
-                if 'CUDA' in str(e) or 'device-side assert' in str(e):
-                    logger.warning(f"CUDA error in final summary, trying CPU: {e}")
-                    reset_cuda()
-                    try:
-                        summarizer = get_summarizer(force_cpu=True)
-                        clean_combined = sanitize_text_for_model(combined)
-                        final = summarizer(
-                            clean_combined,
-                            max_length=max_length,
-                            min_length=min(50, max_length // 2),
-                            do_sample=False,
-                            truncation=True
-                        )
-                        combined = final[0]['summary_text']
-                    except:
-                        words = combined.split()[:max_length]
-                        combined = ' '.join(words) + '...'
-                else:
-                    words = combined.split()[:max_length]
-                    combined = ' '.join(words) + '...'
-            except:
-                # If fails, just truncate
-                words = combined.split()[:max_length]
-                combined = ' '.join(words) + '...'
-
-        # Format result
-        result = format_text_result(combined, output_format)
+        except Exception as llm_err:
+            console(user_id, f"Avertissement: Ollama indisponible ({llm_err}), texte tronqué")
+            logger.warning(f"Ollama summarization failed: {llm_err}")
+            words = text.split()[:max_length]
+            result = ' '.join(words) + ('…' if len(text.split()) > max_length else '')
 
         set_partial(description, result[:500])
-        console(user_id, "Summary generated successfully")
-
-        # Translate if needed
-        if output_language == 'fr':
-            result = translate_to_french(result, console, user_id)
-            set_progress(description, 90)
+        console(user_id, "Résumé généré avec succès")
+        set_progress(description, 90)
 
         return result
 

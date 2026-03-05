@@ -11,7 +11,7 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 
-def ollama_chat(messages: list, model: str = 'qwen3:14b-q8_0') -> tuple[Optional[str], Optional[str]]:
+def ollama_chat(messages: list, model: str = 'qwen3.5:9b') -> tuple[Optional[str], Optional[str]]:
     """
     Send a chat request to the local Ollama server.
 
@@ -66,7 +66,7 @@ def generate_meeting_summary(
     text: str,
     language: str = 'fr',
     speakers: Optional[list] = None,
-    model: str = 'qwen3:14b-q8_0',
+    model: str = 'qwen3.5:9b',
 ) -> str:
     """
     Generate a structured meeting summary (compte-rendu de réunion) using Ollama.
@@ -158,7 +158,7 @@ def verify_text_coherence(
     text: str,
     content_hint: str = 'transcription',
     language: str = 'fr',
-    model: str = 'qwen3:14b-q8_0',
+    model: str = 'qwen3.5:9b',
 ) -> dict:
     """
     Verify text coherence and suggest corrections using Ollama.
@@ -237,7 +237,7 @@ def generate_structured_summary(
     text: str,
     content_hint: str = 'transcription',
     language: str = 'fr',
-    model: str = 'qwen3:14b-q8_0',
+    model: str = 'qwen3.5:9b',
 ) -> dict:
     """
     Generate a structured summary (summary, key_points, action_items) using Ollama.

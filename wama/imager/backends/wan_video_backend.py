@@ -21,19 +21,20 @@ from django.conf import settings
 def _setup_hf_cache():
     """Set up Hugging Face cache directory before any HF imports."""
     try:
-        from wama.imager.utils.model_config import setup_hf_cache_for_wan
-        return setup_hf_cache_for_wan()
-    except ImportError:
+        from wama.imager.utils.model_config import setup_hf_cache_for_model
+        from django.conf import settings as _s
+        wan_dir = _s.AI_MODELS_DIR / "models" / "diffusion" / "wan"
+        wan_dir.mkdir(parents=True, exist_ok=True)
+        setup_hf_cache_for_model(str(wan_dir))
+        return str(wan_dir)
+    except Exception:
         # Fallback to legacy path
         base_dir = Path(settings.BASE_DIR)
-        models_dir = base_dir / "AI-models" / "imager" / "wan"
+        models_dir = base_dir / "AI-models" / "models" / "diffusion" / "wan"
         models_dir.mkdir(parents=True, exist_ok=True)
         models_dir_str = str(models_dir)
-
         os.environ['HF_HUB_CACHE'] = models_dir_str
-        os.environ['HF_HOME'] = models_dir_str
         os.environ['HUGGINGFACE_HUB_CACHE'] = models_dir_str
-
         return models_dir_str
 
 # Call this at module load time (before any HF imports)

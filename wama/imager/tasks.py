@@ -85,16 +85,38 @@ def generate_image_task(self, generation_id):
         _console(user_id, f"[Imager] Available backends: {available}")
         logger.info(f"Available backends: {available}")
 
-        # Get the best available backend
-        backend = get_backend()
-        if backend is None:
-            error_msg = "No image generation backend available. Install 'diffusers' or 'imaginairy'."
-            logger.error(error_msg)
-            generation.status = 'FAILURE'
-            generation.error_message = error_msg
-            generation.save()
-            _console(user_id, f"[Imager] Error: {error_msg}")
-            return {'error': error_msg}
+        # Route Qwen Image models to dedicated backend
+        if generation.model.startswith('qwen-image'):
+            try:
+                from .backends.qwen_image_backend import QwenImageBackend
+                backend = QwenImageBackend()
+                if not QwenImageBackend.is_available():
+                    error_msg = "Qwen Image backend not available. Need CUDA with 12GB+ VRAM."
+                    logger.error(error_msg)
+                    generation.status = 'FAILURE'
+                    generation.error_message = error_msg
+                    generation.save()
+                    _console(user_id, f"[Imager] Error: {error_msg}")
+                    return {'error': error_msg}
+            except ImportError as e:
+                error_msg = f"Qwen Image backend not importable: {e}"
+                logger.error(error_msg)
+                generation.status = 'FAILURE'
+                generation.error_message = error_msg
+                generation.save()
+                _console(user_id, f"[Imager] Error: {error_msg}")
+                return {'error': error_msg}
+        else:
+            # Get the best available backend (diffusers / imaginairy)
+            backend = get_backend()
+            if backend is None:
+                error_msg = "No image generation backend available. Install 'diffusers' or 'imaginairy'."
+                logger.error(error_msg)
+                generation.status = 'FAILURE'
+                generation.error_message = error_msg
+                generation.save()
+                _console(user_id, f"[Imager] Error: {error_msg}")
+                return {'error': error_msg}
 
         _console(user_id, f"[Imager] Using backend: {backend.display_name}")
         logger.info(f"Using backend: {backend.name} ({backend.display_name})")

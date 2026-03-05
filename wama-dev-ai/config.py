@@ -109,24 +109,24 @@ MODELS = {
     # Development Models
     # -------------------------------------------------------------------------
     "dev": ModelConfig(
-        name="Qwen3 30B Instruct",
-        ollama_id="qwen3:30b-instruct",
+        name="Qwen3.5 35B-A3B",
+        ollama_id="qwen3.5:35b-a3b",
         description="Primary developer model for Python/Django/FastAPI code generation",
-        context_length=256000,
+        context_length=262144,
         temperature=0.6,
         role="dev",
-        ram_required_gb=34.0,
+        ram_required_gb=22.0,
         priority=100,
     ),
 
     "coder": ModelConfig(
-        name="Qwen3 Coder 30B",
-        ollama_id="qwen3-coder:30b",
-        description="Specialized coding model for complex implementations",
-        context_length=128000,
+        name="Qwen3.5 35B-A3B (Coder)",
+        ollama_id="qwen3.5:35b-a3b",
+        description="Coding model for complex implementations (MoE, 3B active params)",
+        context_length=262144,
         temperature=0.4,
         role="dev",
-        ram_required_gb=34.0,
+        ram_required_gb=22.0,
         priority=95,
     ),
 
@@ -142,13 +142,13 @@ MODELS = {
     ),
 
     "architect": ModelConfig(
-        name="Qwen3 30B Thinking",
-        ollama_id="qwen3:30b-thinking",
-        description="System architect and reasoning model",
-        context_length=256000,
+        name="Qwen3.5 35B-A3B (Architect)",
+        ollama_id="qwen3.5:35b-a3b",
+        description="System architect and reasoning model (unified think/nothink)",
+        context_length=262144,
         temperature=0.5,
         role="architect",
-        ram_required_gb=34.0,
+        ram_required_gb=22.0,
         priority=100,
     ),
 
@@ -156,24 +156,24 @@ MODELS = {
     # Fast Models (for quick tasks)
     # -------------------------------------------------------------------------
     "fast": ModelConfig(
-        name="Qwen3 14B",
-        ollama_id="qwen3:14b-q8_0",
-        description="Fast model for quick tasks and small refactors",
-        context_length=40000,
+        name="Qwen3.5 9B",
+        ollama_id="qwen3.5:9b",
+        description="Fast model for quick tasks and small refactors (native vision)",
+        context_length=262144,
         temperature=0.7,
         role="dev",
-        ram_required_gb=20.0,
+        ram_required_gb=9.0,
         priority=70,
     ),
 
     "ultra_fast": ModelConfig(
-        name="Qwen3 8B",
-        ollama_id="qwen3:8b-q8_0",
+        name="Qwen3.5 4B",
+        ollama_id="qwen3.5:4b",
         description="Ultra-fast model for trivial tasks and simple edits",
-        context_length=32000,
+        context_length=262144,
         temperature=0.7,
         role="dev",
-        ram_required_gb=12.0,
+        ram_required_gb=4.0,
         priority=40,
     ),
 
@@ -203,13 +203,13 @@ MODELS = {
     ),
 
     "vision_lite": ModelConfig(
-        name="Qwen3 VL 8B",
-        ollama_id="qwen3-vl:8b",
-        description="Lightweight vision model for rapid UI prototyping",
-        context_length=8192,
+        name="Qwen3.5 9B (Vision)",
+        ollama_id="qwen3.5:9b",
+        description="Unified vision+text model, native multimodal (early fusion)",
+        context_length=262144,
         temperature=0.7,
         role="vision",
-        ram_required_gb=12.0,
+        ram_required_gb=9.0,
         priority=40,
     ),
 

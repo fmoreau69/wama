@@ -104,16 +104,6 @@ class DiffusersBackend(ImageGenerationBackend):
         },
 
         # Artistic models
-        "openjourney-v4": {
-            "name": "OpenJourney v4",
-            "hf_id": "prompthero/openjourney-v4",
-            "description": "Style Midjourney - 4GB VRAM - Art créatif",
-            "vram": "4GB",
-            "pipeline": "sd",
-            "min_resolution": 256,
-            "max_resolution": 768,
-            "recommended_resolutions": ["512x512", "768x768", "896x512", "512x896"],
-        },
         "dreamlike-art-2": {
             "name": "Dreamlike Art 2.0",
             "hf_id": "dreamlike-art/dreamlike-diffusion-1.0",
@@ -139,18 +129,6 @@ class DiffusersBackend(ImageGenerationBackend):
             "hf_id": "XpucT/Deliberate",
             "single_file": "Deliberate_v6.safetensors",
             "description": "Réaliste/Artistique - 4GB VRAM - Très détaillé, tokens: mj, cinematic",
-            "vram": "4GB",
-            "pipeline": "sd",
-            "min_resolution": 256,
-            "max_resolution": 768,
-            "recommended_resolutions": ["512x512", "768x768", "896x512", "512x896"],
-        },
-
-        # Realistic models
-        "realistic-vision-v5": {
-            "name": "Realistic Vision V5",
-            "hf_id": "SG161222/Realistic_Vision_V5.1_noVAE",
-            "description": "Photoréaliste - 4GB VRAM - Portraits et paysages",
             "vram": "4GB",
             "pipeline": "sd",
             "min_resolution": 256,
@@ -220,6 +198,33 @@ class DiffusersBackend(ImageGenerationBackend):
             "min_resolution": 256,
             "max_resolution": 768,
             "recommended_resolutions": ["512x512", "512x768", "768x512"],
+        },
+
+        # =================================================================
+        # QWEN IMAGE MODELS (Alibaba Cloud)
+        # Routed to qwen_image_backend at generation time — listed here
+        # so they appear in the UI model selector.
+        # =================================================================
+
+        "qwen-image-2": {
+            "name": "Qwen Image 2 (20B)",
+            "hf_id": "Qwen/Qwen-Image-2512",
+            "description": "#1 open-source (AI Arena) - 16GB VRAM - 2K natif, text rendering",
+            "vram": "16GB",
+            "pipeline": "qwen_image",
+            "min_resolution": 512,
+            "max_resolution": 2048,
+            "recommended_resolutions": ["1024x1024", "2048x2048", "2048x1152", "1152x2048"],
+        },
+        "qwen-image-edit": {
+            "name": "Qwen Image Edit",
+            "hf_id": "Qwen/Qwen-Image-Edit-2511",
+            "description": "Image editing - 12GB VRAM - multi-image, character consistency, 2K",
+            "vram": "12GB",
+            "pipeline": "qwen_image",
+            "min_resolution": 512,
+            "max_resolution": 2048,
+            "recommended_resolutions": ["1024x1024", "2048x2048", "2048x1152", "1152x2048"],
         },
     }
 

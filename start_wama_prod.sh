@@ -146,6 +146,20 @@ fi
 # ------------------------------------------------------
 # CELERY WORKERS (gpu + default with autoscale)
 # ------------------------------------------------------
+# File descriptor limit — large ML models (20B+) open many shards/mmaps simultaneously.
+# Write a persistent limits.d config (takes effect on next login; sudo required once).
+LIMITS_FILE=/etc/security/limits.d/wama.conf
+if [ ! -f "$LIMITS_FILE" ] || ! grep -q "nofile 65536" "$LIMITS_FILE" 2>/dev/null; then
+    echo "=== Setting system file descriptor limits (requires sudo) ==="
+    printf "* soft nofile 65536\n* hard nofile 65536\n" | sudo tee "$LIMITS_FILE" > /dev/null
+fi
+# Apply immediately to this shell (and all child processes, including Celery workers).
+# prlimit can raise both soft+hard limits as root; fallback to hard limit if sudo fails.
+sudo prlimit --nofile=65536:65536 --pid $$ 2>/dev/null \
+    || ulimit -Sn "$(ulimit -Hn)" 2>/dev/null \
+    || true
+echo "File descriptor limit: $(ulimit -n)"
+
 # Environment variables for AI models
 export COQUI_TOS_AGREED=1
 export TTS_HOME=$PROJECT_DIR/AI-models/synthesizer/tts

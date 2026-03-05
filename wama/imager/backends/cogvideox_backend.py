@@ -45,7 +45,7 @@ class CogVideoXParams:
     """Parameters for CogVideoX generation."""
     prompt: str
     negative_prompt: Optional[str] = None
-    model: str = "cogvideox-2b"
+    model: str = "cogvideox-5b"
     width: int = 720
     height: int = 480
     num_frames: int = 49  # Fixed for CogVideoX (6 seconds at 8fps)
@@ -58,15 +58,6 @@ class CogVideoXParams:
 
 # Supported models
 SUPPORTED_MODELS = {
-    "cogvideox-2b": {
-        "name": "CogVideoX 2B",
-        "description": "Text-to-Video - 4GB VRAM - Fast and efficient",
-        "hf_id": "THUDM/CogVideoX-2b",
-        "type": "t2v",
-        "vram": "4GB",
-        "precision": "fp16",
-        "disk_size": "~6GB",
-    },
     "cogvideox-5b": {
         "name": "CogVideoX 5B",
         "description": "Text-to-Video - 5GB VRAM - Higher quality",
@@ -151,7 +142,7 @@ class CogVideoXBackend(ImageGenerationBackend):
             return self._torch.cuda.get_device_properties(0).total_memory / (1024 ** 3)
         return 0
 
-    def load(self, model_name: str = "cogvideox-2b") -> bool:
+    def load(self, model_name: str = "cogvideox-5b") -> bool:
         """Load a CogVideoX model."""
         try:
             import torch
@@ -264,7 +255,7 @@ class CogVideoXBackend(ImageGenerationBackend):
         from diffusers.utils import export_to_video
 
         if not self._loaded:
-            model_to_load = params.model if params.model in SUPPORTED_MODELS else "cogvideox-2b"
+            model_to_load = params.model if params.model in SUPPORTED_MODELS else "cogvideox-5b"
             if not self.load(model_to_load):
                 return GenerationResult(success=False, error="Failed to load CogVideoX model")
 
@@ -274,7 +265,7 @@ class CogVideoXBackend(ImageGenerationBackend):
             if not self.load(params.model):
                 return GenerationResult(success=False, error=f"Failed to load model {params.model}")
 
-        model_config = SUPPORTED_MODELS.get(params.model, SUPPORTED_MODELS["cogvideox-2b"])
+        model_config = SUPPORTED_MODELS.get(params.model, SUPPORTED_MODELS["cogvideox-5b"])
 
         try:
             # Set up generator for reproducibility

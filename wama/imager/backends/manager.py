@@ -50,6 +50,13 @@ class BackendManager:
         except ImportError as e:
             logger.warning(f"Could not register ImaginAiryBackend: {e}")
 
+        try:
+            from .qwen_image_backend import QwenImageBackend
+            self._backends['qwen_image'] = QwenImageBackend
+            logger.debug("Registered QwenImageBackend")
+        except ImportError as e:
+            logger.warning(f"Could not register QwenImageBackend: {e}")
+
     def register_backend(
         self,
         name: str,

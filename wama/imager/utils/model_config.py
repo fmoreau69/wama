@@ -3,6 +3,35 @@ Imager Model Configuration
 
 Centralized configuration for all models used by the Imager application.
 Uses the centralized AI-models directory structure from settings.py.
+
+# ════════════════════════════════════════════════════════════════════════
+# ⚠️  RÈGLE OBLIGATOIRE — AJOUT D'UN NOUVEAU MODÈLE
+# ════════════════════════════════════════════════════════════════════════
+#
+# Avant d'ajouter un modèle qui télécharge via HuggingFace Hub :
+#
+#  1. Ajouter une entrée dans settings.MODEL_PATHS['diffusion'] (ou 'speech'
+#     etc.) avec le chemin dédié au modèle.
+#
+#  2. Ajouter la constante *_DIR ici en la lisant depuis MODEL_PATHS
+#     (avec fallback explicite), par exemple :
+#         MONMODELE_DIR = MODEL_PATHS.get('diffusion', {}).get('mon_modele',
+#             settings.AI_MODELS_DIR / "models" / "diffusion" / "mon-modele")
+#
+#  3. Dans le backend (backends/*.py), AVANT tout import de transformers /
+#     diffusers / huggingface_hub, ajouter :
+#         os.environ['HF_HUB_CACHE'] = str(MON_MODELE_DIR)
+#         os.environ['HUGGINGFACE_HUB_CACHE'] = str(MON_MODELE_DIR)
+#     ET passer cache_dir=str(MON_MODELE_DIR) à from_pretrained().
+#
+#  4. Ajouter l'entrée dans IMAGER_MODELS (ou le groupe approprié) avec
+#     au minimum : model_id, hf_id, type, mode, vram_gb, description.
+#
+#  5. Mettre à jour _discover_imager_models() dans model_registry.py.
+#
+#  Ne jamais laisser un modèle se télécharger dans AI-models/cache/huggingface/
+#  via la mise en cache globale par défaut — chaque modèle a son propre répertoire.
+# ════════════════════════════════════════════════════════════════════════
 """
 
 import os
@@ -21,9 +50,6 @@ logger = logging.getLogger(__name__)
 MODEL_PATHS = getattr(settings, 'MODEL_PATHS', {})
 
 # Diffusion models directories
-WAN_DIR = MODEL_PATHS.get('diffusion', {}).get('wan',
-    settings.AI_MODELS_DIR / "models" / "diffusion" / "wan")
-
 HUNYUAN_DIR = MODEL_PATHS.get('diffusion', {}).get('hunyuan',
     settings.AI_MODELS_DIR / "models" / "diffusion" / "hunyuan")
 
@@ -45,94 +71,32 @@ FLUX_DIR = MODEL_PATHS.get('diffusion', {}).get('flux',
 LOGO_DIR = MODEL_PATHS.get('diffusion', {}).get('logo',
     settings.AI_MODELS_DIR / "models" / "diffusion" / "logo")
 
+QWEN_IMAGE_DIR = MODEL_PATHS.get('diffusion', {}).get('qwen_image',
+    settings.AI_MODELS_DIR / "models" / "diffusion" / "qwen-image")
+
 # Ensure directories exist
-for dir_path in [WAN_DIR, HUNYUAN_DIR, STABLE_DIFFUSION_DIR, COGVIDEOX_DIR, LTX_DIR, MOCHI_DIR, FLUX_DIR, LOGO_DIR]:
+for dir_path in [HUNYUAN_DIR, STABLE_DIFFUSION_DIR, COGVIDEOX_DIR, LTX_DIR,
+                 MOCHI_DIR, FLUX_DIR, LOGO_DIR, QWEN_IMAGE_DIR]:
     Path(dir_path).mkdir(parents=True, exist_ok=True)
 
 # =============================================================================
 # MODEL DEFINITIONS
 # =============================================================================
 
-# Wan Video Models
-WAN_MODELS = {
-    'wan-ti2v-5b': {
-        'model_id': 'wan-ti2v-5b',
-        'hf_id': 'Wan-AI/Wan2.2-TI2V-5B-Diffusers',
-        'type': 'video',
-        'mode': 'txt2vid',
-        'vram_gb': 8,
-        'description': 'Wan 2.2 TI2V 5B (~8GB)',
-    },
-    'wan-t2v-14b': {
-        'model_id': 'wan-t2v-14b',
-        'hf_id': 'Wan-AI/Wan2.2-T2V-A14B-Diffusers',
-        'type': 'video',
-        'mode': 'txt2vid',
-        'vram_gb': 24,
-        'description': 'Wan 2.2 T2V 14B (~24GB)',
-    },
-    'wan-i2v-14b': {
-        'model_id': 'wan-i2v-14b',
-        'hf_id': 'Wan-AI/Wan2.2-I2V-A14B-Diffusers',
-        'type': 'video',
-        'mode': 'img2vid',
-        'vram_gb': 24,
-        'description': 'Wan 2.2 I2V 14B (~24GB)',
-    },
-}
-
-# Hunyuan Video Models
+# ─── Hunyuan Image (Tencent) ──────────────────────────────────────────────────
 HUNYUAN_MODELS = {
-    'hunyuan-t2v-480p': {
-        'model_id': 'hunyuan-t2v-480p',
-        'hf_id': 'hunyuanvideo-community/HunyuanVideo-1.5-Diffusers-480p_t2v',
-        'type': 'video',
-        'mode': 't2v',
-        'resolution': '480p',
-        'vram_gb': 14,
-        'description': 'HunyuanVideo 1.5 T2V 480p',
-    },
-    'hunyuan-t2v-720p': {
-        'model_id': 'hunyuan-t2v-720p',
-        'hf_id': 'hunyuanvideo-community/HunyuanVideo-1.5-Diffusers-720p_t2v',
-        'type': 'video',
-        'mode': 't2v',
-        'resolution': '720p',
-        'vram_gb': 24,
-        'description': 'HunyuanVideo 1.5 T2V 720p',
-    },
-    'hunyuan-i2v-480p': {
-        'model_id': 'hunyuan-i2v-480p',
-        'hf_id': 'hunyuanvideo-community/HunyuanVideo-1.5-Diffusers-480p_i2v',
-        'type': 'video',
-        'mode': 'i2v',
-        'resolution': '480p',
-        'vram_gb': 14,
-        'description': 'HunyuanVideo 1.5 I2V 480p',
-    },
     'hunyuan-image-2.1': {
         'model_id': 'hunyuan-image-2.1',
         'hf_id': 'hunyuanvideo-community/HunyuanImage-2.1-Diffusers',
         'type': 'image',
         'mode': 't2i',
         'vram_gb': 16,
-        'description': 'HunyuanImage 2.1 - High quality image generation',
+        'description': 'HunyuanImage 2.1 — qualité max, text rendering, 1K-4K',
     },
 }
 
-# CogVideoX Models
+# ─── CogVideoX (Tsinghua THUDM) ───────────────────────────────────────────────
 COGVIDEOX_MODELS = {
-    'cogvideox-2b': {
-        'model_id': 'cogvideox-2b',
-        'hf_id': 'THUDM/CogVideoX-2b',
-        'type': 'video',
-        'mode': 't2v',
-        'vram_gb': 4,
-        'disk_gb': 6,
-        'fps': 8,
-        'resolution': '720x480',
-        'description': 'CogVideoX 2B - Fast and efficient (4GB VRAM)',
-    },
     'cogvideox-5b': {
         'model_id': 'cogvideox-5b',
         'hf_id': 'THUDM/CogVideoX-5b',
@@ -140,9 +104,9 @@ COGVIDEOX_MODELS = {
         'mode': 't2v',
         'vram_gb': 5,
         'disk_gb': 12,
-        'fps': 8,
+        'fps': 24,
         'resolution': '720x480',
-        'description': 'CogVideoX 5B - Higher quality (5GB VRAM)',
+        'description': 'CogVideoX 5B T2V (5GB VRAM, 24fps)',
     },
     'cogvideox-5b-i2v': {
         'model_id': 'cogvideox-5b-i2v',
@@ -151,36 +115,14 @@ COGVIDEOX_MODELS = {
         'mode': 'i2v',
         'vram_gb': 5,
         'disk_gb': 12,
-        'fps': 8,
+        'fps': 24,
         'resolution': '720x480',
-        'description': 'CogVideoX 5B I2V - Animate images (5GB VRAM)',
+        'description': 'CogVideoX 5B I2V — Image-to-Video (5GB VRAM)',
     },
 }
 
-# LTX-Video Models
+# ─── LTX-Video (Lightricks) ───────────────────────────────────────────────────
 LTX_MODELS = {
-    'ltx-video-2b': {
-        'model_id': 'ltx-video-2b',
-        'hf_id': 'Lightricks/LTX-Video',
-        'type': 'video',
-        'mode': 't2v',
-        'vram_gb': 8,
-        'disk_gb': 5,
-        'fps': 24,
-        'resolution': '704x480',
-        'description': 'LTX-Video 2B - Fast text-to-video (8GB VRAM)',
-    },
-    'ltx-video-0.9.8': {
-        'model_id': 'ltx-video-0.9.8',
-        'hf_id': 'Lightricks/LTX-Video-0.9.8-dev',
-        'type': 'video',
-        'mode': 't2v',
-        'vram_gb': 10,
-        'disk_gb': 6,
-        'fps': 24,
-        'resolution': '704x480',
-        'description': 'LTX-Video 0.9.8 - Latest version (10GB VRAM)',
-    },
     'ltx-video-0.9.8-distilled': {
         'model_id': 'ltx-video-0.9.8-distilled',
         'hf_id': 'Lightricks/LTX-Video-0.9.8-distilled',
@@ -190,11 +132,11 @@ LTX_MODELS = {
         'disk_gb': 4,
         'fps': 24,
         'resolution': '704x480',
-        'description': 'LTX-Video 0.9.8 Distilled - Light VRAM (6GB)',
+        'description': 'LTX-Video Distilled — rapide, 24fps (6GB VRAM)',
     },
 }
 
-# Mochi Models
+# ─── Mochi (Genmo) ────────────────────────────────────────────────────────────
 MOCHI_MODELS = {
     'mochi-1-preview': {
         'model_id': 'mochi-1-preview',
@@ -205,11 +147,11 @@ MOCHI_MODELS = {
         'disk_gb': 18,
         'fps': 30,
         'resolution': '848x480',
-        'description': 'Mochi-1 Preview - High quality 30fps (22GB VRAM)',
+        'description': 'Mochi-1 Preview — haute qualité 30fps (22GB VRAM)',
     },
 }
 
-# Stable Diffusion Models (image generation)
+# ─── Stable Diffusion (image generation) ─────────────────────────────────────
 STABLE_DIFFUSION_MODELS = {
     'stable-diffusion-v1-5': {
         'model_id': 'stable-diffusion-v1-5',
@@ -217,7 +159,7 @@ STABLE_DIFFUSION_MODELS = {
         'type': 'image',
         'pipeline': 'sd',
         'vram_gb': 4,
-        'description': 'Stable Diffusion 1.5 - Classic model',
+        'description': 'Stable Diffusion 1.5 — classique (compatibilité LoRA)',
     },
     'stable-diffusion-xl': {
         'model_id': 'stable-diffusion-xl',
@@ -225,15 +167,7 @@ STABLE_DIFFUSION_MODELS = {
         'type': 'image',
         'pipeline': 'sdxl',
         'vram_gb': 10,
-        'description': 'Stable Diffusion XL - High resolution',
-    },
-    'openjourney-v4': {
-        'model_id': 'openjourney-v4',
-        'hf_id': 'prompthero/openjourney-v4',
-        'type': 'image',
-        'pipeline': 'sd',
-        'vram_gb': 4,
-        'description': 'OpenJourney v4 - Midjourney style',
+        'description': 'Stable Diffusion XL — haute résolution (compatibilité LoRA)',
     },
     'dreamlike-art-2': {
         'model_id': 'dreamlike-art-2',
@@ -241,15 +175,7 @@ STABLE_DIFFUSION_MODELS = {
         'type': 'image',
         'pipeline': 'sd',
         'vram_gb': 4,
-        'description': 'Dreamlike Art - Artistic style',
-    },
-    'realistic-vision-v5': {
-        'model_id': 'realistic-vision-v5',
-        'hf_id': 'SG161222/Realistic_Vision_V5.1_noVAE',
-        'type': 'image',
-        'pipeline': 'sd',
-        'vram_gb': 4,
-        'description': 'Realistic Vision V5 - Photorealistic',
+        'description': 'Dreamlike Art — style artistique',
     },
     'deliberate-v6': {
         'model_id': 'deliberate-v6',
@@ -258,17 +184,46 @@ STABLE_DIFFUSION_MODELS = {
         'type': 'image',
         'pipeline': 'sd',
         'vram_gb': 4,
-        'description': 'Deliberate v6 - Realistic/Artistic (by XpucT)',
+        'description': 'Deliberate v6 — réaliste/artistique',
+    },
+}
+
+# ─── Qwen Image 2 (Alibaba) ───────────────────────────────────────────────────
+# Apache 2.0 — #1 open source (AI Arena), text rendering, 2K natif, character consistency
+# HF IDs : Qwen/Qwen-Image-2512 (20B, gen), Qwen/Qwen-Image-Edit-2511 (editing)
+# Backend : qwen_image_backend.py (diffusers-compatible)
+QWEN_IMAGE_MODELS = {
+    'qwen-image-2': {
+        'model_id': 'qwen-image-2',
+        'hf_id': 'Qwen/Qwen-Image-2512',
+        'type': 'image',
+        'mode': 't2i',
+        'pipeline': 'qwen_image',
+        'vram_gb': 16,
+        'disk_gb': 40,
+        'resolution': 2048,
+        'description': 'Qwen Image 2 (20B) — #1 open source, text rendering, 2K natif',
+        'license': 'apache-2.0',
+    },
+    'qwen-image-edit': {
+        'model_id': 'qwen-image-edit',
+        'hf_id': 'Qwen/Qwen-Image-Edit-2511',
+        'type': 'image',
+        'mode': 'edit',
+        'pipeline': 'qwen_image',
+        'vram_gb': 12,
+        'disk_gb': 25,
+        'resolution': 2048,
+        'description': 'Qwen Image Edit — édition multi-image, 14 images, 2K',
+        'license': 'apache-2.0',
     },
 }
 
 # =============================================================================
 # LOGO GENERATION MODELS
 # =============================================================================
-# Specialized models for logo and brand design generation
 
 LOGO_MODELS = {
-    # FLUX.1-dev + LoRA for Logo Design
     'flux-lora-logo-design': {
         'model_id': 'flux-lora-logo-design',
         'hf_id': 'Shakker-Labs/FLUX.1-dev-LoRA-Logo-Design',
@@ -285,15 +240,13 @@ LOGO_MODELS = {
         'min_resolution': 512,
         'max_resolution': 1024,
         'license': 'flux-1-dev-non-commercial',
-        'description': 'FLUX Logo Design LoRA - Excellent quality logos (16GB VRAM)',
+        'description': 'FLUX Logo Design LoRA — logos haute qualité (16GB VRAM)',
         'prompt_tips': [
             'Dual concept: "cat and coffee"',
             'Font integration: "a book with the word M"',
             'Text placement: "Below the graphic is the word coffee"',
         ],
     },
-
-    # LogoRedmond V2 - SDXL + LoRA
     'logo-redmond-v2': {
         'model_id': 'logo-redmond-v2',
         'hf_id': 'artificialguybr/LogoRedmond-LogoLoraForSDXL-V2',
@@ -310,15 +263,12 @@ LOGO_MODELS = {
         'min_resolution': 512,
         'max_resolution': 1024,
         'license': 'creativeml-openrail-m',
-        'description': 'LogoRedmond V2 (SDXL LoRA) - Commercial OK (10GB VRAM)',
+        'description': 'LogoRedmond V2 (SDXL LoRA) — commercial OK (10GB VRAM)',
         'prompt_tips': [
             'Use trigger word: LogoRedAF',
             'Add style: detailed, minimalist, colorful, black and white',
-            'Simple prompts work best',
         ],
     },
-
-    # Amazing Logos V2 - Full SD 1.5 fine-tune
     'amazing-logos-v2': {
         'model_id': 'amazing-logos-v2',
         'hf_id': 'iamkaikai/amazing-logos-v2',
@@ -333,90 +283,102 @@ LOGO_MODELS = {
         'min_resolution': 256,
         'max_resolution': 768,
         'license': 'creativeml-openrail-m',
-        'description': 'Amazing Logos V2 (SD 1.5) - Commercial OK (4GB VRAM)',
-        'prompt_format': '{template} + [company name] + [concept & country] + [industry] + {template}',
+        'description': 'Amazing Logos V2 (SD 1.5) — commercial OK (4GB VRAM)',
         'prompt_tips': [
-            'Format: Simple elegant logo for [Name], [letter/shape] [country], [industry], successful vibe, minimalist',
-            'Shapes: circle, square, triangle, diamond, hexagon, spiral, wave',
+            'Format: Simple elegant logo for [Name], [letter/shape] [country], [industry]',
             'Add "black and white" for monochrome',
         ],
     },
 }
 
-# Combined models dictionary
+# =============================================================================
+# COMBINED DICTIONARY
+# =============================================================================
+
 IMAGER_MODELS = {
-    **WAN_MODELS,
     **HUNYUAN_MODELS,
     **COGVIDEOX_MODELS,
     **LTX_MODELS,
     **MOCHI_MODELS,
     **STABLE_DIFFUSION_MODELS,
+    **QWEN_IMAGE_MODELS,
     **LOGO_MODELS,
 }
 
 
-def setup_model_environment():
+# =============================================================================
+# ENVIRONMENT SETUP HELPERS
+# =============================================================================
+
+def setup_hf_cache_for_model(cache_dir: str) -> None:
     """
-    Setup environment variables for model caching.
-    Call this before loading any models.
+    Set HuggingFace cache environment variables for a specific model directory.
+
+    Call this BEFORE any import of transformers / diffusers / huggingface_hub
+    to ensure ALL downloads (weights, tokenizer, configs) go to the right place.
+
+    Args:
+        cache_dir: Absolute path string to the model's dedicated directory.
     """
-    logger.info(f"Wan models directory: {WAN_DIR}")
-    logger.info(f"Hunyuan models directory: {HUNYUAN_DIR}")
-    logger.info(f"Stable Diffusion models directory: {STABLE_DIFFUSION_DIR}")
+    os.environ['HF_HUB_CACHE'] = cache_dir
+    os.environ['HUGGINGFACE_HUB_CACHE'] = cache_dir
 
 
-def get_wan_directory() -> Path:
-    """Get the Wan models directory path."""
-    return Path(WAN_DIR)
+def setup_hf_cache_for_hunyuan() -> str:
+    """Setup HuggingFace cache for Hunyuan models. Returns the cache dir."""
+    cache_dir = str(HUNYUAN_DIR)
+    setup_hf_cache_for_model(cache_dir)
+    return cache_dir
 
 
-def get_hunyuan_directory() -> Path:
-    """Get the Hunyuan models directory path."""
-    return Path(HUNYUAN_DIR)
+def setup_hf_cache_for_cogvideox() -> str:
+    """Setup HuggingFace cache for CogVideoX models. Returns the cache dir."""
+    cache_dir = str(COGVIDEOX_DIR)
+    setup_hf_cache_for_model(cache_dir)
+    return cache_dir
 
 
-def get_stable_diffusion_directory() -> Path:
-    """Get the Stable Diffusion models directory path."""
-    return Path(STABLE_DIFFUSION_DIR)
+def setup_hf_cache_for_ltx() -> str:
+    """Setup HuggingFace cache for LTX models. Returns the cache dir."""
+    cache_dir = str(LTX_DIR)
+    setup_hf_cache_for_model(cache_dir)
+    return cache_dir
 
 
-def setup_hf_cache_for_wan():
-    """Setup HuggingFace cache for Wan models."""
-    wan_dir = str(WAN_DIR)
-    os.environ['HF_HUB_CACHE'] = wan_dir
-    os.environ['HF_HOME'] = wan_dir
-    os.environ['HUGGINGFACE_HUB_CACHE'] = wan_dir
-    return wan_dir
+def setup_hf_cache_for_mochi() -> str:
+    """Setup HuggingFace cache for Mochi models. Returns the cache dir."""
+    cache_dir = str(MOCHI_DIR)
+    setup_hf_cache_for_model(cache_dir)
+    return cache_dir
 
 
-def setup_hf_cache_for_hunyuan():
-    """Setup HuggingFace cache for Hunyuan models."""
-    hunyuan_dir = str(HUNYUAN_DIR)
-    os.environ['HF_HUB_CACHE'] = hunyuan_dir
-    os.environ['HF_HOME'] = hunyuan_dir
-    os.environ['HUGGINGFACE_HUB_CACHE'] = hunyuan_dir
-    return hunyuan_dir
+def setup_hf_cache_for_qwen_image() -> str:
+    """Setup HuggingFace cache for Qwen Image models. Returns the cache dir."""
+    cache_dir = str(QWEN_IMAGE_DIR)
+    setup_hf_cache_for_model(cache_dir)
+    return cache_dir
 
+
+# =============================================================================
+# QUERY HELPERS
+# =============================================================================
 
 def get_model_info(model_name: str) -> dict:
     """
-    Get model information.
+    Get model information including its dedicated cache directory.
 
     Args:
-        model_name: Model name from IMAGER_MODELS
+        model_name: Model ID from IMAGER_MODELS
 
     Returns:
-        Dictionary with model configuration
+        Dictionary with model configuration + cache_dir key
     """
     if model_name not in IMAGER_MODELS:
         raise ValueError(f"Unknown model: {model_name}. Available: {list(IMAGER_MODELS.keys())}")
 
     info = IMAGER_MODELS[model_name].copy()
 
-    # Add cache directory based on model type
-    if model_name in WAN_MODELS:
-        info['cache_dir'] = str(WAN_DIR)
-    elif model_name in HUNYUAN_MODELS:
+    if model_name in HUNYUAN_MODELS:
         info['cache_dir'] = str(HUNYUAN_DIR)
     elif model_name in COGVIDEOX_MODELS:
         info['cache_dir'] = str(COGVIDEOX_DIR)
@@ -424,12 +386,10 @@ def get_model_info(model_name: str) -> dict:
         info['cache_dir'] = str(LTX_DIR)
     elif model_name in MOCHI_MODELS:
         info['cache_dir'] = str(MOCHI_DIR)
+    elif model_name in QWEN_IMAGE_MODELS:
+        info['cache_dir'] = str(QWEN_IMAGE_DIR)
     elif model_name in LOGO_MODELS:
-        # Logo models - use FLUX_DIR for FLUX-based, LOGO_DIR for others
-        if info.get('pipeline') == 'flux':
-            info['cache_dir'] = str(FLUX_DIR)
-        else:
-            info['cache_dir'] = str(LOGO_DIR)
+        info['cache_dir'] = str(FLUX_DIR) if info.get('pipeline') == 'flux' else str(LOGO_DIR)
     else:
         info['cache_dir'] = str(STABLE_DIFFUSION_DIR)
 
@@ -437,19 +397,14 @@ def get_model_info(model_name: str) -> dict:
 
 
 def list_available_models() -> dict:
-    """
-    List all available imager models with their info.
-
-    Returns:
-        Dictionary with model info grouped by type
-    """
+    """List all available imager models grouped by family."""
     return {
-        'wan': WAN_MODELS,
         'hunyuan': HUNYUAN_MODELS,
         'cogvideox': COGVIDEOX_MODELS,
         'ltx': LTX_MODELS,
         'mochi': MOCHI_MODELS,
         'stable_diffusion': STABLE_DIFFUSION_MODELS,
+        'qwen_image': QWEN_IMAGE_MODELS,
         'logo': LOGO_MODELS,
     }
 
@@ -457,8 +412,6 @@ def list_available_models() -> dict:
 def get_video_models() -> dict:
     """Get all video generation models."""
     return {
-        **WAN_MODELS,
-        **HUNYUAN_MODELS,
         **COGVIDEOX_MODELS,
         **LTX_MODELS,
         **MOCHI_MODELS,
@@ -466,61 +419,67 @@ def get_video_models() -> dict:
 
 
 def get_image_models() -> dict:
-    """Get all image generation models (Stable Diffusion)."""
-    return STABLE_DIFFUSION_MODELS
+    """Get all image generation models (excluding logo and video)."""
+    return {
+        **HUNYUAN_MODELS,
+        **STABLE_DIFFUSION_MODELS,
+        **QWEN_IMAGE_MODELS,
+    }
+
+
+def get_hunyuan_directory() -> Path:
+    return Path(HUNYUAN_DIR)
+
+
+def get_stable_diffusion_directory() -> Path:
+    return Path(STABLE_DIFFUSION_DIR)
 
 
 def get_cogvideox_directory() -> Path:
-    """Get the CogVideoX models directory path."""
     return Path(COGVIDEOX_DIR)
 
 
 def get_ltx_directory() -> Path:
-    """Get the LTX-Video models directory path."""
     return Path(LTX_DIR)
 
 
 def get_mochi_directory() -> Path:
-    """Get the Mochi models directory path."""
     return Path(MOCHI_DIR)
 
 
 def get_flux_directory() -> Path:
-    """Get the FLUX models directory path."""
     return Path(FLUX_DIR)
 
 
 def get_logo_directory() -> Path:
-    """Get the Logo models directory path."""
     return Path(LOGO_DIR)
 
 
+def get_qwen_image_directory() -> Path:
+    return Path(QWEN_IMAGE_DIR)
+
+
 def get_logo_models() -> dict:
-    """Get all logo generation models."""
     return LOGO_MODELS
 
 
 def is_logo_model(model_name: str) -> bool:
-    """Check if a model is a logo generation model."""
     return model_name in LOGO_MODELS
 
 
 def is_lora_model(model_name: str) -> bool:
-    """Check if a model uses LoRA."""
     if model_name not in IMAGER_MODELS:
         return False
     return IMAGER_MODELS[model_name].get('model_type') == 'lora'
 
 
 def get_model_trigger_words(model_name: str) -> list:
-    """Get trigger words for a model (used in prompt preprocessing)."""
     if model_name not in IMAGER_MODELS:
         return []
     return IMAGER_MODELS[model_name].get('trigger_words', [])
 
 
 def get_model_prompt_tips(model_name: str) -> list:
-    """Get prompt tips for a model."""
     if model_name not in IMAGER_MODELS:
         return []
     return IMAGER_MODELS[model_name].get('prompt_tips', [])

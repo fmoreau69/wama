@@ -124,23 +124,13 @@ class IndexView(View):
         global_summary_type = cache.get(f"user_{user.id}_transcriber_summary_type", 'structured')
         global_verify_coherence = cache.get(f"user_{user.id}_transcriber_verify_coherence", False)
 
-        # Get available backends — cached in Redis to avoid heavy imports on every page load
-        _BACKENDS_CACHE_KEY = 'transcriber_backends_info'
-        backends = cache.get(_BACKENDS_CACHE_KEY)
-        if backends is None:
-            try:
-                from .backends import get_backends_info
-                backends = get_backends_info()
-                cache.set(_BACKENDS_CACHE_KEY, backends, timeout=3600)  # 1 hour
-            except ImportError:
-                backends = [{'name': 'whisper', 'display_name': 'Whisper', 'available': True}]
-
+        # Backends are loaded asynchronously by JS (via /transcriber/backends/) to avoid
+        # blocking the page render on heavy transformers imports (VibeVoice, Qwen3-ASR).
         return render(request, 'transcriber/index.html', {
             'transcripts': transcripts,
             'preprocessing_enabled': enable_preprocessing,
             'selected_backend': selected_backend,
             'user_hotwords': user_hotwords,
-            'backends': backends,
             'global_diarization': global_diarization,
             'global_generate_summary': global_generate_summary,
             'global_summary_type': global_summary_type,
