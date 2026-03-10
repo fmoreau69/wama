@@ -126,6 +126,7 @@ class QwenImageBackend(ImageGenerationBackend):
         self._loaded = False
         self._current_model = None
         self._cache_dir = _get_cache_dir()
+        self._cpu_offload = False   # True only when GPU load failed
 
     # ------------------------------------------------------------------
     # Availability
@@ -191,28 +192,57 @@ class QwenImageBackend(ImageGenerationBackend):
             torch.cuda.empty_cache()
             gc.collect()
 
-            load_kwargs = dict(
-                torch_dtype=torch.bfloat16,
-                cache_dir=self._cache_dir,
-            )
+            from wama.model_manager.services.memory_manager import MemoryManager
+            _MODEL_VRAM = {'qwen-image-2': 16.0, 'qwen-image-edit': 12.0}
+            model_size_gb = _MODEL_VRAM.get(model_name, 16.0)
 
-            if model_type == "t2i":
-                logger.info("[QwenImage] Loading QwenImagePipeline (t2i)…")
-                self._pipe = diffusers.QwenImagePipeline.from_pretrained(
-                    hf_id, **load_kwargs
+            gpu_info = MemoryManager.get_gpu_memory_info()
+            free_gb = gpu_info['free_gb'] if gpu_info else 0
+            fits_on_gpu = free_gb >= model_size_gb + 2.0  # 2 GB headroom for activations
+
+            PipelineClass = (diffusers.QwenImagePipeline if model_type == "t2i"
+                             else diffusers.QwenImageEditPlusPipeline)
+
+            if fits_on_gpu:
+                # ── Strategy 1: load directly from disk → VRAM via device_map ────────
+                # Accelerate bulk-loads checkpoint blocks instead of iterating tensors
+                # one by one in Python, avoiding the ~13-minute WSL2/TDR hang caused
+                # by thousands of individual CUDA malloc+memcpy calls.
+                logger.info(
+                    f"[QwenImage] VRAM free: {free_gb:.1f} GB ≥ {model_size_gb + 2:.1f} GB required — "
+                    f"loading directly on CUDA via device_map…"
                 )
+                try:
+                    self._pipe = PipelineClass.from_pretrained(
+                        hf_id,
+                        torch_dtype=torch.bfloat16,
+                        cache_dir=self._cache_dir,
+                        device_map="auto",
+                    )
+                    self._cpu_offload = False
+                    logger.info("[QwenImage] Pipeline loaded on GPU via device_map ✓")
+                except Exception as dm_err:
+                    logger.warning(
+                        f"[QwenImage] device_map load failed ({dm_err}), "
+                        f"falling back to CPU load + per-component GPU transfer…"
+                    )
+                    fits_on_gpu = False  # fall through to Strategy 2
 
-            else:  # edit
-                logger.info("[QwenImage] Loading QwenImageEditPlusPipeline (edit)…")
-                self._pipe = diffusers.QwenImageEditPlusPipeline.from_pretrained(
-                    hf_id, **load_kwargs
+            if not fits_on_gpu:
+                # ── Strategy 2: CPU load → component-by-component GPU transfer ────────
+                # Moves one pipeline component at a time with cuda.synchronize() between
+                # each to keep individual GPU operations short and avoid TDR.
+                # Falls back to enable_model_cpu_offload() if VRAM is insufficient.
+                logger.info("[QwenImage] Loading pipeline to CPU first…")
+                self._pipe = PipelineClass.from_pretrained(
+                    hf_id,
+                    torch_dtype=torch.bfloat16,
+                    cache_dir=self._cache_dir,
                 )
-
-            # enable_model_cpu_offload: moves each component to GPU only when needed,
-            # then back to CPU — essential for large models (20B+) that exceed VRAM.
-            # Avoids "CUDA driver error: unknown error" from OOM on .to("cuda").
-            self._pipe.enable_model_cpu_offload()
-            logger.info("[QwenImage] CPU offload enabled (components loaded on-demand to GPU)")
+                self._pipe, _is_on_gpu = MemoryManager.apply_offload_strategy(
+                    self._pipe, model_size_gb=model_size_gb, headroom_gb=2.0
+                )
+                self._cpu_offload = not _is_on_gpu
 
             self._loaded = True
             self._current_model = model_name
@@ -243,6 +273,7 @@ class QwenImageBackend(ImageGenerationBackend):
             gc.collect()
             self._loaded = False
             self._current_model = None
+            self._cpu_offload = False
             logger.info("[QwenImage] Unloaded")
 
     # ------------------------------------------------------------------
@@ -293,11 +324,13 @@ class QwenImageBackend(ImageGenerationBackend):
             logger.info(f"[QwenImage] Generating: '{prompt[:80]}' "
                         f"{width}x{height}, steps={steps}, true_cfg={true_cfg}")
 
-            # Seed / generator — use CPU generator (compatible with cpu_offload)
+            # Seed / generator — use CPU generator only when cpu_offload is active;
+            # use CUDA generator when the pipeline is fully on GPU.
             seed_used = seed
             if seed_used is None:
                 seed_used = torch.randint(0, 2 ** 32, (1,)).item()
-            generator = torch.Generator(device="cpu").manual_seed(seed_used)
+            gen_device = "cpu" if self._cpu_offload else "cuda"
+            generator = torch.Generator(device=gen_device).manual_seed(seed_used)
 
             if progress_callback:
                 progress_callback(20)
@@ -306,9 +339,11 @@ class QwenImageBackend(ImageGenerationBackend):
 
             if model_type == "t2i":
                 # ── Text-to-Image ──────────────────────────────────────────
+                # negative_prompt is required to activate true_cfg_scale (CFG).
                 logger.info("[QwenImage] t2i generation…")
                 output = self._pipe(
                     prompt=prompt,
+                    negative_prompt=negative_prompt,
                     width=width,
                     height=height,
                     num_inference_steps=steps,

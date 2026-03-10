@@ -45,6 +45,12 @@ except ImportError:
         return []
 
 
+# Module-level pipeline cache — persists across Celery tasks within the same worker process.
+# Without this, each task reloads from_pretrained() and WSL2 re-swaps 23 GB to page file.
+# Keyed by model_name (e.g. 'flux-lora-logo-design'). Only keeps the last loaded model.
+_PIPELINE_CACHE: dict = {}  # {model_name: pipeline}
+
+
 class DiffusersBackend(ImageGenerationBackend):
     """
     Image generation backend using Hugging Face Diffusers.
@@ -152,52 +158,29 @@ class DiffusersBackend(ImageGenerationBackend):
         # LOGO GENERATION MODELS
         # =================================================================
 
-        # FLUX.1-dev + LoRA for Logo Design
+        # Shakker-Labs FLUX Logo Design LoRA — #1 open-source logo model (2025-2026)
+        # Replaces obsolete logo-redmond-v2 (SDXL 2023) and amazing-logos-v2 (SD1.5 2023).
+        # guidance_scale: 3.5 (FLUX rectified flow — NOT 7.5–20 like SD)
+        # steps: 24 recommended
         "flux-lora-logo-design": {
             "name": "FLUX Logo Design LoRA",
             "hf_id": "Shakker-Labs/FLUX.1-dev-LoRA-Logo-Design",
             "base_model": "black-forest-labs/FLUX.1-dev",
-            "description": "Logo Design - 16GB VRAM - Excellent quality logos",
+            # Max 768 px: at 1024×1024 the transformer (23 GB) + attention activations
+            # (4096 tokens) exceed the 24 GB VRAM budget causing a silent CUDA OOM.
+            # 768×768 (2304 tokens) is well within budget and still high-quality.
+            "description": "Logo Design LoRA — #1 open-source, logos professionnels, max 768px (16GB VRAM)",
             "vram": "16GB",
             "pipeline": "flux",
             "model_type": "lora",
             "category": "logo",
             "trigger_words": ["wablogo", "logo", "Minimalist"],
             "lora_scale": 0.8,
+            "default_guidance_scale": 3.5,
+            "default_steps": 24,
             "min_resolution": 512,
-            "max_resolution": 1024,
-            "recommended_resolutions": ["1024x1024", "768x768", "1024x768", "768x1024"],
-        },
-
-        # LogoRedmond V2 - SDXL + LoRA
-        "logo-redmond-v2": {
-            "name": "LogoRedmond V2 (SDXL)",
-            "hf_id": "artificialguybr/LogoRedmond-LogoLoraForSDXL-V2",
-            "base_model": "stabilityai/stable-diffusion-xl-base-1.0",
-            "description": "Logo Generation - 10GB VRAM - Commercial OK",
-            "vram": "10GB",
-            "pipeline": "sdxl",
-            "model_type": "lora",
-            "category": "logo",
-            "trigger_words": ["LogoRedAF"],
-            "lora_scale": 0.7,
-            "min_resolution": 512,
-            "max_resolution": 1024,
-            "recommended_resolutions": ["1024x1024", "768x768", "1024x768", "768x1024"],
-        },
-
-        # Amazing Logos V2 - Full SD 1.5 fine-tune
-        "amazing-logos-v2": {
-            "name": "Amazing Logos V2",
-            "hf_id": "iamkaikai/amazing-logos-v2",
-            "description": "Logo Generation - 4GB VRAM - Commercial OK",
-            "vram": "4GB",
-            "pipeline": "sd",
-            "model_type": "full_finetune",
-            "category": "logo",
-            "min_resolution": 256,
             "max_resolution": 768,
-            "recommended_resolutions": ["512x512", "512x768", "768x512"],
+            "recommended_resolutions": ["768x768", "768x512", "512x768"],
         },
 
         # =================================================================
@@ -338,12 +321,141 @@ class DiffusersBackend(ImageGenerationBackend):
 
         return MemoryManager.load_pipeline(StableDiffusionXLPipeline, model_id, **kwargs)
 
+    def _get_vram_gb(self) -> float:
+        """Get total GPU VRAM in GB."""
+        if self._torch and self._torch.cuda.is_available():
+            return self._torch.cuda.get_device_properties(0).total_memory / (1024 ** 3)
+        return 0.0
+
+    def _get_flux_strategy(self) -> dict:
+        """
+        Determine best FLUX loading strategy based on available RAM and VRAM.
+
+        FLUX transformer sizes:
+          bfloat16 : 23 GB  → stays on CPU, MODEL_OFFLOAD to GPU per step (slow if RAM swaps)
+          8-bit    : 11.5 GB → loaded directly to GPU, T5 (9.5 GB) on CPU via offload hooks
+          4-bit    : 5.75 GB → loaded directly to GPU, T5 on CPU
+
+        With 32 GB RAM / WSL2 ~16 GB: bfloat16 causes swap → 13 min/step.
+        8-bit on GPU eliminates the swap issue entirely.
+        """
+        vram_gb = self._get_vram_gb()
+
+        # Check bitsandbytes availability
+        bnb_available = False
+        try:
+            import bitsandbytes  # noqa
+            bnb_available = True
+        except ImportError:
+            pass
+
+        # Check available system RAM
+        free_ram_gb = 0.0
+        try:
+            import psutil
+            free_ram_gb = psutil.virtual_memory().available / (1024 ** 3)
+        except ImportError:
+            # psutil unavailable: assume low RAM → prefer quantization if possible
+            free_ram_gb = 0.0
+
+        logger.info(
+            f"[Diffusers] FLUX resource check: free_ram={free_ram_gb:.1f}GB, "
+            f"vram={vram_gb:.0f}GB, bitsandbytes={bnb_available}"
+        )
+
+        # Strategy 1 — bfloat16 + MODEL_OFFLOAD
+        # Requires ~27 GB free RAM so the transformer stays in physical RAM without swapping.
+        if free_ram_gb >= 27:
+            logger.info("[Diffusers] Strategy: bfloat16 + MODEL_OFFLOAD (RAM sufficient)")
+            return {'quantization': None, 'label': 'bfloat16+offload'}
+
+        # Strategy 2 — 8-bit transformer on GPU
+        # Transformer: 11.5 GB on GPU. T5 (9.5 GB) stays on CPU via offload hooks.
+        # Peak VRAM during encoding: 11.5 + 9.5 + 0.5 ≈ 21.5 GB → fits in 24 GB.
+        if bnb_available and vram_gb >= 22:
+            logger.info("[Diffusers] Strategy: 8-bit transformer on GPU (low RAM detected)")
+            return {'quantization': '8bit', 'label': '8bit+gpu'}
+
+        # Strategy 3 — 4-bit transformer on GPU
+        # Transformer: 5.75 GB. T5 on CPU. Peak VRAM ≈ 15.75 GB.
+        if bnb_available and vram_gb >= 16:
+            logger.info("[Diffusers] Strategy: 4-bit transformer on GPU (very low RAM)")
+            return {'quantization': '4bit', 'label': '4bit+gpu'}
+
+        # Fallback — bfloat16 + MODEL_OFFLOAD (may be slow if RAM is insufficient)
+        logger.warning(
+            "[Diffusers] Strategy: bfloat16 + MODEL_OFFLOAD (fallback — "
+            "bitsandbytes unavailable or VRAM too low). May be slow due to swap."
+        )
+        return {'quantization': None, 'label': 'bfloat16+offload(fallback)'}
+
+    def _load_flux_quantized(self, base_model: str, quant_bits: str, cache_dir: str):
+        """
+        Load FLUX with quantized transformer directly onto GPU via bitsandbytes.
+        Eliminates CPU↔GPU transfers per denoising step and avoids WSL2 RAM swap.
+
+        After loading, text encoders (T5 9.5 GB, CLIP 0.5 GB) are offloaded to CPU
+        via enable_model_cpu_offload() hooks — they fit in WSL2 RAM without swapping.
+        """
+        from diffusers import FluxPipeline, FluxTransformer2DModel, BitsAndBytesConfig
+
+        if quant_bits == '8bit':
+            bnb_config = BitsAndBytesConfig(load_in_8bit=True)
+            logger.info("[Diffusers] Loading FLUX transformer in 8-bit (~11.5 GB VRAM)...")
+        else:  # 4bit
+            bnb_config = BitsAndBytesConfig(
+                load_in_4bit=True,
+                bnb_4bit_quant_type="nf4",
+                bnb_4bit_compute_dtype=self._torch.bfloat16,
+            )
+            logger.info("[Diffusers] Loading FLUX transformer in 4-bit (~5.75 GB VRAM)...")
+
+        kwargs = {}
+        if cache_dir:
+            kwargs["cache_dir"] = cache_dir
+
+        # Load quantized transformer — lands directly on GPU (bitsandbytes requirement)
+        transformer = FluxTransformer2DModel.from_pretrained(
+            base_model,
+            subfolder="transformer",
+            quantization_config=bnb_config,
+            torch_dtype=self._torch.bfloat16,
+            **kwargs,
+        )
+        alloc = self._torch.cuda.memory_allocated(0) / 1024 ** 3
+        logger.info(f"[Diffusers] Transformer loaded: {alloc:.1f}GB GPU allocated")
+
+        # Load full pipeline with the pre-quantized transformer;
+        # remaining components (T5, CLIP, VAE, scheduler) stay in bfloat16 on CPU.
+        logger.info("[Diffusers] Loading pipeline components (bfloat16)...")
+        pipe = FluxPipeline.from_pretrained(
+            base_model,
+            transformer=transformer,
+            torch_dtype=self._torch.bfloat16,
+            **kwargs,
+        )
+
+        return pipe
+
+    def _apply_flux_lora(self, pipe, lora_repo: str, lora_scale: float):
+        """Load LoRA weights onto a FLUX pipeline (works with both bfloat16 and quantized)."""
+        import os as _os
+        lora_cache = _LOGO_CACHE_DIR or _FLUX_CACHE_DIR
+        if lora_cache:
+            _os.environ['HF_HUB_CACHE'] = lora_cache
+            _os.environ['HUGGINGFACE_HUB_CACHE'] = lora_cache
+        pipe.load_lora_weights(lora_repo, adapter_name="lora_adapter", cache_dir=lora_cache)
+        pipe.set_adapters(["lora_adapter"], adapter_weights=[lora_scale])
+        logger.info(f"[Diffusers] LoRA loaded with scale {lora_scale}")
+
     def _load_flux_pipeline(self, model_info: dict):
         """
-        Load a FLUX pipeline, optionally with LoRA.
+        Load a FLUX pipeline with dynamic strategy selection based on available RAM/VRAM.
 
-        Args:
-            model_info: Model configuration dictionary containing base_model, hf_id, etc.
+        Strategies (auto-selected):
+          bfloat16+offload : 23 GB in RAM + MODEL_OFFLOAD  (requires ~27 GB free RAM)
+          8bit+gpu         : 11.5 GB transformer on GPU, T5 on CPU via offload hooks
+          4bit+gpu         :  5.75 GB transformer on GPU, T5 on CPU via offload hooks
         """
         import gc
         from diffusers import FluxPipeline
@@ -355,49 +467,78 @@ class DiffusersBackend(ImageGenerationBackend):
 
         logger.info(f"[Diffusers] Loading FLUX pipeline: {base_model}")
 
-        # Aggressive CUDA cleanup before loading this heavy model
+        # CUDA cleanup before loading
         if self._torch.cuda.is_available():
-            logger.info("[Diffusers] Clearing CUDA memory before FLUX load...")
             self._torch.cuda.empty_cache()
             self._torch.cuda.synchronize()
             gc.collect()
 
-        kwargs = {
-            "torch_dtype": self._torch.bfloat16,
-        }
+        strategy = self._get_flux_strategy()
 
-        if _FLUX_CACHE_DIR:
-            kwargs["cache_dir"] = _FLUX_CACHE_DIR
-            logger.info(f"[Diffusers] Loading FLUX from cache: {_FLUX_CACHE_DIR}")
+        if strategy['quantization'] in ('8bit', '4bit'):
+            # ── Quantized path: transformer goes directly to GPU ──────────────
+            pipe = self._load_flux_quantized(base_model, strategy['quantization'], _FLUX_CACHE_DIR)
 
-        # Load base FLUX pipeline (stays on CPU)
-        pipe = FluxPipeline.from_pretrained(base_model, **kwargs)
+            # Load LoRA on quantized pipeline (adapter weights are bfloat16, compatible)
+            if model_type == 'lora' and lora_repo:
+                logger.info(f"[Diffusers] Loading LoRA on quantized pipeline: {lora_repo}")
+                try:
+                    self._apply_flux_lora(pipe, lora_repo, lora_scale)
+                except Exception as e:
+                    logger.warning(f"[Diffusers] LoRA on quantized model failed: {e}")
 
-        # Load and fuse LoRA BEFORE applying memory strategy (while still on CPU)
-        # Fusing on a CPU-offloaded pipeline hangs, so we must fuse first
-        if model_type == 'lora' and lora_repo:
-            logger.info(f"[Diffusers] Loading LoRA weights from: {lora_repo}")
+            # Offload text encoders to CPU via hooks (transformer stays on GPU — quantized).
+            # T5 (9.5 GB) + CLIP (0.5 GB) fit in WSL2 RAM without swapping.
+            logger.info("[Diffusers] Applying CPU offload for text encoders...")
             try:
-                pipe.load_lora_weights(lora_repo)
-                logger.info(f"[Diffusers] LoRA weights loaded, fusing with scale {lora_scale}")
-                pipe.fuse_lora(lora_scale=lora_scale)
-                pipe.unload_lora_weights()
-                logger.info("[Diffusers] LoRA fused successfully")
+                pipe.enable_model_cpu_offload()
+                logger.info("[Diffusers] CPU offload hooks applied (text encoders → CPU)")
             except Exception as e:
-                logger.warning(f"[Diffusers] Could not load LoRA weights: {e}")
+                logger.warning(f"[Diffusers] enable_model_cpu_offload failed: {e}. Pipeline stays as-is.")
 
-        # Apply memory strategy AFTER LoRA fusion
+        else:
+            # ── bfloat16 path: full model on CPU, MODEL_OFFLOAD to GPU ────────
+            kwargs = {"torch_dtype": self._torch.bfloat16}
+            if _FLUX_CACHE_DIR:
+                kwargs["cache_dir"] = _FLUX_CACHE_DIR
+                logger.info(f"[Diffusers] Loading FLUX bfloat16 from: {_FLUX_CACHE_DIR}")
+
+            pipe = FluxPipeline.from_pretrained(base_model, **kwargs)
+
+            # Load LoRA before applying memory strategy (model still on CPU)
+            if model_type == 'lora' and lora_repo:
+                logger.info(f"[Diffusers] Loading LoRA (bfloat16 path): {lora_repo}")
+                try:
+                    self._apply_flux_lora(pipe, lora_repo, lora_scale)
+                except Exception as e:
+                    logger.warning(f"[Diffusers] Could not load LoRA: {e}")
+
+            # Apply MODEL_OFFLOAD via MemoryManager
+            try:
+                from wama.model_manager.services.memory_manager import MemoryManager
+                pipe = MemoryManager.apply_strategy_for_model(
+                    pipeline=pipe, model_type='flux',
+                    device=self._device, headroom_gb=4.0
+                )
+            except ImportError:
+                logger.warning("[Diffusers] MemoryManager not available, using direct GPU loading")
+                pipe = pipe.to(self._device)
+
+        # VAE optimizations (apply regardless of strategy)
         try:
-            from wama.model_manager.services.memory_manager import MemoryManager
-            pipe = MemoryManager.apply_strategy_for_model(
-                pipeline=pipe,
-                model_type='flux',
-                device=self._device,
-                headroom_gb=4.0
-            )
-        except ImportError:
-            logger.warning("[Diffusers] MemoryManager not available, using default GPU loading")
-            pipe = pipe.to(self._device)
+            pipe.vae.enable_slicing()
+            logger.info("[Diffusers] VAE slicing enabled")
+        except Exception:
+            pass
+        try:
+            pipe.vae.enable_tiling()
+            logger.info("[Diffusers] VAE tiling enabled")
+        except Exception:
+            pass
+
+        alloc = self._torch.cuda.memory_allocated(0) / 1024 ** 3
+        resrv = self._torch.cuda.memory_reserved(0) / 1024 ** 3
+        logger.info(f"[Diffusers] FLUX ready [{strategy['label']}] — GPU: {alloc:.1f}GB alloc / {resrv:.1f}GB reserved")
 
         return pipe
 
@@ -540,9 +681,20 @@ class DiffusersBackend(ImageGenerationBackend):
         pipeline_type = model_info.get("pipeline", "sd")
         model_type = model_info.get("model_type", "base")  # base, lora, full_finetune
 
-        # Check if already loaded
+        # Check if already loaded on this instance
         if self._loaded and self._current_model == model_id:
             logger.info(f"Model {model_id} already loaded")
+            return True
+
+        # Check module-level cache (survives across Celery tasks in same worker process).
+        # Avoids re-reading 23 GB from /mnt/d/ and re-swapping through WSL2 page file.
+        global _PIPELINE_CACHE
+        if model_name in _PIPELINE_CACHE:
+            logger.info(f"[Diffusers] Cache hit for '{model_name}' — reusing pipeline (skipping from_pretrained)")
+            self._pipe = _PIPELINE_CACHE[model_name]
+            self._current_model = model_id
+            self._current_model_info = model_info
+            self._loaded = True
             return True
 
         try:
@@ -634,6 +786,16 @@ class DiffusersBackend(ImageGenerationBackend):
             self._current_model = model_id
             self._loaded = True
             logger.info(f"[Diffusers] ✓ Model {model_id} loaded successfully on {self._device}")
+
+            # Evict any other cached model to avoid holding multiple large models in RAM,
+            # then store this pipeline for reuse across future Celery tasks.
+            for old_name in list(_PIPELINE_CACHE.keys()):
+                if old_name != model_name:
+                    logger.info(f"[Diffusers] Evicting '{old_name}' from pipeline cache to free RAM")
+                    del _PIPELINE_CACHE[old_name]
+                    gc.collect()
+            _PIPELINE_CACHE[model_name] = self._pipe
+            logger.info(f"[Diffusers] Pipeline '{model_name}' stored in module cache for next task")
 
             return True
 
@@ -754,7 +916,76 @@ class DiffusersBackend(ImageGenerationBackend):
                     progress_callback(progress)
                 return callback_kwargs
 
-            # Generate images
+            # FLUX: generate images ONE AT A TIME.
+            # Batch mode (num_images_per_prompt > 1) causes WSL2 crashes: after 30
+            # denoising steps the 23 GB transformer may still occupy GPU when VAE
+            # decode starts; clearing cache between calls is the safest fix.
+            if is_flux:
+                width = params.width
+                height = params.height
+                min_size = model_info.get("min_resolution", 512) if model_info else 512
+                max_size = model_info.get("max_resolution", 1024) if model_info else 1024
+                width  = max(min_size, min(max_size, (width  // 8) * 8))
+                height = max(min_size, min(max_size, (height // 8) * 8))
+
+                logger.info(f"[Diffusers] FLUX generation: {params.num_images} image(s) one-at-a-time, {width}x{height}, steps={params.steps}")
+                logger.info(f"[Diffusers]   Guidance: {params.guidance_scale}, Seed base: {seed_used}")
+                logger.info(f"[Diffusers]   Prompt: {prompt[:100]}...")
+
+                for img_idx in range(params.num_images):
+                    if torch.cuda.is_available():
+                        torch.cuda.empty_cache()
+                        torch.cuda.synchronize()
+                        gc.collect()
+                        free_mem = torch.cuda.get_device_properties(0).total_memory - torch.cuda.memory_allocated(0)
+                        logger.info(f"[Diffusers] GPU memory before image {img_idx+1}: {free_mem / 1024**3:.1f}GB free")
+
+                    # Sequential seeds for reproducibility across images
+                    img_generator = torch.Generator(device=generator_device).manual_seed(seed_used + img_idx)
+
+                    # Progress: map this image's steps into the overall 0-95% range
+                    def flux_step_callback(pipe, step_index, timestep, callback_kwargs, _idx=img_idx):
+                        if progress_callback:
+                            img_progress = (_idx * params.steps + step_index) / (params.num_images * params.steps)
+                            progress_callback(int(img_progress * 95))
+                        return callback_kwargs
+
+                    logger.info(f"[Diffusers] Generating image {img_idx+1}/{params.num_images}")
+                    try:
+                        with torch.inference_mode():
+                            result = self._pipe(
+                                prompt=prompt,
+                                height=height,
+                                width=width,
+                                num_inference_steps=params.steps,
+                                guidance_scale=params.guidance_scale,
+                                num_images_per_prompt=1,
+                                generator=img_generator,
+                                callback_on_step_end=flux_step_callback,
+                            )
+                        img = result.images[0]
+
+                        if torch.cuda.is_available():
+                            alloc = torch.cuda.memory_allocated(0) / 1024**3
+                            resrv = torch.cuda.memory_reserved(0) / 1024**3
+                            logger.info(f"[Diffusers] After image {img_idx+1}: allocated={alloc:.2f}GB reserved={resrv:.2f}GB")
+
+                        if params.upscale:
+                            img = self._upscale_image(img)
+                        generated_images.append(img)
+                        logger.info(f"[Diffusers] Image {img_idx+1}/{params.num_images} complete ({img.size[0]}x{img.size[1]})")
+                    except Exception as gen_error:
+                        import traceback
+                        logger.error(f"[Diffusers] FLUX error on image {img_idx+1}: {type(gen_error).__name__}: {gen_error}")
+                        logger.error(f"[Diffusers] Traceback:\n{traceback.format_exc()}")
+                        raise
+
+                if progress_callback:
+                    progress_callback(100)
+
+                return GenerationResult(success=True, images=generated_images, seed_used=seed_used)
+
+            # Non-FLUX: generate images one at a time (SD / SDXL / HunyuanImage)
             for i in range(params.num_images):
                 logger.info(f"Generating image {i+1}/{params.num_images}")
 
@@ -815,56 +1046,6 @@ class DiffusersBackend(ImageGenerationBackend):
                         except Exception as gen_error:
                             import traceback
                             logger.error(f"[Diffusers] HunyuanImage pipeline error: {type(gen_error).__name__}: {gen_error}")
-                            logger.error(f"[Diffusers] Pipeline traceback:\n{traceback.format_exc()}")
-                            raise
-                    elif is_flux:
-                        # FLUX generation - different parameters than SD/SDXL
-                        width = params.width
-                        height = params.height
-
-                        # Ensure minimum size (512 recommended for FLUX)
-                        min_size = model_info.get("min_resolution", 512)
-                        max_size = model_info.get("max_resolution", 1024)
-                        if width < min_size:
-                            logger.warning(f"[Diffusers] Width {width} below minimum {min_size}, adjusting")
-                            width = min_size
-                        if height < min_size:
-                            logger.warning(f"[Diffusers] Height {height} below minimum {min_size}, adjusting")
-                            height = min_size
-                        if width > max_size:
-                            logger.warning(f"[Diffusers] Width {width} above maximum {max_size}, adjusting")
-                            width = max_size
-                        if height > max_size:
-                            logger.warning(f"[Diffusers] Height {height} above maximum {max_size}, adjusting")
-                            height = max_size
-
-                        # Ensure dimensions are multiples of 8
-                        width = (width // 8) * 8
-                        height = (height // 8) * 8
-
-                        logger.info(f"[Diffusers] FLUX generation parameters:")
-                        logger.info(f"[Diffusers]   Resolution: {width}x{height}")
-                        logger.info(f"[Diffusers]   Steps: {params.steps}")
-                        logger.info(f"[Diffusers]   Guidance: {params.guidance_scale}")
-                        logger.info(f"[Diffusers]   Seed: {seed_used}")
-                        logger.info(f"[Diffusers]   Prompt: {prompt[:100]}...")
-
-                        try:
-                            # FLUX uses guidance_scale (not distilled_guidance_scale)
-                            # FLUX does NOT support negative_prompt natively
-                            result = self._pipe(
-                                prompt=prompt,
-                                height=height,
-                                width=width,
-                                num_inference_steps=params.steps,
-                                guidance_scale=params.guidance_scale,
-                                generator=generator,
-                                callback_on_step_end=step_callback,
-                            )
-                            logger.info(f"[Diffusers] FLUX generation complete, result type: {type(result)}")
-                        except Exception as gen_error:
-                            import traceback
-                            logger.error(f"[Diffusers] FLUX pipeline error: {type(gen_error).__name__}: {gen_error}")
                             logger.error(f"[Diffusers] Pipeline traceback:\n{traceback.format_exc()}")
                             raise
                     else:

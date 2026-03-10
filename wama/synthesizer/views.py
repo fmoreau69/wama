@@ -23,9 +23,10 @@ from django.core.files.base import ContentFile
 
 import requests as http_requests
 
-from .models import VoiceSynthesis, VoicePreset, CustomVoice
+from .models import VoiceSynthesis, VoicePreset, CustomVoice, BatchSynthesis, BatchSynthesisItem
 from wama.common.utils.console_utils import get_console_lines
 from wama.accounts.views import get_or_create_anonymous_user
+from wama.common.utils.queue_duplication import safe_delete_file, duplicate_instance
 
 logger = logging.getLogger(__name__)
 
@@ -47,16 +48,52 @@ class IndexView(View):
     """Page principale du synthesizer."""
 
     def get(self, request):
-        user = request.user if request.user.is_authenticated else get_or_create_anonymous_user() if request.user.is_authenticated else get_or_create_anonymous_user()
-        syntheses = VoiceSynthesis.objects.filter(user=user).order_by('-id')
+        user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+
+        # Batches with prefetched items+synthesis
+        batches_qs = BatchSynthesis.objects.filter(user=user).prefetch_related(
+            'items__synthesis'
+        ).order_by('-id')
+
+        batches_list = []
+        for batch in batches_qs:
+            items = list(batch.items.all())
+            success_count = sum(1 for i in items if i.synthesis and i.synthesis.status == 'SUCCESS')
+            first_s = items[0].synthesis if items else None
+            batches_list.append({
+                'obj': batch,
+                'items': items,
+                'success_count': success_count,
+                'success_pct': int(success_count / batch.total * 100) if batch.total > 0 else 0,
+                'has_success': success_count > 0,
+                'first_tts_model': first_s.tts_model if first_s else 'xtts_v2',
+                'first_language': first_s.language if first_s else 'fr',
+                'first_voice_preset': first_s.voice_preset if first_s else 'default',
+                'first_speed': first_s.speed if first_s else 1.0,
+                'first_pitch': first_s.pitch if first_s else 1.0,
+            })
+
+        # Standalone syntheses (not in any batch)
+        batch_synthesis_ids = set(
+            BatchSynthesisItem.objects.filter(batch__user=user)
+            .values_list('synthesis_id', flat=True)
+        )
+        standalone_syntheses = VoiceSynthesis.objects.filter(user=user).exclude(
+            id__in=batch_synthesis_ids
+        ).order_by('-id')
+
+        total_batch_items = sum(len(b['items']) for b in batches_list)
+        queue_count = standalone_syntheses.count() + total_batch_items
+
         voice_presets = VoicePreset.objects.filter(
             is_public=True
         ) | VoicePreset.objects.filter(created_by=user)
-
         custom_voices = CustomVoice.objects.filter(user=user)
 
         context = {
-            'syntheses': syntheses,
+            'batches_list': batches_list,
+            'standalone_syntheses': standalone_syntheses,
+            'queue_count': queue_count,
             'voice_presets': voice_presets,
             'custom_voices': custom_voices,
             'tts_models': VoiceSynthesis.TTS_MODEL_CHOICES,
@@ -530,29 +567,40 @@ def delete(request, pk: int):
         except Exception:
             pass
 
-    # Supprimer les fichiers
-    if synthesis.text_file:
-        try:
-            synthesis.text_file.delete(save=False)
-        except:
-            pass
+    # Input files may be shared with duplicates — only delete if no other row references them
+    safe_delete_file(synthesis, 'text_file')
+    safe_delete_file(synthesis, 'voice_reference')
 
+    # Output file is always unique to this synthesis — delete unconditionally
     if synthesis.audio_output:
         try:
             synthesis.audio_output.delete(save=False)
-        except:
-            pass
-
-    if synthesis.voice_reference:
-        try:
-            synthesis.voice_reference.delete(save=False)
-        except:
+        except Exception:
             pass
 
     synthesis.delete()
     cache.delete(f"synthesizer_progress_{pk}")
 
     return JsonResponse({'deleted': pk})
+
+
+@require_POST
+def duplicate(request, pk: int):
+    """Duplicate a VoiceSynthesis sharing the same text_file, resetting all results."""
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    synthesis = get_object_or_404(VoiceSynthesis, pk=pk, user=user)
+    new_s = duplicate_instance(
+        synthesis,
+        reset_fields={
+            'status': 'PENDING',
+            'progress': 0,
+            'task_id': '',
+            'properties': '',
+            'error_message': '',
+        },
+        clear_fields=['audio_output'],
+    )
+    return JsonResponse({'duplicated': new_s.id})
 
 
 # ============================================================================
@@ -838,6 +886,461 @@ def update_options(request, pk: int):
             'pitch': synthesis.pitch,
         }
     })
+
+
+@require_POST
+def import_individual_from_path(request):
+    """
+    Create a single VoiceSynthesis from a file already on the server (server_path relative to MEDIA_ROOT).
+    Used when a batch file from FileManager is chosen for individual synthesis instead.
+    """
+    from django.conf import settings as django_settings
+
+    server_path = request.POST.get('server_path', '').strip()
+    if not server_path:
+        return JsonResponse({'error': 'server_path requis'}, status=400)
+
+    abs_path = Path(django_settings.MEDIA_ROOT) / server_path
+    if not abs_path.exists():
+        return JsonResponse({'error': 'Fichier introuvable'}, status=404)
+
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+
+    synthesis = VoiceSynthesis.objects.create(
+        user=user,
+        tts_model=request.POST.get('tts_model', 'xtts_v2'),
+        language=request.POST.get('language', 'fr'),
+        voice_preset=request.POST.get('voice_preset', 'default'),
+        speed=float(request.POST.get('speed', 1.0)),
+        pitch=float(request.POST.get('pitch', 1.0)),
+        emotion_intensity=1.0,
+    )
+    synthesis.text_file.name = server_path
+    synthesis.save()
+
+    try:
+        from .utils.text_extractor import extract_text_from_file, clean_text_for_tts
+        text_content = extract_text_from_file(str(abs_path))
+        synthesis.text_content = clean_text_for_tts(text_content)
+        synthesis.update_metadata()
+    except Exception:
+        synthesis.text_content = ''
+        synthesis.word_count = 0
+        synthesis.save()
+
+    return JsonResponse({'success': True, 'id': synthesis.id})
+
+
+# ============= BATCH SYNTHESIS =============
+
+def batch_template(request):
+    """Download a batch file template (.txt)."""
+    template = """# WAMA Synthesizer - Batch Synthesis
+# Format : nom_fichier|texte à synthétiser|voix|vitesse
+# Les colonnes voix et vitesse sont optionnelles.
+# Les lignes commençant par # sont des commentaires.
+
+# --- Exemples avec tous les paramètres ---
+consigne_1.wav|Bonjour, veuillez vous installer confortablement dans le simulateur.|default|1.0
+consigne_2.wav|Ajustez le siège et les rétroviseurs selon vos préférences.|male_1|0.95
+
+# --- Exemples sans voix ni vitesse (valeurs par défaut) ---
+consigne_3.wav|L'expérimentation va débuter dans 30 secondes.
+pause.wav|Vous pouvez faire une pause de 5 minutes.
+
+# --- Fin ---
+fin.wav|L'expérimentation est terminée. Merci de votre participation !|female_1|1.0
+"""
+    response = HttpResponse(template, content_type='text/plain; charset=utf-8')
+    response['Content-Disposition'] = 'attachment; filename="batch_template.txt"'
+    return response
+
+
+@require_POST
+def batch_preview(request):
+    """
+    Parse a batch file and return the task list for preview (no DB entries created).
+    """
+    import tempfile
+
+    batch_file = request.FILES.get('batch_file')
+    if not batch_file:
+        return JsonResponse({'error': 'Aucun fichier fourni'}, status=400)
+
+    ext = os.path.splitext(batch_file.name)[1][1:].lower()
+    if ext not in ('txt', 'pdf', 'docx', 'csv', 'md'):
+        return JsonResponse({'error': f'Format non supporté : {ext}'}, status=400)
+
+    default_voice = request.POST.get('default_voice', 'default')
+    try:
+        default_speed = float(request.POST.get('default_speed', 1.0))
+    except (ValueError, TypeError):
+        default_speed = 1.0
+
+    tmp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=f'.{ext}') as tmp:
+            for chunk in batch_file.chunks():
+                tmp.write(chunk)
+            tmp_path = tmp.name
+
+        from .utils.batch_parser import parse_batch_file
+        tasks, warnings = parse_batch_file(
+            tmp_path, default_voice=default_voice, default_speed=default_speed
+        )
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=400)
+    finally:
+        if tmp_path:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+
+    return JsonResponse({
+        'tasks': tasks,
+        'warnings': warnings,
+        'count': len(tasks),
+    })
+
+
+@require_POST
+def batch_create(request):
+    """
+    Parse batch file, create BatchSynthesis + VoiceSynthesis entries.
+    Returns batch_id and list of synthesis IDs.
+    Accepts either a `batch_file` upload or a `server_path` (relative to MEDIA_ROOT)
+    for files already on the server (e.g. imported from FileManager).
+    """
+    import tempfile
+    import datetime
+    from django.conf import settings as django_settings
+
+    batch_file = request.FILES.get('batch_file')
+    server_path = request.POST.get('server_path', '').strip()
+
+    if not batch_file and not server_path:
+        return JsonResponse({'error': 'Aucun fichier fourni'}, status=400)
+
+    # Global synthesis settings from the right panel
+    tts_model = request.POST.get('tts_model', 'xtts_v2')
+    language = request.POST.get('language', 'fr')
+    default_voice = request.POST.get('voice_preset', 'default')
+    try:
+        default_speed = float(request.POST.get('speed', 1.0))
+        default_pitch = float(request.POST.get('pitch', 1.0))
+    except (ValueError, TypeError):
+        default_speed = 1.0
+        default_pitch = 1.0
+
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+
+    tmp_path = None
+    try:
+        if server_path:
+            # File already on server (e.g. imported from FileManager) — parse directly
+            abs_path = Path(django_settings.MEDIA_ROOT) / server_path
+            if not abs_path.exists():
+                return JsonResponse({'error': 'Fichier introuvable sur le serveur'}, status=404)
+            ext = abs_path.suffix[1:].lower()
+            if ext not in ('txt', 'pdf', 'docx', 'csv', 'md'):
+                return JsonResponse({'error': f'Format non supporté : {ext}'}, status=400)
+            from .utils.batch_parser import parse_batch_file
+            tasks, warnings = parse_batch_file(
+                str(abs_path), default_voice=default_voice, default_speed=default_speed
+            )
+        else:
+            ext = os.path.splitext(batch_file.name)[1][1:].lower()
+            if ext not in ('txt', 'pdf', 'docx', 'csv', 'md'):
+                return JsonResponse({'error': f'Format non supporté : {ext}'}, status=400)
+            with tempfile.NamedTemporaryFile(delete=False, suffix=f'.{ext}') as tmp:
+                for chunk in batch_file.chunks():
+                    tmp.write(chunk)
+                tmp_path = tmp.name
+            from .utils.batch_parser import parse_batch_file
+            tasks, warnings = parse_batch_file(
+                tmp_path, default_voice=default_voice, default_speed=default_speed
+            )
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=400)
+    finally:
+        if tmp_path:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+
+    if not tasks:
+        return JsonResponse({'error': 'Aucune tâche valide trouvée dans le fichier'}, status=400)
+
+    # Save the batch file reference
+    if batch_file:
+        batch_file.seek(0)
+    batch = BatchSynthesis.objects.create(
+        user=user,
+        total=len(tasks),
+        batch_file=batch_file if batch_file else None,
+    )
+
+    created_ids = []
+    for i, task in enumerate(tasks):
+        # Create a text ContentFile named after the desired output (with .txt extension)
+        stem = os.path.splitext(task['output_filename'])[0]
+        text_filename = stem + '.txt'
+        text_file_content = ContentFile(
+            task['text'].encode('utf-8'), name=text_filename
+        )
+
+        synthesis = VoiceSynthesis.objects.create(
+            user=user,
+            text_file=text_file_content,
+            text_content=task['text'],
+            tts_model=tts_model,
+            language=language,
+            voice_preset=task['voice'],
+            speed=task['speed'],
+            pitch=default_pitch,
+        )
+        synthesis.update_metadata()
+
+        BatchSynthesisItem.objects.create(
+            batch=batch,
+            synthesis=synthesis,
+            output_filename=task['output_filename'],
+            row_index=i,
+        )
+        created_ids.append(synthesis.id)
+
+    return JsonResponse({
+        'batch_id': batch.id,
+        'synthesis_ids': created_ids,
+        'total': len(tasks),
+        'warnings': warnings,
+    })
+
+
+@require_POST
+def batch_start(request, pk: int):
+    """Start all PENDING syntheses in a batch."""
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    batch = get_object_or_404(BatchSynthesis, pk=pk, user=user)
+
+    _ensure_workers_imported()
+
+    started = []
+    for item in batch.items.select_related('synthesis').all():
+        synthesis = item.synthesis
+        if not synthesis or synthesis.status == 'RUNNING':
+            continue
+
+        synthesis.status = 'PENDING'
+        synthesis.progress = 0
+        synthesis.error_message = ''
+        if synthesis.audio_output:
+            try:
+                synthesis.audio_output.delete(save=False)
+            except Exception:
+                pass
+        synthesis.save(update_fields=['status', 'progress', 'error_message', 'audio_output'])
+        cache.set(f"synthesizer_progress_{synthesis.id}", 0, timeout=3600)
+
+        task = synthesize_voice.delay(synthesis.id)
+        synthesis.task_id = task.id
+        synthesis.status = 'RUNNING'
+        synthesis.save(update_fields=['task_id', 'status'])
+        started.append(synthesis.id)
+
+    return JsonResponse({'started': started, 'count': len(started)})
+
+
+def batch_status(request, pk: int):
+    """Return status of all items in a batch."""
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    batch = get_object_or_404(BatchSynthesis, pk=pk, user=user)
+
+    counts = {'success': 0, 'running': 0, 'pending': 0, 'failure': 0}
+    items_data = []
+
+    for item in batch.items.select_related('synthesis').all():
+        s = item.synthesis
+        if not s:
+            continue
+        key = s.status.lower()
+        counts[key] = counts.get(key, 0) + 1
+        p = int(cache.get(f"synthesizer_progress_{s.id}", s.progress or 0))
+        items_data.append({
+            'id': s.id,
+            'output_filename': item.output_filename,
+            'status': s.status,
+            'progress': p,
+            'audio_url': iri_to_uri(s.audio_output.url) if s.audio_output else None,
+            'error': s.error_message if s.status == 'FAILURE' else None,
+        })
+
+    total = batch.total
+    if total > 0 and counts['success'] == total:
+        status_str = 'SUCCESS'
+    elif counts['running'] > 0:
+        status_str = 'RUNNING'
+    elif counts['pending'] == 0 and counts['running'] == 0 and counts['failure'] > 0:
+        status_str = 'FAILURE'
+    else:
+        status_str = 'PENDING'
+
+    return JsonResponse({
+        'batch_id': pk,
+        'status': status_str,
+        'total': total,
+        'counts': counts,
+        'items': items_data,
+    })
+
+
+def batch_download(request, pk: int):
+    """Download a ZIP of all completed syntheses in a batch, with the original filenames."""
+    import datetime
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    batch = get_object_or_404(BatchSynthesis, pk=pk, user=user)
+
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as archive:
+        for item in batch.items.select_related('synthesis').order_by('row_index'):
+            s = item.synthesis
+            if s and s.status == 'SUCCESS' and s.audio_output:
+                with s.audio_output.open('rb') as audio_file:
+                    archive.writestr(item.output_filename, audio_file.read())
+
+    buffer.seek(0)
+    zip_name = f"batch_{pk}_{datetime.date.today()}.zip"
+    return FileResponse(buffer, as_attachment=True, filename=zip_name)
+
+
+def batch_list(request):
+    """List the current user's batches with status counts."""
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    batches = BatchSynthesis.objects.filter(user=user).prefetch_related('items__synthesis')
+
+    data = []
+    for batch in batches:
+        counts = {'success': 0, 'running': 0, 'pending': 0, 'failure': 0}
+        for item in batch.items.all():
+            if item.synthesis:
+                k = item.synthesis.status.lower()
+                counts[k] = counts.get(k, 0) + 1
+
+        total = batch.total
+        if total > 0 and counts['success'] == total:
+            status = 'SUCCESS'
+        elif counts['running'] > 0:
+            status = 'RUNNING'
+        elif counts['pending'] == 0 and counts['running'] == 0 and counts['failure'] > 0:
+            status = 'FAILURE'
+        else:
+            status = 'PENDING'
+
+        data.append({
+            'id': batch.id,
+            'created_at': batch.created_at.strftime('%d/%m/%Y %H:%M'),
+            'total': total,
+            'status': status,
+            'counts': counts,
+        })
+
+    return JsonResponse({'batches': data})
+
+
+@require_POST
+def batch_delete(request, pk: int):
+    """Delete an entire batch: revoke tasks, delete files, cascade-delete."""
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    batch = get_object_or_404(BatchSynthesis, pk=pk, user=user)
+
+    # Collect synthesis objects and revoke tasks before cascade delete
+    syntheses_to_delete = []
+    for item in batch.items.select_related('synthesis').all():
+        s = item.synthesis
+        if not s:
+            continue
+        if s.task_id:
+            try:
+                from celery.result import AsyncResult
+                AsyncResult(s.task_id).revoke(terminate=False)
+            except Exception:
+                pass
+        syntheses_to_delete.append(s)
+
+    # batch_file may be shared with a duplicate batch — check refs before deleting
+    safe_delete_file(batch, 'batch_file')
+
+    batch.delete()  # CASCADE deletes BatchSynthesisItems (not VoiceSynthesis)
+
+    for s in syntheses_to_delete:
+        # Input files may be shared with duplicate items — check refs before deleting
+        safe_delete_file(s, 'text_file')
+        safe_delete_file(s, 'voice_reference')
+        # Output file is always unique to this item
+        if s.audio_output:
+            try:
+                s.audio_output.delete(save=False)
+            except Exception:
+                pass
+        cache.delete(f"synthesizer_progress_{s.id}")
+        s.delete()
+
+    return JsonResponse({'success': True, 'batch_id': pk})
+
+
+@require_POST
+def batch_duplicate(request, pk: int):
+    """Duplicate an entire batch (shares source files, results cleared)."""
+    from wama.common.utils.batch_utils import duplicate_synthesizer_batch
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    batch = get_object_or_404(BatchSynthesis, pk=pk, user=user)
+    new_batch = duplicate_synthesizer_batch(batch)
+    return JsonResponse({'success': True, 'batch_id': new_batch.id})
+
+
+@require_POST
+def batch_update_settings(request, pk: int):
+    """Update TTS settings for all non-running items in a batch."""
+    import json as _json
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    batch = get_object_or_404(BatchSynthesis, pk=pk, user=user)
+
+    data = _json.loads(request.body)
+    tts_model = data.get('tts_model', '').strip()
+    language = data.get('language', '').strip()
+    voice_preset = data.get('voice_preset', '').strip()
+    try:
+        speed = float(data.get('speed', 1.0))
+        pitch = float(data.get('pitch', 1.0))
+    except (ValueError, TypeError):
+        speed = 1.0
+        pitch = 1.0
+
+    updated = 0
+    for item in batch.items.select_related('synthesis').all():
+        s = item.synthesis
+        if not s or s.status == 'RUNNING':
+            continue
+        update_fields = []
+        if tts_model:
+            s.tts_model = tts_model
+            update_fields.append('tts_model')
+        if language:
+            s.language = language
+            update_fields.append('language')
+        if voice_preset:
+            s.voice_preset = voice_preset
+            update_fields.append('voice_preset')
+        s.speed = speed
+        s.pitch = pitch
+        update_fields.extend(['speed', 'pitch'])
+        if update_fields:
+            s.save(update_fields=update_fields)
+            updated += 1
+
+    return JsonResponse({'success': True, 'updated': updated})
 
 
 # ============= VOICE PRESETS =============

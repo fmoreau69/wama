@@ -105,6 +105,18 @@ MODEL_RESOLUTION_CONFIG = {
         "recommended": ["1024x1024", "1344x768", "768x1344", "1920x1088", "1088x1920"],
         "vram_warning": "10GB+ VRAM recommended for 1024+ resolution",
     },
+    # FLUX Logo Design LoRA — max 768 px avec MODEL_OFFLOAD sur RTX 4090.
+    # 1024×1024 dépasse les 24 GB (23 GB transformer + activations d'attention
+    # sur 4096 tokens) et provoque un OOM silencieux dans WSL2.
+    # 768×768 est stable et produit des logos haute qualité.
+    "flux-lora-logo-design": {
+        "min_size": 512,
+        "max_size": 768,
+        "default": "768x768",
+        "recommended": ["768x768", "768x512", "512x768"],
+        "vram_warning": "16GB+ VRAM requis — max 768px avec MODEL_OFFLOAD",
+    },
+
     # Qwen Image 2 models - 2K native resolution
     "qwen-image-2": {
         "min_size": 512,

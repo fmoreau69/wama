@@ -2,8 +2,8 @@
 {% load static %}
 
 {% block app_icon %}<i class="fas fa-magic text-primary"></i>{% endblock %}
-{% block app_title %}AI Image & Video Enhancer{% endblock %}
-{% block app_description %}Améliorez la qualité de vos images et vidéos avec l'intelligence artificielle{% endblock %}
+{% block app_title %}AI Enhancer{% endblock %}
+{% block app_description %}Améliorez la qualité de vos images, vidéos et audio avec l'intelligence artificielle{% endblock %}
 
 {% block app_styles %}
 /* Styles spécifiques à Enhancer */
@@ -22,60 +22,97 @@
     <h3><i class="fas fa-wand-magic-sparkles me-2"></i>À propos d'Enhancer</h3>
 
     <div class="mb-4">
-        <h5>Fonctionnalités</h5>
-        <ul class="text-light">
-            <li><strong>Upscaling AI</strong> : Agrandissement intelligent des images et vidéos</li>
-            <li><strong>7 modèles AI</strong> : RealESRGAN, BSRGAN, RealESR, IRCNN</li>
-            <li><strong>Débruitage</strong> : Réduction du bruit avec modèles IRCNN</li>
-            <li><strong>Blend Factor</strong> : Mélange entre résultat AI et image originale</li>
-            <li><strong>Support multi-formats</strong> : Images (JPG, PNG, WebP, HEIC) et vidéos (MP4, MKV, AVI)</li>
-        </ul>
-    </div>
-
-    <div class="mb-4">
-        <h5>Modèles AI disponibles</h5>
+        <h5>Image &amp; Vidéo — Upscaling AI</h5>
         <div class="row">
             <div class="col-md-6">
-                <div class="card bg-dark border-secondary mb-3">
-                    <div class="card-body">
-                        <h6 class="card-title text-info">RealESR_Gx4</h6>
-                        <p class="card-text small">Rapide, usage général (4x)</p>
+                <div class="card bg-dark border-info mb-2">
+                    <div class="card-body py-2">
+                        <h6 class="card-title text-info mb-1">RealESR_Gx4</h6>
+                        <p class="card-text small mb-0">Rapide, usage général (4x)</p>
                     </div>
                 </div>
             </div>
             <div class="col-md-6">
-                <div class="card bg-dark border-secondary mb-3">
-                    <div class="card-body">
-                        <h6 class="card-title text-info">RealESRGANx4</h6>
-                        <p class="card-text small">Qualité maximale (4x, lent)</p>
+                <div class="card bg-dark border-info mb-2">
+                    <div class="card-body py-2">
+                        <h6 class="card-title text-info mb-1">RealESRGANx4</h6>
+                        <p class="card-text small mb-0">Qualité maximale (4x)</p>
                     </div>
                 </div>
             </div>
             <div class="col-md-6">
-                <div class="card bg-dark border-secondary mb-3">
-                    <div class="card-body">
-                        <h6 class="card-title text-info">BSRGANx2/x4</h6>
-                        <p class="card-text small">Haute qualité, léger</p>
+                <div class="card bg-dark border-secondary mb-2">
+                    <div class="card-body py-2">
+                        <h6 class="card-title text-light mb-1">BSRGANx2/x4</h6>
+                        <p class="card-text small mb-0">Haute qualité, léger</p>
                     </div>
                 </div>
             </div>
             <div class="col-md-6">
-                <div class="card bg-dark border-secondary mb-3">
-                    <div class="card-body">
-                        <h6 class="card-title text-info">IRCNN</h6>
-                        <p class="card-text small">Débruitage spécialisé</p>
+                <div class="card bg-dark border-secondary mb-2">
+                    <div class="card-body py-2">
+                        <h6 class="card-title text-light mb-1">IRCNN</h6>
+                        <p class="card-text small mb-0">Débruitage spécialisé (1x)</p>
                     </div>
                 </div>
             </div>
         </div>
+        <p class="text-light small mt-2">
+            Modèles ONNX via <a href="https://github.com/Djdefrag/QualityScaler" target="_blank" class="text-info">QualityScaler</a> (DirectML GPU).
+        </p>
+    </div>
+
+    <div class="mb-4">
+        <h5>Audio — Speech Enhancement <span class="badge bg-success ms-1">Nouveau</span></h5>
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card bg-dark border-success mb-2">
+                    <div class="card-body py-2">
+                        <h6 class="card-title text-success mb-1">
+                            Resemble Enhance <span class="badge bg-success text-dark ms-1 small">RECOMMANDÉ</span>
+                        </h6>
+                        <p class="card-text small mb-0">
+                            Débruitage + amélioration 44.1kHz — équivalent Adobe Podcast —
+                            PESQ 3.8 — 4–6 GB VRAM — MIT
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card bg-dark border-info mb-2">
+                    <div class="card-body py-2">
+                        <h6 class="card-title text-info mb-1">DeepFilterNet 3</h6>
+                        <p class="card-text small mb-0">
+                            Temps réel — ultra-rapide — &lt;1 GB VRAM —
+                            PESQ 3.31 — 48kHz — MIT
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-2">
+            <h6 class="text-light">Resemble Enhance — modes</h6>
+            <ul class="text-light small">
+                <li><strong>Débruitage + Amélioration</strong> : pipeline complet, qualité maximale</li>
+                <li><strong>Débruitage seul</strong> : CRUSE rapide, suppression bruit de fond</li>
+                <li><strong>Amélioration seule</strong> : extension de bande passante (sur audio propre)</li>
+            </ul>
+        </div>
+
+        <div class="alert alert-success py-2 small mt-2">
+            <strong>Avantages vs Adobe Podcast :</strong>
+            Gratuit — local (RGPD) — 30% plus rapide — qualité 44.1kHz — licence MIT
+        </div>
     </div>
 
     <div>
-        <h5>Technologie</h5>
-        <p class="text-light">
-            Enhancer utilise <a href="https://github.com/Djdefrag/QualityScaler" target="_blank" class="text-info">QualityScaler</a>
-            avec des modèles ONNX optimisés pour le GPU (DirectML).
-        </p>
+        <h5>Formats supportés</h5>
+        <ul class="text-light small">
+            <li><strong>Images</strong> : JPG, PNG, BMP, TIF, WebP, HEIC</li>
+            <li><strong>Vidéos</strong> : MP4, WebM, MKV, AVI, MOV, GIF</li>
+            <li><strong>Audio</strong> : MP3, WAV, FLAC, OGG, M4A, AAC, OPUS, WMA</li>
+        </ul>
     </div>
 </div>
 {% endblock %}
@@ -85,48 +122,48 @@
     <h3><i class="fas fa-question-circle me-2"></i>Guide d'utilisation</h3>
 
     <div class="mb-4">
-        <h5>1. Upload de fichiers</h5>
-        <p class="text-light">
-            Glissez-déposez vos fichiers dans la zone prévue ou cliquez sur "Parcourir" pour sélectionner vos images/vidéos.
-        </p>
-    </div>
-
-    <div class="mb-4">
-        <h5>2. Configuration des paramètres</h5>
-        <p class="text-light">
-            Avant de lancer le traitement, vous pouvez configurer :
-        </p>
+        <h5><i class="fas fa-image me-2"></i>Image &amp; Vidéo — Upscaling</h5>
         <ul class="text-light">
-            <li><strong>Modèle AI</strong> : Choisissez le modèle selon vos besoins (vitesse vs qualité)</li>
-            <li><strong>Débruitage</strong> : Activez pour réduire le bruit avant l'upscaling</li>
-            <li><strong>Blend Factor</strong> : 0 = 100% AI, 1 = 100% original</li>
+            <li>Glissez-déposez ou cliquez sur "Parcourir" pour sélectionner vos fichiers</li>
+            <li>Choisissez le modèle AI (vitesse vs qualité) et configurez le débruitage</li>
+            <li>Cliquez sur <i class="fas fa-play text-primary"></i> par fichier ou "Démarrer" pour tout lancer</li>
+            <li>Téléchargez avec <i class="fas fa-download text-success"></i> ou "Télécharger tout" (ZIP)</li>
         </ul>
-        <p class="text-light">
-            Vous pouvez modifier les paramètres de chaque fichier individuellement en cliquant sur <i class="fas fa-cog text-warning"></i>.
-        </p>
+        <div class="alert alert-info py-2 small">
+            <strong>Astuce :</strong> Pour les vidéos, utilisez <strong>RealESRGANx4</strong> + débruitage.
+            Pour la vitesse, préférez <strong>RealESR_Gx4</strong>.
+        </div>
     </div>
 
     <div class="mb-4">
-        <h5>3. Lancement du traitement</h5>
-        <p class="text-light">
-            Cliquez sur "Démarrer le traitement" pour lancer tous les fichiers, ou sur <i class="fas fa-play text-primary"></i> pour un fichier spécifique.
-        </p>
-    </div>
+        <h5><i class="fas fa-microphone-alt me-2"></i>Audio — Speech Enhancement</h5>
+        <ol class="text-light">
+            <li>Passez en mode <strong>Audio</strong> avec le bouton en haut du panneau droit</li>
+            <li>Glissez-déposez vos fichiers audio (MP3, WAV, FLAC…) ou cliquez "Parcourir"</li>
+            <li>Choisissez le moteur et les paramètres :</li>
+        </ol>
+        <ul class="text-light ms-4">
+            <li><strong>Resemble Enhance</strong> (recommandé) : sélectionnez le mode et la force du débruitage</li>
+            <li><strong>DeepFilterNet 3</strong> : rapide, pas de paramètre supplémentaire</li>
+        </ul>
+        <ol class="text-light" start="4">
+            <li>Cliquez sur <i class="fas fa-play text-primary"></i> ou "Démarrer" pour lancer</li>
+            <li>Téléchargez l'audio amélioré en WAV</li>
+        </ol>
 
-    <div class="mb-4">
-        <h5>4. Téléchargement des résultats</h5>
-        <p class="text-light">
-            Une fois le traitement terminé, téléchargez vos fichiers avec <i class="fas fa-download text-success"></i> ou
-            "Télécharger tout" pour récupérer une archive ZIP.
-        </p>
-    </div>
+        <div class="alert alert-success py-2 small mt-2">
+            <h6><i class="fas fa-lightbulb me-2"></i>Quel moteur choisir ?</h6>
+            <ul class="mb-0">
+                <li><strong>Resemble Enhance</strong> : qualité maximale, remplace Adobe Podcast — mode "Débruitage + Amélioration" recommandé</li>
+                <li><strong>DeepFilterNet 3</strong> : ultra-rapide (&lt;1 GB VRAM), idéal pour traiter de nombreux fichiers rapidement</li>
+            </ul>
+        </div>
 
-    <div class="alert alert-info">
-        <h6><i class="fas fa-lightbulb me-2"></i>Astuce</h6>
-        <p class="mb-0">
-            Pour de meilleurs résultats sur les vidéos, utilisez <strong>RealESRGANx4</strong>
-            avec débruitage activé. Pour une vitesse maximale, préférez <strong>RealESR_Gx4</strong>.
-        </p>
+        <div class="alert alert-warning py-2 small">
+            <strong>Installation requise :</strong><br>
+            <code>pip install resemble-enhance soundfile</code> (Resemble)<br>
+            <code>pip install deepfilternet</code> (DeepFilterNet)
+        </div>
     </div>
 </div>
 {% endblock %}

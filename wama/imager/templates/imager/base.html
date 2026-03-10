@@ -20,34 +20,32 @@
     <div class="mb-4">
         <h5>Qu'est-ce qu'Imager ?</h5>
         <p class="text-light">
-            Imager est une application de génération d'images et de vidéos par IA intégrée à WAMA
-            (Web App for Media Automation). Elle utilise les bibliothèques <strong>Diffusers</strong>
-            de Hugging Face pour générer des médias époustouflants à partir de descriptions textuelles.
+            Imager génère des images et vidéos IA à partir de descriptions textuelles, intégré à WAMA.
+            Il utilise <strong>Diffusers</strong> (Hugging Face) et prend en charge des modèles allant de
+            Stable Diffusion à des architectures 20B paramètres comme Qwen Image 2.
         </p>
     </div>
 
     <div class="mb-4">
         <h5>Fonctionnalités Images</h5>
         <ul class="text-light">
-            <li><strong>Text-to-Image :</strong> Génération d'images à partir de prompts textuels</li>
+            <li><strong>Text-to-Image :</strong> Génération à partir de prompts textuels</li>
             <li><strong>Image-to-Image :</strong> Transformation et variation d'images existantes</li>
-            <li><strong>Style Transfer :</strong> Appliquer le style d'une image de référence</li>
-            <li><strong>Describe-to-Image :</strong> Auto-génération de prompt via BLIP</li>
-            <li>Dimensions personnalisables (256px à 2048px)</li>
-            <li>Prompts négatifs pour exclure les éléments indésirables</li>
+            <li><strong>Image Editing :</strong> Édition multi-référence avec Qwen Image Edit</li>
+            <li>Dimensions personnalisables (256px à 2048px — 2K natif avec Qwen/HunyuanImage)</li>
+            <li>Prompts négatifs, seed reproductible, guidance scale</li>
             <li>Génération par lots depuis fichiers (TXT, JSON, YAML)</li>
+            <li>Modèles spécialisés Logo (Flux LoRA, Redmond, Amazing Logos)</li>
         </ul>
     </div>
 
     <div class="mb-4">
         <h5>Fonctionnalités Vidéos</h5>
         <ul class="text-light">
-            <li><strong>Text-to-Video :</strong> Génération de vidéos à partir de prompts textuels</li>
-            <li><strong>Image-to-Video :</strong> Animation d'images statiques</li>
-            <li>Support de multiples résolutions (480p, 720p)</li>
-            <li>FPS configurables (8, 24, 30 fps selon le modèle)</li>
-            <li>Durée ajustable (2 à 6 secondes)</li>
-            <li>Export automatique en MP4</li>
+            <li><strong>Text-to-Video :</strong> Génération de vidéos à partir de prompts</li>
+            <li><strong>Image-to-Video :</strong> Animation d'images statiques (CogVideoX 5B I2V)</li>
+            <li>Support 480p/720p, 8 à 30 fps selon le modèle</li>
+            <li>Durée ajustable (2–6s), export automatique en MP4</li>
         </ul>
     </div>
 
@@ -55,10 +53,10 @@
         <h5>Modèles Images</h5>
         <div class="row">
             <div class="col-md-6">
-                <div class="card bg-dark border-info mb-2">
+                <div class="card bg-dark border-warning mb-2">
                     <div class="card-body py-2">
-                        <h6 class="card-title text-info mb-1">Stable Diffusion XL</h6>
-                        <p class="card-text small mb-0">Haute résolution - 10GB VRAM</p>
+                        <h6 class="card-title text-warning mb-1">Qwen Image 2 <span class="badge bg-warning text-dark ms-1 small">NOUVEAU</span></h6>
+                        <p class="card-text small mb-0">20B — 2K natif — #1 open-source — 16GB VRAM</p>
                     </div>
                 </div>
             </div>
@@ -66,23 +64,31 @@
                 <div class="card bg-dark border-info mb-2">
                     <div class="card-body py-2">
                         <h6 class="card-title text-info mb-1">HunyuanImage 2.1</h6>
-                        <p class="card-text small mb-0">Haute qualité - 16GB VRAM</p>
+                        <p class="card-text small mb-0">Haute qualité générale — 16GB VRAM</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card bg-dark border-info mb-2">
+                    <div class="card-body py-2">
+                        <h6 class="card-title text-info mb-1">Stable Diffusion XL</h6>
+                        <p class="card-text small mb-0">Polyvalent, 1024px natif — 10GB VRAM</p>
                     </div>
                 </div>
             </div>
             <div class="col-md-6">
                 <div class="card bg-dark border-secondary mb-2">
                     <div class="card-body py-2">
-                        <h6 class="card-title text-light mb-1">OpenJourney v4</h6>
-                        <p class="card-text small mb-0">Style Midjourney - 4GB VRAM</p>
+                        <h6 class="card-title text-light mb-1">SD v1.5 · Dreamlike · Deliberate · Dreamshaper · Anything</h6>
+                        <p class="card-text small mb-0">Fine-tunes artistiques variés — 4GB VRAM</p>
                     </div>
                 </div>
             </div>
             <div class="col-md-6">
                 <div class="card bg-dark border-secondary mb-2">
                     <div class="card-body py-2">
-                        <h6 class="card-title text-light mb-1">Realistic Vision V5</h6>
-                        <p class="card-text small mb-0">Photoréaliste - 4GB VRAM</p>
+                        <h6 class="card-title text-light mb-1">Flux LoRA Logo · Redmond · Amazing Logos</h6>
+                        <p class="card-text small mb-0">Génération de logos et identités visuelles</p>
                     </div>
                 </div>
             </div>
@@ -95,16 +101,24 @@
             <div class="col-md-6">
                 <div class="card bg-dark border-success mb-2">
                     <div class="card-body py-2">
-                        <h6 class="card-title text-success mb-1">CogVideoX 2B</h6>
-                        <p class="card-text small mb-0">Léger et rapide - 4GB VRAM - 8fps</p>
+                        <h6 class="card-title text-success mb-1">CogVideoX 5B</h6>
+                        <p class="card-text small mb-0">Text-to-Video — 5GB VRAM — 8fps</p>
                     </div>
                 </div>
             </div>
             <div class="col-md-6">
                 <div class="card bg-dark border-success mb-2">
                     <div class="card-body py-2">
-                        <h6 class="card-title text-success mb-1">LTX-Video Distilled</h6>
-                        <p class="card-text small mb-0">Rapide - 6GB VRAM - 24fps</p>
+                        <h6 class="card-title text-success mb-1">CogVideoX 5B I2V</h6>
+                        <p class="card-text small mb-0">Image-to-Video — 5GB VRAM — 8fps</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card bg-dark border-info mb-2">
+                    <div class="card-body py-2">
+                        <h6 class="card-title text-info mb-1">LTX-Video 0.9.8 Distilled</h6>
+                        <p class="card-text small mb-0">Rapide et fluide — 6GB VRAM — 24fps</p>
                     </div>
                 </div>
             </div>
@@ -112,31 +126,7 @@
                 <div class="card bg-dark border-warning mb-2">
                     <div class="card-body py-2">
                         <h6 class="card-title text-warning mb-1">Mochi-1 Preview</h6>
-                        <p class="card-text small mb-0">Haute qualité - 22GB VRAM - 30fps</p>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-6">
-                <div class="card bg-dark border-warning mb-2">
-                    <div class="card-body py-2">
-                        <h6 class="card-title text-warning mb-1">HunyuanVideo 1.5</h6>
-                        <p class="card-text small mb-0">Excellente qualité - 14-24GB VRAM</p>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-6">
-                <div class="card bg-dark border-secondary mb-2">
-                    <div class="card-body py-2">
-                        <h6 class="card-title text-light mb-1">Wan 2.2</h6>
-                        <p class="card-text small mb-0">T2V / I2V - 8-24GB VRAM</p>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-6">
-                <div class="card bg-dark border-secondary mb-2">
-                    <div class="card-body py-2">
-                        <h6 class="card-title text-light mb-1">CogVideoX 5B I2V</h6>
-                        <p class="card-text small mb-0">Image-to-Video - 5GB VRAM</p>
+                        <p class="card-text small mb-0">Qualité cinématique — 22GB VRAM — 30fps</p>
                     </div>
                 </div>
             </div>
@@ -147,17 +137,14 @@
         <h5>Technologie</h5>
         <p class="text-light">
             Propulsé par <a href="https://huggingface.co/docs/diffusers" target="_blank" class="text-info">Diffusers</a>
-            de Hugging Face, une bibliothèque de référence pour la génération d'images et vidéos par diffusion.
-        </p>
-        <p class="text-light">
-            Fait partie de l'écosystème WAMA pour l'automation et le traitement de médias.
+            de Hugging Face. GPU NVIDIA avec CUDA requis.
         </p>
     </div>
 
     <div class="alert alert-info">
         <i class="fas fa-info-circle me-2"></i>
-        <strong>Note :</strong> La génération est intensive en calcul. Un GPU NVIDIA avec CUDA est requis.
-        Les vidéos peuvent prendre 5-30 minutes selon le modèle et les paramètres.
+        <strong>Note :</strong> La génération est intensive en calcul. Les images prennent 15–60s,
+        les vidéos 5–30 minutes selon le modèle et les paramètres.
     </div>
 </div>
 {% endblock %}
@@ -166,7 +153,6 @@
 <div class="info-card">
     <h3><i class="fas fa-question-circle me-2"></i>Guide d'utilisation</h3>
 
-    <!-- Navigation Tabs -->
     <ul class="nav nav-pills mb-4" id="helpTabs" role="tablist">
         <li class="nav-item" role="presentation">
             <button class="nav-link active" id="images-tab" data-bs-toggle="pill" data-bs-target="#images-help" type="button">
@@ -190,42 +176,35 @@
         <div class="tab-pane fade show active" id="images-help" role="tabpanel">
             <div class="mb-4">
                 <h5>Génération d'images</h5>
-                <div class="card bg-dark mb-2">
-                    <div class="card-body">
-                        <h6 class="text-info">1. Sélectionner l'onglet "Image"</h6>
-                        <p class="text-light mb-0">Choisissez le mode de génération : Text-to-Image, Img2Img, Style Transfer, etc.</p>
-                    </div>
-                </div>
-                <div class="card bg-dark mb-2">
-                    <div class="card-body">
-                        <h6 class="text-info">2. Écrire le prompt</h6>
-                        <p class="text-light mb-0">Décrivez l'image souhaitée. Soyez précis et descriptif.</p>
-                    </div>
-                </div>
-                <div class="card bg-dark mb-2">
-                    <div class="card-body">
-                        <h6 class="text-info">3. Configurer les paramètres</h6>
-                        <p class="text-light mb-0">Modèle, résolution (512-2048px), steps (30-50), guidance (7-10).</p>
-                    </div>
-                </div>
-                <div class="card bg-dark">
-                    <div class="card-body">
-                        <h6 class="text-info">4. Générer et télécharger</h6>
-                        <p class="text-light mb-0">Cliquez sur "Ajouter" puis "Démarrer". Téléchargez une fois terminé.</p>
-                    </div>
-                </div>
+                <div class="card bg-dark mb-2"><div class="card-body">
+                    <h6 class="text-info">1. Sélectionner l'onglet "Image"</h6>
+                    <p class="text-light mb-0">Choisissez le mode : Text-to-Image, Img2Img, Image Editing (Qwen), Logo, etc.</p>
+                </div></div>
+                <div class="card bg-dark mb-2"><div class="card-body">
+                    <h6 class="text-info">2. Écrire le prompt</h6>
+                    <p class="text-light mb-0">Décrivez l'image souhaitée avec précision. Anglais recommandé pour les modèles SD.</p>
+                </div></div>
+                <div class="card bg-dark mb-2"><div class="card-body">
+                    <h6 class="text-info">3. Configurer les paramètres</h6>
+                    <p class="text-light mb-0">Modèle, résolution (512–2048px), steps, guidance scale.</p>
+                </div></div>
+                <div class="card bg-dark"><div class="card-body">
+                    <h6 class="text-info">4. Générer et télécharger</h6>
+                    <p class="text-light mb-0">Cliquez sur "Ajouter" puis "Démarrer". Téléchargez une fois terminé.</p>
+                </div></div>
             </div>
 
             <h6 class="text-info">Paramètres clés</h6>
             <table class="table table-dark table-sm">
-                <tr><td><strong>Steps</strong></td><td>20-30 (test) / 50 (qualité) / 80+ (max)</td></tr>
-                <tr><td><strong>Guidance</strong></td><td>1-5 (créatif) / 7-10 (équilibré) / 15+ (strict)</td></tr>
+                <tr><td><strong>Steps</strong></td><td>20–30 (test) / 50 (qualité) — Qwen Image : 50 par défaut</td></tr>
+                <tr><td><strong>Guidance</strong></td><td>SD : 7–10 équilibré — Qwen Image : true_cfg_scale 4.0</td></tr>
+                <tr><td><strong>Résolution</strong></td><td>SD : 512–1024px — HunyuanImage / Qwen Image : jusqu'à 2048px</td></tr>
                 <tr><td><strong>Seed</strong></td><td>Laisser vide pour aléatoire, ou fixer pour reproduire</td></tr>
             </table>
 
             <div class="alert alert-success mt-3">
-                <strong>Exemple Image :</strong><br>
-                "Majestic mountain landscape at golden hour, dramatic clouds, alpine meadow, photorealistic, 8k, detailed"<br>
+                <strong>Exemple :</strong><br>
+                "Majestic mountain landscape at golden hour, dramatic clouds, alpine meadow, photorealistic, 8k"<br>
                 <small class="text-muted">Négatif : "blurry, low quality, cartoon, watermark"</small>
             </div>
         </div>
@@ -234,58 +213,48 @@
         <div class="tab-pane fade" id="videos-help" role="tabpanel">
             <div class="mb-4">
                 <h5>Génération de vidéos</h5>
-                <div class="card bg-dark mb-2">
-                    <div class="card-body">
-                        <h6 class="text-success">1. Sélectionner l'onglet "Vidéo"</h6>
-                        <p class="text-light mb-0">Choisissez Text-to-Video ou Image-to-Video.</p>
-                    </div>
-                </div>
-                <div class="card bg-dark mb-2">
-                    <div class="card-body">
-                        <h6 class="text-success">2. Choisir le modèle</h6>
-                        <p class="text-light mb-0">
-                            <strong>CogVideoX 2B</strong> : Léger (4GB) - Idéal pour tester<br>
-                            <strong>LTX-Video</strong> : Rapide (6-8GB) - 24fps fluide<br>
-                            <strong>Mochi-1</strong> : Haute qualité (22GB) - 30fps cinématique
-                        </p>
-                    </div>
-                </div>
-                <div class="card bg-dark mb-2">
-                    <div class="card-body">
-                        <h6 class="text-success">3. Configurer la vidéo</h6>
-                        <p class="text-light mb-0">Résolution (480p/720p), durée (2-6s), steps (30-50).</p>
-                    </div>
-                </div>
-                <div class="card bg-dark">
-                    <div class="card-body">
-                        <h6 class="text-success">4. Patienter et télécharger</h6>
-                        <p class="text-light mb-0">La génération prend 5-30 minutes. Export automatique en MP4.</p>
-                    </div>
-                </div>
+                <div class="card bg-dark mb-2"><div class="card-body">
+                    <h6 class="text-success">1. Sélectionner l'onglet "Vidéo"</h6>
+                    <p class="text-light mb-0">Choisissez Text-to-Video (T2V) ou Image-to-Video (I2V).</p>
+                </div></div>
+                <div class="card bg-dark mb-2"><div class="card-body">
+                    <h6 class="text-success">2. Choisir le modèle</h6>
+                    <p class="text-light mb-0">
+                        <strong>CogVideoX 5B</strong> : T2V polyvalent (5GB)<br>
+                        <strong>CogVideoX 5B I2V</strong> : Animation d'image (5GB)<br>
+                        <strong>LTX-Video Distilled</strong> : Rapide 24fps (6GB)<br>
+                        <strong>Mochi-1</strong> : Qualité max 30fps (22GB)
+                    </p>
+                </div></div>
+                <div class="card bg-dark mb-2"><div class="card-body">
+                    <h6 class="text-success">3. Configurer la vidéo</h6>
+                    <p class="text-light mb-0">Résolution (480p/720p), durée (2–6s), steps (30–50).</p>
+                </div></div>
+                <div class="card bg-dark"><div class="card-body">
+                    <h6 class="text-success">4. Patienter et télécharger</h6>
+                    <p class="text-light mb-0">5–30 minutes selon le modèle. Export automatique en MP4.</p>
+                </div></div>
             </div>
 
             <h6 class="text-success">Comparatif des modèles vidéo</h6>
             <table class="table table-dark table-sm">
-                <thead><tr><th>Modèle</th><th>VRAM</th><th>FPS</th><th>Temps</th><th>Usage</th></tr></thead>
+                <thead><tr><th>Modèle</th><th>Type</th><th>VRAM</th><th>FPS</th><th>Usage</th></tr></thead>
                 <tbody>
-                    <tr><td>CogVideoX 2B</td><td>4GB</td><td>8</td><td>~5min</td><td>Tests rapides</td></tr>
-                    <tr><td>LTX-Video Distilled</td><td>6GB</td><td>24</td><td>~8min</td><td>Production légère</td></tr>
-                    <tr><td>CogVideoX 5B</td><td>5GB</td><td>8</td><td>~10min</td><td>Meilleure qualité</td></tr>
-                    <tr><td>Mochi-1 Preview</td><td>22GB</td><td>30</td><td>~20min</td><td>Qualité max</td></tr>
-                    <tr><td>HunyuanVideo 480p</td><td>14GB</td><td>24</td><td>~15min</td><td>Excellent rapport qualité</td></tr>
+                    <tr><td>CogVideoX 5B</td><td>T2V</td><td>5GB</td><td>8</td><td>Polyvalent</td></tr>
+                    <tr><td>CogVideoX 5B I2V</td><td>I2V</td><td>5GB</td><td>8</td><td>Animer une image</td></tr>
+                    <tr><td>LTX-Video Distilled</td><td>T2V</td><td>6GB</td><td>24</td><td>Rapide et fluide</td></tr>
+                    <tr><td>Mochi-1 Preview</td><td>T2V</td><td>22GB</td><td>30</td><td>Qualité cinématique</td></tr>
                 </tbody>
             </table>
 
             <div class="alert alert-success mt-3">
-                <strong>Exemple Vidéo :</strong><br>
-                "A serene lake at sunrise, mist rising from the water, camera slowly panning, cinematic lighting, 4k quality"<br>
-                <small class="text-muted">Conseil : Décrivez le mouvement souhaité (pan, zoom, static)</small>
+                <strong>Exemple :</strong><br>
+                "A serene lake at sunrise, mist rising from the water, camera slowly panning, cinematic"<br>
+                <small class="text-muted">Conseil : décrivez le mouvement souhaité (pan, zoom, static)</small>
             </div>
-
             <div class="alert alert-warning">
                 <i class="fas fa-exclamation-triangle me-2"></i>
-                <strong>Attention :</strong> Le premier téléchargement d'un modèle peut prendre 10-30 minutes (5-18GB).
-                Les générations suivantes seront plus rapides.
+                <strong>Premier chargement :</strong> Le téléchargement d'un modèle peut prendre 10–30 minutes.
             </div>
         </div>
 
@@ -293,84 +262,68 @@
         <div class="tab-pane fade" id="models-help" role="tabpanel">
             <h5>Guide des modèles</h5>
 
-            <h6 class="text-info mt-3">Modèles Image recommandés</h6>
+            <h6 class="text-info mt-3">Modèles Image — par VRAM</h6>
             <div class="row">
                 <div class="col-md-6">
-                    <div class="card bg-dark border-info mb-2">
-                        <div class="card-body py-2">
-                            <strong class="text-info">Stable Diffusion XL</strong>
-                            <p class="small mb-0">Polyvalent, haute résolution. 10GB VRAM.</p>
-                        </div>
-                    </div>
+                    <div class="card bg-dark border-warning mb-2"><div class="card-body py-2">
+                        <strong class="text-warning">Qwen Image 2 <span class="badge bg-warning text-dark small">NOUVEAU</span></strong>
+                        <p class="small mb-0">20B — 2K natif — #1 open-source. 16GB VRAM.</p>
+                    </div></div>
                 </div>
                 <div class="col-md-6">
-                    <div class="card bg-dark border-secondary mb-2">
-                        <div class="card-body py-2">
-                            <strong>OpenJourney v4</strong>
-                            <p class="small mb-0">Style artistique Midjourney. 4GB VRAM.</p>
-                        </div>
-                    </div>
+                    <div class="card bg-dark border-info mb-2"><div class="card-body py-2">
+                        <strong class="text-info">HunyuanImage 2.1</strong>
+                        <p class="small mb-0">Haute qualité générale. 16GB VRAM.</p>
+                    </div></div>
                 </div>
                 <div class="col-md-6">
-                    <div class="card bg-dark border-secondary mb-2">
-                        <div class="card-body py-2">
-                            <strong>Realistic Vision V5</strong>
-                            <p class="small mb-0">Portraits photoréalistes. 4GB VRAM.</p>
-                        </div>
-                    </div>
+                    <div class="card bg-dark border-info mb-2"><div class="card-body py-2">
+                        <strong class="text-info">Stable Diffusion XL</strong>
+                        <p class="small mb-0">Polyvalent, 1024px natif. 10GB VRAM.</p>
+                    </div></div>
                 </div>
                 <div class="col-md-6">
-                    <div class="card bg-dark border-secondary mb-2">
-                        <div class="card-body py-2">
-                            <strong>HunyuanImage 2.1</strong>
-                            <p class="small mb-0">Très haute qualité. 16GB VRAM.</p>
-                        </div>
-                    </div>
+                    <div class="card bg-dark border-secondary mb-2"><div class="card-body py-2">
+                        <strong>SD v1.5 · Dreamlike · Deliberate · Dreamshaper · Anything</strong>
+                        <p class="small mb-0">Fine-tunes artistiques. 4GB VRAM.</p>
+                    </div></div>
                 </div>
             </div>
 
-            <h6 class="text-success mt-4">Modèles Vidéo recommandés</h6>
+            <h6 class="text-success mt-4">Modèles Vidéo — par usage</h6>
             <div class="row">
                 <div class="col-md-6">
-                    <div class="card bg-dark border-success mb-2">
-                        <div class="card-body py-2">
-                            <strong class="text-success">CogVideoX 2B</strong>
-                            <p class="small mb-0">Parfait pour débuter. Léger et rapide. 4GB VRAM.</p>
-                        </div>
-                    </div>
+                    <div class="card bg-dark border-success mb-2"><div class="card-body py-2">
+                        <strong class="text-success">CogVideoX 5B</strong>
+                        <p class="small mb-0">T2V polyvalent. 5GB VRAM.</p>
+                    </div></div>
                 </div>
                 <div class="col-md-6">
-                    <div class="card bg-dark border-success mb-2">
-                        <div class="card-body py-2">
-                            <strong class="text-success">LTX-Video Distilled</strong>
-                            <p class="small mb-0">Bon équilibre vitesse/qualité. 24fps. 6GB VRAM.</p>
-                        </div>
-                    </div>
+                    <div class="card bg-dark border-success mb-2"><div class="card-body py-2">
+                        <strong class="text-success">CogVideoX 5B I2V</strong>
+                        <p class="small mb-0">I2V — anime votre image. 5GB VRAM.</p>
+                    </div></div>
                 </div>
                 <div class="col-md-6">
-                    <div class="card bg-dark border-warning mb-2">
-                        <div class="card-body py-2">
-                            <strong class="text-warning">Mochi-1 Preview</strong>
-                            <p class="small mb-0">Qualité cinématique. 30fps fluide. 22GB VRAM.</p>
-                        </div>
-                    </div>
+                    <div class="card bg-dark border-info mb-2"><div class="card-body py-2">
+                        <strong class="text-info">LTX-Video Distilled</strong>
+                        <p class="small mb-0">Vitesse + fluidité. 24fps. 6GB VRAM.</p>
+                    </div></div>
                 </div>
                 <div class="col-md-6">
-                    <div class="card bg-dark border-warning mb-2">
-                        <div class="card-body py-2">
-                            <strong class="text-warning">HunyuanVideo T2V</strong>
-                            <p class="small mb-0">Excellente qualité d'image. 14-24GB VRAM.</p>
-                        </div>
-                    </div>
+                    <div class="card bg-dark border-warning mb-2"><div class="card-body py-2">
+                        <strong class="text-warning">Mochi-1 Preview</strong>
+                        <p class="small mb-0">Qualité cinématique. 30fps. 22GB VRAM.</p>
+                    </div></div>
                 </div>
             </div>
 
             <div class="alert alert-info mt-4">
-                <h6><i class="fas fa-lightbulb me-2"></i>Conseil de sélection</h6>
+                <h6><i class="fas fa-lightbulb me-2"></i>Conseil de sélection par GPU</h6>
                 <ul class="mb-0">
-                    <li><strong>GPU 4-8GB :</strong> CogVideoX 2B, LTX-Video Distilled, SD 1.5</li>
-                    <li><strong>GPU 10-16GB :</strong> CogVideoX 5B, HunyuanVideo 480p, SDXL</li>
-                    <li><strong>GPU 20GB+ :</strong> Mochi-1, HunyuanVideo 720p, tous les modèles</li>
+                    <li><strong>4–6GB :</strong> CogVideoX 5B / 5B I2V, LTX-Video, SD v1.5</li>
+                    <li><strong>10–16GB :</strong> SDXL, HunyuanImage 2.1, Qwen Image 2</li>
+                    <li><strong>22GB+ :</strong> Mochi-1, tous les modèles</li>
                 </ul>
             </div>
         </div>

@@ -224,6 +224,8 @@ QWEN_IMAGE_MODELS = {
 # =============================================================================
 
 LOGO_MODELS = {
+    # Shakker-Labs FLUX Logo Design LoRA — best open-source logo model (2025-2026)
+    # HF benchmark #1 for local logo generation. Replaces logo-redmond-v2 and amazing-logos-v2.
     'flux-lora-logo-design': {
         'model_id': 'flux-lora-logo-design',
         'hf_id': 'Shakker-Labs/FLUX.1-dev-LoRA-Logo-Design',
@@ -236,57 +238,19 @@ LOGO_MODELS = {
         'lora_scale': 0.8,
         'vram_gb': 16,
         'disk_gb': 24,
-        'resolution': 1024,
+        'resolution': 768,
         'min_resolution': 512,
-        'max_resolution': 1024,
-        'license': 'flux-1-dev-non-commercial',
-        'description': 'FLUX Logo Design LoRA — logos haute qualité (16GB VRAM)',
-        'prompt_tips': [
-            'Dual concept: "cat and coffee"',
-            'Font integration: "a book with the word M"',
-            'Text placement: "Below the graphic is the word coffee"',
-        ],
-    },
-    'logo-redmond-v2': {
-        'model_id': 'logo-redmond-v2',
-        'hf_id': 'artificialguybr/LogoRedmond-LogoLoraForSDXL-V2',
-        'base_model': 'stabilityai/stable-diffusion-xl-base-1.0',
-        'type': 'image',
-        'pipeline': 'sdxl',
-        'model_type': 'lora',
-        'category': 'logo',
-        'trigger_words': ['LogoRedAF'],
-        'lora_scale': 0.7,
-        'vram_gb': 10,
-        'disk_gb': 7,
-        'resolution': 1024,
-        'min_resolution': 512,
-        'max_resolution': 1024,
-        'license': 'creativeml-openrail-m',
-        'description': 'LogoRedmond V2 (SDXL LoRA) — commercial OK (10GB VRAM)',
-        'prompt_tips': [
-            'Use trigger word: LogoRedAF',
-            'Add style: detailed, minimalist, colorful, black and white',
-        ],
-    },
-    'amazing-logos-v2': {
-        'model_id': 'amazing-logos-v2',
-        'hf_id': 'iamkaikai/amazing-logos-v2',
-        'type': 'image',
-        'pipeline': 'sd',
-        'model_type': 'full_finetune',
-        'category': 'logo',
-        'trigger_words': [],
-        'vram_gb': 4,
-        'disk_gb': 2,
-        'resolution': 512,
-        'min_resolution': 256,
         'max_resolution': 768,
-        'license': 'creativeml-openrail-m',
-        'description': 'Amazing Logos V2 (SD 1.5) — commercial OK (4GB VRAM)',
+        # FLUX uses rectified flow — guidance_scale 3.5–7.5 (NOT 7.5–20 like SD)
+        'default_guidance_scale': 3.5,
+        'default_steps': 24,
+        'license': 'flux-1-dev-non-commercial',
+        'description': 'FLUX Logo Design LoRA — #1 open-source, logos professionnels, max 768px (16GB VRAM)',
         'prompt_tips': [
-            'Format: Simple elegant logo for [Name], [letter/shape] [country], [industry]',
-            'Add "black and white" for monochrome',
+            'Dual Combination: "wablogo, Minimalist, Dual Combination: mountain and coffee cup"',
+            'Font Combination: "wablogo, logo, Minimalist, Font Combination: rocket with letter S"',
+            'Text below: "wablogo, Minimalist, coffee bean icon, Text Below Graphic: word \'BREW\'"',
+            'guidance_scale recommandé : 3.5 (FLUX — pas 7.5 ni 20)',
         ],
     },
 }

@@ -99,6 +99,72 @@ class Enhancement(models.Model):
         return os.path.basename(self.output_file.name) if self.output_file else ''
 
 
+class AudioEnhancement(models.Model):
+    """
+    Represents an audio speech enhancement task.
+    Engines: Resemble Enhance (quality) | DeepFilterNet 3 (speed).
+    """
+    ENGINE_CHOICES = [
+        ('resemble',      'Resemble Enhance (Recommandé — 44.1kHz)'),
+        ('deepfilternet', 'DeepFilterNet 3 (Rapide — temps réel)'),
+    ]
+    MODE_CHOICES = [
+        ('both',    'Débruitage + Amélioration (Recommandé)'),
+        ('denoise', 'Débruitage seul (Rapide)'),
+        ('enhance', 'Amélioration seule (Qualité)'),
+    ]
+    STATUS_CHOICES = [
+        ('PENDING', 'En attente'),
+        ('RUNNING', 'En cours'),
+        ('SUCCESS', 'Terminé'),
+        ('FAILURE', 'Échec'),
+    ]
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='audio_enhancements')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    input_file = models.FileField(upload_to=upload_to_user_input('enhancer_audio'))
+    output_file = models.FileField(
+        upload_to=upload_to_user_output('enhancer_audio'), blank=True, null=True
+    )
+
+    file_size = models.BigIntegerField(default=0, help_text='Input file size in bytes')
+    duration = models.FloatField(default=0, help_text='Duration in seconds')
+
+    # Engine / processing settings
+    engine = models.CharField(max_length=20, choices=ENGINE_CHOICES, default='resemble')
+    mode = models.CharField(max_length=20, choices=MODE_CHOICES, default='both')
+    denoising_strength = models.FloatField(
+        default=0.5, help_text='Denoising strength 0.0–1.0 (Resemble only)'
+    )
+    quality = models.IntegerField(
+        default=64, help_text='NFE quality steps 32/64/128 (Resemble only)'
+    )
+
+    # Processing state
+    task_id = models.CharField(max_length=255, blank=True, default='')
+    status = models.CharField(max_length=32, choices=STATUS_CHOICES, default='PENDING')
+    progress = models.IntegerField(default=0)
+    error_message = models.TextField(blank=True, default='')
+    processing_time = models.FloatField(default=0, help_text='Processing time in seconds')
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Audio Enhancement'
+        verbose_name_plural = 'Audio Enhancements'
+
+    def __str__(self):
+        return f"AudioEnhancement {self.id} ({self.user.username}) - {self.get_status_display()}"
+
+    def get_input_filename(self):
+        import os
+        return os.path.basename(self.input_file.name) if self.input_file else ''
+
+    def get_output_filename(self):
+        import os
+        return os.path.basename(self.output_file.name) if self.output_file else ''
+
+
 class UserSettings(models.Model):
     """
     User-specific settings for the Enhancer app.

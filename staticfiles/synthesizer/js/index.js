@@ -111,7 +111,12 @@ document.addEventListener('DOMContentLoaded', function() {
                     // Handle FileManager import
                     try {
                         const result = await window.FileManager.importToApp(fileData.path, 'synthesizer');
-                        if (result.imported) {
+                        if (result.imported && result.is_batch && result.tasks && result.tasks.length > 0) {
+                            // Batch file detected — show batch bar instead of reloading
+                            _batchServerPath = result.server_path;
+                            _batchFile = null;
+                            _showBatchBar(null, result.tasks, result.warnings || [], true);
+                        } else if (result.imported) {
                             window.location.reload();
                         }
                     } catch (error) {
@@ -125,11 +130,11 @@ document.addEventListener('DOMContentLoaded', function() {
             }
 
             // Regular file drop
-            handleFiles(e.dataTransfer.files);
+            handleFilesWithDetect(e.dataTransfer.files);
         });
 
         fileInput.addEventListener('change', (e) => {
-            handleFiles(e.target.files);
+            handleFilesWithDetect(e.target.files);
         });
     }
 
@@ -765,11 +770,234 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Helper functions
+    function escHtml(s) {
+        return String(s)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
     async function handleFiles(files) {
         for (const file of files) {
             await uploadFile(file);
         }
     }
+
+    // ── Batch detection ───────────────────────────────────────────────────────
+    // Detects if a file is a pipe-separated batch file before uploading.
+    // For text-based formats (txt/md/csv): client-side analysis.
+    // For binary formats (pdf/docx): server-side via batch_preview endpoint.
+
+    let _batchFile = null;
+    let _batchServerPath = null;  // used when file comes from FileManager (already on server)
+    let _batchTasks = [];
+
+    async function handleFilesWithDetect(files) {
+        // Only intercept when dropping a single file
+        if (files.length !== 1) {
+            await handleFiles(files);
+            return;
+        }
+        const file = files[0];
+        const ext = file.name.split('.').pop().toLowerCase();
+
+        if (['txt', 'md', 'csv', 'pdf', 'docx'].includes(ext)) {
+            // Always use server-side detection (reliable for BOM, encoding, binary formats)
+            try {
+                const fd = new FormData();
+                fd.append('batch_file', file);
+                fd.append('default_voice', document.getElementById('voice_preset')?.value || 'default');
+                fd.append('default_speed', document.getElementById('speed')?.value || '1.0');
+                fd.append('csrfmiddlewaretoken', csrfToken);
+                const resp = await fetch(URLS.batchPreview, { method: 'POST', body: fd });
+                if (resp.ok) {
+                    const data = await resp.json();
+                    if (data.tasks && data.tasks.length >= 1) {
+                        _showBatchBar(file, data.tasks, data.warnings || [], true);
+                        return;
+                    }
+                }
+            } catch (_e) { /* server error — treat as individual */ }
+        }
+
+        // No batch detected → regular individual upload
+        await handleFiles([file]);
+    }
+
+    function _detectBatchLines(text) {
+        const tasks = [];
+        for (const line of text.split('\n')) {
+            const l = line.trim();
+            if (!l || l.startsWith('#')) continue;
+            const parts = l.split('|').map(p => p.trim());
+            if (parts.length >= 2 && parts[0] && parts[1]) {
+                tasks.push({
+                    output_filename: parts[0],
+                    text: parts[1],
+                    voice: parts[2] || '',
+                    speed: parts[3] || '',
+                });
+            }
+        }
+        return tasks;
+    }
+
+    function _showBatchBar(file, tasks, warnings, alreadyParsed) {
+        _batchFile = file;
+        _batchTasks = tasks;
+        const bar = document.getElementById('batchDetectBar');
+        if (!bar) return;
+        document.getElementById('batchDetectedCount').textContent = tasks.length;
+        // If already parsed by server, show preview immediately
+        if (alreadyParsed) {
+            _populateBatchPreview(tasks, warnings || []);
+            document.getElementById('batchDetectPreview').style.display = 'block';
+        } else {
+            document.getElementById('batchDetectPreview').style.display = 'none';
+        }
+        bar.style.display = 'block';
+    }
+
+    function _hideBatchBar() {
+        _batchFile = null;
+        _batchServerPath = null;
+        _batchTasks = [];
+        const bar = document.getElementById('batchDetectBar');
+        if (bar) bar.style.display = 'none';
+    }
+
+    function _populateBatchPreview(tasks, warnings) {
+        const warnEl = document.getElementById('batchDetectWarnings');
+        if (warnEl) {
+            if (warnings.length > 0) {
+                warnEl.innerHTML = warnings.map(w => '⚠ ' + escHtml(w)).join('<br>');
+                warnEl.style.display = 'block';
+            } else {
+                warnEl.style.display = 'none';
+            }
+        }
+        const tbody = document.getElementById('batchDetectTable');
+        if (tbody) {
+            tbody.innerHTML = '';
+            tasks.forEach(t => {
+                const txt = t.text.length > 60 ? t.text.substring(0, 60) + '…' : t.text;
+                const tr = document.createElement('tr');
+                tr.innerHTML = `<td class="text-info">${escHtml(t.output_filename)}</td>
+                    <td title="${escHtml(t.text)}">${escHtml(txt)}</td>
+                    <td class="text-muted">${escHtml(t.voice || '—')}</td>
+                    <td class="text-muted">${t.speed ? t.speed + 'x' : '—'}</td>`;
+                tbody.appendChild(tr);
+            });
+        }
+        const cnt = document.getElementById('batchCreateCount');
+        if (cnt) cnt.textContent = tasks.length;
+    }
+
+    // "Mode batch" — calls server to get normalized parse then shows table
+    const confirmBatchBtn = document.getElementById('batchConfirmBatchBtn');
+    if (confirmBatchBtn) {
+        confirmBatchBtn.addEventListener('click', async () => {
+            if (!_batchFile) return;
+            confirmBatchBtn.disabled = true;
+            confirmBatchBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+            try {
+                const fd = new FormData();
+                fd.append('batch_file', _batchFile);
+                fd.append('default_voice', document.getElementById('voice_preset')?.value || 'default');
+                fd.append('default_speed', document.getElementById('speed')?.value || '1.0');
+                fd.append('csrfmiddlewaretoken', csrfToken);
+                const resp = await fetch(URLS.batchPreview, { method: 'POST', body: fd });
+                const data = await resp.json();
+                if (!resp.ok) { alert(data.error || 'Erreur'); return; }
+                _batchTasks = data.tasks;
+                _populateBatchPreview(data.tasks, data.warnings || []);
+                document.getElementById('batchDetectPreview').style.display = 'block';
+            } finally {
+                confirmBatchBtn.disabled = false;
+                confirmBatchBtn.innerHTML = '<i class="fas fa-layer-group"></i> Voir le batch';
+            }
+        });
+    }
+
+    // "Synthèse individuelle" — ignore detection, upload normally
+    const confirmIndividualBtn = document.getElementById('batchConfirmIndividualBtn');
+    if (confirmIndividualBtn) {
+        confirmIndividualBtn.addEventListener('click', async () => {
+            const file = _batchFile;
+            const serverPath = _batchServerPath;
+            _hideBatchBar();
+            if (file) {
+                handleFiles([file]);
+            } else if (serverPath) {
+                // File already on server but VoiceSynthesis not yet created — create it now
+                const fd = new FormData();
+                fd.append('server_path', serverPath);
+                fd.append('tts_model',    document.getElementById('tts_model')?.value    || 'xtts_v2');
+                fd.append('language',     document.getElementById('language')?.value     || 'fr');
+                fd.append('voice_preset', document.getElementById('voice_preset')?.value || 'default');
+                fd.append('speed',        document.getElementById('speed')?.value        || '1.0');
+                fd.append('pitch',        document.getElementById('pitch')?.value        || '1.0');
+                fd.append('csrfmiddlewaretoken', csrfToken);
+                try {
+                    await fetch(URLS.importIndividualFromPath, { method: 'POST', body: fd });
+                } catch (_e) { /* fall through */ }
+                window.location.reload();
+            }
+        });
+    }
+
+    // "Annuler"
+    const batchCancelBar = document.getElementById('batchCancelBar');
+    if (batchCancelBar) batchCancelBar.addEventListener('click', _hideBatchBar);
+
+    async function _doCreateBatch(andStart) {
+        if (!_batchFile && !_batchServerPath) return;
+        if (!_batchTasks.length) return;
+        const progress = document.getElementById('batchCreateProgress');
+        const btnStart = document.getElementById('batchCreateAndStartBtn');
+        const btnOnly  = document.getElementById('batchCreateOnlyBtn');
+        if (progress) progress.style.display = 'block';
+        if (btnStart) btnStart.disabled = true;
+        if (btnOnly)  btnOnly.disabled  = true;
+
+        const fd = new FormData();
+        if (_batchServerPath) {
+            fd.append('server_path', _batchServerPath);
+        } else {
+            fd.append('batch_file', _batchFile);
+        }
+        fd.append('tts_model',    document.getElementById('tts_model')?.value    || 'xtts_v2');
+        fd.append('language',     document.getElementById('language')?.value     || 'fr');
+        fd.append('voice_preset', document.getElementById('voice_preset')?.value || 'default');
+        fd.append('speed',        document.getElementById('speed')?.value        || '1.0');
+        fd.append('pitch',        document.getElementById('pitch')?.value        || '1.0');
+        fd.append('csrfmiddlewaretoken', csrfToken);
+
+        try {
+            const resp = await fetch(URLS.batchCreate, { method: 'POST', body: fd });
+            const data = await resp.json();
+            if (!resp.ok) { alert(data.error || 'Erreur création batch'); return; }
+
+            if (andStart && data.batch_id) {
+                await fetch(URLS.batchStart + data.batch_id + '/start/', {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: 'csrfmiddlewaretoken=' + encodeURIComponent(csrfToken),
+                });
+            }
+            window.location.reload();
+        } catch (err) {
+            alert('Erreur : ' + err.message);
+            if (progress) progress.style.display = 'none';
+            if (btnStart) btnStart.disabled = false;
+            if (btnOnly)  btnOnly.disabled  = false;
+        }
+    }
+
+    const batchCreateAndStartBtn = document.getElementById('batchCreateAndStartBtn');
+    if (batchCreateAndStartBtn) batchCreateAndStartBtn.addEventListener('click', () => _doCreateBatch(true));
+    const batchCreateOnlyBtn = document.getElementById('batchCreateOnlyBtn');
+    if (batchCreateOnlyBtn) batchCreateOnlyBtn.addEventListener('click', () => _doCreateBatch(false));
+    // ─────────────────────────────────────────────────────────────────────────
 
     async function uploadFile(file) {
         const formData = new FormData();

@@ -13,6 +13,9 @@ ollama
 opencv_python
 pillow
 psutil
+bitsandbytes
+setuptools
+resampy>=0.4.3
 python_ldap
 PySide6
 pytube

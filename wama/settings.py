@@ -51,6 +51,8 @@ MODEL_PATHS = {
         'vibevoice': AI_MODELS_DIR / "models" / "speech" / "vibevoice",
         'qwen_asr': AI_MODELS_DIR / "models" / "speech" / "qwen_asr",
         'diarization': AI_MODELS_DIR / "models" / "speech" / "diarization",
+        'resemble_enhance': AI_MODELS_DIR / "models" / "speech" / "resemble-enhance",
+        'deepfilternet': AI_MODELS_DIR / "models" / "speech" / "deepfilternet",
     },
     # Diffusion models (image/video generation)
     'diffusion': {

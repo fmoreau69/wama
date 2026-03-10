@@ -878,7 +878,7 @@ def api_import_to_app(request):
     # Validate app name
     # All apps accept file imports:
     # - Imager: accepts prompt files (.txt/.json/.yaml) and reference images
-    valid_apps = ['anonymizer', 'describer', 'enhancer', 'imager', 'synthesizer', 'transcriber', 'face_analyzer', 'cam_analyzer']
+    valid_apps = ['anonymizer', 'describer', 'enhancer', 'enhancer_audio', 'imager', 'synthesizer', 'transcriber', 'face_analyzer', 'cam_analyzer']
     if target_app not in valid_apps:
         return JsonResponse({'error': f'Invalid app: {target_app}'}, status=400)
 
@@ -899,6 +899,8 @@ def api_import_to_app(request):
             result = import_to_describer(source_path, user)
         elif target_app == 'enhancer':
             result = import_to_enhancer(source_path, user)
+        elif target_app == 'enhancer_audio':
+            result = import_audio_to_enhancer(source_path, user)
         elif target_app == 'imager':
             result = import_to_imager(source_path, user)
         elif target_app == 'synthesizer':
@@ -1019,6 +1021,65 @@ def import_to_enhancer(source_path, user):
         'media_type': media_type,
         'width': media_info['width'],
         'height': media_info['height'],
+    }
+
+
+def import_audio_to_enhancer(source_path, user):
+    """Import an audio file to the Enhancer audio queue."""
+    from wama.enhancer.models import AudioEnhancement
+    from wama.common.utils.media_paths import get_app_media_path
+    import shutil
+
+    audio_extensions = {'.mp3', '.wav', '.flac', '.ogg', '.m4a', '.aac', '.opus', '.wma'}
+    ext = source_path.suffix.lower()
+    if ext not in audio_extensions:
+        raise ValueError(f"Unsupported audio format: {ext}")
+
+    dest_dir = get_app_media_path('enhancer_audio', user.id, 'input')
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    dest_path = dest_dir / source_path.name
+
+    if dest_path.exists():
+        stem = dest_path.stem
+        suffix = dest_path.suffix
+        counter = 1
+        while dest_path.exists():
+            dest_path = dest_dir / f"{stem}_{counter}{suffix}"
+            counter += 1
+
+    shutil.copy2(source_path, dest_path)
+
+    # Get audio duration and file size
+    duration = 0.0
+    file_size = dest_path.stat().st_size
+    try:
+        from wama.common.utils.video_utils import get_media_info
+        info = get_media_info(str(dest_path))
+        duration = info.get('duration', 0.0)
+        file_size = info.get('file_size', file_size)
+    except Exception:
+        pass
+
+    relative_path = f'enhancer_audio/{user.id}/input/{dest_path.name}'
+
+    ae = AudioEnhancement.objects.create(
+        user=user,
+        duration=duration,
+        file_size=file_size,
+    )
+    ae.input_file.name = relative_path
+    ae.save()
+
+    return {
+        'imported': True,
+        'app': 'enhancer_audio',
+        'id': ae.id,
+        'filename': dest_path.name,
+        'input_filename': dest_path.name,
+        'duration': duration,
+        'status': ae.status,
+        'progress': ae.progress,
+        'path': relative_path,
     }
 
 
@@ -1191,9 +1252,26 @@ def import_to_synthesizer(source_path, user):
 
     shutil.copy2(source_path, dest_path)
 
-    # Create VoiceSynthesis record with user-specific path
     relative_path = f'synthesizer/{user.id}/input/{dest_path.name}'
 
+    # Batch detection — try to parse as a pipe-separated batch file first
+    try:
+        from wama.synthesizer.utils.batch_parser import parse_batch_file
+        tasks, warnings = parse_batch_file(str(dest_path), default_voice='default', default_speed=1.0)
+        if tasks:
+            return {
+                'imported': True,
+                'is_batch': True,
+                'app': 'synthesizer',
+                'filename': dest_path.name,
+                'server_path': relative_path,
+                'tasks': tasks,
+                'warnings': warnings,
+            }
+    except Exception:
+        pass  # Not a batch file — fall through to normal import
+
+    # Create VoiceSynthesis record with user-specific path
     synthesis = VoiceSynthesis.objects.create(
         user=user,
         tts_model='xtts_v2',

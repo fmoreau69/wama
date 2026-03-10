@@ -199,6 +199,9 @@ document.addEventListener('DOMContentLoaded', function () {
                     title="Paramètres">
               <i class="fas fa-cog"></i>
             </button>
+            <button class="btn btn-sm btn-outline-info duplicate-btn" data-id="${data.id}" title="Dupliquer (tester un autre modèle)">
+              <i class="fas fa-copy"></i>
+            </button>
             <button class="btn btn-sm btn-danger delete-btn" data-id="${data.id}" title="Supprimer">
               <i class="fas fa-trash"></i>
             </button>
@@ -284,6 +287,7 @@ document.addEventListener('DOMContentLoaded', function () {
       html += `<a href="${getUrl(config.downloadSrtUrlTemplate, id)}" class="btn btn-sm btn-info download-srt-btn" title="SRT"><i class="fas fa-closed-captioning"></i></a>`;
     }
 
+    html += `<button class="btn btn-sm btn-outline-info duplicate-btn" data-id="${id}" title="Dupliquer (tester un autre modèle)"><i class="fas fa-copy"></i></button>`;
     html += `<button class="btn btn-sm btn-danger delete-btn" data-id="${id}" title="Supprimer"><i class="fas fa-trash"></i></button>`;
 
     actionsDiv.innerHTML = html;
@@ -333,6 +337,12 @@ document.addEventListener('DOMContentLoaded', function () {
       if (btn.dataset.bound === '1') return;
       btn.dataset.bound = '1';
       btn.addEventListener('click', () => handleDelete(btn.dataset.id));
+    });
+
+    root.querySelectorAll('.duplicate-btn').forEach(btn => {
+      if (btn.dataset.bound === '1') return;
+      btn.dataset.bound = '1';
+      btn.addEventListener('click', () => handleDuplicate(btn.dataset.id));
     });
   }
 
@@ -392,6 +402,21 @@ document.addEventListener('DOMContentLoaded', function () {
         updateDownloadAllState();
       })
       .catch(err => alert(err.message || 'Erreur lors de la suppression'));
+  }
+
+  function handleDuplicate(id) {
+    const url = getUrl(config.duplicateUrlTemplate, id);
+    fetch(url, {
+      method: 'POST',
+      headers: csrfHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({}),
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (!data.duplicated) throw new Error('Duplication impossible');
+        location.reload();
+      })
+      .catch(err => alert(err.message || 'Erreur lors de la duplication'));
   }
 
   // ======================================================================

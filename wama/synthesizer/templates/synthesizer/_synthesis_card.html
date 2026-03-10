@@ -1,0 +1,112 @@
+{% load static %}
+{# Partial: renders one synthesis card. Expects 'synthesis' in context. #}
+{# Optional 'card_label' overrides the displayed filename (used for batch items). #}
+<div class="synthesis-card {% if synthesis.status == 'RUNNING' %}processing{% elif synthesis.status == 'SUCCESS' %}success{% elif synthesis.status == 'FAILURE' %}error{% endif %}"
+     data-id="{{ synthesis.id }}">
+    <div class="row align-items-center">
+        <!-- Text File Info -->
+        <div class="col-md-3">
+            <strong>
+                <button type="button" class="btn btn-link p-0 text-start preview-text-btn"
+                        data-id="{{ synthesis.id }}"
+                        style="color: #fff; text-decoration: none;">
+                    <i class="fas fa-file-alt"></i> {% if card_label %}{{ card_label }}{% else %}{{ synthesis.filename }}{% endif %}
+                </button>
+            </strong>
+            <br>
+            <small class="text-white-50">
+                {{ synthesis.word_count }} mots •
+                {{ synthesis.duration_display|default:"--:--" }}
+            </small>
+        </div>
+
+        <!-- Options -->
+        <div class="col-md-2">
+            <small>
+                <i class="fas fa-robot"></i> {{ synthesis.get_tts_model_display|truncatechars:20 }}<br>
+                <i class="fas fa-language"></i> {{ synthesis.get_language_display }}<br>
+                <i class="fas fa-microphone"></i> {{ synthesis.get_voice_preset_display|truncatechars:15 }}
+            </small>
+        </div>
+
+        <!-- Properties -->
+        <div class="col-md-2">
+            <small class="text-white-50">
+                {{ synthesis.properties|default:"En attente" }}
+            </small>
+        </div>
+
+        <!-- Status & Progress -->
+        <div class="col-md-2">
+            <span class="badge
+                {% if synthesis.status == 'PENDING' %}bg-secondary
+                {% elif synthesis.status == 'RUNNING' %}bg-warning
+                {% elif synthesis.status == 'SUCCESS' %}bg-success
+                {% elif synthesis.status == 'FAILURE' %}bg-danger
+                {% endif %}">
+                {{ synthesis.get_status_display }}
+            </span>
+            <div class="progress-bar-custom mt-2">
+                <div class="progress-fill" style="width: {{ synthesis.progress }}%"></div>
+            </div>
+            <small class="text-light">{{ synthesis.progress }}%</small>
+        </div>
+
+        <!-- Actions -->
+        <div class="col-md-3">
+            <div class="btn-group-actions">
+                {% if synthesis.status != 'RUNNING' %}
+                <button class="btn btn-sm btn-primary start-btn"
+                        data-id="{{ synthesis.id }}"
+                        title="Démarrer">
+                    <i class="fas fa-play"></i>
+                </button>
+                <button class="btn btn-sm btn-secondary settings-btn"
+                        data-id="{{ synthesis.id }}"
+                        data-tts-model="{{ synthesis.tts_model }}"
+                        data-language="{{ synthesis.language }}"
+                        data-voice-preset="{{ synthesis.voice_preset }}"
+                        data-speed="{{ synthesis.speed }}"
+                        data-pitch="{{ synthesis.pitch }}"
+                        title="Paramètres">
+                    <i class="fas fa-cog"></i>
+                </button>
+                {% endif %}
+
+                {% if synthesis.audio_output %}
+                <button class="btn btn-sm btn-success preview-btn"
+                        data-id="{{ synthesis.id }}"
+                        title="Écouter">
+                    <i class="fas fa-volume-up"></i>
+                </button>
+                <a href="{% url 'synthesizer:download' synthesis.id %}"
+                   class="btn btn-sm btn-info"
+                   title="Télécharger">
+                    <i class="fas fa-download"></i>
+                </a>
+                {% endif %}
+
+                <button class="btn btn-sm btn-outline-info duplicate-btn"
+                        data-id="{{ synthesis.id }}"
+                        title="Dupliquer (tester un autre modèle)">
+                    <i class="fas fa-copy"></i>
+                </button>
+                <button class="btn btn-sm btn-danger delete-btn"
+                        data-id="{{ synthesis.id }}"
+                        title="Supprimer">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
+
+            <!-- Audio Preview (hidden by default) -->
+            <div class="audio-preview mt-2" id="preview_{{ synthesis.id }}"
+                 style="display: none;">
+                {% if synthesis.audio_output %}
+                <audio controls class="audio-player">
+                    <source src="{{ synthesis.audio_output.url }}" type="audio/wav">
+                </audio>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>

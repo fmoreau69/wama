@@ -291,3 +291,49 @@ class CustomVoice(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.user.username})"
+
+
+class BatchSynthesis(models.Model):
+    """Groupe de synthèses vocales créé depuis un fichier batch."""
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='batch_syntheses')
+    created_at = models.DateTimeField(auto_now_add=True)
+    batch_file = models.FileField(
+        upload_to=upload_to_user_input('synthesizer'),
+        blank=True,
+        null=True,
+        help_text="Fichier batch source",
+    )
+    total = models.IntegerField(default=0)
+
+    class Meta:
+        verbose_name = "Batch de synthèses"
+        verbose_name_plural = "Batchs de synthèses"
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Batch #{self.id} — {self.user.username} ({self.total} items)"
+
+
+class BatchSynthesisItem(models.Model):
+    """Item d'un batch de synthèses (lien entre BatchSynthesis et VoiceSynthesis)."""
+
+    batch = models.ForeignKey(BatchSynthesis, on_delete=models.CASCADE, related_name='items')
+    synthesis = models.OneToOneField(
+        VoiceSynthesis,
+        on_delete=models.CASCADE,
+        related_name='batch_item',
+        null=True,
+        blank=True,
+    )
+    output_filename = models.CharField(
+        max_length=255,
+        help_text="Nom du fichier audio de sortie désiré (ex: consigne_1.wav)",
+    )
+    row_index = models.IntegerField(default=0)
+
+    class Meta:
+        ordering = ['row_index']
+
+    def __str__(self):
+        return f"BatchItem #{self.id} — {self.output_filename}"

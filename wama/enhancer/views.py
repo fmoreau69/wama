@@ -11,10 +11,11 @@ from django.utils.encoding import smart_str
 from django.core.cache import cache
 from PIL import Image
 
-from .models import Enhancement, UserSettings
+from .models import Enhancement, UserSettings, AudioEnhancement
 from ..accounts.views import get_or_create_anonymous_user
 from ..common.utils.console_utils import get_console_lines
 from ..common.utils.video_utils import upload_media_from_url, get_media_info
+from ..common.utils.queue_duplication import safe_delete_file, duplicate_instance
 
 logger = logging.getLogger(__name__)
 
@@ -23,12 +24,14 @@ class IndexView(View):
     def get(self, request):
         user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
         enhancements = Enhancement.objects.filter(user=user).order_by('-id')
+        audio_enhancements = AudioEnhancement.objects.filter(user=user).order_by('-id')
 
         # Get or create user settings
         user_settings, _ = UserSettings.objects.get_or_create(user=user)
 
         return render(request, 'enhancer/index.html', {
             'enhancements': enhancements,
+            'audio_enhancements': audio_enhancements,
             'user_settings': user_settings,
             'ai_models': Enhancement.AI_MODEL_CHOICES,
         })
@@ -314,23 +317,42 @@ def delete(request, pk: int):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     enhancement = get_object_or_404(Enhancement, pk=pk, user=user)
 
-    # Delete files
-    if enhancement.input_file:
-        try:
-            enhancement.input_file.delete(save=False)
-        except:
-            pass
+    # Input file may be shared with a duplicate — only delete if no other row references it
+    safe_delete_file(enhancement, 'input_file')
 
+    # Output file is unique to this enhancement — delete unconditionally
     if enhancement.output_file:
         try:
             enhancement.output_file.delete(save=False)
-        except:
+        except Exception:
             pass
 
     enhancement.delete()
     cache.delete(f"enhancer_progress_{pk}")
 
     return JsonResponse({'deleted': pk})
+
+
+@require_POST
+def duplicate(request, pk: int):
+    """Duplicate an Enhancement sharing the same input_file, resetting results."""
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    enhancement = get_object_or_404(Enhancement, pk=pk, user=user)
+    new_e = duplicate_instance(
+        enhancement,
+        reset_fields={
+            'status': 'PENDING',
+            'progress': 0,
+            'task_id': '',
+            'error_message': '',
+            'output_width': 0,
+            'output_height': 0,
+            'output_file_size': 0,
+            'processing_time': 0,
+        },
+        clear_fields=['output_file'],
+    )
+    return JsonResponse({'duplicated': new_e.id})
 
 
 @require_POST
@@ -470,6 +492,310 @@ def update_settings(request, pk: int):
         'ai_model': enhancement.ai_model,
         'denoise': enhancement.denoise,
         'blend_factor': enhancement.blend_factor,
+    })
+
+
+# ===========================================================================
+# Audio Enhancement Views
+# ===========================================================================
+
+_AUDIO_EXTENSIONS = ['.mp3', '.wav', '.flac', '.ogg', '.m4a', '.aac', '.opus', '.wma']
+
+
+@require_POST
+def audio_upload(request):
+    """Upload an audio file for speech enhancement, or register from file_path."""
+    import json as _json
+    from pathlib import Path as _Path
+    from django.conf import settings as _settings
+    from django.core.files import File as _File
+
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+
+    # --- Option A: file_path from filemanager (server-side path) ---
+    file_path = None
+    try:
+        body = _json.loads(request.body)
+        file_path = body.get('file_path', '').strip()
+    except Exception:
+        pass
+
+    if file_path:
+        src = (_Path(_settings.MEDIA_ROOT) / file_path).resolve()
+        media_root = _Path(_settings.MEDIA_ROOT).resolve()
+        if not str(src).startswith(str(media_root)) or not src.exists():
+            return JsonResponse({'error': 'Fichier introuvable ou accès refusé'}, status=400)
+        if src.suffix.lower() not in _AUDIO_EXTENSIONS:
+            return JsonResponse({'error': f'Format audio non supporté : {src.suffix}'}, status=400)
+
+        try:
+            with open(str(src), 'rb') as f:
+                django_file = _File(f, name=src.name)
+                ae = AudioEnhancement.objects.create(
+                    user=user,
+                    input_file=django_file,
+                    file_size=src.stat().st_size,
+                )
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=500)
+
+        return JsonResponse({
+            'id': ae.id,
+            'input_filename': ae.get_input_filename(),
+            'file_size': ae.file_size,
+            'duration': ae.duration,
+            'status': ae.status,
+        })
+
+    # --- Option B: regular file upload ---
+    file = request.FILES.get('file')
+    if not file:
+        return HttpResponseBadRequest('No file provided')
+
+    ext = os.path.splitext(file.name)[1].lower()
+    if ext not in _AUDIO_EXTENSIONS:
+        return JsonResponse({'error': f'Format audio non supporté : {ext}'}, status=400)
+
+    try:
+        ae = AudioEnhancement.objects.create(
+            user=user,
+            input_file=file,
+            file_size=file.size,
+        )
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+    # Attempt to get duration via ffprobe
+    try:
+        from ..common.utils.video_utils import get_media_info
+        info = get_media_info(ae.input_file.path)
+        ae.duration = info.get('duration', 0)
+        ae.file_size = info.get('file_size', ae.file_size)
+        ae.save(update_fields=['duration', 'file_size'])
+    except Exception:
+        pass
+
+    return JsonResponse({
+        'id': ae.id,
+        'input_filename': ae.get_input_filename(),
+        'file_size': ae.file_size,
+        'duration': ae.duration,
+        'status': ae.status,
+    })
+
+
+@require_POST
+def audio_start(request, pk: int):
+    """Start audio enhancement processing."""
+    import json as _json
+
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    ae = get_object_or_404(AudioEnhancement, pk=pk, user=user)
+
+    try:
+        data = _json.loads(request.body) if request.body else {}
+    except Exception:
+        data = {}
+
+    ae.engine = data.get('engine', ae.engine)
+    ae.mode = data.get('mode', ae.mode)
+    ae.denoising_strength = float(data.get('denoising_strength', ae.denoising_strength))
+    ae.quality = int(data.get('quality', ae.quality))
+    ae.save(update_fields=['engine', 'mode', 'denoising_strength', 'quality'])
+
+    from .tasks import enhance_audio
+
+    try:
+        task = enhance_audio.delay(pk)
+        ae.task_id = task.id
+        ae.status = 'RUNNING'
+        ae.save(update_fields=['task_id', 'status'])
+        return JsonResponse({'task_id': task.id, 'status': 'RUNNING'})
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+def audio_progress(request, pk: int):
+    """Get audio enhancement progress."""
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    ae = get_object_or_404(AudioEnhancement, pk=pk, user=user)
+    progress = int(cache.get(f"audio_enhancer_progress_{pk}", ae.progress or 0))
+    return JsonResponse({
+        'progress': progress,
+        'status': ae.status,
+        'error_message': ae.error_message,
+    })
+
+
+def audio_download(request, pk: int):
+    """Download enhanced audio file."""
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    ae = get_object_or_404(AudioEnhancement, pk=pk, user=user)
+
+    if not ae.output_file:
+        return HttpResponseBadRequest('No output file available')
+
+    from django.core.files.storage import default_storage
+    if not default_storage.exists(ae.output_file.name):
+        return HttpResponseBadRequest('Output file not found in storage')
+
+    return FileResponse(
+        ae.output_file.open('rb'),
+        as_attachment=True,
+        filename=ae.get_output_filename(),
+    )
+
+
+@require_POST
+def audio_delete(request, pk: int):
+    """Delete audio enhancement."""
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    ae = get_object_or_404(AudioEnhancement, pk=pk, user=user)
+
+    # Input may be shared with a duplicate — only delete if no other row references it
+    safe_delete_file(ae, 'input_file')
+
+    # Output is unique — delete unconditionally
+    if ae.output_file:
+        try:
+            ae.output_file.delete(save=False)
+        except Exception:
+            pass
+
+    ae.delete()
+    cache.delete(f"audio_enhancer_progress_{pk}")
+    return JsonResponse({'deleted': pk})
+
+
+@require_POST
+def audio_duplicate(request, pk: int):
+    """Duplicate an AudioEnhancement sharing the same input_file, resetting results."""
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    ae = get_object_or_404(AudioEnhancement, pk=pk, user=user)
+    new_ae = duplicate_instance(
+        ae,
+        reset_fields={
+            'status': 'PENDING',
+            'progress': 0,
+            'task_id': '',
+            'error_message': '',
+            'processing_time': 0,
+        },
+        clear_fields=['output_file'],
+    )
+    return JsonResponse({'duplicated': new_ae.id})
+
+
+@require_POST
+def audio_start_all(request):
+    """Start all pending audio enhancements."""
+    import json as _json
+
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+
+    try:
+        data = _json.loads(request.body) if request.body else {}
+    except Exception:
+        data = {}
+
+    global_engine = data.get('engine')
+    global_mode = data.get('mode')
+    global_strength = data.get('denoising_strength')
+    global_quality = data.get('quality')
+
+    from .tasks import enhance_audio
+
+    pending = AudioEnhancement.objects.filter(user=user).exclude(status='RUNNING')
+    started, errors = [], []
+
+    for ae in pending:
+        try:
+            update_fields = []
+            if global_engine:
+                ae.engine = global_engine
+                update_fields.append('engine')
+            if global_mode:
+                ae.mode = global_mode
+                update_fields.append('mode')
+            if global_strength is not None:
+                ae.denoising_strength = float(global_strength)
+                update_fields.append('denoising_strength')
+            if global_quality is not None:
+                ae.quality = int(global_quality)
+                update_fields.append('quality')
+            if update_fields:
+                ae.save(update_fields=update_fields)
+
+            task = enhance_audio.delay(ae.id)
+            ae.task_id = task.id
+            ae.status = 'RUNNING'
+            ae.save(update_fields=['task_id', 'status'])
+            started.append(ae.id)
+        except Exception as e:
+            errors.append({'id': ae.id, 'error': str(e)})
+
+    return JsonResponse({'started_ids': started, 'count': len(started), 'errors': errors})
+
+
+@require_POST
+def audio_clear_all(request):
+    """Clear all audio enhancements."""
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    aes = AudioEnhancement.objects.filter(user=user)
+    cleared = []
+    for ae in aes:
+        cleared.append(ae.id)
+        for field in (ae.input_file, ae.output_file):
+            if field:
+                try:
+                    field.delete(save=False)
+                except Exception:
+                    pass
+        cache.delete(f"audio_enhancer_progress_{ae.id}")
+    aes.delete()
+    return JsonResponse({'cleared_ids': cleared, 'count': len(cleared)})
+
+
+def audio_download_all(request):
+    """Download all enhanced audio files as ZIP."""
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    aes = AudioEnhancement.objects.filter(user=user, status='SUCCESS').exclude(output_file='')
+
+    if not aes.exists():
+        return HttpResponseBadRequest('No enhanced audio files available')
+
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as archive:
+        for ae in aes:
+            if ae.output_file:
+                try:
+                    with ae.output_file.open('rb') as f:
+                        archive.writestr(ae.get_output_filename(), f.read())
+                except Exception:
+                    pass
+
+    buffer.seek(0)
+    return FileResponse(buffer, as_attachment=True, filename="enhanced_audio_files.zip")
+
+
+def audio_global_progress(request):
+    """Get overall audio enhancement progress."""
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    aes = AudioEnhancement.objects.filter(user=user)
+
+    if not aes.exists():
+        return JsonResponse({'total': 0, 'pending': 0, 'running': 0, 'success': 0, 'failure': 0, 'overall_progress': 0})
+
+    total = aes.count()
+    total_progress = sum(int(cache.get(f"audio_enhancer_progress_{ae.id}", ae.progress or 0)) for ae in aes)
+
+    return JsonResponse({
+        'total': total,
+        'pending': aes.filter(status='PENDING').count(),
+        'running': aes.filter(status='RUNNING').count(),
+        'success': aes.filter(status='SUCCESS').count(),
+        'failure': aes.filter(status='FAILURE').count(),
+        'overall_progress': int(total_progress / total) if total > 0 else 0,
     })
 
 

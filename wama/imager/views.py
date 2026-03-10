@@ -1187,11 +1187,29 @@ def api_model_resolutions(request):
     config = get_model_resolution_config(model_name)
     resolutions = get_recommended_resolutions(model_name)
 
+    # Pull model-specific defaults (guidance, steps) from backend
+    default_guidance_scale = 7.5
+    default_steps = 30
+    try:
+        from .backends.diffusers_backend import DiffusersBackend
+        model_info = DiffusersBackend.SUPPORTED_MODELS.get(model_name, {})
+        if isinstance(model_info, dict):
+            default_guidance_scale = model_info.get('default_guidance_scale', 7.5)
+            default_steps = model_info.get('default_steps', 30)
+    except Exception:
+        pass
+
     return JsonResponse({
         'model': model_name,
         'config': config,
         'resolutions': resolutions,
         'all_presets': IMAGE_RESOLUTION_PRESETS,
+        # Flattened for JS compatibility
+        'recommended': [r['key'] for r in resolutions],
+        'default': config.get('default', '512x512'),
+        'vram_warning': config.get('vram_warning', ''),
+        'default_guidance_scale': default_guidance_scale,
+        'default_steps': default_steps,
     })
 
 

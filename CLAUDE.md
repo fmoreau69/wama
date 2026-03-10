@@ -94,6 +94,11 @@ Ajouter le nouveau modèle dans la fonction `_discover_*_models()` correspondant
 | qwen-image-edit | 12GB | `diffusion/qwen-image/` |
 | stable-diffusion-xl | 10GB | `diffusion/stable-diffusion/` |
 
+### Logos
+| Modèle | VRAM | Dir | Notes |
+|--------|------|-----|-------|
+| flux-lora-logo-design | 16GB | `diffusion/logo/` | Shakker-Labs FLUX LoRA — guidance=3.5, steps=24, 1024×1024 |
+
 ### Vidéos
 | Modèle | VRAM | Dir |
 |--------|------|-----|
@@ -107,3 +112,5 @@ Ajouter le nouveau modèle dans la fonction `_discover_*_models()` correspondant
 - CogVideoX 2B (8fps saccadé)
 - HunyuanVideo 1.5 (redondant avec Mochi)
 - Wan 2.2 (remplacé par CogVideoX 5B I2V)
+- logo-redmond-v2 (SDXL 2023, obsolète)
+- amazing-logos-v2 (SD 1.5 2023, obsolète)

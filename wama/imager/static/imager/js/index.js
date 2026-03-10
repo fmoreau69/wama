@@ -1902,6 +1902,22 @@
                         updateWidthHeightFromResolution(defaultResolution, 'settings_width', 'settings_height');
                     }
                 }
+
+                // Update guidance scale and steps when model changes (main panel only)
+                if (resolutionSelectId === 'resolution') {
+                    if (data.default_guidance_scale !== undefined) {
+                        const guidanceSlider = document.getElementById('guidance_scale');
+                        const guidanceValue = document.getElementById('guidance_value');
+                        if (guidanceSlider) { guidanceSlider.value = data.default_guidance_scale; }
+                        if (guidanceValue) { guidanceValue.textContent = data.default_guidance_scale; }
+                    }
+                    if (data.default_steps !== undefined) {
+                        const stepsSlider = document.getElementById('steps');
+                        const stepsValue = document.getElementById('steps_value');
+                        if (stepsSlider) { stepsSlider.value = data.default_steps; }
+                        if (stepsValue) { stepsValue.textContent = data.default_steps; }
+                    }
+                }
             })
             .catch(error => {
                 console.warn('Error fetching model resolutions:', error);

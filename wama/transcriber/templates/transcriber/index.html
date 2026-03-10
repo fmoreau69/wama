@@ -123,6 +123,7 @@
       startUrlTemplate: '{% url "transcriber:start" 0 %}',
       progressUrlTemplate: '{% url "transcriber:progress" 0 %}',
       deleteUrlTemplate: '{% url "transcriber:delete" 0 %}',
+      duplicateUrlTemplate: '{% url "transcriber:duplicate" 0 %}',
       downloadUrlTemplate: '{% url "transcriber:download" 0 %}',
       downloadSrtUrlTemplate: '{% url "transcriber:download_srt" 0 %}',
       segmentsUrlTemplate: '{% url "transcriber:segments" 0 %}',
@@ -356,6 +357,11 @@
                             </a>
                             {% endif %}
 
+                            <button class="btn btn-sm btn-outline-info duplicate-btn"
+                                    data-id="{{ t.id }}"
+                                    title="Dupliquer (tester un autre modèle)">
+                                <i class="fas fa-copy"></i>
+                            </button>
                             <button class="btn btn-sm btn-danger delete-btn"
                                     data-id="{{ t.id }}"
                                     title="Supprimer">

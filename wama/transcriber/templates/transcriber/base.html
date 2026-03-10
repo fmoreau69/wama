@@ -20,39 +20,68 @@
     <div class="mb-4">
         <h5>Qu'est-ce que Transcriber ?</h5>
         <p class="text-light">
-            Transcriber est une application de transcription automatique intégrée à WAMA
-            qui convertit vos fichiers audio en texte avec précision.
+            Transcriber convertit automatiquement vos fichiers audio en texte avec précision,
+            intégré à WAMA. Il propose plusieurs moteurs ASR avec diarisation des locuteurs
+            et post-traitement LLM (résumé, compte-rendu de réunion).
         </p>
+    </div>
+
+    <div class="mb-4">
+        <h5>Moteurs ASR disponibles</h5>
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card bg-dark border-warning mb-2">
+                    <div class="card-body py-2">
+                        <h6 class="card-title text-warning mb-1">Qwen3-ASR <span class="badge bg-warning text-dark ms-1 small">NOUVEAU</span></h6>
+                        <p class="card-text small mb-0">0.6B / 1.7B — 52 langues — context biasing — 2–4GB VRAM</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card bg-dark border-info mb-2">
+                    <div class="card-body py-2">
+                        <h6 class="card-title text-info mb-1">VibeVoice ASR <span class="badge bg-warning text-dark ms-1 small">NOUVEAU</span></h6>
+                        <p class="card-text small mb-0">Streaming temps réel — optimisé pour la parole spontanée</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card bg-dark border-secondary mb-2">
+                    <div class="card-body py-2">
+                        <h6 class="card-title text-light mb-1">Whisper (OpenAI)</h6>
+                        <p class="card-text small mb-0">Tiny → Large-v3 — 99 langues — robuste et universel</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card bg-dark border-secondary mb-2">
+                    <div class="card-body py-2">
+                        <h6 class="card-title text-light mb-1">Pyannote 3.1 (Diarization)</h6>
+                        <p class="card-text small mb-0">Identification des locuteurs — qui parle quand</p>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <div class="mb-4">
         <h5>Fonctionnalités</h5>
         <ul class="text-light">
-            <li>Interface pour télécharger des audios et obtenir des transcriptions textuelles</li>
-            <li>Propulsé par speech_to_text_transcriptor avec Whisper en secours</li>
-            <li>Support de multiples formats audio</li>
+            <li>Transcription multi-moteurs avec sélection par panneau de paramètres</li>
+            <li>Diarisation des locuteurs (qui parle quand) via Pyannote 3.1</li>
+            <li>Enregistrement direct depuis le navigateur (bouton "Speak")</li>
+            <li>Post-traitement LLM : résumé, compte-rendu de réunion, vérification de cohérence</li>
+            <li>Persistance des paramètres entre les sessions</li>
+            <li>Traitement par lots, téléchargement TXT/DOCX</li>
             <li>Détection automatique de la langue</li>
-            <li>Téléchargement des transcriptions en TXT, DOCX, ou autres formats</li>
-            <li>Traitement par lots de plusieurs fichiers</li>
-            <li>Prévisualisation des transcriptions</li>
         </ul>
-    </div>
-
-    <div class="mb-4">
-        <h5>Comment ça fonctionne ?</h5>
-        <ol class="text-light">
-            <li>Téléchargez un fichier audio</li>
-            <li>Lancez le traitement</li>
-            <li>Suivez la progression</li>
-            <li>Téléchargez le texte transcrit quand c'est terminé</li>
-        </ol>
     </div>
 
     <div>
         <h5>Technologie</h5>
         <p class="text-light">
-            Utilise des modèles de reconnaissance vocale avancés pour une transcription
-            précise et rapide de vos fichiers audio.
+            ASR : Qwen3-ASR, VibeVoice, Whisper — Diarization : Pyannote 3.1 —
+            Post-traitement : Qwen3.5 9B via Ollama.
         </p>
     </div>
 </div>
@@ -63,53 +92,52 @@
     <h3><i class="fas fa-question-circle me-2"></i>Guide d'utilisation</h3>
 
     <div class="mb-4">
+        <h5><i class="fas fa-sliders-h me-2"></i>Paramètres de transcription</h5>
+        <ul class="text-light">
+            <li><strong>Moteur ASR :</strong> Qwen3-ASR (précis, 52 langues), VibeVoice (streaming), Whisper (universel)</li>
+            <li><strong>Taille de modèle :</strong> Plus grand = plus précis mais plus lent (Whisper : tiny → large-v3)</li>
+            <li><strong>Diarisation :</strong> Activez pour identifier les différents locuteurs</li>
+            <li><strong>Langue :</strong> Auto-détectée ou forcée pour de meilleures performances</li>
+            <li>Les paramètres sont mémorisés entre les sessions</li>
+        </ul>
+    </div>
+
+    <div class="mb-4">
         <h5><i class="fas fa-file-upload me-2"></i>Téléchargement</h5>
         <ul class="text-light">
-            <li>Cliquez sur "Upload audio" et sélectionnez un fichier depuis votre ordinateur</li>
-            <li>Ou utilisez le glisser-déposer pour ajouter rapidement vos fichiers</li>
-            <li>Formats supportés : MP3, WAV, M4A, FLAC, OGG, et plus</li>
+            <li>Glissez-déposez vos fichiers audio ou cliquez sur "Upload audio"</li>
+            <li>Formats supportés : MP3, WAV, M4A, FLAC, OGG, OPUS, et plus</li>
+            <li>Traitement par lots possible (plusieurs fichiers)</li>
         </ul>
     </div>
 
     <div class="mb-4">
-        <h5><i class="fas fa-play me-2"></i>Traitement</h5>
+        <h5><i class="fas fa-microphone me-2"></i>Enregistrement direct</h5>
         <ul class="text-light">
-            <li>Le traitement peut démarrer automatiquement après l'upload</li>
-            <li>Ou cliquez sur le bouton de démarrage pour lancer manuellement</li>
-            <li>La barre de progression indique l'avancement du traitement</li>
-            <li>Le statut passe de : En attente → En cours → Terminé</li>
+            <li>Cliquez sur "Speak" pour enregistrer depuis votre microphone</li>
+            <li>Parlez clairement, puis cliquez à nouveau pour arrêter</li>
+            <li>L'audio est automatiquement ajouté à la file de transcription</li>
         </ul>
     </div>
 
     <div class="mb-4">
-        <h5><i class="fas fa-download me-2"></i>Téléchargement</h5>
+        <h5><i class="fas fa-play me-2"></i>Traitement et résultats</h5>
         <ul class="text-light">
-            <li>Quand c'est terminé, cliquez sur Télécharger pour sauvegarder la transcription</li>
-            <li>Le fichier texte contient l'intégralité de la transcription</li>
-            <li>Différents formats de sortie peuvent être disponibles</li>
-        </ul>
-    </div>
-
-    <div class="mb-4">
-        <h5><i class="fas fa-microphone me-2"></i>Bouton "Speak"</h5>
-        <p class="text-light">
-            Transcriber dispose d'une fonctionnalité unique permettant d'enregistrer
-            directement votre voix depuis le navigateur :
-        </p>
-        <ul class="text-light">
-            <li>Cliquez sur le bouton "Speak" pour commencer l'enregistrement</li>
-            <li>Parlez clairement dans votre microphone</li>
-            <li>Cliquez à nouveau pour arrêter l'enregistrement</li>
-            <li>L'audio capturé sera automatiquement ajouté à la file de transcription</li>
+            <li>Cliquez "Démarrer" — statut : En attente → En cours → Terminé</li>
+            <li>La transcription apparaît avec horodatage et locuteurs (si diarisation)</li>
+            <li>Options post-traitement : résumé, compte-rendu de réunion (LLM)</li>
+            <li>Téléchargez en TXT ou DOCX</li>
         </ul>
     </div>
 
     <div class="alert alert-info">
-        <h6><i class="fas fa-lightbulb me-2"></i>Astuce</h6>
-        <p class="mb-0">
-            Pour de meilleurs résultats, utilisez des fichiers audio de qualité avec
-            un minimum de bruit de fond. La transcription sera plus précise.
-        </p>
+        <h6><i class="fas fa-lightbulb me-2"></i>Quel moteur choisir ?</h6>
+        <ul class="mb-0">
+            <li><strong>Qwen3-ASR 1.7B :</strong> Meilleure précision, 52 langues, context biasing</li>
+            <li><strong>VibeVoice :</strong> Parole spontanée, conversations informelles</li>
+            <li><strong>Whisper Large-v3 :</strong> Universel, robuste, tous types d'audio</li>
+            <li><strong>Whisper Tiny :</strong> Rapide, faible VRAM, qualité acceptable</li>
+        </ul>
     </div>
 </div>
 {% endblock %}

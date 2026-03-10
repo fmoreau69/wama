@@ -28,6 +28,7 @@ urlpatterns = [
     path('download/<int:pk>/', views.download, name='download'),
     path('preview/<int:pk>/', views.preview, name='preview'),
     path('delete/<int:pk>/', views.delete, name='delete'),
+    path('duplicate/<int:pk>/', views.duplicate, name='duplicate'),
     path('update-options/<int:pk>/', views.update_options, name='update_options'),
 
     # Opérations groupées
@@ -47,4 +48,19 @@ urlpatterns = [
     path('custom-voices/', views.list_custom_voices, name='list_custom_voices'),
     path('custom-voices/upload/', views.upload_custom_voice, name='upload_custom_voice'),
     path('custom-voices/delete/<int:pk>/', views.delete_custom_voice, name='delete_custom_voice'),
+
+    # Import individual from server path (FileManager batch bypass)
+    path('import-individual-from-path/', views.import_individual_from_path, name='import_individual_from_path'),
+
+    # Batch synthesis
+    path('batch/', views.batch_list, name='batch_list'),
+    path('batch/template/', views.batch_template, name='batch_template'),
+    path('batch/preview/', views.batch_preview, name='batch_preview'),
+    path('batch/create/', views.batch_create, name='batch_create'),
+    path('batch/<int:pk>/start/', views.batch_start, name='batch_start'),
+    path('batch/<int:pk>/status/', views.batch_status, name='batch_status'),
+    path('batch/<int:pk>/download/', views.batch_download, name='batch_download'),
+    path('batch/<int:pk>/delete/', views.batch_delete, name='batch_delete'),
+    path('batch/<int:pk>/settings/', views.batch_update_settings, name='batch_update_settings'),
+    path('batch/<int:pk>/duplicate/', views.batch_duplicate, name='batch_duplicate'),
 ]

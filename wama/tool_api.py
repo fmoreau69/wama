@@ -630,6 +630,162 @@ def get_enhancer_status(user) -> dict:
 
 
 # ===========================================================================
+# Audio Enhancer tools
+# ===========================================================================
+
+_AUDIO_ENHANCER_ENGINES = {'resemble', 'deepfilternet'}
+_AUDIO_ENHANCER_MODES = {'both', 'denoise', 'enhance'}
+_AUDIO_ENHANCER_EXTS = {'.mp3', '.wav', '.flac', '.ogg', '.m4a', '.aac', '.opus', '.wma'}
+
+
+def add_to_audio_enhancer(
+    user,
+    file_path: str,
+    engine: str = 'resemble',
+    mode: str = 'both',
+    denoising_strength: float = 0.5,
+    quality: int = 64,
+) -> dict:
+    """
+    Register an audio file for speech enhancement.
+
+    Args:
+        user:               Django User instance
+        file_path:          Path relative to MEDIA_ROOT (from list_user_files)
+        engine:             'resemble' (quality) | 'deepfilternet' (speed)
+        mode:               'both' | 'denoise' | 'enhance'  (Resemble only)
+        denoising_strength: 0.0–1.0 denoising amount (Resemble only, default 0.5)
+        quality:            NFE steps 32/64/128 (Resemble only, default 64)
+
+    Returns:
+        {"audio_enhancement_id": int, "name": str, "status": "pending"}
+    """
+    if engine not in _AUDIO_ENHANCER_ENGINES:
+        return {'error': f"Moteur inconnu : '{engine}'. Disponibles : resemble, deepfilternet"}
+    if mode not in _AUDIO_ENHANCER_MODES:
+        return {'error': f"Mode inconnu : '{mode}'. Disponibles : both, denoise, enhance"}
+
+    denoising_strength = max(0.0, min(1.0, float(denoising_strength)))
+    quality = max(32, min(128, int(quality)))
+
+    src = (Path(settings.MEDIA_ROOT) / file_path).resolve()
+    media_root = Path(settings.MEDIA_ROOT).resolve()
+    if not str(src).startswith(str(media_root)):
+        return {'error': 'Accès refusé : chemin hors de MEDIA_ROOT.'}
+    if not src.exists():
+        return {'error': f'Fichier introuvable : {file_path}'}
+    if src.suffix.lower() not in _AUDIO_ENHANCER_EXTS:
+        return {'error': f'Format audio non supporté : {src.suffix}. Formats acceptés : {", ".join(sorted(_AUDIO_ENHANCER_EXTS))}'}
+
+    try:
+        from django.core.files import File
+        from wama.enhancer.models import AudioEnhancement
+
+        with open(str(src), 'rb') as f:
+            django_file = File(f, name=src.name)
+            ae = AudioEnhancement.objects.create(
+                user=user,
+                input_file=django_file,
+                file_size=src.stat().st_size,
+                engine=engine,
+                mode=mode,
+                denoising_strength=denoising_strength,
+                quality=quality,
+                status='PENDING',
+            )
+    except Exception as e:
+        return {'error': f'Erreur création AudioEnhancement : {e}'}
+
+    return {
+        'audio_enhancement_id': ae.id,
+        'name': src.name,
+        'engine': engine,
+        'mode': mode,
+        'status': 'pending',
+    }
+
+
+def start_audio_enhancer(user, audio_enhancement_id: int = None) -> dict:
+    """
+    Launch Celery audio enhancement task(s).
+
+    Args:
+        user:                  Django User instance
+        audio_enhancement_id:  Specific job to start (None = all PENDING jobs)
+
+    Returns:
+        {"task_id": str, "status": "started", ...}
+    """
+    from wama.enhancer.models import AudioEnhancement
+    from wama.enhancer.tasks import enhance_audio
+    from django.core.cache import cache
+
+    if audio_enhancement_id is not None:
+        try:
+            ae = AudioEnhancement.objects.get(pk=audio_enhancement_id, user=user)
+        except AudioEnhancement.DoesNotExist:
+            return {'error': f'AudioEnhancement #{audio_enhancement_id} introuvable ou non autorisé.'}
+
+        if ae.status == 'RUNNING':
+            return {'error': f'AudioEnhancement #{audio_enhancement_id} est déjà en cours.'}
+
+        ae.status = 'PENDING'
+        ae.progress = 0
+        ae.error_message = ''
+        ae.save(update_fields=['status', 'progress', 'error_message'])
+        cache.delete(f'audio_enhancer_progress_{audio_enhancement_id}')
+
+        task = enhance_audio.delay(ae.id)
+        ae.status = 'RUNNING'
+        ae.task_id = task.id
+        ae.save(update_fields=['status', 'task_id'])
+
+        return {'task_id': task.id, 'status': 'started', 'audio_enhancement_id': audio_enhancement_id}
+
+    else:
+        pending = AudioEnhancement.objects.filter(user=user, status='PENDING')
+        if not pending.exists():
+            return {'error': 'Aucun audio enhancement en attente.'}
+
+        started = []
+        for ae in pending:
+            cache.delete(f'audio_enhancer_progress_{ae.id}')
+            task = enhance_audio.delay(ae.id)
+            ae.status = 'RUNNING'
+            ae.task_id = task.id
+            ae.save(update_fields=['status', 'task_id'])
+            started.append(ae.id)
+
+        return {'status': 'started', 'audio_enhancement_id': None, 'count': len(started), 'ids': started}
+
+
+def get_audio_enhancer_status(user) -> dict:
+    """
+    Return status of the user's recent audio enhancement jobs (last 10).
+
+    Returns:
+        {"jobs": [{"id", "name", "engine", "mode", "status", "progress"}]}
+    """
+    from wama.enhancer.models import AudioEnhancement
+    from django.core.cache import cache
+
+    jobs_qs = AudioEnhancement.objects.filter(user=user).order_by('-id')[:10]
+    jobs = []
+    for ae in jobs_qs:
+        cached = cache.get(f'audio_enhancer_progress_{ae.id}')
+        progress = cached if cached is not None else ae.progress
+        jobs.append({
+            'id': ae.id,
+            'name': ae.get_input_filename(),
+            'engine': ae.engine,
+            'mode': ae.mode,
+            'status': ae.status,
+            'progress': progress,
+        })
+    return {'jobs': jobs}
+
+
+# ===========================================================================
 # Synthesizer tools
 # ===========================================================================
 
@@ -1150,9 +1306,12 @@ TOOL_REGISTRY = {
     'create_image':          create_image,
     'start_imager':          start_imager,
     'get_imager_status':     get_imager_status,
-    'add_to_enhancer':       add_to_enhancer,
-    'start_enhancer':        start_enhancer,
-    'get_enhancer_status':   get_enhancer_status,
+    'add_to_enhancer':           add_to_enhancer,
+    'start_enhancer':            start_enhancer,
+    'get_enhancer_status':       get_enhancer_status,
+    'add_to_audio_enhancer':     add_to_audio_enhancer,
+    'start_audio_enhancer':      start_audio_enhancer,
+    'get_audio_enhancer_status': get_audio_enhancer_status,
     'synthesize_text':        synthesize_text,
     'start_synthesizer':      start_synthesizer,
     'get_synthesizer_status': get_synthesizer_status,
@@ -1236,7 +1395,27 @@ TOOL_DESCRIPTIONS = {
         },
     },
     'get_enhancer_status': {
-        'description': "Retourne l'état des 10 derniers jobs Enhancer de l'utilisateur.",
+        'description': "Retourne l'état des 10 derniers jobs Enhancer image/vidéo de l'utilisateur.",
+        'args': {},
+    },
+    'add_to_audio_enhancer': {
+        'description': "Enregistre un fichier audio pour amélioration de la parole (alternative à Adobe Podcast).",
+        'args': {
+            'file_path':          'str   — chemin relatif à MEDIA_ROOT (valeur "path" de list_user_files)',
+            'engine':             "str   — 'resemble' (qualité, défaut) | 'deepfilternet' (rapide)",
+            'mode':               "str   — 'both' (défaut), 'denoise' (rapide), 'enhance' (qualité seule) — Resemble uniquement",
+            'denoising_strength': 'float — force de débruitage 0.0–1.0 (défaut: 0.5) — Resemble uniquement',
+            'quality':            'int   — qualité NFE 32/64/128 (défaut: 64) — Resemble uniquement',
+        },
+    },
+    'start_audio_enhancer': {
+        'description': "Lance le traitement Celery audio pour un job ou tous les jobs en attente.",
+        'args': {
+            'audio_enhancement_id': 'int|null — ID retourné par add_to_audio_enhancer, ou null pour tous les PENDING',
+        },
+    },
+    'get_audio_enhancer_status': {
+        'description': "Retourne l'état des 10 derniers jobs Audio Enhancer de l'utilisateur.",
         'args': {},
     },
     'synthesize_text': {

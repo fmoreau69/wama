@@ -7,14 +7,32 @@ import json
 import logging
 import os
 import re
+from functools import wraps
 from django.shortcuts import render
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_protect
-from django.contrib.admin.views.decorators import staff_member_required
 from django.conf import settings
 
 logger = logging.getLogger(__name__)
+
+
+def _admin_api(view_func):
+    """
+    API decorator for admin-only endpoints.
+    Returns JSON 401/403 instead of HTML redirects so AJAX callers always get JSON.
+    Uses the same is_admin() logic as the home page template guard (admin group OR superuser).
+    """
+    @wraps(view_func)
+    def _wrapped(request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return JsonResponse({'error': 'Authentification requise'}, status=401)
+        from wama.accounts.views import is_admin
+        if not is_admin(request.user):
+            return JsonResponse({'error': 'Accès réservé aux administrateurs'}, status=403)
+        return view_func(request, *args, **kwargs)
+    return _wrapped
+
 
 # ---------------------------------------------------------------------------
 # System prompts
@@ -41,10 +59,15 @@ Imager:
 - start_imager(generation_id=null): Launch image generation. Provide generation_id from create_image, or null to start all pending jobs.
 - get_imager_status(): Get status and progress of the user's recent image generation jobs.
 
-Enhancer:
+Enhancer (image/vidéo):
 - add_to_enhancer(file_path, ai_model="RealESR_Gx4", denoise=false, blend_factor=0.0): Register an image/video file for AI upscaling. file_path is the "path" value from list_user_files. Models: RealESR_Gx4 (fast), RealESR_Animex4 (anime), BSRGANx2/x4 (quality), RealESRGANx4 (high quality), IRCNN_Mx1/Lx1 (denoise only). Returns enhancement_id.
 - start_enhancer(enhancement_id=null): Launch enhancement processing. Provide enhancement_id from add_to_enhancer, or null to start all pending jobs.
-- get_enhancer_status(): Get status and progress of the user's recent enhancement jobs.
+- get_enhancer_status(): Get status and progress of the user's recent image/video enhancement jobs.
+
+Audio Enhancer (alternative à Adobe Podcast):
+- add_to_audio_enhancer(file_path, engine="resemble", mode="both", denoising_strength=0.5, quality=64): Register an audio file for speech enhancement. Engines: "resemble" (quality, 44.1kHz) or "deepfilternet" (ultra-fast). Modes: "both" (denoise+enhance), "denoise", "enhance". Returns audio_enhancement_id.
+- start_audio_enhancer(audio_enhancement_id=null): Launch audio enhancement. Provide audio_enhancement_id or null to start all pending jobs.
+- get_audio_enhancer_status(): Get status and progress of the user's recent audio enhancement jobs.
 
 Synthesizer:
 - synthesize_text(text, language="fr", tts_model="xtts_v2", voice_preset="default", speed=1.0, pitch=1.0, emotion_intensity=1.0): Create a text-to-speech job from raw text. Returns synthesis_id.
@@ -348,7 +371,7 @@ def _chat_with_claude(message: str, history: list = None) -> dict:
 
 @require_http_methods(["POST"])
 @csrf_protect
-@staff_member_required
+@_admin_api
 def ai_chat(request):
     """
     API endpoint for admin AI chat.

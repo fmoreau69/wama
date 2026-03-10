@@ -20,6 +20,7 @@ from django.utils.encoding import smart_str
 from .models import Transcript
 from wama.common.utils.console_utils import get_console_lines
 from wama.accounts.views import get_or_create_anonymous_user
+from wama.common.utils.queue_duplication import safe_delete_file, duplicate_instance
 
 
 def _format_duration(seconds: float) -> str:
@@ -432,17 +433,37 @@ def _cleanup_output_files(t: Transcript, user_id: int) -> None:
 def delete(request, pk: int):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     t = get_object_or_404(Transcript, pk=pk, user=user)
-    audio_path = t.audio.path
+    # Output files are unique to this transcript — always delete
     _cleanup_output_files(t, user.id)
-    t.audio.delete(save=False)
+    # Audio file may be shared with a duplicate — only delete if no other row references it
+    safe_delete_file(t, 'audio')
     t.delete()
-    if os.path.exists(audio_path):
-        try:
-            os.remove(audio_path)
-        except OSError:
-            pass
     cache.delete(f"transcriber_progress_{pk}")
     return JsonResponse({'deleted': pk})
+
+
+@require_POST
+def duplicate(request, pk: int):
+    """Duplicate a Transcript sharing the same audio file, resetting all results."""
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    t = get_object_or_404(Transcript, pk=pk, user=user)
+    new_t = duplicate_instance(
+        t,
+        reset_fields={
+            'status': 'PENDING',
+            'progress': 0,
+            'task_id': '',
+            'properties': '',
+            'language': '',
+            'text': '',
+            'used_backend': '',
+            'summary': '',
+            'coherence_notes': '',
+            'coherence_suggestion': '',
+        },
+        clear_fields=['segments_json', 'key_points', 'action_items', 'coherence_score'],
+    )
+    return JsonResponse({'duplicated': new_t.id})
 
 
 def console_content(request):

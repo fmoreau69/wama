@@ -20,42 +20,69 @@
     <div class="mb-4">
         <h5>Qu'est-ce que Synthesizer ?</h5>
         <p class="text-light">
-            Synthesizer est une application de synthèse vocale intégrée à WAMA qui transforme
-            automatiquement du texte en audio de haute qualité.
+            Synthesizer transforme automatiquement du texte en audio de haute qualité,
+            intégré à WAMA. Il propose plusieurs moteurs TTS selon vos besoins :
+            qualité maximale, clonage de voix ou expressivité émotionnelle.
         </p>
+    </div>
+
+    <div class="mb-4">
+        <h5>Moteurs TTS disponibles</h5>
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card bg-dark border-warning mb-2">
+                    <div class="card-body py-2">
+                        <h6 class="card-title text-warning mb-1">Higgs Audio V2 <span class="badge bg-warning text-dark ms-1 small">RECOMMANDÉ</span></h6>
+                        <p class="card-text small mb-0">Voix ultra-réaliste — 8 langues — multi-locuteurs — RTX 4090</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card bg-dark border-info mb-2">
+                    <div class="card-body py-2">
+                        <h6 class="card-title text-info mb-1">XTTS v2 (Coqui)</h6>
+                        <p class="card-text small mb-0">Clonage de voix — 17 langues — 6s de référence audio</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card bg-dark border-secondary mb-2">
+                    <div class="card-body py-2">
+                        <h6 class="card-title text-light mb-1">Bark (Suno AI)</h6>
+                        <p class="card-text small mb-0">Expressif, émotions, rires, silences — multi-langue</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card bg-dark border-secondary mb-2">
+                    <div class="card-body py-2">
+                        <h6 class="card-title text-light mb-1">Mode multi-locuteurs</h6>
+                        <p class="card-text small mb-0">Higgs Audio V2 — dialogue naturel entre plusieurs voix</p>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <div class="mb-4">
         <h5>Fonctionnalités</h5>
         <ul class="text-light">
-            <li>Interface pour saisir ou télécharger du texte et générer de l'audio</li>
-            <li>Support de text_to_speech_synthesizer avec moteurs de secours</li>
-            <li>Modèle XTTS v2 pour le clonage de voix</li>
-            <li>Choix de la langue et des préréglages de voix</li>
+            <li>Saisie de texte directe ou upload de documents (TXT, PDF, DOCX, CSV, MD)</li>
+            <li>Clonage de voix avec XTTS v2 (échantillon de référence 6-10 secondes)</li>
+            <li>Mode multi-locuteurs avec Higgs Audio V2 (dialogue, scène décrite)</li>
+            <li>Préréglages de voix : par genre, accent, style</li>
             <li>Ajustement de la vitesse et de la tonalité</li>
-            <li>Upload optionnel d'échantillon audio pour clonage de voix</li>
-            <li>Support de multiples formats : TXT, PDF, DOCX, CSV, MD</li>
-            <li>Prévisualisation audio intégrée</li>
-            <li>Traitement par lots</li>
+            <li>Prévisualisation audio intégrée avant téléchargement</li>
+            <li>Traitement par lots, téléchargement WAV/MP3</li>
+            <li>Langue par défaut depuis votre profil utilisateur</li>
         </ul>
-    </div>
-
-    <div class="mb-4">
-        <h5>Comment ça fonctionne ?</h5>
-        <ol class="text-light">
-            <li>Entrez du texte ou téléchargez un document</li>
-            <li>Choisissez les options de langue et de voix</li>
-            <li>Lancez la synthèse</li>
-            <li>Suivez la progression du traitement</li>
-            <li>Téléchargez le fichier audio généré</li>
-        </ol>
     </div>
 
     <div>
         <h5>Technologie</h5>
         <p class="text-light">
-            Propulsé par des moteurs TTS avancés avec support du clonage de voix
-            pour une qualité audio réaliste et naturelle.
+            Higgs Audio V2 (Boson AI) — XTTS v2 (Coqui TTS) — Bark (Suno AI) —
+            Microservice FastAPI dédié (port 8001) avec préchargement GPU.
         </p>
     </div>
 </div>
@@ -66,13 +93,13 @@
     <h3><i class="fas fa-question-circle me-2"></i>Guide d'utilisation</h3>
 
     <div class="mb-4">
-        <h5><i class="fas fa-sliders-h me-2"></i>Options de synthèse</h5>
+        <h5><i class="fas fa-sliders-h me-2"></i>Paramètres de synthèse</h5>
         <ul class="text-light">
-            <li>Sélectionnez un modèle TTS (XTTS v2 recommandé pour le clonage de voix)</li>
-            <li>Choisissez la langue et le préréglage de voix pour la parole générée</li>
-            <li>Ajustez la vitesse et la tonalité avec les curseurs</li>
-            <li>Réinitialisez tous les paramètres avec le bouton reset</li>
-            <li>(Optionnel) Téléchargez un court échantillon audio pour le clonage de voix</li>
+            <li><strong>Modèle TTS :</strong> Higgs Audio V2 (qualité max), XTTS v2 (clonage de voix), Bark (expressif)</li>
+            <li><strong>Langue :</strong> Pré-sélectionnée depuis votre profil utilisateur, modifiable par synthèse</li>
+            <li><strong>Préréglage de voix :</strong> Choix par genre, accent ou style selon le moteur</li>
+            <li><strong>Vitesse / Tonalité :</strong> Curseurs ajustables, réinitialisables</li>
+            <li><strong>Échantillon vocal :</strong> Uploadez un fichier audio pour cloner une voix (XTTS v2)</li>
         </ul>
     </div>
 
@@ -82,7 +109,7 @@
             <li>Glissez-déposez vos fichiers texte dans la zone de téléchargement</li>
             <li>Ou cliquez sur "Parcourir" pour sélectionner manuellement</li>
             <li>Formats supportés : TXT, PDF, DOCX, CSV, MD</li>
-            <li>Chaque fichier téléchargé apparaît dans la file de synthèse</li>
+            <li>Chaque fichier apparaît dans la file de synthèse</li>
         </ul>
     </div>
 
@@ -90,36 +117,27 @@
         <h5><i class="fas fa-play me-2"></i>Démarrer le traitement</h5>
         <ul class="text-light">
             <li>Cliquez sur "Démarrer le traitement" pour lancer la synthèse</li>
-            <li>Vous pouvez démarrer les éléments individuellement ou traiter toute la file</li>
-            <li>Mises à jour du statut : En attente → En cours → Succès / Échec</li>
-            <li>Une barre de progression indique l'avancement de la synthèse</li>
+            <li>Traitez les éléments individuellement ou toute la file d'un coup</li>
+            <li>Statut : En attente → En cours → Succès / Échec</li>
+            <li>Barre de progression visible pour chaque synthèse</li>
         </ul>
     </div>
 
     <div class="mb-4">
         <h5><i class="fas fa-volume-up me-2"></i>Prévisualisation et téléchargement</h5>
         <ul class="text-light">
-            <li>Quand la synthèse est terminée, un bouton Prévisualiser devient disponible</li>
-            <li>Utilisez le lecteur audio intégré pour écouter instantanément</li>
-            <li>Cliquez sur Télécharger pour sauvegarder le fichier audio généré</li>
-        </ul>
-    </div>
-
-    <div class="mb-4">
-        <h5><i class="fas fa-list me-2"></i>Gestion de la file</h5>
-        <ul class="text-light">
-            <li>Le badge affiche le nombre d'éléments actuellement dans la file</li>
-            <li>Supprimez les éléments individuellement ou utilisez "Tout effacer"</li>
-            <li>Chaque entrée affiche les options de synthèse et les propriétés</li>
+            <li>Lecteur audio intégré disponible dès la fin de la synthèse</li>
+            <li>Téléchargez l'audio généré au format WAV</li>
         </ul>
     </div>
 
     <div class="alert alert-info">
-        <h6><i class="fas fa-lightbulb me-2"></i>Astuce</h6>
-        <p class="mb-0">
-            Pour un clonage de voix optimal avec XTTS v2, utilisez un échantillon audio
-            de 6-10 secondes avec une voix claire et peu de bruit de fond.
-        </p>
+        <h6><i class="fas fa-lightbulb me-2"></i>Quel moteur choisir ?</h6>
+        <ul class="mb-0">
+            <li><strong>Higgs Audio V2 :</strong> Voix ultra-réaliste, multi-locuteurs, 8 langues — choix par défaut</li>
+            <li><strong>XTTS v2 :</strong> Clonage de voix avec 6-10s d'échantillon, 17 langues</li>
+            <li><strong>Bark :</strong> Très expressif — rires, pauses, émotions — moins déterministe</li>
+        </ul>
     </div>
 </div>
 {% endblock %}

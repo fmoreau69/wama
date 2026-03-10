@@ -1,65 +1,119 @@
 {% extends 'enhancer/base.html' %}
 {% load static %}
 
-{% block title %}Enhancer - AI Image/Video Upscaling{% endblock %}
+{% block title %}Enhancer - AI Image/Video & Audio Enhancement{% endblock %}
 
 {% block console_app_name %}enhancer{% endblock %}
 
 {% block app_right_panel_settings %}
-<!-- AI Model Selection -->
-<div class="mb-3">
-    <label for="defaultAiModel" class="form-label small fw-bold text-light">
-        <i class="fas fa-brain"></i> Modèle AI
-    </label>
-    <select class="form-select form-select-sm bg-dark text-white border-secondary" id="defaultAiModel">
-        {% for value, label in ai_models %}
-        <option value="{{ value }}" {% if user_settings.default_ai_model == value %}selected{% endif %}>
-            {{ label }}
-        </option>
-        {% endfor %}
-    </select>
-</div>
-
-<!-- Denoise Option -->
-<div class="mb-3">
-    <div class="form-check form-switch">
-        <input class="form-check-input" type="checkbox" id="defaultDenoise"
-               {% if user_settings.default_denoise %}checked{% endif %}>
-        <label class="form-check-label small text-light" for="defaultDenoise">
-            <i class="fas fa-broom"></i> Débruitage
+<!-- === Image/Video settings === -->
+<div id="imgSettings">
+    <div class="mb-3">
+        <label for="defaultAiModel" class="form-label small fw-bold text-light">
+            <i class="fas fa-brain"></i> Modèle AI
         </label>
+        <select class="form-select form-select-sm bg-dark text-white border-secondary" id="defaultAiModel">
+            {% for value, label in ai_models %}
+            <option value="{{ value }}" {% if user_settings.default_ai_model == value %}selected{% endif %}>
+                {{ label }}
+            </option>
+            {% endfor %}
+        </select>
     </div>
-    <small class="d-block">Appliquer avant upscaling</small>
+    <div class="mb-3">
+        <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" id="defaultDenoise"
+                   {% if user_settings.default_denoise %}checked{% endif %}>
+            <label class="form-check-label small text-light" for="defaultDenoise">
+                <i class="fas fa-broom"></i> Débruitage
+            </label>
+        </div>
+        <small class="d-block">Appliquer avant upscaling</small>
+    </div>
+    <div class="mb-3">
+        <label for="defaultBlendFactor" class="form-label small fw-bold text-light">
+            <i class="fas fa-sliders-h"></i> Blend: <span id="blendValue">{{ user_settings.default_blend_factor }}</span>
+        </label>
+        <input type="range" class="form-range" id="defaultBlendFactor"
+               min="0" max="1" step="0.1" value="{{ user_settings.default_blend_factor }}"
+               oninput="document.getElementById('blendValue').textContent = this.value">
+        <div class="d-flex justify-content-between">
+            <small>100% AI</small>
+            <small>100% Original</small>
+        </div>
+    </div>
+    <div class="alert alert-info py-2 small" role="alert">
+        <i class="fas fa-info-circle"></i> <strong>Modèles:</strong><br>
+        <small>
+            • <strong>RealESR_Gx4</strong>: Rapide (4x)<br>
+            • <strong>BSRGANx2/x4</strong>: Haute qualité<br>
+            • <strong>RealESRGANx4</strong>: Max qualité<br>
+            • <strong>IRCNN</strong>: Débruitage (1x)
+        </small>
+    </div>
 </div>
 
-<!-- Blend Factor -->
-<div class="mb-3">
-    <label for="defaultBlendFactor" class="form-label small fw-bold text-light">
-        <i class="fas fa-sliders-h"></i> Blend: <span id="blendValue">{{ user_settings.default_blend_factor }}</span>
-    </label>
-    <input type="range" class="form-range" id="defaultBlendFactor"
-           min="0" max="1" step="0.1" value="{{ user_settings.default_blend_factor }}"
-           oninput="document.getElementById('blendValue').textContent = this.value">
-    <div class="d-flex justify-content-between">
-        <small>100% AI</small>
-        <small>100% Original</small>
+<!-- === Audio settings === -->
+<div id="audioSettings" style="display:none;">
+    <div class="mb-3">
+        <label for="audioEngine" class="form-label small fw-bold text-light">
+            <i class="fas fa-cogs"></i> Moteur
+        </label>
+        <select class="form-select form-select-sm bg-dark text-white border-secondary" id="audioEngine">
+            <option value="resemble">Resemble Enhance (Recommandé)</option>
+            <option value="deepfilternet">DeepFilterNet 3 (Rapide)</option>
+        </select>
     </div>
-</div>
 
-<!-- Model Info -->
-<div class="alert alert-info py-2 small" role="alert">
-    <i class="fas fa-info-circle"></i> <strong>Modèles:</strong><br>
-    <small>
-        • <strong>RealESR_Gx4</strong>: Rapide (4x)<br>
-        • <strong>BSRGANx2/x4</strong>: Haute qualité<br>
-        • <strong>RealESRGANx4</strong>: Max qualité<br>
-        • <strong>IRCNN</strong>: Débruitage (1x)
-    </small>
+    <div class="resemble-only">
+        <div class="mb-3">
+            <label for="audioMode" class="form-label small fw-bold text-light">
+                <i class="fas fa-sliders-h"></i> Mode
+            </label>
+            <select class="form-select form-select-sm bg-dark text-white border-secondary" id="audioMode">
+                <option value="both">Débruitage + Amélioration</option>
+                <option value="denoise">Débruitage seul (Rapide)</option>
+                <option value="enhance">Amélioration seule</option>
+            </select>
+        </div>
+
+        <div class="mb-3">
+            <label for="audioDenoisingStrength" class="form-label small fw-bold text-light">
+                <i class="fas fa-wind"></i> Force: <span id="audioStrengthValue">0.5</span>
+            </label>
+            <input type="range" class="form-range" id="audioDenoisingStrength"
+                   min="0" max="1" step="0.1" value="0.5">
+            <div class="d-flex justify-content-between">
+                <small>Doux</small>
+                <small>Fort</small>
+            </div>
+        </div>
+
+        <div class="mb-3">
+            <label for="audioQuality" class="form-label small fw-bold text-light">
+                <i class="fas fa-star"></i> Qualité (NFE)
+            </label>
+            <select class="form-select form-select-sm bg-dark text-white border-secondary" id="audioQuality">
+                <option value="32">Rapide (32 étapes)</option>
+                <option value="64" selected>Équilibré (64 étapes)</option>
+                <option value="128">Meilleur (128 étapes)</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="alert alert-success py-2 small" role="alert">
+        <i class="fas fa-info-circle"></i> <strong>Moteurs:</strong><br>
+        <small>
+            • <strong>Resemble</strong>: 44.1kHz, ≥ Adobe Podcast<br>
+            • <strong>DeepFilterNet 3</strong>: ultra-rapide, &lt;1GB VRAM
+        </small>
+    </div>
 </div>
 {% endblock %}
 
 {% block app_right_panel_actions %}
-<div class="d-grid gap-2">
+<!-- Image/Video actions -->
+<div id="imgActions" class="d-grid gap-2">
     <button id="enhancer-process-btn" class="btn btn-success btn-sm">
         <i class="fas fa-play"></i> Démarrer
     </button>
@@ -70,10 +124,46 @@
         <i class="fas fa-trash"></i> Tout effacer
     </button>
 </div>
+
+<!-- Audio actions -->
+<div id="audioActions" class="d-grid gap-2 d-none">
+    <button id="audio-process-btn" class="btn btn-success btn-sm">
+        <i class="fas fa-play"></i> Démarrer
+    </button>
+    <button id="audio-download-all-btn" class="btn btn-info btn-sm" disabled>
+        <i class="fas fa-download"></i> Télécharger tout
+    </button>
+    <button id="audio-clear-btn" class="btn btn-outline-danger btn-sm">
+        <i class="fas fa-trash"></i> Tout effacer
+    </button>
+</div>
 {% endblock %}
 
 {% block enhancer_content %}
-<!-- Drag & Drop Zone -->
+
+<!-- Tab Navigation -->
+<ul class="nav nav-tabs mb-4" id="enhancerTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="imgvideo-tab" data-bs-toggle="tab" data-bs-target="#imgvideoTab"
+                type="button" role="tab" aria-controls="imgvideoTab" aria-selected="true">
+            <i class="fas fa-image"></i> Image / Vidéo
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="audio-tab" data-bs-toggle="tab" data-bs-target="#audioTab"
+                type="button" role="tab" aria-controls="audioTab" aria-selected="false">
+            <i class="fas fa-microphone-alt"></i> Audio
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content" id="enhancerTabsContent">
+
+<!-- =====================================================================
+     Image / Video Tab
+     ===================================================================== -->
+<div class="tab-pane fade show active" id="imgvideoTab" role="tabpanel" aria-labelledby="imgvideo-tab">
+
 <div class="row mb-4">
     <div class="col-12">
         <div class="drop-zone" id="dropZoneEnhancer">
@@ -92,7 +182,6 @@
     </div>
 </div>
 
-<!-- URL Upload Section -->
 <div class="row mb-4">
     <div class="col-12">
         <div class="card bg-dark border-secondary">
@@ -113,9 +202,6 @@
                             <i class="fas fa-download"></i> Télécharger
                         </button>
                     </div>
-                    <small class="text-white-50 mt-2 d-block">
-                        Exemple: https://example.com/video.mp4 ou lien YouTube
-                    </small>
                 </form>
             </div>
         </div>
@@ -124,15 +210,12 @@
 
 <hr class="border-secondary">
 
-<!-- Global Progress -->
 <div class="row mb-3">
     <div class="col-12">
         <div class="card bg-dark border-secondary">
             <div class="card-body py-2">
                 <div class="d-flex justify-content-between align-items-center mb-2">
-                    <h6 class="mb-0 text-light">
-                        <i class="fas fa-chart-line"></i> Progression globale
-                    </h6>
+                    <h6 class="mb-0 text-light"><i class="fas fa-chart-line"></i> Progression globale</h6>
                     <small class="text-white-50" id="globalProgressStats">0/0 terminé</small>
                 </div>
                 <div class="progress" style="height: 20px;">
@@ -143,13 +226,9 @@
     </div>
 </div>
 
-<!-- Enhancements Queue -->
 <div class="row">
     <div class="col-12">
-        <h4 class="mb-3">
-            <i class="fas fa-list"></i> File d'attente
-        </h4>
-
+        <h4 class="mb-3"><i class="fas fa-list"></i> File d'attente — Images &amp; Vidéos</h4>
         <div class="table-responsive">
             <table class="table table-bordered table-dark align-middle" id="enhancer-queue">
                 <thead>
@@ -184,12 +263,8 @@
                             </button>
                         </div>
                         <div class="d-flex align-items-center gap-2 mt-1">
-                            {% if e.denoise %}
-                            <span class="badge bg-primary">Débruitage</span>
-                            {% endif %}
-                            {% if e.blend_factor > 0 %}
-                            <span class="badge bg-secondary">Blend {{ e.blend_factor }}</span>
-                            {% endif %}
+                            {% if e.denoise %}<span class="badge bg-primary">Débruitage</span>{% endif %}
+                            {% if e.blend_factor > 0 %}<span class="badge bg-secondary">Blend {{ e.blend_factor }}</span>{% endif %}
                         </div>
                     </td>
                     <td class="text-center small">
@@ -211,9 +286,7 @@
                     </td>
                     <td class="text-center">
                         <div class="btn-group" role="group">
-                            <button class="btn btn-primary btn-sm js-restart-enhancement"
-                                    data-id="{{ e.id }}"
-                                    title="Relancer le traitement">
+                            <button class="btn btn-primary btn-sm js-restart-enhancement" data-id="{{ e.id }}">
                                 <i class="fas fa-play"></i>
                             </button>
                             <a class="btn btn-success btn-sm download-btn {% if not e.output_file %}disabled{% endif %}"
@@ -225,8 +298,7 @@
                                     data-id="{{ e.id }}"
                                     data-ai-model="{{ e.ai_model }}"
                                     data-denoise="{{ e.denoise|lower }}"
-                                    data-blend-factor="{{ e.blend_factor }}"
-                                    title="Configurer les paramètres">
+                                    data-blend-factor="{{ e.blend_factor }}">
                                 <i class="fas fa-cog"></i>
                             </button>
                             <button class="btn btn-danger btn-sm js-delete-enhancement"
@@ -246,10 +318,134 @@
         </div>
     </div>
 </div>
+
+</div><!-- #imgvideoTab -->
+
+<!-- =====================================================================
+     Audio Tab
+     ===================================================================== -->
+<div class="tab-pane fade" id="audioTab" role="tabpanel" aria-labelledby="audio-tab">
+
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="drop-zone" id="dropZoneAudio">
+            <i class="fas fa-microphone-alt fa-3x mb-3 text-success"></i>
+            <h5>Glissez-déposez vos fichiers audio ici</h5>
+            <p class="text-light mb-3">ou cliquez pour parcourir — ou faites glisser depuis l'Explorateur</p>
+            <p class="small text-white-50">
+                MP3, WAV, FLAC, OGG, M4A, AAC, OPUS, WMA
+            </p>
+            <input type="file" id="audio-enhancer-file" multiple
+                   accept=".mp3,.wav,.flac,.ogg,.m4a,.aac,.opus,.wma,audio/*"
+                   style="display: none;">
+            <button class="btn btn-success mt-2" id="audio-browse-btn">
+                <i class="fas fa-folder-open"></i> Parcourir
+            </button>
+        </div>
+    </div>
+</div>
+
+<hr class="border-secondary">
+
+<div class="row mb-3">
+    <div class="col-12">
+        <div class="card bg-dark border-secondary">
+            <div class="card-body py-2">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h6 class="mb-0 text-light"><i class="fas fa-chart-line"></i> Progression globale — Audio</h6>
+                    <small class="text-white-50" id="audioGlobalProgressStats">0/0 terminé</small>
+                </div>
+                <div class="progress" style="height: 20px;">
+                    <div class="progress-bar bg-success" id="audioGlobalProgressBar" role="progressbar" style="width: 0%">0%</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <h4 class="mb-3"><i class="fas fa-headphones"></i> File d'attente — Audio</h4>
+        <div class="table-responsive">
+            <table class="table table-bordered table-dark align-middle" id="audio-enhancer-queue">
+                <thead>
+                <tr class="text-center">
+                    <th style="width: 80px;">ID</th>
+                    <th>Fichier</th>
+                    <th style="width: 130px;">Moteur</th>
+                    <th style="width: 130px;">Mode</th>
+                    <th style="width: 120px;">Statut</th>
+                    <th style="width: 220px;">Progression</th>
+                    <th style="width: 140px;">Actions</th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for ae in audio_enhancements %}
+                <tr data-id="{{ ae.id }}" data-status="{{ ae.status }}">
+                    <td class="fw-bold text-center">#{{ ae.id }}</td>
+                    <td>
+                        <div class="fw-semibold">{{ ae.get_input_filename }}</div>
+                        {% if ae.duration %}
+                        <small class="text-white-50">
+                            {% if ae.duration >= 60 %}{{ ae.duration|floatformat:0|divisibleby:60 }}min{% else %}{{ ae.duration|floatformat:1 }}s{% endif %}
+                        </small>
+                        {% endif %}
+                    </td>
+                    <td class="text-center"><span class="badge bg-info">{{ ae.get_engine_display }}</span></td>
+                    <td class="text-center"><span class="badge bg-secondary">{{ ae.get_mode_display }}</span></td>
+                    <td class="status text-uppercase text-center">{{ ae.status }}</td>
+                    <td>
+                        <div class="progress" style="height: 24px;">
+                            <div class="progress-bar bg-success" role="progressbar" style="width: {{ ae.progress }}%;">
+                                {{ ae.progress }}%
+                            </div>
+                        </div>
+                    </td>
+                    <td class="text-center">
+                        <div class="btn-group" role="group">
+                            <button class="btn btn-primary btn-sm js-audio-start" data-id="{{ ae.id }}">
+                                <i class="fas fa-play"></i>
+                            </button>
+                            <a class="btn btn-success btn-sm js-audio-download {% if not ae.output_file %}disabled{% endif %}"
+                               href="{% if ae.output_file %}{% url 'enhancer:audio_download' ae.id %}{% else %}#{% endif %}"
+                               data-id="{{ ae.id }}">
+                                <i class="fas fa-download"></i>
+                            </a>
+                            <button class="btn btn-warning btn-sm js-audio-settings"
+                                    data-id="{{ ae.id }}"
+                                    data-engine="{{ ae.engine }}"
+                                    data-mode="{{ ae.mode }}"
+                                    data-strength="{{ ae.denoising_strength }}"
+                                    data-quality="{{ ae.quality }}"
+                                    title="Paramètres">
+                                <i class="fas fa-cog"></i>
+                            </button>
+                            <button class="btn btn-danger btn-sm js-audio-delete" data-id="{{ ae.id }}">
+                                <i class="fas fa-trash-alt"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr class="empty-row">
+                    <td colspan="7" class="text-center py-4">Aucun fichier audio en attente.</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+</div><!-- #audioTab -->
+
+</div><!-- .tab-content -->
+
 {% endblock enhancer_content %}
 
 {% block app_scripts %}
 <script>
+    // Image/Video enhancer config
     window.ENHANCER_APP = Object.assign({}, window.ENHANCER_APP, {
       csrfToken: '{{ csrf_token }}',
       uploadUrl: '{% url "enhancer:upload" %}',
@@ -263,7 +459,67 @@
       downloadAllUrl: '{% url "enhancer:download_all" %}',
       globalProgressUrl: '{% url "enhancer:global_progress" %}',
     });
+    // Audio enhancer config
+    window.AUDIO_ENHANCER_APP = {
+      csrfToken: '{{ csrf_token }}',
+      audioUploadUrl: '{% url "enhancer:audio_upload" %}',
+      audioStartUrlTemplate: '{% url "enhancer:audio_start" 0 %}',
+      audioProgressUrlTemplate: '{% url "enhancer:audio_progress" 0 %}',
+      audioDeleteUrlTemplate: '{% url "enhancer:audio_delete" 0 %}',
+      audioDownloadUrlTemplate: '{% url "enhancer:audio_download" 0 %}',
+      audioStartAllUrl: '{% url "enhancer:audio_start_all" %}',
+      audioClearUrl: '{% url "enhancer:audio_clear_all" %}',
+      audioDownloadAllUrl: '{% url "enhancer:audio_download_all" %}',
+      audioGlobalProgressUrl: '{% url "enhancer:audio_global_progress" %}',
+    };
+
+    // Tab persistence + right-panel switching
+    document.addEventListener('DOMContentLoaded', function () {
+      const imgSettings  = document.getElementById('imgSettings');
+      const audioSettings = document.getElementById('audioSettings');
+      const imgActions   = document.getElementById('imgActions');
+      const audioActions = document.getElementById('audioActions');
+
+      function showImgPanel() {
+        if (imgSettings)  { imgSettings.style.display  = ''; }
+        if (audioSettings){ audioSettings.style.display = 'none'; }
+        if (imgActions)   { imgActions.classList.remove('d-none'); }
+        if (audioActions) { audioActions.classList.add('d-none'); }
+      }
+
+      function showAudioPanel() {
+        if (imgSettings)  { imgSettings.style.display  = 'none'; }
+        if (audioSettings){ audioSettings.style.display = ''; }
+        if (imgActions)   { imgActions.classList.add('d-none'); }
+        if (audioActions) { audioActions.classList.remove('d-none'); }
+      }
+
+      const imgvideoTabBtn = document.getElementById('imgvideo-tab');
+      const audioTabBtn    = document.getElementById('audio-tab');
+
+      if (imgvideoTabBtn) {
+        imgvideoTabBtn.addEventListener('shown.bs.tab', function () {
+          localStorage.setItem('enhancerTab', 'imgvideo');
+          showImgPanel();
+        });
+      }
+      if (audioTabBtn) {
+        audioTabBtn.addEventListener('shown.bs.tab', function () {
+          localStorage.setItem('enhancerTab', 'audio');
+          showAudioPanel();
+        });
+      }
+
+      // Restore last tab
+      const saved = localStorage.getItem('enhancerTab');
+      if (saved === 'audio' && audioTabBtn) {
+        const tab = new bootstrap.Tab(audioTabBtn);
+        tab.show();
+        showAudioPanel();
+      }
+    });
 </script>
 <script src="{% static 'enhancer/js/index.js' %}"></script>
+<script src="{% static 'enhancer/js/audio-enhancer.js' %}"></script>
 <script src="{% static 'common/js/media-preview.js' %}"></script>
 {% endblock %}

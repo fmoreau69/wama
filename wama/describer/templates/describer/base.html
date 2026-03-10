@@ -15,43 +15,83 @@
 
 {% block about_content %}
 <div class="info-card">
-    <h3><i class="fas fa-search-plus me-2"></i>A propos de Describer</h3>
+    <h3><i class="fas fa-search-plus me-2"></i>À propos de Describer</h3>
 
     <div class="mb-4">
         <h5>Qu'est-ce que Describer ?</h5>
         <p class="text-light">
-            Describer est une application d'analyse et de synthese de contenus multimedia integree a WAMA.
-            Elle utilise des modeles d'IA pour decrire des images, resumer des textes, transcrire des audios
-            et analyser des videos.
+            Describer analyse et synthétise automatiquement vos contenus multimédia.
+            Il décrit des images, résume des textes et PDF, transcrit des audios
+            et analyse des vidéos — le tout intégré à WAMA.
         </p>
     </div>
 
     <div class="mb-4">
-        <h5>Fonctionnalites</h5>
+        <h5>Moteurs d'analyse</h5>
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card bg-dark border-primary mb-2">
+                    <div class="card-body py-2">
+                        <h6 class="card-title text-primary mb-1">Qwen3.5 9B (Ollama)</h6>
+                        <p class="card-text small mb-0">Résumé, analyse, compte-rendu — texte, PDF, DOCX</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card bg-dark border-info mb-2">
+                    <div class="card-body py-2">
+                        <h6 class="card-title text-info mb-1">Moondream2 (Ollama)</h6>
+                        <p class="card-text small mb-0">Description d'images — 1.8B multimodal léger</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card bg-dark border-secondary mb-2">
+                    <div class="card-body py-2">
+                        <h6 class="card-title text-light mb-1">Whisper (OpenAI)</h6>
+                        <p class="card-text small mb-0">Transcription audio — 99 langues</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card bg-dark border-secondary mb-2">
+                    <div class="card-body py-2">
+                        <h6 class="card-title text-light mb-1">BLIP (fallback)</h6>
+                        <p class="card-text small mb-0">Description d'images locale si Ollama indisponible</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="mb-4">
+        <h5>Fonctionnalités</h5>
         <ul class="text-light">
-            <li><strong>Images</strong> : Description visuelle automatique avec BLIP</li>
-            <li><strong>Videos</strong> : Analyse de scenes + transcription audio</li>
-            <li><strong>Audios</strong> : Transcription avec Whisper + resume</li>
-            <li><strong>Textes/PDF</strong> : Resume et synthese avec BART/Pegasus</li>
-            <li><strong>Publications scientifiques</strong> : Extraction des points cles</li>
+            <li><strong>Images</strong> : Description visuelle avec Moondream2 (Ollama) → BLIP (fallback)</li>
+            <li><strong>Textes / PDF / DOCX</strong> : Résumé et analyse avec Qwen3.5 9B</li>
+            <li><strong>Audios</strong> : Transcription Whisper + résumé LLM</li>
+            <li><strong>Vidéos</strong> : Extraction de frames + description + transcription audio</li>
+            <li><strong>Compte-rendu de réunion</strong> : Format structuré (résumé, décisions, actions)</li>
         </ul>
     </div>
 
     <div class="mb-4">
         <h5>Formats de sortie</h5>
         <ul class="text-light">
-            <li><strong>Resume court</strong> : Synthese concise</li>
-            <li><strong>Description detaillee</strong> : Analyse complete</li>
-            <li><strong>Synthese scientifique</strong> : Format academique</li>
-            <li><strong>Points cles</strong> : Liste a puces</li>
+            <li><strong>Résumé court</strong> : Synthèse concise en 2-3 phrases</li>
+            <li><strong>Description détaillée</strong> : Analyse complète avec points clés</li>
+            <li><strong>Synthèse scientifique</strong> : Format académique structuré</li>
+            <li><strong>Points clés</strong> : Liste à puces</li>
+            <li><strong>Compte-rendu de réunion</strong> : Résumé exécutif, décisions, actions à mener</li>
         </ul>
     </div>
 
     <div>
         <h5>Technologie</h5>
         <p class="text-light">
-            Propulse par des modeles open-source : BLIP pour les images,
-            BART/Pegasus pour le resume de texte, et Whisper pour la transcription audio.
+            Analyse LLM : Qwen3.5 9B via Ollama —
+            Vision : Moondream2 (Ollama) / BLIP (local) —
+            Audio : Whisper OpenAI.
         </p>
     </div>
 </div>
@@ -62,47 +102,49 @@
     <h3><i class="fas fa-question-circle me-2"></i>Guide d'utilisation</h3>
 
     <div class="mb-4">
-        <h5><i class="fas fa-file-upload me-2"></i>Telecharger des fichiers</h5>
+        <h5><i class="fas fa-file-upload me-2"></i>Téléchargement de fichiers</h5>
         <ul class="text-light">
-            <li>Glissez-deposez vos fichiers dans la zone de telechargement</li>
-            <li>Ou cliquez sur "Parcourir" pour selectionner manuellement</li>
-            <li>Formats supportes : Images, Videos, Audio, PDF, DOCX, TXT, MD</li>
-            <li>Le type de contenu est detecte automatiquement</li>
+            <li>Glissez-déposez vos fichiers dans la zone de téléchargement</li>
+            <li>Ou cliquez sur "Parcourir" pour sélectionner manuellement</li>
+            <li>Formats supportés : Images (JPG, PNG, WebP), Vidéos, Audio, PDF, DOCX, TXT, MD</li>
+            <li>Le type de contenu est détecté automatiquement</li>
         </ul>
     </div>
 
     <div class="mb-4">
         <h5><i class="fas fa-cog me-2"></i>Options de description</h5>
         <ul class="text-light">
-            <li><strong>Format</strong> : Choisissez entre resume, detaille, scientifique ou points cles</li>
-            <li><strong>Langue</strong> : Francais, Anglais ou detection automatique</li>
-            <li><strong>Longueur</strong> : Ajustez la longueur maximale du resume</li>
+            <li><strong>Format</strong> : Résumé court, détaillé, scientifique, points clés, ou compte-rendu de réunion</li>
+            <li><strong>Langue</strong> : Français ou Anglais — la réponse LLM suit la langue choisie</li>
+            <li><strong>Longueur</strong> : Longueur maximale du résumé (pour les textes courts déjà concis)</li>
         </ul>
     </div>
 
     <div class="mb-4">
         <h5><i class="fas fa-play me-2"></i>Lancer le traitement</h5>
         <ul class="text-light">
-            <li>Cliquez sur "Demarrer" pour lancer la description</li>
-            <li>Suivez la progression en temps reel</li>
-            <li>Le resultat apparait dans la colonne "Description"</li>
+            <li>Cliquez sur "Démarrer" pour lancer l'analyse</li>
+            <li>Statut : En attente → En cours → Terminé</li>
+            <li>Le résultat apparaît dans la colonne "Description"</li>
         </ul>
     </div>
 
     <div class="mb-4">
-        <h5><i class="fas fa-download me-2"></i>Telecharger les resultats</h5>
+        <h5><i class="fas fa-download me-2"></i>Télécharger les résultats</h5>
         <ul class="text-light">
-            <li>Telechargez le resultat au format texte</li>
-            <li>Utilisez "Telecharger tout" pour un ZIP de tous les resultats</li>
+            <li>Téléchargez chaque résultat en fichier texte</li>
+            <li>Utilisez "Télécharger tout" pour un ZIP de tous les résultats</li>
         </ul>
     </div>
 
     <div class="alert alert-info">
-        <h6><i class="fas fa-lightbulb me-2"></i>Astuce</h6>
-        <p class="mb-0">
-            Pour les publications scientifiques, utilisez le format "Synthese scientifique"
-            pour obtenir une structure academique avec les points cles.
-        </p>
+        <h6><i class="fas fa-lightbulb me-2"></i>Quel format choisir ?</h6>
+        <ul class="mb-0">
+            <li><strong>Résumé court :</strong> Idéal pour un aperçu rapide (2-3 phrases)</li>
+            <li><strong>Points clés :</strong> Liste à puces des informations essentielles</li>
+            <li><strong>Compte-rendu de réunion :</strong> Résumé exécutif + décisions + actions à mener (LLM)</li>
+            <li><strong>Synthèse scientifique :</strong> Pour articles et publications académiques</li>
+        </ul>
     </div>
 </div>
 {% endblock %}

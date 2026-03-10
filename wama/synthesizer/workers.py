@@ -30,8 +30,10 @@ logger = logging.getLogger(__name__)
 # TTS microservice URL
 TTS_SERVICE_URL = getattr(settings, 'TTS_SERVICE_URL', 'http://localhost:8001')
 
-# Request timeout for TTS service (seconds)
-TTS_TIMEOUT = 300
+# Request timeout for TTS service (seconds).
+# 600s allows for long texts (75+ words) even under RAM pressure.
+# The reduced max_tokens formula prevents runaway generation for short texts.
+TTS_TIMEOUT = 600
 
 # Raised when the TTS service responds 503 "loading" — triggers a Celery retry
 class TTSServiceLoadingError(Exception):

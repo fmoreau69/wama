@@ -20,26 +20,36 @@ class MemoryStrategy(Enum):
     CPU_ONLY = "cpu"                   # Run entirely on CPU (no GPU)
 
 
-# Model size categories in GB (approximate VRAM requirements)
+# Model size categories in GB (measured VRAM requirement at runtime, bf16/fp16).
+# Used by get_memory_strategy() to decide FULL_GPU vs CPU offload.
+# RTX 4090 = 24 GB → headroom_gb=4 → models ≤ 20 GB fit entirely on GPU.
 MODEL_SIZE_PRESETS = {
-    # Diffusion models
-    'flux': 12.0,
-    'flux-dev': 12.0,
+    # ── Image diffusion ──────────────────────────────────────────────────────
+    # FLUX transformer alone is ~23 GB bfloat16 (12B params × 2 bytes).
+    # Total pipeline (transformer + T5 + CLIP + VAE) ≈ 35 GB.
+    # Use 24 GB so MemoryManager never picks FULL_GPU on a 24 GB card.
+    'flux': 24.0,
+    'flux-dev': 24.0,
     'flux-schnell': 12.0,
     'sdxl': 7.0,
     'sd15': 4.0,
     'sd21': 5.0,
     'hunyuan-image': 16.0,
+    'hunyuan-image-2.1': 16.0,
 
-    # Video models
+    # Qwen Image (Alibaba) — Diffusers pipelines (not transformers)
+    'qwen-image': 16.0,       # Qwen-Image-2512  ~16 GB at bf16
+    'qwen-image-edit': 12.0,  # Qwen-Image-Edit-2511  ~12 GB at bf16
+
+    # ── Video diffusion ──────────────────────────────────────────────────────
     'hunyuan-video': 24.0,
-    'cogvideox': 16.0,
-    'ltx-video': 12.0,
-    'mochi': 18.0,
+    'cogvideox': 5.0,     # CogVideoX-5B measured ~5 GB (not 16 GB)
+    'ltx-video': 6.0,     # LTX-Video 0.9.8 distilled ~6 GB
+    'mochi': 22.0,        # Mochi-1 Preview bf16 ~22 GB
     'wan-t2v': 14.0,
     'wan-i2v': 28.0,
 
-    # Vision models
+    # ── Vision (detection / segmentation) ───────────────────────────────────
     'yolo-nano': 0.5,
     'yolo-small': 1.0,
     'yolo-medium': 2.0,
@@ -49,14 +59,14 @@ MODEL_SIZE_PRESETS = {
     'sam3-base': 3.0,
     'sam3-large': 6.0,
 
-    # Audio models
+    # ── Audio (ASR) ──────────────────────────────────────────────────────────
     'whisper-tiny': 0.5,
     'whisper-base': 0.8,
     'whisper-small': 1.5,
     'whisper-medium': 3.0,
     'whisper-large': 6.0,
 
-    # LLM/Multimodal
+    # ── Multimodal / captioning ──────────────────────────────────────────────
     'blip': 2.0,
     'blip2': 4.0,
 }
@@ -426,13 +436,30 @@ class MemoryManager:
                     pass
 
         def try_full_gpu():
-            """Try to load fully on GPU."""
+            """
+            Move each pipeline component to GPU one at a time with a CUDA sync
+            between each.  This avoids the monolithic pipeline.to("cuda") call
+            which, under WSL2/WDDM, iterates thousands of tensors individually
+            in Python — each CUDA malloc taking ~8 ms, yielding 10–15 minutes
+            total and eventually triggering Windows TDR.
+            """
             nonlocal pipeline
-            logger.info(f"[MemoryManager] Applying FULL_GPU strategy")
-            pipeline = pipeline.to(device)
-            # Verify it worked by doing a simple operation
-            if hasattr(pipeline, 'unet') and pipeline.unet is not None:
-                _ = next(pipeline.unet.parameters()).device
+            logger.info(f"[MemoryManager] Applying FULL_GPU strategy (per-component)")
+            moved_any = False
+            for attr in ('transformer', 'unet', 'denoising_unet', 'vae',
+                         'text_encoder', 'text_encoder_2', 'image_encoder'):
+                component = getattr(pipeline, attr, None)
+                if component is None or not hasattr(component, 'parameters'):
+                    continue
+                logger.info(f"[MemoryManager]   → moving {attr} to {device}…")
+                setattr(pipeline, attr, component.to(device))
+                torch.cuda.synchronize()
+                vram = torch.cuda.memory_allocated() / (1024 ** 3)
+                logger.info(f"[MemoryManager]   ✓ {attr} on {device} (VRAM used: {vram:.1f} GB)")
+                moved_any = True
+            if not moved_any:
+                # Fallback for pipelines with non-standard component names
+                pipeline = pipeline.to(device)
             logger.info(f"[MemoryManager] Pipeline loaded fully on {device}")
             return True
 
@@ -602,6 +629,58 @@ class MemoryManager:
         """
         strategy = MemoryManager.get_strategy_for_model(model_type, headroom_gb)
         return MemoryManager.apply_memory_strategy(pipeline, strategy, device)
+
+    @staticmethod
+    def apply_offload_strategy(
+        pipeline,
+        model_size_gb: float,
+        device: str = "cuda",
+        headroom_gb: float = 2.0,
+    ) -> tuple:
+        """
+        Select the optimal memory strategy for the given model size, apply it,
+        and return ``(pipeline, is_on_gpu)``.
+
+        ``is_on_gpu`` is True when the pipeline was placed entirely on GPU
+        (faster, no Windows TDR risk from long GPU-idle periods).
+        It is False when CPU offload is active (MODEL_OFFLOAD / SEQUENTIAL_OFFLOAD),
+        in which case callers must use a CPU torch.Generator.
+
+        On RTX 4090 (24 GB), any model ≤ 20 GB with headroom_gb=4 will use
+        FULL_GPU automatically.  Callers should pass headroom_gb=4.0 for
+        heavy diffusion models.
+
+        Typical usage::
+
+            self._pipe, is_on_gpu = MemoryManager.apply_offload_strategy(
+                self._pipe, model_size_gb=16.0, headroom_gb=4.0
+            )
+            self._cpu_offload = not is_on_gpu
+        """
+        import torch
+
+        strategy = MemoryManager.get_memory_strategy(model_size_gb, headroom_gb)
+        pipeline = MemoryManager.apply_memory_strategy(pipeline, strategy, device)
+
+        # Detect actual placement by probing the main denoising component.
+        # After .to("cuda") all parameters are on CUDA.
+        # After enable_{model,sequential}_cpu_offload they remain on CPU.
+        is_on_gpu = False
+        if torch.cuda.is_available():
+            for attr in ('transformer', 'unet', 'denoising_unet'):
+                component = getattr(pipeline, attr, None)
+                if component is not None:
+                    try:
+                        param = next(component.parameters(), None)
+                        if param is not None:
+                            is_on_gpu = (param.device.type == 'cuda')
+                    except Exception:
+                        pass
+                    break
+
+        placement = 'CUDA (full GPU)' if is_on_gpu else 'CPU offload'
+        logger.info(f"[MemoryManager] Pipeline placement: {placement}")
+        return pipeline, is_on_gpu
 
     @staticmethod
     def estimate_model_size(model_path: str) -> float:

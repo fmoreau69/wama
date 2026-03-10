@@ -118,9 +118,11 @@ class BackendManager:
             if available.get(backend_name, False):
                 return backend_name
 
-        # Check any other registered backends
+        # Check any other registered backends, but exclude model-specific ones
+        # (qwen_image is routed explicitly in tasks.py, not a general fallback)
+        _model_specific = {'qwen_image'}
         for name, is_available in available.items():
-            if is_available:
+            if is_available and name not in _model_specific:
                 return name
 
         return None

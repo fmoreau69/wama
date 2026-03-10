@@ -84,6 +84,13 @@ _tts_instance = None         # Coqui TTS instance
 _bark_funcs = None           # {"generate_audio": ..., "SAMPLE_RATE": ...}
 _higgs_engine = None         # HiggsAudioServeEngine instance
 
+# Serialise concurrent Higgs generation requests.
+# _higgs_engine.generate() mutates self.current_past_key_values_bucket on the shared
+# model instance. Two simultaneous calls (e.g. one still running after HTTP timeout
+# + the next request arriving) corrupt this shared state → "target cache size 1024
+# is smaller than source cache size 4096". The lock ensures sequential execution.
+_higgs_generation_lock = threading.Lock()
+
 # Service readiness flag: False while models are loading at startup
 _service_ready = False
 _service_ready_lock = threading.Lock()
@@ -384,6 +391,7 @@ def _generate_higgs(text: str, language: str = "fr",
     from scipy.io.wavfile import write as write_wav
 
     content_parts = []
+    _tmp_ref_path = None  # track trimmed temp file for cleanup
 
     # System message with explicit language instruction
     lang_name = _HIGGS_LANGUAGE_NAMES.get(language, language.capitalize())
@@ -401,6 +409,27 @@ def _generate_higgs(text: str, language: str = "fr",
         ref_wav = None
 
     if ref_wav:
+        # Trim reference audio to 6 seconds max.
+        # Higgs Audio v2 was trained on 3-8s references; shorter is safer.
+        # Longer references expand the KV cache context and can degrade generation quality.
+        MAX_REF_DURATION_S = 6.0
+        try:
+            import librosa, soundfile as _sf
+            _raw, _sr = librosa.load(ref_wav, sr=None)
+            _dur = len(_raw) / _sr
+            logger.info(f"[Higgs] Voice reference: {_dur:.1f}s @ {_sr}Hz")
+            max_samples = int(MAX_REF_DURATION_S * _sr)
+            if len(_raw) > max_samples:
+                _raw = _raw[:max_samples]
+                _tmp_ref = tempfile.NamedTemporaryFile(suffix=".wav", delete=False, dir=str(PROJECT_DIR / "logs"))
+                _sf.write(_tmp_ref.name, _raw, _sr)
+                _tmp_ref.close()
+                _tmp_ref_path = _tmp_ref.name
+                logger.info(f"[Higgs] Voice reference trimmed to {MAX_REF_DURATION_S}s → {_tmp_ref_path}")
+                ref_wav = _tmp_ref_path
+        except Exception as _e:
+            logger.warning(f"[Higgs] Could not trim reference audio: {_e} — using original")
+
         # Pass file path directly — serve_engine.py loads via librosa.load(audio_url)
         content_parts.append(AudioContent(audio_url=ref_wav))
 
@@ -416,30 +445,37 @@ def _generate_higgs(text: str, language: str = "fr",
         Message(role="user", content=content_parts)
     ])
 
-    # Estimate max tokens needed: ~300 tokens/sec is typical for Higgs codec
-    # Add generous headroom; worker timeout is 300s so cap at ~250s of audio
-    estimated_tokens = max(8192, len(text) * 20)  # rough upper bound
-    max_tokens = min(estimated_tokens, 75000)
+    # Estimate max tokens: Higgs codec produces ~300 audio tokens/sec.
+    # Natural speech rate ~2.5 words/sec → duration ≈ words/2.5 s.
+    # Add 1.5× safety margin + 1500 overhead (system prompt, audio ref tokens).
+    # Previous formula used max(8192, ...) which generated up to 8192 tokens
+    # for a 23-word text → 8192 / 27 tok/s (RAM-swapped) = 303s → timeout.
+    _words = len(text.split())
+    _estimated_audio_tokens = int(_words / 2.5 * 300)
+    max_tokens = min(max(int(_estimated_audio_tokens * 1.5) + 1500, 2000), 75000)
+    logger.info(f"[Higgs] max_tokens={max_tokens} for {_words} words (~{_estimated_audio_tokens} audio tokens)")
 
-    # Diagnostic: log cache state before reset
-    try:
-        for bucket_len, kv_cache in _higgs_engine.kv_caches.items():
-            seq_len = kv_cache.get_seq_length()
-            logger.info(f"[Higgs diag] KV cache[{bucket_len}] seq_length BEFORE reset = {seq_len}")
-    except Exception as _e:
-        logger.warning(f"[Higgs diag] Could not read cache lengths: {_e}")
+    # Serialise: only one Higgs generation at a time.
+    # Two concurrent HTTP threads sharing the model instance corrupt
+    # self.current_past_key_values_bucket → "target cache size 1024 < source 4096".
+    with _higgs_generation_lock:
+        # Diagnostic: log cache state before generation
+        try:
+            for bucket_len, kv_cache in _higgs_engine.kv_caches.items():
+                seq_len = kv_cache.get_seq_length()
+                logger.info(f"[Higgs diag] KV cache[{bucket_len}] seq_length BEFORE = {seq_len}")
+        except Exception as _e:
+            logger.warning(f"[Higgs diag] Could not read cache lengths: {_e}")
 
-    logger.info(f"[Higgs diag] max_tokens={max_tokens}, text_chars={len(text)}")
-    cuda_graph_keys = list(_higgs_engine.model.decode_graph_runners.keys()) if hasattr(_higgs_engine.model, "decode_graph_runners") else []
-    logger.info(f"[Higgs diag] CUDA graph runner keys: {cuda_graph_keys}")
+        logger.info(f"[Higgs diag] max_tokens={max_tokens}, text_chars={len(text)}")
 
-    output = _higgs_engine.generate(
-        chat_ml_sample=chat_ml,
-        max_new_tokens=max_tokens,
-        temperature=0.3,
-        top_p=0.95,
-        force_audio_gen=True,
-    )
+        output = _higgs_engine.generate(
+            chat_ml_sample=chat_ml,
+            max_new_tokens=max_tokens,
+            temperature=0.7,   # serve_engine default; 0.3 was too aggressive (caused early EOS)
+            top_p=0.95,
+            force_audio_gen=True,
+        )
 
     if output.audio is None or len(output.audio) == 0:
         raise ValueError("Higgs Audio returned empty audio")
@@ -448,58 +484,28 @@ def _generate_higgs(text: str, language: str = "fr",
     actual_sr = int(output.sampling_rate) if hasattr(output, 'sampling_rate') and output.sampling_rate else 24000
     logger.info(f"Higgs audio: {len(output.audio)} samples @ {actual_sr} Hz = {len(output.audio)/actual_sr:.1f}s")
 
-    # Diagnostic: log usage stats and expected vs actual KV fill
-    completion_tokens = 0
     if output.usage:
         logger.info(f"[Higgs diag] Usage: {output.usage}")
-        completion_tokens = output.usage.get("completion_tokens", 0) if isinstance(output.usage, dict) else getattr(output.usage, "completion_tokens", 0)
 
-    # Diagnostic: log cache state after generation
+    # Diagnostic: log KV cache seq_length AFTER generation (expected: prefill + audio steps)
     try:
         for bucket_len, kv_cache in _higgs_engine.kv_caches.items():
             seq_len = kv_cache.get_seq_length()
             logger.info(f"[Higgs diag] KV cache[{bucket_len}] seq_length AFTER = {seq_len}")
     except Exception as _e:
-        logger.warning(f"[Higgs diag] Could not read cache lengths after generation: {_e}")
+        logger.debug(f"[Higgs diag] Could not read post-gen cache lengths: {_e}")
 
-    # Deep diagnostic: inspect actual key tensor values.
-    # Expected seq_len after generation ≈ prefill_len + completion_tokens.
-    # If seq_len stays at prefill_len, decode writes are broken (CUDA graph bug).
+    # Diagnostic: inspect generated audio tokens to understand generation quality
     try:
-        kv_1024 = _higgs_engine.kv_caches.get(1024)
-        kv_4096 = _higgs_engine.kv_caches.get(4096)
-        # Use whichever bucket was actually used (larger of the two non-zero ones)
-        active_kv = None
-        for kv in (kv_4096, kv_1024):
-            if kv is not None and kv.layers[0].is_initialized:
-                active_kv = kv
-                break
-        if active_kv is not None:
-            keys = active_kv.layers[0].keys  # (batch, heads, max_len, head_dim)
-            seq_l0 = active_kv.get_seq_length(0)
-            seq_l1 = active_kv.get_seq_length(1)
-            expected = seq_l0 + completion_tokens  # rough: assumes seq_l0 = prefill_len
-            logger.info(
-                f"[Higgs diag] layer0 seq_len={seq_l0}, layer1 seq_len={seq_l1}, "
-                f"completion_tokens={completion_tokens}, expected_final≈{expected}"
-            )
-            # Sample positions: prefill boundary, +1, +10, +100, end of bucket
-            max_pos = keys.shape[2]
-            sample_positions = [
-                max(0, seq_l0 - 2), seq_l0, seq_l0 + 1,
-                min(seq_l0 + 10, max_pos - 1),
-                min(seq_l0 + 100, max_pos - 1),
-                max_pos - 1,
-            ]
-            # Deduplicate preserving order
-            seen = set()
-            sample_positions = [p for p in sample_positions if not (p in seen or seen.add(p))]
-            for pos in sample_positions:
-                v = keys[0, 0, pos, :4].cpu().float().tolist()
-                nz = any(x != 0.0 for x in v)
-                logger.info(f"[Higgs diag] keys[0,0,{pos},:4] = {[round(x,4) for x in v]}  {'NON-ZERO' if nz else 'ZERO'}")
-    except Exception as _e:
-        logger.warning(f"[Higgs diag] Deep key-value inspection failed: {_e}")
+        _tok = output.generated_audio_tokens  # shape (num_codebooks, num_steps)
+        if _tok is not None and hasattr(_tok, 'shape'):
+            _n_steps = _tok.shape[1] if len(_tok.shape) > 1 else len(_tok)
+            _unique = len(set(_tok.flatten().tolist())) if hasattr(_tok, 'flatten') else '?'
+            _min_t = int(_tok.min()) if hasattr(_tok, 'min') else '?'
+            _max_t = int(_tok.max()) if hasattr(_tok, 'max') else '?'
+            logger.info(f"[Higgs diag] Audio tokens: {_n_steps} steps, range [{_min_t},{_max_t}], {_unique} unique values")
+    except Exception as _de:
+        logger.debug(f"[Higgs diag] Could not inspect audio tokens: {_de}")
 
     combined = np.array(output.audio, dtype=np.float32)
     max_val = np.max(np.abs(combined))
@@ -520,6 +526,14 @@ def _generate_higgs(text: str, language: str = "fr",
     tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False, dir=str(PROJECT_DIR / "logs"))
     write_wav(tmp.name, actual_sr, combined_int16)
     tmp.close()
+
+    # Cleanup trimmed reference temp file
+    if _tmp_ref_path:
+        try:
+            os.remove(_tmp_ref_path)
+        except OSError:
+            pass
+
     return tmp.name
 
 

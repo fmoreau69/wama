@@ -138,6 +138,70 @@
             <button class="btn btn-primary mt-2" id="browseBtn">
                 <i class="fas fa-folder-open"></i> Parcourir
             </button>
+            <div class="mt-1">
+                <small class="text-white-50">
+                    Fichier batch ?
+                    <a href="{% url 'synthesizer:batch_template' %}" class="text-white-50" download>
+                        <i class="fas fa-download"></i> Template
+                    </a>
+                </small>
+            </div>
+        </div>
+
+        <!-- Batch detect bar — appears automatically when a batch file is dropped -->
+        <div id="batchDetectBar" style="display:none; margin-top:0.5rem; background:#1a1520; border:1px solid #6f42c1; border-radius:0.375rem; padding:0.5rem 0.75rem;">
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-1">
+                <span class="small text-light">
+                    <i class="fas fa-magic" style="color:#a78bfa;"></i>
+                    <strong>Fichier batch détecté</strong> —
+                    <span id="batchDetectedCount">0</span> tâche(s)
+                </span>
+                <div class="d-flex gap-1">
+                    <button class="btn btn-sm py-0 px-2" style="background:#6f42c1;color:#fff;font-size:.8rem;"
+                            id="batchConfirmBatchBtn">
+                        <i class="fas fa-layer-group"></i> Voir le batch
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary py-0 px-2" style="font-size:.8rem;"
+                            id="batchConfirmIndividualBtn">
+                        <i class="fas fa-file-alt"></i> Synthèse individuelle
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger py-0 px-1" id="batchCancelBar" title="Annuler">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Preview table + actions (shown after "Voir le batch") -->
+            <div id="batchDetectPreview" style="display:none;">
+                <div id="batchDetectWarnings" class="alert alert-warning py-1 small mb-1" style="display:none;"></div>
+                <div class="table-responsive" style="max-height:180px; overflow-y:auto;">
+                    <table class="table table-sm table-dark mb-0" style="font-size:0.78rem;">
+                        <thead style="position:sticky; top:0; background:#1a1520;">
+                            <tr>
+                                <th style="width:25%">Fichier de sortie</th>
+                                <th>Texte</th>
+                                <th style="width:14%">Voix</th>
+                                <th style="width:8%">Vitesse</th>
+                            </tr>
+                        </thead>
+                        <tbody id="batchDetectTable"></tbody>
+                    </table>
+                </div>
+                <div class="d-flex gap-2 mt-2">
+                    <button class="btn btn-success btn-sm flex-grow-1" id="batchCreateAndStartBtn">
+                        <i class="fas fa-play"></i> Créer et démarrer (<span id="batchCreateCount">0</span>)
+                    </button>
+                    <button class="btn btn-primary btn-sm" id="batchCreateOnlyBtn">
+                        <i class="fas fa-plus"></i> Créer seulement
+                    </button>
+                </div>
+                <div id="batchCreateProgress" class="mt-2" style="display:none;">
+                    <div class="progress">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated"
+                             style="width:100%;">Création en cours…</div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -247,125 +311,98 @@
     <div class="col-12">
         <h4 class="mb-3">
             <i class="fas fa-list"></i> File d'attente
-            <span class="badge bg-secondary" id="queueCount">{{ syntheses.count }}</span>
+            <span class="badge bg-secondary" id="queueCount">{{ queue_count }}</span>
         </h4>
 
         <div id="synthesisQueue">
-            {% for synthesis in syntheses %}
-            <div class="synthesis-card {% if synthesis.status == 'RUNNING' %}processing{% elif synthesis.status == 'SUCCESS' %}success{% elif synthesis.status == 'FAILURE' %}error{% endif %}"
-                 data-id="{{ synthesis.id }}">
-                <div class="row align-items-center">
-                    <!-- Text File Info -->
-                    <div class="col-md-3">
-                        <strong>
-                            <button type="button" class="btn btn-link p-0 text-start preview-text-btn"
-                                    data-id="{{ synthesis.id }}"
-                                    style="color: #fff; text-decoration: none;">
-                                <i class="fas fa-file-alt"></i> {{ synthesis.filename }}
-                            </button>
-                        </strong>
-                        <br>
-                        <small class="text-white-50">
-                            {{ synthesis.word_count }} mots •
-                            {{ synthesis.duration_display|default:"--:--" }}
-                        </small>
-                    </div>
-
-                    <!-- Options -->
-                    <div class="col-md-2">
-                        <small>
-                            <i class="fas fa-robot"></i> {{ synthesis.get_tts_model_display|truncatechars:20 }}<br>
-                            <i class="fas fa-language"></i> {{ synthesis.get_language_display }}<br>
-                            <i class="fas fa-microphone"></i> {{ synthesis.get_voice_preset_display|truncatechars:15 }}
-                        </small>
-                    </div>
-
-                    <!-- Properties -->
-                    <div class="col-md-2">
-                        <small class="text-white-50">
-                            {{ synthesis.properties|default:"En attente" }}
-                        </small>
-                    </div>
-
-                    <!-- Status & Progress -->
-                    <div class="col-md-2">
-                            <span class="badge 
-                                {% if synthesis.status == 'PENDING' %}bg-secondary
-                                {% elif synthesis.status == 'RUNNING' %}bg-warning
-                                {% elif synthesis.status == 'SUCCESS' %}bg-success
-                                {% elif synthesis.status == 'FAILURE' %}bg-danger
-                                {% endif %}">
-                                {{ synthesis.get_status_display }}
-                            </span>
-                        <div class="progress-bar-custom mt-2">
-                            <div class="progress-fill" style="width: {{ synthesis.progress }}%"></div>
+            <!-- Batch groups -->
+            {% for batch_info in batches_list %}
+            <div class="batch-group mb-2" data-batch-id="{{ batch_info.obj.id }}">
+                <!-- Batch header -->
+                <div class="batch-group-header d-flex align-items-center gap-2 p-2"
+                     style="background:#1a1520; border:1px solid #6f42c1; border-radius:0.375rem;">
+                    <!-- Toggle area (click here to fold/unfold) -->
+                    <div class="d-flex align-items-center gap-2 flex-grow-1"
+                         style="cursor:pointer; user-select:none; min-width:0;"
+                         data-bs-toggle="collapse"
+                         data-bs-target="#batchItems{{ batch_info.obj.id }}"
+                         aria-expanded="true">
+                        <i class="fas fa-layer-group" style="color:#a78bfa;"></i>
+                        <strong class="text-light">Batch #{{ batch_info.obj.id }}</strong>
+                        <small class="text-muted">{{ batch_info.obj.created_at|date:"d/m H:i" }}</small>
+                        <span class="badge bg-secondary">{{ batch_info.success_count }}/{{ batch_info.obj.total }}</span>
+                        <!-- Mini progress bar -->
+                        <div class="flex-grow-1">
+                            <div class="progress" style="height:4px; background:rgba(255,255,255,0.1);">
+                                <div class="progress-bar" style="background:#6f42c1; width:{{ batch_info.success_pct }}%;"></div>
+                            </div>
                         </div>
-                        <small class="text-light">{{ synthesis.progress }}%</small>
+                        <i class="fas fa-chevron-down text-muted" style="font-size:.7rem; transition:transform 0.2s;"
+                           id="batchChevron{{ batch_info.obj.id }}"></i>
                     </div>
-
-                    <!-- Actions -->
-                    <div class="col-md-3">
-                        <div class="btn-group-actions">
-                            {% if synthesis.status != 'RUNNING' %}
-                            <button class="btn btn-sm btn-primary start-btn"
-                                    data-id="{{ synthesis.id }}"
-                                    title="Démarrer">
-                                <i class="fas fa-play"></i>
-                            </button>
-                            <button class="btn btn-sm btn-secondary settings-btn"
-                                    data-id="{{ synthesis.id }}"
-                                    data-tts-model="{{ synthesis.tts_model }}"
-                                    data-language="{{ synthesis.language }}"
-                                    data-voice-preset="{{ synthesis.voice_preset }}"
-                                    data-speed="{{ synthesis.speed }}"
-                                    data-pitch="{{ synthesis.pitch }}"
-                                    title="Paramètres">
-                                <i class="fas fa-cog"></i>
-                            </button>
-                            {% endif %}
-
-                            {% if synthesis.audio_output %}
-                            <button class="btn btn-sm btn-success preview-btn"
-                                    data-id="{{ synthesis.id }}"
-                                    title="Écouter">
-                                <i class="fas fa-volume-up"></i>
-                            </button>
-                            <a href="{% url 'synthesizer:download' synthesis.id %}"
-                               class="btn btn-sm btn-info"
-                               title="Télécharger">
-                                <i class="fas fa-download"></i>
-                            </a>
-                            {% endif %}
-
-                            <button class="btn btn-sm btn-danger delete-btn"
-                                    data-id="{{ synthesis.id }}"
-                                    title="Supprimer">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </div>
-
-                        <!-- Audio Preview (hidden by default) -->
-                        <div class="audio-preview mt-2" id="preview_{{ synthesis.id }}"
-                             style="display: none;">
-                            {% if synthesis.audio_output %}
-                            <audio controls class="audio-player">
-                                <source src="{{ synthesis.audio_output.url }}" type="audio/wav">
-                            </audio>
-                            {% endif %}
-                        </div>
+                    <!-- Action buttons (outside toggle area — no collapse side effect) -->
+                    <div class="d-flex gap-1 flex-shrink-0">
+                        <button class="btn btn-sm batch-settings-btn py-0 px-2"
+                                style="background:rgba(111,66,193,0.25); color:#a78bfa; border:1px solid #6f42c1; font-size:.75rem;"
+                                data-batch-id="{{ batch_info.obj.id }}"
+                                data-tts-model="{{ batch_info.first_tts_model }}"
+                                data-language="{{ batch_info.first_language }}"
+                                data-voice-preset="{{ batch_info.first_voice_preset }}"
+                                data-speed="{{ batch_info.first_speed }}"
+                                data-pitch="{{ batch_info.first_pitch }}"
+                                title="Paramètres du batch">
+                            <i class="fas fa-cog"></i>
+                        </button>
+                        {% if batch_info.has_success %}
+                        <a href="{% url 'synthesizer:batch_download' batch_info.obj.id %}"
+                           class="btn btn-sm btn-outline-success py-0 px-2"
+                           style="font-size:.75rem;"
+                           title="Télécharger ZIP">
+                            <i class="fas fa-download"></i> ZIP
+                        </a>
+                        {% endif %}
+                        <button class="btn btn-sm batch-duplicate-btn py-0 px-2"
+                                data-batch-id="{{ batch_info.obj.id }}"
+                                style="background:rgba(13,202,240,0.15); color:#0dcaf0; border:1px solid #0dcaf0; font-size:.75rem;"
+                                title="Dupliquer le batch (fichiers partagés, résultats effacés)">
+                            <i class="fas fa-copy"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger batch-delete-btn py-0 px-2"
+                                data-batch-id="{{ batch_info.obj.id }}"
+                                style="font-size:.75rem;"
+                                title="Supprimer le batch">
+                            <i class="fas fa-trash"></i>
+                        </button>
                     </div>
                 </div>
+                <!-- Batch items (collapsible) -->
+                <div class="collapse show" id="batchItems{{ batch_info.obj.id }}"
+                     style="border-left:2px solid #6f42c1; margin-left:0.75rem;">
+                    {% for item in batch_info.items %}
+                    {% if item.synthesis %}
+                    {% include 'synthesizer/_synthesis_card.html' with synthesis=item.synthesis card_label=item.output_filename %}
+                    {% endif %}
+                    {% endfor %}
+                </div>
             </div>
-            {% empty %}
+            {% endfor %}
+
+            <!-- Standalone syntheses -->
+            {% for synthesis in standalone_syntheses %}
+            {% include 'synthesizer/_synthesis_card.html' with synthesis=synthesis %}
+            {% endfor %}
+
+            {% if not batches_list and not standalone_syntheses %}
             <div class="text-center text py-5">
                 <i class="fas fa-inbox fa-3x mb-3"></i>
                 <p>Aucun fichier dans la file d'attente</p>
                 <p>Uploadez des fichiers texte pour commencer</p>
             </div>
-            {% endfor %}
+            {% endif %}
         </div>
     </div>
 </div>
+
 {% endblock %}
 
 {% block extra_modals %}
@@ -530,6 +567,114 @@
     </div>
 </div>
 
+<!-- Batch Settings Modal -->
+<div class="modal fade" id="batchSettingsModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-layer-group" style="color:#a78bfa;"></i>
+                    Paramètres — Batch <span id="batchSettingsBatchLabel"></span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-secondary py-2 small mb-3">
+                    <i class="fas fa-info-circle"></i>
+                    S'applique à tous les éléments non-en-cours du batch.
+                </div>
+                <input type="hidden" id="batchSettingsBatchId">
+
+                <!-- TTS Model -->
+                <div class="mb-3">
+                    <label for="batchSettingsTtsModel" class="form-label">
+                        <i class="fas fa-robot"></i> Modèle TTS
+                    </label>
+                    <select class="form-select" id="batchSettingsTtsModel">
+                        {% for value, label in tts_models %}
+                        <option value="{{ value }}">{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Language -->
+                <div class="mb-3">
+                    <label for="batchSettingsLanguage" class="form-label">
+                        <i class="fas fa-language"></i> Langue
+                    </label>
+                    <select class="form-select" id="batchSettingsLanguage">
+                        {% for value, label in languages %}
+                        <option value="{{ value }}">{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Voice Preset -->
+                <div class="mb-3">
+                    <label for="batchSettingsVoicePreset" class="form-label">
+                        <i class="fas fa-microphone"></i> Voix
+                    </label>
+                    <select class="form-select" id="batchSettingsVoicePreset">
+                        <optgroup label="Voix intégrées">
+                            <option value="default">Voix par défaut</option>
+                            <option value="male_1">Voix masculine 1</option>
+                            <option value="male_2">Voix masculine 2</option>
+                            <option value="female_1">Voix féminine 1</option>
+                            <option value="female_2">Voix féminine 2</option>
+                        </optgroup>
+                        <optgroup label="Voix personnalisées (clonage)">
+                            {% for cv in custom_voices %}
+                            <option value="cv_{{ cv.id }}">{{ cv.name }}</option>
+                            {% endfor %}
+                        </optgroup>
+                        <optgroup label="Bark (presets)">
+                            <option value="bark_v2_en_0">Bark EN Speaker 0</option>
+                            <option value="bark_v2_en_1">Bark EN Speaker 1</option>
+                            <option value="bark_v2_en_2">Bark EN Speaker 2</option>
+                            <option value="bark_v2_en_3">Bark EN Speaker 3</option>
+                            <option value="bark_v2_en_4">Bark EN Speaker 4</option>
+                            <option value="bark_v2_en_5">Bark EN Speaker 5</option>
+                            <option value="bark_v2_fr_0">Bark FR Speaker 0</option>
+                            <option value="bark_v2_fr_1">Bark FR Speaker 1</option>
+                            <option value="bark_v2_es_0">Bark ES Speaker 0</option>
+                            <option value="bark_v2_de_0">Bark DE Speaker 0</option>
+                        </optgroup>
+                    </select>
+                </div>
+
+                <!-- Speed -->
+                <div class="mb-3">
+                    <label for="batchSettingsSpeed" class="form-label">
+                        <i class="fas fa-tachometer-alt"></i> Vitesse: <span id="batchSettingsSpeedValue">1.0</span>x
+                    </label>
+                    <input type="range" class="form-range" id="batchSettingsSpeed"
+                           min="0.5" max="2.0" step="0.1" value="1.0"
+                           oninput="document.getElementById('batchSettingsSpeedValue').textContent = parseFloat(this.value).toFixed(1)">
+                </div>
+
+                <!-- Pitch -->
+                <div class="mb-3">
+                    <label for="batchSettingsPitch" class="form-label">
+                        <i class="fas fa-wave-square"></i> Hauteur: <span id="batchSettingsPitchValue">1.0</span>x
+                    </label>
+                    <input type="range" class="form-range" id="batchSettingsPitch"
+                           min="0.5" max="2.0" step="0.1" value="1.0"
+                           oninput="document.getElementById('batchSettingsPitchValue').textContent = parseFloat(this.value).toFixed(1)">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                <button type="button" class="btn btn-primary" id="saveBatchSettingsBtn">
+                    <i class="fas fa-save"></i> Sauvegarder
+                </button>
+                <button type="button" class="btn btn-success" id="saveBatchSettingsAndStartBtn">
+                    <i class="fas fa-play"></i> Sauvegarder et relancer
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Audio Preview Modal -->
 <div class="modal fade" id="previewModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
@@ -604,6 +749,7 @@
             progress: "/synthesizer/progress/",
             globalProgress: "{% url 'synthesizer:global_progress' %}",
             delete: "/synthesizer/delete/",
+            duplicate: "/synthesizer/duplicate/",
             startAll: "{% url 'synthesizer:start_all' %}",
             downloadAll: "{% url 'synthesizer:download_all' %}",
             clearAll: "{% url 'synthesizer:clear_all' %}",
@@ -611,10 +757,149 @@
             updateOptions: "/synthesizer/update-options/",
             customVoices: "{% url 'synthesizer:list_custom_voices' %}",
             uploadCustomVoice: "{% url 'synthesizer:upload_custom_voice' %}",
-            deleteCustomVoice: "/synthesizer/custom-voices/delete/"
+            deleteCustomVoice: "/synthesizer/custom-voices/delete/",
+            batchPreview: "{% url 'synthesizer:batch_preview' %}",
+            batchCreate: "{% url 'synthesizer:batch_create' %}",
+            batchList: "{% url 'synthesizer:batch_list' %}",
+            batchTemplate: "{% url 'synthesizer:batch_template' %}",
+            batchStart: "/synthesizer/batch/",
+            batchDownload: "/synthesizer/batch/",
+            batchDelete: "/synthesizer/batch/",
+            batchDuplicate: "/synthesizer/batch/",
+            batchSettings: "/synthesizer/batch/",
+            importIndividualFromPath: "{% url 'synthesizer:import_individual_from_path' %}"
         },
         csrfToken: "{{ csrf_token }}"
     };
 </script>
 <script src="{% static 'synthesizer/js/index.js' %}"></script>
+<script>
+// Batch group actions: delete, settings modal
+document.addEventListener('DOMContentLoaded', function () {
+    const URLS = window.WAMA_CONFIG.urls;
+    const csrf = window.WAMA_CONFIG.csrfToken;
+
+    // Chevron rotation on collapse
+    document.addEventListener('show.bs.collapse', function (e) {
+        if (e.target.id && e.target.id.startsWith('batchItems')) {
+            const chevron = document.getElementById('batchChevron' + e.target.id.replace('batchItems', ''));
+            if (chevron) chevron.style.transform = 'rotate(0deg)';
+        }
+    });
+    document.addEventListener('hide.bs.collapse', function (e) {
+        if (e.target.id && e.target.id.startsWith('batchItems')) {
+            const chevron = document.getElementById('batchChevron' + e.target.id.replace('batchItems', ''));
+            if (chevron) chevron.style.transform = 'rotate(-90deg)';
+        }
+    });
+
+    // Batch delete
+    document.addEventListener('click', function (e) {
+        const btn = e.target.closest('.batch-delete-btn');
+        if (!btn) return;
+        const batchId = btn.dataset.batchId;
+        if (!confirm(`Supprimer le batch #${batchId} et toutes ses synthèses ?`)) return;
+        fetch(URLS.batchDelete + batchId + '/delete/', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': csrf },
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) { location.reload(); }
+            else { alert('Erreur lors de la suppression'); }
+        })
+        .catch(() => alert('Erreur réseau'));
+    });
+
+    // Batch settings modal
+    const batchSettingsModalEl = document.getElementById('batchSettingsModal');
+    const batchSettingsModal = batchSettingsModalEl ? new bootstrap.Modal(batchSettingsModalEl) : null;
+
+    document.addEventListener('click', function (e) {
+        const btn = e.target.closest('.batch-settings-btn');
+        if (!btn || !batchSettingsModal) return;
+        const id = btn.dataset.batchId;
+        document.getElementById('batchSettingsBatchLabel').textContent = '#' + id;
+        document.getElementById('batchSettingsBatchId').value = id;
+        const sel = (elId, val) => { const el = document.getElementById(elId); if (el) el.value = val; };
+        const setSlider = (elId, labelId, val) => {
+            const el = document.getElementById(elId);
+            if (el) { el.value = val; document.getElementById(labelId).textContent = parseFloat(val).toFixed(1); }
+        };
+        sel('batchSettingsTtsModel', btn.dataset.ttsModel || 'xtts_v2');
+        sel('batchSettingsLanguage', btn.dataset.language || 'fr');
+        sel('batchSettingsVoicePreset', btn.dataset.voicePreset || 'default');
+        setSlider('batchSettingsSpeed', 'batchSettingsSpeedValue', btn.dataset.speed || '1.0');
+        setSlider('batchSettingsPitch', 'batchSettingsPitchValue', btn.dataset.pitch || '1.0');
+        batchSettingsModal.show();
+    });
+
+    async function saveBatchSettings(andStart) {
+        const batchId = document.getElementById('batchSettingsBatchId').value;
+        const payload = {
+            tts_model: document.getElementById('batchSettingsTtsModel').value,
+            language: document.getElementById('batchSettingsLanguage').value,
+            voice_preset: document.getElementById('batchSettingsVoicePreset').value,
+            speed: parseFloat(document.getElementById('batchSettingsSpeed').value),
+            pitch: parseFloat(document.getElementById('batchSettingsPitch').value),
+        };
+        try {
+            const r = await fetch(URLS.batchSettings + batchId + '/settings/', {
+                method: 'POST',
+                headers: { 'X-CSRFToken': csrf, 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            const data = await r.json();
+            if (!r.ok || !data.success) { alert(data.error || 'Erreur sauvegarde'); return; }
+            if (andStart) {
+                await fetch(URLS.batchStart + batchId + '/start/', {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': csrf },
+                });
+            }
+            location.reload();
+        } catch { alert('Erreur réseau'); }
+    }
+
+    const saveBtn = document.getElementById('saveBatchSettingsBtn');
+    if (saveBtn) saveBtn.addEventListener('click', () => saveBatchSettings(false));
+    const saveStartBtn = document.getElementById('saveBatchSettingsAndStartBtn');
+    if (saveStartBtn) saveStartBtn.addEventListener('click', () => saveBatchSettings(true));
+
+    // Batch duplicate
+    document.addEventListener('click', function (e) {
+        const btn = e.target.closest('.batch-duplicate-btn');
+        if (!btn) return;
+        const batchId = btn.dataset.batchId;
+        if (!confirm(`Dupliquer le batch #${batchId} ? Les fichiers sources seront partagés, les résultats effacés.`)) return;
+        fetch(URLS.batchDuplicate + batchId + '/duplicate/', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': csrf },
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) { location.reload(); }
+            else { alert('Erreur lors de la duplication du batch'); }
+        })
+        .catch(() => alert('Erreur réseau'));
+    });
+
+    // Duplicate queue item (shares source file, resets results)
+    document.addEventListener('click', function (e) {
+        const btn = e.target.closest('.duplicate-btn');
+        if (!btn) return;
+        const id = btn.dataset.id;
+        fetch(URLS.duplicate + id + '/', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': csrf },
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.duplicated) location.reload();
+            else alert('Duplication impossible');
+        })
+        .catch(() => alert('Erreur réseau lors de la duplication'));
+    });
+});
+</script>
 {% endblock %}

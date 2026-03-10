@@ -9,7 +9,7 @@ from celery import shared_task
 from django.core.cache import cache
 from django.db import close_old_connections
 
-from .models import Enhancement
+from .models import Enhancement, AudioEnhancement
 from wama.common.utils.console_utils import push_console_line
 
 logger = logging.getLogger(__name__)
@@ -138,6 +138,117 @@ def enhance_media(self, enhancement_id: int):
             logger.warning(f"Enhancement {enhancement_id} was deleted during processing, cannot save error state")
 
         return {'ok': False, 'error': error_msg}
+
+
+@shared_task(bind=True)
+def enhance_audio(self, audio_enhancement_id: int):
+    """
+    Celery task to enhance audio with Resemble Enhance or DeepFilterNet 3.
+
+    Args:
+        audio_enhancement_id: ID of the AudioEnhancement object
+    """
+    logger.info(f"WORKER: enhance_audio START  ID={audio_enhancement_id}")
+    close_old_connections()
+
+    try:
+        ae = AudioEnhancement.objects.get(pk=audio_enhancement_id)
+    except AudioEnhancement.DoesNotExist:
+        logger.error(f"AudioEnhancement {audio_enhancement_id} not found!")
+        return {'ok': False, 'error': 'AudioEnhancement not found'}
+
+    user_id = ae.user_id
+    _console(user_id, f"Audio enhancement #{audio_enhancement_id} démarré ({ae.get_engine_display()})")
+    _set_audio_progress(audio_enhancement_id, 5)
+
+    start_time = time.time()
+
+    try:
+        from .utils.audio_enhancer import run_audio_enhancement
+        import tempfile
+        from django.core.files.base import ContentFile
+        from django.core.files.storage import default_storage
+
+        input_path = ae.input_file.path
+        base_name = os.path.splitext(os.path.basename(input_path))[0]
+        output_filename = f"{base_name}_enhanced.wav"
+
+        # Temporary output file
+        temp_fd, temp_output = tempfile.mkstemp(suffix='.wav', prefix='audio_enhanced_')
+        os.close(temp_fd)
+
+        def _progress(pct):
+            mapped = 5 + int(pct * 0.90)
+            _set_audio_progress(audio_enhancement_id, mapped)
+
+        _console(user_id, f"Traitement audio: {ae.get_input_filename()}")
+
+        run_audio_enhancement(
+            input_path=input_path,
+            output_path=temp_output,
+            engine=ae.engine,
+            mode=ae.mode,
+            denoising_strength=ae.denoising_strength,
+            quality=ae.quality,
+            progress_callback=_progress,
+        )
+
+        if not os.path.exists(temp_output) or os.path.getsize(temp_output) == 0:
+            raise FileNotFoundError(f"Output audio file not created at {temp_output}")
+
+        # Save to storage
+        output_storage_path = f'enhancer_audio/{ae.user_id}/output/{output_filename}'
+        if default_storage.exists(output_storage_path):
+            try:
+                default_storage.delete(output_storage_path)
+            except Exception:
+                pass
+
+        with open(temp_output, 'rb') as f:
+            saved_path = default_storage.save(output_storage_path, ContentFile(f.read()))
+
+        ae.output_file.name = saved_path
+
+        processing_time = time.time() - start_time
+        ae.refresh_from_db()
+        ae.status = 'SUCCESS'
+        ae.progress = 100
+        ae.processing_time = processing_time
+        ae.save(update_fields=['output_file', 'status', 'progress', 'processing_time'])
+        cache.set(f"audio_enhancer_progress_{audio_enhancement_id}", 100, timeout=3600)
+
+        _console(user_id, f"Audio enhancement #{audio_enhancement_id} terminé ✓ ({processing_time:.1f}s)")
+        logger.info(f"WORKER: enhance_audio END (SUCCESS)  ID={audio_enhancement_id}")
+        return {'ok': True}
+
+    except Exception as e:
+        error_msg = str(e)
+        logger.error(f"WORKER: enhance_audio FAILURE  ID={audio_enhancement_id}: {error_msg}", exc_info=True)
+        try:
+            ae.refresh_from_db()
+            ae.status = 'FAILURE'
+            ae.error_message = error_msg
+            ae.save(update_fields=['status', 'error_message'])
+            cache.set(f"audio_enhancer_progress_{audio_enhancement_id}", 0, timeout=3600)
+            _console(user_id, f"Audio enhancement #{audio_enhancement_id} échoué: {error_msg}")
+        except AudioEnhancement.DoesNotExist:
+            pass
+        return {'ok': False, 'error': error_msg}
+    finally:
+        try:
+            if 'temp_output' in dir() and os.path.exists(temp_output):
+                os.remove(temp_output)
+        except Exception:
+            pass
+
+
+def _set_audio_progress(audio_enhancement_id: int, percent: int) -> None:
+    try:
+        pct = max(0, min(100, int(percent)))
+        cache.set(f"audio_enhancer_progress_{audio_enhancement_id}", pct, timeout=3600)
+        AudioEnhancement.objects.filter(pk=audio_enhancement_id).update(progress=pct)
+    except Exception:
+        pass
 
 
 def _enhance_image(enhancement: Enhancement, user_id: int) -> dict:
