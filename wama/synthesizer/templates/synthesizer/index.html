@@ -47,6 +47,10 @@
         <option value="{{ value }}" {% if value == preferred_language %}selected{% endif %}>{{ label }}</option>
         {% endfor %}
     </select>
+    <div id="lang-compat-warning" class="alert alert-warning py-1 px-2 mt-1 mb-0 small" style="display:none;">
+        <i class="fas fa-exclamation-triangle"></i>
+        Ce modèle ne supporte que l'anglais. Le texte sera prononcé avec une phonologie anglaise.
+    </div>
 </div>
 
 <!-- Voice Preset -->
@@ -493,6 +497,10 @@
                             <option value="{{ value }}">{{ label }}</option>
                             {% endfor %}
                         </select>
+                        <div id="settings-lang-compat-warning" class="alert alert-warning py-1 px-2 mt-1 mb-0 small" style="display:none;">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            Ce modèle ne supporte que l'anglais. Le texte sera prononcé avec une phonologie anglaise.
+                        </div>
                     </div>
 
                     <!-- Voice Preset -->
@@ -607,6 +615,10 @@
                         <option value="{{ value }}">{{ label }}</option>
                         {% endfor %}
                     </select>
+                    <div id="batch-lang-compat-warning" class="alert alert-warning py-1 px-2 mt-1 mb-0 small" style="display:none;">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        Ce modèle ne supporte que l'anglais. Le texte sera prononcé avec une phonologie anglaise.
+                    </div>
                 </div>
 
                 <!-- Voice Preset -->
@@ -779,6 +791,20 @@ document.addEventListener('DOMContentLoaded', function () {
     const URLS = window.WAMA_CONFIG.urls;
     const csrf = window.WAMA_CONFIG.csrfToken;
 
+    // Language compatibility warning for batch settings modal
+    const ENGLISH_ONLY_MODELS = new Set(['tacotron2', 'speedy_speech', 'vits']);
+    function _updateBatchLangWarning() {
+        const model = document.getElementById('batchSettingsTtsModel');
+        const lang  = document.getElementById('batchSettingsLanguage');
+        const warn  = document.getElementById('batch-lang-compat-warning');
+        if (model && lang && warn)
+            warn.style.display = (ENGLISH_ONLY_MODELS.has(model.value) && lang.value !== 'en') ? 'block' : 'none';
+    }
+    const _batchModel = document.getElementById('batchSettingsTtsModel');
+    const _batchLang  = document.getElementById('batchSettingsLanguage');
+    if (_batchModel) _batchModel.addEventListener('change', _updateBatchLangWarning);
+    if (_batchLang)  _batchLang.addEventListener('change', _updateBatchLangWarning);
+
     // Chevron rotation on collapse
     document.addEventListener('show.bs.collapse', function (e) {
         if (e.target.id && e.target.id.startsWith('batchItems')) {
@@ -831,6 +857,7 @@ document.addEventListener('DOMContentLoaded', function () {
         sel('batchSettingsVoicePreset', btn.dataset.voicePreset || 'default');
         setSlider('batchSettingsSpeed', 'batchSettingsSpeedValue', btn.dataset.speed || '1.0');
         setSlider('batchSettingsPitch', 'batchSettingsPitchValue', btn.dataset.pitch || '1.0');
+        _updateBatchLangWarning();
         batchSettingsModal.show();
     });
 

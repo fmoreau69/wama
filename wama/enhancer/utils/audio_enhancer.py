@@ -19,39 +19,134 @@ logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
+# torchaudio 2.9+ compatibility patch (TorchCodec → soundfile shim)
+# ---------------------------------------------------------------------------
+
+def _patch_torchaudio_compat() -> None:
+    """
+    torchaudio 2.9 replaced load/save/info with TorchCodec (requires FFmpeg).
+    deepfilternet also needs torchaudio.backend.common (removed in 2.0).
+
+    Apply soundfile-based shims for all three — called once at module import
+    so both ResembleEnhance and DeepFilterNet backends benefit.
+    """
+    import sys
+    import types
+
+    try:
+        import torchaudio
+        from collections import namedtuple
+
+        # ── AudioMetaData ─────────────────────────────────────────────────
+        AudioMetaData = getattr(torchaudio, 'AudioMetaData', None)
+        if AudioMetaData is None:
+            AudioMetaData = namedtuple(
+                'AudioMetaData',
+                ['sample_rate', 'num_frames', 'num_channels', 'bits_per_sample', 'encoding']
+            )
+
+        # ── torchaudio.backend.common stub ────────────────────────────────
+        if 'torchaudio.backend.common' not in sys.modules:
+            backend_mod = types.ModuleType('torchaudio.backend')
+            common_mod = types.ModuleType('torchaudio.backend.common')
+            common_mod.AudioMetaData = AudioMetaData
+            sys.modules['torchaudio.backend'] = backend_mod
+            sys.modules['torchaudio.backend.common'] = common_mod
+            torchaudio.backend = backend_mod
+
+        import soundfile as sf
+        import torch as _torch
+
+        _AudioMetaData = AudioMetaData  # capture for closure
+
+        if not hasattr(torchaudio, 'info'):
+            def _info_shim(path, **kwargs):
+                with sf.SoundFile(path) as f:
+                    return _AudioMetaData(
+                        sample_rate=f.samplerate,
+                        num_frames=f.frames,
+                        num_channels=f.channels,
+                        bits_per_sample=16,
+                        encoding='PCM_S',
+                    )
+            torchaudio.info = _info_shim
+
+        # Always override load/save to bypass TorchCodec (needs FFmpeg)
+        def _load_shim(path, frame_offset=0, num_frames=-1, normalize=True,
+                       channels_first=True, format=None, buffer_size=4096,
+                       backend=None, **kwargs):
+            read_kwargs = dict(start=frame_offset, dtype='float32', always_2d=True)
+            if num_frames != -1:
+                read_kwargs['frames'] = num_frames
+            data, sr = sf.read(path, **read_kwargs)
+            t = _torch.from_numpy(data.T if channels_first else data)
+            return t, sr
+
+        def _save_shim(path, src, sample_rate, channels_first=True, **kwargs):
+            import numpy as np
+            arr = src.numpy() if not isinstance(src, np.ndarray) else src
+            if channels_first:
+                arr = arr.T  # [C, T] → [T, C]
+            sf.write(str(path), arr, sample_rate)
+
+        torchaudio.load = _load_shim
+        torchaudio.save = _save_shim
+
+        logger.debug("[audio_enhancer] torchaudio compat patch applied (soundfile shims)")
+
+    except Exception as e:
+        logger.warning("[audio_enhancer] torchaudio compat patch failed: %s", e)
+
+
+# Apply at import time so both backends benefit
+_patch_torchaudio_compat()
+
+
+# ---------------------------------------------------------------------------
 # Torch 2.x / deepspeed compatibility patch
 # ---------------------------------------------------------------------------
 
 def _patch_torch_elastic() -> None:
     """
-    deepspeed 0.12.4 is incompatible with torch 2.x: it imports `log` and
-    `_get_socket_with_port` from torch.distributed.elastic.agent.server.api,
-    both of which were removed in torch 2.x.
+    deepspeed is incompatible with torch 2.x and is only used by resemble_enhance
+    for training configuration — never called during inference.
 
-    Strategy: replace deepspeed in sys.modules with a MagicMock BEFORE it starts
-    loading.  resemble_enhance uses deepspeed only for training configuration;
-    inference (loading weights + running the model) never calls deepspeed code
-    paths, so the mock is safe.
+    Strategy: install a meta-path finder that intercepts ALL deepspeed.* imports
+    and returns stub modules, so resemble_enhance loads without error.
     """
     import sys
-    if 'deepspeed' not in sys.modules:
-        import types
-        from unittest.mock import MagicMock
-        _mm = MagicMock()
-        # Use types.ModuleType so __spec__, __path__, __package__ are proper
-        # module-level attributes — MagicMock returns MagicMock objects for
-        # those attributes, which breaks Python 3.12 importlib's checks.
-        ds = types.ModuleType('deepspeed')
-        ds.__spec__    = None   # importlib: "no ModuleSpec for this module"
-        ds.__path__    = []     # makes it look like a package
-        ds.__package__ = 'deepspeed'
-        ds.__loader__  = None
-        ds.__version__ = '0.0.0-mock'
-        # Module-level __getattr__ returns MagicMock for any attribute access
-        # (DeepSpeedConfig, ZeroOptimConfig, etc. used only for type hints)
-        ds.__getattr__ = lambda name: _mm
-        sys.modules['deepspeed'] = ds
-        logger.debug("[audio_enhancer] deepspeed mocked for torch 2.x inference compat")
+    if any(f.__class__.__name__ == '_DeepSpeedMockFinder' for f in sys.meta_path):
+        return  # already installed
+
+    import types
+    import importlib.abc
+    import importlib.machinery
+    from unittest.mock import MagicMock
+
+    _shared_mm = MagicMock()
+
+    class _DeepSpeedMockLoader(importlib.abc.Loader):
+        def create_module(self, spec):
+            return None  # default module object
+
+        def exec_module(self, module):
+            module.__path__    = []
+            module.__version__ = '0.0.0-mock'
+            # Any attribute access (class names, functions, …) returns MagicMock
+            module.__getattr__ = lambda name: _shared_mm
+
+    class _DeepSpeedMockFinder(importlib.abc.MetaPathFinder):
+        _loader = _DeepSpeedMockLoader()
+
+        def find_spec(self, fullname, path, target=None):
+            if fullname == 'deepspeed' or fullname.startswith('deepspeed.'):
+                return importlib.machinery.ModuleSpec(
+                    fullname, self._loader, is_package=True
+                )
+            return None
+
+    sys.meta_path.insert(0, _DeepSpeedMockFinder())
+    logger.debug("[audio_enhancer] deepspeed mock finder installed (all deepspeed.* → stubs)")
 
 
 # ---------------------------------------------------------------------------
@@ -148,7 +243,7 @@ class ResembleEnhanceBackend:
         Returns:
             output_path on success
         """
-        import torchaudio
+        import torchaudio  # already patched at module load; import for local reference
 
         device = self._get_device()
         logger.info(f"[ResembleEnhance] device={device}, mode={mode}, nfe={nfe}, tau={denoising_strength}")
@@ -221,15 +316,31 @@ class DeepFilterNetBackend:
         try:
             import df  # noqa: F401
             return True
-        except ImportError:
+        except Exception as e:
+            logger.warning("[DeepFilterNet] import df failed: %s", e)
             return False
 
     def _ensure_loaded(self):
         if self._model is None:
             logger.info("[DeepFilterNet] Loading model…")
-            os.environ['DF_MODEL_HOME'] = str(self._cache_dir)
-            from df import init_df
-            self._model, self._df_state, _ = init_df(model_base_dir=str(self._cache_dir))
+            # Model lives at: <cache_dir>/DeepFilterNet3/config.ini
+            # Pass the model directory directly; deepfilternet skips download
+            # when the path is not one of the PRETRAINED_MODELS names.
+            import df.enhance as _df_enhance
+            model_dir = self._cache_dir / "DeepFilterNet3"
+            if not (model_dir / "config.ini").exists():
+                # First run: redirect get_cache_dir so maybe_download_model()
+                # saves to our AI-models directory.
+                _orig = _df_enhance.get_cache_dir
+                _df_enhance.get_cache_dir = lambda: str(self._cache_dir)
+                try:
+                    from df import init_df
+                    self._model, self._df_state, _ = init_df("DeepFilterNet3")
+                finally:
+                    _df_enhance.get_cache_dir = _orig
+            else:
+                from df import init_df
+                self._model, self._df_state, _ = init_df(str(model_dir))
             logger.info("[DeepFilterNet] Model loaded ✓")
 
     def enhance(

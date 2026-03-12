@@ -1,6 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import User
-from wama.common.utils.media_paths import upload_to_user_input, upload_to_user_output
+from wama.common.utils.media_paths import UploadToUserPath
 
 
 class Enhancement(models.Model):
@@ -35,8 +35,8 @@ class Enhancement(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     # Input/Output files
-    input_file = models.FileField(upload_to=upload_to_user_input('enhancer'))
-    output_file = models.FileField(upload_to=upload_to_user_output('enhancer'), blank=True, null=True)
+    input_file = models.FileField(upload_to=UploadToUserPath('enhancer', 'input/media'))
+    output_file = models.FileField(upload_to=UploadToUserPath('enhancer', 'output/media'), blank=True, null=True)
 
     # Media properties
     width = models.IntegerField(default=0)
@@ -123,9 +123,9 @@ class AudioEnhancement(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='audio_enhancements')
     created_at = models.DateTimeField(auto_now_add=True)
 
-    input_file = models.FileField(upload_to=upload_to_user_input('enhancer_audio'))
+    input_file = models.FileField(upload_to=UploadToUserPath('enhancer', 'input/audio'))
     output_file = models.FileField(
-        upload_to=upload_to_user_output('enhancer_audio'), blank=True, null=True
+        upload_to=UploadToUserPath('enhancer', 'output/audio'), blank=True, null=True
     )
 
     file_size = models.BigIntegerField(default=0, help_text='Input file size in bytes')

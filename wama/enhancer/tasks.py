@@ -197,7 +197,7 @@ def enhance_audio(self, audio_enhancement_id: int):
             raise FileNotFoundError(f"Output audio file not created at {temp_output}")
 
         # Save to storage
-        output_storage_path = f'enhancer_audio/{ae.user_id}/output/{output_filename}'
+        output_storage_path = f'enhancer/{ae.user_id}/output/audio/{output_filename}'
         if default_storage.exists(output_storage_path):
             try:
                 default_storage.delete(output_storage_path)
@@ -207,10 +207,9 @@ def enhance_audio(self, audio_enhancement_id: int):
         with open(temp_output, 'rb') as f:
             saved_path = default_storage.save(output_storage_path, ContentFile(f.read()))
 
-        ae.output_file.name = saved_path
-
         processing_time = time.time() - start_time
         ae.refresh_from_db()
+        ae.output_file.name = saved_path
         ae.status = 'SUCCESS'
         ae.progress = 100
         ae.processing_time = processing_time
@@ -328,7 +327,7 @@ def _enhance_image(enhancement: Enhancement, user_id: int) -> dict:
 
         # Save output file directly to storage to force overwrite without Django's uniqueness check
         from django.core.files.storage import default_storage
-        output_storage_path = f'enhancer/{enhancement.user_id}/output/{output_filename}'
+        output_storage_path = f'enhancer/{enhancement.user_id}/output/media/{output_filename}'
 
         # Force delete if exists (handles orphaned files)
         if default_storage.exists(output_storage_path):
@@ -354,18 +353,16 @@ def _enhance_image(enhancement: Enhancement, user_id: int) -> dict:
             logger.error(f"ERROR: File was NOT saved to storage at {saved_path}")
 
         # Update the FileField to point to the saved file
-        enhancement.output_file.name = saved_path
-        logger.info(f"Output file field updated: {enhancement.output_file.name}")
-
-        # Update dimensions
         file_size = os.path.getsize(output_path)
         logger.info(f"Temporary file size: {file_size} bytes")
 
-        enhancement.output_width = width
-        enhancement.output_height = height
-        enhancement.output_file_size = file_size
         try:
             enhancement.refresh_from_db()
+            enhancement.output_file.name = saved_path
+            logger.info(f"Output file field updated: {enhancement.output_file.name}")
+            enhancement.output_width = width
+            enhancement.output_height = height
+            enhancement.output_file_size = file_size
             enhancement.save(update_fields=['output_file', 'output_width', 'output_height', 'output_file_size'])
             logger.info("Database updated with output file info")
         except Enhancement.DoesNotExist:
@@ -547,7 +544,7 @@ def _enhance_video(enhancement: Enhancement, user_id: int) -> dict:
 
         # Save output file directly to storage to force overwrite without Django's uniqueness check
         from django.core.files.storage import default_storage
-        output_storage_path = f'enhancer/{enhancement.user_id}/output/{output_filename}'
+        output_storage_path = f'enhancer/{enhancement.user_id}/output/media/{output_filename}'
 
         # Force delete if exists (handles orphaned files)
         if default_storage.exists(output_storage_path):
@@ -573,15 +570,13 @@ def _enhance_video(enhancement: Enhancement, user_id: int) -> dict:
             logger.error(f"ERROR: File was NOT saved to storage at {saved_path}")
 
         # Update the FileField to point to the saved file
-        enhancement.output_file.name = saved_path
-        logger.info(f"Output file field updated: {enhancement.output_file.name}")
-
-        # Update dimensions
-        enhancement.output_width = output_width
-        enhancement.output_height = output_height
-        enhancement.output_file_size = os.path.getsize(output_path)
         try:
             enhancement.refresh_from_db()
+            enhancement.output_file.name = saved_path
+            logger.info(f"Output file field updated: {enhancement.output_file.name}")
+            enhancement.output_width = output_width
+            enhancement.output_height = output_height
+            enhancement.output_file_size = os.path.getsize(output_path)
             enhancement.save(update_fields=['output_file', 'output_width', 'output_height', 'output_file_size'])
         except Enhancement.DoesNotExist:
             logger.warning(f"Enhancement {enhancement.id} was deleted during processing")

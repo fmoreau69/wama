@@ -367,9 +367,13 @@ def _generate_bark(text: str, language: str = "fr",
     audio_array = _bark_funcs["generate_audio"](text, history_prompt=speaker)
     sample_rate = _bark_funcs["SAMPLE_RATE"]
 
-    audio_array = np.array(audio_array)
-    if audio_array.dtype != np.int16:
-        audio_array = (audio_array * 32767).astype(np.int16)
+    audio_array = np.array(audio_array, dtype=np.float32)
+    # Normalize to [-1, 1] before int16 conversion — Bark output can exceed ±1.0
+    # which causes clipping/saturation without normalization.
+    peak = np.abs(audio_array).max()
+    if peak > 1e-6:
+        audio_array = audio_array / peak
+    audio_array = (audio_array * 32767).astype(np.int16)
 
     tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False, dir=str(PROJECT_DIR / "logs"))
     write_wav(tmp.name, sample_rate, audio_array)

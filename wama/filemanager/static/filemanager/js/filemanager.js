@@ -1129,7 +1129,7 @@
             const id = zone.id || '';
             if (id === 'dropZone') return 'describer';
             if (id === 'dropZoneEnhancer') return 'enhancer';
-            if (id === 'dropZoneAudio') return 'enhancer_audio';
+            if (id === 'dropZoneAudio') return 'enhancer';
             if (id === 'dropZoneTranscriber' || id.includes('transcriber')) return 'transcriber';
             if (id === 'dropZoneAnonymizer' || id.includes('anonymizer')) return 'anonymizer';
             if (id === 'dropZoneSynthesizer' || id.includes('synthesizer')) return 'synthesizer';

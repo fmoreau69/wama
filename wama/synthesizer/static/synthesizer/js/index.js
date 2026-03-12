@@ -36,6 +36,25 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // === Language compatibility warning ===
+    const ENGLISH_ONLY_MODELS = new Set(['tacotron2', 'speedy_speech', 'vits']);
+
+    function checkLangCompat(modelValue, langValue, warningEl) {
+        if (!warningEl) return;
+        warningEl.style.display =
+            (ENGLISH_ONLY_MODELS.has(modelValue) && langValue !== 'en') ? 'block' : 'none';
+    }
+
+    const langSelect      = document.getElementById('language');
+    const langWarning     = document.getElementById('lang-compat-warning');
+
+    function updateMainLangWarning() {
+        if (ttsModelSelect && langSelect)
+            checkLangCompat(ttsModelSelect.value, langSelect.value, langWarning);
+    }
+
+    if (langSelect) langSelect.addEventListener('change', updateMainLangWarning);
+
     // === Higgs Audio model toggle ===
     function toggleHiggsOptions(modelValue) {
         const higgsOptions = document.getElementById('higgsOptions');
@@ -51,9 +70,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
     const ttsModelSelect = document.getElementById('tts_model');
     if (ttsModelSelect) {
-        ttsModelSelect.addEventListener('change', (e) => toggleHiggsOptions(e.target.value));
+        ttsModelSelect.addEventListener('change', (e) => {
+            toggleHiggsOptions(e.target.value);
+            updateMainLangWarning();
+        });
         // Initialize on page load
         toggleHiggsOptions(ttsModelSelect.value);
+        updateMainLangWarning();
     }
 
     const multiSpeakerCheckbox = document.getElementById('multi_speaker');
@@ -226,6 +249,17 @@ document.addEventListener('DOMContentLoaded', function() {
     const settingsModal = document.getElementById('settingsModal');
     const settingsModalInstance = settingsModal ? new bootstrap.Modal(settingsModal) : null;
 
+    // Live warning update inside item settings modal
+    const settingsTtsModelEl = document.getElementById('settingsTtsModel');
+    const settingsLanguageEl = document.getElementById('settingsLanguage');
+    const settingsLangWarning = document.getElementById('settings-lang-compat-warning');
+    function updateSettingsLangWarning() {
+        if (settingsTtsModelEl && settingsLanguageEl)
+            checkLangCompat(settingsTtsModelEl.value, settingsLanguageEl.value, settingsLangWarning);
+    }
+    if (settingsTtsModelEl) settingsTtsModelEl.addEventListener('change', updateSettingsLangWarning);
+    if (settingsLanguageEl) settingsLanguageEl.addEventListener('change', updateSettingsLangWarning);
+
     document.querySelectorAll('.settings-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             const id = btn.dataset.id;
@@ -244,6 +278,7 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('settingsSpeedValue').textContent = speed;
             document.getElementById('settingsPitch').value = pitch;
             document.getElementById('settingsPitchValue').textContent = pitch;
+            checkLangCompat(ttsModel, language, document.getElementById('settings-lang-compat-warning'));
 
             // Show modal
             if (settingsModalInstance) {

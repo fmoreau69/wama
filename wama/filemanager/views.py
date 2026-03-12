@@ -84,8 +84,10 @@ def build_file_tree(user):
             'text': 'Enhancer',
             'icon': 'fa fa-magic text-info',
             'children': [
-                {'id': 'enhancer_input', 'text': 'Input', 'path': f'enhancer/{user_id}/input', 'icon': 'fa fa-folder text-secondary'},
-                {'id': 'enhancer_output', 'text': 'Output', 'path': f'enhancer/{user_id}/output', 'icon': 'fa fa-folder text-success'},
+                {'id': 'enhancer_input_media', 'text': 'Input (Image/Vidéo)', 'path': f'enhancer/{user_id}/input/media', 'icon': 'fa fa-folder text-secondary'},
+                {'id': 'enhancer_input_audio', 'text': 'Input (Audio)', 'path': f'enhancer/{user_id}/input/audio', 'icon': 'fa fa-folder text-secondary'},
+                {'id': 'enhancer_output_media', 'text': 'Output (Image/Vidéo)', 'path': f'enhancer/{user_id}/output/media', 'icon': 'fa fa-folder text-success'},
+                {'id': 'enhancer_output_audio', 'text': 'Output (Audio)', 'path': f'enhancer/{user_id}/output/audio', 'icon': 'fa fa-folder text-success'},
             ]
         },
         {
@@ -878,7 +880,7 @@ def api_import_to_app(request):
     # Validate app name
     # All apps accept file imports:
     # - Imager: accepts prompt files (.txt/.json/.yaml) and reference images
-    valid_apps = ['anonymizer', 'describer', 'enhancer', 'enhancer_audio', 'imager', 'synthesizer', 'transcriber', 'face_analyzer', 'cam_analyzer']
+    valid_apps = ['anonymizer', 'describer', 'enhancer', 'imager', 'synthesizer', 'transcriber', 'face_analyzer', 'cam_analyzer']
     if target_app not in valid_apps:
         return JsonResponse({'error': f'Invalid app: {target_app}'}, status=400)
 
@@ -899,8 +901,6 @@ def api_import_to_app(request):
             result = import_to_describer(source_path, user)
         elif target_app == 'enhancer':
             result = import_to_enhancer(source_path, user)
-        elif target_app == 'enhancer_audio':
-            result = import_audio_to_enhancer(source_path, user)
         elif target_app == 'imager':
             result = import_to_imager(source_path, user)
         elif target_app == 'synthesizer':
@@ -961,126 +961,85 @@ def import_to_describer(source_path, user):
 
 
 def import_to_enhancer(source_path, user):
-    """Import a file to Enhancer app."""
-    from wama.enhancer.models import Enhancement
-    from wama.common.utils.video_utils import get_media_info
+    """Import a file to Enhancer app (image, video, or audio)."""
     from wama.common.utils.media_paths import get_app_media_path
     import shutil
 
-    # Detect media type from extension
-    image_extensions = ['.jpg', '.jpeg', '.png', '.bmp', '.tif', '.tiff', '.webp', '.heic']
-    video_extensions = ['.mp4', '.webm', '.mkv', '.flv', '.gif', '.avi', '.mov', '.mpg', '.qt', '.3gp']
+    image_extensions = {'.jpg', '.jpeg', '.png', '.bmp', '.tif', '.tiff', '.webp', '.heic'}
+    video_extensions = {'.mp4', '.webm', '.mkv', '.flv', '.gif', '.avi', '.mov', '.mpg', '.qt', '.3gp'}
+    audio_extensions = {'.mp3', '.wav', '.flac', '.ogg', '.m4a', '.aac', '.opus', '.wma'}
 
     ext = source_path.suffix.lower()
-    if ext in image_extensions:
-        media_type = 'image'
-    elif ext in video_extensions:
-        media_type = 'video'
+
+    if ext in audio_extensions:
+        # ── Audio ─────────────────────────────────────────────────────────────
+        from wama.enhancer.models import AudioEnhancement
+
+        dest_dir = get_app_media_path('enhancer', user.id, 'input/audio')
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        dest_path = dest_dir / source_path.name
+        if dest_path.exists():
+            stem, suffix, counter = dest_path.stem, dest_path.suffix, 1
+            while dest_path.exists():
+                dest_path = dest_dir / f"{stem}_{counter}{suffix}"
+                counter += 1
+        shutil.copy2(source_path, dest_path)
+
+        duration = 0.0
+        file_size = dest_path.stat().st_size
+        try:
+            from wama.common.utils.video_utils import get_media_info
+            info = get_media_info(str(dest_path))
+            duration = info.get('duration', 0.0)
+            file_size = info.get('file_size', file_size)
+        except Exception:
+            pass
+
+        relative_path = f'enhancer/{user.id}/input/audio/{dest_path.name}'
+        ae = AudioEnhancement.objects.create(user=user, duration=duration, file_size=file_size)
+        ae.input_file.name = relative_path
+        ae.save()
+        return {
+            'imported': True, 'app': 'enhancer', 'media_type': 'audio',
+            'id': ae.id, 'filename': dest_path.name,
+            'duration': duration, 'status': ae.status, 'progress': ae.progress,
+            'path': relative_path,
+        }
+
+    elif ext in image_extensions or ext in video_extensions:
+        # ── Image / Video ─────────────────────────────────────────────────────
+        from wama.enhancer.models import Enhancement
+        from wama.common.utils.video_utils import get_media_info
+
+        media_type = 'image' if ext in image_extensions else 'video'
+        dest_dir = get_app_media_path('enhancer', user.id, 'input/media')
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        dest_path = dest_dir / source_path.name
+        if dest_path.exists():
+            stem, suffix, counter = dest_path.stem, dest_path.suffix, 1
+            while dest_path.exists():
+                dest_path = dest_dir / f"{stem}_{counter}{suffix}"
+                counter += 1
+        shutil.copy2(source_path, dest_path)
+
+        media_info = get_media_info(str(dest_path))
+        relative_path = f'enhancer/{user.id}/input/media/{dest_path.name}'
+        enhancement = Enhancement.objects.create(
+            user=user, media_type=media_type,
+            width=media_info['width'], height=media_info['height'],
+            duration=media_info['duration'], file_size=media_info['file_size'],
+        )
+        enhancement.input_file.name = relative_path
+        enhancement.save()
+        return {
+            'imported': True, 'app': 'enhancer', 'media_type': media_type,
+            'id': enhancement.id, 'filename': dest_path.name,
+            'path': relative_path,
+            'width': media_info['width'], 'height': media_info['height'],
+        }
+
     else:
         raise ValueError(f"Unsupported file format: {ext}")
-
-    # Copy file to user-specific enhancer input folder
-    dest_dir = get_app_media_path('enhancer', user.id, 'input')
-    dest_dir.mkdir(parents=True, exist_ok=True)
-    dest_path = dest_dir / source_path.name
-
-    # Handle duplicate names
-    if dest_path.exists():
-        stem = dest_path.stem
-        suffix = dest_path.suffix
-        counter = 1
-        while dest_path.exists():
-            dest_path = dest_dir / f"{stem}_{counter}{suffix}"
-            counter += 1
-
-    shutil.copy2(source_path, dest_path)
-
-    # Get media info (dimensions, duration, etc.)
-    media_info = get_media_info(str(dest_path))
-
-    # Create Enhancement record with user-specific path
-    relative_path = f'enhancer/{user.id}/input/{dest_path.name}'
-
-    enhancement = Enhancement.objects.create(
-        user=user,
-        media_type=media_type,
-        width=media_info['width'],
-        height=media_info['height'],
-        duration=media_info['duration'],
-        file_size=media_info['file_size'],
-    )
-    enhancement.input_file.name = relative_path
-    enhancement.save()
-
-    return {
-        'imported': True,
-        'app': 'enhancer',
-        'id': enhancement.id,
-        'filename': dest_path.name,
-        'path': relative_path,
-        'media_type': media_type,
-        'width': media_info['width'],
-        'height': media_info['height'],
-    }
-
-
-def import_audio_to_enhancer(source_path, user):
-    """Import an audio file to the Enhancer audio queue."""
-    from wama.enhancer.models import AudioEnhancement
-    from wama.common.utils.media_paths import get_app_media_path
-    import shutil
-
-    audio_extensions = {'.mp3', '.wav', '.flac', '.ogg', '.m4a', '.aac', '.opus', '.wma'}
-    ext = source_path.suffix.lower()
-    if ext not in audio_extensions:
-        raise ValueError(f"Unsupported audio format: {ext}")
-
-    dest_dir = get_app_media_path('enhancer_audio', user.id, 'input')
-    dest_dir.mkdir(parents=True, exist_ok=True)
-    dest_path = dest_dir / source_path.name
-
-    if dest_path.exists():
-        stem = dest_path.stem
-        suffix = dest_path.suffix
-        counter = 1
-        while dest_path.exists():
-            dest_path = dest_dir / f"{stem}_{counter}{suffix}"
-            counter += 1
-
-    shutil.copy2(source_path, dest_path)
-
-    # Get audio duration and file size
-    duration = 0.0
-    file_size = dest_path.stat().st_size
-    try:
-        from wama.common.utils.video_utils import get_media_info
-        info = get_media_info(str(dest_path))
-        duration = info.get('duration', 0.0)
-        file_size = info.get('file_size', file_size)
-    except Exception:
-        pass
-
-    relative_path = f'enhancer_audio/{user.id}/input/{dest_path.name}'
-
-    ae = AudioEnhancement.objects.create(
-        user=user,
-        duration=duration,
-        file_size=file_size,
-    )
-    ae.input_file.name = relative_path
-    ae.save()
-
-    return {
-        'imported': True,
-        'app': 'enhancer_audio',
-        'id': ae.id,
-        'filename': dest_path.name,
-        'input_filename': dest_path.name,
-        'duration': duration,
-        'status': ae.status,
-        'progress': ae.progress,
-        'path': relative_path,
-    }
 
 
 def import_to_imager(source_path, user):
