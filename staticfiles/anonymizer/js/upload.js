@@ -80,29 +80,7 @@ $(function () {
     // Gestion du drop
     dropZone.addEventListener('drop', handleDrop, false);
 
-    async function handleDrop(e) {
-      // Check if this is a FileManager drop
-      if (window.FileManager && window.FileManager.getFileManagerData) {
-        const fileData = window.FileManager.getFileManagerData(e);
-        if (fileData && fileData.path) {
-          // Handle FileManager import
-          try {
-            const result = await window.FileManager.importToApp(fileData.path, 'anonymizer');
-            if (result.imported) {
-              // Reload the page to show the new file
-              window.location.reload();
-            }
-          } catch (error) {
-            console.error('FileManager import error:', error);
-            if (window.FileManager.showToast) {
-              window.FileManager.showToast('Erreur d\'import: ' + error.message, 'danger');
-            }
-          }
-          return;
-        }
-      }
-
-      // Regular file drop
+    function handleDrop(e) {
       const dt = e.dataTransfer;
       const files = dt.files;
 

@@ -1189,15 +1189,26 @@
                             bubbles: false,
                         }));
                     } else {
-                        // Other apps: server-side import → reload (or redirect for face_analyzer)
+                        // Other apps: server-side import → dispatch event, then reload if not handled
+                        const capturedZone = currentDropZone;
                         importToApp(dragData.path, app)
                             .then(result => {
                                 if (result.imported) {
                                     showToast(`Fichier importé vers ${app}`, 'success');
-                                    if (app === 'face_analyzer' && result.id) {
-                                        window.location.href = `/lab/face-analyzer/video/?session=${result.id}`;
-                                    } else {
-                                        window.location.reload();
+                                    // Dispatch cancelable event — allows drop zones to handle batch/special results
+                                    const ev = new CustomEvent('filemanager:imported', {
+                                        detail: result,
+                                        bubbles: false,
+                                        cancelable: true,
+                                    });
+                                    if (capturedZone) capturedZone.dispatchEvent(ev);
+                                    if (!ev.defaultPrevented) {
+                                        // No special handler — default behavior
+                                        if (app === 'face_analyzer' && result.id) {
+                                            window.location.href = `/lab/face-analyzer/video/?session=${result.id}`;
+                                        } else {
+                                            window.location.reload();
+                                        }
                                     }
                                 }
                             })

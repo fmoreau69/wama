@@ -7,6 +7,7 @@ import json
 import logging
 import os
 import re
+import threading
 from functools import wraps
 from django.shortcuts import render
 from django.http import JsonResponse
@@ -406,4 +407,98 @@ def ai_chat(request):
         return JsonResponse({'error': 'Invalid JSON'}, status=400)
     except Exception as e:
         logger.error(f"AI Chat error: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+# ---------------------------------------------------------------------------
+# Kokoro TTS (AI assistant vocalization)
+# ---------------------------------------------------------------------------
+
+_kokoro_pipelines = {}  # lang_code → KPipeline (lazy, cached)
+_kokoro_lock = threading.Lock()
+
+
+def _get_kokoro(lang_code: str):
+    """Lazy-load and cache a Kokoro pipeline per language code (thread-safe)."""
+    if lang_code not in _kokoro_pipelines:
+        with _kokoro_lock:
+            if lang_code not in _kokoro_pipelines:
+                kokoro_dir = str(settings.MODEL_PATHS.get('speech', {}).get(
+                    'kokoro', settings.AI_MODELS_DIR / 'models' / 'speech' / 'kokoro'))
+                os.makedirs(kokoro_dir, exist_ok=True)
+                # Must be set BEFORE importing kokoro/huggingface_hub
+                os.environ['HF_HUB_CACHE'] = kokoro_dir
+                os.environ['HUGGINGFACE_HUB_CACHE'] = kokoro_dir
+                from kokoro import KPipeline
+                _kokoro_pipelines[lang_code] = KPipeline(
+                    lang_code=lang_code, repo_id='hexgrad/Kokoro-82M')
+    return _kokoro_pipelines[lang_code]
+
+
+def _preload_kokoro():
+    """Pre-warm Kokoro French pipeline in background to avoid blocking first TTS request."""
+    try:
+        _get_kokoro('f')
+        logger.info("Kokoro TTS: French pipeline ready")
+    except Exception as e:
+        logger.warning(f"Kokoro TTS preload failed: {e}")
+
+
+threading.Thread(target=_preload_kokoro, daemon=True, name='kokoro-preload').start()
+
+
+@require_http_methods(["POST"])
+@csrf_protect
+def kokoro_tts(request):
+    """
+    Generate TTS audio with Kokoro and return a base64-encoded WAV.
+    Body: {"text": "...", "voice": "ff_siwis"}
+    """
+    if not request.user.is_authenticated:
+        return JsonResponse({'error': 'Authentification requise'}, status=401)
+    try:
+        data = json.loads(request.body)
+        text = (data.get('text') or '').strip()
+        voice = data.get('voice', 'ff_siwis')
+        if not text:
+            return JsonResponse({'error': 'text requis'}, status=400)
+
+        # Derive lang_code from voice prefix (ff_siwis → 'f', am_adam → 'a')
+        lang_code = voice[0] if voice else 'f'
+        pipeline = _get_kokoro(lang_code)
+
+        import io
+        import wave
+        import base64
+        import numpy as np
+
+        samples = []
+        for _, _, audio in pipeline(text, voice=voice, speed=1.0):
+            if audio is not None:
+                arr = audio.numpy() if hasattr(audio, 'numpy') else np.array(audio)
+                samples.append(arr)
+
+        if not samples:
+            return JsonResponse({'error': 'Aucun audio généré'}, status=500)
+
+        audio_np = np.concatenate(samples).astype(np.float32)
+        peak = np.abs(audio_np).max()
+        if peak > 1e-6:
+            audio_np /= peak
+        audio_int16 = (audio_np * 32767).clip(-32768, 32767).astype(np.int16)
+
+        buf = io.BytesIO()
+        with wave.open(buf, 'wb') as wf:
+            wf.setnchannels(1)
+            wf.setsampwidth(2)
+            wf.setframerate(24000)
+            wf.writeframes(audio_int16.tobytes())
+
+        audio_b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
+        return JsonResponse({'audio_b64': audio_b64})
+
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        logger.exception('kokoro_tts error')
         return JsonResponse({'error': str(e)}, status=500)

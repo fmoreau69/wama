@@ -159,6 +159,18 @@ document.addEventListener('DOMContentLoaded', function() {
         fileInput.addEventListener('change', (e) => {
             handleFilesWithDetect(e.target.files);
         });
+
+        // FileManager import result (vakata.dnd path — native drop event never fires for filemanager drags)
+        dropZone.addEventListener('filemanager:imported', (e) => {
+            const result = e.detail;
+            if (result.is_batch && result.tasks && result.tasks.length > 0) {
+                e.preventDefault(); // Prevent filemanager from reloading
+                _batchServerPath = result.server_path;
+                _batchFile = null;
+                _showBatchBar(null, result.tasks, result.warnings || [], true);
+            }
+            // Non-batch: let filemanager reload the page (defaultPrevented stays false)
+        });
     }
 
     // Start buttons

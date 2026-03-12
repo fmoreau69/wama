@@ -28,8 +28,9 @@ AI_MODELS_DIR = PROJECT_DIR / "AI-models"
 COQUI_DIR = AI_MODELS_DIR / "models" / "speech" / "coqui"
 BARK_DIR = AI_MODELS_DIR / "models" / "speech" / "bark"
 HIGGS_DIR = AI_MODELS_DIR / "models" / "speech" / "higgs"
+KOKORO_DIR = AI_MODELS_DIR / "models" / "speech" / "kokoro"
 
-for d in (COQUI_DIR, BARK_DIR, HIGGS_DIR):
+for d in (COQUI_DIR, BARK_DIR, HIGGS_DIR, KOKORO_DIR):
     d.mkdir(parents=True, exist_ok=True)
 
 # Environment variables
@@ -78,11 +79,13 @@ app = FastAPI(title="WAMA TTS Service", version="1.0")
 # ---------------------------------------------------------------------------
 import threading
 
-_current_engine = None       # "coqui", "bark", or "higgs"
-_current_model_name = None   # e.g. "xtts_v2", "bark", "higgs_audio"
+_current_engine = None       # "coqui", "bark", "higgs", or "kokoro"
+_current_model_name = None   # e.g. "xtts_v2", "bark", "higgs_audio", "kokoro"
 _tts_instance = None         # Coqui TTS instance
 _bark_funcs = None           # {"generate_audio": ..., "SAMPLE_RATE": ...}
 _higgs_engine = None         # HiggsAudioServeEngine instance
+_kokoro_pipelines = {}       # lang_code → KPipeline
+_kokoro_lock = threading.Lock()
 
 # Serialise concurrent Higgs generation requests.
 # _higgs_engine.generate() mutates self.current_past_key_values_bucket on the shared
@@ -103,6 +106,8 @@ from wama.common.tts.constants import (
     BARK_LANG_DEFAULTS,
     HIGGS_LANGUAGE_NAMES as _HIGGS_LANGUAGE_NAMES,
     PRESET_DOWNLOAD_MAPPING,
+    KOKORO_LANG_MAP as _KOKORO_LANG_MAP,
+    KOKORO_VOICE_MAP as _KOKORO_VOICE_MAP,
 )
 
 
@@ -121,6 +126,9 @@ def _unload_current():
         logger.info("Unloading Higgs Audio engine")
         del _higgs_engine
         _higgs_engine = None
+    elif _current_engine == "kokoro":
+        logger.info("Unloading Kokoro")
+        _kokoro_pipelines.clear()
 
     _current_engine = None
     _current_model_name = None
@@ -194,6 +202,11 @@ def _load_higgs():
     """Load Higgs Audio v2 engine."""
     global _current_engine, _current_model_name, _higgs_engine
 
+    # Redirect HF hub cache to our managed directory (must be before any HF import)
+    HIGGS_DIR.mkdir(parents=True, exist_ok=True)
+    os.environ['HF_HUB_CACHE'] = str(HIGGS_DIR)
+    os.environ['HUGGINGFACE_HUB_CACHE'] = str(HIGGS_DIR)
+
     # Patches required by boson_multimodal against transformers 4.57+
     # Applied here (lazily) to avoid ~60-90s import overhead at service startup.
     try:
@@ -256,6 +269,67 @@ def _load_higgs():
         logger.warning("[Higgs debug] CUDA graphs DISABLED via HIGGS_DISABLE_CUDA_GRAPHS")
 
 
+def _get_kokoro_pipeline(lang_code: str):
+    """Lazy-load a Kokoro pipeline for the given lang_code (thread-safe)."""
+    if lang_code not in _kokoro_pipelines:
+        with _kokoro_lock:
+            if lang_code not in _kokoro_pipelines:
+                # Must be set BEFORE importing kokoro/huggingface_hub
+                os.environ['HF_HUB_CACHE'] = str(KOKORO_DIR)
+                os.environ['HUGGINGFACE_HUB_CACHE'] = str(KOKORO_DIR)
+                from kokoro import KPipeline
+                _kokoro_pipelines[lang_code] = KPipeline(
+                    lang_code=lang_code, repo_id='hexgrad/Kokoro-82M')
+    return _kokoro_pipelines[lang_code]
+
+
+def _load_kokoro():
+    """Load Kokoro (preload French pipeline)."""
+    global _current_engine, _current_model_name
+    _get_kokoro_pipeline('f')
+    _current_engine = "kokoro"
+    _current_model_name = "kokoro"
+    logger.info("Kokoro loaded (French pipeline ready)")
+
+
+def _generate_kokoro(text: str, language: str = "fr",
+                     voice_preset: str = "default") -> str:
+    """Generate audio with Kokoro. Returns path to temp WAV file."""
+    import wave
+
+    lang_code = _KOKORO_LANG_MAP.get(language, 'a')
+    is_male = voice_preset in ('male_1', 'male_2')
+    voice = (_KOKORO_VOICE_MAP.get((lang_code, is_male))
+             or _KOKORO_VOICE_MAP.get((lang_code, False), 'af_heart'))
+
+    pipeline = _get_kokoro_pipeline(lang_code)
+
+    samples = []
+    for _, _, audio in pipeline(text, voice=voice, speed=1.0):
+        if audio is not None:
+            arr = audio.numpy() if hasattr(audio, 'numpy') else np.array(audio)
+            samples.append(arr)
+
+    if not samples:
+        raise RuntimeError("Kokoro: aucun audio généré")
+
+    audio_np = np.concatenate(samples).astype(np.float32)
+    peak = np.abs(audio_np).max()
+    if peak > 1e-6:
+        audio_np /= peak
+    audio_int16 = (audio_np * 32767).clip(-32768, 32767).astype(np.int16)
+
+    tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False, dir=str(PROJECT_DIR / "logs"))
+    tmp.close()
+    with wave.open(tmp.name, 'wb') as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(24000)
+        wf.writeframes(audio_int16.tobytes())
+
+    return tmp.name
+
+
 def _switch_model(model_name: str):
     """Switch to the requested model, unloading the current one first."""
     global _current_model_name
@@ -272,6 +346,8 @@ def _switch_model(model_name: str):
         _load_bark()
     elif model_name == "higgs_audio":
         _load_higgs()
+    elif model_name == "kokoro":
+        _load_kokoro()
     else:
         # Try as a Coqui model anyway
         _load_coqui(model_name)
@@ -614,6 +690,8 @@ def tts_endpoint(req: TTSRequest):
                 req.multi_speaker, req.scene_description,
                 req.options,
             )
+        elif _current_engine == "kokoro":
+            wav_path = _generate_kokoro(req.text, req.language, req.voice_preset)
         else:
             raise ValueError(f"Unknown engine: {_current_engine}")
 

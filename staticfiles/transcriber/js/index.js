@@ -81,22 +81,9 @@ document.addEventListener('DOMContentLoaded', function () {
     if (browseBtn) browseBtn.addEventListener('click', (e) => { e.stopPropagation(); fileInput.click(); });
     dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('drag-over'); });
     dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
-    dropZone.addEventListener('drop', async (e) => {
+    dropZone.addEventListener('drop', (e) => {
       e.preventDefault();
       dropZone.classList.remove('drag-over');
-
-      if (window.FileManager && window.FileManager.getFileManagerData) {
-        const fileData = window.FileManager.getFileManagerData(e);
-        if (fileData && fileData.path) {
-          try {
-            const result = await window.FileManager.importToApp(fileData.path, 'transcriber');
-            if (result.imported) window.location.reload();
-          } catch (error) {
-            console.error('FileManager import error:', error);
-          }
-          return;
-        }
-      }
       if (e.dataTransfer.files.length > 0) handleFiles(e.dataTransfer.files);
     });
   }

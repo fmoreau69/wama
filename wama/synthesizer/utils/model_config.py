@@ -32,10 +32,15 @@ BARK_DIR = MODEL_PATHS.get('speech', {}).get('bark',
 HIGGS_DIR = MODEL_PATHS.get('speech', {}).get('higgs',
     settings.AI_MODELS_DIR / "models" / "speech" / "higgs")
 
+# Kokoro models directory (hexgrad/Kokoro-82M)
+KOKORO_DIR = MODEL_PATHS.get('speech', {}).get('kokoro',
+    settings.AI_MODELS_DIR / "models" / "speech" / "kokoro")
+
 # Ensure directories exist
 Path(COQUI_DIR).mkdir(parents=True, exist_ok=True)
 Path(BARK_DIR).mkdir(parents=True, exist_ok=True)
 Path(HIGGS_DIR).mkdir(parents=True, exist_ok=True)
+Path(KOKORO_DIR).mkdir(parents=True, exist_ok=True)
 
 # =============================================================================
 # MODEL DEFINITIONS
@@ -97,6 +102,15 @@ SYNTHESIZER_MODELS = {
         'multi_speaker': True,
         'description': 'Higgs Audio v2 - Multi-speaker, Voice Cloning (24GB VRAM)',
         'languages': ['en', 'fr', 'es', 'de', 'it', 'pt', 'zh-cn', 'ja', 'ko'],
+    },
+    'kokoro': {
+        'model_id': 'hexgrad/Kokoro-82M',
+        'type': 'tts',
+        'engine': 'kokoro',
+        'multilingual': True,
+        'voice_cloning': False,
+        'description': 'Kokoro 82M - Léger, FR/EN/ES/IT/PT/JA/ZH, sans clonage vocal',
+        'languages': ['fr', 'en', 'es', 'it', 'pt', 'ja', 'zh-cn'],
     },
 }
 
@@ -164,6 +178,8 @@ def get_model_info(model_name: str = None) -> dict:
         info['cache_dir'] = str(BARK_DIR)
     elif info['engine'] == 'higgs':
         info['cache_dir'] = str(HIGGS_DIR)
+    elif info['engine'] == 'kokoro':
+        info['cache_dir'] = str(KOKORO_DIR)
 
     return info
 
@@ -178,7 +194,7 @@ def list_available_models() -> dict:
     result = {}
 
     for key, config in SYNTHESIZER_MODELS.items():
-        cache_dirs = {'coqui': str(COQUI_DIR), 'bark': str(BARK_DIR), 'higgs': str(HIGGS_DIR)}
+        cache_dirs = {'coqui': str(COQUI_DIR), 'bark': str(BARK_DIR), 'higgs': str(HIGGS_DIR), 'kokoro': str(KOKORO_DIR)}
         result[key] = {
             **config,
             'cache_dir': cache_dirs.get(config['engine'], str(COQUI_DIR)),

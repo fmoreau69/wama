@@ -53,6 +53,7 @@ MODEL_PATHS = {
         'diarization': AI_MODELS_DIR / "models" / "speech" / "diarization",
         'resemble_enhance': AI_MODELS_DIR / "models" / "speech" / "resemble-enhance",
         'deepfilternet': AI_MODELS_DIR / "models" / "speech" / "deepfilternet",
+        'kokoro': AI_MODELS_DIR / "models" / "speech" / "kokoro",
     },
     # Diffusion models (image/video generation)
     'diffusion': {

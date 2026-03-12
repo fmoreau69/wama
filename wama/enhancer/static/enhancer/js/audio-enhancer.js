@@ -105,28 +105,9 @@ document.addEventListener('DOMContentLoaded', function () {
     dropZone.addEventListener('dragleave', () => {
       dropZone.classList.remove('drag-over');
     });
-    dropZone.addEventListener('drop', async e => {
+    dropZone.addEventListener('drop', e => {
       e.preventDefault();
       dropZone.classList.remove('drag-over');
-
-      // FileManager drag-and-drop (vakata dnd dispatches a synthetic drop)
-      if (window.FileManager && window.FileManager.getFileManagerData) {
-        const fileData = window.FileManager.getFileManagerData(e);
-        if (fileData && fileData.path) {
-          try {
-            const result = await window.FileManager.importToApp(fileData.path, 'enhancer_audio');
-            if (result.imported) {
-              appendAudioRow(result);
-            } else {
-              alert('Import FileManager échoué: ' + (result.error || 'Erreur inconnue'));
-            }
-          } catch (err) {
-            alert('Erreur import FileManager: ' + err.message);
-          }
-          return;
-        }
-      }
-
       // Regular file drop from OS
       const files = Array.from(e.dataTransfer.files).filter(f =>
         /\.(mp3|wav|flac|ogg|m4a|aac|opus|wma)$/i.test(f.name)

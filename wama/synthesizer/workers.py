@@ -421,6 +421,7 @@ def _synthesize_via_service(synthesis, text, output_path, speaker_wav,
     # Determine chunk size based on model
     chunk_limits = {
         'bark': 200,
+        'kokoro': 400,   # EspeakG2P (FR/ES/IT/PT) truncates long texts — keep short
         'higgs_audio': 500,
         'xtts_v2': 1000,
     }

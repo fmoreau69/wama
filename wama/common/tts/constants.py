@@ -14,12 +14,13 @@ Pour ajouter un modèle, une langue ou un preset, modifiez uniquement ce fichier
 # ---------------------------------------------------------------------------
 
 TTS_MODEL_CHOICES = [
-    ('xtts_v2',       'XTTS v2 (Multilingue, Clonage vocal)'),
-    ('bark',          'Bark (Naturel, Expressif, Effets sonores)'),
-    ('vits',          'VITS (Rapide, Bonne qualité)'),
-    ('tacotron2',     'Tacotron2 (Classique, Stable)'),
-    ('speedy_speech', 'SpeedySpeech (Très rapide)'),
-    ('higgs_audio',   'Higgs Audio v2 (Multilocuteur, Clonage vocal, 24 Go VRAM)'),
+    ('xtts_v2',       'XTTS v2 (Clonage vocal, 16 langues)'),
+    ('bark',          'Bark (Naturel, Expressif, Effets sonores, 14 langues)'),
+    ('kokoro',        'Kokoro 82M (Léger, FR/EN/ES/IT/PT/JA/ZH)'),
+    ('vits',          'VITS (Rapide, EN uniquement)'),
+    ('tacotron2',     'Tacotron2 (Classique, EN uniquement)'),
+    ('speedy_speech', 'SpeedySpeech (Très rapide, EN uniquement)'),
+    ('higgs_audio',   'Higgs Audio v2 (Multilocuteur, Clonage vocal, 9 langues, 24 Go VRAM)'),
 ]
 
 # ---------------------------------------------------------------------------
@@ -124,4 +125,44 @@ PRESET_DOWNLOAD_MAPPING = {
     "male_2":   ("male_2.wav",   f"{_LJ_BASE}/LJ001-0020.wav"),
     "female_1": ("female_1.wav", f"{_LJ_BASE}/LJ001-0010.wav"),
     "female_2": ("female_2.wav", f"{_LJ_BASE}/LJ001-0025.wav"),
+}
+
+# ---------------------------------------------------------------------------
+# Kokoro — mapping langue WAMA → lang_code Kokoro
+# ---------------------------------------------------------------------------
+
+KOKORO_LANG_MAP = {
+    'fr':    'f',   # French (EspeakG2P)
+    'en':    'a',   # American English
+    'es':    'e',   # Spanish (EspeakG2P)
+    'it':    'i',   # Italian (EspeakG2P)
+    'pt':    'p',   # Portuguese BR (EspeakG2P)
+    'ja':    'j',   # Japanese (requires misaki[ja])
+    'zh-cn': 'z',   # Mandarin (requires misaki[zh])
+    # Langues non supportées par Kokoro → fallback English
+    'de': 'a', 'nl': 'a', 'pl': 'a', 'tr': 'a',
+    'ru': 'a', 'cs': 'a', 'ar': 'a', 'ko': 'a',
+}
+
+# ---------------------------------------------------------------------------
+# Kokoro — mapping (lang_code, is_male) → nom de voix
+# ---------------------------------------------------------------------------
+
+KOKORO_VOICE_MAP = {
+    ('a', False): 'af_heart',     # American female
+    ('a', True):  'am_adam',      # American male
+    ('b', False): 'bf_emma',      # British female
+    ('b', True):  'bm_george',    # British male
+    ('f', False): 'ff_siwis',     # French female (seule voix FR disponible)
+    ('f', True):  'ff_siwis',     # French (pas de voix masculine FR en 0.9.x)
+    ('e', False): 'ef_dora',      # Spanish female
+    ('e', True):  'em_alex',      # Spanish male
+    ('i', False): 'if_sara',      # Italian female
+    ('i', True):  'im_nicola',    # Italian male
+    ('p', False): 'pf_dora',      # Portuguese BR female
+    ('p', True):  'pm_alex',      # Portuguese BR male
+    ('j', False): 'jf_alpha',     # Japanese female
+    ('j', True):  'jm_kumo',      # Japanese male
+    ('z', False): 'zf_001',       # Chinese female
+    ('z', True):  'zm_010',       # Chinese male
 }

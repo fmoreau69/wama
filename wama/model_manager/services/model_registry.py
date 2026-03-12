@@ -475,43 +475,76 @@ class ModelRegistry:
             logger.debug(f"Could not import Anonymizer models: {e}")
 
     def _discover_transcriber_models(self):
-        """Discover Transcriber app models (Whisper)."""
+        """Discover Transcriber app models (Whisper, VibeVoice, Qwen3-ASR)."""
         try:
-            from wama.transcriber.utils.model_config import TRANSCRIBER_MODELS, WHISPER_DIR
+            from wama.transcriber.utils.model_config import (
+                TRANSCRIBER_MODELS, WHISPER_DIR, VIBEVOICE_DIR, QWEN_ASR_DIR,
+            )
 
-            # Whisper uses .pt format
-            model_format = 'pt'
             preferred = self._get_preferred_format(ModelType.SPEECH)
-            convert_options = self._get_conversion_options(model_format, ModelType.SPEECH)
+            whisper_dir = Path(WHISPER_DIR)
+            vibevoice_dir = Path(VIBEVOICE_DIR)
+            qwen_asr_dir = Path(QWEN_ASR_DIR)
 
             for model_id, config in TRANSCRIBER_MODELS.items():
-                # Check if model is downloaded (whisper models are stored as {model_id}.pt)
-                short_id = config.get('model_id', model_id.replace('whisper-', ''))
-                model_file = Path(WHISPER_DIR) / f"{short_id}.pt"
-                is_downloaded = model_file.exists()
+                hf_id = config.get('hf_model_id', '')
+                size_gb = config.get('size_gb', 0.5)
+                vram_gb = config.get('vram_gb', size_gb)
+                description = config.get('description', model_id)
+
+                if model_id.startswith('vibevoice-'):
+                    # HuggingFace hub format in vibevoice/
+                    is_downloaded = _check_hf_model_downloaded(vibevoice_dir, hf_id)
+                    name = "VibeVoice ASR"
+                    fmt = 'safetensors'
+                    extra = {'hf_id': hf_id, 'path': str(vibevoice_dir)}
+
+                elif model_id.startswith('qwen3-asr-'):
+                    # HuggingFace hub format in qwen_asr/
+                    is_downloaded = _check_hf_model_downloaded(qwen_asr_dir, hf_id)
+                    name = hf_id.split('/')[-1]   # "Qwen3-ASR-0.6B" / "Qwen3-ASR-1.7B"
+                    fmt = 'safetensors'
+                    extra = {'hf_id': hf_id, 'path': str(qwen_asr_dir)}
+
+                else:
+                    # Whisper: openai .pt format OR faster-whisper HF hub format
+                    short_id = config.get('model_id', model_id.replace('whisper-', ''))
+                    pt_file = whisper_dir / f"{short_id}.pt"
+                    hf_dir = whisper_dir / f"models--Systran--faster-whisper-{short_id}"
+                    ct2_dir = whisper_dir / short_id   # CTranslate2 direct download
+                    is_downloaded = (
+                        pt_file.exists() or
+                        (hf_dir.exists() and hf_dir.is_dir()) or
+                        (ct2_dir.exists() and ct2_dir.is_dir())
+                    )
+                    name = f"Whisper {short_id.capitalize()}"
+                    fmt = 'pt'
+                    path = (str(pt_file) if pt_file.exists()
+                            else str(hf_dir) if hf_dir.exists()
+                            else str(ct2_dir))
+                    extra = {'hf_id': hf_id, 'path': path if is_downloaded else ''}
 
                 self._models[f"transcriber:{model_id}"] = ModelInfo(
                     id=f"transcriber:{model_id}",
-                    name=f"Whisper {short_id.capitalize()}",
+                    name=name,
                     model_type=ModelType.SPEECH,
                     source=ModelSource.WAMA_TRANSCRIBER,
-                    description=config.get('description', f"OpenAI Whisper {short_id}"),
-                    vram_gb=config.get('size_gb', 0.5),
+                    description=description,
+                    vram_gb=vram_gb,
                     is_downloaded=is_downloaded,
                     backend_ref='transcriber',
-                    format=model_format,
+                    format=fmt,
                     preferred_format=preferred,
-                    can_convert_to=convert_options,
-                    extra_info={'path': str(model_file) if is_downloaded else ''},
+                    can_convert_to=[],
+                    extra_info=extra,
                 )
-
-                logger.debug(f"[ModelRegistry] Whisper {short_id}: downloaded={is_downloaded}")
+                logger.debug(f"[ModelRegistry] Transcriber {model_id}: downloaded={is_downloaded}")
 
         except ImportError as e:
             logger.debug(f"Could not import Transcriber models: {e}")
 
     def _discover_synthesizer_models(self):
-        """Discover Synthesizer app models (Coqui, Bark)."""
+        """Discover Synthesizer app models (Coqui, Bark, Higgs Audio, Kokoro)."""
         try:
             from django.conf import settings
 
@@ -590,7 +623,54 @@ class ModelRegistry:
                 extra_info={'path': str(bark_model_path) if bark_model_path else ''},
             )
 
-            logger.info(f"[ModelRegistry] Synthesizer: Coqui downloaded={coqui_downloaded}, Bark downloaded={bark_downloaded}")
+            # Check for Higgs Audio v2
+            higgs_dir = settings.MODEL_PATHS.get('speech', {}).get('higgs', speech_dir / 'higgs')
+            higgs_dir = Path(higgs_dir)
+            higgs_downloaded = _check_hf_model_downloaded(
+                higgs_dir, 'bosonai/higgs-audio-v2-generation-3B-base')
+
+            self._models["synthesizer:higgs-audio"] = ModelInfo(
+                id="synthesizer:higgs-audio",
+                name="Higgs Audio v2",
+                model_type=ModelType.SPEECH,
+                source=ModelSource.WAMA_SYNTHESIZER,
+                description="Multi-speaker TTS with voice cloning (9 langues, 24 Go VRAM)",
+                vram_gb=24.0,
+                ram_gb=8.0,
+                is_downloaded=higgs_downloaded,
+                backend_ref='synthesizer',
+                format='safetensors',
+                preferred_format=preferred,
+                can_convert_to=[],
+                extra_info={'hf_id': 'bosonai/higgs-audio-v2-generation-3B-base',
+                            'path': str(higgs_dir)},
+            )
+
+            # Check for Kokoro 82M
+            kokoro_dir = settings.MODEL_PATHS.get('speech', {}).get('kokoro', speech_dir / 'kokoro')
+            kokoro_dir = Path(kokoro_dir)
+            kokoro_downloaded = _check_hf_model_downloaded(kokoro_dir, 'hexgrad/Kokoro-82M')
+
+            self._models["synthesizer:kokoro"] = ModelInfo(
+                id="synthesizer:kokoro",
+                name="Kokoro 82M",
+                model_type=ModelType.SPEECH,
+                source=ModelSource.WAMA_SYNTHESIZER,
+                description="Léger TTS multilingue FR/EN/ES/IT/PT/JA/ZH (82M params)",
+                vram_gb=0.5,
+                ram_gb=1.0,
+                is_downloaded=kokoro_downloaded,
+                backend_ref='synthesizer',
+                format='pt',
+                preferred_format=preferred,
+                can_convert_to=[],
+                extra_info={'hf_id': 'hexgrad/Kokoro-82M', 'path': str(kokoro_dir)},
+            )
+
+            logger.info(
+                f"[ModelRegistry] Synthesizer: Coqui={coqui_downloaded}, "
+                f"Bark={bark_downloaded}, Higgs={higgs_downloaded}, Kokoro={kokoro_downloaded}"
+            )
 
         except Exception as e:
             logger.error(f"Could not discover Synthesizer models: {e}")

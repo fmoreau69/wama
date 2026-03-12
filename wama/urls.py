@@ -13,6 +13,7 @@ urlpatterns = [
     path('', views.home, name='home'),
     path('presentation/', views.presentation, name='presentation'),
     path('api/ai-chat/', views.ai_chat, name='ai_chat'),
+    path('api/tts-kokoro/', views.kokoro_tts, name='kokoro_tts'),
     # WAMA Tool API (agentic AI assistant)
     path('api/tools/list-files/',        tool_views.list_user_files_view,       name='tool_list_files'),
     path('api/tools/anonymizer/add/',    tool_views.add_to_anonymizer_view,     name='tool_anon_add'),
