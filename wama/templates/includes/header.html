@@ -44,6 +44,13 @@
                             <i class="fas fa-file-alt text-warning me-2"></i> Transcriber
                         </a>
                     </li>
+                    <!-- Médiathèque -->
+                    <li><hr class="dropdown-divider"></li>
+                    <li>
+                        <a class="dropdown-item d-flex align-items-center {% if 'media-library' in request.path %}active{% endif %}" href="{% url 'media_library:index' %}">
+                            <i class="fas fa-photo-film text-purple me-2" style="color:#a78bfa;"></i> Médiathèque
+                        </a>
+                    </li>
                     <!-- WAMA Lab - Experimental/Research -->
                     <li><hr class="dropdown-divider"></li>
                     <li class="dropdown-header text-warning">

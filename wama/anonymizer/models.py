@@ -101,6 +101,9 @@ class Media(models.Model):
     def __str__(self):
         return self.title or f"Media {self.pk}"
 
+    def get_filename(self):
+        return os.path.basename(self.file.name) if self.file else ''
+
     def get_field_value(self, field):
         return getattr(self, field, None)
 

@@ -66,6 +66,7 @@ MODEL_PATHS = {
         'flux': AI_MODELS_DIR / "models" / "diffusion" / "flux",
         'logo': AI_MODELS_DIR / "models" / "diffusion" / "logo",
         'qwen_image': AI_MODELS_DIR / "models" / "diffusion" / "qwen-image",
+        'flux2_klein': AI_MODELS_DIR / "models" / "diffusion" / "flux2-klein",
     },
     # Vision-Language models (BLIP, LLaVA, etc.)
     'vision_language': {
@@ -228,6 +229,7 @@ INSTALLED_APPS = [
     'wama.transcriber',
     'wama.avatarizer',
     'wama.model_manager',  # AI Models Manager
+    'wama.media_library',  # Médiathèque centralisée
     # WAMA Lab - Experimental/Research applications
     'wama_lab.face_analyzer',
     'wama_lab.cam_analyzer',

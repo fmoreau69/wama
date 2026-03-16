@@ -57,6 +57,13 @@ class BackendManager:
         except ImportError as e:
             logger.warning(f"Could not register QwenImageBackend: {e}")
 
+        try:
+            from .flux2_klein_backend import Flux2KleinBackend
+            self._backends['flux2_klein'] = Flux2KleinBackend
+            logger.debug("Registered Flux2KleinBackend")
+        except ImportError as e:
+            logger.warning(f"Could not register Flux2KleinBackend: {e}")
+
     def register_backend(
         self,
         name: str,
@@ -119,8 +126,8 @@ class BackendManager:
                 return backend_name
 
         # Check any other registered backends, but exclude model-specific ones
-        # (qwen_image is routed explicitly in tasks.py, not a general fallback)
-        _model_specific = {'qwen_image'}
+        # (qwen_image and flux2_klein are routed explicitly in tasks.py)
+        _model_specific = {'qwen_image', 'flux2_klein'}
         for name, is_available in available.items():
             if is_available and name not in _model_specific:
                 return name

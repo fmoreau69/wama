@@ -59,16 +59,27 @@
         <i class="fas fa-microphone"></i> Voix
     </label>
     <select class="form-select form-select-sm bg-dark text-white border-secondary" id="voice_preset" name="voice_preset">
-        <optgroup label="Voix intégrées">
+        <optgroup label="Voix par défaut">
             <option value="default">Voix par défaut</option>
+        </optgroup>
+        {% for grp in voice_refs_groups %}
+        <optgroup label="{{ grp.group }}">
+            {% for v in grp.voices %}
+            <option value="{{ v.id }}">{{ v.label }}</option>
+            {% endfor %}
+        </optgroup>
+        {% endfor %}
+        {% if not voice_refs_groups %}
+        <optgroup label="Voix intégrées (héritage)">
             <option value="male_1">Voix masculine 1</option>
             <option value="male_2">Voix masculine 2</option>
             <option value="female_1">Voix féminine 1</option>
             <option value="female_2">Voix féminine 2</option>
         </optgroup>
-        <optgroup label="Voix personnalisées (clonage)" id="customVoicesGroup">
+        {% endif %}
+        <optgroup label="Mes voix (clonage)" id="customVoicesGroup">
             {% for cv in custom_voices %}
-            <option value="cv_{{ cv.id }}">{{ cv.name }}</option>
+            <option value="ua_{{ cv.id }}">{{ cv.name }}</option>
             {% endfor %}
         </optgroup>
         <optgroup label="Bark (presets)">
@@ -84,9 +95,14 @@
             <option value="bark_v2_de_0">Bark DE Speaker 0</option>
         </optgroup>
     </select>
-    <button type="button" class="btn btn-outline-light btn-sm w-100 mt-1 add-custom-voice-btn">
-        <i class="fas fa-plus"></i> Ajouter une voix
-    </button>
+    <div class="d-flex gap-1 mt-1">
+        <button type="button" class="btn btn-outline-light btn-sm flex-fill add-custom-voice-btn">
+            <i class="fas fa-plus"></i> Ajouter
+        </button>
+        <a href="{% url 'media_library:index' %}?tab=voice" class="btn btn-outline-secondary btn-sm" title="Gérer mes voix">
+            <i class="fas fa-folder-open"></i>
+        </a>
+    </div>
 </div>
 
 <!-- Speed -->
@@ -509,16 +525,27 @@
                             <i class="fas fa-microphone"></i> Voix
                         </label>
                         <select class="form-select" id="settingsVoicePreset" name="voice_preset">
-                            <optgroup label="Voix intégrées">
+                            <optgroup label="Voix par défaut">
                                 <option value="default">Voix par défaut</option>
+                            </optgroup>
+                            {% for grp in voice_refs_groups %}
+                            <optgroup label="{{ grp.group }}">
+                                {% for v in grp.voices %}
+                                <option value="{{ v.id }}">{{ v.label }}</option>
+                                {% endfor %}
+                            </optgroup>
+                            {% endfor %}
+                            {% if not voice_refs_groups %}
+                            <optgroup label="Voix intégrées (héritage)">
                                 <option value="male_1">Voix masculine 1</option>
                                 <option value="male_2">Voix masculine 2</option>
                                 <option value="female_1">Voix féminine 1</option>
                                 <option value="female_2">Voix féminine 2</option>
                             </optgroup>
-                            <optgroup label="Voix personnalisées (clonage)" id="settingsCustomVoicesGroup">
+                            {% endif %}
+                            <optgroup label="Mes voix (clonage)" id="settingsCustomVoicesGroup">
                                 {% for cv in custom_voices %}
-                                <option value="cv_{{ cv.id }}">{{ cv.name }}</option>
+                                <option value="ua_{{ cv.id }}">{{ cv.name }}</option>
                                 {% endfor %}
                             </optgroup>
                             <optgroup label="Bark (presets)">
@@ -627,16 +654,27 @@
                         <i class="fas fa-microphone"></i> Voix
                     </label>
                     <select class="form-select" id="batchSettingsVoicePreset">
-                        <optgroup label="Voix intégrées">
+                        <optgroup label="Voix par défaut">
                             <option value="default">Voix par défaut</option>
+                        </optgroup>
+                        {% for grp in voice_refs_groups %}
+                        <optgroup label="{{ grp.group }}">
+                            {% for v in grp.voices %}
+                            <option value="{{ v.id }}">{{ v.label }}</option>
+                            {% endfor %}
+                        </optgroup>
+                        {% endfor %}
+                        {% if not voice_refs_groups %}
+                        <optgroup label="Voix intégrées (héritage)">
                             <option value="male_1">Voix masculine 1</option>
                             <option value="male_2">Voix masculine 2</option>
                             <option value="female_1">Voix féminine 1</option>
                             <option value="female_2">Voix féminine 2</option>
                         </optgroup>
-                        <optgroup label="Voix personnalisées (clonage)">
+                        {% endif %}
+                        <optgroup label="Mes voix (clonage)">
                             {% for cv in custom_voices %}
-                            <option value="cv_{{ cv.id }}">{{ cv.name }}</option>
+                            <option value="ua_{{ cv.id }}">{{ cv.name }}</option>
                             {% endfor %}
                         </optgroup>
                         <optgroup label="Bark (presets)">
@@ -779,7 +817,8 @@
             batchDelete: "/synthesizer/batch/",
             batchDuplicate: "/synthesizer/batch/",
             batchSettings: "/synthesizer/batch/",
-            importIndividualFromPath: "{% url 'synthesizer:import_individual_from_path' %}"
+            importIndividualFromPath: "{% url 'synthesizer:import_individual_from_path' %}",
+            cardHtml: "/synthesizer/synthesis/"
         },
         csrfToken: "{{ csrf_token }}"
     };

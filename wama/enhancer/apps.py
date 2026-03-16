@@ -24,6 +24,15 @@ class EnhancerConfig(AppConfig):
             height_field='height'
         )
 
+        from .models import AudioEnhancement
+        register_app_preview(
+            app_name='audio_enhancer',
+            model_class=AudioEnhancement,
+            file_field='input_file',
+            user_field='user',
+            duration_field='duration',
+        )
+
         # Only run model download in main process (not in reloader or other subprocesses)
         import os
         if os.environ.get('RUN_MAIN') != 'true':

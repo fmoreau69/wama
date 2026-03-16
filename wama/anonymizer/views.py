@@ -26,6 +26,7 @@ from django.urls import reverse
 from django.utils.encoding import iri_to_uri
 
 from .models import Media, GlobalSettings, UserSettings
+from wama.common.utils.queue_duplication import duplicate_instance
 from .forms import MediaSettingsForm, UserSettingsForm
 from .tasks import process_single_media, process_user_media_batch, stop_process
 from .utils.media_utils import get_input_media_path, get_output_media_path, get_blurred_media_path, get_unique_filename
@@ -1483,6 +1484,19 @@ def get_sam3_examples(request):
     return JsonResponse({
         'examples': get_recommended_prompt_examples()
     })
+
+
+@require_POST
+def duplicate_media(request, media_id):
+    """Duplicate a Media item sharing the same input file, resetting processing state."""
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    media = get_object_or_404(Media, pk=media_id, user=user)
+    new_media = duplicate_instance(
+        media,
+        reset_fields={'processed': False, 'blur_progress': 0},
+        clear_fields=[],
+    )
+    return JsonResponse({'duplicated': new_media.id})
 
 
 class AboutView(TemplateView):

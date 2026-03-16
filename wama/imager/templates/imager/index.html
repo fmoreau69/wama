@@ -148,7 +148,7 @@
                     data-description="{{ model.description }}"
                     data-vram="{{ model.vram }}"
                     data-type="{{ model.type }}">
-                {{ model.name }}{% if model.vram %} ({{ model.vram }}){% endif %}
+                {{ model.name }} [{% if model.type == 't2v+i2v' %}T2V+I2V{% elif model.type == 'i2v' %}I2V{% else %}T2V{% endif %}]{% if model.vram %} ({{ model.vram }}){% endif %}
             </option>
             {% endfor %}
         </select>
@@ -286,8 +286,13 @@
                     <div id="section_txt2img" class="mode-section">
                         <!-- Prompt -->
                         <div class="mb-3">
-                            <label for="prompt" class="form-label text-light">
-                                Prompt <span class="text-danger">*</span>
+                            <label for="prompt" class="form-label text-light d-flex justify-content-between align-items-center">
+                                <span>Prompt <span class="text-danger">*</span></span>
+                                <button type="button" class="btn btn-outline-warning btn-sm enhance-prompt-btn"
+                                        data-target="prompt" data-mode="image"
+                                        title="Améliorer le prompt avec Gemma 3 (Ollama)">
+                                    <i class="fas fa-magic"></i> Améliorer
+                                </button>
                             </label>
                             <textarea class="form-control bg-dark text-white border-secondary" id="prompt" name="prompt" rows="3"
                                       placeholder="Décrivez l'image que vous voulez générer..."></textarea>
@@ -531,6 +536,12 @@
                                 </button>
                                 {% endif %}
 
+                                <button class="btn btn-outline-info btn-sm duplicate-btn"
+                                        data-duplicate-url="{% url 'imager:duplicate' gen.id %}"
+                                        title="Dupliquer">
+                                    <i class="fas fa-copy"></i>
+                                </button>
+
                                 <button class="btn btn-danger btn-sm delete-btn" data-id="{{ gen.id }}"
                                         title="Supprimer">
                                     <i class="fas fa-trash-alt"></i>
@@ -621,8 +632,13 @@
                     <div id="section_txt2vid" class="video-mode-section">
                         <!-- Prompt -->
                         <div class="mb-3">
-                            <label for="video_prompt" class="form-label text-light">
-                                Prompt <span class="text-danger">*</span>
+                            <label for="video_prompt" class="form-label text-light d-flex justify-content-between align-items-center">
+                                <span>Prompt <span class="text-danger">*</span></span>
+                                <button type="button" class="btn btn-outline-warning btn-sm enhance-prompt-btn"
+                                        data-target="video_prompt" data-mode="video"
+                                        title="Améliorer le prompt avec Gemma 3 (Ollama)">
+                                    <i class="fas fa-magic"></i> Améliorer
+                                </button>
                             </label>
                             <textarea class="form-control bg-dark text-white border-secondary" id="video_prompt" name="video_prompt" rows="3"
                                       placeholder="Décrivez la vidéo que vous voulez générer..."></textarea>
@@ -701,7 +717,7 @@
                                                 data-description="{{ model.description }}"
                                                 data-vram="{{ model.vram }}"
                                                 data-type="{{ model.type }}">
-                                            {{ model.name }}{% if model.vram %} ({{ model.vram }}){% endif %}
+                                            {{ model.name }} [{% if model.type == 't2v+i2v' %}T2V+I2V{% elif model.type == 'i2v' %}I2V{% else %}T2V{% endif %}]{% if model.vram %} ({{ model.vram }}){% endif %}
                                         </option>
                                         {% endfor %}
                                     </select>
@@ -881,6 +897,12 @@
                                     <i class="fas fa-download"></i>
                                 </button>
                                 {% endif %}
+
+                                <button class="btn btn-outline-info btn-sm duplicate-btn"
+                                        data-duplicate-url="{% url 'imager:duplicate' gen.id %}"
+                                        title="Dupliquer">
+                                    <i class="fas fa-copy"></i>
+                                </button>
 
                                 <button class="btn btn-danger btn-sm video-delete-btn" data-id="{{ gen.id }}"
                                         title="Supprimer">
@@ -1189,7 +1211,7 @@
                                         data-description="{{ model.description }}"
                                         data-vram="{{ model.vram }}"
                                         data-type="{{ model.type }}">
-                                    {{ model.name }}{% if model.vram %} ({{ model.vram }}){% endif %}
+                                    {{ model.name }} [{% if model.type == 't2v+i2v' %}T2V+I2V{% elif model.type == 'i2v' %}I2V{% else %}T2V{% endif %}]{% if model.vram %} ({{ model.vram }}){% endif %}
                                 </option>
                                 {% endfor %}
                             </select>
@@ -1386,7 +1408,8 @@
             batchChildren: "{% url 'imager:batch_children' 0 %}",
             startBatch: "{% url 'imager:start_batch' 0 %}",
             modelResolutions: "{% url 'imager:api_model_resolutions' %}",
-            forceReset: "{% url 'imager:force_reset' 0 %}"
+            forceReset: "{% url 'imager:force_reset' 0 %}",
+            enhancePrompt: "{% url 'imager:enhance_prompt' %}"
         },
         csrfToken: "{{ csrf_token }}"
     };

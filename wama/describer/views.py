@@ -20,6 +20,7 @@ from django.core.cache import cache
 from django.conf import settings
 
 from .models import Description
+from wama.common.utils.queue_duplication import duplicate_instance
 from ..accounts.views import get_or_create_anonymous_user
 from ..common.utils.video_utils import upload_media_from_url
 
@@ -325,6 +326,26 @@ def download(request, pk):
         return response
 
     return JsonResponse({'error': 'No result available'}, status=400)
+
+
+@require_POST
+def duplicate(request, pk):
+    """Duplicate a Description sharing the same input file, resetting results."""
+    user = get_user(request)
+    description = get_object_or_404(Description, pk=pk, user=user)
+    new_desc = duplicate_instance(
+        description,
+        reset_fields={
+            'status': 'PENDING',
+            'progress': 0,
+            'task_id': '',
+            'result_text': '',
+            'properties': '',
+            'error_message': '',
+        },
+        clear_fields=['result_file'],
+    )
+    return JsonResponse({'duplicated': new_desc.id})
 
 
 @require_POST

@@ -17,7 +17,7 @@
         {% for media in medias %}
         {% if user.id == media.user.id %}
         <tr data-media-id="{{ media.id }}"
-            data-media-name="{{ media.file.name|slice:"17:" }}"
+            data-media-name="{{ media.get_filename }}"
             data-media-processed="{{ media.processed|lower }}">
 
             <!-- ID -->
@@ -40,7 +40,7 @@
                     <button type="button"
                             class="btn btn-link p-0 preview-media-link text-decoration-none"
                             data-preview-url="{% url 'anonymizer:preview_media' media.id %}">
-                        {{ media.file.name|slice:"17:" }}
+                        {{ media.get_filename }}
                     </button>
                 </div>
                 <div class="d-flex align-items-center gap-2 mt-1">
@@ -115,6 +115,14 @@
                             data-media-id="{{ media.id }}"
                             title="Configurer les paramètres">
                         <i class="fas fa-cog"></i>
+                    </button>
+
+                    <!-- Duplicate Button -->
+                    <button type="button"
+                            class="btn btn-outline-info btn-sm duplicate-btn"
+                            data-duplicate-url="{% url 'anonymizer:duplicate_media' media.id %}"
+                            title="Dupliquer (tester d'autres paramètres)">
+                        <i class="fas fa-copy"></i>
                     </button>
 
                     <!-- Delete Button -->

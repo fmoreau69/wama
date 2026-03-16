@@ -105,78 +105,75 @@ document.addEventListener('DOMContentLoaded', function () {
 
   function appendRow(data) {
     if (!queueTable) return;
-    const tbody = queueTable.querySelector('tbody');
-    if (!tbody) return;
 
-    const existingEmpty = tbody.querySelector('.empty-row');
-    if (existingEmpty) {
-      existingEmpty.remove();
-    }
-
-    const row = document.createElement('tr');
-    row.dataset.id = data.id;
-    row.dataset.status = (data.status || 'PENDING').toUpperCase();
+    const empty = queueTable.querySelector('.empty-state');
+    if (empty) empty.remove();
 
     const mediaIcon = data.media_type === 'image'
-      ? '<i class="fas fa-image text-info"></i> Image'
-      : '<i class="fas fa-video text-warning"></i> Vidéo';
+      ? '<i class="fas fa-image text-info"></i>'
+      : '<i class="fas fa-video text-warning"></i>';
 
     const previewUrl = `/common/preview/enhancer/${data.id}/`;
 
-    row.innerHTML = `
-      <td class="fw-bold text-center">#${data.id}</td>
-      <td class="text-center">${mediaIcon}</td>
-      <td>
-        <div class="fw-semibold">
-          <button type="button" class="btn btn-link p-0 text-decoration-none preview-media-link"
-                  data-preview-url="${previewUrl}"
-                  style="color: inherit;">
-            ${escapeHtml(data.input_filename || 'Fichier')}
-          </button>
+    const card = document.createElement('div');
+    card.className = 'synthesis-card';
+    card.dataset.id = data.id;
+    card.dataset.status = (data.status || 'PENDING').toUpperCase();
+
+    card.innerHTML = `
+      <div class="row align-items-center">
+        <div class="col-md-3">
+          <strong>
+            <button type="button" class="btn btn-link p-0 text-start preview-media-link"
+                    data-preview-url="${previewUrl}"
+                    style="color: #fff; text-decoration: none; font-size: 0.9rem;">
+              ${mediaIcon} ${escapeHtml(data.input_filename || 'Fichier')}
+            </button>
+          </strong>
+          <br>
+          <small class="text-white-50">${data.width}x${data.height}</small>
         </div>
-/*        <div class="d-flex align-items-center gap-2 mt-1">
-          <a href="${data.input_url}" target="_blank" class="text-info small">
-            <i class="fas fa-link"></i> Voir le fichier
-          </a>
-        </div>*/
-      </td>
-      <td class="text-center small">${data.width}x${data.height}</td>
-      <td class="text-center small"><span class="badge bg-info">En attente</span></td>
-      <td class="status text-uppercase text-center">${data.status || 'PENDING'}</td>
-      <td>
-        <div class="progress" style="height: 24px;">
-          <div class="progress-bar" role="progressbar" style="width: 0%;">0%</div>
+        <div class="col-md-2">
+          <small>
+            <span class="badge bg-info">${escapeHtml(data.ai_model || '—')}</span>
+          </small>
         </div>
-      </td>
-      <td class="text-center">
-        <div class="btn-group" role="group">
-          <button class="btn btn-primary btn-sm js-restart-enhancement"
-                  data-id="${data.id}"
-                  title="Relancer le traitement">
-            <i class="fas fa-play"></i>
-          </button>
-          <a class="btn btn-success btn-sm download-btn disabled" aria-disabled="true" tabindex="-1"
-             href="${getUrl(config.downloadUrlTemplate, data.id)}">
-            <i class="fas fa-download"></i>
-          </a>
-          <button class="btn btn-warning btn-sm settings-btn"
-                  data-bs-toggle="modal" data-bs-target="#settingsModal${data.id}">
-            <i class="fas fa-cog"></i>
-          </button>
-          <button class="btn btn-danger btn-sm js-delete-enhancement"
-                  data-delete-url="${getUrl(config.deleteUrlTemplate, data.id)}">
-            <i class="fas fa-trash-alt"></i>
-          </button>
+        <div class="col-md-3">
+          <span class="status-badge badge bg-secondary">PENDING</span>
+          <div class="progress-bar-custom mt-2">
+            <div class="progress-fill" style="width: 0%"></div>
+          </div>
+          <small class="progress-text text-light">0%</small>
         </div>
-      </td>
+        <div class="col-md-4">
+          <div class="btn-group-actions">
+            <button class="btn btn-sm btn-secondary js-open-settings"
+                    data-id="${data.id}"
+                    data-ai-model="${escapeHtml(data.ai_model || '')}"
+                    data-denoise="${data.denoise || 'false'}"
+                    data-blend-factor="${data.blend_factor || 0}"
+                    title="Paramètres">
+              <i class="fas fa-cog"></i>
+            </button>
+            <button class="btn btn-sm btn-primary js-restart-enhancement action-btn"
+                    data-id="${data.id}" title="Lancer">
+              <i class="fas fa-play"></i>
+            </button>
+            <button class="btn btn-sm btn-danger js-delete-enhancement"
+                    data-delete-url="${getUrl(config.deleteUrlTemplate, data.id)}"
+                    title="Supprimer">
+              <i class="fas fa-trash-alt"></i>
+            </button>
+          </div>
+        </div>
+      </div>
     `;
 
-    tbody.prepend(row);
+    queueTable.prepend(card);
     createSettingsModal(data);
-    bindRowActions(row);
+    bindRowActions(card);
     updateDownloadAllState();
 
-    // Initialize preview for new item
     if (typeof initMediaPreview === 'function') {
       initMediaPreview();
     }
@@ -270,49 +267,74 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   function updateRow(id, data) {
-    const row = queueTable ? queueTable.querySelector(`tr[data-id="${id}"]`) : null;
-    if (!row) {
+    const card = queueTable ? queueTable.querySelector(`[data-id="${id}"]`) : null;
+    if (!card) {
       stopPolling(id);
       return;
     }
 
-    const bar = row.querySelector('.progress-bar');
-    const statusCell = row.querySelector('.status');
-    const downloadBtn = row.querySelector('.download-btn');
-
     const progress = Math.min(100, Math.max(0, data.progress || 0));
     const status = (data.status || 'PENDING').toUpperCase();
 
-    if (bar) {
-      bar.style.width = `${progress}%`;
-      bar.textContent = `${progress}%`;
+    // Progress fill
+    const fill = card.querySelector('.progress-fill');
+    if (fill) fill.style.width = `${progress}%`;
+    const progressText = card.querySelector('.progress-text');
+    if (progressText) progressText.textContent = `${progress}%`;
 
-      // Animate progress bar
+    // Status badge
+    const statusBadge = card.querySelector('.status-badge');
+    if (statusBadge) {
+      const badgeClass = { PENDING: 'bg-secondary', RUNNING: 'bg-warning', SUCCESS: 'bg-success', FAILURE: 'bg-danger' }[status] || 'bg-secondary';
+      statusBadge.textContent = status;
+      statusBadge.className = `status-badge badge ${badgeClass}`;
+    }
+
+    // Card border
+    card.classList.remove('processing', 'success', 'error');
+    if (status === 'RUNNING') card.classList.add('processing');
+    else if (status === 'SUCCESS') card.classList.add('success');
+    else if (status === 'FAILURE') card.classList.add('error');
+    card.dataset.status = status;
+
+    // Action button
+    const actionBtn = card.querySelector('.action-btn');
+    if (actionBtn) {
       if (status === 'RUNNING') {
-        bar.classList.add('progress-bar-animated', 'progress-bar-striped');
+        actionBtn.disabled = true;
+        actionBtn.className = 'btn btn-sm btn-secondary action-btn';
+        actionBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        actionBtn.title = 'En cours...';
+      } else if (status === 'SUCCESS' || status === 'FAILURE') {
+        actionBtn.disabled = false;
+        actionBtn.className = 'btn btn-sm btn-warning js-restart-enhancement action-btn';
+        actionBtn.innerHTML = '<i class="fas fa-redo"></i>';
+        actionBtn.title = 'Relancer';
       } else {
-        bar.classList.remove('progress-bar-animated', 'progress-bar-striped');
+        actionBtn.disabled = false;
+        actionBtn.className = 'btn btn-sm btn-primary js-restart-enhancement action-btn';
+        actionBtn.innerHTML = '<i class="fas fa-play"></i>';
+        actionBtn.title = 'Lancer';
       }
     }
 
-    if (statusCell) {
-      statusCell.textContent = status;
-    }
-    row.dataset.status = status;
-
-    if (status === 'SUCCESS' && downloadBtn) {
-      downloadBtn.classList.remove('disabled');
-      downloadBtn.removeAttribute('aria-disabled');
-      downloadBtn.removeAttribute('tabindex');
-    }
-
-    // Stop polling after terminal states, but ensure we show 100% for SUCCESS
-    if (['SUCCESS', 'FAILURE'].includes(status)) {
-      // If SUCCESS and progress not yet 100%, force it to 100%
-      if (status === 'SUCCESS' && progress < 100 && bar) {
-        bar.style.width = '100%';
-        bar.textContent = '100%';
+    // Show download button on SUCCESS
+    if (status === 'SUCCESS') {
+      if (!card.querySelector('.download-btn')) {
+        const actionsDiv = card.querySelector('.btn-group-actions');
+        const deleteBtn = card.querySelector('.js-delete-enhancement');
+        if (actionsDiv && deleteBtn) {
+          const dlBtn = document.createElement('a');
+          dlBtn.className = 'btn btn-sm btn-success download-btn';
+          dlBtn.href = getUrl(config.downloadUrlTemplate, id);
+          dlBtn.title = 'Télécharger';
+          dlBtn.innerHTML = '<i class="fas fa-download"></i>';
+          actionsDiv.insertBefore(dlBtn, deleteBtn);
+        }
       }
+      if (progress < 100 && fill) fill.style.width = '100%';
+      stopPolling(id);
+    } else if (status === 'FAILURE') {
       stopPolling(id);
     } else if (progress >= 100) {
       stopPolling(id);
@@ -324,21 +346,18 @@ document.addEventListener('DOMContentLoaded', function () {
   function handleRestartEnhancement(id) {
     if (!id) return;
 
-    const row = queueTable ? queueTable.querySelector(`tr[data-id="${id}"]`) : null;
-    if (!row) return;
+    const card = queueTable ? queueTable.querySelector(`[data-id="${id}"]`) : null;
+    if (!card) return;
 
-    // Confirm restart if already completed
-    const status = (row.dataset.status || '').toUpperCase();
+    const status = (card.dataset.status || '').toUpperCase();
     if (status === 'SUCCESS' || status === 'RUNNING') {
       if (!confirm('Relancer le traitement de ce fichier ?')) {
         return;
       }
     }
 
-    // Get settings from the enhancement's settings form
     const form = document.querySelector(`.enhancement-settings-form[data-id="${id}"]`);
     let settings = {};
-
     if (form) {
       settings = {
         ai_model: form.querySelector('[name="ai_model"]')?.value,
@@ -360,15 +379,8 @@ document.addEventListener('DOMContentLoaded', function () {
         }
         return response.json();
       })
-      .then((data) => {
-        // Update row status
-        row.dataset.status = 'RUNNING';
-        const statusCell = row.querySelector('.status');
-        if (statusCell) {
-          statusCell.textContent = 'RUNNING';
-        }
-
-        // Start polling
+      .then(() => {
+        updateRow(id, { status: 'RUNNING', progress: 0 });
         startPolling(id);
       })
       .catch((error) => {
@@ -443,10 +455,10 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!data.deleted) {
           throw new Error('Suppression impossible');
         }
-        const row = button.closest('tr');
-        if (row) {
-          const id = row.dataset.id;
-          row.remove();
+        const card = button.closest('.synthesis-card');
+        if (card) {
+          const id = card.dataset.id;
+          card.remove();
           stopPolling(id);
           insertEmptyRowIfNeeded();
           updateDownloadAllState();
@@ -493,10 +505,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
   function initExistingRows() {
     if (!queueTable) return;
-    queueTable.querySelectorAll('tbody tr[data-id]').forEach((row) => {
-      const id = row.dataset.id;
-      const status = (row.dataset.status || '').toUpperCase();
-      bindRowActions(row);
+    queueTable.querySelectorAll('[data-id]').forEach((card) => {
+      const id = card.dataset.id;
+      const status = (card.dataset.status || '').toUpperCase();
+      bindRowActions(card);
       if (['PENDING', 'RUNNING', 'STARTED'].includes(status)) {
         startPolling(id);
       }
@@ -588,7 +600,7 @@ document.addEventListener('DOMContentLoaded', function () {
     })
       .then((response) => response.json())
       .then(() => {
-        queueTable.querySelectorAll('tbody tr[data-id]').forEach((row) => row.remove());
+        queueTable.querySelectorAll('[data-id]').forEach((card) => card.remove());
         pollers.forEach((_, id) => stopPolling(id));
         insertEmptyRowIfNeeded(true);
         updateDownloadAllState();
@@ -603,18 +615,16 @@ document.addEventListener('DOMContentLoaded', function () {
 
   function insertEmptyRowIfNeeded(force = false) {
     if (!queueTable) return;
-    const tbody = queueTable.querySelector('tbody');
-    if (!tbody) return;
 
-    const hasRows = tbody.querySelectorAll('tr[data-id]').length > 0;
-    const existingEmpty = tbody.querySelector('.empty-row');
+    const hasItems = queueTable.querySelectorAll('[data-id]').length > 0;
+    const existingEmpty = queueTable.querySelector('.empty-state');
 
-    if (!hasRows || force) {
+    if (!hasItems || force) {
       if (existingEmpty) return;
-      const row = document.createElement('tr');
-      row.className = 'empty-row';
-      row.innerHTML = '<td colspan="8" class="text-center py-4">Aucun fichier en attente.</td>';
-      tbody.appendChild(row);
+      const el = document.createElement('div');
+      el.className = 'empty-state text-center py-4 text-white-50';
+      el.textContent = 'Aucun fichier en attente.';
+      queueTable.appendChild(el);
     } else if (existingEmpty) {
       existingEmpty.remove();
     }
@@ -622,7 +632,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
   function updateDownloadAllState() {
     if (!downloadAllBtn || !queueTable) return;
-    const hasSuccess = !!queueTable.querySelector('tbody tr[data-status="SUCCESS"]');
+    const hasSuccess = !!queueTable.querySelector('[data-status="SUCCESS"]');
     if (hasSuccess) {
       downloadAllBtn.removeAttribute('disabled');
     } else {

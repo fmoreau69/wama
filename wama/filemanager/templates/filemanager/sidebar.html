@@ -43,6 +43,8 @@
     window.FILEMANAGER_CONFIG = {
         csrfToken: '{{ csrf_token }}',
         apiTreeUrl: '{% url "filemanager:api_tree" %}',
+        apiChildrenUrl: '{% url "filemanager:api_children" %}',
+        apiTreeMtimeUrl: '{% url "filemanager:api_tree_mtime" %}',
         apiSearchUrl: '{% url "filemanager:api_search" %}',
         apiUploadUrl: '{% url "filemanager:api_upload" %}',
         apiDeleteUrl: '{% url "filemanager:api_delete" %}',

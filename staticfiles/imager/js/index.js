@@ -289,6 +289,39 @@
                 }
             });
         }
+
+        // Prompt enhancement buttons (image + video)
+        document.addEventListener('click', function(e) {
+            const btn = e.target.closest('.enhance-prompt-btn');
+            if (!btn) return;
+            const targetId = btn.dataset.target;
+            const mode = btn.dataset.mode || 'image';
+            const textarea = document.getElementById(targetId);
+            if (!textarea || !textarea.value.trim()) return;
+            const icon = btn.querySelector('i');
+            const originalClass = icon.className;
+            icon.className = 'fas fa-spinner fa-spin';
+            btn.disabled = true;
+            fetch(config.urls.enhancePrompt, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-CSRFToken': config.csrfToken},
+                body: JSON.stringify({prompt: textarea.value, mode: mode})
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.enhanced) {
+                    textarea.dataset.originalPrompt = textarea.value;
+                    textarea.value = data.enhanced;
+                } else {
+                    alert(data.error || 'Erreur lors de l\'amélioration du prompt');
+                }
+            })
+            .catch(() => alert('Erreur réseau'))
+            .finally(() => {
+                icon.className = originalClass;
+                btn.disabled = false;
+            });
+        });
     }
 
     /**
@@ -1142,34 +1175,41 @@
     }
 
     /**
-     * Update global progress bar
+     * Update global progress bars (image + video separately)
      */
     function updateGlobalProgress() {
         fetch(config.urls.globalProgress)
             .then(response => response.json())
             .then(data => {
-                const progressBar = document.getElementById('globalProgressBar');
-                const statsText = document.getElementById('globalProgressStats');
-
-                if (progressBar && statsText) {
-                    const progress = data.overall_progress || 0;
-                    progressBar.style.width = progress + '%';
-                    progressBar.textContent = progress + '%';
-
-                    statsText.textContent = `${data.success}/${data.total} terminé • ${data.running} en cours • ${data.pending} en attente`;
-
-                    // Update progress bar color
-                    progressBar.className = 'progress-bar';
-                    if (data.failure > 0) {
-                        progressBar.classList.add('bg-danger');
-                    } else if (data.running > 0) {
-                        progressBar.classList.add('bg-warning', 'progress-bar-striped', 'progress-bar-animated');
-                    } else if (data.success === data.total && data.total > 0) {
-                        progressBar.classList.add('bg-success');
-                    }
-                }
+                applyProgressBar(
+                    document.getElementById('globalProgressBar'),
+                    document.getElementById('globalProgressStats'),
+                    data.image || data  // fallback to root keys for compat
+                );
+                applyProgressBar(
+                    document.getElementById('videoGlobalProgressBar'),
+                    document.getElementById('videoGlobalProgressStats'),
+                    data.video || {}
+                );
             })
             .catch(error => console.error('Error updating global progress:', error));
+    }
+
+    function applyProgressBar(progressBar, statsText, stats) {
+        if (!progressBar || !statsText) return;
+        const progress = stats.overall_progress || 0;
+        const total = stats.total || 0;
+        progressBar.style.width = progress + '%';
+        progressBar.textContent = progress + '%';
+        statsText.textContent = `${stats.success || 0}/${total} terminé • ${stats.running || 0} en cours • ${stats.pending || 0} en attente`;
+        progressBar.className = 'progress-bar';
+        if (stats.failure > 0) {
+            progressBar.classList.add('bg-danger');
+        } else if (stats.running > 0) {
+            progressBar.classList.add('bg-warning', 'progress-bar-striped', 'progress-bar-animated');
+        } else if (total > 0 && stats.success === total) {
+            progressBar.classList.add('bg-success');
+        }
     }
 
     /**

@@ -229,92 +229,89 @@
 <div class="row">
     <div class="col-12">
         <h4 class="mb-3"><i class="fas fa-list"></i> File d'attente — Images &amp; Vidéos</h4>
-        <div class="table-responsive">
-            <table class="table table-bordered table-dark align-middle" id="enhancer-queue">
-                <thead>
-                <tr class="text-center">
-                    <th style="width: 80px;">ID</th>
-                    <th style="width: 100px;">Type</th>
-                    <th>Fichier</th>
-                    <th style="width: 150px;">Dimensions</th>
-                    <th style="width: 150px;">Modèle AI</th>
-                    <th style="width: 120px;">Statut</th>
-                    <th style="width: 220px;">Progression</th>
-                    <th style="width: 160px;">Actions</th>
-                </tr>
-                </thead>
-                <tbody>
-                {% for e in enhancements %}
-                <tr data-id="{{ e.id }}" data-status="{{ e.status }}">
-                    <td class="fw-bold text-center">#{{ e.id }}</td>
-                    <td class="text-center">
-                        {% if e.media_type == 'image' %}
-                        <i class="fas fa-image text-info"></i> Image
-                        {% else %}
-                        <i class="fas fa-video text-warning"></i> Vidéo
-                        {% endif %}
-                    </td>
-                    <td>
-                        <div class="fw-semibold">
-                            <button type="button" class="btn btn-link p-0 text-decoration-none preview-media-link"
+        <div id="enhancer-queue">
+            {% for e in enhancements %}
+            <div class="synthesis-card {% if e.status == 'RUNNING' %}processing{% elif e.status == 'SUCCESS' %}success{% elif e.status == 'FAILURE' %}error{% endif %}"
+                 data-id="{{ e.id }}" data-status="{{ e.status }}">
+                <div class="row align-items-center">
+                    <div class="col-md-3">
+                        <strong>
+                            <button type="button" class="btn btn-link p-0 text-start preview-media-link"
                                     data-preview-url="{% url 'common:unified_preview' 'enhancer' e.id %}"
-                                    style="color: inherit;">
+                                    style="color: #fff; text-decoration: none; font-size: 0.9rem;">
+                                {% if e.media_type == 'image' %}<i class="fas fa-image text-info"></i>{% else %}<i class="fas fa-video text-warning"></i>{% endif %}
                                 {{ e.get_input_filename }}
                             </button>
+                        </strong>
+                        <br>
+                        <small class="text-white-50">
+                            {{ e.width }}x{{ e.height }}{% if e.output_width %} <i class="fas fa-arrow-right text-success"></i> {{ e.output_width }}x{{ e.output_height }}{% endif %}
+                        </small>
+                    </div>
+                    <div class="col-md-2">
+                        <small>
+                            <span class="badge bg-info">{{ e.get_ai_model_display }}</span>
+                            {% if e.denoise %}<br><span class="badge bg-primary mt-1">Débruitage</span>{% endif %}
+                            {% if e.blend_factor > 0 %}<br><span class="badge bg-secondary mt-1">Blend {{ e.blend_factor }}</span>{% endif %}
+                        </small>
+                    </div>
+                    <div class="col-md-3">
+                        <span class="status-badge badge {% if e.status == 'PENDING' %}bg-secondary{% elif e.status == 'RUNNING' %}bg-warning{% elif e.status == 'SUCCESS' %}bg-success{% elif e.status == 'FAILURE' %}bg-danger{% endif %}">
+                            {{ e.status }}
+                        </span>
+                        <div class="progress-bar-custom mt-2">
+                            <div class="progress-fill" style="width: {{ e.progress }}%"></div>
                         </div>
-                        <div class="d-flex align-items-center gap-2 mt-1">
-                            {% if e.denoise %}<span class="badge bg-primary">Débruitage</span>{% endif %}
-                            {% if e.blend_factor > 0 %}<span class="badge bg-secondary">Blend {{ e.blend_factor }}</span>{% endif %}
-                        </div>
-                    </td>
-                    <td class="text-center small">
-                        {{ e.width }}x{{ e.height }}
-                        {% if e.output_width %}
-                        <br><i class="fas fa-arrow-right text-success"></i> {{ e.output_width }}x{{ e.output_height }}
-                        {% endif %}
-                    </td>
-                    <td class="text-center small">
-                        <span class="badge bg-info">{{ e.get_ai_model_display }}</span>
-                    </td>
-                    <td class="status text-uppercase text-center">{{ e.status }}</td>
-                    <td>
-                        <div class="progress" style="height: 24px;">
-                            <div class="progress-bar" role="progressbar" style="width: {{ e.progress }}%;">
-                                {{ e.progress }}%
-                            </div>
-                        </div>
-                    </td>
-                    <td class="text-center">
-                        <div class="btn-group" role="group">
-                            <button class="btn btn-primary btn-sm js-restart-enhancement" data-id="{{ e.id }}">
-                                <i class="fas fa-play"></i>
-                            </button>
-                            <a class="btn btn-success btn-sm download-btn {% if not e.output_file %}disabled{% endif %}"
-                               {% if not e.output_file %}aria-disabled="true" tabindex="-1"{% endif %}
-                               href="{% url 'enhancer:download' e.id %}">
-                                <i class="fas fa-download"></i>
-                            </a>
-                            <button class="btn btn-warning btn-sm js-open-settings"
+                        <small class="progress-text text-light">{{ e.progress }}%</small>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="btn-group-actions">
+                            <button class="btn btn-sm btn-secondary js-open-settings"
                                     data-id="{{ e.id }}"
                                     data-ai-model="{{ e.ai_model }}"
                                     data-denoise="{{ e.denoise|lower }}"
-                                    data-blend-factor="{{ e.blend_factor }}">
+                                    data-blend-factor="{{ e.blend_factor }}"
+                                    title="Paramètres">
                                 <i class="fas fa-cog"></i>
                             </button>
-                            <button class="btn btn-danger btn-sm js-delete-enhancement"
-                                    data-delete-url="{% url 'enhancer:delete' e.id %}">
+                            {% if e.status == 'RUNNING' %}
+                            <button class="btn btn-sm btn-secondary action-btn" disabled>
+                                <i class="fas fa-spinner fa-spin"></i>
+                            </button>
+                            {% elif e.status == 'SUCCESS' or e.status == 'FAILURE' %}
+                            <button class="btn btn-sm btn-warning js-restart-enhancement action-btn"
+                                    data-id="{{ e.id }}" title="Relancer">
+                                <i class="fas fa-redo"></i>
+                            </button>
+                            {% else %}
+                            <button class="btn btn-sm btn-primary js-restart-enhancement action-btn"
+                                    data-id="{{ e.id }}" title="Lancer">
+                                <i class="fas fa-play"></i>
+                            </button>
+                            {% endif %}
+                            {% if e.output_file %}
+                            <a class="btn btn-sm btn-success download-btn"
+                               href="{% url 'enhancer:download' e.id %}" title="Télécharger">
+                                <i class="fas fa-download"></i>
+                            </a>
+                            {% endif %}
+                            <button class="btn btn-sm btn-outline-info duplicate-btn"
+                                    data-duplicate-url="{% url 'enhancer:duplicate' e.id %}"
+                                    title="Dupliquer">
+                                <i class="fas fa-copy"></i>
+                            </button>
+                            <button class="btn btn-sm btn-danger js-delete-enhancement"
+                                    data-delete-url="{% url 'enhancer:delete' e.id %}"
+                                    title="Supprimer">
                                 <i class="fas fa-trash-alt"></i>
                             </button>
                         </div>
-                    </td>
-                </tr>
-                {% empty %}
-                <tr class="empty-row">
-                    <td colspan="8" class="text-center py-4">Aucun fichier en attente.</td>
-                </tr>
-                {% endfor %}
-                </tbody>
-            </table>
+                    </div>
+                </div>
+            </div>
+            {% empty %}
+            <div class="empty-state text-center py-4 text-white-50">Aucun fichier en attente.</div>
+            {% endfor %}
         </div>
     </div>
 </div>
@@ -366,52 +363,48 @@
 <div class="row">
     <div class="col-12">
         <h4 class="mb-3"><i class="fas fa-headphones"></i> File d'attente — Audio</h4>
-        <div class="table-responsive">
-            <table class="table table-bordered table-dark align-middle" id="audio-enhancer-queue">
-                <thead>
-                <tr class="text-center">
-                    <th style="width: 80px;">ID</th>
-                    <th>Fichier</th>
-                    <th style="width: 130px;">Moteur</th>
-                    <th style="width: 130px;">Mode</th>
-                    <th style="width: 120px;">Statut</th>
-                    <th style="width: 220px;">Progression</th>
-                    <th style="width: 140px;">Actions</th>
-                </tr>
-                </thead>
-                <tbody>
-                {% for ae in audio_enhancements %}
-                <tr data-id="{{ ae.id }}" data-status="{{ ae.status }}">
-                    <td class="fw-bold text-center">#{{ ae.id }}</td>
-                    <td>
-                        <div class="fw-semibold">{{ ae.get_input_filename }}</div>
+        <div id="audio-enhancer-queue">
+            {% for ae in audio_enhancements %}
+            <div class="synthesis-card {% if ae.status == 'RUNNING' %}processing{% elif ae.status == 'SUCCESS' %}success{% elif ae.status == 'FAILURE' %}error{% endif %}"
+                 data-id="{{ ae.id }}" data-status="{{ ae.status }}">
+                <div class="row align-items-center">
+                    <!-- Fichier -->
+                    <div class="col-md-3">
+                        <button type="button" class="btn btn-link p-0 text-start preview-media-link"
+                                data-preview-url="{% url 'common:unified_preview' 'audio_enhancer' ae.id %}"
+                                style="color: #fff; text-decoration: none; font-size: 0.9rem;">
+                            <i class="fas fa-microphone-alt text-success"></i>
+                            {{ ae.get_input_filename }}
+                        </button>
                         {% if ae.duration %}
-                        <small class="text-white-50">
-                            {% if ae.duration >= 60 %}{{ ae.duration|floatformat:0|divisibleby:60 }}min{% else %}{{ ae.duration|floatformat:1 }}s{% endif %}
-                        </small>
+                        <br><small class="text-white-50">{{ ae.duration|floatformat:1 }}s</small>
                         {% endif %}
-                    </td>
-                    <td class="text-center"><span class="badge bg-info">{{ ae.get_engine_display }}</span></td>
-                    <td class="text-center"><span class="badge bg-secondary">{{ ae.get_mode_display }}</span></td>
-                    <td class="status text-uppercase text-center">{{ ae.status }}</td>
-                    <td>
-                        <div class="progress" style="height: 24px;">
-                            <div class="progress-bar bg-success" role="progressbar" style="width: {{ ae.progress }}%;">
-                                {{ ae.progress }}%
-                            </div>
+                    </div>
+                    <!-- Moteur / Mode / Propriétés -->
+                    <div class="col-md-3">
+                        <small>
+                            <span class="badge bg-info audio-engine-badge">{{ ae.get_engine_display }}</span>
+                            <span class="text-white-50 ms-1 properties-text">
+                                {% if ae.engine == 'resemble' %}Force {{ ae.denoising_strength }} / NFE {{ ae.quality }}{% else %}Rapide{% endif %}
+                            </span>
+                            <br>
+                            <span class="badge bg-secondary audio-mode-badge mt-1">{{ ae.get_mode_display }}</span>
+                        </small>
+                    </div>
+                    <!-- Statut / Progression -->
+                    <div class="col-md-2">
+                        <span class="status-badge badge {% if ae.status == 'PENDING' %}bg-secondary{% elif ae.status == 'RUNNING' %}bg-warning{% elif ae.status == 'SUCCESS' %}bg-success{% elif ae.status == 'FAILURE' %}bg-danger{% endif %}">
+                            {{ ae.status }}
+                        </span>
+                        <div class="progress-bar-custom mt-2">
+                            <div class="progress-fill" style="width: {{ ae.progress }}%"></div>
                         </div>
-                    </td>
-                    <td class="text-center">
-                        <div class="btn-group" role="group">
-                            <button class="btn btn-primary btn-sm js-audio-start" data-id="{{ ae.id }}">
-                                <i class="fas fa-play"></i>
-                            </button>
-                            <a class="btn btn-success btn-sm js-audio-download {% if not ae.output_file %}disabled{% endif %}"
-                               href="{% if ae.output_file %}{% url 'enhancer:audio_download' ae.id %}{% else %}#{% endif %}"
-                               data-id="{{ ae.id }}">
-                                <i class="fas fa-download"></i>
-                            </a>
-                            <button class="btn btn-warning btn-sm js-audio-settings"
+                        <small class="progress-text text-light">{{ ae.progress }}%</small>
+                    </div>
+                    <!-- Actions -->
+                    <div class="col-md-4">
+                        <div class="btn-group-actions">
+                            <button class="btn btn-sm btn-secondary js-audio-settings"
                                     data-id="{{ ae.id }}"
                                     data-engine="{{ ae.engine }}"
                                     data-mode="{{ ae.mode }}"
@@ -420,19 +413,43 @@
                                     title="Paramètres">
                                 <i class="fas fa-cog"></i>
                             </button>
-                            <button class="btn btn-danger btn-sm js-audio-delete" data-id="{{ ae.id }}">
+                            {% if ae.status == 'RUNNING' %}
+                            <button class="btn btn-sm btn-secondary action-btn" disabled>
+                                <i class="fas fa-spinner fa-spin"></i>
+                            </button>
+                            {% elif ae.status == 'SUCCESS' or ae.status == 'FAILURE' %}
+                            <button class="btn btn-sm btn-warning js-audio-start action-btn"
+                                    data-id="{{ ae.id }}" title="Relancer">
+                                <i class="fas fa-redo"></i>
+                            </button>
+                            {% else %}
+                            <button class="btn btn-sm btn-primary js-audio-start action-btn"
+                                    data-id="{{ ae.id }}" title="Lancer">
+                                <i class="fas fa-play"></i>
+                            </button>
+                            {% endif %}
+                            {% if ae.output_file %}
+                            <a class="btn btn-sm btn-success js-audio-download"
+                               href="{% url 'enhancer:audio_download' ae.id %}" title="Télécharger">
+                                <i class="fas fa-download"></i>
+                            </a>
+                            {% endif %}
+                            <button class="btn btn-sm btn-outline-info duplicate-btn"
+                                    data-duplicate-url="{% url 'enhancer:audio_duplicate' ae.id %}"
+                                    title="Dupliquer">
+                                <i class="fas fa-copy"></i>
+                            </button>
+                            <button class="btn btn-sm btn-danger js-audio-delete action-delete"
+                                    data-id="{{ ae.id }}" title="Supprimer">
                                 <i class="fas fa-trash-alt"></i>
                             </button>
                         </div>
-                    </td>
-                </tr>
-                {% empty %}
-                <tr class="empty-row">
-                    <td colspan="7" class="text-center py-4">Aucun fichier audio en attente.</td>
-                </tr>
-                {% endfor %}
-                </tbody>
-            </table>
+                    </div>
+                </div>
+            </div>
+            {% empty %}
+            <div class="empty-state text-center py-4 text-white-50">Aucun fichier audio en attente.</div>
+            {% endfor %}
         </div>
     </div>
 </div>

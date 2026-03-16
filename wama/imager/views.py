@@ -89,17 +89,19 @@ def index(request):
         # CogVideoX
         ('cogvideox-5b', 'CogVideoX 5B'),
         ('cogvideox-5b-i2v', 'CogVideoX 5B I2V'),
-        # LTX-Video - Fast
-        ('ltx-video-0.9.8-distilled', 'LTX-Video Distilled'),
+        # LTX-Video 13B (Lightricks) — HF: Lightricks/LTX-Video-0.9.8-13B-distilled
+        ('ltx-video-13b-0.9.8-distilled-fp8', 'LTX-Video 13B FP8'),
+        ('ltx-video-13b-0.9.8-distilled', 'LTX-Video 13B Distilled'),
         # Mochi - High quality
         ('mochi-1-preview', 'Mochi-1 Preview'),
     ]
     video_models_info = [
-        # CogVideoX (5-12GB VRAM)
-        {'id': 'cogvideox-5b', 'name': 'CogVideoX 5B', 'description': 'Text-to-Video - 5GB VRAM - Higher quality', 'vram': '5GB', 'type': 't2v', 'fps': 8, 'disk': '12GB'},
-        {'id': 'cogvideox-5b-i2v', 'name': 'CogVideoX 5B I2V', 'description': 'Image-to-Video - 5GB VRAM - Animate images', 'vram': '5GB', 'type': 'i2v', 'fps': 8, 'disk': '12GB'},
-        # LTX-Video - Fast (6GB VRAM)
-        {'id': 'ltx-video-0.9.8-distilled', 'name': 'LTX-Video Distilled', 'description': 'Text-to-Video 24fps - 6GB VRAM - Fast and light', 'vram': '6GB', 'type': 't2v', 'fps': 24, 'disk': '4GB'},
+        # CogVideoX (~21GB VRAM mesurée)
+        {'id': 'cogvideox-5b', 'name': 'CogVideoX 5B', 'description': 'Text-to-Video 24fps - 21GB VRAM', 'vram': '21GB', 'type': 't2v', 'fps': 24, 'disk': '12GB'},
+        {'id': 'cogvideox-5b-i2v', 'name': 'CogVideoX 5B I2V', 'description': 'Image-to-Video 24fps - 21GB VRAM', 'vram': '21GB', 'type': 'i2v', 'fps': 24, 'disk': '12GB'},
+        # LTX-Video 13B (Lightricks) — HF: Lightricks/LTX-Video-0.9.8-13B-distilled
+        {'id': 'ltx-video-13b-0.9.8-distilled-fp8', 'name': 'LTX-Video 13B FP8', 'description': 'T2V + I2V 24fps - 8GB VRAM - Meilleur ratio qualité/VRAM', 'vram': '8GB', 'type': 't2v+i2v', 'fps': 24, 'disk': '18GB'},
+        {'id': 'ltx-video-13b-0.9.8-distilled', 'name': 'LTX-Video 13B Distilled', 'description': 'T2V + I2V 24fps - 14GB VRAM - Rapide, haute qualité', 'vram': '14GB', 'type': 't2v+i2v', 'fps': 24, 'disk': '18GB'},
         # Mochi - High quality (22GB VRAM)
         {'id': 'mochi-1-preview', 'name': 'Mochi-1 Preview', 'description': 'Text-to-Video 30fps - 22GB VRAM - High quality', 'vram': '22GB', 'type': 't2v', 'fps': 30, 'disk': '18GB'},
     ]
@@ -769,17 +771,15 @@ def progress(request, generation_id):
 
 
 def global_progress(request):
-    """Get overall progress for all user generations (optimized single query)"""
+    """Get overall progress split by image and video generations."""
     from django.db.models import Count, Case, When, IntegerField, Avg
 
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
 
-    try:
-        # Single aggregated query instead of 7+ separate queries
-        stats = ImageGeneration.objects.filter(
-            user=user,
-            parent_generation__isnull=True  # Only top-level generations
-        ).aggregate(
+    VIDEO_MODES = ['txt2vid', 'img2vid']
+
+    def _aggregate(qs):
+        stats = qs.aggregate(
             total=Count('id'),
             pending=Count(Case(When(status='PENDING', then=1), output_field=IntegerField())),
             running=Count(Case(When(status='RUNNING', then=1), output_field=IntegerField())),
@@ -787,17 +787,26 @@ def global_progress(request):
             failure=Count(Case(When(status='FAILURE', then=1), output_field=IntegerField())),
             avg_progress=Avg('progress'),
         )
-
-        total = stats['total'] or 0
-        overall_progress = int(stats['avg_progress'] or 0)
-
-        return JsonResponse({
-            'total': total,
+        return {
+            'total': stats['total'] or 0,
             'pending': stats['pending'] or 0,
             'running': stats['running'] or 0,
             'success': stats['success'] or 0,
             'failure': stats['failure'] or 0,
-            'overall_progress': overall_progress
+            'overall_progress': int(stats['avg_progress'] or 0),
+        }
+
+    try:
+        base_qs = ImageGeneration.objects.filter(user=user, parent_generation__isnull=True)
+        image_stats = _aggregate(base_qs.exclude(generation_mode__in=VIDEO_MODES))
+        video_stats = _aggregate(base_qs.filter(generation_mode__in=VIDEO_MODES))
+
+        return JsonResponse({
+            # Legacy top-level keys (image stats, backward compat)
+            **image_stats,
+            # Split stats
+            'image': image_stats,
+            'video': video_stats,
         })
 
     except Exception as e:
@@ -900,6 +909,27 @@ def delete_generation(request, generation_id):
     except Exception as e:
         logger.error(f"Error deleting generation: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
+
+
+@require_http_methods(["POST"])
+def duplicate_generation(request, generation_id):
+    """Duplicate a generation (share reference_image, reset outputs)"""
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    generation = get_object_or_404(ImageGeneration, id=generation_id, user=user)
+    from wama.common.utils.queue_duplication import duplicate_instance
+    new_gen = duplicate_instance(
+        generation,
+        reset_fields={
+            'status': 'PENDING',
+            'progress': 0,
+            'task_id': '',
+            'error_message': '',
+            'generated_images': [],
+            'completed_at': None,
+        },
+        clear_fields=['output_video'],
+    )
+    return JsonResponse({'duplicated': new_gen.id})
 
 
 @require_http_methods(["POST"])
@@ -1007,6 +1037,32 @@ def console_content(request):
 def about(request):
     """About page"""
     return render(request, 'imager/about.html')
+
+
+@require_http_methods(["POST"])
+def enhance_prompt(request):
+    """Enhance a prompt via Ollama (Gemma 3 or configured model)."""
+    import json as _json
+    from wama.imager.utils.prompt_enhancer import enhance_prompt as _enhance, ENHANCE_MODEL
+
+    try:
+        body = _json.loads(request.body)
+        prompt = (body.get('prompt') or '').strip()
+        mode = body.get('mode', 'image')  # 'image' | 'video'
+    except Exception:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    if not prompt:
+        return JsonResponse({'error': 'Prompt vide'}, status=400)
+    if len(prompt) > 2000:
+        return JsonResponse({'error': 'Prompt trop long (max 2000 chars)'}, status=400)
+
+    try:
+        enhanced = _enhance(prompt, mode=mode)
+        return JsonResponse({'original': prompt, 'enhanced': enhanced, 'model': ENHANCE_MODEL})
+    except RuntimeError as e:
+        logger.warning(f"[EnhancePrompt] Ollama error: {e}")
+        return JsonResponse({'error': str(e)})
 
 
 def help_page(request):
@@ -1250,10 +1306,21 @@ def force_reset_generation(request, generation_id):
         generation = get_object_or_404(ImageGeneration, id=generation_id, user=user)
 
         old_status = generation.status
+        old_task_id = generation.task_id
 
-        # Reset status to FAILURE
+        # Revoke the Celery task so it won't be picked up / re-executed after restart
+        if old_task_id:
+            try:
+                from celery.result import AsyncResult
+                AsyncResult(old_task_id).revoke(terminate=True, signal='SIGTERM')
+                logger.info(f"Revoked Celery task {old_task_id} for generation #{generation.id}")
+            except Exception as e:
+                logger.warning(f"Could not revoke task {old_task_id}: {e}")
+
+        # Reset status to FAILURE and clear task_id
         generation.status = 'FAILURE'
         generation.progress = 0
+        generation.task_id = ''
         generation.error_message = f"Génération réinitialisée manuellement (ancien statut: {old_status})"
         generation.save()
 

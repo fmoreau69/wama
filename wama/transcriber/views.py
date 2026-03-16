@@ -70,7 +70,7 @@ def _describe_audio(transcript: Transcript) -> None:
                 ffprobe,
                 "-v", "error",
                 "-select_streams", "a:0",
-                "-show_entries", "stream=duration,codec_name,sample_rate,channels",
+                "-show_entries", "stream=duration,codec_name,sample_rate,channels:format=duration",
                 "-of", "json",
                 transcript.audio.path,
             ],
@@ -81,6 +81,10 @@ def _describe_audio(transcript: Transcript) -> None:
         data = json.loads(result.stdout or "{}")
         stream = (data.get("streams") or [{}])[0]
         duration = float(stream.get("duration") or 0)
+        if not duration:
+            fmt_duration = (data.get("format") or {}).get("duration")
+            if fmt_duration:
+                duration = float(fmt_duration)
         sample_rate = stream.get("sample_rate")
         codec = stream.get("codec_name")
         channels = int(stream.get("channels") or 0)
@@ -115,6 +119,11 @@ class IndexView(View):
     def get(self, request):
         user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
         transcripts = Transcript.objects.filter(user=user).order_by('-id')
+
+        # Backfill duration for existing transcripts that were stored without it
+        for t in transcripts:
+            if not t.duration_display and t.audio:
+                _describe_audio(t)
 
         # Récupérer les préférences utilisateur
         enable_preprocessing = cache.get(f"user_{user.id}_preprocessing_enabled", True)

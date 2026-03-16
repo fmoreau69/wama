@@ -72,7 +72,7 @@ class VoiceSynthesis(models.Model):
     )
 
     voice_preset = models.CharField(
-        max_length=20,
+        max_length=100,
         choices=VOICE_PRESET_CHOICES,
         default='default',
         help_text="Preset de voix"
@@ -172,14 +172,32 @@ class VoiceSynthesis(models.Model):
         return f"Synthesis #{self.id} - {self.user.username} - {self.status}"
 
     def get_voice_preset_display(self):
-        """Resolve custom voice names (cv_<id>) to their actual name."""
+        """Resolve custom voice names (ua_<id> or legacy cv_<id>) to their actual name."""
+        if self.voice_preset and self.voice_preset.startswith('ua_'):
+            try:
+                from wama.media_library.models import UserAsset
+                ua = UserAsset.objects.get(pk=int(self.voice_preset[3:]))
+                return ua.name
+            except Exception:
+                pass
         if self.voice_preset and self.voice_preset.startswith('cv_'):
             try:
+                # Compat legacy : chercher d'abord dans UserAsset migré
+                from wama.media_library.models import UserAsset
                 cv = CustomVoice.objects.get(pk=int(self.voice_preset[3:]))
                 return cv.name
-            except (ValueError, CustomVoice.DoesNotExist):
+            except Exception:
                 pass
-        # Fallback to Django's default choices lookup
+        # New format: relative path within voice_references/
+        if self.voice_preset and '/' in self.voice_preset:
+            try:
+                from wama.synthesizer.utils.voice_utils import get_voice_label
+                label = get_voice_label(self.voice_preset)
+                if label:
+                    return label
+            except Exception:
+                pass
+            return self.voice_preset
         return dict(self.VOICE_PRESET_CHOICES).get(self.voice_preset, self.voice_preset)
 
     @property

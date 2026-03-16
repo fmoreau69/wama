@@ -7,6 +7,7 @@ import os
 import io
 import zipfile
 import logging
+from pathlib import Path
 from django.conf import settings
 from django.shortcuts import render, get_object_or_404
 from django.views import View
@@ -88,7 +89,24 @@ class IndexView(View):
         voice_presets = VoicePreset.objects.filter(
             is_public=True
         ) | VoicePreset.objects.filter(created_by=user)
-        custom_voices = CustomVoice.objects.filter(user=user)
+        from wama.media_library.models import UserAsset
+        custom_voices = UserAsset.objects.filter(user=user, asset_type='voice')
+
+        # Scan voice references folder for dynamic dropdown
+        from wama.synthesizer.utils.voice_utils import scan_voice_refs, needs_voice_download
+        voice_refs_groups = scan_voice_refs()
+
+        # Téléchargement automatique en fond si des voix manquent (une seule fois par heure)
+        if needs_voice_download():
+            _dl_flag = 'voice_refs_download_triggered'
+            if not cache.get(_dl_flag):
+                cache.set(_dl_flag, True, timeout=3600)
+                try:
+                    from .workers import download_voice_refs_task
+                    download_voice_refs_task.delay()
+                    logger.info("[Synthesizer] Téléchargement des voix de référence lancé en arrière-plan")
+                except Exception as exc:
+                    logger.warning(f"[Synthesizer] Impossible de lancer le téléchargement des voix : {exc}")
 
         context = {
             'batches_list': batches_list,
@@ -99,6 +117,7 @@ class IndexView(View):
             'tts_models': VoiceSynthesis.TTS_MODEL_CHOICES,
             'languages': VoiceSynthesis.LANGUAGE_CHOICES,
             'voice_presets_choices': VoiceSynthesis.VOICE_PRESET_CHOICES,
+            'voice_refs_groups': voice_refs_groups,
         }
         return render(request, 'synthesizer/index.html', context)
 
@@ -448,6 +467,19 @@ def start(request, pk: int):
     })
 
 
+def synthesis_card_html(request, pk: int):
+    """
+    Renders a single synthesis card as HTML fragment.
+    Used by the polling loop to update a card in-place on completion (no full page reload).
+    """
+    from django.template.loader import render_to_string
+    from django.http import HttpResponse
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    synthesis = get_object_or_404(VoiceSynthesis, pk=pk, user=user)
+    html = render_to_string('synthesizer/_synthesis_card.html', {'synthesis': synthesis}, request=request)
+    return HttpResponse(html)
+
+
 def progress(request, pk: int):
     """
     Récupère la progression d'une synthèse.
@@ -604,21 +636,28 @@ def duplicate(request, pk: int):
 
 
 # ============================================================================
-# Custom Voices (persistent voice cloning files)
+# Custom Voices — délégué à media_library.UserAsset (type='voice')
+# Les routes /custom-voices/ sont conservées pour la compat avec le JS existant.
 # ============================================================================
 
 def list_custom_voices(request):
-    """Liste les voix personnalisées de l'utilisateur."""
+    """Liste les voix personnalisées de l'utilisateur (via UserAsset)."""
+    from wama.media_library.models import UserAsset
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    voices = CustomVoice.objects.filter(user=user).values('id', 'name', 'created_at')
-    return JsonResponse({'voices': list(voices)})
+    assets = UserAsset.objects.filter(user=user, asset_type='voice').values('id', 'name', 'created_at')
+    return JsonResponse({'voices': [
+        {'id': a['id'], 'name': a['name'], 'created_at': a['created_at'].strftime('%d/%m/%Y')}
+        for a in assets
+    ]})
 
 
 @require_POST
 def upload_custom_voice(request):
-    """Upload d'une voix personnalisée."""
+    """Upload d'une voix personnalisée (crée un UserAsset de type voice)."""
+    import mimetypes as _mime
+    from wama.media_library.models import UserAsset
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    name = request.POST.get('name', '').strip()
+    name  = request.POST.get('name', '').strip()
     audio = request.FILES.get('audio')
 
     if not name:
@@ -630,20 +669,24 @@ def upload_custom_voice(request):
     if ext not in ('wav', 'mp3', 'flac', 'ogg'):
         return JsonResponse({'error': 'Format non supporté (wav, mp3, flac, ogg)'}, status=400)
 
-    if CustomVoice.objects.filter(user=user, name=name).exists():
+    if UserAsset.objects.filter(user=user, name=name, asset_type='voice').exists():
         return JsonResponse({'error': f'Une voix "{name}" existe déjà'}, status=409)
 
-    cv = CustomVoice.objects.create(user=user, name=name, audio=audio)
-    return JsonResponse({'id': cv.id, 'name': cv.name})
+    asset = UserAsset.objects.create(user=user, name=name, asset_type='voice', file=audio)
+    asset.mime_type = _mime.guess_type(audio.name)[0] or ''
+    asset.file_size = audio.size
+    asset.save(update_fields=['mime_type', 'file_size'])
+    return JsonResponse({'id': asset.id, 'name': asset.name})
 
 
 @require_POST
 def delete_custom_voice(request, pk: int):
-    """Supprime une voix personnalisée."""
+    """Supprime une voix personnalisée (UserAsset)."""
+    from wama.media_library.models import UserAsset
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    cv = get_object_or_404(CustomVoice, pk=pk, user=user)
-    cv.audio.delete(save=False)
-    cv.delete()
+    asset = get_object_or_404(UserAsset, pk=pk, user=user, asset_type='voice')
+    asset.file.delete(save=False)
+    asset.delete()
     return JsonResponse({'deleted': pk})
 
 

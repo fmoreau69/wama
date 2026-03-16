@@ -169,11 +169,9 @@ def build_folder_node(config, media_root, user_id):
     }
 
     if 'path' in config:
-        # This is a leaf folder - scan for files
-        folder_path = media_root / config['path']
-        if folder_path.exists():
-            node['data'] = {'path': config['path']}
-            node['children'] = scan_folder_files(folder_path, config['path'], user_id)
+        # Leaf folder: return lazy placeholder — jstree will call api_children on expand
+        node['data'] = {'path': config['path']}
+        node['children'] = True  # jstree lazy-load sentinel
     elif 'children' in config:
         # This is a parent folder with sub-folders
         for child_config in config['children']:
@@ -246,11 +244,80 @@ def scan_folder_files(folder_path, relative_path, user_id):
 
 
 @require_GET
+def api_children(request):
+    """
+    Lazy-load children of a specific folder node (called by jstree when expanding).
+    Returns file/subfolder nodes for the given path without scanning the whole tree.
+    """
+    user = get_user(request)
+    rel_path = request.GET.get('path', '').strip('/')
+    if not rel_path:
+        return JsonResponse([], safe=False)
+
+    media_root = Path(settings.MEDIA_ROOT)
+    folder_path = media_root / rel_path
+
+    # Security: ensure resolved path stays within MEDIA_ROOT
+    try:
+        folder_path.resolve().relative_to(media_root.resolve())
+    except ValueError:
+        return JsonResponse({'error': 'Invalid path'}, status=400)
+
+    if not folder_path.exists() or not folder_path.is_dir():
+        return JsonResponse([], safe=False)
+
+    nodes = scan_folder_files(folder_path, rel_path, user.id)
+    return JsonResponse(nodes, safe=False)
+
+
+@require_GET
 def api_tree(request):
     """Get file tree for jstree."""
     user = get_user(request)
     tree = build_file_tree(user)
     return JsonResponse(tree, safe=False)
+
+
+@require_GET
+def api_tree_mtime(request):
+    """
+    Lightweight change-detection endpoint for polling.
+
+    Returns a compact hash built from the mtime of each registered top-level
+    folder — no recursion, one stat() per folder. The JS poller uses this
+    instead of fetching the full tree every 5 s.
+    """
+    import hashlib
+    user = get_user(request)
+    media_root = Path(settings.MEDIA_ROOT)
+    uid = user.id
+
+    # Flat list of all app leaf folders (same set as build_file_tree)
+    leaf_paths = [
+        f'users/{uid}/temp',
+        f'anonymizer/{uid}/input', f'anonymizer/{uid}/output',
+        f'avatarizer/{uid}/input', f'avatarizer/{uid}/output', 'avatarizer/gallery',
+        f'describer/{uid}/input', f'describer/{uid}/output',
+        f'enhancer/{uid}/input/media', f'enhancer/{uid}/input/audio',
+        f'enhancer/{uid}/output/media', f'enhancer/{uid}/output/audio',
+        f'imager/{uid}/input/prompts', f'imager/{uid}/input/references',
+        f'imager/{uid}/output/image', f'imager/{uid}/output/video',
+        f'synthesizer/{uid}/input', f'synthesizer/{uid}/output', f'synthesizer/{uid}/custom_voices',
+        f'transcriber/{uid}/input', f'transcriber/{uid}/output',
+        f'face_analyzer/{uid}/input', f'face_analyzer/{uid}/output',
+        f'cam_analyzer/{uid}/input', f'cam_analyzer/{uid}/output',
+    ]
+
+    h = hashlib.md5()
+    for rel in leaf_paths:
+        p = media_root / rel
+        if p.exists():
+            try:
+                h.update(f'{rel}:{p.stat().st_mtime}'.encode())
+            except OSError:
+                pass
+
+    return JsonResponse({'mtime_hash': h.hexdigest()})
 
 
 @require_GET

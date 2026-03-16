@@ -117,7 +117,8 @@ def _tts_via_service(text, model, language='fr', voice_preset='default',
 def _get_default_speaker_wav(voice_preset: str) -> str:
     """
     Retourne le chemin vers un fichier audio de référence par défaut.
-    Télécharge automatiquement des samples si nécessaire.
+    Délègue à voice_utils.resolve_voice_preset() pour la résolution.
+    Si aucun fichier trouvé pour le preset, télécharge les samples LJSpeech en fallback.
 
     Args:
         voice_preset: Le preset de voix sélectionné
@@ -125,84 +126,58 @@ def _get_default_speaker_wav(voice_preset: str) -> str:
     Returns:
         str: Chemin vers le fichier audio de référence, ou None
     """
-    import pkg_resources
     import urllib.request
+    from wama.synthesizer.utils.voice_utils import resolve_voice_preset, get_voice_refs_dir
 
-    # Mapping des presets vers des fichiers de référence
-    # Pour l'instant, on essaie d'utiliser les samples du package TTS
+    # 1. Essayer la résolution directe (nouveau format ou héritage)
+    resolved = resolve_voice_preset(voice_preset)
+    if resolved:
+        return resolved
+
+    # 2. Fallback : essayer les samples du package TTS (Coqui)
     try:
-        # Chercher dans le package TTS pour des samples
+        import pkg_resources
         tts_path = pkg_resources.resource_filename('TTS', '')
         samples_dir = os.path.join(tts_path, 'utils', 'samples')
-
         if os.path.exists(samples_dir):
-            # Chercher un fichier WAV dans le dossier samples
             for file in os.listdir(samples_dir):
                 if file.endswith('.wav'):
                     return os.path.join(samples_dir, file)
     except Exception:
         pass
 
-    # Fallback: chercher dans le dossier du projet
-    project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-    default_voices_dir = os.path.join(project_root, 'media', 'synthesizer', 'default_voices')
+    # 3. Fallback final : télécharger un sample LJSpeech minimal
+    refs_dir = get_voice_refs_dir()
+    refs_dir.mkdir(parents=True, exist_ok=True)
+    default_file = refs_dir / 'default.wav'
 
-    # Créer le dossier s'il n'existe pas
-    os.makedirs(default_voices_dir, exist_ok=True)
+    if not default_file.exists():
+        _LJ_BASE = 'https://github.com/idiap/coqui-ai-TTS/raw/main/tests/data/ljspeech/wavs'
+        try:
+            logger.info("Downloading fallback voice sample (LJSpeech)...")
+            urllib.request.urlretrieve(f'{_LJ_BASE}/LJ001-0001.wav', str(default_file))
+            logger.info(f"Fallback voice saved to {default_file}")
+        except Exception as e:
+            logger.warning(f"Could not download fallback voice: {e}")
 
-    # Mapping des presets vers des URLs de samples
-    _LJ_BASE = 'https://github.com/idiap/coqui-ai-TTS/raw/main/tests/data/ljspeech/wavs'
-    preset_mapping = {
-        'default': {
-            'file': 'default.wav',
-            'url': f'{_LJ_BASE}/LJ001-0001.wav',
-            'description': 'Voix féminine (LJSpeech - Linda Johnson)'
-        },
-        'male_1': {
-            'file': 'male_1.wav',
-            'url': f'{_LJ_BASE}/LJ001-0015.wav',
-            'description': 'Voix masculine 1 (variation tonale basse)'
-        },
-        'male_2': {
-            'file': 'male_2.wav',
-            'url': f'{_LJ_BASE}/LJ001-0020.wav',
-            'description': 'Voix masculine 2 (variation tonale médium)'
-        },
-        'female_1': {
-            'file': 'female_1.wav',
-            'url': f'{_LJ_BASE}/LJ001-0010.wav',
-            'description': 'Voix féminine 1 (variation expressive)'
-        },
-        'female_2': {
-            'file': 'female_2.wav',
-            'url': f'{_LJ_BASE}/LJ001-0025.wav',
-            'description': 'Voix féminine 2 (variation douce)'
-        },
-    }
-
-    # Télécharger les samples manquants
-    for preset_name, preset_info in preset_mapping.items():
-        voice_file = os.path.join(default_voices_dir, preset_info['file'])
-        if not os.path.exists(voice_file):
-            try:
-                logger.info(f"Downloading {preset_info['description']} from {preset_info['url']}...")
-                urllib.request.urlretrieve(preset_info['url'], voice_file)
-                logger.info(f"{preset_info['description']} saved to {voice_file}")
-            except Exception as e:
-                logger.warning(f"Could not download {preset_info['description']}: {e}")
-
-    # Chercher le fichier correspondant au preset
-    if voice_preset in preset_mapping:
-        voice_file = os.path.join(default_voices_dir, preset_mapping[voice_preset]['file'])
-        if os.path.exists(voice_file):
-            return voice_file
-
-    # Fallback: utiliser le fichier default
-    default_file = os.path.join(default_voices_dir, 'default.wav')
-    if os.path.exists(default_file):
-        return default_file
+    if default_file.exists():
+        return str(default_file)
 
     return None
+
+
+@shared_task(name='wama.synthesizer.download_voice_refs', ignore_result=False)
+def download_voice_refs_task(force: bool = False):
+    """
+    Tâche Celery : télécharge les fichiers de voix de référence manquants
+    selon VOICE_DOWNLOAD_CATALOG défini dans voice_utils.py.
+    """
+    from wama.synthesizer.utils.voice_utils import download_missing_voice_refs
+    results = download_missing_voice_refs(force=force)
+    n_ok   = sum(1 for s in results.values() if s == 'downloaded')
+    n_fail = sum(1 for s in results.values() if s == 'failed')
+    logger.info(f"[download_voice_refs_task] {n_ok} téléchargées, {n_fail} échec(s)")
+    return {'downloaded': n_ok, 'failed': n_fail, 'details': results}
 
 
 def _set_progress(synthesis: VoiceSynthesis, value: int) -> None:
@@ -307,7 +282,15 @@ def synthesize_voice(self, synthesis_id: int):
         speaker_wav = None
         if synthesis.voice_reference:
             speaker_wav = synthesis.voice_reference.path
+        elif synthesis.voice_preset.startswith('ua_'):
+            try:
+                from wama.media_library.models import UserAsset
+                ua = UserAsset.objects.get(pk=int(synthesis.voice_preset[3:]))
+                speaker_wav = ua.file.path
+            except (ValueError, UserAsset.DoesNotExist):
+                speaker_wav = _get_default_speaker_wav('default')
         elif synthesis.voice_preset.startswith('cv_'):
+            # Compat legacy : chercher dans CustomVoice encore présent
             try:
                 from .models import CustomVoice
                 cv = CustomVoice.objects.get(pk=int(synthesis.voice_preset[3:]))

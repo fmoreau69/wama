@@ -34,7 +34,6 @@
         setupSearch();
         setupUploadDropzone();
         setupPreviewModal();
-        setupAutoRefresh();
         setupCustomEventListeners();
     }
 
@@ -87,9 +86,11 @@
         if (processing) return;  // Skip auto-refresh while processing
 
         try {
-            const response = await fetch(config.apiTreeUrl || '/filemanager/api/tree/');
+            // Use lightweight mtime endpoint instead of full tree scan
+            const mtimeUrl = config.apiTreeMtimeUrl || '/filemanager/api/tree/mtime/';
+            const response = await fetch(mtimeUrl);
             const data = await response.json();
-            const newHash = JSON.stringify(data);
+            const newHash = data.mtime_hash;
 
             if (lastTreeHash && newHash !== lastTreeHash) {
                 console.log('[FileManager] Tree changed, refreshing...');
@@ -113,9 +114,15 @@
                     'dots': false,
                     'icons': true
                 },
-                'data': {
-                    'url': config.apiTreeUrl || '/filemanager/api/tree/',
-                    'dataType': 'json'
+                'data': function(node, cb) {
+                    // Root (#): load the skeleton tree (folder structure, no files).
+                    // Any other node: lazy-load its children (files + subfolders) on expand.
+                    const url = (node.id === '#')
+                        ? (config.apiTreeUrl || '/filemanager/api/tree/')
+                        : (config.apiChildrenUrl || '/filemanager/api/children/') +
+                          '?path=' + encodeURIComponent((node.data && node.data.path) || '');
+                    $.getJSON(url, function(data) { cb(data); })
+                      .fail(function() { cb([]); });
                 },
                 'check_callback': function(operation, node, parent, position, more) {
                     // Allow move only within temp folder (for internal tree moves)
@@ -482,18 +489,9 @@
     function saveTreeState() {
         if (!tree) return;
 
-        // Get all opened nodes
+        // Save all open nodes so refreshTree() can restore them
         const allOpenedNodes = tree.get_state().core.open;
-
-        // Only save temp folder nodes (not app folders)
-        const appFolders = ['anonymizer', 'describer', 'enhancer', 'imager', 'synthesizer', 'transcriber'];
-        const tempNodes = allOpenedNodes.filter(nodeId => {
-            // Keep only temp-related nodes
-            return nodeId === 'temp' || nodeId.startsWith('folder_users_');
-        });
-
-        localStorage.setItem(getTreeStateKey(), JSON.stringify(tempNodes));
-        console.log('[FileManager] Tree state saved:', tempNodes.length, 'temp nodes open');
+        localStorage.setItem(getTreeStateKey(), JSON.stringify(allOpenedNodes));
     }
 
     function restoreTreeState() {

@@ -4,11 +4,15 @@ WAMA Common - Views
 Common views for system utilities.
 """
 
+from django.core.cache import cache
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET
 
 from .services.system_monitor import SystemMonitor
 from .utils.console_utils import get_console_lines
+
+_STATS_CACHE_KEY = 'wama_footer_stats'
+_STATS_CACHE_TTL = 8  # secondes — subprocess wmic/nvidia-smi trop lents pour appel à chaque requête
 
 
 @require_GET
@@ -16,9 +20,13 @@ def system_stats(request):
     """
     Return current system resource usage for footer display.
 
-    Uses centralized SystemMonitor service.
+    Cached 8s in Redis — évite de lancer wmic/nvidia-smi subprocess à chaque poll JS.
     """
-    return JsonResponse(SystemMonitor.get_footer_stats())
+    stats = cache.get(_STATS_CACHE_KEY)
+    if stats is None:
+        stats = SystemMonitor.get_footer_stats()
+        cache.set(_STATS_CACHE_KEY, stats, _STATS_CACHE_TTL)
+    return JsonResponse(stats)
 
 
 @require_GET

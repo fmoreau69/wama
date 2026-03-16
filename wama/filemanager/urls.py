@@ -9,6 +9,8 @@ app_name = 'filemanager'
 urlpatterns = [
     # API endpoints
     path('api/tree/', views.api_tree, name='api_tree'),
+    path('api/children/', views.api_children, name='api_children'),
+    path('api/tree/mtime/', views.api_tree_mtime, name='api_tree_mtime'),
     path('api/search/', views.api_search, name='api_search'),
     path('api/upload/', views.api_upload, name='api_upload'),
     path('api/delete/', views.api_delete, name='api_delete'),

@@ -184,6 +184,23 @@ class DiffusersBackend(ImageGenerationBackend):
         },
 
         # =================================================================
+        # FLUX.2 KLEIN (Black Forest Labs) — Apache 2.0
+        # Routed to flux2_klein_backend at generation time — listed here
+        # so they appear in the UI model selector.
+        # =================================================================
+
+        "flux2-klein-4b": {
+            "name": "FLUX.2 Klein 4B",
+            "hf_id": "black-forest-labs/FLUX.2-klein-4B",
+            "description": "Ultra-rapide (<1s/image) - 13GB VRAM - 4 steps distillé - Apache 2.0",
+            "vram": "13GB",
+            "pipeline": "flux2_klein",
+            "min_resolution": 512,
+            "max_resolution": 2048,
+            "recommended_resolutions": ["1024x1024", "1344x768", "768x1344", "1920x1088"],
+        },
+
+        # =================================================================
         # QWEN IMAGE MODELS (Alibaba Cloud)
         # Routed to qwen_image_backend at generation time — listed here
         # so they appear in the UI model selector.

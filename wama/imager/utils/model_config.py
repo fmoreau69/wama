@@ -74,9 +74,12 @@ LOGO_DIR = MODEL_PATHS.get('diffusion', {}).get('logo',
 QWEN_IMAGE_DIR = MODEL_PATHS.get('diffusion', {}).get('qwen_image',
     settings.AI_MODELS_DIR / "models" / "diffusion" / "qwen-image")
 
+FLUX2_KLEIN_DIR = MODEL_PATHS.get('diffusion', {}).get('flux2_klein',
+    settings.AI_MODELS_DIR / "models" / "diffusion" / "flux2-klein")
+
 # Ensure directories exist
 for dir_path in [HUNYUAN_DIR, STABLE_DIFFUSION_DIR, COGVIDEOX_DIR, LTX_DIR,
-                 MOCHI_DIR, FLUX_DIR, LOGO_DIR, QWEN_IMAGE_DIR]:
+                 MOCHI_DIR, FLUX_DIR, LOGO_DIR, QWEN_IMAGE_DIR, FLUX2_KLEIN_DIR]:
     Path(dir_path).mkdir(parents=True, exist_ok=True)
 
 # =============================================================================
@@ -102,37 +105,53 @@ COGVIDEOX_MODELS = {
         'hf_id': 'THUDM/CogVideoX-5b',
         'type': 'video',
         'mode': 't2v',
-        'vram_gb': 5,
+        'vram_gb': 21,
         'disk_gb': 12,
         'fps': 24,
         'resolution': '720x480',
-        'description': 'CogVideoX 5B T2V (5GB VRAM, 24fps)',
+        'description': 'CogVideoX 5B T2V (~21GB VRAM mesurée, 24fps)',
     },
     'cogvideox-5b-i2v': {
         'model_id': 'cogvideox-5b-i2v',
         'hf_id': 'THUDM/CogVideoX-5b-I2V',
         'type': 'video',
         'mode': 'i2v',
-        'vram_gb': 5,
+        'vram_gb': 21,
         'disk_gb': 12,
         'fps': 24,
         'resolution': '720x480',
-        'description': 'CogVideoX 5B I2V — Image-to-Video (5GB VRAM)',
+        'description': 'CogVideoX 5B I2V — Image-to-Video (~21GB VRAM mesurée)',
     },
 }
 
 # ─── LTX-Video (Lightricks) ───────────────────────────────────────────────────
+# Seul repo diffusers disponible pour la 0.9.8 : Lightricks/LTX-Video-0.9.8-13B-distilled
+# (pas de repo 0.9.8-dev — utiliser 0.9.7-dev ou attendre la sortie officielle)
 LTX_MODELS = {
-    'ltx-video-0.9.8-distilled': {
-        'model_id': 'ltx-video-0.9.8-distilled',
-        'hf_id': 'Lightricks/LTX-Video-0.9.8-distilled',
+    # ── 13B Distilled — rapide, haute qualité ────────────────────────────────
+    'ltx-video-13b-0.9.8-distilled': {
+        'model_id': 'ltx-video-13b-0.9.8-distilled',
+        'hf_id': 'Lightricks/LTX-Video-0.9.8-13B-distilled',
         'type': 'video',
-        'mode': 't2v',
-        'vram_gb': 6,
-        'disk_gb': 4,
+        'mode': 't2v+i2v',
+        'vram_gb': 14,
+        'disk_gb': 18,
         'fps': 24,
-        'resolution': '704x480',
-        'description': 'LTX-Video Distilled — rapide, 24fps (6GB VRAM)',
+        'resolution': '1216x704',
+        'description': 'LTX-Video 13B Distilled — rapide, T2V + I2V (14GB VRAM)',
+    },
+    # ── 13B Distilled FP8 — meilleur ratio qualité/VRAM sur RTX 4090 ─────────
+    'ltx-video-13b-0.9.8-distilled-fp8': {
+        'model_id': 'ltx-video-13b-0.9.8-distilled-fp8',
+        'hf_id': 'Lightricks/LTX-Video-0.9.8-13B-distilled',
+        'type': 'video',
+        'mode': 't2v+i2v',
+        'vram_gb': 8,
+        'disk_gb': 18,
+        'fps': 24,
+        'resolution': '1216x704',
+        'quantization': 'fp8',
+        'description': 'LTX-Video 13B Distilled FP8 — ~8GB VRAM, T2V + I2V',
     },
 }
 
@@ -219,6 +238,27 @@ QWEN_IMAGE_MODELS = {
     },
 }
 
+# ─── FLUX.2 [klein] 4B (Black Forest Labs) ───────────────────────────────────
+# Apache 2.0 — distilled 4-step model, <1s/image, T2I + image-conditioned
+# HF: black-forest-labs/FLUX.2-klein-4B
+# Pipeline: diffusers Flux2KleinPipeline (diffusers >= 0.37)
+FLUX2_KLEIN_MODELS = {
+    'flux2-klein-4b': {
+        'model_id': 'flux2-klein-4b',
+        'hf_id': 'black-forest-labs/FLUX.2-klein-4B',
+        'type': 'image',
+        'mode': 't2i',
+        'pipeline': 'flux2_klein',
+        'vram_gb': 13,
+        'disk_gb': 16,
+        'resolution': 1024,
+        'description': 'FLUX.2 Klein 4B — ultra-rapide (<1s), 13GB VRAM, Apache 2.0',
+        'license': 'apache-2.0',
+        'default_guidance_scale': 1.0,
+        'default_steps': 4,
+    },
+}
+
 # =============================================================================
 # LOGO GENERATION MODELS
 # =============================================================================
@@ -266,6 +306,7 @@ IMAGER_MODELS = {
     **MOCHI_MODELS,
     **STABLE_DIFFUSION_MODELS,
     **QWEN_IMAGE_MODELS,
+    **FLUX2_KLEIN_MODELS,
     **LOGO_MODELS,
 }
 
@@ -323,6 +364,13 @@ def setup_hf_cache_for_qwen_image() -> str:
     return cache_dir
 
 
+def setup_hf_cache_for_flux2_klein() -> str:
+    """Setup HuggingFace cache for FLUX.2 Klein models. Returns the cache dir."""
+    cache_dir = str(FLUX2_KLEIN_DIR)
+    setup_hf_cache_for_model(cache_dir)
+    return cache_dir
+
+
 # =============================================================================
 # QUERY HELPERS
 # =============================================================================
@@ -352,6 +400,8 @@ def get_model_info(model_name: str) -> dict:
         info['cache_dir'] = str(MOCHI_DIR)
     elif model_name in QWEN_IMAGE_MODELS:
         info['cache_dir'] = str(QWEN_IMAGE_DIR)
+    elif model_name in FLUX2_KLEIN_MODELS:
+        info['cache_dir'] = str(FLUX2_KLEIN_DIR)
     elif model_name in LOGO_MODELS:
         info['cache_dir'] = str(FLUX_DIR) if info.get('pipeline') == 'flux' else str(LOGO_DIR)
     else:
@@ -369,6 +419,7 @@ def list_available_models() -> dict:
         'mochi': MOCHI_MODELS,
         'stable_diffusion': STABLE_DIFFUSION_MODELS,
         'qwen_image': QWEN_IMAGE_MODELS,
+        'flux2_klein': FLUX2_KLEIN_MODELS,
         'logo': LOGO_MODELS,
     }
 
@@ -388,6 +439,7 @@ def get_image_models() -> dict:
         **HUNYUAN_MODELS,
         **STABLE_DIFFUSION_MODELS,
         **QWEN_IMAGE_MODELS,
+        **FLUX2_KLEIN_MODELS,
     }
 
 
@@ -421,6 +473,10 @@ def get_logo_directory() -> Path:
 
 def get_qwen_image_directory() -> Path:
     return Path(QWEN_IMAGE_DIR)
+
+
+def get_flux2_klein_directory() -> Path:
+    return Path(FLUX2_KLEIN_DIR)
 
 
 def get_logo_models() -> dict:

@@ -117,6 +117,16 @@ HIGGS_LANGUAGE_NAMES = {
 # XTTS v2 / Coqui — mapping preset → (nom fichier local, URL téléchargement)
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# Dossier des voix de référence (nouveau système)
+# ---------------------------------------------------------------------------
+# Les nouvelles voix sont dans media/synthesizer/voice_references/
+# Les anciens presets (default, male_1 ...) sont dans ce même dossier pour compat.
+# Voir wama/synthesizer/utils/voice_utils.py pour le scan et la résolution.
+# ---------------------------------------------------------------------------
+
+VOICE_REFS_SUBDIR = "synthesizer/voice_references"
+
 _LJ_BASE = "https://github.com/idiap/coqui-ai-TTS/raw/main/tests/data/ljspeech/wavs"
 
 PRESET_DOWNLOAD_MAPPING = {

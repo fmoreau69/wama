@@ -43,6 +43,9 @@ urlpatterns = [
     # Model Management
     path('model-recommendations/', views.get_model_recommendations, name='model_recommendations'),
 
+    # Duplication
+    path('duplicate/<int:media_id>/', views.duplicate_media, name='duplicate_media'),
+
     # Modern Modal-Based Settings
     path('get_media_settings/<int:media_id>/', views.get_media_settings, name='get_media_settings'),
     path('save_media_settings/', views.save_media_settings, name='save_media_settings'),

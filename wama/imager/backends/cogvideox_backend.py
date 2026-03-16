@@ -5,8 +5,8 @@ Video generation using CogVideoX via Hugging Face Diffusers.
 Supports Text-to-Video and Image-to-Video generation.
 
 Models:
-- CogVideoX-2b: Lightweight, 4GB VRAM with optimizations
-- CogVideoX-5b: Higher quality, 5GB VRAM with optimizations
+- CogVideoX-5b:     T2V — ~21GB VRAM (transformer 10.8 + text_enc 8.9 + VAE 0.4)
+- CogVideoX-5b-I2V: I2V — ~21GB VRAM (same components)
 """
 
 import gc

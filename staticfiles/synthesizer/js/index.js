@@ -173,91 +173,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Start buttons
-    document.querySelectorAll('.start-btn').forEach(btn => {
-        btn.addEventListener('click', async () => {
-            const id = btn.dataset.id;
-            try {
-                const response = await fetch(URLS.start + id + '/', {
-                    method: 'GET',
-                    headers: { 'X-CSRFToken': csrfToken }
-                });
-
-                if (response.ok) {
-                    location.reload();
-                } else {
-                    const data = await response.json();
-                    alert('Erreur: ' + (data.error || 'Échec du démarrage'));
-                }
-            } catch (error) {
-                alert('Erreur: ' + error.message);
-            }
-        });
-    });
-
-    // Preview buttons
-    document.querySelectorAll('.preview-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const id = btn.dataset.id;
-            const previewDiv = document.getElementById(`preview_${id}`);
-
-            if (previewDiv) {
-                if (previewDiv.style.display === 'none') {
-                    previewDiv.style.display = 'block';
-                } else {
-                    previewDiv.style.display = 'none';
-                }
-            }
-        });
-    });
-
-    // Text preview buttons
-    document.querySelectorAll('.preview-text-btn').forEach(btn => {
-        btn.addEventListener('click', async () => {
-            const id = btn.dataset.id;
-            const modal = new bootstrap.Modal(document.getElementById('textPreviewModal'));
-
-            // Show modal with loader
-            modal.show();
-
-            // Reset modal state
-            document.getElementById('textPreviewLoader').style.display = 'block';
-            document.getElementById('textPreviewContent').style.display = 'none';
-            document.getElementById('textPreviewError').style.display = 'none';
-
-            try {
-                const response = await fetch(URLS.textPreview + id + '/');
-                const data = await response.json();
-
-                if (response.ok && data.success) {
-                    // Update modal content
-                    document.getElementById('textPreviewTitle').innerHTML =
-                        `<i class="fas fa-file-alt"></i> ${data.filename}`;
-                    document.getElementById('textPreviewInfo').textContent =
-                        `${data.word_count} mots • Durée estimée: ${data.duration_display}`;
-                    document.getElementById('textPreviewText').textContent = data.text_content;
-
-                    // Show content
-                    document.getElementById('textPreviewLoader').style.display = 'none';
-                    document.getElementById('textPreviewContent').style.display = 'block';
-                } else {
-                    // Show error
-                    document.getElementById('textPreviewLoader').style.display = 'none';
-                    document.getElementById('textPreviewErrorMsg').textContent =
-                        data.error || 'Impossible de charger le texte';
-                    document.getElementById('textPreviewError').style.display = 'block';
-                }
-            } catch (error) {
-                console.error('Text preview error:', error);
-                document.getElementById('textPreviewLoader').style.display = 'none';
-                document.getElementById('textPreviewErrorMsg').textContent =
-                    'Erreur de communication: ' + error.message;
-                document.getElementById('textPreviewError').style.display = 'block';
-            }
-        });
-    });
-
-    // Settings buttons - Open modal with current values
+    // Settings modal instance + live warning (used by delegation handler below)
     const settingsModal = document.getElementById('settingsModal');
     const settingsModalInstance = settingsModal ? new bootstrap.Modal(settingsModal) : null;
 
@@ -271,33 +187,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     if (settingsTtsModelEl) settingsTtsModelEl.addEventListener('change', updateSettingsLangWarning);
     if (settingsLanguageEl) settingsLanguageEl.addEventListener('change', updateSettingsLangWarning);
-
-    document.querySelectorAll('.settings-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const id = btn.dataset.id;
-            const ttsModel = btn.dataset.ttsModel;
-            const language = btn.dataset.language;
-            const voicePreset = btn.dataset.voicePreset;
-            const speed = btn.dataset.speed || '1.0';
-            const pitch = btn.dataset.pitch || '1.0';
-
-            // Populate modal fields
-            document.getElementById('settingsSynthesisId').value = id;
-            document.getElementById('settingsTtsModel').value = ttsModel;
-            document.getElementById('settingsLanguage').value = language;
-            document.getElementById('settingsVoicePreset').value = voicePreset;
-            document.getElementById('settingsSpeed').value = speed;
-            document.getElementById('settingsSpeedValue').textContent = speed;
-            document.getElementById('settingsPitch').value = pitch;
-            document.getElementById('settingsPitchValue').textContent = pitch;
-            checkLangCompat(ttsModel, language, document.getElementById('settings-lang-compat-warning'));
-
-            // Show modal
-            if (settingsModalInstance) {
-                settingsModalInstance.show();
-            }
-        });
-    });
 
     // Save settings button
     const saveSettingsBtn = document.getElementById('saveSettingsBtn');
@@ -369,27 +258,125 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Delete buttons
-    document.querySelectorAll('.delete-btn').forEach(btn => {
-        btn.addEventListener('click', async () => {
-            if (!confirm('Supprimer cette synthèse ?')) return;
-
-            const id = btn.dataset.id;
+    // === Unified card button delegation ===
+    // Uses document-level event delegation so that cards replaced in-place by the
+    // polling loop (no full page reload) automatically get working buttons.
+    document.addEventListener('click', async e => {
+        // .start-btn — start or retry a synthesis
+        const startBtn = e.target.closest('.start-btn');
+        if (startBtn) {
+            const id = startBtn.dataset.id;
             try {
-                const response = await fetch(URLS.delete + id + '/', {
-                    method: 'POST',
-                    headers: { 'X-CSRFToken': csrfToken }
-                });
-
-                if (response.ok) {
+                const r = await fetch(URLS.start + id + '/', { method: 'GET', headers: { 'X-CSRFToken': csrfToken } });
+                if (r.ok) {
                     location.reload();
+                } else {
+                    const d = await r.json();
+                    alert('Erreur: ' + (d.error || 'Échec du démarrage'));
+                }
+            } catch (err) { alert('Erreur: ' + err.message); }
+            return;
+        }
+
+        // .preview-btn — toggle inline audio player
+        const previewBtn = e.target.closest('.preview-btn');
+        if (previewBtn) {
+            const id = previewBtn.dataset.id;
+            const previewDiv = document.getElementById('preview_' + id);
+            if (previewDiv) {
+                previewDiv.style.display = previewDiv.style.display === 'none' ? 'block' : 'none';
+            }
+            return;
+        }
+
+        // .preview-text-btn — show text content modal
+        const textBtn = e.target.closest('.preview-text-btn');
+        if (textBtn) {
+            const id = textBtn.dataset.id;
+            const modal = new bootstrap.Modal(document.getElementById('textPreviewModal'));
+            modal.show();
+            document.getElementById('textPreviewLoader').style.display = 'block';
+            document.getElementById('textPreviewContent').style.display = 'none';
+            document.getElementById('textPreviewError').style.display = 'none';
+            try {
+                const response = await fetch(URLS.textPreview + id + '/');
+                const data = await response.json();
+                if (response.ok && data.success) {
+                    document.getElementById('textPreviewTitle').innerHTML =
+                        `<i class="fas fa-file-alt"></i> ${data.filename}`;
+                    document.getElementById('textPreviewInfo').textContent =
+                        `${data.word_count} mots • Durée estimée: ${data.duration_display}`;
+                    document.getElementById('textPreviewText').textContent = data.text_content;
+                    document.getElementById('textPreviewLoader').style.display = 'none';
+                    document.getElementById('textPreviewContent').style.display = 'block';
+                } else {
+                    document.getElementById('textPreviewLoader').style.display = 'none';
+                    document.getElementById('textPreviewErrorMsg').textContent =
+                        data.error || 'Impossible de charger le texte';
+                    document.getElementById('textPreviewError').style.display = 'block';
+                }
+            } catch (err) {
+                document.getElementById('textPreviewLoader').style.display = 'none';
+                document.getElementById('textPreviewErrorMsg').textContent = 'Erreur: ' + err.message;
+                document.getElementById('textPreviewError').style.display = 'block';
+            }
+            return;
+        }
+
+        // .settings-btn — open item settings modal
+        const settingsBtn = e.target.closest('.settings-btn');
+        if (settingsBtn && settingsModalInstance) {
+            const id = settingsBtn.dataset.id;
+            const ttsModel = settingsBtn.dataset.ttsModel;
+            const language = settingsBtn.dataset.language;
+            const voicePreset = settingsBtn.dataset.voicePreset;
+            const speed = settingsBtn.dataset.speed || '1.0';
+            const pitch = settingsBtn.dataset.pitch || '1.0';
+            document.getElementById('settingsSynthesisId').value = id;
+            document.getElementById('settingsTtsModel').value = ttsModel;
+            document.getElementById('settingsLanguage').value = language;
+            document.getElementById('settingsVoicePreset').value = voicePreset;
+            document.getElementById('settingsSpeed').value = speed;
+            document.getElementById('settingsSpeedValue').textContent = speed;
+            document.getElementById('settingsPitch').value = pitch;
+            document.getElementById('settingsPitchValue').textContent = pitch;
+            checkLangCompat(ttsModel, language, document.getElementById('settings-lang-compat-warning'));
+            settingsModalInstance.show();
+            return;
+        }
+
+        // .duplicate-btn — duplicate a synthesis
+        const dupBtn = e.target.closest('.duplicate-btn');
+        if (dupBtn) {
+            const id = dupBtn.dataset.id;
+            try {
+                const r = await fetch(URLS.duplicate + id + '/', { method: 'POST', headers: { 'X-CSRFToken': csrfToken } });
+                if (r.ok) {
+                    location.reload();
+                } else {
+                    const d = await r.json();
+                    alert('Erreur: ' + (d.error || 'Échec de la duplication'));
+                }
+            } catch (err) { alert('Erreur: ' + err.message); }
+            return;
+        }
+
+        // .delete-btn — remove a synthesis (no page reload: remove card from DOM)
+        const deleteBtn = e.target.closest('.delete-btn');
+        if (deleteBtn) {
+            if (!confirm('Supprimer cette synthèse ?')) return;
+            const id = deleteBtn.dataset.id;
+            try {
+                const r = await fetch(URLS.delete + id + '/', { method: 'POST', headers: { 'X-CSRFToken': csrfToken } });
+                if (r.ok) {
+                    const card = deleteBtn.closest('.synthesis-card');
+                    if (card) card.remove();
                 } else {
                     alert('Erreur lors de la suppression');
                 }
-            } catch (error) {
-                alert('Erreur: ' + error.message);
-            }
-        });
+            } catch (err) { alert('Erreur: ' + err.message); }
+            return;
+        }
     });
 
     // Bulk actions
@@ -487,9 +474,21 @@ document.addEventListener('DOMContentLoaded', function() {
                     progressText.textContent = data.progress + '%';
                 }
 
-                // Reload if finished
+                // Update card in-place on completion — no full page reload
+                // (a full reload interrupts audio preview and reloads the slow FileManager)
                 if (data.status === 'SUCCESS' || data.status === 'FAILURE') {
-                    location.reload();
+                    try {
+                        const cardResp = await fetch(URLS.cardHtml + id + '/card/');
+                        if (cardResp.ok) {
+                            const html = await cardResp.text();
+                            const temp = document.createElement('div');
+                            temp.innerHTML = html.trim();
+                            const newCard = temp.firstElementChild;
+                            if (newCard) card.replaceWith(newCard);
+                        }
+                    } catch (fetchErr) {
+                        console.error('[Synthesizer] Card refresh error:', fetchErr);
+                    }
                 }
             } catch (error) {
                 console.error('Progress update error:', error);
@@ -1239,13 +1238,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 const data = await response.json();
 
                 if (response.ok && data.id) {
-                    // Add option to both dropdowns
-                    const optionHtml = `<option value="cv_${data.id}">${data.name}</option>`;
+                    // Add option to both dropdowns (ua_ = UserAsset)
+                    const optionHtml = `<option value="ua_${data.id}">${data.name}</option>`;
                     addCustomVoiceOption('customVoicesGroup', optionHtml, 'voice_preset');
                     addCustomVoiceOption('settingsCustomVoicesGroup', optionHtml, 'settingsVoicePreset');
 
                     // Select the new voice in the panel dropdown
-                    document.getElementById('voice_preset').value = `cv_${data.id}`;
+                    document.getElementById('voice_preset').value = `ua_${data.id}`;
 
                     if (customVoiceModalInstance) customVoiceModalInstance.hide();
                 } else {

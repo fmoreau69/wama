@@ -102,7 +102,7 @@
                 <div class="card bg-dark border-success mb-2">
                     <div class="card-body py-2">
                         <h6 class="card-title text-success mb-1">CogVideoX 5B</h6>
-                        <p class="card-text small mb-0">Text-to-Video — 5GB VRAM — 8fps</p>
+                        <p class="card-text small mb-0">Text-to-Video — 21GB VRAM — 8fps</p>
                     </div>
                 </div>
             </div>
@@ -110,15 +110,23 @@
                 <div class="card bg-dark border-success mb-2">
                     <div class="card-body py-2">
                         <h6 class="card-title text-success mb-1">CogVideoX 5B I2V</h6>
-                        <p class="card-text small mb-0">Image-to-Video — 5GB VRAM — 8fps</p>
+                        <p class="card-text small mb-0">Image-to-Video — 21GB VRAM — 8fps</p>
                     </div>
                 </div>
             </div>
             <div class="col-md-6">
                 <div class="card bg-dark border-info mb-2">
                     <div class="card-body py-2">
-                        <h6 class="card-title text-info mb-1">LTX-Video 0.9.8 Distilled</h6>
-                        <p class="card-text small mb-0">Rapide et fluide — 6GB VRAM — 24fps</p>
+                        <h6 class="card-title text-info mb-1">LTX-Video 13B Distilled FP8 <span class="badge bg-info text-dark ms-1 small">NOUVEAU</span></h6>
+                        <p class="card-text small mb-0">T2V + I2V — 8GB VRAM — 24fps</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card bg-dark border-info mb-2">
+                    <div class="card-body py-2">
+                        <h6 class="card-title text-info mb-1">LTX-Video 13B Distilled</h6>
+                        <p class="card-text small mb-0">T2V + I2V — 14GB VRAM — 24fps</p>
                     </div>
                 </div>
             </div>
@@ -220,10 +228,11 @@
                 <div class="card bg-dark mb-2"><div class="card-body">
                     <h6 class="text-success">2. Choisir le modèle</h6>
                     <p class="text-light mb-0">
-                        <strong>CogVideoX 5B</strong> : T2V polyvalent (5GB)<br>
-                        <strong>CogVideoX 5B I2V</strong> : Animation d'image (5GB)<br>
-                        <strong>LTX-Video Distilled</strong> : Rapide 24fps (6GB)<br>
-                        <strong>Mochi-1</strong> : Qualité max 30fps (22GB)
+                        <strong>CogVideoX 5B</strong> : T2V polyvalent (21GB)<br>
+                        <strong>CogVideoX 5B I2V</strong> : Animation d'image (21GB)<br>
+                        <strong>LTX-Video 13B Distilled FP8</strong> : Rapide T2V+I2V 24fps (8GB)<br>
+                        <strong>LTX-Video 13B Distilled</strong> : T2V+I2V 24fps (14GB)<br>
+                        <strong>Mochi-1</strong> : Qualité cinématique 30fps (22GB)
                     </p>
                 </div></div>
                 <div class="card bg-dark mb-2"><div class="card-body">
@@ -240,9 +249,10 @@
             <table class="table table-dark table-sm">
                 <thead><tr><th>Modèle</th><th>Type</th><th>VRAM</th><th>FPS</th><th>Usage</th></tr></thead>
                 <tbody>
-                    <tr><td>CogVideoX 5B</td><td>T2V</td><td>5GB</td><td>8</td><td>Polyvalent</td></tr>
-                    <tr><td>CogVideoX 5B I2V</td><td>I2V</td><td>5GB</td><td>8</td><td>Animer une image</td></tr>
-                    <tr><td>LTX-Video Distilled</td><td>T2V</td><td>6GB</td><td>24</td><td>Rapide et fluide</td></tr>
+                    <tr><td>LTX-Video 13B Distilled FP8</td><td>T2V+I2V</td><td>8GB</td><td>24</td><td>Rapide, économe VRAM</td></tr>
+                    <tr><td>LTX-Video 13B Distilled</td><td>T2V+I2V</td><td>14GB</td><td>24</td><td>Rapide, haute qualité</td></tr>
+                    <tr><td>CogVideoX 5B</td><td>T2V</td><td>21GB</td><td>8</td><td>Polyvalent</td></tr>
+                    <tr><td>CogVideoX 5B I2V</td><td>I2V</td><td>21GB</td><td>8</td><td>Animer une image</td></tr>
                     <tr><td>Mochi-1 Preview</td><td>T2V</td><td>22GB</td><td>30</td><td>Qualité cinématique</td></tr>
                 </tbody>
             </table>
@@ -293,21 +303,27 @@
             <h6 class="text-success mt-4">Modèles Vidéo — par usage</h6>
             <div class="row">
                 <div class="col-md-6">
+                    <div class="card bg-dark border-info mb-2"><div class="card-body py-2">
+                        <strong class="text-info">LTX-Video 13B Distilled FP8 <span class="badge bg-info text-dark small">NOUVEAU</span></strong>
+                        <p class="small mb-0">T2V + I2V — 24fps. 8GB VRAM.</p>
+                    </div></div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card bg-dark border-info mb-2"><div class="card-body py-2">
+                        <strong class="text-info">LTX-Video 13B Distilled</strong>
+                        <p class="small mb-0">T2V + I2V — haute qualité. 24fps. 14GB VRAM.</p>
+                    </div></div>
+                </div>
+                <div class="col-md-6">
                     <div class="card bg-dark border-success mb-2"><div class="card-body py-2">
                         <strong class="text-success">CogVideoX 5B</strong>
-                        <p class="small mb-0">T2V polyvalent. 5GB VRAM.</p>
+                        <p class="small mb-0">T2V polyvalent. 8fps. 21GB VRAM.</p>
                     </div></div>
                 </div>
                 <div class="col-md-6">
                     <div class="card bg-dark border-success mb-2"><div class="card-body py-2">
                         <strong class="text-success">CogVideoX 5B I2V</strong>
-                        <p class="small mb-0">I2V — anime votre image. 5GB VRAM.</p>
-                    </div></div>
-                </div>
-                <div class="col-md-6">
-                    <div class="card bg-dark border-info mb-2"><div class="card-body py-2">
-                        <strong class="text-info">LTX-Video Distilled</strong>
-                        <p class="small mb-0">Vitesse + fluidité. 24fps. 6GB VRAM.</p>
+                        <p class="small mb-0">I2V — anime votre image. 8fps. 21GB VRAM.</p>
                     </div></div>
                 </div>
                 <div class="col-md-6">
@@ -321,9 +337,10 @@
             <div class="alert alert-info mt-4">
                 <h6><i class="fas fa-lightbulb me-2"></i>Conseil de sélection par GPU</h6>
                 <ul class="mb-0">
-                    <li><strong>4–6GB :</strong> CogVideoX 5B / 5B I2V, LTX-Video, SD v1.5</li>
-                    <li><strong>10–16GB :</strong> SDXL, HunyuanImage 2.1, Qwen Image 2</li>
-                    <li><strong>22GB+ :</strong> Mochi-1, tous les modèles</li>
+                    <li><strong>8GB :</strong> LTX-Video 13B Distilled FP8, SD v1.5</li>
+                    <li><strong>10–16GB :</strong> SDXL, HunyuanImage 2.1, Qwen Image 2, LTX-Video 13B Distilled</li>
+                    <li><strong>21–22GB :</strong> CogVideoX 5B/I2V, Mochi-1</li>
+                    <li><strong>24GB (RTX 4090) :</strong> tous les modèles</li>
                 </ul>
             </div>
         </div>

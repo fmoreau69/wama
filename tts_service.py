@@ -40,7 +40,8 @@ os.environ.setdefault("SUNO_USE_SMALL_MODELS", "False")
 os.environ.setdefault("TORCH_FORCE_WEIGHTS_ONLY_LOAD", "0")
 
 # Default voices directory
-DEFAULT_VOICES_DIR = PROJECT_DIR / "media" / "synthesizer" / "default_voices"
+DEFAULT_VOICES_DIR = PROJECT_DIR / "media" / "synthesizer" / "voice_references"
+_LEGACY_VOICES_DIR = PROJECT_DIR / "media" / "synthesizer" / "default_voices"
 DEFAULT_VOICES_DIR.mkdir(parents=True, exist_ok=True)
 
 # ---------------------------------------------------------------------------
@@ -360,41 +361,51 @@ def _get_speaker_wav(voice_preset: str) -> Optional[str]:
     """Resolve a voice preset name to a WAV file path."""
     import urllib.request
 
-    # Check TTS package samples first
-    try:
-        import pkg_resources
-        tts_path = pkg_resources.resource_filename("TTS", "")
-        samples_dir = os.path.join(tts_path, "utils", "samples")
-        if os.path.exists(samples_dir):
-            for f in os.listdir(samples_dir):
-                if f.endswith(".wav"):
-                    return os.path.join(samples_dir, f)
-    except Exception:
-        pass
+    if not voice_preset or voice_preset in ('custom',) or voice_preset.startswith(('bark_v2_', 'cv_')):
+        return None
 
-    # Preset → file mapping (depuis wama.common.tts.constants)
-    preset_mapping = PRESET_DOWNLOAD_MAPPING
+    DEFAULT_VOICES_DIR.mkdir(parents=True, exist_ok=True)
 
-    # Download missing presets
-    for name, (fname, url) in preset_mapping.items():
+    # New format: relative path within voice_references/
+    if '/' in voice_preset:
+        path = DEFAULT_VOICES_DIR / (voice_preset + '.wav')
+        if path.exists():
+            return str(path)
+        logger.warning(f"Voice ref not found: {path}")
+        return None
+
+    # Legacy flat files: try voice_references/ root first, then default_voices/
+    for base_dir in (DEFAULT_VOICES_DIR, _LEGACY_VOICES_DIR):
+        path = base_dir / (voice_preset + '.wav')
+        if path.exists():
+            return str(path)
+
+    # Auto-download missing legacy presets (LJSpeech fallback)
+    _LJ_BASE = "https://github.com/idiap/coqui-ai-TTS/raw/main/tests/data/ljspeech/wavs"
+    legacy_mapping = {
+        'default':  ('default.wav',  f'{_LJ_BASE}/LJ001-0001.wav'),
+        'male_1':   ('male_1.wav',   f'{_LJ_BASE}/LJ001-0015.wav'),
+        'male_2':   ('male_2.wav',   f'{_LJ_BASE}/LJ001-0020.wav'),
+        'female_1': ('female_1.wav', f'{_LJ_BASE}/LJ001-0010.wav'),
+        'female_2': ('female_2.wav', f'{_LJ_BASE}/LJ001-0025.wav'),
+    }
+    if voice_preset in legacy_mapping:
+        fname, url = legacy_mapping[voice_preset]
         fpath = DEFAULT_VOICES_DIR / fname
         if not fpath.exists():
             try:
-                logger.info(f"Downloading voice preset {name} from {url}")
+                logger.info(f"Downloading legacy voice preset '{voice_preset}' ...")
                 urllib.request.urlretrieve(url, str(fpath))
             except Exception as e:
-                logger.warning(f"Could not download preset {name}: {e}")
-
-    # Return matching preset
-    if voice_preset in preset_mapping:
-        fpath = DEFAULT_VOICES_DIR / preset_mapping[voice_preset][0]
+                logger.warning(f"Could not download preset '{voice_preset}': {e}")
         if fpath.exists():
             return str(fpath)
 
-    # Fallback to default
-    default_path = DEFAULT_VOICES_DIR / "default.wav"
-    if default_path.exists():
-        return str(default_path)
+    # Final fallback: default.wav
+    for base_dir in (DEFAULT_VOICES_DIR, _LEGACY_VOICES_DIR):
+        fallback = base_dir / 'default.wav'
+        if fallback.exists():
+            return str(fallback)
 
     return None
 

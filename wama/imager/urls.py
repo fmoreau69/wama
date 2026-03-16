@@ -26,6 +26,7 @@ urlpatterns = [
     path('download/<int:generation_id>/', views.download, name='download'),
     path('download-all/', views.download_all, name='download_all'),
     path('delete/<int:generation_id>/', views.delete_generation, name='delete'),
+    path('duplicate/<int:generation_id>/', views.duplicate_generation, name='duplicate'),
     path('clear-all/', views.clear_all, name='clear_all'),
 
     # Console and settings
@@ -41,6 +42,9 @@ urlpatterns = [
     path('auto-prompt/', views.generate_auto_prompt, name='auto_prompt'),
     path('batch/<int:parent_id>/children/', views.get_batch_children, name='batch_children'),
     path('batch/<int:parent_id>/start/', views.start_batch, name='start_batch'),
+
+    # Prompt enhancement (Ollama)
+    path('enhance-prompt/', views.enhance_prompt, name='enhance_prompt'),
 
     # API endpoints for model configuration
     path('api/model-resolutions/', views.api_model_resolutions, name='api_model_resolutions'),

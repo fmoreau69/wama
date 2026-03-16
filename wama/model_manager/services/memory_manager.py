@@ -43,8 +43,9 @@ MODEL_SIZE_PRESETS = {
 
     # ── Video diffusion ──────────────────────────────────────────────────────
     'hunyuan-video': 24.0,
-    'cogvideox': 5.0,     # CogVideoX-5B measured ~5 GB (not 16 GB)
-    'ltx-video': 6.0,     # LTX-Video 0.9.8 distilled ~6 GB
+    'cogvideox': 21.0,    # CogVideoX-5B measured: transformer 10.8 + text_encoder 8.9 + VAE 0.4 = 20.1 GB
+    'ltx-video': 18.0,        # LTX-Video 13B bf16 — transformer ~14GB + text_encoder ~4GB
+    'ltx-video-fp8': 8.0,    # LTX-Video 13B FP8 quantized (torchao)
     'mochi': 22.0,        # Mochi-1 Preview bf16 ~22 GB
     'wan-t2v': 14.0,
     'wan-i2v': 28.0,

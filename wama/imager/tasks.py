@@ -56,9 +56,16 @@ def generate_image_task(self, generation_id):
             logger.warning(f"[Imager] Generation #{generation_id} already has status {generation.status}, skipping")
             return {'skipped': True, 'reason': f'already_{generation.status.lower()}', 'generation_id': generation_id}
 
-        # Note: We don't check for RUNNING status here because the view sets it
-        # to RUNNING right after calling delay(). The view is responsible for
-        # preventing duplicate launches via its own checks.
+        # Guard against stale re-queued tasks: if the task_id in DB is empty or doesn't
+        # match this task's ID, this is a ghost task (e.g. re-queued after force_reset +
+        # server restart). Skip to avoid overwriting a fresh dispatch.
+        current_task_id = self.request.id
+        if current_task_id and generation.task_id and generation.task_id != current_task_id:
+            logger.warning(
+                f"[Imager] Generation #{generation_id}: task_id mismatch "
+                f"(DB={generation.task_id}, this={current_task_id}) — stale re-queued task, skipping"
+            )
+            return {'skipped': True, 'reason': 'stale_task', 'generation_id': generation_id}
 
         generation.status = 'RUNNING'
         generation.progress = 0
@@ -106,6 +113,29 @@ def generate_image_task(self, generation_id):
                 generation.save()
                 _console(user_id, f"[Imager] Error: {error_msg}")
                 return {'error': error_msg}
+
+        # Route FLUX.2 Klein models to dedicated backend
+        elif generation.model.startswith('flux2-klein'):
+            try:
+                from .backends.flux2_klein_backend import Flux2KleinBackend
+                backend = Flux2KleinBackend()
+                if not Flux2KleinBackend.is_available():
+                    error_msg = "FLUX.2 Klein backend not available. Need CUDA + diffusers>=0.37."
+                    logger.error(error_msg)
+                    generation.status = 'FAILURE'
+                    generation.error_message = error_msg
+                    generation.save()
+                    _console(user_id, f"[Imager] Error: {error_msg}")
+                    return {'error': error_msg}
+            except ImportError as e:
+                error_msg = f"FLUX.2 Klein backend not importable: {e}"
+                logger.error(error_msg)
+                generation.status = 'FAILURE'
+                generation.error_message = error_msg
+                generation.save()
+                _console(user_id, f"[Imager] Error: {error_msg}")
+                return {'error': error_msg}
+
         else:
             # Get the best available backend (diffusers / imaginairy)
             backend = get_backend()
@@ -312,6 +342,21 @@ def generate_video_task(self, generation_id):
 
     try:
         generation = ImageGeneration.objects.get(id=generation_id)
+
+        # Skip if already completed (e.g. re-queued after force_reset)
+        if generation.status in ('SUCCESS', 'FAILURE'):
+            logger.warning(f"[Imager Video] Generation #{generation_id} already has status {generation.status}, skipping")
+            return {'skipped': True, 'reason': f'already_{generation.status.lower()}', 'generation_id': generation_id}
+
+        # Guard against stale re-queued tasks (task_id mismatch after force_reset + restart)
+        current_task_id = self.request.id
+        if current_task_id and generation.task_id and generation.task_id != current_task_id:
+            logger.warning(
+                f"[Imager Video] Generation #{generation_id}: task_id mismatch "
+                f"(DB={generation.task_id}, this={current_task_id}) — stale re-queued task, skipping"
+            )
+            return {'skipped': True, 'reason': 'stale_task', 'generation_id': generation_id}
+
         generation.status = 'RUNNING'
         generation.progress = 0
         generation.save()
@@ -499,8 +544,20 @@ def generate_video_task(self, generation_id):
 
         model_load_start = time.time()
 
-        # Load the model
-        if not backend.load(generation.model):
+        # Progress callback during load — maps backend stage (0-100) to task progress (5-18%)
+        def _load_stage_cb(label: str, stage_pct: int):
+            mapped = 5 + int(stage_pct * 0.13)  # 5% + up to 13% during load → max 18%
+            generation.progress = mapped
+            generation.save(update_fields=['progress'])
+            cache.set(f"imager_progress_{generation_id}", mapped, timeout=7200)
+            _console(user_id, f"[Imager Video] {label}")
+
+        # Load the model (pass stage callback for progress reporting)
+        load_kwargs = {}
+        if hasattr(backend, 'load') and 'stage_callback' in backend.load.__code__.co_varnames:
+            load_kwargs['stage_callback'] = _load_stage_cb
+
+        if not backend.load(generation.model, **load_kwargs):
             error_msg = f"Failed to load video model: {generation.model}"
             logger.error(error_msg)
             generation.status = 'FAILURE'
@@ -538,7 +595,10 @@ def generate_video_task(self, generation_id):
             _console(user_id, f"[Imager Video] Reference image: {os.path.basename(reference_image_path)}")
 
         # Create video generation parameters (different structure per backend)
+        # export_fps = FPS used when writing the MP4 — must match the model's native FPS
+        # so that playback duration == intended duration.
         if backend_type == 'hunyuan':
+            export_fps = generation.video_fps
             params = params_class(
                 prompt=generation.prompt,
                 negative_prompt=generation.negative_prompt,
@@ -549,29 +609,41 @@ def generate_video_task(self, generation_id):
                 num_inference_steps=generation.steps,
                 cfg_scale=generation.guidance_scale,
                 seed=generation.seed,
-                fps=generation.video_fps,
+                fps=export_fps,
                 reference_image=reference_image_path,
             )
         elif backend_type == 'cogvideox':
-            # CogVideoX: fixed 49 frames, 8 fps
+            # CogVideoX native fps = 8. Frames must satisfy 4k+1 constraint.
+            # Use the requested duration to compute the correct frame count.
+            COGVIDEOX_FPS = 8
+            export_fps = COGVIDEOX_FPS
+            raw_cogvideox = int(generation.video_duration * COGVIDEOX_FPS)
+            k = max(1, round((raw_cogvideox - 1) / 4))
+            cogvideox_frames = 4 * k + 1  # e.g. 5s→41f, 6s→49f, 8s→65f
+            _console(user_id, f"[Imager Video] CogVideoX: {cogvideox_frames} frames à {COGVIDEOX_FPS}fps = {cogvideox_frames / COGVIDEOX_FPS:.1f}s")
             params = params_class(
                 prompt=generation.prompt,
                 negative_prompt=generation.negative_prompt,
                 model=generation.model,
                 width=720,  # CogVideoX fixed resolution
                 height=480,
-                num_frames=49,  # Fixed for CogVideoX
+                num_frames=cogvideox_frames,
                 num_inference_steps=generation.steps,
                 guidance_scale=generation.guidance_scale,
                 seed=generation.seed,
-                fps=8,
+                fps=COGVIDEOX_FPS,
                 reference_image=reference_image_path,
             )
         elif backend_type == 'ltx':
-            # LTX-Video: 24 fps, flexible resolution (must be divisible by 32)
+            # LTX-Video native fps = 24. Frames must be 8n+1.
+            LTX_FPS = 24
+            export_fps = LTX_FPS
             ltx_width = (width // 32) * 32
             ltx_height = (height // 32) * 32
-            ltx_frames = ((num_frames - 1) // 8) * 8 + 1  # Must be 8n+1
+            raw_ltx = int(generation.video_duration * LTX_FPS)
+            ltx_frames = ((raw_ltx - 1) // 8) * 8 + 1  # 8n+1
+            ltx_frames = max(9, ltx_frames)  # minimum 9 frames
+            _console(user_id, f"[Imager Video] LTX-Video: {ltx_frames} frames à {LTX_FPS}fps = {ltx_frames / LTX_FPS:.1f}s")
             params = params_class(
                 prompt=generation.prompt,
                 negative_prompt=generation.negative_prompt or "worst quality, inconsistent motion, blurry, jittery, distorted",
@@ -582,11 +654,16 @@ def generate_video_task(self, generation_id):
                 num_inference_steps=generation.steps,
                 guidance_scale=generation.guidance_scale,
                 seed=generation.seed,
-                fps=24,
+                fps=LTX_FPS,
             )
         elif backend_type == 'mochi':
-            # Mochi: 30 fps, max 84 frames
-            mochi_frames = min(num_frames, 84)
+            # Mochi native fps = 30. Max 84 frames (~2.8s).
+            MOCHI_FPS = 30
+            export_fps = MOCHI_FPS
+            raw_mochi = int(generation.video_duration * MOCHI_FPS)
+            mochi_frames = min(raw_mochi, 84)
+            mochi_frames = max(1, mochi_frames)
+            _console(user_id, f"[Imager Video] Mochi: {mochi_frames} frames à {MOCHI_FPS}fps = {mochi_frames / MOCHI_FPS:.1f}s")
             params = params_class(
                 prompt=generation.prompt,
                 negative_prompt=generation.negative_prompt,
@@ -597,10 +674,11 @@ def generate_video_task(self, generation_id):
                 num_inference_steps=generation.steps,
                 guidance_scale=generation.guidance_scale,
                 seed=generation.seed,
-                fps=30,
+                fps=MOCHI_FPS,
             )
         else:
             # Wan backend
+            export_fps = generation.video_fps
             params = params_class(
                 prompt=generation.prompt,
                 negative_prompt=generation.negative_prompt,
@@ -608,7 +686,7 @@ def generate_video_task(self, generation_id):
                 width=width,
                 height=height,
                 num_frames=num_frames,
-                fps=generation.video_fps,
+                fps=export_fps,
                 guidance_scale=generation.guidance_scale,
                 num_inference_steps=generation.steps,
                 seed=generation.seed,
@@ -677,7 +755,7 @@ def generate_video_task(self, generation_id):
         video_path = os.path.join(output_dir, video_filename)
 
         export_start = time.time()
-        if not backend.export_video(video_frames, video_path, fps=generation.video_fps):
+        if not backend.export_video(video_frames, video_path, fps=export_fps):
             error_msg = "Failed to export video to MP4"
             logger.error(error_msg)
             generation.status = 'FAILURE'

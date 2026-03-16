@@ -272,12 +272,23 @@
 
             return wrapper;
         } else if (mimeType === 'application/pdf') {
-            const iframe = document.createElement('iframe');
-            iframe.src = data.url;
-            iframe.className = 'w-100';
-            iframe.style.height = '70vh';
-            iframe.style.border = 'none';
-            return iframe;
+            // Use <embed> instead of <iframe> — X-Frame-Options: deny does not apply to <embed>
+            const wrapper = document.createElement('div');
+            wrapper.className = 'w-100';
+
+            const embed = document.createElement('embed');
+            embed.src = data.url;
+            embed.type = 'application/pdf';
+            embed.className = 'w-100';
+            embed.style.height = '70vh';
+            wrapper.appendChild(embed);
+
+            const fallbackLink = document.createElement('div');
+            fallbackLink.className = 'text-center mt-2';
+            fallbackLink.innerHTML = `<a href="${escapeHtml(data.url)}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-light"><i class="fas fa-external-link-alt me-1"></i>Ouvrir dans un nouvel onglet</a>`;
+            wrapper.appendChild(fallbackLink);
+
+            return wrapper;
         } else {
             // Fallback: show download link
             const fallback = document.createElement('div');

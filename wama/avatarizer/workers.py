@@ -11,8 +11,8 @@ Pipeline recommandé :
 Prérequis (voir setup_avatarizer.sh) :
   wama/avatarizer/musetalk/     ← git clone TMElyralab/MuseTalk
   wama/avatarizer/codeformer/   ← git clone sczhou/CodeFormer
-  AI-models/models/avatarizer/musetalk/    ← checkpoints MuseTalk
-  AI-models/models/avatarizer/codeformer/ ← checkpoints CodeFormer
+  AI-models/models/lipsync/musetalk/    ← checkpoints MuseTalk
+  AI-models/models/lipsync/codeformer/ ← checkpoints CodeFormer (via symlinks weights/)
 """
 
 import os
@@ -43,6 +43,9 @@ CODEFORMER_DIR = APP_DIR / 'codeformer'
 # Checkpoints dans AI-models/ (organisés par type, pas par application)
 MUSETALK_MODELS_DIR   = settings.BASE_DIR / 'AI-models' / 'models' / 'lipsync' / 'musetalk'
 CODEFORMER_MODELS_DIR = settings.BASE_DIR / 'AI-models' / 'models' / 'lipsync' / 'codeformer'
+
+# Sous-dossiers weights/ de CodeFormer redirigés vers AI-models/ via symlinks
+CODEFORMER_WEIGHTS_SUBDIRS = ['CodeFormer', 'facelib', 'realesrgan']
 
 # TTS microservice
 TTS_SERVICE_URL = getattr(settings, 'TTS_SERVICE_URL', 'http://localhost:8001')
@@ -216,6 +219,50 @@ def _run_musetalk(image_path: str, audio_path: str, output_dir: str, bbox_shift:
     )
 
 
+def _ensure_codeformer_weights_in_ai_models() -> None:
+    """
+    Redirige codeformer/weights/<subdir>/ vers AI-models/models/lipsync/codeformer/<subdir>/
+    via des symlinks, en déplaçant les fichiers déjà téléchargés si nécessaire.
+
+    Appelé une seule fois au premier lancement de CodeFormer — idempotent.
+    """
+    weights_dir = CODEFORMER_DIR / 'weights'
+    if not weights_dir.exists():
+        return
+
+    CODEFORMER_MODELS_DIR.mkdir(parents=True, exist_ok=True)
+
+    for subdir in CODEFORMER_WEIGHTS_SUBDIRS:
+        src = weights_dir / subdir          # ex: codeformer/weights/CodeFormer/
+        dst = CODEFORMER_MODELS_DIR / subdir  # ex: AI-models/.../codeformer/CodeFormer/
+        dst.mkdir(parents=True, exist_ok=True)
+
+        if src.is_symlink():
+            continue  # déjà redirigé
+
+        if src.is_dir():
+            # Déplacer les .pth existants vers AI-models/
+            for f in src.iterdir():
+                if f.name.startswith('.'):
+                    continue  # .gitkeep etc.
+                target = dst / f.name
+                if not target.exists():
+                    shutil.move(str(f), str(target))
+                    logger.info(f"[avatarizer] CodeFormer weights déplacé : {f.name} → AI-models/")
+            # Supprimer le répertoire vide et créer un symlink
+            try:
+                src.rmdir()
+            except OSError:
+                # Non vide (gitkeep) — supprimer les gitkeep puis réessayer
+                for f in src.iterdir():
+                    f.unlink()
+                src.rmdir()
+            src.symlink_to(dst.resolve())
+            logger.info(f"[avatarizer] CodeFormer weights symlink créé : {src} → {dst}")
+        else:
+            src.symlink_to(dst.resolve())
+
+
 def _run_codeformer(video_path: str, output_dir: str) -> str:
     """
     Améliore la qualité faciale de la vidéo avec CodeFormer.
@@ -225,23 +272,29 @@ def _run_codeformer(video_path: str, output_dir: str) -> str:
         logger.warning(f"[avatarizer] CodeFormer absent ({CODEFORMER_DIR}) — amélioration ignorée.")
         return video_path
 
+    _ensure_codeformer_weights_in_ai_models()
+
     cf_out = Path(output_dir) / 'codeformer_out'
     cf_out.mkdir(parents=True, exist_ok=True)
 
-    result = subprocess.run(
-        [
-            sys.executable, 'inference_codeformer.py',
-            '-i', str(Path(video_path).resolve()),
-            '-o', str(cf_out.resolve()),
-            '--face_upsample',
-            '-w', '0.7',   # fidelity weight : 0 = amélioration max, 1 = fidélité max
-            '-s', '2',     # upscale ×2
-        ],
-        cwd=str(CODEFORMER_DIR),
-        capture_output=True,
-        text=True,
-        timeout=300,
-    )
+    try:
+        result = subprocess.run(
+            [
+                sys.executable, 'inference_codeformer.py',
+                '-i', str(Path(video_path).resolve()),
+                '-o', str(cf_out.resolve()),
+                '--face_upsample',
+                '-w', '0.7',   # fidelity weight : 0 = amélioration max, 1 = fidélité max
+                '-s', '2',     # upscale ×2
+            ],
+            cwd=str(CODEFORMER_DIR),
+            capture_output=True,
+            text=True,
+            timeout=1800,   # 30 min — chargement modèle + traitement vidéo longue
+        )
+    except subprocess.TimeoutExpired:
+        logger.warning("[avatarizer] CodeFormer timeout (30 min) — on garde la vidéo MuseTalk.")
+        return video_path
 
     if result.returncode != 0:
         logger.warning(f"[avatarizer] CodeFormer échoué — on garde la vidéo MuseTalk.\n{result.stderr[-300:]}")

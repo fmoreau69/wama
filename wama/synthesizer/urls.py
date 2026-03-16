@@ -24,6 +24,7 @@ urlpatterns = [
     path('voice-preview-diagnostic/<str:preview_id>/', lambda request, preview_id: JsonResponse({'status': 'OK', 'preview_id': preview_id}), name='voice_preview_diagnostic'),
     path('start/<int:pk>/', views.start, name='start'),
     path('progress/<int:pk>/', views.progress, name='progress'),
+    path('synthesis/<int:pk>/card/', views.synthesis_card_html, name='synthesis_card_html'),
     path('global-progress/', views.global_progress, name='global_progress'),
     path('download/<int:pk>/', views.download, name='download'),
     path('preview/<int:pk>/', views.preview, name='preview'),

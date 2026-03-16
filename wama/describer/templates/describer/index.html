@@ -261,6 +261,11 @@
                             </a>
                             {% endif %}
 
+                            <button class="btn btn-sm btn-outline-info duplicate-btn"
+                                    data-duplicate-url="{% url 'describer:duplicate' desc.id %}"
+                                    title="Dupliquer (tester un autre modèle)">
+                                <i class="fas fa-copy"></i>
+                            </button>
                             <button class="btn btn-sm btn-danger delete-btn"
                                     data-id="{{ desc.id }}"
                                     title="Supprimer">

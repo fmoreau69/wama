@@ -123,11 +123,10 @@ document.addEventListener('DOMContentLoaded', function () {
   // ── Queue row management ──────────────────────────────────────────────────
 
   function appendAudioRow(data) {
-    const tbody = document.querySelector('#audio-enhancer-queue tbody');
-    if (!tbody) return;
+    const container = document.getElementById('audio-enhancer-queue');
+    if (!container) return;
 
-    // Remove empty-row if present
-    const empty = tbody.querySelector('.empty-row');
+    const empty = container.querySelector('.empty-state');
     if (empty) empty.remove();
 
     const durationStr = data.duration
@@ -136,45 +135,62 @@ document.addEventListener('DOMContentLoaded', function () {
           : data.duration.toFixed(1) + 's')
       : '—';
 
-    const row = document.createElement('tr');
-    row.dataset.id = data.id;
-    row.dataset.status = data.status || 'PENDING';
-    row.innerHTML = `
-      <td class="fw-bold text-center">#${data.id}</td>
-      <td>
-        <div class="fw-semibold">${escHtml(data.input_filename || '')}</div>
-        <small class="text-white-50">${durationStr}</small>
-      </td>
-      <td class="text-center small"><span class="badge bg-info audio-engine-badge">—</span></td>
-      <td class="text-center small"><span class="badge bg-secondary audio-mode-badge">—</span></td>
-      <td class="status text-uppercase text-center">${data.status || 'PENDING'}</td>
-      <td>
-        <div class="progress" style="height:22px;">
-          <div class="progress-bar" role="progressbar" style="width:0%">0%</div>
+    const card = document.createElement('div');
+    card.className = 'synthesis-card';
+    card.dataset.id = data.id;
+    card.dataset.status = data.status || 'PENDING';
+    card.innerHTML = `
+      <div class="row align-items-center">
+        <div class="col-md-3">
+          <button type="button" class="btn btn-link p-0 text-start preview-media-link"
+                  data-preview-url="/common/preview/audio_enhancer/${data.id}/"
+                  style="color: #fff; text-decoration: none; font-size: 0.9rem;">
+            <i class="fas fa-microphone-alt text-success"></i> ${escHtml(data.input_filename || '')}
+          </button>
+          <br>
+          <small class="text-white-50">${durationStr}</small>
         </div>
-      </td>
-      <td class="text-center">
-        <div class="btn-group" role="group">
-          <button class="btn btn-primary btn-sm js-audio-start" data-id="${data.id}" title="Lancer">
-            <i class="fas fa-play"></i>
-          </button>
-          <a class="btn btn-success btn-sm js-audio-download disabled" href="#" data-id="${data.id}" title="Télécharger">
-            <i class="fas fa-download"></i>
-          </a>
-          <button class="btn btn-warning btn-sm js-audio-settings"
-                  data-id="${data.id}"
-                  data-engine="resemble" data-mode="both"
-                  data-strength="0.5" data-quality="64"
-                  title="Paramètres">
-            <i class="fas fa-cog"></i>
-          </button>
-          <button class="btn btn-danger btn-sm js-audio-delete" data-id="${data.id}" title="Supprimer">
-            <i class="fas fa-trash-alt"></i>
-          </button>
+        <div class="col-md-3">
+          <small>
+            <span class="badge bg-info audio-engine-badge">—</span>
+            <span class="text-white-50 ms-1 properties-text">—</span>
+            <br>
+            <span class="badge bg-secondary audio-mode-badge mt-1">—</span>
+          </small>
         </div>
-      </td>
+        <div class="col-md-2">
+          <span class="status-badge badge bg-secondary">PENDING</span>
+          <div class="progress-bar-custom mt-2">
+            <div class="progress-fill" style="width: 0%"></div>
+          </div>
+          <small class="progress-text text-light">0%</small>
+        </div>
+        <div class="col-md-4">
+          <div class="btn-group-actions">
+            <button class="btn btn-sm btn-secondary js-audio-settings"
+                    data-id="${data.id}"
+                    data-engine="resemble" data-mode="both"
+                    data-strength="0.5" data-quality="64"
+                    title="Paramètres">
+              <i class="fas fa-cog"></i>
+            </button>
+            <button class="btn btn-sm btn-primary js-audio-start action-btn"
+                    data-id="${data.id}" title="Lancer">
+              <i class="fas fa-play"></i>
+            </button>
+            <button class="btn btn-sm btn-danger js-audio-delete action-delete"
+                    data-id="${data.id}" title="Supprimer">
+              <i class="fas fa-trash-alt"></i>
+            </button>
+          </div>
+        </div>
+      </div>
     `;
-    tbody.appendChild(row);
+    container.appendChild(card);
+
+    if (typeof window.initMediaPreview === 'function') {
+      window.initMediaPreview();
+    }
     updateAudioGlobalProgress();
   }
 
@@ -183,29 +199,69 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   function updateRow(id, data) {
-    const row = document.querySelector(`#audio-enhancer-queue tr[data-id="${id}"]`);
-    if (!row) return;
+    const container = document.getElementById('audio-enhancer-queue');
+    const card = container ? container.querySelector(`[data-id="${id}"]`) : null;
+    if (!card) return;
 
     if (data.status) {
-      row.dataset.status = data.status;
-      const statusCell = row.querySelector('.status');
-      if (statusCell) statusCell.textContent = data.status;
+      const status = data.status.toUpperCase();
+      card.dataset.status = status;
+
+      // Status badge
+      const statusBadge = card.querySelector('.status-badge');
+      if (statusBadge) {
+        const badgeClass = { PENDING: 'bg-secondary', RUNNING: 'bg-warning', SUCCESS: 'bg-success', FAILURE: 'bg-danger' }[status] || 'bg-secondary';
+        statusBadge.textContent = status;
+        statusBadge.className = `status-badge badge ${badgeClass}`;
+      }
+
+      // Card border
+      card.classList.remove('processing', 'success', 'error');
+      if (status === 'RUNNING') card.classList.add('processing');
+      else if (status === 'SUCCESS') card.classList.add('success');
+      else if (status === 'FAILURE') card.classList.add('error');
+
+      // Action button
+      const actionBtn = card.querySelector('.action-btn');
+      if (actionBtn) {
+        if (status === 'RUNNING') {
+          actionBtn.disabled = true;
+          actionBtn.className = 'btn btn-sm btn-secondary action-btn';
+          actionBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+          actionBtn.title = 'En cours...';
+        } else if (status === 'SUCCESS' || status === 'FAILURE') {
+          actionBtn.disabled = false;
+          actionBtn.className = 'btn btn-sm btn-warning js-audio-start action-btn';
+          actionBtn.innerHTML = '<i class="fas fa-redo"></i>';
+          actionBtn.title = 'Relancer';
+        } else {
+          actionBtn.disabled = false;
+          actionBtn.className = 'btn btn-sm btn-primary js-audio-start action-btn';
+          actionBtn.innerHTML = '<i class="fas fa-play"></i>';
+          actionBtn.title = 'Lancer';
+        }
+      }
+
+      // Show download button on SUCCESS
+      if (status === 'SUCCESS' && !card.querySelector('.js-audio-download')) {
+        const actionsDiv = card.querySelector('.btn-group-actions');
+        const deleteBtn = card.querySelector('.action-delete');
+        if (actionsDiv && deleteBtn) {
+          const dlBtn = document.createElement('a');
+          dlBtn.className = 'btn btn-sm btn-success js-audio-download';
+          dlBtn.href = getUrl(cfg.audioDownloadUrlTemplate, id);
+          dlBtn.title = 'Télécharger';
+          dlBtn.innerHTML = '<i class="fas fa-download"></i>';
+          actionsDiv.insertBefore(dlBtn, deleteBtn);
+        }
+      }
     }
 
     if (data.progress !== undefined) {
-      const bar = row.querySelector('.progress-bar');
-      if (bar) {
-        bar.style.width = data.progress + '%';
-        bar.textContent = data.progress + '%';
-      }
-    }
-
-    if (data.status === 'SUCCESS') {
-      const dlBtn = row.querySelector('.js-audio-download');
-      if (dlBtn) {
-        dlBtn.href = getUrl(cfg.audioDownloadUrlTemplate, id);
-        dlBtn.classList.remove('disabled');
-      }
+      const fill = card.querySelector('.progress-fill');
+      if (fill) fill.style.width = data.progress + '%';
+      const progressText = card.querySelector('.progress-text');
+      if (progressText) progressText.textContent = data.progress + '%';
     }
   }
 
@@ -369,13 +425,19 @@ document.addEventListener('DOMContentLoaded', function () {
       updateRow(id, { status: 'RUNNING', progress: 0 });
       pollAudioProgress(id);
 
-      // Update badge labels and gear button data on the row
-      const row = document.querySelector(`#audio-enhancer-queue tr[data-id="${id}"]`);
+      // Update badge labels, properties, and gear button data on the row
+      const row = document.querySelector(`#audio-enhancer-queue [data-id="${id}"]`);
       if (row) {
         const engBadge = row.querySelector('.audio-engine-badge');
         const modeBadge = row.querySelector('.audio-mode-badge');
+        const propsText = row.querySelector('.properties-text');
         if (engBadge) engBadge.textContent = engine === 'resemble' ? 'Resemble' : 'DeepFilter';
         if (modeBadge) modeBadge.textContent = mode;
+        if (propsText) {
+          propsText.textContent = engine === 'resemble'
+            ? `Force ${parseFloat(strength).toFixed(1)} / NFE ${quality}`
+            : 'Rapide';
+        }
         // Persist used settings on the gear button for next time
         const gearBtn = row.querySelector('.js-audio-settings');
         if (gearBtn) {
@@ -420,15 +482,18 @@ document.addEventListener('DOMContentLoaded', function () {
         method: 'POST',
         headers: csrfHeaders(),
       });
-      const row = document.querySelector(`#audio-enhancer-queue tr[data-id="${id}"]`);
-      if (row) row.remove();
+      const container = document.getElementById('audio-enhancer-queue');
+      const card = container ? container.querySelector(`[data-id="${id}"]`) : null;
+      if (card) card.remove();
       if (pollers.has(id)) {
         clearInterval(pollers.get(id));
         pollers.delete(id);
       }
-      const tbody = document.querySelector('#audio-enhancer-queue tbody');
-      if (tbody && !tbody.querySelector('tr:not(.empty-row)')) {
-        tbody.innerHTML = '<tr class="empty-row"><td colspan="7" class="text-center py-4">Aucun fichier audio en attente.</td></tr>';
+      if (container && !container.querySelector('[data-id]')) {
+        const el = document.createElement('div');
+        el.className = 'empty-state text-center py-4 text-white-50';
+        el.textContent = 'Aucun fichier audio en attente.';
+        container.appendChild(el);
       }
       updateAudioGlobalProgress();
     } catch (err) {
@@ -501,9 +566,13 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!confirm('Effacer tous les fichiers audio ?')) return;
         try {
           await fetch(cfg.audioClearUrl, { method: 'POST', headers: csrfHeaders() });
-          const tbody = document.querySelector('#audio-enhancer-queue tbody');
-          if (tbody) {
-            tbody.innerHTML = '<tr class="empty-row"><td colspan="7" class="text-center py-4">Aucun fichier audio en attente.</td></tr>';
+          const container = document.getElementById('audio-enhancer-queue');
+          if (container) {
+            container.querySelectorAll('[data-id]').forEach(card => card.remove());
+            const el = document.createElement('div');
+            el.className = 'empty-state text-center py-4 text-white-50';
+            el.textContent = 'Aucun fichier audio en attente.';
+            container.appendChild(el);
           }
           pollers.forEach(clearInterval);
           pollers.clear();
@@ -541,9 +610,12 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     // Resume polling for running jobs on page load
-    document.querySelectorAll('#audio-enhancer-queue tr[data-status="RUNNING"]').forEach(row => {
-      pollAudioProgress(parseInt(row.dataset.id));
-    });
+    const audioContainer = document.getElementById('audio-enhancer-queue');
+    if (audioContainer) {
+      audioContainer.querySelectorAll('[data-status="RUNNING"]').forEach(card => {
+        pollAudioProgress(parseInt(card.dataset.id));
+      });
+    }
   }
 
   initAudioUpload();
