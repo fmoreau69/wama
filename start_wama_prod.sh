@@ -30,6 +30,13 @@ LOG_DIR=$PROJECT_DIR/logs
 # The Windows host IP is resolved at startup; override with OLLAMA_HOST env var if needed.
 export OLLAMA_HOST=${OLLAMA_HOST:-http://$(ip route show | awk '/^default/{print $3; exit}'):11434}
 
+# Timezone : Paris — aligne les timestamps des logs Python/Celery sur l'heure locale.
+# WSL2 hérite souvent UTC du noyau ; forcer TZ ici évite les logs décalés.
+export TZ=Europe/Paris
+
+# Resync WSL2 clock (dérive après sleep/hibernate — source du "substantial drift" Celery)
+sudo hwclock -s 2>/dev/null || true
+
 mkdir -p $LOG_DIR
 
 # ------------------------------------------------------

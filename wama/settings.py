@@ -311,7 +311,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 # Internationalisation
 LANGUAGE_CODE = 'en-us'
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Europe/Paris'
 USE_I18N = True
 USE_L10N = True
 USE_TZ = True
@@ -341,7 +341,7 @@ STATICFILES_DIRS = [
 
 # Configuration Celery (optionnelle)
 if ENABLE_CELERY:
-    CELERY_TIMEZONE = "UTC"
+    CELERY_TIMEZONE = "Europe/Paris"
     CELERY_TASK_TRACK_STARTED = True
     CELERY_BROKER_URL = "redis://127.0.0.1:6379/0"
     CELERY_RESULT_BACKEND = "redis://127.0.0.1:6379/1"
