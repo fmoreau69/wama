@@ -20,6 +20,11 @@
                         </a>
                     </li>
                     <li>
+                        <a class="dropdown-item d-flex align-items-center {% if 'composer' in request.path %}active{% endif %}" href="{% url 'composer:index' %}">
+                            <i class="fas fa-music text-success me-2"></i> Composer
+                        </a>
+                    </li>
+                    <li>
                         <a class="dropdown-item d-flex align-items-center {% if 'describer' in request.path %}active{% endif %}" href="{% url 'describer:index' %}">
                             <i class="fas fa-search-plus text-info me-2"></i> Describer
                         </a>
@@ -37,11 +42,6 @@
                     <li>
                         <a class="dropdown-item d-flex align-items-center {% if 'synthesizer' in request.path %}active{% endif %}" href="{% url 'synthesizer:index' %}">
                             <i class="fas fa-microphone text-primary me-2"></i> Synthesizer
-                        </a>
-                    </li>
-                    <li>
-                        <a class="dropdown-item d-flex align-items-center {% if 'composer' in request.path %}active{% endif %}" href="{% url 'composer:index' %}">
-                            <i class="fas fa-music text-success me-2"></i> Composer
                         </a>
                     </li>
                     <li>

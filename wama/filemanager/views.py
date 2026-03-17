@@ -71,6 +71,15 @@ def build_file_tree(user):
             ]
         },
         {
+            'id': 'composer',
+            'text': 'Composer',
+            'icon': 'fa fa-music text-success',
+            'children': [
+                {'id': 'composer_input', 'text': 'Input', 'path': f'composer/{user_id}/input', 'icon': 'fa fa-folder text-secondary'},
+                {'id': 'composer_output', 'text': 'Output', 'path': f'composer/{user_id}/output', 'icon': 'fa fa-folder text-success'},
+            ]
+        },
+        {
             'id': 'describer',
             'text': 'Describer',
             'icon': 'fa fa-search-plus text-info',
