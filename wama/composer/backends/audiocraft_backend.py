@@ -94,10 +94,16 @@ class AudioCraftBackend:
             if progress_callback:
                 progress_callback(85)
 
-            # Save to WAV
-            import torchaudio
+            # Save to WAV — use soundfile directly to avoid torchcodec/FFmpeg
+            # dependency (torchaudio >= 2.5 routes .save() through torchcodec
+            # which requires system FFmpeg shared libraries).
+            import soundfile as sf
+            import numpy as np
             Path(output_path).parent.mkdir(parents=True, exist_ok=True)
-            torchaudio.save(output_path, wav.cpu(), sample_rate)
+            audio_np = wav.cpu().numpy()
+            if audio_np.ndim == 2:
+                audio_np = audio_np.T  # (channels, samples) → (samples, channels)
+            sf.write(output_path, audio_np, sample_rate, subtype='PCM_16')
             logger.info(f"[Composer] Saved to {output_path}")
 
             if progress_callback:
