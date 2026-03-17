@@ -210,13 +210,15 @@ def _html_to_readable_text(html: str) -> str:
                      'iframe', 'template', 'header']):
         tag.decompose()
 
-    # Find main content area (priority order covers GitHub, docs, generic pages)
+    # Find main content area.
+    # Specific content containers are preferred over generic <main> (which on GitHub
+    # includes the full page — file tree, navigation, sidebar — not just the README).
     main = (
-        soup.find('main') or
+        soup.find(id='readme') or          # GitHub README
+        soup.find(class_='markdown-body') or  # GitHub/GitLab markdown render
         soup.find('article') or
-        soup.find(id='readme') or
-        soup.find(class_='markdown-body') or
         soup.find(attrs={'role': 'main'}) or
+        soup.find('main') or
         soup.find(id='content') or
         soup.find(class_='content') or
         soup.body or

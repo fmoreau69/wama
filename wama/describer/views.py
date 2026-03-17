@@ -55,11 +55,11 @@ def _fetch_html_as_text(url: str, temp_dir: str) -> str:
         tag.decompose()
 
     main = (
-        soup.find('main') or
+        soup.find(id='readme') or          # GitHub README
+        soup.find(class_='markdown-body') or  # GitHub/GitLab markdown render
         soup.find('article') or
-        soup.find(id='readme') or
-        soup.find(class_='markdown-body') or
         soup.find(attrs={'role': 'main'}) or
+        soup.find('main') or
         soup.find(id='content') or
         soup.find(class_='content') or
         soup.body or
@@ -371,6 +371,12 @@ def start(request, pk):
     description.status = 'RUNNING'
     description.progress = 0
     description.error_message = ''
+    # Clear previous results so re-runs start fresh
+    description.result_text = ''
+    description.summary = ''
+    description.coherence_score = None
+    description.coherence_notes = ''
+    description.coherence_suggestion = ''
     description.save()
 
     task = describe_content.delay(description.id)
