@@ -61,6 +61,19 @@ class ComposerGeneration(models.Model):
         from wama.composer.utils.model_config import COMPOSER_MODELS
         return COMPOSER_MODELS.get(self.model, {}).get('description', self.model)
 
+    @property
+    def estimated_seconds(self) -> int:
+        """Estimated generation time in seconds (warm GPU)."""
+        from wama.composer.utils.model_config import estimate_seconds
+        return estimate_seconds(self.model, self.duration)
+
+    @property
+    def estimated_display(self) -> str:
+        s = self.estimated_seconds
+        if s < 60:
+            return f"~{s}s"
+        return f"~{s // 60}min{s % 60:02d}s" if s % 60 else f"~{s // 60}min"
+
 
 class ComposerBatch(models.Model):
     """Container grouping one or more ComposerGeneration jobs."""

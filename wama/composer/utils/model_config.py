@@ -41,6 +41,10 @@ COMPOSER_MODELS = {
         'max_duration': 30,
         'sample_rate': 32000,
         'cache_dir': MUSICGEN_DIR,
+        # Estimation de durée (GPU chaud, RTX 4090) :
+        # temps_total ≈ duration * gen_factor + overhead_s
+        'gen_factor': 0.8,   # secondes de calcul par seconde d'audio
+        'overhead_s': 12,    # chargement modèle + encodec
     },
     'musicgen-medium': {
         'hf_id': 'facebook/musicgen-medium',
@@ -51,6 +55,8 @@ COMPOSER_MODELS = {
         'max_duration': 30,
         'sample_rate': 32000,
         'cache_dir': MUSICGEN_DIR,
+        'gen_factor': 2.0,
+        'overhead_s': 20,
     },
     'musicgen-melody': {
         'hf_id': 'facebook/musicgen-melody',
@@ -61,6 +67,8 @@ COMPOSER_MODELS = {
         'max_duration': 30,
         'sample_rate': 32000,
         'cache_dir': MUSICGEN_DIR,
+        'gen_factor': 2.2,
+        'overhead_s': 22,
     },
     'audiogen-medium': {
         'hf_id': 'facebook/audiogen-medium',
@@ -71,8 +79,20 @@ COMPOSER_MODELS = {
         'max_duration': 30,
         'sample_rate': 16000,
         'cache_dir': AUDIOGEN_DIR,
+        'gen_factor': 2.0,
+        'overhead_s': 20,
     },
 }
 
 MUSIC_MODELS = {k: v for k, v in COMPOSER_MODELS.items() if v['type'] == 'music'}
 SFX_MODELS = {k: v for k, v in COMPOSER_MODELS.items() if v['type'] == 'sfx'}
+
+
+def estimate_seconds(model_id: str, duration: float) -> int:
+    """
+    Estimate generation time in seconds (warm GPU, RTX 4090).
+    Formula: duration * gen_factor + overhead_s
+    Note: first-ever run adds ~30-60s for model download.
+    """
+    cfg = COMPOSER_MODELS.get(model_id, {})
+    return max(5, int(duration * cfg.get('gen_factor', 1.5) + cfg.get('overhead_s', 15)))

@@ -1,13 +1,54 @@
 {% extends 'composer/base.html' %}
 {% load static %}
 
+{% block app_styles %}
+/* Barre de progression globale */
+#globalStatus {
+    transition: opacity 0.4s ease;
+}
+#globalProgressTrack {
+    height: 3px;
+    background: #2a2d30;
+    border-radius: 2px;
+    overflow: hidden;
+}
+#globalProgressFill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.6s ease;
+    background: linear-gradient(90deg, #198754, #20c997);
+}
+#globalProgressFill.active {
+    background: linear-gradient(90deg, #0dcaf0, #198754, #0dcaf0);
+    background-size: 200% 100%;
+    animation: progressShimmer 2s linear infinite;
+}
+@keyframes progressShimmer {
+    0%   { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+/* Hint zone vide */
+.empty-hint {
+    pointer-events: none;
+}
+.empty-hint-arrow {
+    animation: arrowPulse 1.8s ease-in-out infinite;
+    display: inline-block;
+}
+@keyframes arrowPulse {
+    0%, 100% { transform: translateX(0);   opacity: 0.6; }
+    50%       { transform: translateX(6px); opacity: 1;   }
+}
+{% endblock %}
+
 {% block app_right_panel_settings %}
 <!-- Type de génération -->
 <div class="mb-3">
     <label class="form-label small fw-bold text-light">
         <i class="fas fa-th-large"></i> Type
     </label>
-    <div class="btn-group w-100" role="group" id="generationTypeBtns">
+    <div class="btn-group w-100" role="group">
         <input type="radio" class="btn-check" name="gen_type" id="typeMusic" value="music" checked>
         <label class="btn btn-outline-success btn-sm" for="typeMusic">
             <i class="fas fa-music"></i> Musique
@@ -27,14 +68,21 @@
     <select class="form-select form-select-sm bg-dark text-white border-secondary" id="modelSelect">
         <optgroup label="🎵 Musique (MusicGen)" id="musicModelsGroup">
             {% for mid, mcfg in music_models.items %}
-            <option value="{{ mid }}" {% if mid == 'musicgen-small' %}selected{% endif %}>
+            <option value="{{ mid }}"
+                    data-gen-factor="{{ mcfg.gen_factor }}"
+                    data-overhead="{{ mcfg.overhead_s }}"
+                    {% if mid == 'musicgen-small' %}selected{% endif %}>
                 {{ mcfg.description }}
             </option>
             {% endfor %}
         </optgroup>
         <optgroup label="⚡ Bruitages (AudioGen)" id="sfxModelsGroup">
             {% for mid, mcfg in sfx_models.items %}
-            <option value="{{ mid }}">{{ mcfg.description }}</option>
+            <option value="{{ mid }}"
+                    data-gen-factor="{{ mcfg.gen_factor }}"
+                    data-overhead="{{ mcfg.overhead_s }}">
+                {{ mcfg.description }}
+            </option>
             {% endfor %}
         </optgroup>
     </select>
@@ -42,8 +90,12 @@
 
 <!-- Durée -->
 <div class="mb-3">
-    <label class="form-label small fw-bold text-light">
-        <i class="fas fa-clock"></i> Durée : <span id="durationDisplay">10s</span>
+    <label class="form-label small fw-bold text-light d-flex justify-content-between">
+        <span><i class="fas fa-clock"></i> Durée</span>
+        <span class="text-info">
+            <span id="durationDisplay">10s</span>
+            <span class="text-muted ms-2 small" id="estimateDisplay">~20s</span>
+        </span>
     </label>
     <input type="range" class="form-range" id="durationSlider"
            min="1" max="30" step="1" value="10">
@@ -60,8 +112,8 @@
     </label>
     <textarea class="form-control form-control-sm bg-dark text-light border-secondary"
               id="promptInput" rows="4"
-              placeholder="Ex: upbeat jazz piano with soft drums and bass..."></textarea>
-    <small class="text-muted">Préférez l'anglais pour de meilleurs résultats</small>
+              placeholder="Ex: upbeat jazz piano with soft drums..."></textarea>
+    <small class="text-muted">Anglais recommandé pour de meilleurs résultats</small>
 </div>
 
 <!-- Mélodie de référence (MusicGen Melody uniquement) -->
@@ -75,13 +127,13 @@
 </div>
 
 <!-- Import batch -->
-<div class="mb-3">
+<div class="mb-2">
     <label class="form-label small fw-bold text-light">
         <i class="fas fa-file-import"></i> Import batch
     </label>
     <input type="file" class="form-control form-control-sm bg-dark text-light border-secondary"
            id="batchFileInput" accept=".txt,.md,.csv,.pdf,.docx">
-    <small class="text-muted">Format : <code>fichier|prompt|modèle|durée</code></small>
+    <small class="text-muted">Format&nbsp;: <code>fichier|prompt|modèle|durée</code></small>
 </div>
 {% endblock %}
 
@@ -95,49 +147,60 @@
     </button>
     <hr class="border-secondary my-1">
     <button class="btn btn-outline-warning btn-sm" id="startAllBtn">
-        <i class="fas fa-play-circle me-1"></i> Tout démarrer
+        <i class="fas fa-play-circle me-1"></i> Tout relancer
     </button>
     <button class="btn btn-outline-danger btn-sm" id="clearAllBtn">
         <i class="fas fa-trash me-1"></i> Tout supprimer
     </button>
 </div>
-
-<!-- File d'attente info -->
-<div class="mt-3">
-    <small class="text-muted">
-        <i class="fas fa-layer-group me-1"></i>
-        File d'attente : <span id="queueCount">{{ queue_count }}</span> tâche(s)
-    </small>
-</div>
 {% endblock %}
 
 {% block composer_content %}
+
+{# ── Barre de progression globale ─────────────────────────────────────── #}
+<div id="globalStatus" style="{% if queue_count == 0 %}opacity:0; pointer-events:none;{% endif %}">
+    <div class="d-flex justify-content-between align-items-baseline mb-1">
+        <small class="text-muted" id="globalStatusText">
+            {# mis à jour par JS #}
+            {% if queue_count > 0 %}
+                <span id="gpRunning">—</span> en cours
+                · <span id="gpTotal">{{ queue_count }}</span> tâche(s)
+                · <span id="gpEta">calcul…</span>
+            {% endif %}
+        </small>
+        <small class="text-muted" id="gpPercent" style="font-variant-numeric: tabular-nums;"></small>
+    </div>
+    <div id="globalProgressTrack">
+        <div id="globalProgressFill" class="{% if queue_count > 0 %}active{% endif %}" style="width:0%"></div>
+    </div>
+    <div style="height:12px;"></div>{# spacer #}
+</div>
+
+{# ── File d'attente ────────────────────────────────────────────────────── #}
 <div id="composerQueue">
+
     {% for batch_info in batches_list %}
 
     {% if batch_info.obj.total == 1 %}
-    {# Génération individuelle — pas de header de batch #}
+    {# Génération individuelle #}
     {% for item in batch_info.items %}{% if item.generation %}
     {% include 'composer/_generation_card.html' with gen=item.generation card_label=item.output_filename %}
     {% endif %}{% endfor %}
 
     {% else %}
-    {# Groupe batch — header violet + items collapsibles #}
+    {# Groupe batch #}
     <div class="batch-group mb-2 border border-secondary rounded" data-batch-id="{{ batch_info.obj.id }}">
         <div class="batch-header d-flex align-items-center gap-2 p-2 rounded-top"
-             style="background: #2d1b69; cursor:pointer;"
+             style="background:#2d1b69; cursor:pointer;"
              data-bs-toggle="collapse"
              data-bs-target="#batchItems_{{ batch_info.obj.id }}">
-            <i class="fas fa-layer-group text-purple" style="color:#a78bfa;"></i>
-            <span class="text-light fw-bold small">
-                Batch #{{ batch_info.obj.id }}
-            </span>
+            <i class="fas fa-layer-group" style="color:#a78bfa;"></i>
+            <span class="text-light fw-bold small">Batch #{{ batch_info.obj.id }}</span>
             <span class="badge bg-secondary">{{ batch_info.obj.total }} items</span>
             <small class="text-muted ms-1">{{ batch_info.obj.created_at|date:"d/m/Y H:i" }}</small>
             <div class="ms-auto d-flex gap-1" onclick="event.stopPropagation()">
                 <button class="btn btn-sm btn-outline-danger batch-delete-btn"
-                        data-batch-id="{{ batch_info.obj.id }}"
-                        title="Supprimer le batch">
+                        data-batch-id="{{ batch_info.obj.id }}" title="Supprimer le batch">
                     <i class="fas fa-trash"></i>
                 </button>
             </div>
@@ -153,21 +216,42 @@
     {% endif %}
 
     {% empty %}
-    <div class="text-center py-5 text-muted">
-        <i class="fas fa-music fa-3x mb-3 opacity-25"></i>
-        <p>Aucune génération. Saisissez un prompt et cliquez sur <strong>Générer</strong>.</p>
+    {# ── Hint zone vide ──────────────────────────────────────────────── #}
+    <div class="empty-hint d-flex flex-column align-items-center justify-content-center py-5 text-center"
+         id="emptyHint" style="min-height:280px;">
+        <div style="font-size:3rem; opacity:0.15; margin-bottom:1rem;">
+            {% comment %}icône selon tab actif{% endcomment %}
+            <i class="fas fa-music"></i>
+        </div>
+        <p class="text-muted mb-1" style="font-size:1rem;">
+            Aucune génération pour l'instant
+        </p>
+        <p class="text-muted small mb-3" style="max-width:280px; line-height:1.6;">
+            Saisissez un <strong class="text-light">prompt</strong>,
+            choisissez un <strong class="text-light">modèle</strong>
+            et cliquez sur <strong class="text-success">Générer</strong>
+            dans le panneau de droite.
+        </p>
+        <p class="text-muted small opacity-50">
+            Ou importez un fichier batch
+            <code style="font-size:0.75rem;">fichier|prompt|modèle|durée</code>
+        </p>
+        <div class="mt-3" style="color:#6c757d; font-size:0.8rem;">
+            <span class="empty-hint-arrow">→</span>
+            Panneau de paramètres
+            <span class="empty-hint-arrow" style="animation-delay:.2s">→</span>
+        </div>
     </div>
     {% endfor %}
+
 </div>
 
-<!-- Modal paramètres individuels -->
+{# ── Modal paramètres individuels ─────────────────────────────────────── #}
 <div class="modal fade" id="settingsModal" tabindex="-1">
     <div class="modal-dialog modal-sm">
         <div class="modal-content bg-dark text-light border-secondary">
             <div class="modal-header border-secondary py-2">
-                <h6 class="modal-title">
-                    <i class="fas fa-cog me-2"></i>Paramètres de génération
-                </h6>
+                <h6 class="modal-title"><i class="fas fa-cog me-2"></i>Paramètres de génération</h6>
                 <button type="button" class="btn-close btn-close-white btn-sm" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
@@ -177,14 +261,22 @@
                     <label class="form-label small text-light fw-bold">Modèle</label>
                     <select class="form-select form-select-sm bg-dark text-white border-secondary" id="settingsModel">
                         {% for mid, mcfg in all_models.items %}
-                        <option value="{{ mid }}">{{ mcfg.description }}</option>
+                        <option value="{{ mid }}"
+                                data-gen-factor="{{ mcfg.gen_factor }}"
+                                data-overhead="{{ mcfg.overhead_s }}">
+                            {{ mcfg.description }}
+                        </option>
                         {% endfor %}
                     </select>
                 </div>
 
-                <div class="mb-3">
-                    <label class="form-label small text-light fw-bold">
-                        Durée : <span id="settingsDurationDisplay">10s</span>
+                <div class="mb-2">
+                    <label class="form-label small text-light fw-bold d-flex justify-content-between">
+                        <span>Durée</span>
+                        <span class="text-info">
+                            <span id="settingsDurationVal">10s</span>
+                            <span class="text-muted ms-1 small" id="settingsEstimate">~20s</span>
+                        </span>
                     </label>
                     <input type="range" class="form-range" id="settingsDuration"
                            min="1" max="30" step="1" value="10">
@@ -202,5 +294,14 @@
 {% endblock %}
 
 {% block app_scripts %}
+<script>
+    /* Données modèles passées au JS */
+    window.COMPOSER_MODELS = {
+        {% for mid, mcfg in all_models.items %}
+        "{{ mid }}": { genFactor: {{ mcfg.gen_factor }}, overheadS: {{ mcfg.overhead_s }} }{% if not forloop.last %},{% endif %}
+        {% endfor %}
+    };
+    window.COMPOSER_QUEUE_COUNT = {{ queue_count }};
+</script>
 <script src="{% static 'composer/js/index.js' %}"></script>
 {% endblock %}
