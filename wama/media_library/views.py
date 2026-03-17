@@ -386,17 +386,31 @@ def api_provider_download(request):
     if not download_url:
         return JsonResponse({'error': '_download_url manquant'}, status=400)
 
-    # Whitelist de domaines autorisés selon le provider
+    # Whitelist de domaines autorisés selon le provider.
+    # None  = provider inconnu → interdit
+    # []    = fichiers provenant de CDNs variés (Openverse) → vérifie HTTPS uniquement
+    # [...]  = liste de domaines autorisés explicitement
     _DOMAIN_WHITELIST = {
         'wikimedia': ['upload.wikimedia.org', 'commons.wikimedia.org'],
         'pixabay':   ['cdn.pixabay.com', 'i.vimeocdn.com', 'player.vimeo.com'],
         'freesound': ['cdn.freesound.org'],
+        'pexels':    ['images.pexels.com', 'videos.pexels.com',
+                      'player.vimeo.com', 'vod-progressive.akamaized.net',
+                      'clips.vimeocdn.com'],
+        'jamendo':   ['storage.jamendo.com', 'prod-1.storage.jamendo.com',
+                      'mp3d.jamendo.com'],
+        'openverse': [],   # fichiers hébergés sur CDNs tiers variés — HTTPS suffisant
     }
     from urllib.parse import urlparse
-    parsed_domain = urlparse(download_url).netloc
-    allowed_domains = _DOMAIN_WHITELIST.get(slug, [])
-    if allowed_domains and not any(parsed_domain.endswith(d) for d in allowed_domains):
-        return JsonResponse({'error': f'Domaine non autorisé : {parsed_domain}'}, status=403)
+    parsed      = urlparse(download_url)
+    allowed_domains = _DOMAIN_WHITELIST.get(slug)   # None si provider inconnu
+    if allowed_domains is None:
+        return JsonResponse({'error': 'Téléchargement non autorisé pour ce provider'}, status=403)
+    if allowed_domains and not any(parsed.netloc.endswith(d) for d in allowed_domains):
+        return JsonResponse({'error': f'Domaine non autorisé : {parsed.netloc}'}, status=403)
+    if parsed.scheme not in ('http', 'https'):
+        return JsonResponse({'error': 'URL de téléchargement invalide'}, status=400)
+    parsed_domain = parsed.netloc
 
     # Nom unique : "titre — auteur (provider)"
     asset_name = f"{title[:150]}"

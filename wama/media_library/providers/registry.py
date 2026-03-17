@@ -9,11 +9,17 @@ from .base import BaseProvider
 from .wikimedia import WikimediaProvider
 from .pixabay import PixabayProvider
 from .freesound import FreesoundProvider
+from .pexels import PexelsProvider
+from .openverse import OpenverseProvider
+from .jamendo import JamendoProvider
 
 _REGISTRY: Dict[str, Type[BaseProvider]] = {
-    WikimediaProvider.slug: WikimediaProvider,
-    PixabayProvider.slug:   PixabayProvider,
-    FreesoundProvider.slug: FreesoundProvider,
+    WikimediaProvider.slug:  WikimediaProvider,
+    PixabayProvider.slug:    PixabayProvider,
+    FreesoundProvider.slug:  FreesoundProvider,
+    PexelsProvider.slug:     PexelsProvider,
+    OpenverseProvider.slug:  OpenverseProvider,
+    JamendoProvider.slug:    JamendoProvider,
 }
 
 

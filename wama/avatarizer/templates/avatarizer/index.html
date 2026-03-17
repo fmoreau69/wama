@@ -260,6 +260,10 @@
                 <span class="text-muted small">Ou importez votre photo (JPG, PNG)</span>
                 <input type="file" id="avatar_upload" accept=".jpg,.jpeg,.png,.webp" class="d-none">
             </div>
+            <button type="button" class="btn btn-outline-info btn-sm mt-1 w-100"
+                    onclick="MediaPicker.open({type:'image',onSelect:_mpInjectAvatar})">
+                <i class="fas fa-photo-video me-1"></i> Depuis Médiathèque
+            </button>
             <div id="avatar-upload-info" class="d-none mt-1">
                 <img id="avatar-upload-preview" src="" alt="preview"
                      style="width:60px;height:60px;object-fit:cover;border-radius:6px;border:2px solid #0dcaf0">
@@ -616,6 +620,23 @@
 {# SCRIPTS                                                                #}
 {# ===================================================================== #}
 {% block app_scripts %}
+<script>const ML_LIST_URL = "{% url 'media_library:api_list' %}";</script>
+<script src="{% static 'common/js/media-picker.js' %}"></script>
+<script>
+// Injecte l'image sélectionnée dans la zone d'upload avatar
+function _mpInjectAvatar(file, asset) {
+    const input = document.getElementById('avatar_upload');
+    const dt = new DataTransfer();
+    dt.items.add(file);
+    input.files = dt.files;
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    const preview = document.getElementById('avatar-upload-preview');
+    if (preview) {
+        preview.src = URL.createObjectURL(file);
+        document.getElementById('avatar-upload-info').classList.remove('d-none');
+    }
+}
+</script>
 <script>
 window.AVATARIZER_CONFIG = {
     urls: {

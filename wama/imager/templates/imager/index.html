@@ -356,9 +356,15 @@
                                 <p class="small text-white-50">Un prompt sera généré automatiquement</p>
                                 <input type="file" class="d-none" id="describeImageInput" name="reference_image_describe"
                                        accept="image/*">
-                                <button type="button" class="btn btn-outline-light btn-sm" onclick="document.getElementById('describeImageInput').click()">
-                                    <i class="fas fa-folder-open"></i> Parcourir
-                                </button>
+                                <div class="d-flex justify-content-center gap-2">
+                                    <button type="button" class="btn btn-outline-light btn-sm" onclick="document.getElementById('describeImageInput').click()">
+                                        <i class="fas fa-folder-open"></i> Parcourir
+                                    </button>
+                                    <button type="button" class="btn btn-outline-info btn-sm"
+                                            onclick="MediaPicker.open({type:'image',onSelect:(f,a)=>_mpInjectImage(f,'describeImageInput','describeImagePreview')})">
+                                        <i class="fas fa-photo-video"></i> Médiathèque
+                                    </button>
+                                </div>
                             </div>
                             <img id="describeImagePreview" class="img-fluid mt-2 d-none rounded" style="max-height: 200px;">
                         </div>
@@ -384,9 +390,15 @@
                                 <p class="mb-1 text-white-50">Déposez une image de référence ici</p>
                                 <input type="file" class="d-none" id="referenceImageInput" name="reference_image"
                                        accept="image/*">
-                                <button type="button" class="btn btn-outline-light btn-sm" onclick="document.getElementById('referenceImageInput').click()">
-                                    <i class="fas fa-folder-open"></i> Parcourir
-                                </button>
+                                <div class="d-flex justify-content-center gap-2">
+                                    <button type="button" class="btn btn-outline-light btn-sm" onclick="document.getElementById('referenceImageInput').click()">
+                                        <i class="fas fa-folder-open"></i> Parcourir
+                                    </button>
+                                    <button type="button" class="btn btn-outline-info btn-sm"
+                                            onclick="MediaPicker.open({type:'image',onSelect:(f,a)=>_mpInjectImage(f,'referenceImageInput','referenceImagePreview')})">
+                                        <i class="fas fa-photo-video"></i> Médiathèque
+                                    </button>
+                                </div>
                             </div>
                             <img id="referenceImagePreview" class="img-fluid mt-2 d-none rounded" style="max-height: 200px;">
                         </div>
@@ -672,9 +684,15 @@
                                 <p class="mb-1 text-white-50">Déposez une image ici pour l'animer</p>
                                 <input type="file" class="d-none" id="videoImageInput" name="video_reference_image"
                                        accept="image/*">
-                                <button type="button" class="btn btn-outline-light btn-sm" onclick="document.getElementById('videoImageInput').click()">
-                                    <i class="fas fa-folder-open"></i> Parcourir
-                                </button>
+                                <div class="d-flex justify-content-center gap-2">
+                                    <button type="button" class="btn btn-outline-light btn-sm" onclick="document.getElementById('videoImageInput').click()">
+                                        <i class="fas fa-folder-open"></i> Parcourir
+                                    </button>
+                                    <button type="button" class="btn btn-outline-info btn-sm"
+                                            onclick="MediaPicker.open({type:'image',onSelect:(f,a)=>_mpInjectImage(f,'videoImageInput','videoImagePreview')})">
+                                        <i class="fas fa-photo-video"></i> Médiathèque
+                                    </button>
+                                </div>
                             </div>
                             <img id="videoImagePreview" class="img-fluid mt-2 d-none rounded" style="max-height: 200px;">
                         </div>
@@ -1298,6 +1316,23 @@
 {% endblock extra_modals %}
 
 {% block app_scripts %}
+<script>const ML_LIST_URL = "{% url 'media_library:api_list' %}";</script>
+<script src="{% static 'common/js/media-picker.js' %}"></script>
+<script>
+// Helper partagé par les trois boutons Médiathèque de l'Imager
+function _mpInjectImage(file, inputId, previewId) {
+    const input = document.getElementById(inputId);
+    const dt = new DataTransfer();
+    dt.items.add(file);
+    input.files = dt.files;
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    const preview = document.getElementById(previewId);
+    if (preview) {
+        preview.src = URL.createObjectURL(file);
+        preview.classList.remove('d-none');
+    }
+}
+</script>
 <style>
     /* Drop zone styles */
     .drop-zone {
