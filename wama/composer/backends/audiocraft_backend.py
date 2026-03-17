@@ -64,6 +64,15 @@ class AudioCraftBackend:
         # ── CLAUDE.md: env vars BEFORE any audiocraft import ──────────────
         os.environ['HF_HUB_CACHE'] = cache_dir
         os.environ['HUGGINGFACE_HUB_CACHE'] = cache_dir
+
+        # ── torch 2.9.x / xformers 0.0.35 compat ─────────────────────────
+        # GroupName was removed from torch.distributed.distributed_c10d in
+        # torch 2.9.x.  xformers uses it as a type annotation only (no runtime
+        # logic), so injecting str as a stand-in is safe.  Must happen before
+        # any xformers import (triggered by audiocraft.modules.transformer).
+        import torch.distributed.distributed_c10d as _c10d
+        if not hasattr(_c10d, 'GroupName'):
+            _c10d.GroupName = str  # type: ignore[attr-defined]
         # ──────────────────────────────────────────────────────────────────
 
         logger.info(f"[Composer] Loading {model_id} (cache: {cache_dir})")

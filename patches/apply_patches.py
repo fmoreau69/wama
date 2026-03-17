@@ -252,30 +252,41 @@ else:
 print()
 
 # =============================================================================
-# PATCH 5 — xformers/ops/seqpar.py
-#           xformers 0.0.35 was built for torch 2.10.0 but we run torch 2.9.1.
+# PATCH 5 — xformers 0.0.35 / torch 2.9.x compat  (RUNTIME — no file patch)
 #           GroupName was removed from torch.distributed.distributed_c10d in
-#           2.9.x.  It is only used as a type annotation in seqpar.py, so
-#           falling back to None is safe for inference (no distributed training).
+#           torch 2.9.x.  xformers 0.0.35 references it in two files:
+#             - xformers/ops/seqpar.py  (import statement)
+#             - xformers/ops/sequence_parallel_fused_ops.py  (attribute access)
+#           Both use it as a type annotation only (no runtime logic).
+#           Fix: inject GroupName = str into the module BEFORE audiocraft loads
+#           xformers.  This is done in audiocraft_backend.py::generate().
+#           A defensive try/except was also applied to seqpar.py (see below),
+#           but the runtime injection in the backend is the primary fix.
 # =============================================================================
 
-print("=== xformers/ops/seqpar.py ===")
+print("=== xformers GroupName (torch 2.9.x compat) ===")
 seqpar = site / "xformers/ops/seqpar.py"
-if not seqpar.exists():
-    print("  [SKIP — file not found]")
-else:
-    apply_patch(
-        seqpar,
-        search='from torch.distributed.distributed_c10d import _resolve_process_group, GroupName',
-        replace=(
-            'from torch.distributed.distributed_c10d import _resolve_process_group\n'
-            'try:\n'
-            '    from torch.distributed.distributed_c10d import GroupName\n'
-            'except ImportError:\n'
-            '    GroupName = None  # type: ignore[assignment,misc]  # removed in torch 2.9.x'
-        ),
-        description="5. GroupName removed in torch 2.9.x — fallback to None (type annotation only)",
-    )
+if seqpar.exists():
+    content = seqpar.read_text(encoding="utf-8")
+    if "GroupName = None" in content:
+        print("  [OK — seqpar.py] try/except fallback already applied")
+    elif "GroupName" not in content:
+        print("  [OK — seqpar.py] GroupName not referenced (xformers updated?)")
+    else:
+        apply_patch(
+            seqpar,
+            search='from torch.distributed.distributed_c10d import _resolve_process_group, GroupName',
+            replace=(
+                'from torch.distributed.distributed_c10d import _resolve_process_group\n'
+                'try:\n'
+                '    from torch.distributed.distributed_c10d import GroupName\n'
+                'except ImportError:\n'
+                '    GroupName = None  # type: ignore[assignment,misc]  # removed in torch 2.9.x'
+            ),
+            description="5a. seqpar.py: GroupName import — try/except fallback",
+        )
+print("  [INFO] Primary fix: audiocraft_backend.py injects GroupName=str before audiocraft import")
+print("         Covers both seqpar.py and sequence_parallel_fused_ops.py in one shot.")
 print()
 
 print("Done.")
