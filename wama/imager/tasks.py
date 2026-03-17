@@ -640,9 +640,31 @@ def generate_video_task(self, generation_id):
             export_fps = LTX_FPS
             ltx_width = (width // 32) * 32
             ltx_height = (height // 32) * 32
+
+            # FP8 variant: cap resolution + frames to avoid CUDA driver OOM.
+            # The FP8 transformer uses ~12.5GB, leaving ~11GB for computation.
+            # At 1280×720 × 361 frames the attention tensors exceed this budget.
+            # Safe ceiling (empirical): ≤ 768×432, ≤ 161 frames (~6.7s).
+            if generation.model == 'ltx-video-13b-0.9.8-distilled-fp8':
+                LTX_FP8_MAX_W, LTX_FP8_MAX_H, LTX_FP8_MAX_FRAMES = 768, 432, 161
+                if ltx_width > LTX_FP8_MAX_W or ltx_height > LTX_FP8_MAX_H:
+                    scale = min(LTX_FP8_MAX_W / ltx_width, LTX_FP8_MAX_H / ltx_height)
+                    ltx_width  = ((int(ltx_width  * scale)) // 32) * 32
+                    ltx_height = ((int(ltx_height * scale)) // 32) * 32
+                    _console(user_id,
+                        f"[Imager Video] FP8: résolution réduite à {ltx_width}×{ltx_height} "
+                        f"(max {LTX_FP8_MAX_W}×{LTX_FP8_MAX_H} pour ce modèle)", level='warning')
+
             raw_ltx = int(generation.video_duration * LTX_FPS)
             ltx_frames = ((raw_ltx - 1) // 8) * 8 + 1  # 8n+1
             ltx_frames = max(9, ltx_frames)  # minimum 9 frames
+
+            if generation.model == 'ltx-video-13b-0.9.8-distilled-fp8' and ltx_frames > LTX_FP8_MAX_FRAMES:
+                ltx_frames = ((LTX_FP8_MAX_FRAMES - 1) // 8) * 8 + 1
+                _console(user_id,
+                    f"[Imager Video] FP8: durée réduite à {ltx_frames / LTX_FPS:.1f}s "
+                    f"({ltx_frames} frames, max pour ce modèle)", level='warning')
+
             _console(user_id, f"[Imager Video] LTX-Video: {ltx_frames} frames à {LTX_FPS}fps = {ltx_frames / LTX_FPS:.1f}s")
             params = params_class(
                 prompt=generation.prompt,
@@ -655,6 +677,7 @@ def generate_video_task(self, generation_id):
                 guidance_scale=generation.guidance_scale,
                 seed=generation.seed,
                 fps=LTX_FPS,
+                reference_image=reference_image_path,
             )
         elif backend_type == 'mochi':
             # Mochi native fps = 30. Max 84 frames (~2.8s).
