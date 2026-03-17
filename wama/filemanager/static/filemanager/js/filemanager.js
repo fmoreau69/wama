@@ -558,6 +558,7 @@
         const appFolderMap = {
             'anonymizer': ['anonymizer', 'anonymizer_input', 'anonymizer_output'],
             'avatarizer': ['avatarizer', 'avatarizer_input', 'avatarizer_output', 'avatarizer_gallery'],
+            'composer': ['composer', 'composer_input', 'composer_output'],
             'describer': ['describer', 'describer_input', 'describer_output'],
             'enhancer': ['enhancer', 'enhancer_input', 'enhancer_output'],
             'imager': ['imager', 'imager_prompts', 'imager_references', 'imager_output_image', 'imager_output_video'],

@@ -505,6 +505,21 @@
 
         if (genMeta[id]) genMeta[id].lastProgress = progress;
 
+        // Clear or set error message
+        const actionsCol = card.querySelector('.col-md-3');
+        const existingErr = actionsCol?.querySelector('.error-message');
+        if (status === 'FAILURE' && data?.error_message) {
+            if (existingErr) {
+                existingErr.innerHTML = `<i class="fas fa-exclamation-triangle"></i> ${data.error_message.substring(0, 80)}`;
+            } else if (actionsCol) {
+                actionsCol.insertAdjacentHTML('beforeend',
+                    `<small class="error-message text-danger d-block mt-1">` +
+                    `<i class="fas fa-exclamation-triangle"></i> ${data.error_message.substring(0, 80)}</small>`);
+            }
+        } else if (existingErr) {
+            existingErr.remove();
+        }
+
         // If success, inject audio player and action buttons
         if (status === 'SUCCESS' && data?.audio_url) {
             const preview = card.querySelector('.audio-preview');

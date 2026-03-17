@@ -111,18 +111,18 @@
                 {% endif %}
                 {% endif %}
 
-                {% if gen.status == 'FAILURE' %}
-                <small class="text-danger d-block w-100 mt-1">
-                    <i class="fas fa-exclamation-triangle"></i>
-                    {{ gen.error_message|truncatechars:60 }}
-                </small>
-                {% endif %}
-
                 <button class="btn btn-sm btn-danger delete-btn"
                         data-id="{{ gen.id }}" title="Supprimer">
                     <i class="fas fa-trash"></i>
                 </button>
             </div>
+
+            {% if gen.status == 'FAILURE' %}
+            <small class="error-message text-danger d-block mt-1">
+                <i class="fas fa-exclamation-triangle"></i>
+                {{ gen.error_message|truncatechars:80 }}
+            </small>
+            {% endif %}
 
             <!-- Audio preview -->
             <div class="audio-preview mt-1" id="preview_{{ gen.id }}" style="display:none;">
