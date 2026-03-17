@@ -11,19 +11,23 @@ from wama.common.utils.media_paths import UploadToUserPath
 User = get_user_model()
 
 ASSET_TYPES = [
-    ('voice',    'Voix'),
-    ('image',    'Image'),
-    ('video',    'Vidéo'),
-    ('document', 'Document'),
-    ('avatar',   'Avatar'),
+    ('voice',       'Voix'),
+    ('audio_music', 'Musique'),
+    ('audio_sfx',   'Bruitage'),
+    ('image',       'Image'),
+    ('video',       'Vidéo'),
+    ('document',    'Document'),
+    ('avatar',      'Avatar'),
 ]
 
 ALLOWED_EXTENSIONS = {
-    'voice':    ['wav', 'mp3', 'flac', 'ogg', 'm4a'],
-    'image':    ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'],
-    'video':    ['mp4', 'webm', 'mov', 'avi', 'mkv'],
-    'document': ['pdf', 'txt', 'docx', 'md', 'csv'],
-    'avatar':   ['jpg', 'jpeg', 'png', 'webp'],
+    'voice':       ['wav', 'mp3', 'flac', 'ogg', 'm4a'],
+    'audio_music': ['mp3', 'wav', 'flac', 'ogg', 'm4a', 'aac'],
+    'audio_sfx':   ['mp3', 'wav', 'ogg', 'flac', 'aiff'],
+    'image':       ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'],
+    'video':       ['mp4', 'webm', 'mov', 'avi', 'mkv'],
+    'document':    ['pdf', 'txt', 'docx', 'md', 'csv'],
+    'avatar':      ['jpg', 'jpeg', 'png', 'webp'],
 }
 
 # Union de toutes les extensions pour le FileExtensionValidator
@@ -83,9 +87,6 @@ class SystemAsset(models.Model):
     Asset générique partagé par tous les utilisateurs.
     Géré par les admins ou par téléchargement automatique.
     Non supprimable par les utilisateurs finaux.
-
-    Phase 2 : les champs source_url / license seront complétés par les providers
-    externes (Pixabay, Freesound, Mozilla DC, etc.).
     """
 
     name       = models.CharField(max_length=200, unique=True)
@@ -96,7 +97,6 @@ class SystemAsset(models.Model):
     duration   = models.FloatField(null=True, blank=True)
     description = models.TextField(blank=True)
     tags       = models.CharField(max_length=500, blank=True)
-    # Hooks phase 2 (providers externes)
     source_url = models.URLField(blank=True, help_text="URL d'origine pour re-téléchargement")
     license    = models.CharField(max_length=100, blank=True, help_text="CC0, CC-BY, etc.")
     is_active  = models.BooleanField(default=True)
@@ -127,3 +127,51 @@ class SystemAsset(models.Model):
             return ''
         m, s = divmod(int(self.duration), 60)
         return f"{m}:{s:02d}"
+
+
+# ---------------------------------------------------------------------------
+# Phase 3 — Providers (sources externes)
+# ---------------------------------------------------------------------------
+
+class MediaProvider(models.Model):
+    """
+    Catalogue des connecteurs/sources media disponibles (Wikimedia, Pixabay, Freesound, …).
+    Créé via data migration — ne pas modifier manuellement en prod.
+    """
+    slug        = models.SlugField(unique=True)
+    name        = models.CharField(max_length=100)
+    description = models.TextField(blank=True)
+    # JSON list of asset_type values this provider supports, e.g. ['image', 'video']
+    supported_types  = models.JSONField(default=list)
+    requires_api_key = models.BooleanField(default=True)
+    # Where the user can obtain an API key
+    api_key_help_url = models.URLField(blank=True)
+    # Label displayed on the profile page
+    api_key_label    = models.CharField(max_length=100, blank=True, default='Clé API')
+    is_active   = models.BooleanField(default=True)
+    created_at  = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Fournisseur media'
+        verbose_name_plural = 'Fournisseurs media'
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+
+class UserProviderConfig(models.Model):
+    """Clé API personnelle d'un utilisateur pour un provider donné."""
+    user     = models.ForeignKey(User, on_delete=models.CASCADE, related_name='provider_configs')
+    provider = models.ForeignKey(MediaProvider, on_delete=models.CASCADE, related_name='user_configs')
+    api_key  = models.CharField(max_length=500, blank=True)
+    is_active   = models.BooleanField(default=True)
+    updated_at  = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Config provider utilisateur'
+        verbose_name_plural = 'Configs providers utilisateurs'
+        unique_together = [['user', 'provider']]
+
+    def __str__(self):
+        return f"{self.user.username} — {self.provider.name}"

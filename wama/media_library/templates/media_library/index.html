@@ -5,215 +5,414 @@
 
 {% block extra_css %}
 <style>
-.media-library-header {
+/* ── Header ────────────────────────────────────────────────────── */
+.ml-header {
     background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-    border-bottom: 1px solid #333;
-    padding: 1.5rem 0 0 0;
+    border-bottom: 1px solid #2a2a3e;
+    padding: 1.4rem 0 0;
 }
-.media-library-header h1 {
-    font-size: 1.6rem;
-    font-weight: 600;
-    color: #fff;
-}
-.media-type-tabs .nav-link {
-    color: #aaa;
-    border: none;
-    border-bottom: 3px solid transparent;
-    border-radius: 0;
-    padding: .6rem 1.2rem;
-    font-size: .9rem;
-    transition: color .15s, border-color .15s;
-}
-.media-type-tabs .nav-link:hover { color: #fff; }
-.media-type-tabs .nav-link.active {
-    color: #fff;
-    border-bottom-color: #0d6efd;
-    background: transparent;
-}
-.media-type-tabs .nav-link i { margin-right: .4rem; }
+.ml-header h1 { font-size: 1.5rem; font-weight: 600; color: #fff; }
 
+/* ── Onglets ────────────────────────────────────────────────────── */
+.ml-tabs .nav-link {
+    color: #999; border: none;
+    border-bottom: 3px solid transparent; border-radius: 0;
+    padding: .55rem 1.1rem; font-size: .88rem;
+    transition: color .15s, border-color .15s;
+    white-space: nowrap;
+}
+.ml-tabs .nav-link:hover { color: #ddd; }
+.ml-tabs .nav-link.active { color: #fff; border-bottom-color: #0d6efd; background: transparent; }
+.ml-tabs .nav-link i { margin-right: .35rem; }
+.ml-badge {
+    background: #333; color: #aaa;
+    font-size: .65rem; padding: .1rem .4rem;
+    border-radius: 10px; margin-left: .3rem;
+    transition: background .3s, color .3s;
+}
+.ml-tabs .nav-link.active .ml-badge { background: #0d6efd22; color: #6ea8fe; }
+
+/* ── Toolbar ────────────────────────────────────────────────────── */
+.ml-toolbar {
+    display: flex; gap: .6rem; align-items: center;
+    padding: .9rem 0; flex-wrap: wrap;
+}
+.ml-search { flex: 1; min-width: 200px; max-width: 360px; }
+.ml-search .input-group-text { background: #1e1e2e; border-color: #444; color: #888; }
+.ml-search input {
+    background: #1e1e2e; border-color: #444; color: #e0e0e0;
+    border-left: none;
+}
+.ml-search input:focus { background: #1e1e2e; border-color: #555; color: #fff; box-shadow: none; }
+.ml-search input::placeholder { color: #555; }
+
+/* ── Zone upload ────────────────────────────────────────────────── */
+.upload-zone {
+    border: 2px dashed #3a3a5e; border-radius: 8px;
+    padding: 1.4rem; text-align: center; color: #777;
+    cursor: pointer; transition: border-color .2s, color .2s;
+    margin-bottom: 1rem; background: #0e0e1a;
+}
+.upload-zone:hover, .upload-zone.drag-over { border-color: #0d6efd; color: #ccc; }
+.upload-zone i { font-size: 1.6rem; margin-bottom: .4rem; display: block; }
+.upload-form-panel {
+    background: #161625; border: 1px solid #2a2a4a;
+    border-radius: 8px; padding: .9rem 1rem;
+    margin-bottom: 1rem; display: none;
+}
+#uploadProgress { display: none; margin-top: .5rem; }
+
+/* ── Grille ─────────────────────────────────────────────────────── */
 .asset-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-    gap: 1rem;
-    padding: 1.5rem 0;
+    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+    gap: .85rem;
 }
 .asset-card {
-    background: #1e1e2e;
-    border: 1px solid #333;
-    border-radius: 8px;
-    overflow: hidden;
-    transition: border-color .2s, transform .2s;
-    position: relative;
+    background: #1a1a2e; border: 1px solid #2a2a4a;
+    border-radius: 8px; overflow: hidden;
+    transition: border-color .2s, box-shadow .2s;
+    position: relative; cursor: default;
 }
-.asset-card:hover {
-    border-color: #555;
-    transform: translateY(-2px);
-}
-.asset-card.system-asset {
-    border-color: #2a3a2a;
-    background: #1a231a;
-}
-.asset-card-body {
-    padding: .8rem;
-}
-.asset-card-name {
-    font-size: .85rem;
-    font-weight: 600;
-    color: #e0e0e0;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    margin-bottom: .3rem;
-}
-.asset-card-meta {
-    font-size: .75rem;
-    color: #888;
-    margin-bottom: .5rem;
-}
-.asset-card-meta span { margin-right: .5rem; }
-.asset-card-actions {
-    display: flex;
-    gap: .4rem;
-    align-items: center;
-}
-.asset-preview-audio {
-    width: 100%;
-    height: 28px;
-    margin-bottom: .5rem;
-}
-.asset-preview-img {
-    width: 100%;
-    height: 120px;
-    object-fit: cover;
-    display: block;
+.asset-card:hover { border-color: #4a4a7a; box-shadow: 0 4px 16px #0006; }
+.asset-card.system-asset { background: #141e14; border-color: #1e3a1e; }
+.asset-card:hover .card-actions-overlay { opacity: 1; }
+
+/* Overlay actions (apparaît au survol) */
+.card-actions-overlay {
+    position: absolute; top: .4rem; right: .4rem;
+    display: flex; gap: .3rem;
+    opacity: 0; transition: opacity .15s;
 }
 .asset-badge-system {
-    position: absolute;
-    top: .4rem;
-    right: .4rem;
-    background: #2d5a2d;
-    color: #90ee90;
-    font-size: .65rem;
-    padding: .15rem .4rem;
-    border-radius: 4px;
+    position: absolute; top: .4rem; left: .4rem;
+    background: #1e3a1e; color: #6bcb6b;
+    font-size: .62rem; padding: .12rem .35rem;
+    border-radius: 4px; pointer-events: none;
 }
-.upload-zone {
-    border: 2px dashed #444;
-    border-radius: 8px;
-    padding: 2rem;
-    text-align: center;
-    color: #888;
+.asset-preview-wrap {
+    width: 100%; background: #0a0a18;
+    display: flex; align-items: center; justify-content: center;
+    min-height: 70px;
+}
+.asset-preview-audio {
+    width: 100%; height: 32px; padding: 0 .5rem;
+    display: block;
+}
+.asset-preview-img, .asset-preview-video {
+    width: 100%; height: 130px;
+    object-fit: cover; display: block; cursor: zoom-in;
+}
+.asset-preview-icon {
+    font-size: 2.5rem; color: #444; padding: 1rem;
+}
+.asset-card-body { padding: .65rem .75rem .75rem; }
+.asset-name {
+    font-size: .83rem; font-weight: 600; color: #ddd;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     cursor: pointer;
-    transition: border-color .2s, color .2s;
-    margin-bottom: 1.5rem;
 }
-.upload-zone:hover, .upload-zone.drag-over {
-    border-color: #0d6efd;
-    color: #ccc;
+.asset-name:hover { color: #fff; text-decoration: underline dotted #666; }
+.asset-meta { font-size: .72rem; color: #666; margin-top: .2rem; }
+.asset-meta span { margin-right: .5rem; }
+.asset-tags { margin-top: .35rem; }
+.asset-tag {
+    display: inline-block; background: #1e2a3e; color: #7aa8d8;
+    font-size: .65rem; padding: .1rem .35rem; border-radius: 3px;
+    margin: .1rem .1rem 0 0; cursor: pointer;
 }
-.upload-zone i { font-size: 2rem; margin-bottom: .5rem; display: block; }
-#uploadProgress { display: none; margin-top: .5rem; }
+.asset-tag:hover { background: #2a3a5e; }
+
+/* ── Onglet Rechercher ──────────────────────────────────────────── */
+#searchPanel { display: none; }
+.provider-btn {
+    background: #1a1a2e; border: 1px solid #2a2a4a; border-radius: 6px;
+    padding: .45rem .85rem; color: #bbb; font-size: .82rem; cursor: pointer;
+    transition: border-color .15s, color .15s;
+    display: inline-flex; align-items: center; gap: .4rem;
+}
+.provider-btn:hover { border-color: #5a5a9a; color: #fff; }
+.provider-btn.active { border-color: #0d6efd; color: #6ea8fe; background: #0d6efd1a; }
+.provider-btn .provider-dot {
+    width: 7px; height: 7px; border-radius: 50%; background: #555;
+    display: inline-block;
+}
+.provider-btn.ready .provider-dot { background: #28a745; }
+
+.search-result-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: .75rem;
+    margin-top: 1rem;
+}
+.sr-card {
+    background: #1a1a2e; border: 1px solid #2a2a4a; border-radius: 8px;
+    overflow: hidden; position: relative;
+    transition: border-color .2s, box-shadow .2s;
+}
+.sr-card:hover { border-color: #4a4a7a; box-shadow: 0 4px 16px #0006; }
+.sr-thumb {
+    width: 100%; height: 120px; object-fit: cover; display: block; background: #0a0a18;
+}
+.sr-thumb-audio {
+    width: 100%; height: 36px; padding: 0 .5rem; display: block; background: #0a0a18;
+}
+.sr-thumb-icon {
+    width: 100%; height: 80px; display: flex; align-items: center; justify-content: center;
+    background: #0a0a18; font-size: 2rem; color: #444;
+}
+.sr-body { padding: .5rem .65rem .65rem; }
+.sr-title { font-size: .8rem; font-weight: 600; color: #ddd; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sr-meta  { font-size: .68rem; color: #666; margin-top: .15rem; }
+.sr-import-btn {
+    position: absolute; bottom: .4rem; right: .4rem;
+    opacity: 0; transition: opacity .15s;
+}
+.sr-card:hover .sr-import-btn { opacity: 1; }
+.sr-license { font-size: .65rem; padding: .1rem .3rem; border-radius: 3px; background: #1e3a1e; color: #6bcb6b; }
+
+/* ── Load more ──────────────────────────────────────────────────── */
+#loadMoreBtn { display: none; }
+
+/* ── Modal preview ──────────────────────────────────────────────── */
+#previewModal .modal-content { background: #111; border: 1px solid #333; }
+#previewModal .modal-header { border-bottom: 1px solid #222; }
+#previewModal .modal-title { color: #e0e0e0; font-size: 1rem; }
+#previewModalBody { min-height: 200px; display: flex; align-items: center; justify-content: center; }
+#previewModalBody audio { width: 100%; }
+#previewModalBody img, #previewModalBody video { max-width: 100%; max-height: 70vh; border-radius: 4px; }
+
+/* ── Modal édition ──────────────────────────────────────────────── */
+#editModal .modal-content { background: #161625; border: 1px solid #2a2a4a; }
+#editModal .modal-header { border-bottom: 1px solid #2a2a4a; }
+#editModal label { color: #aaa; font-size: .82rem; }
+#editModal .form-control {
+    background: #1e1e2e; border-color: #3a3a5e;
+    color: #e0e0e0; font-size: .88rem;
+}
+#editModal .form-control:focus { background: #1e1e2e; border-color: #556; box-shadow: none; color: #fff; }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="media-library-header">
+<!-- ── Header + onglets ─────────────────────────────────────────── -->
+<div class="ml-header">
     <div class="container-fluid px-4">
         <div class="d-flex align-items-center mb-3">
-            <i class="fas fa-photo-film text-primary me-3" style="font-size:1.8rem;"></i>
+            <i class="fas fa-photo-film me-3" style="font-size:1.7rem;color:#6ea8fe;"></i>
             <div>
                 <h1 class="mb-0">Médiathèque</h1>
                 <small class="text-muted">Assets réutilisables dans toutes les applications</small>
             </div>
         </div>
-        <!-- Onglets types -->
-        <ul class="nav media-type-tabs" id="assetTypeTabs">
+        <ul class="nav ml-tabs" id="assetTypeTabs">
+            {% for type_val, type_label in asset_types %}
             <li class="nav-item">
-                <a class="nav-link {% if active_tab == 'voice' %}active{% endif %}" href="#" data-type="voice">
-                    <i class="fas fa-microphone"></i> Voix
+                <a class="nav-link {% if active_tab == type_val %}active{% endif %}"
+                   href="#" data-type="{{ type_val }}">
+                    {% if type_val == 'voice' %}<i class="fas fa-microphone"></i>
+                    {% elif type_val == 'audio_music' %}<i class="fas fa-music"></i>
+                    {% elif type_val == 'audio_sfx' %}<i class="fas fa-volume-up"></i>
+                    {% elif type_val == 'image' %}<i class="fas fa-image"></i>
+                    {% elif type_val == 'video' %}<i class="fas fa-film"></i>
+                    {% elif type_val == 'document' %}<i class="fas fa-file-alt"></i>
+                    {% elif type_val == 'avatar' %}<i class="fas fa-user-circle"></i>
+                    {% endif %}
+                    {{ type_label }}
+                    <span class="ml-badge" id="badge-{{ type_val }}">0</span>
                 </a>
             </li>
+            {% endfor %}
+            <!-- Onglet Rechercher (providers externes) -->
             <li class="nav-item">
-                <a class="nav-link {% if active_tab == 'image' %}active{% endif %}" href="#" data-type="image">
-                    <i class="fas fa-image"></i> Images
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link {% if active_tab == 'video' %}active{% endif %}" href="#" data-type="video">
-                    <i class="fas fa-film"></i> Vidéos
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link {% if active_tab == 'document' %}active{% endif %}" href="#" data-type="document">
-                    <i class="fas fa-file-alt"></i> Documents
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link {% if active_tab == 'avatar' %}active{% endif %}" href="#" data-type="avatar">
-                    <i class="fas fa-user-circle"></i> Avatars
+                <a class="nav-link {% if active_tab == 'search' %}active{% endif %}"
+                   href="#" data-type="search">
+                    <i class="fas fa-search"></i> Rechercher
                 </a>
             </li>
         </ul>
     </div>
 </div>
 
-<div class="container-fluid px-4 py-3" style="background:#111; min-height: calc(100vh - 180px);">
+<!-- ── Contenu principal ────────────────────────────────────────── -->
+<div class="container-fluid px-4 py-3" style="background:#0d0d1a; min-height: calc(100vh - 175px);">
 
-    <!-- Zone d'upload -->
-    <div id="uploadZone" class="upload-zone" onclick="document.getElementById('fileInput').click()">
-        <i class="fas fa-cloud-upload-alt"></i>
-        <div>Glissez un fichier ici ou <strong>cliquez pour sélectionner</strong></div>
-        <small id="uploadHint" class="d-block mt-1">WAV, MP3, FLAC, OGG (voix)</small>
+    <!-- Toolbar -->
+    <div class="ml-toolbar">
+        <!-- Recherche -->
+        <div class="ml-search input-group input-group-sm">
+            <span class="input-group-text"><i class="fas fa-search"></i></span>
+            <input type="text" id="searchInput" class="form-control" placeholder="Rechercher par nom ou tag…">
+        </div>
+        <!-- Upload -->
+        <button class="btn btn-primary btn-sm" id="openUploadBtn">
+            <i class="fas fa-plus me-1"></i> Ajouter
+        </button>
+        <small class="text-muted ms-auto" id="resultCount"></small>
     </div>
-    <input type="file" id="fileInput" style="display:none;">
 
-    <!-- Form upload (caché, soumis par JS) -->
-    <div id="uploadForm" class="card bg-dark border-secondary mb-3" style="display:none;">
-        <div class="card-body">
+    <!-- Zone upload (masquée par défaut) -->
+    <div id="uploadZoneWrap" style="display:none;">
+        <div class="upload-zone" id="uploadZone">
+            <i class="fas fa-cloud-upload-alt"></i>
+            <div>Glissez un fichier ici ou <strong>cliquez pour sélectionner</strong></div>
+            <small id="uploadHint" class="d-block mt-1 text-muted">WAV, MP3, FLAC, OGG</small>
+        </div>
+        <input type="file" id="fileInput" style="display:none;">
+
+        <div class="upload-form-panel" id="uploadFormPanel">
             <div class="row g-2 align-items-end">
                 <div class="col-md-4">
-                    <label class="form-label small text-light">Nom *</label>
-                    <input type="text" class="form-control form-control-sm bg-dark text-white border-secondary" id="assetName" placeholder="Nom de l'asset">
+                    <label class="form-label mb-1">Nom *</label>
+                    <input type="text" class="form-control form-control-sm" id="assetName" placeholder="Nom de l'asset"
+                           style="background:#1e1e2e;border-color:#3a3a5e;color:#e0e0e0;">
                 </div>
                 <div class="col-md-4">
-                    <label class="form-label small text-light">Description</label>
-                    <input type="text" class="form-control form-control-sm bg-dark text-white border-secondary" id="assetDescription" placeholder="Optionnel">
+                    <label class="form-label mb-1">Description</label>
+                    <input type="text" class="form-control form-control-sm" id="assetDescription" placeholder="Optionnel"
+                           style="background:#1e1e2e;border-color:#3a3a5e;color:#e0e0e0;">
                 </div>
                 <div class="col-md-2">
-                    <label class="form-label small text-light">Tags</label>
-                    <input type="text" class="form-control form-control-sm bg-dark text-white border-secondary" id="assetTags" placeholder="tag1, tag2">
+                    <label class="form-label mb-1">Tags</label>
+                    <input type="text" class="form-control form-control-sm" id="assetTags" placeholder="tag1, tag2"
+                           style="background:#1e1e2e;border-color:#3a3a5e;color:#e0e0e0;">
                 </div>
-                <div class="col-md-2 d-flex gap-2">
+                <div class="col-md-2 d-flex gap-1">
                     <button class="btn btn-primary btn-sm flex-fill" id="confirmUploadBtn">
-                        <i class="fas fa-upload"></i> Enregistrer
+                        <i class="fas fa-upload me-1"></i>Enregistrer
                     </button>
-                    <button class="btn btn-outline-secondary btn-sm" id="cancelUploadBtn">
+                    <button class="btn btn-outline-secondary btn-sm" id="cancelUploadBtn" title="Annuler">
                         <i class="fas fa-times"></i>
                     </button>
                 </div>
             </div>
             <div id="uploadFileName" class="text-muted small mt-1"></div>
-            <div id="uploadProgress" class="mt-2">
-                <div class="progress" style="height:4px;">
-                    <div class="progress-bar progress-bar-striped progress-bar-animated" style="width:100%;"></div>
+            <div id="uploadProgress">
+                <div class="progress mt-2" style="height:3px;">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated w-100"></div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Grille des assets -->
+    <!-- ── Panneau Rechercher (providers externes) ─────────────── -->
+    <div id="searchPanel">
+        <!-- Sélecteur de provider -->
+        <div class="mb-3">
+            <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
+                <span class="text-muted small">Source :</span>
+                <div id="providerButtons" class="d-flex flex-wrap gap-2">
+                    <span class="text-muted small"><i class="fas fa-spinner fa-spin me-1"></i>Chargement…</span>
+                </div>
+                <a href="{% url 'accounts:profile' %}" class="btn btn-outline-secondary btn-sm ms-auto">
+                    <i class="fas fa-key me-1"></i>Gérer mes clés API
+                </a>
+            </div>
+        </div>
+
+        <!-- Barre de recherche provider -->
+        <div class="d-flex gap-2 mb-3 flex-wrap">
+            <div class="ml-search input-group input-group-sm" style="max-width:360px;">
+                <span class="input-group-text"><i class="fas fa-search"></i></span>
+                <input type="text" id="providerSearchInput" class="form-control"
+                       placeholder="Rechercher dans la source sélectionnée…">
+            </div>
+            <select id="providerTypeSelect"
+                    class="form-select form-select-sm bg-dark text-white border-secondary"
+                    style="max-width:140px;">
+                {% for type_val, type_label in asset_types %}
+                <option value="{{ type_val }}">{{ type_label }}</option>
+                {% endfor %}
+            </select>
+            <button id="providerSearchBtn" class="btn btn-primary btn-sm">
+                <i class="fas fa-search me-1"></i>Rechercher
+            </button>
+            <small class="text-muted ms-auto align-self-center" id="providerResultCount"></small>
+        </div>
+
+        <!-- Résultats de recherche -->
+        <div id="searchResultGrid" class="search-result-grid"></div>
+
+        <!-- Pagination résultats -->
+        <div class="text-center mt-4">
+            <button class="btn btn-outline-secondary btn-sm px-4" id="loadMoreSearchBtn" style="display:none;">
+                <i class="fas fa-chevron-down me-1"></i> Charger plus
+            </button>
+        </div>
+    </div>
+
+    <!-- Grille -->
     <div id="assetGrid" class="asset-grid">
-        <div class="text-muted text-center w-100 py-5">
+        <div class="text-muted text-center w-100 py-5 col-span-all">
             <i class="fas fa-spinner fa-spin fa-2x mb-2 d-block"></i>
             Chargement…
         </div>
     </div>
+
+    <!-- Pagination -->
+    <div class="text-center mt-4">
+        <button class="btn btn-outline-secondary btn-sm px-4" id="loadMoreBtn">
+            <i class="fas fa-chevron-down me-1"></i> Charger plus
+        </button>
+    </div>
 </div>
 
-<!-- Toast notification -->
-<div class="position-fixed bottom-0 end-0 p-3" style="z-index:9999">
-    <div id="mlToast" class="toast align-items-center text-white border-0" role="alert" aria-live="assertive">
+<!-- ── Modal preview ─────────────────────────────────────────────── -->
+<div class="modal fade" id="previewModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header py-2 px-3">
+                <h6 class="modal-title" id="previewModalTitle"></h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-3" id="previewModalBody"></div>
+            <div class="modal-footer py-2 px-3 border-0">
+                <small class="text-muted me-auto" id="previewModalMeta"></small>
+                <a id="previewDownloadBtn" class="btn btn-outline-secondary btn-sm" download>
+                    <i class="fas fa-download me-1"></i>Télécharger
+                </a>
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Fermer</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── Modal édition ─────────────────────────────────────────────── -->
+<div class="modal fade" id="editModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header py-2 px-3">
+                <h6 class="modal-title text-light">Modifier l'asset</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body px-3 py-3">
+                <input type="hidden" id="editAssetId">
+                <div class="mb-3">
+                    <label class="form-label">Nom *</label>
+                    <input type="text" class="form-control" id="editName">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Description</label>
+                    <textarea class="form-control" id="editDescription" rows="2"></textarea>
+                </div>
+                <div class="mb-1">
+                    <label class="form-label">Tags <small class="text-muted">(séparés par des virgules)</small></label>
+                    <input type="text" class="form-control" id="editTags" placeholder="voix, adulte, français">
+                </div>
+            </div>
+            <div class="modal-footer border-0 py-2 px-3">
+                <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Annuler</button>
+                <button class="btn btn-primary btn-sm" id="saveEditBtn">
+                    <i class="fas fa-save me-1"></i>Enregistrer
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast -->
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index:9999;">
+    <div id="mlToast" class="toast align-items-center text-white border-0" role="alert">
         <div class="d-flex">
             <div class="toast-body" id="mlToastBody"></div>
             <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
@@ -225,10 +424,15 @@
 {% block extra_js %}
 <script>
 const ML_URLS = {
-    list:       "{% url 'media_library:api_list' %}",
-    upload:     "{% url 'media_library:api_upload' %}",
-    delete:     "{% url 'media_library:api_delete' pk=0 %}".replace('/0/', '/'),
-    systemList: "{% url 'media_library:api_system_list' %}",
+    counts:          "{% url 'media_library:api_counts' %}",
+    list:            "{% url 'media_library:api_list' %}",
+    upload:          "{% url 'media_library:api_upload' %}",
+    edit:            "{% url 'media_library:api_edit' pk=0 %}".replace('/0/', '/'),
+    delete:          "{% url 'media_library:api_delete' pk=0 %}".replace('/0/', '/'),
+    systemList:      "{% url 'media_library:api_system_list' %}",
+    providers:       "{% url 'media_library:api_providers_list' %}",
+    providerSearch:  "{% url 'media_library:api_provider_search' %}",
+    providerDownload:"{% url 'media_library:api_provider_download' %}",
 };
 const CSRF_TOKEN = "{{ csrf_token }}";
 </script>

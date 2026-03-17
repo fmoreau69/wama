@@ -13,7 +13,7 @@
 {% block content %}
 <div class="container-fluid py-4">
     <div class="row justify-content-center">
-        <div class="col-12 col-md-8 col-lg-6">
+        <div class="col-12 col-md-8 col-lg-7">
 
             <!-- Header -->
             <div class="d-flex justify-content-between align-items-center mb-4">
@@ -112,6 +112,26 @@
                 </div>
             </div>
 
+            <!-- ── Connecteurs & Clés API ────────────────────────────── -->
+            <div class="card bg-dark border-secondary mb-4">
+                <div class="card-header border-secondary">
+                    <h5 class="mb-0">
+                        <i class="fas fa-plug me-2"></i>Connecteurs Médiathèque
+                        <a href="{% url 'media_library:index' %}?tab=search"
+                           class="btn btn-outline-secondary btn-sm ms-2">
+                            <i class="fas fa-search me-1"></i>Rechercher des médias
+                        </a>
+                    </h5>
+                </div>
+                <div class="card-body p-0">
+                    <div id="providersList" class="list-group list-group-flush">
+                        <div class="text-muted text-center p-3 small">
+                            <i class="fas fa-spinner fa-spin me-1"></i>Chargement…
+                        </div>
+                    </div>
+                </div>
+            </div>
+
         </div>
     </div>
 </div>
@@ -143,9 +163,11 @@
 
 {% block extra_js %}
 <script>
-const LANGUAGE_URL  = "{% url 'accounts:profile-language' %}";
+const LANGUAGE_URL    = "{% url 'accounts:profile-language' %}";
 const TOKEN_REGEN_URL = "{% url 'accounts:token-regenerate' %}";
-const CSRF_TOKEN    = "{{ csrf_token }}";
+const PROVIDER_KEYS_URL = "{% url 'media_library:api_provider_keys' %}";
+const PROVIDER_KEY_SAVE_URL = "{% url 'media_library:api_provider_key_save' slug='SLUG' %}";
+const CSRF_TOKEN      = "{{ csrf_token }}";
 
 // ── Helper ──────────────────────────────────────────────────────────────────
 function showMsg(el, text, isError = false) {
@@ -221,5 +243,108 @@ document.getElementById('confirmRegenBtn').addEventListener('click', async () =>
         showMsg(msg, 'Erreur réseau', true);
     }
 });
+
+// ── Connecteurs (providers) ──────────────────────────────────────────────────
+
+async function loadProviders() {
+    const container = document.getElementById('providersList');
+    try {
+        const data = await (await fetch(PROVIDER_KEYS_URL)).json();
+        const providers = data.providers || [];
+        if (providers.length === 0) {
+            container.innerHTML = '<div class="text-muted text-center p-3 small">Aucun connecteur disponible.</div>';
+            return;
+        }
+        container.innerHTML = providers.map(p => `
+            <div class="list-group-item bg-dark border-secondary px-3 py-3" id="provider-${p.slug}">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <div>
+                        <span class="fw-semibold text-light">${p.name}</span>
+                        <span class="ms-2 badge ${p.has_key ? 'bg-success' : 'bg-secondary'} small"
+                              id="badge-${p.slug}">
+                            ${p.has_key ? '✓ Configuré' : 'Non configuré'}
+                        </span>
+                    </div>
+                    ${p.api_key_help_url ? `
+                    <a href="${p.api_key_help_url}" target="_blank" rel="noopener"
+                       class="btn btn-outline-secondary btn-sm ms-2" title="Obtenir une clé API">
+                        <i class="fas fa-external-link-alt"></i>
+                    </a>` : ''}
+                </div>
+                <div class="input-group input-group-sm">
+                    <input type="password" id="key-${p.slug}"
+                           class="form-control bg-dark text-light border-secondary"
+                           placeholder="${p.has_key ? '••••••••••••••••' : p.api_key_label || 'Clé API'}"
+                           autocomplete="off">
+                    <button class="btn btn-outline-secondary" type="button"
+                            onclick="toggleKeyVisibility('${p.slug}')" title="Afficher / masquer">
+                        <i class="fas fa-eye" id="eye-${p.slug}"></i>
+                    </button>
+                    <button class="btn btn-outline-primary" type="button"
+                            onclick="saveKey('${p.slug}')">
+                        <i class="fas fa-save me-1"></i>Enregistrer
+                    </button>
+                    ${p.has_key ? `
+                    <button class="btn btn-outline-danger" type="button"
+                            onclick="deleteKey('${p.slug}')" title="Supprimer la clé">
+                        <i class="fas fa-times"></i>
+                    </button>` : ''}
+                </div>
+                <div id="msg-${p.slug}" class="mt-1" style="display:none;"></div>
+            </div>
+        `).join('');
+    } catch(e) {
+        container.innerHTML = '<div class="text-danger p-3 small">Erreur chargement des connecteurs.</div>';
+    }
+}
+
+function toggleKeyVisibility(slug) {
+    const input = document.getElementById(`key-${slug}`);
+    const icon  = document.getElementById(`eye-${slug}`);
+    if (input.type === 'password') {
+        input.type = 'text';
+        icon.className = 'fas fa-eye-slash';
+    } else {
+        input.type = 'password';
+        icon.className = 'fas fa-eye';
+    }
+}
+
+async function saveKey(slug) {
+    const input = document.getElementById(`key-${slug}`);
+    const msg   = document.getElementById(`msg-${slug}`);
+    const key   = input.value.trim();
+    try {
+        const data = await postJson(PROVIDER_KEY_SAVE_URL.replace('SLUG', slug), { api_key: key });
+        if (data.success) {
+            showMsg(msg, `✓ Clé ${key ? 'enregistrée' : 'supprimée'}`);
+            const badge = document.getElementById(`badge-${slug}`);
+            badge.textContent = data.has_key ? '✓ Configuré' : 'Non configuré';
+            badge.className   = `ms-2 badge ${data.has_key ? 'bg-success' : 'bg-secondary'} small`;
+            input.value = '';
+            input.placeholder = data.has_key ? '••••••••••••••••' : 'Clé API';
+        } else {
+            showMsg(msg, data.error || 'Erreur', true);
+        }
+    } catch(e) {
+        showMsg(msg, 'Erreur réseau', true);
+    }
+}
+
+async function deleteKey(slug) {
+    if (!confirm('Supprimer la clé API ?')) return;
+    const msg = document.getElementById(`msg-${slug}`);
+    try {
+        const data = await postJson(PROVIDER_KEY_SAVE_URL.replace('SLUG', slug), { api_key: '' });
+        if (data.success) {
+            showMsg(msg, '✓ Clé supprimée');
+            await loadProviders();  // refresh to remove delete btn
+        }
+    } catch(e) {
+        showMsg(msg, 'Erreur réseau', true);
+    }
+}
+
+loadProviders();
 </script>
 {% endblock %}
