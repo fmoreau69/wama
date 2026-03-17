@@ -335,8 +335,16 @@
         </h4>
 
         <div id="synthesisQueue">
-            <!-- Batch groups -->
             {% for batch_info in batches_list %}
+
+            {% if batch_info.obj.total == 1 %}
+            <!-- Single-item batch: render as a standalone card (no batch header) -->
+            {% for item in batch_info.items %}{% if item.synthesis %}
+            {% include 'synthesizer/_synthesis_card.html' with synthesis=item.synthesis card_label=item.output_filename %}
+            {% endif %}{% endfor %}
+
+            {% else %}
+            <!-- Multi-item batch: collapsible group with header -->
             <div class="batch-group mb-2" data-batch-id="{{ batch_info.obj.id }}">
                 <!-- Batch header -->
                 <div class="batch-group-header d-flex align-items-center gap-2 p-2"
@@ -405,14 +413,11 @@
                     {% endfor %}
                 </div>
             </div>
+            {% endif %}
+
             {% endfor %}
 
-            <!-- Standalone syntheses -->
-            {% for synthesis in standalone_syntheses %}
-            {% include 'synthesizer/_synthesis_card.html' with synthesis=synthesis %}
-            {% endfor %}
-
-            {% if not batches_list and not standalone_syntheses %}
+            {% if not batches_list %}
             <div class="text-center text py-5">
                 <i class="fas fa-inbox fa-3x mb-3"></i>
                 <p>Aucun fichier dans la file d'attente</p>

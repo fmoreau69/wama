@@ -7,11 +7,15 @@ Colonnes voix et vitesse sont optionnelles.
 Lignes commençant par # = commentaires, lignes vides ignorées.
 
 Formats de fichier supportés : TXT, MD, PDF, DOCX, CSV.
+
+Text extraction is delegated to wama.common.utils.batch_parsers.
 """
 
 import os
 import logging
 from typing import List, Tuple, Dict
+
+from wama.common.utils.batch_parsers import extract_batch_file_text
 
 logger = logging.getLogger(__name__)
 
@@ -33,46 +37,8 @@ def parse_batch_file(
         (tasks, warnings)
         Each task dict has keys: output_filename, text, voice, speed, line_num
     """
-    ext = os.path.splitext(file_path)[1].lower()
-    raw_text = _extract_text(file_path, ext)
+    raw_text = extract_batch_file_text(file_path)
     return _parse_pipe_lines(raw_text, default_voice, default_speed)
-
-
-def _extract_text(file_path: str, ext: str) -> str:
-    """Extract raw text from the batch file."""
-    if ext in ('.txt', '.md'):
-        with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-            return f.read()
-
-    elif ext == '.pdf':
-        try:
-            import PyPDF2
-            pages = []
-            with open(file_path, 'rb') as f:
-                reader = PyPDF2.PdfReader(f)
-                for page in reader.pages:
-                    t = page.extract_text()
-                    if t:
-                        pages.append(t)
-            return '\n'.join(pages)
-        except ImportError:
-            raise RuntimeError("PyPDF2 non installé : pip install PyPDF2")
-
-    elif ext == '.docx':
-        try:
-            from docx import Document
-            doc = Document(file_path)
-            return '\n'.join(p.text for p in doc.paragraphs if p.text.strip())
-        except ImportError:
-            raise RuntimeError("python-docx non installé : pip install python-docx")
-
-    elif ext == '.csv':
-        # Batch CSV files use | as separator — read as plain text
-        with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-            return f.read()
-
-    else:
-        raise ValueError(f"Format de fichier non supporté : {ext}")
 
 
 def _parse_pipe_lines(

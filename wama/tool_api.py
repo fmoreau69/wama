@@ -886,6 +886,19 @@ def synthesize_text(
 
         synthesis.update_metadata()
 
+        # Wrap in a batch-of-1 so it appears correctly in the unified queue
+        try:
+            from wama.synthesizer.models import BatchSynthesis, BatchSynthesisItem
+            import os as _os
+            stem = _os.path.splitext(_os.path.basename(synthesis.text_file.name))[0]
+            batch = BatchSynthesis.objects.create(user=user, total=1)
+            BatchSynthesisItem.objects.create(
+                batch=batch, synthesis=synthesis,
+                output_filename=stem + '.wav', row_index=0,
+            )
+        except Exception:
+            pass
+
     except Exception as e:
         return {'error': f'Erreur création VoiceSynthesis : {e}'}
 

@@ -45,13 +45,44 @@ def _ensure_workers_imported():
         synthesize_voice = sv
 
 
+def _wrap_synthesis_in_batch(synthesis):
+    """Wrap a standalone VoiceSynthesis in a new BatchSynthesis-of-1."""
+    stem = os.path.splitext(os.path.basename(synthesis.text_file.name))[0] if synthesis.text_file else f'synthesis_{synthesis.id}'
+    output_filename = stem + '.wav'
+    batch = BatchSynthesis.objects.create(user=synthesis.user, total=1)
+    BatchSynthesisItem.objects.create(
+        batch=batch,
+        synthesis=synthesis,
+        output_filename=output_filename,
+        row_index=0,
+    )
+    return batch
+
+
+def _auto_wrap_orphans(user):
+    """Lazily wrap any VoiceSynthesis not yet in a batch into a batch-of-1 (on page load)."""
+    existing_batch_ids = set(
+        BatchSynthesisItem.objects.filter(batch__user=user)
+        .values_list('synthesis_id', flat=True)
+    )
+    orphans = VoiceSynthesis.objects.filter(user=user).exclude(id__in=existing_batch_ids)
+    for orphan in orphans:
+        try:
+            _wrap_synthesis_in_batch(orphan)
+        except Exception:
+            pass
+
+
 class IndexView(View):
     """Page principale du synthesizer."""
 
     def get(self, request):
         user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
 
-        # Batches with prefetched items+synthesis
+        # Lazily migrate any orphan VoiceSynthesis into a batch-of-1
+        _auto_wrap_orphans(user)
+
+        # All batches with prefetched items+synthesis
         batches_qs = BatchSynthesis.objects.filter(user=user).prefetch_related(
             'items__synthesis'
         ).order_by('-id')
@@ -74,17 +105,7 @@ class IndexView(View):
                 'first_pitch': first_s.pitch if first_s else 1.0,
             })
 
-        # Standalone syntheses (not in any batch)
-        batch_synthesis_ids = set(
-            BatchSynthesisItem.objects.filter(batch__user=user)
-            .values_list('synthesis_id', flat=True)
-        )
-        standalone_syntheses = VoiceSynthesis.objects.filter(user=user).exclude(
-            id__in=batch_synthesis_ids
-        ).order_by('-id')
-
-        total_batch_items = sum(len(b['items']) for b in batches_list)
-        queue_count = standalone_syntheses.count() + total_batch_items
+        queue_count = sum(len(b['items']) for b in batches_list)
 
         voice_presets = VoicePreset.objects.filter(
             is_public=True
@@ -110,7 +131,6 @@ class IndexView(View):
 
         context = {
             'batches_list': batches_list,
-            'standalone_syntheses': standalone_syntheses,
             'queue_count': queue_count,
             'voice_presets': voice_presets,
             'custom_voices': custom_voices,
@@ -210,6 +230,8 @@ def upload(request):
             return JsonResponse({
                 'error': f"Impossible d'extraire le texte: {str(e)}"
             }, status=400)
+
+        _wrap_synthesis_in_batch(synthesis)
 
         return JsonResponse({
             'id': synthesis.id,
@@ -358,6 +380,8 @@ def upload_text(request):
             return JsonResponse({
                 'error': f"Impossible d'extraire le texte: {str(e)}"
             }, status=400)
+
+        _wrap_synthesis_in_batch(synthesis)
 
         return JsonResponse({
             'success': True,
@@ -591,6 +615,13 @@ def delete(request, pk: int):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     synthesis = get_object_or_404(VoiceSynthesis, pk=pk, user=user)
 
+    # Capture parent batch before deletion (cascade will remove the BatchSynthesisItem)
+    parent_batch = None
+    try:
+        parent_batch = synthesis.batch_item.batch
+    except Exception:
+        pass
+
     # Révoquer la tâche Celery si elle est en file ou en cours (libère le worker GPU)
     if synthesis.task_id:
         try:
@@ -613,6 +644,14 @@ def delete(request, pk: int):
     synthesis.delete()
     cache.delete(f"synthesizer_progress_{pk}")
 
+    # Clean up empty parent batch (cascade deleted its BatchSynthesisItem above)
+    if parent_batch:
+        try:
+            if not parent_batch.items.exists():
+                parent_batch.delete()
+        except Exception:
+            pass
+
     return JsonResponse({'deleted': pk})
 
 
@@ -632,6 +671,7 @@ def duplicate(request, pk: int):
         },
         clear_fields=['audio_output'],
     )
+    _wrap_synthesis_in_batch(new_s)
     return JsonResponse({'duplicated': new_s.id})
 
 
@@ -844,6 +884,9 @@ def clear_all(request):
 
     syntheses.delete()
 
+    # Also remove all batch containers (BatchSynthesisItems cascade-deleted with syntheses above)
+    BatchSynthesis.objects.filter(user=user).delete()
+
     return JsonResponse({
         'cleared_ids': cleared,
         'count': len(cleared)
@@ -970,6 +1013,8 @@ def import_individual_from_path(request):
         synthesis.text_content = ''
         synthesis.word_count = 0
         synthesis.save()
+
+    _wrap_synthesis_in_batch(synthesis)
 
     return JsonResponse({'success': True, 'id': synthesis.id})
 
