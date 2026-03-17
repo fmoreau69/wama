@@ -329,7 +329,12 @@
                     <div class="tab-content">
                         <!-- Description -->
                         <div class="tab-pane fade show active" id="tab-description" role="tabpanel">
-                            <div class="card" style="background: #1e1e1e; border: 1px solid #495057;">
+                            <div class="card position-relative" style="background: #1e1e1e; border: 1px solid #495057;">
+                                <button class="btn btn-sm btn-outline-secondary copy-result-btn"
+                                        data-target="resultText" title="Copier le texte"
+                                        style="position:absolute; top:6px; right:6px; z-index:1; opacity:0.7;">
+                                    <i class="fas fa-copy"></i>
+                                </button>
                                 <div class="card-body">
                                     <pre id="resultText" style="color: #d4d4d4; white-space: pre-wrap; word-wrap: break-word; font-family: 'Segoe UI', Arial, sans-serif; font-size: 14px; line-height: 1.6; margin: 0; max-height: 460px; overflow-y: auto;"></pre>
                                 </div>
@@ -337,7 +342,12 @@
                         </div>
                         <!-- Résumé -->
                         <div class="tab-pane fade" id="tab-resume" role="tabpanel">
-                            <div class="card" style="background: #1e1e1e; border: 1px solid #495057;">
+                            <div class="card position-relative" style="background: #1e1e1e; border: 1px solid #495057;">
+                                <button class="btn btn-sm btn-outline-secondary copy-result-btn"
+                                        data-target="resumeContent" title="Copier le texte"
+                                        style="position:absolute; top:6px; right:6px; z-index:1; opacity:0.7;">
+                                    <i class="fas fa-copy"></i>
+                                </button>
                                 <div class="card-body">
                                     <div id="resumeContent" style="color: #d4d4d4; font-family: 'Segoe UI', Arial, sans-serif; font-size: 14px; line-height: 1.6; max-height: 460px; overflow-y: auto;"></div>
                                 </div>
@@ -468,4 +478,23 @@
 </script>
 <script src="{% static 'describer/js/index.js' %}"></script>
 <script src="{% static 'common/js/media-preview.js' %}"></script>
+<script>
+/* Copy button for result text panels */
+document.addEventListener('click', function(e) {
+    const btn = e.target.closest('.copy-result-btn');
+    if (!btn) return;
+    const el = document.getElementById(btn.dataset.target);
+    if (!el) return;
+    navigator.clipboard.writeText(el.textContent || el.innerText).then(() => {
+        btn.innerHTML = '<i class="fas fa-check text-success"></i>';
+        setTimeout(() => { btn.innerHTML = '<i class="fas fa-copy"></i>'; }, 2000);
+    }).catch(() => {
+        /* fallback: select text */
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        window.getSelection().removeAllRanges();
+        window.getSelection().addRange(range);
+    });
+});
+</script>
 {% endblock %}

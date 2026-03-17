@@ -24,6 +24,65 @@ from wama.common.utils.queue_duplication import duplicate_instance
 from ..accounts.views import get_or_create_anonymous_user
 from ..common.utils.video_utils import upload_media_from_url
 
+
+def _fetch_html_as_text(url: str, temp_dir: str) -> str:
+    """
+    Fetch a web page and save its readable text content as a .txt file.
+    Uses BeautifulSoup + lxml to strip markup and extract meaningful content.
+    Returns the path to the saved .txt file.
+    """
+    import re
+    import requests
+    from urllib.parse import urlparse
+    from bs4 import BeautifulSoup
+
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+                      '(KHTML, like Gecko) Chrome/122 Safari/537.36',
+        'Accept-Language': 'en-US,en;q=0.9',
+    }
+    resp = requests.get(url, headers=headers, timeout=20)
+    resp.raise_for_status()
+
+    soup = BeautifulSoup(resp.text, 'lxml')
+
+    title_tag = soup.find('title')
+    title_text = title_tag.get_text(strip=True) if title_tag else ''
+
+    for tag in soup(['script', 'style', 'nav', 'footer', 'aside',
+                     'noscript', 'meta', 'link', 'button', 'svg', 'form',
+                     'iframe', 'template', 'header']):
+        tag.decompose()
+
+    main = (
+        soup.find('main') or
+        soup.find('article') or
+        soup.find(id='readme') or
+        soup.find(class_='markdown-body') or
+        soup.find(attrs={'role': 'main'}) or
+        soup.find(id='content') or
+        soup.find(class_='content') or
+        soup.body or
+        soup
+    )
+
+    text = main.get_text(separator='\n', strip=True)
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    if title_text:
+        text = f"# {title_text}\n\n{text}"
+
+    # Build a clean filename from the URL path
+    parsed = urlparse(url)
+    path_parts = [p for p in parsed.path.split('/') if p]
+    base = '_'.join(path_parts[-2:]) if len(path_parts) >= 2 else (path_parts[-1] if path_parts else 'page')
+    base = re.sub(r'[^\w\-]', '_', base)[:60] or 'page'
+    save_path = os.path.join(temp_dir, f"{base}.txt")
+
+    with open(save_path, 'w', encoding='utf-8') as f:
+        f.write(text)
+
+    return save_path
+
 logger = logging.getLogger(__name__)
 
 
@@ -77,8 +136,21 @@ def upload(request):
             logger.info(f"[Describer] Downloading media from URL: {media_url}")
 
             # Download to temp directory
+            # For HTML pages, extract readable text instead of saving raw markup.
             temp_dir = tempfile.mkdtemp()
-            downloaded_path = upload_media_from_url(media_url, temp_dir)
+            try:
+                import requests as _req
+                _head = _req.head(media_url, timeout=10, allow_redirects=True,
+                                  headers={'User-Agent': 'Mozilla/5.0'})
+                _ct = _head.headers.get('Content-Type', '')
+            except Exception:
+                _ct = ''
+
+            if 'text/html' in _ct:
+                logger.info(f"[Describer] HTML page detected — extracting text content")
+                downloaded_path = _fetch_html_as_text(media_url, temp_dir)
+            else:
+                downloaded_path = upload_media_from_url(media_url, temp_dir)
             filename = os.path.basename(downloaded_path)
 
             logger.info(f"[Describer] Downloaded to: {downloaded_path}")

@@ -176,9 +176,60 @@ def extract_text_from_file(file_path: str) -> str:
         return extract_from_docx(file_path)
     elif ext in ('txt', 'md', 'csv'):
         return extract_from_text(file_path)
+    elif ext in ('html', 'htm'):
+        return extract_from_html(file_path)
     else:
-        # Try reading as text
-        return extract_from_text(file_path)
+        # Try reading as text; sniff for HTML content
+        text = extract_from_text(file_path)
+        stripped = text.lstrip()
+        if any(tag in stripped[:500].lower() for tag in ('<!doctype', '<html', '<head')):
+            return _html_to_readable_text(text)
+        return text
+
+
+def extract_from_html(file_path: str) -> str:
+    """Extract readable text from an HTML file."""
+    with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
+        html = f.read()
+    return _html_to_readable_text(html)
+
+
+def _html_to_readable_text(html: str) -> str:
+    """Convert HTML to readable plain text using BeautifulSoup + lxml."""
+    from bs4 import BeautifulSoup
+
+    soup = BeautifulSoup(html, 'lxml')
+
+    # Get page title
+    title_tag = soup.find('title')
+    title_text = title_tag.get_text(strip=True) if title_tag else ''
+
+    # Remove non-content elements
+    for tag in soup(['script', 'style', 'nav', 'footer', 'aside',
+                     'noscript', 'meta', 'link', 'button', 'svg', 'form',
+                     'iframe', 'template', 'header']):
+        tag.decompose()
+
+    # Find main content area (priority order covers GitHub, docs, generic pages)
+    main = (
+        soup.find('main') or
+        soup.find('article') or
+        soup.find(id='readme') or
+        soup.find(class_='markdown-body') or
+        soup.find(attrs={'role': 'main'}) or
+        soup.find(id='content') or
+        soup.find(class_='content') or
+        soup.body or
+        soup
+    )
+
+    text = main.get_text(separator='\n', strip=True)
+    text = re.sub(r'\n{3,}', '\n\n', text)
+
+    if title_text:
+        text = f"# {title_text}\n\n{text}"
+
+    return text.strip()
 
 
 def extract_from_pdf(file_path: str) -> str:
