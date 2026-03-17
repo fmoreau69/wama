@@ -168,6 +168,37 @@ def upload(request):
                 downloaded_path = _fetch_html_as_text(media_url, temp_dir)
             else:
                 downloaded_path = upload_media_from_url(media_url, temp_dir)
+                # Post-download: if the file has no extension or an HTML extension,
+                # sniff the content and extract text if it looks like HTML.
+                _dl_name = os.path.basename(downloaded_path)
+                _dl_ext = _dl_name.rsplit('.', 1)[-1].lower() if '.' in _dl_name else ''
+                if not _dl_ext or _dl_ext in ('html', 'htm'):
+                    try:
+                        with open(downloaded_path, 'rb') as _fh:
+                            _sample = _fh.read(2048).lower()
+                        if b'<html' in _sample or b'<!doctype' in _sample:
+                            logger.info(f"[Describer] Downloaded file looks like HTML — extracting text")
+                            with open(downloaded_path, 'r', encoding='utf-8', errors='replace') as _fh:
+                                _html = _fh.read()
+                            from .utils.text_describer import _html_to_readable_text
+                            _text = _html_to_readable_text(_html)
+                            import re as _re
+                            from urllib.parse import urlparse as _urlparse
+                            _parts = [p for p in _urlparse(media_url).path.split('/') if p]
+                            _base = '_'.join(_parts[-2:]) if len(_parts) >= 2 else (_parts[-1] if _parts else 'page')
+                            _base = _re.sub(r'[^\w\-]', '_', _base)[:60] or 'page'
+                            _new_path = os.path.join(temp_dir, f"{_base}.txt")
+                            with open(_new_path, 'w', encoding='utf-8') as _fh:
+                                _fh.write(_text)
+                            os.remove(downloaded_path)
+                            downloaded_path = _new_path
+                        elif not _dl_ext:
+                            # Unknown binary/text without extension — add .txt
+                            _new_path = downloaded_path + '.txt'
+                            os.rename(downloaded_path, _new_path)
+                            downloaded_path = _new_path
+                    except Exception as _ex:
+                        logger.warning(f"[Describer] Post-download sniff failed: {_ex}")
             filename = os.path.basename(downloaded_path)
 
             logger.info(f"[Describer] Downloaded to: {downloaded_path}")

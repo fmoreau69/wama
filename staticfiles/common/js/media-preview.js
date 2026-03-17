@@ -289,6 +289,49 @@
             wrapper.appendChild(fallbackLink);
 
             return wrapper;
+        } else if (mimeType === 'text/plain' || (mimeType.startsWith('text/') && !mimeType.startsWith('text/html'))) {
+            // Text file: fetch content and display in scrollable pre
+            const wrapper = document.createElement('div');
+            wrapper.className = 'w-100';
+
+            const toolbar = document.createElement('div');
+            toolbar.className = 'd-flex justify-content-end mb-2 gap-2';
+
+            const copyBtn = document.createElement('button');
+            copyBtn.className = 'btn btn-sm btn-outline-secondary';
+            copyBtn.innerHTML = '<i class="fas fa-copy"></i> Copier';
+
+            const openBtn = document.createElement('a');
+            openBtn.href = data.url;
+            openBtn.target = '_blank';
+            openBtn.rel = 'noopener';
+            openBtn.className = 'btn btn-sm btn-outline-light';
+            openBtn.innerHTML = '<i class="fas fa-external-link-alt"></i> Ouvrir';
+
+            toolbar.appendChild(copyBtn);
+            toolbar.appendChild(openBtn);
+
+            const pre = document.createElement('pre');
+            pre.className = 'text-light p-3 mb-0';
+            pre.style.cssText = 'max-height:65vh; overflow-y:auto; background:#1e1e1e; border-radius:4px; font-size:13px; white-space:pre-wrap; word-wrap:break-word; border:1px solid #495057;';
+            pre.textContent = 'Chargement…';
+
+            copyBtn.addEventListener('click', () => {
+                navigator.clipboard.writeText(pre.textContent).then(() => {
+                    copyBtn.innerHTML = '<i class="fas fa-check text-success"></i> Copié';
+                    setTimeout(() => { copyBtn.innerHTML = '<i class="fas fa-copy"></i> Copier'; }, 2000);
+                }).catch(() => {});
+            });
+
+            wrapper.appendChild(toolbar);
+            wrapper.appendChild(pre);
+
+            fetch(data.url)
+                .then(r => r.ok ? r.text() : Promise.reject(r.status))
+                .then(text => { pre.textContent = text; })
+                .catch(err => { pre.textContent = `Erreur lors du chargement (${err}).`; });
+
+            return wrapper;
         } else {
             // Fallback: show download link
             const fallback = document.createElement('div');

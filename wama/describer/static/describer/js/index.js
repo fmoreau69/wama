@@ -540,6 +540,9 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function updateCardStatus(card, status, progress) {
+        // Always show 100% when done
+        if (status === 'SUCCESS') progress = 100;
+
         // Update status badge
         const badge = card.querySelector('.status-badge');
         if (badge) {
@@ -587,27 +590,32 @@ document.addEventListener('DOMContentLoaded', function() {
         // Update action buttons
         const actions = card.querySelector('.btn-group-actions');
         if (actions) {
-            // Remove start button
-            const startBtn = actions.querySelector('.start-btn');
-            if (startBtn) startBtn.remove();
+            const id = card.dataset.id;
 
-            // Add preview and download buttons before delete
-            const deleteBtn = actions.querySelector('.delete-btn');
-            if (deleteBtn) {
-                const previewBtn = document.createElement('button');
-                previewBtn.className = 'btn btn-sm btn-success preview-btn';
-                previewBtn.dataset.id = card.dataset.id;
-                previewBtn.title = 'Voir le resultat';
-                previewBtn.innerHTML = '<i class="fas fa-eye"></i>';
-                previewBtn.addEventListener('click', () => showPreview(card.dataset.id));
+            // Remove start button if present (it was shown before processing)
+            actions.querySelector('.start-btn')?.remove();
 
+            // Remove existing preview/download buttons to avoid duplication on re-run
+            actions.querySelector('.preview-btn')?.remove();
+            actions.querySelector('.download-btn')?.remove();
+
+            // Insert preview + download before duplicate-btn (or delete-btn as fallback)
+            const anchor = actions.querySelector('.duplicate-btn') || actions.querySelector('.delete-btn');
+            if (anchor) {
                 const downloadBtn = document.createElement('a');
                 downloadBtn.className = 'btn btn-sm btn-info download-btn';
-                downloadBtn.href = config.urls.download.replace('/0/', `/${card.dataset.id}/`);
+                downloadBtn.href = config.urls.download.replace('/0/', `/${id}/`);
                 downloadBtn.title = 'Telecharger';
                 downloadBtn.innerHTML = '<i class="fas fa-download"></i>';
 
-                actions.insertBefore(downloadBtn, deleteBtn);
+                const previewBtn = document.createElement('button');
+                previewBtn.className = 'btn btn-sm btn-success preview-btn';
+                previewBtn.dataset.id = id;
+                previewBtn.title = 'Voir le resultat';
+                previewBtn.innerHTML = '<i class="fas fa-eye"></i>';
+                previewBtn.addEventListener('click', () => showPreview(id));
+
+                actions.insertBefore(downloadBtn, anchor);
                 actions.insertBefore(previewBtn, downloadBtn);
             }
         }
