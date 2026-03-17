@@ -171,7 +171,7 @@ def enhance_audio(self, audio_enhancement_id: int):
 
         input_path = ae.input_file.path
         base_name = os.path.splitext(os.path.basename(input_path))[0]
-        output_filename = f"{base_name}_enhanced.wav"
+        output_filename = f"{base_name}_enhanced_{ae.engine}.wav"
 
         # Temporary output file
         temp_fd, temp_output = tempfile.mkstemp(suffix='.wav', prefix='audio_enhanced_')
@@ -280,9 +280,7 @@ def _enhance_image(enhancement: Enhancement, user_id: int) -> dict:
 
     # Get the base name from the input file (which already has unique name from Django upload)
     base_name, ext = os.path.splitext(os.path.basename(input_path))
-    # Output filename is simply {input_base}_enhanced{ext}
-    # No ID needed - if we re-process same input, we just overwrite the output
-    output_filename = f"{base_name}_enhanced{ext}"
+    output_filename = f"{base_name}_enhanced_{enhancement.ai_model}{ext}"
     logger.info(f"Output filename will be: {output_filename}")
 
     # Create temporary file for processing (not in media/ to avoid permission issues)
@@ -412,8 +410,7 @@ def _enhance_video(enhancement: Enhancement, user_id: int) -> dict:
     input_path = enhancement.input_file.path
     # Get the base name from the input file (which already has unique name from Django upload)
     base_name, ext = os.path.splitext(os.path.basename(input_path))
-    # Output filename is simply {input_base}_enhanced{ext}
-    output_filename = f"{base_name}_enhanced{ext}"
+    output_filename = f"{base_name}_enhanced_{enhancement.ai_model}{ext}"
 
     # Create temporary directories
     temp_dir = tempfile.mkdtemp(prefix='enhancer_')
