@@ -136,17 +136,34 @@ def upload(request):
             logger.info(f"[Describer] Downloading media from URL: {media_url}")
 
             # Download to temp directory
-            # For HTML pages, extract readable text instead of saving raw markup.
+            # For plain HTML pages, extract readable text instead of saving raw markup.
+            # Media platform URLs (YouTube, Vimeo, …) serve text/html on HEAD but
+            # must go through upload_media_from_url (yt_dlp), so we skip the check for them.
             temp_dir = tempfile.mkdtemp()
-            try:
-                import requests as _req
-                _head = _req.head(media_url, timeout=10, allow_redirects=True,
-                                  headers={'User-Agent': 'Mozilla/5.0'})
-                _ct = _head.headers.get('Content-Type', '')
-            except Exception:
-                _ct = ''
+            _MEDIA_PLATFORM_DOMAINS = (
+                'youtube.com', 'youtu.be', 'vimeo.com', 'dailymotion.com',
+                'twitch.tv', 'soundcloud.com', 'bandcamp.com', 'mixcloud.com',
+            )
+            _is_media_platform = any(d in media_url for d in _MEDIA_PLATFORM_DOMAINS)
 
-            if 'text/html' in _ct:
+            # Also skip check if URL ends with a media file extension
+            _MEDIA_EXTS = ('.mp4', '.webm', '.mkv', '.avi', '.mov',
+                           '.mp3', '.wav', '.flac', '.ogg', '.m4a',
+                           '.jpg', '.jpeg', '.png', '.gif', '.webp')
+            _has_media_ext = media_url.lower().split('?')[0].endswith(_MEDIA_EXTS)
+
+            _is_html_page = False
+            if not _is_media_platform and not _has_media_ext:
+                try:
+                    import requests as _req
+                    _head = _req.head(media_url, timeout=10, allow_redirects=True,
+                                      headers={'User-Agent': 'Mozilla/5.0'})
+                    _ct = _head.headers.get('Content-Type', '')
+                    _is_html_page = 'text/html' in _ct
+                except Exception:
+                    pass
+
+            if _is_html_page:
                 logger.info(f"[Describer] HTML page detected — extracting text content")
                 downloaded_path = _fetch_html_as_text(media_url, temp_dir)
             else:
