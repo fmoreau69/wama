@@ -251,4 +251,31 @@ else:
     print("  [MISSING] Add: export HIGGS_DISABLE_CUDA_GRAPHS=1")
 print()
 
+# =============================================================================
+# PATCH 5 — xformers/ops/seqpar.py
+#           xformers 0.0.35 was built for torch 2.10.0 but we run torch 2.9.1.
+#           GroupName was removed from torch.distributed.distributed_c10d in
+#           2.9.x.  It is only used as a type annotation in seqpar.py, so
+#           falling back to None is safe for inference (no distributed training).
+# =============================================================================
+
+print("=== xformers/ops/seqpar.py ===")
+seqpar = site / "xformers/ops/seqpar.py"
+if not seqpar.exists():
+    print("  [SKIP — file not found]")
+else:
+    apply_patch(
+        seqpar,
+        search='from torch.distributed.distributed_c10d import _resolve_process_group, GroupName',
+        replace=(
+            'from torch.distributed.distributed_c10d import _resolve_process_group\n'
+            'try:\n'
+            '    from torch.distributed.distributed_c10d import GroupName\n'
+            'except ImportError:\n'
+            '    GroupName = None  # type: ignore[assignment,misc]  # removed in torch 2.9.x'
+        ),
+        description="5. GroupName removed in torch 2.9.x — fallback to None (type annotation only)",
+    )
+print()
+
 print("Done.")
