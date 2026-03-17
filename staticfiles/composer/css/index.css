@@ -1,0 +1,19 @@
+/* Composer — Generation card */
+.generation-card {
+    transition: border-color 0.3s ease;
+}
+.generation-card.processing {
+    animation: pulse-border 2s infinite;
+}
+@keyframes pulse-border {
+    0%   { border-color: #ffc107 !important; }
+    50%  { border-color: #fd7e14 !important; }
+    100% { border-color: #ffc107 !important; }
+}
+.generation-card.success  { border-color: #198754 !important; }
+.generation-card.error    { border-color: #dc3545 !important; }
+
+/* Batch group header */
+.batch-header:hover {
+    background: #3d2890 !important;
+}

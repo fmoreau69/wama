@@ -1,0 +1,206 @@
+{% extends 'composer/base.html' %}
+{% load static %}
+
+{% block app_right_panel_settings %}
+<!-- Type de génération -->
+<div class="mb-3">
+    <label class="form-label small fw-bold text-light">
+        <i class="fas fa-th-large"></i> Type
+    </label>
+    <div class="btn-group w-100" role="group" id="generationTypeBtns">
+        <input type="radio" class="btn-check" name="gen_type" id="typeMusic" value="music" checked>
+        <label class="btn btn-outline-success btn-sm" for="typeMusic">
+            <i class="fas fa-music"></i> Musique
+        </label>
+        <input type="radio" class="btn-check" name="gen_type" id="typeSfx" value="sfx">
+        <label class="btn btn-outline-danger btn-sm" for="typeSfx">
+            <i class="fas fa-bolt"></i> Bruitages
+        </label>
+    </div>
+</div>
+
+<!-- Modèle -->
+<div class="mb-3">
+    <label for="modelSelect" class="form-label small fw-bold text-light">
+        <i class="fas fa-robot"></i> Modèle
+    </label>
+    <select class="form-select form-select-sm bg-dark text-white border-secondary" id="modelSelect">
+        <optgroup label="🎵 Musique (MusicGen)" id="musicModelsGroup">
+            {% for mid, mcfg in music_models.items %}
+            <option value="{{ mid }}" {% if mid == 'musicgen-small' %}selected{% endif %}>
+                {{ mcfg.description }}
+            </option>
+            {% endfor %}
+        </optgroup>
+        <optgroup label="⚡ Bruitages (AudioGen)" id="sfxModelsGroup">
+            {% for mid, mcfg in sfx_models.items %}
+            <option value="{{ mid }}">{{ mcfg.description }}</option>
+            {% endfor %}
+        </optgroup>
+    </select>
+</div>
+
+<!-- Durée -->
+<div class="mb-3">
+    <label class="form-label small fw-bold text-light">
+        <i class="fas fa-clock"></i> Durée : <span id="durationDisplay">10s</span>
+    </label>
+    <input type="range" class="form-range" id="durationSlider"
+           min="1" max="30" step="1" value="10">
+    <div class="d-flex justify-content-between">
+        <small class="text-muted">1s</small>
+        <small class="text-muted">30s</small>
+    </div>
+</div>
+
+<!-- Prompt -->
+<div class="mb-3">
+    <label for="promptInput" class="form-label small fw-bold text-light">
+        <i class="fas fa-pen"></i> Prompt
+    </label>
+    <textarea class="form-control form-control-sm bg-dark text-light border-secondary"
+              id="promptInput" rows="4"
+              placeholder="Ex: upbeat jazz piano with soft drums and bass..."></textarea>
+    <small class="text-muted">Préférez l'anglais pour de meilleurs résultats</small>
+</div>
+
+<!-- Mélodie de référence (MusicGen Melody uniquement) -->
+<div class="mb-3" id="melodyGroup" style="display:none;">
+    <label class="form-label small fw-bold text-light">
+        <i class="fas fa-guitar"></i> Mélodie de référence
+    </label>
+    <input type="file" class="form-control form-control-sm bg-dark text-light border-secondary"
+           id="melodyInput" accept="audio/*">
+    <small class="text-muted">Audio 5–30s servant de ligne mélodique</small>
+</div>
+
+<!-- Import batch -->
+<div class="mb-3">
+    <label class="form-label small fw-bold text-light">
+        <i class="fas fa-file-import"></i> Import batch
+    </label>
+    <input type="file" class="form-control form-control-sm bg-dark text-light border-secondary"
+           id="batchFileInput" accept=".txt,.md,.csv,.pdf,.docx">
+    <small class="text-muted">Format : <code>fichier|prompt|modèle|durée</code></small>
+</div>
+{% endblock %}
+
+{% block app_right_panel_actions %}
+<div class="d-grid gap-2">
+    <button class="btn btn-success btn-sm" id="generateBtn">
+        <i class="fas fa-play me-1"></i> Générer
+    </button>
+    <button class="btn btn-outline-info btn-sm" id="importBatchBtn">
+        <i class="fas fa-file-import me-1"></i> Importer batch
+    </button>
+    <hr class="border-secondary my-1">
+    <button class="btn btn-outline-warning btn-sm" id="startAllBtn">
+        <i class="fas fa-play-circle me-1"></i> Tout démarrer
+    </button>
+    <button class="btn btn-outline-danger btn-sm" id="clearAllBtn">
+        <i class="fas fa-trash me-1"></i> Tout supprimer
+    </button>
+</div>
+
+<!-- File d'attente info -->
+<div class="mt-3">
+    <small class="text-muted">
+        <i class="fas fa-layer-group me-1"></i>
+        File d'attente : <span id="queueCount">{{ queue_count }}</span> tâche(s)
+    </small>
+</div>
+{% endblock %}
+
+{% block composer_content %}
+<div id="composerQueue">
+    {% for batch_info in batches_list %}
+
+    {% if batch_info.obj.total == 1 %}
+    {# Génération individuelle — pas de header de batch #}
+    {% for item in batch_info.items %}{% if item.generation %}
+    {% include 'composer/_generation_card.html' with gen=item.generation card_label=item.output_filename %}
+    {% endif %}{% endfor %}
+
+    {% else %}
+    {# Groupe batch — header violet + items collapsibles #}
+    <div class="batch-group mb-2 border border-secondary rounded" data-batch-id="{{ batch_info.obj.id }}">
+        <div class="batch-header d-flex align-items-center gap-2 p-2 rounded-top"
+             style="background: #2d1b69; cursor:pointer;"
+             data-bs-toggle="collapse"
+             data-bs-target="#batchItems_{{ batch_info.obj.id }}">
+            <i class="fas fa-layer-group text-purple" style="color:#a78bfa;"></i>
+            <span class="text-light fw-bold small">
+                Batch #{{ batch_info.obj.id }}
+            </span>
+            <span class="badge bg-secondary">{{ batch_info.obj.total }} items</span>
+            <small class="text-muted ms-1">{{ batch_info.obj.created_at|date:"d/m/Y H:i" }}</small>
+            <div class="ms-auto d-flex gap-1" onclick="event.stopPropagation()">
+                <button class="btn btn-sm btn-outline-danger batch-delete-btn"
+                        data-batch-id="{{ batch_info.obj.id }}"
+                        title="Supprimer le batch">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
+        </div>
+        <div class="collapse show" id="batchItems_{{ batch_info.obj.id }}">
+            <div class="p-2 d-flex flex-column gap-2">
+                {% for item in batch_info.items %}{% if item.generation %}
+                {% include 'composer/_generation_card.html' with gen=item.generation card_label=item.output_filename %}
+                {% endif %}{% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% empty %}
+    <div class="text-center py-5 text-muted">
+        <i class="fas fa-music fa-3x mb-3 opacity-25"></i>
+        <p>Aucune génération. Saisissez un prompt et cliquez sur <strong>Générer</strong>.</p>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Modal paramètres individuels -->
+<div class="modal fade" id="settingsModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content bg-dark text-light border-secondary">
+            <div class="modal-header border-secondary py-2">
+                <h6 class="modal-title">
+                    <i class="fas fa-cog me-2"></i>Paramètres de génération
+                </h6>
+                <button type="button" class="btn-close btn-close-white btn-sm" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="settingsGenId">
+
+                <div class="mb-3">
+                    <label class="form-label small text-light fw-bold">Modèle</label>
+                    <select class="form-select form-select-sm bg-dark text-white border-secondary" id="settingsModel">
+                        {% for mid, mcfg in all_models.items %}
+                        <option value="{{ mid }}">{{ mcfg.description }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label small text-light fw-bold">
+                        Durée : <span id="settingsDurationDisplay">10s</span>
+                    </label>
+                    <input type="range" class="form-range" id="settingsDuration"
+                           min="1" max="30" step="1" value="10">
+                </div>
+            </div>
+            <div class="modal-footer border-secondary py-2">
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                <button type="button" class="btn btn-sm btn-primary" id="settingsSaveBtn">
+                    <i class="fas fa-play me-1"></i>Appliquer et re-générer
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block app_scripts %}
+<script src="{% static 'composer/js/index.js' %}"></script>
+{% endblock %}

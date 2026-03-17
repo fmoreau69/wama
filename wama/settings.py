@@ -74,6 +74,12 @@ MODEL_PATHS = {
         'blip': AI_MODELS_DIR / "models" / "vision-language" / "blip",
         'bart': AI_MODELS_DIR / "models" / "vision-language" / "bart",
     },
+    # Music generation models (AudioCraft: MusicGen + AudioGen)
+    'music': {
+        'root': AI_MODELS_DIR / "models" / "music",
+        'musicgen': AI_MODELS_DIR / "models" / "music" / "musicgen",
+        'audiogen': AI_MODELS_DIR / "models" / "music" / "audiogen",
+    },
     # LLM models (reference to Ollama)
     'llm': {
         'root': AI_MODELS_DIR / "models" / "llm",
@@ -230,6 +236,7 @@ INSTALLED_APPS = [
     'wama.avatarizer',
     'wama.model_manager',  # AI Models Manager
     'wama.media_library',  # Médiathèque centralisée
+    'wama.composer',       # Music & SFX generation (AudioCraft)
     # WAMA Lab - Experimental/Research applications
     'wama_lab.face_analyzer',
     'wama_lab.cam_analyzer',
@@ -348,6 +355,7 @@ if ENABLE_CELERY:
         'wama.transcriber.workers.*': {'queue': 'gpu'},
         'wama.describer.workers.*': {'queue': 'gpu'},
         'wama.avatarizer.workers.*': {'queue': 'gpu'},
+        'wama.composer.tasks.*': {'queue': 'gpu'},
         'wama_lab.face_analyzer.tasks.*': {'queue': 'gpu'},
         'wama_lab.cam_analyzer.tasks.*': {'queue': 'gpu'},
         'wama.model_manager.tasks.*': {'queue': 'default'},

@@ -1,0 +1,123 @@
+{% load static %}
+{# Partial: renders one generation card. Expects 'gen' in context. #}
+{# Optional 'card_label' overrides the displayed filename (batch items). #}
+
+<div class="generation-card p-2 rounded border
+    {% if gen.status == 'RUNNING' %}border-warning processing
+    {% elif gen.status == 'SUCCESS' %}border-success success
+    {% elif gen.status == 'FAILURE' %}border-danger error
+    {% else %}border-secondary{% endif %}"
+     data-id="{{ gen.id }}"
+     style="background:#1e2124;">
+
+    <div class="row align-items-center g-2">
+
+        <!-- Info -->
+        <div class="col-md-4">
+            <div class="d-flex align-items-center gap-2">
+                {% if gen.generation_type == 'music' %}
+                <i class="fas fa-music text-success"></i>
+                {% else %}
+                <i class="fas fa-bolt text-danger"></i>
+                {% endif %}
+                <div>
+                    <div class="small text-light fw-bold">
+                        {{ card_label|default:gen.prompt|truncatechars:35 }}
+                    </div>
+                    <small class="text-muted">{{ gen.model }} · {{ gen.duration_display }}</small>
+                </div>
+            </div>
+        </div>
+
+        <!-- Prompt -->
+        <div class="col-md-3">
+            <small class="text-white-50" title="{{ gen.prompt }}">
+                {{ gen.prompt|truncatechars:60 }}
+            </small>
+        </div>
+
+        <!-- Status & progress -->
+        <div class="col-md-2">
+            <span class="badge
+                {% if gen.status == 'PENDING' %}bg-secondary
+                {% elif gen.status == 'RUNNING' %}bg-warning
+                {% elif gen.status == 'SUCCESS' %}bg-success
+                {% elif gen.status == 'FAILURE' %}bg-danger
+                {% endif %}">
+                {{ gen.get_status_display }}
+            </span>
+            <div class="progress mt-1" style="height:4px;">
+                <div class="progress-bar
+                    {% if gen.status == 'RUNNING' %}bg-warning progress-bar-striped progress-bar-animated
+                    {% elif gen.status == 'SUCCESS' %}bg-success
+                    {% else %}bg-secondary{% endif %}"
+                     style="width:{{ gen.progress }}%"></div>
+            </div>
+            <small class="text-muted">{{ gen.progress }}%</small>
+        </div>
+
+        <!-- Actions -->
+        <div class="col-md-3">
+            <div class="d-flex flex-wrap gap-1">
+
+                {% if gen.status != 'RUNNING' %}
+                <button class="btn btn-sm btn-secondary settings-btn"
+                        data-id="{{ gen.id }}"
+                        data-model="{{ gen.model }}"
+                        data-duration="{{ gen.duration }}"
+                        title="Modifier les paramètres">
+                    <i class="fas fa-cog"></i>
+                </button>
+                {% endif %}
+
+                {% if gen.audio_output %}
+                <button class="btn btn-sm btn-success preview-btn"
+                        data-id="{{ gen.id }}"
+                        title="Écouter">
+                    <i class="fas fa-volume-up"></i>
+                </button>
+                <a href="{% url 'composer:download' gen.id %}"
+                   class="btn btn-sm btn-info"
+                   title="Télécharger">
+                    <i class="fas fa-download"></i>
+                </a>
+                {% if not gen.exported_to_library %}
+                <button class="btn btn-sm btn-outline-purple export-btn"
+                        data-id="{{ gen.id }}"
+                        title="Exporter vers médiathèque"
+                        style="color:#a78bfa; border-color:#a78bfa;">
+                    <i class="fas fa-photo-film"></i>
+                </button>
+                {% else %}
+                <span class="btn btn-sm btn-outline-secondary disabled" title="Déjà exporté">
+                    <i class="fas fa-check"></i>
+                </span>
+                {% endif %}
+                {% endif %}
+
+                {% if gen.status == 'FAILURE' %}
+                <small class="text-danger d-block w-100">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    {{ gen.error_message|truncatechars:60 }}
+                </small>
+                {% endif %}
+
+                <button class="btn btn-sm btn-danger delete-btn"
+                        data-id="{{ gen.id }}"
+                        title="Supprimer">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
+
+            <!-- Audio preview (hidden by default) -->
+            <div class="audio-preview mt-1" id="preview_{{ gen.id }}" style="display:none;">
+                {% if gen.audio_output %}
+                <audio controls class="w-100" style="height:32px;">
+                    <source src="{{ gen.audio_output.url }}" type="audio/wav">
+                </audio>
+                {% endif %}
+            </div>
+        </div>
+
+    </div>
+</div>

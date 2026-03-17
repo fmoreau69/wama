@@ -1,0 +1,134 @@
+{% extends 'common/app_modern_base.html' %}
+{% load static %}
+
+{% block app_icon %}<i class="fas fa-music text-success"></i>{% endblock %}
+{% block app_title %}Composer{% endblock %}
+{% block app_description %}Générez musique et bruitages avec l'IA — MusicGen et AudioGen (Meta AudioCraft){% endblock %}
+
+{% block console_content_id %}composer-console-content{% endblock %}
+{% block console_app_name %}composer{% endblock %}
+
+{% block queue_content %}
+    {% block composer_content %}{% endblock %}
+{% endblock %}
+
+{% block about_content %}
+<div class="info-card">
+    <h3><i class="fas fa-music me-2"></i>À propos de Composer</h3>
+
+    <div class="mb-4">
+        <h5>Qu'est-ce que Composer ?</h5>
+        <p class="text-light">
+            Composer génère de la musique et des bruitages à partir de descriptions textuelles,
+            en utilisant les modèles open source AudioCraft de Meta (MusicGen + AudioGen).
+            Les résultats peuvent être exportés vers la médiathèque WAMA.
+        </p>
+    </div>
+
+    <div class="mb-4">
+        <h5>Modèles disponibles</h5>
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card bg-dark border-success mb-2">
+                    <div class="card-body py-2">
+                        <h6 class="card-title text-success mb-1">MusicGen Small <span class="badge bg-success text-dark ms-1 small">RAPIDE</span></h6>
+                        <p class="card-text small mb-0">300M params — ~4 Go VRAM — musique instrumentale jusqu'à 30s</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card bg-dark border-info mb-2">
+                    <div class="card-body py-2">
+                        <h6 class="card-title text-info mb-1">MusicGen Medium</h6>
+                        <p class="card-text small mb-0">1.5B params — ~8 Go VRAM — meilleure cohérence musicale</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card bg-dark border-warning mb-2">
+                    <div class="card-body py-2">
+                        <h6 class="card-title text-warning mb-1">MusicGen Melody</h6>
+                        <p class="card-text small mb-0">1.5B params — conditionné par mélodie de référence audio</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card bg-dark border-danger mb-2">
+                    <div class="card-body py-2">
+                        <h6 class="card-title text-danger mb-1">AudioGen Medium</h6>
+                        <p class="card-text small mb-0">1.5B params — bruitages, sons d'ambiance, foley</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="mb-4">
+        <h5>Fonctionnalités</h5>
+        <ul class="text-light">
+            <li>Génération musique à partir d'un prompt texte (MusicGen)</li>
+            <li>Génération conditionnée par mélodie de référence (MusicGen Melody)</li>
+            <li>Génération de bruitages et sons d'ambiance (AudioGen)</li>
+            <li>Durée ajustable de 1 à 30 secondes</li>
+            <li>Prévisualisation audio intégrée</li>
+            <li>Export vers la médiathèque WAMA</li>
+        </ul>
+    </div>
+
+    <div>
+        <h5>Technologie</h5>
+        <p class="text-light">
+            AudioCraft (Meta) — MusicGen / AudioGen — EnCodec tokenizer —
+            Licence code MIT, poids modèles CC-BY-NC 4.0 (usage non commercial).
+        </p>
+    </div>
+</div>
+{% endblock %}
+
+{% block help_content %}
+<div class="info-card">
+    <h3><i class="fas fa-question-circle me-2"></i>Guide d'utilisation</h3>
+
+    <div class="mb-4">
+        <h5><i class="fas fa-music me-2"></i>Onglet Musique</h5>
+        <ul class="text-light">
+            <li>Saisissez une description musicale en anglais (meilleur résultat) ou en français</li>
+            <li>Exemples : <em>"upbeat jazz piano with drums"</em>, <em>"ambient electronic with soft synths"</em></li>
+            <li>MusicGen Melody : uploadez un fichier audio de référence comme ligne mélodique</li>
+        </ul>
+    </div>
+
+    <div class="mb-4">
+        <h5><i class="fas fa-bolt me-2"></i>Onglet Bruitages / SFX</h5>
+        <ul class="text-light">
+            <li>Décrivez le son à générer en anglais</li>
+            <li>Exemples : <em>"dog barking in a park"</em>, <em>"rain on a tin roof"</em>, <em>"crowd applause"</em></li>
+            <li>Idéal pour foley, ambiances, effets sonores de films ou podcasts</li>
+        </ul>
+    </div>
+
+    <div class="mb-4">
+        <h5><i class="fas fa-sliders-h me-2"></i>Paramètres</h5>
+        <ul class="text-light">
+            <li><strong>Modèle :</strong> Small = rapide, Medium = qualité supérieure, Melody = avec référence audio</li>
+            <li><strong>Durée :</strong> 1 à 30 secondes. Plus long = plus lent à générer</li>
+        </ul>
+    </div>
+
+    <div class="alert alert-info">
+        <h6><i class="fas fa-lightbulb me-2"></i>Conseils pour de bons résultats</h6>
+        <ul class="mb-0">
+            <li>Prompts en anglais donnent généralement de meilleurs résultats</li>
+            <li>Soyez précis : genre, instrument, ambiance, tempo, émotion</li>
+            <li>Pour MusicGen Melody : référence courte (10-30s) et claire</li>
+            <li>Durées longues (>20s) peuvent perdre en cohérence</li>
+        </ul>
+    </div>
+</div>
+{% endblock %}
+
+{% block footer_text %}
+    Composer - Music &amp; SFX Generation | WAMA
+{% endblock %}
+
+{% block app_scripts %}{% endblock %}

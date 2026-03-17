@@ -1004,6 +1004,100 @@ def get_synthesizer_status(user) -> dict:
 
 
 # ===========================================================================
+# Composer tools
+# ===========================================================================
+
+def compose_music(
+    user,
+    prompt: str,
+    model: str = 'musicgen-small',
+    duration: float = 10.0,
+) -> dict:
+    """
+    Create a Composer generation job (music or SFX) and start it immediately.
+
+    Args:
+        user:     Django User instance
+        prompt:   Text description of the sound/music to generate (English preferred)
+        model:    One of 'musicgen-small', 'musicgen-medium', 'musicgen-melody',
+                  'audiogen-medium'
+        duration: Duration in seconds (1–30, default 10)
+
+    Returns:
+        {"generation_id": int, "model": str, "generation_type": str,
+         "duration": float, "status": "pending"}
+    """
+    from wama.composer.utils.model_config import COMPOSER_MODELS
+
+    prompt = prompt.strip()
+    if not prompt:
+        return {'error': 'Prompt requis'}
+
+    if model not in COMPOSER_MODELS:
+        valid = ', '.join(COMPOSER_MODELS.keys())
+        return {'error': f"Modèle invalide '{model}'. Disponibles : {valid}"}
+
+    duration = max(1.0, min(30.0, float(duration)))
+    generation_type = COMPOSER_MODELS[model]['type']
+
+    from wama.composer.models import ComposerGeneration
+    gen = ComposerGeneration.objects.create(
+        user=user,
+        generation_type=generation_type,
+        prompt=prompt,
+        model=model,
+        duration=duration,
+    )
+
+    # Wrap in batch-of-1
+    from wama.composer.views import _wrap_generation_in_batch
+    _wrap_generation_in_batch(gen)
+
+    # Launch task
+    from wama.composer.tasks import compose_task
+    task = compose_task.apply_async(args=(gen.id,))
+    gen.task_id = task.id
+    gen.save(update_fields=['task_id'])
+
+    return {
+        'generation_id': gen.id,
+        'model': gen.model,
+        'generation_type': gen.generation_type,
+        'duration': gen.duration,
+        'status': 'pending',
+    }
+
+
+def get_composer_status(user) -> dict:
+    """
+    Return status of the user's recent Composer jobs (last 10).
+
+    Returns:
+        {"jobs": [{"id", "prompt", "model", "generation_type", "duration",
+                   "status", "progress", "audio_url"}]}
+    """
+    from wama.composer.models import ComposerGeneration
+    from django.core.cache import cache as _cache
+
+    gens = ComposerGeneration.objects.filter(user=user).order_by('-id')[:10]
+    jobs = []
+    for gen in gens:
+        cached = _cache.get(f'composer_progress_{gen.id}')
+        progress = cached if cached is not None else (gen.progress or 0)
+        jobs.append({
+            'id': gen.id,
+            'prompt': gen.prompt[:80],
+            'model': gen.model,
+            'generation_type': gen.generation_type,
+            'duration': gen.duration,
+            'status': gen.status,
+            'progress': progress,
+            'audio_url': gen.audio_output.url if gen.audio_output else None,
+        })
+    return {'jobs': jobs}
+
+
+# ===========================================================================
 # Describer tools
 # ===========================================================================
 
@@ -1432,6 +1526,8 @@ TOOL_REGISTRY = {
     'synthesize_text':        synthesize_text,
     'start_synthesizer':      start_synthesizer,
     'get_synthesizer_status': get_synthesizer_status,
+    'compose_music':          compose_music,
+    'get_composer_status':    get_composer_status,
     'add_to_describer':       add_to_describer,
     'start_describer':        start_describer,
     'get_describer_status':   get_describer_status,
@@ -1557,6 +1653,19 @@ TOOL_DESCRIPTIONS = {
     },
     'get_synthesizer_status': {
         'description': "Retourne l'état des 10 derniers jobs Synthesizer de l'utilisateur.",
+        'args': {},
+    },
+    'compose_music': {
+        'description': "Génère de la musique ou des bruitages à partir d'un prompt texte via AudioCraft.",
+        'args': {
+            'prompt':   "str   — description textuelle du son à générer (en anglais de préférence)",
+            'model':    "str   — 'musicgen-small' (rapide, défaut), 'musicgen-medium' (qualité), "
+                        "'musicgen-melody' (avec mélodie de référence), 'audiogen-medium' (bruitages)",
+            'duration': "float — durée en secondes 1–30 (défaut: 10)",
+        },
+    },
+    'get_composer_status': {
+        'description': "Retourne l'état des 10 derniers jobs Composer (music/SFX) de l'utilisateur.",
         'args': {},
     },
     'add_to_describer': {

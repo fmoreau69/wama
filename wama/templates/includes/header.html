@@ -40,6 +40,11 @@
                         </a>
                     </li>
                     <li>
+                        <a class="dropdown-item d-flex align-items-center {% if 'composer' in request.path %}active{% endif %}" href="{% url 'composer:index' %}">
+                            <i class="fas fa-music text-success me-2"></i> Composer
+                        </a>
+                    </li>
+                    <li>
                         <a class="dropdown-item d-flex align-items-center {% if 'transcriber' in request.path %}active{% endif %}" href="{% url 'transcriber:index' %}">
                             <i class="fas fa-file-alt text-warning me-2"></i> Transcriber
                         </a>

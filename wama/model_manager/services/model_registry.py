@@ -64,6 +64,7 @@ class ModelType(Enum):
     SUMMARIZATION = "summarization"
     UPSCALING = "upscaling"
     LIPSYNC = "lipsync"
+    MUSIC = "music"
 
 
 class ModelSource(Enum):
@@ -74,6 +75,7 @@ class ModelSource(Enum):
     WAMA_SYNTHESIZER = "synthesizer"
     WAMA_ENHANCER = "enhancer"
     WAMA_AVATARIZER = "avatarizer"
+    WAMA_COMPOSER = "composer"
     OLLAMA = "ollama"
 
 
@@ -128,6 +130,7 @@ class ModelRegistry:
         self._discover_synthesizer_models()
         self._discover_enhancer_models()
         self._discover_avatarizer_models()
+        self._discover_composer_models()
         self._discover_ollama_models()
 
         # Log summary
@@ -708,6 +711,36 @@ class ModelRegistry:
                     )
         except Exception as e:
             logger.debug(f"Could not discover Enhancer models: {e}")
+
+    def _discover_composer_models(self):
+        """Discover Composer app models (MusicGen + AudioGen)."""
+        try:
+            from wama.composer.utils.model_config import COMPOSER_MODELS, MUSICGEN_DIR, AUDIOGEN_DIR
+
+            for model_id, config in COMPOSER_MODELS.items():
+                cache_dir = config['cache_dir']
+                hf_id = config['hf_id']
+                is_downloaded = _check_hf_model_downloaded(cache_dir, hf_id)
+
+                model_info = ModelInfo(
+                    id=model_id,
+                    name=config['description'],
+                    model_type=ModelType.MUSIC,
+                    source=ModelSource.WAMA_COMPOSER,
+                    description=config['description'],
+                    hf_id=hf_id,
+                    vram_gb=config['vram_gb'],
+                    is_downloaded=is_downloaded,
+                    extra_info={
+                        'type': config['type'],
+                        'max_duration': config['max_duration'],
+                        'sample_rate': config['sample_rate'],
+                    },
+                )
+                self._models[model_id] = model_info
+
+        except Exception as e:
+            logger.debug(f"Could not discover Composer models: {e}")
 
     def _discover_ollama_models(self):
         """Discover Ollama models (with short timeout to avoid blocking)."""
