@@ -169,11 +169,31 @@
 
       // ── Tool icon map ─────────────────────────────────────────────────────
       const TOOL_ICONS = {
-        list_user_files:      '📂',
-        add_to_anonymizer:    '➕',
-        start_anonymizer:     '▶️',
-        get_anonymizer_status:'📊',
-        sam3_examples:        '💡',
+        list_user_files:           '📂',
+        add_to_anonymizer:         '➕',
+        start_anonymizer:          '▶️',
+        get_anonymizer_status:     '📊',
+        sam3_examples:             '💡',
+        create_image:              '🎨',
+        start_imager:              '▶️',
+        get_imager_status:         '📊',
+        add_to_enhancer:           '✨',
+        start_enhancer:            '▶️',
+        get_enhancer_status:       '📊',
+        add_to_audio_enhancer:     '🎙️',
+        start_audio_enhancer:      '▶️',
+        get_audio_enhancer_status: '📊',
+        synthesize_text:           '🗣️',
+        start_synthesizer:         '▶️',
+        get_synthesizer_status:    '📊',
+        add_to_describer:          '🔍',
+        start_describer:           '▶️',
+        get_describer_status:      '📊',
+        add_to_transcriber:        '🎤',
+        start_transcriber:         '▶️',
+        get_transcriber_status:    '📊',
+        list_media_assets:         '🗃️',
+        get_media_asset_url:       '🔗',
       };
 
       // ── Render helpers (save=true when called from user action) ───────────
@@ -202,6 +222,20 @@
         return stepsDiv;
       }
 
+      // Convert a subset of Markdown to safe HTML (links, bold, newlines)
+      function _mdToHtml(text) {
+        // Escape HTML entities first
+        let h = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        // Bold **text**
+        h = h.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+        // Markdown links [label](url) — only allow http/https
+        h = h.replace(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g,
+          '<a href="$2" target="_blank" rel="noopener" style="color:#a8d8ff">$1</a>');
+        // Newlines
+        h = h.replace(/\n/g, '<br>');
+        return h;
+      }
+
       function renderMessage(content, isUser, isError, modelInfo) {
         const messageDiv = document.createElement('div');
         messageDiv.className = `mb-3 ${isUser ? 'text-end' : ''}`;
@@ -209,9 +243,13 @@
         bubble.className = `d-inline-block p-3 rounded-3 ${isUser ? 'bg-primary text-white' : isError ? 'bg-danger text-white' : 'bg-secondary text-white'}`;
         bubble.style.maxWidth = '85%';
         bubble.style.textAlign = 'left';
-        bubble.style.whiteSpace = 'pre-wrap';
         bubble.style.wordBreak = 'break-word';
-        bubble.textContent = content;
+        if (isUser || isError) {
+          bubble.style.whiteSpace = 'pre-wrap';
+          bubble.textContent = content;
+        } else {
+          bubble.innerHTML = _mdToHtml(content);
+        }
         if (!isUser && !isError && modelInfo) {
           const badge = document.createElement('div');
           badge.className = 'small mt-1';

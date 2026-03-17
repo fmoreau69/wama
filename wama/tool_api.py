@@ -253,15 +253,16 @@ def get_anonymizer_status(user) -> dict:
     Return status of the user's current anonymizer jobs (last 10).
 
     Returns:
-        {"jobs": [{"id", "name", "progress", "status", "use_sam3"}]}
+        {"jobs": [{"id", "name", "progress", "status", "use_sam3", "output_url"}]}
     """
     from wama.anonymizer.models import Media
+    from wama.anonymizer.utils.media_utils import get_blurred_media_path
+    from django.conf import settings
     from django.core.cache import cache
 
     media_qs = Media.objects.filter(user=user).order_by('-id')[:10]
     jobs = []
     for m in media_qs:
-        # Try to get live progress from cache first
         progress = cache.get(f'anon_progress:{m.id}', m.blur_progress)
         if m.processed:
             status = 'done'
@@ -269,6 +270,17 @@ def get_anonymizer_status(user) -> dict:
             status = 'running'
         else:
             status = 'queued'
+
+        output_url = None
+        if m.processed and m.file:
+            try:
+                output_path = get_blurred_media_path(m.file.name, m.file_ext, m.user_id)
+                if os.path.exists(output_path):
+                    rel = os.path.relpath(output_path, settings.MEDIA_ROOT)
+                    output_url = settings.MEDIA_URL + rel.replace(os.sep, '/')
+            except Exception:
+                pass
+
         jobs.append({
             'id': m.id,
             'name': os.path.basename(m.file.name) if m.file else f'Media #{m.id}',
@@ -276,6 +288,7 @@ def get_anonymizer_status(user) -> dict:
             'status': status,
             'use_sam3': m.use_sam3,
             'sam3_prompt': m.sam3_prompt if m.use_sam3 else None,
+            'output_url': output_url,
         })
     return {'jobs': jobs}
 
@@ -446,6 +459,8 @@ def get_imager_status(user) -> dict:
     for gen in jobs_qs:
         cached_progress = cache.get(f'imager_progress_{gen.id}')
         progress = cached_progress if cached_progress is not None else gen.progress
+        output_urls = gen.output_images if gen.status == 'SUCCESS' else []
+        video_url = gen.output_video.url if (gen.status == 'SUCCESS' and gen.output_video) else None
         jobs.append({
             'id': gen.id,
             'prompt': gen.prompt[:80] + ('…' if len(gen.prompt) > 80 else ''),
@@ -453,7 +468,8 @@ def get_imager_status(user) -> dict:
             'status': gen.status,
             'progress': progress,
             'num_images': gen.num_images,
-            'images': len(gen.generated_images) if gen.generated_images else 0,
+            'output_urls': output_urls,
+            'video_url': video_url,
         })
     return {'jobs': jobs}
 
@@ -618,6 +634,7 @@ def get_enhancer_status(user) -> dict:
     for enh in jobs_qs:
         cached = cache.get(f'enhancer_progress_{enh.id}')
         progress = cached if cached is not None else enh.progress
+        output_url = enh.output_file.url if enh.output_file else None
         jobs.append({
             'id': enh.id,
             'name': enh.get_input_filename(),
@@ -625,6 +642,7 @@ def get_enhancer_status(user) -> dict:
             'ai_model': enh.ai_model,
             'status': enh.status,
             'progress': progress,
+            'output_url': output_url,
         })
     return {'jobs': jobs}
 
@@ -774,6 +792,7 @@ def get_audio_enhancer_status(user) -> dict:
     for ae in jobs_qs:
         cached = cache.get(f'audio_enhancer_progress_{ae.id}')
         progress = cached if cached is not None else ae.progress
+        output_url = ae.output_file.url if ae.output_file else None
         jobs.append({
             'id': ae.id,
             'name': ae.get_input_filename(),
@@ -781,6 +800,7 @@ def get_audio_enhancer_status(user) -> dict:
             'mode': ae.mode,
             'status': ae.status,
             'progress': progress,
+            'output_url': output_url,
         })
     return {'jobs': jobs}
 
@@ -1294,6 +1314,80 @@ def get_transcriber_status(user) -> dict:
 
 
 # ===========================================================================
+# Media Library tools
+# ===========================================================================
+
+def list_media_assets(user, asset_type: str = '', q: str = '') -> dict:
+    """
+    List the user's personal media library assets.
+
+    Args:
+        user:       Django User instance
+        asset_type: Filter by type: 'voice' | 'audio_music' | 'audio_sfx' |
+                    'image' | 'video' | 'document' | 'avatar' (empty = all)
+        q:          Search in name / tags / description
+
+    Returns:
+        {"assets": [{"id", "name", "asset_type", "file_url", "duration",
+                     "file_size", "tags"}], "total": int}
+    """
+    try:
+        from wama.media_library.models import UserAsset
+        from django.db.models import Q as DQ
+
+        qs = UserAsset.objects.filter(user=user)
+        if asset_type:
+            qs = qs.filter(asset_type=asset_type)
+        if q:
+            qs = qs.filter(
+                DQ(name__icontains=q) | DQ(tags__icontains=q) | DQ(description__icontains=q)
+            )
+        qs = qs.order_by('asset_type', 'name')[:50]
+
+        assets = [{
+            'id':         a.id,
+            'name':       a.name,
+            'asset_type': a.asset_type,
+            'file_url':   a.file.url if a.file else '',
+            'duration':   a.duration_display or '',
+            'file_size':  a.file_size_display,
+            'tags':       a.tags,
+        } for a in qs]
+
+        return {'assets': assets, 'total': len(assets)}
+    except Exception as e:
+        return {'error': f'Erreur lecture médiathèque : {e}', 'assets': [], 'total': 0}
+
+
+def get_media_asset_url(user, asset_id: int) -> dict:
+    """
+    Get the file URL of a specific media library asset.
+
+    Args:
+        user:     Django User instance
+        asset_id: ID of the UserAsset
+
+    Returns:
+        {"id", "name", "asset_type", "file_url", "duration", "mime_type"}
+    """
+    try:
+        from wama.media_library.models import UserAsset
+        a = UserAsset.objects.get(pk=asset_id, user=user)
+        return {
+            'id':         a.id,
+            'name':       a.name,
+            'asset_type': a.asset_type,
+            'file_url':   a.file.url if a.file else '',
+            'duration':   a.duration_display or '',
+            'mime_type':  a.mime_type,
+        }
+    except UserAsset.DoesNotExist:
+        return {'error': f'Asset #{asset_id} introuvable ou accès refusé.'}
+    except Exception as e:
+        return {'error': f'Erreur : {e}'}
+
+
+# ===========================================================================
 # Tool dispatcher (used by the agentic loop in views.py)
 # ===========================================================================
 
@@ -1321,6 +1415,8 @@ TOOL_REGISTRY = {
     'add_to_transcriber':     add_to_transcriber,
     'start_transcriber':      start_transcriber,
     'get_transcriber_status': get_transcriber_status,
+    'list_media_assets':      list_media_assets,
+    'get_media_asset_url':    get_media_asset_url,
 }
 
 # Metadata consumed by GET /api/v1/tools/ — update this when adding a new tool.
@@ -1478,6 +1574,19 @@ TOOL_DESCRIPTIONS = {
     'get_transcriber_status': {
         'description': "Retourne l'état des 10 derniers jobs Transcriber, avec un aperçu du texte.",
         'args': {},
+    },
+    'list_media_assets': {
+        'description': "Liste les assets de la Médiathèque personnelle de l'utilisateur (voix, images, musiques, etc.).",
+        'args': {
+            'asset_type': "str — filtre par type : 'voice' | 'audio_music' | 'audio_sfx' | 'image' | 'video' | 'document' | 'avatar' (vide = tous)",
+            'q':          'str — recherche dans le nom / tags / description',
+        },
+    },
+    'get_media_asset_url': {
+        'description': "Retourne l'URL de fichier d'un asset spécifique de la Médiathèque.",
+        'args': {
+            'asset_id': 'int — ID de l\'UserAsset',
+        },
     },
 }
 
