@@ -213,10 +213,52 @@ def _free_wama_vram(base_url: str, username: str, password: str, verbose: bool =
                 print(f"[VRAM] API returned {resp.status_code} — skipping")
             return False
 
+    except requests.exceptions.ConnectionError:
+        if verbose:
+            print("[VRAM] WAMA inaccessible (serveur arrêté ?) — skipping GPU clear")
+        return False
     except Exception as e:
         if verbose:
             print(f"[VRAM] Error: {e} — skipping")
         return False
+
+
+def _get_free_vram_gb() -> float:
+    """Return free GPU VRAM in GiB via nvidia-smi. Returns 0 if no GPU."""
+    try:
+        import subprocess
+        r = subprocess.run(
+            ["nvidia-smi", "--query-gpu=memory.free", "--format=csv,noheader,nounits"],
+            capture_output=True, text=True, timeout=5,
+        )
+        if r.returncode == 0 and r.stdout.strip():
+            return int(r.stdout.strip().split('\n')[0]) / 1024
+    except Exception:
+        pass
+    return 0.0
+
+
+# Thinking models generate long <think>...</think> blocks for complex tasks.
+# They must have /no_think injected and a larger num_ctx to avoid EOF crashes.
+_THINKING_MODEL_PATTERNS = ('qwen3', 'qwq', 'deepseek-r1', 'marco-o1')
+
+
+def _is_thinking_model(model_id: str) -> bool:
+    return any(p in model_id.lower() for p in _THINKING_MODEL_PATTERNS)
+
+
+def _compute_num_ctx(free_vram_gb: float) -> int:
+    """
+    Choose num_ctx based on available VRAM.
+    Thinking models need enough space for the think block + response.
+    KV cache grows linearly with num_ctx (Qwen3 9B: ~128 MB per 1024 tokens).
+    """
+    if free_vram_gb >= 12:
+        return 16384   # ~1.9 GB KV — safe with 9B model (5 GB) on 15+ GB free VRAM
+    elif free_vram_gb >= 7:
+        return 8192    # ~0.95 GB KV
+    else:
+        return 4096    # ~0.47 GB KV — last resort (may still fail for thinking models)
 
 
 # =============================================================================
@@ -279,9 +321,22 @@ class AuditAgent:
 
         model_id = self._model_cfg.ollama_id if self._model_cfg else "qwen3.5:9b"
 
+        # Compute num_ctx from actual free VRAM (not system RAM).
+        # Thinking models need larger context for their <think> blocks.
+        free_vram = _get_free_vram_gb()
+        num_ctx = _compute_num_ctx(free_vram)
+        thinking = _is_thinking_model(model_id)
+        if self.verbose:
+            print(f"[Audit] VRAM free: {free_vram:.1f} GiB → num_ctx={num_ctx}"
+                  f"{' (thinking model → /no_think)' if thinking else ''}")
+
+        # For thinking models, /no_think disables the <think> block so the model
+        # responds directly — saves thousands of tokens and avoids context overflow.
+        first_user = ("/no_think\n" if thinking else "") + task
+
         messages = [
             {"role": "system", "content": system},
-            {"role": "user", "content": task},
+            {"role": "user", "content": first_user},
         ]
 
         rounds = 0
@@ -290,14 +345,11 @@ class AuditAgent:
 
             # Call LLM directly via Ollama client (LLMClient.chat() manages its own
             # internal history — we bypass it to control multi-turn context ourselves).
-            # num_ctx must be set explicitly: Ollama defaults to 2048 which is smaller
-            # than the audit system prompt alone (~1500 tokens) → EOF/500 crash.
-            # 4096 = 1545 (system) + ~2500 (conversation budget) — safe for 10 rounds.
-            # 8192 doubles the KV cache and causes OOM on machines with limited RAM.
+            # num_ctx is computed from free VRAM to avoid EOF/OOM crashes.
             raw = self.llm._client.chat(
                 model=model_id,
                 messages=messages,
-                options={"temperature": 0.3, "num_ctx": 4096},
+                options={"temperature": 0.3, "num_ctx": num_ctx},
             )
             response_text = raw["message"]["content"]
 
