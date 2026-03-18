@@ -205,17 +205,27 @@ class ToolRegistry:
     @staticmethod
     def strip_deepseek_tool_outputs(text: str) -> str:
         """
-        Remove hallucinated tool output blocks from DeepSeek responses.
-        DeepSeek generates <｜tool▁outputs▁begin｜>...<｜tool▁outputs▁end｜>
-        in its responses — we strip these so they don't pollute the context.
+        Remove hallucinated tool output/result blocks from DeepSeek responses.
+
+        DeepSeek hallucinates results in several formats:
+        1. <｜tool▁outputs▁begin｜>...<｜tool▁outputs▁end｜>  (native format)
+        2. SYMATTR{"status": "success", "result": ...}        (SYMATTR result lines)
+        3. Stray Unicode characters left after stripping (在考, ciprin…)
+
+        We keep SYMATTR{"name": ..., "arguments": ...} lines (those are actual tool calls).
         """
-        # Remove everything from <｜tool▁outputs▁begin｜> to end (or to the closing tag)
+        # 1. Strip native DeepSeek tool_outputs blocks
         cleaned = re.sub(
             r'<\uff5ctool\u2581outputs\u2581begin\uff5c>.*?'
             r'(?:<\uff5ctool\u2581outputs\u2581end\uff5c>|$)',
             '', text, flags=re.DOTALL
-        ).strip()
-        return cleaned
+        )
+        # 2. Strip SYMATTR{"status":...} hallucinated result lines
+        #    (keep SYMATTR{"name":...} lines which are actual tool calls)
+        cleaned = re.sub(r'SYMATTR\{"status"[^\n]*\n?', '', cleaned)
+        # 3. Strip stray non-ASCII garbage tokens left on lines by themselves
+        cleaned = re.sub(r'^\s*[\u4e00-\u9fff\u3040-\u30ff]+\s*$', '', cleaned, flags=re.MULTILINE)
+        return cleaned.strip()
 
     def _parse_function_args(self, args_str: str) -> Optional[Dict[str, Any]]:
         """Parse function-style arguments like: arg1="value1", arg2=123"""
@@ -485,6 +495,11 @@ class ToolRegistry:
 
         if not dir_path.exists():
             raise FileNotFoundError(f"Directory not found: {path}")
+
+        if dir_path.is_file():
+            # Return file info so the model understands it should use read_file
+            size = dir_path.stat().st_size
+            return f"'{path}' is a file ({size} bytes), not a directory. Use read_file to read its contents."
 
         items = []
         for item in sorted(dir_path.iterdir()):
