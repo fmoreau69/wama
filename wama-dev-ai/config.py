@@ -36,6 +36,15 @@ os.environ['no_proxy'] = 'localhost,127.0.0.1,::1'
 
 OLLAMA_HOST = "http://127.0.0.1:11434"
 
+# ============================================================================
+# WAMA API Configuration (for VRAM clearing and Phase 2 health checks)
+# Set via environment variables or a .env file.
+# ============================================================================
+
+WAMA_BASE_URL = os.environ.get('WAMA_BASE_URL', 'http://localhost')
+WAMA_USERNAME  = os.environ.get('WAMA_USERNAME', '')
+WAMA_PASSWORD  = os.environ.get('WAMA_PASSWORD', '')
+
 
 # ============================================================================
 # Model Configuration

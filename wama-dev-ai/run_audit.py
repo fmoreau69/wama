@@ -37,6 +37,7 @@ os.chdir(PROJECT_DIR)
 from config import (
     BASE_DIR, OUTPUT_DIR, PROMPTS_DIR,
     select_model_for_role, get_memory_status,
+    WAMA_BASE_URL, WAMA_USERNAME, WAMA_PASSWORD,
 )
 from core.llm import LLMClient
 from core.tools import ToolRegistry, ToolCall, Tool, ToolResult
@@ -109,6 +110,73 @@ class AuditToolRegistry(ToolRegistry):
 
 
 # =============================================================================
+# VRAM Pre-flight
+# =============================================================================
+
+def _free_wama_vram(base_url: str, username: str, password: str, verbose: bool = True) -> bool:
+    """
+    Call WAMA's model-manager clear-gpu API to free GPU VRAM before model selection.
+    Uses Django session auth (username + password from env vars).
+    Returns True if VRAM was successfully cleared.
+    """
+    try:
+        import re
+        import requests
+
+        session = requests.Session()
+        login_url = f"{base_url}/accounts/login/"
+
+        # Step 1: GET login page → extract CSRF token
+        resp = session.get(login_url, timeout=5)
+        csrf = session.cookies.get('csrftoken', '')
+        if not csrf:
+            m = re.search(r'csrfmiddlewaretoken[^>]+value=["\'](\w+)["\']', resp.text)
+            if m:
+                csrf = m.group(1)
+        if not csrf:
+            if verbose:
+                print("[VRAM] Cannot extract CSRF token — skipping")
+            return False
+
+        # Step 2: POST login
+        resp = session.post(
+            login_url,
+            data={'username': username, 'password': password, 'csrfmiddlewaretoken': csrf},
+            headers={'Referer': login_url},
+            timeout=10,
+            allow_redirects=True,
+        )
+        if '/accounts/login' in resp.url:
+            if verbose:
+                print("[VRAM] Login failed (bad credentials?) — skipping")
+            return False
+
+        # Step 3: POST clear-gpu
+        csrf = session.cookies.get('csrftoken', csrf)
+        resp = session.post(
+            f"{base_url}/model-manager/api/clear-gpu/",
+            headers={'X-CSRFToken': csrf, 'Referer': f"{base_url}/model-manager/"},
+            timeout=15,
+        )
+        if resp.status_code == 200:
+            data = resp.json()
+            if verbose:
+                mem = data.get('memory', {})
+                free_gb = mem.get('free_gb', '?')
+                print(f"[VRAM] GPU memory cleared — {free_gb} GiB free")
+            return True
+        else:
+            if verbose:
+                print(f"[VRAM] API returned {resp.status_code} — skipping")
+            return False
+
+    except Exception as e:
+        if verbose:
+            print(f"[VRAM] Error: {e} — skipping")
+        return False
+
+
+# =============================================================================
 # Audit Agent
 # =============================================================================
 
@@ -172,13 +240,14 @@ class AuditAgent:
         while rounds < self.MAX_TOOL_ROUNDS:
             rounds += 1
 
-            # Call LLM
-            response_text = self.llm.chat(
-                messages=messages,
+            # Call LLM directly via Ollama client (LLMClient.chat() manages its own
+            # internal history — we bypass it to control multi-turn context ourselves)
+            raw = self.llm._client.chat(
                 model=model_id,
-                temperature=0.3,
-                stream=False,
+                messages=messages,
+                options={"temperature": 0.3},
             )
+            response_text = raw["message"]["content"]
 
             if self.verbose:
                 print(f"\n[Round {rounds}] Model response:\n{response_text[:500]}...\n")
@@ -251,6 +320,11 @@ def main():
         action="store_true",
         help="Non-interactive mode (for cron/scheduled runs)",
     )
+    parser.add_argument(
+        "--no-free-vram",
+        action="store_true",
+        help="Skip automatic VRAM clearing before model selection",
+    )
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
     args = parser.parse_args()
 
@@ -266,6 +340,15 @@ def main():
 
     print(f"[wama-dev-ai] Audit mode — {datetime.now().strftime('%Y-%m-%d %H:%M')}")
     print(f"[wama-dev-ai] Outputs: {OUTPUT_DIR}")
+
+    # Free VRAM before model selection so the best available model can be chosen.
+    # Auto-triggered when WAMA_USERNAME + WAMA_PASSWORD env vars are set.
+    if not args.no_free_vram and WAMA_USERNAME and WAMA_PASSWORD:
+        print(f"[wama-dev-ai] Libération VRAM via WAMA API ({WAMA_BASE_URL})…")
+        freed = _free_wama_vram(WAMA_BASE_URL, WAMA_USERNAME, WAMA_PASSWORD, verbose=True)
+        if freed:
+            import time
+            time.sleep(2)  # Give the GPU a moment to settle
 
     agent = AuditAgent(model_role=args.model, verbose=verbose)
     result = agent.run(args.task)
