@@ -76,6 +76,90 @@ Ajouter le nouveau modèle dans la fonction `_discover_*_models()` correspondant
 
 ---
 
+## ⚠️ RÈGLES UI COMMUNES — TOUTES LES APPLICATIONS
+
+### File d'attente : composants obligatoires
+
+**Chaque application avec une file d'attente de traitement DOIT inclure :**
+
+| Composant | Implémentation |
+|-----------|---------------|
+| Bouton duplication par item | `duplicate_instance()` de `wama/common/utils/queue_duplication.py` |
+| Bouton suppression par item | vue `delete()` + `safe_delete_file()` pour fichiers partagés |
+| Bouton démarrage individuel | sauf si traitement automatique au dépôt |
+| Bouton "Démarrer tout" | vue `start_all()` |
+| Bouton "Tout effacer" | vue `clear_all()` |
+| Téléchargement résultat individuel | vue `download()` |
+| Import batch | pour apps URL-input ou text-input (voir synthesizer/describer) |
+
+**❌ Non-conformités connues à corriger :**
+- Composer : bouton de duplication manquant (à ajouter en priorité)
+
+**✅ Vérifier systématiquement** à chaque création d'une nouvelle application.
+
+### Pattern de démarrage de tâche Celery (anti-race-condition)
+
+```python
+@require_POST
+def start(request, pk):
+    from django.db import transaction
+    with transaction.atomic():
+        item = MyModel.objects.select_for_update().get(pk=pk, user=user)
+        if item.status == 'RUNNING':
+            return JsonResponse({'error': 'Already running'}, status=400)
+        # Révoquer ancienne tâche
+        if item.task_id:
+            try:
+                from celery import current_app
+                current_app.control.revoke(item.task_id, terminate=False)
+            except Exception:
+                pass
+        item.status = 'RUNNING'
+        item.task_id = ''
+        item.save()
+    task = my_task.delay(item.id)
+    item.task_id = task.id
+    item.save(update_fields=['task_id'])
+```
+
+---
+
+## Collaboration wama-dev-ai (agent Ollama local)
+
+wama-dev-ai est un agent de développement local (`localhost:11434`) avec accès direct
+au codebase WAMA. Il travaille en complément de Claude (Anthropic).
+
+### Principe : Claude réfléchit, wama-dev-ai exécute, l'humain valide.
+
+### Phase 1 (actuelle) — Audit read-only
+
+**wama-dev-ai PEUT :**
+- Lire le codebase (tous les fichiers)
+- Effectuer des recherches sémantiques (RAG + embeddings)
+- Écrire des rapports dans `wama-dev-ai/outputs/`
+- Appeler l'API WAMA en lecture seule (Phase 2 prochainement)
+
+**wama-dev-ai NE PEUT PAS :**
+- Écrire ou modifier des fichiers de production
+- Faire des commits git
+- Appliquer des changements sans validation humaine
+
+### Format des rapports
+Voir `wama-dev-ai/AUDIT_FORMAT.md` — JSON canonique avec `PENDING_HUMAN_VALIDATION`.
+
+### Lecture des rapports par Claude
+Au début de chaque session collaborative, lire les rapports récents dans `wama-dev-ai/outputs/`.
+Le champ `claude_review_notes` contient les questions spécifiques à analyser.
+
+### Sélection de modèles — wama-dev-ai vs WAMA
+
+wama-dev-ai dispose d'une sélection RAM-aware avec fallback chains (`config.py : select_model_for_role()`).
+WAMA utilise une sélection simplifiée par tier (`llm_utils.py : get_describer_model()`).
+**À terme :** exposer la logique de `config.py` via MCP pour unifier la sélection dans WAMA.
+**Ne pas précipiter** — garder les deux systèmes découplés jusqu'à Phase 4.
+
+---
+
 ## Architecture WAMA — Points clés
 
 - **Django** + **Celery** (Redis) pour les tâches async
