@@ -24,9 +24,6 @@ MODEL_PATHS = getattr(settings, 'MODEL_PATHS', {})
 BLIP_DIR = MODEL_PATHS.get('vision_language', {}).get('blip',
     settings.AI_MODELS_DIR / "models" / "vision-language" / "blip")
 
-BART_DIR = MODEL_PATHS.get('vision_language', {}).get('bart',
-    settings.AI_MODELS_DIR / "models" / "vision-language" / "bart")
-
 # Speech models (Whisper)
 WHISPER_DIR = MODEL_PATHS.get('speech', {}).get('whisper',
     settings.AI_MODELS_DIR / "models" / "speech" / "whisper")
@@ -37,7 +34,6 @@ HF_CACHE_DIR = MODEL_PATHS.get('cache', {}).get('huggingface',
 
 # Ensure directories exist
 BLIP_DIR.mkdir(parents=True, exist_ok=True)
-BART_DIR.mkdir(parents=True, exist_ok=True)
 WHISPER_DIR.mkdir(parents=True, exist_ok=True)
 HF_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -54,17 +50,6 @@ DESCRIBER_MODELS = {
         'local_dir': BLIP_DIR,
         'description': 'BLIP image captioning model for detailed image descriptions',
         'size_gb': 1.8,
-        'source': 'huggingface',
-    },
-
-    # Text summarization
-    'bart': {
-        'model_id': 'facebook/bart-large-cnn',
-        'type': 'summarization',
-        'task': 'summarization',
-        'local_dir': BART_DIR,
-        'description': 'BART model for text summarization',
-        'size_gb': 1.6,
         'source': 'huggingface',
     },
 
@@ -92,7 +77,6 @@ def setup_model_environment():
 
     logger.info(f"Model cache directories configured:")
     logger.info(f"  BLIP: {BLIP_DIR}")
-    logger.info(f"  BART: {BART_DIR}")
     logger.info(f"  Whisper: {WHISPER_DIR}")
 
 

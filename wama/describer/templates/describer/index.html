@@ -102,6 +102,61 @@
             <button class="btn btn-info mt-2" id="browseBtn">
                 <i class="fas fa-folder-open"></i> Parcourir
             </button>
+            <small class="text-white-50 mt-2 d-block">
+                Fichier batch (URLs/chemins) ?
+                <a href="#" class="text-white-50" id="batchTemplateLink" download="batch_describer.txt">
+                    <i class="fas fa-download"></i> Template
+                </a>
+            </small>
+        </div>
+
+        <!-- Batch detect bar — appears when a batch file is dropped -->
+        <div id="batchDetectBar" style="display:none; margin-top:0.5rem; background:#1a1520; border:1px solid #0dcaf0; border-radius:0.375rem; padding:0.5rem 0.75rem;">
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-1">
+                <span class="small text-light">
+                    <i class="fas fa-list" style="color:#67e8f9;"></i>
+                    <strong>Fichier batch détecté</strong> —
+                    <span id="batchDetectedCount">0</span> URL(s)
+                </span>
+                <div class="d-flex gap-1">
+                    <button class="btn btn-sm py-0 px-2" style="background:#0dcaf0;color:#000;font-size:.8rem;"
+                            id="batchPreviewBtn">
+                        <i class="fas fa-eye"></i> Voir le batch
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger py-0 px-1" id="batchCancelBar" title="Annuler">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+            <!-- Preview table + actions -->
+            <div id="batchDetectPreview" style="display:none;">
+                <div id="batchDetectWarnings" class="alert alert-warning py-1 small mb-1" style="display:none;"></div>
+                <div class="table-responsive" style="max-height:180px; overflow-y:auto;">
+                    <table class="table table-sm table-dark mb-0" style="font-size:0.78rem;">
+                        <thead style="position:sticky; top:0; background:#1a1520;">
+                            <tr>
+                                <th>URL / Chemin</th>
+                                <th style="width:10%">Type</th>
+                            </tr>
+                        </thead>
+                        <tbody id="batchDetectTable"></tbody>
+                    </table>
+                </div>
+                <div class="d-flex gap-2 mt-2">
+                    <button class="btn btn-success btn-sm flex-grow-1" id="batchCreateAndStartBtn">
+                        <i class="fas fa-play"></i> Créer et démarrer (<span id="batchCreateCount">0</span>)
+                    </button>
+                    <button class="btn btn-primary btn-sm" id="batchCreateOnlyBtn">
+                        <i class="fas fa-plus"></i> Créer seulement
+                    </button>
+                </div>
+                <div id="batchCreateProgress" class="mt-2" style="display:none;">
+                    <div class="progress">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated bg-info"
+                             style="width:100%;color:#000;">Création en cours…</div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -474,7 +529,9 @@
             downloadAll: "{% url 'describer:download_all' %}",
             clearAll: "{% url 'describer:clear_all' %}",
             console: "{% url 'describer:console' %}",
-            updateOptions: "{% url 'describer:update_options' pk=0 %}"
+            updateOptions: "{% url 'describer:update_options' pk=0 %}",
+            batchPreview: "{% url 'describer:batch_preview' %}",
+            batchImport: "{% url 'describer:batch_import' %}"
         },
         csrfToken: "{{ csrf_token }}"
     };

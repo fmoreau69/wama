@@ -608,6 +608,126 @@ def download_all(request):
     return response
 
 
+@require_POST
+def batch_preview(request):
+    """
+    Parse a batch file (one URL/path per line) and return the list for preview.
+    No DB entries created.
+    """
+    import tempfile
+
+    batch_file = request.FILES.get('batch_file')
+    if not batch_file:
+        return JsonResponse({'error': 'Aucun fichier fourni'}, status=400)
+
+    ext = os.path.splitext(batch_file.name)[1][1:].lower()
+    if ext not in ('txt', 'csv', 'md'):
+        return JsonResponse({'error': f'Format non supporté : {ext}'}, status=400)
+
+    tmp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=f'.{ext}') as tmp:
+            for chunk in batch_file.chunks():
+                tmp.write(chunk)
+            tmp_path = tmp.name
+
+        from wama.common.utils.batch_parsers import parse_media_list_batch
+        items, warnings = parse_media_list_batch(tmp_path)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=400)
+    finally:
+        if tmp_path:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+
+    # Enrich items with detected type
+    for item in items:
+        path = item['path']
+        fname = path.split('/')[-1].split('\\')[-1] or path
+        ext_item = fname.rsplit('.', 1)[-1].lower() if '.' in fname else ''
+        item['detected_type'] = detect_type_from_extension(ext_item) if ext_item else 'text'
+        item['filename'] = fname
+
+    return JsonResponse({'items': items, 'warnings': warnings, 'count': len(items)})
+
+
+@require_POST
+def batch_import(request):
+    """
+    Create Description entries from a batch file of URLs/paths.
+    Files are not downloaded yet — download happens when each task starts.
+    """
+    import tempfile
+
+    user = get_user(request)
+    batch_file = request.FILES.get('batch_file')
+    if not batch_file:
+        return JsonResponse({'error': 'Aucun fichier fourni'}, status=400)
+
+    ext = os.path.splitext(batch_file.name)[1][1:].lower()
+    if ext not in ('txt', 'csv', 'md'):
+        return JsonResponse({'error': f'Format non supporté : {ext}'}, status=400)
+
+    output_format = request.POST.get('output_format', 'detailed')
+    output_language = request.POST.get('output_language', 'fr')
+    try:
+        max_length = int(request.POST.get('max_length', 500))
+    except (ValueError, TypeError):
+        max_length = 500
+
+    tmp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=f'.{ext}') as tmp:
+            for chunk in batch_file.chunks():
+                tmp.write(chunk)
+            tmp_path = tmp.name
+
+        from wama.common.utils.batch_parsers import parse_media_list_batch
+        items, warnings = parse_media_list_batch(tmp_path)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=400)
+    finally:
+        if tmp_path:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+
+    if not items:
+        return JsonResponse({'error': 'Aucun élément valide trouvé dans le fichier'}, status=400)
+
+    created = []
+    for item in items:
+        url_or_path = item['path']
+        fname = url_or_path.split('/')[-1].split('\\')[-1] or url_or_path
+        ext_item = fname.rsplit('.', 1)[-1].lower() if '.' in fname else ''
+        detected_type = detect_type_from_extension(ext_item) if ext_item else 'text'
+
+        desc = Description.objects.create(
+            user=user,
+            source_url=url_or_path,
+            filename=fname,
+            detected_type=detected_type,
+            output_format=output_format,
+            output_language=output_language,
+            max_length=max_length,
+        )
+        created.append({
+            'id': desc.id,
+            'filename': desc.filename,
+            'detected_type': desc.detected_type,
+            'type_icon': desc.get_type_icon(),
+            'source_url': url_or_path,
+            'output_format': desc.output_format,
+            'output_language': desc.output_language,
+            'status': desc.status,
+        })
+
+    return JsonResponse({'descriptions': created, 'total': len(created), 'warnings': warnings})
+
+
 @require_GET
 def console_content(request):
     """Get console output for live display."""

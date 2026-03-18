@@ -56,6 +56,7 @@ class Description(models.Model):
     # Source file
     input_file = models.FileField(
         upload_to=upload_to_user_input('describer'),
+        blank=True,
         validators=[FileExtensionValidator(
             allowed_extensions=[
                 'jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp',
@@ -65,6 +66,8 @@ class Description(models.Model):
             ]
         )]
     )
+    # URL source for batch import (file downloaded at task start if input_file is empty)
+    source_url = models.CharField(max_length=2000, blank=True)
 
     # Content type (detected or specified)
     content_type = models.CharField(

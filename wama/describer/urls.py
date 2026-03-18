@@ -24,6 +24,8 @@ urlpatterns = [
     path('start-all/', views.start_all, name='start_all'),
     path('clear-all/', views.clear_all, name='clear_all'),
     path('download-all/', views.download_all, name='download_all'),
+    path('batch/preview/', views.batch_preview, name='batch_preview'),
+    path('batch/import/', views.batch_import, name='batch_import'),
 
     # Utilities
     path('console/', views.console_content, name='console'),

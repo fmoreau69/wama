@@ -264,7 +264,7 @@ class ModelRegistry:
             logger.debug(f"Could not import Imager models: {e}")
 
     def _discover_describer_models(self):
-        """Discover Describer app models (BLIP, BART, Whisper)."""
+        """Discover Describer app models (BLIP, Whisper)."""
         try:
             from wama.describer.utils.model_config import DESCRIBER_MODELS
             from django.conf import settings
@@ -308,16 +308,11 @@ class ModelRegistry:
                             if is_downloaded:
                                 model_format = 'pt'
                 else:
-                    # HuggingFace models (BLIP, BART)
-                    # Add type-specific directories
+                    # HuggingFace models (BLIP)
                     if 'blip' in model_id.lower():
                         blip_dir = model_paths.get('vision_language', {}).get('blip')
                         if blip_dir:
                             cache_dirs.append(Path(blip_dir))
-                    elif 'bart' in model_id.lower():
-                        bart_dir = model_paths.get('vision_language', {}).get('bart')
-                        if bart_dir:
-                            cache_dirs.append(Path(bart_dir))
 
                     # Add generic directories as fallback
                     vlm_root = model_paths.get('vision_language', {}).get('root')

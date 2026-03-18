@@ -12,8 +12,8 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-# Import model configuration (sets up cache paths)
-from .model_config import get_model_info, setup_model_environment
+# Import model configuration
+from .model_config import get_model_info
 
 # Global model cache
 _blip_processor = None
@@ -69,29 +69,34 @@ def get_blip_model():
     if _blip_processor is None or _blip_model is None:
         logger.info("Loading BLIP model...")
 
-        # Ensure environment is set up
-        setup_model_environment()
-
         try:
-            from transformers import BlipProcessor, BlipForConditionalGeneration
+            import os
             import torch
+            from wama.model_manager.services.memory_manager import MemoryManager, MemoryStrategy
 
             # Get model info from centralized config
             model_info = get_model_info('blip')
             model_name = model_info['model_id']
             cache_dir = str(model_info['local_dir'])
 
-            logger.info(f"Loading {model_name} from cache: {cache_dir}")
+            # ── CRITIQUE : set HF cache BEFORE importing transformers ──────────
+            os.environ['HF_HUB_CACHE'] = cache_dir
+            os.environ['HUGGINGFACE_HUB_CACHE'] = cache_dir
+            # ──────────────────────────────────────────────────────────────────
+
+            from transformers import BlipProcessor, BlipForConditionalGeneration
+
+            # Determine VRAM strategy using MemoryManager (~1.8 GB for BLIP)
+            strategy = MemoryManager.get_memory_strategy(1.8)
+            device = "cpu" if strategy == MemoryStrategy.CPU_ONLY else (
+                "cuda" if torch.cuda.is_available() else "cpu"
+            )
+            logger.info(f"Loading {model_name} — strategy: {strategy.value}, device: {device}")
 
             _blip_processor = BlipProcessor.from_pretrained(model_name, cache_dir=cache_dir, use_fast=True)
             _blip_model = BlipForConditionalGeneration.from_pretrained(model_name, cache_dir=cache_dir)
-
-            # Move to GPU if available
-            if torch.cuda.is_available():
-                _blip_model = _blip_model.to("cuda")
-                logger.info("BLIP model loaded on GPU")
-            else:
-                logger.info("BLIP model loaded on CPU")
+            _blip_model = _blip_model.to(device)
+            logger.info(f"BLIP model loaded on {device.upper()}")
 
         except ImportError as e:
             logger.error(f"Failed to import transformers: {e}")
@@ -169,7 +174,7 @@ def describe_image(description, set_progress, set_partial, console):
             console(user_id, "Génération de la description (BLIP)…")
             set_partial(description, "Analyse BLIP…")
 
-            device = "cuda" if torch.cuda.is_available() else "cpu"
+            device = str(next(model.parameters()).device)
 
             # Conditional captioning prefix
             if output_format == 'detailed':

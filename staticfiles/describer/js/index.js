@@ -143,8 +143,21 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    // ── Batch file extensions ──────────────────────────────────────────────
+    const BATCH_EXTS = ['txt', 'csv', 'md'];
+
     function handleFiles(files) {
-        Array.from(files).forEach(file => uploadFile(file));
+        const fileList = Array.from(files);
+        // If exactly one .txt/.csv/.md file is dropped, treat as batch candidate
+        if (fileList.length === 1) {
+            const f = fileList[0];
+            const ext = f.name.split('.').pop().toLowerCase();
+            if (BATCH_EXTS.includes(ext)) {
+                handleFilesWithDetect(f);
+                return;
+            }
+        }
+        fileList.forEach(file => uploadFile(file));
     }
 
     async function handleFileManagerImport(path) {
@@ -892,4 +905,185 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Update global progress every 5 seconds
     setInterval(updateGlobalProgress, 5000);
+
+    // ── Batch template download ────────────────────────────────────────────
+    const batchTemplateLink = document.getElementById('batchTemplateLink');
+    if (batchTemplateLink) {
+        batchTemplateLink.addEventListener('click', function(e) {
+            e.preventDefault();
+            const content = '# WAMA Describer - Batch Import\n' +
+                '# Format : une URL ou un chemin par ligne\n' +
+                '# Les lignes commençant par # sont des commentaires\n\n' +
+                'https://example.com/image.jpg\n' +
+                'https://example.com/video.mp4\n' +
+                'https://example.com/article\n';
+            const blob = new Blob([content], {type: 'text/plain'});
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'batch_describer.txt';
+            a.click();
+        });
+    }
+
+    // ── Batch detect bar ──────────────────────────────────────────────────
+    let _batchFile = null;
+    let _batchItems = [];
+
+    const batchBar = document.getElementById('batchDetectBar');
+    const batchDetectedCount = document.getElementById('batchDetectedCount');
+    const batchPreviewBtn = document.getElementById('batchPreviewBtn');
+    const batchCancelBar = document.getElementById('batchCancelBar');
+    const batchDetectPreview = document.getElementById('batchDetectPreview');
+    const batchDetectWarnings = document.getElementById('batchDetectWarnings');
+    const batchDetectTable = document.getElementById('batchDetectTable');
+    const batchCreateCount = document.getElementById('batchCreateCount');
+    const batchCreateAndStartBtn = document.getElementById('batchCreateAndStartBtn');
+    const batchCreateOnlyBtn = document.getElementById('batchCreateOnlyBtn');
+    const batchCreateProgress = document.getElementById('batchCreateProgress');
+
+    async function handleFilesWithDetect(file) {
+        _batchFile = file;
+        _batchItems = [];
+
+        // Quick parse: preview the batch file
+        const formData = new FormData();
+        formData.append('batch_file', file);
+
+        try {
+            const resp = await fetch(config.urls.batchPreview, {
+                method: 'POST',
+                headers: {'X-CSRFToken': config.csrfToken},
+                body: formData,
+            });
+            const data = await resp.json();
+            if (data.error) {
+                // Not a valid batch or only 1 item — treat as regular file upload
+                uploadFile(file);
+                return;
+            }
+            if (data.count === 0) {
+                uploadFile(file);
+                return;
+            }
+            _batchItems = data.items || [];
+            _showBatchBar(data);
+        } catch (e) {
+            // Fallback to normal upload
+            uploadFile(file);
+        }
+    }
+
+    function _showBatchBar(data) {
+        if (!batchBar) return;
+        if (batchDetectedCount) batchDetectedCount.textContent = data.count;
+        if (batchDetectPreview) batchDetectPreview.style.display = 'none';
+        batchBar.style.display = '';
+    }
+
+    function _hideBatchBar() {
+        if (batchBar) batchBar.style.display = 'none';
+        if (batchDetectPreview) batchDetectPreview.style.display = 'none';
+        _batchFile = null;
+        _batchItems = [];
+    }
+
+    function _populateBatchPreview(data) {
+        if (!batchDetectTable) return;
+        batchDetectTable.innerHTML = '';
+        (data.items || []).forEach(item => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `<td style="word-break:break-all;">${item.path}</td>` +
+                `<td><span class="badge bg-secondary">${item.detected_type || 'auto'}</span></td>`;
+            batchDetectTable.appendChild(tr);
+        });
+        if (batchCreateCount) batchCreateCount.textContent = data.count;
+        if (batchDetectWarnings) {
+            if (data.warnings && data.warnings.length > 0) {
+                batchDetectWarnings.textContent = data.warnings.join(' | ');
+                batchDetectWarnings.style.display = '';
+            } else {
+                batchDetectWarnings.style.display = 'none';
+            }
+        }
+    }
+
+    if (batchPreviewBtn) {
+        batchPreviewBtn.addEventListener('click', async function() {
+            if (!_batchFile) return;
+            const formData = new FormData();
+            formData.append('batch_file', _batchFile);
+            try {
+                const resp = await fetch(config.urls.batchPreview, {
+                    method: 'POST',
+                    headers: {'X-CSRFToken': config.csrfToken},
+                    body: formData,
+                });
+                const data = await resp.json();
+                if (!data.error) {
+                    _populateBatchPreview(data);
+                    if (batchDetectPreview) batchDetectPreview.style.display = '';
+                }
+            } catch (e) {
+                showToast('Erreur lors de la prévisualisation', 'danger');
+            }
+        });
+    }
+
+    if (batchCancelBar) {
+        batchCancelBar.addEventListener('click', _hideBatchBar);
+    }
+
+    async function _doBatchImport(autoStart) {
+        if (!_batchFile) return;
+        if (batchCreateProgress) batchCreateProgress.style.display = '';
+        if (batchCreateAndStartBtn) batchCreateAndStartBtn.disabled = true;
+        if (batchCreateOnlyBtn) batchCreateOnlyBtn.disabled = true;
+
+        const formData = new FormData();
+        formData.append('batch_file', _batchFile);
+        formData.append('output_format', outputFormat ? outputFormat.value : 'detailed');
+        formData.append('output_language', outputLanguage ? outputLanguage.value : 'fr');
+        formData.append('max_length', maxLength ? maxLength.value : '500');
+
+        try {
+            const resp = await fetch(config.urls.batchImport, {
+                method: 'POST',
+                headers: {'X-CSRFToken': config.csrfToken},
+                body: formData,
+            });
+            const data = await resp.json();
+            if (data.error) {
+                showToast('Erreur: ' + data.error, 'danger');
+                return;
+            }
+            // Add all created entries to the queue UI
+            (data.descriptions || []).forEach(desc => addQueueItem(desc));
+            updateQueueCount();
+            showToast(`${data.total} élément(s) ajouté(s) à la file`, 'success');
+            _hideBatchBar();
+
+            if (autoStart) {
+                // Start all pending
+                await fetch(config.urls.startAll, {
+                    method: 'POST',
+                    headers: {'X-CSRFToken': config.csrfToken},
+                });
+                // Reload to refresh queue state
+                window.location.reload();
+            }
+        } catch (e) {
+            showToast('Erreur lors de la création du batch', 'danger');
+        } finally {
+            if (batchCreateProgress) batchCreateProgress.style.display = 'none';
+            if (batchCreateAndStartBtn) batchCreateAndStartBtn.disabled = false;
+            if (batchCreateOnlyBtn) batchCreateOnlyBtn.disabled = false;
+        }
+    }
+
+    if (batchCreateAndStartBtn) {
+        batchCreateAndStartBtn.addEventListener('click', () => _doBatchImport(true));
+    }
+    if (batchCreateOnlyBtn) {
+        batchCreateOnlyBtn.addEventListener('click', () => _doBatchImport(false));
+    }
 });
