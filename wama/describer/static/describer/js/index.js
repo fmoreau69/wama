@@ -650,6 +650,19 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // === Preview Modal (tabbed) ===
 
+    function wordCount(text) {
+        if (!text || !text.trim()) return 0;
+        return text.trim().split(/\s+/).filter(Boolean).length;
+    }
+
+    function setWordCount(spanId, text) {
+        const span = document.getElementById(spanId);
+        if (!span) return;
+        const n = wordCount(text);
+        if (n > 0) { span.textContent = `${n} mot${n !== 1 ? 's' : ''}`; span.style.display = ''; }
+        else { span.textContent = ''; span.style.display = 'none'; }
+    }
+
     function renderDescMarkdown(text) {
         if (!text) return '';
         return text
@@ -695,12 +708,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
             document.getElementById('resultModalTitle').textContent = `Description #${id}`;
             resultText.textContent = data.result_text || 'Aucun resultat disponible';
+            setWordCount('wc-description', data.result_text || '');
             downloadBtn.href = config.urls.download.replace('/0/', `/${id}/`);
 
             // Résumé tab
             const resumeContent = document.getElementById('resumeContent');
             if (data.summary && resumeContent) {
                 resumeContent.innerHTML = renderDescMarkdown(data.summary);
+                setWordCount('wc-resume', data.summary || '');
                 if (tabResumeBtn) tabResumeBtn.style.display = '';
             }
 
@@ -744,6 +759,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         <span class="text-light">Score de cohérence</span>
                     </div>
                     ${notesHtml}${sideBySide}`;
+                setWordCount('wc-coherence', data.coherence_suggestion || data.result_text || '');
                 if (tabCoherenceBtn) tabCoherenceBtn.style.display = '';
             }
 

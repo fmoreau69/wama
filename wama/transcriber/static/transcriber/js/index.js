@@ -32,6 +32,19 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
 
+  function wordCount(text) {
+    if (!text || !text.trim()) return 0;
+    return text.trim().split(/\s+/).filter(Boolean).length;
+  }
+
+  function setWordCount(spanId, text) {
+    const span = document.getElementById(spanId);
+    if (!span) return;
+    const n = wordCount(text);
+    if (n > 0) { span.textContent = `${n} mot${n !== 1 ? 's' : ''}`; span.style.display = ''; }
+    else { span.textContent = ''; span.style.display = 'none'; }
+  }
+
   // ======================================================================
   // Upload
   // ======================================================================
@@ -620,6 +633,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     resumeEl.innerHTML = html;
+    setWordCount('wc-resume', data.summary || '');
   }
 
   function renderCoherence(data, originalText) {
@@ -673,6 +687,7 @@ document.addEventListener('DOMContentLoaded', function () {
       </div>
       ${notesHtml}
       ${sideBySide}`;
+    setWordCount('wc-coherence', data.coherence_suggestion || originalText || '');
   }
 
   function openResultModal(id) {
@@ -715,6 +730,7 @@ document.addEventListener('DOMContentLoaded', function () {
       .then(data => {
         if (resultText) {
           resultText.textContent = data.text || data.partial_text || '(Aucun texte disponible)';
+          setWordCount('wc-transcription', data.text || data.partial_text || '');
         }
         renderResume(data);
         renderCoherence(data, data.text || data.partial_text || '');
