@@ -359,29 +359,43 @@ def get_file_properties(description):
 @require_POST
 def start(request, pk):
     """Start processing a description."""
-    user = get_user(request)
-    description = get_object_or_404(Description, pk=pk, user=user)
-
-    if description.status == 'RUNNING':
-        return JsonResponse({'error': 'Already running'}, status=400)
-
-    # Import and launch Celery task
+    from django.db import transaction
     from .workers import describe_content
 
-    description.status = 'RUNNING'
-    description.progress = 0
-    description.error_message = ''
-    # Clear previous results so re-runs start fresh
-    description.result_text = ''
-    description.summary = ''
-    description.coherence_score = None
-    description.coherence_notes = ''
-    description.coherence_suggestion = ''
-    description.save()
+    user = get_user(request)
+
+    # Atomic check-and-set: prevents race condition when user clicks Start multiple times
+    with transaction.atomic():
+        try:
+            description = Description.objects.select_for_update().get(pk=pk, user=user)
+        except Description.DoesNotExist:
+            return JsonResponse({'error': 'Not found'}, status=404)
+
+        if description.status == 'RUNNING':
+            return JsonResponse({'error': 'Already running'}, status=400)
+
+        # Revoke any previous queued task so it won't start after this new one
+        if description.task_id:
+            try:
+                from celery import current_app
+                current_app.control.revoke(description.task_id, terminate=False)
+            except Exception:
+                pass
+
+        description.status = 'RUNNING'
+        description.progress = 0
+        description.error_message = ''
+        description.result_text = ''
+        description.summary = ''
+        description.coherence_score = None
+        description.coherence_notes = ''
+        description.coherence_suggestion = ''
+        description.task_id = ''
+        description.save()
 
     task = describe_content.delay(description.id)
     description.task_id = task.id
-    description.save()
+    description.save(update_fields=['task_id'])
 
     return JsonResponse({
         'id': description.id,

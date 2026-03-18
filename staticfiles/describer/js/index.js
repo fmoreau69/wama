@@ -458,6 +458,10 @@ document.addEventListener('DOMContentLoaded', function() {
         const card = document.querySelector(`.synthesis-card[data-id="${id}"]`);
         if (!card) return;
 
+        // Disable start button immediately to prevent double-clicks
+        const startBtn = card.querySelector('.start-btn');
+        if (startBtn) startBtn.disabled = true;
+
         try {
             const response = await fetch(config.urls.start.replace('/0/', `/${id}/`), {
                 method: 'POST',
@@ -471,6 +475,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
             if (data.error) {
                 showToast('Erreur: ' + data.error, 'danger');
+                if (startBtn) startBtn.disabled = false;
                 return;
             }
 
@@ -480,6 +485,7 @@ document.addEventListener('DOMContentLoaded', function() {
         } catch (error) {
             console.error('Start error:', error);
             showToast('Erreur lors du demarrage', 'danger');
+            if (startBtn) startBtn.disabled = false;
         }
     }
 
@@ -567,10 +573,13 @@ document.addEventListener('DOMContentLoaded', function() {
             progressText.textContent = progress + '%';
         }
 
-        // Update card class
+        // Update card class and hide start button once running
         card.classList.remove('processing', 'success', 'error');
         switch (status) {
-            case 'RUNNING': card.classList.add('processing'); break;
+            case 'RUNNING':
+                card.classList.add('processing');
+                card.querySelector('.start-btn')?.remove();
+                break;
             case 'SUCCESS': card.classList.add('success'); break;
             case 'FAILURE': card.classList.add('error'); break;
         }

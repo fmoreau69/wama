@@ -386,7 +386,7 @@ if ENABLE_CELERY:
 # Override any tier here; all fallback to 'default' if the key is absent.
 DESCRIBER_LLM_MODELS = {
     'image':   os.environ.get('DESCRIBER_MODEL_IMAGE',   'moondream'),
-    'heavy':   os.environ.get('DESCRIBER_MODEL_HEAVY',   'qwen3.5:35b-a3b'),
+    'heavy':   os.environ.get('DESCRIBER_MODEL_HEAVY',   'qwen3.5:9b'),
     'default': os.environ.get('DESCRIBER_MODEL_DEFAULT', 'qwen3.5:9b'),
     'fast':    os.environ.get('DESCRIBER_MODEL_FAST',    'qwen3.5:4b'),
 }

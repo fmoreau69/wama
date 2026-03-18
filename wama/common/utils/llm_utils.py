@@ -64,7 +64,10 @@ def ollama_chat(messages: list, model: str = 'qwen3.5:9b') -> tuple[Optional[str
             })
         if resp.status_code != 200:
             return None, f"Ollama HTTP {resp.status_code}: {resp.text[:200]}"
-        text = resp.json().get("message", {}).get("content", "")
+        text = resp.json().get("message", {}).get("content", "") or ""
+        if not text.strip():
+            logger.warning(f"[llm_utils] Ollama returned empty content for model={model}")
+            return None, "Ollama returned empty response"
         return text.strip(), None
     except Exception as e:
         logger.error(f"[llm_utils] Ollama error: {e}")
@@ -73,17 +76,33 @@ def ollama_chat(messages: list, model: str = 'qwen3.5:9b') -> tuple[Optional[str
 
 def extract_json_from_llm(text: str) -> Optional[dict]:
     """
-    Extract the first JSON object from an LLM response.
-    Handles reasoning tags (<think>...</think>) and surrounding prose.
+    Extract the first valid JSON object from an LLM response.
+    Handles reasoning tags (<think>...</think>), markdown code blocks, and
+    surrounding prose. Uses raw_decode to find the first parseable object.
     """
     # Strip thinking blocks
     clean = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
-    match = re.search(r'\{.*\}', clean, re.DOTALL)
-    if match:
+
+    # Strip markdown code fences: ```json { ... } ```
+    clean = re.sub(r'```(?:json)?\s*', '', clean)
+    clean = re.sub(r'```', '', clean).strip()
+
+    # Walk the string looking for a valid JSON object starting at each '{'
+    decoder = json.JSONDecoder()
+    idx = 0
+    while idx < len(clean):
+        start = clean.find('{', idx)
+        if start == -1:
+            break
         try:
-            return json.loads(match.group())
+            obj, _ = decoder.raw_decode(clean, start)
+            if isinstance(obj, dict):
+                return obj
         except json.JSONDecodeError:
             pass
+        idx = start + 1
+
+    logger.debug(f"[llm_utils] extract_json_from_llm: no valid JSON found in: {text[:300]!r}")
     return None
 
 
@@ -146,7 +165,7 @@ def generate_meeting_summary(
 
     data = extract_json_from_llm(result_text)
     if not data:
-        logger.warning("[llm_utils] Could not parse JSON from meeting summary response")
+        logger.warning(f"[llm_utils] Could not parse JSON from meeting summary. Raw: {result_text[:400]!r}")
         return truncated
 
     # Render as structured markdown
@@ -248,7 +267,7 @@ def verify_text_coherence(
 
     data = extract_json_from_llm(result_text)
     if not data:
-        logger.warning("[llm_utils] Could not parse JSON from coherence check response")
+        logger.warning(f"[llm_utils] Could not parse JSON from coherence check. Raw: {result_text[:400]!r}")
         raise RuntimeError("Could not parse JSON response from Ollama")
 
     return {
@@ -320,7 +339,7 @@ def generate_structured_summary(
 
     data = extract_json_from_llm(result_text)
     if not data:
-        logger.warning("[llm_utils] Could not parse JSON from LLM response")
+        logger.warning(f"[llm_utils] Could not parse JSON from structured summary. Raw: {result_text[:400]!r}")
         raise RuntimeError("Could not parse JSON response from Ollama")
 
     return {
