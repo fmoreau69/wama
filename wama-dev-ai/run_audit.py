@@ -305,11 +305,25 @@ class AuditAgent:
                 "Write reports using write_report tool only. Task: {task}"
             )
 
+    def _autosave_report(self, text: str) -> None:
+        """
+        Fallback: if the model produced a report inline (didn't call write_report),
+        save the full last response as a .md file so no work is lost.
+        """
+        date_str = datetime.now().strftime('%Y-%m-%d_%H-%M')
+        filename = f"audit_{date_str}_autosave.md"
+        out_path = OUTPUT_DIR / filename
+        out_path.write_text(text, encoding='utf-8')
+        self._report_saved = True
+        if self.verbose:
+            print(f"[Audit] Auto-saved response → {filename}")
+
     def run(self, task: str) -> str:
         """
         Run the audit agent for a given task.
         Returns the final text response from the model.
         """
+        self._report_saved = False  # track whether write_report was called
         if self.verbose:
             print(f"\n[Audit] Task: {task}\n")
 
@@ -360,7 +374,11 @@ class AuditAgent:
             tool_calls = self.tools.parse_tool_calls(response_text)
 
             if not tool_calls:
-                # No more tool calls — agent is done
+                # No more tool calls — agent is done.
+                # If the response contains a report (JSON/markdown) but write_report
+                # was never called, auto-save it so we don't lose the work.
+                if not self._report_saved:
+                    self._autosave_report(response_text)
                 if self.verbose:
                     print("[Audit] Agent finished (no more tool calls).")
                 return response_text
@@ -369,6 +387,8 @@ class AuditAgent:
             tool_results = []
             for call in tool_calls:
                 result = self.tools.execute(call)
+                if call.tool_name == "write_report" and result.success:
+                    self._report_saved = True
                 if self.verbose:
                     status = "✓" if result.success else "✗"
                     print(f"  {status} {call.tool_name}({list(call.arguments.keys())}) "
@@ -386,6 +406,8 @@ class AuditAgent:
 
         if self.verbose:
             print(f"[Audit] WARNING: reached MAX_TOOL_ROUNDS ({self.MAX_TOOL_ROUNDS})")
+        if not self._report_saved:
+            self._autosave_report(response_text)
         return "Audit reached maximum rounds without completing."
 
 

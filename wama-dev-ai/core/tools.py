@@ -401,6 +401,23 @@ class ToolRegistry:
             search_root = self._resolve_path(path)
             if not search_root.exists():
                 return f"Path not found: {path}"
+            # If path points directly to a file, search only that file
+            if search_root.is_file():
+                try:
+                    content = search_root.read_text(encoding='utf-8', errors='ignore')
+                    if query.lower() in content.lower():
+                        rel = search_root.relative_to(self._base_dir)
+                        results = []
+                        for i, line in enumerate(content.splitlines(), 1):
+                            if query.lower() in line.lower():
+                                results.append(f"{rel}:{i}: {line.strip()[:80]}")
+                                if len(results) >= 30:
+                                    break
+                        return "\n".join(results) if results else f"No matches found for '{query}' in {path}"
+                    else:
+                        return f"No matches found for '{query}' in {path}"
+                except Exception:
+                    return f"Error reading {path}"
         else:
             search_root = self._base_dir
 
