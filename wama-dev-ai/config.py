@@ -154,7 +154,7 @@ MODELS = {
         context_length=16384,
         temperature=0.2,
         role="debug",
-        ram_required_gb=18.0,
+        ram_required_gb=10.0,   # Q4_K_M: ~9.6 GB VRAM (was 18.0 which was system RAM estimate)
         priority=50,
     ),
 
@@ -432,7 +432,8 @@ MODEL_FALLBACK_CHAINS = {
     "debug": ["debug", "fast", "ultra_fast"],
     "architect": ["architect", "orchestrator", "fast", "ultra_fast"],
     # audit role: prefers non-thinking models (qwen3.5 crashes on complex prompts)
-    "audit": ["gemma3_4b", "fast", "ultra_fast"],
+    # debug (deepseek-coder-v2:16b) is the best choice when VRAM allows
+    "audit": ["debug", "gemma3_4b", "fast", "ultra_fast"],
     "vision": ["vision", "vision_fast", "vision_lite"],
     "prompt": ["prompt_enricher_premium", "prompt_enricher"],
     "translate": ["translator", "prompt_enricher"],
@@ -459,6 +460,24 @@ def get_total_memory_gb() -> float:
     return mem.total / (1024 ** 3)
 
 
+def get_available_vram_gb() -> float:
+    """
+    Get free GPU VRAM in GiB via nvidia-smi.
+    Returns 0.0 if no GPU is available or nvidia-smi fails.
+    """
+    try:
+        import subprocess
+        r = subprocess.run(
+            ["nvidia-smi", "--query-gpu=memory.free", "--format=csv,noheader,nounits"],
+            capture_output=True, text=True, timeout=5,
+        )
+        if r.returncode == 0 and r.stdout.strip():
+            return int(r.stdout.strip().split('\n')[0]) / 1024
+    except Exception:
+        pass
+    return 0.0
+
+
 def select_model_for_role(
     role: str,
     preferred_model: str = None,
@@ -466,6 +485,8 @@ def select_model_for_role(
 ) -> Tuple[str, ModelConfig]:
     """
     Select the best available model for a given role based on available memory.
+
+    Uses GPU VRAM when available (Ollama prefers GPU), falls back to system RAM.
 
     Args:
         role: The role to select a model for (dev, debug, architect, vision, etc.)
@@ -478,11 +499,21 @@ def select_model_for_role(
     Raises:
         RuntimeError: If no model fits in available memory
     """
-    available_mem = get_available_memory_gb()
+    # Prefer VRAM for model selection: Ollama loads models on GPU when possible.
+    # Fall back to system RAM if no GPU is detected.
+    vram_free = get_available_vram_gb()
+    ram_available = get_available_memory_gb()
+    if vram_free > 1.0:
+        available_mem = vram_free   # GPU path: use VRAM budget
+        mem_label = "VRAM"
+    else:
+        available_mem = ram_available  # CPU path: use system RAM
+        mem_label = "RAM"
     usable_mem = available_mem - MEMORY_SAFETY_MARGIN_GB
 
     if verbose:
-        print(f"[Memory] Available: {available_mem:.1f} GiB, Usable: {usable_mem:.1f} GiB")
+        print(f"[Memory] Available: {ram_available:.1f} GiB RAM / "
+              f"{vram_free:.1f} GiB VRAM → using {mem_label}, Usable: {usable_mem:.1f} GiB")
 
     # Build candidate list
     candidates = []
@@ -555,7 +586,10 @@ def get_memory_status() -> dict:
     """
     available = get_available_memory_gb()
     total = get_total_memory_gb()
-    usable = available - MEMORY_SAFETY_MARGIN_GB
+    vram_free = get_available_vram_gb()
+    # Use VRAM budget if GPU is available (mirrors select_model_for_role logic)
+    budget = (vram_free if vram_free > 1.0 else available) - MEMORY_SAFETY_MARGIN_GB
+    usable = budget
 
     available_models = []
     unavailable_models = []
