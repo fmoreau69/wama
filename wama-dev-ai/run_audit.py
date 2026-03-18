@@ -291,11 +291,13 @@ class AuditAgent:
             # Call LLM directly via Ollama client (LLMClient.chat() manages its own
             # internal history — we bypass it to control multi-turn context ourselves).
             # num_ctx must be set explicitly: Ollama defaults to 2048 which is smaller
-            # than the audit system prompt alone (~3000 tokens) → EOF/500 crash.
+            # than the audit system prompt alone (~1500 tokens) → EOF/500 crash.
+            # 4096 = 1545 (system) + ~2500 (conversation budget) — safe for 10 rounds.
+            # 8192 doubles the KV cache and causes OOM on machines with limited RAM.
             raw = self.llm._client.chat(
                 model=model_id,
                 messages=messages,
-                options={"temperature": 0.3, "num_ctx": 8192},
+                options={"temperature": 0.3, "num_ctx": 4096},
             )
             response_text = raw["message"]["content"]
 
@@ -399,6 +401,24 @@ def main():
         if unloaded:
             import time
             time.sleep(1)
+
+        # Show which processes are using VRAM (helps diagnose residual usage)
+        try:
+            import subprocess
+            result = subprocess.run(
+                ["nvidia-smi",
+                 "--query-compute-apps=pid,process_name,used_memory",
+                 "--format=csv,noheader,nounits"],
+                capture_output=True, text=True, timeout=5,
+            )
+            if result.stdout.strip():
+                print("[VRAM] Processus GPU actifs :")
+                for line in result.stdout.strip().splitlines():
+                    print(f"  {line}")
+            else:
+                print("[VRAM] Aucun processus GPU détecté par nvidia-smi")
+        except Exception:
+            pass  # nvidia-smi not available
 
     # Step 2: Free WAMA GPU cache (PyTorch) via WAMA API.
     # Password: from WAMA_PASSWORD env var, or prompted interactively if username is known.
