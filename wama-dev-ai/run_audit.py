@@ -342,10 +342,17 @@ def main():
     print(f"[wama-dev-ai] Outputs: {OUTPUT_DIR}")
 
     # Free VRAM before model selection so the best available model can be chosen.
-    # Auto-triggered when WAMA_USERNAME + WAMA_PASSWORD env vars are set.
-    if not args.no_free_vram and WAMA_USERNAME and WAMA_PASSWORD:
+    # Password: from WAMA_PASSWORD env var, or prompted interactively if username is known.
+    wama_password = WAMA_PASSWORD
+    if not args.no_free_vram and WAMA_USERNAME and not wama_password and verbose:
+        import getpass
+        wama_password = getpass.getpass(
+            f"[wama-dev-ai] Mot de passe WAMA pour '{WAMA_USERNAME}': "
+        )
+
+    if not args.no_free_vram and WAMA_USERNAME and wama_password:
         print(f"[wama-dev-ai] Libération VRAM via WAMA API ({WAMA_BASE_URL})…")
-        freed = _free_wama_vram(WAMA_BASE_URL, WAMA_USERNAME, WAMA_PASSWORD, verbose=True)
+        freed = _free_wama_vram(WAMA_BASE_URL, WAMA_USERNAME, wama_password, verbose=True)
         if freed:
             import time
             time.sleep(2)  # Give the GPU a moment to settle

@@ -30,6 +30,14 @@ EMBEDDINGS_DIR.mkdir(exist_ok=True)
 # Ollama Configuration
 # ============================================================================
 
+# Load .env from project root (non-versioned, contains credentials)
+try:
+    from dotenv import load_dotenv
+    _env_path = Path(__file__).parent.parent / '.env'
+    load_dotenv(_env_path)
+except ImportError:
+    pass  # python-dotenv not installed — rely on environment variables
+
 # Bypass proxy for localhost
 os.environ['NO_PROXY'] = 'localhost,127.0.0.1,::1'
 os.environ['no_proxy'] = 'localhost,127.0.0.1,::1'
@@ -38,7 +46,7 @@ OLLAMA_HOST = "http://127.0.0.1:11434"
 
 # ============================================================================
 # WAMA API Configuration (for VRAM clearing and Phase 2 health checks)
-# Set via environment variables or a .env file.
+# Loaded from .env at project root or from environment variables.
 # ============================================================================
 
 WAMA_BASE_URL = os.environ.get('WAMA_BASE_URL', 'http://localhost')
