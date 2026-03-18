@@ -246,11 +246,13 @@ class AuditAgent:
             rounds += 1
 
             # Call LLM directly via Ollama client (LLMClient.chat() manages its own
-            # internal history — we bypass it to control multi-turn context ourselves)
+            # internal history — we bypass it to control multi-turn context ourselves).
+            # num_ctx must be set explicitly: Ollama defaults to 2048 which is smaller
+            # than the audit system prompt alone (~3000 tokens) → EOF/500 crash.
             raw = self.llm._client.chat(
                 model=model_id,
                 messages=messages,
-                options={"temperature": 0.3},
+                options={"temperature": 0.3, "num_ctx": 8192},
             )
             response_text = raw["message"]["content"]
 
