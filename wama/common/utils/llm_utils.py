@@ -11,6 +11,31 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 
+def get_describer_model(content_type: str, output_format: str) -> str:
+    """
+    Return the Ollama model name to use for a given (content_type, output_format) pair.
+
+    Tier routing (configured via settings.DESCRIBER_LLM_MODELS):
+      image   → multimodal vision model (moondream)
+      heavy   → meeting, scientific, coherence  (qwen3.5:35b-a3b)
+      default → detailed, audio, video          (qwen3.5:9b)
+      fast    → summary, bullet_points          (qwen3.5:4b)
+
+    All tiers fall back to 'default' if the key is absent from settings.
+    """
+    from django.conf import settings
+    models: dict = getattr(settings, 'DESCRIBER_LLM_MODELS', {})
+    default = models.get('default', 'qwen3.5:9b')
+
+    if content_type == 'image':
+        return models.get('image', 'moondream')
+    if output_format in ('meeting', 'scientific'):
+        return models.get('heavy', default)
+    if output_format in ('summary', 'bullet_points'):
+        return models.get('fast', default)
+    return default
+
+
 def ollama_chat(messages: list, model: str = 'qwen3.5:9b') -> tuple[Optional[str], Optional[str]]:
     """
     Send a chat request to the local Ollama server.

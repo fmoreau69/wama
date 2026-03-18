@@ -117,11 +117,14 @@ def describe_content(self, description_id: int):
         if description.generate_summary and result and description.output_format != 'meeting':
             try:
                 _console(user_id, "Génération du résumé LLM (Ollama)…")
-                from wama.common.utils.llm_utils import generate_structured_summary
+                from wama.common.utils.llm_utils import generate_structured_summary, get_describer_model
+                _sum_model = get_describer_model(content_type, description.output_format)
+                _console(user_id, f"Modèle résumé : {_sum_model}")
                 summary_data = generate_structured_summary(
                     result,
-                    content_hint=content_type,   # 'image', 'video', 'audio', 'text'
+                    content_hint=content_type,
                     language=description.output_language or 'fr',
+                    model=_sum_model,
                 )
                 description.summary = summary_data['summary']
                 description.save(update_fields=['summary'])
@@ -129,15 +132,18 @@ def describe_content(self, description_id: int):
             except Exception as llm_err:
                 _console(user_id, f"Avertissement: résumé LLM échoué ({llm_err})")
 
-        # Optional coherence verification via Ollama
+        # Optional coherence verification via Ollama (always uses heavy model — careful analysis)
         if description.verify_coherence and result:
             try:
                 _console(user_id, "Vérification de cohérence (Ollama)…")
-                from wama.common.utils.llm_utils import verify_text_coherence
+                from wama.common.utils.llm_utils import verify_text_coherence, get_describer_model
+                _coh_model = get_describer_model(content_type, 'scientific')  # heavy tier
+                _console(user_id, f"Modèle cohérence : {_coh_model}")
                 coherence = verify_text_coherence(
                     result,
                     content_hint=content_type,
                     language=description.output_language or 'fr',
+                    model=_coh_model,
                 )
                 description.coherence_score = coherence['score']
                 description.coherence_notes = '\n'.join(coherence['notes'])

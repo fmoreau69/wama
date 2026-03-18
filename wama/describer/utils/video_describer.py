@@ -68,15 +68,22 @@ def describe_video(description, set_progress, set_partial, console):
 
         set_progress(description, 60)
 
+        # Select LLM model once for all downstream calls
+        from wama.common.utils.llm_utils import get_describer_model
+        llm_model = get_describer_model('video', output_format)
+        console(user_id, f"Modèle LLM : {llm_model}")
+
         # Extract and transcribe audio
         audio_transcript = ""
         if has_audio(file_path):
             console(user_id, "Traitement de la piste audio…")
             set_partial(description, "Transcription audio…")
-            # For meeting format we need the full transcript (no BART shortening)
+            # For meeting format we need the full transcript (no summarization)
             audio_transcript = process_audio_track(
                 file_path, max_length // 2, console, user_id,
                 skip_summarize=(output_format == 'meeting'),
+                output_language=output_language,
+                llm_model=llm_model,
             )
             set_progress(description, 75)
 
@@ -85,7 +92,8 @@ def describe_video(description, set_progress, set_partial, console):
             console(user_id, "Génération du compte-rendu de réunion (Ollama)…")
             set_partial(description, "Rédaction du compte-rendu…")
             from wama.common.utils.llm_utils import generate_meeting_summary
-            return generate_meeting_summary(audio_transcript, language=output_language)
+            return generate_meeting_summary(audio_transcript, language=output_language,
+                                            model=llm_model)
 
         # Combine visual and audio descriptions
         console(user_id, "Generating video summary...")
@@ -227,6 +235,8 @@ def has_audio(file_path: str) -> bool:
 def process_audio_track(
     file_path: str, max_words: int, console, user_id: int,
     skip_summarize: bool = False,
+    output_language: str = 'fr',
+    llm_model: str = 'qwen3.5:9b',
 ) -> str:
     """Extract and transcribe audio from video."""
     temp_audio = None
@@ -253,20 +263,19 @@ def process_audio_track(
         _result = _transcribe(temp_audio, model_name='large-v3')
         transcript = _result.text
 
-        # Optionally summarize with BART if too long (skip for meeting format)
+        # Optionally summarize with Ollama if too long (skip for meeting format)
         if not skip_summarize and transcript and len(transcript.split()) > max_words:
-            from .text_describer import get_summarizer, sanitize_text_for_model
-
-            clean_transcript = sanitize_text_for_model(transcript[:4000])
-            summarizer = get_summarizer()
-            summary = summarizer(
-                clean_transcript,
-                max_length=max_words,
-                min_length=min(30, max_words // 2),
-                do_sample=False,
-                truncation=True
-            )
-            return summary[0]['summary_text']
+            try:
+                from wama.common.utils.llm_utils import generate_structured_summary
+                summary_data = generate_structured_summary(
+                    transcript, content_hint='audio',
+                    language=output_language, model=llm_model,
+                )
+                return summary_data['summary']
+            except Exception as e:
+                logger.warning(f"Ollama summarization failed, using truncated transcript: {e}")
+                words = transcript.split()[:max_words]
+                return ' '.join(words) + '…'
 
         return transcript
 

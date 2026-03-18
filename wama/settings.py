@@ -373,6 +373,24 @@ if ENABLE_CELERY:
     CELERY_WORKER_REDIRECT_STDOUTS = True
     CELERY_WORKER_REDIRECT_STDOUTS_LEVEL = 'INFO'
 
+# =============================================================================
+# DESCRIBER — Intelligent LLM model selection
+# =============================================================================
+# Models are chosen per tier based on content type and output format.
+# Tier routing (see llm_utils.get_describer_model):
+#   image   → multimodal vision model (used directly by Ollama /api/generate)
+#   heavy   → meeting notes, scientific analysis, coherence verification
+#   default → standard descriptions (detailed, audio, video)
+#   fast    → quick summary, bullet_points
+#
+# Override any tier here; all fallback to 'default' if the key is absent.
+DESCRIBER_LLM_MODELS = {
+    'image':   os.environ.get('DESCRIBER_MODEL_IMAGE',   'moondream'),
+    'heavy':   os.environ.get('DESCRIBER_MODEL_HEAVY',   'qwen3.5:35b-a3b'),
+    'default': os.environ.get('DESCRIBER_MODEL_DEFAULT', 'qwen3.5:9b'),
+    'fast':    os.environ.get('DESCRIBER_MODEL_FAST',    'qwen3.5:4b'),
+}
+
 # TTS Microservice URL (FastAPI service for preloaded TTS models)
 TTS_SERVICE_URL = os.environ.get('TTS_SERVICE_URL', 'http://localhost:8001')
 

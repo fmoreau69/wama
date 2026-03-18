@@ -52,12 +52,14 @@ def describe_audio(description, set_progress, set_partial, console):
         set_progress(description, 60)
         set_partial(description, transcript[:300] + "..." if len(transcript) > 300 else transcript)
 
-        # Meeting compte-rendu: bypass BART, use LLM directly
+        # Meeting compte-rendu: use heavy LLM directly
         if output_format == 'meeting':
             console(user_id, "Génération du compte-rendu de réunion (Ollama)…")
             set_partial(description, "Rédaction du compte-rendu…")
-            from wama.common.utils.llm_utils import generate_meeting_summary
-            return generate_meeting_summary(transcript, language=output_language)
+            from wama.common.utils.llm_utils import generate_meeting_summary, get_describer_model
+            _model = get_describer_model('audio', 'meeting')
+            console(user_id, f"Modèle LLM : {_model}")
+            return generate_meeting_summary(transcript, language=output_language, model=_model)
 
         # If short, just format the transcript
         if word_count <= max_length:
@@ -65,140 +67,48 @@ def describe_audio(description, set_progress, set_partial, console):
             result = format_audio_result(transcript, output_format, is_summary=False)
             return result
 
-        # Summarize the transcript
-        console(user_id, "Summarizing transcript...")
-        set_partial(description, "Generating summary...")
-
-        from .text_describer import get_summarizer, chunk_text, sanitize_text_for_model, reset_cuda
-
-        summarizer = get_summarizer()
-
+        # Long transcript: summarize with Ollama (replaces legacy BART pipeline)
+        console(user_id, "Résumé du transcript (Ollama)…")
+        set_partial(description, "Génération du résumé en cours…")
         set_progress(description, 70)
 
-        # Chunk and summarize
-        chunks = chunk_text(transcript, max_tokens=1024)
-        summaries = []
-        cuda_failed = False
+        from wama.common.utils.llm_utils import generate_structured_summary, get_describer_model
+        _model = get_describer_model('audio', output_format)
+        console(user_id, f"Modèle LLM : {_model}")
 
-        for i, chunk in enumerate(chunks):
-            if len(chunk.split()) < 50:
-                continue
+        try:
+            summary_data = generate_structured_summary(
+                transcript, content_hint='audio',
+                language=output_language or 'fr',
+                model=_model,
+            )
+            set_progress(description, 85)
 
-            progress = 70 + int((i / len(chunks)) * 15)
-            set_progress(description, progress)
+            if output_format == 'bullet_points' and summary_data['key_points']:
+                result = '\n'.join(f"- {p}" for p in summary_data['key_points'])
+            elif output_format == 'scientific':
+                parts = [summary_data['summary']]
+                if summary_data['key_points']:
+                    parts += ['', 'Key points:'] + [f"- {p}" for p in summary_data['key_points']]
+                result = '\n'.join(parts)
+            elif output_format == 'detailed':
+                parts = [summary_data['summary']]
+                if summary_data['key_points']:
+                    parts += ['', 'Points clés :'] + [f"- {p}" for p in summary_data['key_points']]
+                result = '\n'.join(parts)
+            else:
+                result = summary_data['summary']
 
-            try:
-                # Sanitize chunk to prevent tokenization errors
-                clean_chunk = sanitize_text_for_model(chunk)
-                if not clean_chunk or len(clean_chunk.split()) < 30:
-                    continue
+        except Exception as llm_err:
+            console(user_id, f"Avertissement: Ollama indisponible ({llm_err}), transcript tronqué")
+            logger.warning(f"Ollama summarization failed: {llm_err}")
+            words = transcript.split()[:max_length]
+            result = ' '.join(words) + ('…' if len(transcript.split()) > max_length else '')
 
-                if cuda_failed:
-                    summarizer = get_summarizer(force_cpu=True)
-
-                summary = summarizer(
-                    clean_chunk,
-                    max_length=150,
-                    min_length=50,
-                    do_sample=False,
-                    truncation=True
-                )
-                summaries.append(summary[0]['summary_text'])
-
-            except RuntimeError as e:
-                error_str = str(e)
-                if 'CUDA' in error_str or 'device-side assert' in error_str:
-                    logger.warning(f"CUDA error on chunk {i}, switching to CPU: {e}")
-                    reset_cuda()
-                    cuda_failed = True
-
-                    # Retry on CPU
-                    try:
-                        summarizer = get_summarizer(force_cpu=True)
-                        clean_chunk = sanitize_text_for_model(chunk)
-                        if clean_chunk and len(clean_chunk.split()) >= 30:
-                            summary = summarizer(
-                                clean_chunk,
-                                max_length=150,
-                                min_length=50,
-                                do_sample=False,
-                                truncation=True
-                            )
-                            summaries.append(summary[0]['summary_text'])
-                            console(user_id, f"Chunk {i+1} processed on CPU (fallback)")
-                    except Exception as cpu_error:
-                        logger.warning(f"CPU fallback also failed for chunk {i}: {cpu_error}")
-                else:
-                    logger.warning(f"Error summarizing chunk {i}: {e}")
-
-            except IndexError as e:
-                # "index out of range in self" - tokenizer issue
-                logger.warning(f"Tokenizer error on chunk {i}: {e}")
-                continue
-
-            except Exception as e:
-                logger.warning(f"Error summarizing chunk {i}: {e}")
-                continue
-
-        if not summaries:
-            # Fallback to transcript
+        if not result:
             result = format_audio_result(transcript, output_format, is_summary=False)
-        else:
-            combined = ' '.join(summaries)
-
-            # Final summarization if needed
-            if len(combined.split()) > max_length * 2:
-                try:
-                    clean_combined = sanitize_text_for_model(combined)
-                    if cuda_failed:
-                        summarizer = get_summarizer(force_cpu=True)
-
-                    final = summarizer(
-                        clean_combined,
-                        max_length=max_length,
-                        min_length=min(50, max_length // 2),
-                        do_sample=False,
-                        truncation=True
-                    )
-                    combined = final[0]['summary_text']
-                except RuntimeError as e:
-                    if 'CUDA' in str(e) or 'device-side assert' in str(e):
-                        logger.warning(f"CUDA error in final summary, trying CPU: {e}")
-                        reset_cuda()
-                        try:
-                            summarizer = get_summarizer(force_cpu=True)
-                            clean_combined = sanitize_text_for_model(combined)
-                            final = summarizer(
-                                clean_combined,
-                                max_length=max_length,
-                                min_length=min(50, max_length // 2),
-                                do_sample=False,
-                                truncation=True
-                            )
-                            combined = final[0]['summary_text']
-                        except:
-                            words = combined.split()[:max_length]
-                            combined = ' '.join(words) + '...'
-                    else:
-                        words = combined.split()[:max_length]
-                        combined = ' '.join(words) + '...'
-                except:
-                    words = combined.split()[:max_length]
-                    combined = ' '.join(words) + '...'
-
-            result = format_audio_result(combined, output_format, is_summary=True)
 
         set_progress(description, 90)
-
-        # Translate if needed - summarizers typically output English
-        if output_language == 'fr':
-            detected = detect_language(result)
-            console(user_id, f"Language detected: {detected}, requested: {output_language}")
-
-            if detected != 'fr':
-                console(user_id, "Translating to French...")
-                from .text_describer import translate_to_french
-                result = translate_to_french(result, console, user_id)
 
         console(user_id, "Audio description generated successfully")
         return result

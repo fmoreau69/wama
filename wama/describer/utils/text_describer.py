@@ -366,8 +366,10 @@ def describe_text(description, set_progress, set_partial, console):
         if output_format == 'meeting':
             console(user_id, "Génération du compte-rendu de réunion (Ollama)…")
             set_partial(description, "Rédaction du compte-rendu…")
-            from wama.common.utils.llm_utils import generate_meeting_summary
-            result = generate_meeting_summary(text, language=output_language)
+            from wama.common.utils.llm_utils import generate_meeting_summary, get_describer_model
+            _model = get_describer_model('text', 'meeting')
+            console(user_id, f"Modèle LLM : {_model}")
+            result = generate_meeting_summary(text, language=output_language, model=_model)
             set_partial(description, result[:500])
             return result
 
@@ -384,9 +386,12 @@ def describe_text(description, set_progress, set_partial, console):
         set_progress(description, 50)
 
         try:
-            from wama.common.utils.llm_utils import generate_structured_summary
+            from wama.common.utils.llm_utils import generate_structured_summary, get_describer_model
+            _model = get_describer_model('text', output_format)
+            console(user_id, f"Modèle LLM : {_model}")
             summary_data = generate_structured_summary(
                 text, content_hint='text', language=output_language or 'fr',
+                model=_model,
             )
             set_progress(description, 85)
 
