@@ -187,7 +187,35 @@ class ToolRegistry:
                 if arguments is not None:
                     add_call(tool_name, arguments)
 
+        # Format 6: DeepSeek Coder native tool call format
+        # <｜tool▁call▁begin｜>function<｜tool▁sep｜>tool_name\n```json\n{...}\n```
+        deepseek_pattern = (
+            r'<\uff5ctool\u2581call\u2581begin\uff5c>function'
+            r'<\uff5ctool\u2581sep\uff5c>(\w+)\s*'
+            r'```(?:json)?\s*(\{.*?\})\s*```'
+        )
+        for match in re.finditer(deepseek_pattern, response, re.DOTALL):
+            try:
+                add_call(match.group(1), json.loads(match.group(2)))
+            except json.JSONDecodeError:
+                continue
+
         return calls
+
+    @staticmethod
+    def strip_deepseek_tool_outputs(text: str) -> str:
+        """
+        Remove hallucinated tool output blocks from DeepSeek responses.
+        DeepSeek generates <｜tool▁outputs▁begin｜>...<｜tool▁outputs▁end｜>
+        in its responses — we strip these so they don't pollute the context.
+        """
+        # Remove everything from <｜tool▁outputs▁begin｜> to end (or to the closing tag)
+        cleaned = re.sub(
+            r'<\uff5ctool\u2581outputs\u2581begin\uff5c>.*?'
+            r'(?:<\uff5ctool\u2581outputs\u2581end\uff5c>|$)',
+            '', text, flags=re.DOTALL
+        ).strip()
+        return cleaned
 
     def _parse_function_args(self, args_str: str) -> Optional[Dict[str, Any]]:
         """Parse function-style arguments like: arg1="value1", arg2=123"""

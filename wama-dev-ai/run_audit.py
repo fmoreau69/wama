@@ -366,6 +366,9 @@ class AuditAgent:
                 options={"temperature": 0.3, "num_ctx": num_ctx},
             )
             response_text = raw["message"]["content"]
+            # Strip hallucinated DeepSeek <｜tool▁outputs▁begin｜>...<｜tool▁outputs▁end｜> blocks
+            # before parsing, so they don't pollute context or confuse the parser.
+            response_text = ToolRegistry.strip_deepseek_tool_outputs(response_text)
 
             if self.verbose:
                 print(f"\n[Round {rounds}] Model response:\n{response_text[:500]}...\n")
