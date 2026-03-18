@@ -215,7 +215,9 @@ class AuditAgent:
             self._system_prompt = (
                 "You are wama-dev-ai in AUDIT MODE. "
                 "Analyse the WAMA codebase read-only. "
-                "Write reports using write_report tool only."
+                "Available tools:\n{tools}\n"
+                "Call tools using: <tool_call>{\"name\": \"TOOL\", \"arguments\": {}}</tool_call>\n"
+                "Write reports using write_report tool only. Task: {task}"
             )
 
     def run(self, task: str) -> str:
@@ -226,8 +228,11 @@ class AuditAgent:
         if self.verbose:
             print(f"\n[Audit] Task: {task}\n")
 
-        # Inject task into system prompt
-        system = self._system_prompt.replace("{task}", task)
+        # Inject tools list and task into system prompt
+        tools_desc = self.tools.get_tools_description()
+        system = (self._system_prompt
+                  .replace("{tools}", tools_desc)
+                  .replace("{task}", task))
 
         model_id = self._model_cfg.ollama_id if self._model_cfg else "qwen3.5:9b"
 
