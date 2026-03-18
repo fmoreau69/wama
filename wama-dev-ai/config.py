@@ -406,8 +406,10 @@ WORKFLOWS = {
 import psutil
 from typing import Tuple
 
-# Memory safety margin (keep this much RAM free for OS and other processes)
-MEMORY_SAFETY_MARGIN_GB = 4.0
+# Memory safety margin (keep this much RAM free for OS and other processes).
+# 2 GiB is sufficient for audit/dev tasks — Ollama manages its own memory.
+# Was 4.0 GiB which was too conservative and blocked ultra_fast (4 GiB) at ~8 GiB available.
+MEMORY_SAFETY_MARGIN_GB = 2.0
 
 # Fallback chains: ordered list of model keys to try for each role
 # When a model doesn't fit in memory, try the next one in the chain
@@ -494,10 +496,10 @@ def select_model_for_role(
         elif verbose:
             print(f"[Model] Skipping {model_key}: needs {model.ram_required_gb:.1f} GiB")
 
-    # Last resort: find ANY model that fits
+    # Last resort: find ANY chat-capable model that fits (exclude embed models)
     fitting_models = [
         (key, cfg) for key, cfg in MODELS.items()
-        if cfg.ram_required_gb <= usable_mem
+        if cfg.ram_required_gb <= usable_mem and cfg.role != "embed"
     ]
 
     if fitting_models:
