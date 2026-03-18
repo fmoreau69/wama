@@ -36,6 +36,7 @@ os.chdir(PROJECT_DIR)
 
 from config import (
     BASE_DIR, OUTPUT_DIR, PROMPTS_DIR,
+    OLLAMA_HOST,
     select_model_for_role, get_memory_status,
     WAMA_BASE_URL, WAMA_USERNAME, WAMA_PASSWORD,
 )
@@ -112,6 +113,48 @@ class AuditToolRegistry(ToolRegistry):
 # =============================================================================
 # VRAM Pre-flight
 # =============================================================================
+
+def _free_ollama_models(ollama_host: str = OLLAMA_HOST, verbose: bool = True) -> bool:
+    """
+    Unload all models currently resident in Ollama (frees VRAM and RAM).
+    Uses Ollama's /api/ps endpoint to list loaded models, then sends
+    keep_alive=0 to each one to trigger immediate unloading.
+    """
+    try:
+        import requests
+
+        resp = requests.get(f"{ollama_host}/api/ps", timeout=5)
+        if resp.status_code != 200:
+            if verbose:
+                print(f"[Ollama] /api/ps returned {resp.status_code} — skipping unload")
+            return False
+
+        models = resp.json().get("models", [])
+        if not models:
+            if verbose:
+                print("[Ollama] No models currently loaded")
+            return True
+
+        for m in models:
+            name = m.get("name", "")
+            size_mb = m.get("size", 0) / (1024 ** 2)
+            vram_mb = m.get("size_vram", 0) / (1024 ** 2)
+            requests.post(
+                f"{ollama_host}/api/generate",
+                json={"model": name, "keep_alive": 0, "prompt": ""},
+                timeout=15,
+            )
+            if verbose:
+                print(f"[Ollama] Unloaded: {name} "
+                      f"(RAM {size_mb:.0f} MB / VRAM {vram_mb:.0f} MB)")
+
+        return True
+
+    except Exception as e:
+        if verbose:
+            print(f"[Ollama] Error unloading models: {e} — skipping")
+        return False
+
 
 def _free_wama_vram(base_url: str, username: str, password: str, verbose: bool = True) -> bool:
     """
@@ -348,7 +391,16 @@ def main():
     print(f"[wama-dev-ai] Audit mode — {datetime.now().strftime('%Y-%m-%d %H:%M')}")
     print(f"[wama-dev-ai] Outputs: {OUTPUT_DIR}")
 
-    # Free VRAM before model selection so the best available model can be chosen.
+    # Step 1: Unload all Ollama models from VRAM/RAM (Ollama keeps models resident
+    # by default for 5 min — this often occupies 2-8 GB that blocks the audit model).
+    if not args.no_free_vram:
+        print(f"[wama-dev-ai] Déchargement des modèles Ollama ({OLLAMA_HOST})…")
+        unloaded = _free_ollama_models(OLLAMA_HOST, verbose=True)
+        if unloaded:
+            import time
+            time.sleep(1)
+
+    # Step 2: Free WAMA GPU cache (PyTorch) via WAMA API.
     # Password: from WAMA_PASSWORD env var, or prompted interactively if username is known.
     wama_password = WAMA_PASSWORD
     if not args.no_free_vram and WAMA_USERNAME and not wama_password and verbose:
