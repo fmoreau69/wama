@@ -415,9 +415,9 @@ def main():
     )
     parser.add_argument(
         "--model", "-m",
-        default="architect",
-        choices=["dev", "debug", "architect", "fast", "ultra_fast"],
-        help="Model role to use (default: architect)",
+        default="audit",
+        choices=["audit", "dev", "debug", "architect", "fast", "ultra_fast"],
+        help="Model role to use (default: audit → gemma3:4b, non-thinking)",
     )
     parser.add_argument(
         "--non-interactive", "-n",

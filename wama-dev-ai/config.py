@@ -231,6 +231,20 @@ MODELS = {
     ),
 
     # -------------------------------------------------------------------------
+    # Audit / non-thinking models (safe for complex tool-use prompts)
+    # -------------------------------------------------------------------------
+    "gemma3_4b": ModelConfig(
+        name="Gemma 3 4B",
+        ollama_id="gemma3:4b",
+        description="Non-thinking 4B model — reliable for complex tool-use prompts (audit)",
+        context_length=128000,
+        temperature=0.3,
+        role="dev",
+        ram_required_gb=3.0,
+        priority=35,
+    ),
+
+    # -------------------------------------------------------------------------
     # Embeddings
     # -------------------------------------------------------------------------
     "embed": ModelConfig(
@@ -417,6 +431,8 @@ MODEL_FALLBACK_CHAINS = {
     "dev": ["dev", "coder", "fast", "ultra_fast"],
     "debug": ["debug", "fast", "ultra_fast"],
     "architect": ["architect", "orchestrator", "fast", "ultra_fast"],
+    # audit role: prefers non-thinking models (qwen3.5 crashes on complex prompts)
+    "audit": ["gemma3_4b", "fast", "ultra_fast"],
     "vision": ["vision", "vision_fast", "vision_lite"],
     "prompt": ["prompt_enricher_premium", "prompt_enricher"],
     "translate": ["translator", "prompt_enricher"],
