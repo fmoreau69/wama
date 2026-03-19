@@ -36,12 +36,22 @@ class AnalysisProfile(models.Model):
         ('segment', 'Segmentation'),
     ]
 
+    REPORT_TYPE_CHOICES = [
+        ('proximity_overtaking', 'Proximité & Dépassements'),
+        ('intersection_insertion', 'Insertions aux intersections'),
+    ]
+
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name='cam_analysis_profiles'
     )
     name = models.CharField(max_length=100)
+    report_type = models.CharField(
+        max_length=30,
+        choices=REPORT_TYPE_CHOICES,
+        default='proximity_overtaking',
+    )
     model_path = models.CharField(max_length=500)
     task_type = models.CharField(max_length=10, choices=TASK_CHOICES, default='detect')
     target_classes = models.JSONField(default=list)
@@ -164,6 +174,8 @@ class TemporalSegment(models.Model):
         CLOSE_FOLLOWING = 'close_following', 'Suivi rapproché'
         OVERTAKING = 'overtaking', 'Dépassement'
         CROSSING = 'crossing', 'Croisement'
+        INTERSECTION_STOP = 'intersection_stop', 'Arrêt intersection'
+        INSERTION_FRONT = 'insertion_front', 'Insertion devant navette'
         CUSTOM = 'custom', 'Personnalisé'
 
     session = models.ForeignKey(

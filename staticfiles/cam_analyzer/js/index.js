@@ -227,9 +227,13 @@ document.addEventListener('DOMContentLoaded', function () {
                 });
             }
 
-            // Set profile
+            // Set profile + update report type badge
             if (data.profile_id) {
                 profileSelect.value = data.profile_id;
+                const selectedOpt = profileSelect.options[profileSelect.selectedIndex];
+                setReportTypeBadge(selectedOpt ? selectedOpt.dataset.reportType : null);
+            } else {
+                setReportTypeBadge(null);
             }
 
             updatePlaybackControls();
@@ -1271,8 +1275,30 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
+    function getSelectedReportType() {
+        const checked = document.querySelector('input[name="reportType"]:checked');
+        return checked ? checked.value : 'proximity_overtaking';
+    }
+
+    function setReportTypeBadge(reportType) {
+        const badge = document.getElementById('reportTypeBadge');
+        if (!reportType || !profileSelect.value) {
+            badge.classList.add('d-none');
+            return;
+        }
+        const labels = {
+            'proximity_overtaking': { text: 'Proximité & Dépassements', cls: 'bg-info text-dark' },
+            'intersection_insertion': { text: 'Insertions', cls: 'bg-warning text-dark' },
+        };
+        const def = labels[reportType] || { text: reportType, cls: 'bg-secondary' };
+        badge.className = `badge ${def.cls}`;
+        badge.title = def.text;
+        badge.textContent = def.text;
+    }
+
     async function saveProfile() {
         const name = document.getElementById('profileName').value.trim();
+        const reportType = getSelectedReportType();
         const modelPath = document.getElementById('profileModel').value;
         const taskType = document.getElementById('profileTaskType').value;
         const confidence = parseFloat(document.getElementById('profileConfidence').value);
@@ -1301,7 +1327,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 },
                 body: JSON.stringify({
                     id: editingId,
-                    name, model_path: modelPath, task_type: taskType,
+                    name, report_type: reportType, model_path: modelPath, task_type: taskType,
                     target_classes: targetClasses, confidence, iou_threshold: iou, tracker,
                 }),
             });
@@ -1313,13 +1339,16 @@ document.addEventListener('DOMContentLoaded', function () {
                 let existing = profileSelect.querySelector(`option[value="${data.profile.id}"]`);
                 if (existing) {
                     existing.textContent = data.profile.name;
+                    existing.dataset.reportType = data.profile.report_type;
                 } else {
                     const opt = document.createElement('option');
                     opt.value = data.profile.id;
                     opt.textContent = data.profile.name;
+                    opt.dataset.reportType = data.profile.report_type;
                     profileSelect.appendChild(opt);
                 }
                 profileSelect.value = data.profile.id;
+                setReportTypeBadge(data.profile.report_type);
             } else {
                 alert('Erreur: ' + (data.error || 'Inconnue'));
             }
@@ -1387,6 +1416,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 const data = await resp.json();
                 const profile = (data.profiles || []).find(p => String(p.id) === String(selectedId));
                 if (profile) {
+                    // Report type radio
+                    const rtVal = profile.report_type || 'proximity_overtaking';
+                    const rtRadio = document.querySelector(`input[name="reportType"][value="${rtVal}"]`);
+                    if (rtRadio) rtRadio.checked = true;
+
                     document.getElementById('profileName').value = profile.name || '';
                     document.getElementById('profileModel').value = profile.model_path || '';
                     document.getElementById('profileTaskType').value = profile.task_type || 'detect';
@@ -1408,6 +1442,8 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         } else {
             // No profile selected: reset to defaults
+            const defaultRadio = document.querySelector('input[name="reportType"][value="proximity_overtaking"]');
+            if (defaultRadio) defaultRadio.checked = true;
             document.getElementById('profileName').value = '';
             document.getElementById('profileModel').value = '';
             document.getElementById('profileTaskType').value = 'detect';
@@ -1427,8 +1463,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
     closeResultsBtn.addEventListener('click', hideResults);
 
-    // Profile assignment: when profile changes, update session
+    // Profile assignment: when profile changes, update session + refresh badge
     profileSelect.addEventListener('change', async () => {
+        // Update badge immediately from option data-attribute
+        const selectedOpt = profileSelect.options[profileSelect.selectedIndex];
+        setReportTypeBadge(selectedOpt ? selectedOpt.dataset.reportType : null);
+
         if (!currentSessionId) return;
         try {
             const form = new FormData();

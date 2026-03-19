@@ -331,20 +331,43 @@ def _detect_crossing(session, camera, frames,
     return segments
 
 
+def _detect_intersection_insertion(session, camera, frames):
+    """
+    Stub — Détection d'insertions aux intersections.
+    Sera implémentée en Phase 2 de ce rapport :
+    - Véhicules à l'arrêt aux intersections (droite/gauche) quand la navette approche
+    - Détection si le véhicule s'insère devant la navette (même voie ou voie opposée)
+      ou attend que la navette soit passée
+    """
+    return []
+
+
 def detect_temporal_segments(session):
-    """Detect all temporal segments from DetectionFrame data."""
+    """Detect all temporal segments from DetectionFrame data.
+
+    The segment detection logic branches on the profile's report_type:
+    - 'proximity_overtaking' : suivi rapproché, dépassements, croisements (existant)
+    - 'intersection_insertion' : insertions aux intersections devant la navette
+    """
     from .models import TemporalSegment, DetectionFrame
 
     TemporalSegment.objects.filter(session=session).delete()
+
+    profile = session.profile
+    report_type = profile.report_type if profile else 'proximity_overtaking'
 
     segments = []
     for camera in session.cameras.all():
         frames = list(DetectionFrame.objects.filter(camera=camera).order_by('frame_number'))
         if not frames:
             continue
-        segments += _detect_close_following(session, camera, frames)
-        segments += _detect_overtaking(session, camera, frames)
-        segments += _detect_crossing(session, camera, frames)
+
+        if report_type == 'proximity_overtaking':
+            segments += _detect_close_following(session, camera, frames)
+            segments += _detect_overtaking(session, camera, frames)
+            segments += _detect_crossing(session, camera, frames)
+        elif report_type == 'intersection_insertion':
+            segments += _detect_intersection_insertion(session, camera, frames)
 
     if segments:
         TemporalSegment.objects.bulk_create(segments)

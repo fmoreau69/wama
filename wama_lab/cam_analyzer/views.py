@@ -625,6 +625,7 @@ def list_profiles(request):
     data = [{
         'id': p.id,
         'name': p.name,
+        'report_type': p.report_type,
         'model_path': p.model_path,
         'task_type': p.task_type,
         'target_classes': p.target_classes,
@@ -645,6 +646,7 @@ def save_profile(request):
 
         profile_id = data.get('id')
         name = data.get('name', '').strip()
+        report_type = data.get('report_type', 'proximity_overtaking')
         model_path = data.get('model_path', '')
         task_type = data.get('task_type', 'detect')
         target_classes = data.get('target_classes', [])
@@ -657,12 +659,17 @@ def save_profile(request):
         if not model_path:
             return JsonResponse({'success': False, 'error': 'Modèle requis'}, status=400)
 
+        valid_report_types = [r[0] for r in AnalysisProfile.REPORT_TYPE_CHOICES]
+        if report_type not in valid_report_types:
+            report_type = 'proximity_overtaking'
+
         if isinstance(target_classes, str):
             target_classes = json.loads(target_classes)
 
         if profile_id:
             profile = get_object_or_404(AnalysisProfile, pk=profile_id, user=request.user)
             profile.name = name
+            profile.report_type = report_type
             profile.model_path = model_path
             profile.task_type = task_type
             profile.target_classes = target_classes
@@ -674,6 +681,7 @@ def save_profile(request):
             profile = AnalysisProfile.objects.create(
                 user=request.user,
                 name=name,
+                report_type=report_type,
                 model_path=model_path,
                 task_type=task_type,
                 target_classes=target_classes,
@@ -687,6 +695,7 @@ def save_profile(request):
             'profile': {
                 'id': profile.id,
                 'name': profile.name,
+                'report_type': profile.report_type,
                 'model_path': profile.model_path,
                 'task_type': profile.task_type,
                 'target_classes': profile.target_classes,

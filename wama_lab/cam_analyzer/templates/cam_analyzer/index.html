@@ -24,9 +24,10 @@
             <select class="form-select form-select-sm bg-dark text-light border-secondary" id="profileSelect" style="width: 200px;">
                 <option value="">-- Profil d'analyse --</option>
                 {% for profile in profiles %}
-                <option value="{{ profile.id }}">{{ profile.name }}</option>
+                <option value="{{ profile.id }}" data-report-type="{{ profile.report_type }}">{{ profile.name }}</option>
                 {% endfor %}
             </select>
+            <span id="reportTypeBadge" class="badge d-none" title="Type de rapport actif"></span>
             <button class="btn btn-outline-info btn-sm" id="editProfileBtn" title="Configurer le profil">
                 <i class="fas fa-cog"></i>
             </button>
@@ -281,6 +282,35 @@ window.CAM_ANALYZER = {
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
+                <!-- Type de rapport — sélection principale -->
+                <div class="mb-4">
+                    <label class="form-label fw-semibold text-light">
+                        <i class="fas fa-file-alt me-1 text-info"></i> Type de rapport
+                    </label>
+                    <div class="row g-2" id="reportTypeSelector">
+                        <div class="col-6">
+                            <input type="radio" class="btn-check" name="reportType"
+                                   id="reportTypeProximity" value="proximity_overtaking" autocomplete="off" checked>
+                            <label class="btn btn-outline-info w-100 text-start p-3 h-100" for="reportTypeProximity">
+                                <div class="mb-1"><i class="fas fa-arrows-alt-h"></i></div>
+                                <div class="fw-semibold">Proximité & Dépassements</div>
+                                <div class="small text-muted mt-1">Suivi de distance, détection de dépassements et croisements</div>
+                            </label>
+                        </div>
+                        <div class="col-6">
+                            <input type="radio" class="btn-check" name="reportType"
+                                   id="reportTypeInsertion" value="intersection_insertion" autocomplete="off">
+                            <label class="btn btn-outline-warning w-100 text-start p-3 h-100" for="reportTypeInsertion">
+                                <div class="mb-1"><i class="fas fa-traffic-light"></i></div>
+                                <div class="fw-semibold">Insertions aux intersections</div>
+                                <div class="small text-muted mt-1">Véhicules s'insérant devant la navette aux carrefours</div>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <hr class="border-secondary my-3">
+
                 <div class="mb-3">
                     <label class="form-label">Nom du profil</label>
                     <input type="text" class="form-control bg-dark text-light border-secondary" id="profileName" placeholder="Mon profil">
