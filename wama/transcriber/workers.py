@@ -472,3 +472,57 @@ def transcribe_without_preprocessing(self, transcript_id: int):
 
     # Delegate to main task (Celery injects self automatically for bind=True)
     return transcribe(transcript_id)
+
+
+@shared_task(bind=True, name='wama.transcriber.enrich_transcript')
+def enrich_transcript(self, transcript_id: int, summary_type: str = 'structured'):
+    """
+    On-demand LLM enrichment of an already-transcribed item.
+
+    Runs generate_structured_summary or generate_meeting_summary on the
+    existing transcript text and saves the result without re-running STT.
+    """
+    close_old_connections()
+
+    try:
+        t = Transcript.objects.select_related('user').get(pk=transcript_id)
+    except Transcript.DoesNotExist:
+        return {'ok': False, 'error': f'Transcript {transcript_id} introuvable'}
+
+    if not t.text:
+        return {'ok': False, 'error': 'Pas de texte transcrit'}
+
+    user_id = t.user_id
+    lang = t.language or 'fr'
+
+    try:
+        push_console_line(user_id, f"[Transcriber] Enrichissement LLM — type: {summary_type}…", app='transcriber')
+        from wama.common.utils.llm_utils import (
+            generate_structured_summary, generate_meeting_summary,
+        )
+
+        if summary_type == 'meeting':
+            speakers = list(
+                TranscriptSegment.objects.filter(transcript=t)
+                .exclude(speaker_id='')
+                .values_list('speaker_id', flat=True)
+                .distinct()
+            )
+            t.summary = generate_meeting_summary(t.text, language=lang, speakers=speakers or None)
+            t.key_points = []
+            t.action_items = []
+        else:
+            summary_data = generate_structured_summary(
+                t.text, content_hint='transcription', language=lang,
+            )
+            t.summary = summary_data['summary']
+            t.key_points = summary_data['key_points']
+            t.action_items = summary_data['action_items']
+
+        t.save(update_fields=['summary', 'key_points', 'action_items'])
+        push_console_line(user_id, f"[Transcriber] Enrichissement terminé ✓", app='transcriber')
+        return {'ok': True}
+
+    except Exception as exc:
+        push_console_line(user_id, f"[Transcriber] Enrichissement échoué : {exc}", app='transcriber', level='error')
+        return {'ok': False, 'error': str(exc)}

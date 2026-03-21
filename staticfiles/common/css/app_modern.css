@@ -45,12 +45,17 @@ body > .container {
     padding-bottom: 20px !important;
 }
 
-/* Footer pleine largeur et toujours en bas */
+/* Footer pleine largeur et fixe en bas — défini dans filemanager.css */
+/* (redondance intentionnelle pour garantir position:fixed même hors contexte FileManager) */
 body > footer {
-    flex-shrink: 0;
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
     width: 100% !important;
+    height: 40px;
     margin: 0 !important;
-    padding: 0 !important;
+    z-index: 1030;
 }
 
 body > footer .container {
@@ -243,6 +248,13 @@ textarea {
 .drop-zone:hover i {
     transform: scale(1.1);
 }
+
+/* Compact drop zone — for right panel use */
+.drop-zone-sm {
+    padding: 14px 12px !important;
+    border-radius: 8px !important;
+}
+.drop-zone-sm h5, .drop-zone-sm p.mb-3 { display: none; }
 
 /*  === CARDS === */
 .card {

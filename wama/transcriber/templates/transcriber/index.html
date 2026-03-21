@@ -5,6 +5,75 @@
 
 {% block console_app_name %}transcriber{% endblock %}
 
+{# ── Right panel : médias ─────────────────────────────────────────────────── #}
+{% block app_right_panel_media %}
+<div class="drop-zone drop-zone-sm mb-2" id="dropZoneTranscriber">
+    <i class="fas fa-cloud-upload-alt text-primary"></i>
+    <p class="mb-0 small text-light mt-1">Glissez ou cliquez pour importer</p>
+    <small class="text-muted">MP3, WAV, FLAC, MP4, MKV…</small>
+    <input type="file" id="transcriber-file" multiple accept="audio/*,video/*" style="display:none">
+    <small class="text-muted d-block mt-1">
+        Batch ?
+        <a href="{% url 'transcriber:batch_template' %}" class="text-muted" id="batchTemplateLink" download>
+            <i class="fas fa-download"></i> Template
+        </a>
+    </small>
+</div>
+<!-- Batch detect bar (appears when a batch file is dropped) -->
+<div id="batchDetectBar" style="display:none; background:#0d1a1a; border:1px solid #0dcaf0; border-radius:0.375rem; padding:0.5rem 0.75rem; margin-bottom:0.5rem;">
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-1">
+        <span class="small text-light">
+            <i class="fas fa-list" style="color:#67e8f9;"></i>
+            <strong>Batch</strong> — <span id="batchDetectedCount">0</span> URL(s)
+        </span>
+        <div class="d-flex gap-1">
+            <button class="btn btn-sm py-0 px-2" style="background:#0dcaf0;color:#000;font-size:.8rem;" id="batchPreviewBtn">
+                <i class="fas fa-eye"></i> Voir
+            </button>
+            <button class="btn btn-sm btn-outline-danger py-0 px-1" id="batchCancelBar" title="Annuler">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    </div>
+    <div id="batchDetectPreview" style="display:none;">
+        <div id="batchDetectWarnings" class="alert alert-warning py-1 small mb-1" style="display:none;"></div>
+        <div class="table-responsive" style="max-height:140px; overflow-y:auto;">
+            <table class="table table-sm table-dark mb-0" style="font-size:0.78rem;">
+                <thead style="position:sticky; top:0; background:#0d1a1a;">
+                    <tr><th>URL / Chemin</th></tr>
+                </thead>
+                <tbody id="batchDetectTable"></tbody>
+            </table>
+        </div>
+        <div class="d-flex gap-2 mt-2">
+            <button class="btn btn-success btn-sm flex-grow-1" id="batchCreateAndStartBtn">
+                <i class="fas fa-play"></i> Démarrer (<span id="batchCreateCount">0</span>)
+            </button>
+            <button class="btn btn-outline-primary btn-sm" id="batchCreateOnlyBtn">
+                <i class="fas fa-plus"></i> Ajouter
+            </button>
+        </div>
+        <div id="batchCreateProgress" class="mt-2" style="display:none;">
+            <div class="progress">
+                <div class="progress-bar progress-bar-striped progress-bar-animated bg-info" style="width:100%;color:#000;">Création…</div>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="text-center text-muted my-2" style="font-size:0.72rem;">— ou depuis YouTube —</div>
+<div class="input-group input-group-sm">
+    <span class="input-group-text bg-dark border-secondary text-danger px-2">
+        <i class="fab fa-youtube"></i>
+    </span>
+    <input type="text" class="form-control bg-dark text-white border-secondary"
+           id="youtubeUrl" placeholder="https://youtube.com/watch?v=…">
+    <button class="btn btn-danger" type="button" id="youtubeSubmitBtn" title="Télécharger & Transcrire">
+        <i class="fas fa-download"></i>
+    </button>
+</div>
+{% endblock %}
+
+{# ── Right panel : paramètres ────────────────────────────────────────────── #}
 {% block app_right_panel_settings %}
 <!-- Backend Selection -->
 <div class="mb-3">
@@ -97,6 +166,12 @@
         data-bs-toggle="modal" data-bs-target="#preprocessingModal">
     <i class="fas fa-question-circle"></i> En savoir plus
 </button>
+
+<!-- Reset Button -->
+<hr class="border-secondary my-2">
+<button class="btn btn-outline-secondary btn-sm w-100" id="resetOptions">
+    <i class="fas fa-undo"></i> Réinitialiser
+</button>
 {% endblock %}
 
 {% block app_right_panel_actions %}
@@ -136,62 +211,23 @@
       userSettingsUrl: '{% url "transcriber:get_user_settings" %}',
       saveUserSettingsUrl: '{% url "transcriber:save_user_settings" %}',
       preprocessingEnabled: {{ preprocessing_enabled|yesno:"true,false" }},
+      batchPreviewUrl: '{% url "transcriber:batch_preview" %}',
+      batchCreateUrl: '{% url "transcriber:batch_create" %}',
+      batchTemplateUrl: '{% url "transcriber:batch_template" %}',
+      batchStartUrlTemplate: '{% url "transcriber:batch_start" 0 %}',
+      batchStatusUrlTemplate: '{% url "transcriber:batch_status" 0 %}',
+      batchDownloadUrlTemplate: '{% url "transcriber:batch_download" 0 %}',
+      batchDeleteUrlTemplate: '{% url "transcriber:batch_delete" 0 %}',
+      batchDuplicateUrlTemplate: '{% url "transcriber:batch_duplicate" 0 %}',
     });
 
     // Diarization is now always visible (uses pyannote, backend-agnostic)
 </script>
-<script src="{% static 'common/js/media-preview.js' %}"></script>
 <script src="{% static 'transcriber/js/index.js' %}"></script>
 {% endblock %}
 
 {% block transcriber_content %}
-
-<!-- Drag & Drop Zone -->
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="drop-zone" id="dropZoneTranscriber">
-            <i class="fas fa-cloud-upload-alt fa-3x mb-3 text-primary"></i>
-            <h5>Glissez-déposez vos fichiers audio/vidéo ici</h5>
-            <p class="text-light mb-3">ou cliquez pour parcourir</p>
-            <p class="small text-white-50">
-                Audio: MP3, WAV, FLAC, M4A, OGG<br>
-                Vidéo: MP4, AVI, MKV, MOV, WEBM
-            </p>
-            <input type="file" id="transcriber-file" multiple accept="audio/*,video/*" style="display: none;">
-            <button class="btn btn-primary mt-2" id="transcriber-browse-btn">
-                <i class="fas fa-folder-open"></i> Parcourir
-            </button>
-        </div>
-    </div>
-</div>
-
-<!-- YouTube URL Input -->
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="card" style="background: #212529; border: 1px solid #495057;">
-            <div class="card-body">
-                <h6 class="text-light mb-3">
-                    <i class="fab fa-youtube text-danger"></i> Transcrire depuis YouTube
-                </h6>
-                <div class="input-group">
-                    <input type="text"
-                           class="form-control"
-                           id="youtubeUrl"
-                           placeholder="Collez l'URL de la vidéo YouTube ici..."
-                           aria-label="YouTube URL">
-                    <button class="btn btn-danger" type="button" id="youtubeSubmitBtn">
-                        <i class="fas fa-download"></i> Télécharger & Transcrire
-                    </button>
-                </div>
-                <small class="text-white-50 mt-2 d-block">
-                    Exemple: https://www.youtube.com/watch?v=dQw4w9WgXcQ
-                </small>
-            </div>
-        </div>
-    </div>
-</div>
-
-<hr>
+<div style="overflow-x:hidden;">
 
 <!-- Live Transcription Section -->
 <div class="row mb-4">
@@ -247,22 +283,34 @@
     <div class="col-12">
         <h4 class="mb-3">
             <i class="fas fa-list"></i> File d'attente
-            <span class="badge bg-info" id="queueCount">{{ transcripts|length }}</span>
+            <span class="badge bg-info" id="queueCount">{{ queue_count }}</span>
         </h4>
 
         <div id="transcriptQueue">
-            {% for t in transcripts %}
+            {% for batch_info in batches_list %}
+
+            {% if batch_info.obj.total == 1 %}
+            <!-- Single-item batch: render as standalone card -->
+            {% for item in batch_info.items %}{% if item.transcript %}
+            {% with t=item.transcript %}
             <div class="synthesis-card {% if t.status == 'RUNNING' %}processing{% elif t.status == 'SUCCESS' %}success{% elif t.status == 'FAILURE' %}error{% endif %}"
                  data-id="{{ t.id }}" data-status="{{ t.status }}">
                 <div class="row align-items-center">
                     <!-- File Info -->
                     <div class="col-md-3">
+                        {% if t.audio %}
                         <button type="button" class="btn btn-link p-0 text-decoration-none preview-media-link filename"
                                 data-preview-url="{% url 'common:unified_preview' 'transcriber' t.id %}"
                                 style="color: inherit;">
                             <i class="fas fa-file-audio"></i>
                             {{ t.filename }}
                         </button>
+                        {% else %}
+                        <span class="filename text-light">
+                            <i class="fas fa-link"></i>
+                            {{ t.source_url|truncatechars:40 }}
+                        </span>
+                        {% endif %}
                         <br>
                         <small class="text-white-50">
                             {{ t.duration_display|default:"--:--" }}
@@ -345,16 +393,27 @@
                                     title="Voir le résultat">
                                 <i class="fas fa-eye"></i>
                             </button>
-                            <a href="{% url 'transcriber:download' t.id %}"
-                               class="btn btn-sm btn-info download-txt-btn"
-                               title="Télécharger TXT">
-                                <i class="fas fa-file-alt"></i>
-                            </a>
-                            <a href="{% url 'transcriber:download_srt' t.id %}"
-                               class="btn btn-sm btn-info download-srt-btn"
-                               title="Télécharger SRT">
-                                <i class="fas fa-closed-captioning"></i>
-                            </a>
+                            <div class="btn-group btn-group-sm">
+                                <a href="{% url 'transcriber:download' t.id %}?format=txt"
+                                   class="btn btn-outline-info download-txt-btn" title="Télécharger TXT">
+                                    <i class="fas fa-download"></i>
+                                </a>
+                                <button type="button" class="btn btn-outline-info dropdown-toggle dropdown-toggle-split"
+                                        data-bs-toggle="dropdown" aria-expanded="false">
+                                    <span class="visually-hidden">Autres formats</span>
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end">
+                                    <li><a class="dropdown-item" href="{% url 'transcriber:download' t.id %}?format=txt">
+                                        <i class="fas fa-file-alt me-2"></i>TXT</a></li>
+                                    <li><a class="dropdown-item" href="{% url 'transcriber:download' t.id %}?format=srt">
+                                        <i class="fas fa-closed-captioning me-2"></i>SRT</a></li>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li><a class="dropdown-item" href="{% url 'transcriber:download' t.id %}?format=pdf">
+                                        <i class="fas fa-file-pdf me-2 text-danger"></i>PDF</a></li>
+                                    <li><a class="dropdown-item" href="{% url 'transcriber:download' t.id %}?format=docx">
+                                        <i class="fas fa-file-word me-2 text-primary"></i>DOCX</a></li>
+                                </ul>
+                            </div>
                             {% endif %}
 
                             <button class="btn btn-sm btn-outline-info duplicate-btn"
@@ -371,6 +430,140 @@
                     </div>
                 </div>
             </div>
+            {% endwith %}
+            {% endif %}{% endfor %}
+
+            {% else %}
+            <!-- Multi-item batch: collapsible group -->
+            <div class="batch-group mb-2" data-batch-id="{{ batch_info.obj.id }}">
+                <div class="batch-group-header d-flex align-items-center gap-2 p-2"
+                     style="background:#0d1a1a; border:1px solid #0dcaf0; border-radius:0.375rem;">
+                    <div class="d-flex align-items-center gap-2 flex-grow-1"
+                         style="cursor:pointer; user-select:none; min-width:0;"
+                         data-bs-toggle="collapse"
+                         data-bs-target="#batchItems{{ batch_info.obj.id }}"
+                         aria-expanded="true">
+                        <i class="fas fa-layer-group" style="color:#67e8f9;"></i>
+                        <strong class="text-light">Batch #{{ batch_info.obj.id }}</strong>
+                        <small class="text-muted">{{ batch_info.obj.created_at|date:"d/m H:i" }}</small>
+                        <span class="badge bg-secondary">{{ batch_info.success_count }}/{{ batch_info.obj.total }}</span>
+                        <div class="flex-grow-1">
+                            <div class="progress" style="height:4px; background:rgba(255,255,255,0.1);">
+                                <div class="progress-bar" style="background:#0dcaf0; width:{{ batch_info.success_pct }}%;"></div>
+                            </div>
+                        </div>
+                        <i class="fas fa-chevron-down text-muted" style="font-size:.7rem;"></i>
+                    </div>
+                    <div class="d-flex gap-1 flex-shrink-0">
+                        {% if batch_info.has_success %}
+                        <a href="{% url 'transcriber:batch_download' batch_info.obj.id %}"
+                           class="btn btn-sm btn-outline-info py-0 px-2" style="font-size:.75rem;" title="Télécharger ZIP">
+                            <i class="fas fa-download"></i> ZIP
+                        </a>
+                        {% endif %}
+                        <button class="btn btn-sm batch-duplicate-btn py-0 px-2"
+                                data-batch-id="{{ batch_info.obj.id }}"
+                                style="background:rgba(13,202,240,0.15); color:#0dcaf0; border:1px solid #0dcaf0; font-size:.75rem;"
+                                title="Dupliquer le batch">
+                            <i class="fas fa-copy"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger batch-delete-btn py-0 px-2"
+                                data-batch-id="{{ batch_info.obj.id }}"
+                                style="font-size:.75rem;" title="Supprimer le batch">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="collapse show" id="batchItems{{ batch_info.obj.id }}"
+                     style="border-left:2px solid #0dcaf0; margin-left:0.75rem;">
+                    {% for item in batch_info.items %}{% if item.transcript %}
+                    {% with t=item.transcript %}
+                    <div class="synthesis-card {% if t.status == 'RUNNING' %}processing{% elif t.status == 'SUCCESS' %}success{% elif t.status == 'FAILURE' %}error{% endif %}"
+                         data-id="{{ t.id }}">
+                        <div class="row align-items-center">
+                            <div class="col-md-4">
+                                {% if t.audio %}
+                                <span class="filename text-light">
+                                    <i class="fas fa-file-audio"></i>
+                                    {{ t.filename }}
+                                </span>
+                                {% else %}
+                                <span class="filename text-light">
+                                    <i class="fas fa-link"></i>
+                                    {{ t.source_url|truncatechars:50 }}
+                                </span>
+                                {% endif %}
+                                <br>
+                                <small class="text-white-50">{{ t.duration_display|default:"" }}</small>
+                            </div>
+                            <div class="col-md-3">
+                                {% if t.text %}
+                                <small class="text-light result-preview" style="max-height:40px; overflow:hidden; display:block;">
+                                    {{ t.text|truncatechars:100 }}
+                                </small>
+                                {% else %}
+                                <small class="text-white-50 result-preview">En attente…</small>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-2">
+                                <span class="badge status-badge
+                                    {% if t.status == 'PENDING' %}bg-secondary
+                                    {% elif t.status == 'RUNNING' %}bg-warning
+                                    {% elif t.status == 'SUCCESS' %}bg-success
+                                    {% elif t.status == 'FAILURE' %}bg-danger
+                                    {% endif %}">
+                                    {{ t.status }}
+                                </span>
+                                <div class="progress mt-1" style="height:6px;">
+                                    <div class="progress-bar bg-info progress-fill" style="width: {{ t.progress }}%"></div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="btn-group-actions">
+                                    {% if t.status != 'RUNNING' %}
+                                    <button class="btn btn-sm btn-primary start-btn" data-id="{{ t.id }}" title="Démarrer">
+                                        <i class="fas fa-play"></i>
+                                    </button>
+                                    {% endif %}
+                                    {% if t.status == 'SUCCESS' %}
+                                    <button class="btn btn-sm btn-success preview-btn" data-id="{{ t.id }}" title="Voir">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                    <div class="btn-group btn-group-sm">
+                                        <a href="{% url 'transcriber:download' t.id %}?format=txt"
+                                           class="btn btn-outline-info" title="Télécharger TXT">
+                                            <i class="fas fa-download"></i>
+                                        </a>
+                                        <button type="button" class="btn btn-outline-info dropdown-toggle dropdown-toggle-split"
+                                                data-bs-toggle="dropdown" aria-expanded="false">
+                                            <span class="visually-hidden">Autres formats</span>
+                                        </button>
+                                        <ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end">
+                                            <li><a class="dropdown-item" href="{% url 'transcriber:download' t.id %}?format=txt">
+                                                <i class="fas fa-file-alt me-2"></i>TXT</a></li>
+                                            <li><a class="dropdown-item" href="{% url 'transcriber:download' t.id %}?format=srt">
+                                                <i class="fas fa-closed-captioning me-2"></i>SRT</a></li>
+                                            <li><hr class="dropdown-divider"></li>
+                                            <li><a class="dropdown-item" href="{% url 'transcriber:download' t.id %}?format=pdf">
+                                                <i class="fas fa-file-pdf me-2 text-danger"></i>PDF</a></li>
+                                            <li><a class="dropdown-item" href="{% url 'transcriber:download' t.id %}?format=docx">
+                                                <i class="fas fa-file-word me-2 text-primary"></i>DOCX</a></li>
+                                        </ul>
+                                    </div>
+                                    {% endif %}
+                                    <button class="btn btn-sm btn-danger delete-btn" data-id="{{ t.id }}" title="Supprimer">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endwith %}
+                    {% endif %}{% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
             {% empty %}
             <div class="text-center py-5 empty-queue">
                 <i class="fas fa-inbox fa-3x mb-3 text-white-50"></i>
@@ -382,6 +575,7 @@
     </div>
 </div>
 
+</div>{# /overflow-x:hidden #}
 {% endblock %}
 
 {% block extra_modals %}
@@ -615,4 +809,5 @@
         </div>
     </div>
 </div>
+
 {% endblock %}

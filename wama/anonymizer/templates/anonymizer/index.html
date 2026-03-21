@@ -6,6 +6,32 @@
 
 {% block console_app_name %}anonymizer{% endblock %}
 
+{# ── Right panel : médias ─────────────────────────────────────────────────── #}
+{% block app_right_panel_media %}
+<div class="drop-zone drop-zone-sm" id="dropZoneAnonymizer">
+    <i class="fas fa-cloud-upload-alt text-primary"></i>
+    <p class="mb-0 small text-light mt-1">Glissez ou cliquez pour importer</p>
+    <small class="text-muted">JPG, PNG, MP4, AVI, MKV…</small>
+    <input id="fileupload" type="file" name="file" multiple
+           accept="image/*,video/*"
+           style="display:none"
+           data-url="{% url 'anonymizer:upload' %}"
+           data-form-data='{"csrfmiddlewaretoken": "{{ csrf_token }}"}'>
+</div>
+<div class="text-center text-muted my-2" style="font-size:0.72rem;">— ou depuis une URL —</div>
+<form id="media-url-form" method="post" action="{% url 'anonymizer:upload' %}">
+    {% csrf_token %}
+    <div class="input-group input-group-sm">
+        <input type="text" class="form-control bg-dark text-white border-secondary"
+               id="media_url" name="media_url" placeholder="https://… ou YouTube">
+        <button class="btn btn-primary" type="submit" title="Télécharger">
+            <i class="fas fa-download"></i>
+        </button>
+    </div>
+</form>
+{% endblock %}
+
+{# ── Right panel : paramètres ────────────────────────────────────────────── #}
 {% block app_right_panel_settings %}
 <!-- CSRF Token for AJAX -->
 <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
@@ -253,8 +279,8 @@
 </div>
 
 <!-- Reset Button -->
-<button type="button" id="reset-global-settings-btn" class="btn btn-outline-danger btn-sm w-100 mt-2">
-    <i class="fas fa-rotate-left"></i> Reset parametres
+<button type="button" id="reset-global-settings-btn" class="btn btn-outline-secondary btn-sm w-100 mt-2">
+    <i class="fas fa-undo"></i> Réinitialiser
 </button>
 
 {% endblock %}
@@ -293,66 +319,13 @@
 {% endblock %}
 
 {% block anonymizer_content %}
-
-<!-- Upload Zone -->
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="drop-zone" id="dropZoneAnonymizer">
-            <i class="fas fa-cloud-upload-alt fa-3x mb-3 text-primary"></i>
-            <h5 class="text-light">Glissez-déposez vos fichiers photo/vidéo ici</h5>
-            <p class="text-light mb-3">ou cliquez pour parcourir</p>
-            <p class="small text-white-50">
-                Photo: JPG, PNG, GIF, BMP, WEBP<br>
-                Vidéo: MP4, AVI, MKV, MOV, WEBM
-            </p>
-            <input id="fileupload" type="file" name="file" multiple
-                   accept="image/*,video/*"
-                   style="display: none;"
-                   data-url="{% url 'anonymizer:upload' %}"
-                   data-form-data='{"csrfmiddlewaretoken": "{{ csrf_token }}"}'>
-            <button type="button" class="btn btn-primary mt-2 js-upload-medias">
-                <i class="fas fa-folder-open"></i> Parcourir
-            </button>
-        </div>
-    </div>
-</div>
-
-<!-- URL Upload Section -->
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="card bg-dark border-secondary">
-            <div class="card-body">
-                <h6 class="text-light mb-3">
-                    <i class="fas fa-link"></i> Télécharger depuis une URL
-                </h6>
-                <form id="media-url-form" method="post" enctype="multipart/form-data" action="{% url 'anonymizer:upload' %}">
-                    {% csrf_token %}
-                    <div class="input-group">
-                        <input type="text"
-                               class="form-control bg-dark text-white border-secondary"
-                               id="media_url"
-                               name="media_url"
-                               placeholder="Collez l'URL de la photo/vidéo ici..."
-                               aria-label="Media URL">
-                        <button class="btn btn-primary" type="submit">
-                            <i class="fas fa-download"></i> Télécharger
-                        </button>
-                    </div>
-                    <small class="text-white-50 mt-2 d-block">
-                        Exemple: https://example.com/video.mp4 ou lien YouTube
-                    </small>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
-
-<hr class="border-secondary">
+<div style="overflow-x:hidden;">
 
 <!-- Main Content Container -->
 <div id="main_container">
     {% include "anonymizer/upload/content.html" %}
 </div>
+</div>{# /overflow-x:hidden #}
 {% endblock %}
 
 {% block extra_modals %}
@@ -478,4 +451,5 @@
         </div>
     </div>
 </div>
+
 {% endblock %}

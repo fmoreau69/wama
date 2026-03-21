@@ -5,6 +5,107 @@
 
 {% block console_app_name %}synthesizer{% endblock %}
 
+{# ── Right panel : médias ─────────────────────────────────────────────────── #}
+{% block app_right_panel_media %}
+<!-- Zone d'import batch -->
+<div class="drop-zone drop-zone-sm mb-2" id="dropZoneSynthesizer"
+     data-upload-url="{% url 'synthesizer:upload' %}" data-csrf-token="{{ csrf_token }}">
+    <i class="fas fa-file-upload text-primary"></i>
+    <p class="mb-0 small text-light mt-1">Glissez ou cliquez — fichier batch</p>
+    <small class="text-muted">TXT · PDF · DOCX · CSV · MD</small>
+    <input type="file" id="fileInput" multiple accept=".txt,.pdf,.docx,.csv,.md" style="display:none">
+    <small class="text-muted d-block mt-1">
+        Batch ?
+        <a href="{% url 'synthesizer:batch_template' %}" class="text-muted" download>
+            <i class="fas fa-download"></i> Template
+        </a>
+    </small>
+</div>
+<!-- Batch detect bar -->
+<div id="batchDetectBar" style="display:none; background:#1a1520; border:1px solid #6f42c1; border-radius:0.375rem; padding:0.5rem 0.75rem; margin-bottom:0.5rem;">
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-1 mb-1">
+        <span class="small text-light">
+            <i class="fas fa-magic" style="color:#a78bfa;"></i>
+            <strong>Batch</strong> — <span id="batchDetectedCount">0</span> tâche(s)
+        </span>
+        <div class="d-flex gap-1">
+            <button class="btn btn-sm py-0 px-2" style="background:#6f42c1;color:#fff;font-size:.8rem;" id="batchConfirmBatchBtn">
+                <i class="fas fa-layer-group"></i> Voir
+            </button>
+            <button class="btn btn-sm btn-outline-secondary py-0 px-2" style="font-size:.8rem;" id="batchConfirmIndividualBtn">
+                <i class="fas fa-file-alt"></i> Individuel
+            </button>
+            <button class="btn btn-sm btn-outline-danger py-0 px-1" id="batchCancelBar" title="Annuler">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    </div>
+    <div id="batchDetectPreview" style="display:none;">
+        <div id="batchDetectWarnings" class="alert alert-warning py-1 small mb-1" style="display:none;"></div>
+        <div class="table-responsive" style="max-height:140px; overflow-y:auto;">
+            <table class="table table-sm table-dark mb-0" style="font-size:0.78rem;">
+                <thead style="position:sticky; top:0; background:#1a1520;">
+                    <tr>
+                        <th style="width:30%">Fichier</th>
+                        <th>Texte</th>
+                        <th style="width:12%">Voix</th>
+                        <th style="width:8%">Vit.</th>
+                    </tr>
+                </thead>
+                <tbody id="batchDetectTable"></tbody>
+            </table>
+        </div>
+        <div class="d-flex gap-2 mt-2">
+            <button class="btn btn-success btn-sm flex-grow-1" id="batchCreateAndStartBtn">
+                <i class="fas fa-play"></i> Démarrer (<span id="batchCreateCount">0</span>)
+            </button>
+            <button class="btn btn-outline-primary btn-sm" id="batchCreateOnlyBtn">
+                <i class="fas fa-plus"></i> Ajouter
+            </button>
+        </div>
+        <div id="batchCreateProgress" class="mt-2" style="display:none;">
+            <div class="progress">
+                <div class="progress-bar progress-bar-striped progress-bar-animated" style="width:100%;">Création…</div>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- Saisie texte directe -->
+<div class="mb-2">
+    <form id="textInputForm">
+        {% csrf_token %}
+        <input type="text" class="form-control form-control-sm mb-2" id="textTitle" name="title"
+               placeholder="Titre (optionnel)">
+        <textarea class="form-control form-control-sm mb-2" id="textContent" name="text_content" rows="3"
+                  placeholder="Texte à synthétiser…"></textarea>
+        <div class="d-flex gap-1">
+            <button type="button" class="btn btn-info btn-sm flex-fill" id="previewTextBtn">
+                <i class="fas fa-play-circle"></i> Preview
+            </button>
+            <button type="submit" class="btn btn-success btn-sm flex-fill" id="submitTextBtn">
+                <i class="fas fa-plus-circle"></i> Ajouter
+            </button>
+        </div>
+        <div id="previewAudioContainer" class="mt-2" style="display:none;">
+            <audio id="previewAudioPlayer" controls class="w-100 mt-1">
+                <source src="" type="audio/wav">
+            </audio>
+        </div>
+        <div id="previewLoader" class="mt-2" style="display:none;">
+            <div class="text-center">
+                <div class="spinner-border spinner-border-sm text-info" role="status"></div>
+                <small class="text-muted ms-1">Génération…</small>
+            </div>
+            <div class="progress mt-1" style="height:6px;">
+                <div id="previewProgress" class="progress-bar progress-bar-striped progress-bar-animated" style="width:0%"></div>
+            </div>
+            <small id="previewStatus" class="text-muted d-block text-center">Préparation…</small>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{# ── Right panel : paramètres ────────────────────────────────────────────── #}
 {% block app_right_panel_settings %}
 <!-- TTS Model -->
 <div class="mb-3">
@@ -142,167 +243,7 @@
 {% endblock %}
 
 {% block synthesizer_content %}
-
-<!-- Upload Zone -->
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="drop-zone" id="dropZoneSynthesizer" data-upload-url="{% url 'synthesizer:upload' %}" data-csrf-token="{{ csrf_token }}">
-            <i class="fas fa-file-upload fa-3x mb-3 text-primary"></i>
-            <h5>Glissez-déposez vos fichiers texte ici</h5>
-            <p class="text-light mb-3">ou cliquez pour parcourir</p>
-            <p class="small text-white-50">
-                Formats supportés: TXT, PDF, DOCX, CSV, MD
-            </p>
-            <input type="file" id="fileInput" multiple accept=".txt,.pdf,.docx,.csv,.md"
-                   style="display: none;">
-            <button class="btn btn-primary mt-2" id="browseBtn">
-                <i class="fas fa-folder-open"></i> Parcourir
-            </button>
-            <div class="mt-1">
-                <small class="text-white-50">
-                    Fichier batch ?
-                    <a href="{% url 'synthesizer:batch_template' %}" class="text-white-50" download>
-                        <i class="fas fa-download"></i> Template
-                    </a>
-                </small>
-            </div>
-        </div>
-
-        <!-- Batch detect bar — appears automatically when a batch file is dropped -->
-        <div id="batchDetectBar" style="display:none; margin-top:0.5rem; background:#1a1520; border:1px solid #6f42c1; border-radius:0.375rem; padding:0.5rem 0.75rem;">
-            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-1">
-                <span class="small text-light">
-                    <i class="fas fa-magic" style="color:#a78bfa;"></i>
-                    <strong>Fichier batch détecté</strong> —
-                    <span id="batchDetectedCount">0</span> tâche(s)
-                </span>
-                <div class="d-flex gap-1">
-                    <button class="btn btn-sm py-0 px-2" style="background:#6f42c1;color:#fff;font-size:.8rem;"
-                            id="batchConfirmBatchBtn">
-                        <i class="fas fa-layer-group"></i> Voir le batch
-                    </button>
-                    <button class="btn btn-sm btn-outline-secondary py-0 px-2" style="font-size:.8rem;"
-                            id="batchConfirmIndividualBtn">
-                        <i class="fas fa-file-alt"></i> Synthèse individuelle
-                    </button>
-                    <button class="btn btn-sm btn-outline-danger py-0 px-1" id="batchCancelBar" title="Annuler">
-                        <i class="fas fa-times"></i>
-                    </button>
-                </div>
-            </div>
-
-            <!-- Preview table + actions (shown after "Voir le batch") -->
-            <div id="batchDetectPreview" style="display:none;">
-                <div id="batchDetectWarnings" class="alert alert-warning py-1 small mb-1" style="display:none;"></div>
-                <div class="table-responsive" style="max-height:180px; overflow-y:auto;">
-                    <table class="table table-sm table-dark mb-0" style="font-size:0.78rem;">
-                        <thead style="position:sticky; top:0; background:#1a1520;">
-                            <tr>
-                                <th style="width:25%">Fichier de sortie</th>
-                                <th>Texte</th>
-                                <th style="width:14%">Voix</th>
-                                <th style="width:8%">Vitesse</th>
-                            </tr>
-                        </thead>
-                        <tbody id="batchDetectTable"></tbody>
-                    </table>
-                </div>
-                <div class="d-flex gap-2 mt-2">
-                    <button class="btn btn-success btn-sm flex-grow-1" id="batchCreateAndStartBtn">
-                        <i class="fas fa-play"></i> Créer et démarrer (<span id="batchCreateCount">0</span>)
-                    </button>
-                    <button class="btn btn-primary btn-sm" id="batchCreateOnlyBtn">
-                        <i class="fas fa-plus"></i> Créer seulement
-                    </button>
-                </div>
-                <div id="batchCreateProgress" class="mt-2" style="display:none;">
-                    <div class="progress">
-                        <div class="progress-bar progress-bar-striped progress-bar-animated"
-                             style="width:100%;">Création en cours…</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Text Input Zone -->
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="card" style="background: #212529; border: 1px solid #495057;">
-            <div class="card-body">
-                <h6 class="text-light mb-3">
-                    <i class="fas fa-keyboard"></i> Saisir du texte directement
-                </h6>
-                <form id="textInputForm">
-                    {% csrf_token %}
-                    <div class="mb-3">
-                        <label for="textTitle" class="form-label text-light">Titre (optionnel)</label>
-                        <input type="text" class="form-control" id="textTitle" name="title"
-                               placeholder="Mon texte à synthétiser">
-                    </div>
-                    <div class="mb-3">
-                        <label for="textContent" class="form-label text-light">Texte à synthétiser</label>
-                        <textarea class="form-control" id="textContent" name="text_content" rows="5"
-                                  placeholder="Entrez votre texte ici..."></textarea>
-                        <small class="text-white-50 mt-1 d-block">
-                            Le texte sera converti en fichier DOCX et ajouté à la file d'attente
-                        </small>
-                    </div>
-                    <div class="btn-group" role="group">
-                        <button type="button" class="btn btn-info" id="previewTextBtn">
-                            <i class="fas fa-play-circle"></i> Preview
-                        </button>
-                        <button type="submit" class="btn btn-success" id="submitTextBtn">
-                            <i class="fas fa-plus-circle"></i> Ajouter à la file d'attente
-                        </button>
-                    </div>
-                    <div id="previewAudioContainer" class="mt-3" style="display: none;">
-                        <div class="card" style="background: #1a1d20; border: 1px solid #495057;">
-                            <div class="card-body">
-                                <h6 class="text-light mb-2">
-                                    <i class="fas fa-volume-up"></i> Aperçu de la synthèse vocale
-                                </h6>
-                                <audio id="previewAudioPlayer" controls class="w-100">
-                                    <source src="" type="audio/wav">
-                                    Votre navigateur ne supporte pas l'élément audio.
-                                </audio>
-                                <small class="text-white-50 mt-2 d-block">
-                                    <i class="fas fa-info-circle"></i> Ceci est un aperçu utilisant les paramètres actuels
-                                </small>
-                            </div>
-                        </div>
-                    </div>
-                    <div id="previewLoader" class="mt-3" style="display: none;">
-                        <div class="card" style="background: #1a1d20; border: 1px solid #495057;">
-                            <div class="card-body">
-                                <div class="text-center mb-3">
-                                    <div class="spinner-border text-info" role="status">
-                                        <span class="visually-hidden">Génération en cours...</span>
-                                    </div>
-                                </div>
-                                <div class="mb-2">
-                                    <small class="text-white-50">
-                                        <i class="fas fa-stream"></i> Génération en streaming...
-                                    </small>
-                                </div>
-                                <div class="progress" style="height: 20px; background: rgba(255,255,255,0.1);">
-                                    <div id="previewProgress" class="progress-bar progress-bar-striped progress-bar-animated"
-                                         role="progressbar" style="width: 0%;">0%</div>
-                                </div>
-                                <div id="previewStatus" class="mt-2 small text-light text-center">
-                                    Préparation...
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
-
-<hr class="border-secondary">
+<div style="overflow-x:hidden;">
 
 <!-- Global Progress Bar -->
 <div class="row mb-3">
@@ -428,6 +369,7 @@
     </div>
 </div>
 
+</div>{# /overflow-x:hidden #}
 {% endblock %}
 
 {% block extra_modals %}
@@ -973,4 +915,5 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 });
 </script>
+
 {% endblock %}

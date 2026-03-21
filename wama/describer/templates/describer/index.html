@@ -5,6 +5,77 @@
 
 {% block console_app_name %}describer{% endblock %}
 
+{# ── Right panel : médias ─────────────────────────────────────────────────── #}
+{% block app_right_panel_media %}
+<div class="drop-zone drop-zone-sm mb-2" id="dropZone">
+    <i class="fas fa-cloud-upload-alt text-info"></i>
+    <p class="mb-0 small text-light mt-1">Glissez ou cliquez pour importer</p>
+    <small class="text-muted">Images · Vidéos · PDF · DOCX…</small>
+    <input type="file" id="fileInput" multiple
+           accept="image/*,video/*,audio/*,.pdf,.docx,.txt,.md,.csv"
+           style="display:none">
+    <small class="text-muted d-block mt-1">
+        Batch ?
+        <a href="{% url 'describer:batch_template' %}" class="text-muted" id="batchTemplateLink" download>
+            <i class="fas fa-download"></i> Template
+        </a>
+    </small>
+</div>
+<!-- Batch detect bar (appears when batch file dropped) -->
+<div id="batchDetectBar" style="display:none; background:#1a1520; border:1px solid #0dcaf0; border-radius:0.375rem; padding:0.5rem 0.75rem; margin-bottom:0.5rem;">
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-1">
+        <span class="small text-light">
+            <i class="fas fa-list" style="color:#67e8f9;"></i>
+            <strong>Batch</strong> — <span id="batchDetectedCount">0</span> URL(s)
+        </span>
+        <div class="d-flex gap-1">
+            <button class="btn btn-sm py-0 px-2" style="background:#0dcaf0;color:#000;font-size:.8rem;" id="batchPreviewBtn">
+                <i class="fas fa-eye"></i> Voir
+            </button>
+            <button class="btn btn-sm btn-outline-danger py-0 px-1" id="batchCancelBar" title="Annuler">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    </div>
+    <div id="batchDetectPreview" style="display:none;">
+        <div id="batchDetectWarnings" class="alert alert-warning py-1 small mb-1" style="display:none;"></div>
+        <div class="table-responsive" style="max-height:140px; overflow-y:auto;">
+            <table class="table table-sm table-dark mb-0" style="font-size:0.78rem;">
+                <thead style="position:sticky; top:0; background:#1a1520;">
+                    <tr><th>URL / Chemin</th><th style="width:10%">Type</th></tr>
+                </thead>
+                <tbody id="batchDetectTable"></tbody>
+            </table>
+        </div>
+        <div class="d-flex gap-2 mt-2">
+            <button class="btn btn-success btn-sm flex-grow-1" id="batchCreateAndStartBtn">
+                <i class="fas fa-play"></i> Démarrer (<span id="batchCreateCount">0</span>)
+            </button>
+            <button class="btn btn-outline-primary btn-sm" id="batchCreateOnlyBtn">
+                <i class="fas fa-plus"></i> Ajouter
+            </button>
+        </div>
+        <div id="batchCreateProgress" class="mt-2" style="display:none;">
+            <div class="progress">
+                <div class="progress-bar progress-bar-striped progress-bar-animated bg-info" style="width:100%;color:#000;">Création…</div>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="text-center text-muted my-2" style="font-size:0.72rem;">— ou depuis une URL —</div>
+<form id="media-url-form" method="post" action="{% url 'describer:upload' %}">
+    {% csrf_token %}
+    <div class="input-group input-group-sm">
+        <input type="text" class="form-control bg-dark text-white border-secondary"
+               id="media_url" name="media_url" placeholder="https://… ou YouTube">
+        <button class="btn btn-primary" type="submit" title="Télécharger">
+            <i class="fas fa-download"></i>
+        </button>
+    </div>
+</form>
+{% endblock %}
+
+{# ── Right panel : paramètres ────────────────────────────────────────────── #}
 {% block app_right_panel_settings %}
 <!-- Output Format -->
 <div class="mb-3">
@@ -68,15 +139,20 @@
         - Texte: PDF, DOCX, TXT, MD
     </small>
 </div>
+<!-- Reset Button -->
+<hr class="border-secondary my-2">
+<button class="btn btn-outline-secondary btn-sm w-100" id="resetOptions">
+    <i class="fas fa-undo"></i> Réinitialiser
+</button>
 {% endblock %}
 
 {% block app_right_panel_actions %}
 <div class="d-grid gap-2">
     <button class="btn btn-success btn-sm" id="startAllBtn">
-        <i class="fas fa-play"></i> Demarrer tout
+        <i class="fas fa-play"></i> Démarrer
     </button>
     <button class="btn btn-info btn-sm" id="downloadAllBtn">
-        <i class="fas fa-download"></i> Telecharger tout
+        <i class="fas fa-download"></i> Télécharger tout
     </button>
     <button class="btn btn-outline-danger btn-sm" id="clearAllBtn">
         <i class="fas fa-trash"></i> Tout effacer
@@ -85,113 +161,7 @@
 {% endblock %}
 
 {% block describer_content %}
-
-<!-- Upload Zone -->
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="drop-zone" id="dropZone">
-            <i class="fas fa-cloud-upload-alt fa-3x mb-3 text-info"></i>
-            <h5>Glissez-deposez vos fichiers ici</h5>
-            <p class="text-light mb-3">ou cliquez pour parcourir</p>
-            <p class="small text-white-50">
-                Images, Videos, Audio, PDF, DOCX, TXT, MD
-            </p>
-            <input type="file" id="fileInput" multiple
-                   accept="image/*,video/*,audio/*,.pdf,.docx,.txt,.md,.csv"
-                   style="display: none;">
-            <button class="btn btn-info mt-2" id="browseBtn">
-                <i class="fas fa-folder-open"></i> Parcourir
-            </button>
-            <small class="text-white-50 mt-2 d-block">
-                Fichier batch (URLs/chemins) ?
-                <a href="#" class="text-white-50" id="batchTemplateLink" download="batch_describer.txt">
-                    <i class="fas fa-download"></i> Template
-                </a>
-            </small>
-        </div>
-
-        <!-- Batch detect bar — appears when a batch file is dropped -->
-        <div id="batchDetectBar" style="display:none; margin-top:0.5rem; background:#1a1520; border:1px solid #0dcaf0; border-radius:0.375rem; padding:0.5rem 0.75rem;">
-            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-1">
-                <span class="small text-light">
-                    <i class="fas fa-list" style="color:#67e8f9;"></i>
-                    <strong>Fichier batch détecté</strong> —
-                    <span id="batchDetectedCount">0</span> URL(s)
-                </span>
-                <div class="d-flex gap-1">
-                    <button class="btn btn-sm py-0 px-2" style="background:#0dcaf0;color:#000;font-size:.8rem;"
-                            id="batchPreviewBtn">
-                        <i class="fas fa-eye"></i> Voir le batch
-                    </button>
-                    <button class="btn btn-sm btn-outline-danger py-0 px-1" id="batchCancelBar" title="Annuler">
-                        <i class="fas fa-times"></i>
-                    </button>
-                </div>
-            </div>
-            <!-- Preview table + actions -->
-            <div id="batchDetectPreview" style="display:none;">
-                <div id="batchDetectWarnings" class="alert alert-warning py-1 small mb-1" style="display:none;"></div>
-                <div class="table-responsive" style="max-height:180px; overflow-y:auto;">
-                    <table class="table table-sm table-dark mb-0" style="font-size:0.78rem;">
-                        <thead style="position:sticky; top:0; background:#1a1520;">
-                            <tr>
-                                <th>URL / Chemin</th>
-                                <th style="width:10%">Type</th>
-                            </tr>
-                        </thead>
-                        <tbody id="batchDetectTable"></tbody>
-                    </table>
-                </div>
-                <div class="d-flex gap-2 mt-2">
-                    <button class="btn btn-success btn-sm flex-grow-1" id="batchCreateAndStartBtn">
-                        <i class="fas fa-play"></i> Créer et démarrer (<span id="batchCreateCount">0</span>)
-                    </button>
-                    <button class="btn btn-primary btn-sm" id="batchCreateOnlyBtn">
-                        <i class="fas fa-plus"></i> Créer seulement
-                    </button>
-                </div>
-                <div id="batchCreateProgress" class="mt-2" style="display:none;">
-                    <div class="progress">
-                        <div class="progress-bar progress-bar-striped progress-bar-animated bg-info"
-                             style="width:100%;color:#000;">Création en cours…</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- URL Upload Section -->
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="card bg-dark border-secondary">
-            <div class="card-body">
-                <h6 class="text-light mb-3">
-                    <i class="fas fa-link"></i> Télécharger depuis une URL
-                </h6>
-                <form id="media-url-form" method="post" enctype="multipart/form-data" action="{% url 'describer:upload' %}">
-                    {% csrf_token %}
-                    <div class="input-group">
-                        <input type="text"
-                               class="form-control bg-dark text-white border-secondary"
-                               id="media_url"
-                               name="media_url"
-                               placeholder="Collez l'URL du média ici..."
-                               aria-label="Media URL">
-                        <button class="btn btn-primary" type="submit">
-                            <i class="fas fa-download"></i> Télécharger
-                        </button>
-                    </div>
-                    <small class="text-white-50 mt-2 d-block">
-                        Exemple: https://example.com/video.mp4 ou lien YouTube
-                    </small>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
-
-<hr class="border-secondary">
+<div style="overflow-x:hidden;">
 
 <!-- Global Progress Bar -->
 <div class="row mb-3">
@@ -203,7 +173,7 @@
                         <i class="fas fa-chart-line"></i> Progression globale
                     </h6>
                     <small class="text-white-50" id="globalProgressStats">
-                        {{ success_count }}/{{ descriptions.count }} termine
+                        {{ success_count }}/{{ queue_count }} termine
                     </small>
                 </div>
                 <div class="progress" style="height: 20px;">
@@ -219,15 +189,19 @@
     <div class="col-12">
         <h4 class="mb-3">
             <i class="fas fa-list"></i> File d'attente
-            <span class="badge bg-info" id="queueCount">{{ descriptions.count }}</span>
+            <span class="badge bg-info" id="queueCount">{{ queue_count }}</span>
         </h4>
 
         <div id="descriptionQueue">
-            {% for desc in descriptions %}
+            {% for batch_info in batches_list %}
+
+            {% if batch_info.obj.total == 1 %}
+            <!-- Single-item batch: render as standalone card -->
+            {% for item in batch_info.items %}{% if item.description %}
+            {% with desc=item.description %}
             <div class="synthesis-card {% if desc.status == 'RUNNING' %}processing{% elif desc.status == 'SUCCESS' %}success{% elif desc.status == 'FAILURE' %}error{% endif %}"
                  data-id="{{ desc.id }}">
                 <div class="row align-items-center">
-                    <!-- File Info -->
                     <div class="col-md-3">
                         <strong>
                             <i class="fas {{ desc.get_type_icon }}"></i>
@@ -243,8 +217,6 @@
                             {{ desc.format_file_size }}
                         </small>
                     </div>
-
-                    <!-- Options -->
                     <div class="col-md-2">
                         <small>
                             <i class="fas fa-align-left"></i> {{ desc.get_output_format_display }}<br>
@@ -252,8 +224,6 @@
                             <i class="fas fa-text-width"></i> {{ desc.max_length }} mots
                         </small>
                     </div>
-
-                    <!-- Result Preview -->
                     <div class="col-md-3">
                         {% if desc.result_text %}
                         <small class="text-light result-preview" style="max-height: 60px; overflow: hidden; display: block;">
@@ -265,8 +235,6 @@
                         </small>
                         {% endif %}
                     </div>
-
-                    <!-- Status & Progress -->
                     <div class="col-md-2">
                         <span class="badge status-badge
                             {% if desc.status == 'PENDING' %}bg-secondary
@@ -281,14 +249,10 @@
                         </div>
                         <small class="text-light progress-text">{{ desc.progress }}%</small>
                     </div>
-
-                    <!-- Actions -->
                     <div class="col-md-2">
                         <div class="btn-group-actions">
                             {% if desc.status != 'RUNNING' %}
-                            <button class="btn btn-sm btn-primary start-btn"
-                                    data-id="{{ desc.id }}"
-                                    title="Demarrer">
+                            <button class="btn btn-sm btn-primary start-btn" data-id="{{ desc.id }}" title="Demarrer">
                                 <i class="fas fa-play"></i>
                             </button>
                             <button class="btn btn-sm btn-secondary settings-btn"
@@ -302,34 +266,167 @@
                                 <i class="fas fa-cog"></i>
                             </button>
                             {% endif %}
-
                             {% if desc.status == 'SUCCESS' %}
-                            <button class="btn btn-sm btn-success preview-btn"
-                                    data-id="{{ desc.id }}"
-                                    title="Voir le resultat">
+                            <button class="btn btn-sm btn-success preview-btn" data-id="{{ desc.id }}" title="Voir le resultat">
                                 <i class="fas fa-eye"></i>
                             </button>
-                            <a href="{% url 'describer:download' desc.id %}"
-                               class="btn btn-sm btn-info download-btn"
-                               title="Telecharger">
-                                <i class="fas fa-download"></i>
-                            </a>
+                            <div class="btn-group btn-group-sm">
+                                <a href="{% url 'describer:download' desc.id %}?format=txt"
+                                   class="btn btn-outline-info download-btn" title="Télécharger TXT">
+                                    <i class="fas fa-download"></i>
+                                </a>
+                                <button type="button" class="btn btn-outline-info dropdown-toggle dropdown-toggle-split"
+                                        data-bs-toggle="dropdown" aria-expanded="false">
+                                    <span class="visually-hidden">Autres formats</span>
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end">
+                                    <li><a class="dropdown-item" href="{% url 'describer:download' desc.id %}?format=txt">
+                                        <i class="fas fa-file-alt me-2"></i>TXT</a></li>
+                                    <li><a class="dropdown-item" href="{% url 'describer:download' desc.id %}?format=pdf">
+                                        <i class="fas fa-file-pdf me-2 text-danger"></i>PDF</a></li>
+                                    <li><a class="dropdown-item" href="{% url 'describer:download' desc.id %}?format=docx">
+                                        <i class="fas fa-file-word me-2 text-primary"></i>DOCX</a></li>
+                                </ul>
+                            </div>
                             {% endif %}
-
                             <button class="btn btn-sm btn-outline-info duplicate-btn"
                                     data-duplicate-url="{% url 'describer:duplicate' desc.id %}"
-                                    title="Dupliquer (tester un autre modèle)">
+                                    title="Dupliquer">
                                 <i class="fas fa-copy"></i>
                             </button>
-                            <button class="btn btn-sm btn-danger delete-btn"
-                                    data-id="{{ desc.id }}"
-                                    title="Supprimer">
+                            <button class="btn btn-sm btn-danger delete-btn" data-id="{{ desc.id }}" title="Supprimer">
                                 <i class="fas fa-trash"></i>
                             </button>
                         </div>
                     </div>
                 </div>
             </div>
+            {% endwith %}
+            {% endif %}{% endfor %}
+
+            {% else %}
+            <!-- Multi-item batch: collapsible group -->
+            <div class="batch-group mb-2" data-batch-id="{{ batch_info.obj.id }}">
+                <div class="batch-group-header d-flex align-items-center gap-2 p-2"
+                     style="background:#0d1a2a; border:1px solid #0dcaf0; border-radius:0.375rem;">
+                    <div class="d-flex align-items-center gap-2 flex-grow-1"
+                         style="cursor:pointer; user-select:none; min-width:0;"
+                         data-bs-toggle="collapse"
+                         data-bs-target="#batchItems{{ batch_info.obj.id }}"
+                         aria-expanded="true">
+                        <i class="fas fa-layer-group" style="color:#67e8f9;"></i>
+                        <strong class="text-light">Batch #{{ batch_info.obj.id }}</strong>
+                        <small class="text-muted">{{ batch_info.obj.created_at|date:"d/m H:i" }}</small>
+                        <span class="badge bg-secondary">{{ batch_info.success_count }}/{{ batch_info.obj.total }}</span>
+                        <div class="flex-grow-1">
+                            <div class="progress" style="height:4px; background:rgba(255,255,255,0.1);">
+                                <div class="progress-bar" style="background:#0dcaf0; width:{{ batch_info.success_pct }}%;"></div>
+                            </div>
+                        </div>
+                        <i class="fas fa-chevron-down text-muted" style="font-size:.7rem;"></i>
+                    </div>
+                    <div class="d-flex gap-1 flex-shrink-0">
+                        {% if batch_info.has_success %}
+                        <a href="{% url 'describer:batch_download' batch_info.obj.id %}"
+                           class="btn btn-sm btn-outline-info py-0 px-2" style="font-size:.75rem;" title="Télécharger ZIP">
+                            <i class="fas fa-download"></i> ZIP
+                        </a>
+                        {% endif %}
+                        <button class="btn btn-sm batch-duplicate-btn py-0 px-2"
+                                data-batch-id="{{ batch_info.obj.id }}"
+                                style="background:rgba(13,202,240,0.15); color:#0dcaf0; border:1px solid #0dcaf0; font-size:.75rem;"
+                                title="Dupliquer le batch">
+                            <i class="fas fa-copy"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger batch-delete-btn py-0 px-2"
+                                data-batch-id="{{ batch_info.obj.id }}"
+                                style="font-size:.75rem;" title="Supprimer le batch">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="collapse show" id="batchItems{{ batch_info.obj.id }}"
+                     style="border-left:2px solid #0dcaf0; margin-left:0.75rem;">
+                    {% for item in batch_info.items %}{% if item.description %}
+                    {% with desc=item.description %}
+                    <div class="synthesis-card {% if desc.status == 'RUNNING' %}processing{% elif desc.status == 'SUCCESS' %}success{% elif desc.status == 'FAILURE' %}error{% endif %}"
+                         data-id="{{ desc.id }}">
+                        <div class="row align-items-center">
+                            <div class="col-md-3">
+                                <strong>
+                                    <i class="fas {{ desc.get_type_icon }}"></i>
+                                    <span class="filename">{{ desc.filename }}</span>
+                                </strong>
+                                <br>
+                                <small class="text-white-50">
+                                    <span class="badge bg-secondary">{{ desc.detected_type|upper }}</span>
+                                </small>
+                            </div>
+                            <div class="col-md-3">
+                                {% if desc.result_text %}
+                                <small class="text-light result-preview" style="max-height:40px; overflow:hidden; display:block;">
+                                    {{ desc.result_text|truncatechars:100 }}
+                                </small>
+                                {% else %}
+                                <small class="text-white-50 result-preview">En attente…</small>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-3">
+                                <span class="badge status-badge
+                                    {% if desc.status == 'PENDING' %}bg-secondary
+                                    {% elif desc.status == 'RUNNING' %}bg-warning
+                                    {% elif desc.status == 'SUCCESS' %}bg-success
+                                    {% elif desc.status == 'FAILURE' %}bg-danger
+                                    {% endif %}">
+                                    {{ desc.get_status_display }}
+                                </span>
+                                <div class="progress mt-1" style="height:6px;">
+                                    <div class="progress-bar bg-info progress-fill" style="width: {{ desc.progress }}%"></div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="btn-group-actions">
+                                    {% if desc.status != 'RUNNING' %}
+                                    <button class="btn btn-sm btn-primary start-btn" data-id="{{ desc.id }}" title="Démarrer">
+                                        <i class="fas fa-play"></i>
+                                    </button>
+                                    {% endif %}
+                                    {% if desc.status == 'SUCCESS' %}
+                                    <button class="btn btn-sm btn-success preview-btn" data-id="{{ desc.id }}" title="Voir">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                    <div class="btn-group btn-group-sm">
+                                        <a href="{% url 'describer:download' desc.id %}?format=txt"
+                                           class="btn btn-outline-info" title="Télécharger TXT">
+                                            <i class="fas fa-download"></i>
+                                        </a>
+                                        <button type="button" class="btn btn-outline-info dropdown-toggle dropdown-toggle-split"
+                                                data-bs-toggle="dropdown" aria-expanded="false">
+                                            <span class="visually-hidden">Autres formats</span>
+                                        </button>
+                                        <ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end">
+                                            <li><a class="dropdown-item" href="{% url 'describer:download' desc.id %}?format=txt">
+                                                <i class="fas fa-file-alt me-2"></i>TXT</a></li>
+                                            <li><a class="dropdown-item" href="{% url 'describer:download' desc.id %}?format=pdf">
+                                                <i class="fas fa-file-pdf me-2 text-danger"></i>PDF</a></li>
+                                            <li><a class="dropdown-item" href="{% url 'describer:download' desc.id %}?format=docx">
+                                                <i class="fas fa-file-word me-2 text-primary"></i>DOCX</a></li>
+                                        </ul>
+                                    </div>
+                                    {% endif %}
+                                    <button class="btn btn-sm btn-danger delete-btn" data-id="{{ desc.id }}" title="Supprimer">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endwith %}
+                    {% endif %}{% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
             {% empty %}
             <div class="text-center py-5 empty-queue">
                 <i class="fas fa-inbox fa-3x mb-3 text-white-50"></i>
@@ -340,6 +437,8 @@
         </div>
     </div>
 </div>
+
+</div>{# /overflow-x:hidden #}
 {% endblock %}
 
 {% block extra_modals %}
@@ -531,13 +630,19 @@
             console: "{% url 'describer:console' %}",
             updateOptions: "{% url 'describer:update_options' pk=0 %}",
             batchPreview: "{% url 'describer:batch_preview' %}",
-            batchImport: "{% url 'describer:batch_import' %}"
+            batchImport: "{% url 'describer:batch_import' %}",
+            batchCreate: "{% url 'describer:batch_create' %}",
+            batchTemplate: "{% url 'describer:batch_template' %}",
+            batchStart: "{% url 'describer:batch_start' pk=0 %}",
+            batchStatus: "{% url 'describer:batch_status' pk=0 %}",
+            batchDownload: "{% url 'describer:batch_download' pk=0 %}",
+            batchDelete: "{% url 'describer:batch_delete' pk=0 %}",
+            batchDuplicate: "{% url 'describer:batch_duplicate' pk=0 %}"
         },
         csrfToken: "{{ csrf_token }}"
     };
 </script>
 <script src="{% static 'describer/js/index.js' %}"></script>
-<script src="{% static 'common/js/media-preview.js' %}"></script>
 <script>
 /* Copy button for result text panels */
 document.addEventListener('click', function(e) {
@@ -557,4 +662,5 @@ document.addEventListener('click', function(e) {
     });
 });
 </script>
+
 {% endblock %}
