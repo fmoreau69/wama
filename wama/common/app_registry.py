@@ -66,16 +66,34 @@ APP_CATALOG = {
         'description': 'Floutage automatique de visages et plaques sur images et vidéos.',
         'input_extensions': IMAGE_EXTENSIONS + VIDEO_EXTENSIONS,
         'input_types': ('image', 'video'),
-        'batch_type':  None,   # not yet implemented
-        'has_batch':   False,
+        'batch_type':  'media_list',  # Type A: one URL/path per line
+        'has_batch':   True,
         'has_url_import': True,
         'has_youtube': True,
         'output_types': ('image', 'video'),
+        'conventions': _conv(),  # fully conformant
+    },
+
+    'avatarizer': {
+        'label':       'Avatarizer',
+        'icon':        'fas fa-user-circle',
+        'color':       '#0dcaf0',
+        'url_name':    'avatarizer:index',
+        'description': 'Génération de vidéos d\'avatars lip-sync animés par IA (MuseTalk + CodeFormer).',
+        'input_extensions': AUDIO_EXTENSIONS + IMAGE_EXTENSIONS,  # audio (standalone) + image (avatar)
+        'input_types': ('audio', 'image', 'text'),  # text en mode pipeline TTS
+        'batch_type':  None,
+        'has_batch':   False,
+        'has_url_import': False,
+        'has_youtube': False,
+        'output_types': ('video',),
         'conventions': _conv(
-            settings=False,    # per-item settings modal missing
-            duplicate=False,   # duplicate button missing
-            drag_drop=False,   # drag & drop missing
-            batch=False,       # no batch model
+            settings=True,      # update_options view
+            duplicate=False,    # manquant
+            start_all=False,    # manquant
+            clear_all=False,    # manquant
+            download_all=False, # manquant
+            batch=False,        # pas de modèle batch
         ),
     },
 

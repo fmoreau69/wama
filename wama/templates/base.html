@@ -117,19 +117,22 @@
 
         <!-- Content -->
         <div class="right-panel-content">
-            <!-- Preview Section -->
-            <div class="right-panel-section" id="preview-section">
+            <!-- Médias Section (drop zone app ou aperçu filemanager) -->
+            <div class="right-panel-section" id="media-section">
                 <div class="right-panel-section-title">
-                    <i class="fas fa-eye me-1"></i> Aperçu
+                    <i class="fas fa-photo-video me-1"></i> Médias
                 </div>
-                <div class="right-panel-preview" id="preview-container">
-                    <div class="right-panel-preview-placeholder" id="preview-placeholder">
-                        <i class="fas fa-photo-video"></i>
-                        <p>Sélectionnez un fichier<br>pour l'aperçu</p>
+                <div id="global-media-container">
+                    {% block right_panel_media %}
+                    <!-- Default: aperçu filemanager -->
+                    <div class="right-panel-preview" id="preview-container">
+                        <div class="right-panel-preview-placeholder" id="preview-placeholder">
+                            <i class="fas fa-photo-video"></i>
+                            <p>Sélectionnez un fichier<br>pour l'aperçu</p>
+                        </div>
+                        <div id="preview-media" style="display: none;"></div>
                     </div>
-                    <div id="preview-media" style="display: none;">
-                        <!-- Dynamic preview content -->
-                    </div>
+                    {% endblock %}
                 </div>
             </div>
 
@@ -227,8 +230,12 @@
 
     <!-- jstree JS -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jstree/3.3.16/jstree.min.js"></script>
+    <!-- WAMA App Catalog (injected server-side — used by FileManager JS) -->
+    <script>window.WAMA_APP_CATALOG = {{ app_catalog_json|safe }};</script>
     <!-- FileManager JS -->
     <script src="{% static 'filemanager/js/filemanager.js' %}"></script>
+    <!-- Unified media preview (modal + fullscreen — common à toutes les apps) -->
+    <script src="{% static 'common/js/media-preview.js' %}"></script>
     <!-- System stats monitor -->
     <script src="{% static 'common/js/system-stats.js' %}"></script>
     <!-- Queue actions (duplication générique) -->

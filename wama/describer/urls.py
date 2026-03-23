@@ -27,6 +27,16 @@ urlpatterns = [
     path('batch/preview/', views.batch_preview, name='batch_preview'),
     path('batch/import/', views.batch_import, name='batch_import'),
 
+    # New batch routes
+    path('batch/template/', views.batch_template, name='batch_template'),
+    path('batch/create/', views.batch_create, name='batch_create'),
+    path('batch/list/', views.batch_list, name='batch_list'),
+    path('batch/<int:pk>/start/', views.batch_start, name='batch_start'),
+    path('batch/<int:pk>/status/', views.batch_status, name='batch_status'),
+    path('batch/<int:pk>/download/', views.batch_download, name='batch_download'),
+    path('batch/<int:pk>/delete/', views.batch_delete, name='batch_delete'),
+    path('batch/<int:pk>/duplicate/', views.batch_duplicate, name='batch_duplicate'),
+
     # Utilities
     path('console/', views.console_content, name='console'),
     path('global-progress/', views.global_progress, name='global_progress'),

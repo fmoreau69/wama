@@ -42,6 +42,39 @@
 }
 {% endblock %}
 
+{# ── Right panel : médias ─────────────────────────────────────────────────── #}
+{% block app_right_panel_media %}
+<div class="drop-zone drop-zone-sm mb-1" onclick="document.getElementById('batchFileInput').click()">
+    <i class="fas fa-file-import text-primary"></i>
+    <p class="mb-0 small text-light mt-1">Cliquez — fichier batch</p>
+    <small class="text-muted">TXT · MD · CSV · PDF · DOCX</small>
+    <input type="file" id="batchFileInput" accept=".txt,.md,.csv,.pdf,.docx" style="display:none">
+</div>
+<small class="text-muted d-block text-center" style="font-size:0.72rem;">Format : <code>fichier|prompt|modèle|durée</code></small>
+<!-- Batch detect bar (appears when batch file is selected) -->
+<div id="batchDetectBar" style="display:none; background:#1a1520; border:1px solid #0dcaf0;
+     border-radius:0.375rem; padding:0.5rem 0.75rem; margin-top:0.5rem;">
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-1">
+        <span class="small text-light">
+            <i class="fas fa-list text-info me-1"></i>
+            <span id="batchDetectedCount">0</span> piste(s) détectée(s)
+        </span>
+        <button class="btn btn-sm btn-outline-danger py-0 px-1" id="batchCancelBar" title="Annuler">
+            <i class="fas fa-times"></i>
+        </button>
+    </div>
+    <div class="d-flex gap-2 mt-2">
+        <button class="btn btn-success btn-sm flex-grow-1" id="batchCreateAndStartBtn">
+            <i class="fas fa-play"></i> Démarrer (<span id="batchCreateCount">0</span>)
+        </button>
+        <button class="btn btn-outline-primary btn-sm" id="batchCreateOnlyBtn">
+            <i class="fas fa-plus"></i> Ajouter
+        </button>
+    </div>
+</div>
+{% endblock %}
+
+{# ── Right panel : paramètres ────────────────────────────────────────────── #}
 {% block app_right_panel_settings %}
 <!-- Type de génération -->
 <div class="mb-3">
@@ -126,15 +159,11 @@
     <small class="text-muted">Audio 5–30s servant de ligne mélodique</small>
 </div>
 
-<!-- Import batch -->
-<div class="mb-2">
-    <label class="form-label small fw-bold text-light">
-        <i class="fas fa-file-import"></i> Import batch
-    </label>
-    <input type="file" class="form-control form-control-sm bg-dark text-light border-secondary"
-           id="batchFileInput" accept=".txt,.md,.csv,.pdf,.docx">
-    <small class="text-muted">Format&nbsp;: <code>fichier|prompt|modèle|durée</code></small>
-</div>
+<!-- Reset Button -->
+<hr class="border-secondary my-2">
+<button class="btn btn-outline-secondary btn-sm w-100" id="resetOptions">
+    <i class="fas fa-undo"></i> Réinitialiser
+</button>
 {% endblock %}
 
 {% block app_right_panel_actions %}
@@ -142,15 +171,15 @@
     <button class="btn btn-success btn-sm" id="generateBtn">
         <i class="fas fa-play me-1"></i> Générer
     </button>
-    <button class="btn btn-outline-info btn-sm" id="importBatchBtn">
-        <i class="fas fa-file-import me-1"></i> Importer batch
-    </button>
     <hr class="border-secondary my-1">
-    <button class="btn btn-outline-warning btn-sm" id="startAllBtn">
-        <i class="fas fa-play-circle me-1"></i> Tout relancer
+    <button class="btn btn-success btn-sm" id="startAllBtn">
+        <i class="fas fa-play me-1"></i> Démarrer
     </button>
+    <a href="{% url 'composer:download_all' %}" class="btn btn-info btn-sm" id="downloadAllBtn">
+        <i class="fas fa-download me-1"></i> Télécharger tout
+    </a>
     <button class="btn btn-outline-danger btn-sm" id="clearAllBtn">
-        <i class="fas fa-trash me-1"></i> Tout supprimer
+        <i class="fas fa-trash me-1"></i> Tout effacer
     </button>
 </div>
 {% endblock %}
@@ -199,6 +228,10 @@
             <span class="badge bg-secondary">{{ batch_info.obj.total }} items</span>
             <small class="text-muted ms-1">{{ batch_info.obj.created_at|date:"d/m/Y H:i" }}</small>
             <div class="ms-auto d-flex gap-1" onclick="event.stopPropagation()">
+                <button class="btn btn-sm btn-outline-secondary batch-duplicate-btn"
+                        data-batch-id="{{ batch_info.obj.id }}" title="Dupliquer le batch">
+                    <i class="fas fa-copy"></i>
+                </button>
                 <button class="btn btn-sm btn-outline-danger batch-delete-btn"
                         data-batch-id="{{ batch_info.obj.id }}" title="Supprimer le batch">
                     <i class="fas fa-trash"></i>

@@ -221,6 +221,40 @@ $(document).ready(function () {
         });
     }
 
+    /* ============================
+     * ⧉ Bouton "Dupliquer un média"
+     * ============================ */
+    $(document).on("click", ".duplicate-btn", function (e) {
+        e.preventDefault();
+        const url = $(this).data("duplicate-url");
+        if (!url) return;
+
+        console.log("%c[update.js] ⧉ Duplicating media…", "color:#00BCD4");
+
+        $.ajax({
+            type: "POST",
+            url: url,
+            data: { csrfmiddlewaretoken: $("input[name=csrfmiddlewaretoken]").val() },
+            success: function (res) {
+                if (res.duplicated) {
+                    console.log("%c[update.js] ✔ Média dupliqué #" + res.duplicated, "color:#4CAF50");
+                    if (typeof window.refreshMediaTable === "function") {
+                        window.refreshMediaTable();
+                    } else {
+                        window.location.reload();
+                    }
+                    if (typeof window.updateQueueCount === "function") {
+                        window.updateQueueCount();
+                    }
+                }
+            },
+            error: function (xhr) {
+                console.error("%c[update.js] ✖ Erreur duplication", "color:red", xhr.responseText);
+                alert("Erreur lors de la duplication : " + (xhr.responseText || "Erreur inconnue"));
+            },
+        });
+    });
+
     attachCollapseEvents();
 
     // Update global progress every 2 seconds

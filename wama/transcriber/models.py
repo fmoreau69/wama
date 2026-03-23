@@ -30,6 +30,9 @@ class Transcript(models.Model):
     duration_seconds = models.FloatField(default=0)
     duration_display = models.CharField(max_length=16, blank=True, default='')
 
+    # URL source for batch import (file downloaded at task start if audio is empty)
+    source_url = models.CharField(max_length=2000, blank=True, default='')
+
     # Result
     language = models.CharField(max_length=16, blank=True, default='')
     text = models.TextField(blank=True, default='')
@@ -147,3 +150,38 @@ class TranscriptSegment(models.Model):
         end = self.to_srt_time(self.end_time)
         speaker_prefix = f"[{self.speaker_id}] " if self.speaker_id else ""
         return f"{index}\n{start} --> {end}\n{speaker_prefix}{self.text}\n\n"
+
+
+class BatchTranscript(models.Model):
+    """Groupe de transcriptions créé depuis un fichier batch."""
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='batch_transcripts')
+    created_at = models.DateTimeField(auto_now_add=True)
+    batch_file = models.FileField(
+        upload_to=upload_to_user_input('transcriber'),
+        blank=True, null=True,
+    )
+    total = models.IntegerField(default=0)
+
+    class Meta:
+        verbose_name = "Batch de transcriptions"
+        verbose_name_plural = "Batchs de transcriptions"
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Batch #{self.id} — {self.user.username} ({self.total} items)"
+
+
+class BatchTranscriptItem(models.Model):
+    """Item d'un batch de transcriptions."""
+    batch = models.ForeignKey(BatchTranscript, on_delete=models.CASCADE, related_name='items')
+    transcript = models.OneToOneField(
+        Transcript, on_delete=models.CASCADE,
+        related_name='batch_item', null=True, blank=True,
+    )
+    row_index = models.IntegerField(default=0)
+
+    class Meta:
+        ordering = ['row_index']
+
+    def __str__(self):
+        return f"BatchTranscriptItem #{self.id} — batch {self.batch_id}"

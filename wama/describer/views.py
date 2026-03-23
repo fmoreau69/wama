@@ -4,9 +4,12 @@ AI-powered content description and summarization
 """
 
 import os
+import io
 import json
 import logging
 import mimetypes
+import zipfile
+import datetime
 from pathlib import Path
 from zipfile import ZipFile
 from io import BytesIO
@@ -19,8 +22,8 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.cache import cache
 from django.conf import settings
 
-from .models import Description
-from wama.common.utils.queue_duplication import duplicate_instance
+from .models import Description, BatchDescription, BatchDescriptionItem
+from wama.common.utils.queue_duplication import duplicate_instance, safe_delete_file
 from ..accounts.views import get_or_create_anonymous_user
 from ..common.utils.video_utils import upload_media_from_url
 
@@ -93,6 +96,27 @@ def get_user(request):
     return get_or_create_anonymous_user()
 
 
+def _wrap_description_in_batch(description):
+    """Wrap a standalone Description in a new BatchDescription-of-1."""
+    batch = BatchDescription.objects.create(user=description.user, total=1)
+    BatchDescriptionItem.objects.create(batch=batch, description=description, row_index=0)
+    return batch
+
+
+def _auto_wrap_orphans(user):
+    """Wrap any Description not yet in a batch into a batch-of-1 (called on page load)."""
+    existing_ids = set(
+        BatchDescriptionItem.objects.filter(batch__user=user)
+        .values_list('description_id', flat=True)
+    )
+    orphans = Description.objects.filter(user=user).exclude(id__in=existing_ids)
+    for orphan in orphans:
+        try:
+            _wrap_description_in_batch(orphan)
+        except Exception:
+            pass
+
+
 class IndexView(TemplateView):
     """Main page with file queue."""
     template_name = 'describer/index.html'
@@ -101,16 +125,36 @@ class IndexView(TemplateView):
         context = super().get_context_data(**kwargs)
         user = get_user(self.request)
 
-        # Get all descriptions for this user
-        descriptions = Description.objects.filter(user=user)
+        # Lazily wrap any orphan descriptions into a batch-of-1
+        _auto_wrap_orphans(user)
 
-        context['descriptions'] = descriptions
+        # All batches with prefetched items+description
+        batches_qs = BatchDescription.objects.filter(user=user).prefetch_related(
+            'items__description'
+        ).order_by('-id')
+
+        batches_list = []
+        for batch in batches_qs:
+            items = list(batch.items.all())
+            success_count = sum(1 for i in items if i.description and i.description.status == 'SUCCESS')
+            batches_list.append({
+                'obj': batch,
+                'items': items,
+                'success_count': success_count,
+                'success_pct': int(success_count / batch.total * 100) if batch.total > 0 else 0,
+                'has_success': success_count > 0,
+            })
+
+        queue_count = sum(len(b['items']) for b in batches_list)
+
+        # Also provide total counts for global progress bar
+        all_descs = Description.objects.filter(user=user)
+        context['batches_list'] = batches_list
+        context['queue_count'] = queue_count
         context['output_format_choices'] = Description.OUTPUT_FORMAT_CHOICES
         context['language_choices'] = Description.LANGUAGE_CHOICES
-        context['pending_count'] = descriptions.filter(status='PENDING').count()
-        context['running_count'] = descriptions.filter(status='RUNNING').count()
-        context['success_count'] = descriptions.filter(status='SUCCESS').count()
-        context['failure_count'] = descriptions.filter(status='FAILURE').count()
+        context['success_count'] = all_descs.filter(status='SUCCESS').count()
+        context['descriptions'] = all_descs  # kept for global progress bar template ref
 
         return context
 
@@ -242,6 +286,8 @@ def upload(request):
 
             logger.info(f"[Describer] Created Description ID: {description.id}")
 
+            _wrap_description_in_batch(description)
+
             return JsonResponse({
                 'id': description.id,
                 'filename': description.filename,
@@ -287,6 +333,8 @@ def upload(request):
     properties = get_file_properties(description)
     description.properties = properties
     description.save()
+
+    _wrap_description_in_batch(description)
 
     return JsonResponse({
         'id': description.id,
@@ -442,24 +490,53 @@ def progress(request, pk):
 
 @require_GET
 def download(request, pk):
-    """Download result file."""
+    """Download result in requested format: txt (default), pdf, docx."""
     user = get_user(request)
     description = get_object_or_404(Description, pk=pk, user=user)
 
     if description.status != 'SUCCESS':
         return JsonResponse({'error': 'No result available'}, status=400)
 
-    # If result file exists, return it
+    fmt = request.GET.get('format', 'txt').lower()
+    base_name = description.filename.rsplit('.', 1)[0] if '.' in description.filename else description.filename
+
+    if fmt == 'pdf':
+        try:
+            from wama.common.utils.document_export import generate_description_pdf
+            pdf_bytes = generate_description_pdf(description)
+            response = HttpResponse(pdf_bytes, content_type='application/pdf')
+            response['Content-Disposition'] = f'attachment; filename="{base_name}_description.pdf"'
+            return response
+        except ImportError as e:
+            return JsonResponse({'error': str(e)}, status=501)
+        except Exception as e:
+            logger.error(f"[Describer] PDF generation failed: {e}")
+            return JsonResponse({'error': f'Erreur génération PDF : {e}'}, status=500)
+
+    if fmt == 'docx':
+        try:
+            from wama.common.utils.document_export import generate_description_docx
+            docx_bytes = generate_description_docx(description)
+            response = HttpResponse(
+                docx_bytes,
+                content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            )
+            response['Content-Disposition'] = f'attachment; filename="{base_name}_description.docx"'
+            return response
+        except ImportError as e:
+            return JsonResponse({'error': str(e)}, status=501)
+        except Exception as e:
+            logger.error(f"[Describer] DOCX generation failed: {e}")
+            return JsonResponse({'error': f'Erreur génération DOCX : {e}'}, status=500)
+
+    # Default: txt
     if description.result_file and os.path.exists(description.result_file.path):
         return FileResponse(
             open(description.result_file.path, 'rb'),
             as_attachment=True,
             filename=description.result_file.name.split('/')[-1]
         )
-
-    # Otherwise, create a text file from result_text
     if description.result_text:
-        base_name = description.filename.rsplit('.', 1)[0] if '.' in description.filename else description.filename
         content = description.result_text.encode('utf-8')
         response = HttpResponse(content, content_type='text/plain; charset=utf-8')
         response['Content-Disposition'] = f'attachment; filename="{base_name}_description.txt"'
@@ -610,47 +687,14 @@ def download_all(request):
 
 @require_POST
 def batch_preview(request):
-    """
-    Parse a batch file (one URL/path per line) and return the list for preview.
-    No DB entries created.
-    """
-    import tempfile
+    """Parse a batch file (one URL/path per line) and return the list for preview."""
+    from wama.common.utils.batch_parsers import batch_media_list_preview_response
 
-    batch_file = request.FILES.get('batch_file')
-    if not batch_file:
-        return JsonResponse({'error': 'Aucun fichier fourni'}, status=400)
-
-    ext = os.path.splitext(batch_file.name)[1][1:].lower()
-    if ext not in ('txt', 'csv', 'md'):
-        return JsonResponse({'error': f'Format non supporté : {ext}'}, status=400)
-
-    tmp_path = None
-    try:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=f'.{ext}') as tmp:
-            for chunk in batch_file.chunks():
-                tmp.write(chunk)
-            tmp_path = tmp.name
-
-        from wama.common.utils.batch_parsers import parse_media_list_batch
-        items, warnings = parse_media_list_batch(tmp_path)
-    except Exception as e:
-        return JsonResponse({'error': str(e)}, status=400)
-    finally:
-        if tmp_path:
-            try:
-                os.unlink(tmp_path)
-            except OSError:
-                pass
-
-    # Enrich items with detected type
-    for item in items:
-        path = item['path']
-        fname = path.split('/')[-1].split('\\')[-1] or path
-        ext_item = fname.rsplit('.', 1)[-1].lower() if '.' in fname else ''
+    def _enrich(item):
+        ext_item = item['filename'].rsplit('.', 1)[-1].lower() if '.' in item['filename'] else ''
         item['detected_type'] = detect_type_from_extension(ext_item) if ext_item else 'text'
-        item['filename'] = fname
 
-    return JsonResponse({'items': items, 'warnings': warnings, 'count': len(items)})
+    return batch_media_list_preview_response(request, item_enricher=_enrich)
 
 
 @require_POST
@@ -659,17 +703,9 @@ def batch_import(request):
     Create Description entries from a batch file of URLs/paths.
     Files are not downloaded yet — download happens when each task starts.
     """
-    import tempfile
+    from wama.common.utils.batch_parsers import parse_batch_file_from_request
 
     user = get_user(request)
-    batch_file = request.FILES.get('batch_file')
-    if not batch_file:
-        return JsonResponse({'error': 'Aucun fichier fourni'}, status=400)
-
-    ext = os.path.splitext(batch_file.name)[1][1:].lower()
-    if ext not in ('txt', 'csv', 'md'):
-        return JsonResponse({'error': f'Format non supporté : {ext}'}, status=400)
-
     output_format = request.POST.get('output_format', 'detailed')
     output_language = request.POST.get('output_language', 'fr')
     try:
@@ -677,23 +713,10 @@ def batch_import(request):
     except (ValueError, TypeError):
         max_length = 500
 
-    tmp_path = None
     try:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=f'.{ext}') as tmp:
-            for chunk in batch_file.chunks():
-                tmp.write(chunk)
-            tmp_path = tmp.name
-
-        from wama.common.utils.batch_parsers import parse_media_list_batch
-        items, warnings = parse_media_list_batch(tmp_path)
-    except Exception as e:
+        items, warnings = parse_batch_file_from_request(request)
+    except ValueError as e:
         return JsonResponse({'error': str(e)}, status=400)
-    finally:
-        if tmp_path:
-            try:
-                os.unlink(tmp_path)
-            except OSError:
-                pass
 
     if not items:
         return JsonResponse({'error': 'Aucun élément valide trouvé dans le fichier'}, status=400)
@@ -726,6 +749,269 @@ def batch_import(request):
         })
 
     return JsonResponse({'descriptions': created, 'total': len(created), 'warnings': warnings})
+
+
+@require_POST
+def batch_create(request):
+    """
+    Parse batch file (URLs/paths), create BatchDescription + Description entries.
+    Returns batch_id and list of description IDs.
+    """
+    from wama.common.utils.batch_parsers import parse_batch_file_from_request
+
+    user = get_user(request)
+    output_format = request.POST.get('output_format', 'detailed')
+    output_language = request.POST.get('output_language', 'fr')
+    try:
+        max_length = int(request.POST.get('max_length', 500))
+    except (ValueError, TypeError):
+        max_length = 500
+
+    try:
+        items, warnings = parse_batch_file_from_request(request)
+    except ValueError as e:
+        return JsonResponse({'error': str(e)}, status=400)
+
+    if not items:
+        return JsonResponse({'error': 'Aucun élément valide trouvé dans le fichier'}, status=400)
+
+    # Save the batch file reference, then seek back
+    batch_file.seek(0)
+    batch = BatchDescription.objects.create(
+        user=user,
+        total=len(items),
+        batch_file=batch_file,
+    )
+
+    created_ids = []
+    for i, item in enumerate(items):
+        url_or_path = item['path']
+        fname = url_or_path.split('/')[-1].split('\\')[-1] or url_or_path
+        ext_item = fname.rsplit('.', 1)[-1].lower() if '.' in fname else ''
+        detected_type = detect_type_from_extension(ext_item) if ext_item else 'text'
+
+        desc = Description.objects.create(
+            user=user,
+            source_url=url_or_path,
+            filename=fname,
+            detected_type=detected_type,
+            output_format=output_format,
+            output_language=output_language,
+            max_length=max_length,
+        )
+        BatchDescriptionItem.objects.create(batch=batch, description=desc, row_index=i)
+        created_ids.append(desc.id)
+
+    return JsonResponse({
+        'batch_id': batch.id,
+        'description_ids': created_ids,
+        'total': len(items),
+        'warnings': warnings,
+    })
+
+
+def batch_template(request):
+    """Download a batch file template (.txt)."""
+    template_content = """# WAMA Describer - Batch Import
+# Format : une URL ou chemin de fichier par ligne
+# Les lignes commençant par # sont des commentaires.
+
+# --- Exemples URLs ---
+https://example.com/image.jpg
+https://example.com/video.mp4
+https://example.com/document.pdf
+
+# --- Exemples chemins locaux ---
+/media/uploads/image.png
+C:\\Users\\user\\Documents\\rapport.pdf
+
+# --- Fin ---
+"""
+    response = HttpResponse(template_content, content_type='text/plain; charset=utf-8')
+    response['Content-Disposition'] = 'attachment; filename="batch_describer_template.txt"'
+    return response
+
+
+def batch_list(request):
+    """List the current user's batches with status counts."""
+    user = get_user(request)
+    batches = BatchDescription.objects.filter(user=user).prefetch_related('items__description')
+
+    data = []
+    for batch in batches:
+        counts = {'success': 0, 'running': 0, 'pending': 0, 'failure': 0}
+        for item in batch.items.all():
+            if item.description:
+                k = item.description.status.lower()
+                counts[k] = counts.get(k, 0) + 1
+
+        total = batch.total
+        if total > 0 and counts['success'] == total:
+            status = 'SUCCESS'
+        elif counts['running'] > 0:
+            status = 'RUNNING'
+        elif counts['pending'] == 0 and counts['running'] == 0 and counts['failure'] > 0:
+            status = 'FAILURE'
+        else:
+            status = 'PENDING'
+
+        data.append({
+            'id': batch.id,
+            'created_at': batch.created_at.strftime('%d/%m/%Y %H:%M'),
+            'total': total,
+            'status': status,
+            'counts': counts,
+        })
+
+    return JsonResponse({'batches': data})
+
+
+@require_POST
+def batch_start(request, pk):
+    """Start all PENDING descriptions in a batch."""
+    user = get_user(request)
+    batch = get_object_or_404(BatchDescription, pk=pk, user=user)
+
+    from .workers import describe_content
+
+    started = []
+    for item in batch.items.select_related('description').all():
+        desc = item.description
+        if not desc or desc.status == 'RUNNING':
+            continue
+        desc.status = 'RUNNING'
+        desc.progress = 0
+        desc.error_message = ''
+        desc.save(update_fields=['status', 'progress', 'error_message'])
+        cache.set(f"describer_progress_{desc.id}", 0, timeout=3600)
+
+        task = describe_content.delay(desc.id)
+        desc.task_id = task.id
+        desc.status = 'RUNNING'
+        desc.save(update_fields=['task_id', 'status'])
+        started.append(desc.id)
+
+    return JsonResponse({'started': started, 'count': len(started)})
+
+
+def batch_status(request, pk):
+    """Return status of all items in a batch."""
+    user = get_user(request)
+    batch = get_object_or_404(BatchDescription, pk=pk, user=user)
+
+    counts = {'success': 0, 'running': 0, 'pending': 0, 'failure': 0}
+    items_data = []
+
+    for item in batch.items.select_related('description').all():
+        d = item.description
+        if not d:
+            continue
+        key = d.status.lower()
+        counts[key] = counts.get(key, 0) + 1
+        p = int(cache.get(f"describer_progress_{d.id}", d.progress or 0))
+        items_data.append({
+            'id': d.id,
+            'filename': d.filename,
+            'status': d.status,
+            'progress': p,
+            'error': d.error_message if d.status == 'FAILURE' else None,
+        })
+
+    total = batch.total
+    if total > 0 and counts['success'] == total:
+        status_str = 'SUCCESS'
+    elif counts['running'] > 0:
+        status_str = 'RUNNING'
+    elif counts['pending'] == 0 and counts['running'] == 0 and counts['failure'] > 0:
+        status_str = 'FAILURE'
+    else:
+        status_str = 'PENDING'
+
+    return JsonResponse({
+        'batch_id': pk,
+        'status': status_str,
+        'total': total,
+        'counts': counts,
+        'items': items_data,
+    })
+
+
+def batch_download(request, pk):
+    """Download a ZIP of all completed description results in a batch."""
+    user = get_user(request)
+    batch = get_object_or_404(BatchDescription, pk=pk, user=user)
+
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as archive:
+        for item in batch.items.select_related('description').order_by('row_index'):
+            d = item.description
+            if d and d.status == 'SUCCESS':
+                if d.result_file:
+                    fname = d.result_file.name.split('/')[-1]
+                    with d.result_file.open('rb') as f:
+                        archive.writestr(fname, f.read())
+                elif d.result_text:
+                    stem = os.path.splitext(d.filename)[0] if d.filename else f'desc_{d.id}'
+                    archive.writestr(f'{stem}_result.txt', d.result_text.encode('utf-8'))
+
+    buffer.seek(0)
+    zip_name = f"batch_describer_{pk}_{datetime.date.today()}.zip"
+    return FileResponse(buffer, as_attachment=True, filename=zip_name)
+
+
+@require_POST
+def batch_delete(request, pk):
+    """Delete an entire batch: cascade-delete descriptions, clean up files."""
+    user = get_user(request)
+    batch = get_object_or_404(BatchDescription, pk=pk, user=user)
+
+    descriptions_to_delete = []
+    for item in batch.items.select_related('description').all():
+        d = item.description
+        if not d:
+            continue
+        if d.task_id:
+            try:
+                from celery.result import AsyncResult
+                AsyncResult(d.task_id).revoke(terminate=False)
+            except Exception:
+                pass
+        descriptions_to_delete.append(d)
+
+    safe_delete_file(batch, 'batch_file')
+    batch.delete()  # CASCADE deletes BatchDescriptionItems (not Description)
+
+    for d in descriptions_to_delete:
+        safe_delete_file(d, 'input_file')
+        if d.result_file:
+            try:
+                d.result_file.delete(save=False)
+            except Exception:
+                pass
+        cache.delete(f"describer_progress_{d.id}")
+        d.delete()
+
+    return JsonResponse({'success': True, 'batch_id': pk})
+
+
+@require_POST
+def batch_duplicate(request, pk):
+    """Duplicate an entire batch (shares source files, results cleared)."""
+    user = get_user(request)
+    batch = get_object_or_404(BatchDescription, pk=pk, user=user)
+
+    new_batch = BatchDescription.objects.create(user=user, total=batch.total)
+    for item in batch.items.select_related('description').order_by('row_index'):
+        d = item.description
+        if not d:
+            continue
+        new_d = duplicate_instance(d, reset_fields={
+            'status': 'PENDING', 'progress': 0, 'task_id': '',
+            'result_text': '', 'error_message': '',
+        }, clear_fields=['result_file'])
+        BatchDescriptionItem.objects.create(batch=new_batch, description=new_d, row_index=item.row_index)
+
+    return JsonResponse({'success': True, 'batch_id': new_batch.id})
 
 
 @require_GET

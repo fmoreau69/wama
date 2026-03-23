@@ -215,6 +215,11 @@
 
 {# Footer: utilise le footer de base.html avec les system stats #}
 
+{% block right_panel_media %}
+{% block app_right_panel_media %}
+{% endblock %}
+{% endblock %}
+
 {% block right_panel_settings %}
 {% block app_right_panel_settings %}
 <p class="small">Sélectionnez un fichier pour voir les options</p>

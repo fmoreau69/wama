@@ -65,6 +65,7 @@ class ModelType(Enum):
     UPSCALING = "upscaling"
     LIPSYNC = "lipsync"
     MUSIC = "music"
+    OCR = "ocr"
 
 
 class ModelSource(Enum):
@@ -76,6 +77,7 @@ class ModelSource(Enum):
     WAMA_ENHANCER = "enhancer"
     WAMA_AVATARIZER = "avatarizer"
     WAMA_COMPOSER = "composer"
+    WAMA_READER = "reader"
     OLLAMA = "ollama"
 
 
@@ -131,6 +133,7 @@ class ModelRegistry:
         self._discover_enhancer_models()
         self._discover_avatarizer_models()
         self._discover_composer_models()
+        self._discover_reader_models()
         self._discover_ollama_models()
 
         # Log summary
@@ -736,6 +739,43 @@ class ModelRegistry:
 
         except Exception as e:
             logger.debug(f"Could not discover Composer models: {e}")
+
+    def _discover_reader_models(self):
+        """Discover Reader app OCR models (olmOCR-2 + docTR)."""
+        try:
+            from wama.reader.utils.model_config import READER_MODELS, OLMOCR_DIR, DOCTR_DIR
+
+            cache_dirs = {'olmocr': OLMOCR_DIR, 'doctr': DOCTR_DIR}
+
+            for model_id, config in READER_MODELS.items():
+                hf_id = config.get('hf_model_id', '')
+                cache_dir = cache_dirs.get(model_id)
+
+                if hf_id:
+                    is_downloaded = _check_hf_model_downloaded(str(cache_dir), hf_id)
+                else:
+                    # docTR: bundled weights — consider "downloaded" if package is installed
+                    try:
+                        import doctr  # noqa
+                        is_downloaded = True
+                    except ImportError:
+                        is_downloaded = False
+
+                model_info = ModelInfo(
+                    id=model_id,
+                    name=config['description'],
+                    model_type=ModelType.OCR,
+                    source=ModelSource.WAMA_READER,
+                    description=config['description'],
+                    hf_id=hf_id or None,
+                    vram_gb=config['vram_gb'],
+                    is_downloaded=is_downloaded,
+                    extra_info={'type': config['type']},
+                )
+                self._models[model_id] = model_info
+
+        except Exception as e:
+            logger.debug(f"Could not discover Reader models: {e}")
 
     def _discover_ollama_models(self):
         """Discover Ollama models (with short timeout to avoid blocking)."""

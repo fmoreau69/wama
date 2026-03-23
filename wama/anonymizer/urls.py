@@ -57,6 +57,12 @@ urlpatterns = [
     path('sam3/validate-prompt/', views.validate_prompt_view, name='validate_prompt'),
     path('sam3/examples/', views.get_sam3_examples, name='sam3_examples'),
 
+    # Batch operations (Type A: media_list)
+    path('batch/template/', views.batch_template, name='batch_template'),
+    path('batch/preview/', views.batch_preview, name='batch_preview'),
+    path('batch/create/', views.batch_create, name='batch_create'),
+    path('batch/<int:pk>/delete/', views.batch_delete, name='batch_delete'),
+
     # Unused
     # path('display_console/', views.ProcessView.display_console, name='display_console'),
 ]

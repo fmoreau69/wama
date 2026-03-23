@@ -58,6 +58,9 @@ _DESCRIBER_TYPE_MAP = {
 # Transcriber: audio + video
 _TRANSCRIBER_EXTS = _AUDIO_EXTS | _VIDEO_EXTS
 
+# Reader: PDF + images
+_READER_EXTS = {'.pdf', '.jpg', '.jpeg', '.png', '.tiff', '.tif', '.webp', '.bmp'}
+
 # ---------------------------------------------------------------------------
 # Folder mapping: logical name → MEDIA_ROOT-relative path template
 # ---------------------------------------------------------------------------
@@ -67,6 +70,7 @@ _FOLDER_MAP = {
     'anon_output':        'anonymizer/{user_id}/output',
     'transcriber_input':  'transcriber/{user_id}/input',
     'describer_input':    'describer/{user_id}/input',
+    'reader_input':       'reader/{user_id}/input',
 }
 
 
@@ -1431,6 +1435,172 @@ def get_transcriber_status(user) -> dict:
 
 
 # ===========================================================================
+# Reader tools
+# ===========================================================================
+
+def add_to_reader(
+    user,
+    file_path: str,
+    backend: str = 'auto',
+    mode: str = 'auto',
+    output_format: str = 'txt',
+    language: str = '',
+) -> dict:
+    """
+    Copy a file into the reader queue and create a ReadingItem DB entry.
+
+    Args:
+        user:          Django User instance
+        file_path:     Path relative to MEDIA_ROOT (PDF or image file)
+        backend:       'auto' | 'olmocr' | 'doctr'
+        mode:          'auto' | 'printed' | 'handwritten'
+        output_format: 'txt' | 'markdown'
+        language:      Language code (fr, en…) or empty for auto-detection
+
+    Returns:
+        {"item_id": int, "filename": str, "page_count": int, "status": "PENDING"}
+    """
+    from pathlib import Path
+    src = (Path(settings.MEDIA_ROOT) / file_path).resolve()
+    media_root = Path(settings.MEDIA_ROOT).resolve()
+    if not str(src).startswith(str(media_root)):
+        return {'error': 'Accès refusé : chemin hors de MEDIA_ROOT.'}
+    if not src.exists():
+        return {'error': f'Fichier introuvable : {file_path}'}
+
+    ext = src.suffix.lower()
+    if ext not in _READER_EXTS:
+        exts_str = ', '.join(sorted(_READER_EXTS))
+        return {'error': f'Format non supporté par le Reader : {ext}. Formats acceptés : {exts_str}'}
+
+    try:
+        from django.core.files import File
+        from wama.reader.models import ReadingItem
+        from wama.reader.tasks import _count_pdf_pages
+
+        with open(str(src), 'rb') as f:
+            django_file = File(f, name=src.name)
+            item = ReadingItem.objects.create(
+                user=user,
+                input_file=django_file,
+                original_filename=src.name,
+                backend=backend,
+                mode=mode,
+                output_format=output_format,
+                language=language or '',
+                status='PENDING',
+            )
+
+        # Count PDF pages immediately (quick, synchronous)
+        if ext == '.pdf':
+            try:
+                n = _count_pdf_pages(item.input_file.path)
+                if n:
+                    item.page_count = n
+                    item.save(update_fields=['page_count'])
+            except Exception:
+                pass
+
+    except Exception as e:
+        return {'error': f'Erreur création ReadingItem : {e}'}
+
+    return {
+        'item_id': item.id,
+        'filename': item.filename,
+        'page_count': item.page_count,
+        'backend': backend,
+        'mode': mode,
+        'output_format': output_format,
+        'status': 'PENDING',
+    }
+
+
+def start_reader(user, item_id: int = None) -> dict:
+    """
+    Launch Celery OCR task(s).
+
+    Args:
+        user:    Django User instance
+        item_id: Specific job to start (None = all PENDING jobs)
+
+    Returns:
+        {"task_id": str, "status": "started", ...}
+    """
+    from wama.reader.models import ReadingItem
+    from wama.reader.tasks import read_document_task
+
+    if item_id is not None:
+        try:
+            item = ReadingItem.objects.get(pk=item_id, user=user)
+        except ReadingItem.DoesNotExist:
+            return {'error': f'ReadingItem #{item_id} introuvable ou non autorisé.'}
+
+        if item.status == 'RUNNING':
+            return {'error': f'ReadingItem #{item_id} est déjà en cours.'}
+
+        item.status = 'RUNNING'
+        item.result_text = ''
+        item.error_message = ''
+        item.progress = 0
+        item.save()
+
+        task = read_document_task.delay(item.id)
+        item.task_id = task.id
+        item.save(update_fields=['task_id'])
+
+        return {'task_id': task.id, 'status': 'started', 'item_id': item_id}
+
+    else:
+        pending = ReadingItem.objects.filter(user=user, status='PENDING')
+        if not pending.exists():
+            return {'error': 'Aucun document en attente.'}
+
+        started = []
+        for item in pending:
+            task = read_document_task.delay(item.id)
+            item.task_id = task.id
+            item.status = 'RUNNING'
+            item.save(update_fields=['task_id', 'status'])
+            started.append(item.id)
+
+        return {'status': 'started', 'item_id': None, 'count': len(started), 'ids': started}
+
+
+def get_reader_status(user) -> dict:
+    """
+    Return status of the user's recent reading jobs (last 10).
+
+    Returns:
+        {"jobs": [{"id", "filename", "page_count", "backend", "used_backend",
+                   "status", "progress", "result_preview", "error_message"}]}
+    """
+    from wama.reader.models import ReadingItem
+    from django.core.cache import cache
+
+    jobs_qs = ReadingItem.objects.filter(user=user).order_by('-id')[:10]
+    jobs = []
+    for item in jobs_qs:
+        cached = cache.get(f'reader_progress_{item.id}')
+        progress = cached.get('pct', item.progress) if cached else item.progress
+        result_preview = None
+        if item.result_text:
+            result_preview = (item.result_text[:300] + '…') if len(item.result_text) > 300 else item.result_text
+
+        jobs.append({
+            'id': item.id,
+            'filename': item.filename,
+            'page_count': item.page_count,
+            'backend': item.backend,
+            'used_backend': item.used_backend or None,
+            'status': item.status,
+            'progress': progress,
+            'result_preview': result_preview,
+            'error_message': item.error_message or None,
+        })
+    return {'jobs': jobs}
+
+
+# ===========================================================================
 # Media Library tools
 # ===========================================================================
 
@@ -1534,6 +1704,9 @@ TOOL_REGISTRY = {
     'add_to_transcriber':     add_to_transcriber,
     'start_transcriber':      start_transcriber,
     'get_transcriber_status': get_transcriber_status,
+    'add_to_reader':          add_to_reader,
+    'start_reader':           start_reader,
+    'get_reader_status':      get_reader_status,
     'list_media_assets':      list_media_assets,
     'get_media_asset_url':    get_media_asset_url,
 }
@@ -1707,6 +1880,26 @@ TOOL_DESCRIPTIONS = {
         'description': "Retourne l'état des 10 derniers jobs Transcriber, avec un aperçu du texte.",
         'args': {},
     },
+    'add_to_reader': {
+        'description': "Enregistre un fichier PDF ou image pour extraction de texte OCR.",
+        'args': {
+            'file_path':     'str  — chemin relatif à MEDIA_ROOT (PDF, JPG, PNG, TIFF, WEBP, BMP)',
+            'backend':       "str  — 'auto' (défaut), 'olmocr' (qualité, GPU), 'doctr' (rapide, CPU)",
+            'mode':          "str  — 'auto' (défaut), 'printed' (typographié), 'handwritten' (manuscrit)",
+            'output_format': "str  — 'txt' (défaut) | 'markdown'",
+            'language':      "str  — code langue (ex: 'fr', 'en') ou vide pour auto-détection",
+        },
+    },
+    'start_reader': {
+        'description': "Lance l'extraction OCR Celery pour un job ou tous les jobs en attente.",
+        'args': {
+            'item_id': 'int|null — ID retourné par add_to_reader, ou null pour tous les PENDING',
+        },
+    },
+    'get_reader_status': {
+        'description': "Retourne l'état des 10 derniers jobs Reader (OCR), avec un aperçu du texte extrait.",
+        'args': {},
+    },
     'list_media_assets': {
         'description': "Liste les assets de la Médiathèque personnelle de l'utilisateur (voix, images, musiques, etc.).",
         'args': {
@@ -1813,3 +2006,49 @@ def get_anonymizer_status_view(request):
 @require_GET
 def sam3_examples_view(request):
     return JsonResponse(sam3_examples())
+
+
+@login_required
+@require_POST
+def add_to_reader_view(request):
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'JSON invalide'}, status=400)
+
+    result = add_to_reader(
+        user=request.user,
+        file_path=data.get('file_path', ''),
+        backend=data.get('backend', 'auto'),
+        mode=data.get('mode', 'auto'),
+        output_format=data.get('output_format', 'txt'),
+        language=data.get('language', ''),
+    )
+    status_code = 400 if 'error' in result else 200
+    return JsonResponse(result, status=status_code)
+
+
+@login_required
+@require_POST
+def start_reader_view(request):
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        data = {}
+
+    item_id = data.get('item_id')
+    if item_id is not None:
+        try:
+            item_id = int(item_id)
+        except (ValueError, TypeError):
+            return JsonResponse({'error': 'item_id doit être un entier'}, status=400)
+
+    result = start_reader(user=request.user, item_id=item_id)
+    status_code = 400 if 'error' in result else 200
+    return JsonResponse(result, status=status_code)
+
+
+@login_required
+@require_GET
+def get_reader_status_view(request):
+    return JsonResponse(get_reader_status(request.user))

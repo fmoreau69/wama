@@ -1,6 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import User
-from wama.common.utils.media_paths import UploadToUserPath
+from wama.common.utils.media_paths import UploadToUserPath, upload_to_user_input
 
 
 class Enhancement(models.Model):
@@ -68,6 +68,9 @@ class Enhancement(models.Model):
         help_text='Tile size for large images (0=auto)'
     )
 
+    # Source URL (used for batch imports — file not yet downloaded)
+    source_url = models.CharField(max_length=2000, blank=True, default='')
+
     # Processing state
     task_id = models.CharField(max_length=255, blank=True, default='')
     status = models.CharField(max_length=32, choices=STATUS_CHOICES, default='PENDING')
@@ -123,10 +126,13 @@ class AudioEnhancement(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='audio_enhancements')
     created_at = models.DateTimeField(auto_now_add=True)
 
-    input_file = models.FileField(upload_to=UploadToUserPath('enhancer', 'input/audio'))
+    input_file = models.FileField(upload_to=UploadToUserPath('enhancer', 'input/audio'), blank=True, null=True)
     output_file = models.FileField(
         upload_to=UploadToUserPath('enhancer', 'output/audio'), blank=True, null=True
     )
+
+    # Source URL (used for batch imports — file not yet downloaded)
+    source_url = models.CharField(max_length=2000, blank=True, default='')
 
     file_size = models.BigIntegerField(default=0, help_text='Input file size in bytes')
     duration = models.FloatField(default=0, help_text='Duration in seconds')
@@ -194,3 +200,67 @@ class UserSettings(models.Model):
 
     def __str__(self):
         return f"Settings for {self.user.username}"
+
+
+class BatchEnhancement(models.Model):
+    """Groupe d'améliorations créé depuis un fichier batch."""
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='batch_enhancements')
+    created_at = models.DateTimeField(auto_now_add=True)
+    batch_file = models.FileField(
+        upload_to=upload_to_user_input('enhancer'),
+        blank=True, null=True,
+    )
+    total = models.IntegerField(default=0)
+
+    class Meta:
+        verbose_name = "Batch d'améliorations"
+        verbose_name_plural = "Batchs d'améliorations"
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Batch #{self.id} — {self.user.username} ({self.total} items)"
+
+
+class BatchEnhancementItem(models.Model):
+    """Link between BatchEnhancement and Enhancement."""
+    batch = models.ForeignKey(BatchEnhancement, on_delete=models.CASCADE, related_name='items')
+    enhancement = models.OneToOneField(
+        Enhancement, on_delete=models.CASCADE,
+        related_name='batch_item', null=True, blank=True,
+    )
+    row_index = models.IntegerField(default=0)
+
+    class Meta:
+        ordering = ['row_index']
+
+
+class BatchAudioEnhancement(models.Model):
+    """Groupe d'améliorations audio créé depuis un fichier batch ou upload multiple."""
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='batch_audio_enhancements')
+    created_at = models.DateTimeField(auto_now_add=True)
+    batch_file = models.FileField(
+        upload_to=upload_to_user_input('enhancer'),
+        blank=True, null=True,
+    )
+    total = models.IntegerField(default=0)
+
+    class Meta:
+        verbose_name = "Batch d'améliorations audio"
+        verbose_name_plural = "Batchs d'améliorations audio"
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Audio Batch #{self.id} — {self.user.username} ({self.total} items)"
+
+
+class BatchAudioEnhancementItem(models.Model):
+    """Link between BatchAudioEnhancement and AudioEnhancement."""
+    batch = models.ForeignKey(BatchAudioEnhancement, on_delete=models.CASCADE, related_name='items')
+    audio_enhancement = models.OneToOneField(
+        AudioEnhancement, on_delete=models.CASCADE,
+        related_name='batch_item', null=True, blank=True,
+    )
+    row_index = models.IntegerField(default=0)
+
+    class Meta:
+        ordering = ['row_index']

@@ -1,6 +1,10 @@
 {% extends 'common/app_modern_base.html' %}
 {% load static %}
 
+{% block app_styles %}
+#batchDetectBar { --batch-accent: #dc3545; --batch-text: #fff; }
+{% endblock %}
+
 {% block app_icon %}<i class="fas fa-user-secret text-primary"></i>{% endblock %}
 {% block app_title %}Media Anonymizer{% endblock %}
 {% block app_description %}Anonymisez automatiquement visages et plaques d'immatriculation pour la conformité RGPD{% endblock %}

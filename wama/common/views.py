@@ -6,6 +6,7 @@ Common views for system utilities.
 
 from django.core.cache import cache
 from django.http import JsonResponse
+from django.shortcuts import render
 from django.views.decorators.http import require_GET
 
 from .services.system_monitor import SystemMonitor
@@ -95,3 +96,51 @@ def console_content(request):
         'output': lines,
         'role': role,
     })
+
+
+# ---------------------------------------------------------------------------
+# App Registry
+# ---------------------------------------------------------------------------
+
+@require_GET
+def api_apps(request):
+    """
+    Return the WAMA application catalog as JSON.
+    Used by FileManager JS (APP_EXTENSIONS) and any external consumer.
+    """
+    from .app_registry import APP_CATALOG, get_app_extensions_for_filemanager, get_conformity_summary
+    extensions = get_app_extensions_for_filemanager()
+    conformity = get_conformity_summary()
+
+    apps = {}
+    for name, spec in APP_CATALOG.items():
+        apps[name] = {
+            'label':            spec['label'],
+            'icon':             spec['icon'],
+            'color':            spec.get('color', ''),
+            'input_extensions': extensions[name],
+            'input_types':      list(spec['input_types']),
+            'batch_type':       spec['batch_type'],
+            'has_batch':        spec['has_batch'],
+            'has_url_import':   spec['has_url_import'],
+            'has_youtube':      spec['has_youtube'],
+            'output_types':     list(spec['output_types']),
+            'conformity':       conformity[name],
+        }
+    return JsonResponse({'apps': apps})
+
+
+def apps_catalog_view(request):
+    """Render the WAMA application catalog page."""
+    from .app_registry import APP_CATALOG, get_conformity_summary
+    conformity = get_conformity_summary()
+
+    apps_list = []
+    for name, spec in APP_CATALOG.items():
+        apps_list.append({
+            'name':       name,
+            'spec':       spec,
+            'conformity': conformity[name],
+        })
+
+    return render(request, 'common/apps.html', {'apps_list': apps_list})

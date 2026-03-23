@@ -223,7 +223,7 @@
 {% block app_right_panel_actions %}
 <div class="d-grid gap-2">
     <button class="btn btn-success btn-sm" id="startAllBtn">
-        <i class="fas fa-play"></i> Démarrer tout
+        <i class="fas fa-play"></i> Démarrer
     </button>
     <button class="btn btn-info btn-sm" id="downloadAllBtn">
         <i class="fas fa-download"></i> Télécharger tout
@@ -1359,8 +1359,6 @@ function _mpInjectImage(file, inputId, previewId) {
         transition: transform 0.2s ease;
     }
 </style>
-<!-- Media preview functionality -->
-<script src="{% static 'common/js/media-preview.js' %}"></script>
 <script>
     /**
      * Open image preview in modal with prev/next navigation.

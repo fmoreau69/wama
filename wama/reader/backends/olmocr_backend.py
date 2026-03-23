@@ -181,7 +181,10 @@ class OlmOCRBackend:
     def _pdf_to_images(self, path: Path):
         """Convert PDF pages to images. Tries pymupdf then pdf2image."""
         try:
-            import fitz  # pymupdf
+            try:
+                import pymupdf as fitz  # PyMuPDF >= 1.24
+            except ImportError:
+                import fitz  # legacy name
             doc = fitz.open(str(path))
             images = []
             from PIL import Image
@@ -192,8 +195,10 @@ class OlmOCRBackend:
                 images.append(img)
             doc.close()
             return images
-        except ImportError:
-            pass
+        except Exception as e:
+            # ImportError si non installé, mais aussi RuntimeError/AttributeError
+            # selon la version de PyMuPDF — on log et on tente le fallback
+            logger.warning(f"[olmOCR] pymupdf échoué ({type(e).__name__}: {e}), fallback pdf2image")
 
         try:
             from pdf2image import convert_from_path

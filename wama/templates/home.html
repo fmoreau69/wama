@@ -192,6 +192,9 @@
         add_to_transcriber:        '🎤',
         start_transcriber:         '▶️',
         get_transcriber_status:    '📊',
+        add_to_reader:             '📄',
+        start_reader:              '▶️',
+        get_reader_status:         '📊',
         list_media_assets:         '🗃️',
         get_media_asset_url:       '🔗',
       };
@@ -529,6 +532,23 @@
             </div>
           </div>
 
+          <!-- Composer -->
+          <div class="col-md-6 col-lg-4">
+            <div class="card h-100" style="background: #212529; border: 1px solid #495057;">
+              <div class="card-body d-flex flex-column">
+                <h5 class="card-title text-light">
+                  <i class="fas fa-music text-success"></i> Composer
+                </h5>
+                <p class="card-text text-light flex-grow-1">
+                  AI music and sound effects generation (MusicGen + AudioGen)
+                </p>
+                <a href="{% url 'composer:index' %}" class="btn btn-success mt-auto">
+                  <i class="fas fa-arrow-right"></i> Open
+                </a>
+              </div>
+            </div>
+          </div>
+
           <!-- Describer -->
           <div class="col-md-6 col-lg-4">
             <div class="card h-100" style="background: #212529; border: 1px solid #495057;">
@@ -580,6 +600,23 @@
             </div>
           </div>
 
+          <!-- Reader -->
+          <div class="col-md-6 col-lg-4">
+            <div class="card h-100" style="background: #212529; border: 1px solid #495057;">
+              <div class="card-body d-flex flex-column">
+                <h5 class="card-title text-light">
+                  <i class="fas fa-book-open text-info"></i> Reader
+                </h5>
+                <p class="card-text text-light flex-grow-1">
+                  AI-powered document and image text extraction (OCR)
+                </p>
+                <a href="{% url 'reader:index' %}" class="btn btn-info mt-auto">
+                  <i class="fas fa-arrow-right"></i> Open
+                </a>
+              </div>
+            </div>
+          </div>
+
           <!-- Synthesizer -->
           <div class="col-md-6 col-lg-4">
             <div class="card h-100" style="background: #212529; border: 1px solid #495057;">
@@ -591,23 +628,6 @@
                   Automatic voice synthesis from text files
                 </p>
                 <a href="{% url 'synthesizer:index' %}" class="btn btn-primary mt-auto">
-                  <i class="fas fa-arrow-right"></i> Open
-                </a>
-              </div>
-            </div>
-          </div>
-
-          <!-- Composer -->
-          <div class="col-md-6 col-lg-4">
-            <div class="card h-100" style="background: #212529; border: 1px solid #495057;">
-              <div class="card-body d-flex flex-column">
-                <h5 class="card-title text-light">
-                  <i class="fas fa-music text-success"></i> Composer
-                </h5>
-                <p class="card-text text-light flex-grow-1">
-                  AI music and sound effects generation (MusicGen + AudioGen)
-                </p>
-                <a href="{% url 'composer:index' %}" class="btn btn-success mt-auto">
                   <i class="fas fa-arrow-right"></i> Open
                 </a>
               </div>

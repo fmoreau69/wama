@@ -11,7 +11,10 @@ from django.utils.encoding import smart_str
 from django.core.cache import cache
 from PIL import Image
 
-from .models import Enhancement, UserSettings, AudioEnhancement
+import datetime
+from .models import (Enhancement, UserSettings, AudioEnhancement,
+                     BatchEnhancement, BatchEnhancementItem,
+                     BatchAudioEnhancement, BatchAudioEnhancementItem)
 from ..accounts.views import get_or_create_anonymous_user
 from ..common.utils.console_utils import get_console_lines
 from ..common.utils.video_utils import upload_media_from_url, get_media_info
@@ -20,18 +23,100 @@ from ..common.utils.queue_duplication import safe_delete_file, duplicate_instanc
 logger = logging.getLogger(__name__)
 
 
+def _wrap_enhancement_in_batch(enhancement):
+    """Wrap a standalone Enhancement in a new BatchEnhancement-of-1."""
+    batch = BatchEnhancement.objects.create(user=enhancement.user, total=1)
+    BatchEnhancementItem.objects.create(batch=batch, enhancement=enhancement, row_index=0)
+    return batch
+
+
+def _auto_wrap_orphans(user):
+    """Wrap any Enhancement not yet in a batch into a batch-of-1 (called on page load)."""
+    existing_ids = set(
+        BatchEnhancementItem.objects.filter(batch__user=user)
+        .values_list('enhancement_id', flat=True)
+    )
+    orphans = Enhancement.objects.filter(user=user).exclude(id__in=existing_ids)
+    for orphan in orphans:
+        try:
+            _wrap_enhancement_in_batch(orphan)
+        except Exception:
+            pass
+
+
+def _wrap_audio_in_batch(audio_enhancement):
+    """Wrap a standalone AudioEnhancement in a new BatchAudioEnhancement-of-1."""
+    batch = BatchAudioEnhancement.objects.create(user=audio_enhancement.user, total=1)
+    BatchAudioEnhancementItem.objects.create(batch=batch, audio_enhancement=audio_enhancement, row_index=0)
+    return batch
+
+
+def _auto_wrap_audio_orphans(user):
+    """Wrap any AudioEnhancement not yet in a batch into a batch-of-1 (called on page load)."""
+    existing_ids = set(
+        BatchAudioEnhancementItem.objects.filter(batch__user=user)
+        .values_list('audio_enhancement_id', flat=True)
+    )
+    orphans = AudioEnhancement.objects.filter(user=user).exclude(id__in=existing_ids)
+    for orphan in orphans:
+        try:
+            _wrap_audio_in_batch(orphan)
+        except Exception:
+            pass
+
+
 class IndexView(View):
     def get(self, request):
         user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-        enhancements = Enhancement.objects.filter(user=user).order_by('-id')
-        audio_enhancements = AudioEnhancement.objects.filter(user=user).order_by('-id')
+
+        # Lazily wrap any orphan enhancements into batches-of-1
+        _auto_wrap_orphans(user)
+        _auto_wrap_audio_orphans(user)
+
+        # Build batches_list for image/video tab
+        batches_qs = BatchEnhancement.objects.filter(user=user).prefetch_related(
+            'items__enhancement'
+        ).order_by('-id')
+
+        batches_list = []
+        for batch in batches_qs:
+            items = list(batch.items.all())
+            success_count = sum(
+                1 for i in items if i.enhancement and i.enhancement.status == 'SUCCESS'
+            )
+            batches_list.append({
+                'obj': batch,
+                'items': items,
+                'success_count': success_count,
+                'success_pct': int(success_count / batch.total * 100) if batch.total > 0 else 0,
+                'has_success': success_count > 0,
+            })
+
+        # Build audio_batches_list for audio tab
+        audio_batches_qs = BatchAudioEnhancement.objects.filter(user=user).prefetch_related(
+            'items__audio_enhancement'
+        ).order_by('-id')
+
+        audio_batches_list = []
+        for batch in audio_batches_qs:
+            items = list(batch.items.all())
+            success_count = sum(
+                1 for i in items if i.audio_enhancement and i.audio_enhancement.status == 'SUCCESS'
+            )
+            audio_batches_list.append({
+                'obj': batch,
+                'items': items,
+                'success_count': success_count,
+                'success_pct': int(success_count / batch.total * 100) if batch.total > 0 else 0,
+                'has_success': success_count > 0,
+            })
 
         # Get or create user settings
         user_settings, _ = UserSettings.objects.get_or_create(user=user)
 
         return render(request, 'enhancer/index.html', {
-            'enhancements': enhancements,
-            'audio_enhancements': audio_enhancements,
+            'batches_list': batches_list,
+            'audio_batches_list': audio_batches_list,
             'user_settings': user_settings,
             'ai_models': Enhancement.AI_MODEL_CHOICES,
         })
@@ -116,6 +201,12 @@ def upload(request):
 
             logger.info(f"Created Enhancement ID: {enhancement.id}")
 
+            # Wrap in batch-of-1
+            try:
+                _wrap_enhancement_in_batch(enhancement)
+            except Exception:
+                pass
+
             # Analyze file
             try:
                 _analyze_media(enhancement)
@@ -167,6 +258,12 @@ def upload(request):
         blend_factor=user_settings.default_blend_factor,
     )
     logger.info(f"Created Enhancement ID: {enhancement.id}")
+
+    # Wrap in batch-of-1
+    try:
+        _wrap_enhancement_in_batch(enhancement)
+    except Exception:
+        pass
 
     # Analyze file
     try:
@@ -352,6 +449,11 @@ def duplicate(request, pk: int):
         },
         clear_fields=['output_file'],
     )
+    # Wrap duplicate in its own batch-of-1
+    try:
+        _wrap_enhancement_in_batch(new_e)
+    except Exception:
+        pass
     return JsonResponse({'duplicated': new_e.id})
 
 
@@ -496,6 +598,293 @@ def update_settings(request, pk: int):
 
 
 # ===========================================================================
+# Batch Enhancement Views (image/video only)
+# ===========================================================================
+
+def batch_template(request):
+    """Download a batch file template (.txt)."""
+    from django.http import HttpResponse
+    content = (
+        "# WAMA Enhancer - Batch Import\n"
+        "# Format : une URL ou chemin de fichier image/vidéo par ligne\n"
+        "# Les lignes commençant par # sont des commentaires.\n\n"
+        "https://example.com/image.jpg\n"
+        "https://example.com/video.mp4\n"
+        "/media/uploads/photo.png\n"
+    )
+    response = HttpResponse(content, content_type='text/plain; charset=utf-8')
+    response['Content-Disposition'] = 'attachment; filename="batch_enhancer_template.txt"'
+    return response
+
+
+@require_POST
+def batch_preview(request):
+    """Parse a batch file (one URL/path per line) and return the list for preview."""
+    from wama.common.utils.batch_parsers import batch_media_list_preview_response
+    from wama.common.app_registry import IMAGE_EXTENSIONS, VIDEO_EXTENSIONS
+
+    _img = set(IMAGE_EXTENSIONS)
+    _vid = set(VIDEO_EXTENSIONS)
+
+    def _enrich(item):
+        ext_item = '.' + item['filename'].rsplit('.', 1)[-1].lower() if '.' in item['filename'] else ''
+        if ext_item in _img:
+            item['detected_type'] = 'image'
+        elif ext_item in _vid:
+            item['detected_type'] = 'video'
+        else:
+            item['detected_type'] = 'media'
+
+    return batch_media_list_preview_response(request, item_enricher=_enrich)
+
+
+@require_POST
+def batch_create(request):
+    """Parse batch file (URLs/paths), create BatchEnhancement + Enhancement entries."""
+    from wama.common.utils.batch_parsers import parse_batch_file_from_request
+    from wama.common.app_registry import IMAGE_EXTENSIONS, VIDEO_EXTENSIONS
+
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    ai_model = request.POST.get('ai_model', 'RealESR_Gx4')
+    denoise_val = request.POST.get('denoise', 'false')
+    denoise = denoise_val.lower() in ('1', 'true', 'on')
+    try:
+        blend_factor = float(request.POST.get('blend_factor', '0'))
+    except (ValueError, TypeError):
+        blend_factor = 0.0
+
+    try:
+        items, warnings = parse_batch_file_from_request(request)
+    except ValueError as e:
+        return JsonResponse({'error': str(e)}, status=400)
+
+    if not items:
+        return JsonResponse({'error': 'Aucun élément valide trouvé dans le fichier'}, status=400)
+
+    image_extensions = {'.jpg', '.jpeg', '.png', '.bmp', '.tif', '.tiff', '.webp', '.heic'}
+    video_extensions = {'.mp4', '.webm', '.mkv', '.flv', '.gif', '.avi', '.mov', '.mpg', '.qt', '.3gp'}
+
+    batch_file.seek(0)
+    batch = BatchEnhancement.objects.create(
+        user=user,
+        total=len(items),
+        batch_file=batch_file,
+    )
+
+    created_ids = []
+    for i, item in enumerate(items):
+        url_or_path = item['path']
+        fname = url_or_path.split('/')[-1].split('\\')[-1] or url_or_path
+        ext_item = '.' + fname.rsplit('.', 1)[-1].lower() if '.' in fname else ''
+        if ext_item in image_extensions:
+            media_type = 'image'
+        elif ext_item in video_extensions:
+            media_type = 'video'
+        else:
+            media_type = 'image'  # default
+
+        enhancement = Enhancement.objects.create(
+            user=user,
+            source_url=url_or_path,
+            media_type=media_type,
+            ai_model=ai_model,
+            denoise=denoise,
+            blend_factor=blend_factor,
+        )
+        BatchEnhancementItem.objects.create(batch=batch, enhancement=enhancement, row_index=i)
+        created_ids.append(enhancement.id)
+
+    return JsonResponse({
+        'batch_id': batch.id,
+        'enhancement_ids': created_ids,
+        'total': len(items),
+        'warnings': warnings,
+    })
+
+
+def batch_list(request):
+    """List current user's batches with status counts."""
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    batches = BatchEnhancement.objects.filter(user=user).prefetch_related('items__enhancement')
+
+    data = []
+    for batch in batches:
+        counts = {'success': 0, 'running': 0, 'pending': 0, 'failure': 0}
+        for item in batch.items.all():
+            if item.enhancement:
+                k = item.enhancement.status.lower()
+                counts[k] = counts.get(k, 0) + 1
+
+        total = batch.total
+        if total > 0 and counts['success'] == total:
+            status = 'SUCCESS'
+        elif counts['running'] > 0:
+            status = 'RUNNING'
+        elif counts['pending'] == 0 and counts['running'] == 0 and counts['failure'] > 0:
+            status = 'FAILURE'
+        else:
+            status = 'PENDING'
+
+        data.append({
+            'id': batch.id,
+            'created_at': batch.created_at.strftime('%d/%m/%Y %H:%M'),
+            'total': total,
+            'status': status,
+            'counts': counts,
+        })
+
+    return JsonResponse({'batches': data})
+
+
+@require_POST
+def batch_start(request, pk: int):
+    """Start all PENDING enhancements in a batch."""
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    batch = get_object_or_404(BatchEnhancement, pk=pk, user=user)
+
+    from .tasks import enhance_media
+
+    started = []
+    for item in batch.items.select_related('enhancement').all():
+        e = item.enhancement
+        if not e or e.status == 'RUNNING':
+            continue
+        e.status = 'RUNNING'
+        e.progress = 0
+        e.error_message = ''
+        e.save(update_fields=['status', 'progress', 'error_message'])
+        cache.set(f"enhancer_progress_{e.id}", 0, timeout=3600)
+
+        task = enhance_media.delay(e.id)
+        e.task_id = task.id
+        e.status = 'RUNNING'
+        e.save(update_fields=['task_id', 'status'])
+        started.append(e.id)
+
+    return JsonResponse({'started': started, 'count': len(started)})
+
+
+def batch_status(request, pk: int):
+    """Return status of all items in a batch."""
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    batch = get_object_or_404(BatchEnhancement, pk=pk, user=user)
+
+    counts = {'success': 0, 'running': 0, 'pending': 0, 'failure': 0}
+    items_data = []
+
+    for item in batch.items.select_related('enhancement').all():
+        e = item.enhancement
+        if not e:
+            continue
+        key = e.status.lower()
+        counts[key] = counts.get(key, 0) + 1
+        p = int(cache.get(f"enhancer_progress_{e.id}", e.progress or 0))
+        items_data.append({
+            'id': e.id,
+            'filename': e.get_input_filename() or e.source_url,
+            'status': e.status,
+            'progress': p,
+            'error': e.error_message if e.status == 'FAILURE' else None,
+        })
+
+    total = batch.total
+    if total > 0 and counts['success'] == total:
+        status_str = 'SUCCESS'
+    elif counts['running'] > 0:
+        status_str = 'RUNNING'
+    elif counts['pending'] == 0 and counts['running'] == 0 and counts['failure'] > 0:
+        status_str = 'FAILURE'
+    else:
+        status_str = 'PENDING'
+
+    return JsonResponse({
+        'batch_id': pk,
+        'status': status_str,
+        'total': total,
+        'counts': counts,
+        'items': items_data,
+    })
+
+
+def batch_download(request, pk: int):
+    """Download a ZIP of all completed enhanced files in a batch."""
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    batch = get_object_or_404(BatchEnhancement, pk=pk, user=user)
+
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as archive:
+        for item in batch.items.select_related('enhancement').order_by('row_index'):
+            e = item.enhancement
+            if e and e.status == 'SUCCESS' and e.output_file:
+                try:
+                    fname = e.get_output_filename()
+                    with e.output_file.open('rb') as f:
+                        archive.writestr(fname, f.read())
+                except Exception:
+                    pass
+
+    buffer.seek(0)
+    zip_name = f"batch_enhancer_{pk}_{datetime.date.today()}.zip"
+    return FileResponse(buffer, as_attachment=True, filename=zip_name)
+
+
+@require_POST
+def batch_delete(request, pk: int):
+    """Delete an entire batch: cascade-delete enhancements, clean up files."""
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    batch = get_object_or_404(BatchEnhancement, pk=pk, user=user)
+
+    enhancements_to_delete = []
+    for item in batch.items.select_related('enhancement').all():
+        e = item.enhancement
+        if not e:
+            continue
+        if e.task_id:
+            try:
+                from celery.result import AsyncResult
+                AsyncResult(e.task_id).revoke(terminate=False)
+            except Exception:
+                pass
+        enhancements_to_delete.append(e)
+
+    safe_delete_file(batch, 'batch_file')
+    batch.delete()  # CASCADE deletes BatchEnhancementItems (not Enhancement)
+
+    for e in enhancements_to_delete:
+        safe_delete_file(e, 'input_file')
+        if e.output_file:
+            try:
+                e.output_file.delete(save=False)
+            except Exception:
+                pass
+        cache.delete(f"enhancer_progress_{e.id}")
+        e.delete()
+
+    return JsonResponse({'success': True, 'batch_id': pk})
+
+
+@require_POST
+def batch_duplicate(request, pk: int):
+    """Duplicate an entire batch (shares source files, results cleared)."""
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    batch = get_object_or_404(BatchEnhancement, pk=pk, user=user)
+
+    new_batch = BatchEnhancement.objects.create(user=user, total=batch.total)
+    for item in batch.items.select_related('enhancement').order_by('row_index'):
+        e = item.enhancement
+        if not e:
+            continue
+        new_e = duplicate_instance(e, reset_fields={
+            'status': 'PENDING', 'progress': 0, 'task_id': '',
+            'error_message': '', 'output_width': 0, 'output_height': 0,
+            'output_file_size': 0, 'processing_time': 0,
+        }, clear_fields=['output_file'])
+        BatchEnhancementItem.objects.create(batch=new_batch, enhancement=new_e, row_index=item.row_index)
+
+    return JsonResponse({'success': True, 'batch_id': new_batch.id})
+
+
+# ===========================================================================
 # Audio Enhancement Views
 # ===========================================================================
 
@@ -539,6 +928,7 @@ def audio_upload(request):
         except Exception as e:
             return JsonResponse({'error': str(e)}, status=500)
 
+        _wrap_audio_in_batch(ae)
         return JsonResponse({
             'id': ae.id,
             'input_filename': ae.get_input_filename(),
@@ -575,6 +965,7 @@ def audio_upload(request):
     except Exception:
         pass
 
+    _wrap_audio_in_batch(ae)
     return JsonResponse({
         'id': ae.id,
         'input_filename': ae.get_input_filename(),
@@ -648,9 +1039,16 @@ def audio_download(request, pk: int):
 
 @require_POST
 def audio_delete(request, pk: int):
-    """Delete audio enhancement."""
+    """Delete audio enhancement and clean up parent batch-of-1 if empty."""
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     ae = get_object_or_404(AudioEnhancement, pk=pk, user=user)
+
+    # Capture parent batch before deletion
+    parent_batch = None
+    try:
+        parent_batch = ae.batch_item.batch
+    except Exception:
+        pass
 
     # Input may be shared with a duplicate — only delete if no other row references it
     safe_delete_file(ae, 'input_file')
@@ -664,6 +1062,12 @@ def audio_delete(request, pk: int):
 
     ae.delete()
     cache.delete(f"audio_enhancer_progress_{pk}")
+
+    # Clean up empty batch container (batch-of-1) after cascade
+    if parent_batch and parent_batch.items.count() == 0:
+        safe_delete_file(parent_batch, 'batch_file')
+        parent_batch.delete()
+
     return JsonResponse({'deleted': pk})
 
 
@@ -739,20 +1143,25 @@ def audio_start_all(request):
 
 @require_POST
 def audio_clear_all(request):
-    """Clear all audio enhancements."""
+    """Clear all audio enhancements and batch containers."""
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     aes = AudioEnhancement.objects.filter(user=user)
     cleared = []
     for ae in aes:
         cleared.append(ae.id)
-        for field in (ae.input_file, ae.output_file):
-            if field:
-                try:
-                    field.delete(save=False)
-                except Exception:
-                    pass
+        safe_delete_file(ae, 'input_file')
+        if ae.output_file:
+            try:
+                ae.output_file.delete(save=False)
+            except Exception:
+                pass
         cache.delete(f"audio_enhancer_progress_{ae.id}")
     aes.delete()
+    # Clean up orphan batch containers and their files
+    batches = BatchAudioEnhancement.objects.filter(user=user)
+    for batch in batches:
+        safe_delete_file(batch, 'batch_file')
+    batches.delete()
     return JsonResponse({'cleared_ids': cleared, 'count': len(cleared)})
 
 
@@ -797,6 +1206,260 @@ def audio_global_progress(request):
         'failure': aes.filter(status='FAILURE').count(),
         'overall_progress': int(total_progress / total) if total > 0 else 0,
     })
+
+
+# ===========================================================================
+# Audio Batch Views
+# ===========================================================================
+
+def audio_batch_template(request):
+    """Download a batch file template for audio enhancement."""
+    content = (
+        "# WAMA Enhancer — Batch Audio Import\n"
+        "# Format : une URL ou chemin de fichier audio par ligne\n"
+        "# Les lignes commençant par # sont des commentaires.\n"
+        "# Formats supportés : MP3, WAV, FLAC, OGG, M4A, AAC, OPUS, WMA\n"
+        "\n"
+        "https://example.com/audio.mp3\n"
+        "/media/uploads/voice.wav\n"
+    )
+    from django.http import HttpResponse
+    response = HttpResponse(content, content_type='text/plain; charset=utf-8')
+    response['Content-Disposition'] = 'attachment; filename="batch_audio_enhancer_template.txt"'
+    return response
+
+
+@require_POST
+def audio_batch_preview(request):
+    """Parse a batch file (one audio URL/path per line) and return the list for preview."""
+    import tempfile as _tempfile
+    batch_file = request.FILES.get('batch_file')
+    if not batch_file:
+        return JsonResponse({'error': 'Aucun fichier fourni'}, status=400)
+
+    ext = os.path.splitext(batch_file.name)[1][1:].lower()
+    from wama.common.utils.batch_parsers import parse_media_list_batch, SUPPORTED_BATCH_EXTENSIONS
+    if ext not in SUPPORTED_BATCH_EXTENSIONS:
+        return JsonResponse({'error': f'Format non supporté : {ext}'}, status=400)
+
+    tmp_path = None
+    try:
+        with _tempfile.NamedTemporaryFile(delete=False, suffix=f'.{ext}') as tmp:
+            for chunk in batch_file.chunks():
+                tmp.write(chunk)
+            tmp_path = tmp.name
+        items, warnings = parse_media_list_batch(tmp_path)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=400)
+    finally:
+        if tmp_path:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+
+    for item in items:
+        path = item['path']
+        item['filename'] = path.split('/')[-1].split('\\')[-1] or path
+
+    return JsonResponse({'items': items, 'warnings': warnings, 'count': len(items)})
+
+
+@require_POST
+def audio_batch_create(request):
+    """Parse batch file, create BatchAudioEnhancement + AudioEnhancement entries."""
+    import tempfile as _tempfile
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    batch_file = request.FILES.get('batch_file')
+    if not batch_file:
+        return JsonResponse({'error': 'Aucun fichier fourni'}, status=400)
+
+    ext = os.path.splitext(batch_file.name)[1][1:].lower()
+    from wama.common.utils.batch_parsers import parse_media_list_batch, SUPPORTED_BATCH_EXTENSIONS
+    if ext not in SUPPORTED_BATCH_EXTENSIONS:
+        return JsonResponse({'error': f'Format non supporté : {ext}'}, status=400)
+
+    tmp_path = None
+    try:
+        with _tempfile.NamedTemporaryFile(delete=False, suffix=f'.{ext}') as tmp:
+            for chunk in batch_file.chunks():
+                tmp.write(chunk)
+            tmp_path = tmp.name
+        items, warnings = parse_media_list_batch(tmp_path)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=400)
+    finally:
+        if tmp_path:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+
+    if not items:
+        return JsonResponse({'error': 'Aucun élément valide trouvé dans le fichier'}, status=400)
+
+    batch_file.seek(0)
+    batch = BatchAudioEnhancement.objects.create(user=user, total=len(items), batch_file=batch_file)
+
+    created_ids = []
+    for i, item in enumerate(items):
+        url_or_path = item['path']
+        ae = AudioEnhancement.objects.create(user=user, source_url=url_or_path)
+        BatchAudioEnhancementItem.objects.create(batch=batch, audio_enhancement=ae, row_index=i)
+        created_ids.append(ae.id)
+
+    return JsonResponse({'batch_id': batch.id, 'audio_ids': created_ids, 'total': len(items), 'warnings': warnings})
+
+
+@require_POST
+def audio_batch_start(request, pk):
+    """Start all PENDING audio enhancements in a batch."""
+    import json as _json
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    batch = get_object_or_404(BatchAudioEnhancement, pk=pk, user=user)
+
+    try:
+        data = _json.loads(request.body) if request.body else {}
+    except Exception:
+        data = {}
+
+    from .tasks import enhance_audio
+    started = []
+    for item in batch.items.select_related('audio_enhancement').all():
+        ae = item.audio_enhancement
+        if not ae or ae.status == 'RUNNING':
+            continue
+        if data.get('engine'):
+            ae.engine = data['engine']
+        if data.get('mode'):
+            ae.mode = data['mode']
+        if data.get('denoising_strength') is not None:
+            ae.denoising_strength = float(data['denoising_strength'])
+        if data.get('quality') is not None:
+            ae.quality = int(data['quality'])
+        ae.status = 'RUNNING'
+        ae.progress = 0
+        ae.error_message = ''
+        ae.save()
+        task = enhance_audio.delay(ae.id)
+        ae.task_id = task.id
+        ae.save(update_fields=['task_id'])
+        started.append(ae.id)
+
+    return JsonResponse({'started': started, 'count': len(started)})
+
+
+def audio_batch_status(request, pk):
+    """Return status of all items in an audio batch."""
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    batch = get_object_or_404(BatchAudioEnhancement, pk=pk, user=user)
+
+    counts = {'success': 0, 'running': 0, 'pending': 0, 'failure': 0}
+    items_data = []
+
+    for item in batch.items.select_related('audio_enhancement').all():
+        ae = item.audio_enhancement
+        if not ae:
+            continue
+        key = ae.status.lower()
+        counts[key] = counts.get(key, 0) + 1
+        progress = int(cache.get(f"audio_enhancer_progress_{ae.id}", ae.progress or 0))
+        items_data.append({
+            'id': ae.id,
+            'filename': ae.get_input_filename() or ae.source_url,
+            'status': ae.status,
+            'progress': progress,
+            'error': ae.error_message if ae.status == 'FAILURE' else None,
+        })
+
+    total = batch.total
+    if total > 0 and counts['success'] == total:
+        status_str = 'SUCCESS'
+    elif counts['running'] > 0:
+        status_str = 'RUNNING'
+    elif counts['pending'] == 0 and counts['running'] == 0 and counts['failure'] > 0:
+        status_str = 'FAILURE'
+    else:
+        status_str = 'PENDING'
+
+    return JsonResponse({'batch_id': pk, 'status': status_str, 'total': total, 'counts': counts, 'items': items_data})
+
+
+def audio_batch_download(request, pk):
+    """Download a ZIP of all completed audio enhancements in a batch."""
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    batch = get_object_or_404(BatchAudioEnhancement, pk=pk, user=user)
+
+    import datetime as _dt
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as archive:
+        for item in batch.items.select_related('audio_enhancement').order_by('row_index'):
+            ae = item.audio_enhancement
+            if ae and ae.status == 'SUCCESS' and ae.output_file:
+                try:
+                    with ae.output_file.open('rb') as f:
+                        archive.writestr(ae.get_output_filename(), f.read())
+                except Exception:
+                    pass
+
+    buffer.seek(0)
+    zip_name = f"audio_batch_{pk}_{_dt.date.today()}.zip"
+    return FileResponse(buffer, as_attachment=True, filename=zip_name)
+
+
+@require_POST
+def audio_batch_delete(request, pk):
+    """Delete an entire audio batch and all its enhancements."""
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    batch = get_object_or_404(BatchAudioEnhancement, pk=pk, user=user)
+
+    aes_to_delete = []
+    for item in batch.items.select_related('audio_enhancement').all():
+        ae = item.audio_enhancement
+        if not ae:
+            continue
+        if ae.task_id:
+            try:
+                from celery.result import AsyncResult
+                AsyncResult(ae.task_id).revoke(terminate=False)
+            except Exception:
+                pass
+        aes_to_delete.append(ae)
+
+    safe_delete_file(batch, 'batch_file')
+    batch.delete()
+
+    for ae in aes_to_delete:
+        safe_delete_file(ae, 'input_file')
+        if ae.output_file:
+            try:
+                ae.output_file.delete(save=False)
+            except Exception:
+                pass
+        cache.delete(f"audio_enhancer_progress_{ae.id}")
+        ae.delete()
+
+    return JsonResponse({'success': True, 'batch_id': pk})
+
+
+@require_POST
+def audio_batch_duplicate(request, pk):
+    """Duplicate an entire audio batch (shares source files, results cleared)."""
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    batch = get_object_or_404(BatchAudioEnhancement, pk=pk, user=user)
+
+    new_batch = BatchAudioEnhancement.objects.create(user=user, total=batch.total)
+    for item in batch.items.select_related('audio_enhancement').order_by('row_index'):
+        ae = item.audio_enhancement
+        if not ae:
+            continue
+        new_ae = duplicate_instance(ae, reset_fields={
+            'status': 'PENDING', 'progress': 0, 'task_id': '',
+            'error_message': '', 'processing_time': 0,
+        }, clear_fields=['output_file'])
+        BatchAudioEnhancementItem.objects.create(batch=new_batch, audio_enhancement=new_ae, row_index=item.row_index)
+
+    return JsonResponse({'success': True, 'batch_id': new_batch.id})
 
 
 def console_content(request):

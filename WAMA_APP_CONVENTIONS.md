@@ -608,7 +608,7 @@ function formatEta(seconds) {
 
 | Mode | Description | Status |
 |------|-------------|--------|
-| **Drag & drop** | Zone cliquable + glisser-déposer | ⚠️ Manquant dans Anonymizer, Imager |
+| **Drag & drop** | Zone cliquable + glisser-déposer | ⚠️ Manquant dans Imager |
 | **Parcourir** | `<input type="file" multiple>` | ✅ Toutes les apps |
 | **Dossier récursif** | `<input webkitdirectory>` | 📋 Non implémenté |
 | **FileManager** | Import depuis `/filemanager/` — sélection multiple ou dossier entier | 🚧 Partiel |
@@ -1095,41 +1095,42 @@ sous la section **"RÈGLE OBLIGATOIRE : AJOUT D'UN NOUVEAU MODÈLE AI"**.
 
 ## 15. État de Conformité par Application
 
-> Mise à jour : 2026-03-19
+> Mise à jour : 2026-03-21
 
 ### 15.1 Table de conformité
 
-| Fonctionnalité | Anony. | Describer | Enhancer | Imager | Synthés. | Transcr. | Composer | Reader |
-|---------------|--------|-----------|----------|--------|----------|----------|----------|--------|
-| Tabs Queue/Console/About/Help | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Card format standard | ⚠️ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Bouton Paramètres (pos.1) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Bouton Start/Restart (pos.2) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Bouton Télécharger (pos.3) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Bouton Dupliquer (pos.4) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Bouton Supprimer (pos.5) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Barre progression % | ⚠️ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Message d'étape | ⚠️ | ✅ | ✅ | ✅ | ✅ | ✅ | ⚠️ | ✅ |
-| **ETA individuel** | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| **ETA batch** | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| **ETA queue global** | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| Aperçu résultat (card) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ |
-| Start All | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Clear All | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Download All | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
-| **Drag & drop zone** | ❌ | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ | ✅ |
-| **Import dossier récursif** | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| **Import FileManager** | ❌ | ⚠️ | ⚠️ | ❌ | ⚠️ | ⚠️ | ❌ | ❌ |
-| **Système Batch** | ❌ | ✅ | ❌ | ✅ | ✅ | ❌ | ✅ | ❌ |
-| **Duplication Batch** | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
-| Chemins media standard | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Model registry | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **RAG injection** | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| **Bouton Réinitialiser** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **Barre détection batch** | ❌ | ✅ | ✅ | ✅ | ✅ | N/A | N/A | ✅ |
-| **Header menu** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **Home page card** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **API tool_api.py** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⚠️ | ✅ |
+| Fonctionnalité | Anony. | Describer | Enhancer | Imager | Synthés. | Transcr. | Composer | Reader | Avatarizer |
+|---------------|--------|-----------|----------|--------|----------|----------|----------|--------|------------|
+| Tabs Queue/Console/About/Help | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Card format standard | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⚠️ |
+| Bouton Paramètres (pos.1) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Bouton Start/Restart (pos.2) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Bouton Télécharger (pos.3) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Téléchargement multi-format (§6.3) | ❌ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ | ❌ |
+| Bouton Dupliquer (pos.4) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| Bouton Supprimer (pos.5) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Barre progression % | ⚠️ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Message d'étape | ⚠️ | ✅ | ✅ | ✅ | ✅ | ✅ | ⚠️ | ✅ | ⚠️ |
+| **ETA individuel** | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **ETA batch** | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | N/A |
+| **ETA queue global** | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | N/A |
+| Aperçu résultat (card) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ |
+| Start All | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| Clear All | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| Download All | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
+| **Drag & drop zone** | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ | ✅ | ✅ |
+| **Import dossier récursif** | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Import FileManager** | ❌ | ⚠️ | ⚠️ | ❌ | ⚠️ | ⚠️ | ❌ | ❌ | ❌ |
+| **Système Batch** | ❌ | ✅ | ❌ | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ |
+| **Duplication Batch** | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Chemins media standard | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Model registry | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **RAG injection** | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Bouton Réinitialiser** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⚠️ |
+| **Barre détection batch** | ✅ | ✅ | ✅ | ✅ | ✅ | N/A | N/A | ✅ | N/A |
+| **Header menu** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **Home page card** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **API tool_api.py** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⚠️ | ✅ | ❌ |
 
 ### 15.2 Priorités de mise en conformité
 

@@ -21,47 +21,7 @@
         </a>
     </small>
 </div>
-<!-- Batch detect bar (appears when batch file dropped) -->
-<div id="batchDetectBar" style="display:none; background:#1a1520; border:1px solid #0dcaf0; border-radius:0.375rem; padding:0.5rem 0.75rem; margin-bottom:0.5rem;">
-    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-1">
-        <span class="small text-light">
-            <i class="fas fa-list" style="color:#67e8f9;"></i>
-            <strong>Batch</strong> — <span id="batchDetectedCount">0</span> URL(s)
-        </span>
-        <div class="d-flex gap-1">
-            <button class="btn btn-sm py-0 px-2" style="background:#0dcaf0;color:#000;font-size:.8rem;" id="batchPreviewBtn">
-                <i class="fas fa-eye"></i> Voir
-            </button>
-            <button class="btn btn-sm btn-outline-danger py-0 px-1" id="batchCancelBar" title="Annuler">
-                <i class="fas fa-times"></i>
-            </button>
-        </div>
-    </div>
-    <div id="batchDetectPreview" style="display:none;">
-        <div id="batchDetectWarnings" class="alert alert-warning py-1 small mb-1" style="display:none;"></div>
-        <div class="table-responsive" style="max-height:140px; overflow-y:auto;">
-            <table class="table table-sm table-dark mb-0" style="font-size:0.78rem;">
-                <thead style="position:sticky; top:0; background:#1a1520;">
-                    <tr><th>URL / Chemin</th><th style="width:10%">Type</th></tr>
-                </thead>
-                <tbody id="batchDetectTable"></tbody>
-            </table>
-        </div>
-        <div class="d-flex gap-2 mt-2">
-            <button class="btn btn-success btn-sm flex-grow-1" id="batchCreateAndStartBtn">
-                <i class="fas fa-play"></i> Démarrer (<span id="batchCreateCount">0</span>)
-            </button>
-            <button class="btn btn-outline-primary btn-sm" id="batchCreateOnlyBtn">
-                <i class="fas fa-plus"></i> Ajouter
-            </button>
-        </div>
-        <div id="batchCreateProgress" class="mt-2" style="display:none;">
-            <div class="progress">
-                <div class="progress-bar progress-bar-striped progress-bar-animated bg-info" style="width:100%;color:#000;">Création…</div>
-            </div>
-        </div>
-    </div>
-</div>
+{% include 'common/batch_detect_bar.html' %}
 <div class="text-center text-muted my-2" style="font-size:0.72rem;">— ou depuis une URL —</div>
 <form id="media-url-form" method="post" action="{% url 'describer:upload' %}">
     {% csrf_token %}
@@ -642,7 +602,37 @@
         csrfToken: "{{ csrf_token }}"
     };
 </script>
+<script src="{% static 'common/js/batch-import.js' %}"></script>
 <script src="{% static 'describer/js/index.js' %}"></script>
+<script>
+window._batchImport = WamaBatchImport({
+    batchPreviewUrl: window.DESCRIBER_CONFIG.urls.batchPreview,
+    batchCreateUrl:  window.DESCRIBER_CONFIG.urls.batchCreate,
+    csrfToken:       window.DESCRIBER_CONFIG.csrfToken,
+    formDataBuilder: function(fd) {
+        var outputFormat   = document.getElementById('output_format');
+        var outputLanguage = document.getElementById('output_language');
+        var maxLength      = document.getElementById('max_length');
+        fd.append('output_format',   outputFormat   ? outputFormat.value   : 'detailed');
+        fd.append('output_language', outputLanguage ? outputLanguage.value : 'fr');
+        fd.append('max_length',      maxLength      ? maxLength.value      : '500');
+    },
+    afterCreate: function(data, autoStart) {
+        if (autoStart && data.batch_id) {
+            var startUrl = window.DESCRIBER_CONFIG.urls.batchStart.replace('/0/', '/' + data.batch_id + '/');
+            fetch(startUrl, {method: 'POST', headers: {'X-CSRFToken': window.DESCRIBER_CONFIG.csrfToken}})
+                .then(function() { setTimeout(function() { location.reload(); }, 800); });
+        } else {
+            setTimeout(function() { location.reload(); }, 800);
+        }
+    },
+    buildRow: function(item) {
+        var esc = function(s) { return String(s||'').replace(/[&<>"']/g, function(c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); };
+        return '<tr><td style="word-break:break-all;">' + esc(item.path) + '</td>'
+             + '<td><span class="badge bg-secondary">' + esc(item.detected_type || 'auto') + '</span></td></tr>';
+    },
+});
+</script>
 <script>
 /* Copy button for result text panels */
 document.addEventListener('click', function(e) {

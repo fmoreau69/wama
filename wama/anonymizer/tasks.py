@@ -73,6 +73,33 @@ def process_single_media(self, media_id):
         media = Media.objects.get(pk=media_id)
         user = media.user
         user_settings, _ = UserSettings.objects.get_or_create(user=user)
+
+        # ── Batch: download source file if not yet on disk ──────────────────
+        if not media.file and media.source_url:
+            _console(user.id, f"[Batch] Téléchargement : {media.source_url}")
+            try:
+                from wama.common.utils.media_paths import get_app_media_path
+                from wama.common.utils.video_utils import upload_media_from_url
+                output_dir = get_app_media_path('anonymizer', user.id, 'input')
+                output_dir.mkdir(parents=True, exist_ok=True)
+                save_path = upload_media_from_url(media.source_url, str(output_dir))
+                # Compute a storage-relative path for the FileField
+                from django.conf import settings
+                rel_path = os.path.relpath(save_path, settings.MEDIA_ROOT)
+                media.file.name = rel_path.replace('\\', '/')
+                # Populate metadata
+                from wama.anonymizer.views import add_media_to_db
+                add_media_to_db(media, save_path)
+                media.file_ext = os.path.splitext(save_path)[1].lstrip('.').lower()
+                media.save(update_fields=['file', 'file_ext', 'width', 'height', 'fps',
+                                          'duration_inSec', 'duration_inMinSec', 'media_type'])
+                _console(user.id, f"[Batch] Fichier téléchargé : {os.path.basename(save_path)}")
+            except Exception as dl_err:
+                _console(user.id, f"[Batch] Erreur téléchargement : {dl_err}", level='error')
+                logger.error(f"[Batch] Download failed for media {media_id}: {dl_err}")
+                return {"error": "download_failed", "media_id": media_id}
+        # ────────────────────────────────────────────────────────────────────
+
         ms_custom = media.MSValues_customised
 
         # Get precision level and use_segmentation from media or user settings

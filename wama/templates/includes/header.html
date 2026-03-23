@@ -40,6 +40,11 @@
                         </a>
                     </li>
                     <li>
+                        <a class="dropdown-item d-flex align-items-center {% if 'reader' in request.path %}active{% endif %}" href="{% url 'reader:index' %}">
+                            <i class="fas fa-book-open text-info me-2"></i> Reader
+                        </a>
+                    </li>
+                    <li>
                         <a class="dropdown-item d-flex align-items-center {% if 'synthesizer' in request.path %}active{% endif %}" href="{% url 'synthesizer:index' %}">
                             <i class="fas fa-microphone text-primary me-2"></i> Synthesizer
                         </a>
@@ -94,6 +99,11 @@
                         <li>
                             <a class="dropdown-item d-flex align-items-center" href="{% url 'accounts:profile' %}">
                                 <i class="fas fa-user-edit me-2"></i> Profil
+                            </a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item d-flex align-items-center" href="{% url 'common:apps_catalog' %}">
+                                <i class="fas fa-cubes me-2 text-primary"></i> Apps
                             </a>
                         </li>
                         {% if is_admin %}

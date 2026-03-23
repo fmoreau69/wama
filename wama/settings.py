@@ -74,6 +74,12 @@ MODEL_PATHS = {
         'blip': AI_MODELS_DIR / "models" / "vision-language" / "blip",
         'bart': AI_MODELS_DIR / "models" / "vision-language" / "bart",
     },
+    # Reader — OCR models (olmOCR-2, docTR)
+    'reader': {
+        'root':    AI_MODELS_DIR / "models" / "reader",
+        'olmocr':  AI_MODELS_DIR / "models" / "reader" / "olmocr",
+        'doctr':   AI_MODELS_DIR / "models" / "reader" / "doctr",
+    },
     # Music generation models (AudioCraft: MusicGen + AudioGen)
     'music': {
         'root': AI_MODELS_DIR / "models" / "music",
@@ -241,6 +247,7 @@ INSTALLED_APPS = [
     'wama.model_manager',  # AI Models Manager
     'wama.media_library',  # Médiathèque centralisée
     'wama.composer',       # Music & SFX generation (AudioCraft)
+    'wama.reader',         # OCR Document — imprimé + manuscrit
     # WAMA Lab - Experimental/Research applications
     'wama_lab.face_analyzer',
     'wama_lab.cam_analyzer',
@@ -359,6 +366,7 @@ if ENABLE_CELERY:
         'wama.transcriber.workers.*': {'queue': 'gpu'},
         'wama.describer.workers.*': {'queue': 'gpu'},
         'wama.avatarizer.workers.*': {'queue': 'gpu'},
+        'wama.reader.tasks.*': {'queue': 'gpu'},
         'wama.composer.tasks.*': {'queue': 'gpu'},
         'wama_lab.face_analyzer.tasks.*': {'queue': 'gpu'},
         'wama_lab.cam_analyzer.tasks.*': {'queue': 'gpu'},

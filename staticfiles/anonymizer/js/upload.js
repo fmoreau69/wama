@@ -82,13 +82,8 @@ $(function () {
 
     function handleDrop(e) {
       const dt = e.dataTransfer;
-      const files = dt.files;
-
-      if (files.length > 0) {
-        // Simuler la sélection de fichiers via l'input
-        fileInput.files = files;
-        // Déclencher l'événement change pour fileupload
-        $(fileInput).trigger('change');
+      if (dt.files.length > 0) {
+        $(fileInput).fileupload('add', { files: dt.files });
       }
     }
   }
@@ -194,7 +189,9 @@ $(function () {
         refreshMediaTable();
       },
       error: function (xhr) {
-        alert("Erreur : " + (xhr.responseText || "Une erreur s'est produite"));
+        let msg = "Une erreur s'est produite";
+        try { msg = JSON.parse(xhr.responseText).error || msg; } catch (e) {}
+        alert("Erreur téléchargement URL : " + msg);
       },
       complete: function () {
         // Use the pre-initialized modal instance

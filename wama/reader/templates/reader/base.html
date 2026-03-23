@@ -1,0 +1,107 @@
+{% extends 'common/app_modern_base.html' %}
+{% load static %}
+
+{% block app_icon %}<i class="fas fa-file-alt text-info"></i>{% endblock %}
+{% block app_title %}Reader — OCR Document{% endblock %}
+{% block app_description %}Extrayez le texte de vos documents numérisés, photos et PDFs{% endblock %}
+
+{% block app_styles %}
+#batchDetectBar { --batch-bg: #1a1520; }
+{% endblock %}
+
+{% block console_content_id %}reader-console-content{% endblock %}
+
+{% block queue_content %}
+    {% block reader_content %}{% endblock %}
+{% endblock %}
+
+{% block about_content %}
+<div class="info-card">
+    <h3><i class="fas fa-file-alt me-2"></i>À propos de Reader</h3>
+    <div class="mb-4">
+        <h5>Qu'est-ce que Reader ?</h5>
+        <p class="text-light">
+            Reader extrait automatiquement le texte de vos documents numérisés, photos et PDFs
+            grâce à des moteurs OCR open source de dernière génération.
+            Supporte le texte imprimé, les notes manuscrites, les tableaux et les formules.
+        </p>
+    </div>
+    <div class="mb-4">
+        <h5>Moteurs OCR disponibles</h5>
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card bg-dark border-info mb-2">
+                    <div class="card-body py-2">
+                        <h6 class="card-title text-info mb-1">olmOCR-2 7B <span class="badge bg-info text-dark ms-1 small">Principal</span></h6>
+                        <p class="card-text small mb-0">Allen AI — VLM dédié documents — imprimé + manuscrit + tableaux + formules — ~14 Go VRAM</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card bg-dark border-secondary mb-2">
+                    <div class="card-body py-2">
+                        <h6 class="card-title text-light mb-1">docTR <span class="badge bg-secondary ms-1 small">CPU-friendly</span></h6>
+                        <p class="card-text small mb-0">Mindee — pipeline PyTorch — imprimé, formulaires, reçus — fonctionne sans GPU</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="mb-4">
+        <h5>Formats supportés</h5>
+        <p class="text-light">PDF (multi-pages), JPG, PNG, TIFF, WebP, BMP</p>
+    </div>
+    <div>
+        <h5>Technologie</h5>
+        <p class="text-light">olmOCR-2 (Allen AI / Qwen2-VL fine-tuné) — docTR (Mindee, PyTorch) — pymupdf / pdf2image pour conversion PDF</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block help_content %}
+<div class="info-card">
+    <h3><i class="fas fa-question-circle me-2"></i>Guide d'utilisation</h3>
+    <div class="mb-4">
+        <h5><i class="fas fa-upload me-2"></i>Importer des documents</h5>
+        <ul class="text-light">
+            <li>Glissez-déposez vos fichiers ou cliquez sur la zone d'import</li>
+            <li>Formats : PDF (multi-pages), JPG, PNG, TIFF, WebP, BMP</li>
+            <li>Plusieurs fichiers à la fois — traitement en file d'attente</li>
+        </ul>
+    </div>
+    <div class="mb-4">
+        <h5><i class="fas fa-sliders-h me-2"></i>Paramètres</h5>
+        <ul class="text-light">
+            <li><strong>Moteur :</strong> Auto sélectionne olmOCR-2 si le GPU est disponible, sinon docTR</li>
+            <li><strong>Mode :</strong> Auto (recommandé), Imprimé, Manuscrit</li>
+            <li><strong>Format de sortie :</strong> Texte brut (.txt) ou Markdown (.md)</li>
+            <li><strong>Langue :</strong> Laisser vide pour auto-détection</li>
+        </ul>
+    </div>
+    <div class="mb-4">
+        <h5><i class="fas fa-play me-2"></i>Traitement</h5>
+        <ul class="text-light">
+            <li>Cliquez <strong>Démarrer</strong> sur un item ou <strong>Démarrer tout</strong></li>
+            <li>Statuts : En attente → En cours → Terminé</li>
+            <li>Aperçu du texte extrait visible directement dans la carte</li>
+        </ul>
+    </div>
+    <div class="alert alert-info">
+        <h6><i class="fas fa-lightbulb me-2"></i>Quel moteur choisir ?</h6>
+        <ul class="mb-0">
+            <li><strong>olmOCR-2 :</strong> Notes manuscrites, documents complexes, tableaux, formules</li>
+            <li><strong>docTR :</strong> Documents imprimés propres, formulaires, pas de GPU disponible</li>
+        </ul>
+    </div>
+</div>
+{% endblock %}
+
+{% block footer_text %}Reader - OCR Document | WAMA{% endblock %}
+
+{% block app_scripts %}
+<script>
+    window.READER_APP = Object.assign({}, window.READER_APP || {}, {
+        csrfToken: '{{ csrf_token }}',
+    });
+</script>
+{% endblock %}

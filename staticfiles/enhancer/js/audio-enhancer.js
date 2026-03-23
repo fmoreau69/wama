@@ -46,6 +46,12 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
 
+  // ── Batch file detection ─────────────────────────────────────────────────
+
+  const AUDIO_BATCH_EXTS = ['txt', 'md', 'csv', 'pdf', 'docx'];
+  let _audioBatchFile = null;
+  let _audioBatchItems = [];
+
   // ── File upload ───────────────────────────────────────────────────────────
 
   async function uploadAudioFile(file) {
@@ -67,7 +73,15 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   async function handleAudioFiles(files) {
-    for (const f of files) {
+    const fileList = Array.from(files);
+    if (fileList.length === 1) {
+      const ext = fileList[0].name.split('.').pop().toLowerCase();
+      if (AUDIO_BATCH_EXTS.includes(ext)) {
+        await _handleAudioBatchFileDetect(fileList[0]);
+        return;
+      }
+    }
+    for (const f of fileList) {
       await uploadAudioFile(f);
     }
   }
@@ -108,16 +122,148 @@ document.addEventListener('DOMContentLoaded', function () {
     dropZone.addEventListener('drop', e => {
       e.preventDefault();
       dropZone.classList.remove('drag-over');
-      // Regular file drop from OS
-      const files = Array.from(e.dataTransfer.files).filter(f =>
-        /\.(mp3|wav|flac|ogg|m4a|aac|opus|wma)$/i.test(f.name)
-      );
+      const allFiles = Array.from(e.dataTransfer.files);
+      // Allow batch files through
+      const files = allFiles.filter(f => {
+        const ext = f.name.split('.').pop().toLowerCase();
+        return AUDIO_BATCH_EXTS.includes(ext) || /\.(mp3|wav|flac|ogg|m4a|aac|opus|wma)$/i.test(f.name);
+      });
       if (files.length === 0) {
-        alert('Formats acceptés : MP3, WAV, FLAC, OGG, M4A, AAC, OPUS, WMA');
+        alert('Formats acceptés : MP3, WAV, FLAC, OGG, M4A, AAC, OPUS, WMA (ou fichier batch .txt/.csv/.md)');
         return;
       }
       handleAudioFiles(files);
     });
+  }
+
+  // ── Audio Batch bar ──────────────────────────────────────────────────────
+
+  async function _handleAudioBatchFileDetect(file) {
+    _audioBatchFile = file;
+    _audioBatchItems = [];
+    if (!cfg.audioBatchPreviewUrl) { await uploadAudioFile(file); return; }
+
+    const fd = new FormData();
+    fd.append('batch_file', file);
+    try {
+      const resp = await fetch(cfg.audioBatchPreviewUrl, { method: 'POST', headers: csrfHeaders(), body: fd });
+      const data = await resp.json();
+      if (data.error || !data.items || data.items.length === 0) { await uploadAudioFile(file); return; }
+      _audioBatchItems = data.items;
+      _showAudioBatchBar(data);
+    } catch (e) {
+      await uploadAudioFile(file);
+    }
+  }
+
+  function _showAudioBatchBar(data) {
+    const bar = document.getElementById('audioBatchDetectBar');
+    if (!bar) return;
+    const cnt = document.getElementById('audioBatchDetectedCount');
+    if (cnt) cnt.textContent = data.count;
+    const preview = document.getElementById('audioBatchDetectPreview');
+    if (preview) preview.style.display = 'none';
+    bar.style.display = '';
+  }
+
+  function _hideAudioBatchBar() {
+    const bar = document.getElementById('audioBatchDetectBar');
+    if (bar) bar.style.display = 'none';
+    const preview = document.getElementById('audioBatchDetectPreview');
+    if (preview) preview.style.display = 'none';
+    _audioBatchFile = null;
+    _audioBatchItems = [];
+  }
+
+  function _populateAudioBatchPreview(data) {
+    const tbody = document.getElementById('audioBatchDetectTable');
+    if (tbody) {
+      tbody.innerHTML = '';
+      (data.items || []).forEach(item => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td style="word-break:break-all;">${item.filename || item.path}</td>`;
+        tbody.appendChild(tr);
+      });
+    }
+    const cnt = document.getElementById('audioBatchCreateCount');
+    if (cnt) cnt.textContent = data.count;
+    const warnEl = document.getElementById('audioBatchDetectWarnings');
+    if (warnEl) {
+      if (data.warnings && data.warnings.length > 0) {
+        warnEl.textContent = data.warnings.join(' | ');
+        warnEl.style.display = '';
+      } else {
+        warnEl.style.display = 'none';
+      }
+    }
+  }
+
+  async function _doAudioBatchImport(autoStart) {
+    if (!_audioBatchFile) return;
+    const progress = document.getElementById('audioBatchCreateProgress');
+    const btnStart = document.getElementById('audioBatchCreateAndStartBtn');
+    const btnOnly  = document.getElementById('audioBatchCreateOnlyBtn');
+    if (progress) progress.style.display = '';
+    if (btnStart) btnStart.disabled = true;
+    if (btnOnly)  btnOnly.disabled  = true;
+
+    const fd = new FormData();
+    fd.append('batch_file', _audioBatchFile);
+
+    try {
+      const resp = await fetch(cfg.audioBatchCreateUrl, { method: 'POST', headers: csrfHeaders(), body: fd });
+      const data = await resp.json();
+      if (!resp.ok) { alert(data.error || 'Erreur création batch'); return; }
+      if (autoStart && data.batch_id) {
+        const startUrl = cfg.audioBatchStartUrlTemplate.replace('/0/', `/${data.batch_id}/`);
+        const engine = document.getElementById('audioEngine')?.value || 'resemble';
+        const mode   = document.getElementById('audioMode')?.value || 'both';
+        const strength = document.getElementById('audioDenoisingStrength')?.value || '0.5';
+        const quality  = document.getElementById('audioQuality')?.value || '64';
+        await fetch(startUrl, {
+          method: 'POST',
+          headers: csrfHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify({ engine, mode, denoising_strength: parseFloat(strength), quality: parseInt(quality) }),
+        });
+      }
+      _hideAudioBatchBar();
+      setTimeout(() => location.reload(), 600);
+    } catch (e) {
+      alert('Erreur lors de la création du batch audio');
+    } finally {
+      if (progress) progress.style.display = 'none';
+      if (btnStart) btnStart.disabled = false;
+      if (btnOnly)  btnOnly.disabled  = false;
+    }
+  }
+
+  function initAudioBatchBar() {
+    const previewBtn = document.getElementById('audioBatchPreviewBtn');
+    if (previewBtn) {
+      previewBtn.addEventListener('click', async () => {
+        if (!_audioBatchFile) return;
+        const fd = new FormData();
+        fd.append('batch_file', _audioBatchFile);
+        try {
+          const resp = await fetch(cfg.audioBatchPreviewUrl, { method: 'POST', headers: csrfHeaders(), body: fd });
+          const data = await resp.json();
+          if (!data.error) {
+            _populateAudioBatchPreview(data);
+            const preview = document.getElementById('audioBatchDetectPreview');
+            if (preview) preview.style.display = '';
+          }
+        } catch (e) {}
+      });
+    }
+
+    const cancelBtn = document.getElementById('audioBatchCancelBar');
+    if (cancelBtn) cancelBtn.addEventListener('click', _hideAudioBatchBar);
+
+    const createAndStartBtn = document.getElementById('audioBatchCreateAndStartBtn');
+    if (createAndStartBtn) createAndStartBtn.addEventListener('click', () => _doAudioBatchImport(true));
+
+    const createOnlyBtn = document.getElementById('audioBatchCreateOnlyBtn');
+    if (createOnlyBtn) createOnlyBtn.addEventListener('click', () => _doAudioBatchImport(false));
   }
 
   // ── Queue row management ──────────────────────────────────────────────────
@@ -484,7 +630,14 @@ document.addEventListener('DOMContentLoaded', function () {
       });
       const container = document.getElementById('audio-enhancer-queue');
       const card = container ? container.querySelector(`[data-id="${id}"]`) : null;
-      if (card) card.remove();
+      if (card) {
+        // If inside a batch group, remove the group if it becomes empty
+        const batchGroup = card.closest('.batch-group');
+        card.remove();
+        if (batchGroup && !batchGroup.querySelector('[data-id]')) {
+          batchGroup.remove();
+        }
+      }
       if (pollers.has(id)) {
         clearInterval(pollers.get(id));
         pollers.delete(id);
@@ -616,10 +769,59 @@ document.addEventListener('DOMContentLoaded', function () {
         pollAudioProgress(parseInt(card.dataset.id));
       });
     }
+
+    // Audio batch start
+    document.addEventListener('click', function(e) {
+      const btn = e.target.closest('.audio-batch-start-btn');
+      if (!btn) return;
+      const batchId = btn.dataset.batchId;
+      const url = cfg.audioBatchStartUrlTemplate.replace('/0/', `/${batchId}/`);
+      const engine   = document.getElementById('audioEngine')?.value || 'resemble';
+      const mode     = document.getElementById('audioMode')?.value || 'both';
+      const strength = document.getElementById('audioDenoisingStrength')?.value || '0.5';
+      const quality  = document.getElementById('audioQuality')?.value || '64';
+      btn.disabled = true;
+      fetch(url, {
+        method: 'POST',
+        headers: csrfHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ engine, mode, denoising_strength: parseFloat(strength), quality: parseInt(quality) }),
+      }).then(r => r.json()).then(data => {
+        data.started?.forEach(id => { updateRow(id, { status: 'RUNNING', progress: 0 }); pollAudioProgress(id); });
+        btn.disabled = false;
+      }).catch(() => { btn.disabled = false; });
+    });
+
+    // Audio batch delete
+    document.addEventListener('click', function(e) {
+      const btn = e.target.closest('.audio-batch-delete-btn');
+      if (!btn) return;
+      const batchId = btn.dataset.batchId;
+      if (!confirm('Supprimer ce batch audio et toutes ses améliorations ?')) return;
+      const url = cfg.audioBatchDeleteUrlTemplate.replace('/0/', `/${batchId}/`);
+      fetch(url, { method: 'POST', headers: csrfHeaders() })
+        .then(r => r.json())
+        .then(() => {
+          const el = btn.closest('.batch-group');
+          if (el) el.remove(); else location.reload();
+          updateAudioGlobalProgress();
+        });
+    });
+
+    // Audio batch duplicate
+    document.addEventListener('click', function(e) {
+      const btn = e.target.closest('.audio-batch-duplicate-btn');
+      if (!btn) return;
+      const batchId = btn.dataset.batchId;
+      const url = cfg.audioBatchDuplicateUrlTemplate.replace('/0/', `/${batchId}/`);
+      fetch(url, { method: 'POST', headers: csrfHeaders() })
+        .then(r => r.json())
+        .then(() => setTimeout(() => location.reload(), 500));
+    });
   }
 
   initAudioUpload();
   initAudioDragDrop();
   initButtons();
+  initAudioBatchBar();
   updateAudioGlobalProgress();
 });

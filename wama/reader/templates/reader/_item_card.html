@@ -1,0 +1,140 @@
+{% load i18n %}
+{% comment %}
+  Partial server-side card body for ReadingItem.
+  Mirrors the JS buildCard() function for initial page render.
+  item : ReadingItem instance
+{% endcomment %}
+
+{% with item.filename as fname %}
+<div class="card-body py-2">
+  <div class="d-flex justify-content-between align-items-start">
+
+    {# ── Left : filename + badges ───────────────────────────────── #}
+    <div class="d-flex align-items-center flex-wrap gap-1 me-2 overflow-hidden">
+      <span role="button" class="source-preview-btn d-flex align-items-center gap-1"
+            data-id="{{ item.id }}" data-filename="{{ fname }}" title="Aperçu du fichier source">
+        <i class="fas fa-file-alt text-info me-1"></i>
+        <span class="fw-semibold text-light text-truncate" style="max-width:240px;">{{ fname }}</span>
+      </span>
+
+      {% if item.page_count == 1 %}
+        <span class="badge bg-secondary ms-1">1 page</span>
+      {% elif item.page_count > 1 %}
+        <span class="badge bg-secondary ms-1">{{ item.page_count }} pages</span>
+      {% endif %}
+
+      {% if item.status == 'PENDING' %}
+        <span class="badge bg-secondary">En attente</span>
+      {% elif item.status == 'RUNNING' %}
+        <span class="badge bg-warning text-dark"><i class="fas fa-spinner fa-spin me-1"></i>En cours</span>
+      {% elif item.status == 'DONE' %}
+        <span class="badge bg-success">Terminé</span>
+      {% elif item.status == 'ERROR' %}
+        <span class="badge bg-danger">Erreur</span>
+      {% else %}
+        <span class="badge bg-secondary">{{ item.status }}</span>
+      {% endif %}
+
+      {% if item.used_backend %}
+        <span class="badge bg-info text-dark ms-1 small">
+          {% if item.used_backend == 'olmocr' %}olmOCR-2
+          {% elif item.used_backend == 'doctr' %}docTR
+          {% else %}{{ item.used_backend }}{% endif %}
+        </span>
+      {% else %}
+        <span class="badge bg-secondary ms-1 small">
+          {% if item.backend == 'auto' %}Auto
+          {% elif item.backend == 'olmocr' %}olmOCR-2
+          {% elif item.backend == 'doctr' %}docTR
+          {% else %}{{ item.backend }}{% endif %}
+        </span>
+      {% endif %}
+
+      <small class="text-muted ms-1">
+        {% if item.mode == 'auto' %}Auto
+        {% elif item.mode == 'printed' %}Imprimé
+        {% elif item.mode == 'handwritten' %}Manuscrit
+        {% else %}{{ item.mode }}{% endif %}
+      </small>
+    </div>
+
+    {# ── Right : action buttons ─────────────────────────────────── #}
+    <div class="d-flex gap-1 flex-shrink-0">
+
+      {# Start / restart button #}
+      {% if item.status == 'PENDING' or item.status == 'ERROR' %}
+        <button class="btn btn-sm btn-outline-success" data-action="start" title="Lancer">
+          <i class="fas fa-play"></i>
+        </button>
+      {% elif item.status == 'RUNNING' %}
+        <button class="btn btn-sm btn-outline-warning" disabled title="En cours">
+          <i class="fas fa-spinner fa-spin"></i>
+        </button>
+      {% else %}
+        <button class="btn btn-sm btn-outline-secondary" data-action="restart" title="Relancer">
+          <i class="fas fa-redo"></i>
+        </button>
+      {% endif %}
+
+      {# Download button — split dropdown for multi-format #}
+      {% if item.result_text %}
+        <div class="btn-group">
+          <a href="{% url 'reader:download' item.id %}?format=txt" class="btn btn-sm btn-outline-info" title="Télécharger TXT">
+            <i class="fas fa-download"></i>
+          </a>
+          <button type="button" class="btn btn-sm btn-outline-info dropdown-toggle dropdown-toggle-split"
+                  data-bs-toggle="dropdown" aria-expanded="false">
+            <span class="visually-hidden">Autres formats</span>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end">
+            <li><a class="dropdown-item" href="{% url 'reader:download' item.id %}?format=txt">
+                <i class="fas fa-file-alt me-2"></i>TXT</a></li>
+            <li><a class="dropdown-item" href="{% url 'reader:download' item.id %}?format=md">
+                <i class="fab fa-markdown me-2"></i>Markdown</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item" href="{% url 'reader:download' item.id %}?format=pdf">
+                <i class="fas fa-file-pdf me-2 text-danger"></i>PDF</a></li>
+            <li><a class="dropdown-item" href="{% url 'reader:download' item.id %}?format=docx">
+                <i class="fas fa-file-word me-2 text-primary"></i>DOCX</a></li>
+          </ul>
+        </div>
+      {% else %}
+        <button class="btn btn-sm btn-outline-info" disabled title="Pas encore de résultat">
+          <i class="fas fa-download"></i>
+        </button>
+      {% endif %}
+
+      <button class="btn btn-sm btn-outline-secondary" data-action="duplicate" title="Dupliquer">
+        <i class="fas fa-copy"></i>
+      </button>
+      <button class="btn btn-sm btn-outline-danger" data-action="delete" title="Supprimer">
+        <i class="fas fa-trash"></i>
+      </button>
+    </div>
+  </div>
+
+  {# Progress bar (RUNNING) #}
+  {% if item.status == 'RUNNING' %}
+  <div class="progress mt-2" style="height:4px;">
+    <div class="progress-bar bg-warning progress-bar-striped progress-bar-animated"
+         style="width:{{ item.progress }}%"></div>
+  </div>
+  <small class="text-warning">En cours…</small>
+  {% endif %}
+
+  {# Result preview #}
+  {% if item.result_text %}
+  <div class="reader-preview mt-2 p-2 rounded bg-black bg-opacity-50 small text-light font-monospace"
+       style="max-height:80px;overflow:hidden;cursor:pointer;" data-action="expand">
+    <span class="preview-text">{{ item.result_text|slice:":300"|escape }}</span>
+    {% if item.result_text|length > 300 %}<span class="text-muted"> …</span>{% endif %}
+  </div>
+  {% endif %}
+
+  {# Error #}
+  {% if item.error_message %}
+  <div class="alert alert-danger py-1 mt-2 small mb-0">{{ item.error_message|escape }}</div>
+  {% endif %}
+
+</div>
+{% endwith %}

@@ -17,7 +17,14 @@
            style="display:none"
            data-url="{% url 'anonymizer:upload' %}"
            data-form-data='{"csrfmiddlewaretoken": "{{ csrf_token }}"}'>
+    <small class="text-muted d-block mt-1">
+        Batch ?
+        <a href="{% url 'anonymizer:batch_template' %}" class="text-muted" download>
+            <i class="fas fa-download"></i> Template
+        </a>
+    </small>
 </div>
+{% include 'common/batch_detect_bar.html' %}
 <div class="text-center text-muted my-2" style="font-size:0.72rem;">— ou depuis une URL —</div>
 <form id="media-url-form" method="post" action="{% url 'anonymizer:upload' %}">
     {% csrf_token %}
@@ -316,6 +323,17 @@
 <script src="{% static 'anonymizer/js/upload.js' %}"></script>
 <script src="{% static 'anonymizer/js/settings_modal.js' %}"></script>
 <script src="{% static 'anonymizer/js/right_panel.js' %}"></script>
+<script src="{% static 'common/js/batch-import.js' %}"></script>
+<script>
+window._batchImport = WamaBatchImport({
+    batchPreviewUrl: '{% url "anonymizer:batch_preview" %}',
+    batchCreateUrl:  '{% url "anonymizer:batch_create" %}',
+    csrfToken:       '{{ csrf_token }}',
+    afterCreate: function(data, autoStart) {
+        location.reload();
+    },
+});
+</script>
 {% endblock %}
 
 {% block anonymizer_content %}

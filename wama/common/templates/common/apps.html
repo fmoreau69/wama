@@ -1,0 +1,252 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}WAMA — Catalogue des applications{% endblock %}
+
+{% block extra_css %}
+<style>
+    .apps-page { padding: 2rem 0; }
+    .apps-page h1 { font-size: 1.6rem; font-weight: 600; color: #e9ecef; margin-bottom: 0.25rem; }
+    .apps-page .subtitle { color: #6c757d; font-size: 0.9rem; margin-bottom: 2rem; }
+
+    /* App card */
+    .app-card {
+        background: #1a1a2e;
+        border: 1px solid #2d2d4e;
+        border-radius: 10px;
+        padding: 1.25rem;
+        height: 100%;
+        transition: border-color 0.2s, transform 0.15s;
+        display: flex;
+        flex-direction: column;
+    }
+    .app-card:hover { border-color: #4a4a7a; transform: translateY(-2px); }
+    .app-card-header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem; }
+    .app-icon {
+        width: 36px; height: 36px; border-radius: 8px;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 1rem; flex-shrink: 0;
+    }
+    .app-card-header h3 { font-size: 1rem; font-weight: 600; color: #e9ecef; margin: 0; }
+    .app-description { font-size: 0.82rem; color: #9aa5b4; margin-bottom: 1rem; line-height: 1.45; flex-grow: 1; }
+
+    /* Extension display */
+    .ext-section { margin-bottom: 0.75rem; }
+    .ext-type-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: #6c757d; margin-bottom: 0.3rem; }
+    .ext-badges { display: flex; flex-wrap: wrap; gap: 0.25rem; margin-bottom: 0.4rem; }
+    .ext-badge {
+        font-size: 0.68rem; padding: 0.15rem 0.45rem; border-radius: 4px;
+        font-family: 'Courier New', monospace;
+        background: #2d2d4e; color: #adb5bd; border: 1px solid #3d3d6e;
+    }
+
+    /* Feature badges */
+    .feature-row {
+        display: flex; flex-wrap: wrap; gap: 0.35rem;
+        margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid #2d2d4e;
+    }
+    .feature-badge {
+        font-size: 0.7rem; padding: 0.2rem 0.5rem; border-radius: 12px;
+        display: inline-flex; align-items: center; gap: 0.25rem;
+    }
+    .feature-yes { background: rgba(25, 135, 84, 0.15); color: #75b798; border: 1px solid rgba(25, 135, 84, 0.3); }
+    .feature-no  { background: rgba(108,117,125,0.08); color: #555; border: 1px solid rgba(108,117,125,0.15); opacity: 0.55; }
+    .feature-out { background: rgba(13,110,253,0.1); color: #6ea8fe; border: 1px solid rgba(13,110,253,0.25); }
+
+    /* Conformity */
+    .conformity-bar-wrap { margin-top: 0.9rem; padding-top: 0.75rem; border-top: 1px solid #2d2d4e; }
+    .conformity-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem; }
+    .conformity-label { font-size: 0.72rem; color: #6c757d; text-transform: uppercase; letter-spacing: 0.05em; }
+    .conformity-score { font-size: 0.8rem; font-weight: 600; }
+    .c-high   { color: #75b798; }
+    .c-medium { color: #ffc107; }
+    .c-low    { color: #dc3545; }
+    .conformity-bar { height: 5px; border-radius: 3px; background: #2d2d4e; overflow: hidden; }
+    .conformity-bar-fill { height: 100%; border-radius: 3px; }
+    .c-fill-high   { background: #198754; }
+    .c-fill-medium { background: #ffc107; }
+    .c-fill-low    { background: #dc3545; }
+    .conformity-issues { margin-top: 0.4rem; font-size: 0.7rem; color: #dc3545; }
+
+    /* Open button */
+    .app-open-btn {
+        display: block; margin-top: 1rem; padding: 0.4rem 0;
+        text-align: center; font-size: 0.8rem; font-weight: 500;
+        border-radius: 6px; border: 1px solid; text-decoration: none;
+        transition: opacity 0.15s;
+    }
+    .app-open-btn:hover { opacity: 0.8; text-decoration: none; }
+
+    /* Summary table */
+    .summary-table th { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; color: #6c757d; }
+    .summary-table td { font-size: 0.82rem; vertical-align: middle; }
+    .mini-badge { font-size: 0.65rem; padding: 0.15rem 0.4rem; border-radius: 3px; }
+    .check-ok   { color: #198754; }
+    .check-fail { color: #dc3545; }
+    .check-na   { color: #555; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="apps-page">
+
+    <h1><i class="fas fa-cubes me-2 text-primary"></i>Catalogue des applications WAMA</h1>
+    <p class="subtitle">Vue d'ensemble de toutes les applications — extensions, capacités et état de conformité aux conventions UI.</p>
+
+    <!-- ── Cards grid ── -->
+    <div class="row g-3 mb-5">
+        {% for item in apps_list %}
+        {% with spec=item.spec conf=item.conformity %}
+        <div class="col-12 col-md-6 col-xl-4">
+            <div class="app-card">
+
+                <div class="app-card-header">
+                    <div class="app-icon" style="background:{{ spec.color }}22;color:{{ spec.color }};">
+                        <i class="{{ spec.icon }}"></i>
+                    </div>
+                    <h3>{{ spec.label }}</h3>
+                </div>
+
+                <p class="app-description">{{ spec.description }}</p>
+
+                <!-- Extensions grouped by type -->
+                <div class="ext-section">
+                    {% if 'image' in spec.input_types %}
+                    <div class="ext-type-label"><i class="fas fa-image me-1"></i>Images</div>
+                    <div class="ext-badges">
+                        {% for ext in spec.input_extensions %}{% if ext == '.jpg' or ext == '.jpeg' or ext == '.png' or ext == '.webp' or ext == '.bmp' or ext == '.tif' or ext == '.tiff' or ext == '.heic' or ext == '.gif' %}<span class="ext-badge">{{ ext|slice:"1:" }}</span>{% endif %}{% endfor %}
+                    </div>
+                    {% endif %}
+                    {% if 'video' in spec.input_types %}
+                    <div class="ext-type-label"><i class="fas fa-film me-1"></i>Vidéos</div>
+                    <div class="ext-badges">
+                        {% for ext in spec.input_extensions %}{% if ext == '.mp4' or ext == '.webm' or ext == '.mkv' or ext == '.avi' or ext == '.mov' or ext == '.flv' or ext == '.mpg' or ext == '.qt' or ext == '.3gp' %}<span class="ext-badge">{{ ext|slice:"1:" }}</span>{% endif %}{% endfor %}
+                    </div>
+                    {% endif %}
+                    {% if 'audio' in spec.input_types %}
+                    <div class="ext-type-label"><i class="fas fa-volume-up me-1"></i>Audio</div>
+                    <div class="ext-badges">
+                        {% for ext in spec.input_extensions %}{% if ext == '.mp3' or ext == '.wav' or ext == '.flac' or ext == '.ogg' or ext == '.m4a' or ext == '.aac' or ext == '.opus' or ext == '.wma' %}<span class="ext-badge">{{ ext|slice:"1:" }}</span>{% endif %}{% endfor %}
+                    </div>
+                    {% endif %}
+                    {% if 'text' in spec.input_types or 'document' in spec.input_types %}
+                    <div class="ext-type-label"><i class="fas fa-file-alt me-1"></i>Texte / Documents</div>
+                    <div class="ext-badges">
+                        {% for ext in spec.input_extensions %}{% if ext == '.txt' or ext == '.md' or ext == '.csv' or ext == '.pdf' or ext == '.docx' %}<span class="ext-badge">{{ ext|slice:"1:" }}</span>{% endif %}{% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- Feature badges -->
+                <div class="feature-row">
+                    {% if spec.has_batch %}
+                        <span class="feature-badge feature-yes"><i class="fas fa-layer-group"></i> Batch</span>
+                    {% else %}
+                        <span class="feature-badge feature-no"><i class="fas fa-layer-group"></i> Batch</span>
+                    {% endif %}
+                    {% if spec.has_url_import %}
+                        <span class="feature-badge feature-yes"><i class="fas fa-link"></i> URL</span>
+                    {% endif %}
+                    {% if spec.has_youtube %}
+                        <span class="feature-badge feature-yes"><i class="fab fa-youtube"></i> YouTube</span>
+                    {% endif %}
+                    <span class="feature-badge feature-out">
+                        <i class="fas fa-arrow-right"></i>&nbsp;{% for t in spec.output_types %}{{ t }}{% if not forloop.last %}, {% endif %}{% endfor %}
+                    </span>
+                </div>
+
+                <!-- Conformity bar -->
+                <div class="conformity-bar-wrap">
+                    <div class="conformity-header">
+                        <span class="conformity-label">Conformité</span>
+                        <span class="conformity-score {% if conf.pct >= 80 %}c-high{% elif conf.pct >= 50 %}c-medium{% else %}c-low{% endif %}">
+                            {{ conf.score }}/{{ conf.total }}&nbsp;({{ conf.pct }}%)
+                        </span>
+                    </div>
+                    <div class="conformity-bar">
+                        <div class="conformity-bar-fill {% if conf.pct >= 80 %}c-fill-high{% elif conf.pct >= 50 %}c-fill-medium{% else %}c-fill-low{% endif %}"
+                             style="width:{{ conf.pct }}%;"></div>
+                    </div>
+                    {% if conf.issues %}
+                    <div class="conformity-issues">
+                        <i class="fas fa-exclamation-triangle me-1"></i>{{ conf.issues|join:", " }}
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- Open link -->
+                <a href="{% url spec.url_name %}"
+                   class="app-open-btn"
+                   style="color:{{ spec.color }};border-color:{{ spec.color }}44;">
+                    <i class="{{ spec.icon }} me-1"></i>Ouvrir {{ spec.label }}
+                </a>
+
+            </div>
+        </div>
+        {% endwith %}
+        {% endfor %}
+    </div>
+
+    <!-- ── Summary table ── -->
+    <h2 class="h5 text-white mb-3"><i class="fas fa-table me-2 text-secondary"></i>Grille de conformité</h2>
+    <div class="table-responsive">
+        <table class="table table-dark table-sm table-hover summary-table align-middle">
+            <thead>
+                <tr>
+                    <th>Application</th>
+                    <th class="text-center" title="settings_btn">⚙ Params</th>
+                    <th class="text-center" title="start_btn">▶ Start</th>
+                    <th class="text-center" title="download_btn">⬇ DL</th>
+                    <th class="text-center" title="duplicate_btn">⧉ Dup.</th>
+                    <th class="text-center" title="delete_btn">🗑 Del.</th>
+                    <th class="text-center" title="start_all">▶▶ All</th>
+                    <th class="text-center" title="clear_all">✕ Clear</th>
+                    <th class="text-center" title="download_all">⬇⬇ DL All</th>
+                    <th class="text-center" title="drag_drop">⬆ Drop</th>
+                    <th class="text-center" title="batch">≡ Batch</th>
+                    <th class="text-center">Score</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in apps_list %}
+                {% with spec=item.spec conf=item.conformity conv=item.spec.conventions %}
+                <tr>
+                    <td>
+                        <i class="{{ spec.icon }} me-1" style="color:{{ spec.color }};"></i>
+                        {{ spec.label }}
+                    </td>
+                    <!-- settings_btn -->
+                    <td class="text-center">{% if conv.settings_btn == None %}<span class="check-na">—</span>{% elif conv.settings_btn %}<i class="fas fa-check check-ok"></i>{% else %}<i class="fas fa-times check-fail"></i>{% endif %}</td>
+                    <!-- start_btn -->
+                    <td class="text-center">{% if conv.start_btn == None %}<span class="check-na">—</span>{% elif conv.start_btn %}<i class="fas fa-check check-ok"></i>{% else %}<i class="fas fa-times check-fail"></i>{% endif %}</td>
+                    <!-- download_btn -->
+                    <td class="text-center">{% if conv.download_btn == None %}<span class="check-na">—</span>{% elif conv.download_btn %}<i class="fas fa-check check-ok"></i>{% else %}<i class="fas fa-times check-fail"></i>{% endif %}</td>
+                    <!-- duplicate_btn -->
+                    <td class="text-center">{% if conv.duplicate_btn == None %}<span class="check-na">—</span>{% elif conv.duplicate_btn %}<i class="fas fa-check check-ok"></i>{% else %}<i class="fas fa-times check-fail"></i>{% endif %}</td>
+                    <!-- delete_btn -->
+                    <td class="text-center">{% if conv.delete_btn == None %}<span class="check-na">—</span>{% elif conv.delete_btn %}<i class="fas fa-check check-ok"></i>{% else %}<i class="fas fa-times check-fail"></i>{% endif %}</td>
+                    <!-- start_all -->
+                    <td class="text-center">{% if conv.start_all == None %}<span class="check-na">—</span>{% elif conv.start_all %}<i class="fas fa-check check-ok"></i>{% else %}<i class="fas fa-times check-fail"></i>{% endif %}</td>
+                    <!-- clear_all -->
+                    <td class="text-center">{% if conv.clear_all == None %}<span class="check-na">—</span>{% elif conv.clear_all %}<i class="fas fa-check check-ok"></i>{% else %}<i class="fas fa-times check-fail"></i>{% endif %}</td>
+                    <!-- download_all -->
+                    <td class="text-center">{% if conv.download_all == None %}<span class="check-na">—</span>{% elif conv.download_all %}<i class="fas fa-check check-ok"></i>{% else %}<i class="fas fa-times check-fail"></i>{% endif %}</td>
+                    <!-- drag_drop -->
+                    <td class="text-center">{% if conv.drag_drop == None %}<span class="check-na">—</span>{% elif conv.drag_drop %}<i class="fas fa-check check-ok"></i>{% else %}<i class="fas fa-times check-fail"></i>{% endif %}</td>
+                    <!-- batch -->
+                    <td class="text-center">{% if conv.batch == None %}<span class="check-na">—</span>{% elif conv.batch %}<i class="fas fa-check check-ok"></i>{% else %}<i class="fas fa-times check-fail"></i>{% endif %}</td>
+                    <!-- score badge -->
+                    <td class="text-center">
+                        <span class="mini-badge badge {% if conf.pct >= 80 %}bg-success{% elif conf.pct >= 50 %}bg-warning text-dark{% else %}bg-danger{% endif %}">
+                            {{ conf.pct }}%
+                        </span>
+                    </td>
+                </tr>
+                {% endwith %}
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+</div>
+{% endblock %}

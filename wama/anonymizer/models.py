@@ -98,6 +98,14 @@ class Media(models.Model):
         help_text='Specific YOLO model for this media (empty = use global setting or auto-select)'
     )
 
+    source_url = models.CharField(
+        max_length=2000,
+        blank=True,
+        default='',
+        verbose_name='Source URL',
+        help_text='URL to download from (batch import) — populated only when file is not yet downloaded'
+    )
+
     def __str__(self):
         return self.title or f"Media {self.pk}"
 
@@ -207,3 +215,38 @@ class UserSettings(models.Model):
 def create_user_profile(sender, instance, created, **kwargs):
     if created and instance and instance.pk:
         UserSettings.objects.get_or_create(user=instance)
+
+
+class BatchAnonymizer(models.Model):
+    """Groupe de médias créé depuis un fichier batch (liste d'URLs/chemins)."""
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='batch_anonymizers')
+    created_at = models.DateTimeField(auto_now_add=True)
+    batch_file = models.FileField(
+        upload_to=upload_to_user_input('anonymizer'),
+        blank=True, null=True,
+    )
+    total = models.IntegerField(default=0)
+
+    class Meta:
+        verbose_name = "Batch d'anonymisation"
+        verbose_name_plural = "Batchs d'anonymisation"
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Batch #{self.id} — {self.user.username} ({self.total} items)"
+
+
+class BatchAnonymizerItem(models.Model):
+    """Item d'un batch d'anonymisation."""
+    batch = models.ForeignKey(BatchAnonymizer, on_delete=models.CASCADE, related_name='items')
+    media = models.OneToOneField(
+        Media, on_delete=models.CASCADE,
+        related_name='batch_item', null=True, blank=True,
+    )
+    row_index = models.IntegerField(default=0)
+
+    class Meta:
+        ordering = ['row_index']
+
+    def __str__(self):
+        return f"BatchAnonymizerItem #{self.id} — batch {self.batch_id}"

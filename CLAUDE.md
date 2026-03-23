@@ -76,24 +76,37 @@ Ajouter le nouveau modèle dans la fonction `_discover_*_models()` correspondant
 
 ---
 
-## ⚠️ RÈGLES UI COMMUNES — TOUTES LES APPLICATIONS
+## ⚠️ CONVENTIONS UI & ARCHITECTURE — TOUTES LES APPLICATIONS
 
-### File d'attente : composants obligatoires
+> **Document de référence complet : [`WAMA_APP_CONVENTIONS.md`](WAMA_APP_CONVENTIONS.md)**
+> Ce fichier contient les conventions détaillées, les patterns de code, la checklist
+> de création d'app, et la table de conformité par application.
+> **Le lire avant de créer ou modifier une application.**
 
-**Chaque application avec une file d'attente de traitement DOIT inclure :**
+### Résumé des règles critiques
+
+**Boutons d'action — ordre obligatoire :**
+`[⚙ Paramètres]  [▶ Start/Restart]  [⬇ Télécharger]  [⧉ Dupliquer]  [🗑 Supprimer]`
+
+**Composants obligatoires de chaque file d'attente :**
 
 | Composant | Implémentation |
 |-----------|---------------|
-| Bouton duplication par item | `duplicate_instance()` de `wama/common/utils/queue_duplication.py` |
-| Bouton suppression par item | vue `delete()` + `safe_delete_file()` pour fichiers partagés |
-| Bouton démarrage individuel | sauf si traitement automatique au dépôt |
+| Bouton Paramètres (pos.1) | Modale avec tous les paramètres de l'item |
+| Bouton Dupliquer (pos.4) | `duplicate_instance()` de `wama/common/utils/queue_duplication.py` |
+| Bouton Supprimer (pos.5) | vue `delete()` + `safe_delete_file()` pour fichiers partagés |
+| Bouton Démarrer individuel | sauf si traitement automatique au dépôt |
 | Bouton "Démarrer tout" | vue `start_all()` |
 | Bouton "Tout effacer" | vue `clear_all()` |
-| Téléchargement résultat individuel | vue `download()` |
-| Import batch | pour apps URL-input ou text-input (voir synthesizer/describer) |
+| Téléchargement résultat | vue `download()` |
+| Barre de progression | `%` + statut + ETA (individuel, batch, queue) |
+| Aperçu du résultat | Texte tronqué ou miniature, clic pour développer |
+| Drag & drop zone | Toutes les apps acceptant des fichiers |
 
-**❌ Non-conformités connues à corriger :**
-- Composer : bouton de duplication manquant (à ajouter en priorité)
+**❌ Non-conformités connues à corriger (voir table complète dans `WAMA_APP_CONVENTIONS.md §15`) :**
+- Composer : bouton Dupliquer manquant + Download All manquant
+- Toutes les apps : ETA non implémenté
+- Toutes les apps : import dossier récursif non implémenté
 
 **✅ Vérifier systématiquement** à chaque création d'une nouvelle application.
 

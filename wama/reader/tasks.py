@@ -36,7 +36,10 @@ def _console(user_id: int, message: str, level: str = None) -> None:
 
 def _count_pdf_pages(file_path: str) -> int:
     try:
-        import fitz
+        try:
+            import pymupdf as fitz  # PyMuPDF >= 1.24
+        except ImportError:
+            import fitz  # legacy name
         doc = fitz.open(file_path)
         n = doc.page_count
         doc.close()
@@ -93,7 +96,10 @@ def _try_direct_extraction(file_path: str) -> str:
     Returns an empty string if the PDF is image-only or has no readable text.
     """
     try:
-        import fitz  # PyMuPDF
+        try:
+            import pymupdf as fitz  # PyMuPDF >= 1.24
+        except ImportError:
+            import fitz  # legacy name
         doc = fitz.open(file_path)
         pages_text = []
         for page in doc:

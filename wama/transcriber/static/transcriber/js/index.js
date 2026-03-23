@@ -72,9 +72,68 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   }
 
-  async function handleFiles(files) {
-    for (const file of files) await uploadFile(file);
+  // ── Toast utility (simple bootstrap toast or fallback) ───────────────
+  function showToast(message, type) {
+    // Try to use a Bootstrap toast if available, else alert for errors
+    if (type === 'danger' || type === 'error') {
+      alert(message);
+    } else {
+      // For non-error messages, use console + optional visual cue
+      console.info('[Transcriber]', message);
+    }
   }
+
+  function updateQueueCount() {
+    const badge = document.getElementById('queueCount');
+    if (!badge) return;
+    const cards = document.querySelectorAll('#transcriptQueue .synthesis-card');
+    badge.textContent = cards.length;
+  }
+
+  // ── Batch file detection — delegated to WamaBatchImport (common/js/batch-import.js)
+
+  async function handleFiles(files) {
+    const fileList = Array.from(files);
+    if (fileList.length === 1 && window._batchImport) {
+      if (await window._batchImport.detectAndHandle(fileList[0])) return;
+    }
+    for (const file of fileList) await uploadFile(file);
+  }
+
+  // ── Batch delete ─────────────────────────────────────────────────────────
+  document.addEventListener('click', function(e) {
+    const btn = e.target.closest('.batch-delete-btn');
+    if (!btn) return;
+    const batchId = btn.dataset.batchId;
+    if (!confirm('Supprimer ce batch et toutes ses transcriptions ?')) return;
+    const url = config.batchDeleteUrlTemplate.replace('/0/', `/${batchId}/`);
+    fetch(url, {method: 'POST', headers: csrfHeaders()})
+      .then(r => r.json())
+      .then(() => {
+        const el = btn.closest('.batch-group');
+        if (el) el.remove();
+        else location.reload();
+        updateQueueCount();
+      })
+      .catch(() => showToast('Erreur lors de la suppression', 'danger'));
+  });
+
+  // ── Batch duplicate ───────────────────────────────────────────────────────
+  document.addEventListener('click', function(e) {
+    const btn = e.target.closest('.batch-duplicate-btn');
+    if (!btn) return;
+    const batchId = btn.dataset.batchId;
+    const url = config.batchDuplicateUrlTemplate.replace('/0/', `/${batchId}/`);
+    fetch(url, {method: 'POST', headers: csrfHeaders()})
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          showToast('Batch dupliqué', 'success');
+          setTimeout(() => location.reload(), 600);
+        }
+      })
+      .catch(() => showToast('Erreur lors de la duplication', 'danger'));
+  });
 
   function initUpload() {
     if (!fileInput) return;
@@ -283,8 +342,18 @@ document.addEventListener('DOMContentLoaded', function () {
 
     if (status === 'SUCCESS') {
       html += `<button class="btn btn-sm btn-success preview-btn" data-id="${id}" title="Voir le résultat"><i class="fas fa-eye"></i></button>`;
-      html += `<a href="${getUrl(config.downloadUrlTemplate, id)}" class="btn btn-sm btn-info download-txt-btn" title="TXT"><i class="fas fa-file-alt"></i></a>`;
-      html += `<a href="${getUrl(config.downloadSrtUrlTemplate, id)}" class="btn btn-sm btn-info download-srt-btn" title="SRT"><i class="fas fa-closed-captioning"></i></a>`;
+      const dlBase = getUrl(config.downloadUrlTemplate, id);
+      html += `<div class="btn-group btn-group-sm">` +
+        `<a href="${dlBase}?format=txt" class="btn btn-outline-info download-txt-btn" title="Télécharger TXT"><i class="fas fa-download"></i></a>` +
+        `<button type="button" class="btn btn-outline-info dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false"><span class="visually-hidden">Autres formats</span></button>` +
+        `<ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end">` +
+          `<li><a class="dropdown-item" href="${dlBase}?format=txt"><i class="fas fa-file-alt me-2"></i>TXT</a></li>` +
+          `<li><a class="dropdown-item" href="${dlBase}?format=srt"><i class="fas fa-closed-captioning me-2"></i>SRT</a></li>` +
+          `<li><hr class="dropdown-divider"></li>` +
+          `<li><a class="dropdown-item" href="${dlBase}?format=pdf"><i class="fas fa-file-pdf me-2 text-danger"></i>PDF</a></li>` +
+          `<li><a class="dropdown-item" href="${dlBase}?format=docx"><i class="fas fa-file-word me-2 text-primary"></i>DOCX</a></li>` +
+        `</ul>` +
+      `</div>`;
     }
 
     html += `<button class="btn btn-sm btn-outline-info duplicate-btn" data-id="${id}" title="Dupliquer (tester un autre modèle)"><i class="fas fa-copy"></i></button>`;
@@ -701,8 +770,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
     if (title) title.textContent = `Transcription #${id}`;
     if (resultText) resultText.textContent = 'Chargement...';
-    if (dlBtn) dlBtn.href = getUrl(config.downloadUrlTemplate, id);
-    if (srtBtn) srtBtn.href = getUrl(config.downloadSrtUrlTemplate, id);
+    if (dlBtn) dlBtn.href = getUrl(config.downloadUrlTemplate, id) + '?format=txt';
+    if (srtBtn) srtBtn.href = getUrl(config.downloadUrlTemplate, id) + '?format=srt';
 
     // Reset tabs visibility
     const tabResumeBtn = document.getElementById('tab-resume-btn');
@@ -832,6 +901,39 @@ document.addEventListener('DOMContentLoaded', function () {
     const saveStartBtn = document.getElementById('saveAndStartBtn');
     if (saveBtn) saveBtn.addEventListener('click', () => saveSettings(false));
     if (saveStartBtn) saveStartBtn.addEventListener('click', () => saveSettings(true));
+
+    // Reset button
+    const resetBtn = document.getElementById('resetOptions');
+    if (resetBtn) {
+      resetBtn.addEventListener('click', () => {
+        const backendEl = document.getElementById('backendSelect');
+        if (backendEl) backendEl.value = 'auto';
+
+        const hotwordsEl = document.getElementById('hotwordsInput');
+        if (hotwordsEl) hotwordsEl.value = '';
+
+        const preprocessEl = document.getElementById('preprocessingToggle');
+        if (preprocessEl) { preprocessEl.checked = false; preprocessEnabled = false; }
+
+        const diarizationEl = document.getElementById('diarizationToggle');
+        if (diarizationEl) diarizationEl.checked = false;
+
+        const genSummaryEl = document.getElementById('globalGenerateSummary');
+        if (genSummaryEl) {
+          genSummaryEl.checked = false;
+          const group = document.getElementById('globalSummaryTypeGroup');
+          if (group) group.style.display = 'none';
+        }
+
+        const summTypeEl = document.getElementById('globalSummaryTypeStructured');
+        if (summTypeEl) summTypeEl.checked = true;
+
+        const verifCoherEl = document.getElementById('globalVerifyCoherence');
+        if (verifCoherEl) verifCoherEl.checked = false;
+
+        savePanelSettings();
+      });
+    }
   }
 
   function handleStartAll() {
@@ -1111,4 +1213,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
   updateGlobalProgress();
   setInterval(updateGlobalProgress, 2000);
+});
+
+// Filemanager 'Envoyer vers...' — reload page to show imported item
+document.addEventListener('wama:fileimported', function(e) {
+    if (e.detail && e.detail.app === 'transcriber') { window.location.reload(); }
 });

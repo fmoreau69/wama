@@ -2,6 +2,7 @@ import os
 import io
 import json
 import re
+import logging
 import zipfile
 import shutil
 import platform
@@ -17,10 +18,13 @@ from django.contrib.auth.models import User
 from django.views.decorators.http import require_POST
 from django.utils.encoding import smart_str
 
-from .models import Transcript
+import datetime
+from .models import Transcript, BatchTranscript, BatchTranscriptItem
 from wama.common.utils.console_utils import get_console_lines
 from wama.accounts.views import get_or_create_anonymous_user
 from wama.common.utils.queue_duplication import safe_delete_file, duplicate_instance
+
+logger = logging.getLogger(__name__)
 
 
 def _format_duration(seconds: float) -> str:
@@ -115,13 +119,56 @@ def _describe_audio(transcript: Transcript) -> None:
         return
 
 
+def _wrap_transcript_in_batch(transcript):
+    """Wrap a standalone Transcript in a new BatchTranscript-of-1."""
+    batch = BatchTranscript.objects.create(user=transcript.user, total=1)
+    BatchTranscriptItem.objects.create(batch=batch, transcript=transcript, row_index=0)
+    return batch
+
+
+def _auto_wrap_orphans(user):
+    """Wrap any Transcript not yet in a batch into a batch-of-1 (called on page load)."""
+    existing_ids = set(
+        BatchTranscriptItem.objects.filter(batch__user=user)
+        .values_list('transcript_id', flat=True)
+    )
+    orphans = Transcript.objects.filter(user=user).exclude(id__in=existing_ids)
+    for orphan in orphans:
+        try:
+            _wrap_transcript_in_batch(orphan)
+        except Exception:
+            pass
+
+
 class IndexView(View):
     def get(self, request):
         user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-        transcripts = Transcript.objects.filter(user=user).order_by('-id')
+
+        # Lazily wrap any orphan transcripts into a batch-of-1
+        _auto_wrap_orphans(user)
+
+        # All batches with prefetched items+transcript
+        batches_qs = BatchTranscript.objects.filter(user=user).prefetch_related(
+            'items__transcript'
+        ).order_by('-id')
+
+        batches_list = []
+        for batch in batches_qs:
+            items = list(batch.items.all())
+            success_count = sum(1 for i in items if i.transcript and i.transcript.status == 'SUCCESS')
+            batches_list.append({
+                'obj': batch,
+                'items': items,
+                'success_count': success_count,
+                'success_pct': int(success_count / batch.total * 100) if batch.total > 0 else 0,
+                'has_success': success_count > 0,
+            })
+
+        queue_count = sum(len(b['items']) for b in batches_list)
 
         # Backfill duration for existing transcripts that were stored without it
-        for t in transcripts:
+        all_transcripts = Transcript.objects.filter(user=user)
+        for t in all_transcripts:
             if not t.duration_display and t.audio:
                 _describe_audio(t)
 
@@ -137,7 +184,9 @@ class IndexView(View):
         # Backends are loaded asynchronously by JS (via /transcriber/backends/) to avoid
         # blocking the page render on heavy transformers imports (VibeVoice, Qwen3-ASR).
         return render(request, 'transcriber/index.html', {
-            'transcripts': transcripts,
+            'batches_list': batches_list,
+            'queue_count': queue_count,
+            'transcripts': all_transcripts,  # kept for global progress bar
             'preprocessing_enabled': enable_preprocessing,
             'selected_backend': selected_backend,
             'user_hotwords': user_hotwords,
@@ -233,6 +282,7 @@ def upload(request):
         )
 
     _describe_audio(t)
+    _wrap_transcript_in_batch(t)
     return JsonResponse({
         'id': t.id,
         'audio_url': t.audio.url,
@@ -302,6 +352,7 @@ def upload_youtube(request):
             pass
 
         _describe_audio(t)
+        _wrap_transcript_in_batch(t)
 
         return JsonResponse({
             'id': t.id,
@@ -394,33 +445,81 @@ def _output_stem(t: Transcript) -> str:
 
 
 def download(request, pk: int):
+    """Download transcript in requested format: txt (default), srt, pdf, docx."""
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     t = get_object_or_404(Transcript, pk=pk, user=user)
     if not t.text:
         return HttpResponseBadRequest('No transcript yet')
 
+    fmt = request.GET.get('format', 'txt').lower()
     stem = _output_stem(t)
 
-    # Serve saved file from disk if it exists
+    if fmt == 'srt':
+        # Delegate to existing SRT logic (preserving download_srt for backward compat)
+        from wama.common.utils.media_paths import get_app_media_path
+        disk_path = get_app_media_path('transcriber', user.id, 'output') / f"{stem}.srt"
+        if disk_path.exists():
+            return FileResponse(open(disk_path, 'rb'), as_attachment=True,
+                                filename=f"{stem}.srt", content_type='text/plain; charset=utf-8')
+        # Generate on the fly from segments
+        from .models import TranscriptSegment
+        segments = TranscriptSegment.objects.filter(transcript=t).order_by('order')
+        srt_lines = []
+        if segments.exists():
+            for i, seg in enumerate(segments, 1):
+                def _srt_ts(s):
+                    h, rem = divmod(int(s), 3600)
+                    m, sec = divmod(rem, 60)
+                    ms = int((s - int(s)) * 1000)
+                    return f"{h:02d}:{m:02d}:{sec:02d},{ms:03d}"
+                speaker = f'[{seg.speaker_id}] ' if seg.speaker_id else ''
+                srt_lines += [str(i), f"{_srt_ts(seg.start_time)} --> {_srt_ts(seg.end_time)}", speaker + seg.text, '']
+        else:
+            srt_lines = ['1', '00:00:00,000 --> 99:59:59,000', t.text, '']
+        buf = io.BytesIO('\n'.join(srt_lines).encode('utf-8'))
+        buf.seek(0)
+        return FileResponse(buf, as_attachment=True, filename=f"{stem}.srt",
+                            content_type='text/plain; charset=utf-8')
+
+    if fmt == 'pdf':
+        try:
+            from wama.common.utils.document_export import generate_transcript_pdf
+            pdf_bytes = generate_transcript_pdf(t)
+            response = HttpResponse(pdf_bytes, content_type='application/pdf')
+            response['Content-Disposition'] = f'attachment; filename="{stem}.pdf"'
+            return response
+        except ImportError as e:
+            return HttpResponseBadRequest(str(e))
+        except Exception as e:
+            logger.error(f"[Transcriber] PDF generation failed: {e}")
+            return HttpResponseBadRequest(f'Erreur PDF : {e}')
+
+    if fmt == 'docx':
+        try:
+            from wama.common.utils.document_export import generate_transcript_docx
+            docx_bytes = generate_transcript_docx(t)
+            response = HttpResponse(
+                docx_bytes,
+                content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            )
+            response['Content-Disposition'] = f'attachment; filename="{stem}.docx"'
+            return response
+        except ImportError as e:
+            return HttpResponseBadRequest(str(e))
+        except Exception as e:
+            logger.error(f"[Transcriber] DOCX generation failed: {e}")
+            return HttpResponseBadRequest(f'Erreur DOCX : {e}')
+
+    # Default: txt
     from wama.common.utils.media_paths import get_app_media_path
     disk_path = get_app_media_path('transcriber', user.id, 'output') / f"{stem}.txt"
     if disk_path.exists():
-        return FileResponse(
-            open(disk_path, 'rb'),
-            as_attachment=True,
-            filename=f"{stem}.txt",
-            content_type='text/plain; charset=utf-8'
-        )
-
-    # Fallback: generate on the fly
-    buffer = io.BytesIO(t.text.encode('utf-8'))
-    buffer.seek(0)
-    return FileResponse(
-        buffer,
-        as_attachment=True,
-        filename=f"{stem}.txt",
-        content_type='text/plain; charset=utf-8'
-    )
+        return FileResponse(open(disk_path, 'rb'), as_attachment=True,
+                            filename=f"{stem}.txt", content_type='text/plain; charset=utf-8')
+    buf = io.BytesIO(t.text.encode('utf-8'))
+    buf.seek(0)
+    return FileResponse(buf, as_attachment=True, filename=f"{stem}.txt",
+                        content_type='text/plain; charset=utf-8')
 
 
 def _cleanup_output_files(t: Transcript, user_id: int) -> None:
@@ -436,6 +535,27 @@ def _cleanup_output_files(t: Transcript, user_id: int) -> None:
                     path.unlink()
         except Exception:
             pass
+
+
+@require_POST
+def enrich(request, pk: int):
+    """Lance l'enrichissement LLM (résumé, points clés, actions) sur un transcript déjà transcrit."""
+    import json
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    t = get_object_or_404(Transcript, pk=pk, user=user)
+
+    if not t.text:
+        return JsonResponse({'error': 'Pas de texte transcrit'}, status=400)
+
+    try:
+        data = json.loads(request.body)
+    except Exception:
+        data = {}
+    summary_type = data.get('summary_type', t.summary_type or 'structured')
+
+    from .workers import enrich_transcript
+    task = enrich_transcript.delay(t.id, summary_type)
+    return JsonResponse({'ok': True, 'task_id': task.id, 'summary_type': summary_type})
 
 
 @require_POST
@@ -472,6 +592,7 @@ def duplicate(request, pk: int):
         },
         clear_fields=['segments_json', 'key_points', 'action_items', 'coherence_score'],
     )
+    _wrap_transcript_in_batch(new_t)
     return JsonResponse({'duplicated': new_t.id})
 
 
@@ -556,6 +677,266 @@ def download_all(request):
             archive.writestr(f"{stem}.txt", transcript.text or '')
     buffer.seek(0)
     return FileResponse(buffer, as_attachment=True, filename="transcripts.zip")
+
+
+# =============================================================================
+# BATCH VIEWS
+# =============================================================================
+
+def batch_template(request):
+    """Download a batch file template (.txt)."""
+    from django.http import HttpResponse
+    content = (
+        "# WAMA Transcriber - Batch Import\n"
+        "# Format : une URL ou chemin de fichier audio/vidéo par ligne\n"
+        "# Les lignes commençant par # sont des commentaires.\n\n"
+        "https://example.com/audio.mp3\n"
+        "https://example.com/video.mp4\n"
+        "/media/uploads/recording.wav\n"
+    )
+    response = HttpResponse(content, content_type='text/plain; charset=utf-8')
+    response['Content-Disposition'] = 'attachment; filename="batch_transcriber_template.txt"'
+    return response
+
+
+@require_POST
+def batch_preview(request):
+    """Parse a batch file (one URL/path per line) and return the list for preview."""
+    from wama.common.utils.batch_parsers import batch_media_list_preview_response
+    return batch_media_list_preview_response(request)
+
+
+@require_POST
+def batch_create(request):
+    """
+    Parse batch file (URLs/paths), create BatchTranscript + Transcript entries.
+    Returns batch_id and list of transcript IDs.
+    Files are not downloaded yet — download happens when each task starts.
+    """
+    from wama.common.utils.batch_parsers import parse_batch_file_from_request
+
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    backend = request.POST.get('backend', 'auto')
+    hotwords = request.POST.get('hotwords', '')
+    preprocess_audio = str(request.POST.get('preprocess_audio', '')).lower() in ('1', 'true', 'on')
+
+    try:
+        items, warnings = parse_batch_file_from_request(request)
+    except ValueError as e:
+        return JsonResponse({'error': str(e)}, status=400)
+
+    if not items:
+        return JsonResponse({'error': 'Aucun élément valide trouvé dans le fichier'}, status=400)
+
+    # Save the batch file reference, then seek back
+    batch_file.seek(0)
+    batch = BatchTranscript.objects.create(
+        user=user,
+        total=len(items),
+        batch_file=batch_file,
+    )
+
+    created_ids = []
+    for i, item in enumerate(items):
+        url_or_path = item['path']
+        # Create a Transcript with source_url, no audio file yet
+        t = Transcript.objects.create(
+            user=user,
+            source_url=url_or_path,
+            audio='',  # empty — will be populated when task downloads the file
+            backend=backend,
+            hotwords=hotwords,
+            preprocess_audio=preprocess_audio,
+        )
+        BatchTranscriptItem.objects.create(batch=batch, transcript=t, row_index=i)
+        created_ids.append(t.id)
+
+    return JsonResponse({
+        'batch_id': batch.id,
+        'transcript_ids': created_ids,
+        'total': len(items),
+        'warnings': warnings,
+    })
+
+
+def batch_list(request):
+    """List the current user's batches with status counts."""
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    batches = BatchTranscript.objects.filter(user=user).prefetch_related('items__transcript')
+
+    data = []
+    for batch in batches:
+        counts = {'success': 0, 'running': 0, 'pending': 0, 'failure': 0}
+        for item in batch.items.all():
+            if item.transcript:
+                k = item.transcript.status.lower()
+                counts[k] = counts.get(k, 0) + 1
+
+        total = batch.total
+        if total > 0 and counts['success'] == total:
+            status = 'SUCCESS'
+        elif counts['running'] > 0:
+            status = 'RUNNING'
+        elif counts['pending'] == 0 and counts['running'] == 0 and counts['failure'] > 0:
+            status = 'FAILURE'
+        else:
+            status = 'PENDING'
+
+        data.append({
+            'id': batch.id,
+            'created_at': batch.created_at.strftime('%d/%m/%Y %H:%M'),
+            'total': total,
+            'status': status,
+            'counts': counts,
+        })
+
+    return JsonResponse({'batches': data})
+
+
+@require_POST
+def batch_start(request, pk):
+    """Start all PENDING transcripts in a batch."""
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    batch = get_object_or_404(BatchTranscript, pk=pk, user=user)
+
+    from .workers import transcribe, transcribe_without_preprocessing
+
+    started = []
+    for item in batch.items.select_related('transcript').all():
+        t = item.transcript
+        if not t or t.status == 'RUNNING':
+            continue
+        t.status = 'RUNNING'
+        t.progress = 0
+        t.save(update_fields=['status', 'progress'])
+        cache.set(f"transcriber_progress_{t.id}", 0, timeout=3600)
+
+        if t.preprocess_audio:
+            task = transcribe.delay(t.id)
+        else:
+            task = transcribe_without_preprocessing.delay(t.id)
+
+        t.task_id = task.id
+        t.status = 'RUNNING'
+        t.save(update_fields=['task_id', 'status'])
+        started.append(t.id)
+
+    return JsonResponse({'started': started, 'count': len(started)})
+
+
+def batch_status(request, pk):
+    """Return status of all items in a batch."""
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    batch = get_object_or_404(BatchTranscript, pk=pk, user=user)
+
+    counts = {'success': 0, 'running': 0, 'pending': 0, 'failure': 0}
+    items_data = []
+
+    for item in batch.items.select_related('transcript').all():
+        t = item.transcript
+        if not t:
+            continue
+        key = t.status.lower()
+        counts[key] = counts.get(key, 0) + 1
+        p = int(cache.get(f"transcriber_progress_{t.id}", t.progress or 0))
+        fname = t.filename if t.audio else (t.source_url.split('/')[-1] or t.source_url)
+        items_data.append({
+            'id': t.id,
+            'filename': fname,
+            'status': t.status,
+            'progress': p,
+        })
+
+    total = batch.total
+    if total > 0 and counts['success'] == total:
+        status_str = 'SUCCESS'
+    elif counts['running'] > 0:
+        status_str = 'RUNNING'
+    elif counts['pending'] == 0 and counts['running'] == 0 and counts['failure'] > 0:
+        status_str = 'FAILURE'
+    else:
+        status_str = 'PENDING'
+
+    return JsonResponse({
+        'batch_id': pk,
+        'status': status_str,
+        'total': total,
+        'counts': counts,
+        'items': items_data,
+    })
+
+
+def batch_download(request, pk):
+    """Download a ZIP of all completed transcription results in a batch."""
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    batch = get_object_or_404(BatchTranscript, pk=pk, user=user)
+
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as archive:
+        for item in batch.items.select_related('transcript').order_by('row_index'):
+            t = item.transcript
+            if t and t.status == 'SUCCESS' and t.text:
+                stem = _output_stem(t) if t.audio else (
+                    os.path.splitext(t.source_url.split('/')[-1])[0] or f'transcript_{t.id}'
+                )
+                archive.writestr(f'{stem}.txt', t.text.encode('utf-8'))
+
+    buffer.seek(0)
+    zip_name = f"batch_transcriber_{pk}_{datetime.date.today()}.zip"
+    return FileResponse(buffer, as_attachment=True, filename=zip_name)
+
+
+@require_POST
+def batch_delete(request, pk):
+    """Delete an entire batch: cascade-delete transcripts, clean up files."""
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    batch = get_object_or_404(BatchTranscript, pk=pk, user=user)
+
+    transcripts_to_delete = []
+    for item in batch.items.select_related('transcript').all():
+        t = item.transcript
+        if not t:
+            continue
+        if t.task_id:
+            try:
+                from celery.result import AsyncResult
+                AsyncResult(t.task_id).revoke(terminate=False)
+            except Exception:
+                pass
+        transcripts_to_delete.append(t)
+
+    safe_delete_file(batch, 'batch_file')
+    batch.delete()  # CASCADE deletes BatchTranscriptItems (not Transcripts)
+
+    for t in transcripts_to_delete:
+        _cleanup_output_files(t, user.id)
+        safe_delete_file(t, 'audio')
+        cache.delete(f"transcriber_progress_{t.id}")
+        t.delete()
+
+    return JsonResponse({'success': True, 'batch_id': pk})
+
+
+@require_POST
+def batch_duplicate(request, pk):
+    """Duplicate an entire batch (shares source files, results cleared)."""
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    batch = get_object_or_404(BatchTranscript, pk=pk, user=user)
+
+    new_batch = BatchTranscript.objects.create(user=user, total=batch.total)
+    for item in batch.items.select_related('transcript').order_by('row_index'):
+        t = item.transcript
+        if not t:
+            continue
+        new_t = duplicate_instance(t, reset_fields={
+            'status': 'PENDING', 'progress': 0, 'task_id': '',
+            'language': '', 'text': '', 'used_backend': '',
+            'properties': '', 'duration_seconds': 0, 'duration_display': '',
+            'summary': '', 'coherence_notes': '', 'coherence_suggestion': '',
+        }, clear_fields=['segments_json', 'key_points', 'action_items', 'coherence_score'])
+        BatchTranscriptItem.objects.create(batch=new_batch, transcript=new_t, row_index=item.row_index)
+
+    return JsonResponse({'success': True, 'batch_id': new_batch.id})
 
 
 @require_POST

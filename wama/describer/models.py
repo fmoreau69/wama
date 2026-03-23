@@ -173,3 +173,39 @@ class Description(models.Model):
             'pdf': 'fa-file-pdf',
         }
         return icons.get(self.detected_type or self.content_type, 'fa-file')
+
+
+class BatchDescription(models.Model):
+    """Groupe de descriptions créé depuis un fichier batch."""
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='batch_descriptions')
+    created_at = models.DateTimeField(auto_now_add=True)
+    batch_file = models.FileField(
+        upload_to=upload_to_user_input('describer'),
+        blank=True, null=True,
+        help_text="Fichier batch source",
+    )
+    total = models.IntegerField(default=0)
+
+    class Meta:
+        verbose_name = "Batch de descriptions"
+        verbose_name_plural = "Batchs de descriptions"
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Batch #{self.id} — {self.user.username} ({self.total} items)"
+
+
+class BatchDescriptionItem(models.Model):
+    """Item d'un batch de descriptions."""
+    batch = models.ForeignKey(BatchDescription, on_delete=models.CASCADE, related_name='items')
+    description = models.OneToOneField(
+        Description, on_delete=models.CASCADE,
+        related_name='batch_item', null=True, blank=True,
+    )
+    row_index = models.IntegerField(default=0)
+
+    class Meta:
+        ordering = ['row_index']
+
+    def __str__(self):
+        return f"BatchItem #{self.id} — batch {self.batch_id}"

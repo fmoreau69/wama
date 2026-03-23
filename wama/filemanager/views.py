@@ -121,6 +121,15 @@ def build_file_tree(user):
             ]
         },
         {
+            'id': 'reader',
+            'text': 'Reader',
+            'icon': 'fa fa-file-invoice text-cyan',
+            'children': [
+                {'id': 'reader_input', 'text': 'Input', 'path': f'reader/{user_id}/input', 'icon': 'fa fa-folder text-secondary'},
+                {'id': 'reader_output', 'text': 'Output', 'path': f'reader/{user_id}/output', 'icon': 'fa fa-folder text-success'},
+            ]
+        },
+        {
             'id': 'transcriber',
             'text': 'Transcriber',
             'icon': 'fa fa-file-alt text-warning',
@@ -306,11 +315,13 @@ def api_tree_mtime(request):
         f'users/{uid}/temp',
         f'anonymizer/{uid}/input', f'anonymizer/{uid}/output',
         f'avatarizer/{uid}/input', f'avatarizer/{uid}/output', 'avatarizer/gallery',
+        f'composer/{uid}/input', f'composer/{uid}/output',
         f'describer/{uid}/input', f'describer/{uid}/output',
         f'enhancer/{uid}/input/media', f'enhancer/{uid}/input/audio',
         f'enhancer/{uid}/output/media', f'enhancer/{uid}/output/audio',
         f'imager/{uid}/input/prompts', f'imager/{uid}/input/references',
         f'imager/{uid}/output/image', f'imager/{uid}/output/video',
+        f'reader/{uid}/input', f'reader/{uid}/output',
         f'synthesizer/{uid}/input', f'synthesizer/{uid}/output', f'synthesizer/{uid}/custom_voices',
         f'transcriber/{uid}/input', f'transcriber/{uid}/output',
         f'face_analyzer/{uid}/input', f'face_analyzer/{uid}/output',
@@ -346,6 +357,10 @@ def api_search(request):
         f'users/{user.id}/temp',
         f'anonymizer/{user.id}/input',
         f'anonymizer/{user.id}/output',
+        f'avatarizer/{user.id}/input',
+        f'avatarizer/{user.id}/output',
+        f'composer/{user.id}/input',
+        f'composer/{user.id}/output',
         f'describer/{user.id}/input',
         f'describer/{user.id}/output',
         f'enhancer/{user.id}/input',
@@ -354,6 +369,8 @@ def api_search(request):
         f'imager/{user.id}/input/references',
         f'imager/{user.id}/output/image',
         f'imager/{user.id}/output/video',
+        f'reader/{user.id}/input',
+        f'reader/{user.id}/output',
         f'synthesizer/{user.id}/input',
         f'synthesizer/{user.id}/output',
         f'synthesizer/{user.id}/custom_voices',
@@ -774,6 +791,50 @@ def api_move(request):
         return JsonResponse({'error': str(e)}, status=500)
 
 
+@require_POST
+def api_mkdir(request):
+    """Create a new subfolder in the user's temp directory."""
+    import re
+    user = get_user(request)
+    try:
+        data = json.loads(request.body)
+        folder_name = data.get('name', '').strip()
+        parent_path = data.get('parent', '').strip('/')
+    except (json.JSONDecodeError, ValueError):
+        return HttpResponseBadRequest('Invalid JSON')
+
+    if not folder_name:
+        return JsonResponse({'error': 'Nom de dossier manquant'}, status=400)
+
+    # Sanitize folder name
+    folder_name = re.sub(r'[<>:"/\\|?*]', '_', folder_name)
+    if not folder_name:
+        return JsonResponse({'error': 'Nom invalide'}, status=400)
+
+    media_root = Path(settings.MEDIA_ROOT)
+    user_temp = media_root / f'users/{user.id}/temp'
+
+    if parent_path:
+        # Validate parent is within user temp dir
+        target = (user_temp / parent_path / folder_name).resolve()
+        allowed_base = user_temp.resolve()
+        if not str(target).startswith(str(allowed_base)):
+            return JsonResponse({'error': 'Chemin non autorisé'}, status=403)
+    else:
+        target = (user_temp / folder_name).resolve()
+        allowed_base = user_temp.resolve()
+        if not str(target).startswith(str(allowed_base)):
+            return JsonResponse({'error': 'Chemin non autorisé'}, status=403)
+
+    try:
+        target.mkdir(parents=True, exist_ok=False)
+        return JsonResponse({'success': True, 'path': str(target.relative_to(media_root)).replace('\\', '/')})
+    except FileExistsError:
+        return JsonResponse({'error': 'Ce dossier existe déjà'}, status=409)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
 def api_download(request, path):
     """Download a file."""
     user = get_user(request)
@@ -851,49 +912,50 @@ def api_preview(request):
     if not full_path.exists():
         return JsonResponse({'error': 'File not found'}, status=404)
 
-    mime_type = mimetypes.guess_type(full_path.name)[0] or ''
     ext = full_path.suffix.lower()
+    media_url = settings.MEDIA_URL + quote(file_path)
 
-    # For images, videos and audio, return the media URL
+    # Robust MIME detection: mimetypes.guess_type can fail on Windows for common types
+    _EXT_MIME = {
+        '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
+        '.gif': 'image/gif',  '.webp': 'image/webp', '.bmp': 'image/bmp',
+        '.tiff': 'image/tiff', '.tif': 'image/tiff', '.ico': 'image/x-icon',
+        '.svg': 'image/svg+xml',
+        '.mp4': 'video/mp4',   '.webm': 'video/webm', '.mov': 'video/quicktime',
+        '.avi': 'video/x-msvideo', '.mkv': 'video/x-matroska', '.flv': 'video/x-flv',
+        '.wmv': 'video/x-ms-wmv', '.m4v': 'video/mp4',
+        '.mp3': 'audio/mpeg',  '.wav': 'audio/wav',   '.ogg': 'audio/ogg',
+        '.flac': 'audio/flac', '.aac': 'audio/aac',   '.m4a': 'audio/mp4',
+        '.opus': 'audio/opus', '.weba': 'audio/webm',
+    }
+    mime_type = mimetypes.guess_type(full_path.name)[0] or _EXT_MIME.get(ext, '')
+
+    # Images, videos, audio — direct URL, browser renders natively
     if mime_type.startswith(('image/', 'video/', 'audio/')):
-        media_url = settings.MEDIA_URL + quote(file_path)
-        return JsonResponse({
-            'preview_url': media_url,
-            'mime': mime_type,
-            'name': full_path.name,
-        })
+        return JsonResponse({'url': media_url, 'mime_type': mime_type, 'name': full_path.name})
 
-    # For text files, extract and return the content
-    text_extensions = ['.txt', '.md', '.csv', '.pdf', '.docx']
-    if ext in text_extensions:
+    # PDF — browser renders via <embed>
+    if ext == '.pdf':
+        return JsonResponse({'url': media_url, 'mime_type': 'application/pdf', 'name': full_path.name})
+
+    # Plain text, markdown, CSV, JSON, XML — direct URL, media-preview.js fetches content
+    plain_text_extensions = {'.txt', '.md', '.csv', '.json', '.xml', '.log', '.yaml', '.yml', '.ini', '.cfg'}
+    if ext in plain_text_extensions:
+        return JsonResponse({'url': media_url, 'mime_type': mime_type or 'text/plain', 'name': full_path.name})
+
+    # DOCX and other office formats — extract text server-side (no native browser renderer)
+    if ext in {'.docx', '.odt', '.rtf'}:
         try:
             from wama.synthesizer.utils.text_extractor import extract_text_from_file
             text_content = extract_text_from_file(str(full_path))
-            # Limit preview to first 10000 characters
             if len(text_content) > 10000:
                 text_content = text_content[:10000] + '\n\n... [Contenu tronqué]'
-            return JsonResponse({
-                'preview_url': None,
-                'mime': 'text/plain',
-                'name': full_path.name,
-                'text_content': text_content,
-                'original_mime': mime_type,
-            })
+            return JsonResponse({'url': None, 'mime_type': 'text/plain', 'name': full_path.name, 'text_content': text_content})
         except Exception as e:
             logger.error(f"Error extracting text from {full_path}: {e}")
-            return JsonResponse({
-                'preview_url': None,
-                'mime': mime_type,
-                'name': full_path.name,
-                'error': f'Erreur lors de la lecture: {str(e)}'
-            })
+            return JsonResponse({'url': None, 'mime_type': mime_type, 'name': full_path.name, 'error': str(e)})
 
-    return JsonResponse({
-        'preview_url': None,
-        'mime': mime_type,
-        'name': full_path.name,
-        'message': 'Preview not available for this file type'
-    })
+    return JsonResponse({'url': None, 'mime_type': mime_type, 'name': full_path.name})
 
 
 def is_path_allowed(path, user):
@@ -936,65 +998,95 @@ def is_path_allowed(path, user):
 @require_POST
 def api_import_to_app(request):
     """
-    Import a file from FileManager to an app's input folder.
-    This copies the file and creates the app-specific record.
+    Import one or more files from FileManager to an app's input folder.
+    Supports single path (``path``) or multiple paths (``paths`` list).
     """
-    import shutil
-    from django.core.files import File
-
     user = get_user(request)
 
     try:
         data = json.loads(request.body)
         file_path = data.get('path', '')
+        paths = data.get('paths', [])  # Multiple paths
         target_app = data.get('app', '')
     except (json.JSONDecodeError, ValueError):
         return HttpResponseBadRequest('Invalid JSON')
 
-    if not file_path or not target_app:
+    # Support both single path and multiple paths
+    if paths:
+        file_paths = [p for p in paths if p]
+    elif file_path:
+        file_paths = [file_path]
+    else:
         return HttpResponseBadRequest('Missing path or app parameter')
+
+    if not target_app:
+        return HttpResponseBadRequest('Missing app parameter')
 
     # Validate app name
     # All apps accept file imports:
     # - Imager: accepts prompt files (.txt/.json/.yaml) and reference images
-    valid_apps = ['anonymizer', 'describer', 'enhancer', 'imager', 'synthesizer', 'transcriber', 'face_analyzer', 'cam_analyzer']
+    valid_apps = ['anonymizer', 'describer', 'enhancer', 'imager', 'reader', 'synthesizer', 'transcriber', 'face_analyzer', 'cam_analyzer']
     if target_app not in valid_apps:
         return JsonResponse({'error': f'Invalid app: {target_app}'}, status=400)
 
-    # Security check
-    if not is_path_allowed(file_path, user):
-        return JsonResponse({'error': 'Access denied'}, status=403)
+    def _import_single_file(fp):
+        """Import a single file path into target_app. Returns result dict."""
+        # Security check
+        if not is_path_allowed(fp, user):
+            return {'error': 'Access denied'}
 
-    source_path = Path(settings.MEDIA_ROOT) / file_path
+        source_path = Path(settings.MEDIA_ROOT) / fp
 
-    if not source_path.exists():
-        return JsonResponse({'error': 'Source file not found'}, status=404)
+        if not source_path.exists():
+            return {'error': 'Source file not found'}
 
-    try:
-        # Import based on target app
-        if target_app == 'anonymizer':
-            result = import_to_anonymizer(source_path, user)
-        elif target_app == 'describer':
-            result = import_to_describer(source_path, user)
-        elif target_app == 'enhancer':
-            result = import_to_enhancer(source_path, user)
-        elif target_app == 'imager':
-            result = import_to_imager(source_path, user)
-        elif target_app == 'synthesizer':
-            result = import_to_synthesizer(source_path, user)
-        elif target_app == 'transcriber':
-            result = import_to_transcriber(source_path, user)
-        elif target_app == 'face_analyzer':
-            result = import_to_face_analyzer(source_path, user)
-        elif target_app == 'cam_analyzer':
-            result = import_to_cam_analyzer(source_path, user)
+        try:
+            if target_app == 'anonymizer':
+                return import_to_anonymizer(source_path, user)
+            elif target_app == 'describer':
+                return import_to_describer(source_path, user)
+            elif target_app == 'enhancer':
+                return import_to_enhancer(source_path, user)
+            elif target_app == 'imager':
+                return import_to_imager(source_path, user)
+            elif target_app == 'synthesizer':
+                return import_to_synthesizer(source_path, user)
+            elif target_app == 'reader':
+                return import_to_reader(source_path, user)
+            elif target_app == 'transcriber':
+                return import_to_transcriber(source_path, user)
+            elif target_app == 'face_analyzer':
+                return import_to_face_analyzer(source_path, user)
+            elif target_app == 'cam_analyzer':
+                return import_to_cam_analyzer(source_path, user)
+            else:
+                return {'error': 'App not supported'}
+        except Exception as e:
+            logger.error(f"Error importing {fp} to {target_app}: {e}")
+            return {'error': str(e)}
+
+    results = []
+    errors = []
+
+    for fp in file_paths:
+        result = _import_single_file(fp)
+        if 'error' in result:
+            errors.append({'path': fp, 'error': result['error']})
         else:
-            return JsonResponse({'error': 'App not supported'}, status=400)
+            results.append(result)
 
-        return JsonResponse(result)
-    except Exception as e:
-        logger.error(f"Error importing {file_path} to {target_app}: {e}")
-        return JsonResponse({'error': str(e)}, status=500)
+    if len(file_paths) == 1:
+        # Backward compatibility: single path → return single result
+        if results:
+            return JsonResponse(results[0])
+        return JsonResponse({'imported': False, 'error': errors[0]['error'] if errors else 'Unknown error'})
+    else:
+        return JsonResponse({
+            'imported': len(results) > 0,
+            'count': len(results),
+            'results': results,
+            'errors': errors,
+        })
 
 
 def import_to_describer(source_path, user):
@@ -1339,6 +1431,43 @@ def import_to_synthesizer(source_path, user):
         'filename': dest_path.name,
         'path': relative_path,
         'synthesis_id': synthesis.id,
+    }
+
+
+def import_to_reader(source_path, user):
+    """Import a document/image file to Reader (OCR) app."""
+    from wama.reader.models import ReadingItem
+    from wama.common.utils.media_paths import get_app_media_path
+    import shutil
+
+    reader_extensions = {'.pdf', '.jpg', '.jpeg', '.png', '.tiff', '.tif', '.webp', '.bmp'}
+    ext = source_path.suffix.lower()
+    if ext not in reader_extensions:
+        raise ValueError(f"Format non supporté par Reader : {ext}")
+
+    dest_dir = get_app_media_path('reader', user.id, 'input')
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    dest_path = dest_dir / source_path.name
+
+    if dest_path.exists():
+        stem, suffix, counter = dest_path.stem, dest_path.suffix, 1
+        while dest_path.exists():
+            dest_path = dest_dir / f"{stem}_{counter}{suffix}"
+            counter += 1
+
+    shutil.copy2(source_path, dest_path)
+
+    relative_path = f'reader/{user.id}/input/{dest_path.name}'
+    item = ReadingItem(user=user, original_filename=dest_path.name, status='PENDING')
+    item.input_file.name = relative_path
+    item.save()
+
+    return {
+        'imported': True,
+        'app': 'reader',
+        'id': item.id,
+        'filename': dest_path.name,
+        'path': relative_path,
     }
 
 

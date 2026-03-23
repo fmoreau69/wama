@@ -20,6 +20,9 @@ urlpatterns = [
     path('api/tools/anonymizer/start/',  tool_views.start_anonymizer_view,      name='tool_anon_start'),
     path('api/tools/anonymizer/status/', tool_views.get_anonymizer_status_view, name='tool_anon_status'),
     path('api/tools/sam3-examples/',     tool_views.sam3_examples_view,         name='tool_sam3_examples'),
+    path('api/tools/reader/add/',        tool_views.add_to_reader_view,         name='tool_reader_add'),
+    path('api/tools/reader/start/',      tool_views.start_reader_view,          name='tool_reader_start'),
+    path('api/tools/reader/status/',     tool_views.get_reader_status_view,     name='tool_reader_status'),
     path('accounts/', include(('wama.accounts.urls', 'accounts'), namespace='accounts')),
     path('common/', include(('wama.common.urls', 'common'), namespace='common')),
     path('anonymizer/', include(('wama.anonymizer.urls', 'anonymizer'), namespace='anonymizer')),
@@ -33,6 +36,7 @@ urlpatterns = [
     path('model-manager/', include(('wama.model_manager.urls', 'model_manager'), namespace='model_manager')),
     path('media-library/', include(('wama.media_library.urls', 'media_library'), namespace='media_library')),
     path('composer/', include(('wama.composer.urls', 'composer'), namespace='composer')),
+    path('reader/', include(('wama.reader.urls', 'reader'), namespace='reader')),
     # WAMA Lab - Experimental/Research applications
     path('lab/', include(('wama_lab.urls', 'wama_lab'), namespace='wama_lab')),
     path('favicon.ico', RedirectView.as_view(url=staticfiles_storage.url('images/favicon.ico'))),

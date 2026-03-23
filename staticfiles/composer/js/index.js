@@ -37,11 +37,16 @@
     const promptInput    = document.getElementById('promptInput');
     const melodyGroup    = document.getElementById('melodyGroup');
     const melodyInput    = document.getElementById('melodyInput');
-    const batchFileInput = document.getElementById('batchFileInput');
-    const generateBtn    = document.getElementById('generateBtn');
-    const importBatchBtn = document.getElementById('importBatchBtn');
-    const startAllBtn    = document.getElementById('startAllBtn');
-    const clearAllBtn    = document.getElementById('clearAllBtn');
+    const batchFileInput       = document.getElementById('batchFileInput');
+    const generateBtn          = document.getElementById('generateBtn');
+    const startAllBtn          = document.getElementById('startAllBtn');
+    const clearAllBtn          = document.getElementById('clearAllBtn');
+    const batchDetectBar       = document.getElementById('batchDetectBar');
+    const batchDetectedCount   = document.getElementById('batchDetectedCount');
+    const batchCreateCount     = document.getElementById('batchCreateCount');
+    const batchCreateAndStartBtn = document.getElementById('batchCreateAndStartBtn');
+    const batchCreateOnlyBtn   = document.getElementById('batchCreateOnlyBtn');
+    const batchCancelBar       = document.getElementById('batchCancelBar');
 
     function getSelectedDuration() {
         return parseFloat(durationSlider?.value || 10);
@@ -257,41 +262,90 @@
     // Import batch file
     // ---------------------------------------------------------------------------
 
-    if (importBatchBtn) {
-        importBatchBtn.addEventListener('click', function () {
-            const file = batchFileInput?.files[0];
-            if (!file) {
-                alert('Sélectionnez d\'abord un fichier batch.');
-                return;
-            }
+    function _doBatchImport(autoStart) {
+        const file = batchFileInput?.files[0];
+        if (!file) {
+            alert('Sélectionnez d\'abord un fichier batch.');
+            return;
+        }
 
-            const formData = new FormData();
-            formData.append('csrfmiddlewaretoken', CSRF);
-            formData.append('batch_file', file);
-            formData.append('default_model', modelSelect?.value || 'musicgen-small');
-            formData.append('default_duration', getSelectedDuration());
+        const formData = new FormData();
+        formData.append('csrfmiddlewaretoken', CSRF);
+        formData.append('batch_file', file);
+        formData.append('default_model', modelSelect?.value || 'musicgen-small');
+        formData.append('default_duration', getSelectedDuration());
 
-            importBatchBtn.disabled = true;
-            importBatchBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Import…';
+        if (batchCreateAndStartBtn) batchCreateAndStartBtn.disabled = true;
+        if (batchCreateOnlyBtn) batchCreateOnlyBtn.disabled = true;
 
-            fetch('/composer/import/', { method: 'POST', body: formData })
-                .then(r => r.json())
-                .then(data => {
-                    if (data.error) {
-                        alert('Erreur batch : ' + data.error);
+        fetch('/composer/import/', { method: 'POST', body: formData })
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) {
+                    alert('Erreur batch : ' + data.error);
+                } else {
+                    if (data.warnings?.length) console.warn('[Composer] Warnings:', data.warnings);
+                    if (autoStart && data.ids) {
+                        Promise.all(data.ids.map(id =>
+                            fetch(`/composer/start/${id}/`, { method: 'POST', headers: { 'X-CSRFToken': CSRF } })
+                        )).then(() => location.reload());
                     } else {
-                        if (data.warnings?.length) console.warn('[Composer] Warnings:', data.warnings);
                         location.reload();
                     }
-                })
-                .catch(err => alert('Erreur réseau : ' + err))
-                .finally(() => {
-                    importBatchBtn.disabled = false;
-                    importBatchBtn.innerHTML = '<i class="fas fa-file-import me-1"></i> Importer batch';
-                    if (batchFileInput) batchFileInput.value = '';
-                });
+                }
+            })
+            .catch(err => alert('Erreur réseau : ' + err))
+            .finally(() => {
+                if (batchCreateAndStartBtn) batchCreateAndStartBtn.disabled = false;
+                if (batchCreateOnlyBtn) batchCreateOnlyBtn.disabled = false;
+                if (batchDetectBar) batchDetectBar.style.display = 'none';
+                if (batchFileInput) batchFileInput.value = '';
+            });
+    }
+
+    // Batch file input: show detect bar when a file is selected
+    if (batchFileInput) {
+        batchFileInput.addEventListener('change', function () {
+            const file = batchFileInput.files[0];
+            if (!file) {
+                if (batchDetectBar) batchDetectBar.style.display = 'none';
+                return;
+            }
+            if (batchDetectedCount) batchDetectedCount.textContent = '?';
+            if (batchCreateCount) batchCreateCount.textContent = '?';
+            if (batchDetectBar) batchDetectBar.style.display = '';
         });
     }
+
+    if (batchCreateAndStartBtn) {
+        batchCreateAndStartBtn.addEventListener('click', () => _doBatchImport(true));
+    }
+    if (batchCreateOnlyBtn) {
+        batchCreateOnlyBtn.addEventListener('click', () => _doBatchImport(false));
+    }
+    if (batchCancelBar) {
+        batchCancelBar.addEventListener('click', () => {
+            if (batchDetectBar) batchDetectBar.style.display = 'none';
+            if (batchFileInput) batchFileInput.value = '';
+        });
+    }
+
+    // Reset options handler
+    document.getElementById('resetOptions')?.addEventListener('click', () => {
+        if (modelSelect) {
+            const firstMusic = Array.from(modelSelect.options).find(o => o.value.startsWith('musicgen'));
+            if (firstMusic) modelSelect.value = firstMusic.value;
+            checkMelodyVisibility();
+            updateEstimate();
+        }
+        if (durationSlider) {
+            durationSlider.value = 10;
+            if (durationDisplay) durationDisplay.textContent = '10s';
+            updateEstimate();
+        }
+        localStorage.removeItem('composer_setting_modelSelect');
+        localStorage.removeItem('composer_setting_durationSlider');
+    });
 
     // ---------------------------------------------------------------------------
     // Start all / Clear all
@@ -326,7 +380,13 @@
             fetch(`/composer/delete/${id}/`, { method: 'POST', headers: { 'X-CSRFToken': CSRF } })
                 .then(() => {
                     const card = document.querySelector(`.generation-card[data-id="${id}"]`);
-                    if (card) card.closest('.mb-2') ? card.closest('.mb-2').remove() : card.remove();
+                    if (card) {
+                        const batchGroup = card.closest('.batch-group');
+                        card.remove();
+                        if (batchGroup && batchGroup.querySelectorAll('.generation-card').length === 0) {
+                            batchGroup.remove();
+                        }
+                    }
                     delete genMeta[id];
                     updateGlobalBar();
                     checkEmptyState();
@@ -348,6 +408,24 @@
                     updateGlobalBar();
                     checkEmptyState();
                 });
+            return;
+        }
+
+        const duplicateBtn = e.target.closest('.duplicate-btn');
+        if (duplicateBtn) {
+            const id = duplicateBtn.dataset.id;
+            fetch(`/composer/duplicate/${id}/`, { method: 'POST', headers: { 'X-CSRFToken': CSRF } })
+                .then(r => r.json())
+                .then(d => { if (d.success) location.reload(); });
+            return;
+        }
+
+        const batchDuplicateBtn = e.target.closest('.batch-duplicate-btn');
+        if (batchDuplicateBtn) {
+            const bid = batchDuplicateBtn.dataset.batchId;
+            fetch(`/composer/batch/${bid}/duplicate/`, { method: 'POST', headers: { 'X-CSRFToken': CSRF } })
+                .then(r => r.json())
+                .then(d => { if (d.success) location.reload(); });
             return;
         }
 

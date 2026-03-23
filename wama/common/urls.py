@@ -20,4 +20,8 @@ urlpatterns = [
 
     # Centralized console endpoint (role-based filtering)
     path('api/console/', views.console_content, name='console'),
+
+    # App registry
+    path('api/apps/', views.api_apps, name='api_apps'),
+    path('apps/', views.apps_catalog_view, name='apps_catalog'),
 ]

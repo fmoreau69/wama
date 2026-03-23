@@ -5,6 +5,11 @@
 {% block app_title %}Content Describer{% endblock %}
 {% block app_description %}Description et synthese automatiques de contenus multimedia avec l'IA{% endblock %}
 
+{% block app_styles %}
+#batchDetectBar { --batch-bg: #1a1520; }
+#batchDetectBar .batch-type-col { display: table-cell !important; }
+{% endblock %}
+
 {% block console_content_id %}describer-console-content{% endblock %}
 
 {% block queue_content %}

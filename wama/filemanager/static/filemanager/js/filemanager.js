@@ -289,6 +289,45 @@
         setupExternalDragDrop(treeContainer);
     }
 
+    // Extension → compatible app list — built from server-injected WAMA_APP_CATALOG
+    // Falls back to empty (no "send to" menu) if catalog unavailable
+    const _catalog = window.WAMA_APP_CATALOG || {};
+    const APP_EXTENSIONS = {};
+    const APP_LABELS = {};
+    Object.keys(_catalog).forEach(app => {
+        const spec = _catalog[app];
+        APP_EXTENSIONS[app] = new Set(spec.input_extensions || []);
+        APP_LABELS[app] = { icon: spec.icon || 'fa fa-cube', label: spec.label || app };
+    });
+
+    function buildSendToSubmenu(node, ext) {
+        const filePath = node.data && node.data.path;
+        if (!filePath || !ext) return {};
+        const submenu = {};
+        Object.keys(APP_EXTENSIONS).forEach(app => {
+            if (APP_EXTENSIONS[app].has(ext)) {
+                const meta = APP_LABELS[app];
+                submenu[app] = {
+                    label: meta.label,
+                    icon: meta.icon,
+                    action: function() {
+                        importToApp(filePath, app)
+                            .then(result => {
+                                if (result.imported) {
+                                    showToast(`"${node.text}" envoyé vers ${meta.label}`, 'success');
+                                    document.dispatchEvent(new CustomEvent('wama:fileimported', {
+                                        detail: result
+                                    }));
+                                }
+                            })
+                            .catch(err => showToast('Erreur : ' + err.message, 'danger'));
+                    }
+                };
+            }
+        });
+        return submenu;
+    }
+
     function contextMenuItems(node) {
         console.log('[FileManager] Context menu requested for node:', node.id, 'type:', node.type);
 
@@ -298,6 +337,10 @@
         }
 
         const items = {};
+
+        // Multi-selection: get all selected nodes
+        const selectedNodes = $('#filemanager-tree').jstree('get_selected', true);
+        const isMultiSelect = selectedNodes.length > 1;
 
         if (node.type === 'file') {
             items.preview = {
@@ -315,6 +358,67 @@
                 icon: 'fa fa-info-circle',
                 action: function() { showFileInfo(node); }
             };
+
+            // "Envoyer vers..." — apps compatible with this file extension
+            const filePath = node.data && node.data.path;
+            const ext = filePath ? filePath.split('.').pop().toLowerCase() : '';
+            const sendToSubmenu = buildSendToSubmenu(node, ext);
+            if (sendToSubmenu && Object.keys(sendToSubmenu).length > 0) {
+                items.sendTo = {
+                    label: 'Envoyer vers…',
+                    icon: 'fa fa-share-square',
+                    separator_before: true,
+                    submenu: sendToSubmenu,
+                };
+            }
+
+            // Multi-selection: "Envoyer X fichier(s) vers..."
+            if (isMultiSelect) {
+                const filePaths = selectedNodes
+                    .filter(n => n.type === 'file')
+                    .map(n => n.data && n.data.path)
+                    .filter(Boolean);
+
+                if (filePaths.length > 0) {
+                    const multiSendSubmenu = {};
+                    Object.keys(APP_EXTENSIONS).forEach(app => {
+                        const compatPaths = filePaths.filter(fp => {
+                            const fExt = fp.split('.').pop().toLowerCase();
+                            return APP_EXTENSIONS[app].has(fExt);
+                        });
+                        if (compatPaths.length > 0) {
+                            const meta = APP_LABELS[app];
+                            multiSendSubmenu[app] = {
+                                label: `${meta.label} (${compatPaths.length} fichier(s))`,
+                                icon: meta.icon,
+                                action: function() {
+                                    importMultipleToApp(compatPaths, app)
+                                        .then(result => {
+                                            const count = result.count || (result.imported ? 1 : 0);
+                                            showToast(`${count} fichier(s) envoyé(s) vers ${meta.label}`, 'success');
+                                            compatPaths.forEach(p => {
+                                                document.dispatchEvent(new CustomEvent('wama:fileimported', {
+                                                    detail: { imported: true, app: app, path: p }
+                                                }));
+                                            });
+                                        })
+                                        .catch(err => showToast(`Erreur : ${err.message}`, 'danger'));
+                                },
+                            };
+                        }
+                    });
+
+                    if (Object.keys(multiSendSubmenu).length > 0) {
+                        items.sendToMultiple = {
+                            label: `Envoyer ${filePaths.length} fichier(s) vers…`,
+                            icon: 'fa fa-share-square',
+                            separator_before: true,
+                            submenu: multiSendSubmenu,
+                        };
+                    }
+                }
+            }
+
             items.rename = {
                 label: 'Renommer',
                 icon: 'fa fa-edit',
@@ -327,6 +431,28 @@
                 action: function() { deleteFile(node); },
                 _class: 'context-menu-danger'
             };
+
+            // "Nouveau dossier ici" — create at temp root level (files live in temp folder)
+            items.mkdir = {
+                label: 'Nouveau dossier ici',
+                icon: 'fa fa-folder-plus',
+                separator_before: true,
+                action: function() {
+                    const name = prompt('Nom du nouveau dossier :');
+                    if (!name || !name.trim()) return;
+                    mkdirFolder(name.trim(), '')
+                        .then(result => {
+                            if (result.success) {
+                                showToast(`Dossier "${name.trim()}" créé`, 'success');
+                                refreshTree();
+                            } else {
+                                showToast(result.error || 'Erreur création dossier', 'danger');
+                            }
+                        })
+                        .catch(err => showToast(`Erreur : ${err.message}`, 'danger'));
+                },
+            };
+
         } else if (node.type === 'folder') {
             items.refresh = {
                 label: 'Actualiser',
@@ -343,6 +469,93 @@
                 icon: 'fa fa-folder',
                 action: function() { tree.close_all(node); }
             };
+
+            // "Envoyer dossier vers..." — sends all compatible files in folder to an app
+            const folderPath = node.data && node.data.path;
+            if (folderPath) {
+                const folderSendSubmenu = {};
+                Object.keys(APP_LABELS).forEach(app => {
+                    const meta = APP_LABELS[app];
+                    folderSendSubmenu[app] = {
+                        label: meta.label,
+                        icon: meta.icon,
+                        action: function() {
+                            const treeInstance = $('#filemanager-tree').jstree(true);
+                            const nodeData = treeInstance.get_node(node.id);
+                            const allChildren = nodeData ? (nodeData.children_d || []) : [];
+                            const filePaths = allChildren
+                                .map(childId => treeInstance.get_node(childId))
+                                .filter(n => n && n.type === 'file')
+                                .map(n => n.data && n.data.path)
+                                .filter(p => {
+                                    if (!p) return false;
+                                    const fExt = p.split('.').pop().toLowerCase();
+                                    return APP_EXTENSIONS[app] && APP_EXTENSIONS[app].has(fExt);
+                                });
+
+                            if (filePaths.length === 0) {
+                                showToast(`Aucun fichier compatible dans ce dossier pour ${meta.label}`, 'warning');
+                                return;
+                            }
+
+                            importMultipleToApp(filePaths, app)
+                                .then(result => {
+                                    const count = result.count || (result.imported ? 1 : 0);
+                                    showToast(`${count} fichier(s) du dossier envoyé(s) vers ${meta.label}`, 'success');
+                                    filePaths.forEach(p => {
+                                        document.dispatchEvent(new CustomEvent('wama:fileimported', {
+                                            detail: { imported: true, app: app, path: p }
+                                        }));
+                                    });
+                                })
+                                .catch(err => showToast(`Erreur : ${err.message}`, 'danger'));
+                        },
+                    };
+                });
+
+                items.sendFolderTo = {
+                    label: 'Envoyer dossier vers…',
+                    icon: 'fa fa-share-square',
+                    separator_before: true,
+                    submenu: folderSendSubmenu,
+                };
+            }
+
+            // "Nouveau dossier" — create subfolder inside this folder (only in temp)
+            const folderPathForMkdir = node.data && node.data.path;
+            const isInTemp = folderPathForMkdir && folderPathForMkdir.includes('/temp');
+            if (isInTemp || node.id === 'temp') {
+                // Determine the relative path within temp to use as parent
+                // folderPath format: users/{id}/temp[/subpath]
+                let parentRelPath = '';
+                if (folderPathForMkdir) {
+                    const tempMarker = '/temp/';
+                    const idx = folderPathForMkdir.indexOf(tempMarker);
+                    if (idx !== -1) {
+                        parentRelPath = folderPathForMkdir.slice(idx + tempMarker.length);
+                    }
+                    // else it IS the temp root, parentRelPath stays ''
+                }
+                items.mkdir = {
+                    label: 'Nouveau dossier',
+                    icon: 'fa fa-folder-plus',
+                    action: function() {
+                        const name = prompt('Nom du nouveau dossier :');
+                        if (!name || !name.trim()) return;
+                        mkdirFolder(name.trim(), parentRelPath)
+                            .then(result => {
+                                if (result.success) {
+                                    showToast(`Dossier "${name.trim()}" créé`, 'success');
+                                    refreshTree();
+                                } else {
+                                    showToast(result.error || 'Erreur création dossier', 'danger');
+                                }
+                            })
+                            .catch(err => showToast(`Erreur : ${err.message}`, 'danger'));
+                    },
+                };
+            }
+
             items.deleteAll = {
                 label: 'Vider le dossier',
                 icon: 'fa fa-trash',
@@ -623,8 +836,8 @@
         fetch(`${config.apiPreviewUrl || '/filemanager/api/preview/'}?path=${encodeURIComponent(path)}`)
             .then(res => res.json())
             .then(data => {
-                if (data.preview_url || data.text_content !== undefined) {
-                    showPreviewModal(data);
+                if (data.url || data.text_content !== undefined) {
+                    if (typeof window.showPreviewModal === 'function') window.showPreviewModal(data);
                 } else {
                     showToast('Aperçu non disponible pour ce type de fichier', 'warning');
                 }
@@ -1248,8 +1461,8 @@
                 return;
             }
 
-            // Check if preview modal is open
-            const modal = document.getElementById('filePreviewModal');
+            // Check if preview modal is open (unified modal)
+            const modal = document.getElementById('wamaMediaPreviewModal');
             if (!modal || !modal.classList.contains('show')) return;
 
             if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
@@ -1357,7 +1570,7 @@
         fetch(`${config.apiPreviewUrl || '/filemanager/api/preview/'}?path=${encodeURIComponent(nextNode.data.path)}`)
             .then(response => response.json())
             .then(data => {
-                if (data.mime && data.mime.startsWith('image/')) {
+                if (data.mime_type && data.mime_type.startsWith('image/')) {
                     // Update fullscreen image
                     const overlay = document.getElementById('imageFullscreenOverlay');
                     if (overlay) {
@@ -1367,17 +1580,17 @@
                         const prevBtn = overlay.querySelector('.fullscreen-nav-prev');
                         const nextBtn = overlay.querySelector('.fullscreen-nav-next');
 
-                        if (img) img.src = data.preview_url;
+                        if (img) img.src = data.url;
                         if (filename) { filename.textContent = data.name; filename.title = data.name; }
                         if (counter) counter.textContent = `${previewIndex + 1} / ${previewSiblings.length}`;
                         if (prevBtn) prevBtn.classList.toggle('disabled', previewIndex === 0);
                         if (nextBtn) nextBtn.classList.toggle('disabled', previewIndex === previewSiblings.length - 1);
                     }
 
-                    // Also update the preview modal in background
+                    // Also update the preview panel in background
                     updatePreviewContent(data);
                 } else {
-                    // Not an image, close fullscreen and update modal
+                    // Not an image, close fullscreen and update panel
                     closeFullscreen();
                     updatePreviewContent(data);
                 }
@@ -1404,18 +1617,11 @@
         const path = nextNode.data?.path;
         if (!path) return;
 
-        // Show loading state
-        const modal = document.getElementById('filePreviewModal');
-        if (modal) {
-            const container = modal.querySelector('.preview-container');
-            container.innerHTML = '<div class="text-center py-5"><i class="fa fa-spinner fa-spin fa-2x"></i></div>';
-        }
-
         fetch(`${config.apiPreviewUrl || '/filemanager/api/preview/'}?path=${encodeURIComponent(path)}`)
             .then(res => res.json())
             .then(data => {
-                if (data.preview_url || data.text_content !== undefined) {
-                    updatePreviewContent(data);
+                if (data.url || data.text_content !== undefined) {
+                    if (typeof window.showPreviewModal === 'function') window.showPreviewModal(data);
                 } else {
                     showToast('Aperçu non disponible pour ce type de fichier', 'warning');
                 }
@@ -1446,124 +1652,27 @@
         if (prevBtn) prevBtn.classList.toggle('disabled', previewIndex === 0);
         if (nextBtn) nextBtn.classList.toggle('disabled', previewIndex === previewSiblings.length - 1);
 
-        // Update content
-        if (data.mime.startsWith('image/')) {
+        // Update content (inline panel)
+        const mime = data.mime_type || '';
+        if (mime.startsWith('image/')) {
             container.innerHTML = `
-                <div class="preview-image-wrapper" ondblclick="window.FileManagerFullscreen.open('${data.preview_url}', '${escapeHtml(data.name)}')">
-                    <img src="${data.preview_url}" alt="${data.name}" style="max-width:100%; max-height:70vh;">
-                    <button class="preview-fullscreen-btn" onclick="event.stopPropagation(); window.FileManagerFullscreen.open('${data.preview_url}', '${escapeHtml(data.name)}')" title="Plein écran (double-clic)">
+                <div class="preview-image-wrapper" ondblclick="window.FileManagerFullscreen.open('${data.url}', '${escapeHtml(data.name)}')">
+                    <img src="${data.url}" alt="${data.name}" style="max-width:100%; max-height:70vh;">
+                    <button class="preview-fullscreen-btn" onclick="event.stopPropagation(); window.FileManagerFullscreen.open('${data.url}', '${escapeHtml(data.name)}')" title="Plein écran (double-clic)">
                         <i class="fa fa-expand"></i>
                     </button>
                 </div>
             `;
-        } else if (data.mime.startsWith('video/')) {
+        } else if (mime.startsWith('video/')) {
             container.innerHTML = `
                 <video controls autoplay muted style="max-width:100%; max-height:70vh;">
-                    <source src="${data.preview_url}" type="${data.mime}">
-                </video>
-            `;
-        } else if (data.mime.startsWith('audio/')) {
-            container.innerHTML = `<audio src="${data.preview_url}" controls autoplay style="width:100%;"></audio>`;
-        } else if (data.text_content !== undefined) {
-            const escapedContent = escapeHtml(data.text_content);
-            container.innerHTML = `<pre class="text-preview" style="background:#0d1117;border:1px solid #374151;border-radius:6px;padding:15px;max-height:60vh;overflow:auto;white-space:pre-wrap;word-wrap:break-word;font-family:'Consolas','Monaco',monospace;font-size:0.85rem;color:#e2e8f0;margin:0;">${escapedContent}</pre>`;
-        } else {
-            container.innerHTML = `<p>Aperçu non disponible pour ce type de fichier</p>`;
-        }
-    }
-
-    function showPreviewModal(data) {
-        let modal = document.getElementById('filePreviewModal');
-
-        if (!modal) {
-            modal = document.createElement('div');
-            modal.id = 'filePreviewModal';
-            modal.className = 'modal fade';
-            modal.innerHTML = `
-                <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
-                    <div class="modal-content bg-dark text-white">
-                        <div class="modal-header border-secondary">
-                            <h5 class="modal-title"></h5>
-                            <div class="preview-header-controls ms-auto me-3">
-                                <span class="preview-counter badge bg-secondary"></span>
-                            </div>
-                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                        </div>
-                        <div class="modal-body position-relative">
-                            <!-- Navigation arrows -->
-                            <button class="preview-nav-btn preview-nav-prev" onclick="window.FileManagerNav && window.FileManagerNav.prev()" title="Précédent (←)">
-                                <i class="fa fa-chevron-left"></i>
-                            </button>
-                            <button class="preview-nav-btn preview-nav-next" onclick="window.FileManagerNav && window.FileManagerNav.next()" title="Suivant (→)">
-                                <i class="fa fa-chevron-right"></i>
-                            </button>
-                            <div class="preview-container"></div>
-                        </div>
-                        <div class="modal-footer border-secondary py-2">
-                            <small>Utilisez les flèches ← → pour naviguer</small>
-                        </div>
-                    </div>
-                </div>
-            `;
-            document.body.appendChild(modal);
-
-            // Expose navigation functions globally for onclick handlers
-            window.FileManagerNav = {
-                prev: () => navigatePreview(-1),
-                next: () => navigatePreview(1)
-            };
-        }
-
-        const title = modal.querySelector('.modal-title');
-        const container = modal.querySelector('.preview-container');
-        const counter = modal.querySelector('.preview-counter');
-        const prevBtn = modal.querySelector('.preview-nav-prev');
-        const nextBtn = modal.querySelector('.preview-nav-next');
-
-        // Update title
-        title.textContent = data.name;
-
-        // Update navigation counter and button visibility
-        if (previewSiblings.length > 1) {
-            if (counter) {
-                counter.textContent = `${previewIndex + 1} / ${previewSiblings.length}`;
-                counter.style.display = '';
-            }
-            if (prevBtn) {
-                prevBtn.style.display = '';
-                prevBtn.classList.toggle('disabled', previewIndex === 0);
-            }
-            if (nextBtn) {
-                nextBtn.style.display = '';
-                nextBtn.classList.toggle('disabled', previewIndex === previewSiblings.length - 1);
-            }
-        } else {
-            // Hide navigation if only one file
-            if (counter) counter.style.display = 'none';
-            if (prevBtn) prevBtn.style.display = 'none';
-            if (nextBtn) nextBtn.style.display = 'none';
-        }
-
-        // Update content based on mime type
-        if (data.mime.startsWith('image/')) {
-            container.innerHTML = `
-                <div class="preview-image-wrapper" ondblclick="window.FileManagerFullscreen.open('${data.preview_url}', '${escapeHtml(data.name)}')">
-                    <img src="${data.preview_url}" alt="${data.name}" style="max-width:100%; max-height:70vh;">
-                    <button class="preview-fullscreen-btn" onclick="event.stopPropagation(); window.FileManagerFullscreen.open('${data.preview_url}', '${escapeHtml(data.name)}')" title="Plein écran (double-clic)">
-                        <i class="fa fa-expand"></i>
-                    </button>
-                </div>
-            `;
-        } else if (data.mime.startsWith('video/')) {
-            container.innerHTML = `
-                <video controls autoplay muted style="max-width:100%; max-height:70vh;">
-                    <source src="${data.preview_url}" type="${data.mime}">
+                    <source src="${data.url}" type="${mime}">
                 </video>
                 <div class="video-error-message d-none text-center p-4">
                     <i class="fa fa-exclamation-triangle fa-3x text-warning mb-3"></i>
                     <h5>Lecture impossible</h5>
                     <p class="mb-2">Le codec de cette vidéo n'est pas supporté par le navigateur.</p>
-                    <a href="${data.preview_url}" download class="btn btn-outline-light btn-sm">
+                    <a href="${data.url}" download class="btn btn-outline-light btn-sm">
                         <i class="fa fa-download me-2"></i>Télécharger le fichier
                     </a>
                 </div>
@@ -1574,35 +1683,14 @@
                 video.classList.add('d-none');
                 errorMsg.classList.remove('d-none');
             });
-        } else if (data.mime.startsWith('audio/')) {
-            container.innerHTML = `<audio src="${data.preview_url}" controls autoplay style="width:100%;"></audio>`;
+        } else if (mime.startsWith('audio/')) {
+            container.innerHTML = `<audio src="${data.url}" controls autoplay style="width:100%;"></audio>`;
         } else if (data.text_content !== undefined) {
-            // Text file preview
             const escapedContent = escapeHtml(data.text_content);
-            container.innerHTML = `
-                <pre class="text-preview" style="
-                    background: #0d1117;
-                    border: 1px solid #374151;
-                    border-radius: 6px;
-                    padding: 15px;
-                    max-height: 60vh;
-                    overflow: auto;
-                    white-space: pre-wrap;
-                    word-wrap: break-word;
-                    font-family: 'Consolas', 'Monaco', monospace;
-                    font-size: 0.85rem;
-                    color: #e2e8f0;
-                    margin: 0;
-                ">${escapedContent}</pre>
-            `;
-        } else if (data.error) {
-            container.innerHTML = `<p class="text-danger"><i class="fa fa-exclamation-triangle me-2"></i>${escapeHtml(data.error)}</p>`;
+            container.innerHTML = `<pre class="text-preview" style="background:#0d1117;border:1px solid #374151;border-radius:6px;padding:15px;max-height:60vh;overflow:auto;white-space:pre-wrap;word-wrap:break-word;font-family:'Consolas','Monaco',monospace;font-size:0.85rem;color:#e2e8f0;margin:0;">${escapedContent}</pre>`;
         } else {
             container.innerHTML = `<p>Aperçu non disponible pour ce type de fichier</p>`;
         }
-
-        const bsModal = new bootstrap.Modal(modal);
-        bsModal.show();
     }
 
     function showInfoModal(data) {
@@ -1725,6 +1813,51 @@
     }
 
     /**
+     * Import multiple files from FileManager to a specific app.
+     * @param {string[]} paths - Array of file paths in media folder
+     * @param {string} targetApp - The target app name
+     * @returns {Promise<object>} - The import result
+     */
+    async function importMultipleToApp(paths, targetApp) {
+        const response = await fetch(config.apiImportUrl || '/filemanager/api/import/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': config.csrfToken || csrfToken,
+            },
+            body: JSON.stringify({ paths: paths, app: targetApp }),
+        });
+        if (!response.ok) {
+            const data = await response.json().catch(() => ({}));
+            throw new Error(data.error || `HTTP ${response.status}`);
+        }
+        return response.json();
+    }
+
+    /**
+     * Create a new subfolder inside the user's temp directory.
+     * @param {string} name - Folder name
+     * @param {string} parentPath - Relative path of parent folder ('' for temp root)
+     * @returns {Promise<object>}
+     */
+    async function mkdirFolder(name, parentPath) {
+        const mkdirUrl = config.apiMkdirUrl || '/filemanager/api/mkdir/';
+        const response = await fetch(mkdirUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': config.csrfToken || csrfToken,
+            },
+            body: JSON.stringify({ name: name, parent: parentPath || '' }),
+        });
+        if (!response.ok) {
+            const data = await response.json().catch(() => ({}));
+            throw new Error(data.error || `HTTP ${response.status}`);
+        }
+        return response.json();
+    }
+
+    /**
      * Check if a drop event contains a FileManager file.
      * @param {DragEvent} event - The drop event
      * @returns {object|null} - The file data or null
@@ -1809,6 +1942,7 @@
         refresh: refreshTree,
         triggerRefresh: triggerRefresh,
         importToApp: importToApp,
+        importMultipleToApp: importMultipleToApp,
         getFileManagerData: getFileManagerData,
         handleDropFromFileManager: handleDropFromFileManager,
         showToast: showToast

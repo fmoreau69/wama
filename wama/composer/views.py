@@ -16,7 +16,7 @@ from django.views.decorators.http import require_POST, require_GET
 
 from wama.accounts.views import get_or_create_anonymous_user
 from wama.common.utils.console_utils import get_console_lines
-from wama.common.utils.queue_duplication import safe_delete_file
+from wama.common.utils.queue_duplication import safe_delete_file, duplicate_instance
 from .models import ComposerBatch, ComposerBatchItem, ComposerGeneration
 from .utils.model_config import COMPOSER_MODELS, MUSIC_MODELS, SFX_MODELS
 
@@ -455,6 +455,98 @@ def export_to_library(request, pk):
     except Exception as exc:
         logger.exception(f"[Composer] Export failed: {exc}")
         return JsonResponse({'error': str(exc)}, status=500)
+
+
+# ---------------------------------------------------------------------------
+# Duplicate & Download All
+# ---------------------------------------------------------------------------
+
+@login_required
+@require_POST
+def duplicate(request, pk):
+    """Duplicate a single generation sharing the source, resetting the result."""
+    gen = get_object_or_404(ComposerGeneration, id=pk, user=request.user)
+    try:
+        output_filename = gen.batch_item.output_filename
+    except ComposerBatchItem.DoesNotExist:
+        output_filename = ''
+
+    new_gen = duplicate_instance(
+        gen,
+        reset_fields={
+            'status': 'PENDING', 'progress': 0,
+            'task_id': None, 'error_message': '',
+            'exported_to_library': False,
+        },
+        clear_fields=['audio_output'],
+    )
+    _wrap_generation_in_batch(new_gen)
+    return JsonResponse({'success': True, 'id': new_gen.id})
+
+
+@login_required
+@require_POST
+def batch_duplicate(request, pk):
+    """Duplicate a batch with all its items, sharing source files."""
+    batch = get_object_or_404(ComposerBatch, id=pk, user=request.user)
+
+    new_batch = ComposerBatch(user=request.user, total=batch.total)
+    if batch.batch_file and batch.batch_file.name:
+        new_batch.batch_file = batch.batch_file.name
+    new_batch.save()
+
+    for item in batch.items.select_related('generation').order_by('row_index'):
+        gen = item.generation
+        if not gen:
+            continue
+        new_gen = duplicate_instance(
+            gen,
+            reset_fields={
+                'status': 'PENDING', 'progress': 0,
+                'task_id': None, 'error_message': '',
+                'exported_to_library': False,
+            },
+            clear_fields=['audio_output'],
+        )
+        ComposerBatchItem.objects.create(
+            batch=new_batch,
+            generation=new_gen,
+            output_filename=item.output_filename,
+            row_index=item.row_index,
+        )
+
+    return JsonResponse({'success': True, 'id': new_batch.id})
+
+
+@login_required
+def download_all(request):
+    """Download all completed audio outputs as a ZIP archive."""
+    import io as _io
+    import zipfile
+    from django.http import HttpResponse
+
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    gens = (ComposerGeneration.objects
+            .filter(user=user, status='SUCCESS')
+            .exclude(audio_output=''))
+
+    if not gens.exists():
+        return JsonResponse({'error': 'Aucun fichier disponible'}, status=404)
+
+    buffer = _io.BytesIO()
+    with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
+        for gen in gens:
+            if not gen.audio_output:
+                continue
+            try:
+                zf.write(gen.audio_output.path, os.path.basename(gen.audio_output.name))
+            except Exception:
+                pass
+
+    buffer.seek(0)
+    response = HttpResponse(buffer.getvalue(), content_type='application/zip')
+    response['Content-Disposition'] = 'attachment; filename="composer_audio.zip"'
+    return response
 
 
 # ---------------------------------------------------------------------------

@@ -25,8 +25,8 @@ from django.views.generic import TemplateView
 from django.urls import reverse
 from django.utils.encoding import iri_to_uri
 
-from .models import Media, GlobalSettings, UserSettings
-from wama.common.utils.queue_duplication import duplicate_instance
+from .models import Media, GlobalSettings, UserSettings, BatchAnonymizer, BatchAnonymizerItem
+from wama.common.utils.queue_duplication import duplicate_instance, safe_delete_file
 from .forms import MediaSettingsForm, UserSettingsForm
 from .tasks import process_single_media, process_user_media_batch, stop_process
 from .utils.media_utils import get_input_media_path, get_output_media_path, get_blurred_media_path, get_unique_filename
@@ -907,31 +907,27 @@ def clear_all_media(request):
     """Delete all media files (input and output) for the current user."""
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
 
-    user_medias = Media.objects.filter(user=user)
-    if user_medias.exists():
+    user_medias = list(Media.objects.filter(user=user))
+    if user_medias:
         # Clear dedup locks
         cache.delete(f"anon_lock:batch:{user.id}")
         for media in user_medias:
             cache.delete(f"anon_lock:media:{media.id}")
             cache.delete(f"anon_task_owner:media:{media.id}")
 
-            # Delete input file
-            if media.file:
-                try:
-                    media.file.delete(save=False)
-                except Exception as e:
-                    print(f"[clear_all_media] Error deleting input file: {e}")
+            # Delete input file only if not shared with another item (safe for duplicates)
+            safe_delete_file(media, 'file')
 
-            # Delete output file (blurred media) - derive path from input filename
+            # Delete output file (blurred media) - always unique per item
             try:
                 output_path = get_blurred_media_path(media.file.name, media.file_ext, media.user_id)
                 if os.path.exists(output_path):
                     os.remove(output_path)
-                    print(f"[clear_all_media] Deleted output file: {output_path}")
-            except Exception as e:
-                print(f"[clear_all_media] Error deleting output file: {e}")
+            except Exception:
+                pass
 
-        user_medias.delete()
+            media.delete()
+
         UserSettings.objects.filter(user_id=user.id).update(media_added=0, show_gs=0)
 
     return JsonResponse({'success': True})
@@ -952,7 +948,7 @@ def clear_media(request):
         cache.delete(f"anon_task_owner:media:{media_id}")
 
         Media.objects.filter(pk=media_id).update(MSValues_customised=0)
-        media.file.delete()
+        safe_delete_file(media, 'file')
         media.delete()
 
         has_media = Media.objects.filter(user=user).exists()
@@ -1504,3 +1500,108 @@ class AboutView(TemplateView):
 
 class HelpView(TemplateView):
     template_name = 'anonymizer/help.html'
+
+
+# =============================================================================
+# Batch import (Type A: media_list — one URL/path per line)
+# =============================================================================
+
+def batch_template(request):
+    """Download a batch file template (.txt)."""
+    from django.http import HttpResponse
+    content = (
+        "# WAMA Anonymizer - Batch Import\n"
+        "# Format : une URL ou chemin de fichier image/vidéo par ligne\n"
+        "# Les lignes commençant par # sont des commentaires.\n\n"
+        "https://example.com/photo.jpg\n"
+        "https://example.com/video.mp4\n"
+        "/media/uploads/photo.png\n"
+    )
+    response = HttpResponse(content, content_type='text/plain; charset=utf-8')
+    response['Content-Disposition'] = 'attachment; filename="batch_anonymizer_template.txt"'
+    return response
+
+
+@require_POST
+def batch_preview(request):
+    """Parse a batch file and return the list for preview (no DB entries created)."""
+    from wama.common.utils.batch_parsers import batch_media_list_preview_response
+    return batch_media_list_preview_response(request)
+
+
+@require_POST
+def batch_create(request):
+    """
+    Parse batch file (URLs/paths), create BatchAnonymizer + Media entries.
+    Files are not downloaded yet — download happens when the task starts.
+    """
+    from wama.common.utils.batch_parsers import parse_batch_file_from_request
+
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+
+    try:
+        items, warnings = parse_batch_file_from_request(request)
+    except ValueError as e:
+        return JsonResponse({'error': str(e)}, status=400)
+
+    if not items:
+        return JsonResponse({'error': 'Aucun élément valide trouvé dans le fichier'}, status=400)
+
+    batch_file.seek(0)
+    batch = BatchAnonymizer.objects.create(
+        user=user,
+        total=len(items),
+        batch_file=batch_file,
+    )
+
+    created_ids = []
+    for i, item in enumerate(items):
+        url_or_path = item['path']
+        filename = url_or_path.split('/')[-1].split('\\')[-1] or f'item_{i+1}'
+        m = Media.objects.create(
+            user=user,
+            title=filename,
+            source_url=url_or_path,
+            file='',
+            file_ext='',
+        )
+        BatchAnonymizerItem.objects.create(batch=batch, media=m, row_index=i)
+        created_ids.append(m.id)
+
+    UserSettings.objects.filter(user_id=user.id).update(media_added=1)
+
+    return JsonResponse({
+        'batch_id': batch.id,
+        'media_ids': created_ids,
+        'total': len(items),
+        'warnings': warnings,
+    })
+
+
+@require_POST
+def batch_delete(request, pk):
+    """Delete an entire batch and all its media items."""
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    batch = get_object_or_404(BatchAnonymizer, pk=pk, user=user)
+
+    media_to_delete = []
+    for item in batch.items.select_related('media').all():
+        if item.media:
+            media_to_delete.append(item.media)
+
+    safe_delete_file(batch, 'batch_file')
+    batch.delete()  # CASCADE deletes BatchAnonymizerItems
+
+    for media in media_to_delete:
+        cache.delete(f"anon_lock:media:{media.id}")
+        cache.delete(f"anon_task_owner:media:{media.id}")
+        try:
+            output_path = get_blurred_media_path(media.file.name, media.file_ext, media.user_id)
+            if os.path.exists(output_path):
+                os.remove(output_path)
+        except Exception:
+            pass
+        safe_delete_file(media, 'file')
+        media.delete()
+
+    return JsonResponse({'success': True, 'batch_id': pk})

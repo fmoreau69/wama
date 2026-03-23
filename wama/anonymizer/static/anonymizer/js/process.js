@@ -33,27 +33,28 @@ document.addEventListener("DOMContentLoaded", function() {
                     const pct = progressData.progress || 0;
                     console.log(`[process.js] Media ${mediaId} progress: ${pct}%`);
 
-                    // Find progress bar fresh each time (handles table refreshes)
-                    const tr = document.querySelector(`tr[data-media-id="${mediaId}"]`);
+                    // Find card fresh each time (handles table refreshes)
+                    const tr = document.querySelector(`[data-media-id="${mediaId}"]`);
                     if (!tr) {
-                        console.warn(`[process.js] Row not found for media ${mediaId}`);
+                        console.warn(`[process.js] Card not found for media ${mediaId}`);
                         return;
                     }
 
                     const progressBar = tr.querySelector(".progress-bar");
                     if (progressBar) {
                         progressBar.style.width = pct + '%';
-                        progressBar.innerText = pct + '%';
                     }
+                    const pctEl = tr.querySelector('.progress-pct');
+                    if (pctEl) pctEl.textContent = (pct > 0 && pct < 100) ? pct + '%' : '';
 
                     // Update status badge
-                    const statusBadge = tr.querySelector('td:nth-child(6) .badge');
+                    const statusBadge = tr.querySelector('.status-badge');
                     if (statusBadge) {
                         if (pct >= 100) {
-                            statusBadge.className = 'badge bg-success';
+                            statusBadge.className = 'badge bg-success status-badge';
                             statusBadge.textContent = 'Terminé';
                         } else if (pct > 0) {
-                            statusBadge.className = 'badge bg-warning';
+                            statusBadge.className = 'badge bg-warning text-dark status-badge';
                             statusBadge.textContent = 'En cours';
                         }
                     }
@@ -66,7 +67,7 @@ document.addEventListener("DOMContentLoaded", function() {
                         // Update the row to reflect processed state
                         tr.dataset.mediaProcessed = 'true';
 
-                        // Enable download button
+                        // Enable download button (form POST preserved in card layout)
                         const btn = tr.querySelector("form[action$='download_media/'] button");
                         if (btn) {
                             btn.removeAttribute('disabled');
@@ -138,7 +139,7 @@ document.addEventListener("DOMContentLoaded", function() {
             const table = document.querySelector(tableId);
             if (!table) return;
 
-            table.querySelectorAll('tbody tr[data-media-id]').forEach(tr => {
+            table.querySelectorAll('[data-media-id]').forEach(tr => {
                 const mediaId = tr.dataset.mediaId;
                 const processed = tr.dataset.mediaProcessed === 'true';
                 const progressBar = tr.querySelector('.progress-bar');
@@ -399,16 +400,17 @@ document.addEventListener("DOMContentLoaded", function() {
 
         // Reset all progress bars to 0% before starting
         ["#medias", "#medias_process"].forEach(tableId => {
-            document.querySelectorAll(`${tableId} tbody tr[data-media-id]`).forEach(tr => {
+            document.querySelectorAll(`${tableId} [data-media-id]`).forEach(tr => {
                 const progressBar = tr.querySelector(".progress-bar");
                 if (progressBar) {
                     progressBar.style.width = '0%';
-                    progressBar.innerText = '0%';
                 }
+                const pctEl = tr.querySelector('.progress-pct');
+                if (pctEl) pctEl.textContent = '';
                 // Reset status badge
-                const statusBadge = tr.querySelector('td:nth-child(6) .badge');
+                const statusBadge = tr.querySelector('.status-badge');
                 if (statusBadge) {
-                    statusBadge.className = 'badge bg-secondary';
+                    statusBadge.className = 'badge bg-secondary status-badge';
                     statusBadge.textContent = 'En attente';
                 }
                 // Mark as not processed
@@ -466,7 +468,7 @@ document.addEventListener("DOMContentLoaded", function() {
 
                 if (!table) return;
 
-                const rows = table.querySelectorAll('tbody tr[data-media-id]');
+                const rows = table.querySelectorAll('[data-media-id]');
                 console.log(`[process.js] Found ${rows.length} media rows in ${tableId}`);
 
                 rows.forEach(tr => {

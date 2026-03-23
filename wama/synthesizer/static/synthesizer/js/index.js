@@ -1281,3 +1281,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
 }); // Fin DOMContentLoaded
+// Filemanager 'Envoyer vers...' — reload page to show imported item
+document.addEventListener('wama:fileimported', function(e) {
+    if (e.detail && e.detail.app === 'synthesizer') { window.location.reload(); }
+});

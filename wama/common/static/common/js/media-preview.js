@@ -158,7 +158,7 @@
      * Show the preview modal with the given media data.
      */
     function showPreviewModal(data) {
-        if (!data || !data.url) {
+        if (!data || (!data.url && data.text_content === undefined)) {
             showPreviewError('No media URL available');
             return;
         }
@@ -332,16 +332,41 @@
                 .catch(err => { pre.textContent = `Erreur lors du chargement (${err}).`; });
 
             return wrapper;
+        } else if (data.text_content !== undefined) {
+            // Pre-extracted text (e.g., DOCX — no direct URL available)
+            const wrapper = document.createElement('div');
+            wrapper.className = 'w-100';
+
+            const copyBtn = document.createElement('button');
+            copyBtn.className = 'btn btn-sm btn-outline-secondary mb-2';
+            copyBtn.innerHTML = '<i class="fas fa-copy"></i> Copier';
+
+            const pre = document.createElement('pre');
+            pre.className = 'text-light p-3 mb-0';
+            pre.style.cssText = 'max-height:65vh; overflow-y:auto; background:#1e1e1e; border-radius:4px; font-size:13px; white-space:pre-wrap; word-wrap:break-word; border:1px solid #495057;';
+            pre.textContent = data.text_content || '';
+
+            copyBtn.addEventListener('click', () => {
+                navigator.clipboard.writeText(pre.textContent).then(() => {
+                    copyBtn.innerHTML = '<i class="fas fa-check text-success"></i> Copié';
+                    setTimeout(() => { copyBtn.innerHTML = '<i class="fas fa-copy"></i> Copier'; }, 2000);
+                }).catch(() => {});
+            });
+
+            wrapper.appendChild(copyBtn);
+            wrapper.appendChild(pre);
+            return wrapper;
         } else {
-            // Fallback: show download link
+            // Fallback: show download link (only if URL available)
             const fallback = document.createElement('div');
             fallback.className = 'text-center p-4';
+            const downloadLink = data.url
+                ? `<a href="${escapeHtml(data.url)}" class="btn btn-primary" download><i class="fas fa-download"></i> Download</a>`
+                : '';
             fallback.innerHTML = `
                 <i class="fas fa-file fa-5x text-secondary mb-4"></i>
                 <p class="mb-3">Preview not available for this file type</p>
-                <a href="${data.url}" class="btn btn-primary" download>
-                    <i class="fas fa-download"></i> Download
-                </a>
+                ${downloadLink}
             `;
             return fallback;
         }

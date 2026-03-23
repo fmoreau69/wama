@@ -85,6 +85,11 @@ Transcriber:
 - start_transcriber(transcript_id=null): Launch transcription. Provide transcript_id from add_to_transcriber, or null to start all pending jobs.
 - get_transcriber_status(): Get status and text preview of the user's recent transcription jobs.
 
+Reader (OCR — extraction de texte de documents):
+- add_to_reader(file_path, backend="auto", mode="auto", output_format="txt", language=""): Register a PDF or image file for OCR text extraction. Backends: "auto", "olmocr" (GPU, quality), "doctr" (CPU, fast). Modes: "auto", "printed", "handwritten". Returns item_id.
+- start_reader(item_id=null): Launch OCR processing. Provide item_id or null for all pending jobs.
+- get_reader_status(): Get status and text preview of the user's recent OCR jobs.
+
 Médiathèque (assets personnels réutilisables):
 - list_media_assets(asset_type="", q=""): Liste les assets de la médiathèque de l'utilisateur. Types: "voice", "audio_music", "audio_sfx", "image", "video", "document", "avatar". Retourne id, name, asset_type, file_url pour chaque asset.
 - get_media_asset_url(asset_id): Retourne l'URL de fichier d'un asset spécifique par son ID.
@@ -122,13 +127,80 @@ def presentation(request):
 
 
 _OLLAMA_MODEL_MAP = {
-    'dev':        'qwen3.5:35b-a3b',       # was: qwen3:30b-instruct
-    'coder':      'qwen3.5:35b-a3b',       # was: qwen3-coder:30b (no Qwen3.5-Coder yet)
-    'debug':      'deepseek-coder-v2:16b', # unchanged
-    'architect':  'qwen3.5:35b-a3b',       # was: qwen3:30b-thinking (unified think/nothink)
-    'fast':       'qwen3.5:9b',            # was: qwen3:14b-q8_0
-    'ultra_fast': 'qwen3.5:4b',            # was: qwen3:8b-q8_0
+    'dev':        'qwen3.5:35b-a3b',
+    'coder':      'qwen3.5:35b-a3b',
+    'debug':      'deepseek-coder-v2:16b',
+    'architect':  'qwen3.5:35b-a3b',
+    'fast':       'qwen3.5:9b',
+    'ultra_fast': 'qwen3.5:4b',
 }
+
+# Safe context limits per model (chars, not tokens — ~4 chars/token estimate)
+# Below these limits quality stays high; above them we upgrade to a larger model.
+_MODEL_SAFE_CHARS = {
+    'qwen3.5:4b':           80_000,   # ~20K tokens
+    'qwen3.5:9b':          120_000,   # ~30K tokens
+    'qwen3.5:35b-a3b':     300_000,   # ~75K tokens — MoE handles long context well
+    'deepseek-coder-v2:16b': 48_000,  # ~12K tokens
+}
+
+
+def _build_wama_context(user) -> str:
+    """
+    Build a short WAMA status string to inject into the system prompt.
+    Tells the assistant about current queue state without revealing sensitive data.
+    """
+    try:
+        from django.apps import apps as django_apps
+        lines = []
+        checks = [
+            ('anonymizer',   'Media',            'status'),
+            ('transcriber',  'Transcript',       'status'),
+            ('describer',    'Description',      'status'),
+            ('enhancer',     'Enhancement',      'status'),
+            ('imager',       'Generation',       'status'),
+            ('synthesizer',  'VoiceSynthesis',   'status'),
+            ('composer',     'ComposerGeneration','status'),
+            ('reader',       'ReadingItem',      'status'),
+        ]
+        for app_label, model_name, _ in checks:
+            try:
+                model = django_apps.get_model(f'wama.{app_label}', model_name)
+                pending = model.objects.filter(user=user, status='PENDING').count()
+                running = model.objects.filter(user=user, status__in=['RUNNING', 'processing']).count()
+                failed  = model.objects.filter(user=user, status__in=['FAILURE', 'ERROR', 'error']).count()
+                if pending or running or failed:
+                    parts = []
+                    if pending: parts.append(f"{pending} en attente")
+                    if running: parts.append(f"{running} en cours")
+                    if failed:  parts.append(f"{failed} en erreur")
+                    lines.append(f"  - {app_label}: {', '.join(parts)}")
+            except Exception:
+                pass
+        if lines:
+            return "\n\nÉtat actuel des files WAMA (utilisateur connecté):\n" + "\n".join(lines)
+        return "\n\nToutes les files WAMA sont vides pour cet utilisateur."
+    except Exception:
+        return ""
+
+
+def _route_model_by_context(ollama_model: str, messages: list) -> str:
+    """
+    Upgrade the Ollama model if the conversation context is too long for it.
+    Uses a conservative char-based estimate (~4 chars per token).
+    """
+    total_chars = sum(len(m.get('content', '')) for m in messages)
+    safe_limit = _MODEL_SAFE_CHARS.get(ollama_model, 120_000)
+    if total_chars > safe_limit:
+        # Upgrade to the largest available model
+        upgraded = 'qwen3.5:35b-a3b'
+        if ollama_model != upgraded:
+            logger.info(
+                f"[ai_chat] context too long ({total_chars} chars) for {ollama_model} "
+                f"— upgrading to {upgraded}"
+            )
+        return upgraded
+    return ollama_model
 
 
 def _ollama_call(messages: list, ollama_model: str) -> tuple:
@@ -230,7 +302,10 @@ def _chat_with_ollama(message: str, model: str = "fast", user=None, history: lis
     from .tool_api import execute_tool
 
     ollama_model = _OLLAMA_MODEL_MAP.get(model, model)
-    system_prompt = WAMA_SYSTEM_PROMPT + (WAMA_TOOLS_PROMPT if user else "")
+
+    # Inject current WAMA queue state into system prompt (when user is known)
+    wama_context = _build_wama_context(user) if user else ""
+    system_prompt = WAMA_SYSTEM_PROMPT + wama_context + (WAMA_TOOLS_PROMPT if user else "")
 
     # Build messages: system + prior history (capped) + current user message
     prior = (history or [])[-20:]  # keep last 10 exchanges max
@@ -239,6 +314,9 @@ def _chat_with_ollama(message: str, model: str = "fast", user=None, history: lis
         *prior,
         {"role": "user",   "content": message},
     ]
+
+    # Auto-upgrade model if context is too long for the selected model
+    ollama_model = _route_model_by_context(ollama_model, messages)
 
     tool_steps = []
     total_usage = {'input_tokens': 0, 'output_tokens': 0}

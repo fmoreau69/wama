@@ -46,6 +46,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
   async function handleFiles(files) {
     for (const file of files) {
+      if (window._batchImport && await window._batchImport.detectAndHandle(file)) continue;
       await uploadFile(file);
     }
   }
@@ -742,6 +743,51 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
 
+  // Reset button
+  const resetBtn = document.getElementById('resetOptions');
+  if (resetBtn) {
+    resetBtn.addEventListener('click', () => {
+      // Detect active tab
+      const audioSettings = document.getElementById('audioSettings');
+      const audioActive = audioSettings && audioSettings.style.display !== 'none';
+
+      if (audioActive) {
+        // Reset audio settings
+        const audioEngineEl = document.getElementById('audioEngine');
+        if (audioEngineEl) audioEngineEl.value = 'resemble';
+
+        const audioModeEl = document.getElementById('audioMode');
+        if (audioModeEl) audioModeEl.value = 'both';
+
+        const audioStrengthEl = document.getElementById('audioDenoisingStrength');
+        if (audioStrengthEl) {
+          audioStrengthEl.value = '0.5';
+          const display = document.getElementById('audioStrengthValue');
+          if (display) display.textContent = '0.5';
+        }
+
+        const audioQualityEl = document.getElementById('audioQuality');
+        if (audioQualityEl) audioQualityEl.value = '64';
+      } else {
+        // Reset image/video settings
+        const defaultAiModelEl = document.getElementById('defaultAiModel');
+        if (defaultAiModelEl && defaultAiModelEl.options.length > 0) {
+          defaultAiModelEl.selectedIndex = 0;
+        }
+
+        const defaultDenoiseEl = document.getElementById('defaultDenoise');
+        if (defaultDenoiseEl) defaultDenoiseEl.checked = false;
+
+        const defaultBlendEl = document.getElementById('defaultBlendFactor');
+        if (defaultBlendEl) {
+          defaultBlendEl.value = '0';
+          const display = document.getElementById('blendValue');
+          if (display) display.textContent = '0';
+        }
+      }
+    });
+  }
+
   // Initialize
   initUpload();
   initDragDrop();
@@ -758,4 +804,63 @@ document.addEventListener('DOMContentLoaded', function () {
   // Update global progress every 2 seconds
   updateGlobalProgress();
   setInterval(updateGlobalProgress, 2000);
+
+  // ── Batch detect bar — delegated to WamaBatchImport (common/js/batch-import.js)
+  // Initialisation dans le template via window._batchImport = WamaBatchImport({...})
+
+  // ── Batch start ────────────────────────────────────────────────────────
+  document.addEventListener('click', function(e) {
+    const btn = e.target.closest('.batch-start-btn');
+    if (!btn) return;
+    const batchId = btn.dataset.batchId;
+    const url = config.batchStartUrlTemplate.replace('/0/', `/${batchId}/`);
+    btn.disabled = true;
+    fetch(url, { method: 'POST', headers: { 'X-CSRFToken': csrfToken } })
+      .then(r => r.json())
+      .then(d => {
+        if (d.started && d.started.length > 0) {
+          d.started.forEach(id => startPolling(id));
+        }
+        btn.disabled = false;
+      })
+      .catch(() => { btn.disabled = false; });
+  });
+
+  // ── Batch delete ───────────────────────────────────────────────────────
+  document.addEventListener('click', function(e) {
+    const btn = e.target.closest('.batch-delete-btn');
+    if (!btn) return;
+    const batchId = btn.dataset.batchId;
+    if (!confirm('Supprimer ce batch et toutes ses améliorations ?')) return;
+    const url = config.batchDeleteUrlTemplate.replace('/0/', `/${batchId}/`);
+    fetch(url, { method: 'POST', headers: { 'X-CSRFToken': csrfToken } })
+      .then(r => r.json())
+      .then(() => {
+        const el = btn.closest('.batch-group');
+        if (el) el.remove();
+        else location.reload();
+      })
+      .catch(() => alert('Erreur lors de la suppression'));
+  });
+
+  // ── Batch duplicate ────────────────────────────────────────────────────
+  document.addEventListener('click', function(e) {
+    const btn = e.target.closest('.batch-duplicate-btn');
+    if (!btn) return;
+    const batchId = btn.dataset.batchId;
+    const url = config.batchDuplicateUrlTemplate.replace('/0/', `/${batchId}/`);
+    fetch(url, { method: 'POST', headers: { 'X-CSRFToken': csrfToken } })
+      .then(r => r.json())
+      .then(d => {
+        if (d.success) {
+          setTimeout(() => location.reload(), 400);
+        }
+      })
+      .catch(() => alert('Erreur lors de la duplication'));
+  });
+});
+
+// Filemanager 'Envoyer vers...' — reload page to show imported item
+document.addEventListener('wama:fileimported', function(e) {
+    if (e.detail && e.detail.app === 'enhancer') { window.location.reload(); }
 });

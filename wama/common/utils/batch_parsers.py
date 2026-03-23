@@ -3,29 +3,33 @@ WAMA Common — Batch file parsers
 
 Common infrastructure for parsing batch import files across apps.
 
-Batch formats by app
---------------------
-anonymizer / describer / enhancer / transcriber:
-    Plain text, one media path or URL per line.
-    Lines starting with # are comments, blank lines are ignored.
-    → use parse_media_list_batch()
+Convention batch WAMA
+---------------------
+Séparateur : | (pipe).  Commentaires : # en début de ligne.  Encodage : UTF-8.
 
-synthesizer:
-    Pipe-separated: nom_fichier|texte à synthétiser|voix|vitesse
-    Columns 3 and 4 (voice, speed) are optional.
-    → wama.synthesizer.utils.batch_parser (delegates extract_batch_file_text here)
+Type A — Media list (apps traitant des fichiers/URLs existants) :
+    Col 1 (req) : chemin absolu/relatif ou URL
+    Cols 2+ (opt) : overrides de paramètres spécifiques à l'app
+    Apps : anonymizer, describer, enhancer, transcriber, reader
+    → parse_media_list_batch()  ou  parse_pipe_batch(schema=TYPE_A_SCHEMA)
 
-composer:
-    Pipe-separated: nom_fichier|prompt|modèle|durée
-    Columns 3 (model) and 4 (duration in seconds) are optional.
-    → wama.composer.utils.batch_parser (delegates extract_batch_file_text here)
+Type B — Content generation (apps créant de nouveaux fichiers) :
+    Col 1 (req) : nom du fichier de sortie (extension auto si absente)
+    Col 2 (req) : contenu principal (texte, prompt…)
+    Cols 3+ (opt) : paramètres spécifiques à l'app (modèle, voix, durée…)
+    Apps : synthesizer, composer, imager
+    → parse_pipe_batch(schema=APP_BATCH_SCHEMA)
 
-imager / avatarizer: TBD
+Schéma de colonne (pour parse_pipe_batch) :
+    {'name': str, 'required': bool, 'default': any,
+     'type': 'str'|'float'|'int', 'min': num, 'max': num,
+     'choices': list|None, 'add_ext': str|None}
 """
 
 import os
+import tempfile
 import logging
-from typing import List, Tuple, Dict, Optional
+from typing import Callable, List, Optional, Tuple, Dict
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +38,108 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 SUPPORTED_BATCH_EXTENSIONS = ('txt', 'md', 'csv', 'pdf', 'docx')
+
+
+# ---------------------------------------------------------------------------
+# Request-level helpers (shared by all app views)
+# ---------------------------------------------------------------------------
+
+def parse_batch_file_from_request(
+    request,
+    parser: Optional[Callable] = None,
+) -> Tuple[List[Dict], List[str]]:
+    """
+    Extract batch_file from request.FILES, validate extension, parse it, clean up.
+
+    Args:
+        request : Django HTTP request containing FILES['batch_file']
+        parser  : callable(tmp_path) -> (items, warnings).
+                  Defaults to parse_media_list_batch (Type A apps).
+
+    Returns:
+        (items, warnings) — same contract as the underlying parser.
+
+    Raises:
+        ValueError : missing file, unsupported extension, or parse error.
+    """
+    if parser is None:
+        parser = parse_media_list_batch
+
+    batch_file = request.FILES.get('batch_file')
+    if not batch_file:
+        raise ValueError('Aucun fichier fourni')
+
+    ext = os.path.splitext(batch_file.name)[1][1:].lower()
+    if ext not in SUPPORTED_BATCH_EXTENSIONS:
+        raise ValueError(f'Format non supporté : .{ext}')
+
+    tmp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=f'.{ext}') as tmp:
+            for chunk in batch_file.chunks():
+                tmp.write(chunk)
+            tmp_path = tmp.name
+        return parser(tmp_path)
+    except ValueError:
+        raise
+    except Exception as exc:
+        raise ValueError(str(exc)) from exc
+    finally:
+        if tmp_path:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+
+
+def add_filename_to_items(items: List[Dict]) -> List[Dict]:
+    """
+    Add a 'filename' key to each item dict derived from item['path'].
+    Mutates items in place and returns them for convenience.
+    """
+    for item in items:
+        path = item['path']
+        item.setdefault('filename', path.split('/')[-1].split('\\')[-1] or path)
+    return items
+
+
+def batch_media_list_preview_response(request, item_enricher: Optional[Callable] = None):
+    """
+    Standard batch_preview view helper for Type A apps (media_list).
+
+    Parses the uploaded batch_file, adds 'filename' to each item, optionally
+    calls item_enricher(item) for app-specific extra fields, and returns a
+    JsonResponse.
+
+    Usage in a view::
+
+        from wama.common.utils.batch_parsers import batch_media_list_preview_response
+
+        @require_POST
+        def batch_preview(request):
+            return batch_media_list_preview_response(request)
+
+    With an enricher::
+
+        def _enrich(item):
+            item['detected_type'] = detect_type_from_extension(...)
+
+        @require_POST
+        def batch_preview(request):
+            return batch_media_list_preview_response(request, item_enricher=_enrich)
+    """
+    from django.http import JsonResponse
+    try:
+        items, warnings = parse_batch_file_from_request(request)
+    except ValueError as exc:
+        return JsonResponse({'error': str(exc)}, status=400)
+
+    add_filename_to_items(items)
+    if item_enricher is not None:
+        for item in items:
+            item_enricher(item)
+
+    return JsonResponse({'items': items, 'warnings': warnings, 'count': len(items)})
 
 
 def extract_batch_file_text(file_path: str) -> str:
@@ -228,5 +334,118 @@ def _parse_composer_lines(
             'generation_type': generation_type,
             'line_num': line_num,
         })
+
+    return tasks, warnings
+
+
+# ---------------------------------------------------------------------------
+# Generic pipe-separated batch parser (all apps, schema-driven)
+# ---------------------------------------------------------------------------
+
+def parse_pipe_batch(
+    file_path: str,
+    schema: List[Dict],
+) -> Tuple[List[Dict], List[str]]:
+    """
+    Generic parser for pipe-separated batch files.
+
+    Each app defines its own schema — a list of column descriptors:
+
+        schema = [
+            {'name': 'output_filename', 'required': True,  'type': 'str',   'add_ext': '.wav'},
+            {'name': 'text',            'required': True,  'type': 'str'},
+            {'name': 'voice',           'required': False, 'type': 'str',   'default': None},
+            {'name': 'speed',           'required': False, 'type': 'float', 'default': 1.0,
+             'min': 0.5, 'max': 2.0},
+            {'name': 'language',        'required': False, 'type': 'str',   'default': ''},
+        ]
+
+    Column descriptor keys:
+        name      (str)  : key in the output dict
+        required  (bool) : if True, empty value → row is skipped with a warning
+        type      (str)  : 'str' | 'float' | 'int'  — coercion applied
+        default   (any)  : value used when column is absent or empty
+        min / max (num)  : optional range clamp + warning for numeric types
+        choices   (list) : optional allowed values; unknown value → warning, use default
+        add_ext   (str)  : if set and the value has no extension, this extension is appended
+
+    Returns:
+        (tasks, warnings)
+        Each task dict has all 'name' keys from the schema + 'line_num'.
+    """
+    raw_text = extract_batch_file_text(file_path)
+    return _parse_pipe_with_schema(raw_text, schema)
+
+
+def _parse_pipe_with_schema(
+    text: str,
+    schema: List[Dict],
+) -> Tuple[List[Dict], List[str]]:
+    tasks: List[Dict] = []
+    warnings: List[str] = []
+
+    for line_num, line in enumerate(text.splitlines(), start=1):
+        line = line.strip()
+        if not line or line.startswith('#'):
+            continue
+
+        parts = [p.strip() for p in line.split('|')]
+        task: Dict = {'line_num': line_num}
+        skip = False
+
+        for col_idx, col in enumerate(schema):
+            name     = col['name']
+            required = col.get('required', False)
+            default  = col.get('default', None)
+            col_type = col.get('type', 'str')
+            choices  = col.get('choices')
+            add_ext  = col.get('add_ext')
+
+            # Raw value from parts or absent
+            raw = parts[col_idx].strip() if col_idx < len(parts) else ''
+
+            if not raw:
+                if required:
+                    warnings.append(f"Ligne {line_num} : colonne '{name}' requise mais vide — ligne ignorée")
+                    skip = True
+                    break
+                task[name] = default
+                continue
+
+            # Type coercion
+            if col_type in ('float', 'int'):
+                try:
+                    value = float(raw) if col_type == 'float' else int(raw)
+                    lo, hi = col.get('min'), col.get('max')
+                    if lo is not None and value < lo:
+                        warnings.append(f"Ligne {line_num} : '{name}' = {value} < min {lo}, ajusté")
+                        value = lo
+                    if hi is not None and value > hi:
+                        warnings.append(f"Ligne {line_num} : '{name}' = {value} > max {hi}, ajusté")
+                        value = hi
+                    task[name] = value
+                except ValueError:
+                    warnings.append(
+                        f"Ligne {line_num} : '{name}' = '{raw}' invalide pour type {col_type}, "
+                        f"utilisation de la valeur par défaut ({default})"
+                    )
+                    task[name] = default
+            else:
+                value = raw
+                if choices and value not in choices:
+                    warnings.append(
+                        f"Ligne {line_num} : '{name}' = '{value}' non reconnu "
+                        f"(valeurs: {choices}), utilisation de la valeur par défaut ({default})"
+                    )
+                    value = default
+                if add_ext and value and not os.path.splitext(value)[1]:
+                    value = value + add_ext
+                task[name] = value
+
+        if not skip:
+            tasks.append(task)
+
+    if not tasks:
+        warnings.append("Aucune entrée valide trouvée dans le fichier batch")
 
     return tasks, warnings
