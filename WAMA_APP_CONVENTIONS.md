@@ -40,6 +40,8 @@ Créer dans l'ordre. Ne pas sauter d'étape.
 [ ] 13. Ajouter les outils API dans wama/tool_api.py + wama/urls.py (§17)
 [ ] 14. Ajouter les icônes TOOL_ICONS dans home.html
 [ ] 15. Ajouter à la table de conformité §15 de ce document
+[ ] 16. Ajouter l'entrée dans appFolderMap de filemanager.js (§8.5) — auto-dépliement sidebar
+[ ] 17. Ajouter l'app dans app_registry.py (APP_CATALOG) avec conventions conformity flags
 ```
 
 ---
@@ -662,6 +664,23 @@ document.addEventListener('wama:fileimported', e => {
 ```
 
 > **État actuel :** 📋 Non implémenté — à ajouter dans toutes les apps.
+
+### 8.5 Auto-dépliement FileManager selon l'app active
+
+Le FileManager se déplie automatiquement sur le dossier de l'app courante à l'ouverture de la sidebar.
+La logique est dans `autoExpandCurrentAppFolder()` de `filemanager.js`.
+
+**Règle obligatoire pour chaque nouvelle app :**
+Ajouter une entrée dans `appFolderMap` de `filemanager.js` **et** `staticfiles/filemanager/js/filemanager.js` :
+
+```javascript
+// Dans autoExpandCurrentAppFolder() → appFolderMap
+'monapp': ['monapp', 'monapp_input', 'monapp_output'],
+```
+
+Les IDs de nœuds correspondent aux `id` déclarés dans `views.py` (`get_tree_data()`).
+
+> **État actuel :** ✅ Implémenté pour toutes les apps sauf Avatarizer (pas de sidebar standard).
 
 ---
 
