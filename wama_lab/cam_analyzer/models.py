@@ -47,6 +47,16 @@ class AnalysisProfile(models.Model):
         related_name='cam_analysis_profiles'
     )
     name = models.CharField(max_length=100)
+    intersections = models.JSONField(
+        default=list,
+        blank=True,
+        help_text='List of {name, lat, lon, radius_m} dicts for intersection_insertion report',
+    )
+    road_model_path = models.CharField(
+        max_length=500,
+        blank=True,
+        help_text='Optional YOLO segmentation model (.pt) for road/drivable-area detection',
+    )
     report_type = models.CharField(
         max_length=30,
         choices=REPORT_TYPE_CHOICES,
@@ -58,6 +68,20 @@ class AnalysisProfile(models.Model):
     confidence = models.FloatField(default=0.25)
     iou_threshold = models.FloatField(default=0.45)
     tracker = models.CharField(max_length=50, default='botsort')
+    # ── SAM3 road markings (Phase Avancée) ───────────────────────────────────
+    sam3_markings_enabled = models.BooleanField(
+        default=False,
+        help_text='Enable SAM3 detection of road markings (stop lines, crossings) in intersection windows',
+    )
+    sam3_markings_prompts = models.JSONField(
+        default=list,
+        blank=True,
+        help_text='List of {label, prompt} dicts for SAM3 road marking detection',
+    )
+    sam3_as_road_fallback = models.BooleanField(
+        default=False,
+        help_text='Use SAM3 to generate road_mask entries when road_model_path is absent',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -96,6 +120,16 @@ class AnalysisSession(models.Model):
         max_length=20,
         choices=Status.choices,
         default=Status.DRAFT
+    )
+    source_type = models.CharField(
+        max_length=10,
+        default='video',
+        help_text="'video' = individual camera files | 'rtmaps' = extracted from .rec",
+    )
+    gps_track = models.JSONField(
+        default=list,
+        blank=True,
+        help_text='GPS telemetry: [{ts, lat, lon, speed_kmh, heading}, ...]',
     )
     config = models.JSONField(default=dict)
     results_summary = models.JSONField(default=dict, blank=True)

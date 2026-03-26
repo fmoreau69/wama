@@ -125,6 +125,48 @@
         </div>
     </div>
 
+    <!-- RTMaps Upload Panel (visible only for intersection_insertion sessions) -->
+    <div id="rtmapsPanel" class="mt-3" style="display:none;">
+        <div class="card bg-dark border-warning">
+            <div class="card-header border-warning d-flex align-items-center gap-2 py-2" style="background:rgba(255,193,7,0.1);">
+                <i class="fas fa-file-import text-warning"></i>
+                <span class="fw-semibold text-warning">Source RTMaps</span>
+                <small class="text-muted ms-2">Fichier .rec + CSV API optionnel</small>
+            </div>
+            <div class="card-body py-2">
+                <div class="row g-2 align-items-end">
+                    <div class="col-12 col-md-5">
+                        <label class="form-label small mb-1 text-light">Fichier RTMaps (.rec)</label>
+                        <input type="file" class="form-control form-control-sm bg-dark text-light border-secondary"
+                               id="rtmapsRecFile" accept=".rec">
+                    </div>
+                    <div class="col-12 col-md-4">
+                        <label class="form-label small mb-1 text-light">CSV API <span class="text-muted">(optionnel)</span></label>
+                        <input type="file" class="form-control form-control-sm bg-dark text-light border-secondary"
+                               id="rtmapsCsvFile" accept=".csv">
+                    </div>
+                    <div class="col-12 col-md-3">
+                        <button class="btn btn-warning btn-sm w-100" id="rtmapsExtractBtn" disabled>
+                            <i class="fas fa-cogs me-1"></i> Extraire
+                        </button>
+                    </div>
+                </div>
+                <!-- Extraction progress -->
+                <div id="rtmapsProgress" style="display:none;" class="mt-2">
+                    <div class="d-flex align-items-center gap-2 mb-1">
+                        <i class="fas fa-spinner fa-spin text-warning"></i>
+                        <span class="text-light small" id="rtmapsProgressLabel">Extraction en cours...</span>
+                        <span class="text-warning small ms-auto" id="rtmapsProgressPct">0%</span>
+                    </div>
+                    <div class="progress" style="height:4px;">
+                        <div class="progress-bar bg-warning progress-bar-striped progress-bar-animated"
+                             id="rtmapsProgressBar" style="width:0%"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Synchronized Playback Controls -->
     <div class="playback-controls mt-3" id="playbackControls" style="display:none">
         <div class="d-flex align-items-center gap-3">
@@ -261,6 +303,8 @@ window.CAM_ANALYZER = {
         exportSegments: "/lab/cam-analyzer/api/sessions/",
         getSegments: "/lab/cam-analyzer/api/sessions/",
         getAnalytics: "/lab/cam-analyzer/api/sessions/",
+        uploadRtmaps: "/lab/cam-analyzer/api/sessions/",
+        rtmapsStatus: "/lab/cam-analyzer/api/sessions/",
         listProfiles: "{% url 'wama_lab:cam_analyzer:list_profiles' %}",
         saveProfile: "{% url 'wama_lab:cam_analyzer:save_profile' %}",
         deleteProfile: "/lab/cam-analyzer/api/profiles/",
@@ -351,6 +395,117 @@ window.CAM_ANALYZER = {
                     <label class="form-label">Classes cibles</label>
                     <div class="d-flex flex-wrap gap-2" id="classCheckboxes">
                         <!-- Populated by JS -->
+                    </div>
+                </div>
+
+                <!-- Intersections (visible only for intersection_insertion report type) -->
+                <div id="intersectionsSection" style="display:none;">
+                    <hr class="border-secondary my-3">
+
+                    <!-- Road segmentation model (optional) -->
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">
+                            <i class="fas fa-road me-1 text-info"></i>
+                            Modèle segmentation routière
+                            <span class="text-secondary fw-normal">(optionnel)</span>
+                        </label>
+                        <input type="text" class="form-control form-control-sm bg-dark text-light border-secondary"
+                               id="roadModelPath" placeholder="AI-models/models/vision/yolo/segment/bdd100k-seg.pt">
+                        <div class="form-text text-secondary small">
+                            YOLO segmentation .pt entraîné sur BDD100K — améliore la détection d'insertion en voie.
+                            Sans ce modèle, la détection se base sur la position horizontale du véhicule.
+                        </div>
+                    </div>
+
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                        <label class="form-label mb-0 fw-semibold text-warning">
+                            <i class="fas fa-traffic-light me-1"></i> Intersections
+                        </label>
+                        <button type="button" class="btn btn-sm btn-outline-warning" id="addIntersectionBtn">
+                            <i class="fas fa-plus me-1"></i> Ajouter
+                        </button>
+                    </div>
+                    <div id="intersectionsList" class="mb-2">
+                        <!-- Populated by JS -->
+                    </div>
+                    <!-- Inline add/edit form -->
+                    <div id="intersectionForm" class="card bg-secondary bg-opacity-10 border-secondary p-2" style="display:none;">
+                        <div class="row g-2 align-items-end mb-2">
+                            <div class="col-12 col-md-3">
+                                <label class="form-label small mb-1">Nom</label>
+                                <input type="text" class="form-control form-control-sm bg-dark text-light border-secondary" id="intName" placeholder="Carrefour A">
+                            </div>
+                            <div class="col-6 col-md-2">
+                                <label class="form-label small mb-1">Latitude</label>
+                                <input type="number" class="form-control form-control-sm bg-dark text-light border-secondary" id="intLat" step="0.000001" placeholder="43.621">
+                            </div>
+                            <div class="col-6 col-md-2">
+                                <label class="form-label small mb-1">Longitude</label>
+                                <input type="number" class="form-control form-control-sm bg-dark text-light border-secondary" id="intLon" step="0.000001" placeholder="7.074">
+                            </div>
+                            <div class="col-6 col-md-2">
+                                <label class="form-label small mb-1">Rayon (m)</label>
+                                <input type="number" class="form-control form-control-sm bg-dark text-light border-secondary" id="intRadius" value="100" min="10" max="500">
+                            </div>
+                            <div class="col-6 col-md-3 d-flex gap-1">
+                                <button type="button" class="btn btn-sm btn-warning flex-grow-1" id="saveIntersectionBtn">
+                                    <i class="fas fa-check"></i> OK
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" id="cancelIntersectionBtn">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <!-- Mini-map: search + click to place intersection marker -->
+                        <div class="d-flex gap-1 mb-1">
+                            <input type="text" id="mapCitySearch" class="form-control form-control-sm bg-dark text-light border-secondary"
+                                   placeholder="Rechercher une ville…" autocomplete="off" style="font-size:0.8rem;">
+                            <button type="button" id="mapCitySearchBtn" class="btn btn-sm btn-outline-secondary px-2" title="Rechercher">
+                                <i class="fas fa-search"></i>
+                            </button>
+                        </div>
+                        <div class="position-relative">
+                            <div id="intersectionMap" style="height:220px; border-radius:6px; border:1px solid #495057; cursor:crosshair;"></div>
+                            <div class="position-absolute bottom-0 start-0 m-1 px-2 py-1 rounded small text-secondary"
+                                 style="background:rgba(0,0,0,.55); pointer-events:none; font-size:0.7rem;">
+                                <i class="fas fa-mouse-pointer me-1"></i>Cliquer sur la carte pour placer l'intersection
+                            </div>
+                            <div id="mapSearchError" class="position-absolute top-0 start-50 translate-middle-x mt-1 px-2 py-1 rounded small text-warning"
+                                 style="background:rgba(0,0,0,.7); display:none; font-size:0.75rem; white-space:nowrap;">
+                                <i class="fas fa-exclamation-triangle me-1"></i><span id="mapSearchErrorMsg"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SAM3 Phase Avancée -->
+                    <hr class="border-secondary my-3">
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input" type="checkbox" id="sam3MarkingsEnabled">
+                            <label class="form-check-label fw-semibold" for="sam3MarkingsEnabled" style="color:#c07aff;">
+                                <i class="fas fa-magic me-1"></i> Marquages SAM3 <span class="badge bg-purple ms-1" style="background:#6f42c1!important; font-size:0.65rem;">Phase Avancée</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div id="sam3Config" style="display:none;">
+                        <p class="text-secondary small mb-2">
+                            Détecte les lignes de stop et passages piétons dans les fenêtres d'intersection via SAM3 text-prompt.
+                        </p>
+                        <div class="d-flex align-items-center justify-content-between mb-1">
+                            <span class="form-label small mb-0">Prompts de détection</span>
+                            <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-1" id="addSam3PromptBtn" style="font-size:0.75rem;">
+                                <i class="fas fa-plus me-1"></i>Ajouter
+                            </button>
+                        </div>
+                        <div id="sam3PromptsList" class="mb-2">
+                            <!-- Populated by JS -->
+                        </div>
+                        <div class="form-check mt-2">
+                            <input class="form-check-input" type="checkbox" id="sam3AsRoadFallback">
+                            <label class="form-check-label small text-secondary" for="sam3AsRoadFallback">
+                                Utiliser SAM3 comme fallback de segmentation routière (si aucun modèle YOLO configuré)
+                            </label>
+                        </div>
                     </div>
                 </div>
             </div>

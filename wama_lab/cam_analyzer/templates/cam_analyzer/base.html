@@ -11,6 +11,7 @@
 {% block extra_css %}
 {{ block.super }}
 <link rel="stylesheet" href="{% static 'cam_analyzer/css/cam_analyzer.css' %}">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
 {% endblock %}
 
 {% block queue_content %}
@@ -18,62 +19,83 @@
     {% endblock %}
 {% endblock %}
 
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     À PROPOS
+═══════════════════════════════════════════════════════════════════════════ -->
 {% block about_content %}
 <div class="info-card">
-    <h3><i class="fas fa-flask me-2"></i>WAMA Lab - Cam Analyzer</h3>
+    <h3><i class="fas fa-flask me-2 text-warning"></i>WAMA Lab — Cam Analyzer</h3>
+    <p class="text-light mb-4">
+        Outil de recherche pour l'analyse automatisée de vidéos embarquées sur la navette autonome Navya.
+        Il combine le suivi d'objets YOLO, la télémétrie GPS RTMaps et l'analyse comportementale
+        pour produire des rapports d'interactions navette/usagers de la route.
+    </p>
 
+    <!-- Pipeline -->
     <div class="mb-4">
-        <h5>Qu'est-ce que Cam Analyzer ?</h5>
-        <p class="text-light">
-            Cam Analyzer est une application de recherche pour l'analyse de vidéos multi-caméras
-            embarquées sur une navette autonome. Elle permet d'étudier la cohabitation et la sécurité
-            avec les usagers de la route grâce à la détection d'objets, le suivi et l'analyse temporelle.
-        </p>
+        <h5 class="text-warning"><i class="fas fa-project-diagram me-2"></i>Pipeline d'analyse</h5>
+        <div class="row g-2">
+            <div class="col-md-3">
+                <div class="card bg-dark border-warning h-100">
+                    <div class="card-body py-2 px-3">
+                        <div class="text-warning fw-bold small mb-1"><span class="badge bg-warning text-dark me-1">1</span> Source</div>
+                        <p class="small mb-0 text-light">Vidéos caméras individuelles <strong>ou</strong> fichier RTMaps <code>.rec</code> (quadrature H264 800×500 + GPS NMEA)</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-dark border-info h-100">
+                    <div class="card-body py-2 px-3">
+                        <div class="text-info fw-bold small mb-1"><span class="badge bg-info text-dark me-1">2</span> Détection</div>
+                        <p class="small mb-0 text-light">YOLO tracking (BotSORT/ByteTrack) — véhicules, piétons, cyclistes.<br>
+                        <span style="color:#c07aff;">SAM3</span> text-prompt (optionnel) — lignes de stop, passages piétons dans les fenêtres d'intersection.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-dark border-success h-100">
+                    <div class="card-body py-2 px-3">
+                        <div class="text-success fw-bold small mb-1"><span class="badge bg-success me-1">3</span> Analyse</div>
+                        <p class="small mb-0 text-light">Fenêtres GPS, phases d'arrêt / insertion, ego-motion, D0 relatif, densité trafic.<br>
+                        <span style="color:#c07aff;">SAM3</span> : flags <code>stop_line_detected</code> / <code>crossing_detected</code> dans les métadonnées de chaque segment.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-dark border-danger h-100">
+                    <div class="card-body py-2 px-3">
+                        <div class="text-danger fw-bold small mb-1"><span class="badge bg-danger me-1">4</span> Rapport</div>
+                        <p class="small mb-0 text-light">Segments temporels typés, export CSV/JSON, vidéos annotées</p>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
+    <!-- Types de rapports -->
     <div class="mb-4">
-        <h5>Fonctionnalités</h5>
-        <div class="row">
+        <h5 class="text-warning"><i class="fas fa-file-alt me-2"></i>Types de rapports</h5>
+        <div class="row g-2">
             <div class="col-md-6">
-                <div class="card bg-dark border-warning mb-2">
+                <div class="card bg-dark border-info">
                     <div class="card-body py-2">
-                        <h6 class="text-warning small"><i class="fas fa-video me-2"></i>Multi-caméras</h6>
+                        <h6 class="text-info small"><i class="fas fa-tachometer-alt me-2"></i>Proximité &amp; Dépassements</h6>
                         <p class="small mb-0 text-light">
-                            Jusqu'à 4 caméras synchronisées (avant, arrière, gauche, droite)
-                            avec lecture simultanée.
+                            Détecte les suivis rapprochés (caméra arrière), les dépassements (caméras latérales)
+                            et les croisements de piétons (caméra avant).
+                            Ne nécessite pas de GPS.
                         </p>
                     </div>
                 </div>
             </div>
             <div class="col-md-6">
-                <div class="card bg-dark border-info mb-2">
+                <div class="card bg-dark border-warning">
                     <div class="card-body py-2">
-                        <h6 class="text-info small"><i class="fas fa-crosshairs me-2"></i>Détection YOLO</h6>
+                        <h6 class="text-warning small"><i class="fas fa-traffic-light me-2"></i>Insertions aux intersections</h6>
                         <p class="small mb-0 text-light">
-                            Détection et suivi d'objets (piétons, véhicules, cyclistes)
-                            avec les modèles YOLO11.
-                        </p>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-6">
-                <div class="card bg-dark border-success mb-2">
-                    <div class="card-body py-2">
-                        <h6 class="text-success small"><i class="fas fa-chart-bar me-2"></i>Analyse temporelle</h6>
-                        <p class="small mb-0 text-light">
-                            Timeline de proximité, segmentation temporelle (suivi rapproché,
-                            dépassement, croisement).
-                        </p>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-6">
-                <div class="card bg-dark border-danger mb-2">
-                    <div class="card-body py-2">
-                        <h6 class="text-danger small"><i class="fas fa-file-export me-2"></i>Export</h6>
-                        <p class="small mb-0 text-light">
-                            Export des résultats en CSV/JSON, vidéos annotées,
-                            rapports d'analyse.
+                            Analyse la caméra avant dans les fenêtres GPS autour des intersections configurées.
+                            Détecte les véhicules à l'arrêt puis en insertion devant la navette.
+                            Nécessite GPS (RTMaps ou CSV API) + intersections GPS dans le profil.
                         </p>
                     </div>
                 </div>
@@ -81,67 +103,586 @@
         </div>
     </div>
 
-    <div class="alert alert-warning">
+    <!-- Fonctionnalités actuelles -->
+    <div class="mb-4">
+        <h5 class="text-warning"><i class="fas fa-check-circle me-2"></i>Fonctionnalités implémentées</h5>
+        <div class="row g-2 small">
+            <div class="col-md-6">
+                <ul class="text-light mb-0 ps-3">
+                    <li>Sessions multi-caméras (jusqu'à 4 positions)</li>
+                    <li>Profils d'analyse réutilisables</li>
+                    <li>YOLO tracking (detect + segment) — BotSORT / ByteTrack</li>
+                    <li>Extraction RTMaps : crop quadrature, GPS NMEA</li>
+                    <li>Segmentation routière optionnelle (modèle BDD100K)</li>
+                    <li>Export détections CSV / JSON</li>
+                    <li>Export segments CSV</li>
+                    <li>Vidéos annotées par caméra</li>
+                </ul>
+            </div>
+            <div class="col-md-6">
+                <ul class="text-light mb-0 ps-3">
+                    <li>Rapport <em>insertion</em> : t0 / t1 / t2, D0 relatif, trajectoire bbox</li>
+                    <li>Densité trafic par fenêtre d'intersection</li>
+                    <li>Compensation ego-motion (vitesse navette)</li>
+                    <li>Mini-carte Leaflet pour saisie des intersections GPS</li>
+                    <li style="color:#c07aff;">SAM3 : détection marquages (stop / crossing) — <em>Phase Avancée</em></li>
+                    <li style="color:#c07aff;">SAM3 fallback segmentation routière (sans modèle BDD100K)</li>
+                    <li style="color:#c07aff;">Flags <code>stop_line_detected</code> / <code>crossing_detected</code> dans segments</li>
+                    <li>Barre de progression par session et par extraction RTMaps</li>
+                    <li>Console temps réel</li>
+                    <li>Annulation en cours d'analyse</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Feuille de route -->
+    <div class="mb-3">
+        <h5 class="text-warning"><i class="fas fa-road me-2"></i>Prochaines phases</h5>
+        <div class="row g-2 small">
+            <div class="col-md-4">
+                <div class="card bg-dark border-secondary">
+                    <div class="card-body py-2">
+                        <div class="fw-bold text-secondary mb-1">Phase Avancée (suite)</div>
+                        <ul class="text-light mb-0 ps-3">
+                            <li>Calibration caméra + homographie</li>
+                            <li>Vue BEV (Bird's Eye View)</li>
+                            <li>TTC / PET métriques</li>
+                            <li class="text-decoration-line-through text-secondary">Marquages routiers SAM3 ✓</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card bg-dark border-secondary">
+                    <div class="card-body py-2">
+                        <div class="fw-bold text-secondary mb-1">Rapport avancé</div>
+                        <ul class="text-light mb-0 ps-3">
+                            <li>Heatmaps de proximité</li>
+                            <li>Statistiques agrégées multi-sessions</li>
+                            <li>Carte GPS des événements</li>
+                            <li>Export PDF automatique</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card bg-dark border-secondary">
+                    <div class="card-body py-2">
+                        <div class="fw-bold text-secondary mb-1">Infrastructure</div>
+                        <ul class="text-light mb-0 ps-3">
+                            <li>Synchronisation multi-sessions</li>
+                            <li>API REST publique</li>
+                            <li>Lecture streaming (.rec live)</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="alert alert-secondary small mb-0">
         <i class="fas fa-flask me-2"></i>
-        <strong>Application expérimentale :</strong> Cette application est en développement actif.
-        Les phases 2 (détection) et 3 (analytics) seront implémentées prochainement.
+        Application expérimentale WAMA Lab — usage interne recherche navette Navya.
     </div>
 </div>
 {% endblock %}
 
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     AIDE
+═══════════════════════════════════════════════════════════════════════════ -->
 {% block help_content %}
 <div class="info-card">
     <h3><i class="fas fa-question-circle me-2"></i>Guide d'utilisation</h3>
 
+    <!-- Démarrage rapide -->
     <div class="mb-4">
         <h5>Démarrage rapide</h5>
         <ol class="text-light">
-            <li>Créez une nouvelle session via le bouton "Nouvelle session"</li>
-            <li>Glissez-déposez vos vidéos sur les zones de caméra correspondantes</li>
-            <li>Utilisez les contrôles de lecture pour naviguer dans les vidéos de manière synchronisée</li>
-            <li>Configurez un profil d'analyse (modèle, classes cibles, seuils)</li>
-            <li>Lancez l'analyse (Phase 2)</li>
+            <li>Cliquez <strong>Nouvelle session</strong> et donnez-lui un nom.</li>
+            <li>Sélectionnez ou créez un <strong>profil d'analyse</strong> (modèle YOLO, type de rapport, classes).</li>
+            <li>
+                <strong>Source vidéo</strong> : glissez des vidéos sur les zones caméra
+                — ou utilisez <strong>Fichier RTMaps</strong> pour un <code>.rec</code> Navya.
+            </li>
+            <li>Cliquez <strong>Démarrer l'analyse</strong> et suivez la progression.</li>
+            <li>Consultez les résultats dans l'onglet <strong>Résultats / Segments</strong> et exportez en CSV ou JSON.</li>
         </ol>
     </div>
 
+    <!-- Profil d'analyse -->
     <div class="mb-4">
-        <h5>Positions des caméras</h5>
+        <h5>Configurer un profil d'analyse</h5>
         <div class="table-responsive">
             <table class="table table-dark table-sm small">
-                <thead>
-                    <tr><th>Position</th><th>Description</th></tr>
-                </thead>
+                <thead><tr><th>Champ</th><th>Description</th></tr></thead>
                 <tbody>
-                    <tr><td><span class="text-info">Avant</span></td><td>Caméra frontale de la navette</td></tr>
-                    <tr><td><span class="text-info">Arrière</span></td><td>Caméra arrière</td></tr>
-                    <tr><td><span class="text-info">Gauche</span></td><td>Caméra latérale gauche</td></tr>
-                    <tr><td><span class="text-info">Droite</span></td><td>Caméra latérale droite</td></tr>
+                    <tr><td class="text-warning">Nom</td><td>Identifiant réutilisable (ex. « Navya-YOLO11x »)</td></tr>
+                    <tr><td class="text-warning">Type de rapport</td><td><em>Proximité &amp; Dépassements</em> ou <em>Insertions aux intersections</em></td></tr>
+                    <tr><td class="text-warning">Modèle YOLO</td><td>Fichier <code>.pt</code> dans <code>AI-models/models/vision/yolo/</code></td></tr>
+                    <tr><td class="text-warning">Tâche</td><td>Detect (bbox) ou Segment (masque instance)</td></tr>
+                    <tr><td class="text-warning">Classes cibles</td><td>Cocher les classes à suivre (car, person, truck…)</td></tr>
+                    <tr><td class="text-warning">Confiance / IoU</td><td>Seuils de détection YOLO (défaut 0.25 / 0.45)</td></tr>
+                    <tr><td class="text-warning">Tracker</td><td>BotSORT (recommandé) ou ByteTrack</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="mt-2">
+            <strong class="text-warning small">Options spécifiques — rapport Insertions</strong>
+            <table class="table table-dark table-sm small mt-1">
+                <tbody>
+                    <tr><td class="text-info">Modèle segmentation routière</td><td>Optionnel — YOLO seg entraîné sur BDD100K (<code>drivable area</code>). Améliore la détection d'insertion en voie. Sans ce modèle, la détection se base sur la position horizontale du véhicule dans l'image.</td></tr>
+                    <tr><td class="text-info">Intersections GPS</td><td>Liste de points GPS <em>(lat, lon)</em> + rayon de déclenchement (m). Utiliser la mini-carte pour placer les points.</td></tr>
+                    <tr>
+                        <td style="color:#c07aff;">Marquages SAM3 <span class="badge ms-1" style="background:#6f42c1;font-size:0.6rem;">Phase Avancée</span></td>
+                        <td>Active la détection de marquages au sol (lignes de stop, passages piétons) via SAM3 text-prompt, uniquement dans les fenêtres d'intersection GPS.
+                            Les prompts sont configurables ; laissez la liste vide pour utiliser les défauts (<em>stop line</em> + <em>pedestrian crossing</em>).
+                            Résultats dans les métadonnées des segments : <code>stop_line_detected</code> / <code>crossing_detected</code>.</td>
+                    </tr>
+                    <tr>
+                        <td style="color:#c07aff;">Fallback routier SAM3</td>
+                        <td>Si aucun modèle BDD100K n'est configuré, SAM3 peut générer lui-même les masques de chaussée (prompt <em>drivable road surface area</em>), utilisés ensuite pour la détection d'insertion en voie. Plus lent mais évite l'heuristique de position.</td>
+                    </tr>
                 </tbody>
             </table>
         </div>
     </div>
 
+    <!-- Source RTMaps -->
     <div class="mb-4">
-        <h5>Classes COCO supportées</h5>
-        <div class="d-flex flex-wrap gap-2">
-            <span class="badge bg-warning text-dark">Person (0)</span>
-            <span class="badge bg-warning text-dark">Bicycle (1)</span>
-            <span class="badge bg-warning text-dark">Car (2)</span>
-            <span class="badge bg-warning text-dark">Motorcycle (3)</span>
-            <span class="badge bg-warning text-dark">Bus (5)</span>
-            <span class="badge bg-warning text-dark">Truck (7)</span>
-            <span class="badge bg-warning text-dark">Traffic light (9)</span>
-            <span class="badge bg-warning text-dark">Stop sign (11)</span>
+        <h5>Source RTMaps (<code>.rec</code> Navya)</h5>
+        <ol class="text-light small">
+            <li>Dans la session, sélectionner <strong>Fichier RTMaps</strong>.</li>
+            <li>Déposer le fichier <code>.rec</code> (vidéo quadrature H264 800×500 + streams GPS NMEA).</li>
+            <li>Optionnel : ajouter le <strong>CSV API</strong> (lat/lon décimal @1Hz, plus précis que le NMEA RTMaps).</li>
+            <li>Cliquer <strong>Extraire</strong> — la progression s'affiche. Les vues avant/arrière sont créées automatiquement.</li>
+            <li>Lancer l'analyse normalement.</li>
+        </ol>
+        <div class="alert alert-secondary small py-2 mb-0">
+            <strong>Layout quadrature Navya :</strong>
+            Arrière (haut-gauche), Avant (haut-droite), Gauche (bas-gauche), Droite (bas-droite) — 400×250 px par vue.
+        </div>
+    </div>
+
+    <!-- Intersections GPS mini-carte -->
+    <div class="mb-4">
+        <h5>Configurer les intersections GPS</h5>
+        <ol class="text-light small">
+            <li>Dans le profil, choisir le type <strong>Insertions aux intersections</strong>.</li>
+            <li>Cliquer <strong>+ Ajouter</strong> dans la section Intersections.</li>
+            <li>Cliquer sur la <strong>mini-carte</strong> pour placer le point — lat/lon se remplissent automatiquement.</li>
+            <li>Ajuster le <strong>rayon</strong> (m) : la navette déclenchera l'analyse quand elle sera dans ce rayon.</li>
+            <li>Sauvegarder. Plusieurs intersections peuvent être configurées par profil.</li>
+        </ol>
+    </div>
+
+    <!-- Segments temporels -->
+    <div class="mb-4">
+        <h5>Segments temporels détectés</h5>
+        <div class="table-responsive">
+            <table class="table table-dark table-sm small">
+                <thead><tr><th>Type</th><th>Rapport</th><th>Description</th></tr></thead>
+                <tbody>
+                    <tr><td><span class="badge bg-danger">Suivi rapproché</span></td><td>Proximité</td><td>Véhicule maintenu proche de la navette sur la caméra arrière (&gt; seuil de proximité sur ≥ 2 s)</td></tr>
+                    <tr><td><span class="badge bg-warning text-dark">Dépassement</span></td><td>Proximité</td><td>Objet traversant latéralement les caméras gauche ou droite (&gt; 50 % largeur image)</td></tr>
+                    <tr><td><span class="badge bg-info text-dark">Croisement</span></td><td>Proximité</td><td>Piéton / cycliste traversant latéralement devant la caméra avant</td></tr>
+                    <tr><td><span class="badge bg-warning">Insertion devant</span></td><td>Insertion</td><td>Véhicule à l'arrêt puis entrant dans la voie de la navette à une intersection</td></tr>
+                    <tr><td><span class="badge bg-secondary">Arrêt intersection</span></td><td>Insertion</td><td>Véhicule à l'arrêt à l'intersection sans insertion (attente)</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Export -->
+    <div class="mb-3">
+        <h5>Exports disponibles</h5>
+        <div class="d-flex flex-wrap gap-2 small">
+            <span class="badge bg-secondary">CSV détections — frame par frame</span>
+            <span class="badge bg-secondary">CSV segments — événements</span>
+            <span class="badge bg-secondary">JSON session complète</span>
+            <span class="badge bg-secondary">Vidéos annotées AVI par caméra</span>
         </div>
     </div>
 </div>
 {% endblock %}
 
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     ONGLET DOCUMENTATION TECHNIQUE (extra)
+═══════════════════════════════════════════════════════════════════════════ -->
+{% block extra_nav_tabs %}
+<li class="nav-item" role="presentation">
+    <button class="nav-link" id="docs-tab" data-bs-toggle="tab" data-bs-target="#docs-pane" type="button" role="tab">
+        <i class="fas fa-book me-2"></i>Documentation
+    </button>
+</li>
+{% endblock %}
+
+{% block extra_tab_panes %}
+<div class="tab-pane fade" id="docs-pane" role="tabpanel">
+<div class="info-card">
+    <h3><i class="fas fa-book me-2 text-warning"></i>Documentation technique</h3>
+
+    <!-- ── Architecture ── -->
+    <div class="mb-4">
+        <h5 class="text-warning"><i class="fas fa-sitemap me-2"></i>Architecture</h5>
+        <p class="text-light small">
+            Application Django dans <code>wama_lab/cam_analyzer/</code>.
+            Tâches lourdes exécutées en asynchrone via <strong>Celery + Redis</strong>.
+            Résultats stockés en base PostgreSQL, vidéos annotées dans <code>MEDIA_ROOT/cam_analyzer/</code>.
+        </p>
+        <pre class="bg-dark text-light border border-secondary rounded p-3 small" style="font-size:0.78rem; overflow-x:auto;">
+Upload vidéos / .rec + CSV
+        │
+        ├─[extract_rtmaps_task]  (si source RTMaps)
+        │   RTMapsParser → GPS track
+        │   export_quadrature_view() → front.avi + rear.avi
+        │   CameraView records créés
+        │
+        └─[process_session_task]
+            │
+            ├─ Charge modèle YOLO (.pt)
+            ├─ [Optionnel] Charge RoadSegmenter (modèle BDD100K)
+            ├─ Pré-calcul _sam3_windows (si SAM3 activé + GPS + intersections)
+            ├─ [Optionnel] Charge SAM3RoadAnalyzer (caméra avant, intersection_insertion)
+            │
+            ├─ Pour chaque CameraView:
+            │   model.track(stream=True)
+            │   ├─ Par frame: _extract_detections() → DetectionFrame
+            │   ├─ [Si front + intersection_insertion] segment_frame() → road_mask entries
+            │   └─ [Si SAM3 + frame dans fenêtre GPS] analyze_frame() → sam3_marking entries
+            │
+            └─ detect_temporal_segments()
+                ├─ proximity_overtaking : close_following / overtaking / crossing
+                └─ intersection_insertion : IntersectionAnalyzer
+                    find_intersection_windows() ← haversine + GPS track
+                    analyze_window() → t0/t1/t2 + D0 + densité + trajectoire
+                        ├─ sam3_markings_by_ts → stop_line_detected / crossing_detected
+                        └─ _classify_post_stop_v2()
+                               ├─ [road mask dispo] bbox_foot_in_road() → insertion / turn
+                               └─ [fallback] center-zone heuristic
+        </pre>
+    </div>
+
+    <!-- ── Modèles Django ── -->
+    <div class="mb-4">
+        <h5 class="text-warning"><i class="fas fa-database me-2"></i>Modèles de données</h5>
+        <div class="table-responsive">
+            <table class="table table-dark table-sm small">
+                <thead><tr><th>Modèle</th><th>Rôle</th><th>Champs clés</th></tr></thead>
+                <tbody>
+                    <tr>
+                        <td><code>AnalysisProfile</code></td>
+                        <td>Configuration réutilisable</td>
+                        <td><code>model_path</code>, <code>task_type</code>, <code>report_type</code>, <code>intersections</code> (JSON), <code>road_model_path</code>,
+                            <span style="color:#c07aff;"><code>sam3_markings_enabled</code>, <code>sam3_markings_prompts</code> (JSON), <code>sam3_as_road_fallback</code></span></td>
+                    </tr>
+                    <tr>
+                        <td><code>AnalysisSession</code></td>
+                        <td>Conteneur d'une session d'analyse</td>
+                        <td><code>source_type</code> (video|rtmaps), <code>gps_track</code> (JSON), <code>status</code>, <code>results_summary</code> (JSON)</td>
+                    </tr>
+                    <tr>
+                        <td><code>CameraView</code></td>
+                        <td>Caméra dans une session</td>
+                        <td><code>position</code> (front/rear/left/right), <code>video_file</code>, <code>fps</code>, <code>width</code>, <code>height</code>, <code>time_offset</code></td>
+                    </tr>
+                    <tr>
+                        <td><code>DetectionFrame</code></td>
+                        <td>Détections par frame</td>
+                        <td><code>frame_number</code>, <code>timestamp</code>, <code>detections</code> (JSON — objets + road_mask entries)</td>
+                    </tr>
+                    <tr>
+                        <td><code>TemporalSegment</code></td>
+                        <td>Événements détectés</td>
+                        <td><code>segment_type</code>, <code>start_time</code>, <code>end_time</code>, <code>metadata</code> (JSON riche)</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ── Format DetectionFrame.detections ── -->
+    <div class="mb-4">
+        <h5 class="text-warning"><i class="fas fa-code me-2"></i>Format <code>DetectionFrame.detections</code></h5>
+        <div class="row g-3">
+            <div class="col-md-4">
+                <div class="card bg-dark border-secondary h-100">
+                    <div class="card-header small text-info py-1">Détection véhicule (YOLO)</div>
+                    <div class="card-body py-2">
+<pre class="text-light mb-0 small" style="font-size:0.75rem;">{
+  "class_id":   2,
+  "class_name": "car",
+  "confidence": 0.87,
+  "bbox":       [x1, y1, x2, y2],
+  "track_id":   14,
+  "proximity":  0.42
+}</pre>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card bg-dark border-secondary h-100">
+                    <div class="card-header small text-success py-1">Masque routier (RoadSegmenter / SAM3 fallback)</div>
+                    <div class="card-body py-2">
+<pre class="text-light mb-0 small" style="font-size:0.75rem;">{
+  "type":       "road_mask",
+  "class_name": "drivable area"
+              | "drivable area (sam3)",
+  "polygon":    [[x,y], ...],
+  "confidence": 0.91
+}</pre>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card bg-dark border-secondary h-100">
+                    <div class="card-header small py-1" style="color:#c07aff;">Marquage SAM3 (Phase Avancée)</div>
+                    <div class="card-body py-2">
+<pre class="text-light mb-0 small" style="font-size:0.75rem;">{
+  "type":       "sam3_marking",
+  "label":      "stop_line"
+              | "crossing" | ...,
+  "prompt":     "white stop line...",
+  "bbox":       [x1, y1, x2, y2],
+  "confidence": 0.74,
+  "class_name": "stop_line",
+  "track_id":   null,
+  "proximity":  0.0
+}</pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Algorithme IntersectionAnalyzer ── -->
+    <div class="mb-4">
+        <h5 class="text-warning"><i class="fas fa-brain me-2"></i>Algorithme IntersectionAnalyzer</h5>
+        <div class="accordion accordion-flush" id="algoAccordion">
+
+            <div class="accordion-item bg-dark border-secondary">
+                <h2 class="accordion-header">
+                    <button class="accordion-button collapsed bg-dark text-light small py-2" type="button" data-bs-toggle="collapse" data-bs-target="#collapseWindows">
+                        1 — Fenêtres GPS (<code>find_intersection_windows</code>)
+                    </button>
+                </h2>
+                <div id="collapseWindows" class="accordion-collapse collapse" data-bs-parent="#algoAccordion">
+                    <div class="accordion-body py-2 small text-light">
+                        Pour chaque intersection configurée, parcourt la piste GPS et délimite les périodes
+                        où la navette est dans le rayon <em>radius_m</em> via la formule de Haversine.
+                        Retourne une liste de fenêtres <code>{t_enter, t_exit, gps_points}</code>.
+                    </div>
+                </div>
+            </div>
+
+            <div class="accordion-item bg-dark border-secondary">
+                <h2 class="accordion-header">
+                    <button class="accordion-button collapsed bg-dark text-light small py-2" type="button" data-bs-toggle="collapse" data-bs-target="#collapseStop">
+                        2 — Phase stationnaire (<code>_find_stopped_phase</code>)
+                    </button>
+                </h2>
+                <div id="collapseStop" class="accordion-collapse collapse" data-bs-parent="#algoAccordion">
+                    <div class="accordion-body py-2 small text-light">
+                        Cherche <strong>MIN_STOPPED_FRAMES (3)</strong> frames consécutives où le déplacement
+                        du centre bbox est &lt; seuil.<br>
+                        Seuil = <code>BASE_STOPPED_PX (5px) + shuttle_speed × SPEED_FACTOR (0.5 px/km·h⁻¹)</code>
+                        — compensation ego-motion proportionnelle à la vitesse GPS de la navette.
+                    </div>
+                </div>
+            </div>
+
+            <div class="accordion-item bg-dark border-secondary">
+                <h2 class="accordion-header">
+                    <button class="accordion-button collapsed bg-dark text-light small py-2" type="button" data-bs-toggle="collapse" data-bs-target="#collapseClassify">
+                        3 — Classification post-arrêt (<code>_classify_post_stop_v2</code>)
+                    </button>
+                </h2>
+                <div id="collapseClassify" class="accordion-collapse collapse" data-bs-parent="#algoAccordion">
+                    <div class="accordion-body py-2 small text-light">
+                        Après le premier mouvement détecté (déplacement &gt; 2×BASE_STOPPED_PX) :<br>
+                        <strong>Si masque routier disponible :</strong>
+                        vérifie si le pied du véhicule (bas-centre bbox) entre dans le polygone de chaussée
+                        sur ≥ MIN_INSERTION_FRAMES (2) des 10 frames post-mouvement.
+                        <br>
+                        <strong>Sinon (heuristique centre) :</strong>
+                        vérifie si le véhicule se rapproche du centre de l'image et atteint la zone
+                        centrale (±35 % largeur).
+                        <br>
+                        Résultats : <code>insertion</code> | <code>wait</code> | <code>turn</code>.
+                    </div>
+                </div>
+            </div>
+
+            <div class="accordion-item bg-dark border-secondary">
+                <h2 class="accordion-header">
+                    <button class="accordion-button collapsed bg-dark text-light small py-2" type="button" data-bs-toggle="collapse" data-bs-target="#collapseT2">
+                        4 — Marqueurs temporels t0 / t1 / t2
+                    </button>
+                </h2>
+                <div id="collapseT2" class="accordion-collapse collapse" data-bs-parent="#algoAccordion">
+                    <div class="accordion-body py-2 small text-light">
+                        <ul class="mb-0">
+                            <li><strong>t0</strong> : première détection du véhicule dans la fenêtre</li>
+                            <li><strong>t1</strong> : début du mouvement post-arrêt</li>
+                            <li><strong>t2</strong> : T2_STABLE_FRAMES (3) frames consécutives stables
+                                (&lt; T2_STABLE_PX) dans la zone centrale → insertion complète</li>
+                            <li><strong>D0_relative</strong> = frame_height / hauteur_bbox médiane
+                                (proxy inverse de la distance)</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+        </div><!-- /accordion -->
+    </div>
+
+    <!-- ── RoadSegmenter ── -->
+    <div class="mb-4">
+        <h5 class="text-warning"><i class="fas fa-road me-2"></i>RoadSegmenter</h5>
+        <p class="text-light small">
+            Module optionnel (<code>utils/road_segmenter.py</code>) activé si <code>AnalysisProfile.road_model_path</code> est renseigné
+            et que le rapport est <em>intersection_insertion</em>.
+            Il charge un modèle YOLO segmentation (ex. BDD100K) et produit des polygones de chaussée par frame.
+            Ces polygones sont stockés dans <code>DetectionFrame.detections</code>
+            avec <code>type="road_mask"</code> et consommés par <code>IntersectionAnalyzer</code>
+            pour la détection d'insertion basée sur la géométrie réelle plutôt que l'heuristique de position horizontale.
+        </p>
+        <p class="text-light small mb-0">
+            <strong>Point-in-polygon :</strong> ray casting pur Python — pied de bbox (bas-centre) vs. polygone chaussée.
+            Compatible avec tout modèle dont les noms de classes contiennent :
+            <code>road</code>, <code>drivable area</code>, <code>direct drivable</code>, <code>alternative drivable</code>, <code>lane</code>.
+        </p>
+    </div>
+
+    <!-- ── SAM3RoadAnalyzer ── -->
+    <div class="mb-4">
+        <h5 style="color:#c07aff;"><i class="fas fa-magic me-2"></i>SAM3RoadAnalyzer <span class="badge ms-1" style="background:#6f42c1;font-size:0.65rem;">Phase Avancée</span></h5>
+        <p class="text-light small">
+            Module optionnel (<code>utils/sam3_road_analyzer.py</code>) activé si
+            <code>AnalysisProfile.sam3_markings_enabled</code> est coché et que le rapport est <em>intersection_insertion</em>.
+            Il charge le modèle SAM3 image (même modèle que l'anonymiseur) via <code>Sam3Processor</code>
+            et n'effectue l'inférence que sur les frames tombant dans les <strong>fenêtres GPS d'intersection</strong>
+            pré-calculées avant la boucle caméra — réduisant à ~5–10 % des frames le coût SAM3
+            (10–50× plus lent que YOLO).
+        </p>
+        <div class="row g-2 small text-light">
+            <div class="col-md-6">
+                <strong class="text-secondary">Détection marquages</strong>
+                <p class="mb-0">Pour chaque prompt <code>{label, prompt}</code>, interroge SAM3 sur la frame.
+                Les masques renvoyés (score ≥ 0.30) sont convertis en bbox et stockés dans
+                <code>DetectionFrame.detections</code> avec <code>type="sam3_marking"</code>.</p>
+            </div>
+            <div class="col-md-6">
+                <strong class="text-secondary">Fallback routier</strong>
+                <p class="mb-0">Si <code>sam3_as_road_fallback = True</code> et aucun modèle BDD100K n'est chargé,
+                SAM3 génère un masque de chaussée (<em>drivable road surface area in front of the vehicle</em>)
+                par frame, compatible avec <code>_classify_post_stop_v2()</code>.</p>
+            </div>
+        </div>
+        <div class="alert alert-secondary small mt-2 mb-0 py-1">
+            <i class="fas fa-memory me-1"></i>
+            YOLO (~2 GB VRAM) + SAM3 (~12–16 GB VRAM) — compatible RTX 4090 24 GB.
+            SAM3 est déchargé après chaque caméra via <code>sam3_analyzer.unload()</code>.
+        </div>
+    </div>
+
+    <!-- ── Extraction RTMaps ── -->
+    <div class="mb-4">
+        <h5 class="text-warning"><i class="fas fa-file-code me-2"></i>Extraction RTMaps</h5>
+        <div class="table-responsive">
+            <table class="table table-dark table-sm small">
+                <thead><tr><th>Composant</th><th>Fichier</th><th>Rôle</th></tr></thead>
+                <tbody>
+                    <tr>
+                        <td><code>RTMapsParser</code></td>
+                        <td><code>utils/rtmaps_parser.py</code></td>
+                        <td>Parse <code>.rec</code> ligne à ligne. Extrait GPS NMEA (GPGGA/GPVTG) + timestamps vidéo. Fusionne avec CSV API (coordonnées décimales, prioritaires sur NMEA).</td>
+                    </tr>
+                    <tr>
+                        <td><code>export_quadrature_view</code></td>
+                        <td><code>utils/quadrature_video.py</code></td>
+                        <td>Crop OpenCV d'une vue (front/rear/left/right) depuis la vidéo quadrature 800×500. Layout <code>LAYOUT_NAVYA</code> configurable.</td>
+                    </tr>
+                    <tr>
+                        <td><code>extract_rtmaps_task</code></td>
+                        <td><code>tasks.py</code></td>
+                        <td>Tâche Celery : parse → GPS track → AVI quadrature → crop vues → CameraView records → lance <code>process_session_task</code>.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ── API endpoints ── -->
+    <div class="mb-4">
+        <h5 class="text-warning"><i class="fas fa-plug me-2"></i>API REST</h5>
+        <div class="table-responsive">
+            <table class="table table-dark table-sm small">
+                <thead><tr><th>Méthode</th><th>URL</th><th>Action</th></tr></thead>
+                <tbody>
+                    <tr><td><span class="badge bg-success">GET</span></td><td><code>/cam-analyzer/api/sessions/</code></td><td>Liste des sessions</td></tr>
+                    <tr><td><span class="badge bg-primary">POST</span></td><td><code>/cam-analyzer/api/sessions/create/</code></td><td>Créer une session</td></tr>
+                    <tr><td><span class="badge bg-primary">POST</span></td><td><code>/cam-analyzer/api/sessions/&lt;id&gt;/start/</code></td><td>Lancer l'analyse</td></tr>
+                    <tr><td><span class="badge bg-success">GET</span></td><td><code>/cam-analyzer/api/sessions/&lt;id&gt;/status/</code></td><td>Progression + statut</td></tr>
+                    <tr><td><span class="badge bg-primary">POST</span></td><td><code>/cam-analyzer/api/sessions/&lt;id&gt;/rtmaps/upload/</code></td><td>Upload .rec + CSV</td></tr>
+                    <tr><td><span class="badge bg-success">GET</span></td><td><code>/cam-analyzer/api/sessions/&lt;id&gt;/rtmaps/status/</code></td><td>Progression extraction RTMaps</td></tr>
+                    <tr><td><span class="badge bg-success">GET</span></td><td><code>/cam-analyzer/api/sessions/&lt;id&gt;/segments/</code></td><td>Segments temporels</td></tr>
+                    <tr><td><span class="badge bg-success">GET</span></td><td><code>/cam-analyzer/api/sessions/&lt;id&gt;/analytics/</code></td><td>Données analytics (Chart.js)</td></tr>
+                    <tr><td><span class="badge bg-success">GET</span></td><td><code>/cam-analyzer/api/sessions/&lt;id&gt;/export/json/</code></td><td>Export JSON complet</td></tr>
+                    <tr><td><span class="badge bg-success">GET</span></td><td><code>/cam-analyzer/api/sessions/&lt;id&gt;/export/detections/</code></td><td>Export CSV détections</td></tr>
+                    <tr><td><span class="badge bg-success">GET</span></td><td><code>/cam-analyzer/api/sessions/&lt;id&gt;/export/segments/</code></td><td>Export CSV segments</td></tr>
+                    <tr><td><span class="badge bg-primary">POST</span></td><td><code>/cam-analyzer/api/profiles/save/</code></td><td>Créer / mettre à jour un profil</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ── Constantes de tuning ── -->
+    <div class="mb-3">
+        <h5 class="text-warning"><i class="fas fa-sliders-h me-2"></i>Constantes de réglage</h5>
+        <p class="text-secondary small mb-1"><code>intersection_analyzer.py</code></p>
+        <div class="table-responsive">
+            <table class="table table-dark table-sm small">
+                <thead><tr><th>Constante</th><th>Valeur</th><th>Rôle</th></tr></thead>
+                <tbody>
+                    <tr><td><code>MIN_STOPPED_FRAMES</code></td><td>3</td><td>Frames consécutives requises pour valider un arrêt</td></tr>
+                    <tr><td><code>BASE_STOPPED_PX</code></td><td>5.0 px</td><td>Seuil de déplacement bbox pour considérer un véhicule arrêté</td></tr>
+                    <tr><td><code>SPEED_FACTOR_PX_PER_KMH</code></td><td>0.5</td><td>Relaxation ego-motion du seuil d'arrêt (px par km/h navette)</td></tr>
+                    <tr><td><code>CENTER_ZONE_RATIO</code></td><td>0.35</td><td>Demi-largeur de la zone centrale (= voie navette) / largeur image</td></tr>
+                    <tr><td><code>MIN_INSERTION_FRAMES</code></td><td>2</td><td>Frames minimum dans la zone centrale pour valider une insertion</td></tr>
+                    <tr><td><code>MIN_D0_RELATIVE</code></td><td>0.2</td><td>D0 minimum (élimine les véhicules trop lointains)</td></tr>
+                    <tr><td><code>T2_STABLE_FRAMES</code></td><td>3</td><td>Frames stables consécutives pour valider t2 (fin d'insertion)</td></tr>
+                    <tr><td><code>T2_STABLE_PX</code></td><td>4.0 px</td><td>Seuil de stabilisation bbox pour t2</td></tr>
+                    <tr><td><code>MAX_TRAJ_POINTS</code></td><td>200</td><td>Downsampling max de la trajectoire bbox dans les métadonnées</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <p class="text-secondary small mb-1 mt-3"><code>sam3_road_analyzer.py</code> <span class="badge ms-1" style="background:#6f42c1;font-size:0.6rem;">Phase Avancée</span></p>
+        <div class="table-responsive">
+            <table class="table table-dark table-sm small">
+                <thead><tr><th>Constante</th><th>Valeur</th><th>Rôle</th></tr></thead>
+                <tbody>
+                    <tr><td><code>CONFIDENCE_THRESHOLD</code></td><td>0.30</td><td>Score SAM3 minimum pour retenir un masque (marquage ou route)</td></tr>
+                    <tr><td><code>POLY_EPSILON_RATIO</code></td><td>0.005</td><td>Simplification polygone road_mask (<code>approxPolyDP</code> ε = ratio × périmètre)</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+</div>
+{% endblock %}
+
+
 {% block footer_text %}
-    WAMA Lab - Cam Analyzer | Recherche
+    WAMA Lab — Cam Analyzer | Recherche
 {% endblock %}
 
 {% block app_scripts %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <script src="{% static 'cam_analyzer/js/index.js' %}"></script>
 {% endblock %}

@@ -17,7 +17,10 @@ from django.shortcuts import render, get_object_or_404
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 
+from django.core.cache import cache
+
 from .models import AnalysisSession, AnalysisProfile, CameraView, DetectionFrame, TemporalSegment
+from .models import get_unique_filename
 from wama.common.utils.console_utils import push_console_line, get_console_lines
 
 logger = logging.getLogger(__name__)
@@ -626,6 +629,11 @@ def list_profiles(request):
         'id': p.id,
         'name': p.name,
         'report_type': p.report_type,
+        'intersections': p.intersections,
+        'road_model_path': p.road_model_path,
+        'sam3_markings_enabled': p.sam3_markings_enabled,
+        'sam3_markings_prompts': p.sam3_markings_prompts,
+        'sam3_as_road_fallback': p.sam3_as_road_fallback,
         'model_path': p.model_path,
         'task_type': p.task_type,
         'target_classes': p.target_classes,
@@ -647,6 +655,11 @@ def save_profile(request):
         profile_id = data.get('id')
         name = data.get('name', '').strip()
         report_type = data.get('report_type', 'proximity_overtaking')
+        intersections = data.get('intersections', [])
+        road_model_path = data.get('road_model_path', '').strip()
+        sam3_markings_enabled = bool(data.get('sam3_markings_enabled', False))
+        sam3_markings_prompts = data.get('sam3_markings_prompts', [])
+        sam3_as_road_fallback = bool(data.get('sam3_as_road_fallback', False))
         model_path = data.get('model_path', '')
         task_type = data.get('task_type', 'detect')
         target_classes = data.get('target_classes', [])
@@ -665,11 +678,20 @@ def save_profile(request):
 
         if isinstance(target_classes, str):
             target_classes = json.loads(target_classes)
+        if isinstance(intersections, str):
+            intersections = json.loads(intersections)
+        if isinstance(sam3_markings_prompts, str):
+            sam3_markings_prompts = json.loads(sam3_markings_prompts)
 
         if profile_id:
             profile = get_object_or_404(AnalysisProfile, pk=profile_id, user=request.user)
             profile.name = name
             profile.report_type = report_type
+            profile.intersections = intersections
+            profile.road_model_path = road_model_path
+            profile.sam3_markings_enabled = sam3_markings_enabled
+            profile.sam3_markings_prompts = sam3_markings_prompts
+            profile.sam3_as_road_fallback = sam3_as_road_fallback
             profile.model_path = model_path
             profile.task_type = task_type
             profile.target_classes = target_classes
@@ -682,6 +704,11 @@ def save_profile(request):
                 user=request.user,
                 name=name,
                 report_type=report_type,
+                intersections=intersections,
+                road_model_path=road_model_path,
+                sam3_markings_enabled=sam3_markings_enabled,
+                sam3_markings_prompts=sam3_markings_prompts,
+                sam3_as_road_fallback=sam3_as_road_fallback,
                 model_path=model_path,
                 task_type=task_type,
                 target_classes=target_classes,
@@ -696,6 +723,11 @@ def save_profile(request):
                 'id': profile.id,
                 'name': profile.name,
                 'report_type': profile.report_type,
+                'intersections': profile.intersections,
+                'road_model_path': profile.road_model_path,
+                'sam3_markings_enabled': profile.sam3_markings_enabled,
+                'sam3_markings_prompts': profile.sam3_markings_prompts,
+                'sam3_as_road_fallback': profile.sam3_as_road_fallback,
                 'model_path': profile.model_path,
                 'task_type': profile.task_type,
                 'target_classes': profile.target_classes,
@@ -722,6 +754,72 @@ def delete_profile(request, profile_id):
 # =============================================================================
 # Console
 # =============================================================================
+
+@login_required
+@require_http_methods(["POST"])
+def upload_rtmaps(request, session_id):
+    """
+    Upload a RTMaps .rec file (+ optional API CSV) and launch extraction.
+    The extraction task will parse the .rec, crop the quadrature video into
+    front/rear views, extract GPS data, and finally trigger the YOLO analysis.
+    """
+    from .tasks import extract_rtmaps_task
+
+    session = get_object_or_404(AnalysisSession, id=session_id, user=request.user)
+    user_id = request.user.id
+
+    rec_file = request.FILES.get('rec_file')
+    csv_file = request.FILES.get('csv_file')
+
+    if not rec_file:
+        return JsonResponse({'success': False, 'error': 'Fichier .rec manquant'}, status=400)
+
+    if not session.profile:
+        return JsonResponse({'success': False, 'error': "Aucun profil d'analyse sélectionné"}, status=400)
+
+    # Save uploaded files
+    rtmaps_dir = os.path.join(settings.MEDIA_ROOT, 'cam_analyzer', str(user_id), 'rtmaps')
+    os.makedirs(rtmaps_dir, exist_ok=True)
+
+    rec_filename = get_unique_filename(rtmaps_dir, rec_file.name)
+    rec_path = os.path.join(rtmaps_dir, rec_filename)
+    with open(rec_path, 'wb') as f:
+        for chunk in rec_file.chunks():
+            f.write(chunk)
+
+    csv_path = None
+    if csv_file:
+        csv_filename = get_unique_filename(rtmaps_dir, csv_file.name)
+        csv_path = os.path.join(rtmaps_dir, csv_filename)
+        with open(csv_path, 'wb') as f:
+            for chunk in csv_file.chunks():
+                f.write(chunk)
+
+    # Reset session state
+    session.status = AnalysisSession.Status.PENDING
+    session.progress = 0.0
+    session.error_message = ''
+    session.results_summary = {}
+    session.save(update_fields=['status', 'progress', 'error_message', 'results_summary'])
+
+    task = extract_rtmaps_task.delay(str(session_id), rec_path, csv_path)
+    _console(user_id, f"Extraction RTMaps lancée : {rec_file.name}")
+
+    return JsonResponse({'success': True, 'task_id': task.id})
+
+
+@login_required
+@require_http_methods(["GET"])
+def rtmaps_status(request, session_id):
+    """Return extraction progress for a RTMaps session."""
+    session = get_object_or_404(AnalysisSession, id=session_id, user=request.user)
+    cached = cache.get(f"cam_analyzer_extract_{session_id}") or {}
+    return JsonResponse({
+        'session_status': session.status,
+        'progress': cached.get('progress', 0),
+        'status_message': cached.get('status', ''),
+    })
+
 
 @login_required
 @require_http_methods(["GET"])

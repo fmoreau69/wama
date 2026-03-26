@@ -69,18 +69,6 @@
     </select>
 </div>
 
-<!-- Format de sortie -->
-<div class="mb-2">
-    <label class="form-label small fw-bold text-light mb-1">
-        <i class="fas fa-file-export"></i> Format
-    </label>
-    <select id="outputFormatSelect" class="form-select form-select-sm">
-        {% for val, label in format_choices %}
-        <option value="{{ val }}">{{ label }}</option>
-        {% endfor %}
-    </select>
-</div>
-
 <!-- Langue (optionnel) -->
 <div class="mb-2">
     <label class="form-label small fw-bold text-light mb-1">
@@ -139,6 +127,7 @@ window.READER_APP = Object.assign({}, window.READER_APP || {}, {
         console:         "{% url 'reader:console' %}",
         start:           "{% url 'reader:start' 0 %}",
         progress:        "{% url 'reader:progress' 0 %}",
+        text:            "{% url 'reader:text' 0 %}",
         download:        "{% url 'reader:download' 0 %}",
         delete:          "{% url 'reader:delete' 0 %}",
         duplicate:       "{% url 'reader:duplicate' 0 %}",
@@ -191,53 +180,7 @@ window._batchImport = WamaBatchImport({
         {% with r=item.reading %}
         <div class="reader-card card bg-dark border-secondary mb-2"
              data-id="{{ r.id }}" data-status="{{ r.status }}">
-            <div class="card-body py-2">
-                <div class="d-flex justify-content-between align-items-start">
-                    <div class="d-flex align-items-center flex-wrap gap-1 me-2 overflow-hidden">
-                        <span role="button" class="source-preview-btn d-flex align-items-center gap-1"
-                              data-id="{{ r.id }}" data-filename="{{ r.filename }}" title="Aperçu du fichier source">
-                          <i class="fas fa-file-alt text-info me-1"></i>
-                          <span class="fw-semibold text-light text-truncate" style="max-width:240px;">{{ r.filename }}</span>
-                        </span>
-                        {% if r.page_count > 1 %}<span class="badge bg-secondary ms-1">{{ r.page_count }} pages</span>{% endif %}
-                        {% if r.status == 'PENDING' %}<span class="badge bg-secondary">En attente</span>
-                        {% elif r.status == 'RUNNING' %}<span class="badge bg-warning text-dark"><i class="fas fa-spinner fa-spin me-1"></i>En cours</span>
-                        {% elif r.status == 'DONE' %}<span class="badge bg-success">Terminé</span>
-                        {% elif r.status == 'ERROR' %}<span class="badge bg-danger">Erreur</span>{% endif %}
-                        <small class="text-muted ms-1">{{ r.get_mode_display }}</small>
-                    </div>
-                    <div class="d-flex gap-1 flex-shrink-0">
-                        {% if r.status == 'PENDING' or r.status == 'ERROR' %}
-                        <button class="btn btn-sm btn-outline-success" data-action="start" title="Lancer"><i class="fas fa-play"></i></button>
-                        {% elif r.status == 'RUNNING' %}
-                        <button class="btn btn-sm btn-outline-warning" disabled title="En cours"><i class="fas fa-spinner fa-spin"></i></button>
-                        {% else %}
-                        <button class="btn btn-sm btn-outline-secondary" data-action="restart" title="Relancer"><i class="fas fa-redo"></i></button>
-                        {% endif %}
-                        {% if r.result_text %}
-                        <a href="{% url 'reader:download' r.id %}" class="btn btn-sm btn-outline-info" title="Télécharger"><i class="fas fa-download"></i></a>
-                        {% else %}
-                        <button class="btn btn-sm btn-outline-info" disabled title="Pas encore de résultat"><i class="fas fa-download"></i></button>
-                        {% endif %}
-                        <button class="btn btn-sm btn-outline-secondary" data-action="duplicate" title="Dupliquer"><i class="fas fa-copy"></i></button>
-                        <button class="btn btn-sm btn-outline-danger" data-action="delete" title="Supprimer"><i class="fas fa-trash"></i></button>
-                    </div>
-                </div>
-                {% if r.status == 'RUNNING' %}
-                <div class="progress mt-2" style="height:4px;">
-                    <div class="progress-bar bg-warning progress-bar-striped progress-bar-animated" style="width:{{ r.progress }}%"></div>
-                </div>
-                {% endif %}
-                {% if r.result_text %}
-                <div class="reader-preview mt-2 p-2 rounded bg-black bg-opacity-50 small text-light font-monospace"
-                     style="max-height:80px;overflow:hidden;cursor:pointer;" data-action="expand">
-                    <span class="preview-text">{{ r.result_text|truncatechars:300 }}</span>
-                </div>
-                {% endif %}
-                {% if r.error_message %}
-                <div class="alert alert-danger py-1 mt-2 small mb-0">{{ r.error_message }}</div>
-                {% endif %}
-            </div>
+            {% include 'reader/_item_card.html' with item=r %}
         </div>
         {% endwith %}
         {% endif %}{% endfor %}
@@ -295,44 +238,7 @@ window._batchImport = WamaBatchImport({
                 {% with r=item.reading %}
                 <div class="reader-card card bg-dark border-secondary mb-1" style="border-radius:0 0.375rem 0.375rem 0;"
                      data-id="{{ r.id }}" data-status="{{ r.status }}">
-                    <div class="card-body py-2">
-                        <div class="d-flex justify-content-between align-items-start">
-                            <div class="d-flex align-items-center flex-wrap gap-1 me-2 overflow-hidden">
-                                <span role="button" class="source-preview-btn d-flex align-items-center gap-1"
-                                      data-id="{{ r.id }}" data-filename="{{ r.filename }}" title="Aperçu du fichier source">
-                                  <i class="fas fa-file-alt text-info me-1"></i>
-                                  <span class="fw-semibold text-light text-truncate" style="max-width:190px;">{{ r.filename }}</span>
-                                </span>
-                                {% if r.page_count > 1 %}<span class="badge bg-secondary ms-1">{{ r.page_count }}p</span>{% endif %}
-                                {% if r.status == 'PENDING' %}<span class="badge bg-secondary">En attente</span>
-                                {% elif r.status == 'RUNNING' %}<span class="badge bg-warning text-dark"><i class="fas fa-spinner fa-spin me-1"></i>En cours</span>
-                                {% elif r.status == 'DONE' %}<span class="badge bg-success">Terminé</span>
-                                {% elif r.status == 'ERROR' %}<span class="badge bg-danger">Erreur</span>{% endif %}
-                            </div>
-                            <div class="d-flex gap-1 flex-shrink-0">
-                                {% if r.status != 'RUNNING' %}
-                                <button class="btn btn-sm btn-outline-success" data-action="start" title="Lancer"><i class="fas fa-play"></i></button>
-                                {% else %}
-                                <button class="btn btn-sm btn-outline-warning" disabled><i class="fas fa-spinner fa-spin"></i></button>
-                                {% endif %}
-                                {% if r.result_text %}
-                                <a href="{% url 'reader:download' r.id %}" class="btn btn-sm btn-outline-info" title="Télécharger"><i class="fas fa-download"></i></a>
-                                {% endif %}
-                                <button class="btn btn-sm btn-outline-danger" data-action="delete" title="Supprimer"><i class="fas fa-trash"></i></button>
-                            </div>
-                        </div>
-                        {% if r.status == 'RUNNING' %}
-                        <div class="progress mt-1" style="height:3px;">
-                            <div class="progress-bar bg-warning progress-bar-striped progress-bar-animated" style="width:{{ r.progress }}%"></div>
-                        </div>
-                        {% endif %}
-                        {% if r.result_text %}
-                        <div class="mt-1 small text-muted font-monospace" style="max-height:40px;overflow:hidden;">{{ r.result_text|truncatechars:100 }}</div>
-                        {% endif %}
-                        {% if r.error_message %}
-                        <div class="alert alert-danger py-1 mt-1 small mb-0">{{ r.error_message }}</div>
-                        {% endif %}
-                    </div>
+                    {% include 'reader/_item_card.html' with item=r %}
                 </div>
                 {% endwith %}
                 {% endif %}{% endfor %}

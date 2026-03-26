@@ -723,6 +723,12 @@ window._batchImport = WamaBatchImport({
                     <div class="tab-pane fade show active" id="tab-transcription" role="tabpanel">
                         <div class="card" style="background: #1e1e1e; border: 1px solid #495057;">
                             <div class="card-body">
+                                <div class="d-flex justify-content-end mb-2">
+                                    <button class="btn btn-sm btn-outline-secondary copy-result-btn"
+                                            data-target="resultText" title="Copier le texte">
+                                        <i class="fas fa-copy"></i>
+                                    </button>
+                                </div>
                                 <pre id="resultText" style="color: #d4d4d4; white-space: pre-wrap; word-wrap: break-word; font-family: 'Segoe UI', Arial, sans-serif; font-size: 14px; line-height: 1.6; margin: 0; max-height: 460px; overflow-y: auto;"></pre>
                             </div>
                         </div>

@@ -11,6 +11,24 @@ import datetime
 # Helper — FPDF base class with header/footer
 # ──────────────────────────────────────────────────────────────────────────────
 
+def _sanitize_for_latin1(text: str) -> str:
+    """Replace characters outside Latin-1 with ASCII equivalents for fpdf2 built-in fonts."""
+    if not text:
+        return text
+    replacements = {
+        '\u2014': '-', '\u2013': '-',        # em-dash, en-dash
+        '\u2018': "'", '\u2019': "'",        # curly single quotes
+        '\u201c': '"', '\u201d': '"',        # curly double quotes
+        '\u2026': '...', '\u2022': '*',      # ellipsis, bullet
+        '\u2192': '->', '\u2190': '<-',      # arrows
+        '\u00b0': ' deg',                    # degree sign (already Latin-1 but safe)
+    }
+    for src, dst in replacements.items():
+        text = text.replace(src, dst)
+    # Encode to Latin-1, replacing any remaining non-Latin-1 chars with '?'
+    return text.encode('latin-1', errors='replace').decode('latin-1')
+
+
 def _make_pdf():
     """Return a configured FPDF2 instance with header/footer."""
     try:
@@ -22,7 +40,7 @@ def _make_pdf():
         def header(self):
             self.set_font('Helvetica', 'B', 8)
             self.set_text_color(140, 140, 140)
-            self.cell(0, 5, 'WAMA — Export', align='R')
+            self.cell(0, 5, 'WAMA - Export', align='R')
             self.ln(3)
 
         def footer(self):
@@ -309,8 +327,8 @@ def generate_reader_pdf(item) -> bytes:
 
     # ── Metadata ──
     _section_title(pdf, 'Informations')
-    _meta_line(pdf, 'Fichier source', item.filename or '—')
-    _meta_line(pdf, 'Pages', str(item.page_count) if item.page_count else '—')
+    _meta_line(pdf, 'Fichier source', _sanitize_for_latin1(item.filename or '-'))
+    _meta_line(pdf, 'Pages', str(item.page_count) if item.page_count else '-')
     _meta_line(pdf, 'Backend', item.used_backend or item.backend or 'auto')
     _meta_line(pdf, 'Mode', item.mode or 'auto')
     if item.language:
@@ -320,13 +338,13 @@ def generate_reader_pdf(item) -> bytes:
 
     # ── OCR Text ──
     _section_title(pdf, 'Texte Extrait')
-    _body_text(pdf, item.result_text or '')
+    _body_text(pdf, _sanitize_for_latin1(item.result_text or ''))
 
     # ── Analysis (if any) ──
     if item.analysis:
         pdf.ln(2)
         _section_title(pdf, 'Analyse')
-        _body_text(pdf, item.analysis)
+        _body_text(pdf, _sanitize_for_latin1(item.analysis))
 
     return bytes(pdf.output())
 

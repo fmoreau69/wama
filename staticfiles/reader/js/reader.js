@@ -68,8 +68,9 @@
             : '';
 
         const previewHtml = item.result_preview
-            ? `<div class="reader-preview mt-2 p-2 rounded bg-black bg-opacity-50 small text-light font-monospace"
-                    style="max-height:80px;overflow:hidden;cursor:pointer;" data-action="expand">
+            ? `<div class="reader-preview mt-2 p-2 rounded bg-black bg-opacity-50 small text-light"
+                    style="max-height:80px;overflow:hidden;cursor:pointer;white-space:pre-wrap;word-break:break-word;"
+                    data-action="expand" title="Clic : développer · Double-clic : texte complet">
                  <span class="preview-text">${escapeHtml(item.result_preview)}</span>
                  ${item.has_result ? '<span class="text-muted"> …</span>' : ''}
                </div>`
@@ -80,6 +81,10 @@
             : '';
 
         const dlBase = urlFor('download', item.id);
+        const jsonItem = item.has_raw_result
+            ? `<li><hr class="dropdown-divider"></li>
+                   <li><a class="dropdown-item" href="${dlBase}?format=json"><i class="fas fa-code me-2 text-warning"></i>JSON brut</a></li>`
+            : '';
         const downloadBtn = item.has_result
             ? `<div class="btn-group">
                  <a href="${dlBase}?format=txt" class="btn btn-sm btn-outline-info" title="Télécharger TXT">
@@ -95,6 +100,7 @@
                    <li><hr class="dropdown-divider"></li>
                    <li><a class="dropdown-item" href="${dlBase}?format=pdf"><i class="fas fa-file-pdf me-2 text-danger"></i>PDF</a></li>
                    <li><a class="dropdown-item" href="${dlBase}?format=docx"><i class="fas fa-file-word me-2 text-primary"></i>DOCX</a></li>
+                   ${jsonItem}
                  </ul>
                </div>`
             : `<button class="btn btn-sm btn-outline-info" disabled title="Pas encore de résultat">
@@ -207,6 +213,13 @@
                 if (action === 'expand') expandPreview(item.id);
             });
         });
+        const preview = card.querySelector('.reader-preview');
+        if (preview) {
+            preview.addEventListener('dblclick', e => {
+                e.stopPropagation();
+                openFullTextModal(item.id);
+            });
+        }
     }
 
     // ─── Polling ──────────────────────────────────────────────────────────────
@@ -308,13 +321,6 @@
           <option value="handwritten">Manuscrit</option>
         </select>
       </div>
-      <div class="mb-3">
-        <label class="form-label small text-muted">Format de sortie</label>
-        <select id="rSettings_output_format" class="form-select form-select-sm bg-dark text-white border-secondary">
-          <option value="txt">Texte brut (.txt)</option>
-          <option value="markdown">Markdown (.md)</option>
-        </select>
-      </div>
       <div class="mb-0">
         <label class="form-label small text-muted">Langue <span class="text-muted">(vide = auto-détection)</span></label>
         <input id="rSettings_language" type="text" class="form-control form-control-sm bg-dark text-white border-secondary"
@@ -337,21 +343,19 @@
 
     function openItemSettings(btn) {
         const modal = getOrCreateSettingsModal();
-        document.getElementById('rSettings_id').value           = btn.dataset.id;
-        document.getElementById('rSettings_backend').value      = btn.dataset.backend || 'auto';
-        document.getElementById('rSettings_mode').value         = btn.dataset.mode || 'auto';
-        document.getElementById('rSettings_output_format').value = btn.dataset.outputFormat || 'txt';
-        document.getElementById('rSettings_language').value     = btn.dataset.language || '';
+        document.getElementById('rSettings_id').value       = btn.dataset.id;
+        document.getElementById('rSettings_backend').value  = btn.dataset.backend || 'auto';
+        document.getElementById('rSettings_mode').value     = btn.dataset.mode || 'auto';
+        document.getElementById('rSettings_language').value = btn.dataset.language || '';
         bootstrap.Modal.getOrCreateInstance(modal).show();
     }
 
     async function saveItemSettings() {
         const id = document.getElementById('rSettings_id').value;
         const payload = {
-            backend:       document.getElementById('rSettings_backend').value,
-            mode:          document.getElementById('rSettings_mode').value,
-            output_format: document.getElementById('rSettings_output_format').value,
-            language:      document.getElementById('rSettings_language').value.trim(),
+            backend:  document.getElementById('rSettings_backend').value,
+            mode:     document.getElementById('rSettings_mode').value,
+            language: document.getElementById('rSettings_language').value.trim(),
         };
         try {
             const r = await csrfFetch(urlFor('saveSettings', id), {
@@ -365,6 +369,18 @@
             upsertCard(item);
         } catch (e) {
             console.error('[Reader] save_settings error:', e);
+        }
+    }
+
+    async function openFullTextModal(id) {
+        try {
+            const r = await fetch(urlFor('text', id));
+            const data = await r.json();
+            if (typeof window.showTextModal === 'function') {
+                window.showTextModal(data.text || '', data.filename || 'Texte OCR');
+            }
+        } catch (e) {
+            console.error('[Reader] openFullTextModal error:', e);
         }
     }
 
@@ -464,10 +480,9 @@
 
         document.getElementById('resetOptions')?.addEventListener('click', () => {
             const fields = [
-                { id: 'backendSelect',      key: 'backendSelect' },
-                { id: 'modeSelect',         key: 'modeSelect' },
-                { id: 'outputFormatSelect', key: 'outputFormatSelect' },
-                { id: 'languageInput',      key: 'languageInput' },
+                { id: 'backendSelect', key: 'backendSelect' },
+                { id: 'modeSelect',    key: 'modeSelect' },
+                { id: 'languageInput', key: 'languageInput' },
             ];
             fields.forEach(({ id, key }) => {
                 const el = document.getElementById(id);
@@ -556,7 +571,7 @@
         });
 
         // Persist settings
-        ['backendSelect', 'modeSelect', 'outputFormatSelect', 'languageInput'].forEach(id => {
+        ['backendSelect', 'modeSelect', 'languageInput'].forEach(id => {
             const el = document.getElementById(id);
             if (!el) return;
             const key = `reader_setting_${id}`;
@@ -582,6 +597,14 @@
                     if (action === 'expand') expandPreview(id);
                 });
             });
+            // Double-click on preview → full text modal
+            const preview = card.querySelector('.reader-preview');
+            if (preview) {
+                preview.addEventListener('dblclick', e => {
+                    e.stopPropagation();
+                    openFullTextModal(id);
+                });
+            }
         });
     }
 

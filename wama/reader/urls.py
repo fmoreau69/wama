@@ -10,6 +10,7 @@ urlpatterns = [
     path('analyze/<int:pk>/',       views.analyze,             name='analyze'),
     path('settings/<int:pk>/',      views.save_settings,       name='save_settings'),
     path('progress/<int:pk>/',      views.progress,            name='progress'),
+    path('text/<int:pk>/',          views.text_view,           name='text'),
     path('download/<int:pk>/',      views.download,            name='download'),
     path('delete/<int:pk>/',        views.delete,              name='delete'),
     path('duplicate/<int:pk>/',     views.duplicate,           name='duplicate'),

@@ -215,6 +215,7 @@ document.addEventListener('DOMContentLoaded', function () {
             sessionSelect.value = sessionId;
             deleteSessionBtn.disabled = false;
             startAnalysisBtn.disabled = false;
+            updateRtmapsPanel();
 
             // Clear and restore cameras
             clearCameraGrid();
@@ -480,6 +481,80 @@ document.addEventListener('DOMContentLoaded', function () {
         updateTimeDisplay(0);
     }
 
+    // ── rAF sync loop ────────────────────────────────────────────────────────
+    // Drives seekbar, overlays and drift correction at display framerate (~60 Hz)
+    // instead of the coarse timeupdate event (~4 Hz).
+    const SYNC_THRESHOLD = 0.3;   // seconds — re-sync if drift exceeds this
+    let rafHandle = null;
+    let isSeeking = false;         // true while the user drags the seekbar
+
+    function getRefPosition() {
+        for (const pos of positions) {
+            if (cameras[pos]) return pos;
+        }
+        return null;
+    }
+
+    function rafLoop() {
+        const refPos = getRefPosition();
+        if (!refPos || !isPlaying) { rafHandle = null; return; }
+
+        const refVideo = document.getElementById(`video-${refPos}`);
+        if (!refVideo) { rafHandle = null; return; }
+
+        const refOffset = (cameras[refPos] && cameras[refPos].time_offset) || 0;
+        const refTime   = refVideo.currentTime - refOffset;
+
+        // Update seekbar + time display (only when user is not dragging)
+        if (!isSeeking) {
+            syncSeekBar.value = refTime;
+            updateTimeDisplay(refTime);
+            updateTimelineCursor(refTime);
+        }
+
+        // Per-camera: drift correction + overlay
+        const speed = parseFloat(playbackSpeed.value) || 1;
+        positions.forEach(pos => {
+            const video  = document.getElementById(`video-${pos}`);
+            const camCfg = cameras[pos];
+            if (!video || !camCfg || !video.src) return;
+
+            // Drift correction for non-reference cameras
+            if (pos !== refPos && !video.paused) {
+                const offset  = camCfg.time_offset || 0;
+                const camTime = video.currentTime - offset;
+                const drift   = camTime - refTime;
+                if (Math.abs(drift) > SYNC_THRESHOLD) {
+                    video.currentTime = Math.max(0, refTime + offset);
+                }
+            }
+
+            // Overlay: each camera uses its own currentTime
+            const data = detectionData[pos];
+            if (data && data.frames.length) {
+                const offset  = camCfg.time_offset || 0;
+                const camTime = video.currentTime - offset;
+                const frame   = findClosestFrame(data.frames, camTime);
+                if (frame && frame.detections && frame.detections.length > 0) {
+                    drawDetections(pos, frame.detections, data.width, data.height);
+                } else {
+                    clearCanvas(pos);
+                }
+            }
+        });
+
+        rafHandle = requestAnimationFrame(rafLoop);
+    }
+
+    function startRafLoop() {
+        if (!rafHandle) rafHandle = requestAnimationFrame(rafLoop);
+    }
+
+    function stopRafLoop() {
+        if (rafHandle) { cancelAnimationFrame(rafHandle); rafHandle = null; }
+    }
+    // ── End rAF sync loop ────────────────────────────────────────────────────
+
     function syncPlay() {
         isPlaying = true;
         playPauseIcon.className = 'fas fa-pause';
@@ -495,17 +570,18 @@ document.addEventListener('DOMContentLoaded', function () {
                 video.play().catch(() => {});
             }
         });
+
+        startRafLoop();
     }
 
     function syncPause() {
         isPlaying = false;
         playPauseIcon.className = 'fas fa-play';
+        stopRafLoop();
 
         positions.forEach(pos => {
             const video = document.getElementById(`video-${pos}`);
-            if (video && video.src) {
-                video.pause();
-            }
+            if (video && video.src) video.pause();
         });
     }
 
@@ -524,8 +600,9 @@ document.addEventListener('DOMContentLoaded', function () {
         });
         syncSeekBar.value = time;
         updateTimeDisplay(time);
+        updateTimelineCursor(time);
 
-        // Update detection overlay for current time
+        // Update overlays immediately at new position (works paused or playing)
         updateDetectionOverlay(time);
     }
 
@@ -533,36 +610,8 @@ document.addEventListener('DOMContentLoaded', function () {
         syncTimeDisplay.textContent = `${formatTime(currentTime)} / ${formatTime(maxDuration)}`;
     }
 
-    // Time update listener on each video
-    // Only the first active camera updates the seekbar to avoid conflicts
-    function getRefPosition() {
-        for (const pos of positions) {
-            if (cameras[pos]) return pos;
-        }
-        return null;
-    }
-
-    function setupTimeSync() {
-        positions.forEach(pos => {
-            const video = document.getElementById(`video-${pos}`);
-            if (!video) return;
-
-            video.addEventListener('timeupdate', () => {
-                if (cameras[pos] && isPlaying && pos === getRefPosition()) {
-                    const offset = cameras[pos].time_offset || 0;
-                    const currentTime = video.currentTime - offset;
-                    syncSeekBar.value = currentTime;
-                    updateTimeDisplay(currentTime);
-
-                    // Update detection overlay
-                    updateDetectionOverlay(currentTime);
-
-                    // Update timeline cursor
-                    updateTimelineCursor(currentTime);
-                }
-            });
-        });
-    }
+    // setupTimeSync is kept for backward-compat but no longer attaches timeupdate
+    function setupTimeSync() { /* overlays are driven by rafLoop */ }
 
     // Event listeners
     syncPlayPauseBtn.addEventListener('click', () => {
@@ -572,9 +621,16 @@ document.addEventListener('DOMContentLoaded', function () {
 
     syncStopBtn.addEventListener('click', syncStop);
 
+    // While dragging: seek all videos + update overlay without restarting play
+    syncSeekBar.addEventListener('mousedown', () => { isSeeking = true; });
+    syncSeekBar.addEventListener('touchstart', () => { isSeeking = true; }, { passive: true });
+
     syncSeekBar.addEventListener('input', () => {
         syncSeek(parseFloat(syncSeekBar.value));
     });
+
+    syncSeekBar.addEventListener('mouseup', () => { isSeeking = false; });
+    syncSeekBar.addEventListener('touchend', () => { isSeeking = false; });
 
     playbackSpeed.addEventListener('change', () => {
         const speed = parseFloat(playbackSpeed.value);
@@ -842,14 +898,16 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function updateDetectionOverlay(currentTime) {
+        // Used for immediate overlay update on seek (paused state).
+        // During playback, the rAF loop handles per-camera overlay with individual currentTime.
         positions.forEach(pos => {
-            const data = detectionData[pos];
-            if (!data || !data.frames.length) {
-                clearCanvas(pos);
-                return;
-            }
+            const data   = detectionData[pos];
+            const camCfg = cameras[pos];
+            if (!data || !data.frames.length) { clearCanvas(pos); return; }
 
-            // Find closest frame by timestamp
+            // When paused, adjust for the camera's own time offset
+            const offset     = (camCfg && camCfg.time_offset) || 0;
+            const camTime    = currentTime + offset - offset; // = currentTime (offset applied in syncSeek)
             const targetFrame = findClosestFrame(data.frames, currentTime);
             if (!targetFrame || !targetFrame.detections || targetFrame.detections.length === 0) {
                 clearCanvas(pos);
@@ -884,10 +942,15 @@ document.addEventListener('DOMContentLoaded', function () {
         const video = document.getElementById(`video-${position}`);
         if (!canvas || !video) return;
 
-        // Match canvas to displayed video element size
+        // Match canvas to displayed video element size — only resize if changed
+        // (resizing resets the canvas context and forces a DOM re-layout)
         const rect = video.getBoundingClientRect();
-        canvas.width = rect.width;
-        canvas.height = rect.height;
+        const needResize = Math.round(rect.width)  !== canvas.width ||
+                           Math.round(rect.height) !== canvas.height;
+        if (needResize) {
+            canvas.width  = Math.round(rect.width);
+            canvas.height = Math.round(rect.height);
+        }
 
         const ctx = canvas.getContext('2d');
         ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -1296,6 +1359,390 @@ document.addEventListener('DOMContentLoaded', function () {
         badge.textContent = def.text;
     }
 
+    // =========================================================================
+    // Intersection Management (profile modal)
+    // =========================================================================
+
+    let intersections = [];  // [{name, lat, lon, radius_m}, ...]
+    let editingIntersectionIdx = null;
+    let sam3Prompts = [];  // [{label, prompt}, ...]
+
+    // ── Mini-map state ────────────────────────────────────────────────────────
+    let intersectionMap = null;
+    let intersectionMarker = null;
+    let intersectionCircle = null;
+
+    function _initIntersectionMap() {
+        if (intersectionMap) return;  // already initialized
+        intersectionMap = L.map('intersectionMap', { zoomControl: true }).setView([46.5, 2.3], 6);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
+            subdomains: 'abcd',
+            maxZoom: 19,
+        }).addTo(intersectionMap);
+
+        // Click on map → place marker + fill fields
+        intersectionMap.on('click', (e) => {
+            const { lat, lng } = e.latlng;
+            _placeIntersectionMarker(lat, lng);
+            document.getElementById('intLat').value = lat.toFixed(6);
+            document.getElementById('intLon').value = lng.toFixed(6);
+        });
+    }
+
+    function _placeIntersectionMarker(lat, lng) {
+        const radius = parseInt(document.getElementById('intRadius').value) || 100;
+
+        if (intersectionMarker) {
+            intersectionMarker.setLatLng([lat, lng]);
+        } else {
+            intersectionMarker = L.marker([lat, lng], { draggable: true }).addTo(intersectionMap);
+            intersectionMarker.on('dragend', (e) => {
+                const pos = e.target.getLatLng();
+                document.getElementById('intLat').value = pos.lat.toFixed(6);
+                document.getElementById('intLon').value = pos.lng.toFixed(6);
+                _updateIntersectionCircle(pos.lat, pos.lng);
+            });
+        }
+
+        _updateIntersectionCircle(lat, lng);
+        intersectionMap.setView([lat, lng], Math.max(intersectionMap.getZoom(), 15));
+    }
+
+    function _updateIntersectionCircle(lat, lng) {
+        const radius = parseInt(document.getElementById('intRadius').value) || 100;
+        if (intersectionCircle) {
+            intersectionCircle.setLatLng([lat, lng]);
+            intersectionCircle.setRadius(radius);
+        } else {
+            intersectionCircle = L.circle([lat, lng], {
+                radius,
+                color: '#f0ad4e',
+                fillColor: '#f0ad4e',
+                fillOpacity: 0.12,
+                weight: 2,
+            }).addTo(intersectionMap);
+        }
+    }
+
+    function _refreshIntersectionMap(lat, lng) {
+        // Called after form is visible — initialize map if needed then place marker
+        _initIntersectionMap();
+        intersectionMap.invalidateSize();
+        if (lat !== null && lng !== null && !isNaN(lat) && !isNaN(lng)) {
+            _placeIntersectionMarker(lat, lng);
+        }
+    }
+
+    function renderIntersectionsList() {
+        const list = document.getElementById('intersectionsList');
+        if (!list) return;
+        if (!intersections.length) {
+            list.innerHTML = '<div class="text-muted small py-1">Aucune intersection configurée</div>';
+            return;
+        }
+        list.innerHTML = intersections.map((it, idx) => `
+            <div class="d-flex align-items-center gap-2 py-1 border-bottom border-secondary">
+                <span class="badge bg-warning text-dark">${escapeHtml(it.name)}</span>
+                <small class="text-secondary flex-grow-1">${it.lat.toFixed(5)}, ${it.lon.toFixed(5)} &mdash; ${it.radius_m}m</small>
+                <button class="btn btn-sm btn-outline-secondary py-0 px-1 edit-int-btn" data-idx="${idx}" title="Modifier">
+                    <i class="fas fa-pencil-alt"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-danger py-0 px-1 del-int-btn" data-idx="${idx}" title="Supprimer">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        `).join('');
+
+        list.querySelectorAll('.edit-int-btn').forEach(btn => {
+            btn.addEventListener('click', () => openIntersectionForm(parseInt(btn.dataset.idx)));
+        });
+        list.querySelectorAll('.del-int-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                intersections.splice(parseInt(btn.dataset.idx), 1);
+                renderIntersectionsList();
+            });
+        });
+    }
+
+    function openIntersectionForm(idx = null) {
+        editingIntersectionIdx = idx;
+        const form = document.getElementById('intersectionForm');
+        if (!form) return;
+
+        let lat = null, lng = null;
+        if (idx !== null && intersections[idx]) {
+            const it = intersections[idx];
+            document.getElementById('intName').value = it.name;
+            document.getElementById('intLat').value = it.lat;
+            document.getElementById('intLon').value = it.lon;
+            document.getElementById('intRadius').value = it.radius_m;
+            lat = it.lat;
+            lng = it.lon;
+        } else {
+            document.getElementById('intName').value = '';
+            document.getElementById('intLat').value = '';
+            document.getElementById('intLon').value = '';
+            document.getElementById('intRadius').value = 100;
+            // Remove existing marker/circle for a fresh form
+            if (intersectionMarker) { intersectionMarker.remove(); intersectionMarker = null; }
+            if (intersectionCircle) { intersectionCircle.remove(); intersectionCircle = null; }
+        }
+        form.style.display = '';
+
+        // Let the DOM render before initializing/refreshing the map
+        requestAnimationFrame(() => _refreshIntersectionMap(lat, lng));
+    }
+
+    function saveIntersection() {
+        const name = document.getElementById('intName').value.trim();
+        const lat = parseFloat(document.getElementById('intLat').value);
+        const lon = parseFloat(document.getElementById('intLon').value);
+        const radius = parseInt(document.getElementById('intRadius').value) || 100;
+
+        if (!name || isNaN(lat) || isNaN(lon)) {
+            alert('Nom, latitude et longitude requis');
+            return;
+        }
+        const entry = { name, lat, lon, radius_m: radius };
+        if (editingIntersectionIdx !== null) {
+            intersections[editingIntersectionIdx] = entry;
+        } else {
+            intersections.push(entry);
+        }
+        editingIntersectionIdx = null;
+        document.getElementById('intersectionForm').style.display = 'none';
+        if (intersectionMarker) { intersectionMarker.remove(); intersectionMarker = null; }
+        if (intersectionCircle) { intersectionCircle.remove(); intersectionCircle = null; }
+        renderIntersectionsList();
+    }
+
+    function toggleIntersectionSection(reportType) {
+        const section = document.getElementById('intersectionsSection');
+        if (section) {
+            section.style.display = reportType === 'intersection_insertion' ? '' : 'none';
+        }
+    }
+
+    // ── SAM3 Phase Avancée ────────────────────────────────────────────────────
+
+    function renderSam3PromptsList() {
+        const container = document.getElementById('sam3PromptsList');
+        if (!container) return;
+        if (!sam3Prompts.length) {
+            container.innerHTML = '<div class="text-secondary small fst-italic">Aucun prompt — utilise les défauts (ligne de stop + passage piéton).</div>';
+            return;
+        }
+        container.innerHTML = sam3Prompts.map((p, i) => `
+            <div class="d-flex align-items-center gap-1 mb-1">
+                <input type="text" class="form-control form-control-sm bg-dark text-light border-secondary flex-shrink-0"
+                       style="width:90px;" value="${p.label}" placeholder="label"
+                       onchange="(function(el){
+                           const idx = ${i};
+                           window._sam3LabelChange && window._sam3LabelChange(idx, el.value);
+                       })(this)">
+                <input type="text" class="form-control form-control-sm bg-dark text-light border-secondary"
+                       value="${p.prompt}" placeholder="texte pour SAM3..."
+                       onchange="(function(el){
+                           const idx = ${i};
+                           window._sam3PromptChange && window._sam3PromptChange(idx, el.value);
+                       })(this)">
+                <button class="btn btn-sm btn-outline-danger py-0 px-1" onclick="window._sam3Remove && window._sam3Remove(${i})">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>`).join('');
+    }
+
+    // SAM3 prompt mutation helpers exposed on window to avoid inline closure issues
+    window._sam3LabelChange = (idx, val) => { if (sam3Prompts[idx]) sam3Prompts[idx].label = val; };
+    window._sam3PromptChange = (idx, val) => { if (sam3Prompts[idx]) sam3Prompts[idx].prompt = val; };
+    window._sam3Remove = (idx) => { sam3Prompts.splice(idx, 1); renderSam3PromptsList(); };
+
+    function toggleSam3Config() {
+        const enabled = document.getElementById('sam3MarkingsEnabled').checked;
+        const cfg = document.getElementById('sam3Config');
+        if (cfg) cfg.style.display = enabled ? '' : 'none';
+    }
+
+    document.getElementById('sam3MarkingsEnabled').addEventListener('change', toggleSam3Config);
+
+    document.getElementById('addSam3PromptBtn').addEventListener('click', () => {
+        sam3Prompts.push({ label: 'stop_line', prompt: '' });
+        renderSam3PromptsList();
+    });
+
+    // Sync circle radius when user changes the radius field
+    document.getElementById('intRadius').addEventListener('input', () => {
+        if (intersectionMarker) {
+            const pos = intersectionMarker.getLatLng();
+            _updateIntersectionCircle(pos.lat, pos.lng);
+        }
+    });
+
+    // Sync marker when user types lat/lon manually
+    ['intLat', 'intLon'].forEach(id => {
+        document.getElementById(id).addEventListener('change', () => {
+            const lat = parseFloat(document.getElementById('intLat').value);
+            const lon = parseFloat(document.getElementById('intLon').value);
+            if (!isNaN(lat) && !isNaN(lon) && intersectionMap) {
+                _placeIntersectionMarker(lat, lon);
+            }
+        });
+    });
+
+    // ── Map city search (Nominatim) ───────────────────────────────────────────
+    async function _searchCity() {
+        const input = document.getElementById('mapCitySearch');
+        const errEl = document.getElementById('mapSearchError');
+        const errMsg = document.getElementById('mapSearchErrorMsg');
+        const query = input.value.trim();
+        if (!query || !intersectionMap) return;
+
+        errEl.style.display = 'none';
+        input.disabled = true;
+        document.getElementById('mapCitySearchBtn').disabled = true;
+
+        try {
+            const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1&accept-language=fr`;
+            const resp = await fetch(url, { headers: { 'Accept-Language': 'fr' } });
+            const data = await resp.json();
+            if (data && data.length > 0) {
+                const lat = parseFloat(data[0].lat);
+                const lon = parseFloat(data[0].lon);
+                intersectionMap.setView([lat, lon], 14);
+            } else {
+                errMsg.textContent = `Ville introuvable : « ${query} »`;
+                errEl.style.display = '';
+                setTimeout(() => { errEl.style.display = 'none'; }, 3000);
+            }
+        } catch (e) {
+            errMsg.textContent = 'Erreur de recherche';
+            errEl.style.display = '';
+            setTimeout(() => { errEl.style.display = 'none'; }, 3000);
+        } finally {
+            input.disabled = false;
+            document.getElementById('mapCitySearchBtn').disabled = false;
+        }
+    }
+
+    document.getElementById('mapCitySearchBtn').addEventListener('click', _searchCity);
+    document.getElementById('mapCitySearch').addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); _searchCity(); }
+    });
+
+    // Wire up intersection form buttons
+    document.getElementById('addIntersectionBtn').addEventListener('click', () => openIntersectionForm(null));
+    document.getElementById('saveIntersectionBtn').addEventListener('click', saveIntersection);
+    document.getElementById('cancelIntersectionBtn').addEventListener('click', () => {
+        document.getElementById('intersectionForm').style.display = 'none';
+        editingIntersectionIdx = null;
+        if (intersectionMarker) { intersectionMarker.remove(); intersectionMarker = null; }
+        if (intersectionCircle) { intersectionCircle.remove(); intersectionCircle = null; }
+    });
+
+    // Show/hide intersections section on report type change
+    document.querySelectorAll('input[name="reportType"]').forEach(radio => {
+        radio.addEventListener('change', () => toggleIntersectionSection(radio.value));
+    });
+
+    // =========================================================================
+    // RTMaps Upload
+    // =========================================================================
+
+    let rtmapsPollingTimer = null;
+
+    function updateRtmapsPanel() {
+        const panel = document.getElementById('rtmapsPanel');
+        const opt = profileSelect.options[profileSelect.selectedIndex];
+        const reportType = opt ? opt.dataset.reportType : '';
+        if (panel) {
+            panel.style.display = (reportType === 'intersection_insertion' && currentSessionId) ? '' : 'none';
+        }
+    }
+
+    async function uploadRtmaps() {
+        if (!currentSessionId) return;
+        const recFile = document.getElementById('rtmapsRecFile').files[0];
+        const csvFile = document.getElementById('rtmapsCsvFile').files[0];
+        if (!recFile) { alert('Sélectionnez un fichier .rec'); return; }
+
+        const form = new FormData();
+        form.append('rec_file', recFile);
+        if (csvFile) form.append('csv_file', csvFile);
+
+        const extractBtn = document.getElementById('rtmapsExtractBtn');
+        const progressDiv = document.getElementById('rtmapsProgress');
+        extractBtn.disabled = true;
+        if (progressDiv) progressDiv.style.display = '';
+        setRtmapsProgress(2, 'Envoi du fichier...');
+
+        try {
+            const resp = await fetch(`${config.urls.uploadRtmaps}${currentSessionId}/rtmaps/upload/`, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': config.csrfToken },
+                body: form,
+            });
+            const data = await resp.json();
+            if (!data.success) {
+                alert('Erreur: ' + (data.error || 'Inconnue'));
+                extractBtn.disabled = false;
+                return;
+            }
+            // Start polling extraction status
+            clearInterval(rtmapsPollingTimer);
+            rtmapsPollingTimer = setInterval(() => pollRtmapsStatus(), 2000);
+        } catch (e) {
+            console.error('[RTMaps] upload error:', e);
+            extractBtn.disabled = false;
+        }
+    }
+
+    async function pollRtmapsStatus() {
+        if (!currentSessionId) return;
+        try {
+            const resp = await fetch(`${config.urls.rtmapsStatus}${currentSessionId}/rtmaps/status/`);
+            const data = await resp.json();
+            setRtmapsProgress(data.progress || 0, data.status_message || '');
+
+            if (data.session_status === 'completed' || data.session_status === 'failed' ||
+                data.progress >= 100) {
+                clearInterval(rtmapsPollingTimer);
+                rtmapsPollingTimer = null;
+                document.getElementById('rtmapsExtractBtn').disabled = false;
+                if (data.session_status === 'failed') {
+                    setRtmapsProgress(0, 'Extraction echouee');
+                } else if (data.progress >= 100) {
+                    setRtmapsProgress(100, 'Extraction terminee');
+                    // Reload session to show extracted cameras
+                    setTimeout(() => loadSession(currentSessionId), 1000);
+                }
+            }
+            // If YOLO analysis started, switch to normal polling
+            if (data.session_status === 'processing' || data.session_status === 'pending') {
+                clearInterval(rtmapsPollingTimer);
+                rtmapsPollingTimer = null;
+                startStatusPolling(currentSessionId);
+            }
+        } catch (e) {
+            console.error('[RTMaps] polling error:', e);
+        }
+    }
+
+    function setRtmapsProgress(pct, msg) {
+        const label = document.getElementById('rtmapsProgressLabel');
+        const pctEl = document.getElementById('rtmapsProgressPct');
+        const bar = document.getElementById('rtmapsProgressBar');
+        if (label) label.textContent = msg || 'Extraction en cours...';
+        if (pctEl) pctEl.textContent = Math.round(pct) + '%';
+        if (bar) bar.style.width = pct + '%';
+    }
+
+    // Wire RTMaps extract button
+    document.getElementById('rtmapsRecFile').addEventListener('change', () => {
+        document.getElementById('rtmapsExtractBtn').disabled = !document.getElementById('rtmapsRecFile').files.length;
+    });
+    document.getElementById('rtmapsExtractBtn').addEventListener('click', uploadRtmaps);
+
     async function saveProfile() {
         const name = document.getElementById('profileName').value.trim();
         const reportType = getSelectedReportType();
@@ -1327,7 +1774,12 @@ document.addEventListener('DOMContentLoaded', function () {
                 },
                 body: JSON.stringify({
                     id: editingId,
-                    name, report_type: reportType, model_path: modelPath, task_type: taskType,
+                    name, report_type: reportType, intersections,
+                    road_model_path: document.getElementById('roadModelPath').value.trim(),
+                    sam3_markings_enabled: document.getElementById('sam3MarkingsEnabled').checked,
+                    sam3_markings_prompts: sam3Prompts,
+                    sam3_as_road_fallback: document.getElementById('sam3AsRoadFallback').checked,
+                    model_path: modelPath, task_type: taskType,
                     target_classes: targetClasses, confidence, iou_threshold: iou, tracker,
                 }),
             });
@@ -1420,6 +1872,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     const rtVal = profile.report_type || 'proximity_overtaking';
                     const rtRadio = document.querySelector(`input[name="reportType"][value="${rtVal}"]`);
                     if (rtRadio) rtRadio.checked = true;
+                    toggleIntersectionSection(rtVal);
 
                     document.getElementById('profileName').value = profile.name || '';
                     document.getElementById('profileModel').value = profile.model_path || '';
@@ -1436,6 +1889,19 @@ document.addEventListener('DOMContentLoaded', function () {
                         const cb = document.getElementById(`class_${cls}`);
                         if (cb) cb.checked = true;
                     });
+
+                    // Load intersections + road model
+                    intersections = profile.intersections || [];
+                    renderIntersectionsList();
+                    document.getElementById('intersectionForm').style.display = 'none';
+                    document.getElementById('roadModelPath').value = profile.road_model_path || '';
+
+                    // SAM3 Phase Avancée
+                    document.getElementById('sam3MarkingsEnabled').checked = !!profile.sam3_markings_enabled;
+                    sam3Prompts = Array.isArray(profile.sam3_markings_prompts) ? [...profile.sam3_markings_prompts] : [];
+                    document.getElementById('sam3AsRoadFallback').checked = !!profile.sam3_as_road_fallback;
+                    toggleSam3Config();
+                    renderSam3PromptsList();
                 }
             } catch (e) {
                 console.error('Error loading profile:', e);
@@ -1444,6 +1910,7 @@ document.addEventListener('DOMContentLoaded', function () {
             // No profile selected: reset to defaults
             const defaultRadio = document.querySelector('input[name="reportType"][value="proximity_overtaking"]');
             if (defaultRadio) defaultRadio.checked = true;
+            toggleIntersectionSection('proximity_overtaking');
             document.getElementById('profileName').value = '';
             document.getElementById('profileModel').value = '';
             document.getElementById('profileTaskType').value = 'detect';
@@ -1452,6 +1919,17 @@ document.addEventListener('DOMContentLoaded', function () {
             document.getElementById('profileIou').value = 0.45;
             document.getElementById('iouValue').textContent = '0.45';
             document.getElementById('profileTracker').value = 'botsort';
+            intersections = [];
+            renderIntersectionsList();
+            document.getElementById('intersectionForm').style.display = 'none';
+            document.getElementById('roadModelPath').value = '';
+
+            // SAM3 Phase Avancée — reset
+            document.getElementById('sam3MarkingsEnabled').checked = false;
+            sam3Prompts = [];
+            document.getElementById('sam3AsRoadFallback').checked = false;
+            toggleSam3Config();
+            renderSam3PromptsList();
         }
 
         profileModal.show();
@@ -1463,11 +1941,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
     closeResultsBtn.addEventListener('click', hideResults);
 
-    // Profile assignment: when profile changes, update session + refresh badge
+    // Profile assignment: when profile changes, update session + refresh badge + RTMaps panel
     profileSelect.addEventListener('change', async () => {
         // Update badge immediately from option data-attribute
         const selectedOpt = profileSelect.options[profileSelect.selectedIndex];
         setReportTypeBadge(selectedOpt ? selectedOpt.dataset.reportType : null);
+        updateRtmapsPanel();
 
         if (!currentSessionId) return;
         try {

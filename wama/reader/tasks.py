@@ -1,6 +1,7 @@
 """
 Reader — Celery tasks for OCR processing.
 """
+import json
 import logging
 from celery import shared_task
 from django.core.cache import cache
@@ -113,6 +114,21 @@ def _try_direct_extraction(file_path: str) -> str:
         return ''
 
 
+def _extract_natural_text(text: str) -> str:
+    """Extract natural_text from olmOCR JSON output, or return text as-is."""
+    if not text:
+        return text
+    stripped = text.strip()
+    if stripped.startswith('{'):
+        try:
+            data = json.loads(stripped)
+            if isinstance(data, dict) and 'natural_text' in data:
+                return data['natural_text']
+        except Exception:
+            pass
+    return text
+
+
 @shared_task(bind=True, name='wama.reader.tasks.read_document_task')
 def read_document_task(self, item_id: int):
     close_old_connections()
@@ -131,8 +147,9 @@ def read_document_task(self, item_id: int):
     try:
         item.status = 'RUNNING'
         item.result_text = ''
+        item.raw_result = ''
         item.error_message = ''
-        item.save(update_fields=['status', 'result_text', 'error_message'])
+        item.save(update_fields=['status', 'result_text', 'raw_result', 'error_message'])
 
         # Count pages for PDF if not yet done
         if item.page_count == 0 and item.input_file.name.lower().endswith('.pdf'):
@@ -147,10 +164,11 @@ def read_document_task(self, item_id: int):
             direct_text = _try_direct_extraction(item.input_file.path)
             if direct_text:
                 item.result_text = direct_text
+                item.raw_result = direct_text
                 item.used_backend = 'fitz_direct'
                 item.status = 'DONE'
                 item.progress = 100
-                item.save(update_fields=['result_text', 'used_backend', 'status', 'progress'])
+                item.save(update_fields=['result_text', 'raw_result', 'used_backend', 'status', 'progress'])
                 _set_progress(item_id, 100, "Terminé")
                 _console(user_id, f"[Reader] ✓ {item.filename} — {len(direct_text)} caractères (PDF natif)")
                 return
@@ -169,22 +187,24 @@ def read_document_task(self, item_id: int):
 
         if backend == 'olmocr':
             from .backends.olmocr_backend import OlmOCRBackend
-            result_text = OlmOCRBackend().run(
+            raw_text = OlmOCRBackend().run(
                 item.input_file.path, item.mode, item.language, progress_cb
             )
         elif backend == 'doctr':
             from .backends.doctr_backend import DocTRBackend
-            result_text = DocTRBackend().run(
+            raw_text = DocTRBackend().run(
                 item.input_file.path, item.mode, item.language, progress_cb
             )
         else:
             raise ValueError(f"Backend inconnu : {backend}")
 
+        result_text = _extract_natural_text(raw_text)
         item.result_text = result_text
+        item.raw_result = raw_text
         item.used_backend = backend
         item.status = 'DONE'
         item.progress = 100
-        item.save(update_fields=['result_text', 'used_backend', 'status', 'progress'])
+        item.save(update_fields=['result_text', 'raw_result', 'used_backend', 'status', 'progress'])
 
         _set_progress(item_id, 100, "Terminé")
         _console(user_id, f"[Reader] ✓ {item.filename} — {len(result_text)} caractères extraits")

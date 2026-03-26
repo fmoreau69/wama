@@ -15,8 +15,9 @@
 
 /* Grid placement */
 .camera-slot[data-position="front"] {
-    grid-column: 2;
+    grid-column: 1 / -1;
     grid-row: 1;
+    justify-self: center;
 }
 
 .camera-slot[data-position="left"] {
@@ -39,8 +40,9 @@
 }
 
 .camera-slot[data-position="rear"] {
-    grid-column: 2;
+    grid-column: 1 / -1;
     grid-row: 3;
+    justify-self: center;
 }
 
 /* Camera slots */
@@ -304,4 +306,16 @@
     .camera-slot {
         max-width: 100%;
     }
+}
+
+/* =============================================================================
+   Leaflet map controls — override dark-theme color inheritance
+   ============================================================================= */
+
+.leaflet-control-zoom a,
+.leaflet-control-zoom a:hover,
+.leaflet-bar a,
+.leaflet-bar a:hover {
+    color: #333 !important;
+    background-color: #fff !important;
 }

@@ -61,6 +61,15 @@
     {# ── Right : action buttons ─────────────────────────────────── #}
     <div class="d-flex gap-1 flex-shrink-0">
 
+      {# Settings button #}
+      <button class="btn btn-sm btn-outline-secondary" data-action="settings" title="Paramètres"
+              data-id="{{ item.id }}"
+              data-backend="{{ item.backend }}"
+              data-mode="{{ item.mode }}"
+              data-language="{{ item.language }}">
+        <i class="fas fa-cog"></i>
+      </button>
+
       {# Start / restart button #}
       {% if item.status == 'PENDING' or item.status == 'ERROR' %}
         <button class="btn btn-sm btn-outline-success" data-action="start" title="Lancer">
@@ -96,6 +105,11 @@
                 <i class="fas fa-file-pdf me-2 text-danger"></i>PDF</a></li>
             <li><a class="dropdown-item" href="{% url 'reader:download' item.id %}?format=docx">
                 <i class="fas fa-file-word me-2 text-primary"></i>DOCX</a></li>
+            {% if item.raw_result %}
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item" href="{% url 'reader:download' item.id %}?format=json">
+                <i class="fas fa-code me-2 text-warning"></i>JSON brut</a></li>
+            {% endif %}
           </ul>
         </div>
       {% else %}
@@ -124,8 +138,9 @@
 
   {# Result preview #}
   {% if item.result_text %}
-  <div class="reader-preview mt-2 p-2 rounded bg-black bg-opacity-50 small text-light font-monospace"
-       style="max-height:80px;overflow:hidden;cursor:pointer;" data-action="expand">
+  <div class="reader-preview mt-2 p-2 rounded bg-black bg-opacity-50 small text-light"
+       style="max-height:80px;overflow:hidden;cursor:pointer;white-space:pre-wrap;word-break:break-word;"
+       data-action="expand" title="Clic : développer · Double-clic : texte complet">
     <span class="preview-text">{{ item.result_text|slice:":300"|escape }}</span>
     {% if item.result_text|length > 300 %}<span class="text-muted"> …</span>{% endif %}
   </div>

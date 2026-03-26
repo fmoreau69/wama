@@ -45,7 +45,10 @@ class ReadingItem(models.Model):
     page_count    = models.IntegerField(default=0, help_text='Nombre de pages (PDF)')
 
     # Result
-    result_text   = models.TextField(blank=True, default='')
+    result_text   = models.TextField(blank=True, default='',
+                                     help_text='Texte extrait nettoyé (natural_text si JSON)')
+    raw_result    = models.TextField(blank=True, default='',
+                                     help_text='Sortie brute du backend (JSON olmOCR, texte docTR…)')
     used_backend  = models.CharField(max_length=32, blank=True, default='')
     error_message = models.TextField(blank=True, default='')
 

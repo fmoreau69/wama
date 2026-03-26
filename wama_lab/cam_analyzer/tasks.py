@@ -333,13 +333,69 @@ def _detect_crossing(session, camera, frames,
 
 def _detect_intersection_insertion(session, camera, frames):
     """
-    Stub — Détection d'insertions aux intersections.
-    Sera implémentée en Phase 2 de ce rapport :
-    - Véhicules à l'arrêt aux intersections (droite/gauche) quand la navette approche
-    - Détection si le véhicule s'insère devant la navette (même voie ou voie opposée)
-      ou attend que la navette soit passée
+    Detect vehicle insertions at intersections in front of the shuttle.
+
+    Uses IntersectionAnalyzer with:
+    - profile.intersections : known GPS coordinates of intersections
+    - session.gps_track     : shuttle GPS telemetry (extracted from RTMaps or API CSV)
+    - camera.position       : only 'front' camera is analyzed
     """
-    return []
+    if camera.position != 'front':
+        return []
+
+    from .models import TemporalSegment
+
+    profile = session.profile
+    if not profile:
+        return []
+
+    intersections = profile.intersections or []
+    gps_track = session.gps_track or []
+
+    if not intersections:
+        logger.info("[intersection] No intersections configured in profile, skipping")
+        return []
+
+    if not gps_track:
+        logger.info("[intersection] No GPS track in session, skipping")
+        return []
+
+    from .utils.intersection_analyzer import IntersectionAnalyzer
+
+    analyzer = IntersectionAnalyzer(
+        intersections=intersections,
+        gps_track=gps_track,
+        fps=camera.fps or 12.0,
+        frame_height=camera.height or 250,
+    )
+
+    windows = analyzer.find_intersection_windows()
+    if not windows:
+        logger.info("[intersection] No intersection windows in GPS track")
+        return []
+
+    segments = []
+    for window in windows:
+        t_in = window['t_enter']
+        t_out = window['t_exit']
+        window_frames = [f for f in frames if t_in <= f.timestamp <= t_out]
+
+        if not window_frames:
+            continue
+
+        results = analyzer.analyze_window(window, window_frames)
+        for r in results:
+            segments.append(TemporalSegment(
+                session=session,
+                camera=camera,
+                segment_type=r['type'],    # 'insertion_front' | 'intersection_stop'
+                start_time=r['start'],
+                end_time=r['end'],
+                metadata=r['metadata'],
+            ))
+
+    logger.info(f"[intersection] {len(segments)} segments detected across {len(windows)} windows")
+    return segments
 
 
 def detect_temporal_segments(session):
@@ -468,6 +524,21 @@ def process_session_task(self, session_id: str):
             'max_proximity': 0.0,
         }
 
+        # ── Pre-compute intersection windows (for SAM3 temporal gating) ─────────
+        _sam3_windows = []
+        if (profile.report_type == 'intersection_insertion'
+                and getattr(profile, 'sam3_markings_enabled', False)
+                and session.gps_track
+                and profile.intersections):
+            from .utils.intersection_analyzer import IntersectionAnalyzer as _IA
+            _sam3_windows = _IA(
+                intersections=profile.intersections,
+                gps_track=session.gps_track,
+                fps=12.0,        # approximate — refined per-camera inside the loop
+                frame_height=250,
+            ).find_intersection_windows()
+            _console(user_id, f"SAM3: {len(_sam3_windows)} fenêtre(s) d'intersection pré-calculée(s)")
+
         for cam_idx, camera in enumerate(cameras):
             if _is_cancelled(user_id):
                 raise InterruptedError("Annulé par l'utilisateur")
@@ -500,6 +571,47 @@ def process_session_task(self, session_id: str):
 
             set_session_progress(session_id, cam_progress_start,
                                  f"Analyse caméra {position} ({cam_idx + 1}/{num_cameras})...")
+
+            # ─── Road segmenter (intersection_insertion + front only) ─────────
+            road_segmenter = None
+            if (profile.report_type == 'intersection_insertion'
+                    and position == 'front'
+                    and getattr(profile, 'road_model_path', '')):
+                road_model_path = profile.road_model_path
+                if not os.path.isabs(road_model_path):
+                    road_model_path = os.path.join(settings.BASE_DIR, road_model_path)
+                if os.path.exists(road_model_path):
+                    from .utils.road_segmenter import RoadSegmenter
+                    road_segmenter = RoadSegmenter(road_model_path, device=device)
+                    road_segmenter.load()
+                    _console(user_id, f"  Segmenteur routier chargé: {os.path.basename(road_model_path)}")
+                else:
+                    _console(user_id, f"  AVERTISSEMENT: road_model_path introuvable: {road_model_path}")
+
+            # ─── SAM3 road markings analyzer (Phase Avancée) ──────────────────
+            sam3_analyzer = None
+            _use_sam3_fallback = (
+                getattr(profile, 'sam3_as_road_fallback', False) and road_segmenter is None
+            )
+            if (position == 'front'
+                    and profile.report_type == 'intersection_insertion'
+                    and (_sam3_windows or _use_sam3_fallback)
+                    and (getattr(profile, 'sam3_markings_enabled', False) or _use_sam3_fallback)):
+                raw_prompts = getattr(profile, 'sam3_markings_prompts', []) or []
+                if raw_prompts or _use_sam3_fallback:
+                    try:
+                        from .utils.sam3_road_analyzer import SAM3RoadAnalyzer
+                        sam3_analyzer = SAM3RoadAnalyzer(
+                            marking_prompts=raw_prompts or None,
+                            road_fallback=_use_sam3_fallback,
+                        )
+                        sam3_analyzer.load()
+                        _console(user_id,
+                                 f"  SAM3 chargé — {len(raw_prompts)} prompt(s) marquages"
+                                 + (" + fallback route" if _use_sam3_fallback else ""))
+                    except Exception as _e:
+                        _console(user_id, f"  AVERTISSEMENT SAM3: {_e}")
+                        sam3_analyzer = None
 
             # Setup annotated video writer
             output_dir = os.path.join(settings.MEDIA_ROOT, 'cam_analyzer', str(user_id), 'output')
@@ -562,13 +674,31 @@ def process_session_task(self, session_id: str):
                 detections = _extract_detections(pred, height)
                 timestamp = frame_idx / fps
 
-                # Track max proximity
+                # Append road mask regions (only front camera, intersection_insertion profile)
+                if road_segmenter is not None and pred.orig_img is not None:
+                    road_regions = road_segmenter.segment_frame(pred.orig_img)
+                    detections.extend(road_regions)
+
+                # SAM3 road markings — gated to intersection windows (or road fallback)
+                if sam3_analyzer is not None and pred.orig_img is not None:
+                    _in_window = any(
+                        w['t_enter'] <= timestamp <= w['t_exit'] for w in _sam3_windows
+                    )
+                    if _in_window or _use_sam3_fallback:
+                        try:
+                            markings = sam3_analyzer.analyze_frame(pred.orig_img)
+                            detections.extend(markings)
+                        except Exception as _sam3_err:
+                            logger.debug(f"[SAM3] frame {frame_idx}: {_sam3_err}")
+
+                # Track max proximity — skip non-vehicle entries (road_mask, sam3_marking…)
                 for det in detections:
-                    if det['proximity'] > cam_max_proximity:
-                        cam_max_proximity = det['proximity']
-                    # Count by class
-                    cls_name = det['class_name']
-                    summary['by_class'][cls_name] = summary['by_class'].get(cls_name, 0) + 1
+                    prox = det.get('proximity', 0.0)
+                    if prox and prox > cam_max_proximity:
+                        cam_max_proximity = prox
+                    cls_name = det.get('class_name', '')
+                    if cls_name:
+                        summary['by_class'][cls_name] = summary['by_class'].get(cls_name, 0) + 1
 
                 cam_detections_count += len(detections)
 
@@ -608,6 +738,16 @@ def process_session_task(self, session_id: str):
             if vid_writer:
                 vid_writer.release()
                 has_annotated_video = True
+
+            # Release road segmenter (if any) after this camera is done
+            if road_segmenter is not None:
+                road_segmenter.unload()
+                road_segmenter = None
+
+            # Release SAM3 analyzer (if any) after this camera is done
+            if sam3_analyzer is not None:
+                sam3_analyzer.unload()
+                sam3_analyzer = None
 
             # Update summary
             summary['total_frames'] += total_frames
@@ -696,3 +836,234 @@ def process_session_task(self, session_id: str):
         except Exception:
             pass
         return {'error': str(e), 'session_id': session_id}
+
+
+# =============================================================================
+# RTMaps Extraction Task
+# =============================================================================
+
+@shared_task(bind=True)
+def extract_rtmaps_task(self, session_id: str, rec_path: str, csv_path: str = None):
+    """
+    Extract camera views and GPS data from a RTMaps .rec file.
+
+    Steps:
+    1. Parse .rec -> GPS track + video frame timestamps
+    2. Extract quadrature video frames from .rec binary data into a temporary AVI
+    3. Crop quadrature AVI into front.mp4 and rear.mp4
+    4. Create CameraView records for front + rear
+    5. Save GPS track to session.gps_track
+    6. Launch process_session_task
+    """
+    close_old_connections()
+
+    from .models import AnalysisSession, CameraView
+    from .utils.rtmaps_parser import RTMapsParser, merge_with_api_csv
+    from .utils.quadrature_video import export_quadrature_view, LAYOUT_NAVYA
+
+    EXTRACT_CACHE_KEY = f"cam_analyzer_extract_{session_id}"
+
+    def _set_progress(pct, msg=None):
+        cache.set(EXTRACT_CACHE_KEY, {'progress': pct, 'status': msg or ''}, timeout=3600)
+
+    try:
+        session = AnalysisSession.objects.get(pk=session_id)
+        user_id = session.user_id
+        _console(user_id, "Extraction RTMaps démarrée...")
+        _set_progress(2, "Lecture du fichier .rec...")
+
+        # ── 1. Parse GPS + metadata ──────────────────────────────────────
+        parser = RTMapsParser()
+        parsed = parser.parse(rec_path)
+
+        _set_progress(15, "GPS extrait, fusion CSV...")
+
+        # ── 2. Merge with API CSV ────────────────────────────────────────
+        gps_track = merge_with_api_csv(parsed['gps'], csv_path)
+
+        if not gps_track:
+            _console(user_id, "AVERTISSEMENT: aucune donnée GPS extraite")
+        else:
+            _console(user_id, f"GPS: {len(gps_track)} points extraits")
+
+        _set_progress(20, "Extraction de la vidéo quadrature...")
+
+        # ── 3. Build quadrature video from RTMaps binary H264 frames ────
+        # The .rec file contains raw H264 NAL units in the video stream.
+        # Extract them into a single AVI file using frame-by-frame writing.
+        output_dir = os.path.join(settings.MEDIA_ROOT, 'cam_analyzer', str(user_id), 'rtmaps')
+        os.makedirs(output_dir, exist_ok=True)
+
+        import re as _re
+        session_slug = _re.sub(r'[^a-zA-Z0-9_-]', '_', session.name or str(session_id)[:8])
+        quad_path = os.path.join(output_dir, f"{session_slug}_quad.avi")
+
+        _extract_h264_frames_to_avi(rec_path, quad_path, user_id)
+
+        if not os.path.exists(quad_path):
+            raise RuntimeError(f"Quadrature video extraction failed: {quad_path}")
+
+        _set_progress(60, "Crop des vues avant / arrière...")
+
+        # ── 4. Crop front + rear views ───────────────────────────────────
+        front_path = os.path.join(output_dir, f"{session_slug}_front.avi")
+        rear_path = os.path.join(output_dir, f"{session_slug}_rear.avi")
+
+        front_meta = export_quadrature_view(quad_path, front_path, 'front', LAYOUT_NAVYA)
+        _set_progress(75, "Vue avant extraite, traitement arrière...")
+
+        rear_meta = export_quadrature_view(quad_path, rear_path, 'rear', LAYOUT_NAVYA)
+        _set_progress(85, "Vues extraites, création des caméras...")
+
+        # ── 5. Create CameraView records ─────────────────────────────────
+        # Remove existing cameras for this session (re-extraction)
+        for existing in session.cameras.all():
+            if existing.video_file:
+                try:
+                    existing.video_file.delete(save=False)
+                except Exception:
+                    pass
+        session.cameras.all().delete()
+
+        for pos, meta, fpath in [('front', front_meta, front_path), ('rear', rear_meta, rear_path)]:
+            if 'error' in meta:
+                _console(user_id, f"AVERTISSEMENT: vue {pos} non disponible: {meta['error']}")
+                continue
+            # Store path relative to MEDIA_ROOT
+            rel_path = os.path.relpath(fpath, settings.MEDIA_ROOT).replace('\\', '/')
+            cam = CameraView(
+                session=session,
+                position=pos,
+                label=f"RTMaps {pos}",
+            )
+            cam.video_file.name = rel_path
+            cam.fps = meta.get('fps')
+            cam.width = meta.get('width')
+            cam.height = meta.get('height')
+            cam.duration = meta.get('duration')
+            cam.save()
+            _console(user_id, f"Caméra {pos} : {meta.get('frame_count', 0)} frames, {meta.get('duration', 0):.1f}s")
+
+        # ── 6. Save GPS track + source type ─────────────────────────────
+        session.gps_track = gps_track
+        session.source_type = 'rtmaps'
+        session.save(update_fields=['gps_track', 'source_type'])
+
+        _set_progress(95, "Lancement de l'analyse YOLO...")
+        _console(user_id, "Extraction RTMaps terminée — lancement de l'analyse")
+
+        # ── 7. Launch YOLO analysis ──────────────────────────────────────
+        process_session_task.delay(str(session_id))
+
+        _set_progress(100, "Extraction terminée")
+        return {'extracted': session_id}
+
+    except Exception as e:
+        logger.error(f"RTMaps extraction failed for session {session_id}: {e}", exc_info=True)
+        try:
+            session = AnalysisSession.objects.get(pk=session_id)
+            session.status = AnalysisSession.Status.FAILED
+            session.error_message = f"Extraction RTMaps échouée: {e}"
+            session.save(update_fields=['status', 'error_message'])
+            _console(session.user_id, f"ERREUR extraction RTMaps: {e}")
+        except Exception:
+            pass
+        cache.set(
+            f"cam_analyzer_extract_{session_id}",
+            {'progress': 0, 'status': f'Erreur: {e}'},
+            timeout=3600,
+        )
+        return {'error': str(e), 'session_id': session_id}
+
+
+def _extract_h264_frames_to_avi(rec_path: str, output_avi: str, user_id: int) -> None:
+    """
+    Extract H264 video frames from RTMaps .rec binary stream and write them
+    to an AVI file.
+
+    RTMaps stores each video frame as a binary blob in the record line after '='.
+    For H264 streams, the blob starts with a NAL unit header (0x00 0x00 0x00 0x01).
+
+    Approach: scan rec file for lines matching the h264 stream, decode each
+    frame using cv2.imdecode on the raw JPEG-encoded data embedded in NAL units,
+    OR use ffmpeg to remux directly from the rec file if available.
+    """
+    import subprocess
+    import re
+
+    # Strategy 1: Try ffmpeg direct remux (fastest, most reliable)
+    # RTMaps .rec files may be playable directly by ffmpeg as raw H264
+    try:
+        result = subprocess.run(
+            ['ffprobe', '-v', 'error', '-show_streams', '-of', 'json', rec_path],
+            capture_output=True, text=True, timeout=30,
+        )
+        if result.returncode == 0 and 'h264' in result.stdout.lower():
+            proc = subprocess.run(
+                ['ffmpeg', '-i', rec_path, '-c:v', 'copy', output_avi, '-y'],
+                capture_output=True, text=True, timeout=600,
+            )
+            if proc.returncode == 0 and os.path.exists(output_avi):
+                logger.info(f"[RTMaps] ffmpeg direct remux succeeded: {output_avi}")
+                return
+    except Exception as e:
+        logger.debug(f"[RTMaps] ffmpeg direct remux not available: {e}")
+
+    # Strategy 2: Parse .rec lines, extract JPEG signatures frame-by-frame
+    # RTMaps sometimes encodes video frames as Motion JPEG or JPEG-in-H264
+    logger.info(f"[RTMaps] Parsing .rec for video frames: {rec_path}")
+
+    VIDEO_STREAM_RE = re.compile(r'h264_stream', re.IGNORECASE)
+    LINE_RE = re.compile(r'^(\d+:\d+\.\d+)\s*/\s*([^#]+)#(\d+)@(\d+)=(.*)$', re.DOTALL)
+
+    frames = []
+    timestamps = []
+
+    with open(rec_path, 'r', encoding='utf-8', errors='replace') as f:
+        for raw_line in f:
+            line = raw_line.strip()
+            if not line:
+                continue
+            m = LINE_RE.match(line)
+            if not m:
+                continue
+            _, stream_name, _, ts_str, value = m.groups()
+            if not VIDEO_STREAM_RE.search(stream_name):
+                continue
+
+            # Attempt to decode as JPEG
+            import numpy as np
+            import cv2 as _cv2
+            raw_bytes = value.encode('latin-1', errors='replace')
+            jpeg_start = raw_bytes.find(b'\xff\xd8')
+            if jpeg_start != -1:
+                arr = np.frombuffer(raw_bytes[jpeg_start:], dtype=np.uint8)
+                img = _cv2.imdecode(arr, _cv2.IMREAD_COLOR)
+                if img is not None:
+                    frames.append(img)
+                    timestamps.append(int(ts_str))
+
+    if not frames:
+        logger.warning(f"[RTMaps] No video frames extracted from {rec_path}")
+        raise RuntimeError(
+            "Impossible d'extraire les frames vidéo du fichier .rec. "
+            "Vérifiez que le fichier contient un stream H264/MJPEG."
+        )
+
+    # Compute FPS from timestamp differences
+    import numpy as np
+    fps = 12.0
+    if len(timestamps) > 1:
+        diffs = np.diff(timestamps)
+        median_dt = float(np.median(diffs))
+        if median_dt > 0:
+            fps = round(1e9 / median_dt, 2)
+
+    h, w = frames[0].shape[:2]
+    fourcc = cv2.VideoWriter_fourcc(*'MJPG')
+    writer = cv2.VideoWriter(output_avi, fourcc, fps, (w, h))
+    for frame in frames:
+        writer.write(frame)
+    writer.release()
+
+    logger.info(f"[RTMaps] Wrote {len(frames)} frames @ {fps} fps -> {output_avi}")

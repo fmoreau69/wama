@@ -41,6 +41,10 @@ urlpatterns = [
     path('api/profiles/save/', views.save_profile, name='save_profile'),
     path('api/profiles/<int:profile_id>/delete/', views.delete_profile, name='delete_profile'),
 
+    # RTMaps extraction
+    path('api/sessions/<uuid:session_id>/rtmaps/upload/', views.upload_rtmaps, name='upload_rtmaps'),
+    path('api/sessions/<uuid:session_id>/rtmaps/status/', views.rtmaps_status, name='rtmaps_status'),
+
     # Console
     path('console/', views.console_content, name='console'),
 ]

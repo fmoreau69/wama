@@ -19,7 +19,7 @@ from django.views.decorators.http import require_POST
 from django.db import transaction
 
 from .models import ReadingItem, BatchReadingItem, BatchReadingItemLink
-from .tasks import read_document_task, _count_pdf_pages
+from .tasks import read_document_task, _count_pdf_pages, _extract_natural_text
 from wama.accounts.views import get_or_create_anonymous_user
 from wama.common.utils.console_utils import get_console_lines
 from wama.common.utils.queue_duplication import safe_delete_file, duplicate_instance
@@ -50,8 +50,9 @@ def _item_to_dict(item: ReadingItem) -> dict:
         'progress': progress,
         'progress_msg': progress_msg,
         'page_count': item.page_count,
-        'result_preview': item.result_text[:300] if item.result_text else '',
+        'result_preview': _extract_natural_text(item.result_text)[:300] if item.result_text else '',
         'has_result': bool(item.result_text),
+        'has_raw_result': bool(item.raw_result),
         'used_backend': item.used_backend,
         'error_message': item.error_message,
         'analysis': item.analysis,
@@ -187,6 +188,7 @@ def start(request, pk: int):
         item.status = 'RUNNING'
         item.task_id = ''
         item.result_text = ''
+        item.raw_result = ''
         item.error_message = ''
         item.progress = 0
         item.save()
@@ -206,14 +208,35 @@ def progress(request, pk: int):
 
 
 @login_required
-def download(request, pk: int):
-    """Download the OCR result. Supported formats: txt (default), md, pdf, docx."""
+def text_view(request, pk: int):
+    """Return the full extracted text as JSON (used by the in-page full-text modal)."""
     item = get_object_or_404(ReadingItem, pk=pk, user=_get_user(request))
-    if not item.result_text:
-        return HttpResponseBadRequest('Pas encore de résultat')
+    return JsonResponse({'text': _extract_natural_text(item.result_text) or '', 'filename': item.filename})
+
+
+@login_required
+def download(request, pk: int):
+    """Download the OCR result. Supported formats: txt (default), md, pdf, docx, json."""
+    item = get_object_or_404(ReadingItem, pk=pk, user=_get_user(request))
 
     fmt = request.GET.get('format', 'txt').lower()
     base = os.path.splitext(item.filename)[0]
+
+    # JSON format — serve raw backend output
+    if fmt == 'json':
+        if not item.raw_result:
+            return HttpResponseBadRequest('Pas de données JSON disponibles')
+        buffer = io.BytesIO(item.raw_result.encode('utf-8'))
+        buffer.seek(0)
+        return FileResponse(
+            buffer,
+            as_attachment=True,
+            filename=f"{base}_ocr_raw.json",
+            content_type='application/json; charset=utf-8',
+        )
+
+    if not item.result_text:
+        return HttpResponseBadRequest('Pas encore de résultat')
 
     if fmt == 'pdf':
         try:
@@ -245,10 +268,10 @@ def download(request, pk: int):
             return HttpResponseBadRequest(f'Erreur DOCX : {e}')
 
     # txt / md (default)
-    is_md = (fmt == 'md') or (item.output_format == 'markdown' and fmt == 'txt')
+    is_md = (fmt == 'md')
     ext = '.md' if is_md else '.txt'
     content_type = 'text/markdown' if is_md else 'text/plain'
-    buffer = io.BytesIO(item.result_text.encode('utf-8'))
+    buffer = io.BytesIO(_extract_natural_text(item.result_text).encode('utf-8'))
     buffer.seek(0)
     return FileResponse(
         buffer,
@@ -531,8 +554,9 @@ def batch_start(request, pk):
         r.status = 'RUNNING'
         r.progress = 0
         r.result_text = ''
+        r.raw_result = ''
         r.error_message = ''
-        r.save(update_fields=['status', 'progress', 'result_text', 'error_message'])
+        r.save(update_fields=['status', 'progress', 'result_text', 'raw_result', 'error_message'])
 
         task = read_document_task.delay(r.id)
         r.task_id = task.id
