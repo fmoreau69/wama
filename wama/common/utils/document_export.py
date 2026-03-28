@@ -4,12 +4,37 @@ Génération de fichiers PDF (fpdf2) et DOCX (python-docx) à partir des résult
 des applications Describer et Transcriber.
 """
 import io
+import re
 import datetime
 
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Helper — FPDF base class with header/footer
 # ──────────────────────────────────────────────────────────────────────────────
+
+def _strip_markdown(text: str) -> str:
+    """Strip markdown syntax while preserving paragraph structure for PDF/DOCX rendering."""
+    if not text:
+        return text
+    t = text
+    # Remove heading markers
+    t = re.sub(r'^#{1,6}\s+', '', t, flags=re.MULTILINE)
+    # Remove bold/italic markers
+    t = re.sub(r'\*{1,3}|_{1,3}', '', t)
+    # Remove table separator lines (|---|---|)
+    t = re.sub(r'^\s*\|[-|: ]+\|\s*$', '', t, flags=re.MULTILINE)
+    # Replace table pipes with spaces
+    t = re.sub(r'\|', '  ', t)
+    # Remove inline code backticks
+    t = re.sub(r'`+', '', t)
+    # Strip list bullet markers at line start
+    t = re.sub(r'^\s*[-*+]\s+', '', t, flags=re.MULTILINE)
+    # Collapse 3+ blank lines into 2
+    t = re.sub(r'\n{3,}', '\n\n', t)
+    # Strip trailing whitespace per line
+    t = re.sub(r'[ \t]+$', '', t, flags=re.MULTILINE)
+    return t.strip()
+
 
 def _sanitize_for_latin1(text: str) -> str:
     """Replace characters outside Latin-1 with ASCII equivalents for fpdf2 built-in fonts."""
@@ -338,13 +363,13 @@ def generate_reader_pdf(item) -> bytes:
 
     # ── OCR Text ──
     _section_title(pdf, 'Texte Extrait')
-    _body_text(pdf, _sanitize_for_latin1(item.result_text or ''))
+    _body_text(pdf, _sanitize_for_latin1(_strip_markdown(item.result_text or '')))
 
     # ── Analysis (if any) ──
     if item.analysis:
         pdf.ln(2)
         _section_title(pdf, 'Analyse')
-        _body_text(pdf, _sanitize_for_latin1(item.analysis))
+        _body_text(pdf, _sanitize_for_latin1(_strip_markdown(item.analysis)))
 
     return bytes(pdf.output())
 
@@ -383,12 +408,12 @@ def generate_reader_docx(item) -> bytes:
 
     # OCR text
     doc.add_heading('Texte Extrait', 1)
-    doc.add_paragraph(item.result_text or '')
+    doc.add_paragraph(_strip_markdown(item.result_text or ''))
 
     # Analysis
     if item.analysis:
         doc.add_heading('Analyse', 1)
-        doc.add_paragraph(item.analysis)
+        doc.add_paragraph(_strip_markdown(item.analysis))
 
     buf = io.BytesIO()
     doc.save(buf)

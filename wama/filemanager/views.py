@@ -978,10 +978,12 @@ def is_path_allowed(path, user):
     # Allow app folders (TODO: add per-user filtering for app files)
     allowed_prefixes = [
         'anonymizer/',
+        'avatarizer/',
         'composer/',
         'describer/',
         'enhancer/',
         'imager/',
+        'reader/',
         'synthesizer/',
         'transcriber/',
         'face_analyzer/',

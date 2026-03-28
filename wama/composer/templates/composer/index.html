@@ -131,10 +131,10 @@
         </span>
     </label>
     <input type="range" class="form-range" id="durationSlider"
-           min="1" max="30" step="1" value="10">
+           min="10" max="300" step="5" value="10">
     <div class="d-flex justify-content-between">
-        <small class="text-muted">1s</small>
-        <small class="text-muted">30s</small>
+        <small class="text-muted">10s</small>
+        <small class="text-muted">5min</small>
     </div>
 </div>
 
@@ -156,7 +156,7 @@
     </label>
     <input type="file" class="form-control form-control-sm bg-dark text-light border-secondary"
            id="melodyInput" accept="audio/*">
-    <small class="text-muted">Audio 5–30s servant de ligne mélodique</small>
+    <small class="text-muted">Audio 5s–5min servant de ligne mélodique</small>
 </div>
 
 <!-- Reset Button -->
@@ -315,7 +315,7 @@
                         </span>
                     </label>
                     <input type="range" class="form-range" id="settingsDuration"
-                           min="1" max="30" step="1" value="10">
+                           min="10" max="300" step="5" value="10">
                 </div>
             </div>
             <div class="modal-footer border-secondary py-2">

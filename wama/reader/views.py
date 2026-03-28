@@ -18,6 +18,8 @@ from django.core.cache import cache
 from django.views.decorators.http import require_POST
 from django.db import transaction
 
+import re
+
 from .models import ReadingItem, BatchReadingItem, BatchReadingItemLink
 from .tasks import read_document_task, _count_pdf_pages, _extract_natural_text
 from wama.accounts.views import get_or_create_anonymous_user
@@ -25,6 +27,21 @@ from wama.common.utils.console_utils import get_console_lines
 from wama.common.utils.queue_duplication import safe_delete_file, duplicate_instance
 
 logger = logging.getLogger(__name__)
+
+
+def _compact_preview(text: str, max_chars: int = 400) -> str:
+    """Strip markdown syntax and collapse whitespace for card compact preview."""
+    if not text:
+        return ''
+    t = str(text)
+    t = re.sub(r'^#{1,6}\s+', '', t, flags=re.MULTILINE)
+    t = re.sub(r'\*{1,3}|_{1,3}', '', t)
+    t = re.sub(r'^\s*[-*+]\s+', '', t, flags=re.MULTILINE)
+    t = re.sub(r'\|', ' ', t)
+    t = re.sub(r'`+', '', t)
+    t = re.sub(r'\s+', ' ', t).strip()
+    return t[:max_chars]
+
 
 ACCEPTED_EXTENSIONS = {'.pdf', '.jpg', '.jpeg', '.png', '.tiff', '.tif', '.webp', '.bmp'}
 
@@ -50,7 +67,7 @@ def _item_to_dict(item: ReadingItem) -> dict:
         'progress': progress,
         'progress_msg': progress_msg,
         'page_count': item.page_count,
-        'result_preview': _extract_natural_text(item.result_text)[:300] if item.result_text else '',
+        'result_preview': _compact_preview(item.result_text) if item.result_text else '',
         'has_result': bool(item.result_text),
         'has_raw_result': bool(item.raw_result),
         'used_backend': item.used_backend,

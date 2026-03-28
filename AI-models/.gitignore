@@ -56,6 +56,26 @@ models/speech/bark/
 models/speech/whisper/
 models/speech/higgs/
 models/speech/vibevoice/
+models/speech/deepfilternet/
+models/speech/kokoro/
+models/speech/qwen_asr/
+models/speech/resemble-enhance/
+models/speech/diarization/
+
+# -----------------------------------------------------------------------------
+# models/lipsync/ - Lip sync (MuseTalk…)
+# -----------------------------------------------------------------------------
+models/lipsync/
+
+# -----------------------------------------------------------------------------
+# models/reader/ - Document OCR backends (docTR, olmOCR…)
+# -----------------------------------------------------------------------------
+models/reader/
+
+# -----------------------------------------------------------------------------
+# models/music/ - Music generation
+# -----------------------------------------------------------------------------
+models/music/
 
 # -----------------------------------------------------------------------------
 # models/diffusion/ - Image & Video generation

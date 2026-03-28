@@ -105,3 +105,6 @@ tmpclaude-*-cwd
 .DS_Store
 *.sqlite3
 *.rdb
+
+# Cloned third-party repos embedded in the project
+wama/avatarizer/musetalk/

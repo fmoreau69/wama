@@ -25,6 +25,14 @@
         return s ? `~${m}min${String(s).padStart(2, '0')}s` : `~${m}min`;
     }
 
+    function _fmtDur(secs) {
+        const s = parseInt(secs, 10);
+        if (s < 60) return s + 's';
+        const m = Math.floor(s / 60);
+        const r = s % 60;
+        return r ? `${m}m${String(r).padStart(2, '0')}s` : `${m}min`;
+    }
+
     // ---------------------------------------------------------------------------
     // Right-panel interactivity
     // ---------------------------------------------------------------------------
@@ -60,7 +68,7 @@
 
     if (durationSlider) {
         durationSlider.addEventListener('input', function () {
-            durationDisplay.textContent = this.value + 's';
+            durationDisplay.textContent = _fmtDur(this.value);
             updateEstimate();
         });
     }
@@ -108,7 +116,7 @@
 
     if (settingsDuration) {
         settingsDuration.addEventListener('input', function () {
-            settingsDurationVal.textContent = this.value + 's';
+            settingsDurationVal.textContent = _fmtDur(this.value);
             updateSettingsEstimate();
         });
     }
@@ -444,7 +452,7 @@
             if (settingsModel) settingsModel.value = settingsBtn.dataset.model || 'musicgen-small';
             if (settingsDuration) {
                 settingsDuration.value = settingsBtn.dataset.duration || 10;
-                settingsDurationVal.textContent = settingsDuration.value + 's';
+                settingsDurationVal.textContent = _fmtDur(settingsDuration.value);
             }
             updateSettingsEstimate();
             new bootstrap.Modal(document.getElementById('settingsModal')).show();
@@ -561,6 +569,17 @@
             else bar.classList.add('bg-secondary');
         }
 
+        // Progress text percentage
+        const progressText = card.querySelector('.progress-text');
+        if (progressText) {
+            const node = progressText.firstChild;
+            if (node && node.nodeType === Node.TEXT_NODE) {
+                node.textContent = progress + '%\n';
+            } else {
+                progressText.prepend(document.createTextNode(progress + '%\n'));
+            }
+        }
+
         // Badge
         const badge = card.querySelector('.badge');
         if (badge) {
@@ -583,30 +602,44 @@
 
         if (genMeta[id]) genMeta[id].lastProgress = progress;
 
-        // Clear or set error message
+        // Clear or set error message  (view returns field as 'error', not 'error_message')
         const actionsCol = card.querySelector('.col-md-3');
         const existingErr = actionsCol?.querySelector('.error-message');
-        if (status === 'FAILURE' && data?.error_message) {
+        const errMsg = data?.error || data?.error_message || '';
+        if (status === 'FAILURE' && errMsg) {
             if (existingErr) {
-                existingErr.innerHTML = `<i class="fas fa-exclamation-triangle"></i> ${data.error_message.substring(0, 80)}`;
+                existingErr.innerHTML = `<i class="fas fa-exclamation-triangle"></i> ${errMsg.substring(0, 80)}`;
             } else if (actionsCol) {
                 actionsCol.insertAdjacentHTML('beforeend',
                     `<small class="error-message text-danger d-block mt-1">` +
-                    `<i class="fas fa-exclamation-triangle"></i> ${data.error_message.substring(0, 80)}</small>`);
+                    `<i class="fas fa-exclamation-triangle"></i> ${errMsg.substring(0, 80)}</small>`);
             }
         } else if (existingErr) {
             existingErr.remove();
         }
 
-        // If success, inject audio player and action buttons
+        // If success, inject audio player, action buttons and settings button
         if (status === 'SUCCESS' && data?.audio_url) {
             const preview = card.querySelector('.audio-preview');
-            if (preview && !preview.querySelector('audio')) {
-                preview.innerHTML = `<audio controls class="w-100" style="height:32px;">
-                    <source src="${data.audio_url}" type="audio/wav"></audio>`;
+            if (preview) {
+                if (!preview.querySelector('audio')) {
+                    preview.innerHTML = `<audio controls class="w-100" style="height:32px;">
+                        <source src="${data.audio_url}" type="audio/wav"></audio>`;
+                }
+                preview.style.display = '';  // always show, even if already had audio from server render
             }
             if (data.download_url && !card.querySelector('.preview-btn')) {
                 const actionsDiv = card.querySelector('.d-flex.flex-wrap');
+                // Add settings button if missing (dynamically created cards start without one)
+                if (!actionsDiv?.querySelector('.settings-btn')) {
+                    const model = card.dataset.model || '';
+                    const dur   = card.dataset.duration || '10';
+                    actionsDiv?.insertAdjacentHTML('afterbegin',
+                        `<button class="btn btn-sm btn-secondary settings-btn"
+                            data-id="${id}" data-model="${model}" data-duration="${dur}"
+                            title="Modifier les paramètres et re-générer">
+                            <i class="fas fa-cog"></i></button>`);
+                }
                 const settingsBtn = actionsDiv?.querySelector('.settings-btn');
                 const btns = `
                     <button class="btn btn-sm btn-success preview-btn" data-id="${id}" title="Écouter">
@@ -627,6 +660,8 @@
         const id = parseInt(card.dataset.id);
         const badge = card.querySelector('.badge');
         if (badge && (badge.textContent.trim() === 'En cours' || badge.textContent.trim() === 'En attente')) {
+            const est = parseInt(card.dataset.estimatedSeconds) || 30;
+            genMeta[id] = { estimatedSeconds: est, startedAt: Date.now(), lastProgress: 0 };
             startPolling(id);
         }
     });
@@ -657,7 +692,9 @@
 
         const html = `
         <div class="generation-card p-2 rounded border border-warning processing mb-1"
-             data-id="${data.id}" data-estimated-seconds="${est}" style="background:#1e2124;">
+             data-id="${data.id}" data-estimated-seconds="${est}"
+             data-model="${data.model}" data-duration="${data.duration}"
+             style="background:#1e2124;">
             <div class="row align-items-center g-2">
                 <div class="col-md-4">
                     <div class="d-flex align-items-center gap-2">

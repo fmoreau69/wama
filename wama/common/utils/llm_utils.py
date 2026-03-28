@@ -36,13 +36,22 @@ def get_describer_model(content_type: str, output_format: str) -> str:
     return default
 
 
-def ollama_chat(messages: list, model: str = 'qwen3.5:9b') -> tuple[Optional[str], Optional[str]]:
+def ollama_chat(
+    messages: list,
+    model: str = 'qwen3.5:9b',
+    num_predict: int = 2048,
+    think: bool = True,
+) -> tuple[Optional[str], Optional[str]]:
     """
     Send a chat request to the local Ollama server.
 
     Args:
-        messages: List of {"role": ..., "content": ...} dicts.
-        model:    Ollama model name.
+        messages:    List of {"role": ..., "content": ...} dicts.
+        model:       Ollama model name.
+        num_predict: Max tokens to generate (default 2048).
+        think:       Enable Qwen3 thinking mode (default True). Set False for
+                     deterministic formatting tasks to avoid consuming the
+                     token budget on reasoning before the actual answer.
 
     Returns:
         (text, None)  on success
@@ -54,14 +63,18 @@ def ollama_chat(messages: list, model: str = 'qwen3.5:9b') -> tuple[Optional[str
     host = getattr(settings, 'OLLAMA_HOST', 'http://127.0.0.1:11434').rstrip('/')
     url = f"{host}/api/chat"
 
+    payload = {
+        "model": model,
+        "messages": messages,
+        "options": {"temperature": 0.3, "num_predict": num_predict},
+        "stream": False,
+    }
+    if not think:
+        payload["think"] = False
+
     try:
         with httpx.Client(timeout=180.0, trust_env=False) as client:
-            resp = client.post(url, json={
-                "model": model,
-                "messages": messages,
-                "options": {"temperature": 0.3, "num_predict": 2048},
-                "stream": False,
-            })
+            resp = client.post(url, json=payload)
         if resp.status_code != 200:
             return None, f"Ollama HTTP {resp.status_code}: {resp.text[:200]}"
         text = resp.json().get("message", {}).get("content", "") or ""

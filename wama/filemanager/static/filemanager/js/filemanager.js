@@ -891,6 +891,8 @@
             'mp4', 'webm', 'mov', 'avi', 'mkv', 'wmv', 'flv',
             // Audio
             'mp3', 'wav', 'ogg', 'flac', 'm4a', 'aac',
+            // Documents
+            'pdf',
             // Text
             'txt', 'md', 'json', 'xml', 'csv', 'log', 'py', 'js', 'css', 'html', 'yml', 'yaml'
         ];
@@ -1686,6 +1688,11 @@
             });
         } else if (mime.startsWith('audio/')) {
             container.innerHTML = `<audio src="${data.url}" controls autoplay style="width:100%;"></audio>`;
+        } else if (mime === 'application/pdf') {
+            container.innerHTML = `
+                <embed src="${data.url}" type="application/pdf"
+                       style="width:100%; height:70vh; border:none; border-radius:6px;">
+            `;
         } else if (data.text_content !== undefined) {
             const escapedContent = escapeHtml(data.text_content);
             container.innerHTML = `<pre class="text-preview" style="background:#0d1117;border:1px solid #374151;border-radius:6px;padding:15px;max-height:60vh;overflow:auto;white-space:pre-wrap;word-wrap:break-word;font-family:'Consolas','Monaco',monospace;font-size:0.85rem;color:#e2e8f0;margin:0;">${escapedContent}</pre>`;

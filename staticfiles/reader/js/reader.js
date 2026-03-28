@@ -69,7 +69,7 @@
 
         const previewHtml = item.result_preview
             ? `<div class="reader-preview mt-2 p-2 rounded bg-black bg-opacity-50 small text-light"
-                    style="max-height:80px;overflow:hidden;cursor:pointer;white-space:pre-wrap;word-break:break-word;"
+                    style="max-height:80px;overflow:hidden;cursor:pointer;word-break:break-word;"
                     data-action="expand" title="Clic : développer · Double-clic : texte complet">
                  <span class="preview-text">${escapeHtml(item.result_preview)}</span>
                  ${item.has_result ? '<span class="text-muted"> …</span>' : ''}

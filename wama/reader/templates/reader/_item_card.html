@@ -1,4 +1,4 @@
-{% load i18n %}
+{% load i18n reader_tags %}
 {% comment %}
   Partial server-side card body for ReadingItem.
   Mirrors the JS buildCard() function for initial page render.
@@ -139,10 +139,10 @@
   {# Result preview #}
   {% if item.result_text %}
   <div class="reader-preview mt-2 p-2 rounded bg-black bg-opacity-50 small text-light"
-       style="max-height:80px;overflow:hidden;cursor:pointer;white-space:pre-wrap;word-break:break-word;"
+       style="max-height:80px;overflow:hidden;cursor:pointer;word-break:break-word;"
        data-action="expand" title="Clic : développer · Double-clic : texte complet">
-    <span class="preview-text">{{ item.result_text|slice:":300"|escape }}</span>
-    {% if item.result_text|length > 300 %}<span class="text-muted"> …</span>{% endif %}
+    <span class="preview-text">{{ item.result_text|compact_preview:400|escape }}</span>
+    {% if item.result_text|length > 100 %}<span class="text-muted"> …</span>{% endif %}
   </div>
   {% endif %}
 

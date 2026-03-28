@@ -129,6 +129,47 @@ def _extract_natural_text(text: str) -> str:
     return text
 
 
+def _format_as_markdown(text: str, language: str = '') -> str:
+    """
+    Use a local LLM (Ollama) to reformat raw OCR text as clean Markdown.
+    Preserves all content — only applies structure (headings, lists, tables, bold…).
+    Falls back to the original text if the LLM is unavailable or fails.
+    """
+    if not text or not text.strip():
+        return text
+
+    lang_hint = f" The document language is {language}." if language else ""
+    system_prompt = (
+        "You are a document formatting assistant.{hint} "
+        "The following text was extracted by an OCR engine. "
+        "Reformat it as clean, well-structured Markdown. "
+        "Rules: preserve ALL content exactly — do not add, remove, translate, or summarise anything; "
+        "use # / ## / ### for headings, - or * for bullet lists, | for tables, "
+        "**bold** for labels or emphasis already present in the source; "
+        "fix obvious OCR artefacts (run-on words, stray hyphens, broken line breaks). "
+        "Return only the formatted Markdown, no preamble or explanation."
+    ).format(hint=lang_hint)
+
+    from wama.common.utils.llm_utils import ollama_chat, get_describer_model
+    model = get_describer_model('text', 'markdown')
+
+    result, error = ollama_chat(
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": text},
+        ],
+        model=model,
+        num_predict=8192,
+        think=False,
+    )
+
+    if error or not result:
+        logger.warning(f"[Reader] Mise en forme Markdown échouée ({error}) — texte brut conservé")
+        return text
+
+    return result.strip()
+
+
 @shared_task(bind=True, name='wama.reader.tasks.read_document_task')
 def read_document_task(self, item_id: int):
     close_old_connections()
@@ -199,6 +240,12 @@ def read_document_task(self, item_id: int):
             raise ValueError(f"Backend inconnu : {backend}")
 
         result_text = _extract_natural_text(raw_text)
+
+        # Post-processing: LLM Markdown formatting (always applied)
+        _set_progress(item_id, 98, "Mise en forme…")
+        _console(user_id, f"[Reader] Mise en forme via LLM…")
+        result_text = _format_as_markdown(result_text, item.language)
+
         item.result_text = result_text
         item.raw_result = raw_text
         item.used_backend = backend

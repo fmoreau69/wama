@@ -72,7 +72,7 @@ COMPOSER_MODELS = {
     },
     'audiogen-medium': {
         'hf_id': 'facebook/audiogen-medium',
-        'audiocraft_name': 'medium',
+        'audiocraft_name': 'facebook/audiogen-medium',
         'type': 'sfx',
         'vram_gb': 16,
         'description': 'AudioGen Medium — bruitages et sons d\'ambiance, 1.5B params',
