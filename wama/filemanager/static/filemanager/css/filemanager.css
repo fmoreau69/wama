@@ -137,8 +137,47 @@
     right: var(--fm-right-panel-width) !important;
     width: auto !important;
     height: var(--fm-header-height) !important;
-    z-index: 1030 !important;
+    z-index: 2000 !important;
     overflow: visible !important; /* Critical for dropdown */
+}
+
+/* Simple mode: header spans full width, content spans full width */
+body.wama-simple .top_nav {
+    left: 0 !important;
+    right: 0 !important;
+}
+
+body.wama-simple > .container,
+body.wama-simple > .container-fluid {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+}
+
+/* === TREE SECTION HEADERS === */
+/* Nodes with type="section" act as collapsible section headers */
+#filemanager-tree li#section_user > .jstree-anchor,
+#filemanager-tree li#section_apps > .jstree-anchor {
+    font-weight: 700;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #9ca3af !important;
+    padding-top: 6px;
+    padding-bottom: 4px;
+    margin-top: 2px;
+}
+#filemanager-tree li#section_user > .jstree-anchor:hover,
+#filemanager-tree li#section_apps > .jstree-anchor:hover {
+    color: #d1d5db !important;
+    background: transparent !important;
+}
+/* Separator line above Applications section */
+#filemanager-tree li#section_apps {
+    border-top: 1px solid #2a2d30;
+    margin-top: 4px;
+    padding-top: 2px;
 }
 
 /* === LEFT SIDEBAR (FILE EXPLORER) - ALWAYS VISIBLE === */
@@ -340,6 +379,8 @@
     border-radius: 4px;
     transition: background 0.15s, color 0.15s;
     font-size: 0.9rem;
+    display: inline-flex !important;
+    align-items: center;
 }
 
 .jstree-default-dark .jstree-anchor:hover {
@@ -359,6 +400,8 @@
 /* Tree icons */
 .jstree-default-dark .jstree-icon {
     margin-right: 6px;
+    flex-shrink: 0;
+    vertical-align: unset;
 }
 
 .jstree-default-dark .jstree-icon.jstree-ocl {

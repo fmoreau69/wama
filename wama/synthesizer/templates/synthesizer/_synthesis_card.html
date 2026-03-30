@@ -46,10 +46,10 @@
                 {% endif %}">
                 {{ synthesis.get_status_display }}
             </span>
-            <div class="progress-bar-custom mt-2">
-                <div class="progress-fill" style="width: {{ synthesis.progress }}%"></div>
+            <div class="wama-progress-track mt-2">
+                <div class="wama-progress-fill {% if synthesis.status == 'RUNNING' %}active{% endif %}" style="width: {{ synthesis.progress }}%"></div>
             </div>
-            <small class="text-light">{{ synthesis.progress }}%</small>
+            <small class="progress-text text-light">{{ synthesis.progress }}%</small>
         </div>
 
         <!-- Actions -->
@@ -74,11 +74,6 @@
                 {% endif %}
 
                 {% if synthesis.audio_output %}
-                <button class="btn btn-sm btn-success preview-btn"
-                        data-id="{{ synthesis.id }}"
-                        title="Écouter">
-                    <i class="fas fa-volume-up"></i>
-                </button>
                 <a href="{% url 'synthesizer:download' synthesis.id %}"
                    class="btn btn-sm btn-info"
                    title="Télécharger">
@@ -98,15 +93,9 @@
                 </button>
             </div>
 
-            <!-- Audio Preview (hidden by default) -->
-            <div class="audio-preview mt-2" id="preview_{{ synthesis.id }}"
-                 style="display: none;">
-                {% if synthesis.audio_output %}
-                <audio controls class="audio-player">
-                    <source src="{{ synthesis.audio_output.url }}" type="audio/wav">
-                </audio>
-                {% endif %}
-            </div>
         </div>
     </div>
+    {% if synthesis.audio_output %}
+    {% include 'common/_audio_waveform.html' with audio_url=synthesis.audio_output.url player_id=synthesis.id %}
+    {% endif %}
 </div>

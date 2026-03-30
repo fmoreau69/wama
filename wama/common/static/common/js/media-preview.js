@@ -34,6 +34,9 @@
     let previewItems = [];
     let previewCurrentIndex = -1;
 
+    // Flag : cleanup listener enregistré une seule fois
+    let _cleanupBound = false;
+
     // Auto-initialize when DOM is ready
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', init);
@@ -198,22 +201,29 @@
         // Update navigation UI
         updateNavigationUI(modal);
 
-        // Show modal
-        const bsModal = new bootstrap.Modal(modal);
-        bsModal.show();
+        // Enregistrer le cleanup UNE SEULE FOIS (pas à chaque navigation)
+        if (!_cleanupBound) {
+            _cleanupBound = true;
+            modal.addEventListener('hidden.bs.modal', function() {
+                const c = modal.querySelector('.preview-container');
+                const video = c ? c.querySelector('video') : null;
+                const audio = c ? c.querySelector('audio') : null;
+                if (video) video.pause();
+                if (audio) audio.pause();
+                if (window.WamaAudioPlayer) WamaAudioPlayer.destroy('modal-audio');
+                currentPreviewData = null;
+                previewItems = [];
+                previewCurrentIndex = -1;
+                _cleanupBound = false; // reset pour la prochaine ouverture
+            });
+        }
 
-        // Clean up when modal is hidden
-        modal.addEventListener('hidden.bs.modal', function() {
-            // Stop any playing media
-            const video = container.querySelector('video');
-            const audio = container.querySelector('audio');
-            if (video) video.pause();
-            if (audio) audio.pause();
-            currentPreviewData = null;
-            // Reset navigation state
-            previewItems = [];
-            previewCurrentIndex = -1;
-        }, { once: true });
+        // Mettre en pause les players inline
+        if (window.WamaAudioPlayer) WamaAudioPlayer.pauseAll();
+
+        // getOrCreateInstance : réutilise l'instance existante (évite l'empilement de backdrops)
+        const bsModal = bootstrap.Modal.getOrCreateInstance(modal);
+        bsModal.show();
     }
 
     /**
@@ -231,19 +241,20 @@
             video.style.maxHeight = '70vh';
             return video;
         } else if (mimeType.startsWith('audio/')) {
+            if (window.WamaAudioPlayer) {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'p-3 w-100';
+                wrapper.appendChild(WamaAudioPlayer.create(data.url, 'modal-audio', { height: 80 }));
+                return wrapper;
+            }
+            // Fallback si WaveSurfer non chargé
             const audioContainer = document.createElement('div');
             audioContainer.className = 'wama-audio-preview text-center w-100 p-4';
-
-            const icon = document.createElement('i');
-            icon.className = 'fas fa-music fa-5x text-info mb-4 d-block';
-            audioContainer.appendChild(icon);
-
             const audio = document.createElement('audio');
             audio.src = data.url;
             audio.controls = true;
             audio.className = 'w-100';
             audioContainer.appendChild(audio);
-
             return audioContainer;
         } else if (mimeType.startsWith('image/')) {
             // Create wrapper with fullscreen button
@@ -407,6 +418,7 @@
         const audio = container.querySelector('audio');
         if (video) video.pause();
         if (audio) audio.pause();
+        if (window.WamaAudioPlayer) WamaAudioPlayer.destroy('modal-audio');
 
         // Build new content
         const contentEl = buildPreviewContent(item);

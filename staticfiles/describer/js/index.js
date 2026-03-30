@@ -239,8 +239,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 </div>
                 <div class="col-md-2">
                     <span class="badge bg-secondary status-badge">PENDING</span>
-                    <div class="progress mt-2" style="height: 8px;">
-                        <div class="progress-bar bg-info progress-fill" style="width: 0%"></div>
+                    <div class="wama-progress-track mt-2">
+                        <div class="wama-progress-fill" style="width: 0%"></div>
                     </div>
                     <small class="text-light progress-text">0%</small>
                 </div>
@@ -567,9 +567,11 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         // Update progress bar
-        const progressBar = card.querySelector('.progress-fill');
+        const progressBar = card.querySelector('.wama-progress-fill');
         if (progressBar) {
             progressBar.style.width = progress + '%';
+            if (status === 'RUNNING') progressBar.classList.add('active');
+            else progressBar.classList.remove('active');
         }
 
         const progressText = card.querySelector('.progress-text');
@@ -886,14 +888,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
             const progressBar = document.getElementById('globalProgressBar');
             const progressStats = document.getElementById('globalProgressStats');
+            const progressPct = document.getElementById('globalProgressPct');
+            const globalStatus = document.getElementById('globalStatus');
 
-            if (progressBar) {
-                progressBar.style.width = data.overall_progress + '%';
-                progressBar.textContent = data.overall_progress + '%';
-            }
-
-            if (progressStats) {
-                progressStats.textContent = `${data.success}/${data.total} termine`;
+            const p = data.overall_progress || 0;
+            if (progressBar) progressBar.style.width = p + '%';
+            if (progressStats) progressStats.textContent = `${data.success}/${data.total} terminé · ${data.running} en cours`;
+            if (progressPct) progressPct.textContent = p ? p + '%' : '';
+            if (globalStatus) {
+                const active = (data.total || 0) > 0;
+                globalStatus.style.opacity = active ? '1' : '0';
+                globalStatus.style.pointerEvents = active ? '' : 'none';
             }
 
         } catch (error) {

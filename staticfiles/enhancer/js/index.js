@@ -656,23 +656,16 @@ document.addEventListener('DOMContentLoaded', function () {
       .then(data => {
         const progressBar = document.getElementById('globalProgressBar');
         const statsText = document.getElementById('globalProgressStats');
-
-        if (progressBar && statsText) {
-          const progress = data.overall_progress || 0;
-          progressBar.style.width = progress + '%';
-          progressBar.textContent = progress + '%';
-
-          statsText.textContent = `${data.success}/${data.total} terminé`;
-
-          // Update progress bar color based on status
-          progressBar.className = 'progress-bar';
-          if (data.failure > 0) {
-            progressBar.classList.add('bg-danger');
-          } else if (data.running > 0) {
-            progressBar.classList.add('progress-bar-animated', 'progress-bar-striped');
-          } else if (data.success === data.total && data.total > 0) {
-            progressBar.classList.add('bg-success');
-          }
+        const pct = document.getElementById('globalProgressPct');
+        const globalStatus = document.getElementById('globalStatus');
+        const progress = data.overall_progress || 0;
+        if (progressBar) progressBar.style.width = progress + '%';
+        if (statsText) statsText.textContent = `${data.success}/${data.total} terminé · ${data.running} en cours`;
+        if (pct) pct.textContent = progress ? progress + '%' : '';
+        if (globalStatus) {
+          const active = (data.total || 0) > 0;
+          globalStatus.style.opacity = active ? '1' : '0';
+          globalStatus.style.pointerEvents = active ? '' : 'none';
         }
       })
       .catch(error => console.error('Error updating global progress:', error));

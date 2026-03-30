@@ -88,6 +88,16 @@
         <!-- Menu navigation (droite) -->
         <div class="wama-header-right">
             <ul class="navbar-nav flex-row gap-2">
+                <!-- Bouton switch mode UI -->
+                <li class="nav-item">
+                    <button id="uiModeSwitchBtn"
+                            class="btn btn-sm btn-outline-secondary"
+                            onclick="window.wamaToggleMode && window.wamaToggleMode()"
+                            title="Passer en Mode Simplifié">
+                        <i id="uiModeBtnIcon" class="fas fa-expand-alt me-1"></i>
+                        <span id="uiModeBtnLabel">Simplifié</span>
+                    </button>
+                </li>
                 <!-- Bouton Compte / Login -->
                 {% if user.is_authenticated and user.username != 'anonymous' %}
                 <li class="nav-item dropdown">

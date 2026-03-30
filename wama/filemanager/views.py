@@ -10,10 +10,10 @@ from urllib.parse import quote
 
 from django.conf import settings
 from django.http import JsonResponse, FileResponse, HttpResponseBadRequest
-from django.views.decorators.http import require_POST, require_GET
+from django.views.decorators.http import require_POST, require_GET, require_http_methods
 from django.core.files.storage import default_storage
 
-from .models import UserFile
+from .models import UserFile, MountedFolder
 from wama.accounts.views import get_or_create_anonymous_user
 
 logger = logging.getLogger(__name__)
@@ -31,26 +31,37 @@ def get_user_media_root(user):
 
 def build_file_tree(user):
     """
-    Build a file tree structure for jstree.
-    Includes files from:
-    - users/{user_id}/temp/ (filemanager uploads)
-    - enhancer/input/, enhancer/output/
-    - anonymizer/input/, anonymizer/output/
-    - synthesizer/, transcriber/, etc.
+    Build a file tree structure for jstree with two collapsible sections:
+    - Mes fichiers : temp folder + user-mounted folders
+    - Applications : app-specific input/output folders
     """
-    tree = []
     media_root = Path(settings.MEDIA_ROOT)
     user_id = user.id
 
-    # Define folders to scan (user-specific paths)
-    folders_config = [
-        {
-            'id': 'temp',
-            'text': 'Mes fichiers temporaires',
-            'icon': 'fa fa-folder text-warning',
-            'path': f'users/{user_id}/temp',
-            'type': 'folder'
-        },
+    # ── Section 1 : Mes fichiers ─────────────────────────────────────────
+    user_children = []
+
+    temp_node = build_folder_node({
+        'id': 'temp',
+        'text': 'Temporaires',
+        'icon': 'fa fa-folder text-warning',
+        'path': f'users/{user_id}/temp',
+    }, media_root, user_id)
+    if temp_node:
+        user_children.append(temp_node)
+
+    for mount in MountedFolder.objects.filter(user=user).order_by('name'):
+        user_children.append({
+            'id': f'mount_{mount.id}',
+            'text': mount.name,
+            'icon': 'fa fa-plug text-info',
+            'type': 'mount',
+            'children': True,
+            'data': {'path': f'mounts/{mount.id}', 'mount_id': mount.id},
+        })
+
+    # ── Section 2 : Applications ─────────────────────────────────────────
+    app_folders_config = [
         {
             'id': 'anonymizer',
             'text': 'Anonymizer',
@@ -138,7 +149,6 @@ def build_file_tree(user):
                 {'id': 'transcriber_output', 'text': 'Output', 'path': f'transcriber/{user_id}/output', 'icon': 'fa fa-folder text-success'},
             ]
         },
-        # WAMA Lab applications (experimental)
         {
             'id': 'wama_lab',
             'text': 'WAMA Lab',
@@ -167,12 +177,32 @@ def build_file_tree(user):
         },
     ]
 
-    for folder_config in folders_config:
-        node = build_folder_node(folder_config, media_root, user_id)
+    app_children = []
+    for config in app_folders_config:
+        node = build_folder_node(config, media_root, user_id)
         if node:
-            tree.append(node)
+            app_children.append(node)
 
-    return tree
+    return [
+        {
+            'id': 'section_user',
+            'text': 'Mes fichiers',
+            'icon': 'fa fa-home text-light',
+            'type': 'section',
+            'state': {'opened': True},
+            'children': user_children,
+            'data': {},
+        },
+        {
+            'id': 'section_apps',
+            'text': 'Applications',
+            'icon': 'fa fa-th-large text-secondary',
+            'type': 'section',
+            'state': {'opened': False},
+            'children': app_children,
+            'data': {},
+        },
+    ]
 
 
 def build_folder_node(config, media_root, user_id):
@@ -261,6 +291,94 @@ def scan_folder_files(folder_path, relative_path, user_id):
     return nodes
 
 
+def resolve_mount_path(rel_path, user):
+    """
+    Resolve a virtual 'mounts/<id>[/subpath]' to an absolute Path.
+    Returns (abs_path, MountedFolder) or (None, None) if invalid/unauthorized.
+    """
+    parts = rel_path.strip('/').split('/', 2)
+    if len(parts) < 2 or parts[0] != 'mounts':
+        return None, None
+    try:
+        mount_id = int(parts[1])
+    except ValueError:
+        return None, None
+    try:
+        mount = MountedFolder.objects.get(id=mount_id, user=user)
+    except MountedFolder.DoesNotExist:
+        return None, None
+    base = Path(mount.local_path).resolve()
+    subpath = parts[2] if len(parts) == 3 else ''
+    if subpath:
+        target = (base / subpath).resolve()
+        try:
+            target.relative_to(base)
+        except ValueError:
+            return None, None
+    else:
+        target = base
+    return target, mount
+
+
+def scan_mount_folder(abs_folder, virtual_prefix):
+    """Scan a mounted folder and return jstree nodes with virtual paths."""
+    nodes = []
+    err_id = f'mount_err_{virtual_prefix.replace("/", "_").replace(":", "_")}'
+    try:
+        items = list(abs_folder.iterdir())
+        items.sort(key=lambda x: (x.is_file(), x.name.lower()))
+        for item in items:
+            virtual_path = f'{virtual_prefix}/{item.name}'
+            safe_id = virtual_path.replace('/', '_').replace('\\', '_').replace(':', '_')
+            if item.is_dir():
+                nodes.append({
+                    'id': f'mount_{safe_id}',
+                    'text': item.name,
+                    'icon': 'fa fa-folder text-warning',
+                    'type': 'folder',
+                    'children': True,
+                    'data': {'path': virtual_path},
+                })
+            elif item.is_file():
+                stat = item.stat()
+                mime_type = mimetypes.guess_type(item.name)[0] or 'application/octet-stream'
+                if mime_type.startswith('image/'):
+                    icon = 'fa fa-file-image text-info'
+                elif mime_type.startswith('video/'):
+                    icon = 'fa fa-file-video text-warning'
+                elif mime_type.startswith('audio/'):
+                    icon = 'fa fa-file-audio text-success'
+                elif mime_type == 'application/pdf':
+                    icon = 'fa fa-file-pdf text-danger'
+                else:
+                    icon = 'fa fa-file text-secondary'
+                nodes.append({
+                    'id': f'mount_{safe_id}',
+                    'text': item.name,
+                    'icon': icon,
+                    'type': 'file',
+                    'data': {
+                        'path': virtual_path,
+                        'size': stat.st_size,
+                        'mime': mime_type,
+                        'modified': stat.st_mtime,
+                    },
+                })
+    except PermissionError:
+        logger.warning(f"Permission denied scanning mount {abs_folder}")
+        nodes.append({
+            'id': err_id, 'text': 'Accès refusé',
+            'icon': 'fa fa-lock text-danger', 'type': 'error', 'children': False,
+        })
+    except Exception as e:
+        logger.error(f"Error scanning mount {abs_folder}: {e}")
+        nodes.append({
+            'id': err_id, 'text': 'Erreur de lecture',
+            'icon': 'fa fa-exclamation-triangle text-warning', 'type': 'error', 'children': False,
+        })
+    return nodes
+
+
 @require_GET
 def api_children(request):
     """
@@ -271,6 +389,25 @@ def api_children(request):
     rel_path = request.GET.get('path', '').strip('/')
     if not rel_path:
         return JsonResponse([], safe=False)
+
+    # Handle mounted folder paths
+    if rel_path.startswith('mounts/'):
+        abs_path, mount = resolve_mount_path(rel_path, user)
+        if abs_path is None:
+            return JsonResponse([{
+                'id': f'err_access_{rel_path.replace("/", "_")}',
+                'text': 'Accès refusé', 'icon': 'fa fa-lock text-danger',
+                'type': 'error', 'children': False,
+            }], safe=False)
+        if not abs_path.exists() or not abs_path.is_dir():
+            return JsonResponse([{
+                'id': f'err_offline_{rel_path.replace("/", "_")}',
+                'text': 'Dossier non accessible (hors ligne ?)',
+                'icon': 'fa fa-exclamation-triangle text-warning',
+                'type': 'error', 'children': False,
+            }], safe=False)
+        nodes = scan_mount_folder(abs_path, rel_path)
+        return JsonResponse(nodes, safe=False)
 
     media_root = Path(settings.MEDIA_ROOT)
     folder_path = media_root / rel_path
@@ -843,7 +980,12 @@ def api_download(request, path):
     if not is_path_allowed(path, user):
         return JsonResponse({'error': 'Access denied'}, status=403)
 
-    full_path = Path(settings.MEDIA_ROOT) / path
+    if path.startswith('mounts/'):
+        full_path, mount = resolve_mount_path(path, user)
+        if full_path is None:
+            return JsonResponse({'error': 'Access denied'}, status=403)
+    else:
+        full_path = Path(settings.MEDIA_ROOT) / path
 
     if not full_path.exists():
         return JsonResponse({'error': 'File not found'}, status=404)
@@ -872,7 +1014,12 @@ def api_info(request):
     if not is_path_allowed(file_path, user):
         return JsonResponse({'error': 'Access denied'}, status=403)
 
-    full_path = Path(settings.MEDIA_ROOT) / file_path
+    if file_path.startswith('mounts/'):
+        full_path, mount = resolve_mount_path(file_path, user)
+        if full_path is None:
+            return JsonResponse({'error': 'Access denied'}, status=403)
+    else:
+        full_path = Path(settings.MEDIA_ROOT) / file_path
 
     if not full_path.exists():
         return JsonResponse({'error': 'File not found'}, status=404)
@@ -907,13 +1054,23 @@ def api_preview(request):
     if not is_path_allowed(file_path, user):
         return JsonResponse({'error': 'Access denied'}, status=403)
 
-    full_path = Path(settings.MEDIA_ROOT) / file_path
+    # Resolve path: mounted folder or MEDIA_ROOT
+    if file_path.startswith('mounts/'):
+        full_path, mount = resolve_mount_path(file_path, user)
+        if full_path is None:
+            return JsonResponse({'error': 'Access denied'}, status=403)
+        # Build serve URL for inline display of mounted files
+        parts = file_path.strip('/').split('/', 2)
+        subpath = parts[2] if len(parts) > 2 else ''
+        media_url = f'/filemanager/api/mounts/{mount.id}/serve/{quote(subpath)}'
+    else:
+        full_path = Path(settings.MEDIA_ROOT) / file_path
+        media_url = settings.MEDIA_URL + quote(file_path)
 
     if not full_path.exists():
         return JsonResponse({'error': 'File not found'}, status=404)
 
     ext = full_path.suffix.lower()
-    media_url = settings.MEDIA_URL + quote(file_path)
 
     # Robust MIME detection: mimetypes.guess_type can fail on Windows for common types
     _EXT_MIME = {
@@ -994,6 +1151,11 @@ def is_path_allowed(path, user):
         if path.startswith(prefix):
             return True
 
+    # Allow mounted folders owned by this user
+    if path.startswith('mounts/'):
+        abs_path, mount = resolve_mount_path(path, user)
+        return abs_path is not None
+
     return False
 
 
@@ -1037,7 +1199,12 @@ def api_import_to_app(request):
         if not is_path_allowed(fp, user):
             return {'error': 'Access denied'}
 
-        source_path = Path(settings.MEDIA_ROOT) / fp
+        if fp.startswith('mounts/'):
+            source_path, _mount = resolve_mount_path(fp, user)
+            if source_path is None:
+                return {'error': 'Access denied'}
+        else:
+            source_path = Path(settings.MEDIA_ROOT) / fp
 
         if not source_path.exists():
             return {'error': 'Source file not found'}
@@ -1581,3 +1748,296 @@ def import_to_cam_analyzer(source_path, user):
         'filename': dest_path.name,
         'path': relative_path,
     }
+
+
+# ── Mounted Folders API ────────────────────────────────────────────────────────
+
+def _resolve_path(path_str):
+    """Convert any path format (Windows absolute, UNC, Linux) to a server-accessible path.
+    Handles WSL environment transparently via wslpath when available.
+    """
+    import sys
+    import subprocess
+
+    p = path_str.strip()
+    if not p:
+        return p
+
+    # Normalise backslashes for analysis
+    p_fwd = p.replace('\\', '/')
+
+    # Already a Unix absolute path
+    if p_fwd.startswith('/'):
+        return p_fwd
+
+    if sys.platform.startswith('linux'):
+        # Running in WSL — try wslpath for any Windows/UNC path
+        try:
+            result = subprocess.run(
+                ['wslpath', p],
+                capture_output=True, text=True, timeout=5
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                return result.stdout.strip()
+        except Exception:
+            pass
+
+        # Fallback manual conversions
+        # Windows drive letter: C:\... or C:/...
+        if len(p_fwd) >= 3 and p_fwd[1] == ':':
+            drive = p_fwd[0].lower()
+            rest = p_fwd[3:]
+            return f'/mnt/{drive}/{rest}'
+
+        # UNC path: \\server\share\... → //server/share/...
+        if p_fwd.startswith('//'):
+            return p_fwd
+
+    # Native Windows or fallback: normalise to forward slashes
+    return p_fwd
+
+
+@require_GET
+def api_find_folder(request):
+    """Find a server-side folder path by name + file fingerprint.
+    Called after the browser folder-picker gives us the folder name and a few file names/sizes.
+    Query params:
+      name  : folder name (e.g. "MEDIAS")
+      files : comma-separated "filename:size" pairs for fingerprinting
+    Returns: {path, found}
+    """
+    import threading
+
+    folder_name = request.GET.get('name', '').strip()
+    files_param = request.GET.get('files', '').strip()
+
+    if not folder_name:
+        return JsonResponse({'path': None, 'found': False})
+
+    # Parse fingerprint: {"filename": size_in_bytes, ...}
+    fingerprint = {}
+    for item in files_param.split(','):
+        item = item.strip()
+        if ':' in item:
+            fname, _, fsize = item.rpartition(':')
+            try:
+                fingerprint[fname.strip()] = int(fsize)
+            except ValueError:
+                pass
+
+    # Roots to search (WSL mounts, home, project area)
+    candidate_roots = ['/mnt', '/home', '/data', str(Path(settings.BASE_DIR).parent)]
+    search_roots = [r for r in candidate_roots if Path(r).is_dir()]
+
+    def folder_matches(dirpath):
+        if not fingerprint:
+            return True
+        needed = min(2, len(fingerprint))
+        matched = 0
+        for fname, fsize in list(fingerprint.items())[:5]:
+            try:
+                fp = Path(dirpath) / fname
+                if fp.is_file() and fp.stat().st_size == fsize:
+                    matched += 1
+                    if matched >= needed:
+                        return True
+            except OSError:
+                pass
+        return False
+
+    found_path = None
+
+    def search(root, depth=0):
+        nonlocal found_path
+        if found_path or depth > 7:
+            return
+        try:
+            with os.scandir(root) as entries:
+                for entry in entries:
+                    if found_path:
+                        return
+                    if not entry.is_dir(follow_symlinks=False):
+                        continue
+                    if entry.name.startswith('.'):
+                        continue
+                    if entry.name == folder_name and folder_matches(entry.path):
+                        found_path = entry.path
+                        return
+                    try:
+                        search(entry.path, depth + 1)
+                    except (PermissionError, OSError):
+                        pass
+        except (PermissionError, OSError):
+            pass
+
+    def run():
+        for root in search_roots:
+            if found_path:
+                return
+            search(root)
+
+    t = threading.Thread(target=run, daemon=True)
+    t.start()
+    t.join(timeout=8)
+
+    if found_path:
+        return JsonResponse({'path': found_path, 'found': True})
+    return JsonResponse({'path': None, 'found': False})
+
+
+@require_GET
+def api_validate_path(request):
+    """Validate and resolve a user-provided path (Windows/UNC/Linux).
+    Returns: {resolved, accessible, name}
+    """
+    path_str = request.GET.get('path', '').strip()
+    if not path_str:
+        return JsonResponse({'resolved': '', 'accessible': False, 'name': ''})
+
+    resolved = _resolve_path(path_str)
+    try:
+        accessible = Path(resolved).is_dir()
+    except Exception:
+        accessible = False
+
+    # Auto-fill name from last meaningful path segment
+    last = path_str.replace('\\', '/').rstrip('/').rsplit('/', 1)[-1]
+
+    return JsonResponse({'resolved': resolved, 'accessible': accessible, 'name': last})
+
+
+@require_GET
+def api_browse_fs(request):
+    """Return subdirectories of a server path for the in-browser folder picker.
+    Query param: ?path=<absolute_path>  (defaults to a sensible root)
+    Returns: {path, parent, parts (breadcrumb), dirs}
+    """
+    import sys
+
+    raw = request.GET.get('path', '').strip()
+
+    # Default starting point
+    if not raw:
+        if sys.platform.startswith('linux'):
+            raw = '/mnt'
+        else:
+            import os
+            raw = os.path.expanduser('~')
+
+    target = Path(raw).resolve()
+
+    # Safety: never expose root dirs on Linux that expose system internals
+    # Only allow if the user is admin, or the path is under known safe roots
+    user = get_user(request)
+    from wama.accounts.views import is_admin
+    SAFE_PREFIXES = [
+        Path('/mnt'),
+        Path('/home'),
+        Path('/tmp'),
+        Path(settings.MEDIA_ROOT),
+        Path(settings.BASE_DIR),
+    ]
+    if not is_admin(user):
+        if not any(str(target).startswith(str(p)) for p in SAFE_PREFIXES):
+            return JsonResponse({'error': 'Accès refusé'}, status=403)
+
+    if not target.exists() or not target.is_dir():
+        return JsonResponse({'error': f'Dossier introuvable : {target}'}, status=404)
+
+    # List subdirectories (non-hidden, sorted)
+    try:
+        dirs = sorted(
+            [d.name for d in target.iterdir()
+             if d.is_dir() and not d.name.startswith('.')]
+        )
+    except PermissionError:
+        dirs = []
+
+    # Breadcrumb parts: list of {name, path}
+    parts = [{'name': p or '/', 'path': str(Path(*target.parts[:i+1]))}
+             for i, p in enumerate(target.parts)]
+
+    parent = str(target.parent) if target != target.parent else None
+
+    return JsonResponse({
+        'path': str(target),
+        'parent': parent,
+        'parts': parts,
+        'dirs': dirs,
+    })
+
+
+@require_http_methods(["GET", "POST"])
+def api_mounts(request):
+    """GET: list user's mounted folders. POST: add a new mount."""
+    user = get_user(request)
+
+    if request.method == 'GET':
+        mounts = list(
+            MountedFolder.objects.filter(user=user).values('id', 'name', 'local_path', 'created_at')
+        )
+        return JsonResponse({'mounts': mounts})
+
+    # POST — add a new mount
+    try:
+        data = json.loads(request.body)
+        name = data.get('name', '').strip()
+        local_path = data.get('local_path', '').strip()
+    except (json.JSONDecodeError, ValueError):
+        return JsonResponse({'error': 'JSON invalide'}, status=400)
+
+    if not name or not local_path:
+        return JsonResponse({'error': 'Nom et chemin requis'}, status=400)
+
+    resolved = _resolve_path(local_path)
+    resolved_path = Path(resolved)
+    # Allow saving even if the share is temporarily offline (e.g. network share not mounted yet)
+    if resolved_path.exists() and not resolved_path.is_dir():
+        return JsonResponse({'error': 'Le chemin doit pointer vers un dossier'}, status=400)
+
+    mount = MountedFolder.objects.create(user=user, name=name, local_path=resolved)
+    return JsonResponse({'success': True, 'id': mount.id, 'name': mount.name})
+
+
+@require_POST
+def api_mount_delete(request, pk):
+    """Remove a mounted folder."""
+    user = get_user(request)
+    try:
+        mount = MountedFolder.objects.get(pk=pk, user=user)
+        mount.delete()
+        return JsonResponse({'success': True})
+    except MountedFolder.DoesNotExist:
+        return JsonResponse({'error': 'Non trouvé'}, status=404)
+
+
+@require_GET
+def api_mount_serve(request, pk, path):
+    """Serve a file from a mounted folder inline (for preview)."""
+    user = get_user(request)
+    try:
+        mount = MountedFolder.objects.get(pk=pk, user=user)
+    except MountedFolder.DoesNotExist:
+        return JsonResponse({'error': 'Access denied'}, status=403)
+
+    base = Path(mount.local_path).resolve()
+    if path:
+        target = (base / path).resolve()
+        try:
+            target.relative_to(base)
+        except ValueError:
+            return JsonResponse({'error': 'Invalid path'}, status=400)
+    else:
+        return JsonResponse({'error': 'No file specified'}, status=400)
+
+    if not target.exists() or not target.is_file():
+        return JsonResponse({'error': 'File not found'}, status=404)
+
+    try:
+        mime_type = mimetypes.guess_type(target.name)[0] or 'application/octet-stream'
+        response = FileResponse(open(target, 'rb'), content_type=mime_type)
+        response['Content-Disposition'] = f'inline; filename="{target.name}"'
+        return response
+    except Exception as e:
+        logger.error(f"Error serving mount file {target}: {e}")
+        return JsonResponse({'error': str(e)}, status=500)

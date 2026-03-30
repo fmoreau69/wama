@@ -26,10 +26,18 @@
         </form>
     </div>
 
-    <!-- Drop Zone for Upload -->
+    <!-- Drop Zone for Upload + Connect folder -->
     <div id="filemanager-dropzone" class="filemanager-dropzone">
         <i class="fas fa-cloud-upload-alt"></i>
         <p>Glissez fichiers ou dossiers<br><small>Clic = fichiers | Shift+Clic = dossier</small></p>
+    </div>
+    <div class="px-2 pb-1" style="border-bottom:1px solid #2a2d30;">
+        <button id="btnAddMount"
+                class="btn btn-link btn-sm text-muted w-100 text-start px-1"
+                style="font-size:0.75rem; text-decoration:none;"
+                title="Connecter un dossier distant ou réseau (aucune copie)">
+            <i class="fas fa-plug me-1 text-info"></i>Connecter un dossier…
+        </button>
     </div>
 
     <!-- File Tree -->
@@ -37,6 +45,45 @@
         <div id="filemanager-tree"></div>
     </div>
 </aside>
+
+<!-- Modal — Connecter un dossier (connecteur, pas d'import) -->
+<div class="modal fade" id="mountModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content bg-dark text-light border-secondary">
+            <div class="modal-header border-secondary py-2">
+                <h6 class="modal-title">
+                    <i class="fas fa-plug me-2 text-info"></i>Connecter un dossier
+                </h6>
+                <button type="button" class="btn-close btn-close-white btn-sm" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="small text-muted mb-3">
+                    Les fichiers restent à leur emplacement d'origine — aucune copie.
+                </p>
+                <div class="mb-3">
+                    <label class="form-label small text-light fw-bold mb-1">Chemin du dossier</label>
+                    <input type="text" id="mountPathInput"
+                           class="form-control form-control-sm bg-dark text-light border-secondary"
+                           placeholder="\\serveur\partage\dossier  ou  D:\dossier"
+                           autocomplete="off" spellcheck="false">
+                    <div id="mountPathStatus" class="mt-1" style="font-size:0.72rem; min-height:1.1rem;"></div>
+                </div>
+                <div class="mb-1">
+                    <label class="form-label small text-light fw-bold mb-1">Nom d'affichage</label>
+                    <input type="text" id="mountNameInput"
+                           class="form-control form-control-sm bg-dark text-light border-secondary"
+                           placeholder="Ex : Médias Lescot">
+                </div>
+            </div>
+            <div class="modal-footer border-secondary py-2">
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                <button type="button" id="mountSaveBtn" class="btn btn-sm btn-info" disabled>
+                    <i class="fas fa-plug me-1"></i>Connecter
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 
 <!-- FileManager Config Script -->
 <script>
@@ -55,6 +102,9 @@
         apiPreviewUrl: '{% url "filemanager:api_preview" %}',
         apiImportUrl: '{% url "filemanager:api_import" %}',
         apiMkdirUrl: '{% url "filemanager:api_mkdir" %}',
-        apiDownloadUrl: '/filemanager/api/download/'
+        apiDownloadUrl: '/filemanager/api/download/',
+        apiValidatePathUrl: '{% url "filemanager:api_validate_path" %}',
+        apiMountsUrl: '{% url "filemanager:api_mounts" %}',
+        apiMountDeleteUrl: '/filemanager/api/mounts/'
     };
 </script>

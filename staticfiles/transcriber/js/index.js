@@ -235,8 +235,8 @@ document.addEventListener('DOMContentLoaded', function () {
         </div>
         <div class="col-md-2">
           <span class="badge status-badge bg-secondary">PENDING</span>
-          <div class="progress mt-2" style="height: 8px;">
-            <div class="progress-bar bg-info progress-fill" style="width: 0%"></div>
+          <div class="wama-progress-track mt-2">
+            <div class="wama-progress-fill" style="width: 0%"></div>
           </div>
           <small class="text-light progress-text">0%</small>
         </div>
@@ -282,9 +282,13 @@ document.addEventListener('DOMContentLoaded', function () {
     const status = (data.status || 'PENDING').toUpperCase();
 
     // Update progress bar
-    const bar = card.querySelector('.progress-fill');
+    const bar = card.querySelector('.wama-progress-fill');
     const progressText = card.querySelector('.progress-text');
-    if (bar) bar.style.width = `${progress}%`;
+    if (bar) {
+      bar.style.width = `${progress}%`;
+      if (status === 'RUNNING') bar.classList.add('active');
+      else bar.classList.remove('active');
+    }
     if (progressText) progressText.textContent = `${progress}%`;
 
     // Update status badge
@@ -436,8 +440,8 @@ document.addEventListener('DOMContentLoaded', function () {
           card.className = 'synthesis-card processing';
           const badge = card.querySelector('.status-badge');
           if (badge) { badge.textContent = 'RUNNING'; badge.className = 'badge status-badge bg-warning'; }
-          const bar = card.querySelector('.progress-fill');
-          if (bar) bar.style.width = '0%';
+          const bar = card.querySelector('.wama-progress-fill');
+          if (bar) { bar.style.width = '0%'; bar.classList.add('active'); }
           const pt = card.querySelector('.progress-text');
           if (pt) pt.textContent = '0%';
 
@@ -1139,15 +1143,16 @@ document.addEventListener('DOMContentLoaded', function () {
       .then(data => {
         const bar = document.getElementById('globalProgressBar');
         const stats = document.getElementById('globalProgressStats');
-        if (bar && stats) {
-          const p = data.overall_progress || 0;
-          bar.style.width = p + '%';
-          bar.textContent = p + '%';
-          stats.textContent = `${data.success}/${data.total} terminé`;
-          bar.className = 'progress-bar';
-          if (data.failure > 0) bar.classList.add('bg-danger');
-          else if (data.running > 0) bar.classList.add('progress-bar-animated', 'progress-bar-striped');
-          else if (data.success === data.total && data.total > 0) bar.classList.add('bg-success');
+        const pct = document.getElementById('globalProgressPct');
+        const globalStatus = document.getElementById('globalStatus');
+        const p = data.overall_progress || 0;
+        if (bar) bar.style.width = p + '%';
+        if (stats) stats.textContent = `${data.success}/${data.total} terminé · ${data.running} en cours`;
+        if (pct) pct.textContent = p ? p + '%' : '';
+        if (globalStatus) {
+          const active = (data.total || 0) > 0;
+          globalStatus.style.opacity = active ? '1' : '0';
+          globalStatus.style.pointerEvents = active ? '' : 'none';
         }
       })
       .catch(err => console.error('Error updating global progress:', err));

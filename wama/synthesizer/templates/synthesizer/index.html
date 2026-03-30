@@ -245,26 +245,15 @@
 {% block synthesizer_content %}
 <div style="overflow-x:hidden;">
 
-<!-- Global Progress Bar -->
-<div class="row mb-3">
-    <div class="col-12">
-        <div class="card" style="background: #212529; border: 1px solid #495057;">
-            <div class="card-body py-2">
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                    <h6 class="mb-0 text-light">
-                        <i class="fas fa-chart-line"></i> Progression globale
-                    </h6>
-                    <small class="text-white-50" id="globalProgressStats">Calcul...</small>
-                </div>
-                <div class="progress-bar-custom" style="height: 10px;">
-                    <div class="progress-fill" id="globalProgressBar" style="width: 0%"></div>
-                </div>
-                <div class="text-center mt-1">
-                    <small class="text-light" id="globalProgressText">0%</small>
-                </div>
-            </div>
-        </div>
+<div id="globalStatus" style="opacity:0; pointer-events:none;">
+    <div class="d-flex justify-content-between align-items-baseline mb-1">
+        <small class="text-muted" id="globalProgressStats"></small>
+        <small class="text-muted" id="globalProgressText" style="font-variant-numeric: tabular-nums;"></small>
     </div>
+    <div class="wama-progress-track">
+        <div class="wama-progress-fill active" id="globalProgressBar" style="width:0%"></div>
+    </div>
+    <div style="height:12px;"></div>
 </div>
 
 <!-- Syntheses Queue -->
@@ -300,10 +289,9 @@
                         <strong class="text-light">Batch #{{ batch_info.obj.id }}</strong>
                         <small class="text-muted">{{ batch_info.obj.created_at|date:"d/m H:i" }}</small>
                         <span class="badge bg-secondary">{{ batch_info.success_count }}/{{ batch_info.obj.total }}</span>
-                        <!-- Mini progress bar -->
                         <div class="flex-grow-1">
-                            <div class="progress" style="height:4px; background:rgba(255,255,255,0.1);">
-                                <div class="progress-bar" style="background:#6f42c1; width:{{ batch_info.success_pct }}%;"></div>
+                            <div class="wama-progress-track">
+                                <div class="wama-progress-fill" style="width:{{ batch_info.success_pct }}%;"></div>
                             </div>
                         </div>
                         <i class="fas fa-chevron-down text-muted" style="font-size:.7rem; transition:transform 0.2s;"

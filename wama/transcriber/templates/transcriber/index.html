@@ -237,23 +237,15 @@ window._batchImport = WamaBatchImport({
 
 <hr class="border-secondary">
 
-<!-- Global Progress -->
-<div class="row mb-3">
-    <div class="col-12">
-        <div class="card bg-dark border-secondary">
-            <div class="card-body py-2">
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                    <h6 class="mb-0 text-light">
-                        <i class="fas fa-chart-line"></i> Progression globale
-                    </h6>
-                    <small class="text-white-50" id="globalProgressStats">0/0 terminé</small>
-                </div>
-                <div class="progress" style="height: 20px;">
-                    <div class="progress-bar" id="globalProgressBar" role="progressbar" style="width: 0%">0%</div>
-                </div>
-            </div>
-        </div>
+<div id="globalStatus" style="opacity:0; pointer-events:none;">
+    <div class="d-flex justify-content-between align-items-baseline mb-1">
+        <small class="text-muted" id="globalProgressStats"></small>
+        <small class="text-muted" id="globalProgressPct" style="font-variant-numeric: tabular-nums;"></small>
     </div>
+    <div class="wama-progress-track">
+        <div class="wama-progress-fill active" id="globalProgressBar" style="width:0%"></div>
+    </div>
+    <div style="height:12px;"></div>
 </div>
 
 <!-- Transcripts Queue -->
@@ -334,8 +326,8 @@ window._batchImport = WamaBatchImport({
                             {% endif %}">
                             {{ t.status }}
                         </span>
-                        <div class="progress mt-2" style="height: 8px;">
-                            <div class="progress-bar bg-info progress-fill" style="width: {{ t.progress }}%"></div>
+                        <div class="wama-progress-track mt-2">
+                            <div class="wama-progress-fill {% if t.status == 'RUNNING' %}active{% endif %}" style="width: {{ t.progress }}%"></div>
                         </div>
                         <small class="text-light progress-text">{{ t.progress }}%</small>
                     </div>
@@ -426,8 +418,8 @@ window._batchImport = WamaBatchImport({
                         <small class="text-muted">{{ batch_info.obj.created_at|date:"d/m H:i" }}</small>
                         <span class="badge bg-secondary">{{ batch_info.success_count }}/{{ batch_info.obj.total }}</span>
                         <div class="flex-grow-1">
-                            <div class="progress" style="height:4px; background:rgba(255,255,255,0.1);">
-                                <div class="progress-bar" style="background:#0dcaf0; width:{{ batch_info.success_pct }}%;"></div>
+                            <div class="wama-progress-track">
+                                <div class="wama-progress-fill" style="width:{{ batch_info.success_pct }}%;"></div>
                             </div>
                         </div>
                         <i class="fas fa-chevron-down text-muted" style="font-size:.7rem;"></i>
@@ -492,8 +484,8 @@ window._batchImport = WamaBatchImport({
                                     {% endif %}">
                                     {{ t.status }}
                                 </span>
-                                <div class="progress mt-1" style="height:6px;">
-                                    <div class="progress-bar bg-info progress-fill" style="width: {{ t.progress }}%"></div>
+                                <div class="wama-progress-track mt-1">
+                                    <div class="wama-progress-fill {% if t.status == 'RUNNING' %}active{% endif %}" style="width: {{ t.progress }}%"></div>
                                 </div>
                             </div>
                             <div class="col-md-3">

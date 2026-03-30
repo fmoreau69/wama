@@ -21,6 +21,12 @@ class UserProfile(models.Model):
         default='fr',
         verbose_name='Langue préférée',
     )
+    ui_mode = models.CharField(
+        max_length=16,
+        choices=[('advanced', 'Mode Avancé'), ('simple', 'Mode Simplifié')],
+        default='advanced',
+        verbose_name="Mode d'interface",
+    )
 
     def __str__(self):
         return f"Profile({self.user.username})"

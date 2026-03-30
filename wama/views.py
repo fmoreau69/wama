@@ -94,6 +94,9 @@ Médiathèque (assets personnels réutilisables):
 - list_media_assets(asset_type="", q=""): Liste les assets de la médiathèque de l'utilisateur. Types: "voice", "audio_music", "audio_sfx", "image", "video", "document", "avatar". Retourne id, name, asset_type, file_url pour chaque asset.
 - get_media_asset_url(asset_id): Retourne l'URL de fichier d'un asset spécifique par son ID.
 
+Interface:
+- switch_ui_mode(mode): Bascule l'interface entre "simple" (chatbot) et "advanced" (complète). Utilise ce tool si l'utilisateur demande de changer de mode, d'afficher l'interface complète, ou de revenir à la vue simplifiée.
+
 Rules:
 - Make ONE tool call per turn. Wait for the result before calling another tool.
 - When the user asks you to perform an action (add a file, launch processing, etc.), use the tools.
@@ -512,11 +515,21 @@ def _get_kokoro(lang_code: str):
                     'kokoro', settings.AI_MODELS_DIR / 'models' / 'speech' / 'kokoro'))
                 os.makedirs(kokoro_dir, exist_ok=True)
                 # Must be set BEFORE importing kokoro/huggingface_hub
+                _prev_hf = os.environ.get('HF_HUB_CACHE')
                 os.environ['HF_HUB_CACHE'] = kokoro_dir
                 os.environ['HUGGINGFACE_HUB_CACHE'] = kokoro_dir
-                from kokoro import KPipeline
-                _kokoro_pipelines[lang_code] = KPipeline(
-                    lang_code=lang_code, repo_id='hexgrad/Kokoro-82M')
+                try:
+                    from kokoro import KPipeline
+                    _kokoro_pipelines[lang_code] = KPipeline(
+                        lang_code=lang_code, repo_id='hexgrad/Kokoro-82M')
+                finally:
+                    # Restore so subsequent model downloads don't land in kokoro_dir
+                    if _prev_hf is not None:
+                        os.environ['HF_HUB_CACHE'] = _prev_hf
+                        os.environ['HUGGINGFACE_HUB_CACHE'] = _prev_hf
+                    else:
+                        os.environ.pop('HF_HUB_CACHE', None)
+                        os.environ.pop('HUGGINGFACE_HUB_CACHE', None)
     return _kokoro_pipelines[lang_code]
 
 
@@ -587,3 +600,23 @@ def kokoro_tts(request):
     except Exception as e:
         logger.exception('kokoro_tts error')
         return JsonResponse({'error': str(e)}, status=500)
+
+
+@require_http_methods(["POST"])
+@csrf_protect
+def switch_ui_mode(request):
+    """Persist the user's UI mode preference (simple / advanced)."""
+    if not request.user.is_authenticated:
+        return JsonResponse({'ok': True})  # silently ignore for anonymous
+    try:
+        data = json.loads(request.body)
+        mode = data.get('mode', 'advanced')
+        if mode not in ('simple', 'advanced'):
+            mode = 'advanced'
+        from wama.accounts.models import UserProfile
+        profile, _ = UserProfile.objects.get_or_create(user=request.user)
+        profile.ui_mode = mode
+        profile.save(update_fields=['ui_mode'])
+        return JsonResponse({'ok': True, 'mode': mode})
+    except Exception:
+        return JsonResponse({'ok': True})

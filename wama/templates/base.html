@@ -15,6 +15,11 @@
 
     <!-- Custom CSS -->
     <link href="{% static 'css/general_index.css' %}" rel="stylesheet">
+    <style>
+      /* Simple mode: hide sidebar + right panel site-wide */
+      body.wama-simple #filemanager-sidebar { display: none !important; }
+      body.wama-simple #wama-right-panel    { display: none !important; }
+    </style>
     <link href="{% static 'common/css/app_modern.css' %}" rel="stylesheet">
     <link href="{% static 'common/css/media-preview.css' %}" rel="stylesheet">
     <link rel="shortcut icon" type="image/png" href="{% static 'images/favicon.png' %}" >
@@ -31,6 +36,15 @@
     <![endif]-->
   </head>
   <body>
+    {# Anti-flash: apply wama-simple class before any render if stored in localStorage #}
+    <script>
+      (function() {
+        var k = 'wama_ui_mode';
+        window.WAMA_UI_MODE_KEY = k;
+        var m = localStorage.getItem(k) || '{{ ui_mode }}';
+        if (m === 'simple') document.body.classList.add('wama-simple');
+      })();
+    </script>
     {% block top_navigation %}
       <div class="top_nav">
         {% include 'includes/header.html' %}
@@ -236,6 +250,8 @@
     <script src="{% static 'filemanager/js/filemanager.js' %}"></script>
     <!-- Unified media preview (modal + fullscreen — common à toutes les apps) -->
     <script src="{% static 'common/js/media-preview.js' %}"></script>
+    <!-- WAMA Audio Waveform Player (Canvas + Web Audio — aucun CDN) -->
+    <script src="{% static 'common/js/wama-audio-player.js' %}"></script>
     <!-- System stats monitor -->
     <script src="{% static 'common/js/system-stats.js' %}"></script>
     <!-- Queue actions (duplication générique) -->
@@ -244,6 +260,71 @@
     {% block javascript %}
       <script src="{% static 'vendors/bootstrap-wysiwyg/js/bootstrap-wysiwyg.min.js' %}"></script>
     {% endblock %}
+
+    {# ── Global UI-mode switch helpers ───────────────────────────────── #}
+    <script>
+      (function() {
+        function _csrf() {
+          var el = document.querySelector('[name=csrfmiddlewaretoken]');
+          if (el) return el.value;
+          var m = document.cookie.match(/csrftoken=([^;]+)/);
+          return m ? m[1] : '';
+        }
+
+        window.wamaSetMode = function(mode, persist) {
+          var k = window.WAMA_UI_MODE_KEY || 'wama_ui_mode';
+          localStorage.setItem(k, mode);
+          if (mode === 'simple') {
+            document.body.classList.add('wama-simple');
+          } else {
+            document.body.classList.remove('wama-simple');
+          }
+          _updateBtn(mode);
+          if (window._wamaHomeModeChanged) window._wamaHomeModeChanged(mode);
+          if (persist !== false) {
+            fetch('/api/switch-ui-mode/', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'X-CSRFToken': _csrf() },
+              body: JSON.stringify({ mode: mode })
+            }).catch(function() {});
+          }
+        };
+
+        window.wamaToggleMode = function() {
+          var k = window.WAMA_UI_MODE_KEY || 'wama_ui_mode';
+          var cur = localStorage.getItem(k) || '{{ ui_mode }}';
+          var next = cur === 'advanced' ? 'simple' : 'advanced';
+          if (next === 'simple' && !window.WAMA_IS_HOME) {
+            window.wamaSetMode('simple');
+            window.location.href = '/';
+            return;
+          }
+          window.wamaSetMode(next);
+        };
+
+        function _updateBtn(mode) {
+          var btn = document.getElementById('uiModeSwitchBtn');
+          var lbl = document.getElementById('uiModeBtnLabel');
+          var ico = document.getElementById('uiModeBtnIcon');
+          if (!btn) return;
+          if (mode === 'simple') {
+            if (lbl) lbl.textContent = 'Avancé';
+            if (ico) { ico.className = 'fas fa-compress-alt me-1'; }
+            btn.title = 'Passer en Mode Avancé';
+          } else {
+            if (lbl) lbl.textContent = 'Simplifié';
+            if (ico) { ico.className = 'fas fa-expand-alt me-1'; }
+            btn.title = 'Passer en Mode Simplifié';
+          }
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+          var k = window.WAMA_UI_MODE_KEY || 'wama_ui_mode';
+          var m = localStorage.getItem(k) || '{{ ui_mode }}';
+          _updateBtn(m);
+        });
+      })();
+    </script>
 
     {% block extra_js %}{% endblock %}
   </body>

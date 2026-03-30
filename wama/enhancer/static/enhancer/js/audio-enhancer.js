@@ -400,6 +400,10 @@ document.addEventListener('DOMContentLoaded', function () {
           dlBtn.innerHTML = '<i class="fas fa-download"></i>';
           actionsDiv.insertBefore(dlBtn, deleteBtn);
         }
+        // Waveform player (audio URL = download URL, compatible WaveSurfer fetch)
+        if (!document.getElementById('audioPlayer_' + id) && window.WamaAudioPlayer) {
+          WamaAudioPlayer.inject(getUrl(cfg.audioDownloadUrlTemplate, id), id, card);
+        }
       }
     }
 
@@ -664,13 +668,16 @@ document.addEventListener('DOMContentLoaded', function () {
 
       const bar = document.getElementById('audioGlobalProgressBar');
       const stats = document.getElementById('audioGlobalProgressStats');
-
-      if (bar) {
-        bar.style.width = data.overall_progress + '%';
-        bar.textContent = data.overall_progress + '%';
-      }
-      if (stats) {
-        stats.textContent = `${data.success}/${data.total} terminé`;
+      const pct = document.getElementById('audioGlobalProgressPct');
+      const audioStatus = document.getElementById('audioGlobalStatus');
+      const progress = data.overall_progress || 0;
+      if (bar) bar.style.width = progress + '%';
+      if (stats) stats.textContent = `${data.success}/${data.total} terminé · ${data.running} en cours`;
+      if (pct) pct.textContent = progress ? progress + '%' : '';
+      if (audioStatus) {
+        const active = (data.total || 0) > 0;
+        audioStatus.style.opacity = active ? '1' : '0';
+        audioStatus.style.pointerEvents = active ? '' : 'none';
       }
 
       // Enable/disable download-all

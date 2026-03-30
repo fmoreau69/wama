@@ -10,11 +10,13 @@ def user_role(request):
 
     user = request.user
 
-    # Preferred language (defaults to 'fr' for unauthenticated users)
+    # Preferred language + UI mode (defaults for unauthenticated users)
     preferred_language = 'fr'
+    ui_mode = 'advanced'
     if user.is_authenticated:
         try:
             preferred_language = user.profile.preferred_language
+            ui_mode = user.profile.ui_mode
         except Exception:
             pass
 
@@ -43,5 +45,6 @@ def user_role(request):
         'is_dev': is_dev(user),
         'user_role': get_user_role(user),
         'preferred_language': preferred_language,
+        'ui_mode': ui_mode,
         'app_catalog_json': app_catalog_json,
     }

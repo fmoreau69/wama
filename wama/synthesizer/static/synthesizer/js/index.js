@@ -278,17 +278,6 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
-        // .preview-btn — toggle inline audio player
-        const previewBtn = e.target.closest('.preview-btn');
-        if (previewBtn) {
-            const id = previewBtn.dataset.id;
-            const previewDiv = document.getElementById('preview_' + id);
-            if (previewDiv) {
-                previewDiv.style.display = previewDiv.style.display === 'none' ? 'block' : 'none';
-            }
-            return;
-        }
-
         // .preview-text-btn — show text content modal
         const textBtn = e.target.closest('.preview-text-btn');
         if (textBtn) {
@@ -467,12 +456,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 const data = await response.json();
 
                 // Update progress bar
-                const progressBar = card.querySelector('.progress-fill');
-                const progressText = card.querySelector('.progress-bar-custom + small');
-                if (progressBar && progressText) {
+                const progressBar = card.querySelector('.wama-progress-fill');
+                const progressText = card.querySelector('.progress-text');
+                if (progressBar) {
                     progressBar.style.width = data.progress + '%';
-                    progressText.textContent = data.progress + '%';
+                    progressBar.classList.add('active');
                 }
+                if (progressText) progressText.textContent = data.progress + '%';
 
                 // Update card in-place on completion — no full page reload
                 // (a full reload interrupts audio preview and reloads the slow FileManager)
@@ -505,14 +495,18 @@ document.addEventListener('DOMContentLoaded', function() {
             const globalProgressBar = document.getElementById('globalProgressBar');
             const globalProgressText = document.getElementById('globalProgressText');
             const globalProgressStats = document.getElementById('globalProgressStats');
+            const globalStatus = document.getElementById('globalStatus');
 
-            if (globalProgressBar && globalProgressText) {
-                globalProgressBar.style.width = data.global_progress + '%';
-                globalProgressText.textContent = data.global_progress + '%';
-            }
-
+            const p = data.global_progress || 0;
+            if (globalProgressBar) globalProgressBar.style.width = p + '%';
+            if (globalProgressText) globalProgressText.textContent = p ? p + '%' : '';
             if (globalProgressStats) {
-                globalProgressStats.textContent = `${data.completed}/${data.total} terminé • ${data.running} en cours • ${data.pending} en attente${data.failed > 0 ? ` • ${data.failed} échoué` : ''}`;
+                globalProgressStats.textContent = `${data.completed}/${data.total} terminé · ${data.running} en cours${data.failed > 0 ? ` · ${data.failed} échoué` : ''}`;
+            }
+            if (globalStatus) {
+                const active = (data.total || 0) > 0;
+                globalStatus.style.opacity = active ? '1' : '0';
+                globalStatus.style.pointerEvents = active ? '' : 'none';
             }
         } catch (error) {
             console.error('Global progress update error:', error);

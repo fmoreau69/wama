@@ -88,21 +88,21 @@ footer .container {
 }
 
 /*  === MODALS === */
-/* Fix modal z-index to appear above navigation (z-index: 1000) */
+/* Fix modal z-index to appear above navigation (z-index: 2000) */
 .modal,
 .modal.fade,
 .modal.show {
-    z-index: 1055 !important;
+    z-index: 2020 !important;
 }
 
 .modal-backdrop,
 .modal-backdrop.fade,
 .modal-backdrop.show {
-    z-index: 1050 !important;
+    z-index: 2010 !important;
 }
 
 .modal-dialog {
-    z-index: 1056 !important;
+    z-index: 2021 !important;
     position: relative;
     margin-top: 70px !important;
 }
@@ -114,7 +114,7 @@ footer .container {
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
     position: relative;
     pointer-events: auto !important;
-    z-index: 1057 !important;
+    z-index: 2022 !important;
 }
 
 .modal-header {
@@ -140,20 +140,20 @@ footer .container {
 #modal-progress,
 [id^="modal_classes2blur"],
 [id^="settingsModal"] {
-    z-index: 1055 !important;
+    z-index: 2020 !important;
 }
 
 #modal-progress .modal-dialog,
 [id^="modal_classes2blur"] .modal-dialog,
 [id^="settingsModal"] .modal-dialog {
-    z-index: 1056 !important;
+    z-index: 2021 !important;
     position: relative;
 }
 
 #modal-progress .modal-content,
 [id^="modal_classes2blur"] .modal-content,
 [id^="settingsModal"] .modal-content {
-    z-index: 1057 !important;
+    z-index: 2022 !important;
     position: relative;
     pointer-events: auto !important;
 }
@@ -221,6 +221,88 @@ textarea {
     height: 100%;
     background: linear-gradient(90deg, #0d6efd 0%, #0dcaf0 100%);
     transition: width 0.5s ease;
+}
+
+/* === WAMA Audio Waveform Player === */
+.wama-audio-player {
+    border-top: 1px solid rgba(255,255,255,0.06);
+    padding-top: 6px;
+    margin-top: 4px;
+}
+
+.wama-waveform-wrap {
+    position: relative;
+    background: rgba(0,0,0,0.25);
+    border-radius: 4px;
+    overflow: hidden;
+    cursor: pointer;
+}
+
+/* WaveSurfer injects a <canvas> here — no explicit height needed */
+.wama-waveform {
+    width: 100%;
+}
+
+.wama-waveform-loading {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(26,29,32,0.65);
+    pointer-events: none;
+}
+
+.wama-play-btn {
+    background: none;
+    border: none;
+    padding: 0;
+    width: 20px;
+    color: #20c997;
+    cursor: pointer;
+    flex-shrink: 0;
+    line-height: 1;
+}
+
+.wama-play-btn:hover { color: #0dcaf0; }
+
+.wama-audio-time {
+    font-size: 0.72rem;
+    color: #6c757d;
+    font-variant-numeric: tabular-nums;
+}
+
+/* === WAMA Global Progress Bar (thin, shimmer) === */
+#globalStatus,
+#videoGlobalStatus,
+#audioGlobalStatus {
+    transition: opacity 0.4s ease;
+}
+
+
+.wama-progress-track {
+    height: 3px;
+    background: #2a2d30;
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.wama-progress-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.6s ease;
+    background: linear-gradient(90deg, #198754, #20c997);
+}
+
+.wama-progress-fill.active {
+    background: linear-gradient(90deg, #0dcaf0, #198754, #0dcaf0);
+    background-size: 200% 100%;
+    animation: wamaProgressShimmer 2s linear infinite;
+}
+
+@keyframes wamaProgressShimmer {
+    0%   { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
 }
 
 /*  === DROP ZONE === */

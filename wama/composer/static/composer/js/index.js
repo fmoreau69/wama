@@ -185,16 +185,14 @@
         if (!globalStatus) return;
 
         if (active === 0 && total > 0) {
-            // All done — show 100% briefly then fade
+            // All done — keep bar visible at 100%
+            globalStatus.style.opacity = '1';
+            globalStatus.style.pointerEvents = '';
             globalFill.style.width = '100%';
             globalFill.classList.remove('active');
-            if (gpPercent) gpPercent.textContent = '';
+            if (gpPercent) gpPercent.textContent = '100%';
             if (gpRunning) gpRunning.textContent = '0';
             if (gpEta) gpEta.textContent = 'terminé';
-            setTimeout(() => {
-                globalStatus.style.opacity = '0';
-                globalStatus.style.pointerEvents = 'none';
-            }, 2000);
         } else if (active > 0) {
             globalStatus.style.opacity = '1';
             globalStatus.style.pointerEvents = '';
@@ -437,14 +435,6 @@
             return;
         }
 
-        const previewBtn = e.target.closest('.preview-btn');
-        if (previewBtn) {
-            const id = previewBtn.dataset.id;
-            const preview = document.getElementById(`preview_${id}`);
-            if (preview) preview.style.display = preview.style.display === 'none' ? '' : 'none';
-            return;
-        }
-
         const settingsBtn = e.target.closest('.settings-btn');
         if (settingsBtn) {
             const id = settingsBtn.dataset.id;
@@ -618,19 +608,15 @@
             existingErr.remove();
         }
 
-        // If success, inject audio player, action buttons and settings button
+        // Si succès : injecter waveform + boutons download/export
         if (status === 'SUCCESS' && data?.audio_url) {
-            const preview = card.querySelector('.audio-preview');
-            if (preview) {
-                if (!preview.querySelector('audio')) {
-                    preview.innerHTML = `<audio controls class="w-100" style="height:32px;">
-                        <source src="${data.audio_url}" type="audio/wav"></audio>`;
-                }
-                preview.style.display = '';  // always show, even if already had audio from server render
+            // Waveform player (si pas encore injecté)
+            if (!document.getElementById(`audioPlayer_${id}`) && window.WamaAudioPlayer) {
+                WamaAudioPlayer.inject(data.audio_url, id, card);
             }
-            if (data.download_url && !card.querySelector('.preview-btn')) {
+            // Boutons download + export (si pas encore injectés)
+            if (data.download_url && !card.querySelector('a[title="Télécharger"]')) {
                 const actionsDiv = card.querySelector('.d-flex.flex-wrap');
-                // Add settings button if missing (dynamically created cards start without one)
                 if (!actionsDiv?.querySelector('.settings-btn')) {
                     const model = card.dataset.model || '';
                     const dur   = card.dataset.duration || '10';
@@ -641,10 +627,7 @@
                             <i class="fas fa-cog"></i></button>`);
                 }
                 const settingsBtn = actionsDiv?.querySelector('.settings-btn');
-                const btns = `
-                    <button class="btn btn-sm btn-success preview-btn" data-id="${id}" title="Écouter">
-                        <i class="fas fa-volume-up"></i></button>
-                    <a href="${data.download_url}" class="btn btn-sm btn-info" title="Télécharger">
+                const btns = `<a href="${data.download_url}" class="btn btn-sm btn-info" title="Télécharger">
                         <i class="fas fa-download"></i></a>
                     <button class="btn btn-sm export-btn" data-id="${id}"
                         title="Exporter" style="color:#a78bfa;border:1px solid #a78bfa;background:transparent;">

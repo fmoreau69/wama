@@ -191,7 +191,7 @@ class QwenASRBackend(SpeechToTextBackend):
                 os.environ['HF_HUB_CACHE'] = cache_dir
                 os.environ['HUGGINGFACE_HUB_CACHE'] = cache_dir
 
-            from transformers import AutoProcessor, AutoModelForSpeechSeq2Seq
+            from transformers import AutoProcessor
 
             logger.info(
                 f"[QwenASR] Loading '{model_id}' on {self._device}"
@@ -205,7 +205,10 @@ class QwenASRBackend(SpeechToTextBackend):
 
             self._processor = AutoProcessor.from_pretrained(model_id, **proc_kwargs)
 
-            # Model
+            # Model — try specific seq2seq class first, fall back to generic AutoModel
+            # AutoModelForSpeechSeq2Seq may not have qwen3_asr in its mapping on
+            # older transformers versions; AutoModel works with trust_remote_code
+            # for any architecture.
             model_kwargs = {'trust_remote_code': True}
             if cache_dir:
                 model_kwargs['cache_dir'] = cache_dir
@@ -214,7 +217,23 @@ class QwenASRBackend(SpeechToTextBackend):
             if self._device != 'cpu':
                 model_kwargs['device_map'] = 'auto'
 
-            self._model = AutoModelForSpeechSeq2Seq.from_pretrained(model_id, **model_kwargs)
+            # Qwen3-ASR uses a causal architecture — AutoModelForCausalLM is the
+            # correct class and works with trust_remote_code on any transformers
+            # version. AutoModelForSpeechSeq2Seq is tried first for forward
+            # compatibility if transformers ever registers qwen3_asr natively.
+            try:
+                from transformers import AutoModelForSpeechSeq2Seq
+                self._model = AutoModelForSpeechSeq2Seq.from_pretrained(model_id, **model_kwargs)
+            except (ValueError, OSError) as exc:
+                if 'does not recognize this architecture' in str(exc) or 'qwen3_asr' in str(exc):
+                    logger.warning(
+                        f"[QwenASR] AutoModelForSpeechSeq2Seq unavailable for '{model_id}', "
+                        "falling back to AutoModelForCausalLM (trust_remote_code)"
+                    )
+                    from transformers import AutoModelForCausalLM
+                    self._model = AutoModelForCausalLM.from_pretrained(model_id, **model_kwargs)
+                else:
+                    raise
 
             if self._device == 'cpu':
                 self._model = self._model.to('cpu')

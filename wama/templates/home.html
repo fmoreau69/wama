@@ -1,8 +1,52 @@
 {% extends 'base.html' %}
 
+{% block extra_css %}
+<style>
+  /* Simple mode: show/hide home sections */
+  #homeSimple { display: none; }
+  body.wama-simple #homeAdvanced  { display: none; }
+  body.wama-simple #homeSimple    { display: block; }
+  body.wama-simple #homePageTitle { display: none; }
+  body.wama-simple .home-title-sep { display: none; }
+
+  /* Simple mode: full-width, no side margins */
+  body.wama-simple .home-wrapper .container-fluid { max-width: 100% !important; }
+
+  /* Chat widget: expanded in simple mode */
+  body.wama-simple #ai-chat-messages { max-height: 45vh !important; }
+
+  /* Drop zone cards */
+  .simple-drop-zone {
+    border: 2px dashed #495057;
+    border-radius: 12px;
+    padding: 36px 16px;
+    text-align: center;
+    cursor: pointer;
+    background: #1a1d21;
+    min-height: 160px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    transition: border-color .2s, background .2s;
+  }
+  .simple-drop-zone:hover,
+  .simple-drop-zone.dragover {
+    border-color: #0d6efd;
+    background: #0d1117;
+  }
+  .simple-drop-zone .dz-icon { font-size: 2rem; margin-bottom: .5rem; }
+  .simple-drop-zone .dz-label { font-weight: 600; margin-bottom: .25rem; }
+  .simple-drop-zone .dz-hint  { font-size: .8rem; color: #6c757d; }
+  .simple-drop-zone .dz-status { font-size: .8rem; margin-top: .5rem; color: #6fcf97; min-height: 1rem; }
+</style>
+{% endblock %}
+
 {% block javascript %}
 {{ block.super }}
 <script>
+  window.WAMA_IS_HOME = true;
+
   // Si l'URL contient un paramètre "next", afficher automatiquement le modal de login
   document.addEventListener('DOMContentLoaded', function() {
     const urlParams = new URLSearchParams(window.location.search);
@@ -384,7 +428,15 @@
           removeLoadingIndicator();
           const data = await response.json();
           if (data.success) {
-            if (data.tool_steps && data.tool_steps.length > 0) addToolSteps(data.tool_steps);
+            if (data.tool_steps && data.tool_steps.length > 0) {
+              addToolSteps(data.tool_steps);
+              // Detect switch_mode action from tool results
+              for (var _s of data.tool_steps) {
+                if (_s.result && _s.result.action === 'switch_mode') {
+                  window.wamaSetMode && window.wamaSetMode(_s.result.mode, false);
+                }
+              }
+            }
             addMessage(data.response, false, false, data.model);
           } else {
             addMessage(data.error || 'An error occurred', false, true);
@@ -400,6 +452,112 @@
         }
       });
     }
+
+    // ── Home mode management ──────────────────────────────────────────────
+    window._wamaHomeModeChanged = function(mode) {
+      // Nothing extra needed — CSS handles show/hide
+    };
+
+    // ── Drop zone helper ──────────────────────────────────────────────────
+    function _setupDropZone(zoneId, onFiles) {
+      var zone = document.getElementById(zoneId);
+      if (!zone) return;
+      var input = zone.querySelector('input[type=file]');
+      zone.addEventListener('click', function(e) {
+        if (e.target.tagName !== 'BUTTON' && e.target.tagName !== 'A') {
+          if (input) input.click();
+        }
+      });
+      if (input) {
+        input.addEventListener('change', function() {
+          if (input.files.length) onFiles(Array.from(input.files), zone);
+          input.value = '';
+        });
+      }
+      zone.addEventListener('dragover', function(e) {
+        e.preventDefault(); zone.classList.add('dragover');
+      });
+      zone.addEventListener('dragleave', function() { zone.classList.remove('dragover'); });
+      zone.addEventListener('drop', function(e) {
+        e.preventDefault(); zone.classList.remove('dragover');
+        var files = Array.from(e.dataTransfer.files);
+        if (files.length) onFiles(files, zone);
+      });
+    }
+
+    function _dzStatus(zone, msg, isErr) {
+      var el = zone.querySelector('.dz-status');
+      if (!el) return;
+      el.textContent = msg;
+      el.style.color = isErr ? '#ff6b6b' : '#6fcf97';
+    }
+
+    async function _uploadToFileManager(files, zone) {
+      _dzStatus(zone, 'Envoi en cours…');
+      var fd = new FormData();
+      files.forEach(function(f) { fd.append('files', f); });
+      try {
+        var r = await fetch('/filemanager/api/upload/', {
+          method: 'POST',
+          headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+          body: fd
+        });
+        var d = await r.json();
+        if (d.uploaded && d.uploaded.length) {
+          _dzStatus(zone, d.uploaded.length + ' fichier(s) ajouté(s) au FileManager');
+        } else {
+          _dzStatus(zone, 'Échec : ' + (d.error || 'Erreur inconnue'), true);
+        }
+      } catch(e) {
+        _dzStatus(zone, 'Erreur réseau', true);
+      }
+    }
+
+    async function _uploadToMediaLibrary(files, zone) {
+      _dzStatus(zone, 'Envoi en cours…');
+      var fd = new FormData();
+      files.forEach(function(f) { fd.append('files', f); });
+      try {
+        var r = await fetch('/media-library/api/upload/', {
+          method: 'POST',
+          headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+          body: fd
+        });
+        if (r.ok) {
+          _dzStatus(zone, files.length + ' document(s) ajouté(s) à la Médiathèque');
+        } else {
+          _dzStatus(zone, 'Envoi vers la médiathèque indisponible', true);
+        }
+      } catch(e) {
+        _dzStatus(zone, 'Erreur réseau', true);
+      }
+    }
+
+    async function _uploadToReader(files, zone) {
+      _dzStatus(zone, 'Envoi au Reader…');
+      var fd = new FormData();
+      files.forEach(function(f) { fd.append('files', f); });
+      try {
+        var r = await fetch('/api/tools/reader/add/', {
+          method: 'POST',
+          headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+          body: fd
+        });
+        var d = await r.json();
+        if (!d.error) {
+          _dzStatus(zone, files.length + ' document(s) envoyé(s) au Reader');
+        } else {
+          _dzStatus(zone, 'Erreur Reader : ' + d.error, true);
+        }
+      } catch(e) {
+        _dzStatus(zone, 'Erreur réseau', true);
+      }
+    }
+
+    _setupDropZone('dzFiles',  function(f, z) { _uploadToFileManager(f, z); });
+    _setupDropZone('dzRag',    function(f, z) { _uploadToMediaLibrary(f, z); });
+    _setupDropZone('dzReader', function(f, z) { _uploadToReader(f, z); });
+
   });
 </script>
 {% endblock %}
@@ -408,7 +566,8 @@
 <div class="home-wrapper">
   <div class="container-fluid py-4" style="max-width: 1200px;">
 
-    <div class="row mb-4">
+    <!-- ══ Titre page (mode avancé) ══════════════════════════════════════ -->
+    <div id="homePageTitle" class="row mb-4">
       <div class="col-12">
         <h1 class="page-header mb-3">
           <i class="fas fa-robot"></i> WAMA: Web App for Media Automation
@@ -418,11 +577,10 @@
         </p>
       </div>
     </div>
+    <hr class="mb-4 home-title-sep">
 
     {% if is_admin %}
-    <hr>
-
-    <!-- AI Chat (Admin Only) -->
+    <!-- AI Chat (Admin Only) — visible in both modes -->
     <div class="row mb-4">
       <div class="col-12">
         <div class="d-flex justify-content-between align-items-center mb-3">
@@ -487,7 +645,8 @@
     </div>
     {% endif %}
 
-    <hr>
+    <!-- ══ Mode Avancé ══════════════════════════════════════════════════ -->
+    <div id="homeAdvanced">
 
     <!-- Applications génériques -->
     <div class="row mb-4">
@@ -771,25 +930,56 @@
       </div>
     </div>
 
-<!--    <hr>-->
+    </div>{# /homeAdvanced #}
 
-    <!-- Demo video -->
-<!--    <div class="row mb-4">
-      <div class="col-12">
-        <h4 class="mb-3"><i class="fas fa-video"></i> Anonymizer Demo</h4>
-        <div class="card" style="background: #212529; border: 1px solid #495057;">
-          <div class="card-body">
-            <div class="ratio ratio-16x9">
-              <iframe
-                src="https://www.youtube.com/embed/243buD-70FI"
-                style="border-radius: 8px;"
-                allowfullscreen>
-              </iframe>
-            </div>
+    <!-- ══ Mode Simplifié ═══════════════════════════════════════════════ -->
+    <div id="homeSimple">
+      <div class="row g-3 mt-2">
+
+        <!-- Zone Fichiers -->
+        <div class="col-md-4">
+          <div id="dzFiles" class="simple-drop-zone">
+            <input type="file" multiple style="display:none">
+            <div class="dz-icon text-info"><i class="fas fa-folder-open"></i></div>
+            <div class="dz-label text-light">Mes Fichiers</div>
+            <div class="dz-hint">Glissez des fichiers ici pour les ajouter au FileManager</div>
+            <div class="dz-status"></div>
+            <a href="/" class="btn btn-sm btn-outline-info mt-2" onclick="event.stopPropagation(); window.wamaSetMode && window.wamaSetMode('advanced');">
+              <i class="fas fa-folder me-1"></i> Mode Avancé
+            </a>
           </div>
         </div>
+
+        <!-- Zone Documents RAG -->
+        <div class="col-md-4">
+          <div id="dzRag" class="simple-drop-zone">
+            <input type="file" multiple accept=".pdf,.docx,.txt,.md,.csv" style="display:none">
+            <div class="dz-icon text-warning"><i class="fas fa-brain"></i></div>
+            <div class="dz-label text-light">Documents IA / RAG</div>
+            <div class="dz-hint">Documents pour enrichir la mémoire de l'assistant</div>
+            <div class="dz-status"></div>
+            <a href="{% url 'media_library:index' %}?tab=rag" class="btn btn-sm btn-outline-warning mt-2" onclick="event.stopPropagation()">
+              <i class="fas fa-photo-film me-1"></i> Médiathèque
+            </a>
+          </div>
+        </div>
+
+        <!-- Zone Reader (OCR) -->
+        <div class="col-md-4">
+          <div id="dzReader" class="simple-drop-zone">
+            <input type="file" multiple accept=".pdf,.png,.jpg,.jpeg,.tiff,.bmp,.webp" style="display:none">
+            <div class="dz-icon text-success"><i class="fas fa-book-open"></i></div>
+            <div class="dz-label text-light">Reader / OCR</div>
+            <div class="dz-hint">PDF ou images à envoyer pour extraction de texte</div>
+            <div class="dz-status"></div>
+            <a href="{% url 'reader:index' %}" class="btn btn-sm btn-outline-success mt-2" onclick="event.stopPropagation()">
+              <i class="fas fa-arrow-right me-1"></i> Ouvrir le Reader
+            </a>
+          </div>
+        </div>
+
       </div>
-    </div>-->
+    </div>{# /homeSimple #}
 
   </div>
 </div>

@@ -57,11 +57,8 @@
                     {{ gen.get_status_display }}
                 </span>
             </div>
-            <div class="progress mt-1" style="height:3px;">
-                <div class="progress-bar
-                    {% if gen.status == 'RUNNING' %}bg-warning progress-bar-striped progress-bar-animated
-                    {% elif gen.status == 'SUCCESS' %}bg-success
-                    {% else %}bg-secondary{% endif %}"
+            <div class="wama-progress-track mt-1">
+                <div class="wama-progress-fill {% if gen.status == 'RUNNING' %}active{% endif %}"
                      style="width:{{ gen.progress }}%"></div>
             </div>
             {% if gen.status == 'RUNNING' %}
@@ -70,7 +67,7 @@
                 <span class="remaining-time ms-1 text-info"></span>
             </small>
             {% elif gen.status != 'SUCCESS' %}
-            <small class="text-muted">{{ gen.progress }}%</small>
+            <small class="text-muted progress-text">{{ gen.progress }}%</small>
             {% endif %}
         </div>
 
@@ -89,10 +86,6 @@
                 {% endif %}
 
                 {% if gen.audio_output %}
-                <button class="btn btn-sm btn-success preview-btn"
-                        data-id="{{ gen.id }}" title="Écouter">
-                    <i class="fas fa-volume-up"></i>
-                </button>
                 <a href="{% url 'composer:download' gen.id %}"
                    class="btn btn-sm btn-info" title="Télécharger">
                     <i class="fas fa-download"></i>
@@ -129,15 +122,10 @@
             </small>
             {% endif %}
 
-            <!-- Audio preview -->
-            <div class="audio-preview mt-1" id="preview_{{ gen.id }}" style="display:none;">
-                {% if gen.audio_output %}
-                <audio controls class="w-100" style="height:32px;">
-                    <source src="{{ gen.audio_output.url }}" type="audio/wav">
-                </audio>
-                {% endif %}
-            </div>
         </div>
 
     </div>
+    {% if gen.audio_output %}
+    {% include 'common/_audio_waveform.html' with audio_url=gen.audio_output.url player_id=gen.id %}
+    {% endif %}
 </div>

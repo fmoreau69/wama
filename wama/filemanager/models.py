@@ -47,3 +47,24 @@ class UserFile(models.Model):
             except Exception:
                 pass
         super().delete(*args, **kwargs)
+
+
+class MountedFolder(models.Model):
+    """
+    A server-side folder mounted into the FileManager tree.
+    Allows browsing local paths without importing files.
+    """
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='mounted_folders')
+    name = models.CharField(max_length=100, help_text='Nom affiché dans l\'arbre')
+    local_path = models.CharField(max_length=1000, help_text='Chemin absolu sur le serveur')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['name']
+
+    def __str__(self):
+        return f"{self.name} → {self.local_path} ({self.user.username})"
+
+    @property
+    def virtual_prefix(self):
+        return f'mounts/{self.id}'

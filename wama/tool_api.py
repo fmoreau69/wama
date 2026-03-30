@@ -1646,6 +1646,26 @@ def list_media_assets(user, asset_type: str = '', q: str = '') -> dict:
         return {'error': f'Erreur lecture médiathèque : {e}', 'assets': [], 'total': 0}
 
 
+def switch_ui_mode(user, mode: str = 'simple') -> dict:
+    """
+    Switch the WAMA interface mode for the current user.
+    mode: 'simple' (chatbot view) or 'advanced' (full interface)
+    Returns an action payload that the JS client will execute.
+    """
+    if mode not in ('simple', 'advanced'):
+        return {'error': f"Mode invalide : '{mode}'. Valeurs : 'simple' ou 'advanced'"}
+    # Persist to DB
+    try:
+        from wama.accounts.models import UserProfile
+        profile, _ = UserProfile.objects.get_or_create(user=user)
+        profile.ui_mode = mode
+        profile.save(update_fields=['ui_mode'])
+    except Exception as e:
+        logger.warning(f'switch_ui_mode: DB save failed: {e}')
+    label = 'simplifié' if mode == 'simple' else 'avancé'
+    return {'action': 'switch_mode', 'mode': mode, 'message': f"Interface passée en mode {label}."}
+
+
 def get_media_asset_url(user, asset_id: int) -> dict:
     """
     Get the file URL of a specific media library asset.
@@ -1709,6 +1729,7 @@ TOOL_REGISTRY = {
     'get_reader_status':      get_reader_status,
     'list_media_assets':      list_media_assets,
     'get_media_asset_url':    get_media_asset_url,
+    'switch_ui_mode':         switch_ui_mode,
 }
 
 # Metadata consumed by GET /api/v1/tools/ — update this when adding a new tool.

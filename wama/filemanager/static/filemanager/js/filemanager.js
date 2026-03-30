@@ -201,12 +201,11 @@
             },
             'plugins': ['contextmenu', 'search', 'wholerow', 'dnd', 'types'],
             'types': {
-                'folder': {
-                    'icon': 'fa fa-folder text-warning'
-                },
-                'file': {
-                    'icon': 'fa fa-file text-secondary'
-                }
+                'folder':  { 'icon': 'fa fa-folder text-warning' },
+                'file':    { 'icon': 'fa fa-file text-secondary' },
+                'mount':   { 'icon': 'fa fa-plug text-info' },
+                'section': { 'icon': 'fa fa-home text-secondary' },
+                'error':   { 'icon': 'fa fa-exclamation-triangle text-warning' },
             },
             'contextmenu': {
                 'items': contextMenuItems,
@@ -331,12 +330,26 @@
     function contextMenuItems(node) {
         console.log('[FileManager] Context menu requested for node:', node.id, 'type:', node.type);
 
+        // Mount root node — only show "Démonter"
+        if (node.type === 'mount') {
+            return {
+                unmount: {
+                    label: 'Démonter',
+                    icon: 'fa fa-unlink',
+                    action: function() { unmountFolder(node); },
+                    _class: 'context-menu-danger'
+                }
+            };
+        }
+
         // Return false to disable context menu for nodes without a type
         if (!node.type || (node.type !== 'file' && node.type !== 'folder')) {
             return false;
         }
 
         const items = {};
+        const nodePath = node.data && node.data.path;
+        const isMount = !!(nodePath && nodePath.startsWith('mounts/'));
 
         // Multi-selection: get all selected nodes
         const selectedNodes = $('#filemanager-tree').jstree('get_selected', true);
@@ -419,21 +432,23 @@
                 }
             }
 
-            items.rename = {
-                label: 'Renommer',
-                icon: 'fa fa-edit',
-                separator_before: true,
-                action: function() { renameFile(node); }
-            };
-            items.delete = {
-                label: 'Supprimer',
-                icon: 'fa fa-trash',
-                action: function() { deleteFile(node); },
-                _class: 'context-menu-danger'
-            };
+            if (!isMount) {
+                items.rename = {
+                    label: 'Renommer',
+                    icon: 'fa fa-edit',
+                    separator_before: true,
+                    action: function() { renameFile(node); }
+                };
+                items.delete = {
+                    label: 'Supprimer',
+                    icon: 'fa fa-trash',
+                    action: function() { deleteFile(node); },
+                    _class: 'context-menu-danger'
+                };
+            }
 
             // "Nouveau dossier ici" — create at temp root level (files live in temp folder)
-            items.mkdir = {
+            if (!isMount) items.mkdir = {
                 label: 'Nouveau dossier ici',
                 icon: 'fa fa-folder-plus',
                 separator_before: true,
@@ -556,13 +571,15 @@
                 };
             }
 
-            items.deleteAll = {
-                label: 'Vider le dossier',
-                icon: 'fa fa-trash',
-                separator_before: true,
-                action: function() { deleteAllInFolder(node); },
-                _class: 'context-menu-danger'
-            };
+            if (!isMount) {
+                items.deleteAll = {
+                    label: 'Vider le dossier',
+                    icon: 'fa fa-trash',
+                    separator_before: true,
+                    action: function() { deleteAllInFolder(node); },
+                    _class: 'context-menu-danger'
+                };
+            }
         }
 
         return items;
@@ -808,6 +825,10 @@
         if (nodesToOpen && nodesToOpen.length > 0) {
             console.log(`FileManager: Auto-expanding ${currentApp} folders`);
 
+            // Open the Applications section first (it's collapsed by default)
+            const sectionApps = tree.get_node('section_apps');
+            if (sectionApps) tree.open_node(sectionApps);
+
             // Open nodes sequentially (parent first, then children)
             nodesToOpen.forEach(nodeId => {
                 const node = tree.get_node(nodeId);
@@ -956,6 +977,110 @@
                 showToast('Erreur lors du renommage', 'danger');
             });
     }
+
+    function unmountFolder(node) {
+        const mountId = node.data && node.data.mount_id;
+        if (!mountId) return;
+        if (!confirm(`Démonter "${node.text}" ?\nLes fichiers ne seront pas supprimés.`)) return;
+
+        fetch(`${config.apiMountDeleteUrl}${mountId}/delete/`, {
+            method: 'POST',
+            headers: { 'X-CSRFToken': csrfToken }
+        })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    showToast(`Dossier "${node.text}" démonté`, 'success');
+                    tree.delete_node(node);
+                } else {
+                    showToast(data.error || 'Erreur lors du démontage', 'danger');
+                }
+            })
+            .catch(err => showToast(`Erreur : ${err.message}`, 'danger'));
+    }
+
+    // ── Mount — connecteur de dossier (aucune copie de fichiers) ────────────
+    const btnAddMount    = document.getElementById('btnAddMount');
+    const mountModalEl   = document.getElementById('mountModal');
+    const mountPathInput = document.getElementById('mountPathInput');
+    const mountPathStatus= document.getElementById('mountPathStatus');
+    const mountNameInput = document.getElementById('mountNameInput');
+    const mountSaveBtn   = document.getElementById('mountSaveBtn');
+    let _mountModal      = null;
+    let _mountValidateTimer = null;
+
+    btnAddMount?.addEventListener('click', () => {
+        if (!mountModalEl) return;
+        if (mountPathInput)  { mountPathInput.value = ''; mountPathInput.classList.remove('is-valid','is-invalid'); }
+        if (mountNameInput)  mountNameInput.value = '';
+        if (mountPathStatus) mountPathStatus.innerHTML = '';
+        if (mountSaveBtn)    mountSaveBtn.disabled = true;
+        _mountModal = _mountModal || new bootstrap.Modal(mountModalEl);
+        _mountModal.show();
+        setTimeout(() => mountPathInput?.focus(), 300);
+    });
+
+    function _checkMountPath(raw) {
+        if (!raw.trim()) {
+            mountPathStatus.innerHTML = '';
+            mountSaveBtn.disabled = true;
+            return;
+        }
+        mountPathStatus.innerHTML = '<span class="text-muted"><i class="fas fa-spinner fa-spin me-1"></i></span>';
+        const url = (config.apiValidatePathUrl || '/filemanager/api/validate-path/') + '?path=' + encodeURIComponent(raw);
+        fetch(url, { headers: { 'X-CSRFToken': csrfToken } })
+            .then(r => r.json())
+            .then(data => {
+                const last = raw.replace(/\\/g,'/').replace(/\/+$/,'').split('/').pop() || raw;
+                if (!mountNameInput.value.trim()) mountNameInput.value = data.name || last;
+                if (data.accessible) {
+                    mountPathStatus.innerHTML = `<span class="text-success"><i class="fas fa-check-circle me-1"></i>Accessible</span>`;
+                } else {
+                    mountPathStatus.innerHTML = `<span class="text-warning"><i class="fas fa-exclamation-triangle me-1"></i>Non accessible en ce moment \u2014 le dossier sera disponible quand le partage sera connect\u00e9</span>`;
+                }
+                // Allow connecting even if temporarily offline
+                mountSaveBtn.disabled = false;
+            })
+            .catch(() => {
+                mountSaveBtn.disabled = false; // allow anyway
+            });
+    }
+
+    mountPathInput?.addEventListener('input', () => {
+        clearTimeout(_mountValidateTimer);
+        mountSaveBtn.disabled = true;
+        _mountValidateTimer = setTimeout(() => _checkMountPath(mountPathInput.value), 500);
+    });
+    mountPathInput?.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { clearTimeout(_mountValidateTimer); _checkMountPath(mountPathInput.value); }
+    });
+
+    mountSaveBtn?.addEventListener('click', () => {
+        const rawPath = mountPathInput?.value.trim();
+        const name    = mountNameInput?.value.trim();
+        if (!name || !rawPath) { showToast('Chemin et nom requis', 'warning'); return; }
+        mountSaveBtn.disabled = true;
+        fetch(config.apiMountsUrl || '/filemanager/api/mounts/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+            body: JSON.stringify({ name, local_path: rawPath })
+        })
+            .then(r => r.json())
+            .then(data => {
+                mountSaveBtn.disabled = false;
+                if (data.success) {
+                    _mountModal?.hide();
+                    showToast(`"${data.name}" connect\u00e9`, 'success');
+                    refreshTree();
+                } else {
+                    showToast(data.error || 'Erreur', 'danger');
+                }
+            })
+            .catch(err => {
+                mountSaveBtn.disabled = false;
+                showToast('Erreur : ' + err.message, 'danger');
+            });
+    });
 
     function deleteFile(node) {
         const path = node.data?.path;

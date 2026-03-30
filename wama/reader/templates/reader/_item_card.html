@@ -129,11 +129,10 @@
 
   {# Progress bar (RUNNING) #}
   {% if item.status == 'RUNNING' %}
-  <div class="progress mt-2" style="height:4px;">
-    <div class="progress-bar bg-warning progress-bar-striped progress-bar-animated"
-         style="width:{{ item.progress }}%"></div>
+  <div class="wama-progress-track mt-2">
+    <div class="wama-progress-fill active" style="width:{{ item.progress }}%"></div>
   </div>
-  <small class="text-warning">En cours…</small>
+  <small class="progress-text text-warning">{{ item.progress }}% — En cours…</small>
   {% endif %}
 
   {# Result preview #}

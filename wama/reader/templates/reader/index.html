@@ -200,8 +200,8 @@ window._batchImport = WamaBatchImport({
                     <small class="text-muted">{{ batch_info.obj.created_at|date:"d/m H:i" }}</small>
                     <span class="badge bg-secondary">{{ batch_info.success_count }}/{{ batch_info.obj.total }}</span>
                     <div class="flex-grow-1">
-                        <div class="progress" style="height:4px; background:rgba(255,255,255,0.1);">
-                            <div class="progress-bar" style="background:#0dcaf0; width:{{ batch_info.success_pct }}%;"></div>
+                        <div class="wama-progress-track">
+                            <div class="wama-progress-fill" style="width:{{ batch_info.success_pct }}%;"></div>
                         </div>
                     </div>
                     <i class="fas fa-chevron-down text-muted" style="font-size:.7rem;"></i>

@@ -1184,31 +1184,31 @@
                 applyProgressBar(
                     document.getElementById('globalProgressBar'),
                     document.getElementById('globalProgressStats'),
-                    data.image || data  // fallback to root keys for compat
+                    data.image || data,
+                    document.getElementById('globalStatus'),
+                    document.getElementById('globalProgressPct')
                 );
                 applyProgressBar(
                     document.getElementById('videoGlobalProgressBar'),
                     document.getElementById('videoGlobalProgressStats'),
-                    data.video || {}
+                    data.video || {},
+                    document.getElementById('videoGlobalStatus'),
+                    document.getElementById('videoGlobalProgressPct')
                 );
             })
             .catch(error => console.error('Error updating global progress:', error));
     }
 
-    function applyProgressBar(progressBar, statsText, stats) {
-        if (!progressBar || !statsText) return;
+    function applyProgressBar(progressBar, statsText, stats, statusEl, pctEl) {
         const progress = stats.overall_progress || 0;
         const total = stats.total || 0;
-        progressBar.style.width = progress + '%';
-        progressBar.textContent = progress + '%';
-        statsText.textContent = `${stats.success || 0}/${total} terminé • ${stats.running || 0} en cours • ${stats.pending || 0} en attente`;
-        progressBar.className = 'progress-bar';
-        if (stats.failure > 0) {
-            progressBar.classList.add('bg-danger');
-        } else if (stats.running > 0) {
-            progressBar.classList.add('bg-warning', 'progress-bar-striped', 'progress-bar-animated');
-        } else if (total > 0 && stats.success === total) {
-            progressBar.classList.add('bg-success');
+        if (progressBar) progressBar.style.width = progress + '%';
+        if (statsText) statsText.textContent = `${stats.success || 0}/${total} terminé · ${stats.running || 0} en cours`;
+        if (pctEl) pctEl.textContent = progress ? progress + '%' : '';
+        if (statusEl) {
+            const active = total > 0;
+            statusEl.style.opacity = active ? '1' : '0';
+            statusEl.style.pointerEvents = active ? '' : 'none';
         }
     }
 
@@ -1277,11 +1277,14 @@
         }
 
         // Update progress bar
-        const progressBar = card.querySelector('.progress-bar');
+        const progressBar = card.querySelector('.wama-progress-fill');
+        const progressText = card.querySelector('.progress-text');
         if (progressBar) {
             progressBar.style.width = data.progress + '%';
-            progressBar.textContent = data.progress + '%';
+            if (data.status === 'RUNNING') progressBar.classList.add('active');
+            else progressBar.classList.remove('active');
         }
+        if (progressText) progressText.textContent = data.progress + '%';
 
         // Show/hide error message
         if (data.error_message && data.status === 'FAILURE') {

@@ -449,23 +449,15 @@
 
 <hr class="border-secondary">
 
-<!-- Global Progress -->
-<div class="row mb-3">
-    <div class="col-12">
-        <div class="card bg-dark border-secondary">
-            <div class="card-body py-2">
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                    <h6 class="mb-0 text-light">
-                        <i class="fas fa-chart-line"></i> Progression globale
-                    </h6>
-                    <small class="text-white-50" id="globalProgressStats">0/0 terminé</small>
-                </div>
-                <div class="progress" style="height: 20px;">
-                    <div class="progress-bar" id="globalProgressBar" role="progressbar" style="width: 0%">0%</div>
-                </div>
-            </div>
-        </div>
+<div id="globalStatus" style="opacity:0; pointer-events:none;">
+    <div class="d-flex justify-content-between align-items-baseline mb-1">
+        <small class="text-muted" id="globalProgressStats"></small>
+        <small class="text-muted" id="globalProgressPct" style="font-variant-numeric: tabular-nums;"></small>
     </div>
+    <div class="wama-progress-track">
+        <div class="wama-progress-fill active" id="globalProgressBar" style="width:0%"></div>
+    </div>
+    <div style="height:12px;"></div>
 </div>
 
 <!-- Generations Queue -->
@@ -506,12 +498,10 @@
                                     {{ gen.status }}
                                 </span>
                             </div>
-                            <div class="progress" style="height: 24px;">
-                                <div class="progress-bar" role="progressbar"
-                                     style="width: {{ gen.progress }}%;">
-                                    {{ gen.progress }}%
-                                </div>
+                            <div class="wama-progress-track mt-1">
+                                <div class="wama-progress-fill {% if gen.status == 'RUNNING' %}active{% endif %}" style="width: {{ gen.progress }}%"></div>
                             </div>
+                            <small class="progress-text text-light">{{ gen.progress }}%</small>
                         </div>
 
                         <!-- Actions Column -->
@@ -815,23 +805,15 @@
 
 <hr class="border-secondary">
 
-<!-- Video Global Progress -->
-<div class="row mb-3">
-    <div class="col-12">
-        <div class="card bg-dark border-secondary">
-            <div class="card-body py-2">
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                    <h6 class="mb-0 text-light">
-                        <i class="fas fa-chart-line"></i> Progression globale vidéos
-                    </h6>
-                    <small class="text-white-50" id="videoGlobalProgressStats">0/0 terminé</small>
-                </div>
-                <div class="progress" style="height: 20px;">
-                    <div class="progress-bar bg-success" id="videoGlobalProgressBar" role="progressbar" style="width: 0%">0%</div>
-                </div>
-            </div>
-        </div>
+<div id="videoGlobalStatus" style="opacity:0; pointer-events:none;">
+    <div class="d-flex justify-content-between align-items-baseline mb-1">
+        <small class="text-muted" id="videoGlobalProgressStats"></small>
+        <small class="text-muted" id="videoGlobalProgressPct" style="font-variant-numeric: tabular-nums;"></small>
     </div>
+    <div class="wama-progress-track">
+        <div class="wama-progress-fill active" id="videoGlobalProgressBar" style="width:0%"></div>
+    </div>
+    <div style="height:12px;"></div>
 </div>
 
 <!-- Video Queue -->
@@ -874,12 +856,10 @@
                                     {{ gen.status }}
                                 </span>
                             </div>
-                            <div class="progress" style="height: 24px;">
-                                <div class="progress-bar bg-success" role="progressbar"
-                                     style="width: {{ gen.progress }}%;">
-                                    {{ gen.progress }}%
-                                </div>
+                            <div class="wama-progress-track mt-1">
+                                <div class="wama-progress-fill {% if gen.status == 'RUNNING' %}active{% endif %}" style="width: {{ gen.progress }}%"></div>
                             </div>
+                            <small class="progress-text text-light">{{ gen.progress }}%</small>
                         </div>
 
                         <!-- Actions Column -->

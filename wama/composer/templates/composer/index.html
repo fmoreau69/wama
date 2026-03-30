@@ -2,32 +2,6 @@
 {% load static %}
 
 {% block app_styles %}
-/* Barre de progression globale */
-#globalStatus {
-    transition: opacity 0.4s ease;
-}
-#globalProgressTrack {
-    height: 3px;
-    background: #2a2d30;
-    border-radius: 2px;
-    overflow: hidden;
-}
-#globalProgressFill {
-    height: 100%;
-    border-radius: 2px;
-    transition: width 0.6s ease;
-    background: linear-gradient(90deg, #198754, #20c997);
-}
-#globalProgressFill.active {
-    background: linear-gradient(90deg, #0dcaf0, #198754, #0dcaf0);
-    background-size: 200% 100%;
-    animation: progressShimmer 2s linear infinite;
-}
-@keyframes progressShimmer {
-    0%   { background-position: 200% 0; }
-    100% { background-position: -200% 0; }
-}
-
 /* Hint zone vide */
 .empty-hint {
     pointer-events: none;
@@ -199,8 +173,8 @@
         </small>
         <small class="text-muted" id="gpPercent" style="font-variant-numeric: tabular-nums;"></small>
     </div>
-    <div id="globalProgressTrack">
-        <div id="globalProgressFill" class="{% if queue_count > 0 %}active{% endif %}" style="width:0%"></div>
+    <div class="wama-progress-track" id="globalProgressTrack">
+        <div class="wama-progress-fill {% if queue_count > 0 %}active{% endif %}" id="globalProgressFill" style="width:0%"></div>
     </div>
     <div style="height:12px;"></div>{# spacer #}
 </div>
