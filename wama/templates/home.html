@@ -579,12 +579,11 @@
     </div>
     <hr class="mb-4 home-title-sep">
 
-    {% if is_admin %}
-    <!-- AI Chat (Admin Only) — visible in both modes -->
+    <!-- AI Chat — visible in both modes -->
     <div class="row mb-4">
       <div class="col-12">
         <div class="d-flex justify-content-between align-items-center mb-3">
-          <h4 class="mb-0"><i class="fas fa-comments"></i> AI Assistant <span class="badge bg-secondary">Admin</span></h4>
+          <h4 class="mb-0"><i class="fas fa-comments"></i> AI Assistant</h4>
           <div class="d-flex gap-2 align-items-center">
             <select id="ai-voice-select" class="form-select form-select-sm" style="background:#1a1d21;border:1px solid #495057;color:#fff;width:auto;">
               <option value="ff_siwis">FR Féminin</option>
@@ -643,7 +642,6 @@
         </div>
       </div>
     </div>
-    {% endif %}
 
     <!-- ══ Mode Avancé ══════════════════════════════════════════════════ -->
     <div id="homeAdvanced">

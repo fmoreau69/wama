@@ -11,13 +11,14 @@ WAMA is a Django-based web application developed at **Lescot** (Université Gust
 | App | Route | Description |
 |-----|-------|-------------|
 | **Anonymizer** | `/anonymizer/` | Automatic blurring of faces and licence plates in photos and videos. Supports YOLO detection + tracking, progressive blur, batch import. |
+| **Avatarizer** | `/avatarizer/` | Talking avatar generation: lip-sync a portrait photo or video to an audio track. Pipeline: MuseTalk (lip-sync) + CodeFormer (face enhancement). Supports TTS synthesis directly from text. |
+| **Composer** | `/composer/` | Music and sound effect generation from text prompts (Meta AudioCraft — MusicGen + AudioGen). |
 | **Describer** | `/describer/` | AI-powered description and summarisation of images, videos and audio. Uses multimodal LLMs (Ollama local or cloud). |
 | **Enhancer** | `/enhancer/` | Resolution upscaling for images/videos (Real-ESRGAN, HAT) and audio quality improvement (Resemble Enhance, DeepFilterNet). |
 | **Imager** | `/imager/` | Text-to-image, image-to-image, text-to-video and logo generation. Models: HunyuanImage 2.1, Qwen2.5-VL, SDXL, Mochi-1, LTX-Video, CogVideoX-5B, Flux LoRA logo. |
-| **Composer** | `/composer/` | Music and sound effect generation from text prompts (Meta AudioCraft — MusicGen + AudioGen). |
+| **Reader** | `/reader/` | OCR for printed and handwritten documents. Models: olmOCR (PDF-native, GPU), EasyOCR. Markdown output with optional LLM formatting. |
 | **Synthesizer** | `/synthesizer/` | Text-to-speech voice synthesis with voice cloning. Models: Higgs Audio V2, Coqui XTTS v2. Batch import from text/CSV files. |
 | **Transcriber** | `/transcriber/` | Automatic audio/video transcription (faster-Whisper). Outputs: plain text, SRT, VTT, JSON. Speaker diarisation via pyannote. |
-| **Reader** | `/reader/` | OCR for printed and handwritten documents. Models: olmOCR (PDF-native, GPU), EasyOCR. Markdown output with optional LLM formatting. |
 
 ### Lab tools (`wama_lab/`)
 

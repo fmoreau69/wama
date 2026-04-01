@@ -460,13 +460,14 @@ def _chat_with_claude(message: str, history: list = None) -> dict:
 
 @require_http_methods(["POST"])
 @csrf_protect
-@_admin_api
 def ai_chat(request):
     """
-    API endpoint for admin AI chat.
+    API endpoint for AI chat (all authenticated users).
     Supports both wama-dev-ai (Ollama) and Claude providers.
     Default: wama-dev-ai (local, privacy-first)
     """
+    if not request.user.is_authenticated:
+        return JsonResponse({'error': 'Authentification requise'}, status=401)
     try:
         data = json.loads(request.body)
         message = data.get('message', '').strip()
