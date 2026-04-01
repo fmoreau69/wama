@@ -29,4 +29,5 @@ urlpatterns = [
     path('batch/<int:pk>/download/',            views.batch_download,   name='batch_download'),
     path('batch/<int:pk>/delete/',              views.batch_delete,     name='batch_delete'),
     path('batch/<int:pk>/duplicate/',           views.batch_duplicate,  name='batch_duplicate'),
+    path('batch/<int:pk>/update/',              views.batch_update,     name='batch_update'),
 ]

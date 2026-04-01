@@ -1,5 +1,64 @@
 # CLAUDE.md — Instructions pour Claude Code (WAMA)
 
+---
+
+## 🔴 RÈGLE FONDAMENTALE : CENTRALISATION DANS `common/` — ZÉRO DUPLICATION
+
+> **Cette règle prime sur toutes les autres décisions d'architecture.**
+
+### Principe
+
+Tout code utilisé par **plus d'une application** DOIT aller dans `wama/common/`.
+Il est **interdit** de copier-coller du code d'une app vers une autre.
+Si deux apps ont besoin de la même logique, elle va dans `common/` et les deux apps l'importent.
+
+### S'applique à
+
+| Couche | Exemples à centraliser dans `common/` |
+|--------|---------------------------------------|
+| **Python — utilitaires** | sélection backend VRAM-aware, singleton keep_loaded, safe_delete, duplication |
+| **Python — tasks** | pattern batch (start, status, cancel), polling helpers |
+| **Templates HTML** | modals paramètres (item + batch), cartes de file d'attente, barres de progression |
+| **JavaScript** | csrfFetch, urlFor, polling loop, bindBatchActions, initSettingsModal |
+| **CSS** | classes de composants partagés (cards, badges, progress bars) |
+
+### Règles concrètes
+
+1. **Avant d'écrire du code dans `wama/<app>/`** — chercher si la logique existe déjà dans `common/`.
+   Si oui : importer. Si non et si réutilisable : créer dans `common/`.
+
+2. **Jamais copier-coller entre apps** — si tu te retrouves à reproduire du code existant,
+   c'est le signal qu'il faut d'abord extraire vers `common/`.
+
+3. **Les modals "Paramètres item" et "Paramètres batch" sont structurellement identiques**
+   entre toutes les apps génériques. Ils doivent à terme partager un composant commun.
+   En attendant le refactoring : ne pas créer de nouveau modal sans vérifier `common/`.
+
+4. **Le pattern singleton + keep_loaded + sélection VRAM-aware** doit venir de
+   `wama/common/utils/backend_selector.py` — ne pas le ré-implémenter par app.
+
+5. **Le JS de base** (polling, csrfFetch, urlFor, actions batch) doit venir de
+   `wama/common/static/common/js/wama-app-base.js` une fois créé.
+   En attendant : ne pas dupliquer, signaler le besoin dans `project_refactoring_common.md`.
+
+### Ce qui existe déjà dans `common/` (à utiliser, ne pas recréer)
+
+- `queue_duplication.py` : `duplicate_instance()`, `safe_delete_file()`
+- `batch_parsers.py` : parsing fichiers batch (txt/csv/pdf/docx)
+- `batch_import.js` : UI import batch avec détection automatique
+- `wama-queue.js` : batch collapse + persistance localStorage
+- `console_utils.py` : logs Redis structurés
+- `media_paths.py` : helpers `upload_to_user_input/output`
+
+### Roadmap refactoring (à faire, dans l'ordre)
+
+Voir `memory/project_refactoring_common.md` pour le détail.
+1. `common/utils/backend_selector.py` — sélection VRAM + règle singleton
+2. `common/static/common/js/wama-app-base.js` — JS de base inter-apps
+3. `common/templates/common/_settings_modal.html` — modal paramètres générique
+
+---
+
 ## ⚠️ RÈGLE OBLIGATOIRE : AJOUT D'UN NOUVEAU MODÈLE AI
 
 **Cette règle s'applique à TOUS les modèles téléchargés via HuggingFace Hub,

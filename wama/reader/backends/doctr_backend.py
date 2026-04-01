@@ -53,7 +53,7 @@ class DocTRBackend:
         if ext == '.pdf':
             doc = DocumentFile.from_pdf(str(path))
         else:
-            doc = DocumentFile.from_images([str(path)])
+            doc = DocumentFile.from_images([self._ensure_min_size(str(path))])
 
         if progress_cb:
             progress_cb(40, "Initialisation du modèle OCR…")
@@ -64,7 +64,19 @@ class DocTRBackend:
         if progress_cb:
             progress_cb(55, "Reconnaissance du texte…")
 
-        result = model(doc)
+        try:
+            result = model(doc)
+        except RuntimeError as e:
+            if 'Output size is too small' not in str(e):
+                raise
+            # Thin bbox detected (rule, underline, artifact) → retry with
+            # assume_straight_pages=True which skips rotation crops likely to produce
+            # degenerate heights.
+            logger.warning("[DocTR] Crop trop petit détecté — relance avec assume_straight_pages=True")
+            if progress_cb:
+                progress_cb(60, "Réessai (bbox trop fin)…")
+            model2 = ocr_predictor(pretrained=True, assume_straight_pages=True)
+            result = model2(doc)
 
         if progress_cb:
             progress_cb(85, "Assemblage du texte…")
@@ -72,6 +84,32 @@ class DocTRBackend:
         text = self._extract_text(result)
 
         return text
+
+    @staticmethod
+    def _ensure_min_size(image_path: str, min_dim: int = 300) -> str:
+        """
+        Upscale an image if its smallest dimension is below min_dim pixels.
+        Thin images cause docTR's CRNN VGG16 to crash with 'Output size is too small'
+        when detected bboxes are downsampled below 1px height.
+        Returns the original path if no upscaling needed, or a temp file path.
+        """
+        try:
+            from PIL import Image as PILImage
+            import tempfile
+            img = PILImage.open(image_path)
+            w, h = img.size
+            if min(w, h) >= min_dim:
+                return image_path
+            scale = min_dim / min(w, h)
+            img = img.resize((int(w * scale), int(h * scale)), PILImage.LANCZOS)
+            suffix = Path(image_path).suffix or '.png'
+            tmp = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
+            img.save(tmp.name)
+            logger.info("[DocTR] Image upscalée (%dx%d → %dx%d) pour éviter les crops trop fins",
+                        w, h, int(w * scale), int(h * scale))
+            return tmp.name
+        except Exception:
+            return image_path  # fallback : passer l'original sans upscale
 
     @staticmethod
     def _extract_text(result) -> str:

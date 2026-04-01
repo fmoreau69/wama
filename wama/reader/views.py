@@ -112,12 +112,16 @@ class IndexView(View):
         for batch in batches_qs:
             items = list(batch.items.all())
             success_count = sum(1 for i in items if i.reading and i.reading.status == 'DONE')
+            first_reading = next((i.reading for i in items if i.reading), None)
             batches_list.append({
                 'obj': batch,
                 'items': items,
                 'success_count': success_count,
                 'success_pct': int(success_count / batch.total * 100) if batch.total > 0 else 0,
                 'has_success': success_count > 0,
+                'first_backend': first_reading.backend if first_reading else '',
+                'first_mode': first_reading.mode if first_reading else '',
+                'first_language': first_reading.language if first_reading else '',
             })
 
         # Multi-item batches first, then single-item batches
@@ -688,6 +692,34 @@ def batch_duplicate(request, pk):
         BatchReadingItemLink.objects.create(batch=new_batch, reading=new_r, row_index=item.row_index)
 
     return JsonResponse({'success': True, 'batch_id': new_batch.id})
+
+
+@require_POST
+def batch_update(request, pk):
+    """Update backend/mode/language on all non-RUNNING items in a batch."""
+    user = _get_user(request)
+    batch = get_object_or_404(BatchReadingItem, pk=pk, user=user)
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    backend = data.get('backend', '')
+    mode = data.get('mode', '')
+    language = data.get('language', '')
+
+    updated = 0
+    for item in batch.items.select_related('reading').all():
+        r = item.reading
+        if not r or r.status == 'RUNNING':
+            continue
+        r.backend = backend
+        r.mode = mode
+        r.language = language
+        r.save(update_fields=['backend', 'mode', 'language'])
+        updated += 1
+
+    return JsonResponse({'success': True, 'updated': updated})
 
 
 def console_content(request):

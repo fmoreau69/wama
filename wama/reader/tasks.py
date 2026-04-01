@@ -74,10 +74,18 @@ def _count_pdf_pages(file_path: str) -> int:
 def _select_best_backend() -> str:
     """Choose olmocr if GPU is available with >= 10 GB free VRAM, else doctr.
 
+    Rule: if the olmOCR singleton is already loaded in VRAM, always prefer it —
+    its own VRAM footprint (~14 GB) would otherwise be counted as "unavailable"
+    and trigger a false fallback to docTR on subsequent batch items.
+
     Uses nvidia-smi (subprocess) as the primary check because torch.cuda
     is often uninitialized in forked Celery workers and returns False even
     when a GPU is present.
     """
+    # If the singleton is already loaded, reuse it — no VRAM check needed.
+    if _olmocr_singleton is not None and getattr(_olmocr_singleton, '_model', None) is not None:
+        return 'olmocr'
+
     # Primary: nvidia-smi subprocess — reliable in forked workers
     try:
         import subprocess
