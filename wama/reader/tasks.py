@@ -13,6 +13,20 @@ logger = logging.getLogger(__name__)
 
 PROGRESS_CACHE_TTL = 3600  # 1 hour
 
+# ── Module-level singleton — persiste entre tasks dans le même worker ────────
+# Évite de recharger olmOCR-7B (~10 min) entre deux fichiers d'un même batch.
+_olmocr_singleton = None
+
+
+def _get_olmocr():
+    """Retourne le backend olmOCR partagé, le charge si nécessaire."""
+    global _olmocr_singleton
+    from .backends.olmocr_backend import OlmOCRBackend
+    if _olmocr_singleton is None or _olmocr_singleton._model is None:
+        _olmocr_singleton = OlmOCRBackend()
+        _olmocr_singleton.load()
+    return _olmocr_singleton
+
 
 def _set_progress(item_id: int, pct: int, msg: str = ''):
     cache.set(f'reader_progress_{item_id}', {'pct': pct, 'msg': msg}, PROGRESS_CACHE_TTL)
@@ -161,6 +175,7 @@ def _format_as_markdown(text: str, language: str = '') -> str:
         model=model,
         num_predict=8192,
         think=False,
+        timeout=30.0,  # Fast-fail when Ollama is unavailable
     )
 
     if error or not result:
@@ -227,9 +242,10 @@ def read_document_task(self, item_id: int):
             _set_progress(item_id, pct, msg)
 
         if backend == 'olmocr':
-            from .backends.olmocr_backend import OlmOCRBackend
-            raw_text = OlmOCRBackend().run(
-                item.input_file.path, item.mode, item.language, progress_cb
+            # Singleton : le modèle reste chargé entre les fichiers d'un même batch
+            raw_text = _get_olmocr().run(
+                item.input_file.path, item.mode, item.language, progress_cb,
+                keep_loaded=True,
             )
         elif backend == 'doctr':
             from .backends.doctr_backend import DocTRBackend

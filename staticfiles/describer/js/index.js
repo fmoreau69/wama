@@ -35,14 +35,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // === File Upload ===
 
-    // Browse button
+    // Browse button (legacy) + drop zone click
+    if (fileInput) {
+        fileInput.addEventListener('change', handleFileSelect);
+    }
     if (browseBtn && fileInput) {
         browseBtn.addEventListener('click', () => fileInput.click());
-        fileInput.addEventListener('change', handleFileSelect);
     }
 
     // Drag and drop
     if (dropZone) {
+        dropZone.addEventListener('click', () => fileInput && fileInput.click());
         dropZone.addEventListener('dragover', (e) => {
             e.preventDefault();
             dropZone.classList.add('dragover');

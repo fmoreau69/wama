@@ -19,6 +19,7 @@ urlpatterns = [
     path('profile/', views.profile_view, name='profile'),
     path('profile/language/', views.language_update, name='profile-language'),
     path('profile/token/regenerate/', views.token_regenerate, name='token-regenerate'),
+    path('profile/password/', views.change_password, name='change-password'),
 
     # User Management (Admin only)
     path('users/', views.user_management, name='user-management'),

@@ -11,6 +11,8 @@
  *   data-console-url  — endpoint URL (/common/api/console/)
  *   data-app-name     — current app name (anonymizer, imager, ...)
  *   data-user-role    — user | dev | admin | anonymous
+ *
+ * Filter state is persisted in localStorage (key prefix: wama_console_).
  */
 document.addEventListener('DOMContentLoaded', function () {
   var container = document.querySelector('[data-console-url]');
@@ -41,6 +43,37 @@ document.addEventListener('DOMContentLoaded', function () {
     system: '#adb5bd'
   };
 
+  // ── localStorage persistence ─────────────────────────────────────────────
+  var LS_PREFIX = 'wama_console_';
+
+  function saveFilters() {
+    document.querySelectorAll('.console-level-filter').forEach(function (cb) {
+      localStorage.setItem(LS_PREFIX + 'level_' + cb.value, cb.checked ? '1' : '0');
+    });
+    var allApps = document.getElementById('filter-all-apps');
+    if (allApps) {
+      localStorage.setItem(LS_PREFIX + 'all_apps', allApps.checked ? '1' : '0');
+    }
+  }
+
+  function restoreFilters() {
+    document.querySelectorAll('.console-level-filter').forEach(function (cb) {
+      var stored = localStorage.getItem(LS_PREFIX + 'level_' + cb.value);
+      if (stored !== null) {
+        cb.checked = stored === '1';
+      }
+    });
+    var allApps = document.getElementById('filter-all-apps');
+    if (allApps) {
+      var stored = localStorage.getItem(LS_PREFIX + 'all_apps');
+      if (stored !== null) {
+        allApps.checked = stored === '1';
+      }
+    }
+  }
+
+  // ── URL builder ──────────────────────────────────────────────────────────
+
   function getSelectedLevels() {
     var checks = document.querySelectorAll('.console-level-filter:checked');
     if (!checks.length) return '';
@@ -70,6 +103,8 @@ document.addEventListener('DOMContentLoaded', function () {
     }
     return endpoint + (params.length ? '?' + params.join('&') : '');
   }
+
+  // ── Rendering ────────────────────────────────────────────────────────────
 
   function escapeHtml(str) {
     if (typeof str !== 'string') str = String(str == null ? '' : str);
@@ -111,6 +146,8 @@ document.addEventListener('DOMContentLoaded', function () {
     return '<div class="console-line" style="white-space:pre-wrap;word-break:break-word;">' + parts.join('') + '</div>';
   }
 
+  // ── Fetch & display ──────────────────────────────────────────────────────
+
   function refreshConsole() {
     var url = buildUrl();
     fetch(url)
@@ -135,13 +172,24 @@ document.addEventListener('DOMContentLoaded', function () {
       });
   }
 
+  // ── Init ─────────────────────────────────────────────────────────────────
+
+  // Restore saved filter state before first fetch
+  restoreFilters();
+
   // Event listeners on filter checkboxes (dev/admin)
   document.querySelectorAll('.console-level-filter').forEach(function (cb) {
-    cb.addEventListener('change', refreshConsole);
+    cb.addEventListener('change', function () {
+      saveFilters();
+      refreshConsole();
+    });
   });
   var allAppsToggle = document.getElementById('filter-all-apps');
   if (allAppsToggle) {
-    allAppsToggle.addEventListener('change', refreshConsole);
+    allAppsToggle.addEventListener('change', function () {
+      saveFilters();
+      refreshConsole();
+    });
   }
 
   // Initial load + polling every 3 seconds

@@ -6,11 +6,9 @@ import json
 import logging
 import os
 
-from django.contrib.auth.decorators import login_required
 from django.core.cache import cache
 from django.http import FileResponse, JsonResponse
 from django.shortcuts import get_object_or_404, render
-from django.utils.decorators import method_decorator
 from django.views import View
 from django.views.decorators.http import require_POST, require_GET
 
@@ -67,6 +65,7 @@ def _get_batches_list(user):
     for batch in batches:
         items = list(batch.items.select_related('generation').order_by('row_index'))
         result.append({'obj': batch, 'items': items})
+    result.sort(key=lambda b: 0 if b['obj'].total > 1 else 1)
     return result
 
 
@@ -74,7 +73,6 @@ def _get_batches_list(user):
 # Main page
 # ---------------------------------------------------------------------------
 
-@method_decorator(login_required, name='dispatch')
 class IndexView(View):
     def get(self, request):
         user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
@@ -99,7 +97,6 @@ class IndexView(View):
 # Generate single item
 # ---------------------------------------------------------------------------
 
-@login_required
 @require_POST
 def generate(request):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
@@ -157,7 +154,6 @@ def generate(request):
 # Import batch file
 # ---------------------------------------------------------------------------
 
-@login_required
 @require_POST
 def import_batch(request):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
@@ -243,11 +239,11 @@ def import_batch(request):
 # Update individual settings
 # ---------------------------------------------------------------------------
 
-@login_required
 @require_POST
 def update_settings(request, pk):
     """Update model and/or duration on an existing generation, then re-run."""
-    gen = get_object_or_404(ComposerGeneration, id=pk, user=request.user)
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    gen = get_object_or_404(ComposerGeneration, id=pk, user=user)
 
     if gen.status == 'RUNNING':
         return JsonResponse({'error': 'Impossible de modifier une génération en cours'}, status=400)
@@ -295,10 +291,10 @@ def update_settings(request, pk):
 # Progress
 # ---------------------------------------------------------------------------
 
-@login_required
 @require_GET
 def progress(request, pk):
-    gen = get_object_or_404(ComposerGeneration, id=pk, user=request.user)
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    gen = get_object_or_404(ComposerGeneration, id=pk, user=user)
     cached = cache.get(f'composer_progress_{pk}')
     pct = cached if cached is not None else gen.progress
 
@@ -320,9 +316,9 @@ def progress(request, pk):
 # Download
 # ---------------------------------------------------------------------------
 
-@login_required
 def download(request, pk):
-    gen = get_object_or_404(ComposerGeneration, id=pk, user=request.user)
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    gen = get_object_or_404(ComposerGeneration, id=pk, user=user)
     if not gen.audio_output:
         return JsonResponse({'error': 'Aucun fichier disponible'}, status=404)
 
@@ -336,10 +332,10 @@ def download(request, pk):
 # Delete
 # ---------------------------------------------------------------------------
 
-@login_required
 @require_POST
 def delete(request, pk):
-    gen = get_object_or_404(ComposerGeneration, id=pk, user=request.user)
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    gen = get_object_or_404(ComposerGeneration, id=pk, user=user)
 
     # Capture parent batch before cascade
     parent_batch = None
@@ -381,10 +377,10 @@ def delete(request, pk):
 # Batch delete
 # ---------------------------------------------------------------------------
 
-@login_required
 @require_POST
 def batch_delete(request, pk):
-    batch = get_object_or_404(ComposerBatch, id=pk, user=request.user)
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    batch = get_object_or_404(ComposerBatch, id=pk, user=user)
 
     for item in batch.items.select_related('generation'):
         gen = item.generation
@@ -410,10 +406,10 @@ def batch_delete(request, pk):
 # Export to media library
 # ---------------------------------------------------------------------------
 
-@login_required
 @require_POST
 def export_to_library(request, pk):
-    gen = get_object_or_404(ComposerGeneration, id=pk, user=request.user)
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    gen = get_object_or_404(ComposerGeneration, id=pk, user=user)
 
     if not gen.audio_output:
         return JsonResponse({'error': 'Aucun fichier à exporter'}, status=400)
@@ -455,11 +451,11 @@ def export_to_library(request, pk):
 # Duplicate & Download All
 # ---------------------------------------------------------------------------
 
-@login_required
 @require_POST
 def duplicate(request, pk):
     """Duplicate a single generation sharing the source, resetting the result."""
-    gen = get_object_or_404(ComposerGeneration, id=pk, user=request.user)
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    gen = get_object_or_404(ComposerGeneration, id=pk, user=user)
     try:
         output_filename = gen.batch_item.output_filename
     except ComposerBatchItem.DoesNotExist:
@@ -478,13 +474,13 @@ def duplicate(request, pk):
     return JsonResponse({'success': True, 'id': new_gen.id})
 
 
-@login_required
 @require_POST
 def batch_duplicate(request, pk):
     """Duplicate a batch with all its items, sharing source files."""
-    batch = get_object_or_404(ComposerBatch, id=pk, user=request.user)
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    batch = get_object_or_404(ComposerBatch, id=pk, user=user)
 
-    new_batch = ComposerBatch(user=request.user, total=batch.total)
+    new_batch = ComposerBatch(user=user, total=batch.total)
     if batch.batch_file and batch.batch_file.name:
         new_batch.batch_file = batch.batch_file.name
     new_batch.save()
@@ -512,7 +508,6 @@ def batch_duplicate(request, pk):
     return JsonResponse({'success': True, 'id': new_batch.id})
 
 
-@login_required
 def download_all(request):
     """Download all completed audio outputs as a ZIP archive."""
     import io as _io
@@ -547,7 +542,6 @@ def download_all(request):
 # Start all / Clear all
 # ---------------------------------------------------------------------------
 
-@login_required
 @require_POST
 def start_all(request):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
@@ -567,7 +561,6 @@ def start_all(request):
     return JsonResponse({'launched': count})
 
 
-@login_required
 @require_POST
 def clear_all(request):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
@@ -591,14 +584,12 @@ def clear_all(request):
 # Console & global progress
 # ---------------------------------------------------------------------------
 
-@login_required
 def console_content(request):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     lines = get_console_lines(user.id, app='composer')
     return JsonResponse({'lines': lines})
 
 
-@login_required
 def global_progress(request):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     gens = ComposerGeneration.objects.filter(user=user, status__in=('PENDING', 'RUNNING'))

@@ -307,14 +307,19 @@ def resolve_mount_path(rel_path, user):
         mount = MountedFolder.objects.get(id=mount_id, user=user)
     except MountedFolder.DoesNotExist:
         return None, None
-    base = Path(mount.local_path).resolve()
+    # Re-run _resolve_path on the stored value: on WSL2 a UNC path stored as
+    # //server/share must be converted to the actual Linux mount point.
+    # On Windows this is a no-op (//server/share is already valid).
+    resolved_local = _resolve_path(mount.local_path)
+    base = Path(resolved_local)
+    logger.warning(f"[Filemanager] resolve_mount_path: local_path='{mount.local_path}' → resolved='{resolved_local}' → base='{base}'")
     subpath = parts[2] if len(parts) == 3 else ''
     if subpath:
-        target = (base / subpath).resolve()
-        try:
-            target.relative_to(base)
-        except ValueError:
+        # Prevent path traversal without filesystem I/O (no .resolve())
+        if '..' in Path(subpath).parts:
+            logger.warning(f"[Filemanager] Path traversal attempt blocked: {subpath}")
             return None, None
+        target = base / subpath
     else:
         target = base
     return target, mount
@@ -399,10 +404,27 @@ def api_children(request):
                 'text': 'Accès refusé', 'icon': 'fa fa-lock text-danger',
                 'type': 'error', 'children': False,
             }], safe=False)
-        if not abs_path.exists() or not abs_path.is_dir():
+        try:
+            import os
+            path_ok = os.path.isdir(str(abs_path))
+        except OSError as e:
+            logger.warning(f"[Filemanager] Mount path check failed for '{abs_path}': {e}")
+            path_ok = False
+        logger.warning(f"[Filemanager] api_children mount: path='{abs_path}' ok={path_ok}")
+        if not path_ok:
+            import sys
+            abs_str = str(abs_path)
+            if sys.platform.startswith('linux') and abs_str.startswith('//'):
+                err_text = (
+                    f'Partage réseau inaccessible depuis WSL2 : {abs_str} — '
+                    'montez le partage CIFS dans WSL2 puis re-créez ce montage '
+                    'avec le chemin Linux (ex: /mnt/shares/SAVES)'
+                )
+            else:
+                err_text = 'Dossier non accessible (hors ligne ?)'
             return JsonResponse([{
                 'id': f'err_offline_{rel_path.replace("/", "_")}',
-                'text': 'Dossier non accessible (hors ligne ?)',
+                'text': err_text,
                 'icon': 'fa fa-exclamation-triangle text-warning',
                 'type': 'error', 'children': False,
             }], safe=False)
@@ -1244,6 +1266,27 @@ def api_import_to_app(request):
         else:
             results.append(result)
 
+    # Reader multi-file: consolidate into ONE batch (remove individual batch-of-1 wrappers)
+    if target_app == 'reader' and len(results) > 1:
+        try:
+            from wama.reader.models import ReadingItem, BatchReadingItem, BatchReadingItemLink
+            item_ids = [r['id'] for r in results if r.get('id')]
+            if len(item_ids) > 1:
+                # Delete the individual batch-of-1 wrappers created by import_to_reader
+                links = BatchReadingItemLink.objects.filter(
+                    reading_id__in=item_ids, batch__total=1
+                ).select_related('batch')
+                batch_ids_to_delete = list(links.values_list('batch_id', flat=True))
+                links.delete()
+                BatchReadingItem.objects.filter(id__in=batch_ids_to_delete, total=1).delete()
+                # Create ONE batch for all items
+                items = list(ReadingItem.objects.filter(id__in=item_ids))
+                batch = BatchReadingItem.objects.create(user=user, total=len(items))
+                for i, item in enumerate(items):
+                    BatchReadingItemLink.objects.create(batch=batch, reading=item, row_index=i)
+        except Exception as e:
+            logger.warning(f"[filemanager] reader batch consolidation failed: {e}")
+
     if len(file_paths) == 1:
         # Backward compatibility: single path → return single result
         if results:
@@ -1631,6 +1674,9 @@ def import_to_reader(source_path, user):
     item.input_file.name = relative_path
     item.save()
 
+    from wama.reader.views import _wrap_reading_in_batch
+    _wrap_reading_in_batch(item)
+
     return {
         'imported': True,
         'app': 'reader',
@@ -1752,6 +1798,91 @@ def import_to_cam_analyzer(source_path, user):
 
 # ── Mounted Folders API ────────────────────────────────────────────────────────
 
+def _parse_unc_path(path_str):
+    """
+    Detect and parse a UNC path (\\server\share\sub or //server/share/sub).
+    Returns {'server', 'share', 'subpath'} or None if not UNC.
+    """
+    import re
+    p = path_str.strip().replace('\\', '/')
+    m = re.match(r'^//([^/]+)/([^/]+)(/.*)?$', p)
+    if not m:
+        return None
+    return {
+        'server':  m.group(1),
+        'share':   m.group(2),
+        'subpath': (m.group(3) or '').lstrip('/'),
+    }
+
+
+def _try_cifs_mount(server, share, subpath='', username=None, password=None, domain=None):
+    """
+    Mount an SMB/CIFS share on Linux/WSL2 under /mnt/wama_mounts/<server>_<share>/.
+    Tries guest access when no credentials are provided.
+
+    Returns (success: bool, linux_path: str | None, error: str | None)
+    Special error value 'AUTH_REQUIRED' means credentials are needed.
+    """
+    import subprocess, os, re, sys
+
+    if not sys.platform.startswith('linux'):
+        return False, None, 'CIFS auto-mount uniquement sur Linux/WSL2.'
+
+    # Sanitise mount point name
+    safe = re.sub(r'[^\w_-]', '_', f'{server}_{share}')
+    mount_base = Path('/mnt/wama_mounts')
+    mount_point = mount_base / safe
+
+    try:
+        mount_point.mkdir(parents=True, exist_ok=True)
+    except OSError as e:
+        return False, None, f'Impossible de créer le point de montage : {e}'
+
+    # Already mounted?
+    check = subprocess.run(['mountpoint', '-q', str(mount_point)], capture_output=True)
+    if check.returncode == 0:
+        linux_path = str(mount_point / subpath) if subpath else str(mount_point)
+        return True, linux_path, None
+
+    # Build CIFS options
+    uid = os.getuid()
+    gid = os.getgid()
+    opts = [f'uid={uid}', f'gid={gid}', 'vers=3.0', 'nounix']
+    if username:
+        opts.append(f'username={username}')
+        opts.append(f'password={password or ""}')
+        if domain:
+            opts.append(f'domain={domain}')
+    else:
+        opts.append('guest')
+
+    cmd = ['sudo', 'mount', '-t', 'cifs',
+           f'//{server}/{share}', str(mount_point),
+           '-o', ','.join(opts)]
+
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=20)
+        if result.returncode == 0:
+            linux_path = str(mount_point / subpath) if subpath else str(mount_point)
+            return True, linux_path, None
+        err = (result.stderr.strip() or result.stdout.strip() or 'Erreur de montage inconnue')
+        # Detect authentication failures
+        if any(k in err for k in ('Permission denied', 'NT_STATUS_LOGON_FAILURE',
+                                   'NT_STATUS_ACCESS_DENIED', 'ERRDOS', 'Invalid argument')):
+            return False, None, 'AUTH_REQUIRED'
+        return False, None, err
+    except subprocess.TimeoutExpired:
+        return False, None, 'Timeout lors du montage CIFS (20 s).'
+    except FileNotFoundError:
+        return False, None, (
+            'mount.cifs introuvable. Installez cifs-utils : sudo apt install cifs-utils\n'
+            'Et autorisez le montage sans mot de passe :\n'
+            '  echo "$(whoami) ALL=(ALL) NOPASSWD: /bin/mount -t cifs *" | sudo tee /etc/sudoers.d/wama-cifs'
+        )
+    except Exception as e:
+        return False, None, str(e)
+
+
 def _resolve_path(path_str):
     """Convert any path format (Windows absolute, UNC, Linux) to a server-accessible path.
     Handles WSL environment transparently via wslpath when available.
@@ -1766,34 +1897,47 @@ def _resolve_path(path_str):
     # Normalise backslashes for analysis
     p_fwd = p.replace('\\', '/')
 
-    # Already a Unix absolute path
-    if p_fwd.startswith('/'):
-        return p_fwd
-
     if sys.platform.startswith('linux'):
-        # Running in WSL — try wslpath for any Windows/UNC path
-        try:
-            result = subprocess.run(
-                ['wslpath', p],
-                capture_output=True, text=True, timeout=5
-            )
-            if result.returncode == 0 and result.stdout.strip():
-                return result.stdout.strip()
-        except Exception:
-            pass
+        # Running in WSL2 — Windows/UNC paths must be converted via wslpath.
+        # Check BEFORE the `startswith('/')` guard: a UNC path like \\server\share
+        # becomes //server/share after normalisation, which starts with '/' but is
+        # NOT a native Linux path.
+        is_windows_drive = len(p_fwd) >= 3 and p_fwd[1] == ':'
+        # UNC: original had backslashes OR normalised to //server/... (but not ///...)
+        is_unc = '\\' in p or (p_fwd.startswith('//') and len(p_fwd) > 2 and p_fwd[2] not in ('/', ' '))
 
-        # Fallback manual conversions
-        # Windows drive letter: C:\... or C:/...
-        if len(p_fwd) >= 3 and p_fwd[1] == ':':
-            drive = p_fwd[0].lower()
-            rest = p_fwd[3:]
-            return f'/mnt/{drive}/{rest}'
+        if is_windows_drive or is_unc:
+            # Try wslpath first (handles both drive letters and UNC shares)
+            try:
+                result = subprocess.run(
+                    ['wslpath', p],
+                    capture_output=True, text=True, timeout=5
+                )
+                if result.returncode == 0 and result.stdout.strip():
+                    return result.stdout.strip()
+            except Exception:
+                pass
 
-        # UNC path: \\server\share\... → //server/share/...
-        if p_fwd.startswith('//'):
+            # Manual fallback: drive letter C:\... → /mnt/c/...
+            if is_windows_drive:
+                drive = p_fwd[0].lower()
+                rest = p_fwd[3:]
+                return f'/mnt/{drive}/{rest}'
+
+            # UNC path with no wslpath result — return as-is (will fail isdir;
+            # user must mount the CIFS share in WSL2 first)
             return p_fwd
 
-    # Native Windows or fallback: normalise to forward slashes
+        # Already a native Linux absolute path
+        if p_fwd.startswith('/'):
+            return p_fwd
+
+    else:
+        # Native Windows: //server/share is a valid UNC representation
+        if p_fwd.startswith('/'):
+            return p_fwd
+
+    # Fallback: normalise to forward slashes
     return p_fwd
 
 
@@ -1888,22 +2032,38 @@ def api_find_folder(request):
 @require_GET
 def api_validate_path(request):
     """Validate and resolve a user-provided path (Windows/UNC/Linux).
-    Returns: {resolved, accessible, name}
+    Returns: {resolved, accessible, name, is_smb?, smb_server?, smb_share?, smb_subpath?, smb_hint?}
     """
+    import os, sys
     path_str = request.GET.get('path', '').strip()
     if not path_str:
         return JsonResponse({'resolved': '', 'accessible': False, 'name': ''})
 
     resolved = _resolve_path(path_str)
     try:
-        accessible = Path(resolved).is_dir()
+        accessible = os.path.isdir(resolved)
     except Exception:
         accessible = False
 
-    # Auto-fill name from last meaningful path segment
     last = path_str.replace('\\', '/').rstrip('/').rsplit('/', 1)[-1]
+    response = {'resolved': resolved, 'accessible': accessible, 'name': last}
 
-    return JsonResponse({'resolved': resolved, 'accessible': accessible, 'name': last})
+    # Detect SMB/UNC network path
+    unc = _parse_unc_path(path_str)
+    if unc:
+        response.update({
+            'is_smb':      True,
+            'smb_server':  unc['server'],
+            'smb_share':   unc['share'],
+            'smb_subpath': unc['subpath'],
+        })
+        if not accessible and sys.platform.startswith('linux'):
+            response['smb_hint'] = (
+                'Partage réseau détecté. Entrez vos identifiants AD pour le monter automatiquement '
+                '(laissez vide pour tenter un accès invité).'
+            )
+
+    return JsonResponse(response)
 
 
 @require_GET
@@ -1989,14 +2149,93 @@ def api_mounts(request):
     if not name or not local_path:
         return JsonResponse({'error': 'Nom et chemin requis'}, status=400)
 
-    resolved = _resolve_path(local_path)
-    resolved_path = Path(resolved)
-    # Allow saving even if the share is temporarily offline (e.g. network share not mounted yet)
-    if resolved_path.exists() and not resolved_path.is_dir():
-        return JsonResponse({'error': 'Le chemin doit pointer vers un dossier'}, status=400)
+    smb_username = data.get('smb_username', '').strip()
+    smb_password = data.get('smb_password', '').strip()
+    smb_domain   = data.get('smb_domain',   '').strip()
 
-    mount = MountedFolder.objects.create(user=user, name=name, local_path=resolved)
+    import sys, os
+    unc = _parse_unc_path(local_path)
+    smb_config = None
+
+    if unc and sys.platform.startswith('linux'):
+        # Auto-mount the CIFS share, then store the Linux path
+        success, linux_path, error = _try_cifs_mount(
+            unc['server'], unc['share'], unc['subpath'],
+            username=smb_username or None,
+            password=smb_password or None,
+            domain=smb_domain or None,
+        )
+        if not success:
+            if error == 'AUTH_REQUIRED':
+                return JsonResponse(
+                    {'error': 'Authentification requise pour ce partage.', 'needs_auth': True},
+                    status=401,
+                )
+            return JsonResponse({'error': error or 'Impossible de monter le partage.'}, status=400)
+
+        resolved = linux_path
+        smb_config = {
+            'server':   unc['server'],
+            'share':    unc['share'],
+            'subpath':  unc['subpath'],
+            'username': smb_username or None,
+            'domain':   smb_domain or None,
+            'guest':    not smb_username,
+        }
+    else:
+        resolved = _resolve_path(local_path)
+        resolved_path = Path(resolved)
+        # Allow saving even if temporarily offline
+        if resolved_path.exists() and not resolved_path.is_dir():
+            return JsonResponse({'error': 'Le chemin doit pointer vers un dossier.'}, status=400)
+
+    mount = MountedFolder.objects.create(
+        user=user, name=name, local_path=resolved, smb_config=smb_config
+    )
     return JsonResponse({'success': True, 'id': mount.id, 'name': mount.name})
+
+
+@require_GET
+def api_remount_shares(request):
+    """
+    Re-mount all WAMA-managed CIFS shares (called from start_wama_prod.sh via localhost).
+    Only accessible from 127.0.0.1 or by superusers.
+    """
+    import sys
+    addr = request.META.get('REMOTE_ADDR', '')
+    if not (request.user.is_superuser or addr in ('127.0.0.1', '::1')):
+        return JsonResponse({'error': 'Forbidden'}, status=403)
+
+    if not sys.platform.startswith('linux'):
+        return JsonResponse({'remounted': 0, 'skipped': 0, 'errors': []})
+
+    remounted, skipped, errors = 0, 0, []
+    for mount in MountedFolder.objects.exclude(smb_config=None):
+        cfg = mount.smb_config or {}
+        server  = cfg.get('server', '')
+        share   = cfg.get('share', '')
+        subpath = cfg.get('subpath', '')
+        if not server or not share:
+            skipped += 1
+            continue
+        # Only auto-remount guest mounts (no stored password)
+        if not cfg.get('guest', True):
+            errors.append({'mount': mount.name, 'info': 'Credentials requis — reconnectez depuis l\'interface.'})
+            skipped += 1
+            continue
+        success, linux_path, error = _try_cifs_mount(server, share, subpath)
+        if success:
+            remounted += 1
+            # Update stored path in case mount point changed
+            if linux_path and linux_path != mount.local_path:
+                mount.local_path = linux_path
+                mount.save(update_fields=['local_path'])
+        else:
+            skipped += 1
+            errors.append({'mount': mount.name, 'error': error})
+
+    logger.warning(f'[Filemanager] api_remount_shares: remounted={remounted} skipped={skipped}')
+    return JsonResponse({'remounted': remounted, 'skipped': skipped, 'errors': errors})
 
 
 @require_POST
@@ -2020,13 +2259,11 @@ def api_mount_serve(request, pk, path):
     except MountedFolder.DoesNotExist:
         return JsonResponse({'error': 'Access denied'}, status=403)
 
-    base = Path(mount.local_path).resolve()
+    base = Path(mount.local_path)
     if path:
-        target = (base / path).resolve()
-        try:
-            target.relative_to(base)
-        except ValueError:
+        if '..' in Path(path).parts:
             return JsonResponse({'error': 'Invalid path'}, status=400)
+        target = base / path
     else:
         return JsonResponse({'error': 'No file specified'}, status=400)
 

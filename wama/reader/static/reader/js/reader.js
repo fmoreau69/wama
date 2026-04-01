@@ -60,11 +60,14 @@
             : `<span class="badge bg-secondary ms-1 small">${backendLabel(item.backend)}</span>`;
 
         const progressHtml = (item.status === 'RUNNING')
-            ? `<div class="progress mt-2" style="height:4px;">
-                 <div class="progress-bar bg-warning progress-bar-striped progress-bar-animated"
-                      style="width:${item.progress}%"></div>
+            ? `<div class="wama-progress-track mt-2">
+                 <div class="wama-progress-fill active" style="width:${item.progress}%"></div>
                </div>
                <small class="text-warning">${item.progress_msg || 'En cours…'}</small>`
+            : (item.status === 'DONE')
+            ? `<div class="wama-progress-track mt-2">
+                 <div class="wama-progress-fill" style="width:100%"></div>
+               </div>`
             : '';
 
         const previewHtml = item.result_preview
@@ -271,6 +274,7 @@
         try {
             await csrfFetch(urlFor('delete', id), { method: 'POST' });
             removeCard(id);
+            updateGlobalProgress();
         } catch (e) {
             console.error('[Reader] delete error:', e);
         }
@@ -421,7 +425,13 @@
         try {
             const r = await csrfFetch(urls.upload, { method: 'POST', body: fd });
             const data = await r.json();
+            if (data.multi) {
+                // Multi-file batch → reload to render the batch group structure
+                window.location.reload();
+                return;
+            }
             (data.created || []).forEach(item => upsertCard(item));
+            updateGlobalProgress();
         } catch (e) {
             console.error('[Reader] upload error:', e);
         }
@@ -498,6 +508,36 @@
         });
     }
 
+    // ─── Global progress ──────────────────────────────────────────────────────
+
+    function updateGlobalProgress() {
+        if (!urls.globalProgress) return;
+        fetch(urls.globalProgress)
+            .then(r => r.json())
+            .then(data => {
+                const bar          = document.getElementById('globalProgressBar');
+                const stats        = document.getElementById('globalProgressStats');
+                const pct          = document.getElementById('globalProgressPct');
+                const globalStatus = document.getElementById('globalStatus');
+                const p = data.overall_progress || 0;
+                if (bar)   bar.style.width    = p + '%';
+                if (stats) stats.textContent  = `${data.done}/${data.total} terminé · ${data.running} en cours`;
+                if (pct)   pct.textContent    = p ? p + '%' : '';
+                if (globalStatus) {
+                    const active = (data.total || 0) > 0;
+                    globalStatus.style.opacity       = active ? '1' : '0';
+                    globalStatus.style.pointerEvents = active ? '' : 'none';
+                    // Remove shimmer once all done
+                    if (bar && data.done === data.total && data.total > 0) {
+                        bar.classList.remove('active');
+                    } else if (bar) {
+                        bar.classList.add('active');
+                    }
+                }
+            })
+            .catch(() => {});
+    }
+
     // ─── Batch group URL helper ───────────────────────────────────────────────
 
     function urlForBatch(key, id) {
@@ -509,8 +549,17 @@
 
     async function startBatch(batchId) {
         try {
-            await csrfFetch(urlForBatch('batchStart', batchId), { method: 'POST' });
-            window.location.reload();
+            const r = await csrfFetch(urlForBatch('batchStart', batchId), { method: 'POST' });
+            const data = await r.json();
+            // Poll all started items directly — no page reload
+            (data.started || []).forEach(id => startPolling(id));
+            // Expand the batch group so the user can see progress
+            const batchEl = document.querySelector(`.batch-group[data-batch-id="${batchId}"]`);
+            if (batchEl) {
+                const collapseEl = batchEl.querySelector('.collapse');
+                if (collapseEl) bootstrap.Collapse.getOrCreateInstance(collapseEl).show();
+            }
+            updateGlobalProgress();
         } catch (e) {
             console.error('[Reader] batch start error:', e);
         }
@@ -562,6 +611,8 @@
         initGlobalButtons();
         bindBatchGroupActions();
         updateDownloadAllBtn();
+        updateGlobalProgress();
+        setInterval(updateGlobalProgress, 2000);
 
         // Source file preview — delegated click on .source-preview-btn
         document.addEventListener('click', e => {
@@ -580,10 +631,11 @@
             el.addEventListener('change', () => localStorage.setItem(key, el.value));
         });
 
-        // Bind existing cards and start polling for RUNNING items
+        // Bind existing cards and start polling for RUNNING + PENDING items
+        // (PENDING items may have tasks already queued — catch the RUNNING transition)
         document.querySelectorAll('.reader-card').forEach(card => {
             const id = parseInt(card.dataset.id);
-            if (card.dataset.status === 'RUNNING') {
+            if (card.dataset.status === 'RUNNING' || card.dataset.status === 'PENDING') {
                 startPolling(id);
             }
             // Bind action buttons
@@ -649,11 +701,16 @@
     // Handle files imported via filemanager "Envoyer vers Reader" context menu
     document.addEventListener('wama:fileimported', e => {
         const result = e.detail;
-        if (result && result.app === 'reader' && result.id) {
+        if (!result || result.app !== 'reader') return;
+        if (result.id) {
+            // Single-file import with known ID: add card dynamically
             fetch(urlFor('progress', result.id))
                 .then(r => r.json())
-                .then(item => upsertCard(item))
+                .then(item => { upsertCard(item); updateGlobalProgress(); })
                 .catch(() => {});
+        } else {
+            // Multi-file import (no ID in event) → reload to show batch group
+            window.location.reload();
         }
     });
 

@@ -853,6 +853,74 @@ drag & drop normale (ou importé depuis le FileManager). La détection est autom
 **Comportement uniforme** : qu'il y ait 1 fichier ou 100, le même chemin de code est emprunté.
 Un upload individuel crée un batch-de-1 (pattern du Synthesizer — `_wrap_in_batch()`).
 
+### 9.7 Affichage de la file — ordre et état des batch groups
+
+**Règle d'ordre :**
+Les multi-batches (total > 1) s'affichent **toujours avant** les batches individuels (total == 1).
+Tri côté serveur dans `IndexView.get()` :
+
+```python
+batches_list.sort(key=lambda b: 0 if b['obj'].total > 1 else 1)
+```
+
+**Règle de repliage :**
+- Les multi-batches sont **repliés par défaut** au premier affichage.
+- L'état replié/déplié est **persisté par batch ID dans localStorage** (`wama_batch_{app}_{id}`).
+- À chaque visite, l'utilisateur retrouve l'état qu'il a laissé.
+
+**Template — attributs obligatoires sur le bloc collapsible :**
+
+```html
+<!-- Toggle : aria-expanded="false" par défaut (replié) -->
+<div data-bs-toggle="collapse"
+     data-bs-target="#batchItems{{ batch_info.obj.id }}"
+     aria-expanded="false">
+    ...
+    <i class="fas fa-chevron-down text-muted"></i>  {# tourne via CSS #}
+</div>
+
+<!-- Contenu : "collapse" sans "show" + data-wama-batch-key -->
+<div class="collapse"
+     id="batchItems{{ batch_info.obj.id }}"
+     data-wama-batch-key="{{ app_name }}_{{ batch_info.obj.id }}">
+    ...
+</div>
+```
+
+**JS — à appeler dans `init()` ou `DOMContentLoaded` de chaque app :**
+
+```javascript
+function initBatchCollapse() {
+    document.querySelectorAll('.collapse[data-wama-batch-key]').forEach(function (collapseEl) {
+        const key = 'wama_batch_' + collapseEl.dataset.wamaBatchKey;
+        const stored = localStorage.getItem(key);
+
+        if (stored === 'open') {
+            collapseEl.classList.add('show');
+            const toggleEl = document.querySelector('[data-bs-target="#' + collapseEl.id + '"]');
+            if (toggleEl) toggleEl.setAttribute('aria-expanded', 'true');
+        }
+
+        collapseEl.addEventListener('show.bs.collapse', function () {
+            localStorage.setItem(key, 'open');
+        });
+        collapseEl.addEventListener('hide.bs.collapse', function () {
+            localStorage.setItem(key, 'closed');
+        });
+    });
+}
+```
+
+**CSS — dans `app_modern.css` (déjà présent) :**
+
+```css
+.batch-group-header .fa-chevron-down { transition: transform 0.2s ease; }
+.batch-group-header [aria-expanded="true"] .fa-chevron-down { transform: rotate(180deg); }
+```
+
+**Apps conformes :** Synthesizer ✅ | Reader ✅
+**Apps à porter :** Transcriber | Describer | Enhancer | Composer | Imager | Anonymizer
+
 ---
 
 ## 10. Paramètres — Cohérence entre Volet, Item et Batch

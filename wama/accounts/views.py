@@ -193,6 +193,12 @@ def login_form(request):
 # Profile Views
 # =============================================================================
 
+def _is_ldap_user(request):
+    """Return True if the current session was authenticated via LDAPBackend."""
+    backend = request.session.get('_auth_user_backend', '')
+    return 'LDAPBackend' in backend
+
+
 @login_required
 def profile_view(request):
     """Unified profile page: user info + preferred language + API token."""
@@ -206,7 +212,40 @@ def profile_view(request):
         'token': token_obj.key,
         'profile': profile,
         'languages': LANGUAGE_CHOICES,
+        'is_ldap': _is_ldap_user(request),
     })
+
+
+@login_required
+@require_POST
+def change_password(request):
+    """AJAX: change password for local (non-LDAP) accounts only."""
+    from django.contrib.auth.forms import PasswordChangeForm
+    from django.contrib.auth import update_session_auth_hash
+
+    if _is_ldap_user(request):
+        return JsonResponse(
+            {'error': 'Modification du mot de passe non disponible pour les comptes LDAP.'},
+            status=400,
+        )
+
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'JSON invalide'}, status=400)
+
+    form = PasswordChangeForm(request.user, data)
+    if form.is_valid():
+        user = form.save()
+        update_session_auth_hash(request, user)
+        return JsonResponse({'success': True})
+
+    errors = {field: [str(e) for e in errs] for field, errs in form.errors.items()}
+    # Surface the first human-readable error
+    first_error = next(
+        (e for errs in errors.values() for e in errs), 'Validation échouée'
+    )
+    return JsonResponse({'error': first_error, 'fields': errors}, status=400)
 
 
 @login_required

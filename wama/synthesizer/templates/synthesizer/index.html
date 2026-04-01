@@ -284,7 +284,7 @@
                          style="cursor:pointer; user-select:none; min-width:0;"
                          data-bs-toggle="collapse"
                          data-bs-target="#batchItems{{ batch_info.obj.id }}"
-                         aria-expanded="true">
+                         aria-expanded="false">
                         <i class="fas fa-layer-group" style="color:#a78bfa;"></i>
                         <strong class="text-light">Batch #{{ batch_info.obj.id }}</strong>
                         <small class="text-muted">{{ batch_info.obj.created_at|date:"d/m H:i" }}</small>
@@ -333,7 +333,8 @@
                     </div>
                 </div>
                 <!-- Batch items (collapsible) -->
-                <div class="collapse show" id="batchItems{{ batch_info.obj.id }}"
+                <div class="collapse" id="batchItems{{ batch_info.obj.id }}"
+                     data-wama-batch-key="synthesizer_{{ batch_info.obj.id }}"
                      style="border-left:2px solid #6f42c1; margin-left:0.75rem;">
                     {% for item in batch_info.items %}
                     {% if item.synthesis %}

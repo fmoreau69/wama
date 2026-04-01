@@ -12,8 +12,6 @@ import tempfile
 from django.shortcuts import render, get_object_or_404
 from django.views import View
 from django.http import JsonResponse, FileResponse, HttpResponse, HttpResponseBadRequest
-from django.contrib.auth.decorators import login_required
-from django.utils.decorators import method_decorator
 from django.core.cache import cache
 from django.views.decorators.http import require_POST
 from django.db import transaction
@@ -98,7 +96,6 @@ def _auto_wrap_orphans(user):
             pass
 
 
-@method_decorator(login_required, name='dispatch')
 class IndexView(View):
     def get(self, request):
         user = _get_user(request)
@@ -123,6 +120,9 @@ class IndexView(View):
                 'has_success': success_count > 0,
             })
 
+        # Multi-item batches first, then single-item batches
+        batches_list.sort(key=lambda b: 0 if b['obj'].total > 1 else 1)
+
         queue_count = sum(len(b['items']) for b in batches_list)
 
         return render(request, 'reader/index.html', {
@@ -134,7 +134,6 @@ class IndexView(View):
         })
 
 
-@login_required
 @require_POST
 def upload(request):
     """Upload one or more files to the reading queue."""
@@ -148,6 +147,7 @@ def upload(request):
     output_format = request.POST.get('output_format', 'txt')
     language      = request.POST.get('language', '')
 
+    items_created = []
     created = []
     for f in files:
         ext = os.path.splitext(f.name)[1].lower()
@@ -175,13 +175,23 @@ def upload(request):
             except Exception:
                 pass
 
-        _wrap_reading_in_batch(item)
+        items_created.append(item)
         created.append(_item_to_dict(item))
 
-    return JsonResponse({'created': created})
+    if not items_created:
+        return JsonResponse({'created': []})
+
+    if len(items_created) > 1:
+        # Multiple files → one multi-item batch
+        batch = BatchReadingItem.objects.create(user=user, total=len(items_created))
+        for i, item in enumerate(items_created):
+            BatchReadingItemLink.objects.create(batch=batch, reading=item, row_index=i)
+        return JsonResponse({'created': created, 'batch_id': batch.id, 'multi': True})
+    else:
+        _wrap_reading_in_batch(items_created[0])
+        return JsonResponse({'created': created})
 
 
-@login_required
 @require_POST
 def start(request, pk: int):
     """Start OCR processing for a single item (anti-race-condition)."""
@@ -217,21 +227,18 @@ def start(request, pk: int):
     return JsonResponse({'ok': True, 'task_id': task.id})
 
 
-@login_required
 def progress(request, pk: int):
     """Poll the current processing status of an item."""
     item = get_object_or_404(ReadingItem, pk=pk, user=_get_user(request))
     return JsonResponse(_item_to_dict(item))
 
 
-@login_required
 def text_view(request, pk: int):
     """Return the full extracted text as JSON (used by the in-page full-text modal)."""
     item = get_object_or_404(ReadingItem, pk=pk, user=_get_user(request))
     return JsonResponse({'text': _extract_natural_text(item.result_text) or '', 'filename': item.filename})
 
 
-@login_required
 def download(request, pk: int):
     """Download the OCR result. Supported formats: txt (default), md, pdf, docx, json."""
     item = get_object_or_404(ReadingItem, pk=pk, user=_get_user(request))
@@ -298,7 +305,6 @@ def download(request, pk: int):
     )
 
 
-@login_required
 @require_POST
 def delete(request, pk: int):
     """Delete an item and its input file (if not shared). Also removes parent batch-of-1."""
@@ -320,7 +326,6 @@ def delete(request, pk: int):
     return JsonResponse({'deleted': pk})
 
 
-@login_required
 @require_POST
 def duplicate(request, pk: int):
     """Duplicate an item, sharing the input file but resetting all results."""
@@ -339,7 +344,6 @@ def duplicate(request, pk: int):
     return JsonResponse(_item_to_dict(new_item))
 
 
-@login_required
 @require_POST
 def start_all(request):
     """Start all PENDING items for the current user."""
@@ -359,7 +363,6 @@ def start_all(request):
 
 
 
-@login_required
 def download_all(request):
     """Download a ZIP of all completed OCR results for the current user."""
     from io import BytesIO
@@ -381,7 +384,6 @@ def download_all(request):
     return response
 
 
-@login_required
 @require_POST
 def clear_all(request):
     """Delete all items and batches for the current user."""
@@ -399,7 +401,6 @@ def clear_all(request):
     return JsonResponse({'ok': True})
 
 
-@login_required
 @require_POST
 def save_settings(request, pk: int):
     """Update per-item OCR settings (backend, mode, output_format, language)."""
@@ -426,7 +427,6 @@ def save_settings(request, pk: int):
     return JsonResponse(_item_to_dict(item))
 
 
-@login_required
 @require_POST
 def analyze(request, pk: int):
     """Lance une analyse LLM (résumé + points clés) sur le texte OCR extrait."""
@@ -440,7 +440,6 @@ def analyze(request, pk: int):
     return JsonResponse({'ok': True, 'task_id': task.id})
 
 
-@login_required
 def batch_template(request):
     """Download a batch file template (.txt)."""
     template_content = (
@@ -457,7 +456,6 @@ def batch_template(request):
     return response
 
 
-@login_required
 @require_POST
 def batch_preview(request):
     """Parse a batch file (one URL/path per line) and return the list for preview."""
@@ -465,7 +463,6 @@ def batch_preview(request):
     return batch_media_list_preview_response(request)
 
 
-@login_required
 @require_POST
 def batch_create(request):
     """
@@ -488,7 +485,7 @@ def batch_create(request):
     if not items:
         return JsonResponse({'error': 'Aucun élément valide trouvé dans le fichier'}, status=400)
 
-    batch_file.seek(0)
+    batch_file = request.FILES.get('batch_file')
     batch = BatchReadingItem.objects.create(
         user=user,
         total=len(items),
@@ -521,7 +518,6 @@ def batch_create(request):
     })
 
 
-@login_required
 def batch_list(request):
     """List the current user's batches with status counts."""
     user = _get_user(request)
@@ -556,7 +552,6 @@ def batch_list(request):
     return JsonResponse({'batches': data})
 
 
-@login_required
 @require_POST
 def batch_start(request, pk):
     """Start all PENDING readings in a batch."""
@@ -583,7 +578,6 @@ def batch_start(request, pk):
     return JsonResponse({'started': started, 'count': len(started)})
 
 
-@login_required
 def batch_status(request, pk):
     """Return status of all items in a batch."""
     user = _get_user(request)
@@ -627,7 +621,6 @@ def batch_status(request, pk):
     })
 
 
-@login_required
 def batch_download(request, pk):
     """Download a ZIP of all completed OCR results in a batch."""
     user = _get_user(request)
@@ -647,7 +640,6 @@ def batch_download(request, pk):
     return FileResponse(buffer, as_attachment=True, filename=zip_name)
 
 
-@login_required
 @require_POST
 def batch_delete(request, pk):
     """Delete an entire batch: cascade-delete readings, clean up files."""
@@ -678,7 +670,6 @@ def batch_delete(request, pk):
     return JsonResponse({'success': True, 'batch_id': pk})
 
 
-@login_required
 @require_POST
 def batch_duplicate(request, pk):
     """Duplicate an entire batch (shares source files/URLs, results cleared)."""
@@ -699,7 +690,34 @@ def batch_duplicate(request, pk):
     return JsonResponse({'success': True, 'batch_id': new_batch.id})
 
 
-@login_required
 def console_content(request):
-    lines = get_console_lines(request.user.id)
+    user = _get_user(request)
+    lines = get_console_lines(user.id)
     return JsonResponse({'lines': lines})
+
+
+def global_progress(request):
+    """Overall reading progress for all items of the current user."""
+    user = _get_user(request)
+    items = ReadingItem.objects.filter(user=user)
+    total = items.count()
+    if total == 0:
+        return JsonResponse({'total': 0, 'done': 0, 'running': 0, 'pending': 0,
+                             'error': 0, 'overall_progress': 0})
+    done    = items.filter(status='DONE').count()
+    running = items.filter(status='RUNNING').count()
+    pending = items.filter(status='PENDING').count()
+    error   = items.filter(status='ERROR').count()
+    if done == total:
+        overall_progress = 100
+    else:
+        total_progress = sum(i.progress for i in items)
+        overall_progress = int(total_progress / total)
+    return JsonResponse({
+        'total': total,
+        'done': done,
+        'running': running,
+        'pending': pending,
+        'error': error,
+        'overall_progress': overall_progress,
+    })

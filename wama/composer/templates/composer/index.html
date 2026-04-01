@@ -196,7 +196,8 @@
         <div class="batch-header d-flex align-items-center gap-2 p-2 rounded-top"
              style="background:#2d1b69; cursor:pointer;"
              data-bs-toggle="collapse"
-             data-bs-target="#batchItems_{{ batch_info.obj.id }}">
+             data-bs-target="#batchItems_{{ batch_info.obj.id }}"
+             aria-expanded="false">
             <i class="fas fa-layer-group" style="color:#a78bfa;"></i>
             <span class="text-light fw-bold small">Batch #{{ batch_info.obj.id }}</span>
             <span class="badge bg-secondary">{{ batch_info.obj.total }} items</span>
@@ -212,7 +213,8 @@
                 </button>
             </div>
         </div>
-        <div class="collapse show" id="batchItems_{{ batch_info.obj.id }}">
+        <div class="collapse" id="batchItems_{{ batch_info.obj.id }}"
+             data-wama-batch-key="composer_{{ batch_info.obj.id }}">
             <div class="p-2 d-flex flex-column gap-2">
                 {% for item in batch_info.items %}{% if item.generation %}
                 {% include 'composer/_generation_card.html' with gen=item.generation card_label=item.output_filename %}

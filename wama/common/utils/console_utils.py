@@ -140,7 +140,7 @@ def get_console_lines(
     Returns:
         List of dicts: [{"ts": "14:32:05", "level": "info", "app": "anonymizer", "msg": "..."}]
     """
-    raw_lines = _get_raw_lines(user_id, limit=limit * 2)  # over-fetch to allow filtering
+    raw_lines = _get_raw_lines(user_id, limit=500)  # fetch full buffer (maxlen) for accurate filtering
 
     result = []
     for raw in raw_lines:

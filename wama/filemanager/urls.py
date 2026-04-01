@@ -30,6 +30,7 @@ urlpatterns = [
     path('api/validate-path/', views.api_validate_path, name='api_validate_path'),
     path('api/browse-fs/', views.api_browse_fs, name='api_browse_fs'),
     path('api/mounts/', views.api_mounts, name='api_mounts'),
+    path('api/mounts/remount/', views.api_remount_shares, name='api_remount_shares'),
     path('api/mounts/<int:pk>/delete/', views.api_mount_delete, name='api_mount_delete'),
     re_path(r'^api/mounts/(?P<pk>\d+)/serve/(?P<path>.*)$', views.api_mount_serve, name='api_mount_serve'),
 ]

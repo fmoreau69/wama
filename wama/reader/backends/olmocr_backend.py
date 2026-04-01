@@ -138,10 +138,15 @@ class OlmOCRBackend:
         mode: str = 'auto',
         language: str = '',
         progress_cb: Optional[Callable[[int, str], None]] = None,
+        keep_loaded: bool = False,
     ) -> str:
         """
         Extract text from a document file.
         Returns the full extracted text as a string.
+
+        keep_loaded: if True, do NOT unload the model after processing — useful
+                     when the same worker will process another file immediately after
+                     (singleton pattern in tasks.py avoids the 10-min reload).
         """
         path = Path(file_path)
         ext = path.suffix.lower()
@@ -163,7 +168,8 @@ class OlmOCRBackend:
             text = self._process_image(page_image, mode, language)
             texts.append(text)
 
-        self.unload()
+        if not keep_loaded:
+            self.unload()
 
         if progress_cb:
             progress_cb(98, "Assemblage du texte…")

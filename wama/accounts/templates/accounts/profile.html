@@ -112,6 +112,39 @@
                 </div>
             </div>
 
+            <!-- ── Mot de passe (comptes locaux uniquement) ─────────── -->
+            {% if not is_ldap %}
+            <div class="card bg-dark border-secondary mb-4">
+                <div class="card-header border-secondary">
+                    <h5 class="mb-0"><i class="fas fa-lock me-2"></i>Changer le mot de passe</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label text-muted small">Mot de passe actuel</label>
+                        <input type="password" id="oldPassword"
+                               class="form-control bg-dark text-light border-secondary"
+                               autocomplete="current-password">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-muted small">Nouveau mot de passe</label>
+                        <input type="password" id="newPassword1"
+                               class="form-control bg-dark text-light border-secondary"
+                               autocomplete="new-password">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-muted small">Confirmer le nouveau mot de passe</label>
+                        <input type="password" id="newPassword2"
+                               class="form-control bg-dark text-light border-secondary"
+                               autocomplete="new-password">
+                    </div>
+                    <button id="changePasswordBtn" class="btn btn-outline-warning btn-sm">
+                        <i class="fas fa-lock me-1"></i> Changer le mot de passe
+                    </button>
+                    <div id="passwordMsg" class="mt-2" style="display:none;"></div>
+                </div>
+            </div>
+            {% endif %}
+
             <!-- ── Connecteurs & Clés API ────────────────────────────── -->
             <div class="card bg-dark border-secondary mb-4">
                 <div class="card-header border-secondary">
@@ -163,7 +196,10 @@
 
 {% block extra_js %}
 <script>
-const LANGUAGE_URL    = "{% url 'accounts:profile-language' %}";
+const LANGUAGE_URL       = "{% url 'accounts:profile-language' %}";
+{% if not is_ldap %}
+const CHANGE_PWD_URL     = "{% url 'accounts:change-password' %}";
+{% endif %}
 const TOKEN_REGEN_URL = "{% url 'accounts:token-regenerate' %}";
 const PROVIDER_KEYS_URL = "{% url 'media_library:api_provider_keys' %}";
 const PROVIDER_KEY_SAVE_URL = "{% url 'media_library:api_provider_key_save' slug='SLUG' %}";
@@ -346,5 +382,29 @@ async function deleteKey(slug) {
 }
 
 loadProviders();
+
+{% if not is_ldap %}
+// ── Changement de mot de passe ──────────────────────────────────────────────
+document.getElementById('changePasswordBtn')?.addEventListener('click', async () => {
+    const msg = document.getElementById('passwordMsg');
+    try {
+        const data = await postJson(CHANGE_PWD_URL, {
+            old_password:  document.getElementById('oldPassword').value,
+            new_password1: document.getElementById('newPassword1').value,
+            new_password2: document.getElementById('newPassword2').value,
+        });
+        if (data.success) {
+            showMsg(msg, '✓ Mot de passe modifié avec succès');
+            document.getElementById('oldPassword').value  = '';
+            document.getElementById('newPassword1').value = '';
+            document.getElementById('newPassword2').value = '';
+        } else {
+            showMsg(msg, data.error || 'Erreur', true);
+        }
+    } catch(e) {
+        showMsg(msg, 'Erreur réseau', true);
+    }
+});
+{% endif %}
 </script>
 {% endblock %}

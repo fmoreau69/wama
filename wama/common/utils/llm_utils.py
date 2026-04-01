@@ -41,6 +41,7 @@ def ollama_chat(
     model: str = 'qwen3.5:9b',
     num_predict: int = 2048,
     think: bool = True,
+    timeout: float = 180.0,
 ) -> tuple[Optional[str], Optional[str]]:
     """
     Send a chat request to the local Ollama server.
@@ -52,6 +53,8 @@ def ollama_chat(
         think:       Enable Qwen3 thinking mode (default True). Set False for
                      deterministic formatting tasks to avoid consuming the
                      token budget on reasoning before the actual answer.
+        timeout:     HTTP timeout in seconds (default 180). Use a shorter value
+                     (e.g. 30) for non-critical tasks where fast-fail is preferred.
 
     Returns:
         (text, None)  on success
@@ -73,7 +76,7 @@ def ollama_chat(
         payload["think"] = False
 
     try:
-        with httpx.Client(timeout=180.0, trust_env=False) as client:
+        with httpx.Client(timeout=timeout, trust_env=False) as client:
             resp = client.post(url, json=payload)
         if resp.status_code != 200:
             return None, f"Ollama HTTP {resp.status_code}: {resp.text[:200]}"

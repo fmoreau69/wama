@@ -132,6 +132,7 @@ window.READER_APP = Object.assign({}, window.READER_APP || {}, {
         delete:          "{% url 'reader:delete' 0 %}",
         duplicate:       "{% url 'reader:duplicate' 0 %}",
         downloadAll:     "{% url 'reader:download_all' %}",
+        globalProgress:  "{% url 'reader:global_progress' %}",
         saveSettings:       "{% url 'reader:save_settings' 0 %}",
         previewUrlTemplate: "{% url 'common:unified_preview' 'reader' 0 %}",
         batchTemplate:   "{% url 'reader:batch_template' %}",
@@ -170,6 +171,18 @@ window._batchImport = WamaBatchImport({
 {% block reader_content %}
 <div class="container-fluid py-2" style="overflow-x: hidden;">
 
+    <!-- Global progress bar -->
+    <div id="globalStatus" style="opacity:0; pointer-events:none;">
+        <div class="d-flex justify-content-between align-items-baseline mb-1">
+            <small class="text-muted" id="globalProgressStats"></small>
+            <small class="text-muted" id="globalProgressPct" style="font-variant-numeric: tabular-nums;"></small>
+        </div>
+        <div class="wama-progress-track">
+            <div class="wama-progress-fill active" id="globalProgressBar" style="width:0%"></div>
+        </div>
+        <div style="height:12px;"></div>
+    </div>
+
     <!-- Queue -->
     <div id="queueContainer">
         {% for batch_info in batches_list %}
@@ -194,7 +207,7 @@ window._batchImport = WamaBatchImport({
                      style="cursor:pointer; user-select:none; min-width:0;"
                      data-bs-toggle="collapse"
                      data-bs-target="#batchItems{{ batch_info.obj.id }}"
-                     aria-expanded="true">
+                     aria-expanded="false">
                     <i class="fas fa-layer-group" style="color:#67e8f9;"></i>
                     <strong class="text-light">Batch #{{ batch_info.obj.id }}</strong>
                     <small class="text-muted">{{ batch_info.obj.created_at|date:"d/m H:i" }}</small>
@@ -232,7 +245,8 @@ window._batchImport = WamaBatchImport({
                     </button>
                 </div>
             </div>
-            <div class="collapse show" id="batchItems{{ batch_info.obj.id }}"
+            <div class="collapse" id="batchItems{{ batch_info.obj.id }}"
+                 data-wama-batch-key="reader_{{ batch_info.obj.id }}"
                  style="border-left:2px solid #0dcaf0; margin-left:0.75rem;">
                 {% for item in batch_info.items %}{% if item.reading %}
                 {% with r=item.reading %}

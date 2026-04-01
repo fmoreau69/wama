@@ -2,6 +2,18 @@
 set -e
 
 # ------------------------------------------------------
+# MODE : full (défaut) ou fast (--fast)
+# Usage :
+#   ./start_wama_prod.sh          → démarrage complet (migrations + collectstatic + attente TTS)
+#   ./start_wama_prod.sh --fast   → redémarrage rapide (skip collectstatic, TTS fire&forget)
+# ------------------------------------------------------
+FAST=0
+for arg in "$@"; do
+    [ "$arg" = "--fast" ] && FAST=1
+done
+[ $FAST -eq 1 ] && echo "=== Mode FAST activé (skip collectstatic, TTS fire&forget) ===" || true
+
+# ------------------------------------------------------
 # STOP DES PROCESS EXISTANTS
 # ------------------------------------------------------
 echo "=== Stopping old processes if any ==="
@@ -47,6 +59,23 @@ source $VENV_DIR/bin/activate
 
 echo "=== Starting WAMA production script ==="
 
+# ── WSL2 port forwarding fix ──────────────────────────────────────────────────
+# WSL2's automatic port proxy Windows→WSL2 breaks silently after sleep/hibernate.
+# Force-reset it via netsh so Apache (Windows) can always reach gunicorn at :8000.
+WSL2_IP=$(hostname -I | awk '{print $1}')
+if [ -n "$WSL2_IP" ]; then
+    # Capture netsh output to detect elevation error (netsh writes it to stdout, not stderr)
+    NETSH_OUT=$(cmd.exe /c "netsh interface portproxy delete v4tov4 listenport=8000 listenaddress=0.0.0.0 >nul 2>nul & netsh interface portproxy add v4tov4 listenport=8000 listenaddress=0.0.0.0 connectport=8000 connectaddress=${WSL2_IP}" 2>/dev/null || true)
+    if echo "$NETSH_OUT" | grep -qiE "lev|admin"; then
+        echo "INFO: netsh portproxy requires admin rights — lance WSL2 en tant qu'administrateur"
+        echo "      ou exécute une fois en admin : netsh interface portproxy add v4tov4 listenport=8000 listenaddress=0.0.0.0 connectport=8000 connectaddress=${WSL2_IP}"
+    else
+        echo "WSL2 port proxy 0.0.0.0:8000 → ${WSL2_IP}:8000 configured"
+    fi
+fi
+# ─────────────────────────────────────────────────────────────────────────────
+
+
 # ------------------------------------------------------
 # PostgreSQL
 # ------------------------------------------------------
@@ -76,10 +105,14 @@ echo "=== Applying Django migrations ==="
 python manage.py migrate --settings=$DJANGO_SETTINGS_MODULE
 
 # ------------------------------------------------------
-# STATIC FILES
+# STATIC FILES  (skipped in --fast mode)
 # ------------------------------------------------------
-echo "=== Collecting static files ==="
-python manage.py collectstatic --noinput --settings=$DJANGO_SETTINGS_MODULE
+if [ $FAST -eq 0 ]; then
+    echo "=== Collecting static files ==="
+    python manage.py collectstatic --noinput --settings=$DJANGO_SETTINGS_MODULE
+else
+    echo "=== Static files: skipped (--fast) ==="
+fi
 
 # ------------------------------------------------------
 # GUNICORN
@@ -94,10 +127,11 @@ else
 fi
 
 # ------------------------------------------------------
-# GPU/CUDA CLEANUP (important pour HunyuanImage et autres modèles lourds)
+# GPU/CUDA CLEANUP  (skipped in --fast mode)
 # ------------------------------------------------------
-echo "=== Clearing GPU memory and CUDA cache ==="
-python -c "
+if [ $FAST -eq 0 ]; then
+    echo "=== Clearing GPU memory and CUDA cache ==="
+    python -c "
 import torch
 if torch.cuda.is_available():
     print(f'GPU detected: {torch.cuda.get_device_name(0)}')
@@ -109,6 +143,7 @@ if torch.cuda.is_available():
 else:
     print('No GPU detected, skipping CUDA cleanup')
 " 2>/dev/null || echo "CUDA cleanup skipped (torch not available or no GPU)"
+fi
 
 # ------------------------------------------------------
 # TTS SERVICE (FastAPI, preloads XTTS v2)
@@ -125,30 +160,42 @@ if ! pgrep -f "uvicorn tts_service" > /dev/null; then
         > $LOG_DIR/tts-service.log 2>&1 &
     TTS_PID=$!
     disown $TTS_PID
-    echo "TTS Service started (PID $TTS_PID), waiting for service to be ready..."
-    TTS_READY=0
-    # Wait up to 10 minutes (300 × 2s). First pass: wait for uvicorn to respond at all,
-    # then wait for status=="ok" (background model loading complete).
-    for i in $(seq 1 300); do
-        STATUS=$(curl -s http://localhost:8001/health 2>/dev/null \
-            | python3 -c "import sys,json; print(json.load(sys.stdin).get('status',''))" 2>/dev/null) || true
-        if [ "$STATUS" = "ok" ]; then
-            echo -e "\rTTS Service ready! ($((i*2))s)                    "
-            TTS_READY=1
-            break
-        elif [ "$STATUS" = "loading" ]; then
-            printf "\rTTS Service loading... (%ds)   " $((i*2))
-        else
-            printf "\rTTS Service starting... (%ds)  " $((i*2))
+    if [ $FAST -eq 1 ]; then
+        echo "TTS Service started (PID $TTS_PID) — fire & forget (--fast)"
+    else
+        echo "TTS Service started (PID $TTS_PID), waiting for service to be ready..."
+        TTS_READY=0
+        # Wait up to 10 minutes (300 × 2s). First pass: wait for uvicorn to respond at all,
+        # then wait for status=="ok" (background model loading complete).
+        for i in $(seq 1 300); do
+            STATUS=$(curl -s http://localhost:8001/health 2>/dev/null \
+                | python3 -c "import sys,json; print(json.load(sys.stdin).get('status',''))" 2>/dev/null) || true
+            if [ "$STATUS" = "ok" ]; then
+                echo -e "\rTTS Service ready! ($((i*2))s)                    "
+                TTS_READY=1
+                break
+            elif [ "$STATUS" = "loading" ]; then
+                printf "\rTTS Service loading... (%ds)   " $((i*2))
+            else
+                printf "\rTTS Service starting... (%ds)  " $((i*2))
+            fi
+            sleep 2
+        done
+        if [ $TTS_READY -eq 0 ]; then
+            echo "WARNING: TTS Service did not become ready after 600s - check $LOG_DIR/tts-service.log"
         fi
-        sleep 2
-    done
-    if [ $TTS_READY -eq 0 ]; then
-        echo "WARNING: TTS Service did not become ready after 600s - check $LOG_DIR/tts-service.log"
     fi
 else
     echo "TTS Service is already running."
 fi
+
+# ------------------------------------------------------
+# REMONTAGE DES PARTAGES CIFS WAMA (partages réseau invités uniquement)
+# ------------------------------------------------------
+echo "=== Remounting WAMA CIFS shares (guest) ==="
+curl -s --max-time 15 "http://127.0.0.1:$DJANGO_PORT/filemanager/api/mounts/remount/" \
+    | python3 -c "import sys,json; d=json.load(sys.stdin); print(f'Remounted: {d.get(\"remounted\",0)}, Skipped: {d.get(\"skipped\",0)}')" 2>/dev/null \
+    || echo "Remount skipped (gunicorn not ready yet or no CIFS shares)"
 
 # ------------------------------------------------------
 # CELERY WORKERS (gpu + default with autoscale)
@@ -225,6 +272,7 @@ fi
 # FIN
 # ------------------------------------------------------
 echo "=== WAMA production stack started successfully ==="
+[ $FAST -eq 1 ] && echo "(fast mode — collectstatic skipped, TTS loading in background)"
 echo "Django: http://localhost:$DJANGO_PORT"
 echo "Logs: $LOG_DIR"
 date

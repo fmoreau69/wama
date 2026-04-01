@@ -127,12 +127,16 @@
     </div>
   </div>
 
-  {# Progress bar (RUNNING) #}
+  {# Progress bar (RUNNING → animée, DONE → 100% fixe) #}
   {% if item.status == 'RUNNING' %}
   <div class="wama-progress-track mt-2">
     <div class="wama-progress-fill active" style="width:{{ item.progress }}%"></div>
   </div>
   <small class="progress-text text-warning">{{ item.progress }}% — En cours…</small>
+  {% elif item.status == 'DONE' %}
+  <div class="wama-progress-track mt-2">
+    <div class="wama-progress-fill" style="width:100%"></div>
+  </div>
   {% endif %}
 
   {# Result preview #}

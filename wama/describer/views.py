@@ -145,6 +145,7 @@ class IndexView(TemplateView):
                 'has_success': success_count > 0,
             })
 
+        batches_list.sort(key=lambda b: 0 if b['obj'].total > 1 else 1)
         queue_count = sum(len(b['items']) for b in batches_list)
 
         # Also provide total counts for global progress bar

@@ -370,7 +370,7 @@
                          style="cursor:pointer; user-select:none; min-width:0;"
                          data-bs-toggle="collapse"
                          data-bs-target="#batchItems{{ batch_info.obj.id }}"
-                         aria-expanded="true">
+                         aria-expanded="false">
                         <i class="fas fa-layer-group" style="color:#67e8f9;"></i>
                         <strong class="text-light">Batch #{{ batch_info.obj.id }}</strong>
                         <small class="text-muted">{{ batch_info.obj.created_at|date:"d/m H:i" }}</small>
@@ -408,7 +408,8 @@
                         </button>
                     </div>
                 </div>
-                <div class="collapse show" id="batchItems{{ batch_info.obj.id }}"
+                <div class="collapse" id="batchItems{{ batch_info.obj.id }}"
+                     data-wama-batch-key="enhancer_{{ batch_info.obj.id }}"
                      style="border-left:2px solid #0dcaf0; margin-left:0.75rem;">
                     {% for item in batch_info.items %}{% if item.enhancement %}
                     {% with e=item.enhancement %}
@@ -582,7 +583,7 @@
                          style="cursor:pointer; user-select:none; min-width:0;"
                          data-bs-toggle="collapse"
                          data-bs-target="#audioBatchItems{{ batch_info.obj.id }}"
-                         aria-expanded="true">
+                         aria-expanded="false">
                         <i class="fas fa-layer-group" style="color:#6ee7b7;"></i>
                         <strong class="text-light">Batch audio #{{ batch_info.obj.id }}</strong>
                         <small class="text-muted">{{ batch_info.obj.created_at|date:"d/m H:i" }}</small>
@@ -620,7 +621,8 @@
                         </button>
                     </div>
                 </div>
-                <div class="collapse show" id="audioBatchItems{{ batch_info.obj.id }}"
+                <div class="collapse" id="audioBatchItems{{ batch_info.obj.id }}"
+                     data-wama-batch-key="enhancer_audio_{{ batch_info.obj.id }}"
                      style="border-left:2px solid #198754; margin-left:0.75rem;">
                     {% for item in batch_info.items %}{% if item.audio_enhancement %}
                     {% with ae=item.audio_enhancement %}

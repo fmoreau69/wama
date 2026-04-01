@@ -305,6 +305,14 @@ textarea {
     100% { background-position: -200% 0; }
 }
 
+/* === BATCH GROUP COLLAPSE === */
+.batch-group-header .fa-chevron-down {
+    transition: transform 0.2s ease;
+}
+.batch-group-header [aria-expanded="true"] .fa-chevron-down {
+    transform: rotate(180deg);
+}
+
 /*  === DROP ZONE === */
 .drop-zone {
     border: 3px dashed #6c757d;

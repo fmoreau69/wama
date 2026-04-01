@@ -164,6 +164,7 @@ class IndexView(View):
                 'has_success': success_count > 0,
             })
 
+        batches_list.sort(key=lambda b: 0 if b['obj'].total > 1 else 1)
         queue_count = sum(len(b['items']) for b in batches_list)
 
         # Backfill duration for existing transcripts that were stored without it

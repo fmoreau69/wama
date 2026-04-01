@@ -18,6 +18,7 @@ urlpatterns = [
     path('clear_all/',              views.clear_all,           name='clear_all'),
     path('download-all/',           views.download_all,        name='download_all'),
     path('console/',                views.console_content,     name='console'),
+    path('global-progress/',        views.global_progress,     name='global_progress'),
     # Batch
     path('batch/template/',                     views.batch_template,   name='batch_template'),
     path('batch/preview/',                      views.batch_preview,    name='batch_preview'),

@@ -111,6 +111,9 @@ class IndexView(View):
                 'has_success': success_count > 0,
             })
 
+        batches_list.sort(key=lambda b: 0 if b['obj'].total > 1 else 1)
+        audio_batches_list.sort(key=lambda b: 0 if b['obj'].total > 1 else 1)
+
         # Get or create user settings
         user_settings, _ = UserSettings.objects.get_or_create(user=user)
 

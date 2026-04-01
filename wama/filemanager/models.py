@@ -56,7 +56,11 @@ class MountedFolder(models.Model):
     """
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='mounted_folders')
     name = models.CharField(max_length=100, help_text='Nom affiché dans l\'arbre')
-    local_path = models.CharField(max_length=1000, help_text='Chemin absolu sur le serveur')
+    local_path = models.CharField(max_length=1000, help_text='Chemin absolu sur le serveur (Linux après montage CIFS)')
+    smb_config = models.JSONField(
+        null=True, blank=True,
+        help_text='Config SMB pour remontage automatique : {server, share, subpath, username, domain, guest}'
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

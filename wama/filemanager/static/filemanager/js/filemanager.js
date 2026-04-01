@@ -1015,15 +1015,28 @@
         if (mountNameInput)  mountNameInput.value = '';
         if (mountPathStatus) mountPathStatus.innerHTML = '';
         if (mountSaveBtn)    mountSaveBtn.disabled = true;
+        if (mountSmbSection) mountSmbSection.style.display = 'none';
+        if (mountSmbUser)     mountSmbUser.value = '';
+        if (mountSmbPassword) mountSmbPassword.value = '';
+        if (mountSmbDomain)   mountSmbDomain.value = '';
+        _mountIsSMB = false;
         _mountModal = _mountModal || new bootstrap.Modal(mountModalEl);
         _mountModal.show();
         setTimeout(() => mountPathInput?.focus(), 300);
     });
 
+    const mountSmbSection  = document.getElementById('mountSmbSection');
+    const mountSmbUser     = document.getElementById('mountSmbUser');
+    const mountSmbPassword = document.getElementById('mountSmbPassword');
+    const mountSmbDomain   = document.getElementById('mountSmbDomain');
+    let _mountIsSMB = false;
+
     function _checkMountPath(raw) {
         if (!raw.trim()) {
             mountPathStatus.innerHTML = '';
             mountSaveBtn.disabled = true;
+            if (mountSmbSection) mountSmbSection.style.display = 'none';
+            _mountIsSMB = false;
             return;
         }
         mountPathStatus.innerHTML = '<span class="text-muted"><i class="fas fa-spinner fa-spin me-1"></i></span>';
@@ -1033,16 +1046,22 @@
             .then(data => {
                 const last = raw.replace(/\\/g,'/').replace(/\/+$/,'').split('/').pop() || raw;
                 if (!mountNameInput.value.trim()) mountNameInput.value = data.name || last;
+
+                // Show/hide SMB credentials section
+                _mountIsSMB = !!data.is_smb;
+                if (mountSmbSection) mountSmbSection.style.display = _mountIsSMB ? '' : 'none';
+
                 if (data.accessible) {
                     mountPathStatus.innerHTML = `<span class="text-success"><i class="fas fa-check-circle me-1"></i>Accessible</span>`;
+                } else if (_mountIsSMB && data.smb_hint) {
+                    mountPathStatus.innerHTML = `<span class="text-info"><i class="fas fa-network-wired me-1"></i>${data.smb_hint}</span>`;
                 } else {
-                    mountPathStatus.innerHTML = `<span class="text-warning"><i class="fas fa-exclamation-triangle me-1"></i>Non accessible en ce moment \u2014 le dossier sera disponible quand le partage sera connect\u00e9</span>`;
+                    mountPathStatus.innerHTML = `<span class="text-warning"><i class="fas fa-exclamation-triangle me-1"></i>Non accessible — sera disponible quand le partage sera connect\u00e9</span>`;
                 }
-                // Allow connecting even if temporarily offline
                 mountSaveBtn.disabled = false;
             })
             .catch(() => {
-                mountSaveBtn.disabled = false; // allow anyway
+                mountSaveBtn.disabled = false;
             });
     }
 
@@ -1060,10 +1079,19 @@
         const name    = mountNameInput?.value.trim();
         if (!name || !rawPath) { showToast('Chemin et nom requis', 'warning'); return; }
         mountSaveBtn.disabled = true;
+        mountPathStatus.innerHTML = '<span class="text-muted"><i class="fas fa-spinner fa-spin me-1"></i>Connexion en cours\u2026</span>';
+
+        const body = { name, local_path: rawPath };
+        if (_mountIsSMB) {
+            body.smb_username = mountSmbUser?.value.trim()     || '';
+            body.smb_password = mountSmbPassword?.value.trim() || '';
+            body.smb_domain   = mountSmbDomain?.value.trim()   || '';
+        }
+
         fetch(config.apiMountsUrl || '/filemanager/api/mounts/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
-            body: JSON.stringify({ name, local_path: rawPath })
+            body: JSON.stringify(body)
         })
             .then(r => r.json())
             .then(data => {
@@ -1072,7 +1100,14 @@
                     _mountModal?.hide();
                     showToast(`"${data.name}" connect\u00e9`, 'success');
                     refreshTree();
+                } else if (data.needs_auth) {
+                    // Show credentials section and ask user to fill in
+                    if (mountSmbSection) mountSmbSection.style.display = '';
+                    _mountIsSMB = true;
+                    mountPathStatus.innerHTML = `<span class="text-danger"><i class="fas fa-lock me-1"></i>Authentification requise — renseignez vos identifiants AD</span>`;
+                    mountSmbUser?.focus();
                 } else {
+                    mountPathStatus.innerHTML = `<span class="text-danger"><i class="fas fa-times me-1"></i>${data.error || 'Erreur'}</span>`;
                     showToast(data.error || 'Erreur', 'danger');
                 }
             })
