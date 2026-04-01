@@ -113,7 +113,69 @@
 {% endblock %}
 
 {# ── JS config ───────────────────────────────────────────────────────────── #}
-{% block extra_modals %}{% endblock %}
+{% block extra_modals %}
+<!-- Batch Settings Modal -->
+<div class="modal fade" id="batchSettingsModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content bg-dark text-light border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title">
+                    <i class="fas fa-layer-group" style="color:#67e8f9;"></i>
+                    Paramètres — Batch <span id="batchSettingsBatchLabel"></span>
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-secondary py-2 small mb-3">
+                    <i class="fas fa-info-circle"></i>
+                    S'applique à tous les éléments non-en-cours du batch.
+                </div>
+                <input type="hidden" id="batchSettingsBatchId">
+
+                <div class="mb-3">
+                    <label for="batchSettingsBackend" class="form-label">
+                        <i class="fas fa-microchip"></i> Moteur OCR
+                    </label>
+                    <select class="form-select bg-dark text-light border-secondary" id="batchSettingsBackend">
+                        {% for val, label in backend_choices %}
+                        <option value="{{ val }}">{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="mb-3">
+                    <label for="batchSettingsMode" class="form-label">
+                        <i class="fas fa-pen-nib"></i> Mode
+                    </label>
+                    <select class="form-select bg-dark text-light border-secondary" id="batchSettingsMode">
+                        {% for val, label in mode_choices %}
+                        <option value="{{ val }}">{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="mb-3">
+                    <label for="batchSettingsLanguage" class="form-label">
+                        <i class="fas fa-language"></i> Langue
+                        <span class="text-muted small">(optionnel)</span>
+                    </label>
+                    <input type="text" class="form-control bg-dark text-light border-secondary"
+                           id="batchSettingsLanguage" placeholder="fr, en… (auto)" maxlength="16">
+                </div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                <button type="button" class="btn btn-primary" id="saveBatchSettingsBtn">
+                    <i class="fas fa-save"></i> Sauvegarder
+                </button>
+                <button type="button" class="btn btn-success" id="saveBatchSettingsAndStartBtn">
+                    <i class="fas fa-play"></i> Sauvegarder et relancer
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
 
 {% block javascript %}
 {{ block.super }}
@@ -143,6 +205,7 @@ window.READER_APP = Object.assign({}, window.READER_APP || {}, {
         batchDownload:   "{% url 'reader:batch_download' 0 %}",
         batchDelete:     "{% url 'reader:batch_delete' 0 %}",
         batchDuplicate:  "{% url 'reader:batch_duplicate' 0 %}",
+        batchUpdate:     "{% url 'reader:batch_update' 0 %}",
     },
 });
 </script>
@@ -220,6 +283,15 @@ window._batchImport = WamaBatchImport({
                     <i class="fas fa-chevron-down text-muted" style="font-size:.7rem;"></i>
                 </div>
                 <div class="d-flex gap-1 flex-shrink-0">
+                    <button class="btn btn-sm batch-settings-btn py-0 px-2"
+                            data-batch-id="{{ batch_info.obj.id }}"
+                            data-backend="{{ batch_info.first_backend }}"
+                            data-mode="{{ batch_info.first_mode }}"
+                            data-language="{{ batch_info.first_language }}"
+                            style="background:rgba(111,66,193,0.25); color:#a78bfa; border:1px solid #6f42c1; font-size:.75rem;"
+                            title="Paramètres du batch">
+                        <i class="fas fa-cog"></i>
+                    </button>
                     {% if batch_info.has_success %}
                     <a href="{% url 'reader:batch_download' batch_info.obj.id %}"
                        class="btn btn-sm btn-outline-info py-0 px-2" style="font-size:.75rem;" title="Télécharger ZIP">

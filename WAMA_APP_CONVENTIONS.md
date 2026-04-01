@@ -921,6 +921,40 @@ function initBatchCollapse() {
 **Apps conformes :** Synthesizer ✅ | Reader ✅
 **Apps à porter :** Transcriber | Describer | Enhancer | Composer | Imager | Anonymizer
 
+### 9.8 Bouton ⚙ et modale dans l'en-tête du groupe batch
+
+**Règle :** Tout groupe batch dont les items ont des paramètres configurables **doit** exposer un
+bouton ⚙ en première position dans la zone d'actions de l'en-tête du groupe.
+
+```html
+<!-- Bouton ⚙ — toujours en première position dans les actions du batch header -->
+<button class="btn btn-sm batch-settings-btn py-0 px-2"
+        data-batch-id="{{ batch_info.obj.id }}"
+        data-<param1>="{{ batch_info.first_<param1> }}"
+        data-<param2>="{{ batch_info.first_<param2> }}"
+        style="background:rgba(111,66,193,0.25); color:#a78bfa; border:1px solid #6f42c1; font-size:.75rem;"
+        title="Paramètres du batch">
+    <i class="fas fa-cog"></i>
+</button>
+```
+
+**Modale** : `#batchSettingsModal`, dans le bloc `{% block extra_modals %}` du template.
+
+**Footer de la modale — boutons obligatoires :**
+```html
+<button … id="saveBatchSettingsBtn">   <i class="fas fa-save"></i>  Sauvegarder            </button>
+<button … id="saveBatchSettingsAndStartBtn"> <i class="fas fa-play"></i> Sauvegarder et relancer </button>
+```
+
+**Vue backend** : `batch_update(request, pk)` — met à jour les paramètres sur tous les items
+non-RUNNING du batch. URL : `batch/<int:pk>/update/`.
+
+**Contexte IndexView** : ajouter `first_<param>` dans chaque entrée de `batches_list` pour
+pré-remplir la modale avec les valeurs du premier item du batch.
+
+**Apps conformes :** Synthesizer ✅ | Reader ✅
+**Apps à porter :** Transcriber | Describer | Enhancer | Composer | Anonymizer
+
 ---
 
 ## 10. Paramètres — Cohérence entre Volet, Item et Batch
@@ -1170,7 +1204,66 @@ prompt = f"Context utilisateur : {context}\n\nDocument : {text}"
 
 ---
 
-## 14. Modèles AI — Voir CLAUDE.md
+## 14. Sélection de Modèle AI — Règle de Réutilisation VRAM
+
+### 14.1 Problème : faux fallback lors de la sélection automatique en batch
+
+Lorsqu'une fonction `_select_best_backend()` vérifie la VRAM disponible avant de choisir
+un modèle, elle peut tomber dans un piège lors du traitement batch :
+
+1. **Item 1** : modèle lourd (ex. olmOCR ~14 Go) chargé en VRAM → traitement OK
+2. **Item 2** : `_select_best_backend()` est rappelé → le modèle occupe maintenant ~14 Go
+   → VRAM "libre" = 24 − 14 = 10 Go → sous le seuil → fallback sur un modèle léger
+3. Le modèle change entre deux fichiers du même batch → incohérence + rechargement inutile
+
+### 14.2 Règle : si un singleton est déjà en VRAM, le réutiliser
+
+```python
+def _select_best_backend() -> str:
+    # Règle 1 — singleton déjà chargé : réutiliser sans vérification VRAM.
+    # Le modèle occupe déjà la VRAM ; la revérifier produirait un faux fallback.
+    if _my_model_singleton is not None and getattr(_my_model_singleton, '_model', None) is not None:
+        return 'my_heavy_model'
+
+    # Règle 2 — sinon : vérifier la VRAM disponible normalement.
+    # Utiliser nvidia-smi (subprocess) comme source primaire car torch.cuda
+    # est souvent non-initialisé dans les workers Celery forkés.
+    try:
+        import subprocess
+        result = subprocess.run(
+            ['nvidia-smi', '--query-gpu=memory.free', '--format=csv,noheader,nounits'],
+            capture_output=True, text=True, timeout=5
+        )
+        if result.returncode == 0:
+            values = [int(v.strip()) for v in result.stdout.strip().split('\n') if v.strip().isdigit()]
+            if values and max(values) / 1024 >= VRAM_THRESHOLD_GB:
+                return 'my_heavy_model'
+    except Exception:
+        pass
+    return 'fallback_model'
+```
+
+### 14.3 Règle complémentaire : `keep_loaded=True` pour les batches
+
+Quand une app traite plusieurs fichiers d'un même batch avec un modèle lourd,
+appeler le backend avec `keep_loaded=True` pour ne pas décharger le modèle
+entre deux fichiers :
+
+```python
+# Dans la tâche Celery, pour chaque item du batch :
+raw_text = _get_singleton_backend().run(
+    file_path, ...,
+    keep_loaded=True,   # ← ne pas décharger entre les items
+)
+```
+
+Le singleton est déchargé naturellement par le model_manager ou à la fin du worker.
+
+**Apps conformes :** Reader (olmOCR) ✅
+
+---
+
+## 15. Modèles AI — Voir CLAUDE.md
 
 Les règles d'intégration des modèles HuggingFace sont documentées dans `CLAUDE.md`
 sous la section **"RÈGLE OBLIGATOIRE : AJOUT D'UN NOUVEAU MODÈLE AI"**.

@@ -592,6 +592,59 @@
         }
     }
 
+    // ─── Batch settings modal ─────────────────────────────────────────────────
+
+    let _batchSettingsModal = null;
+
+    function initBatchSettingsModal() {
+        const el = document.getElementById('batchSettingsModal');
+        if (!el) return;
+        _batchSettingsModal = new bootstrap.Modal(el);
+
+        const saveBtn = document.getElementById('saveBatchSettingsBtn');
+        if (saveBtn) saveBtn.addEventListener('click', () => saveBatchSettings(false));
+        const saveStartBtn = document.getElementById('saveBatchSettingsAndStartBtn');
+        if (saveStartBtn) saveStartBtn.addEventListener('click', () => saveBatchSettings(true));
+    }
+
+    function openBatchSettingsModal(btn) {
+        if (!_batchSettingsModal) return;
+        const id = btn.dataset.batchId;
+        document.getElementById('batchSettingsBatchLabel').textContent = '#' + id;
+        document.getElementById('batchSettingsBatchId').value = id;
+        const selEl = document.getElementById('batchSettingsBackend');
+        if (selEl) selEl.value = btn.dataset.backend || '';
+        const modeEl = document.getElementById('batchSettingsMode');
+        if (modeEl) modeEl.value = btn.dataset.mode || '';
+        const langEl = document.getElementById('batchSettingsLanguage');
+        if (langEl) langEl.value = btn.dataset.language || '';
+        _batchSettingsModal.show();
+    }
+
+    async function saveBatchSettings(andStart) {
+        const batchId = document.getElementById('batchSettingsBatchId').value;
+        const payload = {
+            backend:  document.getElementById('batchSettingsBackend').value,
+            mode:     document.getElementById('batchSettingsMode').value,
+            language: (document.getElementById('batchSettingsLanguage').value || '').trim(),
+        };
+        try {
+            const r = await csrfFetch(urlForBatch('batchUpdate', batchId), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            const data = await r.json();
+            if (!r.ok || !data.success) { alert(data.error || 'Erreur sauvegarde'); return; }
+            _batchSettingsModal.hide();
+            if (andStart) {
+                await startBatch(batchId);
+            } else {
+                window.location.reload();
+            }
+        } catch { alert('Erreur réseau'); }
+    }
+
     function bindBatchGroupActions() {
         document.querySelectorAll('.batch-start-btn').forEach(btn => {
             btn.addEventListener('click', () => startBatch(btn.dataset.batchId));
@@ -602,6 +655,9 @@
         document.querySelectorAll('.batch-duplicate-btn').forEach(btn => {
             btn.addEventListener('click', () => duplicateBatch(btn.dataset.batchId));
         });
+        document.querySelectorAll('.batch-settings-btn').forEach(btn => {
+            btn.addEventListener('click', () => openBatchSettingsModal(btn));
+        });
     }
 
     // ─── Init ─────────────────────────────────────────────────────────────────
@@ -609,6 +665,7 @@
     function init() {
         initDropZone();
         initGlobalButtons();
+        initBatchSettingsModal();
         bindBatchGroupActions();
         updateDownloadAllBtn();
         updateGlobalProgress();
