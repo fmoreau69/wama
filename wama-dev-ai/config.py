@@ -79,24 +79,24 @@ MODELS = {
     # Prompt & Language Models
     # -------------------------------------------------------------------------
     "prompt_enricher": ModelConfig(
-        name="Gemma 3 4B",
-        ollama_id="gemma3:4b",
+        name="Gemma 4 E4B",
+        ollama_id="gemma4:e4b",
         description="Default prompt enrichment, structuring and normalization",
         context_length=128000,
         temperature=0.3,
         role="prompt",
-        ram_required_gb=8.0,
+        ram_required_gb=10.0,
         priority=50,
     ),
 
     "prompt_enricher_premium": ModelConfig(
-        name="Gemma 3 12B",
-        ollama_id="gemma3:12b",
-        description="Advanced prompt enrichment for complex or creative prompts",
-        context_length=128000,
+        name="Gemma 4 26B",
+        ollama_id="gemma4:26b",
+        description="Advanced prompt enrichment for complex or creative prompts (MoE, 3.8B actifs)",
+        context_length=256000,
         temperature=0.25,
         role="prompt",
-        ram_required_gb=16.0,
+        ram_required_gb=18.0,
         priority=80,
     ),
 
@@ -148,13 +148,13 @@ MODELS = {
     ),
 
     "debug": ModelConfig(
-        name="DeepSeek Coder V2 16B",
-        ollama_id="deepseek-coder-v2:16b",
-        description="Code reviewer, debugger and patch generator",
-        context_length=16384,
+        name="Qwen3-Coder 30B",
+        ollama_id="qwen3-coder:30b",
+        description="Code reviewer, debugger and patch generator — MoE 30B/3.3B actifs, 256K ctx",
+        context_length=262144,
         temperature=0.2,
         role="debug",
-        ram_required_gb=10.0,   # Q4_K_M: ~9.6 GB VRAM (was 18.0 which was system RAM estimate)
+        ram_required_gb=19.0,
         priority=50,
     ),
 
@@ -233,14 +233,14 @@ MODELS = {
     # -------------------------------------------------------------------------
     # Audit / non-thinking models (safe for complex tool-use prompts)
     # -------------------------------------------------------------------------
-    "gemma3_4b": ModelConfig(
-        name="Gemma 3 4B",
-        ollama_id="gemma3:4b",
+    "gemma4_e4b": ModelConfig(
+        name="Gemma 4 E4B",
+        ollama_id="gemma4:e4b",
         description="Non-thinking 4B model — reliable for complex tool-use prompts (audit)",
         context_length=128000,
         temperature=0.3,
         role="dev",
-        ram_required_gb=3.0,
+        ram_required_gb=10.0,
         priority=35,
     ),
 
@@ -432,8 +432,8 @@ MODEL_FALLBACK_CHAINS = {
     "debug": ["debug", "fast", "ultra_fast"],
     "architect": ["architect", "orchestrator", "fast", "ultra_fast"],
     # audit role: prefers non-thinking models (qwen3.5 crashes on complex prompts)
-    # debug (deepseek-coder-v2:16b) is the best choice when VRAM allows
-    "audit": ["debug", "gemma3_4b", "fast", "ultra_fast"],
+    # debug (qwen3-coder:30b) est le meilleur choix — 256K ctx, moins d'hallucinations
+    "audit": ["debug", "gemma4_e4b", "fast", "ultra_fast"],
     "vision": ["vision", "vision_fast", "vision_lite"],
     "prompt": ["prompt_enricher_premium", "prompt_enricher"],
     "translate": ["translator", "prompt_enricher"],

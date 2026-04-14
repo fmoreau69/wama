@@ -130,6 +130,38 @@
         apiDownloadUrl: '/filemanager/api/download/',
         apiValidatePathUrl: '{% url "filemanager:api_validate_path" %}',
         apiMountsUrl: '{% url "filemanager:api_mounts" %}',
-        apiMountDeleteUrl: '/filemanager/api/mounts/'
+        apiMountDeleteUrl: '/filemanager/api/mounts/',
+        converterQuickUrl: '{% url "converter:quick_convert" %}',
+        converterOutputFormats: {{ converter_output_formats_json|safe }},
     };
 </script>
+
+<!-- Modal — Convertir depuis le FileManager -->
+<div class="modal fade" id="converterQuickModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content bg-dark text-light border-secondary">
+            <div class="modal-header border-secondary py-2">
+                <h6 class="modal-title">
+                    <i class="fas fa-exchange-alt me-1" style="color:#20c997;"></i>
+                    Convertir
+                </h6>
+                <button type="button" class="btn-close btn-close-white btn-sm" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body py-2">
+                <p class="small text-muted mb-2" id="converterQuickFilename" style="word-break:break-all;"></p>
+                <label class="form-label small fw-bold mb-1">Format de sortie</label>
+                <select id="converterQuickFormat" class="form-select form-select-sm bg-dark text-light border-secondary">
+                    <option value="">— choisissez —</option>
+                </select>
+                <div id="converterQuickError" class="text-danger small mt-2" style="display:none;"></div>
+            </div>
+            <div class="modal-footer border-secondary py-2">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Annuler</button>
+                <button type="button" class="btn btn-sm" id="converterQuickConfirmBtn"
+                        style="background:#20c997; color:#000;">
+                    <i class="fas fa-exchange-alt"></i> Convertir
+                </button>
+            </div>
+        </div>
+    </div>
+</div>

@@ -8,9 +8,13 @@ Single source of truth for all app specifications:
   - output types
   - conventions conformity status
 
+Re-exports CONVERTER_OUTPUT_FORMATS from converter.utils.format_router so that
+other apps and templates can reference it via a single import from app_registry.
+
 Usage:
     from wama.common.app_registry import APP_CATALOG, AUDIO_EXTENSIONS, IMAGE_EXTENSIONS
     from wama.common.app_registry import get_app_extensions_for_filemanager
+    from wama.common.app_registry import CONVERTER_OUTPUT_FORMATS
 """
 
 # ---------------------------------------------------------------------------
@@ -201,6 +205,25 @@ APP_CATALOG = {
         'conventions': _conv(start=None),  # auto-start on upload, no manual start button
     },
 
+    'converter': {
+        'label':       'Converter',
+        'icon':        'fas fa-exchange-alt',
+        'color':       '#20c997',
+        'url_name':    'converter:index',
+        'description': 'Conversion de formats : image, vidéo, audio (Pillow + FFmpeg).',
+        'input_extensions': IMAGE_EXTENSIONS + VIDEO_EXTENSIONS + AUDIO_EXTENSIONS,
+        'input_types': ('image', 'video', 'audio'),
+        'batch_type':  None,
+        'has_batch':   False,
+        'has_url_import': False,
+        'has_youtube': False,
+        'output_types': ('image', 'video', 'audio'),
+        'conventions': _conv(
+            batch=False,       # not needed — one file = one job
+            download_all=False,  # P2
+        ),
+    },
+
     'transcriber': {
         'label':       'Transcriber',
         'icon':        'fas fa-file-alt',
@@ -222,6 +245,13 @@ APP_CATALOG = {
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+# Re-export CONVERTER_OUTPUT_FORMATS for convenience
+try:
+    from wama.converter.utils.format_router import CONVERTER_OUTPUT_FORMATS
+except ImportError:
+    CONVERTER_OUTPUT_FORMATS = {}
+
 
 def get_app_extensions_for_filemanager() -> dict:
     """

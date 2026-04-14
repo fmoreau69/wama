@@ -248,6 +248,7 @@ INSTALLED_APPS = [
     'wama.media_library',  # Médiathèque centralisée
     'wama.composer',       # Music & SFX generation (AudioCraft)
     'wama.reader',         # OCR Document — imprimé + manuscrit
+    'wama.converter',      # Format Converter (image / video / audio)
     # WAMA Lab - Experimental/Research applications
     'wama_lab.face_analyzer',
     'wama_lab.cam_analyzer',
@@ -370,6 +371,7 @@ if ENABLE_CELERY:
         'wama.composer.tasks.*': {'queue': 'gpu'},
         'wama_lab.face_analyzer.tasks.*': {'queue': 'gpu'},
         'wama_lab.cam_analyzer.tasks.*': {'queue': 'gpu'},
+        'wama.converter.tasks.*': {'queue': 'default'},
         'wama.model_manager.tasks.*': {'queue': 'default'},
     }
     CELERY_TASK_DEFAULT_QUEUE = 'default'

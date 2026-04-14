@@ -1,0 +1,49 @@
+{% extends 'common/app_modern_base.html' %}
+{% load static %}
+
+{% block app_icon %}<i class="fas fa-exchange-alt" style="color:#20c997;"></i>{% endblock %}
+{% block app_title %}Converter{% endblock %}
+{% block app_description %}Convertissez vos médias : images, vidéos, audios en quelques clics{% endblock %}
+
+{% block app_styles %}
+#converterDropZone { --drop-border: #20c997; }
+{% endblock %}
+
+{% block console_app_name %}converter{% endblock %}
+{% block console_content_id %}converter-console-content{% endblock %}
+
+{% block queue_content %}
+    {% block converter_content %}{% endblock %}
+{% endblock %}
+
+{% block about_content %}
+<div class="info-card">
+    <h3><i class="fas fa-exchange-alt me-2" style="color:#20c997;"></i>À propos de Converter</h3>
+    <div class="mb-4">
+        <h5>Qu'est-ce que Converter ?</h5>
+        <p class="text-light">
+            Converter permet de changer le format de vos fichiers images, vidéos et audio
+            sans perte de qualité inutile. Chaque fichier est converti localement,
+            directement sur votre serveur WAMA.
+        </p>
+    </div>
+    <div class="mb-4">
+        <h5>Formats supportés</h5>
+        <table class="table table-dark table-sm">
+            <thead><tr><th>Type</th><th>Entrée</th><th>Sortie</th></tr></thead>
+            <tbody>
+                <tr><td>Image</td><td>JPG, PNG, WebP, BMP, TIFF, GIF, HEIC, AVIF</td><td>JPG, PNG, WebP, TIFF, BMP, GIF, AVIF, PDF</td></tr>
+                <tr><td>Vidéo</td><td>MP4, AVI, MOV, MKV, WebM, FLV, MPEG…</td><td>MP4, WebM, AVI, MOV, MKV, GIF, MP3, WAV, OGG</td></tr>
+                <tr><td>Audio</td><td>MP3, WAV, FLAC, OGG, M4A, AAC, OPUS, WMA</td><td>MP3, WAV, FLAC, OGG, M4A, AAC, OPUS</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <div class="mb-4">
+        <h5>Moteurs</h5>
+        <ul class="text-light">
+            <li><strong>Images</strong> : Pillow (Python Imaging Library)</li>
+            <li><strong>Vidéos &amp; Audio</strong> : FFmpeg</li>
+        </ul>
+    </div>
+</div>
+{% endblock %}

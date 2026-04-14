@@ -4,7 +4,7 @@ WAMA Imager - Prompt Enhancer via Ollama
 Wraps wama.common.utils.llm_utils.ollama_chat() to enrich image/video prompts.
 Zero VRAM overhead — runs entirely in the Ollama process.
 
-Model configured via settings.OLLAMA_PROMPT_ENHANCE_MODEL (default: gemma3).
+Model configured via settings.OLLAMA_PROMPT_ENHANCE_MODEL (default: gemma4).
 """
 
 import logging
@@ -12,14 +12,14 @@ from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
-_ENHANCE_MODEL_SETTING = getattr(settings, 'OLLAMA_PROMPT_ENHANCE_MODEL', 'gemma3')
+_ENHANCE_MODEL_SETTING = getattr(settings, 'OLLAMA_PROMPT_ENHANCE_MODEL', 'gemma4:e4b')
 
 
 def _resolve_model_name() -> str:
     """
     Resolve the configured model name to the exact name known by Ollama.
 
-    If the setting is 'gemma3' but Ollama has 'gemma3:4b', returns 'gemma3:4b'.
+    If the setting is 'gemma4' but Ollama has 'gemma4:e4b', returns 'gemma4:e4b'.
     Falls back to the raw setting if Ollama is unreachable.
     """
     import httpx
@@ -30,7 +30,7 @@ def _resolve_model_name() -> str:
         # Exact match first
         if _ENHANCE_MODEL_SETTING in models:
             return _ENHANCE_MODEL_SETTING
-        # Prefix match: 'gemma3' matches 'gemma3:4b', 'gemma3:12b', etc.
+        # Prefix match: 'gemma4' matches 'gemma4:e4b', 'gemma4:26b', etc.
         for m in models:
             if m.startswith(_ENHANCE_MODEL_SETTING + ':') or m.startswith(_ENHANCE_MODEL_SETTING + '-'):
                 logger.info(f'[PromptEnhancer] Resolved model "{_ENHANCE_MODEL_SETTING}" → "{m}"')

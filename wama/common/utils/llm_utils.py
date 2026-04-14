@@ -40,6 +40,7 @@ def ollama_chat(
     messages: list,
     model: str = 'qwen3.5:9b',
     num_predict: int = 2048,
+    num_ctx: Optional[int] = None,
     think: bool = True,
     timeout: float = 180.0,
 ) -> tuple[Optional[str], Optional[str]]:
@@ -50,6 +51,10 @@ def ollama_chat(
         messages:    List of {"role": ..., "content": ...} dicts.
         model:       Ollama model name.
         num_predict: Max tokens to generate (default 2048).
+        num_ctx:     KV cache context window (tokens). If None, Ollama uses the
+                     model's default (often 32K–128K), which can require 10–15 GB
+                     of VRAM even for small models. Pass an explicit value (e.g.
+                     8192) for formatting/short tasks to cap memory usage.
         think:       Enable Qwen3 thinking mode (default True). Set False for
                      deterministic formatting tasks to avoid consuming the
                      token budget on reasoning before the actual answer.
@@ -66,10 +71,14 @@ def ollama_chat(
     host = getattr(settings, 'OLLAMA_HOST', 'http://127.0.0.1:11434').rstrip('/')
     url = f"{host}/api/chat"
 
+    options: dict = {"temperature": 0.3, "num_predict": num_predict}
+    if num_ctx is not None:
+        options["num_ctx"] = num_ctx
+
     payload = {
         "model": model,
         "messages": messages,
-        "options": {"temperature": 0.3, "num_predict": num_predict},
+        "options": options,
         "stream": False,
     }
     if not think:

@@ -38,6 +38,7 @@ urlpatterns = [
     path('media-library/', include(('wama.media_library.urls', 'media_library'), namespace='media_library')),
     path('composer/', include(('wama.composer.urls', 'composer'), namespace='composer')),
     path('reader/', include(('wama.reader.urls', 'reader'), namespace='reader')),
+    path('converter/', include(('wama.converter.urls', 'converter'), namespace='converter')),
     # WAMA Lab - Experimental/Research applications
     path('lab/', include(('wama_lab.urls', 'wama_lab'), namespace='wama_lab')),
     path('favicon.ico', RedirectView.as_view(url=staticfiles_storage.url('images/favicon.ico'))),

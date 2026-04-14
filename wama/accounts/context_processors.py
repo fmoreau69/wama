@@ -40,6 +40,12 @@ def user_role(request):
     except Exception:
         app_catalog_json = '{}'
 
+    try:
+        from wama.converter.utils.format_router import CONVERTER_OUTPUT_FORMATS
+        converter_output_formats_json = _json.dumps(CONVERTER_OUTPUT_FORMATS)
+    except Exception:
+        converter_output_formats_json = '{}'
+
     return {
         'is_admin': is_admin(user),
         'is_dev': is_dev(user),
@@ -47,4 +53,5 @@ def user_role(request):
         'preferred_language': preferred_language,
         'ui_mode': ui_mode,
         'app_catalog_json': app_catalog_json,
+        'converter_output_formats_json': converter_output_formats_json,
     }

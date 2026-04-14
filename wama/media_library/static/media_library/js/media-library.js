@@ -40,12 +40,14 @@
 
     // ── State ─────────────────────────────────────────────────────────────────
 
-    let currentType  = document.querySelector('#assetTypeTabs .nav-link.active')?.dataset.type || 'voice';
-    let currentPage  = 1;
-    let hasMore      = false;
-    let searchTimer  = null;
-    let pendingFile  = null;
-    let editingAsset = null;
+    let currentType          = document.querySelector('#assetTypeTabs .nav-link.active')?.dataset.type || 'voice';
+    let currentPage          = 1;
+    let hasMore              = false;
+    let searchTimer          = null;
+    let pendingFile          = null;
+    let editingAsset         = null;
+    let currentAssets        = [];   // assets visibles dans la grille (pour navigation)
+    let currentSearchResults = [];   // résultats de recherche provider (pour navigation)
 
     // ── DOM ───────────────────────────────────────────────────────────────────
 
@@ -216,6 +218,9 @@
             // Assets système en premier (seulement page 1)
             if (currentPage === 1) {
                 systemAssets.forEach(a => assetGrid.appendChild(buildCard(a, true)));
+                currentAssets = [...systemAssets, ...userAssets].map(a => ({...a, _assetType: currentType}));
+            } else {
+                currentAssets = [...currentAssets, ...userAssets.map(a => ({...a, _assetType: currentType}))];
             }
             userAssets.forEach(a => assetGrid.appendChild(buildCard(a, false)));
 
@@ -308,8 +313,9 @@
                 ${tagsHtml ? `<div class="asset-tags">${tagsHtml}</div>` : ''}
             </div>`;
 
-        // Clic sur image/vidéo → preview plein écran
-        card.querySelector('.asset-preview-img, .asset-preview-video')?.addEventListener('click', () => openPreview(asset));
+        // Clic sur la zone preview → preview modal
+        // Note : .asset-preview-video a pointer-events:none (couche GPU), on écoute le wrap parent
+        card.querySelector('.asset-preview-wrap')?.addEventListener('click', () => openPreview(asset));
         // Clic sur le nom → preview aussi
         card.querySelector('.asset-name')?.addEventListener('click', () => openPreview(asset));
         // Bouton preview
@@ -332,41 +338,66 @@
 
     // ── Preview modal ─────────────────────────────────────────────────────────
 
-    function openPreview(asset) {
-        document.getElementById('previewModalTitle').textContent = asset.name;
-
-        let bodyHtml = '';
-        if (AUDIO_TYPES.includes(currentType) && asset.file_url) {
-            bodyHtml = `<audio controls src="${asset.file_url}" autoplay style="width:100%;"></audio>`;
-        } else if (['image', 'avatar'].includes(currentType) && asset.file_url) {
-            bodyHtml = `<img src="${asset.file_url}" alt="${esc(asset.name)}" style="max-width:100%;max-height:70vh;">`;
-        } else if (currentType === 'video' && asset.file_url) {
-            bodyHtml = `<video src="${asset.file_url}" controls autoplay muted style="max-width:100%;max-height:70vh;"></video>`;
-        } else if (asset.file_url) {
-            bodyHtml = `<div class="text-center py-4">
-                <i class="fas ${TYPE_ICONS[currentType] || 'fa-file'} fa-5x text-secondary mb-3 d-block"></i>
-                <a href="${asset.file_url}" class="btn btn-outline-light btn-sm" download>
-                    <i class="fas fa-download me-1"></i>Télécharger
-                </a>
-            </div>`;
+    function assetToPreviewData(asset) {
+        const assetType = asset._assetType || currentType;
+        let mime = '';
+        if (AUDIO_TYPES.includes(assetType)) {
+            const ext = (asset.name || '').split('.').pop().toLowerCase();
+            mime = ext === 'mp3' ? 'audio/mpeg' : ext === 'ogg' ? 'audio/ogg' : 'audio/wav';
+        } else if (assetType === 'image' || assetType === 'avatar') {
+            mime = 'image/jpeg';
+        } else if (assetType === 'video') {
+            mime = 'video/mp4';
+        } else if (assetType === 'document') {
+            const ext = (asset.name || '').split('.').pop().toLowerCase();
+            const m = { pdf: 'application/pdf', txt: 'text/plain', md: 'text/plain', csv: 'text/plain' };
+            mime = m[ext] || 'application/octet-stream';
         }
+        return {
+            url:        asset.file_url || '',
+            name:       asset.name || '',
+            mime_type:  mime,
+            duration:   asset.duration || '',
+            properties: asset.file_size || '',
+        };
+    }
 
-        document.getElementById('previewModalBody').innerHTML = bodyHtml;
+    function searchResultToPreviewData(r) {
+        // Note : base.py sérialise le download_url sous '_download_url' (préfixe _ = CDN public)
+        let mime = '';
+        let url  = '';
+        if (r.asset_type === 'image' || r.asset_type === 'avatar') {
+            mime = 'image/jpeg';
+            url  = r.preview_url || '';
+        } else if (AUDIO_TYPES.includes(r.asset_type)) {
+            mime = 'audio/mpeg';
+            url  = r.preview_url || r._download_url || '';
+        } else if (r.asset_type === 'video') {
+            // Préférer la vraie vidéo (meilleure UX) ; fallback vers thumbnail Vimeo
+            if (r._download_url) {
+                mime = 'video/mp4';
+                url  = r._download_url;
+            } else {
+                mime = 'image/jpeg';
+                url  = r.preview_url || '';
+            }
+        }
+        return {
+            url,
+            name:       r.title || '',
+            mime_type:  mime,
+            duration:   r.duration ? `${Math.round(r.duration)}s` : '',
+            properties: r.author || '',
+        };
+    }
 
-        const metaParts = [asset.file_size, asset.duration, asset.license, asset.created_at].filter(Boolean);
-        document.getElementById('previewModalMeta').textContent = metaParts.join(' · ');
-
-        const dlBtn = document.getElementById('previewDownloadBtn');
-        dlBtn.href = asset.file_url || '#';
-        dlBtn.download = asset.name;
-        dlBtn.style.display = asset.file_url ? '' : 'none';
-
-        previewModal.show();
-
-        // Stopper la lecture audio/vidéo à la fermeture
-        document.getElementById('previewModal').addEventListener('hidden.bs.modal', () => {
-            document.getElementById('previewModalBody').innerHTML = '';
-        }, { once: true });
+    function openPreview(asset) {
+        const idx = currentAssets.findIndex(a => a.id === asset.id);
+        window.showPreviewModalWithNav(
+            assetToPreviewData(asset),
+            currentAssets.map(assetToPreviewData),
+            idx >= 0 ? idx : 0
+        );
     }
 
     // ── Edit modal ────────────────────────────────────────────────────────────
@@ -650,6 +681,7 @@
             grid.innerHTML = `<div class="text-muted text-center w-100 py-5" style="grid-column:1/-1;">
                 <i class="fas fa-spinner fa-spin fa-2x mb-2 d-block"></i>Recherche en cours…</div>`;
             moreBtn.style.display = 'none';
+            currentSearchResults = [];
         }
 
         const params = new URLSearchParams({
@@ -678,6 +710,7 @@
             }
 
             results.forEach(r => grid.appendChild(buildSearchCard(r)));
+            currentSearchResults = [...currentSearchResults, ...results];
 
         } catch (err) {
             grid.innerHTML = `<div class="text-danger p-3" style="grid-column:1/-1;">Erreur : ${esc(err.message)}</div>`;
@@ -723,6 +756,23 @@
             </div>`;
 
         card.querySelector('.sr-import-btn').addEventListener('click', () => importSearchResult(r, card));
+
+        // Clic sur la carte (hors bouton import) → preview avec navigation
+        // Toujours actif : on peut avoir un _download_url même sans preview_url (vidéos sans thumb)
+        const hasPreview = r.preview_url || r._download_url;
+        if (hasPreview) {
+            card.style.cursor = 'pointer';
+            card.addEventListener('click', e => {
+                if (e.target.closest('.sr-import-btn')) return;
+                const idx = currentSearchResults.indexOf(r);
+                window.showPreviewModalWithNav(
+                    searchResultToPreviewData(r),
+                    currentSearchResults.map(searchResultToPreviewData),
+                    idx >= 0 ? idx : 0
+                );
+            });
+        }
+
         return card;
     }
 

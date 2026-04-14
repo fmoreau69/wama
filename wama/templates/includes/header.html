@@ -25,6 +25,11 @@
                         </a>
                     </li>
                     <li>
+                        <a class="dropdown-item d-flex align-items-center {% if 'converter' in request.path %}active{% endif %}" href="{% url 'converter:index' %}">
+                            <i class="fas fa-exchange-alt me-2" style="color:#20c997;"></i> Converter
+                        </a>
+                    </li>
+                    <li>
                         <a class="dropdown-item d-flex align-items-center {% if 'describer' in request.path %}active{% endif %}" href="{% url 'describer:index' %}">
                             <i class="fas fa-search-plus text-info me-2"></i> Describer
                         </a>

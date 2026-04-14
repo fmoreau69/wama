@@ -72,21 +72,33 @@ def _count_pdf_pages(file_path: str) -> int:
 
 
 def _select_best_backend() -> str:
-    """Choose olmocr if GPU is available with >= 10 GB free VRAM, else doctr.
+    """Auto-select the best available OCR backend.
 
-    Rule: if the olmOCR singleton is already loaded in VRAM, always prefer it —
-    its own VRAM footprint (~14 GB) would otherwise be counted as "unavailable"
-    and trigger a false fallback to docTR on subsequent batch items.
+    Priority cascade:
+      1. olmOCR singleton already loaded in VRAM — reuse to avoid costly reload.
+      2. GLM-OCR via Ollama — lightweight (0.9B / ~2.2 GB), top OmniDocBench score,
+         no VRAM management needed.
+      3. olmOCR-7B — if >= 10 GB free VRAM detected (nvidia-smi or torch).
+      4. docTR — CPU-friendly fallback, always available.
 
-    Uses nvidia-smi (subprocess) as the primary check because torch.cuda
+    Uses nvidia-smi (subprocess) as the primary VRAM check because torch.cuda
     is often uninitialized in forked Celery workers and returns False even
     when a GPU is present.
     """
-    # If the singleton is already loaded, reuse it — no VRAM check needed.
+    # 1. If the olmOCR singleton is already loaded, reuse it.
     if _olmocr_singleton is not None and getattr(_olmocr_singleton, '_model', None) is not None:
         return 'olmocr'
 
-    # Primary: nvidia-smi subprocess — reliable in forked workers
+    # 2. GLM-OCR via Ollama (lightweight, no VRAM overhead).
+    try:
+        from .backends.glm_ocr_backend import is_available as glm_available
+        if glm_available():
+            return 'glm-ocr'
+    except Exception:
+        pass
+
+    # 3. olmOCR-7B — requires >= 10 GB free VRAM.
+    # Primary: nvidia-smi subprocess — reliable in forked workers.
     try:
         import subprocess
         result = subprocess.run(
@@ -99,7 +111,7 @@ def _select_best_backend() -> str:
                 return 'olmocr'
     except Exception:
         pass
-    # Fallback: torch (may fail in forked contexts but handles non-NVIDIA GPUs)
+    # Fallback VRAM check: torch (may fail in forked contexts).
     try:
         import torch
         if torch.cuda.is_available():
@@ -108,6 +120,8 @@ def _select_best_backend() -> str:
                 return 'olmocr'
     except Exception:
         pass
+
+    # 4. docTR — always available, CPU-friendly.
     return 'doctr'
 
 
@@ -182,6 +196,7 @@ def _format_as_markdown(text: str, language: str = '') -> str:
         ],
         model=model,
         num_predict=8192,
+        num_ctx=8192,   # Cap KV cache — formatting needs no large context window
         think=False,
         timeout=30.0,  # Fast-fail when Ollama is unavailable
     )
@@ -254,6 +269,11 @@ def read_document_task(self, item_id: int):
             raw_text = _get_olmocr().run(
                 item.input_file.path, item.mode, item.language, progress_cb,
                 keep_loaded=True,
+            )
+        elif backend == 'glm-ocr':
+            from .backends.glm_ocr_backend import GlmOcrBackend
+            raw_text = GlmOcrBackend().run(
+                item.input_file.path, item.mode, item.language, progress_cb
             )
         elif backend == 'doctr':
             from .backends.doctr_backend import DocTRBackend

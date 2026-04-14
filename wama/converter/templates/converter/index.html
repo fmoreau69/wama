@@ -1,0 +1,316 @@
+{% extends 'converter/base.html' %}
+{% load static %}
+
+{% block title %}Converter — WAMA{% endblock %}
+
+{% block extra_css %}
+{{ block.super }}
+<style>
+    .converter-drop-zone {
+        border: 2px dashed #495057;
+        border-radius: 8px;
+        padding: 1rem;
+        text-align: center;
+        cursor: pointer;
+        transition: border-color .2s, background .2s, transform .15s;
+        background: rgba(255,255,255,.02);
+    }
+    .converter-drop-zone.dragover {
+        border-color: #20c997;
+        background: rgba(32,201,151,.06);
+        transform: scale(1.02);
+    }
+    .job-card {
+        background: #1e2329;
+        border: 1px solid #2d3440;
+        border-radius: 8px;
+        margin-bottom: .6rem;
+        padding: .7rem 1rem;
+        transition: border-color .2s;
+    }
+    .job-card:hover { border-color: #444c5a; }
+    .job-card .badge-media {
+        font-size: .65rem;
+        padding: .25em .5em;
+        border-radius: 4px;
+    }
+    .wama-progress-track {
+        height: 6px;
+        background: #2d3440;
+        border-radius: 3px;
+        margin-top: .4rem;
+        overflow: hidden;
+    }
+    .wama-progress-fill {
+        height: 100%;
+        background: #20c997;
+        border-radius: 3px;
+        transition: width .4s ease;
+    }
+    .wama-progress-fill.error { background: #dc3545; }
+</style>
+{% endblock %}
+
+{# ── Right panel : zone de dépôt ─────────────────────────────────────────── #}
+{% block app_right_panel_media %}
+<div id="converterDropZone" class="converter-drop-zone" onclick="document.getElementById('converterFileInput').click()">
+    <i class="fas fa-file-import fa-lg mb-1" style="color:#20c997;"></i>
+    <p class="mb-0 small text-secondary">Glissez ici ou cliquez</p>
+    <small class="text-muted">Images · Vidéos · Audio</small>
+    <input type="file" id="converterFileInput" multiple
+           accept=".jpg,.jpeg,.png,.webp,.bmp,.tiff,.tif,.gif,.heic,.heif,.avif,
+                   .mp4,.avi,.mov,.mkv,.webm,.flv,.mpg,.mpeg,.3gp,.wmv,.ts,.m4v,
+                   .mp3,.wav,.flac,.ogg,.m4a,.aac,.opus,.wma,.aiff,.aif"
+           style="display:none">
+</div>
+{% endblock %}
+
+{# ── Right panel : paramètres de conversion ──────────────────────────────── #}
+{% block app_right_panel_settings %}
+
+<!-- Type de média détecté (mis à jour par JS) -->
+<div class="mb-2">
+    <label class="form-label small fw-bold text-light mb-1">
+        <i class="fas fa-photo-film"></i> Type détecté
+    </label>
+    <div id="converterMediaTypeBadge" class="text-muted small fst-italic">
+        — aucun fichier sélectionné —
+    </div>
+</div>
+
+<!-- Format de sortie -->
+<div class="mb-2">
+    <label class="form-label small fw-bold text-light mb-1">
+        <i class="fas fa-file-export"></i> Format de sortie
+    </label>
+    <select id="converterOutputFormat" class="form-select form-select-sm" disabled>
+        <option value="">— choisissez un fichier —</option>
+    </select>
+</div>
+
+<hr class="border-secondary my-2">
+
+<!-- Options avancées (image) -->
+<div id="imageOptions" style="display:none;">
+    <div class="mb-2">
+        <label class="form-label small fw-bold text-light mb-1">
+            <i class="fas fa-sliders-h"></i> Qualité (JPG/WebP/AVIF)
+            <span id="qualityDisplay" class="text-muted ms-1">85</span>
+        </label>
+        <input type="range" id="imageQuality" class="form-range" min="1" max="100" value="85"
+               oninput="document.getElementById('qualityDisplay').textContent=this.value">
+    </div>
+    <div class="row g-1 mb-2">
+        <div class="col-6">
+            <label class="form-label small text-muted mb-1">Largeur (px)</label>
+            <input type="number" id="resizeW" class="form-control form-control-sm" placeholder="0 = auto" min="0">
+        </div>
+        <div class="col-6">
+            <label class="form-label small text-muted mb-1">Hauteur (px)</label>
+            <input type="number" id="resizeH" class="form-control form-control-sm" placeholder="0 = auto" min="0">
+        </div>
+    </div>
+</div>
+
+<!-- Options avancées (vidéo) -->
+<div id="videoOptions" style="display:none;">
+    <div class="mb-2">
+        <label class="form-label small fw-bold text-light mb-1">
+            <i class="fas fa-film"></i> Qualité vidéo (CRF 0–51)
+        </label>
+        <input type="number" id="videoCRF" class="form-control form-control-sm"
+               placeholder="23 (défaut)" min="0" max="51">
+    </div>
+    <div class="mb-2">
+        <label class="form-label small fw-bold text-light mb-1">
+            <i class="fas fa-tachometer-alt"></i> FPS <span class="text-muted">(vide = conserver)</span>
+        </label>
+        <input type="number" id="videoFPS" class="form-control form-control-sm"
+               placeholder="25, 30, 60…" min="1" max="120">
+    </div>
+</div>
+
+<!-- Options avancées (audio) -->
+<div id="audioOptions" style="display:none;">
+    <div class="mb-2">
+        <label class="form-label small fw-bold text-light mb-1">
+            <i class="fas fa-headphones"></i> Débit audio
+        </label>
+        <select id="audioBitrate" class="form-select form-select-sm">
+            <option value="">Auto</option>
+            <option value="128k">128 kbps</option>
+            <option value="192k" selected>192 kbps</option>
+            <option value="256k">256 kbps</option>
+            <option value="320k">320 kbps (MP3 max)</option>
+        </select>
+    </div>
+    <div class="form-check mb-2">
+        <input class="form-check-input" type="checkbox" id="audioNormalize">
+        <label class="form-check-label small" for="audioNormalize">
+            Normalisation loudness (EBU R128)
+        </label>
+    </div>
+</div>
+
+<hr class="border-secondary my-2">
+<button class="btn btn-outline-secondary btn-sm w-100" id="converterResetOptions">
+    <i class="fas fa-undo"></i> Réinitialiser
+</button>
+{% endblock %}
+
+{# ── Right panel : actions globales ─────────────────────────────────────── #}
+{% block app_right_panel_actions %}
+<div class="d-grid gap-2">
+    <button id="converterStartAllBtn" class="btn btn-success btn-sm">
+        <i class="fas fa-play"></i> Démarrer tout
+    </button>
+    <button id="converterClearAllBtn" class="btn btn-outline-danger btn-sm">
+        <i class="fas fa-trash"></i> Tout effacer
+    </button>
+</div>
+{% endblock %}
+
+{# ── Modals ──────────────────────────────────────────────────────────────── #}
+{% block extra_modals %}
+<!-- Modal paramètres item -->
+<div class="modal fade" id="jobSettingsModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content bg-dark text-light border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title">
+                    <i class="fas fa-sliders-h" style="color:#20c997;"></i>
+                    Paramètres — <span id="jobSettingsFilename"></span>
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="jobSettingsBody">
+                <!-- Populated by JS -->
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+                <button type="button" class="btn btn-success" id="jobSettingsStartBtn">
+                    <i class="fas fa-play"></i> (Re)lancer
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{# ── JS config ────────────────────────────────────────────────────────────── #}
+{% block javascript %}
+{{ block.super }}
+<script>
+window.CONVERTER_APP = {
+    csrfToken: '{{ csrf_token }}',
+    urls: {
+        upload:    "{% url 'converter:upload' %}",
+        startAll:  "{% url 'converter:start_all' %}",
+        clearAll:  "{% url 'converter:clear_all' %}",
+        start:     "{% url 'converter:start' 0 %}",
+        status:    "{% url 'converter:status' 0 %}",
+        download:  "{% url 'converter:download' 0 %}",
+        delete:    "{% url 'converter:delete' 0 %}",
+        duplicate: "{% url 'converter:duplicate' 0 %}",
+    },
+    supportedFormats: {{ supported_formats_json|safe }},
+};
+</script>
+<script src="{% static 'converter/js/converter.js' %}"></script>
+{% endblock %}
+
+{# ── Main content : queue ────────────────────────────────────────────────── #}
+{% block converter_content %}
+<div class="container-fluid py-2" style="overflow-x:hidden;">
+
+    <div id="converterQueue">
+        {% for job in jobs %}
+        <div class="job-card" data-job-id="{{ job.id }}" data-status="{{ job.status }}">
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+
+                <!-- File icon -->
+                <i class="fas fa-file{% if job.media_type == 'video' %}-video{% elif job.media_type == 'audio' %}-audio{% elif job.media_type == 'image' %}-image{% endif %} text-secondary"></i>
+
+                <!-- Filename + format badge -->
+                <div class="flex-grow-1 text-truncate" style="max-width:280px;">
+                    <span class="small fw-bold text-light">{{ job.input_filename }}</span>
+                    {% if job.output_format %}
+                    <span class="badge bg-secondary badge-media ms-1">→ .{{ job.output_format }}</span>
+                    {% endif %}
+                </div>
+
+                <!-- Status badge -->
+                <span class="badge
+                    {% if job.status == 'DONE' %}bg-success
+                    {% elif job.status == 'RUNNING' %}bg-warning text-dark
+                    {% elif job.status == 'ERROR' %}bg-danger
+                    {% else %}bg-secondary
+                    {% endif %} badge-media">
+                    {{ job.get_status_display }}
+                </span>
+
+                <!-- Action buttons (WAMA convention order) -->
+                <div class="d-flex gap-1 ms-auto">
+                    <!-- Paramètres -->
+                    <button class="btn btn-outline-secondary btn-sm py-0 px-2 job-settings-btn"
+                            title="Paramètres" data-job-id="{{ job.id }}">
+                        <i class="fas fa-cog"></i>
+                    </button>
+                    <!-- Start / Restart -->
+                    <button class="btn btn-outline-success btn-sm py-0 px-2 job-start-btn"
+                            title="{% if job.status == 'DONE' %}Recommencer{% else %}Démarrer{% endif %}"
+                            data-job-id="{{ job.id }}"
+                            {% if job.status == 'RUNNING' %}disabled{% endif %}>
+                        <i class="fas fa-{% if job.status == 'DONE' %}redo{% else %}play{% endif %}"></i>
+                    </button>
+                    <!-- Download -->
+                    {% if job.status == 'DONE' and job.output_file %}
+                    <a href="{% url 'converter:download' job.id %}"
+                       class="btn btn-outline-info btn-sm py-0 px-2" title="Télécharger">
+                        <i class="fas fa-download"></i>
+                    </a>
+                    {% else %}
+                    <button class="btn btn-outline-info btn-sm py-0 px-2" disabled title="Télécharger">
+                        <i class="fas fa-download"></i>
+                    </button>
+                    {% endif %}
+                    <!-- Duplicate -->
+                    <button class="btn btn-outline-warning btn-sm py-0 px-2 job-duplicate-btn"
+                            title="Dupliquer" data-job-id="{{ job.id }}">
+                        <i class="fas fa-copy"></i>
+                    </button>
+                    <!-- Delete -->
+                    <button class="btn btn-outline-danger btn-sm py-0 px-2 job-delete-btn"
+                            title="Supprimer" data-job-id="{{ job.id }}">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Progress bar -->
+            {% if job.status == 'RUNNING' or job.status == 'PENDING' %}
+            <div class="wama-progress-track mt-2">
+                <div class="wama-progress-fill" style="width:{{ job.progress }}%"></div>
+            </div>
+            {% elif job.status == 'ERROR' %}
+            <div class="text-danger small mt-1">
+                <i class="fas fa-exclamation-triangle"></i>
+                {{ job.error_message|truncatechars:120 }}
+            </div>
+            {% elif job.status == 'DONE' and job.output_file %}
+            <div class="text-success small mt-1">
+                <i class="fas fa-check-circle"></i>
+                {{ job.output_filename }}
+            </div>
+            {% endif %}
+        </div>
+        {% empty %}
+        <div id="converterEmptyState" class="text-center text-muted py-4">
+            <i class="fas fa-exchange-alt fa-2x mb-2" style="color:#20c997; opacity:.4;"></i>
+            <p class="mb-0">Aucune conversion — déposez un fichier pour commencer</p>
+        </div>
+        {% endfor %}
+    </div>
+
+</div>
+{% endblock %}

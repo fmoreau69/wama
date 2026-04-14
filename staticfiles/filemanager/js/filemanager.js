@@ -310,6 +310,10 @@
                     label: meta.label,
                     icon: meta.icon,
                     action: function() {
+                        if (app === 'converter') {
+                            convertFileFromManager(filePath, node.text, ext);
+                            return;
+                        }
                         importToApp(filePath, app)
                             .then(result => {
                                 if (result.imported) {
@@ -325,6 +329,94 @@
             }
         });
         return submenu;
+    }
+
+    // ── Converter quick-convert from FileManager ─────────────────────────────
+
+    // Extension → media type lookup (mirrors format_router.py)
+    const _converterFormats = (config.converterOutputFormats) || {};
+    const _extToMediaType = {};
+    const _EXT_TO_TYPE_MAP = {
+        image: ['jpg','jpeg','png','webp','bmp','tiff','tif','gif','heic','heif','avif'],
+        video: ['mp4','avi','mov','mkv','webm','flv','mpg','mpeg','3gp','wmv','ts','m4v'],
+        audio: ['mp3','wav','flac','ogg','m4a','aac','opus','wma','aiff','aif'],
+    };
+    Object.entries(_EXT_TO_TYPE_MAP).forEach(([type, exts]) => {
+        exts.forEach(e => { _extToMediaType[e] = type; });
+    });
+
+    function convertFileFromManager(filePath, filename, ext) {
+        const mediaType = _extToMediaType[ext.toLowerCase()];
+        const outputFormats = mediaType ? (_converterFormats[mediaType] || []) : [];
+
+        const modal       = document.getElementById('converterQuickModal');
+        const fmtSel      = document.getElementById('converterQuickFormat');
+        const fnameEl     = document.getElementById('converterQuickFilename');
+        const errEl       = document.getElementById('converterQuickError');
+        const confirmBtn  = document.getElementById('converterQuickConfirmBtn');
+
+        if (!modal || !fmtSel) {
+            alert('Convertisseur non disponible (modal manquant).');
+            return;
+        }
+
+        // Populate dropdown
+        fmtSel.innerHTML = '<option value="">— choisissez —</option>';
+        outputFormats.forEach(fmt => {
+            const opt = document.createElement('option');
+            opt.value = fmt;
+            opt.textContent = '.' + fmt.toUpperCase();
+            fmtSel.appendChild(opt);
+        });
+
+        fnameEl.textContent = filename || filePath;
+        errEl.style.display = 'none';
+        errEl.textContent   = '';
+
+        // Wire confirm button
+        const oldBtn = confirmBtn.cloneNode(true);
+        confirmBtn.parentNode.replaceChild(oldBtn, confirmBtn);
+        const newBtn = document.getElementById('converterQuickConfirmBtn');
+        newBtn.addEventListener('click', async function() {
+            const fmt = fmtSel.value;
+            if (!fmt) {
+                errEl.textContent = 'Choisissez un format de sortie.';
+                errEl.style.display = '';
+                return;
+            }
+            newBtn.disabled = true;
+            newBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+            errEl.style.display = 'none';
+
+            try {
+                const fd = new FormData();
+                fd.append('csrfmiddlewaretoken', csrfToken);
+                fd.append('file_path', filePath);
+                fd.append('output_format', fmt);
+                const resp = await fetch(config.converterQuickUrl || '/converter/quick/', {
+                    method: 'POST',
+                    body: fd,
+                });
+                const data = await resp.json();
+                if (!resp.ok || data.error) {
+                    errEl.textContent = data.error || 'Erreur conversion';
+                    errEl.style.display = '';
+                    newBtn.disabled = false;
+                    newBtn.innerHTML = '<i class="fas fa-exchange-alt"></i> Convertir';
+                    return;
+                }
+                // Success — dismiss modal and show toast
+                bootstrap.Modal.getInstance(modal).hide();
+                showToast(`Conversion démarrée → .${fmt.toUpperCase()} (job #${data.job_id})`, 'success');
+            } catch(err) {
+                errEl.textContent = 'Erreur réseau : ' + err.message;
+                errEl.style.display = '';
+                newBtn.disabled = false;
+                newBtn.innerHTML = '<i class="fas fa-exchange-alt"></i> Convertir';
+            }
+        });
+
+        new bootstrap.Modal(modal).show();
     }
 
     function contextMenuItems(node) {
@@ -859,7 +951,17 @@
             .then(res => res.json())
             .then(data => {
                 if (data.url || data.text_content !== undefined) {
-                    if (typeof window.showPreviewModal === 'function') window.showPreviewModal(data);
+                    if (typeof window.showPreviewModalWithNav === 'function') {
+                        // Stubs pour avoir le bon compte et activer les boutons nav
+                        const stubs = previewSiblings.map(n => ({ name: n.text || n.id, url: '', mime_type: '' }));
+                        window.showPreviewModalWithNav(data, stubs, previewIndex);
+                        // Déléguer la navigation au filemanager (lazy fetch par fichier)
+                        window.setPreviewNavCallback(function(newIdx) {
+                            _filemanagerFetchAndShow(newIdx);
+                        });
+                    } else if (typeof window.showPreviewModal === 'function') {
+                        window.showPreviewModal(data);
+                    }
                 } else {
                     showToast('Aperçu non disponible pour ce type de fichier', 'warning');
                 }
@@ -868,6 +970,22 @@
                 console.error('Preview error:', err);
                 showToast('Erreur lors du chargement de l\'aperçu', 'danger');
             });
+    }
+
+    function _filemanagerFetchAndShow(newIdx) {
+        const nextNode = previewSiblings[newIdx];
+        if (!nextNode) return;
+        previewIndex = newIdx;
+        currentPreviewNode = nextNode;
+        const path = nextNode.data?.path;
+        if (!path) return;
+        fetch(`${config.apiPreviewUrl || '/filemanager/api/preview/'}?path=${encodeURIComponent(path)}`)
+            .then(res => res.json())
+            .then(data => {
+                // showPreviewModal met à jour le contenu sans réinitialiser previewItems/currentIndex
+                if (typeof window.showPreviewModal === 'function') window.showPreviewModal(data);
+            })
+            .catch(err => console.error('[FileManager] Preview nav error:', err));
     }
 
     function updatePreviewSiblings(node) {
@@ -1765,34 +1883,9 @@
 
     function navigatePreview(direction) {
         if (previewSiblings.length <= 1) return;
-
         const newIndex = previewIndex + direction;
         if (newIndex < 0 || newIndex >= previewSiblings.length) return;
-
-        const nextNode = previewSiblings[newIndex];
-        if (!nextNode) return;
-
-        // Update index and preview
-        previewIndex = newIndex;
-        currentPreviewNode = nextNode;
-
-        // Fetch and show the new preview
-        const path = nextNode.data?.path;
-        if (!path) return;
-
-        fetch(`${config.apiPreviewUrl || '/filemanager/api/preview/'}?path=${encodeURIComponent(path)}`)
-            .then(res => res.json())
-            .then(data => {
-                if (data.url || data.text_content !== undefined) {
-                    if (typeof window.showPreviewModal === 'function') window.showPreviewModal(data);
-                } else {
-                    showToast('Aperçu non disponible pour ce type de fichier', 'warning');
-                }
-            })
-            .catch(err => {
-                console.error('Preview navigation error:', err);
-                showToast('Erreur lors du chargement de l\'aperçu', 'danger');
-            });
+        _filemanagerFetchAndShow(newIndex);
     }
 
     function updatePreviewContent(data) {

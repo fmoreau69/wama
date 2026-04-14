@@ -1,9 +1,12 @@
 """
-Image description using moondream2 (via Ollama) with BLIP as fallback.
+Image description via Ollama vision models with BLIP local fallback.
 
-Moondream2 is a lightweight 1.8B multimodal model available via Ollama.
-It is tried first; if Ollama is unavailable or moondream is not pulled,
-the code falls back to the local BLIP model.
+Vision model cascade (in order of preference):
+  1. qwen3-vl:8b  — best quality (8B, 256K ctx, VQA + OCR + reasoning)
+  2. moondream    — lightweight fallback (1.8B)
+  3. BLIP         — local HuggingFace model (no Ollama required)
+
+The cascade auto-detects which Ollama models are available.
 """
 
 import logging
@@ -19,47 +22,109 @@ from .model_config import get_model_info
 _blip_processor = None
 _blip_model = None
 
+# Cached list of available Ollama models (refreshed per worker process start)
+_ollama_available_models: Optional[set] = None
+
 
 # ---------------------------------------------------------------------------
-# Moondream2 via Ollama
+# Ollama vision helpers
 # ---------------------------------------------------------------------------
 
-def _describe_with_moondream(image_path: str, prompt: str) -> Optional[str]:
+def _get_available_ollama_models() -> set:
+    """Return the set of model names currently pulled in Ollama."""
+    global _ollama_available_models
+    if _ollama_available_models is not None:
+        return _ollama_available_models
+    try:
+        import httpx
+        from django.conf import settings
+        host = getattr(settings, 'OLLAMA_HOST', 'http://127.0.0.1:11434').rstrip('/')
+        with httpx.Client(timeout=10.0, trust_env=False) as client:
+            resp = client.get(f"{host}/api/tags")
+        if resp.status_code == 200:
+            models = {m['name'] for m in resp.json().get('models', [])}
+            _ollama_available_models = models
+            return models
+    except Exception as e:
+        logger.debug(f"[image_describer] Ollama unavailable: {e}")
+    _ollama_available_models = set()
+    return set()
+
+
+def _describe_with_ollama_vision(model: str, image_path: str, prompt: str) -> Optional[str]:
     """
-    Describe an image using moondream2 via the local Ollama server.
-
-    Returns the description string, or None if Ollama/moondream is unavailable.
+    Describe an image using any Ollama vision model.
+    Uses /api/generate with base64-encoded image.
+    Returns description string, or None if unavailable.
     """
     try:
         import base64
         import httpx
         from django.conf import settings
-
         host = getattr(settings, 'OLLAMA_HOST', 'http://127.0.0.1:11434').rstrip('/')
 
         with open(image_path, 'rb') as fh:
             b64_image = base64.b64encode(fh.read()).decode('utf-8')
 
-        payload = {
-            "model": "moondream",
+        # qwen3-vl uses /api/chat with role:user + image content parts
+        # moondream uses /api/generate with top-level images[]
+        # We normalise by trying /api/chat first (works for both in recent Ollama),
+        # then fallback to /api/generate for older moondream tags.
+        payload_chat = {
+            "model": model,
+            "messages": [{
+                "role": "user",
+                "content": prompt,
+                "images": [b64_image],
+            }],
+            "stream": False,
+            "options": {"num_predict": 1024},
+        }
+
+        with httpx.Client(timeout=180.0, trust_env=False) as client:
+            resp = client.post(f"{host}/api/chat", json=payload_chat)
+
+        if resp.status_code == 200:
+            text = resp.json().get("message", {}).get("content", "").strip()
+            if text:
+                return text
+
+        # Fallback: /api/generate (older Ollama or moondream)
+        payload_gen = {
+            "model": model,
             "prompt": prompt,
             "images": [b64_image],
             "stream": False,
+            "options": {"num_predict": 1024},
         }
+        with httpx.Client(timeout=180.0, trust_env=False) as client:
+            resp2 = client.post(f"{host}/api/generate", json=payload_gen)
 
-        with httpx.Client(timeout=120.0, trust_env=False) as client:
-            resp = client.post(f"{host}/api/generate", json=payload)
+        if resp2.status_code == 200:
+            text = resp2.json().get("response", "").strip()
+            return text or None
 
-        if resp.status_code != 200:
-            logger.debug(f"[image_describer] moondream HTTP {resp.status_code}")
-            return None
-
-        text = resp.json().get("response", "").strip()
-        return text or None
+        logger.debug(f"[image_describer] {model} HTTP {resp2.status_code}")
+        return None
 
     except Exception as e:
-        logger.debug(f"[image_describer] moondream unavailable: {e}")
+        logger.debug(f"[image_describer] {model} unavailable: {e}")
         return None
+
+
+def _best_ollama_vision_model() -> Optional[str]:
+    """
+    Return the best available Ollama vision model name, or None.
+    Priority: qwen3-vl:8b > qwen3-vl > moondream2 > moondream
+    """
+    available = _get_available_ollama_models()
+    priority = ['qwen3-vl:8b', 'qwen3-vl', 'moondream2', 'moondream']
+    for model in priority:
+        # Match prefix (Ollama can append :latest)
+        for avail in available:
+            if avail == model or avail.startswith(model + ':'):
+                return avail
+    return None
 
 
 def get_blip_model():
@@ -155,17 +220,21 @@ def describe_image(description, set_progress, set_partial, console):
         else:
             moondream_prompt = "Briefly describe this image."
 
-        # --- Try moondream2 first (Ollama) ---
-        console(user_id, "Essai moondream2 (Ollama)…")
-        caption = _describe_with_moondream(file_path, moondream_prompt)
+        # --- Try best available Ollama vision model ---
+        ollama_model = _best_ollama_vision_model()
+        caption = None
+        if ollama_model:
+            console(user_id, f"Essai {ollama_model} (Ollama)…")
+            caption = _describe_with_ollama_vision(ollama_model, file_path, moondream_prompt)
+            if caption:
+                console(user_id, f"Description générée avec {ollama_model} ✓")
+                set_progress(description, 70)
+                set_partial(description, caption)
 
-        if caption:
-            console(user_id, "Description générée avec moondream2 ✓")
-            set_progress(description, 70)
-            set_partial(description, caption)
-        else:
+        if not caption:
             # --- Fallback: BLIP ---
-            console(user_id, "moondream2 indisponible, utilisation de BLIP…")
+            msg = "Aucun modèle Ollama vision disponible" if not ollama_model else f"{ollama_model} indisponible"
+            console(user_id, f"{msg}, utilisation de BLIP…")
             set_partial(description, "Chargement du modèle BLIP…")
 
             processor, model = get_blip_model()

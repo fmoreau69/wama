@@ -83,6 +83,7 @@
     position: absolute; top: .4rem; right: .4rem;
     display: flex; gap: .3rem;
     opacity: 0; transition: opacity .15s;
+    z-index: 10;  /* passe au-dessus de la couche GPU de <video> */
 }
 .asset-badge-system {
     position: absolute; top: .4rem; left: .4rem;
@@ -103,6 +104,8 @@
     width: 100%; height: 130px;
     object-fit: cover; display: block; cursor: zoom-in;
 }
+/* pointer-events: none permet à l'overlay de recevoir les clics malgré la couche GPU vidéo */
+.asset-preview-video { pointer-events: none; }
 .asset-preview-icon {
     font-size: 2.5rem; color: #444; padding: 1rem;
 }

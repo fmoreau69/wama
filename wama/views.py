@@ -132,7 +132,7 @@ def presentation(request):
 _OLLAMA_MODEL_MAP = {
     'dev':        'qwen3.5:35b-a3b',
     'coder':      'qwen3.5:35b-a3b',
-    'debug':      'deepseek-coder-v2:16b',
+    'debug':      'qwen3-coder:30b',
     'architect':  'qwen3.5:35b-a3b',
     'fast':       'qwen3.5:9b',
     'ultra_fast': 'qwen3.5:4b',
@@ -141,10 +141,10 @@ _OLLAMA_MODEL_MAP = {
 # Safe context limits per model (chars, not tokens — ~4 chars/token estimate)
 # Below these limits quality stays high; above them we upgrade to a larger model.
 _MODEL_SAFE_CHARS = {
-    'qwen3.5:4b':           80_000,   # ~20K tokens
-    'qwen3.5:9b':          120_000,   # ~30K tokens
-    'qwen3.5:35b-a3b':     300_000,   # ~75K tokens — MoE handles long context well
-    'deepseek-coder-v2:16b': 48_000,  # ~12K tokens
+    'qwen3.5:4b':      80_000,   # ~20K tokens
+    'qwen3.5:9b':     120_000,   # ~30K tokens
+    'qwen3.5:35b-a3b': 300_000,  # ~75K tokens — MoE handles long context well
+    'qwen3-coder:30b': 512_000,  # ~128K tokens — MoE 256K ctx, safe limit
 }
 
 

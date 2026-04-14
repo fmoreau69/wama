@@ -15,6 +15,7 @@ class ReadingItem(models.Model):
         AUTO    = 'auto',    'Auto (meilleur disponible)'
         OLMOCR  = 'olmocr',  'olmOCR-2 7B'
         DOCTR   = 'doctr',   'docTR (CPU-friendly)'
+        GLM_OCR = 'glm-ocr', 'GLM-OCR 0.9B (Ollama, léger)'
 
     class Mode(models.TextChoices):
         AUTO        = 'auto',        'Auto'

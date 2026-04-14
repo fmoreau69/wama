@@ -442,7 +442,7 @@ def main():
         "--model", "-m",
         default="audit",
         choices=["audit", "dev", "debug", "architect", "fast", "ultra_fast"],
-        help="Model role to use (default: audit → gemma3:4b, non-thinking)",
+        help="Model role to use (default: audit → gemma4:e4b, non-thinking)",
     )
     parser.add_argument(
         "--non-interactive", "-n",

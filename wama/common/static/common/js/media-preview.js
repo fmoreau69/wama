@@ -27,12 +27,22 @@
 (function() {
     'use strict';
 
+    // SVG icons — pas de dépendance Font Awesome
+    const _SVG_PREV  = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>`;
+    const _SVG_NEXT  = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>`;
+    const _SVG_CLOSE = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
+    const _SVG_EXPAND = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>`;
+
     // Current preview data for fullscreen
     let currentPreviewData = null;
 
     // Navigation state
     let previewItems = [];
     let previewCurrentIndex = -1;
+
+    // Optional external nav callback (e.g. filemanager with lazy-loaded siblings)
+    // Signature: callback(newIndex) — called instead of indexing previewItems
+    let _navCallback = null;
 
     // Flag : cleanup listener enregistré une seule fois
     let _cleanupBound = false;
@@ -152,6 +162,7 @@
         // Store navigation state
         previewItems = items || [];
         previewCurrentIndex = (typeof currentIndex === 'number') ? currentIndex : -1;
+        _navCallback = null;  // clear any external callback set previously
 
         // Show the modal
         showPreviewModal(data);
@@ -214,6 +225,7 @@
                 currentPreviewData = null;
                 previewItems = [];
                 previewCurrentIndex = -1;
+                _navCallback = null;
                 _cleanupBound = false; // reset pour la prochaine ouverture
             });
         }
@@ -274,7 +286,7 @@
             const fullscreenBtn = document.createElement('button');
             fullscreenBtn.className = 'preview-fullscreen-btn';
             fullscreenBtn.title = 'Plein écran (double-clic)';
-            fullscreenBtn.innerHTML = '<i class="fas fa-expand"></i>';
+            fullscreenBtn.innerHTML = _SVG_EXPAND;
             fullscreenBtn.onclick = function(e) {
                 e.stopPropagation();
                 openFullscreen(data.url, data.name);
@@ -394,6 +406,15 @@
         if (newIndex < 0 || newIndex >= previewItems.length) return;
 
         previewCurrentIndex = newIndex;
+
+        // External callback (e.g. filemanager lazy-loads its own siblings)
+        if (_navCallback) {
+            const modal = document.getElementById('wamaMediaPreviewModal');
+            if (modal) updateNavigationUI(modal);
+            _navCallback(newIndex);
+            return;
+        }
+
         const item = previewItems[previewCurrentIndex];
 
         // Store current data
@@ -443,6 +464,8 @@
             if (fsImg) fsImg.src = item.url;
             if (fsName) fsName.textContent = item.name || 'Image';
             if (fsCounter) fsCounter.textContent = (previewCurrentIndex + 1) + ' / ' + previewItems.length;
+            // Réinitialiser le mode zoom à chaque changement d'image
+            fullscreenOverlay.classList.remove('wama-fs-actual');
         }
     }
 
@@ -487,29 +510,24 @@
         modal.innerHTML = `
             <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
                 <div class="modal-content bg-dark text-white">
-                    <div class="modal-header border-secondary">
-                        <h5 class="modal-title"></h5>
-                        <span class="wama-preview-counter badge bg-secondary ms-2" style="display: none;"></span>
+                    <div class="modal-header border-secondary py-2">
+                        <h6 class="modal-title text-truncate" style="max-width:70%;font-size:.95rem;"></h6>
+                        <span class="wama-preview-counter text-muted small ms-2" style="display:none;white-space:nowrap;flex-shrink:0;"></span>
                         <button type="button" class="btn-close btn-close-white ms-auto" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
-                    <div class="modal-body p-0">
-                        <div class="preview-container d-flex justify-content-center align-items-center" style="min-height: 300px; background: #1a1a1a;">
-                            <button class="wama-preview-nav-btn wama-preview-nav-prev" style="display: none;" title="Précédent (←)">
-                                <i class="fas fa-chevron-left"></i>
-                            </button>
-                            <button class="wama-preview-nav-btn wama-preview-nav-next" style="display: none;" title="Suivant (→)">
-                                <i class="fas fa-chevron-right"></i>
-                            </button>
-                        </div>
+                    <div class="modal-body p-0 position-relative">
+                        <!-- Boutons nav FRÈRES du container (pas dedans) — évite tout conflit z-index/flex -->
+                        <button class="wama-preview-nav-btn wama-preview-nav-prev" style="display:none;" title="Précédent (←)">${_SVG_PREV}</button>
+                        <button class="wama-preview-nav-btn wama-preview-nav-next" style="display:none;" title="Suivant (→)">${_SVG_NEXT}</button>
+                        <div class="preview-container d-flex justify-content-center align-items-center" style="min-height:300px;background:#111;"></div>
                     </div>
                     <div class="modal-footer border-secondary py-2">
-                        <small class="preview-meta text-muted"></small>
+                        <small class="preview-meta text-muted w-100 text-center"></small>
                     </div>
                 </div>
             </div>
         `;
 
-        // Bind navigation button clicks
         modal.querySelector('.wama-preview-nav-prev').addEventListener('click', function(e) {
             e.stopPropagation();
             navigatePreview(-1);
@@ -539,39 +557,37 @@
         let navHtml = '';
         if (previewItems.length > 1) {
             navHtml = `
-                <button class="wama-preview-nav-btn wama-preview-nav-prev ${previewCurrentIndex === 0 ? 'disabled' : ''}"
-                        title="Précédent (←)">
-                    <i class="fas fa-chevron-left"></i>
-                </button>
-                <button class="wama-preview-nav-btn wama-preview-nav-next ${previewCurrentIndex === previewItems.length - 1 ? 'disabled' : ''}"
-                        title="Suivant (→)">
-                    <i class="fas fa-chevron-right"></i>
-                </button>
+                <button class="wama-preview-nav-btn wama-preview-nav-prev ${previewCurrentIndex === 0 ? 'disabled' : ''}" title="Précédent (←)">${_SVG_PREV}</button>
+                <button class="wama-preview-nav-btn wama-preview-nav-next ${previewCurrentIndex === previewItems.length - 1 ? 'disabled' : ''}" title="Suivant (→)">${_SVG_NEXT}</button>
             `;
         }
 
         // Counter for fullscreen
         let counterHtml = '';
         if (previewItems.length > 1) {
-            counterHtml = `<span class="wama-preview-counter badge bg-secondary ms-2">${previewCurrentIndex + 1} / ${previewItems.length}</span>`;
+            counterHtml = `<span class="wama-preview-counter">${previewCurrentIndex + 1} / ${previewItems.length}</span>`;
         }
 
         overlay.innerHTML = `
-            <button class="fullscreen-close-btn" title="Fermer (Échap)">
-                <i class="fas fa-times"></i>
-            </button>
+            <button class="fullscreen-close-btn" title="Fermer (Échap)">${_SVG_CLOSE}</button>
             ${navHtml}
-            <img src="${imageUrl}" alt="${escapeHtml(imageName || 'Image')}" onclick="event.stopPropagation()">
+            <img src="${imageUrl}" alt="${escapeHtml(imageName || 'Image')}" title="Cliquer pour basculer taille réelle / adapté">
             <div class="fullscreen-info">
                 <span class="filename">${escapeHtml(imageName || 'Image')}</span>
                 ${counterHtml}
             </div>
         `;
 
-        // Bind close button
+        // Bouton fermer
         overlay.querySelector('.fullscreen-close-btn').addEventListener('click', function(e) {
             e.stopPropagation();
             closeFullscreen();
+        });
+
+        // Clic sur l'image → toggle taille réelle / adapté à l'écran
+        overlay.querySelector('img').addEventListener('click', function(e) {
+            e.stopPropagation();
+            overlay.classList.toggle('wama-fs-actual');
         });
 
         // Bind nav buttons in fullscreen
@@ -660,6 +676,7 @@
     window.initMediaPreview = initMediaPreview;
     window.showPreviewModal = showPreviewModal;
     window.showPreviewModalWithNav = showPreviewModalWithNav;
+    window.setPreviewNavCallback = function(cb) { _navCallback = cb; };
     window.showTextModal = showTextModal;
     window.openWamaFullscreen = openFullscreen;
     window.closeWamaFullscreen = closeFullscreen;
