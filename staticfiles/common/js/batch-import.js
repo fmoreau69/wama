@@ -39,7 +39,11 @@
 function WamaBatchImport(cfg) {
   'use strict';
 
-  const BATCH_EXTS = ['txt', 'md', 'csv', 'pdf', 'docx'];
+  // Default: only plain-text formats can be batch descriptor files.
+  // Binary formats (pdf, docx, images, audio, video) are always direct media —
+  // they must never be misidentified as batch lists of URLs/paths.
+  // Override per-app with cfg.batchExtensions if needed (rare edge case).
+  const BATCH_EXTS = cfg.batchExtensions || ['txt', 'md', 'csv'];
   let _file = null;
 
   // ── Helpers ────────────────────────────────────────────────────────────────
@@ -53,7 +57,12 @@ function WamaBatchImport(cfg) {
   }
 
   function isBatch(file) {
-    return BATCH_EXTS.includes(file.name.split('.').pop().toLowerCase());
+    const ext = file.name.split('.').pop().toLowerCase();
+    if (!BATCH_EXTS.includes(ext)) return false;
+    // Additional guard: binary MIME types are never batch descriptors regardless of extension.
+    const mime = file.type || '';
+    if (mime && !mime.startsWith('text/') && mime !== 'application/octet-stream') return false;
+    return true;
   }
 
   // ── Bar visibility ─────────────────────────────────────────────────────────
@@ -124,7 +133,13 @@ function WamaBatchImport(cfg) {
     }
 
     if (data.error) {
-      // Optionally fall back to normal upload (caller decides)
+      _file = null;
+      return false;
+    }
+
+    if (!data.count) {
+      // Server found 0 valid items — file is not a usable batch descriptor.
+      // Fall back to direct media upload (e.g. a PDF OCR document, not a URL list).
       _file = null;
       return false;
     }

@@ -34,14 +34,14 @@ Créer dans l'ordre. Ne pas sauter d'étape.
 [ ] 7.  Créer templates/ : base.html + index.html + _item_card.html
 [ ] 8.  Créer static/<app>/js/<app>.js (JS côté client)
 [ ] 9.  Copier dans staticfiles/<app>/ après chaque modif JS/CSS
-[ ] 10. Ajouter le lien dans wama/templates/includes/header.html (ordre alpha, §16)
-[ ] 11. Ajouter la card dans wama/templates/home.html (ordre alpha, §16)
+[ ] 10. Ajouter le lien dans wama/templates/includes/header.html (ordre ALPHABÉTIQUE, §16)
+[ ] 11. Ajouter la card dans wama/templates/home.html (ordre ALPHABÉTIQUE, §16)
 [ ] 12. Enregistrer les modèles AI dans model_registry.py (si AI)
 [ ] 13. Ajouter les outils API dans wama/tool_api.py + wama/urls.py (§17)
 [ ] 14. Ajouter les icônes TOOL_ICONS dans home.html
 [ ] 15. Ajouter à la table de conformité §15 de ce document
 [ ] 16. Ajouter l'entrée dans appFolderMap de filemanager.js (§8.5) — auto-dépliement sidebar
-[ ] 17. Ajouter l'app dans app_registry.py (APP_CATALOG) avec conventions conformity flags
+[ ] 17. Ajouter l'app dans app_registry.py (APP_CATALOG) en ordre ALPHABÉTIQUE (§16)
 ```
 
 ---
@@ -1347,9 +1347,12 @@ Toutes les applications génériques WAMA doivent apparaître :
 1. Dans le menu déroulant **Applications** du header (`wama/templates/includes/header.html`)
 2. Dans la section **WAMA App** de la page d'accueil (`wama/templates/home.html`)
 
-**Ordre alphabétique strict** dans les deux emplacements.
+**Ordre alphabétique strict** dans les deux emplacements — **et dans `app_registry.py` (APP_CATALOG)**.
 
-Ordre actuel : Anonymizer → Avatarizer → Composer → Describer → Enhancer → Imager → **Reader** → Synthesizer → Transcriber
+Ordre actuel : Anonymizer → Avatarizer → Composer → **Converter** → Describer → Enhancer → Imager → Reader → Synthesizer → Transcriber
+
+> Règle de vérification : après ajout d'une app, vérifier que les trois listes sont
+> cohérentes — `header.html`, `home.html`, et `app_registry.py` — dans le même ordre.
 
 ### 16.2 Structure d'un item header
 

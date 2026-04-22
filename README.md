@@ -149,6 +149,26 @@ python manage.py init_wama
 python manage.py createsuperuser
 ```
 
+### 6. Apply compatibility patches
+
+Third-party libraries installed via pip have version conflicts with recent PyTorch / torchaudio.
+Run the patch script once after setup, and again after any `pip install --upgrade`:
+
+```bash
+python patches/apply_patches.py
+```
+
+| # | Target file | Issue | Fix |
+|---|-------------|-------|-----|
+| 1 | `boson_multimodal/.../modeling_higgs_audio.py` | `transformers 4.57+` API breaks (attention unpacking, inference_mode, cache_position…) | 7 targeted search-replace patches |
+| 2 | `df/io.py` (deepfilternet) | `torchaudio.backend.common.AudioMetaData` removed in torchaudio 2.x | `try/except` + dataclass stub |
+| 3 | `tts_service.py` | In-repo patches (usage dict, temperature, CUDA graphs, audio trim) | Verified, not re-applied |
+| 4 | `start_wama_prod.sh` | `HIGGS_DISABLE_CUDA_GRAPHS=1` must be exported | Verified, not re-applied |
+| 5 | `xformers/ops/seqpar.py` | `GroupName` removed from `torch.distributed` in torch 2.9.x | `try/except` fallback import |
+
+> **Adding a new patch:** use `apply_patch(path, search, replace, description)` in `patches/apply_patches.py`.
+> Every manual fix applied to a file in `venv_linux/` must be recorded here so it survives future `pip upgrade`.
+
 ---
 
 ## Apache configuration (Windows)

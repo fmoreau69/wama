@@ -205,17 +205,36 @@ print()
 
 # =============================================================================
 # PATCH 2 — df/io.py
-#           deepfilternet 0.5.6 imports torchaudio.backend.common which was
-#           removed in torchaudio 2.x. The shim is applied at runtime in
-#           wama/enhancer/utils/audio_enhancer.py (_patch_torchaudio_compat).
-#           No file patch needed here — just document.
+#           deepfilternet 0.5.6 imports torchaudio.backend.common.AudioMetaData
+#           which was removed in torchaudio 2.x.
+#           Fix: wrap the import in try/except and provide a dataclass stub.
 # =============================================================================
 
-print("=== df/io.py + resemble_enhance (torchaudio 2.9 compat) ===")
-print("  [INFO] torchaudio 2.9 compat shim applied at module import time in:")
-print("         wama/enhancer/utils/audio_enhancer.py :: _patch_torchaudio_compat() (module-level call)")
-print("         Patches: torchaudio.backend.common stub, torchaudio.info(), torchaudio.load(), torchaudio.save()")
-print("         Both ResembleEnhance and DeepFilterNet backends benefit from this single patch.")
+df_io = site / "df/io.py"
+print(f"=== {df_io.name} (deepfilternet torchaudio 2.x compat) ===")
+
+if not df_io.exists():
+    print("  [SKIP — file not found]")
+else:
+    apply_patch(
+        df_io,
+        search="from torchaudio.backend.common import AudioMetaData",
+        replace=(
+            "try:\n"
+            "    from torchaudio.backend.common import AudioMetaData\n"
+            "except ImportError:\n"
+            "    from dataclasses import dataclass\n"
+            "\n"
+            "    @dataclass\n"
+            "    class AudioMetaData:\n"
+            "        sample_rate: int\n"
+            "        num_frames: int\n"
+            "        num_channels: int\n"
+            "        bits_per_sample: int\n"
+            "        encoding: str"
+        ),
+        description="2. df/io.py: AudioMetaData dataclass stub (torchaudio.backend.common removed in 2.x)",
+    )
 print()
 
 # =============================================================================

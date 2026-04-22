@@ -2,6 +2,45 @@
 
 ---
 
+## 🔴 RÈGLE OBLIGATOIRE : PATCHES DE COMPATIBILITÉ VENV → `patches/apply_patches.py`
+
+> **Toute correction manuelle dans `venv_linux/` ou `venv_win/` DOIT être ajoutée à `patches/apply_patches.py`.**
+
+### Principe
+
+Les fichiers dans `venv_linux/site-packages/` sont écrasés à chaque `pip install --upgrade`.
+Un patch appliqué directement sans être enregistré dans `apply_patches.py` sera **perdu silencieusement**.
+
+### Règle concrète
+
+1. Tu identifies une incompatibilité dans une lib tierce (ex : import cassé, API supprimée).
+2. Tu détermines le correctif (search → replace minimal).
+3. Tu l'appliques via `apply_patch()` dans `patches/apply_patches.py` — **pas manuellement dans le venv**.
+4. Tu lances `python patches/apply_patches.py` pour vérifier que le patch s'applique proprement.
+
+### Format obligatoire dans `apply_patches.py`
+
+```python
+apply_patch(
+    site / "package/module.py",
+    search="texte original exact",
+    replace="texte corrigé",
+    description="N. package: description du problème et de la correction",
+)
+```
+
+### Ce qui est déjà patché (ne pas recréer)
+
+| # | Fichier | Problème |
+|---|---------|----------|
+| 1 | `boson_multimodal/.../modeling_higgs_audio.py` | transformers 4.57+ (7 patches) |
+| 2 | `df/io.py` | torchaudio 2.x — `AudioMetaData` supprimé |
+| 3 | `tts_service.py` | In-repo (vérification seulement) |
+| 4 | `start_wama_prod.sh` | In-repo (vérification seulement) |
+| 5 | `xformers/ops/seqpar.py` | torch 2.9.x — `GroupName` supprimé |
+
+---
+
 ## 🔴 RÈGLE FONDAMENTALE : CENTRALISATION DANS `common/` — ZÉRO DUPLICATION
 
 > **Cette règle prime sur toutes les autres décisions d'architecture.**

@@ -1,0 +1,73 @@
+{
+  "version": "1.0",
+  "last_updated": "2026-04-14",
+  "architecture": {
+    "framework": "Django + Celery (Redis)",
+    "database": "PostgreSQL",
+    "ai_models_dir": "AI-models/models/",
+    "hf_cache_fallback": "AI-models/cache/huggingface/",
+    "static_sync": "wama/<app>/static/ must be copied to staticfiles/<app>/ for JS/CSS changes"
+  },
+  "known_issues": {
+    "qwen3_asr": {
+      "status": "broken",
+      "symptom": "Backend implementé (qwen_asr_backend.py) mais non fonctionnel — erreurs de dépendances à l'import",
+      "file": "wama/transcriber/backends/qwen_asr_backend.py",
+      "piste": "Résoudre conflits deps pip (transformers, torchaudio, accelerate)"
+    },
+    "higgs_audio_v2": {
+      "status": "broken",
+      "symptom": "Audio généré inaudible, artefacts, bruits de fond — modèle inutilisable en l'état",
+      "file": "wama/synthesizer/ (tts_service.py)",
+      "patches_applied": [
+        "CUDA graphs désactivés via HIGGS_DISABLE_CUDA_GRAPHS=1",
+        "cache_position fix dans _update_model_kwargs_for_generation()",
+        "GenerationConfig.generation_kwargs removal (transformers 4.57.3 compat)",
+        "_has_unfinished_sequences() args removed",
+        "get_max_length → get_max_cache_shape with hasattr fallback"
+      ],
+      "next_step": "Test sans voice reference (speaker_wav=None) pour isoler si le problème vient du voice ref ou du modèle"
+    }
+  },
+  "rules": {
+    "model_integration": "Path d'abord, env vars ensuite, import après — settings.MODEL_PATHS → model_config.py → os.environ['HF_HUB_CACHE'] → from transformers import",
+    "common_rule": "Tout code utilisé par >1 app va dans wama/common/ — zéro duplication",
+    "staticfiles": "Dupliquer wama/<app>/static/ → staticfiles/<app>/ pour tout fichier JS/CSS modifié",
+    "queue_buttons": "Ordre boutons : [⚙ Params] [▶ Start] [⬇ Download] [⧉ Duplicate] [🗑 Delete]"
+  },
+  "models_deployed": {
+    "ollama": [
+      "qwen3.5:9b",
+      "qwen3.5:4b",
+      "qwen3.5:35b-a3b",
+      "qwen3-coder:30b",
+      "qwen3-vl:8b",
+      "glm-ocr:0.9b",
+      "nomic-embed-text",
+      "gemma4:e4b"
+    ],
+    "huggingface_local": {
+      "image_generation": ["hunyuan-image-2.1", "stable-diffusion-xl", "qwen-image-2", "qwen-image-edit"],
+      "video_generation": ["mochi-1-preview", "ltx-video-0.9.8-distilled", "cogvideox-5b-i2v"],
+      "logo": ["flux-lora-logo-design"],
+      "ocr": ["olmOCR-7B"],
+      "detection": ["YOLO (faces, plates, faces&plates)"]
+    }
+  },
+  "recent_implementations": {
+    "2026-04-14": [
+      "glm-ocr:0.9b backend (Reader) — cascade olmOCR→GLM-OCR→docTR",
+      "qwen3-vl:8b backend (Describer) — cascade Ollama vision",
+      "Converter app — image/video/audio backends + FFmpeg + quickmodal filemanager",
+      "cam_analyzer intersection detection — RTMaps parser, quadrature_video, intersection_analyzer",
+      "LiteLLM Phase 1 — llm_chat() unified function in llm_utils.py",
+      "wama-dev-ai memory.json — persistent memory system"
+    ],
+    "2026-04-07": [
+      "qwen3-coder:30b migration (replaces deepseek-coder-v2:16b)",
+      "WAMA AI assistant improvement"
+    ]
+  },
+  "past_sessions": [],
+  "persistent_notes": {}
+}

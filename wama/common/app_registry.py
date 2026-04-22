@@ -119,6 +119,25 @@ APP_CATALOG = {
         ),
     },
 
+    'converter': {
+        'label':       'Converter',
+        'icon':        'fas fa-exchange-alt',
+        'color':       '#20c997',
+        'url_name':    'converter:index',
+        'description': 'Conversion de formats : image, vidéo, audio (Pillow + FFmpeg).',
+        'input_extensions': IMAGE_EXTENSIONS + VIDEO_EXTENSIONS + AUDIO_EXTENSIONS,
+        'input_types': ('image', 'video', 'audio'),
+        'batch_type':  None,
+        'has_batch':   False,
+        'has_url_import': False,
+        'has_youtube': False,
+        'output_types': ('image', 'video', 'audio'),
+        'conventions': _conv(
+            batch=False,       # not needed — one file = one job
+            download_all=False,  # P2
+        ),
+    },
+
     'describer': {
         'label':       'Describer',
         'icon':        'fas fa-search-plus',
@@ -203,25 +222,6 @@ APP_CATALOG = {
         'has_youtube': False,
         'output_types': ('mp3', 'wav'),
         'conventions': _conv(start=None),  # auto-start on upload, no manual start button
-    },
-
-    'converter': {
-        'label':       'Converter',
-        'icon':        'fas fa-exchange-alt',
-        'color':       '#20c997',
-        'url_name':    'converter:index',
-        'description': 'Conversion de formats : image, vidéo, audio (Pillow + FFmpeg).',
-        'input_extensions': IMAGE_EXTENSIONS + VIDEO_EXTENSIONS + AUDIO_EXTENSIONS,
-        'input_types': ('image', 'video', 'audio'),
-        'batch_type':  None,
-        'has_batch':   False,
-        'has_url_import': False,
-        'has_youtube': False,
-        'output_types': ('image', 'video', 'audio'),
-        'conventions': _conv(
-            batch=False,       # not needed — one file = one job
-            download_all=False,  # P2
-        ),
     },
 
     'transcriber': {

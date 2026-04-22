@@ -409,6 +409,11 @@ TTS_SERVICE_URL = os.environ.get('TTS_SERVICE_URL', 'http://localhost:8001')
 #   export OLLAMA_HOST=http://REDACTED_HOST_IP:11434
 OLLAMA_HOST = os.environ.get('OLLAMA_HOST', 'http://127.0.0.1:11434')
 
+# LiteLLM — Unified LLM provider (Phase 1: local Ollama only)
+# Phase 2 (hybrid mode): set per-user via UserProviderConfig; 'ollama' = local-only default.
+# Supported values: 'ollama' | 'openai' | 'anthropic' | 'grok' | 'mistral'
+LITELLM_PROVIDER = os.environ.get('LITELLM_PROVIDER', 'ollama')
+
 # Anthropic API Configuration (for AI Chat feature)
 # Set your API key here or use ANTHROPIC_API_KEY environment variable
 ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY', None)

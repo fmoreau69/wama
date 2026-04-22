@@ -1,7 +1,16 @@
 # WAMA — Roadmap
 
-> Dernière mise à jour : 2026-04-14 (Converter P1, Filemanager quick-convert, GLM-OCR reader, qwen3-vl:8b describer)
-> Légende : ✅ Fait · 🔄 En cours · ⏳ Planifié · 💡 Proposé · ❌ Abandonné
+> Dernière mise à jour : 2026-04-14 (LiteLLM Phase 1, mode hybride WAMA, mémoire wama-dev-ai — ajoutés)
+> Légende : ✅ Fait · 🔄 En cours · ⏳ Planifié · 💡 Proposé · ❌ Abandonné · 🐛 Bug bloquant
+
+---
+
+## 0. Dysfonctionnements connus — À corriger en priorité
+
+| Composant | Symptôme | Statut | Piste |
+|-----------|----------|--------|-------|
+| **Qwen3-ASR** (Transcriber) | Backend implémenté (`qwen_asr_backend.py`) mais non fonctionnel — erreurs de dépendances à l'import | 🐛 Bloqué | Résoudre conflits deps pip (transformers, torchaudio, accelerate) |
+| **Higgs Audio V2** (Synthesizer) | Audio généré inaudible, artefacts, bruits de fond — modèle inutilisable | 🐛 Bloqué | Nombreux patches appliqués + CUDA graphs désactivés (voir memory/). Prochaine étape : test sans voice reference pour isoler |
 
 ---
 
@@ -149,6 +158,7 @@ Celery beat : 0 2 * * *
 - [x] Fix VRAM (décharge Ollama + WAMA avant audit)
 - [x] Fix format DeepSeek Coder V2 (Format 6 + strip hallucinations)
 - [x] Migrer vers `qwen3-coder:30b` (remplace deepseek-coder-v2:16b — config.py + views.py mis à jour)
+- [x] Mémoire persistante `memory.json` — bugs connus, règles, notes — + outil `write_memory` + injection prompt
 - [ ] Premier audit complet avec `write_report` appelé (3+ audits validés avant de monter en autonomie)
 - [ ] Cron nightly : `0 2 * * *`
 
@@ -283,6 +293,210 @@ pip install ffmpeg-python pydub pypandoc Wand
 
 ---
 
+## 8. Transcriber — Correction assistée
+
+> Contexte : synchronisation audio/texte précise avec surlignage du mot courant,
+> interface d'édition manuelle + suggestion IA. Inspiré de Whispurge / Sonal.
+> WaveSurfer.js déjà présent dans WAMA (Composer). `coherence_suggestion` déjà en DB.
+
+### État actuel
+- `word_timestamps=True` passé à faster-whisper → `seg.words` disponible **pendant** la transcription mais **non sauvegardé**
+- `TranscriptSegment` : granularité segment (phrases 5-15s), pas mot
+- `Transcript.coherence_suggestion` : texte corrigé par LLM déjà en base
+- SRT généré depuis les segments (suffisant pour sous-titrage, insuffisant pour clic-sur-mot)
+
+### Phase 1 — Sauvegarde word timestamps ⏳
+
+| Tâche | Fichier | Notes |
+|-------|---------|-------|
+| Extraire `seg.words` dans la boucle de collecte | `whisper_backend.py` | `[{word, start, end, probability}]` par segment |
+| Nouveau champ `words_json = JSONField` | `models.py` + migration | Backup complet des timestamps mot |
+| Adapter `qwen_asr_backend.py` | `qwen_asr_backend.py` | Quand dépendances résolues (cf. §0) |
+
+### Phase 2 — Vue correction interactive ⏳
+
+**URL :** `GET /transcriber/<pk>/correct/`
+
+| Fonctionnalité | Détail |
+|----------------|--------|
+| Waveform + playback | WaveSurfer.js (déjà dans Composer) |
+| Surlignage mot courant | Basé sur `words_json` + `currentTime` player |
+| Défilement auto | Fenêtre de ~5 lignes centrée sur le mot courant |
+| Clic sur mot → seek | Click handler sur chaque `<span data-start>` |
+| Édition inline | `contenteditable` par segment avec sauvegarde AJAX |
+| Suggestion IA | Panneau `coherence_suggestion` — "Appliquer" par segment ou global |
+| Export | Re-génération SRT/TXT corrigé + nouveau champ `corrected_text` |
+
+**Nouveaux champs DB :**
+- `Transcript.corrected_text = TextField` (texte final validé)
+- `Transcript.correction_status = CharField` (PENDING / IN_PROGRESS / DONE)
+
+### Phase 3 — Enrichissements ⏳
+- Highlight automatique des mots à faible confiance (probability < seuil → fond orange)
+- Suggestions d'homophones pour les erreurs détectées (LLM local)
+- Export WebVTT (sous-titres web)
+- Mode "révision rapide" : navigation clavier entre segments à corriger
+
+---
+
+## 8b. Describer — Mode scientifique
+
+> Contexte : WAMA développé au Lescot (laboratoire SHS, Ergonomie, Sciences Cognitives pour les Transports).
+> Mode principalement orienté SHS / Sciences Cognitives / Ergonomie, mais architecture généraliste.
+> `output_format = 'scientific'` existe déjà dans le modèle — résumé global uniquement.
+
+### Phase 1 — Détection sections + résumés structurés ⏳
+
+**Pipeline :**
+```
+PDF
+  → PyMuPDF get_text("dict") → fontsize + bold flags → détection headings
+  → Segmentation : Abstract / Introduction / Méthodes / Résultats /
+                   Discussion / Conclusion / Références
+      (tolérance regex pour structures non-IMRaD — fréquentes en SHS)
+  → LLM Ollama (Qwen3.5) par section — prompt rôle-spécifique
+  → Fiche structurée : titre, auteurs, année, mots-clés, résumé global + par section
+```
+
+**Points de vigilance :**
+- PDFs multi-colonnes → ordre PyMuPDF incorrect → fallback GLM-OCR
+- Articles SHS souvent sans structure IMRaD standard → regex flexible + fallback bloc
+- Longueur > contexte LLM → chunking par section avec chevauchement 128 tokens
+
+**Interface interactive :**
+
+| Composant | Détail |
+|-----------|--------|
+| URL | `GET /describer/<pk>/scientific/` |
+| Panneau gauche | PDF natif browser (iframe + PDF.js) |
+| Panneau droit | Fiche par section en accordion Bootstrap |
+| Navigation sync | Clic section → scroll PDF (via anchor page) |
+| Chaque section | Résumé LLM + texte original expandable + bouton "Copier" |
+
+### Phase 2 — Enrichissement externe ⏳
+- **Semantic Scholar API** (gratuite) : papiers liés, nb citations, abstract, DOI
+- **Isidore API** (SHS francophones) : source complémentaire pour corpus Lescot
+- Affichage "Références" avec liens DOI cliquables
+
+### Phase 3 — Intégration RAG ⏳
+- Indexation automatique du papier dans le RAG utilisateur après analyse
+- Q&A sur le papier depuis l'AI assistant WAMA avec citations de passages
+
+---
+
+## 8c. RAG WAMA + WAMA Notebook
+
+> Stack retenu : **ChromaDB** (déjà utilisé dans un projet parallèle) + **nomic-embed-text** (Ollama).
+> Fondation de l'AI assistant WAMA contextuel et du WAMA Notebook.
+
+### Phase 1 — Fondation RAG ⏳
+
+**Architecture :**
+```
+wama/rag/
+├── store.py       # ChromaDB client + gestion collections par user
+├── embedder.py    # nomic-embed-text via Ollama /api/embeddings
+├── indexer.py     # chunking + indexation (Celery task)
+└── retriever.py   # hybrid search : vectoriel + keyword fallback
+```
+
+**Stratégie de chunking :**
+| Type de document | Stratégie |
+|-----------------|-----------|
+| Articles scientifiques | Chunk = section (via Describer §8b) |
+| Documents généraux | 512 tokens, chevauchement 64 tokens |
+| Transcriptions | Chunk = segment (start/end conservés pour référencement temporel) |
+| PDFs scannés | Chunk post-OCR (GLM-OCR ou docTR) |
+
+**Intégration Médiathèque :**
+- Case "Ajouter au RAG" sur chaque asset (PDFs, transcriptions, notes)
+- Tâche Celery `index_asset_task(asset_id)` → extract → chunk → embed → ChromaDB
+- Vue `GET /rag/status/` : nb documents indexés, taille collection, dernière MàJ
+- Indicateur visuel "indexé RAG" sur les cards de la Médiathèque
+
+### Phase 2 — Modèles scientifiques ⏳
+
+Benchmark après Phase 1 validée sur corpus Lescot réel :
+
+| Modèle | Rôle | Taille | Source |
+|--------|------|--------|--------|
+| `OpenScholar_Retriever` | Embedding spécialisé scientifique | n.c. | HuggingFace/OpenSciLM |
+| `OpenScholar_Reranker` | Reranking résultats RAG | 0.6B | HuggingFace/OpenSciLM |
+
+Décision d'intégration basée sur mesure qualité retrieval vs `nomic-embed-text`.
+
+### Phase 3 — WAMA Notebook ⏳
+
+**Concept :** Vue "Notebook" dans la Médiathèque — sélection d'un corpus de sources →
+session de travail Q&A + génération de contenu depuis ces sources.
+
+| Fonctionnalité | Détail |
+|----------------|--------|
+| Sélection multi-sources | PDFs, transcriptions, notes, URLs |
+| Q&A avec citations | Réponse + passage source + nom document + page |
+| Résumé de collection | N documents → 1 synthèse (Describer) |
+
+**Génération podcast depuis documents :**
+
+| Étape | Outil WAMA |
+|-------|-----------|
+| Script LLM (1 narrateur) | Ollama (Qwen3.5) |
+| TTS | Synthesizer WAMA (backend disponible — Higgs non fonctionnel pour l'instant, cf. §0) |
+| Musique de fond + ambiance | Piste secondaire dans Composer — mix avec le speech |
+| Export | MP3 + transcript du podcast |
+
+> Evolution future : 2 voix (débat/analyse) une fois le TTS multi-voix stabilisé.
+
+---
+
+## 8d. LiteLLM — Couche LLM unifiée + Mode hybride WAMA
+
+> Principe dual-mode : **Mode local** (défaut, 100% Ollama, pas de surprise) +
+> **Mode hybride** (clés API utilisateur, cloud optionnel, jamais activé sans action explicite).
+> LiteLLM sert de couche d'abstraction — même API, provider interchangeable.
+
+### Phase 1 — Couche d'abstraction locale ✅ (2026-04-14)
+
+- `llm_chat()` dans `wama/common/utils/llm_utils.py` — point d'entrée unifié
+- `LITELLM_PROVIDER = 'ollama'` dans settings.py (défaut, aucun appel cloud)
+- `ollama_chat()` conservée telle quelle — zéro breaking change pour les appelants existants
+- `litellm` installé : `pip install litellm`
+
+### Phase 2 — Mode hybride utilisateur ⏳
+
+**Concept :** Chaque utilisateur peut configurer ses propres clés API cloud depuis son profil.
+WAMA utilise alors le provider cloud à la place d'Ollama pour les tâches sélectionnées.
+
+| Provider | Modèle conseillé | Cas d'usage |
+|----------|-----------------|-------------|
+| Grok (xAI) | `grok-3` | Généraliste, contexte long, coût modéré |
+| OpenAI | `gpt-4o` | Vision, code, qualité référence |
+| Anthropic | `claude-sonnet-4-6` | Raisonnement, SHS, longues analyses |
+| Mistral AI | `mistral-large-latest` | Francophone, SHS, souveraineté EU |
+
+**Architecture :**
+- Clés stockées via `UserProviderConfig` (déjà en place dans media_library)
+- `llm_chat(provider=user_provider, api_key=user_key)` → LiteLLM route vers le bon provider
+- UI : section "Providers IA" dans le profil utilisateur + indicateur "mode hybride actif"
+- ⚠️ À préciser dans l'UI : **abonnement ChatGPT Plus / Claude.ai ≠ accès API**
+  (API = facturation séparée à la requête, nécessite une clé API distincte)
+
+### Phase 3 — MCP Server WAMA 💡 (long terme)
+
+**Concept :** Exposer les outils WAMA comme serveur MCP pour clients compatibles
+(Claude Code, Claude Desktop, IDEs). Distincts de LiteLLM — MCP = protocole d'outils,
+pas un routeur LLM.
+
+Exemples d'outils exposables :
+- `wama_transcribe(file_path)` → lance une transcription WAMA
+- `wama_describe(file_path, format)` → description d'un fichier via le Describer
+- `wama_search_media(query)` → recherche dans la Médiathèque
+- `wama_rag_query(question, collection)` → Q&A RAG sur un corpus WAMA
+
+Stack : `mcp` Python SDK (officiel Anthropic) + `uvicorn` SSE server (port dédié)
+
+---
+
 ## 9. cam_analyzer (wama_lab)
 
 ### Détection insertions aux intersections ✅
@@ -374,6 +588,8 @@ Client → Linux:80 (Nginx) → localhost:8000 (Gunicorn) → Django/DB/Redis
 - **Reader** : export batch PDF résultats OCR
 - **Imager** : galerie des générations passées par utilisateur
 - **Model Manager** : UI affichage VRAM temps réel multi-GPU
-- **AI assistant WAMA** : historique conversations par utilisateur
+- **AI assistant WAMA** : historique conversations par utilisateur (dépend RAG §8c)
 - **Accounts** : 2FA optionnel
 - **wama-dev-ai** : ajout outil `web_fetch(url)` pour veille modèles sans cron séparé
+- **Describer** : intégration `Llama-3.1_OpenScholar-8B` — à benchmarker vs Qwen3.5:9b sur corpus Lescot avant décision
+- **RAG** : connecteur Isidore API (SHS francophones) comme source d'enrichissement secondaire (§8c Phase 2+)

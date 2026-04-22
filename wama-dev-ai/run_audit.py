@@ -31,8 +31,59 @@ os.environ['no_proxy'] = 'localhost,127.0.0.1,::1'
 
 SCRIPT_DIR = Path(__file__).parent.resolve()
 PROJECT_DIR = SCRIPT_DIR.parent.resolve()
+MEMORY_PATH = SCRIPT_DIR / "memory.json"
 sys.path.insert(0, str(SCRIPT_DIR))
 os.chdir(PROJECT_DIR)
+
+
+# =============================================================================
+# Persistent memory helpers
+# =============================================================================
+
+def _load_memory() -> dict:
+    """Load persistent memory from wama-dev-ai/memory.json."""
+    try:
+        if MEMORY_PATH.exists():
+            return json.loads(MEMORY_PATH.read_text(encoding='utf-8'))
+    except Exception:
+        pass
+    return {}
+
+
+def _save_memory(data: dict) -> None:
+    """Save persistent memory to wama-dev-ai/memory.json."""
+    data['last_updated'] = datetime.now().strftime('%Y-%m-%d')
+    MEMORY_PATH.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')
+
+
+def _format_memory_for_prompt(memory: dict) -> str:
+    """Format memory dict as a concise text block for injection into system prompt."""
+    if not memory:
+        return ""
+    lines = ["## Mémoire persistante wama-dev-ai\n"]
+    if memory.get("known_issues"):
+        lines.append("### Bugs bloquants connus")
+        for k, v in memory["known_issues"].items():
+            status = v.get("status", "?")
+            symptom = v.get("symptom", "")
+            lines.append(f"- **{k}** [{status}]: {symptom}")
+        lines.append("")
+    if memory.get("rules"):
+        lines.append("### Règles importantes")
+        for k, v in memory["rules"].items():
+            lines.append(f"- {k}: {v}")
+        lines.append("")
+    if memory.get("recent_implementations"):
+        lines.append("### Implémentations récentes")
+        for date, items in sorted(memory["recent_implementations"].items(), reverse=True)[:2]:
+            lines.append(f"- {date}: " + "; ".join(items[:3]))
+        lines.append("")
+    if memory.get("persistent_notes"):
+        lines.append("### Notes persistantes")
+        for k, v in memory["persistent_notes"].items():
+            lines.append(f"- {k}: {v}")
+        lines.append("")
+    return "\n".join(lines)
 
 from config import (
     BASE_DIR, OUTPUT_DIR, PROMPTS_DIR,
@@ -106,6 +157,48 @@ class AuditToolRegistry(ToolRegistry):
                 },
             },
             function=_write_report,
+            requires_confirmation=False,
+        ))
+
+        def _write_memory(key: str, value, subkey: str = None) -> str:
+            """Persist a fact to wama-dev-ai/memory.json.
+            Use key='persistent_notes' + subkey='my_note' to add a free-form note.
+            Use key='known_issues' + subkey='issue_name' + value={'status':..., 'symptom':...}.
+            """
+            data = _load_memory()
+            if subkey:
+                if key not in data or not isinstance(data[key], dict):
+                    data[key] = {}
+                data[key][subkey] = value
+            else:
+                data[key] = value
+            _save_memory(data)
+            return f"Memory updated: {key}{'.' + subkey if subkey else ''} = {str(value)[:120]}"
+
+        self.register(Tool(
+            name="write_memory",
+            description=(
+                "Persist a fact or finding to wama-dev-ai/memory.json for future sessions. "
+                "Use for important bugs, architectural insights, or rules discovered during audit. "
+                "key: top-level key (e.g. 'known_issues', 'persistent_notes'). "
+                "subkey: optional nested key (e.g. issue name or note title). "
+                "value: the content to store (string, dict, or list)."
+            ),
+            parameters={
+                "key": {
+                    "type": "string",
+                    "description": "Top-level memory key: 'known_issues' | 'persistent_notes' | 'recent_implementations'",
+                },
+                "value": {
+                    "type": "string",
+                    "description": "Value to store (string description or JSON-encoded object)",
+                },
+                "subkey": {
+                    "type": "string",
+                    "description": "(optional) Nested key under the top-level key",
+                },
+            },
+            function=_write_memory,
             requires_confirmation=False,
         ))
 
@@ -304,6 +397,17 @@ class AuditAgent:
                 "Call tools using: <tool_call>{\"name\": \"TOOL\", \"arguments\": {}}</tool_call>\n"
                 "Write reports using write_report tool only. Task: {task}"
             )
+
+        # Load and inject persistent memory
+        self._memory = _load_memory()
+        if self._memory:
+            memory_block = _format_memory_for_prompt(self._memory)
+            if memory_block:
+                self._system_prompt = memory_block + "\n---\n\n" + self._system_prompt
+                if verbose:
+                    issue_count = len(self._memory.get("known_issues", {}))
+                    note_count = len(self._memory.get("persistent_notes", {}))
+                    print(f"[Audit] Memory loaded: {issue_count} known issues, {note_count} notes")
 
     def _autosave_report(self, text: str) -> None:
         """

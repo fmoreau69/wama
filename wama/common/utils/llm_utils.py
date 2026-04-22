@@ -99,6 +99,98 @@ def ollama_chat(
         return None, str(e)
 
 
+def llm_chat(
+    messages: list,
+    model: str = None,
+    provider: str = None,
+    num_predict: int = 2048,
+    num_ctx: Optional[int] = None,
+    think: bool = True,
+    timeout: float = 180.0,
+    api_key: Optional[str] = None,
+    api_base: Optional[str] = None,
+) -> tuple[Optional[str], Optional[str]]:
+    """
+    Unified LLM chat function — provider-agnostic entry point.
+
+    Phase 1 (local only): provider defaults to 'ollama' → delegates to ollama_chat().
+    Phase 2 (hybrid): provider can be 'openai', 'anthropic', 'grok', 'mistral', etc.
+      Routes via LiteLLM with the user's API key from UserProviderConfig.
+
+    Args:
+        messages:   List of {"role": ..., "content": ...} dicts.
+        model:      Model name without provider prefix (e.g. 'qwen3.5:9b', 'gpt-4o').
+                    If None, falls back to provider-specific default.
+        provider:   'ollama' (default) | 'openai' | 'anthropic' | 'grok' | 'mistral'.
+                    If None, reads settings.LITELLM_PROVIDER (default: 'ollama').
+        num_predict: Max tokens to generate (Ollama) / max_tokens (cloud).
+        num_ctx:    KV cache size in tokens (Ollama only, ignored for cloud).
+        think:      Qwen3 thinking mode (Ollama only, ignored for cloud).
+        timeout:    HTTP timeout in seconds.
+        api_key:    Cloud API key (required for non-Ollama providers).
+        api_base:   Override API base URL (e.g. custom Ollama host).
+
+    Returns:
+        (text, None) on success · (None, error_string) on failure
+    """
+    from django.conf import settings
+
+    if provider is None:
+        provider = getattr(settings, 'LITELLM_PROVIDER', 'ollama')
+
+    # ── Phase 1: local Ollama (transparent, no change in behavior) ────────────
+    if provider == 'ollama':
+        return ollama_chat(
+            messages=messages,
+            model=model or 'qwen3.5:9b',
+            num_predict=num_predict,
+            num_ctx=num_ctx,
+            think=think,
+            timeout=timeout,
+        )
+
+    # ── Phase 2: cloud provider via LiteLLM ───────────────────────────────────
+    try:
+        import litellm
+    except ImportError:
+        logger.error("[llm_utils] litellm not installed — pip install litellm")
+        return None, "litellm not installed (pip install litellm)"
+
+    # Build the LiteLLM model string: "provider/model_name"
+    if model is None:
+        # Provider-specific defaults
+        _defaults = {
+            'openai':    'gpt-4o',
+            'anthropic': 'claude-sonnet-4-6',
+            'grok':      'grok-3',
+            'mistral':   'mistral-large-latest',
+        }
+        model = _defaults.get(provider, 'gpt-4o')
+
+    litellm_model = f"{provider}/{model}" if '/' not in model else model
+
+    kwargs: dict = {
+        'model':      litellm_model,
+        'messages':   messages,
+        'timeout':    timeout,
+        'max_tokens': num_predict,
+    }
+    if api_key:
+        kwargs['api_key'] = api_key
+    if api_base:
+        kwargs['api_base'] = api_base
+
+    try:
+        response = litellm.completion(**kwargs)
+        text = response.choices[0].message.content or ''
+        if not text.strip():
+            return None, "LLM returned empty response"
+        return text.strip(), None
+    except Exception as e:
+        logger.error(f"[llm_utils] LiteLLM error ({provider}/{model}): {e}")
+        return None, str(e)
+
+
 def extract_json_from_llm(text: str) -> Optional[dict]:
     """
     Extract the first valid JSON object from an LLM response.
