@@ -321,6 +321,7 @@ def get_session(request, session_id):
         'cameras': cameras,
         'progress': session.progress,
         'results_summary': session.results_summary,
+        'intersection_windows': session.intersection_windows,
         'created_at': session.created_at.isoformat(),
         'error_message': session.error_message,
     })
@@ -514,6 +515,7 @@ def start_analysis(request, session_id):
     session.save()
 
     task = process_session_task.delay(str(session_id))
+    cache.set(f"cam_analyzer_task_{session_id}", task.id, timeout=86400)
     _console(user_id, f"Analyse lancée pour la session : {session.name}")
 
     return JsonResponse({
@@ -536,11 +538,21 @@ def cancel_analysis(request, session_id):
 
     _console(user_id, f"Annulation demandée pour la session : {session.name}")
 
-    # Set cache flag for running task (PROCESSING case)
+    # Set cache flag (cooperative cancellation, checked every 100 frames)
     stop_cam_analyzer(user_id)
 
+    # Force-revoke the running task — sends SIGTERM if YOLO is stuck
+    task_id = cache.get(f"cam_analyzer_task_{session_id}")
+    if task_id:
+        try:
+            from celery import current_app
+            current_app.control.revoke(task_id, terminate=True, signal='SIGTERM')
+            _console(user_id, f"Révocation forcée du task {task_id[:8]}...")
+        except Exception as e:
+            logger.warning(f"Failed to revoke task {task_id}: {e}")
+        cache.delete(f"cam_analyzer_task_{session_id}")
+
     # For PENDING sessions, immediately mark as failed
-    # (task may not have been picked up by worker, or message was discarded)
     if session.status == AnalysisSession.Status.PENDING:
         session.status = AnalysisSession.Status.FAILED
         session.error_message = "Annulé par l'utilisateur"
@@ -548,7 +560,12 @@ def cancel_analysis(request, session_id):
         session.save()
         return JsonResponse({'success': True, 'message': 'Analyse annulée', 'immediate': True})
 
-    return JsonResponse({'success': True, 'message': 'Annulation demandée'})
+    # For PROCESSING sessions: mark as failed since revoke was sent
+    session.status = AnalysisSession.Status.FAILED
+    session.error_message = "Annulé par l'utilisateur"
+    session.save(update_fields=['status', 'error_message'])
+
+    return JsonResponse({'success': True, 'message': 'Annulation envoyée'})
 
 
 @login_required
@@ -559,10 +576,12 @@ def get_session_status(request, session_id):
 
     session = get_object_or_404(AnalysisSession, id=session_id, user=request.user)
 
-    # Detect lost tasks: if PENDING for > 60s, the Celery task was likely discarded
+    # Detect lost tasks: PENDING for > 300s without extraction activity = task dropped
     if session.status == AnalysisSession.Status.PENDING and session.updated_at:
         elapsed = (timezone.now() - session.updated_at).total_seconds()
-        if elapsed > 60:
+        # Also check RTMaps extraction cache — if active, the task is running
+        extract_active = bool(cache.get(f"cam_analyzer_extract_{session_id}"))
+        if elapsed > 300 and not extract_active:
             session.status = AnalysisSession.Status.FAILED
             session.error_message = (
                 "La tâche n'a pas été prise en charge par le worker. "
@@ -586,6 +605,7 @@ def get_session_status(request, session_id):
         'status_message': status_message,
         'error_message': session.error_message,
         'results_summary': session.results_summary,
+        'intersection_windows': session.intersection_windows,
     })
 
 
@@ -634,6 +654,7 @@ def list_profiles(request):
         'sam3_markings_enabled': p.sam3_markings_enabled,
         'sam3_markings_prompts': p.sam3_markings_prompts,
         'sam3_as_road_fallback': p.sam3_as_road_fallback,
+        'restrict_to_intersection_windows': p.restrict_to_intersection_windows,
         'model_path': p.model_path,
         'task_type': p.task_type,
         'target_classes': p.target_classes,
@@ -660,6 +681,7 @@ def save_profile(request):
         sam3_markings_enabled = bool(data.get('sam3_markings_enabled', False))
         sam3_markings_prompts = data.get('sam3_markings_prompts', [])
         sam3_as_road_fallback = bool(data.get('sam3_as_road_fallback', False))
+        restrict_to_intersection_windows = bool(data.get('restrict_to_intersection_windows', True))
         model_path = data.get('model_path', '')
         task_type = data.get('task_type', 'detect')
         target_classes = data.get('target_classes', [])
@@ -692,6 +714,7 @@ def save_profile(request):
             profile.sam3_markings_enabled = sam3_markings_enabled
             profile.sam3_markings_prompts = sam3_markings_prompts
             profile.sam3_as_road_fallback = sam3_as_road_fallback
+            profile.restrict_to_intersection_windows = restrict_to_intersection_windows
             profile.model_path = model_path
             profile.task_type = task_type
             profile.target_classes = target_classes
@@ -709,6 +732,7 @@ def save_profile(request):
                 sam3_markings_enabled=sam3_markings_enabled,
                 sam3_markings_prompts=sam3_markings_prompts,
                 sam3_as_road_fallback=sam3_as_road_fallback,
+                restrict_to_intersection_windows=restrict_to_intersection_windows,
                 model_path=model_path,
                 task_type=task_type,
                 target_classes=target_classes,
@@ -728,6 +752,7 @@ def save_profile(request):
                 'sam3_markings_enabled': profile.sam3_markings_enabled,
                 'sam3_markings_prompts': profile.sam3_markings_prompts,
                 'sam3_as_road_fallback': profile.sam3_as_road_fallback,
+                'restrict_to_intersection_windows': profile.restrict_to_intersection_windows,
                 'model_path': profile.model_path,
                 'task_type': profile.task_type,
                 'target_classes': profile.target_classes,
@@ -777,8 +802,15 @@ def upload_rtmaps(request, session_id):
     if not session.profile:
         return JsonResponse({'success': False, 'error': "Aucun profil d'analyse sélectionné"}, status=400)
 
-    # Save uploaded files
-    rtmaps_dir = os.path.join(settings.MEDIA_ROOT, 'cam_analyzer', str(user_id), 'rtmaps')
+    # Block if YOLO analysis is already running
+    if session.status in (AnalysisSession.Status.PROCESSING, AnalysisSession.Status.PENDING):
+        return JsonResponse(
+            {'success': False, 'error': "Une analyse est déjà en cours sur cette session. Annulez-la avant de lancer l'extraction RTMaps."},
+            status=400,
+        )
+
+    # Save uploaded files (under input/rtmaps/ to keep all source data under input/)
+    rtmaps_dir = os.path.join(settings.MEDIA_ROOT, 'cam_analyzer', str(user_id), 'input', 'rtmaps')
     os.makedirs(rtmaps_dir, exist_ok=True)
 
     rec_filename = get_unique_filename(rtmaps_dir, rec_file.name)
@@ -804,6 +836,67 @@ def upload_rtmaps(request, session_id):
 
     task = extract_rtmaps_task.delay(str(session_id), rec_path, csv_path)
     _console(user_id, f"Extraction RTMaps lancée : {rec_file.name}")
+
+    return JsonResponse({'success': True, 'task_id': task.id})
+
+
+@login_required
+@require_http_methods(["POST"])
+def upload_quadrature_avi(request, session_id):
+    """
+    Import a pre-exported RTMaps quadrature AVI (800×500) + optional GPS CSV.
+    Launches extract_rtmaps_task in AVI mode (skips binary .rec extraction).
+    """
+    from .tasks import extract_rtmaps_task
+
+    session = get_object_or_404(AnalysisSession, id=session_id, user=request.user)
+    user_id = request.user.id
+
+    avi_file = request.FILES.get('avi_file')
+    gps_csv_file = request.FILES.get('gps_csv_file')
+
+    if not avi_file:
+        return JsonResponse({'success': False, 'error': 'Fichier AVI manquant'}, status=400)
+
+    if not session.profile:
+        return JsonResponse({'success': False, 'error': "Aucun profil d'analyse sélectionné"}, status=400)
+
+    if session.status in (AnalysisSession.Status.PROCESSING, AnalysisSession.Status.PENDING):
+        return JsonResponse(
+            {'success': False, 'error': "Une analyse est déjà en cours. Annulez-la d'abord."},
+            status=400,
+        )
+
+    rtmaps_dir = os.path.join(settings.MEDIA_ROOT, 'cam_analyzer', str(user_id), 'input', 'rtmaps')
+    os.makedirs(rtmaps_dir, exist_ok=True)
+
+    avi_filename = get_unique_filename(rtmaps_dir, avi_file.name)
+    avi_path = os.path.join(rtmaps_dir, avi_filename)
+    with open(avi_path, 'wb') as f:
+        for chunk in avi_file.chunks():
+            f.write(chunk)
+
+    gps_csv_path = None
+    if gps_csv_file:
+        csv_filename = get_unique_filename(rtmaps_dir, gps_csv_file.name)
+        gps_csv_path = os.path.join(rtmaps_dir, csv_filename)
+        with open(gps_csv_path, 'wb') as f:
+            for chunk in gps_csv_file.chunks():
+                f.write(chunk)
+
+    session.status = AnalysisSession.Status.PENDING
+    session.progress = 0.0
+    session.error_message = ''
+    session.results_summary = {}
+    session.save(update_fields=['status', 'progress', 'error_message', 'results_summary'])
+
+    task = extract_rtmaps_task.delay(
+        str(session_id),
+        rec_path=None,
+        csv_path=gps_csv_path,
+        quad_avi_path=avi_path,
+    )
+    _console(user_id, f"Import quadrature AVI lancé : {avi_file.name}")
 
     return JsonResponse({'success': True, 'task_id': task.id})
 

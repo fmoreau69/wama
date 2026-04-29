@@ -82,6 +82,10 @@ class AnalysisProfile(models.Model):
         default=False,
         help_text='Use SAM3 to generate road_mask entries when road_model_path is absent',
     )
+    restrict_to_intersection_windows = models.BooleanField(
+        default=True,
+        help_text='Skip YOLO inference outside intersection windows (intersection_insertion only)',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -130,6 +134,11 @@ class AnalysisSession(models.Model):
         default=list,
         blank=True,
         help_text='GPS telemetry: [{ts, lat, lon, speed_kmh, heading}, ...]',
+    )
+    intersection_windows = models.JSONField(
+        default=list,
+        blank=True,
+        help_text='Pre-computed intersection traversals: [{name, lat, lon, radius_m, t_enter, t_exit, bearing_deg}, ...]',
     )
     config = models.JSONField(default=dict)
     results_summary = models.JSONField(default=dict, blank=True)

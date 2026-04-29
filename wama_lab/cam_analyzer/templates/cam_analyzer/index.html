@@ -44,7 +44,7 @@
     <div class="camera-grid-wrapper">
         <!-- Front camera (top) -->
         <div class="camera-slot" data-position="front" id="slot-front">
-            <div class="camera-drop-zone" id="dropzone-front">
+            <div class="camera-drop-zone" id="dropzone-front" data-wama-app="cam_analyzer" data-position="front">
                 <div class="drop-placeholder">
                     <i class="fas fa-video fa-2x mb-2"></i>
                     <div class="small">Avant</div>
@@ -63,7 +63,7 @@
 
         <!-- Left camera -->
         <div class="camera-slot" data-position="left" id="slot-left">
-            <div class="camera-drop-zone" id="dropzone-left">
+            <div class="camera-drop-zone" id="dropzone-left" data-wama-app="cam_analyzer" data-position="left">
                 <div class="drop-placeholder">
                     <i class="fas fa-video fa-2x mb-2"></i>
                     <div class="small">Gauche</div>
@@ -88,7 +88,7 @@
 
         <!-- Right camera -->
         <div class="camera-slot" data-position="right" id="slot-right">
-            <div class="camera-drop-zone" id="dropzone-right">
+            <div class="camera-drop-zone" id="dropzone-right" data-wama-app="cam_analyzer" data-position="right">
                 <div class="drop-placeholder">
                     <i class="fas fa-video fa-2x mb-2"></i>
                     <div class="small">Droite</div>
@@ -107,7 +107,7 @@
 
         <!-- Rear camera (bottom) -->
         <div class="camera-slot" data-position="rear" id="slot-rear">
-            <div class="camera-drop-zone" id="dropzone-rear">
+            <div class="camera-drop-zone" id="dropzone-rear" data-wama-app="cam_analyzer" data-position="rear">
                 <div class="drop-placeholder">
                     <i class="fas fa-video fa-2x mb-2"></i>
                     <div class="small">Arrière</div>
@@ -130,32 +130,71 @@
         <div class="card bg-dark border-warning">
             <div class="card-header border-warning d-flex align-items-center gap-2 py-2" style="background:rgba(255,193,7,0.1);">
                 <i class="fas fa-file-import text-warning"></i>
-                <span class="fw-semibold text-warning">Source RTMaps</span>
-                <small class="text-muted ms-2">Fichier .rec + CSV API optionnel</small>
+                <span class="fw-semibold text-warning">Source quadrature Navya</span>
+                <!-- Mode toggle -->
+                <div class="btn-group btn-group-sm ms-auto" role="group">
+                    <input type="radio" class="btn-check" name="rtmapsMode" id="rtmapsModeAvi" value="avi" checked>
+                    <label class="btn btn-outline-warning btn-sm" for="rtmapsModeAvi">
+                        <i class="fas fa-film me-1"></i>AVI exporté
+                    </label>
+                    <input type="radio" class="btn-check" name="rtmapsMode" id="rtmapsModeRec" value="rec">
+                    <label class="btn btn-outline-secondary btn-sm" for="rtmapsModeRec">
+                        <i class="fas fa-file-code me-1"></i>Fichier .rec
+                    </label>
+                </div>
             </div>
             <div class="card-body py-2">
-                <div class="row g-2 align-items-end">
-                    <div class="col-12 col-md-5">
-                        <label class="form-label small mb-1 text-light">Fichier RTMaps (.rec)</label>
-                        <input type="file" class="form-control form-control-sm bg-dark text-light border-secondary"
-                               id="rtmapsRecFile" accept=".rec">
-                    </div>
-                    <div class="col-12 col-md-4">
-                        <label class="form-label small mb-1 text-light">CSV API <span class="text-muted">(optionnel)</span></label>
-                        <input type="file" class="form-control form-control-sm bg-dark text-light border-secondary"
-                               id="rtmapsCsvFile" accept=".csv">
-                    </div>
-                    <div class="col-12 col-md-3">
-                        <button class="btn btn-warning btn-sm w-100" id="rtmapsExtractBtn" disabled>
-                            <i class="fas fa-cogs me-1"></i> Extraire
-                        </button>
+                <!-- ── Mode AVI (défaut) ── -->
+                <div id="rtmapsAviMode">
+                    <div class="row g-2 align-items-end">
+                        <div class="col-12 col-md-5">
+                            <label class="form-label small mb-1 text-light">
+                                Quadrature AVI <span class="text-muted small">(800×500, exporté par RTMaps Player)</span>
+                            </label>
+                            <input type="file" class="form-control form-control-sm bg-dark text-light border-secondary"
+                                   id="rtmapsAviFile" accept=".avi,.mp4,.mkv">
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <label class="form-label small mb-1 text-light">
+                                CSV GPS <span class="text-muted">(optionnel — oPosition RTMaps ou API Navya)</span>
+                            </label>
+                            <input type="file" class="form-control form-control-sm bg-dark text-light border-secondary"
+                                   id="rtmapsAviGpsFile" accept=".csv">
+                        </div>
+                        <div class="col-12 col-md-3">
+                            <button class="btn btn-warning btn-sm w-100" id="rtmapsAviImportBtn" disabled>
+                                <i class="fas fa-cut me-1"></i> Découper &amp; Importer
+                            </button>
+                        </div>
                     </div>
                 </div>
-                <!-- Extraction progress -->
+
+                <!-- ── Mode .rec binaire ── -->
+                <div id="rtmapsRecMode" style="display:none;">
+                    <div class="row g-2 align-items-end">
+                        <div class="col-12 col-md-5">
+                            <label class="form-label small mb-1 text-light">Fichier RTMaps (.rec)</label>
+                            <input type="file" class="form-control form-control-sm bg-dark text-light border-secondary"
+                                   id="rtmapsRecFile" accept=".rec">
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <label class="form-label small mb-1 text-light">CSV API <span class="text-muted">(optionnel)</span></label>
+                            <input type="file" class="form-control form-control-sm bg-dark text-light border-secondary"
+                                   id="rtmapsCsvFile" accept=".csv">
+                        </div>
+                        <div class="col-12 col-md-3">
+                            <button class="btn btn-warning btn-sm w-100" id="rtmapsExtractBtn" disabled>
+                                <i class="fas fa-cogs me-1"></i> Extraire
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Progression (commune aux deux modes) -->
                 <div id="rtmapsProgress" style="display:none;" class="mt-2">
                     <div class="d-flex align-items-center gap-2 mb-1">
                         <i class="fas fa-spinner fa-spin text-warning"></i>
-                        <span class="text-light small" id="rtmapsProgressLabel">Extraction en cours...</span>
+                        <span class="text-light small" id="rtmapsProgressLabel">Traitement en cours...</span>
                         <span class="text-warning small ms-auto" id="rtmapsProgressPct">0%</span>
                     </div>
                     <div class="progress" style="height:4px;">
@@ -176,10 +215,18 @@
             <button class="btn btn-sm btn-outline-light" id="syncStopBtn">
                 <i class="fas fa-stop"></i>
             </button>
-            <div class="flex-grow-1">
+            <div class="flex-grow-1 position-relative">
                 <input type="range" class="form-range" id="syncSeekBar" min="0" max="100" value="0" step="0.1">
+                <!-- Intersection-window overlay (positioned over the slider track) -->
+                <div id="seekIntersectionMarkers" class="position-absolute top-50 start-0 end-0 translate-middle-y"
+                     style="height:6px; pointer-events:none; opacity:0.55;"></div>
             </div>
             <span class="text-light small" id="syncTimeDisplay">0:00 / 0:00</span>
+            <!-- Intersection jump dropdown (visible when windows exist) -->
+            <select class="form-select form-select-sm bg-dark text-warning border-warning"
+                    id="intersectionJumpSelect" style="width: 230px; display:none;" title="Aller à une fenêtre d'intersection">
+                <option value="">Aller à l'intersection...</option>
+            </select>
             <div class="d-flex align-items-center gap-1">
                 <label class="text-light small me-1">Vitesse:</label>
                 <select class="form-select form-select-sm bg-dark text-light border-secondary" id="playbackSpeed" style="width: 70px;">
@@ -195,8 +242,11 @@
 
     <!-- Timeline (Phase 2 placeholder) -->
     <div class="proximity-timeline mt-2" id="proximityTimeline" style="display:none">
-        <div class="timeline-bar" id="timelineBar">
+        <div class="timeline-bar position-relative" id="timelineBar">
             <div class="timeline-cursor" id="timelineCursor"></div>
+            <!-- Intersection-window markers (positioned over the proximity bar) -->
+            <div id="timelineIntersectionMarkers" class="position-absolute top-0 start-0 end-0 bottom-0"
+                 style="pointer-events:none;"></div>
         </div>
         <div class="d-flex justify-content-between mt-1">
             <small class="text-success">Sûr</small>
@@ -392,7 +442,12 @@ window.CAM_ANALYZER = {
                     </select>
                 </div>
                 <div class="mb-3">
-                    <label class="form-label">Classes cibles</label>
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                        <label class="form-label mb-0">Classes cibles</label>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="toggleAllClassesBtn">
+                            <i class="fas fa-square me-1"></i> Tout désélectionner
+                        </button>
+                    </div>
                     <div class="d-flex flex-wrap gap-2" id="classCheckboxes">
                         <!-- Populated by JS -->
                     </div>
@@ -401,6 +456,20 @@ window.CAM_ANALYZER = {
                 <!-- Intersections (visible only for intersection_insertion report type) -->
                 <div id="intersectionsSection" style="display:none;">
                     <hr class="border-secondary my-3">
+
+                    <!-- Restrict analysis to intersection windows -->
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" id="restrictToIntersectionWindows" checked>
+                        <label class="form-check-label small fw-semibold text-warning" for="restrictToIntersectionWindows">
+                            <i class="fas fa-crosshairs me-1"></i>Restreindre l'analyse aux fenêtres d'intersection
+                        </label>
+                        <div class="form-text text-secondary small">
+                            Lorsqu'activé, la détection YOLO ne s'exécute qu'à l'intérieur des fenêtres GPS calculées
+                            autour de chaque intersection (rayon configuré ci-dessous). En dehors, la vidéo annotée
+                            conserve les images brutes mais aucune détection n'est calculée — gain de temps majeur
+                            sur des longs trajets.
+                        </div>
+                    </div>
 
                     <!-- Road segmentation model (optional) -->
                     <div class="mb-3">

@@ -1674,9 +1674,8 @@
                 console.log('[FileManager DND] Dropping on app:', app, 'file:', dragData.path);
 
                 if (app && dragData.path) {
-                    // Imager and Avatarizer use form-based file inputs: dispatch a custom event so the
-                    // drop zone can fetch the blob and populate the input itself.
-                    if (app === 'imager' || app === 'avatarizer') {
+                    // These apps handle the blob fetch themselves via filemanager:filedrop custom event.
+                    if (app === 'imager' || app === 'avatarizer' || app === 'cam_analyzer') {
                         currentDropZone.dispatchEvent(new CustomEvent('filemanager:filedrop', {
                             detail: { path: dragData.path, name: dragData.name, mime: dragData.mime },
                             bubbles: false,

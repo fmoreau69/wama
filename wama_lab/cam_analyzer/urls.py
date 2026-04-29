@@ -43,6 +43,7 @@ urlpatterns = [
 
     # RTMaps extraction
     path('api/sessions/<uuid:session_id>/rtmaps/upload/', views.upload_rtmaps, name='upload_rtmaps'),
+    path('api/sessions/<uuid:session_id>/rtmaps/upload-avi/', views.upload_quadrature_avi, name='upload_quadrature_avi'),
     path('api/sessions/<uuid:session_id>/rtmaps/status/', views.rtmaps_status, name='rtmaps_status'),
 
     # Console

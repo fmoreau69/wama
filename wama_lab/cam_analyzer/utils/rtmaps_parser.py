@@ -282,20 +282,67 @@ class RTMapsParser:
 
 # ─── API CSV merger ────────────────────────────────────────────────────────────
 
+def parse_rtmaps_position_csv(csv_path: str) -> list:
+    """
+    Parse a RTMaps exported oPosition CSV.
+    Format: timestamp_µs;lat_decimal;lon_decimal[;alt;heading;...]
+    Timestamps are converted to seconds relative to the first point.
+    Returns list of {ts, lat, lon, speed_kmh, heading}.
+    """
+    points = []
+    try:
+        with open(csv_path, 'r', encoding='utf-8', errors='replace') as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                parts = line.split(';')
+                if len(parts) < 3:
+                    continue
+                try:
+                    ts_us = float(parts[0])
+                    lat = float(parts[1])
+                    lon = float(parts[2])
+                    if lat == 0.0 and lon == 0.0:
+                        continue
+                    points.append({
+                        'ts': round(ts_us / 1_000_000.0, 3),  # µs → s
+                        'lat': lat,
+                        'lon': lon,
+                        'speed_kmh': 0.0,
+                        'heading': 0.0,
+                    })
+                except (ValueError, IndexError):
+                    continue
+    except Exception as e:
+        logger.warning(f"[RTMapsParser] Failed to parse position CSV: {e}")
+        return []
+
+    if points:
+        t0 = points[0]['ts']
+        for pt in points:
+            pt['ts'] = round(pt['ts'] - t0, 3)
+
+    logger.info(f"[RTMapsParser] RTMaps position CSV: {len(points)} GPS points")
+    return points
+
+
 def merge_with_api_csv(rtmaps_gps: list, csv_path: Optional[str]) -> list:
     """
-    Merge RTMaps GPS data with API CSV export.
-    API CSV format: timestamp(ms), lat, lon, speed, batteryLevel, vehicle_mode, robot_mode
+    Merge RTMaps GPS data with a GPS CSV export.
+
+    Auto-detects format:
+    - Semicolon-delimited → RTMaps oPosition export (timestamp_µs;lat;lon[;...])
+    - Comma-delimited with header → Navya API CSV (timestamp_ms, lat, lon, speed, ...)
 
     Strategy:
     - If CSV is available: prefer it as primary source (clean decimal lat/lon)
-    - Speed from CSV field 'speed' (unit unspecified — assume km/h from context)
-    - Falls back to RTMaps GPS if CSV is absent or empty
+    - Falls back to RTMaps NMEA GPS if CSV is absent or empty
 
     Returns list of {ts, lat, lon, speed_kmh, heading} sorted by ts.
     """
     if not csv_path:
-        logger.info("[RTMapsParser] No API CSV provided, using RTMaps GPS only")
+        logger.info("[RTMapsParser] No GPS CSV provided, using RTMaps GPS only")
         return rtmaps_gps or []
 
     csv_path = Path(csv_path)
@@ -303,6 +350,22 @@ def merge_with_api_csv(rtmaps_gps: list, csv_path: Optional[str]) -> list:
         logger.warning(f"[RTMapsParser] CSV not found: {csv_path}, using RTMaps GPS")
         return rtmaps_gps or []
 
+    # Auto-detect format from first non-empty line
+    try:
+        with open(csv_path, 'r', encoding='utf-8', errors='replace') as f:
+            first_line = f.readline().strip()
+        is_rtmaps_position = ';' in first_line and ',' not in first_line
+    except Exception:
+        is_rtmaps_position = False
+
+    if is_rtmaps_position:
+        csv_points = parse_rtmaps_position_csv(str(csv_path))
+        if csv_points:
+            return csv_points
+        logger.warning("[RTMapsParser] RTMaps position CSV empty, using RTMaps GPS")
+        return rtmaps_gps or []
+
+    # Navya API CSV (comma-delimited with header)
     csv_points = []
     try:
         with open(csv_path, 'r', encoding='utf-8', errors='replace') as f:
@@ -320,7 +383,7 @@ def merge_with_api_csv(rtmaps_gps: list, csv_path: Optional[str]) -> list:
                         'lat': lat,
                         'lon': lon,
                         'speed_kmh': round(speed, 2),
-                        'heading': 0.0,  # not in CSV
+                        'heading': 0.0,
                     })
                 except (ValueError, KeyError):
                     continue

@@ -239,6 +239,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
             updatePlaybackControls();
 
+            // Pre-computed intersection windows (if any)
+            renderIntersectionWindows(data.intersection_windows || []);
+
             // Check session status and react
             if (data.status === 'processing' || data.status === 'pending') {
                 setAnalysisUI(true);
@@ -317,6 +320,30 @@ document.addEventListener('DOMContentLoaded', function () {
                     }
                 } else if (!currentSessionId) {
                     alert('Créez ou sélectionnez une session d\'abord');
+                }
+            });
+
+            // Handle drop from FileManager sidebar (vakata DND — dispatches filemanager:filedrop)
+            zone.addEventListener('filemanager:filedrop', async function (e) {
+                if (!currentSessionId) {
+                    alert('Créez ou sélectionnez une session d\'abord');
+                    return;
+                }
+                const { path, name, mime } = e.detail;
+                try {
+                    const mediaUrl = (window.MEDIA_URL || '/media/') + path;
+                    const response = await fetch(mediaUrl);
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    const blob = await response.blob();
+                    const file = new File([blob], name || 'video', { type: blob.type || mime || 'video/mp4' });
+                    if (!file.type.startsWith('video/')) {
+                        alert('Le fichier déposé n\'est pas une vidéo');
+                        return;
+                    }
+                    uploadCamera(pos, file);
+                } catch (err) {
+                    console.error('[cam_analyzer] FileManager drop failed:', err);
+                    alert('Erreur lors de l\'import depuis le filemanager');
                 }
             });
 
@@ -479,6 +506,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
         syncSeekBar.max = maxDuration || 100;
         updateTimeDisplay(0);
+
+        // Re-render intersection markers now that maxDuration is known
+        renderIntersectionWindows(intersectionWindows);
     }
 
     // ── rAF sync loop ────────────────────────────────────────────────────────
@@ -640,6 +670,20 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     });
 
+    // Jump to an intersection window (small offset before t_enter for context)
+    const intersectionJumpSelect = document.getElementById('intersectionJumpSelect');
+    if (intersectionJumpSelect) {
+        intersectionJumpSelect.addEventListener('change', () => {
+            const t = parseFloat(intersectionJumpSelect.value);
+            if (!isNaN(t) && maxDuration > 0) {
+                const target = Math.max(0, t - 2);  // 2s lead-in for approach context
+                syncSeek(target);
+                syncSeekBar.value = String(target);
+            }
+            intersectionJumpSelect.value = '';  // reset to placeholder for repeat jumps
+        });
+    }
+
     // =========================================================================
     // Analysis: Start, Poll, Cancel
     // =========================================================================
@@ -732,6 +776,10 @@ document.addEventListener('DOMContentLoaded', function () {
             progressPercent.textContent = `${pct}%`;
             if (data.status_message) {
                 progressLabel.textContent = data.status_message;
+            }
+
+            if (data.intersection_windows) {
+                renderIntersectionWindows(data.intersection_windows);
             }
 
             if (data.status === 'completed') {
@@ -1069,6 +1117,96 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     // =========================================================================
+    // Intersection windows — markers + jump dropdown
+    // =========================================================================
+
+    let intersectionWindows = [];
+
+    function bearingToCardinal(deg) {
+        if (deg === null || deg === undefined) return '';
+        const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+        const idx = Math.round(((deg % 360) + 360) % 360 / 45) % 8;
+        return dirs[idx];
+    }
+
+    function annotateWindowsWithDirection(windows) {
+        // Sort by t_enter, then group by intersection name and label sens A / sens B / ...
+        const grouped = new Map();
+        windows.forEach((w, i) => {
+            const key = w.name || '?';
+            if (!grouped.has(key)) grouped.set(key, []);
+            grouped.get(key).push({ ...w, _origIdx: i });
+        });
+        const annotated = new Array(windows.length);
+        const labels = ['A', 'B', 'C', 'D'];
+        grouped.forEach(group => {
+            group.sort((a, b) => a.t_enter - b.t_enter);
+            group.forEach((w, i) => {
+                annotated[w._origIdx] = { ...w, _sens: labels[i] || String(i + 1) };
+            });
+        });
+        return annotated;
+    }
+
+    function renderIntersectionWindows(windows) {
+        intersectionWindows = Array.isArray(windows) ? annotateWindowsWithDirection(windows) : [];
+
+        const seekOverlay = document.getElementById('seekIntersectionMarkers');
+        const tlOverlay = document.getElementById('timelineIntersectionMarkers');
+        const jumpSelect = document.getElementById('intersectionJumpSelect');
+
+        if (seekOverlay) seekOverlay.innerHTML = '';
+        if (tlOverlay) tlOverlay.innerHTML = '';
+        if (jumpSelect) {
+            // Remove all options except the placeholder
+            while (jumpSelect.options.length > 1) jumpSelect.remove(1);
+        }
+
+        if (!intersectionWindows.length || maxDuration <= 0) {
+            if (jumpSelect) jumpSelect.style.display = 'none';
+            return;
+        }
+
+        intersectionWindows.forEach((w, i) => {
+            const startPct = Math.max(0, Math.min(100, (w.t_enter / maxDuration) * 100));
+            const widthPct = Math.max(0.3, Math.min(100 - startPct, ((w.t_exit - w.t_enter) / maxDuration) * 100));
+
+            // Marker on the syncSeekBar overlay
+            if (seekOverlay) {
+                const m = document.createElement('div');
+                m.style.cssText = `position:absolute; top:0; bottom:0; left:${startPct}%; width:${widthPct}%;
+                                   background:#ffc107; border-radius:2px;`;
+                m.title = `${w.name} — sens ${w._sens} — ${formatTime(w.t_enter)} → ${formatTime(w.t_exit)}`;
+                seekOverlay.appendChild(m);
+            }
+
+            // Marker on the proximity timeline (semi-transparent overlay)
+            if (tlOverlay) {
+                const m = document.createElement('div');
+                m.style.cssText = `position:absolute; top:0; bottom:0; left:${startPct}%; width:${widthPct}%;
+                                   border:2px solid #ffc107; border-radius:3px; box-sizing:border-box;
+                                   background:rgba(255,193,7,0.12);`;
+                m.title = `${w.name} — sens ${w._sens}`;
+                tlOverlay.appendChild(m);
+            }
+
+            // Dropdown entry
+            if (jumpSelect) {
+                const opt = document.createElement('option');
+                opt.value = String(w.t_enter);
+                const cardinal = bearingToCardinal(w.bearing_deg);
+                const bearingTxt = w.bearing_deg !== null && w.bearing_deg !== undefined
+                    ? ` (${Math.round(w.bearing_deg)}° ${cardinal})`
+                    : '';
+                opt.textContent = `${w.name} — sens ${w._sens}${bearingTxt} @ ${formatTime(w.t_enter)}`;
+                jumpSelect.appendChild(opt);
+            }
+        });
+
+        if (jumpSelect) jumpSelect.style.display = '';
+    }
+
+    // =========================================================================
     // Export (Phase 3)
     // =========================================================================
 
@@ -1336,7 +1474,25 @@ document.addEventListener('DOMContentLoaded', function () {
                 <label class="form-check-label small text-light" for="class_${id}">${name} (${id})</label>`;
             container.appendChild(div);
         });
+        updateToggleAllBtn();
     }
+
+    function updateToggleAllBtn() {
+        const btn = document.getElementById('toggleAllClassesBtn');
+        if (!btn) return;
+        const checkboxes = document.querySelectorAll('#classCheckboxes input[type="checkbox"]');
+        const allChecked = checkboxes.length > 0 && Array.from(checkboxes).every(cb => cb.checked);
+        btn.innerHTML = allChecked
+            ? '<i class="fas fa-square me-1"></i> Tout désélectionner'
+            : '<i class="fas fa-check-square me-1"></i> Tout sélectionner';
+    }
+
+    document.getElementById('toggleAllClassesBtn')?.addEventListener('click', function () {
+        const checkboxes = document.querySelectorAll('#classCheckboxes input[type="checkbox"]');
+        const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+        checkboxes.forEach(cb => { cb.checked = !allChecked; });
+        updateToggleAllBtn();
+    });
 
     function getSelectedReportType() {
         const checked = document.querySelector('input[name="reportType"]:checked');
@@ -1709,6 +1865,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 clearInterval(rtmapsPollingTimer);
                 rtmapsPollingTimer = null;
                 document.getElementById('rtmapsExtractBtn').disabled = false;
+                document.getElementById('rtmapsAviImportBtn').disabled = false;
                 if (data.session_status === 'failed') {
                     setRtmapsProgress(0, 'Extraction echouee');
                 } else if (data.progress >= 100) {
@@ -1737,7 +1894,65 @@ document.addEventListener('DOMContentLoaded', function () {
         if (bar) bar.style.width = pct + '%';
     }
 
-    // Wire RTMaps extract button
+    // ── Mode toggle AVI / .rec ─────────────────────────────────────────────────
+    document.querySelectorAll('input[name="rtmapsMode"]').forEach(radio => {
+        radio.addEventListener('change', function () {
+            const aviMode = document.getElementById('rtmapsAviMode');
+            const recMode = document.getElementById('rtmapsRecMode');
+            if (this.value === 'avi') {
+                aviMode.style.display = '';
+                recMode.style.display = 'none';
+            } else {
+                aviMode.style.display = 'none';
+                recMode.style.display = '';
+            }
+        });
+    });
+
+    // ── Mode AVI: enable button when file selected ─────────────────────────────
+    document.getElementById('rtmapsAviFile').addEventListener('change', () => {
+        document.getElementById('rtmapsAviImportBtn').disabled =
+            !document.getElementById('rtmapsAviFile').files.length;
+    });
+
+    document.getElementById('rtmapsAviImportBtn').addEventListener('click', async function () {
+        if (!currentSessionId) return;
+        const aviFile = document.getElementById('rtmapsAviFile').files[0];
+        const gpsFile = document.getElementById('rtmapsAviGpsFile').files[0];
+        if (!aviFile) { alert('Sélectionnez un fichier AVI quadrature'); return; }
+
+        const form = new FormData();
+        form.append('avi_file', aviFile);
+        if (gpsFile) form.append('gps_csv_file', gpsFile);
+
+        const btn = document.getElementById('rtmapsAviImportBtn');
+        const progressDiv = document.getElementById('rtmapsProgress');
+        btn.disabled = true;
+        if (progressDiv) progressDiv.style.display = '';
+        setRtmapsProgress(2, 'Envoi du fichier AVI...');
+
+        try {
+            const resp = await fetch(`${config.urls.uploadRtmaps}${currentSessionId}/rtmaps/upload-avi/`, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': config.csrfToken },
+                body: form,
+            });
+            const data = await resp.json();
+            if (!data.success) {
+                alert('Erreur: ' + (data.error || 'Inconnue'));
+                btn.disabled = false;
+                if (progressDiv) progressDiv.style.display = 'none';
+                return;
+            }
+            clearInterval(rtmapsPollingTimer);
+            rtmapsPollingTimer = setInterval(() => pollRtmapsStatus(), 2000);
+        } catch (e) {
+            console.error('[QuadratureAVI] upload error:', e);
+            btn.disabled = false;
+        }
+    });
+
+    // ── Mode .rec: enable button when file selected ────────────────────────────
     document.getElementById('rtmapsRecFile').addEventListener('change', () => {
         document.getElementById('rtmapsExtractBtn').disabled = !document.getElementById('rtmapsRecFile').files.length;
     });
@@ -1779,6 +1994,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     sam3_markings_enabled: document.getElementById('sam3MarkingsEnabled').checked,
                     sam3_markings_prompts: sam3Prompts,
                     sam3_as_road_fallback: document.getElementById('sam3AsRoadFallback').checked,
+                    restrict_to_intersection_windows: document.getElementById('restrictToIntersectionWindows').checked,
                     model_path: modelPath, task_type: taskType,
                     target_classes: targetClasses, confidence, iou_threshold: iou, tracker,
                 }),
@@ -1889,6 +2105,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         const cb = document.getElementById(`class_${cls}`);
                         if (cb) cb.checked = true;
                     });
+                    updateToggleAllBtn();
 
                     // Load intersections + road model
                     intersections = profile.intersections || [];
@@ -1902,6 +2119,10 @@ document.addEventListener('DOMContentLoaded', function () {
                     document.getElementById('sam3AsRoadFallback').checked = !!profile.sam3_as_road_fallback;
                     toggleSam3Config();
                     renderSam3PromptsList();
+
+                    // Restrict analysis to intersection windows (default true)
+                    document.getElementById('restrictToIntersectionWindows').checked =
+                        profile.restrict_to_intersection_windows !== false;
                 }
             } catch (e) {
                 console.error('Error loading profile:', e);
@@ -1930,6 +2151,9 @@ document.addEventListener('DOMContentLoaded', function () {
             document.getElementById('sam3AsRoadFallback').checked = false;
             toggleSam3Config();
             renderSam3PromptsList();
+
+            // Restrict to intersection windows — default ON
+            document.getElementById('restrictToIntersectionWindows').checked = true;
         }
 
         profileModal.show();

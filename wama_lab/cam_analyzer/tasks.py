@@ -524,20 +524,64 @@ def process_session_task(self, session_id: str):
             'max_proximity': 0.0,
         }
 
-        # ── Pre-compute intersection windows (for SAM3 temporal gating) ─────────
-        _sam3_windows = []
+        # ── Pre-compute intersection windows (for YOLO + SAM3 temporal gating) ──
+        # Used by:
+        #   - YOLO main loop (skip frames outside windows when restrict_to_intersection_windows)
+        #   - SAM3 road markings (always gated to windows)
+        # Persisted on session.intersection_windows for the frontend timeline.
+        _intersection_windows = []
+        _restrict_to_windows = False
         if (profile.report_type == 'intersection_insertion'
-                and getattr(profile, 'sam3_markings_enabled', False)
                 and session.gps_track
                 and profile.intersections):
             from .utils.intersection_analyzer import IntersectionAnalyzer as _IA
-            _sam3_windows = _IA(
+            _raw_windows = _IA(
                 intersections=profile.intersections,
                 gps_track=session.gps_track,
                 fps=12.0,        # approximate — refined per-camera inside the loop
                 frame_height=250,
             ).find_intersection_windows()
-            _console(user_id, f"SAM3: {len(_sam3_windows)} fenêtre(s) d'intersection pré-calculée(s)")
+
+            # Build compact, JSON-serializable windows + estimate approach bearing
+            for w in _raw_windows:
+                bearing = None
+                gp = w.get('gps_points') or []
+                if gp:
+                    # Prefer the GPS heading at the entry point if available
+                    h = gp[0].get('heading') if isinstance(gp[0], dict) else None
+                    if h is not None:
+                        bearing = float(h)
+                    elif len(gp) >= 2:
+                        from math import atan2, cos, degrees, radians, sin
+                        p0, p1 = gp[0], gp[min(2, len(gp) - 1)]
+                        lat1, lon1 = radians(p0['lat']), radians(p0['lon'])
+                        lat2, lon2 = radians(p1['lat']), radians(p1['lon'])
+                        dlon = lon2 - lon1
+                        x = sin(dlon) * cos(lat2)
+                        y = cos(lat1) * sin(lat2) - sin(lat1) * cos(lat2) * cos(dlon)
+                        bearing = (degrees(atan2(x, y)) + 360.0) % 360.0
+                _intersection_windows.append({
+                    'name': w['intersection'].get('name', ''),
+                    'lat': w['intersection'].get('lat'),
+                    'lon': w['intersection'].get('lon'),
+                    'radius_m': w['intersection'].get('radius_m'),
+                    't_enter': round(w['t_enter'], 2),
+                    't_exit': round(w['t_exit'], 2),
+                    'bearing_deg': round(bearing, 1) if bearing is not None else None,
+                })
+
+            session.intersection_windows = _intersection_windows
+            session.save(update_fields=['intersection_windows'])
+
+            _restrict_to_windows = bool(getattr(profile, 'restrict_to_intersection_windows', True))
+            _console(
+                user_id,
+                f"Intersections : {len(_intersection_windows)} fenêtre(s) pré-calculée(s)"
+                + (" — analyse restreinte aux fenêtres" if _restrict_to_windows else "")
+            )
+
+        # SAM3 reuses the same windows when enabled
+        _sam3_windows = _intersection_windows if getattr(profile, 'sam3_markings_enabled', False) else []
 
         for cam_idx, camera in enumerate(cameras):
             if _is_cancelled(user_id):
@@ -670,9 +714,36 @@ def process_session_task(self, session_id: str):
                 if frame_idx % 100 == 0 and _is_cancelled(user_id):
                     raise InterruptedError("Annulé par l'utilisateur")
 
-                # Extract detections
-                detections = _extract_detections(pred, height)
                 timestamp = frame_idx / fps
+
+                # ── Intersection window gating ───────────────────────────────
+                # When profile.restrict_to_intersection_windows is True, skip
+                # heavy post-processing (detection extraction, road segmentation,
+                # SAM3, DB writes) for frames outside any intersection window.
+                # The raw frame is still written to keep the annotated video
+                # duration aligned with the source.
+                _in_intersection = True
+                if _restrict_to_windows and _intersection_windows:
+                    _in_intersection = any(
+                        w['t_enter'] <= timestamp <= w['t_exit']
+                        for w in _intersection_windows
+                    )
+
+                if not _in_intersection:
+                    if vid_writer and pred.orig_img is not None:
+                        try:
+                            vid_writer.write(pred.orig_img)
+                        except Exception:
+                            pass
+                    if frame_idx - last_progress_frame >= 50 and total_frames > 0:
+                        cam_frac = frame_idx / total_frames
+                        pct = cam_progress_start + cam_frac * (cam_progress_end - cam_progress_start)
+                        set_session_progress(session_id, pct)
+                        last_progress_frame = frame_idx
+                    continue
+
+                # Extract detections (in-window only)
+                detections = _extract_detections(pred, height)
 
                 # Append road mask regions (only front camera, intersection_insertion profile)
                 if road_segmenter is not None and pred.orig_img is not None:
@@ -843,15 +914,20 @@ def process_session_task(self, session_id: str):
 # =============================================================================
 
 @shared_task(bind=True)
-def extract_rtmaps_task(self, session_id: str, rec_path: str, csv_path: str = None):
+def extract_rtmaps_task(self, session_id: str, rec_path: str = None, csv_path: str = None,
+                        quad_avi_path: str = None):
     """
-    Extract camera views and GPS data from a RTMaps .rec file.
+    Extract camera views and GPS data.
+
+    Two modes:
+    - rec_path provided: parse binary RTMaps .rec → extract H264 → crop views
+    - quad_avi_path provided: AVI already extracted by RTMaps Player → crop views directly
 
     Steps:
-    1. Parse .rec -> GPS track + video frame timestamps
-    2. Extract quadrature video frames from .rec binary data into a temporary AVI
-    3. Crop quadrature AVI into front.mp4 and rear.mp4
-    4. Create CameraView records for front + rear
+    1. GPS: parse from .rec (NMEA) or csv_path (RTMaps oPosition / Navya API CSV)
+    2. [rec_path only] Extract H264 frames from .rec binary → quadrature AVI
+    3. Crop quadrature AVI → front.avi + rear.avi
+    4. Create CameraView records
     5. Save GPS track to session.gps_track
     6. Launch process_session_task
     """
@@ -869,51 +945,75 @@ def extract_rtmaps_task(self, session_id: str, rec_path: str, csv_path: str = No
     try:
         session = AnalysisSession.objects.get(pk=session_id)
         user_id = session.user_id
-        _console(user_id, "Extraction RTMaps démarrée...")
-        _set_progress(2, "Lecture du fichier .rec...")
 
-        # ── 1. Parse GPS + metadata ──────────────────────────────────────
-        parser = RTMapsParser()
-        parsed = parser.parse(rec_path)
-
-        _set_progress(15, "GPS extrait, fusion CSV...")
-
-        # ── 2. Merge with API CSV ────────────────────────────────────────
-        gps_track = merge_with_api_csv(parsed['gps'], csv_path)
-
-        if not gps_track:
-            _console(user_id, "AVERTISSEMENT: aucune donnée GPS extraite")
-        else:
-            _console(user_id, f"GPS: {len(gps_track)} points extraits")
-
-        _set_progress(20, "Extraction de la vidéo quadrature...")
-
-        # ── 3. Build quadrature video from RTMaps binary H264 frames ────
-        # The .rec file contains raw H264 NAL units in the video stream.
-        # Extract them into a single AVI file using frame-by-frame writing.
-        output_dir = os.path.join(settings.MEDIA_ROOT, 'cam_analyzer', str(user_id), 'rtmaps')
+        # Extracted views go alongside the input quadrature file under input/rtmaps/
+        output_dir = os.path.join(settings.MEDIA_ROOT, 'cam_analyzer', str(user_id), 'input', 'rtmaps')
         os.makedirs(output_dir, exist_ok=True)
 
         import re as _re
         session_slug = _re.sub(r'[^a-zA-Z0-9_-]', '_', session.name or str(session_id)[:8])
-        quad_path = os.path.join(output_dir, f"{session_slug}_quad.avi")
 
-        _extract_h264_frames_to_avi(rec_path, quad_path, user_id)
+        if quad_avi_path:
+            # ── Mode AVI pré-exporté ─────────────────────────────────────
+            _console(user_id, f"Import quadrature AVI : {os.path.basename(quad_avi_path)}")
+            _set_progress(5, "Lecture du GPS...")
 
-        if not os.path.exists(quad_path):
-            raise RuntimeError(f"Quadrature video extraction failed: {quad_path}")
+            # GPS from CSV only (no .rec parsing)
+            gps_track = merge_with_api_csv([], csv_path)
+            if not gps_track:
+                _console(user_id, "AVERTISSEMENT: aucun GPS fourni — analyse intersection sans GPS")
+            else:
+                _console(user_id, f"GPS: {len(gps_track)} points (CSV RTMaps)")
+
+            _set_progress(20, "Découpage des vues quadrature...")
+            quad_path = quad_avi_path
+
+        else:
+            # ── Mode .rec binaire ────────────────────────────────────────
+            _console(user_id, "Extraction RTMaps démarrée...")
+            _set_progress(2, "Lecture du fichier .rec...")
+
+            # ── 1. Parse GPS + metadata from .rec ────────────────────────
+            parser = RTMapsParser()
+            parsed = parser.parse(rec_path)
+            _set_progress(15, "GPS extrait, fusion CSV...")
+
+            gps_track = merge_with_api_csv(parsed['gps'], csv_path)
+            if not gps_track:
+                _console(user_id, "AVERTISSEMENT: aucune donnée GPS extraite")
+            else:
+                _console(user_id, f"GPS: {len(gps_track)} points extraits")
+
+            _set_progress(20, "Extraction de la vidéo quadrature...")
+
+            # ── 2. Extract H264 from .rec binary ─────────────────────────
+            quad_path = os.path.join(output_dir, f"{session_slug}_quad.avi")
+            _extract_h264_frames_to_avi(rec_path, quad_path, user_id)
+            if not os.path.exists(quad_path):
+                raise RuntimeError(f"Quadrature video extraction failed: {quad_path}")
 
         _set_progress(60, "Crop des vues avant / arrière...")
 
         # ── 4. Crop front + rear views ───────────────────────────────────
-        front_path = os.path.join(output_dir, f"{session_slug}_front.avi")
-        rear_path = os.path.join(output_dir, f"{session_slug}_rear.avi")
+        # MP4 container with H264 codec for browser compatibility
+        front_path = os.path.join(output_dir, f"{session_slug}_front.mp4")
+        rear_path = os.path.join(output_dir, f"{session_slug}_rear.mp4")
 
         front_meta = export_quadrature_view(quad_path, front_path, 'front', LAYOUT_NAVYA)
         _set_progress(75, "Vue avant extraite, traitement arrière...")
 
         rear_meta = export_quadrature_view(quad_path, rear_path, 'rear', LAYOUT_NAVYA)
-        _set_progress(85, "Vues extraites, création des caméras...")
+        _set_progress(85, "Vues extraites, conversion H264 si nécessaire...")
+
+        # Ensure browser-compatible H264 (re-encode if MJPG fallback was used)
+        from .views import _ensure_h264
+        for meta in (front_meta, rear_meta):
+            actual_path = meta.get('path')
+            if actual_path and os.path.exists(actual_path):
+                try:
+                    _ensure_h264(actual_path)
+                except Exception as e:
+                    logger.warning(f"[RTMaps] _ensure_h264 failed for {actual_path}: {e}")
 
         # ── 5. Create CameraView records ─────────────────────────────────
         # Remove existing cameras for this session (re-extraction)
@@ -944,18 +1044,16 @@ def extract_rtmaps_task(self, session_id: str, rec_path: str, csv_path: str = No
             cam.save()
             _console(user_id, f"Caméra {pos} : {meta.get('frame_count', 0)} frames, {meta.get('duration', 0):.1f}s")
 
-        # ── 6. Save GPS track + source type ─────────────────────────────
+        # ── 6. Save GPS track + source type + reset status ──────────────
         session.gps_track = gps_track
         session.source_type = 'rtmaps'
-        session.save(update_fields=['gps_track', 'source_type'])
+        # Reset to DRAFT so user can review videos before launching analysis manually
+        session.status = AnalysisSession.Status.DRAFT
+        session.progress = 0.0
+        session.save(update_fields=['gps_track', 'source_type', 'status', 'progress'])
 
-        _set_progress(95, "Lancement de l'analyse YOLO...")
-        _console(user_id, "Extraction RTMaps terminée — lancement de l'analyse")
-
-        # ── 7. Launch YOLO analysis ──────────────────────────────────────
-        process_session_task.delay(str(session_id))
-
-        _set_progress(100, "Extraction terminée")
+        _set_progress(100, "Extraction terminée — prêt pour analyse")
+        _console(user_id, "Extraction terminée. Vérifiez les vues puis cliquez sur 'Analyser'.")
         return {'extracted': session_id}
 
     except Exception as e:
