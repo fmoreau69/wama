@@ -456,6 +456,16 @@ def process_session_task(self, session_id: str):
         user_id = session.user_id
         profile = session.profile
 
+        # Idempotency guard: if Redis redelivered the task after success
+        # (visibility_timeout < runtime), bail out instead of re-running and
+        # tripping the (camera, frame_number) UNIQUE constraint.
+        if session.status == AnalysisSession.Status.COMPLETED:
+            logger.info(
+                f"[cam_analyzer] Session {session_id} already COMPLETED — "
+                f"skipping redelivered task"
+            )
+            return {'already_completed': str(session_id)}
+
         if not profile:
             raise ValueError("Aucun profil d'analyse assigné à la session")
 
@@ -508,8 +518,22 @@ def process_session_task(self, session_id: str):
         # =====================================================================
         # Process each camera
         # =====================================================================
-        cameras = list(session.cameras.all().order_by('position'))
+        # Filter to the profile's analysed positions; lateral views can be
+        # extracted purely for visualisation without paying the YOLO cost.
+        analyzed_positions = list(getattr(profile, 'analyzed_positions', []) or [])
+        if not analyzed_positions:
+            analyzed_positions = ['front', 'rear']
+
+        all_cameras = list(session.cameras.all().order_by('position'))
+        cameras = [c for c in all_cameras if c.position in analyzed_positions]
+        skipped_positions = sorted(set(c.position for c in all_cameras) - set(analyzed_positions))
         num_cameras = len(cameras)
+
+        if skipped_positions:
+            _console(
+                user_id,
+                f"Vues en lecture seule (non analysées) : {', '.join(skipped_positions)}"
+            )
 
         if num_cameras == 0:
             raise ValueError("Aucune caméra dans la session")
@@ -567,6 +591,8 @@ def process_session_task(self, session_id: str):
                     'radius_m': w['intersection'].get('radius_m'),
                     't_enter': round(w['t_enter'], 2),
                     't_exit': round(w['t_exit'], 2),
+                    't_closest': round(w.get('t_closest', (w['t_enter'] + w['t_exit']) / 2), 2),
+                    'min_distance_m': w.get('min_distance_m'),
                     'bearing_deg': round(bearing, 1) if bearing is not None else None,
                 })
 
@@ -633,14 +659,21 @@ def process_session_task(self, session_id: str):
                     _console(user_id, f"  AVERTISSEMENT: road_model_path introuvable: {road_model_path}")
 
             # ─── SAM3 road markings analyzer (Phase Avancée) ──────────────────
+            # sam3_markings_enabled is the master switch — when OFF, SAM3 is
+            # never loaded, even if sam3_as_road_fallback was left True (the UX
+            # hides the fallback checkbox when markings is off, so the value
+            # could otherwise persist silently).
             sam3_analyzer = None
+            _sam3_master_enabled = bool(getattr(profile, 'sam3_markings_enabled', False))
             _use_sam3_fallback = (
-                getattr(profile, 'sam3_as_road_fallback', False) and road_segmenter is None
+                _sam3_master_enabled
+                and getattr(profile, 'sam3_as_road_fallback', False)
+                and road_segmenter is None
             )
             if (position == 'front'
                     and profile.report_type == 'intersection_insertion'
-                    and (_sam3_windows or _use_sam3_fallback)
-                    and (getattr(profile, 'sam3_markings_enabled', False) or _use_sam3_fallback)):
+                    and _sam3_master_enabled
+                    and (_sam3_windows or _use_sam3_fallback)):
                 raw_prompts = getattr(profile, 'sam3_markings_prompts', []) or []
                 if raw_prompts or _use_sam3_fallback:
                     try:
@@ -992,31 +1025,11 @@ def extract_rtmaps_task(self, session_id: str, rec_path: str = None, csv_path: s
             if not os.path.exists(quad_path):
                 raise RuntimeError(f"Quadrature video extraction failed: {quad_path}")
 
-        _set_progress(60, "Crop des vues avant / arrière...")
-
-        # ── 4. Crop front + rear views ───────────────────────────────────
-        # MP4 container with H264 codec for browser compatibility
-        front_path = os.path.join(output_dir, f"{session_slug}_front.mp4")
-        rear_path = os.path.join(output_dir, f"{session_slug}_rear.mp4")
-
-        front_meta = export_quadrature_view(quad_path, front_path, 'front', LAYOUT_NAVYA)
-        _set_progress(75, "Vue avant extraite, traitement arrière...")
-
-        rear_meta = export_quadrature_view(quad_path, rear_path, 'rear', LAYOUT_NAVYA)
-        _set_progress(85, "Vues extraites, conversion H264 si nécessaire...")
-
-        # Ensure browser-compatible H264 (re-encode if MJPG fallback was used)
-        from .views import _ensure_h264
-        for meta in (front_meta, rear_meta):
-            actual_path = meta.get('path')
-            if actual_path and os.path.exists(actual_path):
-                try:
-                    _ensure_h264(actual_path)
-                except Exception as e:
-                    logger.warning(f"[RTMaps] _ensure_h264 failed for {actual_path}: {e}")
-
-        # ── 5. Create CameraView records ─────────────────────────────────
-        # Remove existing cameras for this session (re-extraction)
+        # ── Cleanup any prior CameraView records BEFORE extraction ───────
+        # Previous extractions used the same deterministic output paths
+        # ({slug}_front.mp4, {slug}_rear.mp4). If we did this AFTER extraction,
+        # FileField.delete() would wipe the freshly-written files. Doing it
+        # first makes re-extraction idempotent.
         for existing in session.cameras.all():
             if existing.video_file:
                 try:
@@ -1025,12 +1038,50 @@ def extract_rtmaps_task(self, session_id: str, rec_path: str = None, csv_path: s
                     pass
         session.cameras.all().delete()
 
-        for pos, meta, fpath in [('front', front_meta, front_path), ('rear', rear_meta, rear_path)]:
+        _set_progress(60, "Crop des 4 vues...")
+
+        # ── 4. Crop all 4 views from the quadrature ──────────────────────
+        # All four are extracted to MP4 (H.264) so that lateral views can be
+        # used purely for visualisation. The profile's analyzed_positions
+        # filter decides later which ones get YOLO inference.
+        from .views import _ensure_h264
+
+        view_specs = [
+            ('front', 65), ('rear', 73), ('left', 80), ('right', 87),
+        ]
+        view_metas = {}
+        for pos, pct in view_specs:
+            dst = os.path.join(output_dir, f"{session_slug}_{pos}.mp4")
+            try:
+                meta = export_quadrature_view(quad_path, dst, pos, LAYOUT_NAVYA)
+            except Exception as e:
+                logger.error(f"[RTMaps] failed to extract '{pos}': {e}")
+                view_metas[pos] = {'error': str(e)}
+                _set_progress(pct, f"Extraction {pos} échouée: {e}")
+                continue
+
+            # Re-encode to H.264 if OpenCV fell back to MJPG/.avi
+            actual_path = meta.get('path')
+            if actual_path and os.path.exists(actual_path):
+                try:
+                    converted = _ensure_h264(actual_path)
+                    if isinstance(converted, str):
+                        meta['path'] = converted
+                except Exception as e:
+                    logger.warning(f"[RTMaps] _ensure_h264 failed for {actual_path}: {e}")
+
+            view_metas[pos] = meta
+            _set_progress(pct, f"Vue {pos} prête")
+
+        # ── 5. Create CameraView records ─────────────────────────────────
+        for pos, meta in view_metas.items():
             if 'error' in meta:
                 _console(user_id, f"AVERTISSEMENT: vue {pos} non disponible: {meta['error']}")
                 continue
-            # Store path relative to MEDIA_ROOT
-            rel_path = os.path.relpath(fpath, settings.MEDIA_ROOT).replace('\\', '/')
+            actual_fpath = meta.get('path')
+            if not actual_fpath:
+                continue
+            rel_path = os.path.relpath(actual_fpath, settings.MEDIA_ROOT).replace('\\', '/')
             cam = CameraView(
                 session=session,
                 position=pos,

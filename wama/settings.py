@@ -353,7 +353,10 @@ if ENABLE_CELERY:
     CELERY_TASK_TRACK_STARTED = True
     CELERY_BROKER_URL = "redis://127.0.0.1:6379/0"
     CELERY_RESULT_BACKEND = "redis://127.0.0.1:6379/1"
-    CELERY_BROKER_TRANSPORT_OPTIONS = {"visibility_timeout": 3600}  # 1h
+    # 6h covers long-running cam_analyzer / batch jobs. Below the wall-time
+    # ceiling and Redis won't redeliver mid-flight, but still bounded so a
+    # truly orphaned task (worker crash + lost ack) eventually gets requeued.
+    CELERY_BROKER_TRANSPORT_OPTIONS = {"visibility_timeout": 21600}  # 6h
     CELERY_ACCEPT_CONTENT = ['application/json']
     CELERY_TASK_SERIALIZER = 'json'
     CELERY_RESULT_SERIALIZER = 'json'

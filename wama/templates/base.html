@@ -134,7 +134,7 @@
             <!-- Médias Section (drop zone app ou aperçu filemanager) -->
             <div class="right-panel-section" id="media-section">
                 <div class="right-panel-section-title">
-                    <i class="fas fa-photo-video me-1"></i> Médias
+                    {% block right_panel_media_title %}<i class="fas fa-photo-video me-1"></i> Médias{% endblock %}
                 </div>
                 <div id="global-media-container">
                     {% block right_panel_media %}
@@ -153,7 +153,7 @@
             <!-- Settings Section -->
             <div class="right-panel-section" id="settings-section">
                 <div class="right-panel-section-title">
-                    <i class="fas fa-cog me-1"></i> Paramètres
+                    {% block right_panel_settings_title %}<i class="fas fa-cog me-1"></i> Paramètres{% endblock %}
                 </div>
                 <div id="global-settings-container">
                     {% block right_panel_settings %}
@@ -165,7 +165,7 @@
             <!-- Actions Section -->
             <div class="right-panel-section" id="actions-section">
                 <div class="right-panel-section-title">
-                    <i class="fas fa-play-circle me-1"></i> Actions
+                    {% block right_panel_actions_title %}<i class="fas fa-play-circle me-1"></i> Actions{% endblock %}
                 </div>
                 <div id="global-actions-container">
                     {% block right_panel_actions %}

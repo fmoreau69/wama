@@ -132,7 +132,10 @@ class IntersectionAnalyzer:
 
     # ── Intersection window detection ─────────────────────────────────────
 
-    def find_intersection_windows(self) -> list:
+    def find_intersection_windows(self,
+                                  merge_gap_s: float = 120.0,
+                                  min_duration_s: float = 3.0,
+                                  exit_distance_factor: float = 1.5) -> list:
         """
         Find time windows during which the shuttle is within radius_m of
         each configured intersection.
@@ -144,11 +147,20 @@ class IntersectionAnalyzer:
             't_exit': float,    # seconds — shuttle leaves proximity zone
             'gps_points': list, # GPS points within the window
         }
+
+        Post-processing:
+        - Consecutive windows for the same intersection are merged when EITHER
+          the time gap is ≤ ``merge_gap_s`` OR the shuttle never reached more
+          than ``exit_distance_factor × radius_m`` from the intersection during
+          the gap (= GPS jitter around the boundary, the shuttle never truly
+          left the area).
+        - Windows shorter than ``min_duration_s`` after merging are dropped
+          (transient GPS noise spikes).
         """
         if not self.gps_track or not self.intersections:
             return []
 
-        windows = []
+        raw = []
 
         for intersection in self.intersections:
             i_lat = intersection.get('lat', 0)
@@ -171,7 +183,7 @@ class IntersectionAnalyzer:
                 else:
                     if in_window:
                         in_window = False
-                        windows.append({
+                        raw.append({
                             'intersection': intersection,
                             't_enter': window_start,
                             't_exit': gps['ts'],
@@ -182,15 +194,144 @@ class IntersectionAnalyzer:
 
             # Handle window still open at end of track
             if in_window and window_gps:
-                windows.append({
+                raw.append({
                     'intersection': intersection,
                     't_enter': window_start,
                     't_exit': self.gps_track[-1]['ts'],
                     'gps_points': window_gps,
                 })
 
-        logger.info(f"[IntersectionAnalyzer] {len(windows)} intersection windows found")
+        # ── Merge close windows + filter short ones ──────────────────────────
+        windows = self._post_process_windows(
+            raw, merge_gap_s, min_duration_s, exit_distance_factor, self.gps_track
+        )
+
+        # ── Center each window on the moment of closest pass ─────────────────
+        # The radius-based block boundaries are asymmetric whenever the shuttle
+        # approaches the intersection slowly and leaves quickly (or vice-versa)
+        # — the closest GPS point may sit at the very start or end of the
+        # block. Re-anchor each window so its midpoint is the time of closest
+        # approach to the intersection center; preserve the block duration.
+        for w in windows:
+            i_lat = (w.get('intersection') or {}).get('lat', 0)
+            i_lon = (w.get('intersection') or {}).get('lon', 0)
+            gps_pts = w.get('gps_points') or []
+            if not gps_pts:
+                w['t_closest'] = (w['t_enter'] + w['t_exit']) / 2
+                w['min_distance_m'] = None
+                continue
+
+            closest = min(gps_pts, key=lambda g: haversine(g['lat'], g['lon'], i_lat, i_lon))
+            t_closest = closest['ts']
+            min_dist = haversine(closest['lat'], closest['lon'], i_lat, i_lon)
+            duration = w['t_exit'] - w['t_enter']
+
+            # Symmetric window centered on t_closest, same total duration.
+            # Clamp to the available GPS track range.
+            track_start = self.gps_track[0]['ts']
+            track_end = self.gps_track[-1]['ts']
+            new_enter = max(track_start, t_closest - duration / 2)
+            new_exit = min(track_end, t_closest + duration / 2)
+
+            w['t_enter'] = new_enter
+            w['t_exit'] = new_exit
+            w['t_closest'] = t_closest
+            w['min_distance_m'] = round(min_dist, 1)
+
+        # Re-sort after recentering (start times may have shifted)
+        windows.sort(key=lambda w: w['t_enter'])
+
+        logger.info(
+            f"[IntersectionAnalyzer] {len(raw)} raw windows → {len(windows)} after merging "
+            f"(gap≤{merge_gap_s}s OR max_dist<{exit_distance_factor}×radius) "
+            f"+ filtering (duration≥{min_duration_s}s) + centering on closest pass"
+        )
+        for i, w in enumerate(windows):
+            logger.info(
+                f"[IntersectionAnalyzer]   #{i+1} {w['intersection'].get('name', '?'):30s} "
+                f"{w['t_enter']:7.1f}s → {w['t_exit']:7.1f}s "
+                f"(closest@{w.get('t_closest', 0):.1f}s, min={w.get('min_distance_m')}m)"
+            )
         return windows
+
+    @staticmethod
+    def _post_process_windows(raw: list, merge_gap_s: float, min_duration_s: float,
+                              exit_distance_factor: float, gps_track: list) -> list:
+        """Merge GPS-jitter fragments, drop noise spikes."""
+        if not raw:
+            return []
+
+        # Sort GPS by ts once, build a quick accessor
+        gps_sorted = sorted(gps_track or [], key=lambda g: g['ts'])
+
+        def max_distance_in_gap(intersection: dict, t0: float, t1: float) -> float:
+            """Maximum distance to intersection center during [t0, t1]."""
+            i_lat = intersection.get('lat', 0)
+            i_lon = intersection.get('lon', 0)
+            best = 0.0
+            for g in gps_sorted:
+                if g['ts'] < t0:
+                    continue
+                if g['ts'] > t1:
+                    break
+                d = haversine(g['lat'], g['lon'], i_lat, i_lon)
+                if d > best:
+                    best = d
+            return best
+
+        by_name = {}
+        for w in raw:
+            name = (w.get('intersection') or {}).get('name', '')
+            by_name.setdefault(name, []).append(w)
+
+        merged = []
+        for name, group in by_name.items():
+            group.sort(key=lambda w: w['t_enter'])
+            current = None
+            for w in group:
+                if current is None:
+                    current = {
+                        'intersection': w['intersection'],
+                        't_enter': w['t_enter'],
+                        't_exit': w['t_exit'],
+                        'gps_points': list(w.get('gps_points') or []),
+                    }
+                    continue
+
+                gap_s = w['t_enter'] - current['t_exit']
+                radius = (current['intersection'] or {}).get('radius_m', 100)
+
+                # Merge if time gap is small OR if shuttle never traveled far enough
+                # to count as a real exit/return.
+                should_merge = gap_s <= merge_gap_s
+                if not should_merge and gps_sorted:
+                    max_d = max_distance_in_gap(
+                        current['intersection'], current['t_exit'], w['t_enter']
+                    )
+                    if max_d < exit_distance_factor * radius:
+                        should_merge = True
+                        logger.debug(
+                            f"[IntersectionAnalyzer] merging '{name}' across gap of "
+                            f"{gap_s:.1f}s — max_dist={max_d:.1f}m < {exit_distance_factor}×{radius}m"
+                        )
+
+                if should_merge:
+                    current['t_exit'] = w['t_exit']
+                    current['gps_points'].extend(w.get('gps_points') or [])
+                else:
+                    if current['t_exit'] - current['t_enter'] >= min_duration_s:
+                        merged.append(current)
+                    current = {
+                        'intersection': w['intersection'],
+                        't_enter': w['t_enter'],
+                        't_exit': w['t_exit'],
+                        'gps_points': list(w.get('gps_points') or []),
+                    }
+            if current is not None and current['t_exit'] - current['t_enter'] >= min_duration_s:
+                merged.append(current)
+
+        merged.sort(key=lambda w: w['t_enter'])
+        return merged
 
     # ── Window analysis ───────────────────────────────────────────────────
 

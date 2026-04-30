@@ -84,9 +84,15 @@ def _extract_video_metadata(file_path):
 
 def _ensure_h264(file_path):
     """
-    Check if a video is browser-compatible (H.264/H.265).
-    If not (e.g. MPEG-4 Part 2 / mp4v), re-encode to H.264 in-place.
-    Returns True if file was converted, False if already compatible.
+    Ensure a video is browser-compatible (H.264/H.265).
+    If the codec is not playable (MJPG, mp4v, etc.), re-encode to H.264.
+    When the input is .avi (typical OpenCV/MJPG fallback), the output is
+    promoted to .mp4 — the original .avi is removed.
+
+    Returns:
+        - False if no conversion was needed or if it failed
+        - The final file path (str) if a conversion occurred (may differ
+          from the input path when extension was promoted)
     """
     import subprocess
 
@@ -102,15 +108,21 @@ def _ensure_h264(file_path):
         if codec in ('h264', 'hevc', 'vp8', 'vp9', 'av1'):
             return False  # Already browser-compatible
 
-        logger.info(f"Video codec '{codec}' not browser-compatible, re-encoding to H.264: {file_path}")
+        # Promote .avi to .mp4 since we're re-encoding anyway — avoids the
+        # codec/container mismatch where the file claims .avi but holds H.264.
+        base, ext = os.path.splitext(file_path)
+        target_path = base + '.mp4' if ext.lower() == '.avi' else file_path
 
-        tmp_path = file_path + '.h264.mp4'
+        logger.info(f"Video codec '{codec}' not browser-compatible, re-encoding to H.264: {file_path} → {target_path}")
+
+        tmp_path = target_path + '.h264.tmp.mp4'
         proc = subprocess.run(
             ['ffmpeg', '-i', file_path,
              '-c:v', 'libx264', '-preset', 'fast', '-crf', '18',
              '-pix_fmt', 'yuv420p', '-c:a', 'copy',
+             '-movflags', '+faststart',
              tmp_path, '-y'],
-            capture_output=True, text=True, timeout=600,
+            capture_output=True, text=True, timeout=1800,
         )
 
         if proc.returncode != 0:
@@ -119,10 +131,17 @@ def _ensure_h264(file_path):
                 os.remove(tmp_path)
             return False
 
-        # Replace original with re-encoded version
-        os.replace(tmp_path, file_path)
-        logger.info(f"Re-encoded to H.264: {file_path}")
-        return True
+        os.replace(tmp_path, target_path)
+
+        # If the extension changed, drop the legacy file.
+        if target_path != file_path and os.path.exists(file_path):
+            try:
+                os.remove(file_path)
+            except OSError as rm_err:
+                logger.warning(f"Could not remove original {file_path}: {rm_err}")
+
+        logger.info(f"Re-encoded to H.264: {target_path}")
+        return target_path
 
     except FileNotFoundError:
         logger.warning("ffprobe/ffmpeg not found, skipping codec check")
@@ -312,6 +331,23 @@ def get_session(request, session_id):
             'time_offset': c.time_offset,
         })
 
+    # Downsample gps_track for the mini-map. With 24k points across 2h20 of
+    # driving, 1500 samples = 1 point per ~5.5s ≈ 46m at 30 km/h, which
+    # under-samples sharp turns. 3000 points (~22m gap) tracks corners
+    # cleanly while keeping the JSON payload around 250 KB.
+    gps_full = session.gps_track or []
+    if len(gps_full) > 3000:
+        step = max(1, len(gps_full) // 3000)
+        gps_sampled = [
+            {'ts': p.get('ts'), 'lat': p.get('lat'), 'lon': p.get('lon')}
+            for p in gps_full[::step]
+        ]
+    else:
+        gps_sampled = [
+            {'ts': p.get('ts'), 'lat': p.get('lat'), 'lon': p.get('lon')}
+            for p in gps_full
+        ]
+
     return JsonResponse({
         'id': str(session.id),
         'name': session.name,
@@ -322,6 +358,7 @@ def get_session(request, session_id):
         'progress': session.progress,
         'results_summary': session.results_summary,
         'intersection_windows': session.intersection_windows,
+        'gps_track': gps_sampled,
         'created_at': session.created_at.isoformat(),
         'error_message': session.error_message,
     })
@@ -409,6 +446,11 @@ def upload_camera(request, session_id):
         converted = _ensure_h264(camera.video_file.path)
         if converted:
             _console(user_id, f"  Vidéo ré-encodée en H.264 pour compatibilité navigateur")
+            # If the extension was promoted (e.g. .avi → .mp4), update the DB pointer
+            if isinstance(converted, str) and converted != camera.video_file.path:
+                new_rel = os.path.relpath(converted, settings.MEDIA_ROOT).replace('\\', '/')
+                camera.video_file.name = new_rel
+                camera.save(update_fields=['video_file'])
 
         # Extract metadata
         meta = _extract_video_metadata(camera.video_file.path)
@@ -655,6 +697,7 @@ def list_profiles(request):
         'sam3_markings_prompts': p.sam3_markings_prompts,
         'sam3_as_road_fallback': p.sam3_as_road_fallback,
         'restrict_to_intersection_windows': p.restrict_to_intersection_windows,
+        'analyzed_positions': p.analyzed_positions or ['front', 'rear'],
         'model_path': p.model_path,
         'task_type': p.task_type,
         'target_classes': p.target_classes,
@@ -681,7 +724,21 @@ def save_profile(request):
         sam3_markings_enabled = bool(data.get('sam3_markings_enabled', False))
         sam3_markings_prompts = data.get('sam3_markings_prompts', [])
         sam3_as_road_fallback = bool(data.get('sam3_as_road_fallback', False))
+        # Master switch: if SAM3 markings is off, force the fallback off too —
+        # otherwise its checkbox stays hidden but its value persists, silently
+        # triggering SAM3 loading on the next analysis.
+        if not sam3_markings_enabled:
+            sam3_as_road_fallback = False
         restrict_to_intersection_windows = bool(data.get('restrict_to_intersection_windows', True))
+        # Validate analyzed_positions against allowed positions; fall back to
+        # front+rear if the payload is missing or empty.
+        valid_positions = ['front', 'rear', 'left', 'right']
+        analyzed_positions = data.get('analyzed_positions') or []
+        if isinstance(analyzed_positions, str):
+            analyzed_positions = json.loads(analyzed_positions)
+        analyzed_positions = [p for p in analyzed_positions if p in valid_positions]
+        if not analyzed_positions:
+            analyzed_positions = ['front', 'rear']
         model_path = data.get('model_path', '')
         task_type = data.get('task_type', 'detect')
         target_classes = data.get('target_classes', [])
@@ -715,6 +772,7 @@ def save_profile(request):
             profile.sam3_markings_prompts = sam3_markings_prompts
             profile.sam3_as_road_fallback = sam3_as_road_fallback
             profile.restrict_to_intersection_windows = restrict_to_intersection_windows
+            profile.analyzed_positions = analyzed_positions
             profile.model_path = model_path
             profile.task_type = task_type
             profile.target_classes = target_classes
@@ -733,6 +791,7 @@ def save_profile(request):
                 sam3_markings_prompts=sam3_markings_prompts,
                 sam3_as_road_fallback=sam3_as_road_fallback,
                 restrict_to_intersection_windows=restrict_to_intersection_windows,
+                analyzed_positions=analyzed_positions,
                 model_path=model_path,
                 task_type=task_type,
                 target_classes=target_classes,
@@ -753,6 +812,7 @@ def save_profile(request):
                 'sam3_markings_prompts': profile.sam3_markings_prompts,
                 'sam3_as_road_fallback': profile.sam3_as_road_fallback,
                 'restrict_to_intersection_windows': profile.restrict_to_intersection_windows,
+                'analyzed_positions': profile.analyzed_positions or ['front', 'rear'],
                 'model_path': profile.model_path,
                 'task_type': profile.task_type,
                 'target_classes': profile.target_classes,

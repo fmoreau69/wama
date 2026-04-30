@@ -2,7 +2,7 @@
 {% load static %}
 
 {% block cam_analyzer_content %}
-<div class="container-fluid py-3">
+<div class="container-fluid py-3" style="padding-bottom: 180px !important;">
 
     <!-- Toolbar -->
     <div class="d-flex justify-content-between align-items-center mb-3">
@@ -206,65 +206,80 @@
         </div>
     </div>
 
-    <!-- Synchronized Playback Controls -->
-    <div class="playback-controls mt-3" id="playbackControls" style="display:none">
-        <div class="d-flex align-items-center gap-3">
-            <button class="btn btn-sm btn-outline-light" id="syncPlayPauseBtn">
-                <i class="fas fa-play" id="playPauseIcon"></i>
-            </button>
-            <button class="btn btn-sm btn-outline-light" id="syncStopBtn">
-                <i class="fas fa-stop"></i>
-            </button>
-            <div class="flex-grow-1 position-relative">
-                <input type="range" class="form-range" id="syncSeekBar" min="0" max="100" value="0" step="0.1">
-                <!-- Intersection-window overlay (positioned over the slider track) -->
-                <div id="seekIntersectionMarkers" class="position-absolute top-50 start-0 end-0 translate-middle-y"
-                     style="height:6px; pointer-events:none; opacity:0.55;"></div>
-            </div>
-            <span class="text-light small" id="syncTimeDisplay">0:00 / 0:00</span>
-            <!-- Intersection jump dropdown (visible when windows exist) -->
-            <select class="form-select form-select-sm bg-dark text-warning border-warning"
-                    id="intersectionJumpSelect" style="width: 230px; display:none;" title="Aller à une fenêtre d'intersection">
-                <option value="">Aller à l'intersection...</option>
-            </select>
-            <div class="d-flex align-items-center gap-1">
-                <label class="text-light small me-1">Vitesse:</label>
-                <select class="form-select form-select-sm bg-dark text-light border-secondary" id="playbackSpeed" style="width: 70px;">
-                    <option value="0.25">0.25x</option>
-                    <option value="0.5">0.5x</option>
-                    <option value="1" selected>1x</option>
-                    <option value="1.5">1.5x</option>
-                    <option value="2">2x</option>
+    <!-- Sticky bottom toolkit: playback controls + proximity timeline + analysis progress
+         (position:fixed pinned above the wama footer; constrained between the
+          FileManager sidebar (left) and the wama right panel — uses the same CSS
+          variables defined in filemanager.css so the bar stays aligned with the
+          central content area) -->
+    <div id="stickyBottomBar" class="sticky-bottom-bar"
+         style="position: fixed;
+                left: var(--fm-sidebar-width, 280px);
+                right: var(--fm-right-panel-width, 360px);
+                bottom: var(--fm-footer-height, 40px);
+                z-index: 1020;
+                background: #1a1d20; border-top: 1px solid #343a40;
+                padding: 10px 20px 8px 20px; box-shadow: 0 -4px 12px rgba(0,0,0,0.4);
+                display: none;">
+        <!-- Synchronized Playback Controls -->
+        <div class="playback-controls" id="playbackControls" style="display:none">
+            <div class="d-flex align-items-center gap-3">
+                <button class="btn btn-sm btn-outline-light" id="syncPlayPauseBtn">
+                    <i class="fas fa-play" id="playPauseIcon"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-light" id="syncStopBtn">
+                    <i class="fas fa-stop"></i>
+                </button>
+                <div class="flex-grow-1 position-relative">
+                    <input type="range" class="form-range" id="syncSeekBar" min="0" max="100" value="0" step="0.1">
+                    <!-- Intersection-window overlay (positioned over the slider track) -->
+                    <div id="seekIntersectionMarkers" class="position-absolute top-50 start-0 end-0 translate-middle-y"
+                         style="height:6px; pointer-events:none; opacity:0.55;"></div>
+                </div>
+                <span class="text-light small" id="syncTimeDisplay">0:00 / 0:00</span>
+                <!-- Intersection jump dropdown (visible when windows exist) -->
+                <select class="form-select form-select-sm bg-dark text-warning border-warning"
+                        id="intersectionJumpSelect" style="width: 230px; display:none;" title="Aller à une fenêtre d'intersection">
+                    <option value="">Aller à l'intersection...</option>
                 </select>
+                <div class="d-flex align-items-center gap-1">
+                    <label class="text-light small me-1">Vitesse:</label>
+                    <select class="form-select form-select-sm bg-dark text-light border-secondary" id="playbackSpeed" style="width: 70px;">
+                        <option value="0.25">0.25x</option>
+                        <option value="0.5">0.5x</option>
+                        <option value="1" selected>1x</option>
+                        <option value="1.5">1.5x</option>
+                        <option value="2">2x</option>
+                    </select>
+                </div>
             </div>
         </div>
-    </div>
 
-    <!-- Timeline (Phase 2 placeholder) -->
-    <div class="proximity-timeline mt-2" id="proximityTimeline" style="display:none">
-        <div class="timeline-bar position-relative" id="timelineBar">
-            <div class="timeline-cursor" id="timelineCursor"></div>
-            <!-- Intersection-window markers (positioned over the proximity bar) -->
-            <div id="timelineIntersectionMarkers" class="position-absolute top-0 start-0 end-0 bottom-0"
-                 style="pointer-events:none;"></div>
+        <!-- Proximity Timeline -->
+        <div class="proximity-timeline mt-2" id="proximityTimeline" style="display:none">
+            <div class="timeline-bar position-relative" id="timelineBar">
+                <div class="timeline-cursor" id="timelineCursor"></div>
+                <!-- Intersection-window markers (positioned over the proximity bar) -->
+                <div id="timelineIntersectionMarkers" class="position-absolute top-0 start-0 end-0 bottom-0"
+                     style="pointer-events:none;"></div>
+            </div>
+            <div class="d-flex justify-content-between mt-1">
+                <small class="text-success">Sûr</small>
+                <small class="text-warning">Proche</small>
+                <small class="text-danger">Critique</small>
+            </div>
         </div>
-        <div class="d-flex justify-content-between mt-1">
-            <small class="text-success">Sûr</small>
-            <small class="text-warning">Proche</small>
-            <small class="text-danger">Critique</small>
-        </div>
-    </div>
 
-    <!-- Analysis Progress Bar -->
-    <div class="analysis-progress mt-3" id="analysisProgress" style="display:none">
-        <div class="d-flex align-items-center gap-2 mb-1">
-            <i class="fas fa-spinner fa-spin text-warning"></i>
-            <span class="text-light small" id="progressLabel">Analyse en cours...</span>
-            <span class="text-warning small ms-auto" id="progressPercent">0%</span>
-        </div>
-        <div class="progress" style="height: 6px;">
-            <div class="progress-bar bg-warning progress-bar-striped progress-bar-animated"
-                 id="progressBar" role="progressbar" style="width: 0%"></div>
+        <!-- Analysis Progress Bar -->
+        <div class="analysis-progress mt-2" id="analysisProgress" style="display:none">
+            <div class="d-flex align-items-center gap-2 mb-1">
+                <i class="fas fa-spinner fa-spin text-warning"></i>
+                <span class="text-light small" id="progressLabel">Analyse en cours...</span>
+                <span class="text-warning small ms-auto" id="progressPercent">0%</span>
+            </div>
+            <div class="progress" style="height: 6px;">
+                <div class="progress-bar bg-warning progress-bar-striped progress-bar-animated"
+                     id="progressBar" role="progressbar" style="width: 0%"></div>
+            </div>
         </div>
     </div>
 
@@ -335,6 +350,7 @@
 <script>
 window.CAM_ANALYZER = {
     csrfToken: '{{ csrf_token }}',
+    userId: '{{ request.user.id|default:"anon" }}',
     urls: {
         listSessions: "{% url 'wama_lab:cam_analyzer:list_sessions' %}",
         createSession: "{% url 'wama_lab:cam_analyzer:create_session' %}",
@@ -450,6 +466,32 @@ window.CAM_ANALYZER = {
                     </div>
                     <div class="d-flex flex-wrap gap-2" id="classCheckboxes">
                         <!-- Populated by JS -->
+                    </div>
+                </div>
+
+                <!-- Analysed views — others are kept for visualisation only -->
+                <div class="mb-3">
+                    <label class="form-label mb-2">
+                        <i class="fas fa-video me-1 text-warning"></i>Vues à analyser
+                        <span class="text-secondary fw-normal small">(les autres restent en lecture seule)</span>
+                    </label>
+                    <div class="d-flex flex-wrap gap-3" id="analyzedPositionsCheckboxes">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="analyze-front" value="front" checked>
+                            <label class="form-check-label" for="analyze-front">Avant</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="analyze-rear" value="rear" checked>
+                            <label class="form-check-label" for="analyze-rear">Arrière</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="analyze-left" value="left">
+                            <label class="form-check-label" for="analyze-left">Gauche</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="analyze-right" value="right">
+                            <label class="form-check-label" for="analyze-right">Droite</label>
+                        </div>
                     </div>
                 </div>
 

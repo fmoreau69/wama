@@ -21,6 +21,20 @@ document.addEventListener('DOMContentLoaded', function () {
     let isPlaying = false;
     let maxDuration = 0;
 
+    // Persist the active session across page reloads. Per-user key so different
+    // accounts on the same browser don't fight over each other's selection.
+    const ACTIVE_SESSION_KEY = `camAnalyzer:activeSession:${(config && config.userId) || 'anon'}`;
+    function saveActiveSession(id) {
+        try {
+            if (id) localStorage.setItem(ACTIVE_SESSION_KEY, id);
+            else localStorage.removeItem(ACTIVE_SESSION_KEY);
+        } catch (e) { /* localStorage may be disabled */ }
+    }
+    function loadActiveSessionId() {
+        try { return localStorage.getItem(ACTIVE_SESSION_KEY); }
+        catch (e) { return null; }
+    }
+
     // Phase 2 state
     let pollingInterval = null;
     let detectionData = {};    // { position: { fps, width, height, frames: [{frame_number, timestamp, detections}] } }
@@ -190,6 +204,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
             if (data.success) {
                 currentSessionId = data.session_id;
+                saveActiveSession(data.session_id);
                 newSessionModal.hide();
                 nameInput.value = '';
                 clearCameraGrid();
@@ -209,9 +224,15 @@ document.addEventListener('DOMContentLoaded', function () {
     async function loadSession(sessionId) {
         try {
             const resp = await fetch(`${config.urls.getSession}${sessionId}/`);
+            if (!resp.ok) {
+                // Session no longer exists (deleted, wrong user, …) — clear state
+                saveActiveSession(null);
+                return;
+            }
             const data = await resp.json();
 
             currentSessionId = sessionId;
+            saveActiveSession(sessionId);
             sessionSelect.value = sessionId;
             deleteSessionBtn.disabled = false;
             startAnalysisBtn.disabled = false;
@@ -228,19 +249,27 @@ document.addEventListener('DOMContentLoaded', function () {
                 });
             }
 
-            // Set profile + update report type badge
+            // Set profile + update report type badge + active-profile context
             if (data.profile_id) {
                 profileSelect.value = data.profile_id;
                 const selectedOpt = profileSelect.options[profileSelect.selectedIndex];
                 setReportTypeBadge(selectedOpt ? selectedOpt.dataset.reportType : null);
+                loadActiveProfile(data.profile_id);
             } else {
                 setReportTypeBadge(null);
+                loadActiveProfile(null);
             }
+
+            // Right-panel exports enabled only when analysis has finished
+            setRightPanelExportsEnabled(data.status === 'completed');
 
             updatePlaybackControls();
 
             // Pre-computed intersection windows (if any)
             renderIntersectionWindows(data.intersection_windows || []);
+
+            // Right-panel mini-map: trajectory + intersections + shuttle position
+            renderMiniMap(data.gps_track || [], data.intersection_windows || []);
 
             // Check session status and react
             if (data.status === 'processing' || data.status === 'pending') {
@@ -249,6 +278,7 @@ document.addEventListener('DOMContentLoaded', function () {
             } else if (data.status === 'completed' && data.results_summary) {
                 showResults(data.results_summary);
                 loadAllDetections(sessionId);
+                setRightPanelExportsEnabled(true);
             } else if (data.status === 'failed' && data.error_message) {
                 showResults(null);
                 alert('Dernière analyse échouée: ' + data.error_message);
@@ -271,6 +301,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (currentSessionId === sessionId) {
                     stopStatusPolling();
                     currentSessionId = null;
+                    saveActiveSession(null);
                     clearCameraGrid();
                     deleteSessionBtn.disabled = true;
                     startAnalysisBtn.disabled = true;
@@ -449,6 +480,134 @@ document.addEventListener('DOMContentLoaded', function () {
         video.load();
         zone.classList.add('has-video');
         if (info) info.style.display = 'flex';
+        updateAnalyzedBadge(position);
+    }
+
+    // Active profile context — set by loadSession after fetching profile details.
+    // Drives the per-tile "Analysée / Lecture seule" badges and the right-panel
+    // profile summary.
+    let activeProfile = null;
+
+    function updateAnalyzedBadge(position) {
+        const info = document.getElementById(`info-${position}`);
+        if (!info) return;
+        let badge = info.querySelector('.analyzed-badge');
+        if (!badge) {
+            badge = document.createElement('span');
+            badge.className = 'badge analyzed-badge';
+            badge.style.cssText = 'font-size:0.6rem; padding:0.2rem 0.45rem;';
+            // Insert after the position label (first .badge child)
+            const firstBadge = info.querySelector('.badge');
+            if (firstBadge && firstBadge.nextSibling) {
+                info.insertBefore(badge, firstBadge.nextSibling);
+            } else {
+                info.appendChild(badge);
+            }
+        }
+        const analyzed = activeProfile
+            ? (activeProfile.analyzed_positions || ['front', 'rear']).includes(position)
+            : (position === 'front' || position === 'rear');
+        if (analyzed) {
+            badge.textContent = 'Analysée';
+            badge.style.background = '#198754';
+            badge.style.color = '#fff';
+            badge.title = 'YOLO sera exécuté sur cette vue';
+        } else {
+            badge.textContent = 'Lecture seule';
+            badge.style.background = '#495057';
+            badge.style.color = '#dee2e6';
+            badge.title = 'Vue extraite pour visualisation, pas d\'analyse YOLO';
+        }
+    }
+
+    function refreshAllAnalyzedBadges() {
+        positions.forEach(pos => {
+            if (cameras[pos]) updateAnalyzedBadge(pos);
+        });
+    }
+
+    const POSITION_LABELS = { front: 'Avant', rear: 'Arrière', left: 'Gauche', right: 'Droite' };
+
+    async function loadActiveProfile(profileId) {
+        const summary = document.getElementById('camAnalyzerProfileSummary');
+        if (!profileId) {
+            activeProfile = null;
+            if (summary) summary.innerHTML = '<span class="text-secondary">Aucun profil sélectionné.</span>';
+            refreshAllAnalyzedBadges();
+            return;
+        }
+        try {
+            const resp = await fetch(config.urls.listProfiles);
+            const data = await resp.json();
+            const p = (data.profiles || []).find(x => String(x.id) === String(profileId));
+            activeProfile = p || null;
+            renderProfileSummary();
+            refreshAllAnalyzedBadges();
+        } catch (e) {
+            console.error('Error loading active profile:', e);
+        }
+    }
+
+    function renderProfileSummary() {
+        const summary = document.getElementById('camAnalyzerProfileSummary');
+        if (!summary) return;
+        if (!activeProfile) {
+            summary.innerHTML = '<span class="text-secondary">Aucun profil sélectionné.</span>';
+            return;
+        }
+        const p = activeProfile;
+        const analyzed = (p.analyzed_positions || ['front', 'rear'])
+            .map(x => POSITION_LABELS[x] || x).join(', ');
+        const reportLabel = p.report_type === 'intersection_insertion'
+            ? 'Insertions intersections' : 'Proximité & dépassements';
+        const intersectionsCount = (p.intersections || []).length;
+        const modelName = (p.model_path || '').split(/[\\/]/).pop() || '—';
+        const classes = (p.target_classes || []).join(', ') || '—';
+        summary.innerHTML = `
+            <div class="d-flex flex-column gap-1" style="font-size: 0.78rem;">
+                <div><span class="text-secondary">Nom :</span> <span class="text-light fw-semibold">${escapeHtml(p.name)}</span></div>
+                <div><span class="text-secondary">Type :</span> <span class="text-light">${reportLabel}</span></div>
+                <div><span class="text-secondary">Modèle :</span> <span class="text-light">${escapeHtml(modelName)}</span></div>
+                <div><span class="text-secondary">Classes :</span> <span class="text-light">${escapeHtml(classes)}</span></div>
+                <div><span class="text-secondary">Vues analysées :</span> <span class="text-warning">${escapeHtml(analyzed)}</span></div>
+                ${p.report_type === 'intersection_insertion' ? `
+                    <div><span class="text-secondary">Intersections :</span> <span class="text-light">${intersectionsCount}</span></div>
+                    <div><span class="text-secondary">Restreint aux fenêtres :</span> <span class="text-light">${p.restrict_to_intersection_windows !== false ? 'Oui' : 'Non'}</span></div>
+                ` : ''}
+            </div>
+            <button class="btn btn-sm btn-outline-warning mt-2 w-100" id="rpEditProfileBtn">
+                <i class="fas fa-cog me-1"></i>Modifier le profil
+            </button>
+        `;
+        const btn = document.getElementById('rpEditProfileBtn');
+        if (btn) btn.addEventListener('click', () => {
+            // Call the editor opener directly rather than synthetically clicking
+            // the toolbar button — avoids any synthetic-event quirk and the
+            // function is identical for both entry points.
+            openProfileEditor();
+        });
+    }
+
+    // (escapeHtml is defined later — same scope, no conflict at call time)
+
+    // Right-panel quick exports — wired to the same URLs used by the main results panel
+    function setupRightPanelExports() {
+        const map = [
+            ['rpExportCsvBtn', () => exportDetectionsCsv()],
+            ['rpExportJsonBtn', () => exportSessionJson()],
+            ['rpExportSegmentsBtn', () => exportSegmentsCsv()],
+        ];
+        map.forEach(([id, handler]) => {
+            const btn = document.getElementById(id);
+            if (btn) btn.addEventListener('click', handler);
+        });
+    }
+
+    function setRightPanelExportsEnabled(enabled) {
+        ['rpExportCsvBtn', 'rpExportJsonBtn', 'rpExportSegmentsBtn'].forEach(id => {
+            const btn = document.getElementById(id);
+            if (btn) btn.disabled = !enabled;
+        });
     }
 
     function resetDropZone(position) {
@@ -488,12 +647,15 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function updatePlaybackControls() {
         const activePositions = Object.keys(cameras);
+        const sticky = document.getElementById('stickyBottomBar');
         if (activePositions.length === 0) {
             playbackControls.style.display = 'none';
+            if (sticky) updateStickyBarVisibility();
             return;
         }
 
         playbackControls.style.display = 'block';
+        if (sticky) sticky.style.display = '';
 
         // Calculate max duration
         maxDuration = 0;
@@ -701,12 +863,14 @@ document.addEventListener('DOMContentLoaded', function () {
             cancelAnalysisBtn.style.display = 'none';
             analysisProgress.style.display = 'none';
         }
+        updateStickyBarVisibility();
     }
 
     function hideProgress() {
         analysisProgress.style.display = 'none';
         startAnalysisBtn.style.display = '';
         cancelAnalysisBtn.style.display = 'none';
+        updateStickyBarVisibility();
     }
 
     async function startAnalysis() {
@@ -788,6 +952,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 showResults(data.results_summary);
                 loadAllDetections(sessionId);
                 loadSessions(); // refresh table
+                setRightPanelExportsEnabled(true);
             } else if (data.status === 'failed') {
                 stopStatusPolling();
                 hideProgress();
@@ -938,6 +1103,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (proximityByTime.length > 0) {
             renderProximityTimeline();
             proximityTimeline.style.display = '';
+            updateStickyBarVisibility();
         }
 
         // Draw detections at current time
@@ -1109,11 +1275,246 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function updateTimelineCursor(currentTime) {
+        // Mini-map + pass info should always follow the playback, even before
+        // an analysis has produced the proximity timeline.
+        updateMiniMapShuttle(currentTime);
+        updatePassInfo(currentTime);
+
         if (!proximityTimeline || proximityTimeline.style.display === 'none') return;
         if (maxDuration <= 0) return;
 
         const pct = Math.min(100, (currentTime / maxDuration) * 100);
         timelineCursor.style.left = `${pct}%`;
+    }
+
+    // =========================================================================
+    // Right-panel mini-map (Leaflet)
+    // =========================================================================
+
+    let miniMap = null;
+    let miniMapPolyline = null;
+    let miniMapShuttleMarker = null;
+    let miniMapIntersectionLayers = [];
+    let miniMapClickMarker = null;
+    let miniMapPassHighlight = null;   // polyline showing the current pass in its colour
+    let miniMapHighlightedPassIdx = -1; // last rendered pass — avoids 60Hz polyline rebuilds
+    let cachedGpsTrack = [];           // [{ts, lat, lon}, ...] downsampled
+
+    function initMiniMap() {
+        const container = document.getElementById('camAnalyzerMiniMap');
+        if (!container || miniMap) return;
+        if (typeof L === 'undefined') {
+            console.warn('Leaflet not loaded');
+            return;
+        }
+
+        miniMap = L.map(container, { zoomControl: true, attributionControl: false })
+                   .setView([46.5, 2.3], 6);
+        // CartoDB dark tiles — no Referer-based blocking (unlike tile.openstreetmap.org)
+        // and matches the WAMA dark theme. Same provider as the profile editor map.
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
+            subdomains: 'abcd',
+            maxZoom: 19,
+        }).addTo(miniMap);
+
+        miniMap.on('click', (e) => handleMiniMapClick(e.latlng.lat, e.latlng.lng));
+    }
+
+    function renderMiniMap(gpsTrack, intersectionWindows) {
+        initMiniMap();
+        if (!miniMap) return;
+
+        cachedGpsTrack = Array.isArray(gpsTrack) ? gpsTrack.filter(p => p.lat && p.lon) : [];
+
+        // Clear previous layers
+        if (miniMapPolyline) { miniMap.removeLayer(miniMapPolyline); miniMapPolyline = null; }
+        miniMapIntersectionLayers.forEach(l => miniMap.removeLayer(l));
+        miniMapIntersectionLayers = [];
+        if (miniMapShuttleMarker) { miniMap.removeLayer(miniMapShuttleMarker); miniMapShuttleMarker = null; }
+        if (miniMapClickMarker) { miniMap.removeLayer(miniMapClickMarker); miniMapClickMarker = null; }
+        if (miniMapPassHighlight) { miniMap.removeLayer(miniMapPassHighlight); miniMapPassHighlight = null; }
+        miniMapHighlightedPassIdx = -1;
+
+        // Draw the shuttle trajectory polyline
+        if (cachedGpsTrack.length >= 2) {
+            const latlngs = cachedGpsTrack.map(p => [p.lat, p.lon]);
+            miniMapPolyline = L.polyline(latlngs, {
+                color: '#0dcaf0', weight: 3, opacity: 0.8,
+            }).addTo(miniMap);
+        }
+
+        // Draw intersection centers (deduplicated by name) with their radius circles
+        const seen = new Set();
+        (intersectionWindows || []).forEach(w => {
+            if (seen.has(w.name)) return;
+            seen.add(w.name);
+            if (w.lat == null || w.lon == null) return;
+
+            const circle = L.circle([w.lat, w.lon], {
+                radius: w.radius_m || 100,
+                color: '#ffc107', weight: 2, fillColor: '#ffc107', fillOpacity: 0.12,
+            }).addTo(miniMap);
+            const center = L.circleMarker([w.lat, w.lon], {
+                radius: 5, color: '#ffc107', weight: 2, fillColor: '#ffc107', fillOpacity: 1,
+            }).addTo(miniMap)
+              .bindTooltip(w.name, { permanent: false, direction: 'top' });
+            miniMapIntersectionLayers.push(circle, center);
+        });
+
+        // Initial shuttle marker at first GPS point (if any)
+        if (cachedGpsTrack.length > 0) {
+            miniMapShuttleMarker = L.circleMarker([cachedGpsTrack[0].lat, cachedGpsTrack[0].lon], {
+                radius: 7, color: '#fff', weight: 2, fillColor: '#dc3545', fillOpacity: 1,
+            }).addTo(miniMap);
+        }
+
+        // Fit map to data
+        if (miniMapPolyline) {
+            miniMap.fitBounds(miniMapPolyline.getBounds(), { padding: [12, 12] });
+        } else if (miniMapIntersectionLayers.length > 0) {
+            const grp = L.featureGroup(miniMapIntersectionLayers);
+            miniMap.fitBounds(grp.getBounds(), { padding: [12, 12] });
+        }
+
+        // Force redraw (Leaflet sometimes mis-sizes when its container was hidden)
+        setTimeout(() => miniMap && miniMap.invalidateSize(), 50);
+    }
+
+    // Find the GPS point whose timestamp is closest to a given time
+    function findGpsAtTime(t) {
+        if (!cachedGpsTrack.length) return null;
+        let lo = 0, hi = cachedGpsTrack.length - 1;
+        while (lo < hi - 1) {
+            const mid = (lo + hi) >> 1;
+            if (cachedGpsTrack[mid].ts <= t) lo = mid; else hi = mid;
+        }
+        return Math.abs(cachedGpsTrack[lo].ts - t) <= Math.abs(cachedGpsTrack[hi].ts - t)
+            ? cachedGpsTrack[lo] : cachedGpsTrack[hi];
+    }
+
+    function updateMiniMapShuttle(currentTime) {
+        if (!miniMap || !miniMapShuttleMarker || !cachedGpsTrack.length) return;
+        const p = findGpsAtTime(currentTime);
+        if (p) miniMapShuttleMarker.setLatLng([p.lat, p.lon]);
+        updateMiniMapPassHighlight(currentTime);
+    }
+
+    // Highlight the GPS segment corresponding to the pass that contains
+    // currentTime. The segment is rendered ON TOP of the base polyline in the
+    // pass's distinct colour, so the user can visually identify the active
+    // passage even when several passages overlap geographically.
+    //
+    // Only rebuilds the polyline when the active pass *changes* — without this
+    // throttling the rAF loop calls it 60×/sec which churns the DOM and steals
+    // budget from the per-camera drift correction (the front video can fall
+    // out of sync with rear/left/right).
+    function updateMiniMapPassHighlight(currentTime) {
+        if (!miniMap || !cachedGpsTrack.length) return;
+
+        const w = (intersectionWindows || []).find(
+            x => x.t_enter <= currentTime && currentTime <= x.t_exit
+        );
+        const newIdx = w ? (w._passIdx != null ? w._passIdx : -1) : -1;
+        if (newIdx === miniMapHighlightedPassIdx) return;
+        miniMapHighlightedPassIdx = newIdx;
+
+        if (miniMapPassHighlight) {
+            miniMap.removeLayer(miniMapPassHighlight);
+            miniMapPassHighlight = null;
+        }
+
+        if (!w) return;
+
+        const segment = cachedGpsTrack
+            .filter(p => p.ts >= w.t_enter && p.ts <= w.t_exit)
+            .map(p => [p.lat, p.lon]);
+
+        if (segment.length >= 2) {
+            miniMapPassHighlight = L.polyline(segment, {
+                color: w._color || '#ffc107',
+                weight: 5,
+                opacity: 0.9,
+            }).addTo(miniMap);
+            if (miniMapShuttleMarker) miniMapShuttleMarker.bringToFront();
+        }
+    }
+
+    // Click on map: snap to the spatially-closest GPS sample and seek there.
+    // We do NOT prefer the temporal-closest among multiple matches: when the
+    // shuttle drives the same road both ways, picking by time can land on the
+    // OTHER direction's parallel-offset trace (apparent 50-80m miss). Spatial
+    // closeness honours the click; the dropdown still lets the user pick a
+    // specific passage when they want it.
+    function handleMiniMapClick(lat, lng) {
+        if (!cachedGpsTrack.length) return;
+
+        const SNAP_THRESHOLD_M = 80;  // off-track clicks ignored
+        const dToM = (a, b) => {
+            const R = 6371000;
+            const phi1 = a.lat * Math.PI / 180, phi2 = b.lat * Math.PI / 180;
+            const dphi = (b.lat - a.lat) * Math.PI / 180;
+            const dlam = (b.lon - a.lon) * Math.PI / 180;
+            const x = Math.sin(dphi / 2) ** 2 +
+                      Math.cos(phi1) * Math.cos(phi2) * Math.sin(dlam / 2) ** 2;
+            return 2 * R * Math.asin(Math.sqrt(x));
+        };
+
+        const click = { lat, lon: lng };
+        let best = null, bestD = Infinity;
+        for (const p of cachedGpsTrack) {
+            const d = dToM(p, click);
+            if (d < bestD) { bestD = d; best = p; }
+        }
+        if (!best || bestD > SNAP_THRESHOLD_M) return;
+
+        // Visual feedback
+        if (miniMapClickMarker) miniMap.removeLayer(miniMapClickMarker);
+        miniMapClickMarker = L.circleMarker([best.lat, best.lon], {
+            radius: 9, color: '#0dcaf0', weight: 3, fillColor: 'transparent',
+        }).addTo(miniMap);
+
+        // Seek the players to the GPS timestamp; sync the seekbar manually
+        // (syncSeek already sets it but we also need updateMiniMapShuttle to
+        // run even when the proximity timeline isn't visible yet)
+        syncSeek(best.ts);
+        updateMiniMapShuttle(best.ts);
+        updatePassInfo(best.ts);
+    }
+
+    // Update the right-panel info box to show details of the current pass
+    function updatePassInfo(currentTime) {
+        const box = document.getElementById('camAnalyzerPassInfo');
+        if (!box || !intersectionWindows.length) {
+            if (box) box.style.display = 'none';
+            return;
+        }
+        // Find the pass whose [t_enter, t_exit] contains currentTime
+        const w = intersectionWindows.find(x => x.t_enter <= currentTime && currentTime <= x.t_exit);
+        if (!w) { box.style.display = 'none'; return; }
+
+        box.style.display = '';
+        // Border colour matches the pass colour for cross-reference with map +
+        // seek bar markers
+        if (w._color) box.style.borderLeft = `4px solid ${w._color}`;
+        document.getElementById('passInfoTitle').textContent =
+            `Passage #${(w._passIdx || 0) + 1} — ${w.name}`;
+        document.getElementById('passInfoTime').textContent =
+            `${formatTime(w.t_enter)} → ${formatTime(w.t_exit)} (closest @ ${formatTime(w.t_closest || (w.t_enter + w.t_exit) / 2)})`;
+        document.getElementById('passInfoDistance').textContent =
+            w.min_distance_m != null ? `Distance min : ${w.min_distance_m} m` : '';
+        document.getElementById('passInfoBearing').textContent =
+            w.bearing_deg != null ? `Cap entrée : ${Math.round(w.bearing_deg)}° ${bearingToCardinal(w.bearing_deg)}` : '';
+    }
+
+    // Toggle the sticky bottom bar based on whether any of its children are visible
+    function updateStickyBarVisibility() {
+        const sticky = document.getElementById('stickyBottomBar');
+        if (!sticky) return;
+        const childrenVisible = ['playbackControls', 'proximityTimeline', 'analysisProgress']
+            .map(id => document.getElementById(id))
+            .some(el => el && el.style.display !== 'none');
+        sticky.style.display = childrenVisible ? '' : 'none';
     }
 
     // =========================================================================
@@ -1129,8 +1530,20 @@ document.addEventListener('DOMContentLoaded', function () {
         return dirs[idx];
     }
 
+    // Distinct colour for each pass — golden-angle hue rotation gives perceptually
+    // separated colours regardless of N. Saturation/lightness tuned for the dark
+    // theme.
+    function passColor(idx, total) {
+        const hue = (idx * 137.508) % 360;  // golden angle
+        return `hsl(${hue.toFixed(0)}, 70%, 58%)`;
+    }
+
     function annotateWindowsWithDirection(windows) {
         // Sort by t_enter, then group by intersection name and label sens A / sens B / ...
+        // Also assign a global _passIdx by t_enter (chronological order across all
+        // intersections) for display in the right-panel info box, and a unique
+        // _color used by the seek-bar markers, the dropdown chips, and the map
+        // highlight overlay.
         const grouped = new Map();
         windows.forEach((w, i) => {
             const key = w.name || '?';
@@ -1145,6 +1558,15 @@ document.addEventListener('DOMContentLoaded', function () {
                 annotated[w._origIdx] = { ...w, _sens: labels[i] || String(i + 1) };
             });
         });
+        // Global chronological index + colour
+        const sortedByTime = annotated
+            .map((w, i) => ({ w, i }))
+            .sort((a, b) => a.w.t_enter - b.w.t_enter);
+        const total = sortedByTime.length;
+        sortedByTime.forEach(({ w, i }, idx) => {
+            annotated[i]._passIdx = idx;
+            annotated[i]._color = passColor(idx, total);
+        });
         return annotated;
     }
 
@@ -1158,8 +1580,10 @@ document.addEventListener('DOMContentLoaded', function () {
         if (seekOverlay) seekOverlay.innerHTML = '';
         if (tlOverlay) tlOverlay.innerHTML = '';
         if (jumpSelect) {
-            // Remove all options except the placeholder
-            while (jumpSelect.options.length > 1) jumpSelect.remove(1);
+            // Remove all children except the placeholder option
+            while (jumpSelect.lastChild && jumpSelect.lastChild !== jumpSelect.firstChild) {
+                jumpSelect.removeChild(jumpSelect.lastChild);
+            }
         }
 
         if (!intersectionWindows.length || maxDuration <= 0) {
@@ -1167,43 +1591,64 @@ document.addEventListener('DOMContentLoaded', function () {
             return;
         }
 
-        intersectionWindows.forEach((w, i) => {
+        // Render markers on both timelines, each pass coloured distinctly so
+        // it can be cross-referenced with the map polyline highlight and the
+        // dropdown chip.
+        intersectionWindows.forEach((w) => {
             const startPct = Math.max(0, Math.min(100, (w.t_enter / maxDuration) * 100));
             const widthPct = Math.max(0.3, Math.min(100 - startPct, ((w.t_exit - w.t_enter) / maxDuration) * 100));
+            const color = w._color || '#ffc107';
 
-            // Marker on the syncSeekBar overlay
             if (seekOverlay) {
                 const m = document.createElement('div');
                 m.style.cssText = `position:absolute; top:0; bottom:0; left:${startPct}%; width:${widthPct}%;
-                                   background:#ffc107; border-radius:2px;`;
-                m.title = `${w.name} — sens ${w._sens} — ${formatTime(w.t_enter)} → ${formatTime(w.t_exit)}`;
+                                   background:${color}; border-radius:2px;`;
+                m.title = `#${(w._passIdx || 0) + 1} ${w.name} — sens ${w._sens} — ${formatTime(w.t_enter)} → ${formatTime(w.t_exit)}`;
                 seekOverlay.appendChild(m);
             }
 
-            // Marker on the proximity timeline (semi-transparent overlay)
             if (tlOverlay) {
                 const m = document.createElement('div');
                 m.style.cssText = `position:absolute; top:0; bottom:0; left:${startPct}%; width:${widthPct}%;
-                                   border:2px solid #ffc107; border-radius:3px; box-sizing:border-box;
-                                   background:rgba(255,193,7,0.12);`;
-                m.title = `${w.name} — sens ${w._sens}`;
+                                   border:2px solid ${color}; border-radius:3px; box-sizing:border-box;
+                                   background:${color}33;`;
+                m.title = `#${(w._passIdx || 0) + 1} ${w.name} — sens ${w._sens}`;
                 tlOverlay.appendChild(m);
-            }
-
-            // Dropdown entry
-            if (jumpSelect) {
-                const opt = document.createElement('option');
-                opt.value = String(w.t_enter);
-                const cardinal = bearingToCardinal(w.bearing_deg);
-                const bearingTxt = w.bearing_deg !== null && w.bearing_deg !== undefined
-                    ? ` (${Math.round(w.bearing_deg)}° ${cardinal})`
-                    : '';
-                opt.textContent = `${w.name} — sens ${w._sens}${bearingTxt} @ ${formatTime(w.t_enter)}`;
-                jumpSelect.appendChild(opt);
             }
         });
 
-        if (jumpSelect) jumpSelect.style.display = '';
+        // Dropdown: group by intersection name with <optgroup> for navigability
+        if (jumpSelect) {
+            const byName = new Map();
+            intersectionWindows.forEach((w) => {
+                if (!byName.has(w.name)) byName.set(w.name, []);
+                byName.get(w.name).push(w);
+            });
+
+            byName.forEach((group, name) => {
+                group.sort((a, b) => a.t_enter - b.t_enter);
+                const og = document.createElement('optgroup');
+                og.label = `${name} — ${group.length} passage${group.length > 1 ? 's' : ''}`;
+                group.forEach((w, i) => {
+                    const opt = document.createElement('option');
+                    // Use t_closest for the seek target — feels more natural
+                    // than t_enter (jumps right to the moment of pass)
+                    opt.value = String(w.t_closest != null ? w.t_closest : w.t_enter);
+                    const cardinal = bearingToCardinal(w.bearing_deg);
+                    const bearingTxt = w.bearing_deg !== null && w.bearing_deg !== undefined
+                        ? `${Math.round(w.bearing_deg)}° ${cardinal}`
+                        : `sens ${w._sens}`;
+                    // Coloured Unicode square as a chip prefix — matches the
+                    // pass colour on the seek bar and the map highlight.
+                    opt.textContent = `■ #${(w._passIdx || 0) + 1} ${bearingTxt} @ ${formatTime(w.t_enter)}`;
+                    if (w._color) opt.style.color = w._color;
+                    og.appendChild(opt);
+                });
+                jumpSelect.appendChild(og);
+            });
+
+            jumpSelect.style.display = '';
+        }
     }
 
     // =========================================================================
@@ -1718,6 +2163,13 @@ document.addEventListener('DOMContentLoaded', function () {
         const enabled = document.getElementById('sam3MarkingsEnabled').checked;
         const cfg = document.getElementById('sam3Config');
         if (cfg) cfg.style.display = enabled ? '' : 'none';
+        // When master is off, mirror the fallback checkbox so the user sees a
+        // consistent state — otherwise it's hidden but still ticked, which would
+        // silently re-enable SAM3 on the next save.
+        if (!enabled) {
+            const fallback = document.getElementById('sam3AsRoadFallback');
+            if (fallback) fallback.checked = false;
+        }
     }
 
     document.getElementById('sam3MarkingsEnabled').addEventListener('change', toggleSam3Config);
@@ -1995,6 +2447,9 @@ document.addEventListener('DOMContentLoaded', function () {
                     sam3_markings_prompts: sam3Prompts,
                     sam3_as_road_fallback: document.getElementById('sam3AsRoadFallback').checked,
                     restrict_to_intersection_windows: document.getElementById('restrictToIntersectionWindows').checked,
+                    analyzed_positions: ['front', 'rear', 'left', 'right'].filter(p =>
+                        document.getElementById('analyze-' + p)?.checked
+                    ),
                     model_path: modelPath, task_type: taskType,
                     target_classes: targetClasses, confidence, iou_threshold: iou, tracker,
                 }),
@@ -2017,6 +2472,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
                 profileSelect.value = data.profile.id;
                 setReportTypeBadge(data.profile.report_type);
+                // Refresh the right-panel summary + camera badges with the
+                // freshly-saved profile so they don't stay stale.
+                loadActiveProfile(data.profile.id);
             } else {
                 alert('Erreur: ' + (data.error || 'Inconnue'));
             }
@@ -2056,6 +2514,7 @@ document.addEventListener('DOMContentLoaded', function () {
         } else {
             stopStatusPolling();
             currentSessionId = null;
+            saveActiveSession(null);
             clearCameraGrid();
             deleteSessionBtn.disabled = true;
             startAnalysisBtn.disabled = true;
@@ -2072,7 +2531,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     cancelAnalysisBtn.addEventListener('click', cancelAnalysis);
 
-    editProfileBtn.addEventListener('click', async () => {
+    async function openProfileEditor() {
         populateModelDropdown();
         populateClassCheckboxes();
 
@@ -2083,6 +2542,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 const resp = await fetch(config.urls.listProfiles);
                 const data = await resp.json();
                 const profile = (data.profiles || []).find(p => String(p.id) === String(selectedId));
+                if (!profile) {
+                    console.warn('[cam_analyzer] Profile not found in listProfiles:', selectedId);
+                }
                 if (profile) {
                     // Report type radio
                     const rtVal = profile.report_type || 'proximity_overtaking';
@@ -2091,7 +2553,15 @@ document.addEventListener('DOMContentLoaded', function () {
                     toggleIntersectionSection(rtVal);
 
                     document.getElementById('profileName').value = profile.name || '';
-                    document.getElementById('profileModel').value = profile.model_path || '';
+                    // Set model dropdown — warn if the saved path doesn't match
+                    // any current option (e.g. model_registry has changed paths)
+                    const modelSel = document.getElementById('profileModel');
+                    modelSel.value = profile.model_path || '';
+                    if (profile.model_path && modelSel.value !== profile.model_path) {
+                        console.warn('[cam_analyzer] saved model_path not in dropdown:',
+                            profile.model_path, '— available:',
+                            Array.from(modelSel.options).map(o => o.value));
+                    }
                     document.getElementById('profileTaskType').value = profile.task_type || 'detect';
                     document.getElementById('profileConfidence').value = profile.confidence;
                     document.getElementById('confidenceValue').textContent = profile.confidence;
@@ -2101,10 +2571,14 @@ document.addEventListener('DOMContentLoaded', function () {
 
                     // Uncheck all, then check target classes
                     document.querySelectorAll('#classCheckboxes input').forEach(cb => { cb.checked = false; });
+                    const targetMissing = [];
                     (profile.target_classes || []).forEach(cls => {
                         const cb = document.getElementById(`class_${cls}`);
-                        if (cb) cb.checked = true;
+                        if (cb) cb.checked = true; else targetMissing.push(cls);
                     });
+                    if (targetMissing.length) {
+                        console.warn('[cam_analyzer] target classes without matching checkbox:', targetMissing);
+                    }
                     updateToggleAllBtn();
 
                     // Load intersections + road model
@@ -2123,6 +2597,14 @@ document.addEventListener('DOMContentLoaded', function () {
                     // Restrict analysis to intersection windows (default true)
                     document.getElementById('restrictToIntersectionWindows').checked =
                         profile.restrict_to_intersection_windows !== false;
+
+                    // Analysed positions (default front + rear)
+                    const analyzed = Array.isArray(profile.analyzed_positions) && profile.analyzed_positions.length
+                        ? profile.analyzed_positions : ['front', 'rear'];
+                    ['front', 'rear', 'left', 'right'].forEach(p => {
+                        const cb = document.getElementById('analyze-' + p);
+                        if (cb) cb.checked = analyzed.includes(p);
+                    });
                 }
             } catch (e) {
                 console.error('Error loading profile:', e);
@@ -2154,10 +2636,18 @@ document.addEventListener('DOMContentLoaded', function () {
 
             // Restrict to intersection windows — default ON
             document.getElementById('restrictToIntersectionWindows').checked = true;
+
+            // Analysed positions — default front + rear
+            ['front', 'rear', 'left', 'right'].forEach(p => {
+                const cb = document.getElementById('analyze-' + p);
+                if (cb) cb.checked = (p === 'front' || p === 'rear');
+            });
         }
 
         profileModal.show();
-    });
+    }
+
+    editProfileBtn.addEventListener('click', openProfileEditor);
 
     document.getElementById('saveProfileBtn').addEventListener('click', saveProfile);
 
@@ -2171,6 +2661,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const selectedOpt = profileSelect.options[profileSelect.selectedIndex];
         setReportTypeBadge(selectedOpt ? selectedOpt.dataset.reportType : null);
         updateRtmapsPanel();
+        loadActiveProfile(profileSelect.value || null);
 
         if (!currentSessionId) return;
         try {
@@ -2234,5 +2725,22 @@ document.addEventListener('DOMContentLoaded', function () {
     initDropZones();
     setupTimeSync();
     initExportButtons();
-    loadSessions();
+    setupRightPanelExports();
+
+    // Restore the previously active session from localStorage (per user) so a
+    // page refresh (F5) keeps the user where they were.
+    (async () => {
+        await loadSessions();
+        const storedId = loadActiveSessionId();
+        if (storedId) {
+            // Only restore if the session still exists in the dropdown — handles
+            // sessions deleted from another tab.
+            const found = Array.from(sessionSelect.options).some(o => o.value === storedId);
+            if (found) {
+                loadSession(storedId);
+            } else {
+                saveActiveSession(null);
+            }
+        }
+    })();
 });

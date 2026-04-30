@@ -19,6 +19,11 @@ def get_unique_filename(directory: str, filename: str) -> str:
     return f"{name}_{uuid.uuid4().hex[:8]}{ext}"
 
 
+def _default_analyzed_positions():
+    """Default cameras analysed by YOLO when a profile doesn't specify."""
+    return ['front', 'rear']
+
+
 def cam_upload_path(instance, filename):
     """Upload path: cam_analyzer/<user_id>/input/<filename>"""
     user_id = instance.session.user.id if instance.session and instance.session.user else 0
@@ -85,6 +90,11 @@ class AnalysisProfile(models.Model):
     restrict_to_intersection_windows = models.BooleanField(
         default=True,
         help_text='Skip YOLO inference outside intersection windows (intersection_insertion only)',
+    )
+    analyzed_positions = models.JSONField(
+        default=_default_analyzed_positions,
+        blank=True,
+        help_text='Camera positions to run YOLO on (default: front+rear). Others are extracted as MP4 for visualisation only.',
     )
     created_at = models.DateTimeField(auto_now_add=True)
 
