@@ -612,6 +612,153 @@ def cancel_analysis(request, session_id):
 
 @login_required
 @require_http_methods(["GET"])
+def list_passes(request, session_id):
+    """
+    Pipeline status: list of every AnalysisPass for this session, with
+    stale/missing detection computed on the fly so the UI badge is fresh.
+    """
+    session = get_object_or_404(AnalysisSession, id=session_id, user=request.user)
+    from .utils.pass_tracking import recompute_stale, get_passes_status
+    try:
+        recompute_stale(session)
+    except Exception as exc:
+        logger.warning(f"recompute_stale failed: {exc}")
+    return JsonResponse({'passes': get_passes_status(session)})
+
+
+@login_required
+@require_http_methods(["POST"])
+def run_passes(request, session_id):
+    """
+    Orchestrator: dispatch the right Celery tasks for the requested
+    pass types. Body: {"types": [...], "force": bool}. When ``types`` is
+    empty or omitted, runs every missing-or-stale pass.
+    """
+    session = get_object_or_404(AnalysisSession, id=session_id, user=request.user)
+    if not session.profile:
+        return JsonResponse({'success': False, 'error': 'Aucun profil assigné'}, status=400)
+
+    try:
+        body = json.loads(request.body) if request.content_type == 'application/json' else {}
+    except Exception:
+        body = {}
+    requested = list(body.get('types') or [])
+    force = bool(body.get('force', False))
+
+    from .utils.pass_tracking import recompute_stale, get_passes_status
+    recompute_stale(session)
+    statuses = get_passes_status(session)
+
+    needs_run = set()
+    if force and requested:
+        needs_run.update(requested)
+    elif force:
+        needs_run.update(s['pass_type'] for s in statuses)
+    elif requested:
+        needs_run.update(requested)
+    else:
+        # default: all missing or stale or failed
+        for s in statuses:
+            if s['status'] in ('never', 'stale', 'failed'):
+                needs_run.add(s['pass_type'])
+
+    # Map pass_type → which monolithic task launches it
+    triggers_full_yolo = needs_run & {
+        'yolo_detect', 'yolopv2_lanes', 'lane_events', 'temporal_segments'
+    }
+    triggers_sam3_only = (needs_run == {'sam3_markings'})
+    triggers_windows_only = needs_run == {'intersection_windows'}
+
+    launched = []
+    if triggers_windows_only:
+        from .utils.window_recompute import recompute_intersection_windows
+        recompute_intersection_windows(session, session.profile)
+        launched.append('intersection_windows')
+    elif triggers_full_yolo:
+        from .tasks import process_session_task
+        cache.delete(f"stop_cam_analyzer_{request.user.id}")
+        # Reset session to pending so process_session_task doesn't bail on
+        # the COMPLETED idempotency guard (cf. tasks.py:462).
+        session.status = AnalysisSession.Status.PENDING
+        session.progress = 0
+        session.save(update_fields=['status', 'progress'])
+        task = process_session_task.delay(str(session.id))
+        cache.set(f"cam_analyzer_task_{session.id}", task.id, timeout=86400)
+        launched.append('process_session_task')
+    elif triggers_sam3_only:
+        from .tasks import analyze_sam3_only_task
+        cache.delete(f"stop_cam_analyzer_{request.user.id}")
+        task = analyze_sam3_only_task.delay(str(session.id))
+        cache.set(f"cam_analyzer_task_{session.id}", task.id, timeout=86400)
+        launched.append('analyze_sam3_only_task')
+
+    return JsonResponse({
+        'success': True,
+        'launched': launched,
+        'requested': sorted(needs_run),
+        'force': force,
+    })
+
+
+@login_required
+@require_http_methods(["POST"])
+def recompute_windows(request, session_id):
+    """
+    Pass A — recompute session.intersection_windows from the current profile
+    + GPS track. No GPU, runs synchronously (~ms). Triggered manually from
+    the right panel; also called automatically by save_profile.
+    """
+    session = get_object_or_404(AnalysisSession, id=session_id, user=request.user)
+    if not session.profile:
+        return JsonResponse({'success': False, 'error': 'Aucun profil assigné'}, status=400)
+
+    from .utils.window_recompute import recompute_intersection_windows
+    try:
+        windows = recompute_intersection_windows(session, session.profile)
+    except Exception as exc:
+        logger.error(f"recompute_windows failed for session {session_id}: {exc}", exc_info=True)
+        return JsonResponse({'success': False, 'error': str(exc)}, status=500)
+
+    return JsonResponse({
+        'success': True,
+        'count': len(windows),
+        'intersection_windows': windows,
+    })
+
+
+@login_required
+@require_http_methods(["POST"])
+def start_sam3_only(request, session_id):
+    """
+    Pass C — re-run SAM3 markings on the front camera, in-window only,
+    without re-running YOLO. Reuses existing extracted MP4 + current
+    session.intersection_windows. Patches DetectionFrame.detections in
+    place: drops old SAM3/road_mask entries, appends fresh ones.
+    """
+    from .tasks import analyze_sam3_only_task
+
+    session = get_object_or_404(AnalysisSession, id=session_id, user=request.user)
+    user_id = request.user.id
+
+    if not session.profile:
+        return JsonResponse({'success': False, 'error': 'Aucun profil assigné'}, status=400)
+    if not session.profile.sam3_markings_enabled:
+        return JsonResponse({'success': False, 'error': 'SAM3 désactivé sur ce profil'}, status=400)
+    if session.status == AnalysisSession.Status.PROCESSING:
+        return JsonResponse({'success': False, 'error': 'Une analyse est déjà en cours'}, status=400)
+    if not session.cameras.filter(position='front').exists():
+        return JsonResponse({'success': False, 'error': 'Caméra avant introuvable'}, status=400)
+
+    cache.delete(f"stop_cam_analyzer_{user_id}")
+    task = analyze_sam3_only_task.delay(str(session.id))
+    cache.set(f"cam_analyzer_task_{session_id}", task.id, timeout=86400)
+    _console(user_id, f"SAM3 seul — lancement pour la session : {session.name}")
+
+    return JsonResponse({'success': True, 'task_id': task.id})
+
+
+@login_required
+@require_http_methods(["GET"])
 def get_session_status(request, session_id):
     """Get session status and progress."""
     from django.core.cache import cache
@@ -800,8 +947,29 @@ def save_profile(request):
                 tracker=tracker,
             )
 
+        # Auto-recompute intersection_windows for sessions using this profile
+        # — light-weight, no GPU. Keeps mini-map circles + YOLO/SAM3 gating
+        # aligned with the just-edited radii / centres.
+        recomputed_session_ids = []
+        try:
+            from .utils.window_recompute import recompute_intersection_windows
+            from .utils.pass_tracking import recompute_stale
+            for s in profile.sessions.filter(user=request.user):
+                if s.gps_track:
+                    recompute_intersection_windows(s, profile)
+                    recomputed_session_ids.append(str(s.id))
+                # Watched parameters changed → re-evaluate stale flags so the
+                # UI pipeline panel reflects the impact of this save.
+                try:
+                    recompute_stale(s)
+                except Exception:
+                    pass
+        except Exception as exc:
+            logger.warning(f"recompute_intersection_windows failed for profile {profile.id}: {exc}")
+
         return JsonResponse({
             'success': True,
+            'recomputed_sessions': recomputed_session_ids,
             'profile': {
                 'id': profile.id,
                 'name': profile.name,
@@ -825,6 +993,30 @@ def save_profile(request):
     except Exception as e:
         logger.error(f"Error saving profile: {e}", exc_info=True)
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@login_required
+@require_http_methods(["POST"])
+def download_road_model(request):
+    """
+    Auto-download keremberke/yolov8m-bdd100k-seg/best.pt into the segment dir
+    so the model dropdown picks it up. Returns the relative path the user
+    should set on their profile.
+    """
+    from .utils.road_model_downloader import ensure_bdd100k_seg, ROAD_MODELS_DIR, BDD100K_SEG_LOCAL_NAME
+
+    force = bool(request.GET.get('force') or request.POST.get('force'))
+    ok, abs_path, msg = ensure_bdd100k_seg(force=force)
+    if not ok:
+        return JsonResponse({'success': False, 'error': msg}, status=500)
+
+    rel = os.path.relpath(abs_path, settings.BASE_DIR).replace('\\', '/')
+    return JsonResponse({
+        'success': True,
+        'message': msg,
+        'path': rel,
+        'name': BDD100K_SEG_LOCAL_NAME,
+    })
 
 
 @login_required
@@ -989,23 +1181,63 @@ def console_content(request):
 @login_required
 @require_http_methods(["GET"])
 def export_detections_csv(request, session_id):
-    """Export all detections as CSV."""
+    """
+    Export all detections as CSV — extended with Phase 2 (lane attribution)
+    and Phase 4 (distance/speed/TTC) fields. Filters at read time using the
+    profile's target_classes + confidence so the CSV reflects the user's
+    current settings without requiring re-inference.
+    """
     session = get_object_or_404(AnalysisSession, id=session_id, user=request.user)
+
+    profile = session.profile
+    target_set = None
+    min_conf = 0.0
+    if profile:
+        # COCO names → user's target classes (typically int ids on the profile)
+        if profile.target_classes:
+            tc = profile.target_classes
+            if tc and isinstance(tc[0], int):
+                target_set = set(tc)
+            else:
+                target_set = {str(c).lower() for c in tc}
+        min_conf = float(profile.confidence or 0)
 
     buffer = io.StringIO()
     writer = csv.writer(buffer)
-    writer.writerow(['camera', 'frame', 'timestamp', 'class_name', 'class_id',
-                     'confidence', 'track_id', 'bbox_x1', 'bbox_y1', 'bbox_x2', 'bbox_y2', 'proximity'])
+    writer.writerow([
+        'camera', 'frame', 'timestamp', 'type',
+        'class_name', 'class_id', 'confidence', 'track_id',
+        'bbox_x1', 'bbox_y1', 'bbox_x2', 'bbox_y2',
+        'proximity', 'lane_id', 'in_shuttle_lane',
+        'distance_m', 'relative_speed_kmh', 'ttc_s',
+    ])
 
     for camera in session.cameras.all():
         for df in DetectionFrame.objects.filter(camera=camera).order_by('frame_number'):
-            for det in df.detections:
-                bbox = det.get('bbox', [0, 0, 0, 0])
+            for det in df.detections or []:
+                # Filtrage cohérent storage 0.10 → user threshold
+                conf = det.get('confidence')
+                if conf is not None and conf < min_conf:
+                    continue
+                if target_set is not None and det.get('type') not in ('road_mask', 'sam3_marking'):
+                    cid = det.get('class_id')
+                    cname = (det.get('class_name') or '').lower()
+                    if not (cid in target_set or cname in target_set):
+                        continue
+                bbox = det.get('bbox', ['', '', '', ''])
+                if len(bbox) < 4:
+                    bbox = ['', '', '', '']
                 writer.writerow([
                     camera.position, df.frame_number, df.timestamp,
+                    det.get('type', 'object'),
                     det.get('class_name', ''), det.get('class_id', ''),
                     det.get('confidence', ''), det.get('track_id', ''),
-                    *bbox, det.get('proximity', '')
+                    *bbox,
+                    det.get('proximity', ''),
+                    det.get('lane_id', ''), det.get('in_shuttle_lane', ''),
+                    det.get('distance_m', ''),
+                    det.get('relative_speed_kmh', ''),
+                    det.get('ttc_s', ''),
                 ])
 
     return FileResponse(
@@ -1058,6 +1290,41 @@ def export_session_json(request, session_id):
             'metadata': seg.metadata,
         })
 
+    # Phase 3 — lane events (already persisted by the YOLO pass)
+    from .models import LaneEvent, ConflictEvent
+    lane_events_data = [
+        {
+            'camera': le.camera.position,
+            'track_id': le.track_id,
+            'class_name': le.class_name,
+            'lane_id': le.lane_id,
+            'in_shuttle_lane': le.in_shuttle_lane,
+            't_enter': le.t_enter,
+            't_exit': le.t_exit,
+            'intersection_window_idx': le.intersection_window_idx,
+        }
+        for le in LaneEvent.objects.filter(camera__session=session).select_related('camera')
+    ]
+
+    # Phase 5 — conflict events
+    conflicts_data = [
+        {
+            'camera': c.camera.position,
+            'track_id': c.track_id,
+            'class_name': c.class_name,
+            'intersection_window_idx': c.intersection_window_idx,
+            'conflict_type': c.conflict_type,
+            'navette_passed_first': c.navette_passed_first,
+            'delta_t_s': c.delta_t_s,
+            'min_distance_m': c.min_distance_m,
+            'min_ttc_s': c.min_ttc_s,
+            't_start': c.t_start,
+            't_end': c.t_end,
+            'severity': c.severity,
+        }
+        for c in ConflictEvent.objects.filter(session=session).select_related('camera')
+    ]
+
     data = {
         'session': {
             'id': str(session.id),
@@ -1069,7 +1336,10 @@ def export_session_json(request, session_id):
         'profile': profile_data,
         'cameras': cameras_data,
         'results_summary': session.results_summary,
+        'intersection_windows': session.intersection_windows or [],
         'segments': segments_data,
+        'lane_events': lane_events_data,
+        'conflict_events': conflicts_data,
     }
 
     content = json.dumps(data, indent=2, ensure_ascii=False).encode('utf-8')
@@ -1078,6 +1348,56 @@ def export_session_json(request, session_id):
         as_attachment=True,
         filename=f"{session.name or 'session'}_report.json",
         content_type='application/json; charset=utf-8',
+    )
+
+
+@login_required
+@require_http_methods(["GET"])
+def export_conflicts_csv(request, session_id):
+    """
+    Phase 6 — export ConflictEvent rows as CSV. One row per (track_id ×
+    intersection_window) conflict, with severity, delta_t and min values.
+    Sortable by severity then t_start so the user reads critical events first.
+    """
+    session = get_object_or_404(AnalysisSession, id=session_id, user=request.user)
+
+    from .models import ConflictEvent
+    severity_order = {'critical': 0, 'warn': 1, 'info': 2}
+
+    rows = list(
+        ConflictEvent.objects.filter(session=session).select_related('camera')
+    )
+    rows.sort(key=lambda r: (severity_order.get(r.severity, 3), r.t_start))
+
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow([
+        'severity', 'camera', 'track_id', 'class_name',
+        'intersection_window_idx', 'intersection_name',
+        'conflict_type', 'navette_passed_first', 'delta_t_s',
+        'min_distance_m', 'min_ttc_s', 't_start', 't_end',
+    ])
+    windows = session.intersection_windows or []
+    for c in rows:
+        wname = ''
+        if 0 <= c.intersection_window_idx < len(windows):
+            wname = windows[c.intersection_window_idx].get('name', '')
+        writer.writerow([
+            c.severity, c.camera.position, c.track_id, c.class_name,
+            c.intersection_window_idx, wname,
+            c.conflict_type,
+            '' if c.navette_passed_first is None else int(c.navette_passed_first),
+            c.delta_t_s if c.delta_t_s is not None else '',
+            c.min_distance_m if c.min_distance_m is not None else '',
+            c.min_ttc_s if c.min_ttc_s is not None else '',
+            c.t_start, c.t_end,
+        ])
+
+    return FileResponse(
+        io.BytesIO(buffer.getvalue().encode('utf-8')),
+        as_attachment=True,
+        filename=f"{session.name or 'session'}_conflicts.csv",
+        content_type='text/csv; charset=utf-8',
     )
 
 

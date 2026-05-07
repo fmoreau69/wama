@@ -499,7 +499,7 @@ Stack : `mcp` Python SDK (officiel Anthropic) + `uvicorn` SSE server (port dédi
 
 ## 9. cam_analyzer (wama_lab)
 
-### Détection insertions aux intersections ✅
+### 9.1 Détection insertions aux intersections ✅
 | Composant | Statut | Fichier |
 |-----------|--------|---------|
 | `rtmaps_parser.py` | ✅ | `wama_lab/cam_analyzer/utils/` |
@@ -510,6 +510,73 @@ Stack : `mcp` Python SDK (officiel Anthropic) + `uvicorn` SSE server (port dédi
 | `_detect_intersection_insertion()` | ✅ | `cam_analyzer/tasks.py` |
 | Vue `upload_rtmaps` + `rtmaps_status` | ✅ | `cam_analyzer/views.py` |
 | UI : section RTMaps + intersections dans profil modal | ✅ | `cam_analyzer/index.html` + JS |
+
+### 9.2 Pipeline conflit / voie navette / vitesse-distance
+
+**Décision archi (2026-05-07)** : YOLOPv2 pour drivable+lanes denses, YOLO+BoTSORT pour
+détection+tracking, SAM3 pour marquages sparses dans les fenêtres d'intersection,
+GPS+géométrie pour les estimations. SysCV/bdd100k-models et JiayuanWang-JW
+**non retenus** (coût d'intégration MMCV vs gain marginal — voir analyse en
+historique). Détection objets reste sur YOLOv11 (COCO/BDD), YOLOPv2 ne sert
+que pour drivable+lanes.
+
+| Phase | Description | Statut |
+|-------|-------------|--------|
+| **1** | YOLOPv2 backend (`yolopv2_segmenter.py`), dispatcher dans `tasks.py`, validation thresholds | ✅ (2026-05-07) |
+| **2** | Lane attribution : partition drivable→voies via lane lines, voie navette = bottom-center, attribution `lane_id` par détection (foot point) | ✅ (2026-05-07) |
+| **3** | `LaneEvent` model (track_id, intersection_window_idx, t_enter, t_exit, lane_id) + computer post-loop + migration | ✅ (2026-05-07) |
+| **4** | Distance/vitesse/TTC : pinhole + références normalisées (hauteur véhicule par classe, hauteur piéton 1.7m, FoV par caméra) ; persistés sur chaque détection (`distance_m`, `relative_speed_kmh`, `ttc_s`). Homographie sol auto-calibrée à reporter (Phase 4.bis si Phase 4 trop bruitée) | ✅ (2026-05-07) |
+| **5** | `ConflictEvent` model (track_id, intersection_window, conflict_type, navette_passed_first, delta_t, min_distance, min_ttc, severity) + computer `_compute_conflict_events` qui croise LaneEvent (in_shuttle_lane=True) × intersection_window × distance/TTC | ✅ (2026-05-07) |
+| **6** | UI : marqueur 🚌 sur détections in_shuttle_lane + bbox épaissie ; affichage distance/vitesse/TTC dans le label ; export CSV étendu (`type`, `lane_id`, `in_shuttle_lane`, `distance_m`, `relative_speed_kmh`, `ttc_s`) ; export JSON `lane_events`+`conflict_events`+`intersection_windows` ; nouvel export `Conflits (CSV)` trié par sévérité | ✅ (2026-05-07) |
+| **7** | Trottoirs (optionnel) : SAM3 prompt "sidewalk" en parallèle des marquages ; si insuffisant → mmseg + bdd100k-sem-seg en backend isolé | 💡 |
+
+### 9.2.bis Pass tracking — infrastructure incrémentale (à faire avant Phase 4)
+
+Décision (2026-05-07) : tracer chaque traitement comme un `AnalysisPass`
+distinct pour permettre l'analyse incrémentale, l'invalidation en cascade
+(STALE) et un panneau pipeline UI clair.
+
+- **Storage YOLO toutes classes** : inférence à `confidence=0.10` au lieu du
+  user setting, filtrage côté lecture par `target_classes` + `confidence`.
+  Ajouter une classe = 0 re-inférence ; descendre conf < 0.10 = re-run.
+- **Modèle `AnalysisPass`** : `(session, pass_type, status, parameters,
+  output_summary, started_at, completed_at, duration_s, error_message)`.
+  Granularité : 1 row par session × pass_type. Détails caméras/classes/
+  paramètres dans `output_summary` JSON, exposés via tooltip + section
+  repliable.
+- **Détection STALE** : à chaque `save_profile` + `load_session`. Compare
+  snapshot vs paramètres-watch listés dans 9.2 (model_path, road_model_path,
+  prompts SAM3, low-conf 0.10). Cascade : si amont STALE, aval STALE.
+- **API** : `GET /api/sessions/<id>/passes/`, `POST /api/sessions/<id>/passes/run/`
+  `{types:[…], force:bool}` — orchestrateur Celery respectant les dépendances.
+- **UI** : panneau "Pipeline" dans le volet droit, états ✅ ⚠ ❌ ⏵ 🛑, deux
+  CTA principaux ("Compléter manquant + stale" / "Tout relancer"), section
+  repliable avec un bouton ▶ par passe pour debug.
+
+### 9.4 Production — Ingestion automatisée 💡
+
+- Watch d'un dossier source contenant les données projet (~600 h × 1400
+  parcours navette × 1 site = ~1 dataset complet par projet)
+- Profil d'analyse appliqué automatiquement par session, sans intervention
+  manuelle (config.profil par défaut + auto-création session)
+- Throughput cible : à dimensionner ; queue Celery dédiée probablement
+- Détails à préciser quand Phase 1-7 du pipeline sera stable
+
+### 9.5 Production — Réinjection résultats dans BDD externe 💡
+
+- Pousser les résultats d'analyse vers une autre BDD sur un autre serveur
+  (probablement le data warehouse projet)
+- Format de sortie à définir (JSON dump per-session ? Postgres logical
+  replication ? Stream Kafka ? — décision dépendante du serveur cible)
+- Schéma stable à définir : `LaneEvent`, `ConflictEvent`,
+  `IntersectionWindow`, métadonnées session, GPS aggrégé
+- Détails à préciser quand l'étape précédente (9.4) sera amorcée
+
+### 9.3 Backlog & dette
+- Sur-fragmentation segments temporels (`Arrêt intersection` × 200+ par session) — observée 2026-05-07. À résoudre par Phase 5 (consolidation par track_id + voie navette + intersection_window) plutôt que merge purement temporel.
+- Statut session pendant `analyze_sam3_only_task` : géré (PROCESSING → COMPLETED) ✅
+- `RoadSegmenter` ultralytics conservé pour fallback (modèles seg classiques) ✅
+- Dispatcher tasks.py : `'yolopv2' in basename → YOLOPv2RoadSegmenter`, sinon `RoadSegmenter` ✅
 
 ---
 

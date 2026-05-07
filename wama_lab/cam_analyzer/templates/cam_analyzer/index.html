@@ -31,8 +31,11 @@
             <button class="btn btn-outline-info btn-sm" id="editProfileBtn" title="Configurer le profil">
                 <i class="fas fa-cog"></i>
             </button>
-            <button class="btn btn-success btn-sm" id="startAnalysisBtn" disabled>
+            <button class="btn btn-success btn-sm" id="startAnalysisBtn" disabled title="Détection véhicules (YOLO) + SAM3 si activé">
                 <i class="fas fa-play me-1"></i> Analyser
+            </button>
+            <button class="btn btn-info btn-sm" id="startSam3OnlyBtn" disabled style="display:none" title="Re-lancer SAM3 seul (sans refaire YOLO)">
+                <i class="fas fa-route me-1"></i> SAM3 seul
             </button>
             <button class="btn btn-danger btn-sm" id="cancelAnalysisBtn" style="display:none">
                 <i class="fas fa-stop me-1"></i> Annuler
@@ -223,10 +226,19 @@
         <!-- Synchronized Playback Controls -->
         <div class="playback-controls" id="playbackControls" style="display:none">
             <div class="d-flex align-items-center gap-3">
-                <button class="btn btn-sm btn-outline-light" id="syncPlayPauseBtn">
+                <button class="btn btn-sm btn-outline-light" id="syncPrevFrameBtn" title="Image précédente (←)">
+                    <i class="fas fa-step-backward"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-light" id="syncReverseBtn" title="Lecture arrière (R)">
+                    <i class="fas fa-backward"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-light" id="syncPlayPauseBtn" title="Lecture/Pause (Espace)">
                     <i class="fas fa-play" id="playPauseIcon"></i>
                 </button>
-                <button class="btn btn-sm btn-outline-light" id="syncStopBtn">
+                <button class="btn btn-sm btn-outline-light" id="syncNextFrameBtn" title="Image suivante (→)">
+                    <i class="fas fa-step-forward"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-light" id="syncStopBtn" title="Stop">
                     <i class="fas fa-stop"></i>
                 </button>
                 <div class="flex-grow-1 position-relative">
@@ -363,10 +375,15 @@ window.CAM_ANALYZER = {
         startAnalysis: "/lab/cam-analyzer/api/sessions/",
         sessionStatus: "/lab/cam-analyzer/api/sessions/",
         cancelAnalysis: "/lab/cam-analyzer/api/sessions/",
+        recomputeWindows: "/lab/cam-analyzer/api/sessions/",
+        startSam3Only: "/lab/cam-analyzer/api/sessions/",
+        listPasses: "/lab/cam-analyzer/api/sessions/",
+        runPasses: "/lab/cam-analyzer/api/sessions/",
         getDetections: "/lab/cam-analyzer/api/sessions/",
         exportDetections: "/lab/cam-analyzer/api/sessions/",
         exportJson: "/lab/cam-analyzer/api/sessions/",
         exportSegments: "/lab/cam-analyzer/api/sessions/",
+        exportConflicts: "/lab/cam-analyzer/api/sessions/",
         getSegments: "/lab/cam-analyzer/api/sessions/",
         getAnalytics: "/lab/cam-analyzer/api/sessions/",
         uploadRtmaps: "/lab/cam-analyzer/api/sessions/",
@@ -374,6 +391,7 @@ window.CAM_ANALYZER = {
         listProfiles: "{% url 'wama_lab:cam_analyzer:list_profiles' %}",
         saveProfile: "{% url 'wama_lab:cam_analyzer:save_profile' %}",
         deleteProfile: "/lab/cam-analyzer/api/profiles/",
+        downloadRoadModel: "{% url 'wama_lab:cam_analyzer:download_road_model' %}",
     },
     availableModels: {{ available_models|safe }},
     cocoClasses: {{ coco_classes|safe }},
@@ -520,8 +538,14 @@ window.CAM_ANALYZER = {
                             Modèle segmentation routière
                             <span class="text-secondary fw-normal">(optionnel)</span>
                         </label>
-                        <input type="text" class="form-control form-control-sm bg-dark text-light border-secondary"
-                               id="roadModelPath" placeholder="AI-models/models/vision/yolo/segment/bdd100k-seg.pt">
+                        <div class="input-group input-group-sm">
+                            <input type="text" class="form-control bg-dark text-light border-secondary"
+                                   id="roadModelPath" placeholder="AI-models/models/vision/yolo/segment/yolov8m-bdd100k-seg.pt">
+                            <button type="button" class="btn btn-outline-info" id="downloadRoadModelBtn"
+                                    title="Télécharger yolopv2.pt depuis github.com/CAIC-AD/YOLOPv2 (release V0.0.1)">
+                                <i class="fas fa-cloud-download-alt me-1"></i>Télécharger YOLOPv2
+                            </button>
+                        </div>
                         <div class="form-text text-secondary small">
                             YOLO segmentation .pt entraîné sur BDD100K — améliore la détection d'insertion en voie.
                             Sans ce modèle, la détection se base sur la position horizontale du véhicule.

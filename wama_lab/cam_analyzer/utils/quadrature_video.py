@@ -25,8 +25,140 @@ from pathlib import Path
 from typing import Optional
 
 import cv2
+import numpy as np
 
 logger = logging.getLogger(__name__)
+
+
+# ─── Auto-detect crop layout from black separator bands ──────────────────────
+
+def detect_quadrature_layout(
+    src_path: str,
+    *,
+    sample_frames: int = 5,
+    black_threshold: int = 15,
+) -> Optional[dict]:
+    """
+    Auto-detect the 4 view bounding boxes from a quadrature video by
+    scanning for solid black separator bands. Returns a layout dict in the
+    same format as LAYOUT_NAVYA, or None if detection fails (caller should
+    then fall back to LAYOUT_NAVYA).
+
+    Algorithm:
+      1. Sample N evenly-spaced frames, take per-pixel min across them
+         (true black separators stay black at every timestep — moving scene
+         elements that are momentarily black do not).
+      2. Per row / per column median luminance < threshold → "black row/col".
+      3. Find the central horizontal black band (splits top/bottom rows of
+         the grid) and central vertical black band (splits left/right cols).
+      4. Strip outer black borders.
+    """
+    cap = cv2.VideoCapture(str(src_path))
+    if not cap.isOpened():
+        return None
+
+    total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    if total <= 0 or h <= 0 or w <= 0:
+        cap.release()
+        return None
+
+    # Pick N timestamps spread across the video so a single dark frame
+    # doesn't pollute the per-pixel min.
+    n = max(2, min(sample_frames, total))
+    grays = []
+    for i in range(n):
+        cap.set(cv2.CAP_PROP_POS_FRAMES, total * (i + 1) // (n + 1))
+        ok, frame = cap.read()
+        if ok and frame is not None:
+            grays.append(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY))
+    cap.release()
+
+    if not grays:
+        return None
+
+    stack = np.stack(grays, axis=0)
+    min_frame = stack.min(axis=0)  # true-black bands stay dark across all samples
+    row_med = np.median(min_frame, axis=1)
+    col_med = np.median(min_frame, axis=0)
+    black_rows = np.where(row_med < black_threshold)[0]
+    black_cols = np.where(col_med < black_threshold)[0]
+
+    if black_rows.size == 0 or black_cols.size == 0:
+        logger.warning("[QuadratureVideo] No black bands detected — falling back to default layout")
+        return None
+
+    def _group_runs(idxs):
+        """Return list of (start, end_inclusive) for consecutive index runs."""
+        if len(idxs) == 0:
+            return []
+        runs = []
+        start = idxs[0]
+        prev = idxs[0]
+        for i in idxs[1:]:
+            if i == prev + 1:
+                prev = i
+            else:
+                runs.append((start, prev))
+                start = i
+                prev = i
+        runs.append((start, prev))
+        return runs
+
+    def _central_band(black_idxs, dim):
+        """Pick the run whose midpoint is closest to dim/2 (the central separator)."""
+        runs = _group_runs(black_idxs)
+        if not runs:
+            return None
+        center = dim / 2.0
+        return min(runs, key=lambda r: abs((r[0] + r[1]) / 2.0 - center))
+
+    def _strip_outer(med, thr):
+        non_black = np.where(med >= thr)[0]
+        if non_black.size:
+            return int(non_black[0]), int(non_black[-1] + 1)
+        return 0, len(med)
+
+    h_band = _central_band(black_rows, h)
+    v_band = _central_band(black_cols, w)
+    if h_band is None or v_band is None:
+        return None
+
+    inner_y1, inner_y2 = _strip_outer(row_med, black_threshold)
+    inner_x1, inner_x2 = _strip_outer(col_med, black_threshold)
+
+    top_y1 = max(0, inner_y1)
+    top_y2 = int(h_band[0])
+    bot_y1 = int(h_band[1] + 1)
+    bot_y2 = min(h, inner_y2)
+    lef_x1 = max(0, inner_x1)
+    lef_x2 = int(v_band[0])
+    rig_x1 = int(v_band[1] + 1)
+    rig_x2 = min(w, inner_x2)
+
+    # Sanity: every quadrant must have positive area
+    boxes = {
+        'rear':  (lef_x1, top_y1, lef_x2, top_y2),
+        'front': (rig_x1, top_y1, rig_x2, top_y2),
+        'left':  (lef_x1, bot_y1, lef_x2, bot_y2),
+        'right': (rig_x1, bot_y1, rig_x2, bot_y2),
+    }
+    for name, (x1, y1, x2, y2) in boxes.items():
+        if x2 - x1 < 50 or y2 - y1 < 50:
+            logger.warning(
+                f"[QuadratureVideo] Detected layout has degenerate '{name}' "
+                f"box ({x1},{y1})-({x2},{y2}) — falling back"
+            )
+            return None
+
+    logger.info(
+        f"[QuadratureVideo] Auto-detected layout from {os.path.basename(str(src_path))}: "
+        f"frame {w}×{h}, h-band rows {h_band[0]}-{h_band[1]}, "
+        f"v-band cols {v_band[0]}-{v_band[1]}, "
+        f"boxes={boxes}"
+    )
+    return boxes
 
 # ─── Crop layouts ─────────────────────────────────────────────────────────────
 # Format: {position: (x1, y1, x2, y2)} in pixel coordinates

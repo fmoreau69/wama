@@ -46,6 +46,13 @@
 <div id="camAnalyzerProfileSummary" class="small text-secondary">
     Aucun profil sélectionné.
 </div>
+<hr class="my-2 border-secondary opacity-50">
+<div class="text-secondary text-uppercase mb-1" style="font-size:0.7rem; letter-spacing:0.5px;">
+    Pipeline
+</div>
+<div id="camAnalyzerPipelinePanel" class="small">
+    <div class="text-secondary">Sélectionnez une session.</div>
+</div>
 {% endblock %}
 
 {# ─── Right panel: per-session quick exports ─────────────────────────── #}
@@ -61,6 +68,9 @@
     </button>
     <button type="button" class="btn btn-sm btn-outline-info" id="rpExportSegmentsBtn" disabled>
         <i class="fas fa-film me-1"></i>Segments (CSV)
+    </button>
+    <button type="button" class="btn btn-sm btn-outline-warning" id="rpExportConflictsBtn" disabled>
+        <i class="fas fa-exclamation-triangle me-1"></i>Conflits (CSV)
     </button>
 </div>
 <div class="small text-secondary mt-2" style="font-size: 0.72rem;">

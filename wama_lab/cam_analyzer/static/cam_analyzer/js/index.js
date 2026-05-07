@@ -82,6 +82,52 @@ document.addEventListener('DOMContentLoaded', function () {
 
     const positions = ['front', 'rear', 'left', 'right'];
 
+    // Double-click any camera tile to toggle fullscreen on its drop-zone (so
+    // the detection canvas overlay tags along). Wired once at boot — drop-zones
+    // are static in the template.
+    positions.forEach(pos => {
+        const zone = document.getElementById(`dropzone-${pos}`);
+        if (!zone) return;
+        zone.addEventListener('dblclick', (e) => {
+            // Ignore double-clicks on overlay buttons (remove camera, etc.)
+            if (e.target.closest('button')) return;
+            const fsEl = document.fullscreenElement || document.webkitFullscreenElement;
+            if (fsEl) {
+                (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+            } else {
+                (zone.requestFullscreen || zone.webkitRequestFullscreen).call(zone);
+            }
+        });
+    });
+
+    // When entering fullscreen, move the playback controls bar inside the
+    // fullscreen element so play/pause/seek/frame-step are reachable. On exit,
+    // restore them to their original parent. We also flip a flag so the rAF
+    // sync loop keeps the canvas overlays redrawing.
+    let _playbackOriginalParent = null;
+    let _playbackOriginalNextSibling = null;
+    document.addEventListener('fullscreenchange', () => {
+        const fsEl = document.fullscreenElement;
+        const controls = document.getElementById('playbackControls');
+        if (!controls) return;
+        if (fsEl && fsEl.classList.contains('camera-drop-zone')) {
+            _playbackOriginalParent = controls.parentElement;
+            _playbackOriginalNextSibling = controls.nextElementSibling;
+            controls.classList.add('playback-controls-fs');
+            fsEl.appendChild(controls);
+            controls.style.display = 'block';
+        } else if (_playbackOriginalParent) {
+            controls.classList.remove('playback-controls-fs');
+            if (_playbackOriginalNextSibling) {
+                _playbackOriginalParent.insertBefore(controls, _playbackOriginalNextSibling);
+            } else {
+                _playbackOriginalParent.appendChild(controls);
+            }
+            _playbackOriginalParent = null;
+            _playbackOriginalNextSibling = null;
+        }
+    });
+
     // Detection class colors
     const classColors = {
         person: '#00ff88',
@@ -212,6 +258,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 sessionSelect.value = currentSessionId;
                 deleteSessionBtn.disabled = false;
                 startAnalysisBtn.disabled = false;
+                refreshRightPanelActionState();
+                loadPipelinePanel();
             } else {
                 alert('Erreur: ' + (data.error || 'Inconnue'));
             }
@@ -528,6 +576,124 @@ document.addEventListener('DOMContentLoaded', function () {
 
     const POSITION_LABELS = { front: 'Avant', rear: 'Arrière', left: 'Gauche', right: 'Droite' };
 
+    // ── Pipeline panel ───────────────────────────────────────────────────
+    // Renders the AnalysisPass list with status icons and 2 main CTAs.
+    // Called after loadSession + after any pass-changing operation.
+    const STATUS_ICONS = {
+        completed: '<i class="fas fa-check-circle text-success"></i>',
+        running:   '<i class="fas fa-spinner fa-spin text-info"></i>',
+        stale:     '<i class="fas fa-exclamation-triangle text-warning"></i>',
+        failed:    '<i class="fas fa-times-circle text-danger"></i>',
+        pending:   '<i class="far fa-circle text-secondary"></i>',
+        never:     '<i class="far fa-circle text-secondary"></i>',
+    };
+    const STATUS_LABELS = {
+        completed: 'OK',
+        running:   'En cours',
+        stale:     'Périmé',
+        failed:    'Échec',
+        pending:   'En attente',
+        never:     'Jamais',
+    };
+
+    function _formatPassTooltip(p) {
+        const lines = [`État : ${STATUS_LABELS[p.status] || p.status}`];
+        if (p.completed_at) lines.push(`Terminé : ${new Date(p.completed_at).toLocaleString()}`);
+        if (p.duration_s != null) lines.push(`Durée : ${p.duration_s.toFixed(1)} s`);
+        if (p.error_message) lines.push(`Erreur : ${p.error_message.slice(0, 200)}`);
+        const summary = p.output_summary || {};
+        if (summary.cameras) lines.push(`Caméras : ${summary.cameras.join(', ')}`);
+        if (summary.detections_total != null) lines.push(`Détections : ${summary.detections_total}`);
+        if (summary.count != null) lines.push(`Nombre : ${summary.count}`);
+        if (summary.events_count != null) lines.push(`Évènements : ${summary.events_count}`);
+        if (summary.scanned != null) lines.push(`Frames analysées : ${summary.scanned}`);
+        const params = p.parameters || {};
+        const watched = Object.keys(params);
+        if (watched.length) {
+            lines.push('Paramètres watch :');
+            for (const k of watched) {
+                const v = params[k];
+                lines.push(`  ${k} = ${typeof v === 'object' ? JSON.stringify(v).slice(0, 60) : v}`);
+            }
+        }
+        return lines.join('\n');
+    }
+
+    async function loadPipelinePanel() {
+        const panel = document.getElementById('camAnalyzerPipelinePanel');
+        if (!panel) return;
+        if (!currentSessionId) {
+            panel.innerHTML = '<div class="text-secondary">Sélectionnez une session.</div>';
+            return;
+        }
+        try {
+            const resp = await fetch(`${config.urls.listPasses}${currentSessionId}/passes/`);
+            const data = await resp.json();
+            const rows = (data.passes || []).map(p => {
+                const icon = STATUS_ICONS[p.status] || STATUS_ICONS.never;
+                const tip = _formatPassTooltip(p).replace(/"/g, '&quot;');
+                return `
+                    <div class="d-flex align-items-center gap-2 py-1" title="${tip}">
+                        <span style="width:16px;text-align:center">${icon}</span>
+                        <span class="flex-grow-1 text-light" style="font-size:0.78rem;">${escapeHtml(p.label)}</span>
+                        <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-1"
+                                data-rp-run="${p.pass_type}" title="Lancer ce passage seul"
+                                style="font-size:0.7rem;">▶</button>
+                    </div>`;
+            }).join('');
+            panel.innerHTML = `
+                ${rows || '<div class="text-secondary">Aucun passage enregistré.</div>'}
+                <div class="d-grid gap-1 mt-2">
+                    <button type="button" class="btn btn-sm btn-success" id="rpRunMissingBtn">
+                        <i class="fas fa-play me-1"></i>Compléter (manquant + périmé)
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-warning" id="rpRunAllBtn">
+                        <i class="fas fa-redo me-1"></i>Tout relancer
+                    </button>
+                </div>`;
+            document.getElementById('rpRunMissingBtn')?.addEventListener('click', () => runPasses([], false));
+            document.getElementById('rpRunAllBtn')?.addEventListener('click', () => {
+                if (confirm('Relancer toutes les passes ? Cela écrase les résultats existants.')) {
+                    runPasses([], true);
+                }
+            });
+            panel.querySelectorAll('[data-rp-run]').forEach(btn => {
+                btn.addEventListener('click', () => runPasses([btn.dataset.rpRun], false));
+            });
+        } catch (e) {
+            console.error('loadPipelinePanel:', e);
+            panel.innerHTML = '<div class="text-danger small">Erreur de chargement</div>';
+        }
+    }
+
+    async function runPasses(types, force) {
+        if (!currentSessionId) return;
+        try {
+            const resp = await fetch(`${config.urls.runPasses}${currentSessionId}/passes/run/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': config.csrfToken,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ types, force }),
+            });
+            const data = await resp.json();
+            if (!data.success) {
+                alert('Erreur: ' + (data.error || 'lancement échoué'));
+                return;
+            }
+            // If a Celery task was launched, switch to the running UI + start polling
+            if ((data.launched || []).some(t => t.endsWith('_task'))) {
+                setAnalysisUI(true);
+                startStatusPolling(currentSessionId);
+            }
+            await loadPipelinePanel();
+        } catch (e) {
+            console.error('runPasses:', e);
+            alert('Erreur réseau');
+        }
+    }
+
     async function loadActiveProfile(profileId) {
         const summary = document.getElementById('camAnalyzerProfileSummary');
         if (!profileId) {
@@ -543,6 +709,7 @@ document.addEventListener('DOMContentLoaded', function () {
             activeProfile = p || null;
             renderProfileSummary();
             refreshAllAnalyzedBadges();
+            refreshSam3OnlyButton();
         } catch (e) {
             console.error('Error loading active profile:', e);
         }
@@ -563,6 +730,8 @@ document.addEventListener('DOMContentLoaded', function () {
         const intersectionsCount = (p.intersections || []).length;
         const modelName = (p.model_path || '').split(/[\\/]/).pop() || '—';
         const classes = (p.target_classes || []).join(', ') || '—';
+        const isIntersection = p.report_type === 'intersection_insertion';
+        const sam3Enabled = !!p.sam3_markings_enabled;
         summary.innerHTML = `
             <div class="d-flex flex-column gap-1" style="font-size: 0.78rem;">
                 <div><span class="text-secondary">Nom :</span> <span class="text-light fw-semibold">${escapeHtml(p.name)}</span></div>
@@ -570,13 +739,36 @@ document.addEventListener('DOMContentLoaded', function () {
                 <div><span class="text-secondary">Modèle :</span> <span class="text-light">${escapeHtml(modelName)}</span></div>
                 <div><span class="text-secondary">Classes :</span> <span class="text-light">${escapeHtml(classes)}</span></div>
                 <div><span class="text-secondary">Vues analysées :</span> <span class="text-warning">${escapeHtml(analyzed)}</span></div>
-                ${p.report_type === 'intersection_insertion' ? `
+                ${isIntersection ? `
                     <div><span class="text-secondary">Intersections :</span> <span class="text-light">${intersectionsCount}</span></div>
                     <div><span class="text-secondary">Restreint aux fenêtres :</span> <span class="text-light">${p.restrict_to_intersection_windows !== false ? 'Oui' : 'Non'}</span></div>
                 ` : ''}
             </div>
             <button class="btn btn-sm btn-outline-warning mt-2 w-100" id="rpEditProfileBtn">
                 <i class="fas fa-cog me-1"></i>Modifier le profil
+            </button>
+            <hr class="my-2 border-secondary opacity-50">
+            <div class="text-secondary text-uppercase mb-1" style="font-size:0.7rem; letter-spacing:0.5px;">
+                Lancer une analyse
+            </div>
+            <button class="btn btn-sm btn-success w-100 mb-1" id="rpStartAnalysisBtn"
+                    title="Détection véhicules (YOLO)${sam3Enabled ? ' + SAM3' : ''}">
+                <i class="fas fa-play me-1"></i>Détection véhicules${sam3Enabled ? ' + SAM3' : ''}
+            </button>
+            ${sam3Enabled ? `
+                <button class="btn btn-sm btn-info w-100 mb-1" id="rpStartSam3OnlyBtn"
+                        title="Re-lancer SAM3 seul, sans refaire YOLO">
+                    <i class="fas fa-route me-1"></i>Marquages SAM3 (seul)
+                </button>
+            ` : ''}
+            ${isIntersection ? `
+                <button class="btn btn-sm btn-outline-info w-100 mb-1" id="rpRecomputeWindowsBtn"
+                        title="Recalcule les fenêtres d'intersection à partir du profil — sans refaire l'analyse">
+                    <i class="fas fa-sync-alt me-1"></i>Recalculer fenêtres
+                </button>
+            ` : ''}
+            <button class="btn btn-sm btn-danger w-100" id="rpCancelAnalysisBtn" style="display:none">
+                <i class="fas fa-stop me-1"></i>Annuler l'analyse
             </button>
         `;
         const btn = document.getElementById('rpEditProfileBtn');
@@ -586,6 +778,119 @@ document.addEventListener('DOMContentLoaded', function () {
             // function is identical for both entry points.
             openProfileEditor();
         });
+        const recomputeBtn = document.getElementById('rpRecomputeWindowsBtn');
+        if (recomputeBtn) recomputeBtn.addEventListener('click', recomputeWindows);
+        const rpStart = document.getElementById('rpStartAnalysisBtn');
+        if (rpStart) rpStart.addEventListener('click', startAnalysis);
+        const rpSam3 = document.getElementById('rpStartSam3OnlyBtn');
+        if (rpSam3) rpSam3.addEventListener('click', startSam3Only);
+        const rpCancel = document.getElementById('rpCancelAnalysisBtn');
+        if (rpCancel) rpCancel.addEventListener('click', cancelAnalysis);
+        // Sync visibility/enabled state with the toolbar twin buttons.
+        refreshRightPanelActionState();
+    }
+
+    async function recomputeWindows() {
+        if (!currentSessionId) return;
+        const btn = document.getElementById('rpRecomputeWindowsBtn');
+        const oldHTML = btn ? btn.innerHTML : null;
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Recalcul...';
+        }
+        try {
+            const url = `${config.urls.recomputeWindows}${currentSessionId}/recompute-windows/`;
+            const resp = await fetch(url, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': config.csrfToken },
+            });
+            const data = await resp.json();
+            if (!data.success) {
+                alert('Erreur: ' + (data.error || 'Recalcul échoué'));
+                return;
+            }
+            // Re-render windows everywhere — dropdown, seek-bar markers, mini-map.
+            const windows = data.intersection_windows || [];
+            renderIntersectionWindows(windows);
+            renderMiniMap(cachedGpsTrack || [], windows);
+        } catch (e) {
+            console.error('recomputeWindows failed:', e);
+            alert('Erreur réseau lors du recalcul');
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                if (oldHTML) btn.innerHTML = oldHTML;
+            }
+        }
+    }
+
+    async function startSam3Only() {
+        if (!currentSessionId) return;
+        if (!confirm('Lancer SAM3 seul ? La détection YOLO existante sera conservée.')) return;
+        try {
+            const url = `${config.urls.startSam3Only}${currentSessionId}/start-sam3/`;
+            const resp = await fetch(url, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': config.csrfToken },
+            });
+            const data = await resp.json();
+            if (!data.success) {
+                alert('Erreur: ' + (data.error || 'Lancement SAM3 échoué'));
+                return;
+            }
+            setAnalysisUI(true);
+            startStatusPolling(currentSessionId);
+        } catch (e) {
+            console.error('startSam3Only failed:', e);
+            alert('Erreur réseau lors du lancement SAM3');
+        }
+    }
+
+    // Show the SAM3-only button when the active profile has SAM3 enabled and
+    // the session is in a state where re-running SAM3 makes sense (i.e. not
+    // currently processing). Called after loadActiveProfile + setAnalysisUI.
+    function refreshSam3OnlyButton() {
+        const btn = document.getElementById('startSam3OnlyBtn');
+        if (!btn) return;
+        const sam3Enabled = activeProfile && activeProfile.sam3_markings_enabled;
+        const running = startAnalysisBtn.style.display === 'none'
+                        && cancelAnalysisBtn.style.display !== 'none';
+        const sessionReady = !!currentSessionId;
+        if (sam3Enabled && sessionReady && !running) {
+            btn.style.display = '';
+            btn.disabled = false;
+        } else if (sam3Enabled && running) {
+            btn.style.display = 'none';
+        } else {
+            btn.style.display = 'none';
+        }
+    }
+
+    // Mirror toolbar state on the right-panel action buttons. The buttons
+    // exist in two places (toolbar + right panel) so the user can launch from
+    // wherever their attention is; this keeps both in sync.
+    function refreshRightPanelActionState() {
+        const start = document.getElementById('rpStartAnalysisBtn');
+        const sam3 = document.getElementById('rpStartSam3OnlyBtn');
+        const recompute = document.getElementById('rpRecomputeWindowsBtn');
+        const cancel = document.getElementById('rpCancelAnalysisBtn');
+        if (!start) return;  // panel summary not rendered yet
+
+        const running = startAnalysisBtn.style.display === 'none'
+                        && cancelAnalysisBtn.style.display !== 'none';
+        const sessionReady = !!currentSessionId;
+        const sam3Enabled = activeProfile && activeProfile.sam3_markings_enabled;
+
+        // Disable both YOLO + SAM3 launchers while a job is running, and the
+        // recompute button (it'd touch the windows the running task reads).
+        start.disabled = !sessionReady || running || startAnalysisBtn.disabled;
+        if (sam3) sam3.disabled = !sessionReady || running;
+        if (recompute) recompute.disabled = !sessionReady || running;
+
+        if (cancel) cancel.style.display = running ? '' : 'none';
+        // Hide the launchers while running so the cancel CTA is unambiguous.
+        start.style.display = running ? 'none' : '';
+        if (sam3) sam3.style.display = running ? 'none' : '';
     }
 
     // (escapeHtml is defined later — same scope, no conflict at call time)
@@ -596,6 +901,7 @@ document.addEventListener('DOMContentLoaded', function () {
             ['rpExportCsvBtn', () => exportDetectionsCsv()],
             ['rpExportJsonBtn', () => exportSessionJson()],
             ['rpExportSegmentsBtn', () => exportSegmentsCsv()],
+            ['rpExportConflictsBtn', () => exportConflictsCsv()],
         ];
         map.forEach(([id, handler]) => {
             const btn = document.getElementById(id);
@@ -604,10 +910,15 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function setRightPanelExportsEnabled(enabled) {
-        ['rpExportCsvBtn', 'rpExportJsonBtn', 'rpExportSegmentsBtn'].forEach(id => {
+        ['rpExportCsvBtn', 'rpExportJsonBtn', 'rpExportSegmentsBtn', 'rpExportConflictsBtn'].forEach(id => {
             const btn = document.getElementById(id);
             if (btn) btn.disabled = !enabled;
         });
+    }
+
+    function exportConflictsCsv() {
+        if (!currentSessionId) return;
+        window.location.href = `${config.urls.exportConflicts}${currentSessionId}/export/conflicts/`;
     }
 
     function resetDropZone(position) {
@@ -805,13 +1116,120 @@ document.addEventListener('DOMContentLoaded', function () {
     // setupTimeSync is kept for backward-compat but no longer attaches timeupdate
     function setupTimeSync() { /* overlays are driven by rafLoop */ }
 
+    // ── Frame stepping + reverse playback ────────────────────────────────────
+    // Browsers don't support negative HTMLVideoElement.playbackRate, so reverse
+    // is emulated with a setInterval that decrements currentTime each tick.
+    let reverseTimer = null;
+
+    function _firstCamFps() {
+        for (const pos of positions) {
+            const v = document.getElementById(`video-${pos}`);
+            if (v && v.src && cameras[pos] && cameras[pos].fps) return cameras[pos].fps;
+        }
+        return 30;
+    }
+
+    function frameStep(deltaFrames) {
+        stopReverse();
+        if (isPlaying) syncPause();
+        const fps = _firstCamFps();
+        const t = Math.max(0, Math.min(maxDuration || 0,
+            (parseFloat(syncSeekBar.value) || 0) + deltaFrames / fps));
+        syncSeek(t);
+    }
+
+    function startReverse() {
+        if (reverseTimer) return;
+        if (isPlaying) syncPause();
+        const fps = _firstCamFps();
+        const speed = parseFloat(playbackSpeed.value) || 1;
+        const stepMs = 1000 / (fps * speed);
+        const reverseBtn = document.getElementById('syncReverseBtn');
+        if (reverseBtn) reverseBtn.classList.add('active', 'btn-warning');
+        reverseTimer = setInterval(() => {
+            const t = (parseFloat(syncSeekBar.value) || 0) - 1 / fps;
+            if (t <= 0) { syncSeek(0); stopReverse(); return; }
+            syncSeek(t);
+        }, stepMs);
+    }
+
+    function stopReverse() {
+        if (!reverseTimer) return;
+        clearInterval(reverseTimer);
+        reverseTimer = null;
+        const reverseBtn = document.getElementById('syncReverseBtn');
+        if (reverseBtn) reverseBtn.classList.remove('active', 'btn-warning');
+    }
+
+    function toggleReverse() {
+        if (reverseTimer) stopReverse();
+        else startReverse();
+    }
+
     // Event listeners
     syncPlayPauseBtn.addEventListener('click', () => {
+        stopReverse();
         if (isPlaying) syncPause();
         else syncPlay();
     });
 
-    syncStopBtn.addEventListener('click', syncStop);
+    // Auto-download keremberke/yolov8m-bdd100k-seg from HuggingFace.
+    document.getElementById('downloadRoadModelBtn')?.addEventListener('click', async (e) => {
+        const btn = e.currentTarget;
+        const orig = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Téléchargement...';
+        try {
+            const resp = await fetch(config.urls.downloadRoadModel, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': config.csrfToken },
+            });
+            const data = await resp.json();
+            if (data.success) {
+                document.getElementById('roadModelPath').value = data.path;
+                alert(data.message + '\nChemin : ' + data.path);
+            } else {
+                alert('Échec : ' + (data.error || 'inconnu'));
+            }
+        } catch (err) {
+            console.error('Download failed:', err);
+            alert('Erreur réseau pendant le téléchargement.');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = orig;
+        }
+    });
+
+    document.getElementById('syncPrevFrameBtn')?.addEventListener('click', () => frameStep(-1));
+    document.getElementById('syncNextFrameBtn')?.addEventListener('click', () => frameStep(1));
+    document.getElementById('syncReverseBtn')?.addEventListener('click', toggleReverse);
+
+    syncStopBtn.addEventListener('click', () => { stopReverse(); syncStop(); });
+
+    // Keyboard shortcuts — work everywhere, including fullscreen. Skip when the
+    // user is typing in a field/modal.
+    document.addEventListener('keydown', (e) => {
+        const target = e.target;
+        if (target && (target.matches('input, textarea, select')
+                       || target.isContentEditable
+                       || target.closest('.modal.show'))) return;
+        if (playbackControls.style.display === 'none') return;
+
+        if (e.code === 'Space') {
+            e.preventDefault();
+            stopReverse();
+            if (isPlaying) syncPause(); else syncPlay();
+        } else if (e.code === 'ArrowLeft') {
+            e.preventDefault();
+            frameStep(e.shiftKey ? -10 : -1);
+        } else if (e.code === 'ArrowRight') {
+            e.preventDefault();
+            frameStep(e.shiftKey ? 10 : 1);
+        } else if (e.code === 'KeyR') {
+            e.preventDefault();
+            toggleReverse();
+        }
+    });
 
     // While dragging: seek all videos + update overlay without restarting play
     syncSeekBar.addEventListener('mousedown', () => { isSeeking = true; });
@@ -863,6 +1281,8 @@ document.addEventListener('DOMContentLoaded', function () {
             cancelAnalysisBtn.style.display = 'none';
             analysisProgress.style.display = 'none';
         }
+        refreshSam3OnlyButton();
+        refreshRightPanelActionState();
         updateStickyBarVisibility();
     }
 
@@ -870,6 +1290,8 @@ document.addEventListener('DOMContentLoaded', function () {
         analysisProgress.style.display = 'none';
         startAnalysisBtn.style.display = '';
         cancelAnalysisBtn.style.display = 'none';
+        refreshSam3OnlyButton();
+        refreshRightPanelActionState();
         updateStickyBarVisibility();
     }
 
@@ -953,6 +1375,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 loadAllDetections(sessionId);
                 loadSessions(); // refresh table
                 setRightPanelExportsEnabled(true);
+                loadPipelinePanel();
             } else if (data.status === 'failed') {
                 stopStatusPolling();
                 hideProgress();
@@ -1192,29 +1615,71 @@ document.addEventListener('DOMContentLoaded', function () {
         const scaleY = drawH / srcHeight;
 
         detections.forEach(det => {
+            // road_mask entries from SAM3 fallback / RoadSegmenter carry a
+            // polygon (drivable area) instead of a bbox — render as a
+            // semi-transparent magenta outline rather than crashing on the
+            // missing bbox destructure.
+            if (Array.isArray(det.polygon) && det.polygon.length >= 3 && !Array.isArray(det.bbox)) {
+                ctx.beginPath();
+                det.polygon.forEach(([px, py], i) => {
+                    const x = px * scaleX + offsetX;
+                    const y = py * scaleY + offsetY;
+                    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+                });
+                ctx.closePath();
+                ctx.fillStyle = 'rgba(255, 64, 192, 0.15)';
+                ctx.fill();
+                ctx.strokeStyle = 'rgba(255, 64, 192, 0.9)';
+                ctx.lineWidth = 1.5;
+                ctx.stroke();
+                return;
+            }
+            if (!Array.isArray(det.bbox) || det.bbox.length < 4) return;
+
             const [x1, y1, x2, y2] = det.bbox;
             const sx = x1 * scaleX + offsetX;
             const sy = y1 * scaleY + offsetY;
             const sw = (x2 - x1) * scaleX;
             const sh = (y2 - y1) * scaleY;
 
-            const color = classColors[det.class_name] || defaultColor;
+            // SAM3 markings (sam3_marking) get distinct cyan/yellow colours so
+            // they're visually separable from YOLO vehicle bboxes.
+            const isSam3 = det.type === 'sam3_marking';
+            const inShuttleLane = det.in_shuttle_lane === true;
+            const color = isSam3
+                ? (det.class_name && /cross/i.test(det.class_name) ? '#00ffff' : '#ffd700')
+                : (classColors[det.class_name] || defaultColor);
 
-            // Draw bbox
+            // Draw bbox — thicker + filled-glow for objects in the shuttle lane
             ctx.strokeStyle = color;
-            ctx.lineWidth = 2;
+            ctx.lineWidth = inShuttleLane ? 3 : (isSam3 ? 1.5 : 2);
+            if (isSam3) ctx.setLineDash([4, 3]);
             ctx.strokeRect(sx, sy, sw, sh);
+            if (isSam3) ctx.setLineDash([]);
 
-            // Draw label background
-            const label = `${det.class_name} ${(det.confidence * 100).toFixed(0)}%${det.track_id != null ? ' #' + det.track_id : ''}`;
+            // Phase 4 — show distance / speed / TTC in the label when present
+            // Phase 2 — flag in_shuttle_lane with a 🚌 marker
+            let label = `${det.class_name} ${(det.confidence * 100).toFixed(0)}%`;
+            if (det.track_id != null) label += ` #${det.track_id}`;
+            if (inShuttleLane) label += ' 🚌';
+            const dist = det.distance_m;
+            const ttc = det.ttc_s;
+            const rspeed = det.relative_speed_kmh;
+            const extras = [];
+            if (typeof dist === 'number') extras.push(`${dist.toFixed(0)}m`);
+            if (typeof rspeed === 'number') extras.push(`${rspeed > 0 ? '↑' : '↓'}${Math.abs(rspeed).toFixed(0)}km/h`);
+            if (typeof ttc === 'number') extras.push(`TTC ${ttc.toFixed(1)}s`);
+            const extrasLabel = extras.join(' · ');
+
             ctx.font = '11px sans-serif';
             const textWidth = ctx.measureText(label).width;
+            const xtraWidth = extrasLabel ? ctx.measureText(extrasLabel).width : 0;
+            const labelHeight = extrasLabel ? 30 : 16;
             ctx.fillStyle = color;
-            ctx.fillRect(sx, sy - 16, textWidth + 6, 16);
-
-            // Draw label text
+            ctx.fillRect(sx, sy - labelHeight, Math.max(textWidth, xtraWidth) + 6, labelHeight);
             ctx.fillStyle = '#000';
-            ctx.fillText(label, sx + 3, sy - 4);
+            ctx.fillText(label, sx + 3, sy - (extrasLabel ? 18 : 4));
+            if (extrasLabel) ctx.fillText(extrasLabel, sx + 3, sy - 4);
         });
     }
 
@@ -2475,6 +2940,25 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Refresh the right-panel summary + camera badges with the
                 // freshly-saved profile so they don't stay stale.
                 loadActiveProfile(data.profile.id);
+                loadPipelinePanel();
+                // The server auto-recomputes intersection_windows for sessions
+                // tied to this profile (Pass A). Re-pull the current session
+                // so the mini-map circles + dropdown reflect the new radii
+                // without forcing a full re-analysis.
+                if (currentSessionId
+                    && Array.isArray(data.recomputed_sessions)
+                    && data.recomputed_sessions.includes(String(currentSessionId))) {
+                    try {
+                        const r = await fetch(`${config.urls.getSession}${currentSessionId}/`);
+                        const sd = await r.json();
+                        if (sd && sd.intersection_windows) {
+                            renderIntersectionWindows(sd.intersection_windows);
+                            renderMiniMap(sd.gps_track || cachedGpsTrack || [], sd.intersection_windows);
+                        }
+                    } catch (refreshErr) {
+                        console.warn('Could not refresh session windows after profile save:', refreshErr);
+                    }
+                }
             } else {
                 alert('Erreur: ' + (data.error || 'Inconnue'));
             }
@@ -2528,6 +3012,9 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     startAnalysisBtn.addEventListener('click', startAnalysis);
+
+    const sam3OnlyBtn = document.getElementById('startSam3OnlyBtn');
+    if (sam3OnlyBtn) sam3OnlyBtn.addEventListener('click', startSam3Only);
 
     cancelAnalysisBtn.addEventListener('click', cancelAnalysis);
 

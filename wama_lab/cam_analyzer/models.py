@@ -220,6 +220,153 @@ class DetectionFrame(models.Model):
         return f"Frame {self.frame_number} - {self.camera}"
 
 
+class AnalysisPass(models.Model):
+    """
+    Per-session record of every distinct processing step (extraction, YOLO,
+    YOLOPv2, SAM3, lane events, distance, conflicts...). Lets the UI show
+    which passes are done, missing, or stale (= profile parameter has
+    changed since the pass was run), and lets the orchestrator decide what
+    to re-run incrementally.
+
+    Granularity: ONE row per (session, pass_type). Per-camera / per-class
+    detail goes into output_summary JSON.
+    """
+
+    class PassType(models.TextChoices):
+        EXTRACTION = 'extraction', 'Extraction RTMaps'
+        INTERSECTION_WINDOWS = 'intersection_windows', "Fenêtres d'intersection"
+        YOLO_DETECT = 'yolo_detect', 'Détection YOLO'
+        YOLOPV2_LANES = 'yolopv2_lanes', 'Drivable + lanes (YOLOPv2)'
+        SAM3_MARKINGS = 'sam3_markings', 'Marquages SAM3'
+        LANE_EVENTS = 'lane_events', 'Évènements de voie'
+        TEMPORAL_SEGMENTS = 'temporal_segments', 'Segments temporels'
+        DISTANCE = 'distance', 'Distance / vitesse / TTC'
+        CONFLICTS = 'conflicts', 'Conflits'
+
+    class Status(models.TextChoices):
+        PENDING = 'pending', 'En attente'
+        RUNNING = 'running', 'En cours'
+        COMPLETED = 'completed', 'Terminé'
+        FAILED = 'failed', 'Échec'
+        STALE = 'stale', 'Périmé (profil modifié)'
+
+    session = models.ForeignKey(
+        AnalysisSession,
+        on_delete=models.CASCADE,
+        related_name='passes',
+    )
+    pass_type = models.CharField(max_length=30, choices=PassType.choices)
+    status = models.CharField(max_length=15, choices=Status.choices, default=Status.PENDING)
+    # Snapshot of the watched profile parameters at the moment the pass ran.
+    # Used to compute STALE by comparison with the current profile.
+    parameters = models.JSONField(default=dict, blank=True)
+    # Free-form summary: by_camera, by_class, counts, etc.
+    output_summary = models.JSONField(default=dict, blank=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    duration_s = models.FloatField(null=True, blank=True)
+    error_message = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ['session', 'pass_type']
+        unique_together = ['session', 'pass_type']
+        indexes = [models.Index(fields=['session', 'status'])]
+
+    def __str__(self):
+        return f"{self.get_pass_type_display()} [{self.status}] — {self.session_id}"
+
+
+class LaneEvent(models.Model):
+    """
+    Time span during which a tracked object stays in a single lane on a
+    given camera. Emitted by the lane-events computer that scans
+    DetectionFrames in chronological order and fires one event per
+    (track_id, lane_id) span.
+
+    intersection_window_idx links the event back to
+    AnalysisSession.intersection_windows[idx] when it falls inside one
+    (otherwise -1, meaning "outside any intersection").
+    """
+
+    camera = models.ForeignKey(
+        CameraView,
+        on_delete=models.CASCADE,
+        related_name='lane_events',
+    )
+    track_id = models.IntegerField()
+    lane_id = models.IntegerField(
+        help_text='Lane index from left, computed from YOLOPv2 lane lines',
+    )
+    in_shuttle_lane = models.BooleanField(default=False)
+    t_enter = models.FloatField()
+    t_exit = models.FloatField()
+    intersection_window_idx = models.IntegerField(
+        default=-1,
+        help_text='Index in AnalysisSession.intersection_windows, -1 if outside',
+    )
+    class_name = models.CharField(max_length=50, blank=True)
+
+    class Meta:
+        ordering = ['camera', 't_enter']
+        indexes = [
+            models.Index(fields=['camera', 'track_id']),
+            models.Index(fields=['camera', 'in_shuttle_lane']),
+        ]
+
+    def __str__(self):
+        marker = '🚌' if self.in_shuttle_lane else ''
+        return (f"{marker} track {self.track_id} lane {self.lane_id} "
+                f"[{self.t_enter:.1f}–{self.t_exit:.1f}s]")
+
+
+class ConflictEvent(models.Model):
+    """
+    Phase 5 — conflit (ou risque) entre la navette et un objet tracké
+    pendant une fenêtre d'intersection.
+
+    Conflit = objet en voie navette ET (TTC < seuil OU min_distance < seuil)
+    pendant la fenêtre. Le signe de delta_t_s indique :
+      delta_t_s > 0  → navette passe AVANT l'objet
+      delta_t_s < 0  → l'objet est passé AVANT la navette
+      |delta_t_s|    → marge temporelle (plus c'est petit, plus c'est critique)
+    """
+
+    class ConflictType(models.TextChoices):
+        APPROACHING_FRONT = 'approaching_front', 'Approche frontale'
+        SAME_LANE_AHEAD = 'same_lane_ahead', 'Devant en voie navette'
+        CROSSING = 'crossing', 'Trajectoire transverse'
+
+    session = models.ForeignKey(
+        AnalysisSession, on_delete=models.CASCADE, related_name='conflicts'
+    )
+    camera = models.ForeignKey(
+        CameraView, on_delete=models.CASCADE, related_name='conflicts'
+    )
+    track_id = models.IntegerField()
+    class_name = models.CharField(max_length=50, blank=True)
+    intersection_window_idx = models.IntegerField(default=-1)
+    conflict_type = models.CharField(
+        max_length=20, choices=ConflictType.choices,
+        default=ConflictType.SAME_LANE_AHEAD,
+    )
+    navette_passed_first = models.BooleanField(null=True, blank=True)
+    delta_t_s = models.FloatField(null=True, blank=True)
+    min_distance_m = models.FloatField(null=True, blank=True)
+    min_ttc_s = models.FloatField(null=True, blank=True)
+    t_start = models.FloatField()
+    t_end = models.FloatField()
+    severity = models.CharField(max_length=10, default='info',
+                                 help_text='info / warn / critical')
+
+    class Meta:
+        ordering = ['session', 't_start']
+        indexes = [models.Index(fields=['session', 'severity'])]
+
+    def __str__(self):
+        return (f"⚠ {self.get_conflict_type_display()} track {self.track_id} "
+                f"[{self.t_start:.1f}s] {self.severity}")
+
+
 class TemporalSegment(models.Model):
     """Identified temporal segments (Phase 3)."""
 

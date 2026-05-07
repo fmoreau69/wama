@@ -90,6 +90,39 @@
     background: #000;
 }
 
+/* Fullscreen mode: drop-zone fills viewport so the video + detection canvas
+ * scale up together while keeping aspect ratio (object-fit:contain on the
+ * video already handles the letterboxing). */
+.camera-drop-zone:fullscreen,
+.camera-drop-zone:-webkit-full-screen {
+    width: 100vw !important;
+    height: 100vh !important;
+    border: none !important;
+    border-radius: 0 !important;
+    background: #000 !important;
+    cursor: zoom-out;
+}
+.camera-drop-zone:fullscreen .camera-video,
+.camera-drop-zone:-webkit-full-screen .camera-video {
+    width: 100vw;
+    height: 100vh;
+}
+
+/* Playback controls bar relocated inside the fullscreen drop-zone — pin it
+ * to the bottom over a translucent backdrop so the user keeps full control
+ * (play/pause, frame-step, reverse, seek, speed, intersection jump) without
+ * leaving fullscreen. */
+.playback-controls.playback-controls-fs {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: 10px 16px;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(6px);
+    z-index: 10;
+}
+
 /* Camera info overlay */
 .camera-info {
     position: absolute;
