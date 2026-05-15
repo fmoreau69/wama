@@ -7,7 +7,7 @@ from django.db import close_old_connections
 from django.core.cache import cache
 from django.contrib.auth import get_user_model
 from .models import Media, UserSettings
-from anonymizer import anonymize
+from .core import anonymize
 from .utils.media_utils import get_input_media_path
 from .utils.yolo_utils import get_model_path
 from wama.common.utils.media_paths import get_app_media_path
@@ -49,9 +49,15 @@ def _console(user_id: int, message: str, level: str = None) -> None:
 # Tâche principale pour traiter un média
 # ----------------------------------------------------------------------
 @shared_task(bind=True)
-def process_single_media(self, media_id):
+def process_single_media(self, media_id, force_individual=False):
     """
     Traite un média unique en DB, en respectant les settings utilisateur.
+
+    force_individual : quand True (lancement individuel depuis la card), on
+        utilise les paramètres de la *Media* sans condition — `MSValues_customised`
+        est ignoré. Pour le batch (file d'attente globale ou "Tout lancer"),
+        laisser False : le fonctionnement historique est conservé (settings
+        globaux sauf si l'utilisateur a explicitement customisé le média).
     """
 
     close_old_connections()
@@ -100,7 +106,13 @@ def process_single_media(self, media_id):
                 return {"error": "download_failed", "media_id": media_id}
         # ────────────────────────────────────────────────────────────────────
 
-        ms_custom = media.MSValues_customised
+        # When the user clicks "Process this media" on the card, the
+        # individual settings are the explicit signal of intent — apply them
+        # regardless of MSValues_customised. The historical batch path keeps
+        # the original "global unless customised" semantics.
+        ms_custom = bool(force_individual) or bool(media.MSValues_customised)
+        if force_individual:
+            logger.info(f"[process_single_media] force_individual=True → using media settings unconditionally")
 
         # Get precision level and use_segmentation from media or user settings
         precision_level = media.precision_level if ms_custom else user_settings.precision_level
@@ -378,7 +390,7 @@ def start_process(**kwargs):
             else:
                 # Use SAM3 processor
                 try:
-                    from anonymizer.sam3_processor import SAM3Processor
+                    from .core.sam3_processor import SAM3Processor
 
                     if user_id:
                         _console(user_id, f"Using SAM3 with prompt: {sam3_prompt[:50]}...")
@@ -545,7 +557,7 @@ def detect_with_model(self, media_id, model_id, model_path, classes_to_detect, *
     Returns:
         dict with success status and detection count
     """
-    from anonymizer.detection_only import DetectionOnlyProcessor
+    from .core.detection_only import DetectionOnlyProcessor
 
     close_old_connections()
 
@@ -636,7 +648,7 @@ def merge_and_blur_detections(self, detection_results=None, media_id=None, **kwa
     Returns:
         dict with success status and processing info
     """
-    from anonymizer.merged_blur import MergedBlurProcessor
+    from .core.merged_blur import MergedBlurProcessor
 
     close_old_connections()
 

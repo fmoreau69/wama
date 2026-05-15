@@ -279,6 +279,24 @@ pip install ffmpeg-python pydub pypandoc Wand
 # Pandoc nécessite pandoc binaire installé système
 ```
 
+### Articulation avec `wama/common/utils/video_compat.py` (décision 2026-05-12)
+
+Le helper inline `ensure_h264()` (sync, blocking, sans UI) vit dans
+`wama/common/utils/video_compat.py` — utilisé directement par les
+pipelines en cours d'exécution (cam_analyzer.upload_camera, fallback
+legacy quad-crop, anonymizer/enhancer si besoin futur de sources HEVC
+iPhone, etc.).
+
+Converter est la couche utilisateur **au-dessus** : async via Celery,
+progress UI, choix de format/codec, batch. Quand l'utilisateur demande
+explicitement une conversion .mov → .webm avec progression, c'est
+Converter. Quand un pipeline interne a besoin d'un .mp4 H.264 playable
+*maintenant*, c'est `common.video_compat.ensure_h264()`.
+
+Converter consomme `common.video_compat` **en interne** pour son cas
+trivial H.264 (pas de duplication de logique ffmpeg). À implémenter
+quand l'app Converter sera reprise.
+
 ---
 
 ## 7b. Imager — Outpainting (élargissement de cadre) ⏳
@@ -529,6 +547,24 @@ que pour drivable+lanes.
 | **5** | `ConflictEvent` model (track_id, intersection_window, conflict_type, navette_passed_first, delta_t, min_distance, min_ttc, severity) + computer `_compute_conflict_events` qui croise LaneEvent (in_shuttle_lane=True) × intersection_window × distance/TTC | ✅ (2026-05-07) |
 | **6** | UI : marqueur 🚌 sur détections in_shuttle_lane + bbox épaissie ; affichage distance/vitesse/TTC dans le label ; export CSV étendu (`type`, `lane_id`, `in_shuttle_lane`, `distance_m`, `relative_speed_kmh`, `ttc_s`) ; export JSON `lane_events`+`conflict_events`+`intersection_windows` ; nouvel export `Conflits (CSV)` trié par sévérité | ✅ (2026-05-07) |
 | **7** | Trottoirs (optionnel) : SAM3 prompt "sidewalk" en parallèle des marquages ; si insuffisant → mmseg + bdd100k-sem-seg en backend isolé | 💡 |
+
+### 9.2.ter Modularité incrémentale (Propositions A→F, 2026-05-14)
+
+| Code | Sujet | Statut |
+|---|---|---|
+| **F** | Batching ffmpeg mini-clips → `model.track(stream=True)` natif par segment (5-10× speedup sur la part YOLO) | ✅ |
+| **B** | Skip-if-done par caméra dans `process_session_task` ; `force_rerun` accepte un override | ✅ |
+| **C** | Statut `PAUSED` (cancel = données partielles conservées au lieu de FAILED) ; idempotency guard COMPLETED inchangé | ✅ |
+| **D** | Computers découplés en tâches Celery : `compute_lane_events_task`, `compute_temporal_segments_task`, `compute_conflict_events_task`. Orchestrateur `run_passes` dispatche selon les types demandés | ✅ |
+| **A** | `AnalysisPass` accepte `camera` (per-camera granularity pour YOLO/YOLOPv2/SAM3) ; UI affiche `[front]` / `[rear]` séparés | ✅ |
+| **E** | Bouton "Afficher détections actuelles" dans le pipeline panel — charge les DetectionFrames même en PROCESSING/PAUSED | ✅ |
+
+Pattern de dépendances pour les computers découplés :
+- `lane_events` : front YOLO requis
+- `temporal_segments` : ≥1 caméra YOLO
+- `conflicts` : LaneEvent requis (lane_events doit avoir tourné)
+
+`_check_data_available(session, required_camera_positions)` vérifie la disponibilité des données avant de lancer un computer ; échoue proprement sinon avec un message clair.
 
 ### 9.2.bis Pass tracking — infrastructure incrémentale (à faire avant Phase 4)
 

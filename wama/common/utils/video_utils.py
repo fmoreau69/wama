@@ -484,6 +484,21 @@ def is_audio_file(filename: str) -> bool:
     return ext in audio_extensions
 
 
+def is_image_file(filename: str) -> bool:
+    """Vérifie si un fichier est une image basé sur son extension."""
+    image_extensions = {
+        '.jpg', '.jpeg', '.png', '.bmp', '.gif',
+        '.webp', '.tif', '.tiff', '.heic', '.heif',
+    }
+    ext = os.path.splitext(filename)[1].lower()
+    return ext in image_extensions
+
+
+# Alias for the standalone anonymizer's `is_image()` API, kept for callers
+# that still use the historical name.
+is_image = is_image_file
+
+
 def convert_video_to_web_compatible(input_path: str, output_path: Optional[str] = None) -> str:
     """
     Convertit une vidéo en format compatible web (H.264/AAC dans conteneur MP4).

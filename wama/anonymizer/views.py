@@ -505,20 +505,39 @@ def download_media(request):
     media = get_object_or_404(Media, pk=media_id)
     print(f"[download_media] Media found: {media.file.name} (ext: {media.file_ext}, processed: {media.processed})")
 
-    # Generate blurred output file path
+    # Generate the canonical blurred output path; the actual file written
+    # by the pipeline carries a suffix that varies by backend:
+    #   YOLO :  {base}_blurred_{model_suffix}{ext}
+    #   SAM3 :  {base}_blurred_sam3{ext}
+    # We resolve to whichever matches by globbing the output directory.
     media_path = get_blurred_media_path(media.file.name, media.file_ext, media.user_id)
     blurred_filename = os.path.basename(media_path)
     print(f"[download_media] Looking for file: {media_path}")
 
     if not os.path.exists(media_path):
-        print(f"[download_media] ✗ File not found: {media_path}")
-        # Return to a page with context (HTML)
-        context = get_context(request)
-        context['error'] = f"Processed file {blurred_filename} doesn't exist."
-        return render(request, 'anonymizer/index.html', context)
-
-        # In JSON if called via JavaScript
-        # return JsonResponse({'error': 'Blurred file not found.'}, status=404)
+        # Fallback: glob for {base}_blurred*{ext} and pick the most recent.
+        # The pipelines write _blurred_<suffix>.<ext> rather than just _blurred.<ext>.
+        import glob as _glob
+        out_dir = os.path.dirname(media_path)
+        base = os.path.splitext(os.path.basename(media_path))[0]
+        # Strip the trailing "_blurred" so we can match base_blurred*{ext}.
+        if base.endswith('_blurred'):
+            base = base[:-len('_blurred')]
+        ext = os.path.splitext(media_path)[1]
+        candidates = sorted(
+            _glob.glob(os.path.join(out_dir, f"{base}_blurred*{ext}")),
+            key=os.path.getmtime,
+            reverse=True,
+        )
+        if candidates:
+            media_path = candidates[0]
+            blurred_filename = os.path.basename(media_path)
+            print(f"[download_media] Resolved via glob: {media_path}")
+        else:
+            print(f"[download_media] ✗ File not found: {media_path}")
+            context = get_context(request)
+            context['error'] = f"Processed file {blurred_filename} doesn't exist."
+            return render(request, 'anonymizer/index.html', context)
 
     # Serve le fichier
     try:
@@ -1360,9 +1379,10 @@ def restart_media(request):
         media.save()
         logger.info(f"[restart_media] Reset media processing status")
 
-        # Launch the processing task
-        task = process_single_media.delay(media.id)
-        logger.info(f"[restart_media] Launched task {task.id} for media {media.id}")
+        # Launch the processing task — individual button = explicit signal
+        # to apply this media's settings rather than fall back to global.
+        task = process_single_media.delay(media.id, force_individual=True)
+        logger.info(f"[restart_media] Launched task {task.id} for media {media.id} (force_individual=True)")
 
         return JsonResponse({
             'success': True,

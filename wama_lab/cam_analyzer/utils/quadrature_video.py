@@ -21,6 +21,8 @@ NOTE: This layout should be verified against actual recorded footage before
 """
 import logging
 import os
+import shutil
+import subprocess
 from pathlib import Path
 from typing import Optional
 
@@ -28,6 +30,216 @@ import cv2
 import numpy as np
 
 logger = logging.getLogger(__name__)
+
+
+# ─── ffmpeg-based extraction (primary path) ──────────────────────────────────
+
+def _ffmpeg_executable() -> Optional[str]:
+    """Return ffmpeg path if available on PATH, None otherwise."""
+    return shutil.which('ffmpeg')
+
+
+def _even(n: int) -> int:
+    """libx264 + yuv420p requires even W/H. Snap down to nearest even integer."""
+    return n if n % 2 == 0 else n - 1
+
+
+def _build_ffmpeg_crop_cmd(src: str, dst: str, box: tuple, crf: int) -> list[str]:
+    """Build ffmpeg command for direct demux → crop → libx264 encode."""
+    x1, y1, x2, y2 = box
+    w = _even(x2 - x1)
+    h = _even(y2 - y1)
+    return [
+        'ffmpeg', '-y',
+        '-hide_banner', '-loglevel', 'error',
+        '-i', src,
+        '-vf', f'crop={w}:{h}:{x1}:{y1}',
+        '-c:v', 'libx264',
+        '-preset', 'fast',
+        '-crf', str(crf),
+        '-pix_fmt', 'yuv420p',
+        '-an',
+        '-movflags', '+faststart',
+        dst,
+    ]
+
+
+def _extract_view_pipe(src: str, dst: str, box: tuple, fps: float, crf: int = 18) -> int:
+    """
+    Fallback path A — OpenCV decoder → ffmpeg stdin encoder.
+
+    Used when the pure-ffmpeg crop (path B) fails on a specific codec/source
+    combination. OpenCV decodes each frame, Numpy crops, raw BGR bytes are
+    piped to a single ffmpeg process configured to read raw video and encode
+    libx264. Returns number of frames written.
+    """
+    x1, y1, x2, y2 = box
+    w = _even(x2 - x1)
+    h = _even(y2 - y1)
+
+    cap = cv2.VideoCapture(src)
+    if not cap.isOpened():
+        raise IOError(f"Cannot open video: {src}")
+
+    cmd = [
+        'ffmpeg', '-y',
+        '-hide_banner', '-loglevel', 'error',
+        '-f', 'rawvideo', '-vcodec', 'rawvideo',
+        '-s', f'{w}x{h}', '-pix_fmt', 'bgr24',
+        '-r', f'{fps:.6f}',
+        '-i', '-',
+        '-c:v', 'libx264', '-preset', 'fast', '-crf', str(crf),
+        '-pix_fmt', 'yuv420p', '-an',
+        '-movflags', '+faststart',
+        dst,
+    ]
+    proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
+
+    n = 0
+    try:
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                break
+            fh, fw = frame.shape[:2]
+            if fw < x1 + w or fh < y1 + h:
+                continue
+            cropped = frame[y1:y1 + h, x1:x1 + w]
+            try:
+                proc.stdin.write(cropped.tobytes())
+            except BrokenPipeError:
+                break
+            n += 1
+    finally:
+        cap.release()
+        try:
+            proc.stdin.close()
+        except Exception:
+            pass
+        rc = proc.wait(timeout=120)
+        if rc != 0:
+            err = (proc.stderr.read() or b'').decode('utf-8', errors='ignore')[-500:]
+            raise RuntimeError(f"ffmpeg pipe encode failed (rc={rc}): {err}")
+    return n
+
+
+def export_quadrature_views_parallel(
+    src_path: str,
+    layout: dict,
+    output_dir: str,
+    basename: str,
+    *,
+    crf: int = 18,
+    progress_callback=None,
+) -> dict:
+    """
+    Extract all views from a quadrature video in parallel via ffmpeg crop.
+
+    Primary path (B) : 4 ffmpeg processes running in parallel, each doing
+    `-vf crop=W:H:X:Y -c:v libx264`. No intermediate encode, no OpenCV
+    decode loop in Python — typically 5-10× faster than the legacy MJPG +
+    re-encode pipeline, and crucially **no double lossy pass** so quality
+    is preserved end-to-end (CRF 18 = visually lossless).
+
+    Fallback path (A) : if a specific view's ffmpeg crop fails (rare —
+    typically codec edge cases), that view is retried serially via the
+    OpenCV-read → ffmpeg-stdin pipe.
+
+    Args:
+        src_path:           Path to the source quadrature video.
+        layout:             {position: (x1, y1, x2, y2)} dict.
+        output_dir:         Directory where MP4 outputs are written.
+        basename:           Filename prefix; each view becomes
+                            ``{basename}_{position}.mp4``.
+        crf:                libx264 quality (lower = better, 18 = visually
+                            lossless, 23 = default ffmpeg, 28 = web-streaming).
+        progress_callback:  Optional callable(position: str, status: str).
+
+    Returns:
+        dict mapping position → {path, width, height, fps, frame_count,
+        duration, fallback_used (optional)} or {path, error} on hard failure.
+
+    Raises:
+        RuntimeError if ffmpeg is not available at all. Caller should fall
+        back to ``export_quadrature_view`` (legacy OpenCV writer) in that case.
+    """
+    if _ffmpeg_executable() is None:
+        raise RuntimeError("ffmpeg not found in PATH — use export_quadrature_view as fallback")
+
+    src_path = str(src_path)
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Probe source once for fps + frame count (needed for metadata + pipe fallback)
+    cap = cv2.VideoCapture(src_path)
+    if not cap.isOpened():
+        raise IOError(f"Cannot open source video: {src_path}")
+    src_fps = cap.get(cv2.CAP_PROP_FPS) or 12.0
+    src_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    cap.release()
+
+    # Launch the 4 ffmpeg processes concurrently. They run as separate OS
+    # processes; Python just waits, so the GIL never blocks parallelism.
+    procs = []
+    for pos, box in layout.items():
+        dst = output_dir / f"{basename}_{pos}.mp4"
+        cmd = _build_ffmpeg_crop_cmd(src_path, str(dst), box, crf)
+        logger.info(
+            f"[QuadratureVideo] ffmpeg crop launch: {pos} → {dst.name} "
+            f"(crop {box[2]-box[0]}×{box[3]-box[1]}, crf={crf})"
+        )
+        proc = subprocess.Popen(cmd, stderr=subprocess.PIPE)
+        procs.append((pos, str(dst), box, proc))
+
+    results: dict = {}
+    failed: list = []
+    for pos, dst, box, proc in procs:
+        rc = proc.wait()
+        if rc != 0:
+            err = (proc.stderr.read() or b'').decode('utf-8', errors='ignore')[-300:]
+            logger.warning(f"[QuadratureVideo] ffmpeg crop FAILED for {pos}: {err}")
+            failed.append((pos, dst, box))
+            if progress_callback:
+                progress_callback(pos, 'failed_will_retry')
+        else:
+            x1, y1, x2, y2 = box
+            results[pos] = {
+                'path': dst,
+                'width': _even(x2 - x1),
+                'height': _even(y2 - y1),
+                'fps': src_fps,
+                'frame_count': src_frames,
+                'duration': src_frames / src_fps if src_fps > 0 else 0.0,
+            }
+            logger.info(f"[QuadratureVideo] ffmpeg crop OK: {pos}")
+            if progress_callback:
+                progress_callback(pos, 'ok')
+
+    # Retry failures via OpenCV→ffmpeg pipe (serial, to avoid I/O saturation)
+    for pos, dst, box in failed:
+        try:
+            logger.info(f"[QuadratureVideo] retrying {pos} via OpenCV→ffmpeg pipe (fallback A)")
+            n_written = _extract_view_pipe(src_path, dst, box, src_fps, crf)
+            x1, y1, x2, y2 = box
+            results[pos] = {
+                'path': dst,
+                'width': _even(x2 - x1),
+                'height': _even(y2 - y1),
+                'fps': src_fps,
+                'frame_count': n_written,
+                'duration': n_written / src_fps if src_fps > 0 else 0.0,
+                'fallback_used': 'pipe',
+            }
+            logger.info(f"[QuadratureVideo] pipe fallback OK for {pos}: {n_written} frames")
+            if progress_callback:
+                progress_callback(pos, 'ok_via_pipe')
+        except Exception as e:
+            logger.error(f"[QuadratureVideo] pipe fallback FAILED for {pos}: {e}")
+            results[pos] = {'path': dst, 'error': str(e)}
+            if progress_callback:
+                progress_callback(pos, 'failed')
+
+    return results
 
 
 # ─── Auto-detect crop layout from black separator bands ──────────────────────

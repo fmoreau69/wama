@@ -632,12 +632,18 @@ document.addEventListener('DOMContentLoaded', function () {
             const rows = (data.passes || []).map(p => {
                 const icon = STATUS_ICONS[p.status] || STATUS_ICONS.never;
                 const tip = _formatPassTooltip(p).replace(/"/g, '&quot;');
+                // Per-camera passes get a "[front]" / "[rear]" suffix (Prop A)
+                const camSuffix = p.camera ? ` <span class="text-secondary" style="font-size:0.7rem;">[${p.camera}]</span>` : '';
+                // The button payload includes camera for per-camera passes
+                const dataPayload = p.camera
+                    ? `data-rp-run="${p.pass_type}" data-rp-camera="${p.camera}"`
+                    : `data-rp-run="${p.pass_type}"`;
                 return `
                     <div class="d-flex align-items-center gap-2 py-1" title="${tip}">
                         <span style="width:16px;text-align:center">${icon}</span>
-                        <span class="flex-grow-1 text-light" style="font-size:0.78rem;">${escapeHtml(p.label)}</span>
+                        <span class="flex-grow-1 text-light" style="font-size:0.78rem;">${escapeHtml(p.label)}${camSuffix}</span>
                         <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-1"
-                                data-rp-run="${p.pass_type}" title="Lancer ce passage seul"
+                                ${dataPayload} title="Lancer ce passage seul"
                                 style="font-size:0.7rem;">▶</button>
                     </div>`;
             }).join('');
@@ -648,14 +654,23 @@ document.addEventListener('DOMContentLoaded', function () {
                         <i class="fas fa-play me-1"></i>Compléter (manquant + périmé)
                     </button>
                     <button type="button" class="btn btn-sm btn-outline-warning" id="rpRunAllBtn">
-                        <i class="fas fa-redo me-1"></i>Tout relancer
+                        <i class="fas fa-redo me-1"></i>Tout relancer (force)
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-info" id="rpLoadPartialBtn"
+                            title="Charge les détections actuellement en DB (utile pendant une analyse en cours ou après annulation)">
+                        <i class="fas fa-eye me-1"></i>Afficher détections actuelles
                     </button>
                 </div>`;
             document.getElementById('rpRunMissingBtn')?.addEventListener('click', () => runPasses([], false));
             document.getElementById('rpRunAllBtn')?.addEventListener('click', () => {
-                if (confirm('Relancer toutes les passes ? Cela écrase les résultats existants.')) {
+                if (confirm('Relancer toutes les passes en force ? Cela écrase les résultats existants.')) {
                     runPasses([], true);
                 }
+            });
+            // Proposition E — load partial detections at any time (running, paused, completed)
+            document.getElementById('rpLoadPartialBtn')?.addEventListener('click', () => {
+                loadAllDetections(currentSessionId);
+                setRightPanelExportsEnabled(true);
             });
             panel.querySelectorAll('[data-rp-run]').forEach(btn => {
                 btn.addEventListener('click', () => runPasses([btn.dataset.rpRun], false));
@@ -1374,6 +1389,15 @@ document.addEventListener('DOMContentLoaded', function () {
                 showResults(data.results_summary);
                 loadAllDetections(sessionId);
                 loadSessions(); // refresh table
+                setRightPanelExportsEnabled(true);
+                loadPipelinePanel();
+            } else if (data.status === 'paused') {
+                // Proposition C — cancel maps to PAUSED. Partial data is
+                // viewable ; the user can resume or just inspect what's done.
+                stopStatusPolling();
+                hideProgress();
+                loadAllDetections(sessionId);
+                loadSessions();
                 setRightPanelExportsEnabled(true);
                 loadPipelinePanel();
             } else if (data.status === 'failed') {

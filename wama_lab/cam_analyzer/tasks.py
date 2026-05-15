@@ -633,7 +633,7 @@ def detect_temporal_segments(session):
 # =============================================================================
 
 @shared_task(bind=True)
-def process_session_task(self, session_id: str):
+def process_session_task(self, session_id: str, force_rerun: bool = False):
     """
     Process a cam analyzer session:
     - Load YOLO model from profile
@@ -641,6 +641,12 @@ def process_session_task(self, session_id: str):
     - Store DetectionFrame records
     - Generate annotated output videos
     - Compute results_summary
+
+    Args:
+        session_id: AnalysisSession.id (UUID string)
+        force_rerun: When True, existing DetectionFrames for each camera are
+            wiped and re-computed. When False (default), cameras that already
+            have DetectionFrames are skipped (Proposition B — skip-if-done).
     """
     close_old_connections()
 
@@ -682,23 +688,38 @@ def process_session_task(self, session_id: str):
         session.started_at = timezone.now()
         session.save(update_fields=['status', 'started_at'])
 
-        # Pipeline tracking — register the passes that this monolithic task
-        # will produce, so the UI's pipeline panel reflects them as RUNNING.
+        # Cleanup derived events from a previous run (LaneEvent / ConflictEvent).
+        # DetectionFrames are deleted per-camera further down. We do this at the
+        # session level to invalidate stale event rows that pointed to about-to-
+        # be-deleted DetectionFrames.
+        from .models import LaneEvent, ConflictEvent
+        _le_count = LaneEvent.objects.filter(camera__session=session).count()
+        _ce_count = ConflictEvent.objects.filter(session=session).count()
+        if _le_count or _ce_count:
+            LaneEvent.objects.filter(camera__session=session).delete()
+            ConflictEvent.objects.filter(session=session).delete()
+            _console(session.user_id,
+                     f"Nettoyage : {_le_count} LaneEvent et {_ce_count} ConflictEvent "
+                     f"d'un run précédent supprimés")
+
+        # Pipeline tracking — pass_tracking helpers. Per-camera passes
+        # (yolo_detect, yolopv2_lanes) are registered INSIDE the camera
+        # loop (Proposition A). Session-wide passes (intersection_windows,
+        # temporal_segments, conflicts) are registered around their own
+        # computers below.
         from .utils.pass_tracking import (
             mark_started, mark_completed, mark_failed,
         )
-        _yolo_pass = mark_started(session, 'yolo_detect', profile)
-        _yolopv2_pass = None
-        _sam3_pass = None
         _has_yolopv2 = (
             profile.report_type == 'intersection_insertion'
             and profile.road_model_path
             and 'yolopv2' in os.path.basename(profile.road_model_path).lower()
         )
-        if _has_yolopv2:
-            _yolopv2_pass = mark_started(session, 'yolopv2_lanes', profile)
-        if getattr(profile, 'sam3_markings_enabled', False):
-            _sam3_pass = mark_started(session, 'sam3_markings', profile)
+        # SAM3 markings run as a SEPARATE chained Celery task at the end of
+        # this one, NOT inline in the YOLO loop. Avoids loading YOLO +
+        # YOLOPv2 + SAM3 in VRAM simultaneously (TDR/BSOD on RTX 4090 24GB).
+        # The SAM3 pass is registered by analyze_sam3_only_task itself.
+        _sam3_enabled = bool(getattr(profile, 'sam3_markings_enabled', False))
 
         set_session_progress(session_id, 2, "Chargement du modèle...")
 
@@ -813,15 +834,48 @@ def process_session_task(self, session_id: str):
 
             _console(user_id, f"  {total_frames} frames, {fps:.1f} fps, {width}x{height}")
 
+            # Proposition B — Skip-if-done check per camera.
+            # When the camera already has DetectionFrames from a previous run,
+            # skip it (preserves partial analyses across cancel/restart cycles).
+            # force_rerun=True wipes existing data and re-computes.
+            _prev_count = DetectionFrame.objects.filter(camera=camera).count()
+            if _prev_count and not force_rerun:
+                _console(user_id,
+                         f"  Caméra {position} déjà analysée ({_prev_count} DetectionFrames). "
+                         f"Skip — utiliser 'Tout relancer' pour forcer une nouvelle passe.")
+                summary['cameras_processed'] += 1  # counted as done for the summary
+                summary['by_camera'][position] = summary['by_camera'].get(position, {})
+                summary['by_camera'][position]['frames_existing'] = _prev_count
+                continue
+            elif _prev_count and force_rerun:
+                DetectionFrame.objects.filter(camera=camera).delete()
+                _console(user_id,
+                         f"  Force rerun : {_prev_count} DetectionFrame d'un run précédent supprimée(s)")
+
+            # Proposition A — per-camera pass tracking. YOLO and YOLOPv2 are
+            # registered against this specific camera so the UI can show
+            # "front: ✅ / rear: ⏵ in progress".
+            mark_started(session, 'yolo_detect', profile, camera=camera)
+            if _has_yolopv2 and position == 'front':
+                mark_started(session, 'yolopv2_lanes', profile, camera=camera)
+
             set_session_progress(session_id, cam_progress_start,
                                  f"Analyse caméra {position} ({cam_idx + 1}/{num_cameras})...")
 
             # ─── Road segmenter (intersection_insertion + front only) ─────────
+            # Log explicitly which branch we take, including the "skipped"
+            # cases — otherwise it's invisible from the worker output why no
+            # road_mask is being produced.
             road_segmenter = None
-            if (profile.report_type == 'intersection_insertion'
-                    and position == 'front'
-                    and getattr(profile, 'road_model_path', '')):
-                road_model_path = profile.road_model_path
+            _road_path_raw = getattr(profile, 'road_model_path', '') or ''
+            if position != 'front':
+                pass  # silent, lateral views never get road_segmenter by design
+            elif profile.report_type != 'intersection_insertion':
+                _console(user_id, "  road_segmenter ignoré (report_type != intersection_insertion)")
+            elif not _road_path_raw:
+                _console(user_id, "  road_segmenter ignoré (road_model_path vide dans le profil)")
+            else:
+                road_model_path = _road_path_raw
                 if not os.path.isabs(road_model_path):
                     road_model_path = os.path.join(settings.BASE_DIR, road_model_path)
                 if os.path.exists(road_model_path):
@@ -838,44 +892,23 @@ def process_session_task(self, session_id: str):
                             _console(user_id, f"  ERREUR chargement YOLOPv2: {_yp_err}")
                             road_segmenter = None
                     else:
-                        from .utils.road_segmenter import RoadSegmenter
-                        road_segmenter = RoadSegmenter(road_model_path, device=device)
-                        road_segmenter.load()
-                        _console(user_id, f"  Segmenteur routier chargé: {os.path.basename(road_model_path)}")
+                        try:
+                            from .utils.road_segmenter import RoadSegmenter
+                            road_segmenter = RoadSegmenter(road_model_path, device=device)
+                            road_segmenter.load()
+                            _console(user_id, f"  Segmenteur routier (ultralytics) chargé: {os.path.basename(road_model_path)}")
+                        except Exception as _rs_err:
+                            _console(user_id, f"  ERREUR chargement RoadSegmenter: {_rs_err}")
+                            road_segmenter = None
                 else:
-                    _console(user_id, f"  AVERTISSEMENT: road_model_path introuvable: {road_model_path}")
+                    _console(user_id,
+                             f"  AVERTISSEMENT: road_model_path introuvable sur disque: {road_model_path}")
 
-            # ─── SAM3 road markings analyzer (Phase Avancée) ──────────────────
-            # sam3_markings_enabled is the master switch — when OFF, SAM3 is
-            # never loaded, even if sam3_as_road_fallback was left True (the UX
-            # hides the fallback checkbox when markings is off, so the value
-            # could otherwise persist silently).
+            # SAM3 is intentionally NOT loaded here — see comment at the start
+            # of process_session_task. It runs as a chained task after YOLO +
+            # YOLOPv2 have unloaded, so VRAM is fresh when SAM3's ~8GB model
+            # loads.
             sam3_analyzer = None
-            _sam3_master_enabled = bool(getattr(profile, 'sam3_markings_enabled', False))
-            _use_sam3_fallback = (
-                _sam3_master_enabled
-                and getattr(profile, 'sam3_as_road_fallback', False)
-                and road_segmenter is None
-            )
-            if (position == 'front'
-                    and profile.report_type == 'intersection_insertion'
-                    and _sam3_master_enabled
-                    and (_sam3_windows or _use_sam3_fallback)):
-                raw_prompts = getattr(profile, 'sam3_markings_prompts', []) or []
-                if raw_prompts or _use_sam3_fallback:
-                    try:
-                        from .utils.sam3_road_analyzer import SAM3RoadAnalyzer
-                        sam3_analyzer = SAM3RoadAnalyzer(
-                            marking_prompts=raw_prompts or None,
-                            road_fallback=_use_sam3_fallback,
-                        )
-                        sam3_analyzer.load()
-                        _console(user_id,
-                                 f"  SAM3 chargé — {len(raw_prompts)} prompt(s) marquages"
-                                 + (" + fallback route" if _use_sam3_fallback else ""))
-                    except Exception as _e:
-                        _console(user_id, f"  AVERTISSEMENT SAM3: {_e}")
-                        sam3_analyzer = None
 
             # Setup annotated video writer
             output_dir = os.path.join(settings.MEDIA_ROOT, 'cam_analyzer', str(user_id), 'output')
@@ -905,72 +938,243 @@ def process_session_task(self, session_id: str):
             # d'ajouter des classes / monter le seuil sans re-run YOLO.
             # Voir ROADMAP §9.2.bis (décision A, 2026-05-07).
             _STORAGE_CONF = 0.10
-            track_kwargs = {
-                'source': video_path,
+            _imgsz = ((max(width, height) + 31) // 32) * 32
+            _track_base = {
                 'device': device,
-                'imgsz': ((max(width, height) + 31) // 32) * 32,
+                'imgsz': _imgsz,
                 'conf': _STORAGE_CONF,
                 'iou': profile.iou_threshold,
                 'classes': None,  # store all classes; filter at read time
                 'verbose': False,
-                'stream': True,
             }
-
             if profile.task_type == 'segment':
-                track_kwargs['task'] = 'segment'
-                track_kwargs['retina_masks'] = True
+                _track_base['task'] = 'segment'
+                _track_base['retina_masks'] = True
 
-            try:
-                preds = model.track(**track_kwargs)
-            except Exception as e:
-                _console(user_id, f"  ERREUR tracking: {e}")
-                if vid_writer:
-                    vid_writer.release()
-                continue
+            # ── Window-restricted iteration vs full-video streaming ───────
+            # When restrict_to_windows is on, we seek cv2.VideoCapture to
+            # each window's f_start and run model.track() on single frames
+            # with persist=True. This skips inference entirely on the ~80%
+            # of frames outside any intersection window (the legacy path
+            # ran inference on 100k frames and skipped only post-processing
+            # — wasting most of the GPU time).
+            #
+            # Tracker behaviour : persist=False on the FIRST frame of each
+            # window resets BoTSORT, so track_ids are window-local. This is
+            # correct semantically — no object survives between two
+            # intersections separated by minutes, and lane/conflict events
+            # are per-window anyway.
+            _use_window_iter = bool(_restrict_to_windows and _intersection_windows)
+
+            # Convert windows → (f_start, f_end) ranges and merge any that
+            # overlap or are adjacent (within 1 frame). Two windows on the
+            # same road may overlap when they're closer than 2× the radius;
+            # without merging, the same frame would be yielded twice and the
+            # downstream DetectionFrame bulk_create would hit the
+            # (camera, frame_number) unique constraint.
+            def _merge_ranges(ranges):
+                if not ranges:
+                    return []
+                ranges = sorted(ranges)
+                merged = [list(ranges[0])]
+                for s, e in ranges[1:]:
+                    if s <= merged[-1][1] + 1:  # overlap or adjacent
+                        merged[-1][1] = max(merged[-1][1], e)
+                    else:
+                        merged.append([s, e])
+                return [tuple(r) for r in merged]
+
+            _frame_ranges = []
+            if _use_window_iter:
+                _raw_ranges = []
+                for w in _intersection_windows:
+                    fs = max(0, int(w['t_enter'] * fps))
+                    fe = min(total_frames - 1, int(w['t_exit'] * fps))
+                    if fs <= fe:
+                        _raw_ranges.append((fs, fe))
+                _frame_ranges = _merge_ranges(_raw_ranges)
+                _total_processing_frames = sum(fe - fs + 1 for fs, fe in _frame_ranges)
+                _merged_note = (
+                    f" (fusionnées en {len(_frame_ranges)} segments contigus)"
+                    if len(_frame_ranges) != len(_raw_ranges) else ""
+                )
+                _console(user_id,
+                         f"  Tracking YOLO démarré — mode fenêtres ({len(_intersection_windows)} "
+                         f"fenêtres{_merged_note}, ~{_total_processing_frames} frames à analyser "
+                         f"sur {total_frames} total → skip ~"
+                         f"{(1 - _total_processing_frames / max(total_frames,1)) * 100:.0f}%)")
+            else:
+                _total_processing_frames = total_frames
+                _console(user_id,
+                         f"  Tracking YOLO démarré — mode complet ({total_frames} frames)")
+
+            # Periodic console heartbeat so the user sees real progress in the
+            # worker log (set_session_progress only updates the UI bar).
+            _console_pct_step = 10  # log every 10% of processed frames
+            _last_console_pct = 0
+
+            def _yield_predictions():
+                """Yields (frame_idx, pred) pairs to process.
+
+                Restrict mode (path F — batched via ffmpeg mini-clips) :
+                    for each merged (f_start, f_end) range, ffmpeg extracts a
+                    frame-accurate sub-clip; model.track(stream=True) processes
+                    the clip in its native batched pipeline (typically 5-10×
+                    faster than per-frame inference). BoTSORT auto-resets
+                    between segments via persist=False.
+
+                Restrict mode fallback (no ffmpeg) :
+                    per-frame inference with cv2.VideoCapture seek (legacy).
+
+                Full mode :
+                    ultralytics streaming over the whole video, no gating.
+                """
+                if _use_window_iter:
+                    import shutil as _sh
+                    import subprocess as _sp
+                    import tempfile as _tf
+                    _ff = _sh.which('ffmpeg')
+
+                    if _ff is not None:
+                        # ── Path F : ffmpeg mini-clip extraction + streaming ──
+                        _tmp_dir = _tf.mkdtemp(prefix=f"wama_cam{camera.id}_seg_")
+                        try:
+                            for _seg_idx, (f_start, f_end) in enumerate(_frame_ranges):
+                                _t_start_s = f_start / fps
+                                _duration_s = (f_end - f_start + 1) / fps
+                                _tmp_clip = os.path.join(_tmp_dir, f"seg_{_seg_idx:03d}.mp4")
+
+                                # Extract a frame-accurate sub-clip. Re-encoding
+                                # with libx264 -crf 18 is ~visually lossless and
+                                # gives us exact frame counts (unlike -c copy
+                                # which snaps to keyframes).
+                                _proc = _sp.run([
+                                    _ff, '-y', '-loglevel', 'error',
+                                    '-ss', f"{_t_start_s:.6f}",
+                                    '-i', video_path,
+                                    '-t', f"{_duration_s:.6f}",
+                                    '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '18',
+                                    '-pix_fmt', 'yuv420p', '-an',
+                                    _tmp_clip,
+                                ], capture_output=True, text=True, timeout=600)
+
+                                if _proc.returncode != 0 or not os.path.exists(_tmp_clip):
+                                    logger.warning(
+                                        f"[ffmpeg-seg] segment {_seg_idx} extraction failed: "
+                                        f"{(_proc.stderr or '')[-200:]}"
+                                    )
+                                    continue
+
+                                # Stream-track the mini-clip in native mode.
+                                # persist=False resets BoTSORT for each new
+                                # segment (track_ids are window-local).
+                                kwargs = dict(_track_base)
+                                kwargs['source'] = _tmp_clip
+                                kwargs['stream'] = True
+                                kwargs['persist'] = False
+
+                                try:
+                                    for _sub_idx, _pred in enumerate(model.track(**kwargs)):
+                                        _abs_fidx = f_start + _sub_idx
+                                        if _abs_fidx > f_end:
+                                            break  # safety guard
+                                        yield _abs_fidx, _pred
+                                except Exception as _trk_e:
+                                    logger.warning(
+                                        f"[track-seg] segment {_seg_idx} failed: {_trk_e}"
+                                    )
+                                finally:
+                                    try:
+                                        os.remove(_tmp_clip)
+                                    except OSError:
+                                        pass
+                        finally:
+                            try:
+                                _sh.rmtree(_tmp_dir, ignore_errors=True)
+                            except Exception:
+                                pass
+                        return
+
+                    # ── Fallback : per-frame inference via cv2.VideoCapture ──
+                    _console(user_id, "  AVERTISSEMENT: ffmpeg indisponible, fallback per-frame inference (lent)")
+                    cap_iter = cv2.VideoCapture(video_path)
+                    if not cap_iter.isOpened():
+                        _console(user_id, f"  ERREUR: cannot open video for window iteration")
+                        return
+                    try:
+                        for f_start, f_end in _frame_ranges:
+                            cap_iter.set(cv2.CAP_PROP_POS_FRAMES, f_start)
+                            persist = False  # reset BoTSORT for new segment
+                            for fidx in range(f_start, f_end + 1):
+                                ok, fbgr = cap_iter.read()
+                                if not ok:
+                                    break
+                                kwargs = dict(_track_base)
+                                kwargs['source'] = fbgr
+                                kwargs['persist'] = persist
+                                try:
+                                    results = model.track(**kwargs)
+                                except Exception as _trk_e:
+                                    logger.warning(f"[track] frame {fidx} failed: {_trk_e}")
+                                    continue
+                                if results:
+                                    yield fidx, results[0]
+                                persist = True
+                    finally:
+                        cap_iter.release()
+                else:
+                    kwargs = dict(_track_base)
+                    kwargs['source'] = video_path
+                    kwargs['stream'] = True
+                    try:
+                        preds_full = model.track(**kwargs)
+                    except Exception as _e:
+                        _console(user_id, f"  ERREUR tracking: {_e}")
+                        return
+                    for fidx, pred_full in enumerate(preds_full):
+                        yield fidx, pred_full
 
             # Iterate over predictions
             frames_to_create = []
             cam_detections_count = 0
             cam_max_proximity = 0.0
             last_progress_frame = 0
+            _processed_frames = 0  # for progress in window-restricted mode
 
             # Kinematics tracker reset per-camera so track_id collisions
             # between cameras don't pollute each other's distance history.
             from .utils.distance_speed import TrackKinematics
             _kinematics = TrackKinematics()
 
-            for frame_idx, pred in enumerate(preds):
-                # Cancellation check every 100 frames
-                if frame_idx % 100 == 0 and _is_cancelled(user_id):
+            for frame_idx, pred in _yield_predictions():
+                # Cancellation check every 100 processed frames
+                if _processed_frames % 100 == 0 and _is_cancelled(user_id):
                     raise InterruptedError("Annulé par l'utilisateur")
 
                 timestamp = frame_idx / fps
+                _processed_frames += 1
 
-                # ── Intersection window gating ───────────────────────────────
-                # When profile.restrict_to_intersection_windows is True, skip
-                # heavy post-processing (detection extraction, road segmentation,
-                # SAM3, DB writes) for frames outside any intersection window.
-                # The raw frame is still written to keep the annotated video
-                # duration aligned with the source.
-                _in_intersection = True
-                if _restrict_to_windows and _intersection_windows:
+                # In full-video mode, keep the legacy out-of-window short-circuit
+                # so the annotated video stays length-aligned with the source.
+                # In window-restricted mode (_use_window_iter), every yielded
+                # frame is in-window by construction — this block is bypassed.
+                if not _use_window_iter and _restrict_to_windows and _intersection_windows:
                     _in_intersection = any(
                         w['t_enter'] <= timestamp <= w['t_exit']
                         for w in _intersection_windows
                     )
-
-                if not _in_intersection:
-                    if vid_writer and pred.orig_img is not None:
-                        try:
-                            vid_writer.write(pred.orig_img)
-                        except Exception:
-                            pass
-                    if frame_idx - last_progress_frame >= 50 and total_frames > 0:
-                        cam_frac = frame_idx / total_frames
-                        pct = cam_progress_start + cam_frac * (cam_progress_end - cam_progress_start)
-                        set_session_progress(session_id, pct)
-                        last_progress_frame = frame_idx
-                    continue
+                    if not _in_intersection:
+                        if vid_writer and pred.orig_img is not None:
+                            try:
+                                vid_writer.write(pred.orig_img)
+                            except Exception:
+                                pass
+                        if frame_idx - last_progress_frame >= 50 and total_frames > 0:
+                            cam_frac = frame_idx / total_frames
+                            pct = cam_progress_start + cam_frac * (cam_progress_end - cam_progress_start)
+                            set_session_progress(session_id, pct)
+                            last_progress_frame = frame_idx
+                        continue
 
                 # Extract detections (in-window only)
                 detections = _extract_detections(pred, height)
@@ -1054,12 +1258,24 @@ def process_session_task(self, session_id: str):
                     except Exception:
                         pass
 
-                # Report progress every 50 frames
-                if frame_idx - last_progress_frame >= 50 and total_frames > 0:
-                    cam_frac = frame_idx / total_frames
+                # Report progress every 50 processed frames. cam_frac is the
+                # fraction of TO-PROCESS frames done — accurate in both
+                # window-restricted and full modes.
+                if _processed_frames - last_progress_frame >= 50 and _total_processing_frames > 0:
+                    cam_frac = _processed_frames / _total_processing_frames
                     pct = cam_progress_start + cam_frac * (cam_progress_end - cam_progress_start)
                     set_session_progress(session_id, pct)
-                    last_progress_frame = frame_idx
+                    last_progress_frame = _processed_frames
+
+                    # Console heartbeat every N% of frames so the worker log
+                    # shows real progress for long sessions (UI bar isn't
+                    # visible from the Celery log).
+                    cam_pct = int(cam_frac * 100)
+                    if cam_pct - _last_console_pct >= _console_pct_step:
+                        _console(user_id,
+                                 f"    {position}: {cam_pct}% — {_processed_frames}/{_total_processing_frames} "
+                                 f"frames traitées, {cam_detections_count} détections")
+                        _last_console_pct = cam_pct
 
                 # Bulk save every 500 frames
                 if len(frames_to_create) >= 500:
@@ -1075,6 +1291,21 @@ def process_session_task(self, session_id: str):
             if vid_writer:
                 vid_writer.release()
                 has_annotated_video = True
+
+            # Per-camera YOLO pass completed (Proposition A)
+            try:
+                mark_completed(session, 'yolo_detect', camera=camera, output_summary={
+                    'frames': total_frames,
+                    'detections': cam_detections_count,
+                    'max_proximity': round(cam_max_proximity, 3),
+                    'storage_conf': _STORAGE_CONF,
+                })
+                if _has_yolopv2 and position == 'front':
+                    mark_completed(session, 'yolopv2_lanes', camera=camera, output_summary={
+                        'model_path': profile.road_model_path,
+                    })
+            except Exception as _mp:
+                logger.warning(f"mark_completed (per-cam) failed: {_mp}")
 
             # ── Lane events (Phase 3) ─────────────────────────────────────
             # Only the front camera produces lane_id (cf. YOLO loop), so it's
@@ -1189,36 +1420,39 @@ def process_session_task(self, session_id: str):
         summary['max_proximity'] = round(summary['max_proximity'], 3)
 
         session.results_summary = summary
+        # Per-camera passes were marked COMPLETED inside the camera loop
+        # (Proposition A). Nothing else to mark here for YOLO/YOLOPv2.
+        # SAM3 (if enabled) is delegated to the chained analyze_sam3_only_task.
+
+        # Free YOLO VRAM BEFORE handing off to SAM3 — critical to avoid the
+        # double-model spike that triggered TDR/BSOD on the user's 4090.
+        _unload_model(model)
+        model = None
+
+        if _sam3_enabled:
+            # Keep the session in PROCESSING so the frontend polling stays
+            # alive and reflects the SAM3 phase. analyze_sam3_only_task will
+            # flip status to COMPLETED at the end.
+            session.progress = 95.0
+            session.save(update_fields=['progress'])
+            set_session_progress(session_id, 95, "Marquages SAM3 (post-pass)…")
+            _console(user_id,
+                     f"YOLO/YOLOPv2 terminé en {elapsed:.0f}s — "
+                     f"{summary['detections_total']} détections. "
+                     f"Lancement SAM3 en post-pass (VRAM fraîche).")
+            from .tasks import analyze_sam3_only_task
+            analyze_sam3_only_task.delay(str(session.id))
+            return {'processed': session_id, 'sam3_queued': True}
+
+        # No SAM3 — close the session right here.
         session.status = AnalysisSession.Status.COMPLETED
         session.completed_at = timezone.now()
         session.progress = 100.0
         session.save()
 
-        # Pipeline tracking — close the passes that ran inside this task.
-        mark_completed(session, 'yolo_detect', output_summary={
-            'cameras': sorted(summary.get('by_camera', {}).keys()),
-            'total_frames': summary.get('total_frames', 0),
-            'detections_total': summary.get('detections_total', 0),
-            'by_class': summary.get('by_class', {}),
-            'storage_conf': _STORAGE_CONF,
-        })
-        if _yolopv2_pass is not None:
-            mark_completed(session, 'yolopv2_lanes', output_summary={
-                'model_path': profile.road_model_path,
-            })
-        if _sam3_pass is not None:
-            mark_completed(session, 'sam3_markings', output_summary={
-                'prompts': [p.get('label', '') for p in (profile.sam3_markings_prompts or [])],
-                'fallback': bool(getattr(profile, 'sam3_as_road_fallback', False)),
-            })
-
         set_session_progress(session_id, 100, "Terminé")
-
         _console(user_id, f"Analyse terminée en {elapsed:.0f}s — "
                           f"{summary['detections_total']} détections sur {summary['cameras_processed']} caméras")
-
-        # Cleanup
-        _unload_model(model)
 
         return {'processed': session_id}
 
@@ -1247,7 +1481,8 @@ def process_session_task(self, session_id: str):
             session.save()
             try:
                 from .utils.pass_tracking import mark_failed
-                for pt in ('yolo_detect', 'yolopv2_lanes', 'sam3_markings',
+                # SAM3 is in its own chained task — don't mark it failed here.
+                for pt in ('yolo_detect', 'yolopv2_lanes',
                            'lane_events', 'temporal_segments'):
                     mark_failed(session, pt, str(e))
             except Exception:
@@ -1261,6 +1496,126 @@ def process_session_task(self, session_id: str):
 # =============================================================================
 # Pass C — SAM3 markings only (re-uses extracted MP4 + existing windows)
 # =============================================================================
+
+# =============================================================================
+# Decoupled computer tasks (Proposition D)
+# Each computer is a standalone Celery task that operates on already-persisted
+# DetectionFrames. Lets the user re-run lane events / temporal segments /
+# conflicts independently of YOLO, e.g. after changing target_classes or
+# confidence without paying the YOLO cost again.
+# =============================================================================
+
+def _check_data_available(session, required_camera_positions: list) -> tuple[bool, str]:
+    """Return (can_run, error_msg). Required cameras need ≥1 DetectionFrame."""
+    from .models import DetectionFrame
+    missing = []
+    for pos in required_camera_positions:
+        cam = session.cameras.filter(position=pos).first()
+        if cam is None:
+            missing.append(f"{pos} (caméra absente)")
+            continue
+        if not DetectionFrame.objects.filter(camera=cam).exists():
+            missing.append(f"{pos} (aucune détection — lancer YOLO d'abord)")
+    if missing:
+        return False, f"Données manquantes : {', '.join(missing)}"
+    return True, ''
+
+
+@shared_task(bind=True)
+def compute_lane_events_task(self, session_id: str):
+    """Run lane events computer on the front camera's existing DetectionFrames.
+    Pre-requisite : YOLO must have run on the front camera AND lane_id must
+    be set on its detections (which happens when YOLOPv2 ran in the same pass)."""
+    close_old_connections()
+    from .models import AnalysisSession
+    from .utils.pass_tracking import mark_started, mark_completed, mark_failed
+
+    try:
+        session = AnalysisSession.objects.select_related('profile').get(pk=session_id)
+        ok, err = _check_data_available(session, ['front'])
+        if not ok:
+            mark_failed(session, 'lane_events', err)
+            return {'error': err, 'session_id': session_id}
+
+        front = session.cameras.filter(position='front').first()
+        _console(session.user_id, f"Recalcul lane_events (camera front)")
+        mark_started(session, 'lane_events', session.profile)
+        n_events = _compute_lane_events(front, session.intersection_windows or [])
+        mark_completed(session, 'lane_events', output_summary={'events_count': n_events})
+        _console(session.user_id, f"  lane_events : {n_events} évènements")
+        return {'session_id': session_id, 'events_count': n_events}
+    except Exception as e:
+        logger.error(f"compute_lane_events_task failed: {e}", exc_info=True)
+        try:
+            mark_failed(AnalysisSession.objects.get(pk=session_id), 'lane_events', str(e))
+        except Exception:
+            pass
+        return {'error': str(e), 'session_id': session_id}
+
+
+@shared_task(bind=True)
+def compute_temporal_segments_task(self, session_id: str):
+    """Run temporal segment detection on existing DetectionFrames. Filters by
+    profile.target_classes + confidence at read time."""
+    close_old_connections()
+    from .models import AnalysisSession
+    from .utils.pass_tracking import mark_started, mark_completed, mark_failed
+
+    try:
+        session = AnalysisSession.objects.select_related('profile').get(pk=session_id)
+        ok, err = _check_data_available(session, [])  # any camera is fine
+        if not ok:
+            mark_failed(session, 'temporal_segments', err)
+            return {'error': err, 'session_id': session_id}
+
+        _console(session.user_id, f"Recalcul temporal_segments")
+        mark_started(session, 'temporal_segments', session.profile)
+        n_segments = detect_temporal_segments(session)
+        mark_completed(session, 'temporal_segments', output_summary={
+            'count': n_segments,
+            'target_classes': list(session.profile.target_classes or []),
+            'confidence': session.profile.confidence,
+        })
+        _console(session.user_id, f"  temporal_segments : {n_segments} segments")
+        return {'session_id': session_id, 'count': n_segments}
+    except Exception as e:
+        logger.error(f"compute_temporal_segments_task failed: {e}", exc_info=True)
+        try:
+            mark_failed(AnalysisSession.objects.get(pk=session_id), 'temporal_segments', str(e))
+        except Exception:
+            pass
+        return {'error': str(e), 'session_id': session_id}
+
+
+@shared_task(bind=True)
+def compute_conflict_events_task(self, session_id: str):
+    """Run conflict events computer on existing LaneEvents + DetectionFrames.
+    Pre-requisite : LaneEvents must exist (front camera analysed)."""
+    close_old_connections()
+    from .models import AnalysisSession, LaneEvent
+    from .utils.pass_tracking import mark_started, mark_completed, mark_failed
+
+    try:
+        session = AnalysisSession.objects.select_related('profile').get(pk=session_id)
+        if not LaneEvent.objects.filter(camera__session=session).exists():
+            err = "Aucun LaneEvent — lancer lane_events d'abord"
+            mark_failed(session, 'conflicts', err)
+            return {'error': err, 'session_id': session_id}
+
+        _console(session.user_id, f"Recalcul conflict_events")
+        mark_started(session, 'conflicts', session.profile)
+        n_conflicts = _compute_conflict_events(session, session.intersection_windows or [])
+        mark_completed(session, 'conflicts', output_summary={'count': n_conflicts})
+        _console(session.user_id, f"  conflicts : {n_conflicts} conflit(s) détecté(s)")
+        return {'session_id': session_id, 'count': n_conflicts}
+    except Exception as e:
+        logger.error(f"compute_conflict_events_task failed: {e}", exc_info=True)
+        try:
+            mark_failed(AnalysisSession.objects.get(pk=session_id), 'conflicts', str(e))
+        except Exception:
+            pass
+        return {'error': str(e), 'session_id': session_id}
+
 
 @shared_task(bind=True)
 def analyze_sam3_only_task(self, session_id: str):
@@ -1307,7 +1662,18 @@ def analyze_sam3_only_task(self, session_id: str):
 
         windows = session.intersection_windows or []
         raw_prompts = list(getattr(profile, 'sam3_markings_prompts', []) or [])
-        use_fallback = bool(getattr(profile, 'sam3_as_road_fallback', False))
+        # The "road fallback" is meant to make SAM3 generate the drivable area
+        # mask when no other road segmenter is wired in. When the profile has
+        # a road_model_path (YOLOPv2 or equivalent), that backend already
+        # produces road_mask entries during the YOLO pass — running SAM3
+        # globally would double-up and waste hours of GPU time. We disable
+        # the fallback in that case, matching the historical inline behaviour
+        # in process_session_task. SAM3 then runs ONLY inside the
+        # intersection windows.
+        fallback_requested = bool(getattr(profile, 'sam3_as_road_fallback', False))
+        has_external_road_segmenter = bool(getattr(profile, 'road_model_path', ''))
+        use_fallback = fallback_requested and not has_external_road_segmenter
+
         if not (raw_prompts or use_fallback):
             raise ValueError("Aucun prompt SAM3 configuré")
         if not windows and not use_fallback:
@@ -1322,7 +1688,7 @@ def analyze_sam3_only_task(self, session_id: str):
 
         _console(user_id, f"SAM3 seul : {session.name}")
         from .utils.pass_tracking import mark_started, mark_completed, mark_failed
-        mark_started(session, 'sam3_markings', profile)
+        mark_started(session, 'sam3_markings', profile, camera=front)
         set_session_progress(session_id, 1, "Chargement SAM3...")
 
         from .utils.sam3_road_analyzer import SAM3RoadAnalyzer
@@ -1331,8 +1697,24 @@ def analyze_sam3_only_task(self, session_id: str):
             road_fallback=use_fallback,
         )
         sam3.load()
-        _console(user_id, f"  SAM3 chargé — {len(raw_prompts)} prompt(s)"
-                          + (" + fallback route" if use_fallback else ""))
+        if use_fallback:
+            scope_label = (
+                f"  SAM3 chargé — {len(raw_prompts)} prompt(s) marquages "
+                f"+ fallback route (aucun road_model_path) → "
+                f"inférence sur TOUTES les frames"
+            )
+        elif fallback_requested and has_external_road_segmenter:
+            scope_label = (
+                f"  SAM3 chargé — {len(raw_prompts)} prompt(s) marquages "
+                f"— fallback route IGNORÉ (road_model_path={os.path.basename(profile.road_model_path)} "
+                f"fournit déjà le road_mask). SAM3 limité aux {len(windows)} fenêtre(s) d'intersection"
+            )
+        else:
+            scope_label = (
+                f"  SAM3 chargé — {len(raw_prompts)} prompt(s) marquages, "
+                f"limité aux {len(windows)} fenêtre(s) d'intersection"
+            )
+        _console(user_id, scope_label)
 
         cap = cv2.VideoCapture(video_path)
         if not cap.isOpened():
@@ -1418,7 +1800,7 @@ def analyze_sam3_only_task(self, session_id: str):
         session.completed_at = timezone.now()
         session.save(update_fields=['status', 'progress', 'completed_at'])
 
-        mark_completed(session, 'sam3_markings', output_summary={
+        mark_completed(session, 'sam3_markings', camera=front, output_summary={
             'scanned': scanned, 'updated': updated, 'created': created,
             'prompts': [p.get('label', '') for p in (profile.sam3_markings_prompts or [])],
             'fallback': bool(getattr(profile, 'sam3_as_road_fallback', False)),
@@ -1574,17 +1956,9 @@ def extract_rtmaps_task(self, session_id: str, rec_path: str = None, csv_path: s
         _set_progress(60, "Crop des 4 vues...")
 
         # ── 4. Crop all 4 views from the quadrature ──────────────────────
-        # All four are extracted to MP4 (H.264) so that lateral views can be
-        # used purely for visualisation. The profile's analyzed_positions
-        # filter decides later which ones get YOLO inference.
-        from .views import _ensure_h264
-
-        view_specs = [
-            ('front', 65), ('rear', 73), ('left', 80), ('right', 87),
-        ]
-        # Auto-detect layout from black separator bands; falls back to
-        # LAYOUT_NAVYA when detection is uncertain. Logged in the worker
-        # output so the user can verify which boxes were used.
+        # Primary path : ffmpeg `-vf crop` × 4 in parallel, libx264 CRF 18.
+        # Per-view fallback : OpenCV decoder → ffmpeg stdin pipe (path A).
+        # Last-resort fallback : legacy OpenCV writer + _ensure_h264.
         layout = detect_quadrature_layout(quad_path) or LAYOUT_NAVYA
         if layout is LAYOUT_NAVYA:
             _console(user_id, "  Layout quadrature : par défaut (LAYOUT_NAVYA)")
@@ -1595,29 +1969,58 @@ def extract_rtmaps_task(self, session_id: str, rec_path: str = None, csv_path: s
             )
             _console(user_id, f"  Layout quadrature auto-détecté : {sizes}")
 
-        view_metas = {}
-        for pos, pct in view_specs:
-            dst = os.path.join(output_dir, f"{session_slug}_{pos}.mp4")
-            try:
-                meta = export_quadrature_view(quad_path, dst, pos, layout)
-            except Exception as e:
-                logger.error(f"[RTMaps] failed to extract '{pos}': {e}")
-                view_metas[pos] = {'error': str(e)}
-                _set_progress(pct, f"Extraction {pos} échouée: {e}")
-                continue
+        view_specs = [
+            ('front', 65), ('rear', 73), ('left', 80), ('right', 87),
+        ]
+        view_pct = {p: pct for p, pct in view_specs}
+        view_metas: dict = {}
 
-            # Re-encode to H.264 if OpenCV fell back to MJPG/.avi
-            actual_path = meta.get('path')
-            if actual_path and os.path.exists(actual_path):
+        try:
+            from .utils.quadrature_video import export_quadrature_views_parallel
+            _set_progress(62, "Crop ffmpeg parallèle des 4 vues...")
+
+            def _ffmpeg_progress_cb(pos, status):
+                pct = view_pct.get(pos, 80)
+                label_map = {
+                    'ok': f"Vue {pos} prête",
+                    'ok_via_pipe': f"Vue {pos} prête (via pipe)",
+                    'failed_will_retry': f"Vue {pos} : retry via pipe…",
+                    'failed': f"Vue {pos} échouée",
+                }
+                _set_progress(pct, label_map.get(status, f"Vue {pos}: {status}"))
+
+            view_metas = export_quadrature_views_parallel(
+                quad_path, layout, output_dir, session_slug,
+                crf=18, progress_callback=_ffmpeg_progress_cb,
+            )
+            n_pipe = sum(1 for m in view_metas.values() if m.get('fallback_used') == 'pipe')
+            if n_pipe:
+                _console(user_id, f"  {n_pipe} vue(s) extraites via pipe OpenCV→ffmpeg (fallback)")
+        except Exception as e:
+            # Last-resort fallback when ffmpeg isn't available at all : legacy
+            # OpenCV writer (MJPG/avc1) + _ensure_h264 re-encode.
+            logger.warning(f"[RTMaps] parallel ffmpeg extraction unavailable ({e}), legacy path")
+            _console(user_id, f"  AVERTISSEMENT: extraction ffmpeg indisponible ({e}), fallback legacy")
+            from wama.common.utils.video_compat import ensure_h264
+            view_metas = {}
+            for pos, pct in view_specs:
+                dst = os.path.join(output_dir, f"{session_slug}_{pos}.mp4")
                 try:
-                    converted = _ensure_h264(actual_path)
-                    if isinstance(converted, str):
-                        meta['path'] = converted
-                except Exception as e:
-                    logger.warning(f"[RTMaps] _ensure_h264 failed for {actual_path}: {e}")
-
-            view_metas[pos] = meta
-            _set_progress(pct, f"Vue {pos} prête")
+                    meta = export_quadrature_view(quad_path, dst, pos, layout)
+                    actual_path = meta.get('path')
+                    if actual_path and os.path.exists(actual_path):
+                        try:
+                            converted = ensure_h264(actual_path)
+                            if isinstance(converted, str):
+                                meta['path'] = converted
+                        except Exception as ee:
+                            logger.warning(f"[RTMaps] ensure_h264 failed: {ee}")
+                    view_metas[pos] = meta
+                    _set_progress(pct, f"Vue {pos} prête (legacy)")
+                except Exception as ee:
+                    logger.error(f"[RTMaps] legacy extract failed for '{pos}': {ee}")
+                    view_metas[pos] = {'error': str(ee)}
+                    _set_progress(pct, f"Extraction {pos} échouée: {ee}")
 
         # ── 5. Create CameraView records ─────────────────────────────────
         for pos, meta in view_metas.items():

@@ -115,6 +115,7 @@ class AnalysisSession(models.Model):
         PROCESSING = 'processing', 'En cours'
         COMPLETED = 'completed', 'Terminé'
         FAILED = 'failed', 'Échec'
+        PAUSED = 'paused', 'En pause (annulé, données partielles)'
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(
@@ -255,6 +256,15 @@ class AnalysisPass(models.Model):
         on_delete=models.CASCADE,
         related_name='passes',
     )
+    # Proposition A — Per-camera granularity for YOLO/YOLOPv2/SAM3 passes.
+    # Null for session-wide passes (intersection_windows, temporal_segments,
+    # conflicts, extraction) which apply to the whole session.
+    camera = models.ForeignKey(
+        CameraView,
+        null=True, blank=True,
+        on_delete=models.CASCADE,
+        related_name='passes',
+    )
     pass_type = models.CharField(max_length=30, choices=PassType.choices)
     status = models.CharField(max_length=15, choices=Status.choices, default=Status.PENDING)
     # Snapshot of the watched profile parameters at the moment the pass ran.
@@ -268,12 +278,18 @@ class AnalysisPass(models.Model):
     error_message = models.TextField(blank=True)
 
     class Meta:
-        ordering = ['session', 'pass_type']
-        unique_together = ['session', 'pass_type']
+        ordering = ['session', 'pass_type', 'camera']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['session', 'pass_type', 'camera'],
+                name='unique_pass_per_session_type_camera',
+            ),
+        ]
         indexes = [models.Index(fields=['session', 'status'])]
 
     def __str__(self):
-        return f"{self.get_pass_type_display()} [{self.status}] — {self.session_id}"
+        cam_str = f" [{self.camera.position}]" if self.camera_id else ""
+        return f"{self.get_pass_type_display()}{cam_str} [{self.status}] — {self.session_id}"
 
 
 class LaneEvent(models.Model):

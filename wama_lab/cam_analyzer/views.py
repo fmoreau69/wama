@@ -82,73 +82,11 @@ def _extract_video_metadata(file_path):
         return {}
 
 
-def _ensure_h264(file_path):
-    """
-    Ensure a video is browser-compatible (H.264/H.265).
-    If the codec is not playable (MJPG, mp4v, etc.), re-encode to H.264.
-    When the input is .avi (typical OpenCV/MJPG fallback), the output is
-    promoted to .mp4 — the original .avi is removed.
-
-    Returns:
-        - False if no conversion was needed or if it failed
-        - The final file path (str) if a conversion occurred (may differ
-          from the input path when extension was promoted)
-    """
-    import subprocess
-
-    try:
-        result = subprocess.run(
-            ['ffprobe', '-v', 'error', '-select_streams', 'v:0',
-             '-show_entries', 'stream=codec_name',
-             '-of', 'csv=p=0', file_path],
-            capture_output=True, text=True, timeout=10,
-        )
-        codec = result.stdout.strip().lower()
-
-        if codec in ('h264', 'hevc', 'vp8', 'vp9', 'av1'):
-            return False  # Already browser-compatible
-
-        # Promote .avi to .mp4 since we're re-encoding anyway — avoids the
-        # codec/container mismatch where the file claims .avi but holds H.264.
-        base, ext = os.path.splitext(file_path)
-        target_path = base + '.mp4' if ext.lower() == '.avi' else file_path
-
-        logger.info(f"Video codec '{codec}' not browser-compatible, re-encoding to H.264: {file_path} → {target_path}")
-
-        tmp_path = target_path + '.h264.tmp.mp4'
-        proc = subprocess.run(
-            ['ffmpeg', '-i', file_path,
-             '-c:v', 'libx264', '-preset', 'fast', '-crf', '18',
-             '-pix_fmt', 'yuv420p', '-c:a', 'copy',
-             '-movflags', '+faststart',
-             tmp_path, '-y'],
-            capture_output=True, text=True, timeout=1800,
-        )
-
-        if proc.returncode != 0:
-            logger.error(f"ffmpeg re-encode failed: {proc.stderr[-500:]}")
-            if os.path.exists(tmp_path):
-                os.remove(tmp_path)
-            return False
-
-        os.replace(tmp_path, target_path)
-
-        # If the extension changed, drop the legacy file.
-        if target_path != file_path and os.path.exists(file_path):
-            try:
-                os.remove(file_path)
-            except OSError as rm_err:
-                logger.warning(f"Could not remove original {file_path}: {rm_err}")
-
-        logger.info(f"Re-encoded to H.264: {target_path}")
-        return target_path
-
-    except FileNotFoundError:
-        logger.warning("ffprobe/ffmpeg not found, skipping codec check")
-        return False
-    except Exception as e:
-        logger.warning(f"Codec check failed: {e}")
-        return False
+# Backwards-compat shim — the real implementation lives in
+# ``wama.common.utils.video_compat.ensure_h264`` since this helper is
+# shared by upload_camera and the legacy quad-extraction fallback (and
+# eventually by other apps + Converter as its trivial H.264 backend).
+from wama.common.utils.video_compat import ensure_h264 as _ensure_h264  # noqa: F401
 
 
 # COCO classes relevant for road analysis
@@ -443,7 +381,8 @@ def upload_camera(request, session_id):
         )
 
         # Re-encode to H.264 if needed (MPEG-4 Part 2 etc. not playable in browser)
-        converted = _ensure_h264(camera.video_file.path)
+        from wama.common.utils.video_compat import ensure_h264
+        converted = ensure_h264(camera.video_file.path)
         if converted:
             _console(user_id, f"  Vidéo ré-encodée en H.264 pour compatibilité navigateur")
             # If the extension was promoted (e.g. .avi → .mp4), update the DB pointer
@@ -594,20 +533,22 @@ def cancel_analysis(request, session_id):
             logger.warning(f"Failed to revoke task {task_id}: {e}")
         cache.delete(f"cam_analyzer_task_{session_id}")
 
-    # For PENDING sessions, immediately mark as failed
+    # Proposition C — Cancel maps to PAUSED, not FAILED, so partial data
+    # (DetectionFrames already committed) remains usable. The user can
+    # restart and the skip-if-done logic in process_session_task preserves
+    # what was done.
     if session.status == AnalysisSession.Status.PENDING:
-        session.status = AnalysisSession.Status.FAILED
+        session.status = AnalysisSession.Status.PAUSED
         session.error_message = "Annulé par l'utilisateur"
         session.progress = 0
         session.save()
         return JsonResponse({'success': True, 'message': 'Analyse annulée', 'immediate': True})
 
-    # For PROCESSING sessions: mark as failed since revoke was sent
-    session.status = AnalysisSession.Status.FAILED
-    session.error_message = "Annulé par l'utilisateur"
+    session.status = AnalysisSession.Status.PAUSED
+    session.error_message = "Annulé par l'utilisateur (données partielles conservées)"
     session.save(update_fields=['status', 'error_message'])
 
-    return JsonResponse({'success': True, 'message': 'Annulation envoyée'})
+    return JsonResponse({'success': True, 'message': 'Annulation envoyée — données partielles conservées'})
 
 
 @login_required
@@ -662,40 +603,68 @@ def run_passes(request, session_id):
             if s['status'] in ('never', 'stale', 'failed'):
                 needs_run.add(s['pass_type'])
 
-    # Map pass_type → which monolithic task launches it
-    triggers_full_yolo = needs_run & {
-        'yolo_detect', 'yolopv2_lanes', 'lane_events', 'temporal_segments'
-    }
-    triggers_sam3_only = (needs_run == {'sam3_markings'})
-    triggers_windows_only = needs_run == {'intersection_windows'}
-
+    # Dispatch matrix : a request can mix derived computers + full passes.
+    # Order matters — heavy passes (process_session_task) before light ones.
     launched = []
-    if triggers_windows_only:
+
+    # 1. Windows recompute (synchronous, cheapest)
+    if 'intersection_windows' in needs_run:
         from .utils.window_recompute import recompute_intersection_windows
         recompute_intersection_windows(session, session.profile)
         launched.append('intersection_windows')
-    elif triggers_full_yolo:
+        needs_run.discard('intersection_windows')
+
+    # 2. Heavy pass : YOLO / YOLOPv2 require process_session_task.
+    #    This task internally calls lane_events for the front camera, so
+    #    if lane_events is the only "downstream" needed and YOLO is also
+    #    being requested, we don't need a separate compute_lane_events_task.
+    heavy_needed = needs_run & {'yolo_detect', 'yolopv2_lanes'}
+    if heavy_needed:
         from .tasks import process_session_task
         cache.delete(f"stop_cam_analyzer_{request.user.id}")
-        # Reset session to pending so process_session_task doesn't bail on
-        # the COMPLETED idempotency guard (cf. tasks.py:462).
         session.status = AnalysisSession.Status.PENDING
         session.progress = 0
         session.save(update_fields=['status', 'progress'])
-        task = process_session_task.delay(str(session.id))
+        task = process_session_task.delay(str(session.id), force_rerun=force)
         cache.set(f"cam_analyzer_task_{session.id}", task.id, timeout=86400)
         launched.append('process_session_task')
-    elif triggers_sam3_only:
-        from .tasks import analyze_sam3_only_task
+        # process_session_task takes care of these downstream passes
+        needs_run -= {'yolo_detect', 'yolopv2_lanes', 'lane_events', 'distance'}
+        # SAM3 is chained at the end of process_session_task when enabled,
+        # so we don't dispatch analyze_sam3_only_task here.
+        needs_run.discard('sam3_markings')
+        # temporal_segments + conflicts are also chained in process_session_task
+        needs_run -= {'temporal_segments', 'conflicts'}
+
+    # 3. Decoupled computers (Proposition D) — light tasks, no GPU loading
+    elif needs_run:
+        from .tasks import (
+            compute_lane_events_task,
+            compute_temporal_segments_task,
+            compute_conflict_events_task,
+            analyze_sam3_only_task,
+        )
         cache.delete(f"stop_cam_analyzer_{request.user.id}")
-        task = analyze_sam3_only_task.delay(str(session.id))
-        cache.set(f"cam_analyzer_task_{session.id}", task.id, timeout=86400)
-        launched.append('analyze_sam3_only_task')
+
+        dispatch_map = {
+            'lane_events':       compute_lane_events_task,
+            'temporal_segments': compute_temporal_segments_task,
+            'conflicts':         compute_conflict_events_task,
+            'sam3_markings':     analyze_sam3_only_task,
+        }
+        for pt in list(needs_run):
+            task_fn = dispatch_map.get(pt)
+            if task_fn is None:
+                continue
+            task = task_fn.delay(str(session.id))
+            cache.set(f"cam_analyzer_task_{session.id}", task.id, timeout=86400)
+            launched.append(task_fn.__name__)
+            needs_run.discard(pt)
 
     return JsonResponse({
         'success': True,
         'launched': launched,
-        'requested': sorted(needs_run),
+        'requested': sorted({s for s in needs_run} | {l for l in launched}),
         'force': force,
     })
 
