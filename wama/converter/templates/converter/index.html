@@ -56,11 +56,12 @@
 <div id="converterDropZone" class="converter-drop-zone" onclick="document.getElementById('converterFileInput').click()">
     <i class="fas fa-file-import fa-lg mb-1" style="color:#20c997;"></i>
     <p class="mb-0 small text-secondary">Glissez ici ou cliquez</p>
-    <small class="text-muted">Images · Vidéos · Audio</small>
+    <small class="text-muted">Images · Vidéos · Audio · Documents</small>
     <input type="file" id="converterFileInput" multiple
            accept=".jpg,.jpeg,.png,.webp,.bmp,.tiff,.tif,.gif,.heic,.heif,.avif,
                    .mp4,.avi,.mov,.mkv,.webm,.flv,.mpg,.mpeg,.3gp,.wmv,.ts,.m4v,
-                   .mp3,.wav,.flac,.ogg,.m4a,.aac,.opus,.wma,.aiff,.aif"
+                   .mp3,.wav,.flac,.ogg,.m4a,.aac,.opus,.wma,.aiff,.aif,
+                   .pdf,.docx,.md,.markdown,.html,.htm,.txt,.rtf,.odt,.epub,.tex,.latex"
            style="display:none">
 </div>
 {% endblock %}
@@ -76,6 +77,23 @@
     <div id="converterMediaTypeBadge" class="text-muted small fst-italic">
         — aucun fichier sélectionné —
     </div>
+</div>
+
+<!-- Profil de conversion -->
+<div class="mb-2" id="converterProfileBlock">
+    <label class="form-label small fw-bold text-light mb-1">
+        <i class="fas fa-bookmark"></i> Profil de conversion
+    </label>
+    <div class="input-group input-group-sm">
+        <select id="converterProfileSelect" class="form-select form-select-sm">
+            <option value="">— aucun profil —</option>
+        </select>
+        <button type="button" class="btn btn-outline-danger btn-sm" id="converterProfileDeleteBtn"
+                title="Supprimer ce profil" disabled>
+            <i class="fas fa-trash"></i>
+        </button>
+    </div>
+    <small class="text-muted">Charge format + options pour les prochains uploads.</small>
 </div>
 
 <!-- Format de sortie -->
@@ -127,6 +145,35 @@
         </label>
         <input type="number" id="videoFPS" class="form-control form-control-sm"
                placeholder="25, 30, 60…" min="1" max="120">
+    </div>
+</div>
+
+<!-- Transformations (rotation + miroir) — visible pour image & vidéo -->
+<div id="transformsOptions" style="display:none;">
+    <div class="mb-2">
+        <label class="form-label small fw-bold text-light mb-1">
+            <i class="fas fa-redo"></i> Rotation
+        </label>
+        <select id="rotation" class="form-select form-select-sm">
+            <option value="0" selected>Aucune</option>
+            <option value="90">90° gauche</option>
+            <option value="180">180° (inversé)</option>
+            <option value="270">90° droite</option>
+        </select>
+    </div>
+    <div class="row g-1 mb-2">
+        <div class="col-6">
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="flipH">
+                <label class="form-check-label small" for="flipH">↔ Miroir H</label>
+            </div>
+        </div>
+        <div class="col-6">
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="flipV">
+                <label class="form-check-label small" for="flipV">↕ Miroir V</label>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -187,9 +234,50 @@
                 <!-- Populated by JS -->
             </div>
             <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-outline-info me-auto" id="jobSettingsSaveProfileBtn">
+                    <i class="fas fa-bookmark"></i> Sauver comme profil…
+                </button>
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+                <button type="button" class="btn btn-warning" id="jobSettingsApplyBtn">
+                    <i class="fas fa-save"></i> Appliquer
+                </button>
                 <button type="button" class="btn btn-success" id="jobSettingsStartBtn">
-                    <i class="fas fa-play"></i> (Re)lancer
+                    <i class="fas fa-play"></i> Appliquer & (Re)lancer
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal "Sauver comme profil" -->
+<div class="modal fade" id="saveProfileModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content bg-dark text-light border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title">
+                    <i class="fas fa-bookmark" style="color:#20c997;"></i> Sauver le profil
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-2">
+                    <label class="form-label small text-light mb-1">Nom du profil</label>
+                    <input type="text" id="saveProfileName" class="form-control form-control-sm"
+                           placeholder="ex : MP4 H.264 web HD" maxlength="100">
+                </div>
+                <div class="mb-2">
+                    <label class="form-label small text-muted mb-1">Description (optionnel)</label>
+                    <input type="text" id="saveProfileDesc" class="form-control form-control-sm"
+                           placeholder="…" maxlength="255">
+                </div>
+                <small class="text-muted">
+                    Si un profil porte déjà ce nom, il sera écrasé.
+                </small>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Annuler</button>
+                <button type="button" class="btn btn-success btn-sm" id="saveProfileConfirmBtn">
+                    <i class="fas fa-check"></i> Sauver
                 </button>
             </div>
         </div>
@@ -204,14 +292,18 @@
 window.CONVERTER_APP = {
     csrfToken: '{{ csrf_token }}',
     urls: {
-        upload:    "{% url 'converter:upload' %}",
-        startAll:  "{% url 'converter:start_all' %}",
-        clearAll:  "{% url 'converter:clear_all' %}",
-        start:     "{% url 'converter:start' 0 %}",
-        status:    "{% url 'converter:status' 0 %}",
-        download:  "{% url 'converter:download' 0 %}",
-        delete:    "{% url 'converter:delete' 0 %}",
-        duplicate: "{% url 'converter:duplicate' 0 %}",
+        upload:        "{% url 'converter:upload' %}",
+        startAll:      "{% url 'converter:start_all' %}",
+        clearAll:      "{% url 'converter:clear_all' %}",
+        start:         "{% url 'converter:start' 0 %}",
+        status:        "{% url 'converter:status' 0 %}",
+        update:        "{% url 'converter:update' 0 %}",
+        download:      "{% url 'converter:download' 0 %}",
+        delete:        "{% url 'converter:delete' 0 %}",
+        duplicate:     "{% url 'converter:duplicate' 0 %}",
+        profileList:   "{% url 'converter:profile_list' %}",
+        profileSave:   "{% url 'converter:profile_save' %}",
+        profileDelete: "{% url 'converter:profile_delete' 0 %}",
     },
     supportedFormats: {{ supported_formats_json|safe }},
 };

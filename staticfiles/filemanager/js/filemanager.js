@@ -408,6 +408,10 @@
                 // Success — dismiss modal and show toast
                 bootstrap.Modal.getInstance(modal).hide();
                 showToast(`Conversion démarrée → .${fmt.toUpperCase()} (job #${data.job_id})`, 'success');
+                // Notify the Converter page (if open in same tab) — WAMA standard pattern
+                document.dispatchEvent(new CustomEvent('wama:fileimported', {
+                    detail: { imported: true, app: 'converter', path: filePath, job_id: data.job_id }
+                }));
             } catch(err) {
                 errEl.textContent = 'Erreur réseau : ' + err.message;
                 errEl.style.display = '';

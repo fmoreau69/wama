@@ -112,6 +112,17 @@ def convert_media_task(self, job_id: int):
                 progress_callback=_progress,
             )
 
+        elif media_type == 'document':
+            from .backends.document_backend import convert_document
+            _set_progress(job_id, 10)
+            convert_document(
+                input_path=input_path,
+                output_path=output_path,
+                output_format=job.output_format,
+                options=job.options,
+            )
+            _set_progress(job_id, 90)
+
         else:
             raise ValueError(f"Type de média non supporté : {media_type}")
 

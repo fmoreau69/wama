@@ -4,9 +4,11 @@
  * Responsibilities:
  *  - File upload (drag & drop + file input) with media-type detection
  *  - Output format dropdown population
- *  - Options panels (image / video / audio)
+ *  - Options panels (image / video / audio) — main panel + modal
+ *  - Conversion profiles (save / load / delete)
  *  - Job queue rendering & polling
  *  - Start / delete / duplicate / clear-all / start-all actions
+ *  - Per-job settings modal (edit output_format + options, then restart)
  */
 
 (function () {
@@ -31,17 +33,23 @@
     const emptyState     = document.getElementById('converterEmptyState');
 
     // Options panels
-    const imageOpts = document.getElementById('imageOptions');
-    const videoOpts = document.getElementById('videoOptions');
-    const audioOpts = document.getElementById('audioOptions');
+    const imageOpts      = document.getElementById('imageOptions');
+    const videoOpts      = document.getElementById('videoOptions');
+    const audioOpts      = document.getElementById('audioOptions');
+    const transformsOpts = document.getElementById('transformsOptions');
 
     // Global action buttons
     const startAllBtn = document.getElementById('converterStartAllBtn');
     const clearAllBtn = document.getElementById('converterClearAllBtn');
 
+    // Profile dropdown
+    const profileSelect    = document.getElementById('converterProfileSelect');
+    const profileDeleteBtn = document.getElementById('converterProfileDeleteBtn');
+
     // ── State ─────────────────────────────────────────────────────────────────
     let currentMediaType = null;
     const pollingTimers  = {};   // { jobId: intervalId }
+    let cachedProfiles   = [];   // last fetched list
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -63,11 +71,11 @@
     }
 
     function formatLabel(type) {
-        const labels = { image: 'Image', video: 'Vidéo', audio: 'Audio' };
+        const labels = { image: 'Image', video: 'Vidéo', audio: 'Audio', document: 'Document' };
         return labels[type] || type;
     }
 
-    // ── UI updates ────────────────────────────────────────────────────────────
+    // ── Main right-panel UI updates ───────────────────────────────────────────
 
     function setMediaType(type) {
         currentMediaType = type;
@@ -75,8 +83,8 @@
         if (!type) {
             mediaTypeBadge.innerHTML = '<span class="text-muted fst-italic">— aucun fichier sélectionné —</span>';
         } else {
-            const colours = { image: 'success', video: 'primary', audio: 'warning' };
-            const icons   = { image: 'image', video: 'film', audio: 'music' };
+            const colours = { image: 'success', video: 'primary', audio: 'warning', document: 'info' };
+            const icons   = { image: 'image', video: 'film', audio: 'music', document: 'file-alt' };
             mediaTypeBadge.innerHTML =
                 `<span class="badge bg-${colours[type] || 'secondary'}">` +
                 `<i class="fas fa-${icons[type] || 'file'}"></i> ${formatLabel(type)}</span>`;
@@ -101,9 +109,15 @@
         imageOpts.style.display = type === 'image' ? '' : 'none';
         videoOpts.style.display = type === 'video' ? '' : 'none';
         audioOpts.style.display = type === 'audio' ? '' : 'none';
+        if (transformsOpts) {
+            transformsOpts.style.display = (type === 'image' || type === 'video') ? '' : 'none';
+        }
+
+        // Filter profile dropdown to current media type
+        renderProfileDropdown(type);
     }
 
-    function buildOptions() {
+    function readMainPanelOptions() {
         const opts = {};
         if (currentMediaType === 'image') {
             opts.quality  = parseInt(document.getElementById('imageQuality').value) || 85;
@@ -121,7 +135,47 @@
             if (br) opts.audio_bitrate = br;
             if (document.getElementById('audioNormalize').checked) opts.normalize = true;
         }
+        // Transforms (visible for image and video)
+        if (currentMediaType === 'image' || currentMediaType === 'video') {
+            const rot = parseInt(document.getElementById('rotation')?.value || '0', 10);
+            if (rot) opts.rotation = rot;
+            if (document.getElementById('flipH')?.checked) opts.flip_h = true;
+            if (document.getElementById('flipV')?.checked) opts.flip_v = true;
+        }
         return opts;
+    }
+
+    function applyOptionsToMainPanel(mediaType, opts) {
+        opts = opts || {};
+        if (mediaType === 'image') {
+            const q = document.getElementById('imageQuality');
+            if (q) {
+                q.value = opts.quality != null ? opts.quality : 85;
+                const disp = document.getElementById('qualityDisplay');
+                if (disp) disp.textContent = q.value;
+            }
+            const rw = document.getElementById('resizeW'); if (rw) rw.value = opts.resize_w || '';
+            const rh = document.getElementById('resizeH'); if (rh) rh.value = opts.resize_h || '';
+        } else if (mediaType === 'video') {
+            const crf = document.getElementById('videoCRF');
+            if (crf) crf.value = opts.video_quality != null ? opts.video_quality : '';
+            const fps = document.getElementById('videoFPS');
+            if (fps) fps.value = opts.fps != null ? opts.fps : '';
+        } else if (mediaType === 'audio') {
+            const br = document.getElementById('audioBitrate');
+            if (br) br.value = opts.audio_bitrate || '192k';
+            const norm = document.getElementById('audioNormalize');
+            if (norm) norm.checked = !!opts.normalize;
+        }
+        // Transforms (image + video)
+        if (mediaType === 'image' || mediaType === 'video') {
+            const rot = document.getElementById('rotation');
+            if (rot) rot.value = String(opts.rotation || 0);
+            const fh = document.getElementById('flipH');
+            if (fh) fh.checked = !!opts.flip_h;
+            const fv = document.getElementById('flipV');
+            if (fv) fv.checked = !!opts.flip_v;
+        }
     }
 
     // ── Upload ────────────────────────────────────────────────────────────────
@@ -139,7 +193,7 @@
             return;
         }
 
-        const opts   = buildOptions();
+        const opts   = readMainPanelOptions();
         const fd     = new FormData();
         fd.append('file', file);
         fd.append('output_format', outputFmt);
@@ -171,10 +225,8 @@
         dropZone.classList.remove('dragover');
         const files = Array.from(e.dataTransfer.files);
         if (!files.length) return;
-        // Detect type from first file, set UI, then upload all
         const type = detectMediaType(files[0].name);
         if (type) setMediaType(type);
-        // Upload sequentially
         files.reduce((p, f) => p.then(() => uploadFile(f)), Promise.resolve());
     });
 
@@ -274,6 +326,17 @@
             badge.textContent = STATUS_LABELS[data.status] || data.status;
         }
 
+        // Output-format badge update (in case settings changed it)
+        if (data.output_format) {
+            const filenameSpan = card.querySelector('.fw-bold');
+            if (filenameSpan) {
+                let fmtBadge = filenameSpan.parentElement.querySelector('.badge-media.bg-secondary');
+                if (fmtBadge && fmtBadge.textContent.trim().startsWith('→')) {
+                    fmtBadge.textContent = '→ .' + data.output_format;
+                }
+            }
+        }
+
         // Progress bar
         let progressBar = card.querySelector('.wama-progress-fill');
         if (data.status === 'RUNNING') {
@@ -290,7 +353,6 @@
         } else if (data.status === 'DONE') {
             const track = card.querySelector('.wama-progress-track');
             if (track) track.remove();
-            // Show output filename + enable download
             let info = card.querySelector('.job-info-line');
             if (!info) {
                 info = document.createElement('div');
@@ -299,7 +361,6 @@
             }
             info.innerHTML = `<i class="fas fa-check-circle"></i> ${data.output_filename || 'Converti'}`;
 
-            // Enable download button
             const dlBtn = card.querySelector('.btn-outline-info');
             if (dlBtn) {
                 const dlLink = document.createElement('a');
@@ -309,7 +370,6 @@
                 dlLink.innerHTML = '<i class="fas fa-download"></i>';
                 dlBtn.replaceWith(dlLink);
             }
-            // Enable start btn (for restart)
             const startBtn = card.querySelector('.job-start-btn');
             if (startBtn) {
                 startBtn.disabled = false;
@@ -375,24 +435,373 @@
         }
     });
 
-    // ── Settings modal (placeholder) ──────────────────────────────────────────
+    // ── Settings modal — dynamic form + apply / restart ───────────────────────
 
-    function openSettingsModal(jobId) {
-        const card = document.querySelector(`.job-card[data-job-id="${jobId}"]`);
-        const filename = card ? card.querySelector('.fw-bold')?.textContent?.trim() : `Job #${jobId}`;
-        document.getElementById('jobSettingsFilename').textContent = filename;
-        document.getElementById('jobSettingsBody').innerHTML =
-            `<p class="text-muted small">ID job : <code>${jobId}</code></p>` +
-            '<p class="text-muted small">Paramètres détaillés disponibles en P2.</p>';
-        const startBtn = document.getElementById('jobSettingsStartBtn');
-        startBtn.onclick = () => {
+    /**
+     * Build the modal body HTML for editing a job's options.
+     * Uses data-key attributes so we can read values back generically.
+     */
+    function buildModalFormHTML(mediaType, outputFormat, opts) {
+        opts = opts || {};
+        const escape = (s) => String(s).replace(/[&<>"']/g, ch =>
+            ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+
+        // Output format dropdown
+        const formats = (FORMATS[mediaType] || {}).output || [];
+        const fmtOpts = formats.map(f => {
+            const sel = (f === outputFormat) ? ' selected' : '';
+            return `<option value="${escape(f)}"${sel}>.${escape(f.toUpperCase())}</option>`;
+        }).join('');
+
+        let body = `
+            <div class="mb-3">
+                <label class="form-label small fw-bold text-light">
+                    <i class="fas fa-file-export"></i> Format de sortie
+                </label>
+                <select class="form-select form-select-sm" data-key="output_format">${fmtOpts}</select>
+            </div>
+        `;
+
+        const transformsHTML = (mt) => {
+            if (mt !== 'image' && mt !== 'video') return '';
+            const rot = String(opts.rotation || 0);
+            const sel = v => (v === rot ? ' selected' : '');
+            const fh = opts.flip_h ? ' checked' : '';
+            const fv = opts.flip_v ? ' checked' : '';
+            return `
+                <hr class="border-secondary my-2">
+                <div class="mb-2">
+                    <label class="form-label small fw-bold text-light"><i class="fas fa-redo"></i> Rotation</label>
+                    <select class="form-select form-select-sm" data-key="rotation">
+                        <option value="0"${sel('0')}>Aucune</option>
+                        <option value="90"${sel('90')}>90° gauche</option>
+                        <option value="180"${sel('180')}>180° (inversé)</option>
+                        <option value="270"${sel('270')}>90° droite</option>
+                    </select>
+                </div>
+                <div class="row g-1 mb-2">
+                    <div class="col-6">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" data-key="flip_h"${fh}>
+                            <label class="form-check-label small">↔ Miroir H</label>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" data-key="flip_v"${fv}>
+                            <label class="form-check-label small">↕ Miroir V</label>
+                        </div>
+                    </div>
+                </div>
+            `;
+        };
+
+        if (mediaType === 'image') {
+            const q = opts.quality != null ? opts.quality : 85;
+            body += `
+                <div class="mb-2">
+                    <label class="form-label small fw-bold text-light">
+                        <i class="fas fa-sliders-h"></i> Qualité (JPG/WebP/AVIF)
+                        <span class="text-muted ms-1" data-display="quality">${escape(q)}</span>
+                    </label>
+                    <input type="range" class="form-range" min="1" max="100" value="${escape(q)}"
+                           data-key="quality"
+                           oninput="this.parentNode.querySelector('[data-display=quality]').textContent=this.value">
+                </div>
+                <div class="row g-1 mb-2">
+                    <div class="col-6">
+                        <label class="form-label small text-muted mb-1">Largeur (px)</label>
+                        <input type="number" class="form-control form-control-sm" data-key="resize_w"
+                               placeholder="0 = auto" min="0" value="${escape(opts.resize_w || '')}">
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label small text-muted mb-1">Hauteur (px)</label>
+                        <input type="number" class="form-control form-control-sm" data-key="resize_h"
+                               placeholder="0 = auto" min="0" value="${escape(opts.resize_h || '')}">
+                    </div>
+                </div>
+            `;
+        } else if (mediaType === 'video') {
+            body += `
+                <div class="mb-2">
+                    <label class="form-label small fw-bold text-light">
+                        <i class="fas fa-film"></i> Qualité vidéo (CRF 0–51)
+                    </label>
+                    <input type="number" class="form-control form-control-sm" data-key="video_quality"
+                           placeholder="23 (défaut)" min="0" max="51"
+                           value="${escape(opts.video_quality != null ? opts.video_quality : '')}">
+                </div>
+                <div class="mb-2">
+                    <label class="form-label small fw-bold text-light">
+                        <i class="fas fa-tachometer-alt"></i> FPS <span class="text-muted">(vide = conserver)</span>
+                    </label>
+                    <input type="number" class="form-control form-control-sm" data-key="fps"
+                           placeholder="25, 30, 60…" min="1" max="120"
+                           value="${escape(opts.fps != null ? opts.fps : '')}">
+                </div>
+            `;
+        } else if (mediaType === 'audio') {
+            const bitrates = ['', '128k', '192k', '256k', '320k'];
+            const labels = { '': 'Auto', '128k': '128 kbps', '192k': '192 kbps',
+                             '256k': '256 kbps', '320k': '320 kbps (MP3 max)' };
+            const brOpts = bitrates.map(b => {
+                const sel = (b === (opts.audio_bitrate || '')) ? ' selected' : '';
+                return `<option value="${escape(b)}"${sel}>${escape(labels[b])}</option>`;
+            }).join('');
+            const normCheck = opts.normalize ? ' checked' : '';
+            body += `
+                <div class="mb-2">
+                    <label class="form-label small fw-bold text-light">
+                        <i class="fas fa-headphones"></i> Débit audio
+                    </label>
+                    <select class="form-select form-select-sm" data-key="audio_bitrate">${brOpts}</select>
+                </div>
+                <div class="form-check mb-2">
+                    <input class="form-check-input" type="checkbox" data-key="normalize"${normCheck}>
+                    <label class="form-check-label small">
+                        Normalisation loudness (EBU R128)
+                    </label>
+                </div>
+            `;
+        } else {
+            body += `<div class="alert alert-warning small">Type de média inconnu : ${escape(mediaType)}</div>`;
+        }
+
+        body += transformsHTML(mediaType);
+
+        return body;
+    }
+
+    /**
+     * Read values back from the modal form. Returns { output_format, options }.
+     */
+    function readModalForm() {
+        const body = document.getElementById('jobSettingsBody');
+        const outputFormat = body.querySelector('[data-key="output_format"]')?.value || '';
+        const options = {};
+        body.querySelectorAll('[data-key]').forEach(el => {
+            const k = el.dataset.key;
+            if (k === 'output_format') return;
+            if (el.type === 'checkbox') {
+                if (el.checked) options[k] = true;
+            } else if (el.type === 'number' || el.type === 'range') {
+                if (el.value !== '' && el.value !== null) {
+                    const n = el.step && parseFloat(el.step) !== Math.floor(parseFloat(el.step))
+                              ? parseFloat(el.value) : parseInt(el.value);
+                    if (!isNaN(n)) options[k] = n;
+                }
+            } else {
+                if (el.value !== '' && el.value !== null) options[k] = el.value;
+            }
+        });
+        return { output_format: outputFormat, options };
+    }
+
+    let currentModalJobId = null;
+    let currentModalMediaType = null;
+
+    async function openSettingsModal(jobId) {
+        currentModalJobId = jobId;
+        const filenameSpan = document.getElementById('jobSettingsFilename');
+        const body = document.getElementById('jobSettingsBody');
+
+        filenameSpan.textContent = `Job #${jobId}`;
+        body.innerHTML = '<div class="text-center text-muted py-3"><i class="fas fa-spinner fa-spin"></i> Chargement…</div>';
+        const modalEl = document.getElementById('jobSettingsModal');
+        const modal = new bootstrap.Modal(modalEl);
+        modal.show();
+
+        try {
+            const resp = await fetch(urlFor(APP.urls.status, jobId));
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            const data = await resp.json();
+            currentModalMediaType = data.media_type;
+            filenameSpan.textContent = data.input_filename || `Job #${jobId}`;
+            body.innerHTML = buildModalFormHTML(data.media_type, data.output_format, data.options);
+
+            // Disable Apply/Start if job is RUNNING
+            const isRunning = data.status === 'RUNNING';
+            const applyBtn = document.getElementById('jobSettingsApplyBtn');
+            const startBtn = document.getElementById('jobSettingsStartBtn');
+            if (applyBtn) applyBtn.disabled = isRunning;
+            if (startBtn) {
+                startBtn.disabled = isRunning;
+                startBtn.innerHTML = data.status === 'DONE'
+                    ? '<i class="fas fa-redo"></i> Appliquer & Recommencer'
+                    : '<i class="fas fa-play"></i> Appliquer & (Re)lancer';
+            }
+            if (isRunning) {
+                const warn = document.createElement('div');
+                warn.className = 'alert alert-warning small mt-2 mb-0';
+                warn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Conversion en cours — modification désactivée.';
+                body.appendChild(warn);
+            }
+        } catch (err) {
+            body.innerHTML = `<div class="alert alert-danger small">Erreur de chargement : ${err.message}</div>`;
+        }
+    }
+
+    /**
+     * POST update payload for the current modal job. Returns true on success.
+     */
+    async function applyCurrentModal() {
+        const { output_format, options } = readModalForm();
+        if (!output_format) {
+            alert('Format de sortie requis.');
+            return false;
+        }
+        const fd = new FormData();
+        fd.append('output_format', output_format);
+        fd.append('options_json', JSON.stringify(options));
+        try {
+            const resp = await csrfPost(urlFor(APP.urls.update, currentModalJobId), fd);
+            const data = await resp.json();
+            if (!resp.ok || data.error) {
+                alert('Erreur : ' + (data.error || resp.statusText));
+                return false;
+            }
+            // Reflect new format in the queue card immediately
+            updateCard(currentModalJobId, {
+                status: document.querySelector(`.job-card[data-job-id="${currentModalJobId}"]`)?.dataset.status || 'PENDING',
+                progress: 0,
+                output_format: data.output_format,
+            });
+            return true;
+        } catch (err) {
+            alert('Erreur réseau : ' + err.message);
+            return false;
+        }
+    }
+
+    // Apply (sans relancer)
+    document.getElementById('jobSettingsApplyBtn')?.addEventListener('click', async () => {
+        const ok = await applyCurrentModal();
+        if (ok) {
             const modal = bootstrap.Modal.getInstance(document.getElementById('jobSettingsModal'));
             if (modal) modal.hide();
-            startJob(jobId);
-        };
-        const modal = new bootstrap.Modal(document.getElementById('jobSettingsModal'));
+        }
+    });
+
+    // Apply & (Re)lancer
+    document.getElementById('jobSettingsStartBtn')?.addEventListener('click', async () => {
+        const ok = await applyCurrentModal();
+        if (!ok) return;
+        const modal = bootstrap.Modal.getInstance(document.getElementById('jobSettingsModal'));
+        if (modal) modal.hide();
+        startJob(currentModalJobId);
+    });
+
+    // ── Save current modal settings as a profile ──────────────────────────────
+
+    document.getElementById('jobSettingsSaveProfileBtn')?.addEventListener('click', () => {
+        const { output_format, options } = readModalForm();
+        if (!output_format) {
+            alert('Format de sortie requis avant de sauver.');
+            return;
+        }
+        // Stash for confirm handler
+        document.getElementById('saveProfileModal').dataset.pendingPayload = JSON.stringify({
+            media_type:    currentModalMediaType,
+            output_format,
+            options,
+        });
+        document.getElementById('saveProfileName').value = '';
+        document.getElementById('saveProfileDesc').value = '';
+        const modal = new bootstrap.Modal(document.getElementById('saveProfileModal'));
         modal.show();
+    });
+
+    document.getElementById('saveProfileConfirmBtn')?.addEventListener('click', async () => {
+        const name = (document.getElementById('saveProfileName').value || '').trim();
+        const desc = (document.getElementById('saveProfileDesc').value || '').trim();
+        if (!name) { alert('Nom requis'); return; }
+        let payload;
+        try {
+            payload = JSON.parse(document.getElementById('saveProfileModal').dataset.pendingPayload || '{}');
+        } catch (_) { payload = {}; }
+
+        const fd = new FormData();
+        fd.append('name',          name);
+        fd.append('description',   desc);
+        fd.append('media_type',    payload.media_type || '');
+        fd.append('output_format', payload.output_format || '');
+        fd.append('options_json',  JSON.stringify(payload.options || {}));
+
+        try {
+            const resp = await csrfPost(APP.urls.profileSave, fd);
+            const data = await resp.json();
+            if (!resp.ok || data.error) {
+                alert('Erreur : ' + (data.error || resp.statusText));
+                return;
+            }
+            const modal = bootstrap.Modal.getInstance(document.getElementById('saveProfileModal'));
+            if (modal) modal.hide();
+            await loadProfiles();
+            renderProfileDropdown(currentMediaType);
+        } catch (err) {
+            alert('Erreur réseau : ' + err.message);
+        }
+    });
+
+    // ── Profiles (right panel dropdown) ───────────────────────────────────────
+
+    async function loadProfiles() {
+        try {
+            const resp = await fetch(APP.urls.profileList);
+            const data = await resp.json();
+            cachedProfiles = data.profiles || [];
+        } catch (_) {
+            cachedProfiles = [];
+        }
     }
+
+    function renderProfileDropdown(mediaType) {
+        if (!profileSelect) return;
+        const filtered = mediaType
+            ? cachedProfiles.filter(p => p.media_type === mediaType)
+            : cachedProfiles.slice();
+        profileSelect.innerHTML = '<option value="">— aucun profil —</option>';
+        filtered.forEach(p => {
+            const opt = document.createElement('option');
+            opt.value = p.id;
+            opt.textContent = `${p.name} (${p.output_format.toUpperCase()})`;
+            opt.title = p.description || '';
+            profileSelect.appendChild(opt);
+        });
+        if (profileDeleteBtn) profileDeleteBtn.disabled = true;
+    }
+
+    profileSelect?.addEventListener('change', () => {
+        const pid = profileSelect.value;
+        if (profileDeleteBtn) profileDeleteBtn.disabled = !pid;
+        if (!pid) return;
+        const profile = cachedProfiles.find(p => String(p.id) === String(pid));
+        if (!profile) return;
+        // Apply profile: set output format + options
+        if (profile.media_type !== currentMediaType) {
+            setMediaType(profile.media_type);
+        }
+        const fmtOptions = Array.from(outputFmtSel.options).map(o => o.value);
+        if (fmtOptions.includes(profile.output_format)) {
+            outputFmtSel.value = profile.output_format;
+        }
+        applyOptionsToMainPanel(profile.media_type, profile.options);
+    });
+
+    profileDeleteBtn?.addEventListener('click', async () => {
+        const pid = profileSelect.value;
+        if (!pid) return;
+        const profile = cachedProfiles.find(p => String(p.id) === String(pid));
+        if (!profile) return;
+        if (!confirm(`Supprimer le profil "${profile.name}" ?`)) return;
+        try {
+            await csrfPost(urlFor(APP.urls.profileDelete, pid));
+            await loadProfiles();
+            renderProfileDropdown(currentMediaType);
+        } catch (err) {
+            alert('Erreur réseau : ' + err.message);
+        }
+    });
 
     // ── Reset options ─────────────────────────────────────────────────────────
 
@@ -406,6 +815,13 @@
         const fps = document.getElementById('videoFPS'); if (fps) fps.value = '';
         const br = document.getElementById('audioBitrate'); if (br) br.value = '192k';
         const norm = document.getElementById('audioNormalize'); if (norm) norm.checked = false;
+        const rot = document.getElementById('rotation'); if (rot) rot.value = '0';
+        const fh = document.getElementById('flipH'); if (fh) fh.checked = false;
+        const fv = document.getElementById('flipV'); if (fv) fv.checked = false;
+        if (profileSelect) {
+            profileSelect.value = '';
+            if (profileDeleteBtn) profileDeleteBtn.disabled = true;
+        }
     });
 
     // ── Auto-start polling for RUNNING jobs (on page load) ────────────────────
@@ -414,7 +830,17 @@
         startPolling(card.dataset.jobId);
     });
 
+    // ── Filemanager "Envoyer vers Converter" — reload to show new job ─────────
+    // (Pattern WAMA standard, cf. enhancer/index.js)
+
+    document.addEventListener('wama:fileimported', function(e) {
+        if (e.detail && e.detail.app === 'converter') {
+            window.location.reload();
+        }
+    });
+
     // ── Init ──────────────────────────────────────────────────────────────────
     setMediaType(null);
+    loadProfiles().then(() => renderProfileDropdown(null));
 
 })();

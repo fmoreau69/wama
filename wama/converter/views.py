@@ -83,7 +83,8 @@ def upload(request):
     options = {}
     for key in ['quality', 'resize_w', 'resize_h', 'fps', 'video_quality',
                 'audio_bitrate', 'gif_fps', 'gif_width', 'normalize',
-                'sample_rate', 'channels']:
+                'sample_rate', 'channels',
+                'rotation', 'flip_h', 'flip_v']:
         if request.POST.get(key):
             val = request.POST[key]
             # Cast booleans
@@ -161,12 +162,47 @@ def status(request, pk):
     job = get_object_or_404(ConversionJob, pk=pk, user=request.user)
     pct = cache.get(f"converter_progress_{job.id}", job.progress)
     return JsonResponse({
-        'status':        job.status,
-        'progress':      pct,
-        'error_message': job.error_message,
-        'output_ready':  bool(job.status == 'DONE' and job.output_file),
+        'status':          job.status,
+        'progress':        pct,
+        'error_message':   job.error_message,
+        'output_ready':    bool(job.status == 'DONE' and job.output_file),
         'output_filename': job.output_filename,
+        'input_filename':  job.input_filename,
+        'media_type':      job.media_type,
+        'output_format':   job.output_format,
+        'options':         job.options or {},
     })
+
+
+@login_required
+@require_POST
+def update_job(request, pk):
+    """Update a job's output_format and options (only when not RUNNING)."""
+    import json as _json
+
+    job = get_object_or_404(ConversionJob, pk=pk, user=request.user)
+    if job.status == 'RUNNING':
+        return JsonResponse({'error': 'Impossible de modifier une conversion en cours'}, status=400)
+
+    output_fmt = (request.POST.get('output_format') or '').strip().lower()
+    if output_fmt:
+        if output_fmt not in get_output_formats(job.media_type):
+            return JsonResponse({'error': f"Format de sortie non supporté : {output_fmt}"}, status=400)
+        job.output_format = output_fmt
+
+    # Options can come as a JSON blob (preferred) or as individual POST keys.
+    options_json = request.POST.get('options_json')
+    if options_json:
+        try:
+            new_opts = _json.loads(options_json)
+            if not isinstance(new_opts, dict):
+                raise ValueError("options_json must be an object")
+            job.options = new_opts
+        except (ValueError, _json.JSONDecodeError) as exc:
+            return JsonResponse({'error': f"options_json invalide : {exc}"}, status=400)
+
+    job.save(update_fields=['output_format', 'options'])
+    return JsonResponse({'success': True, 'output_format': job.output_format, 'options': job.options})
 
 
 @login_required
@@ -269,6 +305,88 @@ def clear_all(request):
                 pass
         safe_delete_file(job, 'input_file')
     jobs.delete()
+    return JsonResponse({'success': True})
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# Conversion profiles — save / list / delete
+# ────────────────────────────────────────────────────────────────────────────
+
+@login_required
+def profile_list(request):
+    """Return user's profiles, optionally filtered by media_type."""
+    media_type = request.GET.get('media_type', '').strip()
+    qs = ConversionProfile.objects.filter(user=request.user)
+    if media_type:
+        qs = qs.filter(media_type=media_type)
+    return JsonResponse({
+        'profiles': [
+            {
+                'id':            p.id,
+                'name':          p.name,
+                'description':   p.description,
+                'media_type':    p.media_type,
+                'output_format': p.output_format,
+                'options':       p.options or {},
+            }
+            for p in qs
+        ],
+    })
+
+
+@login_required
+@require_POST
+def profile_save(request):
+    """Create or update a profile by name (per user)."""
+    import json as _json
+
+    name          = (request.POST.get('name') or '').strip()
+    description   = (request.POST.get('description') or '').strip()
+    media_type    = (request.POST.get('media_type') or '').strip()
+    output_format = (request.POST.get('output_format') or '').strip().lower()
+    options_json  = request.POST.get('options_json') or '{}'
+
+    if not name:
+        return JsonResponse({'error': 'Nom du profil requis'}, status=400)
+    if media_type not in SUPPORTED_CONVERSIONS:
+        return JsonResponse({'error': f"Type de média invalide : {media_type}"}, status=400)
+    if output_format not in get_output_formats(media_type):
+        return JsonResponse({'error': f"Format de sortie invalide : {output_format}"}, status=400)
+
+    try:
+        options = _json.loads(options_json)
+        if not isinstance(options, dict):
+            raise ValueError("options must be an object")
+    except (ValueError, _json.JSONDecodeError) as exc:
+        return JsonResponse({'error': f"options_json invalide : {exc}"}, status=400)
+
+    profile, created = ConversionProfile.objects.update_or_create(
+        user=request.user,
+        name=name,
+        defaults={
+            'description':   description,
+            'media_type':    media_type,
+            'output_format': output_format,
+            'options':       options,
+        },
+    )
+    return JsonResponse({
+        'success':       True,
+        'created':       created,
+        'id':            profile.id,
+        'name':          profile.name,
+        'media_type':    profile.media_type,
+        'output_format': profile.output_format,
+        'options':       profile.options or {},
+    })
+
+
+@login_required
+@require_POST
+def profile_delete(request, pk):
+    """Delete a profile."""
+    profile = get_object_or_404(ConversionProfile, pk=pk, user=request.user)
+    profile.delete()
     return JsonResponse({'success': True})
 
 

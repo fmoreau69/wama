@@ -24,3 +24,6 @@ requests
 tqdm
 ultralytics
 yt-dlp
+
+# Converter — document backend (Pandoc binding)
+pypandoc==1.13

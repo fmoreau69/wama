@@ -637,9 +637,37 @@ Fonctionnalités disponibles :
 - **Sélection multiple** : sélectionner plusieurs fichiers (click + Ctrl/Shift) → clic droit → "Envoyer vers…"
 - **Dossier entier** : clic droit sur un dossier → "Envoyer vers…" → envoie tous les fichiers compatibles
 - **Nouveau dossier** : clic droit → "Nouveau dossier" → crée un sous-dossier dans le dossier courant
+- **Quick-action custom** : modal léger inline dans le FileManager (ex. "Conversion rapide" du Converter) — POST direct vers `/<app>/quick/` sans passer par la file standard
 
-Chaque app écoute l'événement `wama:fileimported` sur `document` pour mettre à jour sa file :
+#### Règle obligatoire — événement `wama:fileimported`
+
+Toute communication FileManager → app cible passe par un `CustomEvent('wama:fileimported')`
+dispatché sur `document`. Les deux côtés sont **obligatoires** :
+
+**1. Côté FileManager — DISPATCH après chaque création de job** (même les quick-actions custom) :
+
 ```javascript
+// Dans filemanager.js, après succès de l'appel backend qui a créé un job :
+document.dispatchEvent(new CustomEvent('wama:fileimported', {
+    detail: { imported: true, app: 'myapp', path: filePath, job_id: data.job_id }
+}));
+```
+
+> ⚠️ Ne pas oublier ce dispatch dans les flows custom (modal "Conversion rapide", actions
+> avec paramètres supplémentaires, etc.). C'est la cause la plus fréquente de "le job est
+> créé mais n'apparaît pas tant que je ne rafraîchis pas la page".
+
+**2. Côté app cible — LISTEN et rafraîchir** :
+
+```javascript
+// Variante minimale (reload — pattern enhancer/converter) :
+document.addEventListener('wama:fileimported', e => {
+    if (e.detail && e.detail.app === 'myapp') {
+        window.location.reload();
+    }
+});
+
+// Variante DOM-injection (sans reload, à privilégier si l'app a un état UI à préserver) :
 document.addEventListener('wama:fileimported', e => {
     const result = e.detail;
     if (result && result.app === 'myapp' && result.id) {
@@ -650,7 +678,15 @@ document.addEventListener('wama:fileimported', e => {
 });
 ```
 
-> **État actuel :** ✅ Implémenté pour fichier unique. 🚧 Multi-select et import dossier en cours.
+#### Anti-pattern à éviter
+
+❌ **Polling périodique** (`setInterval(checkForNewJobs, 5000)`) pour détecter
+les nouveaux jobs créés ailleurs : génère du trafic inutile, latence jusqu'à N secondes,
+et masque le vrai bug (un dispatch manquant côté FileManager).
+Si l'app cible "ne voit pas" les nouveaux jobs, le réflexe est de vérifier le dispatch côté
+FileManager — pas d'ajouter un polling.
+
+> **État actuel :** ✅ Implémenté pour fichier unique + quick-actions Converter. 🚧 Multi-select et import dossier en cours.
 
 ### 8.4 Import dossier récursif
 
@@ -1275,7 +1311,7 @@ sous la section **"RÈGLE OBLIGATOIRE : AJOUT D'UN NOUVEAU MODÈLE AI"**.
 
 ## 15. État de Conformité par Application
 
-> Mise à jour : 2026-03-21
+> Mise à jour : 2026-05-16
 
 ### 15.1 Table de conformité
 
@@ -1311,6 +1347,36 @@ sous la section **"RÈGLE OBLIGATOIRE : AJOUT D'UN NOUVEAU MODÈLE AI"**.
 | **Header menu** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | **Home page card** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | **API tool_api.py** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⚠️ | ✅ | ❌ |
+
+#### Converter — statut spécifique (ajouté 2026-04-14, complété 2026-05-16)
+
+> **Source de vérité automatisée** : `APP_CATALOG['converter']['conventions']` dans
+> `wama/common/app_registry.py`. Le score temps réel est affiché à `/apps/`.
+> Ce sous-tableau est la vue détaillée annotée — il doit rester synchronisé avec le registre.
+
+| Fonctionnalité | Statut | Notes |
+|---|---|---|
+| Tabs Queue/Console/About/Help | ✅ | |
+| Boutons d'action (5 positions) | ✅ | Ordre conforme §6.1 |
+| Modal Paramètres item | ✅ | Phase 0 (2026-05-16) — formulaire dynamique selon `media_type` ; "Appliquer" + "Appliquer & (Re)lancer" |
+| Profils sauvegardables | ✅ | Phase 1 (2026-05-16) — `ConversionProfile` + endpoints + dropdown filtré par type |
+| Drag & drop zone | ✅ | |
+| Import FileManager | ✅ | "Envoyer vers Converter" + modal "Conversion rapide" — dispatch `wama:fileimported` (fix 2026-05-16) |
+| Start All / Clear All | ✅ | |
+| **Options cross-app (Phase 2)** | ❌ | Upscaling (Real-ESRGAN) + audio enhance (DeepFilterNet) — `cross_app_options` JSONField existe sur le model, CROSS_APP_OPTIONS dict aussi, mais ni l'UI ni `tasks.py` ne câblent encore |
+| Téléchargement multi-format (§6.3) | ❌ | Un seul `output_format` par job |
+| Download All (ZIP) | ❌ | À implémenter |
+| Aperçu thumbnail (card) | ❌ | Filename seulement |
+| Système Batch | ❌ | Conversion 1-to-1 — pas de modèle batch (mais batch implicite via "Démarrer tout") |
+| ETA individuel / queue | ❌ | Convention transversale non implémentée (eta_batch = N/A — pas de batch) |
+| Import dossier récursif | ❌ | Convention transversale non implémentée |
+| API tool_api.py | ❌ | À ajouter (§17) |
+
+**Score auto-calculé actuel : 11/19 (57%)** — voir `/apps/` pour les détails à jour.
+
+> Le Converter est intentionnellement plus léger côté queue (pas de batch model, pas de
+> ZIP) car son cas d'usage primaire est la conversion à la demande, souvent inline via
+> Filemanager. Si l'usage évolue vers du traitement massif → réévaluer.
 
 ### 15.2 Priorités de mise en conformité
 

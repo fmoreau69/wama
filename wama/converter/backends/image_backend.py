@@ -76,12 +76,21 @@ def convert_image(input_path: str, output_path: str, output_format: str,
         if hasattr(img, 'info') and 'duration' in img.info:
             save_kwargs['duration'] = img.info['duration']
         save_kwargs['loop'] = 0
-        frames[0].save(output_path, pil_fmt, **save_kwargs)
+        # Apply transforms (rotation, flips) to first frame and reapply to others
+        # Note: for animated sequences we transform each frame independently above
+        # would be ideal, but for simplicity we transform the resulting sequence post-save
+        # — kept here to be picked up if rotation/flip options are present.
+        first = _apply_transforms(frames[0], options)
+        rest = [_apply_transforms(f, options) for f in frames[1:]]
+        save_kwargs['append_images'] = rest
+        first.save(output_path, pil_fmt, **save_kwargs)
         return
 
     # --- Single frame ---
     if resize_w or resize_h:
         img = _resize_frame(img, resize_w, resize_h)
+
+    img = _apply_transforms(img, options)
 
     if fmt_key in _REQUIRES_RGB and img.mode not in ('RGB', 'L'):
         img = img.convert('RGB')
@@ -97,6 +106,36 @@ def convert_image(input_path: str, output_path: str, output_format: str,
 
     img.save(output_path, pil_fmt, **save_kwargs)
     logger.info(f"Image convertie : {input_path} → {output_path} [{fmt_key.upper()}]")
+
+
+def _apply_transforms(img, options):
+    """Apply rotation (CCW degrees) and horizontal/vertical flips to a PIL image.
+
+    Recognised keys in `options`:
+        rotation  : int in {0, 90, 180, 270} — counter-clockwise degrees
+        flip_h    : bool — horizontal flip (left/right mirror)
+        flip_v    : bool — vertical flip (top/bottom mirror)
+    """
+    from PIL import Image
+
+    try:
+        rotation = int(options.get('rotation', 0) or 0) % 360
+    except (TypeError, ValueError):
+        rotation = 0
+
+    if rotation == 90:
+        img = img.transpose(Image.Transpose.ROTATE_90)
+    elif rotation == 180:
+        img = img.transpose(Image.Transpose.ROTATE_180)
+    elif rotation == 270:
+        img = img.transpose(Image.Transpose.ROTATE_270)
+
+    if options.get('flip_h'):
+        img = img.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
+    if options.get('flip_v'):
+        img = img.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
+
+    return img
 
 
 def _resize_frame(img, target_w: int, target_h: int):

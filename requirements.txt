@@ -32,3 +32,6 @@ tqdm>=4.67.1
 ultralytics>=8.3.203
 watchdog>=3.0.0
 yt-dlp>=2025.6.9
+
+# Converter — document backend (Pandoc binding)
+pypandoc==1.13

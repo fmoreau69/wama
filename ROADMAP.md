@@ -1,6 +1,6 @@
 # WAMA — Roadmap
 
-> Dernière mise à jour : 2026-04-14 (LiteLLM Phase 1, mode hybride WAMA, mémoire wama-dev-ai — ajoutés)
+> Dernière mise à jour : 2026-05-16 (cam_analyzer Propositions A→F + Converter modal Paramètres item + profils sauvegardables)
 > Légende : ✅ Fait · 🔄 En cours · ⏳ Planifié · 💡 Proposé · ❌ Abandonné · 🐛 Bug bloquant
 
 ---
@@ -250,18 +250,41 @@ wama/converter/
 | App standalone queue (upload, start, status, download, duplicate, clear_all) | ✅ | `views.py` + `tasks.py` + template + JS |
 | Menu contextuel Filemanager — "Envoyer vers Converter" | ✅ | Via APP_CATALOG (même mécanique que les autres apps) |
 | Menu contextuel Filemanager — "Conversion rapide" | ✅ | Modal `#converterQuickModal` + `POST /converter/quick/` |
-| Profils de conversion sauvegardables | ⏳ | Model `ConversionProfile` créé, UI P2 |
+| Modal Paramètres item (édition output_format + options sur job existant) | ✅ (2026-05-16) | Endpoint `POST /<pk>/update/` + form dynamique selon media_type ; bouton "Appliquer" et "Appliquer & (Re)lancer" |
+| Profils de conversion sauvegardables | ✅ (2026-05-16) | Endpoints `profile_list/save/delete` ; dropdown filtré par media_type dans panneau settings ; bouton "Sauver comme profil…" dans modal item |
 | Option upscaling ×2/×4 (Real-ESRGAN via Enhancer) | ⏳ | `cross_app_options` model prêt, wiring tasks.py P2 |
 | Format de sortie inline dans chaque app (Imager, Enhancer…) | ⏳ | `CONVERTER_OUTPUT_FORMATS` disponible depuis app_registry, UI P2 |
-| Batch avec aperçu avant/après sur échantillon | ⏳ | P2 |
-| Conversion document (PDF ↔ DOCX ↔ MD ↔ HTML ↔ TXT) | ⏳ | Pandoc — P2 |
-| Batch avec aperçu avant/après sur échantillon | P2 | Essentiel sur gros volumes |
-| Conversion document (PDF ↔ DOCX ↔ MD ↔ HTML ↔ TXT) | P2 | Pandoc |
-| Option enhancement audio lors conversion vidéo (Enhancer) | P2 | DeepFilterNet/ResembleEnhance |
-| Extraction de frames vidéo | P2 | Intervalle fixe ou détection de scène (PySceneDetect) |
-| Concaténation (N fichiers → 1) | P2 | FFmpeg concat |
-| Time-lapse / slow-motion (interpolation RIFE/DAIN) | P3 | |
-| Option outpainting → redirect Imager | P3 | Tâche générative, Imager en est la maison |
+| Batch avec aperçu avant/après sur échantillon | ⏳ Phase 5 | Essentiel sur gros volumes |
+| Conversion document (PDF ↔ DOCX ↔ MD ↔ HTML ↔ TXT) | ✅ Phase 4 (2026-06-01) | Pandoc + pypandoc 1.13 ; PDF input via PyMuPDF ; PDF output via xelatex/wkhtmltopdf si dispo |
+| Option enhancement audio lors conversion vidéo (Enhancer) | ⏳ Phase 2 | DeepFilterNet/ResembleEnhance via cross_app_options |
+| **Rotation** (90°/180°/270° + flip H/V) | ✅ Phase 6 (2026-05-16) | PIL `Image.Transpose` / ffmpeg `transpose,hflip,vflip` |
+| **Crop de zone** (image + vidéo, UI canvas) | ⏳ Phase 7 | Vision initiale — canvas JS overlay + ffmpeg crop |
+| Extraction de frames vidéo | ⏳ Phase 8 | Intervalle fixe ou détection de scène (PySceneDetect) |
+| Concaténation (N fichiers → 1) | ⏳ Phase 9 | FFmpeg concat demuxer |
+| Time-lapse / slow-motion (interpolation RIFE/DAIN) | ⏳ Phase 10 | Modèle ~500 MB, deps lourdes |
+| **Watermarking invisible** (stéganographie) | ⏳ Phase 11 | Vision initiale (Claude) — lib `stegano` ou DWT |
+| **Shell integration OS** (Win .reg / macOS Service / Linux .desktop) | ⏳ Phase 12 | Vision initiale — accès depuis explorateur natif |
+| Option outpainting → redirect Imager | 💡 P3 | Tâche générative, Imager en est la maison (§7b) |
+
+### Plan d'implémentation par phases (2026-05-16)
+
+> Vision initiale → ce plan déroule les features manquantes par ordre de priorité et de risque.
+
+| Phase | Sujet | Statut | Effort | Risque |
+|---|---|---|---|---|
+| **0** | Modal Paramètres item (édition output_format + options par job) | ✅ 2026-05-16 | ~110 l | Faible |
+| **1** | Profils sauvegardables (ConversionProfile + UI) | ✅ 2026-05-16 | ~170 l | Faible |
+| **2** | Options cross-app (upscale + audio enhance) | ⏳ | ~180 l | Moyen (perf vidéo) |
+| **3** | `output_format` inline dans Imager / Enhancer / Synthesizer | ⏳ | ~150 l + 3 mig | Moyen |
+| **4** | Document backend (Pandoc) | ✅ 2026-06-01 | ~150 l + pypandoc + pandoc binaire | Moyen (binaire système) |
+| **5** | Batch avec aperçu avant/après sur échantillon | ⏳ | ~200 l | Moyen |
+| **6** | **Rotation** 90°/180°/270° + flip H/V (image + vidéo) | ✅ 2026-05-16 | ~120 l | Faible |
+| **7** | **Crop de zone** (UI canvas overlay + ffmpeg crop) | ⏳ | ~250 l | Moyen |
+| **8** | **Extraction de frames** (intervalle + détection de scène) | ⏳ | ~150 l + scenedetect | Faible |
+| **9** | **Concaténation** N fichiers → 1 (FFmpeg concat) | ⏳ | ~120 l | Faible |
+| **10** | **Time-lapse / slow-motion** (RIFE/DAIN interpolation) | ⏳ | ~200 l + modèle 500 MB | Élevé |
+| **11** | **Watermarking invisible** (stéganographie) | ⏳ | ~100 l + lib stegano | Faible |
+| **12** | **Shell integration OS** (Win .reg / macOS Service / .desktop) | 💡 | ~200 l/OS | Moyen |
 
 ### Intégration cross-apps (pattern tasks.py) ⏳
 ```python

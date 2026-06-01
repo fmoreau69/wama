@@ -33,7 +33,12 @@ SUPPORTED_CONVERSIONS = {
         'output': ['mp3', 'wav', 'flac', 'ogg', 'm4a', 'aac', 'opus'],
         'label':  'Audio',
     },
-    # 'document' : P2 — nécessite pypandoc + pandoc binaire
+    'document': {
+        'input':  ['.pdf', '.docx', '.md', '.markdown', '.html', '.htm',
+                   '.txt', '.rtf', '.odt', '.epub', '.tex', '.latex'],
+        'output': ['pdf', 'docx', 'md', 'html', 'txt', 'rtf', 'odt', 'epub'],
+        'label':  'Document',
+    },
 }
 
 # ---------------------------------------------------------------------------

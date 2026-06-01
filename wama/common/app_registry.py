@@ -40,19 +40,47 @@ TEXT_EXTENSIONS = ('.txt', '.md', '.csv', '.pdf', '.docx')  # batch file formats
 #   None  = not applicable for this app
 # ---------------------------------------------------------------------------
 
-def _conv(settings=True, start=True, download=True, duplicate=True, delete=True,
-          start_all=True, clear_all=True, download_all=True, drag_drop=True, batch=True):
+def _conv(
+    # Boutons & queue de base (existants)
+    settings=True, start=True, download=True, duplicate=True, delete=True,
+    start_all=True, clear_all=True, download_all=True, drag_drop=True, batch=True,
+    # Features transversales — défauts False = non implémenté par défaut, à overrider
+    # quand l'app est conforme. Mettre à None pour signaler N/A (ex: eta_batch sur
+    # une app sans système batch).
+    settings_modal_item=False,    # §10 — modale d'édition par item
+    save_profile=None,             # §7 — profils sauvegardables (par défaut N/A)
+    eta_individual=False,          # §7.2 — ETA par item
+    eta_batch=False,               # §7.2 — ETA par batch
+    eta_queue=False,               # §7.2 — ETA queue globale
+    multi_format_download=False,   # §6.3 — split-button download multi-format
+    filemanager_import=False,      # §8.3 — "Envoyer vers app" + dispatch wama:fileimported
+    recursive_import=False,        # §8.4 — import dossier récursif
+    tool_api=False,                # §17 — fonctions exposées dans tool_api.py
+    cross_app_options=None,        # post-traitement cross-app (upscale, audio enhance) — N/A par défaut
+):
     return {
-        'settings_btn':   settings,
-        'start_btn':      start,
-        'download_btn':   download,
-        'duplicate_btn':  duplicate,
-        'delete_btn':     delete,
-        'start_all':      start_all,
-        'clear_all':      clear_all,
-        'download_all':   download_all,
-        'drag_drop':      drag_drop,
-        'batch':          batch,
+        # Buttons & queue
+        'settings_btn':           settings,
+        'start_btn':              start,
+        'download_btn':           download,
+        'duplicate_btn':          duplicate,
+        'delete_btn':             delete,
+        'start_all':              start_all,
+        'clear_all':              clear_all,
+        'download_all':           download_all,
+        'drag_drop':              drag_drop,
+        'batch':                  batch,
+        # Cross-cutting features
+        'settings_modal_item':    settings_modal_item,
+        'save_profile':           save_profile,
+        'eta_individual':         eta_individual,
+        'eta_batch':              eta_batch,
+        'eta_queue':              eta_queue,
+        'multi_format_download':  multi_format_download,
+        'filemanager_import':     filemanager_import,
+        'recursive_import':       recursive_import,
+        'tool_api':               tool_api,
+        'cross_app_options':      cross_app_options,
     }
 
 
@@ -75,7 +103,10 @@ APP_CATALOG = {
         'has_url_import': True,
         'has_youtube': True,
         'output_types': ('image', 'video'),
-        'conventions': _conv(),  # fully conformant
+        'conventions': _conv(
+            settings_modal_item=True,
+            tool_api=True,
+        ),
     },
 
     'avatarizer': {
@@ -92,12 +123,15 @@ APP_CATALOG = {
         'has_youtube': False,
         'output_types': ('video',),
         'conventions': _conv(
-            settings=True,      # update_options view
-            duplicate=False,    # manquant
-            start_all=False,    # manquant
-            clear_all=False,    # manquant
-            download_all=False, # manquant
-            batch=False,        # pas de modèle batch
+            settings=True,
+            duplicate=False,
+            start_all=False,
+            clear_all=False,
+            download_all=False,
+            batch=False,
+            settings_modal_item=True,
+            eta_batch=None,      # N/A — pas de batch
+            eta_queue=None,      # N/A — pas de queue multi-item significative
         ),
     },
 
@@ -116,6 +150,7 @@ APP_CATALOG = {
         'output_types': ('wav', 'mp3'),
         'conventions': _conv(
             start=None,  # auto-start on generate, no per-item start button needed
+            settings_modal_item=True,
         ),
     },
 
@@ -133,8 +168,13 @@ APP_CATALOG = {
         'has_youtube': False,
         'output_types': ('image', 'video', 'audio'),
         'conventions': _conv(
-            batch=False,       # not needed — one file = one job
-            download_all=False,  # P2
+            batch=False,             # 1-to-1 — pas de modèle batch
+            download_all=False,      # P2
+            settings_modal_item=True, # Phase 0 (2026-05-16)
+            save_profile=True,       # Phase 1 (2026-05-16)
+            filemanager_import=True, # quick-action + dispatch wama:fileimported (2026-05-16)
+            eta_batch=None,          # N/A — pas de batch
+            cross_app_options=False, # Phase 2 à implémenter (upscale + audio enhance)
         ),
     },
 
@@ -151,7 +191,11 @@ APP_CATALOG = {
         'has_url_import': True,
         'has_youtube': True,
         'output_types': ('txt',),
-        'conventions': _conv(),  # fully conformant
+        'conventions': _conv(
+            settings_modal_item=True,
+            multi_format_download=True,
+            tool_api=True,
+        ),
     },
 
     'enhancer': {
@@ -167,7 +211,10 @@ APP_CATALOG = {
         'has_url_import': True,
         'has_youtube': False,
         'output_types': ('image', 'video', 'audio'),
-        'conventions': _conv(),  # fully conformant
+        'conventions': _conv(
+            settings_modal_item=True,
+            tool_api=True,
+        ),
     },
 
     'imager': {
@@ -184,11 +231,13 @@ APP_CATALOG = {
         'has_youtube': False,
         'output_types': ('image', 'video'),
         'conventions': _conv(
-            settings=False,     # per-item modal missing
-            duplicate=False,    # missing
-            start_all=False,    # missing
-            drag_drop=False,    # missing
-            batch=False,        # to be redesigned
+            settings=False,
+            duplicate=False,
+            start_all=False,
+            drag_drop=False,
+            batch=False,
+            tool_api=True,
+            eta_batch=None,    # N/A — pas de batch
         ),
     },
 
@@ -205,7 +254,11 @@ APP_CATALOG = {
         'has_url_import': False,
         'has_youtube': False,
         'output_types': ('txt', 'markdown'),
-        'conventions': _conv(),  # fully conformant
+        'conventions': _conv(
+            settings_modal_item=True,
+            multi_format_download=True,
+            tool_api=True,
+        ),
     },
 
     'synthesizer': {
@@ -221,7 +274,11 @@ APP_CATALOG = {
         'has_url_import': False,
         'has_youtube': False,
         'output_types': ('mp3', 'wav'),
-        'conventions': _conv(start=None),  # auto-start on upload, no manual start button
+        'conventions': _conv(
+            start=None,
+            settings_modal_item=True,
+            tool_api=True,
+        ),
     },
 
     'transcriber': {
@@ -237,7 +294,11 @@ APP_CATALOG = {
         'has_url_import': True,
         'has_youtube': True,
         'output_types': ('txt', 'srt', 'vtt', 'json'),
-        'conventions': _conv(),  # fully conformant
+        'conventions': _conv(
+            settings_modal_item=True,
+            multi_format_download=True,
+            tool_api=True,
+        ),
     },
 }
 

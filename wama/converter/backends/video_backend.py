@@ -143,7 +143,13 @@ def _convert_to_gif(ffmpeg: str, input_path: str, output_path: str,
 
 
 def _build_vf(options: dict) -> list:
-    """Build FFmpeg -vf filter string parts from options."""
+    """Build FFmpeg -vf filter string parts from options.
+
+    Recognised transform keys:
+        rotation  : int in {0, 90, 180, 270} — counter-clockwise degrees
+        flip_h    : bool — horizontal flip
+        flip_v    : bool — vertical flip
+    """
     parts = []
     w = options.get('width', 0)
     h = options.get('height', 0)
@@ -153,6 +159,25 @@ def _build_vf(options: dict) -> list:
         parts.append(f"scale={w}:-2")
     elif h:
         parts.append(f"scale=-2:{h}")
+
+    # Rotation (CCW degrees) — applied after scale so the user-provided
+    # dimensions refer to the source orientation
+    try:
+        rotation = int(options.get('rotation', 0) or 0) % 360
+    except (TypeError, ValueError):
+        rotation = 0
+    if rotation == 90:
+        parts.append("transpose=2")            # 90° CCW
+    elif rotation == 180:
+        parts.append("hflip")
+        parts.append("vflip")
+    elif rotation == 270:
+        parts.append("transpose=1")            # 90° CW (= 270° CCW)
+
+    if options.get('flip_h'):
+        parts.append("hflip")
+    if options.get('flip_v'):
+        parts.append("vflip")
     return parts
 
 
