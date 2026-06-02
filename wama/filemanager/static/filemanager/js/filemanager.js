@@ -310,10 +310,6 @@
                     label: meta.label,
                     icon: meta.icon,
                     action: function() {
-                        if (app === 'converter') {
-                            convertFileFromManager(filePath, node.text, ext);
-                            return;
-                        }
                         importToApp(filePath, app)
                             .then(result => {
                                 if (result.imported) {
@@ -340,27 +336,43 @@
         image: ['jpg','jpeg','png','webp','bmp','tiff','tif','gif','heic','heif','avif'],
         video: ['mp4','avi','mov','mkv','webm','flv','mpg','mpeg','3gp','wmv','ts','m4v'],
         audio: ['mp3','wav','flac','ogg','m4a','aac','opus','wma','aiff','aif'],
+        document: ['pdf','docx','md','markdown','html','htm','txt','rtf','odt','epub','fb2','tex','latex','mobi','azw3','azw'],
+        archive: ['zip','tar','gz','tgz','bz2','tbz2','xz','txz','7z','rar'],
     };
     Object.entries(_EXT_TO_TYPE_MAP).forEach(([type, exts]) => {
         exts.forEach(e => { _extToMediaType[e] = type; });
     });
 
+    // Revoke a running quick-convert job server-side (Celery revoke + cleanup).
+    function _converterCancel(jobId) {
+        if (!jobId) return;
+        const url = (config.converterCancelUrl || '/converter/0/cancel/').replace('/0/', '/' + jobId + '/');
+        const fd = new FormData(); fd.append('csrfmiddlewaretoken', csrfToken);
+        fetch(url, { method: 'POST', body: fd }).catch(() => {});
+    }
+
+    // Quick convert (on-the-fly, no queue): ephemeral job, output written next
+    // to the source, inline progress in the modal, row dismissed when delivered.
     function convertFileFromManager(filePath, filename, ext) {
         const mediaType = _extToMediaType[ext.toLowerCase()];
         const outputFormats = mediaType ? (_converterFormats[mediaType] || []) : [];
 
         const modal       = document.getElementById('converterQuickModal');
         const fmtSel      = document.getElementById('converterQuickFormat');
+        const presetSel   = document.getElementById('converterQuickPreset');
         const fnameEl     = document.getElementById('converterQuickFilename');
         const errEl       = document.getElementById('converterQuickError');
         const confirmBtn  = document.getElementById('converterQuickConfirmBtn');
+        const progWrap    = document.getElementById('converterQuickProgressWrap');
+        const progBar     = document.getElementById('converterQuickProgressBar');
+        const progPct     = document.getElementById('converterQuickProgressPct');
 
         if (!modal || !fmtSel) {
             alert('Convertisseur non disponible (modal manquant).');
             return;
         }
 
-        // Populate dropdown
+        // Populate format dropdown
         fmtSel.innerHTML = '<option value="">— choisissez —</option>';
         outputFormats.forEach(fmt => {
             const opt = document.createElement('option');
@@ -372,11 +384,95 @@
         fnameEl.textContent = filename || filePath;
         errEl.style.display = 'none';
         errEl.textContent   = '';
+        if (progWrap) progWrap.style.display = 'none';
+        if (progBar)  progBar.style.width = '0%';
+        if (progPct)  progPct.textContent = '0%';
+        // Clean state from any previous use of the (reused) modal.
+        if (modal._pollTimer) { clearInterval(modal._pollTimer); modal._pollTimer = null; }
+        modal._activeJobId = null;
 
-        // Wire confirm button
+        const setProgress = (pct) => {
+            if (progWrap) progWrap.style.display = '';
+            if (progBar)  progBar.style.width = pct + '%';
+            if (progPct)  progPct.textContent = pct + '%';
+        };
+
+        const STALL_TICKS = 20;  // ~20 s with no progress → assume worker down
+
+        function stopPolling() {
+            if (modal._pollTimer) { clearInterval(modal._pollTimer); modal._pollTimer = null; }
+        }
+
+        // Poll the ephemeral job status until DONE/ERROR (with stall guard).
+        // modal._activeJobId tracks the job still needing cancellation if closed.
+        function pollStatus(jobId, fmt) {
+            modal._activeJobId = jobId;
+            const statusUrl  = (config.converterStatusUrl  || '/converter/0/status/').replace('/0/', '/' + jobId + '/');
+            const dismissUrl = (config.converterDismissUrl || '/converter/0/dismiss/').replace('/0/', '/' + jobId + '/');
+            let ticks = 0;
+            stopPolling();
+            modal._pollTimer = setInterval(async () => {
+                ticks++;
+                try {
+                    const r = await fetch(statusUrl);
+                    if (!r.ok) return;
+                    const s = await r.json();
+                    setProgress(s.progress || 0);
+
+                    // Stall guard: still RUNNING at 0% after STALL_TICKS → worker likely down.
+                    if (s.status === 'RUNNING' && (s.progress || 0) === 0 && ticks >= STALL_TICKS) {
+                        stopPolling();
+                        _converterCancel(jobId);     // revoke the zombie so it won't run later
+                        modal._activeJobId = null;
+                        errEl.textContent = "Le worker ne répond pas (Celery arrêté ?). Réessayez.";
+                        errEl.style.display = '';
+                        if (progWrap) progWrap.style.display = 'none';
+                        resetBtn();
+                        return;
+                    }
+
+                    if (s.status === 'DONE') {
+                        stopPolling();
+                        modal._activeJobId = null;
+                        setProgress(100);
+                        refreshParentOfPath(filePath);
+                        showToast(`Converti → .${fmt.toUpperCase()} : ${s.output_filename || ''}`, 'success');
+                        const fd = new FormData(); fd.append('csrfmiddlewaretoken', csrfToken);
+                        fetch(dismissUrl, { method: 'POST', body: fd }).catch(() => {});
+                        bootstrap.Modal.getInstance(modal).hide();
+                    } else if (s.status === 'ERROR') {
+                        stopPolling();
+                        modal._activeJobId = null;
+                        errEl.textContent = s.error_message || 'Erreur de conversion';
+                        errEl.style.display = '';
+                        if (progWrap) progWrap.style.display = 'none';
+                        resetBtn();
+                    }
+                } catch (_) { /* keep polling */ }
+            }, 1000);
+        }
+
+        // Cancel a still-running job whenever the modal closes (footer Annuler,
+        // X, Esc or backdrop). Registered once per modal element.
+        if (!modal.dataset.cancelHookBound) {
+            modal.dataset.cancelHookBound = '1';
+            modal.addEventListener('hide.bs.modal', function() {
+                if (modal._pollTimer) { clearInterval(modal._pollTimer); modal._pollTimer = null; }
+                if (modal._activeJobId) {
+                    _converterCancel(modal._activeJobId);
+                    modal._activeJobId = null;
+                }
+            });
+        }
+
+        // Wire confirm button (clone to drop previous listeners)
         const oldBtn = confirmBtn.cloneNode(true);
         confirmBtn.parentNode.replaceChild(oldBtn, confirmBtn);
         const newBtn = document.getElementById('converterQuickConfirmBtn');
+        function resetBtn() {
+            newBtn.disabled = false;
+            newBtn.innerHTML = '<i class="fas fa-exchange-alt"></i> Convertir';
+        }
         newBtn.addEventListener('click', async function() {
             const fmt = fmtSel.value;
             if (!fmt) {
@@ -393,6 +489,7 @@
                 fd.append('csrfmiddlewaretoken', csrfToken);
                 fd.append('file_path', filePath);
                 fd.append('output_format', fmt);
+                fd.append('quality_preset', presetSel ? presetSel.value : 'balanced');
                 const resp = await fetch(config.converterQuickUrl || '/converter/quick/', {
                     method: 'POST',
                     body: fd,
@@ -401,26 +498,41 @@
                 if (!resp.ok || data.error) {
                     errEl.textContent = data.error || 'Erreur conversion';
                     errEl.style.display = '';
-                    newBtn.disabled = false;
-                    newBtn.innerHTML = '<i class="fas fa-exchange-alt"></i> Convertir';
+                    resetBtn();
                     return;
                 }
-                // Success — dismiss modal and show toast
-                bootstrap.Modal.getInstance(modal).hide();
-                showToast(`Conversion démarrée → .${fmt.toUpperCase()} (job #${data.job_id})`, 'success');
-                // Notify the Converter page (if open in same tab) — WAMA standard pattern
-                document.dispatchEvent(new CustomEvent('wama:fileimported', {
-                    detail: { imported: true, app: 'converter', path: filePath, job_id: data.job_id }
-                }));
+                // Job started — show progress and poll until done.
+                setProgress(data.progress || 1);
+                pollStatus(data.job_id, fmt);
             } catch(err) {
                 errEl.textContent = 'Erreur réseau : ' + err.message;
                 errEl.style.display = '';
-                newBtn.disabled = false;
-                newBtn.innerHTML = '<i class="fas fa-exchange-alt"></i> Convertir';
+                resetBtn();
             }
         });
 
         new bootstrap.Modal(modal).show();
+    }
+
+    // Refresh the jstree node that contains the given file path so a newly
+    // created sibling file becomes visible.
+    function refreshParentOfPath(filePath) {
+        try {
+            const tree = $('#filemanager-tree');
+            if (!tree.length || !tree.jstree(true)) return;
+            const parentPath = filePath.replace(/\/[^/]+$/, '');
+            const jst = tree.jstree(true);
+            // Find a node whose data.path matches the parent dir; refresh it.
+            const all = jst.get_json('#', { flat: true });
+            for (const n of all) {
+                const full = jst.get_node(n.id);
+                if (full && full.data && full.data.path === parentPath) {
+                    jst.refresh_node(n.id);
+                    return;
+                }
+            }
+            jst.refresh();  // fallback: full refresh
+        } catch (_) { /* non-fatal */ }
     }
 
     function contextMenuItems(node) {
@@ -468,17 +580,32 @@
                 action: function() { showFileInfo(node); }
             };
 
-            // "Envoyer vers..." — apps compatible with this file extension
             const filePath = node.data && node.data.path;
             const ext = filePath ? filePath.split('.').pop().toLowerCase() : '';
-            const sendToSubmenu = buildSendToSubmenu(node, ext);
-            if (sendToSubmenu && Object.keys(sendToSubmenu).length > 0) {
-                items.sendTo = {
-                    label: 'Envoyer vers…',
-                    icon: 'fa fa-share-square',
+
+            // "Conversion rapide" — action mono-fichier uniquement.
+            if (!isMultiSelect && filePath && _extToMediaType[ext]) {
+                items.quickConvert = {
+                    label: 'Conversion rapide',
+                    icon: 'fa fa-exchange-alt',
                     separator_before: true,
-                    submenu: sendToSubmenu,
+                    action: function() { convertFileFromManager(filePath, node.text, ext); }
                 };
+            }
+
+            // "Envoyer vers…" — UN SEUL bouton, contextuel à la sélection :
+            //   • 1 fichier  → envoi simple
+            //   • N fichiers → envoi groupé (batch) vers chaque app compatible
+            if (!isMultiSelect) {
+                const sendToSubmenu = buildSendToSubmenu(node, ext);
+                if (sendToSubmenu && Object.keys(sendToSubmenu).length > 0) {
+                    items.sendTo = {
+                        label: 'Envoyer vers…',
+                        icon: 'fa fa-share-square',
+                        separator_before: true,
+                        submenu: sendToSubmenu,
+                    };
+                }
             }
 
             // Multi-selection: "Envoyer X fichier(s) vers..."
@@ -885,6 +1012,7 @@
             'anonymizer': ['anonymizer', 'anonymizer_input', 'anonymizer_output'],
             'avatarizer': ['avatarizer', 'avatarizer_input', 'avatarizer_output', 'avatarizer_gallery'],
             'composer': ['composer', 'composer_input', 'composer_output'],
+            'converter': ['converter', 'converter_input', 'converter_output'],
             'describer': ['describer', 'describer_input', 'describer_output'],
             'enhancer': ['enhancer', 'enhancer_input', 'enhancer_output'],
             'imager': ['imager', 'imager_prompts', 'imager_references', 'imager_output_image', 'imager_output_video'],

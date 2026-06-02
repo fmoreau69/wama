@@ -302,6 +302,10 @@ class ImageGeneration(models.Model):
         help_text="Generated video file"
     )
 
+    # Format de sortie (conversion inline via Converter) — 'original' = PNG/MP4 natif
+    output_format = models.CharField(max_length=20, default='original')
+    output_quality = models.CharField(max_length=20, default='balanced')
+
     # Status and progress
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='PENDING')
     progress = models.IntegerField(default=0, validators=[MinValueValidator(0), MaxValueValidator(100)])

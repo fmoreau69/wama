@@ -45,6 +45,49 @@ def _console(user_id: int, message: str, level: str = None) -> None:
         pass
 
 
+def _apply_anonymizer_output_format(media):
+    """Convert the blurred output to the chosen format (Phase 3 élargie).
+
+    output_format:
+        'original' → keep whatever the pipeline produced (no-op)
+        'input'    → reconvert to the SOURCE file's format (e.g. pipeline
+                     produced .mp4 but the user uploaded .mov → back to .mov)
+        '<fmt>'    → explicit target format
+    The blurred file name carries a backend suffix ({base}_blurred*{ext}),
+    so we glob for it like the download view does.
+    """
+    import glob as _glob
+    from .utils.media_utils import get_blurred_media_path
+
+    fmt = (getattr(media, 'output_format', '') or 'original').lower()
+    if fmt in ('', 'original'):
+        return
+
+    src_ext = (media.file_ext or '').lower().lstrip('.')
+    target = src_ext if fmt == 'input' else fmt
+    if not target:
+        return
+
+    try:
+        canonical = get_blurred_media_path(media.file.name, media.file_ext, media.user_id)
+        out_dir = os.path.dirname(canonical)
+        base = os.path.splitext(os.path.basename(canonical))[0]
+        if base.endswith('_blurred'):
+            base = base[:-len('_blurred')]
+        ext = os.path.splitext(canonical)[1]
+        matches = _glob.glob(os.path.join(out_dir, f"{base}_blurred*{ext}"))
+        if not matches:
+            return
+        from wama.converter.utils.inline_convert import apply_inline_conversion
+        preset = getattr(media, 'output_quality', 'balanced') or 'balanced'
+        for m in matches:
+            if os.path.splitext(m)[1].lower().lstrip('.') == target:
+                continue  # already in target format
+            apply_inline_conversion(m, target, preset)
+    except Exception as exc:
+        logger.warning(f"[anonymizer] conversion format sortie échouée: {exc}")
+
+
 # ----------------------------------------------------------------------
 # Tâche principale pour traiter un média
 # ----------------------------------------------------------------------
@@ -315,6 +358,9 @@ def process_single_media(self, media_id, force_individual=False):
             # Stop the progress simulation
             cache.set(stop_flag, True, timeout=10)
             progress_thread.join(timeout=2)  # Wait max 2 seconds for thread to finish
+
+        # Conversion de format de sortie (Phase 3 élargie)
+        _apply_anonymizer_output_format(media)
 
         # Marque le média comme traité
         try:

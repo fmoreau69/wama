@@ -904,6 +904,11 @@
         if (guidanceScale) formData.set('guidance_scale', guidanceScale.value);
         if (seed && seed.value) formData.set('seed', seed.value);
         if (upscale) formData.set('upscale', upscale.checked ? 'true' : 'false');
+        // Output format + quality (Phase 3)
+        const outFmt = document.getElementById('output_format');
+        const outQual = document.getElementById('output_quality');
+        if (outFmt) formData.set('output_format', outFmt.value);
+        if (outQual) formData.set('output_quality', outQual.value);
 
         // Mode-specific data
         if (currentMode === 'txt2img') {

@@ -113,6 +113,16 @@ class VoiceSynthesis(models.Model):
         help_text="Fichier audio généré"
     )
 
+    # Format de sortie (conversion inline via Converter) — 'original' = pas de conversion
+    output_format = models.CharField(
+        max_length=20, default='original',
+        help_text="Format de sortie audio : original | mp3 | wav | flac | ogg | m4a | aac | opus"
+    )
+    output_quality = models.CharField(
+        max_length=20, default='balanced',
+        help_text="Preset qualité : web | balanced | max"
+    )
+
     # Métadonnées
     word_count = models.IntegerField(
         default=0,

@@ -278,36 +278,27 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
-        // .preview-text-btn — show text content modal
+        // .preview-text-btn — aperçu du texte via le composant commun
+        // (showPreviewModal gère l'affichage scrollable + bouton Copier).
         const textBtn = e.target.closest('.preview-text-btn');
         if (textBtn) {
             const id = textBtn.dataset.id;
-            const modal = new bootstrap.Modal(document.getElementById('textPreviewModal'));
-            modal.show();
-            document.getElementById('textPreviewLoader').style.display = 'block';
-            document.getElementById('textPreviewContent').style.display = 'none';
-            document.getElementById('textPreviewError').style.display = 'none';
             try {
                 const response = await fetch(URLS.textPreview + id + '/');
                 const data = await response.json();
                 if (response.ok && data.success) {
-                    document.getElementById('textPreviewTitle').innerHTML =
-                        `<i class="fas fa-file-alt"></i> ${data.filename}`;
-                    document.getElementById('textPreviewInfo').textContent =
-                        `${data.word_count} mots • Durée estimée: ${data.duration_display}`;
-                    document.getElementById('textPreviewText').textContent = data.text_content;
-                    document.getElementById('textPreviewLoader').style.display = 'none';
-                    document.getElementById('textPreviewContent').style.display = 'block';
+                    if (typeof window.showPreviewModal === 'function') {
+                        window.showPreviewModal({
+                            text_content: data.text_content || '',
+                            name: data.filename || 'Texte',
+                            properties: `${data.word_count} mots • Durée estimée: ${data.duration_display}`,
+                        });
+                    }
                 } else {
-                    document.getElementById('textPreviewLoader').style.display = 'none';
-                    document.getElementById('textPreviewErrorMsg').textContent =
-                        data.error || 'Impossible de charger le texte';
-                    document.getElementById('textPreviewError').style.display = 'block';
+                    alert(data.error || 'Impossible de charger le texte');
                 }
             } catch (err) {
-                document.getElementById('textPreviewLoader').style.display = 'none';
-                document.getElementById('textPreviewErrorMsg').textContent = 'Erreur: ' + err.message;
-                document.getElementById('textPreviewError').style.display = 'block';
+                alert('Erreur: ' + err.message);
             }
             return;
         }
@@ -380,6 +371,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 formData.append('voice_preset', document.getElementById('voice_preset').value);
                 formData.append('speed', document.getElementById('speed').value);
                 formData.append('pitch', document.getElementById('pitch').value);
+                formData.append('output_format', (document.getElementById('output_format') || {}).value || 'original');
+                formData.append('output_quality', (document.getElementById('output_quality') || {}).value || 'balanced');
                 appendHiggsFields(formData);
 
 
@@ -544,6 +537,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 formData.append('voice_preset', document.getElementById('voice_preset').value);
                 formData.append('speed', document.getElementById('speed').value);
                 formData.append('pitch', document.getElementById('pitch').value);
+                formData.append('output_format', (document.getElementById('output_format') || {}).value || 'original');
+                formData.append('output_quality', (document.getElementById('output_quality') || {}).value || 'balanced');
                 appendHiggsFields(formData);
 
 
@@ -620,6 +615,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 formData.append('voice_preset', document.getElementById('voice_preset').value);
                 formData.append('speed', document.getElementById('speed').value);
                 formData.append('pitch', document.getElementById('pitch').value);
+                formData.append('output_format', (document.getElementById('output_format') || {}).value || 'original');
+                formData.append('output_quality', (document.getElementById('output_quality') || {}).value || 'balanced');
                 appendHiggsFields(formData);
 
 
@@ -1047,6 +1044,8 @@ document.addEventListener('DOMContentLoaded', function() {
         formData.append('voice_preset', document.getElementById('voice_preset').value);
         formData.append('speed', document.getElementById('speed').value);
         formData.append('pitch', document.getElementById('pitch').value);
+        formData.append('output_format', (document.getElementById('output_format') || {}).value || 'original');
+        formData.append('output_quality', (document.getElementById('output_quality') || {}).value || 'balanced');
         appendHiggsFields(formData);
 
         try {

@@ -1601,6 +1601,113 @@ def get_reader_status(user) -> dict:
 
 
 # ===========================================================================
+# Converter tools
+# ===========================================================================
+
+def convert_file(
+    user,
+    file_path: str,
+    output_format: str,
+    quality_preset: str = 'balanced',
+) -> dict:
+    """
+    Queue a file conversion and start it immediately.
+
+    Args:
+        user:           Django User instance
+        file_path:      Path relative to MEDIA_ROOT (image/video/audio/document/archive)
+        output_format:  Target format key (e.g. 'mp4', 'webp', 'pdf', 'mp3', 'zip')
+        quality_preset: 'web' | 'balanced' | 'max'  (default 'balanced')
+
+    Returns:
+        {"job_id": int, "filename": str, "media_type": str,
+         "output_format": str, "status": "RUNNING"}
+    """
+    from pathlib import Path
+    from wama.converter.models import ConversionJob
+    from wama.converter.tasks import convert_media_task
+    from wama.converter.utils.format_router import detect_media_type, get_output_formats
+    from wama.converter.utils.quality_presets import PRESET_CHOICES, DEFAULT_PRESET
+
+    media_root = Path(settings.MEDIA_ROOT).resolve()
+    src = (media_root / file_path).resolve()
+    if not str(src).startswith(str(media_root)):
+        return {'error': 'Accès refusé : chemin hors de MEDIA_ROOT.'}
+    if not src.exists():
+        return {'error': f'Fichier introuvable : {file_path}'}
+
+    media_type = detect_media_type(src.name)
+    if media_type is None:
+        return {'error': f'Type de fichier non supporté par le Converter : {src.suffix}'}
+
+    out_fmt = (output_format or '').strip().lower()
+    allowed = get_output_formats(media_type)
+    if out_fmt not in allowed:
+        return {'error': f"Format de sortie '{out_fmt}' invalide pour {media_type}. "
+                         f"Formats : {', '.join(allowed)}"}
+
+    preset = (quality_preset or '').strip().lower()
+    if preset not in PRESET_CHOICES:
+        preset = DEFAULT_PRESET
+
+    rel_path = src.relative_to(media_root)
+    try:
+        job = ConversionJob.objects.create(
+            user=user,
+            input_file=str(rel_path),
+            input_filename=src.name,
+            media_type=media_type,
+            output_format=out_fmt,
+            quality_preset=preset,
+            status='RUNNING',
+        )
+        task = convert_media_task.delay(job.id)
+        job.task_id = task.id
+        job.save(update_fields=['task_id'])
+    except Exception as e:
+        return {'error': f'Erreur création ConversionJob : {e}'}
+
+    return {
+        'job_id':        job.id,
+        'filename':      src.name,
+        'media_type':    media_type,
+        'output_format': out_fmt,
+        'quality_preset': preset,
+        'status':        'RUNNING',
+    }
+
+
+def get_converter_status(user) -> dict:
+    """
+    Return status of the user's recent conversion jobs (last 10, queue jobs only).
+
+    Returns:
+        {"jobs": [{"id", "filename", "media_type", "output_format",
+                   "status", "progress", "output_filename", "error_message"}]}
+    """
+    from wama.converter.models import ConversionJob
+    from django.core.cache import cache
+
+    jobs_qs = (ConversionJob.objects
+               .filter(user=user, ephemeral=False)
+               .order_by('-created_at')[:10])
+    jobs = []
+    for job in jobs_qs:
+        progress = cache.get(f'converter_progress_{job.id}', job.progress)
+        jobs.append({
+            'id':              job.id,
+            'filename':        job.input_filename,
+            'media_type':      job.media_type,
+            'output_format':   job.output_format,
+            'status':          job.status,
+            'progress':        progress,
+            'output_filename': job.output_filename or None,
+            'error_message':   job.error_message or None,
+        })
+    return {'jobs': jobs}
+
+
+# ===========================================================================
 # Media Library tools
 # ===========================================================================
 
@@ -1727,6 +1834,8 @@ TOOL_REGISTRY = {
     'add_to_reader':          add_to_reader,
     'start_reader':           start_reader,
     'get_reader_status':      get_reader_status,
+    'convert_file':           convert_file,
+    'get_converter_status':   get_converter_status,
     'list_media_assets':      list_media_assets,
     'get_media_asset_url':    get_media_asset_url,
     'switch_ui_mode':         switch_ui_mode,
@@ -1921,6 +2030,18 @@ TOOL_DESCRIPTIONS = {
         'description': "Retourne l'état des 10 derniers jobs Reader (OCR), avec un aperçu du texte extrait.",
         'args': {},
     },
+    'convert_file': {
+        'description': "Convertit un fichier (image/vidéo/audio/document/archive) vers un autre format et démarre la conversion.",
+        'args': {
+            'file_path':      'str — chemin relatif à MEDIA_ROOT du fichier source',
+            'output_format':  "str — format cible (ex: 'mp4', 'webp', 'pdf', 'docx', 'mp3', 'zip', 'tar.gz')",
+            'quality_preset': "str — 'web' | 'balanced' (défaut) | 'max'",
+        },
+    },
+    'get_converter_status': {
+        'description': "Retourne l'état des 10 derniers jobs de conversion (Converter), avec progression et nom de sortie.",
+        'args': {},
+    },
     'list_media_assets': {
         'description': "Liste les assets de la Médiathèque personnelle de l'utilisateur (voix, images, musiques, etc.).",
         'args': {
@@ -2073,3 +2194,27 @@ def start_reader_view(request):
 @require_GET
 def get_reader_status_view(request):
     return JsonResponse(get_reader_status(request.user))
+
+
+@login_required
+@require_POST
+def convert_file_view(request):
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'JSON invalide'}, status=400)
+
+    result = convert_file(
+        user=request.user,
+        file_path=data.get('file_path', ''),
+        output_format=data.get('output_format', ''),
+        quality_preset=data.get('quality_preset', 'balanced'),
+    )
+    status_code = 400 if 'error' in result else 200
+    return JsonResponse(result, status=status_code)
+
+
+@login_required
+@require_GET
+def get_converter_status_view(request):
+    return JsonResponse(get_converter_status(request.user))

@@ -93,6 +93,16 @@ $(function () {
     dataType: 'json',
     sequentialUploads: true,
 
+    // Inclut le format/qualité de sortie choisis dans le panneau (Phase 3 élargie)
+    formData: function () {
+      const fmt = (document.getElementById('output_format') || {}).value || 'original';
+      const qual = (document.getElementById('output_quality') || {}).value || 'balanced';
+      return [
+        { name: 'output_format', value: fmt },
+        { name: 'output_quality', value: qual },
+      ];
+    },
+
     start: function () {
       // Use the pre-initialized modal instance
       if (progressModal) {
@@ -167,10 +177,14 @@ $(function () {
       progressModal.show();
     }
 
+    const _fmt = (document.getElementById('output_format') || {}).value || 'original';
+    const _qual = (document.getElementById('output_quality') || {}).value || 'balanced';
     $.ajax({
       type: 'POST',
       url: $form.attr("action"),
-      data: $form.serialize(),
+      data: $form.serialize()
+            + '&output_format=' + encodeURIComponent(_fmt)
+            + '&output_quality=' + encodeURIComponent(_qual),
       dataType: 'json',
       success: function (data) {
         if (data.success && data.media) {

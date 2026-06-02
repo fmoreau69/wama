@@ -69,7 +69,8 @@
     const confirmUploadBtn = document.getElementById('confirmUploadBtn');
     const cancelUploadBtn  = document.getElementById('cancelUploadBtn');
 
-    const previewModal     = new bootstrap.Modal(document.getElementById('previewModal'));
+    // NB : la prévisualisation passe par le composant commun
+    // (window.showPreviewModalWithNav) — pas de modal local.
     const editModal        = new bootstrap.Modal(document.getElementById('editModal'));
 
     // ── Toast ─────────────────────────────────────────────────────────────────

@@ -81,7 +81,9 @@ def convert_video(input_path: str, output_path: str, output_format: str,
         cmd += ['-c:v', preset['vcodec']]
         crf = options.get('video_quality', 23)
         cmd += ['-crf', str(crf)]
-        cmd += ['-preset', 'medium']
+        # x264/x265 speed/efficiency preset (quality preset maps here)
+        enc_preset = options.get('preset', 'medium')
+        cmd += ['-preset', str(enc_preset)]
     else:
         cmd += ['-vn']  # audio-only
 

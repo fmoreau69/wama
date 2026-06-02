@@ -193,6 +193,8 @@ def upload(request):
                     ai_model=user_settings.default_ai_model,
                     denoise=user_settings.default_denoise,
                     blend_factor=user_settings.default_blend_factor,
+                    output_format=request.POST.get('output_format', 'original'),
+                    output_quality=request.POST.get('output_quality', 'balanced'),
                 )
 
             # Cleanup temp file
@@ -259,6 +261,8 @@ def upload(request):
         ai_model=user_settings.default_ai_model,
         denoise=user_settings.default_denoise,
         blend_factor=user_settings.default_blend_factor,
+        output_format=request.POST.get('output_format', 'original'),
+        output_quality=request.POST.get('output_quality', 'balanced'),
     )
     logger.info(f"Created Enhancement ID: {enhancement.id}")
 

@@ -91,6 +91,15 @@ def build_file_tree(user):
             ]
         },
         {
+            'id': 'converter',
+            'text': 'Converter',
+            'icon': 'fa fa-exchange-alt text-teal',
+            'children': [
+                {'id': 'converter_input', 'text': 'Input', 'path': f'converter/{user_id}/input', 'icon': 'fa fa-folder text-secondary'},
+                {'id': 'converter_output', 'text': 'Output', 'path': f'converter/{user_id}/output', 'icon': 'fa fa-folder text-success'},
+            ]
+        },
+        {
             'id': 'describer',
             'text': 'Describer',
             'icon': 'fa fa-search-plus text-info',
@@ -1211,7 +1220,7 @@ def api_import_to_app(request):
     # Validate app name
     # All apps accept file imports:
     # - Imager: accepts prompt files (.txt/.json/.yaml) and reference images
-    valid_apps = ['anonymizer', 'describer', 'enhancer', 'imager', 'reader', 'synthesizer', 'transcriber', 'face_analyzer', 'cam_analyzer']
+    valid_apps = ['anonymizer', 'converter', 'describer', 'enhancer', 'imager', 'reader', 'synthesizer', 'transcriber', 'face_analyzer', 'cam_analyzer']
     if target_app not in valid_apps:
         return JsonResponse({'error': f'Invalid app: {target_app}'}, status=400)
 
@@ -1242,6 +1251,8 @@ def api_import_to_app(request):
                 return import_to_imager(source_path, user)
             elif target_app == 'synthesizer':
                 return import_to_synthesizer(source_path, user)
+            elif target_app == 'converter':
+                return import_to_converter(source_path, user)
             elif target_app == 'reader':
                 return import_to_reader(source_path, user)
             elif target_app == 'transcriber':
@@ -1304,27 +1315,9 @@ def api_import_to_app(request):
 def import_to_describer(source_path, user):
     """Import a file to Describer app."""
     from wama.describer.models import Description
-    from wama.common.utils.media_paths import get_app_media_path
-    import shutil
+    from wama.common.utils.media_paths import copy_into_app_input
 
-    # Copy file to user-specific describer input folder
-    dest_dir = get_app_media_path('describer', user.id, 'input')
-    dest_dir.mkdir(parents=True, exist_ok=True)
-    dest_path = dest_dir / source_path.name
-
-    # Handle duplicate names
-    if dest_path.exists():
-        stem = dest_path.stem
-        suffix = dest_path.suffix
-        counter = 1
-        while dest_path.exists():
-            dest_path = dest_dir / f"{stem}_{counter}{suffix}"
-            counter += 1
-
-    shutil.copy2(source_path, dest_path)
-
-    # Create Description record with user-specific path
-    relative_path = f'describer/{user.id}/input/{dest_path.name}'
+    dest_path, relative_path = copy_into_app_input(source_path, 'describer', user.id, 'input')
 
     description = Description.objects.create(user=user)
     description.input_file.name = relative_path
@@ -1343,8 +1336,7 @@ def import_to_describer(source_path, user):
 
 def import_to_enhancer(source_path, user):
     """Import a file to Enhancer app (image, video, or audio)."""
-    from wama.common.utils.media_paths import get_app_media_path
-    import shutil
+    from wama.common.utils.media_paths import copy_into_app_input
 
     image_extensions = {'.jpg', '.jpeg', '.png', '.bmp', '.tif', '.tiff', '.webp', '.heic'}
     video_extensions = {'.mp4', '.webm', '.mkv', '.flv', '.gif', '.avi', '.mov', '.mpg', '.qt', '.3gp'}
@@ -1356,15 +1348,7 @@ def import_to_enhancer(source_path, user):
         # ── Audio ─────────────────────────────────────────────────────────────
         from wama.enhancer.models import AudioEnhancement
 
-        dest_dir = get_app_media_path('enhancer', user.id, 'input/audio')
-        dest_dir.mkdir(parents=True, exist_ok=True)
-        dest_path = dest_dir / source_path.name
-        if dest_path.exists():
-            stem, suffix, counter = dest_path.stem, dest_path.suffix, 1
-            while dest_path.exists():
-                dest_path = dest_dir / f"{stem}_{counter}{suffix}"
-                counter += 1
-        shutil.copy2(source_path, dest_path)
+        dest_path, relative_path = copy_into_app_input(source_path, 'enhancer', user.id, 'input/audio')
 
         duration = 0.0
         file_size = dest_path.stat().st_size
@@ -1376,7 +1360,6 @@ def import_to_enhancer(source_path, user):
         except Exception:
             pass
 
-        relative_path = f'enhancer/{user.id}/input/audio/{dest_path.name}'
         ae = AudioEnhancement.objects.create(user=user, duration=duration, file_size=file_size)
         ae.input_file.name = relative_path
         ae.save()
@@ -1393,18 +1376,9 @@ def import_to_enhancer(source_path, user):
         from wama.common.utils.video_utils import get_media_info
 
         media_type = 'image' if ext in image_extensions else 'video'
-        dest_dir = get_app_media_path('enhancer', user.id, 'input/media')
-        dest_dir.mkdir(parents=True, exist_ok=True)
-        dest_path = dest_dir / source_path.name
-        if dest_path.exists():
-            stem, suffix, counter = dest_path.stem, dest_path.suffix, 1
-            while dest_path.exists():
-                dest_path = dest_dir / f"{stem}_{counter}{suffix}"
-                counter += 1
-        shutil.copy2(source_path, dest_path)
+        dest_path, relative_path = copy_into_app_input(source_path, 'enhancer', user.id, 'input/media')
 
         media_info = get_media_info(str(dest_path))
-        relative_path = f'enhancer/{user.id}/input/media/{dest_path.name}'
         enhancement = Enhancement.objects.create(
             user=user, media_type=media_type,
             width=media_info['width'], height=media_info['height'],
@@ -1431,43 +1405,23 @@ def import_to_imager(source_path, user):
     - Image files -> reference images for img2img/style/describe modes
     """
     from wama.imager.models import ImageGeneration
-    from wama.common.utils.media_paths import get_app_media_path
-    import shutil
+    from wama.common.utils.media_paths import copy_into_app_input
 
     ext = source_path.suffix.lower()
 
-    # Determine file type and destination (user-specific paths)
+    # Determine file type and destination subfolder (user-specific paths)
     if ext in ('.txt', '.json', '.yaml', '.yml'):
-        # Prompt file for batch generation
-        dest_dir = get_app_media_path('imager', user.id, 'input/prompts')
         file_type = 'prompt_file'
         generation_mode = 'file2img'
         subfolder = 'input/prompts'
     elif ext in ('.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp'):
-        # Reference image for img2img/style/describe
-        dest_dir = get_app_media_path('imager', user.id, 'input/references')
         file_type = 'reference_image'
         generation_mode = 'describe2img'  # Default, user can change mode
         subfolder = 'input/references'
     else:
         raise ValueError(f"Format not supported for Imager: {ext}")
 
-    dest_dir.mkdir(parents=True, exist_ok=True)
-    dest_path = dest_dir / source_path.name
-
-    # Handle duplicate names
-    if dest_path.exists():
-        stem = dest_path.stem
-        suffix = dest_path.suffix
-        counter = 1
-        while dest_path.exists():
-            dest_path = dest_dir / f"{stem}_{counter}{suffix}"
-            counter += 1
-
-    shutil.copy2(source_path, dest_path)
-
-    # Create ImageGeneration record with user-specific path
-    relative_path = f'imager/{user.id}/{subfolder}/{dest_path.name}'
+    dest_path, relative_path = copy_into_app_input(source_path, 'imager', user.id, subfolder)
 
     if file_type == 'prompt_file':
         # For prompt files, we just save the file reference
@@ -1506,26 +1460,10 @@ def import_to_anonymizer(source_path, user):
     """Import a file to Anonymizer app."""
     from wama.anonymizer.models import Media
     from wama.anonymizer.views import add_media_to_db
-    from wama.common.utils.media_paths import get_app_media_path
-    from django.core.files import File
-    import shutil
+    from wama.common.utils.media_paths import copy_into_app_input
     import mimetypes
 
-    # Copy file to user-specific anonymizer input folder
-    dest_dir = get_app_media_path('anonymizer', user.id, 'input')
-    dest_dir.mkdir(parents=True, exist_ok=True)
-    dest_path = dest_dir / source_path.name
-
-    # Handle duplicate names
-    if dest_path.exists():
-        stem = dest_path.stem
-        suffix = dest_path.suffix
-        counter = 1
-        while dest_path.exists():
-            dest_path = dest_dir / f"{stem}_{counter}{suffix}"
-            counter += 1
-
-    shutil.copy2(source_path, dest_path)
+    dest_path, relative_path = copy_into_app_input(source_path, 'anonymizer', user.id, 'input')
 
     # Get file extension and determine media type
     file_ext = dest_path.suffix.lower()
@@ -1538,9 +1476,6 @@ def import_to_anonymizer(source_path, user):
         media_type = 'video'
     else:
         media_type = 'video'  # Default
-
-    # Create Media record with user-specific path
-    relative_path = f'anonymizer/{user.id}/input/{dest_path.name}'
 
     media = Media.objects.create(
         user=user,
@@ -1567,32 +1502,11 @@ def import_to_anonymizer(source_path, user):
 def import_to_synthesizer(source_path, user):
     """Import a text file to Synthesizer app."""
     from wama.synthesizer.models import VoiceSynthesis
-    from wama.common.utils.media_paths import get_app_media_path
-    import shutil
+    from wama.common.utils.media_paths import copy_into_app_input
 
-    # Validate file extension
-    allowed_extensions = ['txt', 'pdf', 'docx', 'csv', 'md']
-    ext = source_path.suffix[1:].lower() if source_path.suffix else ''
-    if ext not in allowed_extensions:
-        raise ValueError(f"Format non supporté. Formats acceptés: {', '.join(allowed_extensions)}")
-
-    # Copy file to user-specific synthesizer input folder
-    dest_dir = get_app_media_path('synthesizer', user.id, 'input')
-    dest_dir.mkdir(parents=True, exist_ok=True)
-    dest_path = dest_dir / source_path.name
-
-    # Handle duplicate names
-    if dest_path.exists():
-        stem = dest_path.stem
-        suffix = dest_path.suffix
-        counter = 1
-        while dest_path.exists():
-            dest_path = dest_dir / f"{stem}_{counter}{suffix}"
-            counter += 1
-
-    shutil.copy2(source_path, dest_path)
-
-    relative_path = f'synthesizer/{user.id}/input/{dest_path.name}'
+    allowed_exts = {'.txt', '.pdf', '.docx', '.csv', '.md'}
+    dest_path, relative_path = copy_into_app_input(
+        source_path, 'synthesizer', user.id, 'input', allowed_exts=allowed_exts)
 
     # Batch detection — try to parse as a pipe-separated batch file first
     try:
@@ -1649,27 +1563,12 @@ def import_to_synthesizer(source_path, user):
 def import_to_reader(source_path, user):
     """Import a document/image file to Reader (OCR) app."""
     from wama.reader.models import ReadingItem
-    from wama.common.utils.media_paths import get_app_media_path
-    import shutil
+    from wama.common.utils.media_paths import copy_into_app_input
 
     reader_extensions = {'.pdf', '.jpg', '.jpeg', '.png', '.tiff', '.tif', '.webp', '.bmp'}
-    ext = source_path.suffix.lower()
-    if ext not in reader_extensions:
-        raise ValueError(f"Format non supporté par Reader : {ext}")
+    dest_path, relative_path = copy_into_app_input(
+        source_path, 'reader', user.id, 'input', allowed_exts=reader_extensions)
 
-    dest_dir = get_app_media_path('reader', user.id, 'input')
-    dest_dir.mkdir(parents=True, exist_ok=True)
-    dest_path = dest_dir / source_path.name
-
-    if dest_path.exists():
-        stem, suffix, counter = dest_path.stem, dest_path.suffix, 1
-        while dest_path.exists():
-            dest_path = dest_dir / f"{stem}_{counter}{suffix}"
-            counter += 1
-
-    shutil.copy2(source_path, dest_path)
-
-    relative_path = f'reader/{user.id}/input/{dest_path.name}'
     item = ReadingItem(user=user, original_filename=dest_path.name, status='PENDING')
     item.input_file.name = relative_path
     item.save()
@@ -1686,30 +1585,50 @@ def import_to_reader(source_path, user):
     }
 
 
+def import_to_converter(source_path, user):
+    """Import a file to the Converter queue.
+
+    Like every other app: COPY the source into converter/<user>/input and
+    create a PENDING ConversionJob referencing that copy (so deleting the job
+    later removes the app-owned copy, never the user's original). The user
+    picks the output format/quality on the Converter page (settings modal).
+    The on-the-fly "Conversion rapide" is a separate flow (in-place, no copy).
+    """
+    from wama.converter.models import ConversionJob
+    from wama.converter.utils.format_router import detect_media_type
+    from wama.common.utils.media_paths import copy_into_app_input
+
+    media_type = detect_media_type(source_path.name)
+    if media_type is None:
+        raise ValueError(f"Type de fichier non supporté par le Converter : {source_path.suffix}")
+
+    dest_path, relative_path = copy_into_app_input(source_path, 'converter', user.id, 'input')
+
+    job = ConversionJob.objects.create(
+        user=user,
+        input_filename=dest_path.name,
+        media_type=media_type,
+        output_format='',     # défini par l'utilisateur sur la page Converter
+        status='PENDING',
+    )
+    job.input_file.name = relative_path
+    job.save(update_fields=['input_file'])
+
+    return {
+        'imported': True,
+        'app': 'converter',
+        'id': job.id,
+        'filename': dest_path.name,
+        'path': relative_path,
+    }
+
+
 def import_to_transcriber(source_path, user):
     """Import a file to Transcriber app."""
     from wama.transcriber.models import Transcript
-    from wama.common.utils.media_paths import get_app_media_path
-    import shutil
+    from wama.common.utils.media_paths import copy_into_app_input
 
-    # Copy file to user-specific transcriber input folder
-    dest_dir = get_app_media_path('transcriber', user.id, 'input')
-    dest_dir.mkdir(parents=True, exist_ok=True)
-    dest_path = dest_dir / source_path.name
-
-    # Handle duplicate names
-    if dest_path.exists():
-        stem = dest_path.stem
-        suffix = dest_path.suffix
-        counter = 1
-        while dest_path.exists():
-            dest_path = dest_dir / f"{stem}_{counter}{suffix}"
-            counter += 1
-
-    shutil.copy2(source_path, dest_path)
-
-    # Create Transcript record with user-specific path
-    relative_path = f'transcriber/{user.id}/input/{dest_path.name}'
+    dest_path, relative_path = copy_into_app_input(source_path, 'transcriber', user.id, 'input')
 
     transcript = Transcript.objects.create(user=user)
     transcript.audio.name = relative_path
@@ -1727,27 +1646,9 @@ def import_to_transcriber(source_path, user):
 def import_to_face_analyzer(source_path, user):
     """Import a video file to Face Analyzer app."""
     from wama_lab.face_analyzer.models import AnalysisSession
-    import shutil
+    from wama.common.utils.media_paths import copy_into_app_input
 
-    # Copy file to face_analyzer per-user input folder
-    user_id = user.id
-    dest_dir = Path(settings.MEDIA_ROOT) / 'face_analyzer' / str(user_id) / 'input'
-    dest_dir.mkdir(parents=True, exist_ok=True)
-    dest_path = dest_dir / source_path.name
-
-    # Handle duplicate names
-    if dest_path.exists():
-        stem = dest_path.stem
-        suffix = dest_path.suffix
-        counter = 1
-        while dest_path.exists():
-            dest_path = dest_dir / f"{stem}_{counter}{suffix}"
-            counter += 1
-
-    shutil.copy2(source_path, dest_path)
-
-    # Create AnalysisSession record
-    relative_path = f'face_analyzer/{user_id}/input/{dest_path.name}'
+    dest_path, relative_path = copy_into_app_input(source_path, 'face_analyzer', user.id, 'input')
 
     session = AnalysisSession.objects.create(
         user=user,
@@ -1768,25 +1669,9 @@ def import_to_face_analyzer(source_path, user):
 
 def import_to_cam_analyzer(source_path, user):
     """Import a video file to Cam Analyzer app (copies to input folder)."""
-    import shutil
+    from wama.common.utils.media_paths import copy_into_app_input
 
-    user_id = user.id
-    dest_dir = Path(settings.MEDIA_ROOT) / 'cam_analyzer' / str(user_id) / 'input'
-    dest_dir.mkdir(parents=True, exist_ok=True)
-    dest_path = dest_dir / source_path.name
-
-    # Handle duplicate names
-    if dest_path.exists():
-        stem = dest_path.stem
-        suffix = dest_path.suffix
-        counter = 1
-        while dest_path.exists():
-            dest_path = dest_dir / f"{stem}_{counter}{suffix}"
-            counter += 1
-
-    shutil.copy2(source_path, dest_path)
-
-    relative_path = f'cam_analyzer/{user_id}/input/{dest_path.name}'
+    dest_path, relative_path = copy_into_app_input(source_path, 'cam_analyzer', user.id, 'input')
 
     return {
         'imported': True,

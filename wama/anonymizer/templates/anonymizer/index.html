@@ -285,6 +285,41 @@
     </div>
 </div>
 
+<!-- Format de sortie (Phase 3 élargie) -->
+<hr class="border-secondary my-2">
+<div class="mb-2">
+    <label for="output_format" class="form-label small fw-bold text-light">
+        <i class="fas fa-file-export"></i> Format de sortie
+    </label>
+    <select class="form-select form-select-sm bg-dark text-white border-secondary" id="output_format" name="output_format">
+        <option value="original" selected>Par défaut (pipeline)</option>
+        <option value="input">Identique à l'entrée</option>
+        <optgroup label="Vidéo">
+            <option value="mp4">MP4</option>
+            <option value="webm">WebM</option>
+            <option value="mkv">MKV</option>
+            <option value="mov">MOV</option>
+            <option value="avi">AVI</option>
+        </optgroup>
+        <optgroup label="Image">
+            <option value="jpg">JPG</option>
+            <option value="png">PNG</option>
+            <option value="webp">WebP</option>
+        </optgroup>
+    </select>
+    <small class="text-muted">« Identique à l'entrée » reconvertit la sortie vers le format du fichier source.</small>
+</div>
+<div class="mb-2">
+    <label for="output_quality" class="form-label small fw-bold text-light">
+        <i class="fas fa-sliders-h"></i> Qualité
+    </label>
+    <select class="form-select form-select-sm bg-dark text-white border-secondary" id="output_quality" name="output_quality">
+        <option value="web">Web (léger)</option>
+        <option value="balanced" selected>Équilibré</option>
+        <option value="max">Maximum</option>
+    </select>
+</div>
+
 <!-- Reset Button -->
 <button type="button" id="reset-global-settings-btn" class="btn btn-outline-secondary btn-sm w-100 mt-2">
     <i class="fas fa-undo"></i> Réinitialiser

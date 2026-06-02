@@ -35,9 +35,17 @@ SUPPORTED_CONVERSIONS = {
     },
     'document': {
         'input':  ['.pdf', '.docx', '.md', '.markdown', '.html', '.htm',
-                   '.txt', '.rtf', '.odt', '.epub', '.tex', '.latex'],
-        'output': ['pdf', 'docx', 'md', 'html', 'txt', 'rtf', 'odt', 'epub'],
+                   '.txt', '.rtf', '.odt', '.epub', '.fb2', '.tex', '.latex',
+                   '.mobi', '.azw3', '.azw'],
+        'output': ['pdf', 'docx', 'md', 'html', 'txt', 'rtf', 'odt',
+                   'epub', 'fb2', 'mobi', 'azw3'],
         'label':  'Document',
+    },
+    'archive': {
+        'input':  ['.zip', '.tar', '.gz', '.tgz', '.bz2', '.tbz2',
+                   '.xz', '.txz', '.7z', '.rar'],
+        'output': ['zip', 'tar', 'tar.gz', 'tar.bz2', 'tar.xz', '7z'],
+        'label':  'Archive',
     },
 }
 

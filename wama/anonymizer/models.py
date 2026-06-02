@@ -106,6 +106,13 @@ class Media(models.Model):
         help_text='URL to download from (batch import) — populated only when file is not yet downloaded'
     )
 
+    # Format de sortie (Phase 3 élargie) :
+    #   'original' = format produit par le pipeline (par défaut)
+    #   'input'    = reconvertir vers le format du fichier source
+    #   '<fmt>'    = format explicite (mp4, webp, …)
+    output_format = models.CharField(max_length=20, default='original')
+    output_quality = models.CharField(max_length=20, default='balanced')
+
     def __str__(self):
         return self.title or f"Media {self.pk}"
 

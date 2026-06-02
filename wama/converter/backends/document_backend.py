@@ -32,10 +32,31 @@ _PANDOC_FORMAT = {
     'rtf':      'rtf',
     'odt':      'odt',
     'epub':     'epub',
+    'fb2':      'fb2',
     'tex':      'latex',
     'latex':    'latex',
     'pdf':      'pdf',
 }
+
+# Formats only Calibre's `ebook-convert` can produce/read (not Pandoc).
+_CALIBRE_FORMATS = {'mobi', 'azw3', 'azw'}
+
+
+def _calibre_convert(input_path: str, output_path: str) -> None:
+    """Convert via Calibre's `ebook-convert` CLI (handles epub/mobi/azw3/pdf/…).
+
+    Used when either side is a Calibre-only format (mobi/azw3/azw).
+    """
+    exe = shutil.which('ebook-convert')
+    if not exe:
+        raise RuntimeError(
+            "Conversion mobi/azw3 : Calibre requis (binaire 'ebook-convert' "
+            "introuvable). Installez Calibre."
+        )
+    proc = subprocess.run([exe, input_path, output_path],
+                          capture_output=True, text=True)
+    if proc.returncode != 0:
+        raise RuntimeError(f"ebook-convert a échoué : {proc.stderr[-400:]}")
 
 
 def _detect_pdf_engine() -> str | None:
@@ -84,6 +105,15 @@ def convert_document(input_path: str, output_path: str, output_format: str,
 
     in_ext  = Path(input_path).suffix.lower().lstrip('.')
     out_ext = output_format.lower().lstrip('.')
+
+    # Calibre route : any mobi/azw3/azw side goes through ebook-convert, which
+    # handles the full chain (epub↔mobi↔azw3↔pdf↔docx…) on its own.
+    if in_ext in _CALIBRE_FORMATS or out_ext in _CALIBRE_FORMATS:
+        _calibre_convert(input_path, output_path)
+        if not os.path.exists(output_path):
+            raise RuntimeError(f"Fichier de sortie introuvable : {output_path}")
+        logger.info(f"Ebook converti (Calibre) : {input_path} → {output_path} [{out_ext}]")
+        return
 
     if out_ext not in _PANDOC_FORMAT:
         raise ValueError(f"Format de sortie non supporté : {output_format}")

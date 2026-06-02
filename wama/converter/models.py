@@ -44,6 +44,15 @@ class ConversionJob(models.Model):
     profile       = models.ForeignKey(ConversionProfile, null=True, blank=True,
                                       on_delete=models.SET_NULL, related_name='jobs')
 
+    # Quick-convert (Filemanager) — ephemeral jobs never shown in the queue,
+    # output written next to the source, row dismissed after delivery.
+    ephemeral     = models.BooleanField(default=False)
+    # MEDIA_ROOT-relative directory where the output must be written.
+    # Empty → default converter/output/<user>/. Set for in-place quick convert.
+    dest_dir      = models.CharField(max_length=500, blank=True)
+    # Quality preset: '', 'web', 'balanced', 'max'.
+    quality_preset = models.CharField(max_length=20, blank=True)
+
     status        = models.CharField(max_length=20, choices=STATUS_CHOICES, default='PENDING')
     task_id       = models.CharField(max_length=100, blank=True)
     error_message = models.CharField(max_length=500, blank=True)

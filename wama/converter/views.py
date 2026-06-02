@@ -34,11 +34,32 @@ from ..common.utils.queue_duplication import safe_delete_file, duplicate_instanc
 logger = logging.getLogger(__name__)
 
 
+def _is_app_owned(file_field, user_id) -> bool:
+    """True only if the file lives inside the Converter's OWN media tree
+    (``converter/<user_id>/…``).
+
+    Règle WAMA : supprimer une tâche ne supprime les fichiers QUE s'ils sont
+    dans le dossier média de l'application. Les fichiers seulement *référencés*
+    ailleurs appartiennent à l'utilisateur et ne doivent jamais être supprimés :
+      - "Envoyer vers Converter" (file d'attente) : input = source Filemanager
+        (référencée, pas copiée) → NON supprimable ; output dans converter/<u>/output → supprimable.
+      - "Conversion rapide" (in-place) : input ET output dans des dossiers
+        utilisateur → NON supprimables.
+      - Upload direct dans la page Converter : input ET output dans
+        converter/<u>/… → supprimables.
+    """
+    if not file_field:
+        return False
+    name = (getattr(file_field, 'name', '') or '').replace('\\', '/')
+    return name.startswith(f'converter/{user_id}/')
+
+
 class IndexView(View):
     def get(self, request):
         import json
         user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-        jobs     = ConversionJob.objects.filter(user=user).order_by('-created_at')
+        # Ephemeral jobs (quick-convert) are never shown in the queue.
+        jobs     = ConversionJob.objects.filter(user=user, ephemeral=False).order_by('-created_at')
         profiles = ConversionProfile.objects.filter(user=user)
 
         # Build JS-safe dict: { image: { input: ['.jpg',…], output: ['jpg',…] }, … }
@@ -138,8 +159,8 @@ def start(request, pk):
             except Exception:
                 pass
 
-        # Clear previous output
-        if job.output_file:
+        # Clear previous output (only if it lives in the Converter's media tree)
+        if job.output_file and _is_app_owned(job.output_file, job.user_id):
             safe_delete_file(job, 'output_file')
             job.output_file = None
 
@@ -231,18 +252,22 @@ def download(request, pk):
 @login_required
 @require_POST
 def delete(request, pk):
-    """Delete a ConversionJob and its files."""
+    """Delete a ConversionJob and its files.
+
+    For in-place/ephemeral quick-convert jobs the files belong to the user
+    (Filemanager) — only the DB row is removed, the files are kept.
+    """
     job = get_object_or_404(ConversionJob, pk=pk, user=request.user)
 
-    # Output file: unconditional delete
-    if job.output_file:
+    # Output : supprimé seulement s'il est dans le dossier média du Converter
+    if job.output_file and _is_app_owned(job.output_file, job.user_id):
         try:
             Path(job.output_file.path).unlink(missing_ok=True)
         except Exception:
             pass
-
-    # Input file: safe delete (may be shared if duplicated)
-    safe_delete_file(job, 'input_file')
+    # Input : idem — jamais les fichiers utilisateur seulement référencés
+    if _is_app_owned(job.input_file, job.user_id):
+        safe_delete_file(job, 'input_file')
 
     job.delete()
     return JsonResponse({'success': True})
@@ -298,12 +323,13 @@ def clear_all(request):
     """Delete all jobs for the current user."""
     jobs = ConversionJob.objects.filter(user=request.user)
     for job in jobs:
-        if job.output_file:
+        if job.output_file and _is_app_owned(job.output_file, job.user_id):
             try:
                 Path(job.output_file.path).unlink(missing_ok=True)
             except Exception:
                 pass
-        safe_delete_file(job, 'input_file')
+        if _is_app_owned(job.input_file, job.user_id):
+            safe_delete_file(job, 'input_file')
     jobs.delete()
     return JsonResponse({'success': True})
 
@@ -392,24 +418,77 @@ def profile_delete(request, pk):
 
 @login_required
 @require_POST
+def cancel(request, pk):
+    """Cancel a running conversion (revoke the Celery task).
+
+    Ephemeral quick-convert jobs are deleted outright; queue jobs are reset to
+    PENDING so they can be restarted. The atomic-output design guarantees no
+    partial file is left next to the source on a killed in-place conversion.
+    """
+    job = get_object_or_404(ConversionJob, pk=pk, user=request.user)
+    if job.task_id:
+        try:
+            from celery import current_app
+            current_app.control.revoke(job.task_id, terminate=True, signal='SIGTERM')
+        except Exception:
+            pass
+    if job.ephemeral:
+        job.delete()
+    else:
+        job.status = 'PENDING'
+        job.task_id = ''
+        job.progress = 0
+        job.save(update_fields=['status', 'task_id', 'progress'])
+    return JsonResponse({'success': True})
+
+
+@login_required
+@require_POST
+def dismiss(request, pk):
+    """Delete an ephemeral quick-convert job row WITHOUT touching files.
+
+    Called by the Filemanager once the in-place result has been delivered.
+    The output file lives in the user's media tree, so we must never delete it
+    here — only the tracking row is removed. Refuses non-ephemeral jobs.
+    """
+    job = get_object_or_404(ConversionJob, pk=pk, user=request.user, ephemeral=True)
+    job.delete()  # FileField files are NOT deleted by .delete(); row only
+    return JsonResponse({'success': True})
+
+
+@login_required
+@require_POST
 def quick_convert(request):
     """
-    Quick conversion endpoint — called from Filemanager or other apps.
+    Convert / enqueue from a server file path — called from the Filemanager.
+
+    "Conversion rapide" (on-the-fly) : crée un job ÉPHÉMÈRE, écrit le résultat
+    À CÔTÉ de la source (in-place), démarre tout de suite, n'apparaît JAMAIS
+    dans la file, et la ligne est supprimée (dismiss) après livraison — le
+    fichier reste. output_format requis ; quality_preset (web/balanced/max).
+
+    NB : "Envoyer vers Converter" (mode file d'attente) passe désormais par le
+    flux d'import STANDARD (filemanager api_import_to_app → import_to_converter),
+    qui COPIE le fichier dans converter/<user>/input comme toutes les apps.
 
     POST params:
-        file_path   : absolute server path of the source file
-        output_format : target format key (e.g. 'mp4', 'webp')
-
-    Returns immediately with job_id; client polls /converter/<id>/status/.
-    The job stays in the converter queue after completion.
+        file_path      : chemin absolu ou relatif à MEDIA_ROOT du fichier source
+        output_format  : format cible (requis)
+        quality_preset : 'web' | 'balanced' | 'max' (défaut 'balanced')
     """
     from .tasks import convert_media_task
+    from .utils.quality_presets import DEFAULT_PRESET, PRESET_CHOICES
 
     file_path_str = request.POST.get('file_path', '').strip()
-    output_fmt    = request.POST.get('output_format', '').strip().lower()
+    output_fmt    = (request.POST.get('output_format', '') or '').strip().lower()
+    preset        = (request.POST.get('quality_preset', '') or '').strip().lower()
+    if preset not in PRESET_CHOICES:
+        preset = DEFAULT_PRESET
 
-    if not file_path_str or not output_fmt:
-        return JsonResponse({'error': 'Paramètres manquants'}, status=400)
+    if not file_path_str:
+        return JsonResponse({'error': 'Chemin de fichier manquant'}, status=400)
+    if not output_fmt:
+        return JsonResponse({'error': 'Format de sortie manquant'}, status=400)
 
     from django.conf import settings
     media_root = Path(settings.MEDIA_ROOT).resolve()
@@ -424,7 +503,7 @@ def quick_convert(request):
 
     # Security: must stay inside MEDIA_ROOT
     try:
-        abs_path.relative_to(media_root)
+        rel_path = abs_path.relative_to(media_root)
     except ValueError:
         return JsonResponse({'error': 'Chemin de fichier invalide'}, status=400)
 
@@ -438,19 +517,20 @@ def quick_convert(request):
     if output_fmt not in get_output_formats(media_type):
         return JsonResponse({'error': f"Format de sortie non supporté : {output_fmt}"}, status=400)
 
-    # Create job with a reference to the existing file path (relative to MEDIA_ROOT)
-    rel_path = abs_path.relative_to(media_root)
-
+    # ── Quick convert : ephemeral + in-place + preset ─────────────────────────
+    dest_dir = str(rel_path.parent).replace('\\', '/')  # source folder, relative to MEDIA_ROOT
     job = ConversionJob.objects.create(
         user=request.user,
         input_file=str(rel_path),
         input_filename=abs_path.name,
         media_type=media_type,
         output_format=output_fmt,
+        ephemeral=True,
+        dest_dir=dest_dir,
+        quality_preset=preset,
         status='RUNNING',
     )
-    task    = convert_media_task.delay(job.id)
+    task = convert_media_task.delay(job.id)
     job.task_id = task.id
     job.save(update_fields=['task_id'])
-
     return JsonResponse({'success': True, 'job_id': job.id, 'task_id': task.id})

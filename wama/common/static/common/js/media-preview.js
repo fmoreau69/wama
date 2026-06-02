@@ -212,6 +212,10 @@
         // Update navigation UI
         updateNavigationUI(modal);
 
+        // Si le plein écran est ouvert, le synchroniser sur la nouvelle image.
+        // (couvre le chemin _navCallback du filemanager qui passe par showPreviewModal)
+        syncFullscreenIfOpen(data);
+
         // Enregistrer le cleanup UNE SEULE FOIS (pas à chaque navigation)
         if (!_cleanupBound) {
             _cleanupBound = true;
@@ -456,17 +460,35 @@
         updateNavigationUI(modal);
 
         // If fullscreen is open, update it too
+        syncFullscreenIfOpen(item);
+    }
+
+    /**
+     * Sync the open fullscreen overlay (if any) to the given image data.
+     * No-op when no overlay is open or the item is not an image.
+     * Centralised so BOTH navigation paths (inline items + external nav
+     * callback used by the filemanager) keep fullscreen in sync.
+     */
+    function syncFullscreenIfOpen(item) {
         const fullscreenOverlay = document.getElementById('wamaFullscreenOverlay');
-        if (fullscreenOverlay && item.mime_type && item.mime_type.startsWith('image/')) {
-            const fsImg = fullscreenOverlay.querySelector('img');
-            const fsName = fullscreenOverlay.querySelector('.filename');
-            const fsCounter = fullscreenOverlay.querySelector('.wama-preview-counter');
-            if (fsImg) fsImg.src = item.url;
-            if (fsName) fsName.textContent = item.name || 'Image';
-            if (fsCounter) fsCounter.textContent = (previewCurrentIndex + 1) + ' / ' + previewItems.length;
-            // Réinitialiser le mode zoom à chaque changement d'image
-            fullscreenOverlay.classList.remove('wama-fs-actual');
+        if (!fullscreenOverlay || !item) return;
+        // Fullscreen is image-only : if we navigated to a non-image, exit
+        // fullscreen so the modal (video/audio/pdf) becomes visible.
+        if (!item.mime_type || !item.mime_type.startsWith('image/')) {
+            closeFullscreen();
+            return;
         }
+        if (!item.url) return;
+        const fsImg = fullscreenOverlay.querySelector('img');
+        const fsName = fullscreenOverlay.querySelector('.filename');
+        const fsCounter = fullscreenOverlay.querySelector('.wama-preview-counter');
+        if (fsImg) fsImg.src = item.url;
+        if (fsName) fsName.textContent = item.name || 'Image';
+        if (fsCounter && previewItems.length > 1) {
+            fsCounter.textContent = (previewCurrentIndex + 1) + ' / ' + previewItems.length;
+        }
+        // Réinitialiser le mode zoom à chaque changement d'image
+        fullscreenOverlay.classList.remove('wama-fs-actual');
     }
 
     /**

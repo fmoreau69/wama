@@ -123,6 +123,8 @@ def generate(request):
         prompt=prompt,
         model=model_id,
         duration=duration,
+        output_format=request.POST.get('output_format', 'original'),
+        output_quality=request.POST.get('output_quality', 'balanced'),
     )
 
     # Melody reference (musicgen-melody only)

@@ -248,8 +248,10 @@ wama/converter/
 | Conversion vidéo (format, fps, résolution, CRF, extraction audio, GIF) | ✅ | FFmpeg — `backends/video_backend.py` |
 | Conversion audio (format, bitrate, canaux, normalisation EBU R128) | ✅ | FFmpeg — `backends/audio_backend.py` |
 | App standalone queue (upload, start, status, download, duplicate, clear_all) | ✅ | `views.py` + `tasks.py` + template + JS |
-| Menu contextuel Filemanager — "Envoyer vers Converter" | ✅ | Via APP_CATALOG (même mécanique que les autres apps) |
-| Menu contextuel Filemanager — "Conversion rapide" | ✅ | Modal `#converterQuickModal` + `POST /converter/quick/` |
+| Menu contextuel Filemanager — "Envoyer vers Converter" | ✅ (2026-06-01) | Mode file d'attente : `POST /converter/quick/` avec `queue_only=1` → job PENDING, params réglés ensuite sur la page Converter (modal item Phase 0). Aussi en multi-sélection. |
+| Menu contextuel Filemanager — "Conversion rapide" | ✅ (2026-06-01) | Entrée top-level dédiée → modal `#converterQuickModal`. **Vraie conversion à la volée** (modèle FileConverter) : job **éphémère** (jamais dans la file, `ephemeral=True`), sortie écrite **à côté de la source** (`dest_dir`, anti-collision de nom), barre de progression inline, refresh auto de l'arbre, puis `dismiss` (ligne DB supprimée, fichier conservé). Presets qualité Web/Équilibré/Max. Visible pour tout type convertible. |
+| Presets de qualité (Web/Équilibré/Maximum) | ✅ (2026-06-01) | `utils/quality_presets.py` — image (quality 80/90/98), vidéo (CRF 23/20/16 + preset x264), audio (160/224/320k). Appliqués en mode rapide ; l'explicite l'emporte. video_backend honore l'option `preset`. |
+| Conversion rapide — annulation + robustesse | ✅ (2026-06-02) | Endpoint `cancel` (revoke Celery + suppression job éphémère) ; annulation à toute fermeture de modale (Annuler/X/Esc/backdrop via `hide.bs.modal`) ; **sortie atomique** (temp → move) → annuler/échouer ne laisse jamais de fichier corrompu près de la source ; **garde-fou** : worker muet >20 s → message "le worker ne répond pas" + revoke du job zombie. Tâches Celery désormais auto-découvertes (`autodiscover_tasks()`). |
 | Modal Paramètres item (édition output_format + options sur job existant) | ✅ (2026-05-16) | Endpoint `POST /<pk>/update/` + form dynamique selon media_type ; bouton "Appliquer" et "Appliquer & (Re)lancer" |
 | Profils de conversion sauvegardables | ✅ (2026-05-16) | Endpoints `profile_list/save/delete` ; dropdown filtré par media_type dans panneau settings ; bouton "Sauver comme profil…" dans modal item |
 | Option upscaling ×2/×4 (Real-ESRGAN via Enhancer) | ⏳ | `cross_app_options` model prêt, wiring tasks.py P2 |
@@ -275,7 +277,7 @@ wama/converter/
 | **0** | Modal Paramètres item (édition output_format + options par job) | ✅ 2026-05-16 | ~110 l | Faible |
 | **1** | Profils sauvegardables (ConversionProfile + UI) | ✅ 2026-05-16 | ~170 l | Faible |
 | **2** | Options cross-app (upscale + audio enhance) | ⏳ | ~180 l | Moyen (perf vidéo) |
-| **3** | `output_format` inline dans Imager / Enhancer / Synthesizer | ⏳ | ~150 l + 3 mig | Moyen |
+| **3** | `output_format` inline dans Imager / Enhancer / Synthesizer | ✅ 2026-06-02 | ~150 l + 3 mig | Moyen |
 | **4** | Document backend (Pandoc) | ✅ 2026-06-01 | ~150 l + pypandoc + pandoc binaire | Moyen (binaire système) |
 | **5** | Batch avec aperçu avant/après sur échantillon | ⏳ | ~200 l | Moyen |
 | **6** | **Rotation** 90°/180°/270° + flip H/V (image + vidéo) | ✅ 2026-05-16 | ~120 l | Faible |
@@ -300,7 +302,20 @@ if options.get('upscale'):
 pip install ffmpeg-python pydub pypandoc Wand
 # Wand nécessite ImageMagick installé système
 # Pandoc nécessite pandoc binaire installé système
+# Optionnel : py7zr (archives .7z), rarfile + unrar (lecture .rar),
+#             Calibre 'ebook-convert' (mobi/azw3)
 ```
+
+### Archives & Ebook (2026-06-01) ✅
+
+| Capacité | Statut | Notes |
+|---|---|---|
+| Archives (zip ↔ tar ↔ tar.gz/bz2/xz ↔ 7z) | ✅ | `backends/archive_backend.py` — extract + repack. stdlib pour zip/tar ; `.7z` via py7zr (optionnel), `.rar` lecture via rarfile (optionnel) |
+| Ebook epub/fb2 | ✅ | Via Pandoc (`document_backend`) |
+| Ebook mobi/azw3/azw | ✅ (si Calibre) | Route Calibre `ebook-convert` ; erreur claire si binaire absent |
+
+Parité FileConverter atteinte : image, vidéo, audio, document, ebook, archive.
+Gaps restants mineurs : présets non exposés sur la page Converter (réservés au mode rapide), archives chiffrées non gérées.
 
 ### Articulation avec `wama/common/utils/video_compat.py` (décision 2026-05-12)
 
@@ -588,6 +603,27 @@ Pattern de dépendances pour les computers découplés :
 - `conflicts` : LaneEvent requis (lane_events doit avoir tourné)
 
 `_check_data_available(session, required_camera_positions)` vérifie la disponibilité des données avant de lancer un computer ; échoue proprement sinon avec un message clair.
+
+### Phase 3 Converter (output_format inline) — état détaillé (2026-06-02)
+
+Helper partagé `wama/converter/utils/inline_convert.py` : `apply_inline_conversion(src, fmt, preset)`
+→ réutilise les backends + `quality_presets` du Converter. Appelé en fin de tâche de chaque app.
+
+| App | Modèle (`output_format` + `output_quality`) | Câblage tâche | UI dropdowns |
+|---|---|---|---|
+| Synthesizer | ✅ migration 0012 | ✅ `_apply_output_format` (workers.py) | ✅ panneau (mp3/ogg/flac/m4a/aac/opus) |
+| Enhancer | ✅ migration 0009 (image/vidéo + audio) | ✅ `_apply_enhancer_output_format` (tasks.py) | ✅ panneau (optgroups image/vidéo) |
+| Imager | ✅ migration 0009 | ✅ conversion des images dans generate_image_task | ✅ panneau (jpg/webp/tiff/avif) |
+| **Composer** | ✅ migration 0003 | ✅ dans compose_task | ✅ panneau (mp3/ogg/flac/m4a) |
+| **Anonymizer** | ✅ migration 0020 | ✅ `_apply_anonymizer_output_format` (glob sortie floutée) | ✅ panneau + option **« Identique à l'entrée »** |
+
+Backend testé et migré ; défaut `output_format='original'` = aucun changement (no-op), zéro régression.
+
+**Anonymizer — option spéciale `'input'`** : reconvertit la sortie vers le format du fichier
+SOURCE (utile si le pipeline a changé le format, ex. .mov → .mp4 imposé par le floutage → reconverti en .mov).
+
+**Limites connues :** Imager = images uniquement (vidéo générative au format natif) ; câblage fait sur les
+chemins de création (panneau) — modales settings par-item + globals `start_all` non couverts (suffit pour le cas d'usage principal).
 
 ### 9.2.bis Pass tracking — infrastructure incrémentale (à faire avant Phase 4)
 

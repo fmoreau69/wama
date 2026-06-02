@@ -64,16 +64,46 @@ def convert_media_task(self, job_id: int):
 
     # ── Resolve input path ────────────────────────────────────────────────────
     input_path  = job.input_file.path
-    output_name = _build_output_name(job.input_filename, job.output_format)
 
     from django.conf import settings
-    from wama.common.utils.media_paths import UploadToUserPath
+    from pathlib import Path as _Path
     import os
 
-    output_rel_dir = f"converter/output/{user_id}/"
-    output_dir     = settings.MEDIA_ROOT / output_rel_dir
-    output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = str(output_dir / output_name)
+    # Output location:
+    #   - dest_dir set (quick convert in-place) → write next to the source,
+    #     keep the original stem, add a numeric suffix on collision.
+    #   - otherwise → default converter/output/<user>/ with a timestamped name.
+    in_place = bool(job.dest_dir)
+    if in_place:
+        output_rel_dir = job.dest_dir if job.dest_dir.endswith('/') else job.dest_dir + '/'
+        output_dir     = settings.MEDIA_ROOT / output_rel_dir
+        output_dir.mkdir(parents=True, exist_ok=True)
+        output_name    = _build_inplace_name(output_dir, job.input_filename, job.output_format)
+    else:
+        # Convention standard {app}/{user_id}/output (cohérent avec UploadToUserPath
+        # et avec l'arbre du Filemanager).
+        output_rel_dir = f"converter/{user_id}/output/"
+        output_dir     = settings.MEDIA_ROOT / output_rel_dir
+        output_dir.mkdir(parents=True, exist_ok=True)
+        output_name    = _build_output_name(job.input_filename, job.output_format)
+
+    final_output_path = str(output_dir / output_name)
+
+    # Atomic output for in-place quick convert: backends write to a temp file
+    # (correct extension so ffmpeg/Pillow pick the right muxer), moved to the
+    # final location only on success. Cancelling/erroring never leaves a
+    # partial/corrupt file next to the user's source.
+    if in_place:
+        import tempfile as _tf
+        _fd, output_path = _tf.mkstemp(prefix='wama_conv_', suffix=f'.{job.output_format.lower()}')
+        os.close(_fd)
+        os.unlink(output_path)  # backends create it themselves; we only reserved the name
+    else:
+        output_path = final_output_path
+
+    # Apply quality preset (explicit options always win over preset defaults).
+    from .utils.quality_presets import resolve_options
+    eff_opts = resolve_options(job.media_type, job.quality_preset, job.options)
 
     def _progress(pct: int):
         _set_progress(job_id, pct)
@@ -87,8 +117,8 @@ def convert_media_task(self, job_id: int):
                 input_path=input_path,
                 output_path=output_path,
                 output_format=job.output_format,
-                quality=int(job.options.get('quality', 85)),
-                options=job.options,
+                quality=int(eff_opts.get('quality', 90)),
+                options=eff_opts,
             )
             _set_progress(job_id, 90)
 
@@ -98,7 +128,7 @@ def convert_media_task(self, job_id: int):
                 input_path=input_path,
                 output_path=output_path,
                 output_format=job.output_format,
-                options=job.options,
+                options=eff_opts,
                 progress_callback=_progress,
             )
 
@@ -108,7 +138,7 @@ def convert_media_task(self, job_id: int):
                 input_path=input_path,
                 output_path=output_path,
                 output_format=job.output_format,
-                options=job.options,
+                options=eff_opts,
                 progress_callback=_progress,
             )
 
@@ -119,12 +149,27 @@ def convert_media_task(self, job_id: int):
                 input_path=input_path,
                 output_path=output_path,
                 output_format=job.output_format,
-                options=job.options,
+                options=eff_opts,
             )
             _set_progress(job_id, 90)
 
+        elif media_type == 'archive':
+            from .backends.archive_backend import convert_archive
+            convert_archive(
+                input_path=input_path,
+                output_path=output_path,
+                output_format=job.output_format,
+                options=eff_opts,
+                progress_callback=_progress,
+            )
+
         else:
             raise ValueError(f"Type de média non supporté : {media_type}")
+
+        # In-place: move the temp result to its final location next to the source.
+        if in_place:
+            import shutil as _sh
+            _sh.move(output_path, final_output_path)
 
         # ── Save output file reference ────────────────────────────────────
         rel_path = f"{output_rel_dir}{output_name}"
@@ -141,6 +186,13 @@ def convert_media_task(self, job_id: int):
     except Exception as exc:
         error_msg = str(exc)[:500]
         logger.exception(f"convert_media_task ERROR | job_id={job_id}: {exc}")
+        # Remove the in-place temp file so no partial output lingers.
+        if in_place:
+            try:
+                if os.path.exists(output_path):
+                    os.unlink(output_path)
+            except Exception:
+                pass
         ConversionJob.objects.filter(pk=job_id).update(
             status='ERROR',
             error_message=error_msg,
@@ -154,3 +206,22 @@ def _build_output_name(input_filename: str, output_format: str) -> str:
     stem = Path(input_filename).stem
     ts   = int(time.time())
     return f"{stem}_{ts}.{output_format.lower()}"
+
+
+def _build_inplace_name(output_dir, input_filename: str, output_format: str) -> str:
+    """Keep the original stem (no timestamp) for in-place quick convert.
+
+    Adds ' (N)' before the extension if a file with that name already exists,
+    so the source is never overwritten and successive conversions don't clash.
+    """
+    stem = Path(input_filename).stem
+    ext  = output_format.lower()
+    candidate = f"{stem}.{ext}"
+    if not (Path(output_dir) / candidate).exists():
+        return candidate
+    n = 1
+    while True:
+        candidate = f"{stem} ({n}).{ext}"
+        if not (Path(output_dir) / candidate).exists():
+            return candidate
+        n += 1

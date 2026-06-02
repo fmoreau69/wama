@@ -38,6 +38,10 @@ class Enhancement(models.Model):
     input_file = models.FileField(upload_to=UploadToUserPath('enhancer', 'input/media'))
     output_file = models.FileField(upload_to=UploadToUserPath('enhancer', 'output/media'), blank=True, null=True)
 
+    # Format de sortie (conversion inline via Converter) — 'original' = pas de conversion
+    output_format = models.CharField(max_length=20, default='original')
+    output_quality = models.CharField(max_length=20, default='balanced')
+
     # Media properties
     width = models.IntegerField(default=0)
     height = models.IntegerField(default=0)
@@ -130,6 +134,10 @@ class AudioEnhancement(models.Model):
     output_file = models.FileField(
         upload_to=UploadToUserPath('enhancer', 'output/audio'), blank=True, null=True
     )
+
+    # Format de sortie (conversion inline via Converter) — 'original' = pas de conversion
+    output_format = models.CharField(max_length=20, default='original')
+    output_quality = models.CharField(max_length=20, default='balanced')
 
     # Source URL (used for batch imports — file not yet downloaded)
     source_url = models.CharField(max_length=2000, blank=True, default='')

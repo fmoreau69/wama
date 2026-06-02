@@ -22,6 +22,8 @@ document.addEventListener('DOMContentLoaded', function () {
   async function uploadFile(file) {
     const body = new FormData();
     body.append('file', file);
+    body.append('output_format', (document.getElementById('output_format') || {}).value || 'original');
+    body.append('output_quality', (document.getElementById('output_quality') || {}).value || 'balanced');
 
     try {
       const response = await fetch(config.uploadUrl, {
@@ -698,6 +700,8 @@ document.addEventListener('DOMContentLoaded', function () {
       try {
         const formData = new FormData();
         formData.append('media_url', mediaUrl);
+        formData.append('output_format', (document.getElementById('output_format') || {}).value || 'original');
+        formData.append('output_quality', (document.getElementById('output_quality') || {}).value || 'balanced');
 
         const response = await fetch(config.uploadUrl, {
           method: 'POST',

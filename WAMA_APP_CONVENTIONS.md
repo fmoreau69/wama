@@ -40,9 +40,36 @@ Créer dans l'ordre. Ne pas sauter d'étape.
 [ ] 13. Ajouter les outils API dans wama/tool_api.py + wama/urls.py (§17)
 [ ] 14. Ajouter les icônes TOOL_ICONS dans home.html
 [ ] 15. Ajouter à la table de conformité §15 de ce document
-[ ] 16. Ajouter l'entrée dans appFolderMap de filemanager.js (§8.5) — auto-dépliement sidebar
+[ ] 16. Filemanager — DEUX ajouts (ordre alphabétique) :
+        a) `get_tree_data()` (filemanager/views.py) : entrée `app_folders_config`
+           avec les sous-dossiers réels (input/output/…) — c'est ce qui FAIT
+           apparaître l'app dans l'arbre
+        b) `appFolderMap` (filemanager.js + staticfiles) : auto-dépliement sidebar (§8.5)
 [ ] 17. Ajouter l'app dans app_registry.py (APP_CATALOG) en ordre ALPHABÉTIQUE (§16)
 ```
+
+> **Pourquoi manuel et pas auto-généré depuis app_registry ?** Les layouts de
+> dossiers sont **spécifiques par app** (Avatarizer a une *Galerie*, Imager
+> *Prompts/References/Images/Vidéos*, Enhancer *média/audio* séparés, Synthesizer
+> *Custom_voices*…) et ne sont pas encodés dans `app_registry`. De plus l'ordre et
+> la catégorie *WAMA Lab* doivent être préservés. Une auto-génération écraserait
+> ces structures soignées → on garde l'ajout manuel (une entrée déclarative,
+> ~6 lignes). C'est un compromis assumé (cf. discussion 2026-06).
+
+### Tâches Celery — découverte AUTOMATIQUE (rien à faire)
+
+Depuis 2026-06-02, `wama/celery.py` utilise `app.autodiscover_tasks()` +
+`app.autodiscover_tasks(related_name='workers')`. **Toute** app de `INSTALLED_APPS`
+dont les tâches vivent dans `tasks.py` **ou** `workers.py` est enregistrée
+automatiquement. **Ne plus** maintenir de liste explicite dans `celery.py`.
+
+> Règle : place tes `@shared_task` dans `wama/<app>/tasks.py` (ou `workers.py`).
+> Aucune édition de `celery.py` requise. Après ajout : **redémarrer le worker**
+> (la découverte se fait au démarrage).
+>
+> Symptôme si oublié dans une autre archi : `Received unregistered task of type …`
+> dans `celery-default.log` → vérifier le nom du module (doit être `tasks` ou
+> `workers`) et **redémarrer le worker**.
 
 ---
 
@@ -630,6 +657,20 @@ function formatEta(seconds) {
 ```
 
 ### 8.3 Import depuis FileManager
+
+> **Copie dans l'input via le helper commun (obligatoire).** Chaque
+> `import_to_<app>(source_path, user)` (dans `filemanager/views.py`) doit utiliser
+> `copy_into_app_input()` de `wama/common/utils/media_paths.py` pour copier la
+> source dans `<app>/<user>/<subfolder>` (nom anti-collision + chemin relatif).
+> Ne JAMAIS ré-implémenter la boucle de copie/collision (factorisé 2026-06).
+> ```python
+> from wama.common.utils.media_paths import copy_into_app_input
+> dest_path, relative_path = copy_into_app_input(
+>     source_path, 'monapp', user.id, 'input', allowed_exts={'.pdf', '.png'})
+> # puis création du modèle de file spécifique à l'app (non factorisable)
+> ```
+> Principe WAMA : une app ne travaille QUE sur la copie dans son dossier input ;
+> la suppression d'une tâche ne supprime que les fichiers du dossier média de l'app.
 
 Le FileManager expose `/filemanager/api/import/` et `/filemanager/api/mkdir/`.
 Fonctionnalités disponibles :
@@ -1512,12 +1553,14 @@ dans `tool_api.py`, ainsi que dans `TOOL_ICONS` dans `wama/templates/home.html`.
 |-----|-----------|----------|----------------|------------|---------------|
 | Anonymizer | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Composer | ⚠️ compose_music | ⚠️ (intégré) | ✅ | — | ✅ |
+| Converter | ✅ convert_file | ⚠️ (intégré) | ✅ | ✅ | ✅ (2026-06-02) |
 | Describer | ✅ | ✅ | ✅ | — | ✅ |
 | Enhancer | ✅ (img+audio) | ✅ | ✅ | — | ✅ |
 | Imager | ✅ create_image | ✅ | ✅ | — | ✅ |
 | Reader | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Synthesizer | ✅ synthesize_text | ✅ | ✅ | — | ✅ |
 | Transcriber | ✅ | ✅ | ✅ | — | ✅ |
+| **Avatarizer** | ❌ | ❌ | ❌ | — | ❌ — seul manque restant |
 
 ---
 

@@ -125,6 +125,30 @@
         </div>
     </div>
 
+    <!-- Output format + quality (Phase 3) — images uniquement -->
+    <div class="mb-2">
+        <label for="output_format" class="form-label small fw-bold text-light">
+            <i class="fas fa-file-export"></i> Format de sortie
+        </label>
+        <select class="form-select form-select-sm bg-dark text-white border-secondary" id="output_format" name="output_format">
+            <option value="original" selected>Original (PNG)</option>
+            <option value="jpg">JPG</option>
+            <option value="webp">WebP</option>
+            <option value="tiff">TIFF</option>
+            <option value="avif">AVIF</option>
+        </select>
+    </div>
+    <div class="mb-2">
+        <label for="output_quality" class="form-label small fw-bold text-light">
+            <i class="fas fa-sliders-h"></i> Qualité
+        </label>
+        <select class="form-select form-select-sm bg-dark text-white border-secondary" id="output_quality" name="output_quality">
+            <option value="web">Web (léger)</option>
+            <option value="balanced" selected>Équilibré</option>
+            <option value="max">Maximum</option>
+        </select>
+    </div>
+
     <!-- Reset Button -->
     <button class="btn btn-outline-secondary btn-sm w-100" id="resetOptions">
         <i class="fas fa-undo"></i> Réinitialiser

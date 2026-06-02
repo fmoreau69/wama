@@ -43,6 +43,28 @@ def _console(user_id: int, message: str, level: str = None) -> None:
         pass
 
 
+def _apply_enhancer_output_format(obj) -> None:
+    """Convert the enhanced output to the user-chosen format (Phase 3).
+
+    Works for both Enhancement (image/video) and AudioEnhancement (audio).
+    Updates obj.output_file in place; no-op when output_format is 'original'.
+    """
+    fmt = (getattr(obj, 'output_format', '') or 'original').lower()
+    if fmt in ('', 'original') or not obj.output_file:
+        return
+    try:
+        from django.conf import settings
+        from wama.converter.utils.inline_convert import apply_inline_conversion
+        new_path = apply_inline_conversion(
+            obj.output_file.path, fmt,
+            getattr(obj, 'output_quality', 'balanced') or 'balanced',
+        )
+        rel = os.path.relpath(new_path, settings.MEDIA_ROOT).replace('\\', '/')
+        obj.output_file.name = rel
+    except Exception as exc:
+        logger.warning(f"[enhancer] conversion format sortie \u00e9chou\u00e9e: {exc}")
+
+
 @shared_task(bind=True)
 def enhance_media(self, enhancement_id: int):
     """
@@ -210,6 +232,7 @@ def enhance_audio(self, audio_enhancement_id: int):
         processing_time = time.time() - start_time
         ae.refresh_from_db()
         ae.output_file.name = saved_path
+        _apply_enhancer_output_format(ae)  # Phase 3 — conversion format inline
         ae.status = 'SUCCESS'
         ae.progress = 100
         ae.processing_time = processing_time
@@ -358,6 +381,7 @@ def _enhance_image(enhancement: Enhancement, user_id: int) -> dict:
             enhancement.refresh_from_db()
             enhancement.output_file.name = saved_path
             logger.info(f"Output file field updated: {enhancement.output_file.name}")
+            _apply_enhancer_output_format(enhancement)  # Phase 3 — conversion format inline
             enhancement.output_width = width
             enhancement.output_height = height
             enhancement.output_file_size = file_size

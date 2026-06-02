@@ -133,6 +133,30 @@
     <small class="text-muted">Audio 5s–5min servant de ligne mélodique</small>
 </div>
 
+<!-- Output format + quality (Phase 3 élargie) -->
+<div class="mb-2">
+    <label for="output_format" class="form-label small fw-bold text-light">
+        <i class="fas fa-file-export"></i> Format de sortie
+    </label>
+    <select class="form-select form-select-sm bg-dark text-white border-secondary" id="output_format" name="output_format">
+        <option value="original" selected>Original (WAV)</option>
+        <option value="mp3">MP3</option>
+        <option value="ogg">OGG</option>
+        <option value="flac">FLAC</option>
+        <option value="m4a">M4A</option>
+    </select>
+</div>
+<div class="mb-2">
+    <label for="output_quality" class="form-label small fw-bold text-light">
+        <i class="fas fa-sliders-h"></i> Qualité
+    </label>
+    <select class="form-select form-select-sm bg-dark text-white border-secondary" id="output_quality" name="output_quality">
+        <option value="web">Web (léger)</option>
+        <option value="balanced" selected>Équilibré</option>
+        <option value="max">Maximum</option>
+    </select>
+</div>
+
 <!-- Reset Button -->
 <hr class="border-secondary my-2">
 <button class="btn btn-outline-secondary btn-sm w-100" id="resetOptions">

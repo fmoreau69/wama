@@ -79,6 +79,18 @@ def compose_task(self, generation_id: int):
 
         gen.refresh_from_db()
         gen.audio_output = output_rel_path
+        # Output-format conversion (Phase 3 élargie)
+        _fmt = (getattr(gen, 'output_format', '') or 'original').lower()
+        if _fmt not in ('', 'original', 'wav'):
+            try:
+                from wama.converter.utils.inline_convert import apply_inline_conversion
+                new_path = apply_inline_conversion(
+                    output_abs_path, _fmt,
+                    getattr(gen, 'output_quality', 'balanced') or 'balanced',
+                )
+                gen.audio_output = os.path.relpath(new_path, settings.MEDIA_ROOT).replace('\\', '/')
+            except Exception as _conv_err:
+                _console(user_id, f"[Composer] conversion format échouée: {_conv_err}", level='warning')
         gen.status = 'SUCCESS'
         gen.progress = 100
         gen.save(update_fields=['audio_output', 'status', 'progress'])

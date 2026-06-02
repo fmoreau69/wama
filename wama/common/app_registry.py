@@ -27,9 +27,20 @@ IMAGE_EXTENSIONS = ('.jpg', '.jpeg', '.png', '.webp', '.bmp', '.tif', '.tiff', '
 
 VIDEO_EXTENSIONS = ('.mp4', '.webm', '.mkv', '.avi', '.mov', '.flv', '.mpg', '.qt', '.3gp')
 
-DOCUMENT_EXTENSIONS = ('.pdf', '.jpg', '.jpeg', '.png', '.tiff', '.tif', '.webp', '.bmp')
+# OCR-readable inputs (PDF + scanned images) — used by Reader.
+OCR_INPUT_EXTENSIONS = ('.pdf', '.jpg', '.jpeg', '.png', '.tiff', '.tif', '.webp', '.bmp')
 
 TEXT_EXTENSIONS = ('.txt', '.md', '.csv', '.pdf', '.docx')  # batch file formats (= SUPPORTED_BATCH_EXTENSIONS)
+
+# Rich text-document + ebook formats (Pandoc + PyMuPDF + Calibre) — generic.
+# Mirrors SUPPORTED_CONVERSIONS['document']['input'] in converter/utils/format_router.py.
+DOCUMENT_EXTENSIONS = ('.pdf', '.docx', '.md', '.markdown', '.html',
+                       '.htm', '.txt', '.rtf', '.odt', '.epub', '.fb2',
+                       '.tex', '.latex', '.mobi', '.azw3', '.azw')
+
+# Archive formats (Converter archive backend — stdlib + optional py7zr/rarfile).
+ARCHIVE_EXTENSIONS = ('.zip', '.tar', '.gz', '.tgz', '.bz2', '.tbz2',
+                      '.xz', '.txz', '.7z', '.rar')
 
 
 # ---------------------------------------------------------------------------
@@ -159,20 +170,22 @@ APP_CATALOG = {
         'icon':        'fas fa-exchange-alt',
         'color':       '#20c997',
         'url_name':    'converter:index',
-        'description': 'Conversion de formats : image, vidéo, audio (Pillow + FFmpeg).',
-        'input_extensions': IMAGE_EXTENSIONS + VIDEO_EXTENSIONS + AUDIO_EXTENSIONS,
-        'input_types': ('image', 'video', 'audio'),
+        'description': 'Conversion de formats : image, vidéo, audio, documents, archives (Pillow + FFmpeg + Pandoc).',
+        'input_extensions': (IMAGE_EXTENSIONS + VIDEO_EXTENSIONS + AUDIO_EXTENSIONS
+                             + DOCUMENT_EXTENSIONS + ARCHIVE_EXTENSIONS),
+        'input_types': ('image', 'video', 'audio', 'document', 'archive'),
         'batch_type':  None,
         'has_batch':   False,
         'has_url_import': False,
         'has_youtube': False,
-        'output_types': ('image', 'video', 'audio'),
+        'output_types': ('image', 'video', 'audio', 'document', 'archive'),
         'conventions': _conv(
             batch=False,             # 1-to-1 — pas de modèle batch
             download_all=False,      # P2
             settings_modal_item=True, # Phase 0 (2026-05-16)
             save_profile=True,       # Phase 1 (2026-05-16)
             filemanager_import=True, # quick-action + dispatch wama:fileimported (2026-05-16)
+            tool_api=True,           # convert_file + get_converter_status (2026-06-02)
             eta_batch=None,          # N/A — pas de batch
             cross_app_options=False, # Phase 2 à implémenter (upscale + audio enhance)
         ),
@@ -247,7 +260,7 @@ APP_CATALOG = {
         'color':       '#0dcaf0',
         'url_name':    'reader:index',
         'description': 'Extraction de texte par OCR (Tesseract, PaddleOCR, EasyOCR).',
-        'input_extensions': DOCUMENT_EXTENSIONS,
+        'input_extensions': OCR_INPUT_EXTENSIONS,
         'input_types': ('document', 'image'),
         'batch_type':  'media_list',
         'has_batch':   True,

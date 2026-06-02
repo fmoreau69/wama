@@ -193,6 +193,8 @@ def handle_txt2img(request, user):
         seed=seed,
         num_images=num_images,
         upscale=upscale,
+        output_format=request.POST.get('output_format', 'original'),
+        output_quality=request.POST.get('output_quality', 'balanced'),
         status='PENDING'
     )
 

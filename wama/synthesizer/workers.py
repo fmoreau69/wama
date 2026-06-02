@@ -231,6 +231,31 @@ def _split_text_into_chunks(text, max_chars):
     return chunks
 
 
+def _apply_output_format(synthesis):
+    """Convert the synthesized WAV to the user-chosen output format (Phase 3).
+
+    No-op when output_format is 'original'/empty or already WAV. Updates
+    audio_output to point at the converted file.
+    """
+    fmt = (getattr(synthesis, 'output_format', '') or 'original').lower()
+    if fmt in ('', 'original') or not synthesis.audio_output:
+        return
+    try:
+        import os as _os
+        from django.conf import settings as _settings
+        from wama.converter.utils.inline_convert import apply_inline_conversion
+        new_path = apply_inline_conversion(
+            synthesis.audio_output.path, fmt,
+            getattr(synthesis, 'output_quality', 'balanced') or 'balanced',
+        )
+        rel = _os.path.relpath(new_path, _settings.MEDIA_ROOT).replace('\\', '/')
+        if rel != synthesis.audio_output.name:
+            synthesis.audio_output.name = rel
+            synthesis.save(update_fields=['audio_output'])
+    except Exception as exc:
+        logger.warning(f"[synthesizer] conversion format sortie échouée: {exc}")
+
+
 @shared_task(bind=True, max_retries=60, default_retry_delay=10)
 def synthesize_voice(self, synthesis_id: int):
     """
@@ -330,6 +355,10 @@ def synthesize_voice(self, synthesis_id: int):
             input_name = re.sub(r'[^\w\-]', '_', normalized).strip('_') or 'synthesis'
             audio_filename = f"{input_name}_{synthesis.tts_model}.wav"
             synthesis.audio_output.save(audio_filename, ContentFile(f.read()))
+
+        # Conversion de format inline (Phase 3) — si l'utilisateur a choisi un
+        # format de sortie autre que WAV natif.
+        _apply_output_format(synthesis)
 
         # Mettre à jour les propriétés audio
         _update_audio_properties(synthesis)

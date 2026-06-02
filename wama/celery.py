@@ -19,22 +19,14 @@ app.config_from_object('django.conf:settings', namespace='CELERY')
 # Pool and concurrency are configured per-worker via CLI flags in start scripts
 # (gpu worker = solo/1, default worker = prefork/autoscale)
 
-# Auto-discover tasks in all installed apps
-# Explicitly list apps with Celery tasks
-app.autodiscover_tasks([
-    'wama.anonymizer',
-    'wama.describer',
-    'wama.enhancer',
-    'wama.imager',
-    'wama.model_manager',
-    'wama.synthesizer',
-    'wama.transcriber',
-    'wama_lab.face_analyzer',
-    'wama_lab.cam_analyzer',
-])
-
-# Also load tasks from non-standard module names (workers.py)
-app.autodiscover_tasks(['wama.describer'], related_name='workers')
+# Auto-discover tasks across ALL installed apps — no manual list to maintain.
+# A new app's Celery tasks are picked up automatically as long as they live in
+# a `tasks.py` or a `workers.py` module (the two conventions used in WAMA).
+#   tasks.py   : anonymizer, composer, converter, enhancer, imager,
+#                model_manager, reader, cam_analyzer, face_analyzer, …
+#   workers.py : avatarizer, describer, synthesizer, transcriber, …
+app.autodiscover_tasks()
+app.autodiscover_tasks(related_name='workers')
 
 @app.task(bind=True)
 def debug_task(self):

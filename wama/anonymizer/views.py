@@ -83,7 +83,11 @@ class IndexView(View):
                                 dst.write(src.read())
                             video_path = dest_path
                         # Crée Media en DB
-                        media = process_media(video_path, user)
+                        media = process_media(
+                            video_path, user,
+                            output_format=request.POST.get('output_format', 'original'),
+                            output_quality=request.POST.get('output_quality', 'balanced'),
+                        )
                         added.append(media)
                     except Exception as e:
                         failed.append((path, str(e)))
@@ -92,7 +96,11 @@ class IndexView(View):
 
             # Case 2: direct upload (file or URL)
             video_path = upload_from_url(request, user)
-            media_result = process_media(video_path, user)
+            media_result = process_media(
+                video_path, user,
+                output_format=request.POST.get('output_format', 'original'),
+                output_quality=request.POST.get('output_quality', 'balanced'),
+            )
             if isinstance(media_result, dict) and media_result.get('is_valid'):
                 return JsonResponse({'success': True, 'media': media_result})
             else:
@@ -130,14 +138,18 @@ def is_url(path):
         return False
 
 
-def process_media(video_path, user):
+def process_media(video_path, user, output_format='original', output_quality='balanced'):
     """Create a Media object from the given path and assign metadata."""
     try:
         filename = os.path.basename(video_path)
         ext = os.path.splitext(filename)[1]
         # Use user-specific path
         relative_path = f'anonymizer/{user.id}/input/{filename}'
-        media = Media.objects.create(file=relative_path, file_ext=ext, user=user)
+        media = Media.objects.create(
+            file=relative_path, file_ext=ext, user=user,
+            output_format=output_format or 'original',
+            output_quality=output_quality or 'balanced',
+        )
 
         mime_type, _ = mimetypes.guess_type(video_path)
         if mime_type and mime_type.startswith("video/"):

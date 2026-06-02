@@ -114,6 +114,49 @@ def get_relative_media_path(app_name: str, user_id: Union[int, str], subfolder: 
     return f"{app_name}/{user_id}/{subfolder}/{filename}"
 
 
+def copy_into_app_input(source_path, app_name: str, user_id, subfolder: str = 'input',
+                        allowed_exts=None):
+    """Copy a source file into an app's media folder with collision-safe naming.
+
+    Centralises the logic duplicated by every ``import_to_<app>()`` helper:
+    validate extension, ensure the destination dir, append ``_N`` on name
+    collision, copy, and compute the MEDIA_ROOT-relative path.
+
+    Args:
+        source_path: Path (or str) of the file to copy.
+        app_name:    Target app (e.g. 'reader', 'enhancer').
+        user_id:     Owning user id.
+        subfolder:   Destination subfolder ('input', 'input/audio', …).
+        allowed_exts: Optional iterable of accepted extensions (lowercase,
+                      dot-prefixed, e.g. {'.pdf', '.png'}). Raises ValueError
+                      if the source extension is not in the set.
+
+    Returns:
+        (dest_path: Path, relative_path: str)
+    """
+    import shutil
+    from pathlib import Path
+
+    src = Path(source_path)
+    ext = src.suffix.lower()
+    if allowed_exts is not None and ext not in {e.lower() for e in allowed_exts}:
+        raise ValueError(f"Format non supporté : {ext}")
+
+    dest_dir = get_app_media_path(app_name, user_id, subfolder)
+    dest_dir.mkdir(parents=True, exist_ok=True)
+
+    dest_path = dest_dir / src.name
+    if dest_path.exists():
+        stem, suffix, counter = dest_path.stem, dest_path.suffix, 1
+        while dest_path.exists():
+            dest_path = dest_dir / f"{stem}_{counter}{suffix}"
+            counter += 1
+
+    shutil.copy2(src, dest_path)
+    relative_path = f"{app_name}/{user_id}/{subfolder}/{dest_path.name}"
+    return dest_path, relative_path
+
+
 class UploadToUserPath:
     """
     Callable class for Django FileField upload_to that generates user-specific paths.

@@ -265,6 +265,20 @@ def generate_image_task(self, generation_id):
             _console(user_id, f"[Imager] Error: {error_msg}")
             return {'error': error_msg}
 
+        # Output-format conversion (Phase 3) — convert each PNG to the chosen
+        # image format (jpg/webp/…) ; no-op when 'original' or non-image format.
+        _fmt = (getattr(generation, 'output_format', '') or 'original').lower()
+        if _fmt not in ('', 'original', 'png'):
+            try:
+                from wama.converter.utils.inline_convert import apply_inline_conversion
+                _preset = getattr(generation, 'output_quality', 'balanced') or 'balanced'
+                converted = []
+                for p in generated_paths:
+                    converted.append(apply_inline_conversion(p, _fmt, _preset))
+                generated_paths = converted
+            except Exception as _conv_err:
+                logger.warning(f"[Imager] conversion format sortie échouée: {_conv_err}")
+
         # Update generation with results
         try:
             generation.refresh_from_db()

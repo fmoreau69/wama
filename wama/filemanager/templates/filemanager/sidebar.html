@@ -132,6 +132,9 @@
         apiMountsUrl: '{% url "filemanager:api_mounts" %}',
         apiMountDeleteUrl: '/filemanager/api/mounts/',
         converterQuickUrl: '{% url "converter:quick_convert" %}',
+        converterStatusUrl: '{% url "converter:status" 0 %}',
+        converterDismissUrl: '{% url "converter:dismiss" 0 %}',
+        converterCancelUrl: '{% url "converter:cancel" 0 %}',
         converterOutputFormats: {{ converter_output_formats_json|safe }},
     };
 </script>
@@ -153,6 +156,24 @@
                 <select id="converterQuickFormat" class="form-select form-select-sm bg-dark text-light border-secondary">
                     <option value="">— choisissez —</option>
                 </select>
+                <label class="form-label small fw-bold mb-1 mt-2">Qualité</label>
+                <select id="converterQuickPreset" class="form-select form-select-sm bg-dark text-light border-secondary">
+                    <option value="web">Web (léger)</option>
+                    <option value="balanced" selected>Équilibré</option>
+                    <option value="max">Maximum</option>
+                </select>
+                <small class="text-muted d-block mt-1">Le fichier converti sera créé à côté de l'original.</small>
+                <!-- Progress (shown during conversion) -->
+                <div id="converterQuickProgressWrap" class="mt-3" style="display:none;">
+                    <div class="d-flex justify-content-between small text-muted mb-1">
+                        <span id="converterQuickProgressLabel">Conversion…</span>
+                        <span id="converterQuickProgressPct">0%</span>
+                    </div>
+                    <div class="progress" style="height:6px; background:#2d3440;">
+                        <div id="converterQuickProgressBar" class="progress-bar"
+                             role="progressbar" style="width:0%; background:#20c997;"></div>
+                    </div>
+                </div>
                 <div id="converterQuickError" class="text-danger small mt-2" style="display:none;"></div>
             </div>
             <div class="modal-footer border-secondary py-2">

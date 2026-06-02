@@ -186,6 +186,9 @@ def upload(request):
             # Higgs Audio specific options
             multi_speaker = request.POST.get('multi_speaker', '0') == '1'
             scene_description = request.POST.get('scene_description', '')
+            # Output format (Phase 3) — 'original' = WAV natif, sinon conversion inline
+            output_format = request.POST.get('output_format', 'original')
+            output_quality = request.POST.get('output_quality', 'balanced')
         except (ValueError, TypeError) as e:
             return JsonResponse({
                 'error': f'Paramètres invalides: {str(e)}'
@@ -210,6 +213,8 @@ def upload(request):
             voice_reference=voice_reference,
             multi_speaker=multi_speaker,
             scene_description=scene_description,
+            output_format=output_format,
+            output_quality=output_quality,
         )
 
         # Extraire le texte et mettre à jour les métadonnées
@@ -339,6 +344,9 @@ def upload_text(request):
             # Higgs Audio specific options
             multi_speaker = request.POST.get('multi_speaker', '0') == '1'
             scene_description = request.POST.get('scene_description', '')
+            # Output format (Phase 3)
+            output_format = request.POST.get('output_format', 'original')
+            output_quality = request.POST.get('output_quality', 'balanced')
         except (ValueError, TypeError) as e:
             return JsonResponse({
                 'error': f'Paramètres invalides: {str(e)}'
@@ -363,6 +371,8 @@ def upload_text(request):
             voice_reference=voice_reference,
             multi_speaker=multi_speaker,
             scene_description=scene_description,
+            output_format=output_format,
+            output_quality=output_quality,
         )
 
         # Mettre à jour les métadonnées
