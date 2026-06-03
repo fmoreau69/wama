@@ -1146,12 +1146,39 @@ def api_preview(request):
     return JsonResponse({'url': None, 'mime_type': mime_type, 'name': full_path.name})
 
 
+def _allowed_app_prefixes(user_id):
+    """Préfixes de dossiers d'app autorisés POUR CET UTILISATEUR — dérivés
+    automatiquement de APP_CATALOG (+ apps WAMA Lab).
+
+    Chaque préfixe inclut l'id utilisateur (`<app>/<user_id>/`), ce qui
+    garantit qu'un utilisateur ne peut accéder qu'à SES propres fichiers d'app,
+    même en fabriquant un chemin à la main (pas seulement via l'arbre).
+
+    Ajouter une app à APP_CATALOG suffit : son dossier média devient
+    automatiquement accessible — évite l'erreur chronique « aperçu non
+    disponible » à la création d'une nouvelle app.
+    """
+    prefixes = set()
+    try:
+        from wama.common.app_registry import APP_CATALOG
+        prefixes.update(f'{app}/{user_id}/' for app in APP_CATALOG)
+    except Exception:
+        pass
+    # Apps WAMA Lab (hors APP_CATALOG)
+    prefixes.update([f'face_analyzer/{user_id}/', f'cam_analyzer/{user_id}/'])
+    # Dossiers partagés (non rattachés à un utilisateur)
+    prefixes.add('avatarizer/gallery/')
+    return prefixes
+
+
 def is_path_allowed(path, user):
     """
     Check if a path is allowed for the given user.
     Users can only access:
     - Their own temp folder: users/{user_id}/temp/
-    - App folders: enhancer/, anonymizer/, synthesizer/, transcriber/
+    - Their OWN app media folders (`<app>/<user_id>/…`, par-utilisateur)
+    - Shared folders (avatarizer/gallery)
+    - Their mounted folders
     """
     path = path.replace('\\', '/')
 
@@ -1163,22 +1190,8 @@ def is_path_allowed(path, user):
     if path.startswith(f'users/{user.id}/temp/') or path.startswith(f'users/{user.id}/temp'):
         return True
 
-    # Allow app folders (TODO: add per-user filtering for app files)
-    allowed_prefixes = [
-        'anonymizer/',
-        'avatarizer/',
-        'composer/',
-        'describer/',
-        'enhancer/',
-        'imager/',
-        'reader/',
-        'synthesizer/',
-        'transcriber/',
-        'face_analyzer/',
-        'cam_analyzer/',
-    ]
-
-    for prefix in allowed_prefixes:
+    # Allow app folders — par-utilisateur (le préfixe inclut l'id)
+    for prefix in _allowed_app_prefixes(user.id):
         if path.startswith(prefix):
             return True
 
@@ -1297,6 +1310,17 @@ def api_import_to_app(request):
                     BatchReadingItemLink.objects.create(batch=batch, reading=item, row_index=i)
         except Exception as e:
             logger.warning(f"[filemanager] reader batch consolidation failed: {e}")
+
+    # Converter : regroupe les jobs importés par NATURE → 1 batch par nature
+    # (batch-of-1 pour un fichier seul). Helper exposé par l'app (découplage).
+    if target_app == 'converter' and results:
+        try:
+            from wama.converter.views import consolidate_jobs_into_batches
+            job_ids = [r['id'] for r in results if r.get('id')]
+            if job_ids:
+                consolidate_jobs_into_batches(job_ids, user)
+        except Exception as e:
+            logger.warning(f"[filemanager] converter batch consolidation failed: {e}")
 
     if len(file_paths) == 1:
         # Backward compatibility: single path → return single result
@@ -1684,7 +1708,7 @@ def import_to_cam_analyzer(source_path, user):
 # ── Mounted Folders API ────────────────────────────────────────────────────────
 
 def _parse_unc_path(path_str):
-    """
+    r"""
     Detect and parse a UNC path (\\server\share\sub or //server/share/sub).
     Returns {'server', 'share', 'subpath'} or None if not UNC.
     """

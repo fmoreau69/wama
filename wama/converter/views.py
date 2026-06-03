@@ -54,13 +54,92 @@ def _is_app_owned(file_field, user_id) -> bool:
     return name.startswith(f'converter/{user_id}/')
 
 
+def _wrap_job_in_batch(job):
+    """Wrap a standalone job in a ConversionBatch-of-1 (même nature)."""
+    from .models import ConversionBatch
+    batch = ConversionBatch.objects.create(user=job.user, media_type=job.media_type, total=1)
+    job.batch = batch
+    job.batch_row_index = 0
+    job.save(update_fields=['batch', 'batch_row_index'])
+    return batch
+
+
+def _auto_wrap_orphans(user):
+    """Wrap any non-ephemeral queue job without a batch into a batch-of-1
+    (lazy, à l'ouverture de la page — comme reader/synthesizer)."""
+    for job in ConversionJob.objects.filter(user=user, ephemeral=False, batch__isnull=True):
+        try:
+            _wrap_job_in_batch(job)
+        except Exception:
+            pass
+
+
+def consolidate_jobs_into_batches(job_ids, user):
+    """Regroupe des jobs par NATURE → un ConversionBatch par nature.
+
+    Les jobs importés sont des orphelins (pas de batch-of-1 préalable), donc on
+    crée directement les batchs-of-N. Réglages de sortie communs par batch →
+    on ne mélange jamais les natures. Retourne la liste des batchs créés.
+    """
+    from collections import OrderedDict
+    from .models import ConversionBatch
+    from wama.common.utils.batch_common import consolidate_into_batch
+
+    jobs = list(ConversionJob.objects.filter(id__in=job_ids, user=user, ephemeral=False))
+    by_nature = OrderedDict()
+    for j in jobs:
+        by_nature.setdefault(j.media_type, []).append(j)
+
+    batches = []
+    for nature, group in by_nature.items():
+        def _create(total, _n=nature):
+            return ConversionBatch.objects.create(user=user, media_type=_n, total=total)
+
+        def _link(batch, job, idx):
+            job.batch = batch
+            job.batch_row_index = idx
+            job.save(update_fields=['batch', 'batch_row_index'])
+
+        b = consolidate_into_batch(group, create_batch=_create, link_item=_link)
+        if b:
+            batches.append(b)
+    return batches
+
+
 class IndexView(View):
     def get(self, request):
         import json
         user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+        # Tout job de file appartient à un batch (batch-of-1 si fichier seul) —
+        # wrap paresseux des éventuels orphelins (ex. upload direct).
+        _auto_wrap_orphans(user)
         # Ephemeral jobs (quick-convert) are never shown in the queue.
-        jobs     = ConversionJob.objects.filter(user=user, ephemeral=False).order_by('-created_at')
+        jobs     = (ConversionJob.objects.filter(user=user, ephemeral=False)
+                    .select_related('batch').order_by('-created_at'))
         profiles = ConversionProfile.objects.filter(user=user)
+
+        # Group jobs by batch for the queue UI (batch-of-1 → carte simple,
+        # batch-of-N → groupe). Ordre : par batch le plus récent.
+        from collections import OrderedDict
+        _nature_labels = {'image': 'Images', 'video': 'Vidéos', 'audio': 'Audio',
+                          'document': 'Documents', 'archive': 'Archives'}
+        grouped = OrderedDict()
+        for job in jobs:
+            key = job.batch_id or f'loose-{job.id}'
+            grouped.setdefault(key, []).append(job)
+        batches_list = []
+        for items in grouped.values():
+            items_sorted = sorted(items, key=lambda j: j.batch_row_index)
+            batch = items[0].batch
+            total = batch.total if batch else len(items_sorted)
+            done = sum(1 for j in items_sorted if j.status == 'DONE')
+            batches_list.append({
+                'obj': batch,
+                'items': items_sorted,
+                'is_group': bool(batch) and total > 1,
+                'media_label': _nature_labels.get(batch.media_type if batch else '', ''),
+                'done_count': done,
+            })
 
         # Build JS-safe dict: { image: { input: ['.jpg',…], output: ['jpg',…] }, … }
         formats_for_js = {
@@ -73,6 +152,7 @@ class IndexView(View):
 
         return render(request, 'converter/index.html', {
             'jobs':                 jobs,
+            'batches_list':         batches_list,
             'profiles':             profiles,
             'supported_formats':    SUPPORTED_CONVERSIONS,
             'supported_formats_json': json.dumps(formats_for_js),
@@ -331,6 +411,202 @@ def clear_all(request):
         if _is_app_owned(job.input_file, job.user_id):
             safe_delete_file(job, 'input_file')
     jobs.delete()
+    return JsonResponse({'success': True})
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# Batch import — consolidation multi-fichiers + fichier batch d'URLs
+# ────────────────────────────────────────────────────────────────────────────
+
+@login_required
+@require_POST
+def consolidate(request):
+    """Regroupe des jobs (créés par upload multi-fichiers) en batchs par nature.
+
+    Appelé par le front après avoir uploadé plusieurs fichiers d'un coup :
+    chaque /upload/ crée un job orphelin, puis on consolide ici → 1 batch/nature.
+    """
+    import json as _json
+    try:
+        ids = _json.loads(request.body or '{}').get('job_ids', [])
+    except Exception:
+        ids = request.POST.getlist('job_ids')
+    ids = [int(i) for i in ids if str(i).isdigit()]
+    batches = consolidate_jobs_into_batches(ids, request.user)
+    return JsonResponse({'success': True, 'batches': len(batches)})
+
+
+@login_required
+@require_POST
+def batch_preview(request):
+    """Aperçu d'un fichier batch d'URLs/chemins (détection style synthesizer)."""
+    from wama.common.utils.batch_parsers import batch_media_list_preview_response
+
+    def _enrich(item):
+        mt = detect_media_type(item.get('filename', ''))
+        item['detected_type'] = mt or 'inconnu'
+
+    return batch_media_list_preview_response(request, item_enricher=_enrich)
+
+
+@login_required
+@require_POST
+def batch_create(request):
+    """Crée des jobs depuis un fichier batch d'URLs/chemins.
+
+    Téléchargement eager : URL distante → upload_media_from_url ; chemin local
+    (sous MEDIA_ROOT) → copie. Chaque source → un ConversionJob PENDING (format
+    réglé ensuite via les réglages du batch). Consolidation par nature.
+    Les lignes en échec sont ignorées et reportées dans `warnings`.
+    """
+    import os as _os
+    from django.conf import settings
+    from wama.common.utils.batch_parsers import parse_batch_file_from_request
+    from wama.common.utils.media_paths import get_app_media_path, copy_into_app_input
+
+    user = request.user
+    try:
+        items, warnings = parse_batch_file_from_request(request)
+    except ValueError as e:
+        return JsonResponse({'error': str(e)}, status=400)
+    if not items:
+        return JsonResponse({'error': 'Aucun élément valide trouvé dans le fichier'}, status=400)
+
+    media_root = Path(settings.MEDIA_ROOT).resolve()
+    dest_dir = get_app_media_path('converter', user.id, 'input')
+    dest_dir.mkdir(parents=True, exist_ok=True)
+
+    job_ids = []
+    for item in items:
+        src = (item.get('path') or '').strip()
+        if not src:
+            continue
+        try:
+            if src.startswith(('http://', 'https://')):
+                from wama.common.utils.video_utils import upload_media_from_url
+                before = set(_os.listdir(dest_dir))
+                upload_media_from_url(src, str(dest_dir))
+                new = sorted(set(_os.listdir(dest_dir)) - before)
+                if not new:
+                    warnings.append(f'Échec téléchargement : {src}')
+                    continue
+                fname = new[0]
+                dpath = dest_dir / fname
+                rel = f'converter/{user.id}/input/{fname}'
+            else:
+                cand = Path(src)
+                abs_src = (cand if cand.is_absolute() else (media_root / src)).resolve()
+                if not str(abs_src).startswith(str(media_root)) or not abs_src.exists():
+                    warnings.append(f'Introuvable : {src}')
+                    continue
+                dpath, rel = copy_into_app_input(abs_src, 'converter', user.id, 'input')
+                fname = dpath.name
+
+            media_type = detect_media_type(fname)
+            if media_type is None:
+                warnings.append(f'Type non supporté : {fname}')
+                continue
+
+            job = ConversionJob.objects.create(
+                user=user, input_filename=fname, media_type=media_type,
+                output_format='', status='PENDING',
+            )
+            job.input_file.name = rel
+            job.save(update_fields=['input_file'])
+            job_ids.append(job.id)
+        except Exception as e:
+            warnings.append(f'{src} : {e}')
+
+    batches = consolidate_jobs_into_batches(job_ids, user)
+    return JsonResponse({
+        'success': True,
+        'count': len(job_ids),
+        'batches': len(batches),
+        'warnings': warnings,
+    })
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# Batch actions (groupe) — démarrer / régler / supprimer
+# ────────────────────────────────────────────────────────────────────────────
+
+def _delete_job_files(job):
+    """Supprime input/output d'un job s'ils appartiennent au Converter."""
+    if job.output_file and _is_app_owned(job.output_file, job.user_id):
+        try:
+            Path(job.output_file.path).unlink(missing_ok=True)
+        except Exception:
+            pass
+    if _is_app_owned(job.input_file, job.user_id):
+        safe_delete_file(job, 'input_file')
+
+
+@login_required
+@require_POST
+def batch_start(request, pk):
+    """Démarre tous les jobs PENDING d'un batch."""
+    from .models import ConversionBatch
+    from .tasks import convert_media_task
+    batch = get_object_or_404(ConversionBatch, pk=pk, user=request.user)
+    started = []
+    for job in batch.items.filter(status='PENDING'):
+        if not job.output_format:
+            continue  # format non défini → on saute (réglé via batch settings)
+        with transaction.atomic():
+            j = ConversionJob.objects.select_for_update().get(pk=job.pk)
+            if j.status == 'RUNNING':
+                continue
+            j.status = 'RUNNING'
+            j.save(update_fields=['status'])
+        task = convert_media_task.delay(job.id)
+        job.task_id = task.id
+        job.save(update_fields=['task_id'])
+        started.append(job.id)
+    return JsonResponse({'success': True, 'started': started})
+
+
+@login_required
+@require_POST
+def batch_update(request, pk):
+    """Applique format/qualité communs à tous les jobs non-RUNNING d'un batch."""
+    from .models import ConversionBatch
+    batch = get_object_or_404(ConversionBatch, pk=pk, user=request.user)
+    out_fmt = (request.POST.get('output_format') or '').strip().lower()
+    preset  = (request.POST.get('output_quality') or request.POST.get('quality_preset') or '').strip().lower()
+
+    if out_fmt and out_fmt not in get_output_formats(batch.media_type):
+        return JsonResponse({'error': f"Format invalide pour {batch.media_type} : {out_fmt}"}, status=400)
+
+    updated = 0
+    for job in batch.items.exclude(status='RUNNING'):
+        fields = []
+        if out_fmt:
+            job.output_format = out_fmt; fields.append('output_format')
+        if preset:
+            job.quality_preset = preset; fields.append('quality_preset')
+        if fields:
+            job.save(update_fields=fields); updated += 1
+    return JsonResponse({'success': True, 'updated': updated,
+                         'output_format': out_fmt, 'media_type': batch.media_type})
+
+
+@login_required
+@require_POST
+def batch_delete(request, pk):
+    """Supprime un batch : révoque les tâches, nettoie les fichiers app-owned,
+    puis supprime les jobs + le batch."""
+    from .models import ConversionBatch
+    batch = get_object_or_404(ConversionBatch, pk=pk, user=request.user)
+    for job in batch.items.all():
+        if job.task_id:
+            try:
+                from celery import current_app
+                current_app.control.revoke(job.task_id, terminate=False)
+            except Exception:
+                pass
+        _delete_job_files(job)
+    # CASCADE supprime les jobs liés à la suppression du batch
+    batch.delete()
     return JsonResponse({'success': True})
 
 

@@ -53,7 +53,8 @@
 
 {# ── Right panel : zone de dépôt ─────────────────────────────────────────── #}
 {% block app_right_panel_media %}
-<div id="converterDropZone" class="converter-drop-zone" onclick="document.getElementById('converterFileInput').click()">
+<div id="converterDropZone" class="converter-drop-zone drop-zone" data-wama-app="converter"
+     onclick="document.getElementById('converterFileInput').click()">
     <i class="fas fa-file-import fa-lg mb-1" style="color:#20c997;"></i>
     <p class="mb-0 small text-secondary">Glissez ici ou cliquez</p>
     <small class="text-muted">Images · Vidéos · Audio · Documents</small>
@@ -283,6 +284,39 @@
         </div>
     </div>
 </div>
+
+<!-- Modal réglages batch (format + qualité communs) -->
+<div class="modal fade" id="batchSettingsModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content bg-dark text-light border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title"><i class="fas fa-layer-group" style="color:#20c997;"></i>
+                    Réglages du batch</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <label class="form-label small fw-bold mb-1">Format de sortie (commun)</label>
+                <select id="batchSettingsFormat" class="form-select form-select-sm bg-dark text-light border-secondary"></select>
+                <label class="form-label small fw-bold mb-1 mt-2">Qualité</label>
+                <select id="batchSettingsQuality" class="form-select form-select-sm bg-dark text-light border-secondary">
+                    <option value="web">Web (léger)</option>
+                    <option value="balanced" selected>Équilibré</option>
+                    <option value="max">Maximum</option>
+                </select>
+                <div id="batchSettingsError" class="text-danger small mt-2" style="display:none;"></div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Annuler</button>
+                <button type="button" class="btn btn-warning btn-sm" id="batchSettingsApplyBtn">
+                    <i class="fas fa-save"></i> Appliquer
+                </button>
+                <button type="button" class="btn btn-success btn-sm" id="batchSettingsApplyStartBtn">
+                    <i class="fas fa-play"></i> Appliquer & démarrer
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {# ── JS config ────────────────────────────────────────────────────────────── #}
@@ -304,10 +338,17 @@ window.CONVERTER_APP = {
         profileList:   "{% url 'converter:profile_list' %}",
         profileSave:   "{% url 'converter:profile_save' %}",
         profileDelete: "{% url 'converter:profile_delete' 0 %}",
+        batchStart:    "{% url 'converter:batch_start' 0 %}",
+        batchUpdate:   "{% url 'converter:batch_update' 0 %}",
+        batchDelete:   "{% url 'converter:batch_delete' 0 %}",
+        consolidate:   "{% url 'converter:consolidate' %}",
+        batchPreview:  "{% url 'converter:batch_preview' %}",
+        batchCreate:   "{% url 'converter:batch_create' %}",
     },
     supportedFormats: {{ supported_formats_json|safe }},
 };
 </script>
+<script src="{% static 'common/js/batch-import.js' %}"></script>
 <script src="{% static 'converter/js/converter.js' %}"></script>
 {% endblock %}
 
@@ -315,87 +356,47 @@ window.CONVERTER_APP = {
 {% block converter_content %}
 <div class="container-fluid py-2" style="overflow-x:hidden;">
 
+    {% include 'common/batch_detect_bar.html' %}
+
     <div id="converterQueue">
-        {% for job in jobs %}
-        <div class="job-card" data-job-id="{{ job.id }}" data-status="{{ job.status }}">
-            <div class="d-flex align-items-center gap-2 flex-wrap">
-
-                <!-- File icon -->
-                <i class="fas fa-file{% if job.media_type == 'video' %}-video{% elif job.media_type == 'audio' %}-audio{% elif job.media_type == 'image' %}-image{% endif %} text-secondary"></i>
-
-                <!-- Filename + format badge -->
-                <div class="flex-grow-1 text-truncate" style="max-width:280px;">
-                    <span class="small fw-bold text-light">{{ job.input_filename }}</span>
-                    {% if job.output_format %}
-                    <span class="badge bg-secondary badge-media ms-1">→ .{{ job.output_format }}</span>
-                    {% endif %}
-                </div>
-
-                <!-- Status badge -->
-                <span class="badge
-                    {% if job.status == 'DONE' %}bg-success
-                    {% elif job.status == 'RUNNING' %}bg-warning text-dark
-                    {% elif job.status == 'ERROR' %}bg-danger
-                    {% else %}bg-secondary
-                    {% endif %} badge-media">
-                    {{ job.get_status_display }}
+        {% for b in batches_list %}
+        {% if b.is_group %}
+        {# ── Groupe batch (multi-fichiers même nature) ── #}
+        <div class="batch-group mb-2" data-batch-id="{{ b.obj.id }}">
+            <div class="batch-group-header d-flex align-items-center gap-2 px-2 py-1"
+                 style="background:rgba(32,201,151,0.12); border:1px solid #20c997; border-radius:6px; cursor:pointer;"
+                 data-bs-toggle="collapse" data-bs-target="#batchBody{{ b.obj.id }}">
+                <i class="fas fa-layer-group" style="color:#20c997;"></i>
+                <span class="small fw-bold text-light">
+                    Batch {{ b.media_label }} — {{ b.obj.total }} fichier{{ b.obj.total|pluralize }}
                 </span>
-
-                <!-- Action buttons (WAMA convention order) -->
+                <span class="badge bg-secondary badge-media ms-1">{{ b.done_count }}/{{ b.obj.total }} ✓</span>
+                <!-- Actions batch (stopPropagation côté JS pour ne pas toggler le collapse) -->
                 <div class="d-flex gap-1 ms-auto">
-                    <!-- Paramètres -->
-                    <button class="btn btn-outline-secondary btn-sm py-0 px-2 job-settings-btn"
-                            title="Paramètres" data-job-id="{{ job.id }}">
+                    <button class="btn btn-outline-secondary btn-sm py-0 px-2 batch-settings-btn"
+                            title="Réglages du batch" data-batch-id="{{ b.obj.id }}"
+                            data-media-type="{{ b.obj.media_type }}">
                         <i class="fas fa-cog"></i>
                     </button>
-                    <!-- Start / Restart -->
-                    <button class="btn btn-outline-success btn-sm py-0 px-2 job-start-btn"
-                            title="{% if job.status == 'DONE' %}Recommencer{% else %}Démarrer{% endif %}"
-                            data-job-id="{{ job.id }}"
-                            {% if job.status == 'RUNNING' %}disabled{% endif %}>
-                        <i class="fas fa-{% if job.status == 'DONE' %}redo{% else %}play{% endif %}"></i>
+                    <button class="btn btn-outline-success btn-sm py-0 px-2 batch-start-btn"
+                            title="Démarrer le batch" data-batch-id="{{ b.obj.id }}">
+                        <i class="fas fa-play"></i>
                     </button>
-                    <!-- Download -->
-                    {% if job.status == 'DONE' and job.output_file %}
-                    <a href="{% url 'converter:download' job.id %}"
-                       class="btn btn-outline-info btn-sm py-0 px-2" title="Télécharger">
-                        <i class="fas fa-download"></i>
-                    </a>
-                    {% else %}
-                    <button class="btn btn-outline-info btn-sm py-0 px-2" disabled title="Télécharger">
-                        <i class="fas fa-download"></i>
-                    </button>
-                    {% endif %}
-                    <!-- Duplicate -->
-                    <button class="btn btn-outline-warning btn-sm py-0 px-2 job-duplicate-btn"
-                            title="Dupliquer" data-job-id="{{ job.id }}">
-                        <i class="fas fa-copy"></i>
-                    </button>
-                    <!-- Delete -->
-                    <button class="btn btn-outline-danger btn-sm py-0 px-2 job-delete-btn"
-                            title="Supprimer" data-job-id="{{ job.id }}">
+                    <button class="btn btn-outline-danger btn-sm py-0 px-2 batch-delete-btn"
+                            title="Supprimer le batch" data-batch-id="{{ b.obj.id }}">
                         <i class="fas fa-trash"></i>
                     </button>
                 </div>
+                <i class="fas fa-chevron-down text-muted small"></i>
             </div>
-
-            <!-- Progress bar -->
-            {% if job.status == 'RUNNING' or job.status == 'PENDING' %}
-            <div class="wama-progress-track mt-2">
-                <div class="wama-progress-fill" style="width:{{ job.progress }}%"></div>
+            <div class="collapse show ps-2 pt-1" id="batchBody{{ b.obj.id }}">
+                {% for job in b.items %}{% include 'converter/_job_card.html' %}{% endfor %}
             </div>
-            {% elif job.status == 'ERROR' %}
-            <div class="text-danger small mt-1">
-                <i class="fas fa-exclamation-triangle"></i>
-                {{ job.error_message|truncatechars:120 }}
-            </div>
-            {% elif job.status == 'DONE' and job.output_file %}
-            <div class="text-success small mt-1">
-                <i class="fas fa-check-circle"></i>
-                {{ job.output_filename }}
-            </div>
-            {% endif %}
         </div>
+        {% else %}
+        {# ── batch-of-1 → carte simple ── #}
+        {% for job in b.items %}{% include 'converter/_job_card.html' %}{% endfor %}
+        {% endif %}
         {% empty %}
         <div id="converterEmptyState" class="text-center text-muted py-4">
             <i class="fas fa-exchange-alt fa-2x mb-2" style="color:#20c997; opacity:.4;"></i>

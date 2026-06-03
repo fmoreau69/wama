@@ -32,6 +32,7 @@ Créer dans l'ordre. Ne pas sauter d'étape.
 [ ] 5.  Créer les URL patterns standard (§3)
 [ ] 6.  Créer les vues standard (§3)
 [ ] 7.  Créer templates/ : base.html + index.html + _item_card.html
+        (base.html DOIT override {% block footer_text %} — format `AppName - Description | WAMA`, §4.2)
 [ ] 8.  Créer static/<app>/js/<app>.js (JS côté client)
 [ ] 9.  Copier dans staticfiles/<app>/ après chaque modif JS/CSS
 [ ] 10. Ajouter le lien dans wama/templates/includes/header.html (ordre ALPHABÉTIQUE, §16)
@@ -40,13 +41,23 @@ Créer dans l'ordre. Ne pas sauter d'étape.
 [ ] 13. Ajouter les outils API dans wama/tool_api.py + wama/urls.py (§17)
 [ ] 14. Ajouter les icônes TOOL_ICONS dans home.html
 [ ] 15. Ajouter à la table de conformité §15 de ce document
-[ ] 16. Filemanager — DEUX ajouts (ordre alphabétique) :
+[ ] 16. Filemanager — ajouts manuels (ordre alphabétique) :
         a) `get_tree_data()` (filemanager/views.py) : entrée `app_folders_config`
            avec les sous-dossiers réels (input/output/…) — c'est ce qui FAIT
            apparaître l'app dans l'arbre
         b) `appFolderMap` (filemanager.js + staticfiles) : auto-dépliement sidebar (§8.5)
+        c) Drop zone du volet droit : `class="… drop-zone"` + `data-wama-app="<app>"`
+           → active le drag&drop filemanager/explorateur → zone d'import (§8.6)
+        NB : l'autorisation d'accès (preview/download/delete) via `is_path_allowed`
+        est désormais AUTOMATIQUE (dérivée de APP_CATALOG) — plus rien à faire là.
 [ ] 17. Ajouter l'app dans app_registry.py (APP_CATALOG) en ordre ALPHABÉTIQUE (§16)
 ```
+
+> **Erreur chronique évitée (2026-06)** : « Aperçu non disponible » / « Accès refusé »
+> sur les fichiers d'une nouvelle app venait de `is_path_allowed` (liste de préfixes
+> codée en dur). C'est désormais dérivé de `APP_CATALOG` (+ apps WAMA Lab) → ajouter
+> l'app au catalogue (étape 17) suffit. Idem : tâches Celery auto-découvertes (voir
+> plus bas), copie dans l'input via `copy_into_app_input` (§8.3).
 
 > **Pourquoi manuel et pas auto-généré depuis app_registry ?** Les layouts de
 > dossiers sont **spécifiques par app** (Avatarizer a une *Galerie*, Imager
@@ -284,6 +295,7 @@ common/app_modern_base.html   ← base de toutes les apps
 | `app_icon` | Icône FontAwesome dans le header |
 | `app_title` | Titre de l'application |
 | `app_description` | Sous-titre |
+| `footer_text` | **Obligatoire** — pied de page. Format : `AppName - Description | WAMA` (ex. `Converter - Media Format Conversion | WAMA`). Sans override, l'app affiche le défaut générique « WAMA - Web App for Media Automation ». |
 | `queue_content` | Contenu de l'onglet File d'attente |
 | `console_content_id` | ID du div console (défaut : `console-content`) |
 | `console_app_name` | Nom de l'app pour les logs (défaut : `system`) |
@@ -758,6 +770,27 @@ Ajouter une entrée dans `appFolderMap` de `filemanager.js` **et** `staticfiles/
 Les IDs de nœuds correspondent aux `id` déclarés dans `views.py` (`get_tree_data()`).
 
 > **État actuel :** ✅ Implémenté pour toutes les apps sauf Avatarizer (pas de sidebar standard).
+
+### 8.6 Drag & drop FileManager / explorateur → zone d'import
+
+Deux sources de drop coexistent (à conserver toutes les deux) :
+- **Explorateur Windows → zone d'import** : drop HTML5 natif, géré par le handler
+  `drop` propre à chaque app (lecture de `e.dataTransfer.files`).
+- **Arbre FileManager → zone d'import** : DnD jstree (vakata), géré par
+  `setupExternalDragDrop` dans `filemanager.js`.
+
+**Pour que le drop depuis l'arbre fonctionne, la zone d'import DOIT :**
+1. porter la classe **`drop-zone`** (sinon `findDropZoneAt` ne la détecte pas) ;
+2. porter **`data-wama-app="<app>"`** (sinon `getAppFromDropZone` ne sait pas router).
+
+```html
+<div id="dropZoneXxx" class="… drop-zone" data-wama-app="monapp">…</div>
+```
+
+Le drop route alors automatiquement vers `importToApp('<app>')` (copie dans
+l'input + création de la tâche). Les anciens `if (id === 'dropZoneXxx')` codés
+en dur dans `getAppFromDropZone` sont **legacy** — `data-wama-app` est la voie
+homogène (fallback déjà en place).
 
 ---
 

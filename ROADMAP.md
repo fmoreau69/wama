@@ -287,6 +287,7 @@ wama/converter/
 | **10** | **Time-lapse / slow-motion** (RIFE/DAIN interpolation) | ⏳ | ~200 l + modèle 500 MB | Élevé |
 | **11** | **Watermarking invisible** (stéganographie) | ⏳ | ~100 l + lib stegano | Faible |
 | **12** | **Shell integration OS** (Win .reg / macOS Service / .desktop) | 💡 | ~200 l/OS | Moyen |
+| **13** | **Batch** : modèle `ConversionBatch`, multi-fichiers groupés par nature, fichier d'URLs (preview/Individuel), groupes UI + actions (start/réglages/delete) | ✅ 2026-06-03 | ~350 l + mig 0003 + `common/batch_common.py` | Moyen |
 
 ### Intégration cross-apps (pattern tasks.py) ⏳
 ```python

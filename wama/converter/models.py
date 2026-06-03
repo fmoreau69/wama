@@ -20,6 +20,27 @@ class ConversionProfile(models.Model):
         return f"{self.name} ({self.output_format})"
 
 
+class ConversionBatch(models.Model):
+    """Groupe de conversions partageant la même nature (image/vidéo/audio/…).
+
+    Créé soit par import multi-fichiers (1 batch par nature), soit par fichier
+    batch d'URLs/chemins. Les réglages de sortie (format/qualité) sont communs
+    à tous les jobs du batch — d'où le regroupement par nature.
+    """
+    user        = models.ForeignKey(User, on_delete=models.CASCADE, related_name='conversion_batches')
+    created_at  = models.DateTimeField(auto_now_add=True)
+    batch_file  = models.FileField(upload_to=UploadToUserPath('converter', 'input'),
+                                   blank=True, null=True)
+    media_type  = models.CharField(max_length=20, blank=True)  # nature commune
+    total       = models.IntegerField(default=0)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"ConversionBatch #{self.id} — {self.media_type} ({self.total})"
+
+
 class ConversionJob(models.Model):
     STATUS_CHOICES = [
         ('PENDING',  'En attente'),
@@ -43,6 +64,12 @@ class ConversionJob(models.Model):
 
     profile       = models.ForeignKey(ConversionProfile, null=True, blank=True,
                                       on_delete=models.SET_NULL, related_name='jobs')
+
+    # Regroupement batch (multi-fichiers même nature, ou fichier batch d'urls).
+    # Tout job de file appartient à un batch (batch-of-1 pour un fichier seul).
+    batch           = models.ForeignKey(ConversionBatch, null=True, blank=True,
+                                        on_delete=models.CASCADE, related_name='items')
+    batch_row_index = models.IntegerField(default=0)
 
     # Quick-convert (Filemanager) — ephemeral jobs never shown in the queue,
     # output written next to the source, row dismissed after delivery.

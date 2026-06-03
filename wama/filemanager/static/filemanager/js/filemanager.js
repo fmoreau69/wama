@@ -199,7 +199,11 @@
                 },
                 'multiple': true
             },
-            'plugins': ['contextmenu', 'search', 'wholerow', 'dnd', 'types'],
+            'plugins': ['contextmenu', 'search', 'wholerow', 'dnd', 'types', 'state'],
+            // Persistance de l'état plié/déplié (gère le lazy-loading nativement,
+            // contrairement à l'ancienne restauration manuelle). La section
+            // "Mes fichiers" conserve ainsi son état entre apps et rafraîchissements.
+            'state': { 'key': 'wama_filemanager_state' },
             'types': {
                 'folder':  { 'icon': 'fa fa-folder text-warning' },
                 'file':    { 'icon': 'fa fa-file text-secondary' },
@@ -244,15 +248,18 @@
         $(treeContainer).on('loaded.jstree', handleTreeLoaded);
         $(treeContainer).on('refresh.jstree', handleTreeRefreshed);
 
-        // Save tree state when nodes are opened/closed + add tooltips on open
+        // Tooltips on newly revealed children (l'état plié/déplié est persisté
+        // automatiquement par le plugin 'state').
         $(treeContainer).on('open_node.jstree', function(e, data) {
-            saveTreeState();
-            // Add tooltips to newly revealed children
             const nodeEl = document.getElementById(data.node.id);
             if (nodeEl) setTimeout(() => addFilenameTitles(nodeEl), 50);
         });
-        $(treeContainer).on('close_node.jstree', function() {
-            saveTreeState();
+
+        // Le plugin 'state' a fini de restaurer l'arbre → on force l'expansion
+        // de l'app courante par-dessus (sans toucher la section utilisateur).
+        $(treeContainer).on('state_ready.jstree', function() {
+            autoExpandCurrentAppFolder();
+            setTimeout(() => addFilenameTitles(), 100);
         });
 
         // Handle internal move (drag & drop within tree)
@@ -922,52 +929,10 @@
     function handleTreeLoaded() {
         console.log('FileManager tree loaded');
 
-        // Store initial tree state for change detection
+        // Store initial tree state for change detection.
+        // L'état plié/déplié est restauré par le plugin 'state' (event
+        // state_ready, qui déclenche aussi autoExpandCurrentAppFolder).
         fetchTreeHash();
-
-        // Restore opened folders state from localStorage (for temp folder)
-        restoreTreeState();
-
-        // Always auto-expand folder corresponding to current app
-        autoExpandCurrentAppFolder();
-
-        // Add tooltips with full filenames
-        setTimeout(() => addFilenameTitles(), 200);
-    }
-
-    function getTreeStateKey() {
-        return 'filemanager_tree_state';
-    }
-
-    function saveTreeState() {
-        if (!tree) return;
-
-        // Save all open nodes so refreshTree() can restore them
-        const allOpenedNodes = tree.get_state().core.open;
-        localStorage.setItem(getTreeStateKey(), JSON.stringify(allOpenedNodes));
-    }
-
-    function restoreTreeState() {
-        if (!tree) return;
-
-        const saved = localStorage.getItem(getTreeStateKey());
-        if (!saved) return;
-
-        try {
-            const openedNodes = JSON.parse(saved);
-            if (Array.isArray(openedNodes) && openedNodes.length > 0) {
-                // Open each saved node
-                openedNodes.forEach(nodeId => {
-                    if (tree.get_node(nodeId)) {
-                        tree.open_node(nodeId, false, false);
-                    }
-                });
-                console.log('[FileManager] Tree state restored:', openedNodes.length, 'nodes');
-            }
-        } catch (e) {
-            console.warn('[FileManager] Could not restore tree state:', e);
-            localStorage.removeItem(getTreeStateKey());
-        }
     }
 
     async function fetchTreeHash() {
@@ -986,9 +951,9 @@
         // Update hash after refresh
         fetchTreeHash();
 
-        // Restore opened folders state and expand current app
+        // Le plugin 'state' restaure l'ouverture après refresh (state_ready) ;
+        // on garde un filet pour l'app courante + tooltips.
         setTimeout(() => {
-            restoreTreeState();
             autoExpandCurrentAppFolder();
             addFilenameTitles();
         }, 100);

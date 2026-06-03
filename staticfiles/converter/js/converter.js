@@ -180,36 +180,61 @@
 
     // ── Upload ────────────────────────────────────────────────────────────────
 
+    // Upload UN fichier → retourne son job_id (ou null). PAS de reload ici :
+    // le reload se fait une fois après la consolidation (handleFiles).
     async function uploadFile(file) {
         const mediaType = detectMediaType(file.name);
-        if (!mediaType) {
-            alert(`Format non supporté : ${file.name}`);
-            return;
-        }
-
+        if (!mediaType) { alert(`Format non supporté : ${file.name}`); return null; }
         const outputFmt = outputFmtSel.value;
         if (!outputFmt) {
             alert('Choisissez un format de sortie avant d\'envoyer un fichier.');
-            return;
+            return null;
         }
-
-        const opts   = readMainPanelOptions();
-        const fd     = new FormData();
+        const opts = readMainPanelOptions();
+        const fd   = new FormData();
         fd.append('file', file);
         fd.append('output_format', outputFmt);
         Object.entries(opts).forEach(([k, v]) => fd.append(k, v));
-
         try {
             const resp = await csrfPost(APP.urls.upload, fd);
             const data = await resp.json();
             if (!resp.ok || data.error) {
                 alert('Erreur : ' + (data.error || resp.statusText));
-                return;
+                return null;
             }
-            // Reload to show new job in queue
-            location.reload();
+            return data.job_id || null;
         } catch (err) {
             alert('Erreur réseau : ' + err.message);
+            return null;
+        }
+    }
+
+    // Point d'entrée unique : détecte un fichier batch (1 .txt/.csv) sinon
+    // upload tous les fichiers puis les consolide en batch(s) par nature.
+    async function handleFiles(files) {
+        files = Array.from(files);
+        if (!files.length) return;
+
+        // 1 fichier descripteur de batch (urls/chemins) → flux batch dédié
+        if (files.length === 1 && window._converterBatchImport &&
+            await window._converterBatchImport.detectAndHandle(files[0])) {
+            return;
+        }
+
+        const type = detectMediaType(files[0].name);
+        if (type) setMediaType(type);
+
+        const ids = [];
+        for (const f of files) {
+            const id = await uploadFile(f);
+            if (id) ids.push(id);
+        }
+        if (ids.length) {
+            // Consolidation en batch(s) par nature (1 fichier → batch-of-1)
+            const fd = new FormData();
+            ids.forEach(id => fd.append('job_ids', id));
+            try { await csrfPost(APP.urls.consolidate, fd); } catch (_) { /* non-fatal */ }
+            location.reload();
         }
     }
 
@@ -223,21 +248,23 @@
     dropZone.addEventListener('drop', e => {
         e.preventDefault();
         dropZone.classList.remove('dragover');
-        const files = Array.from(e.dataTransfer.files);
-        if (!files.length) return;
-        const type = detectMediaType(files[0].name);
-        if (type) setMediaType(type);
-        files.reduce((p, f) => p.then(() => uploadFile(f)), Promise.resolve());
+        handleFiles(e.dataTransfer.files);
     });
 
     fileInput.addEventListener('change', () => {
-        const files = Array.from(fileInput.files);
-        if (!files.length) return;
-        const type = detectMediaType(files[0].name);
-        if (type) setMediaType(type);
-        files.reduce((p, f) => p.then(() => uploadFile(f)), Promise.resolve());
+        handleFiles(fileInput.files);
         fileInput.value = '';
     });
+
+    // ── Batch import (fichier d'URLs/chemins) — composant commun ────────────────
+    if (typeof WamaBatchImport === 'function') {
+        window._converterBatchImport = WamaBatchImport({
+            batchPreviewUrl: APP.urls.batchPreview,
+            batchCreateUrl:  APP.urls.batchCreate,
+            csrfToken:       csrf,
+            afterCreate:     function () { location.reload(); },
+        });
+    }
 
     // ── Queue actions ─────────────────────────────────────────────────────────
 
@@ -312,8 +339,9 @@
         if (!card) return;
         card.dataset.status = data.status;
 
-        // Status badge
-        const badge = card.querySelector('.badge');
+        // Status badge — cibler le badge de STATUT (.status-badge), pas le badge
+        // de format qui est aussi un .badge et apparaît en premier.
+        const badge = card.querySelector('.status-badge') || card.querySelector('.badge');
         if (badge) {
             const STATUS_LABELS = {
                 PENDING: 'En attente', RUNNING: 'En cours', DONE: 'Terminé', ERROR: 'Erreur'
@@ -322,7 +350,7 @@
                 PENDING: 'bg-secondary', RUNNING: 'bg-warning text-dark',
                 DONE: 'bg-success', ERROR: 'bg-danger'
             };
-            badge.className = `badge ${STATUS_CLASSES[data.status] || 'bg-secondary'} badge-media`;
+            badge.className = `badge status-badge ${STATUS_CLASSES[data.status] || 'bg-secondary'} badge-media`;
             badge.textContent = STATUS_LABELS[data.status] || data.status;
         }
 
@@ -408,7 +436,79 @@
 
         const settBtn = e.target.closest('.job-settings-btn');
         if (settBtn) { openSettingsModal(settBtn.dataset.jobId); return; }
+
+        // ── Actions de groupe batch (stopPropagation → ne pas toggler le collapse) ──
+        const bSet = e.target.closest('.batch-settings-btn');
+        if (bSet) { e.stopPropagation(); openBatchSettingsModal(bSet.dataset.batchId, bSet.dataset.mediaType); return; }
+
+        const bStart = e.target.closest('.batch-start-btn');
+        if (bStart) { e.stopPropagation(); startBatch(bStart.dataset.batchId); return; }
+
+        const bDel = e.target.closest('.batch-delete-btn');
+        if (bDel) { e.stopPropagation(); deleteBatch(bDel.dataset.batchId); return; }
     });
+
+    // ── Batch group actions ─────────────────────────────────────────────────────
+
+    async function startBatch(batchId) {
+        try {
+            const resp = await csrfPost(urlFor(APP.urls.batchStart, batchId));
+            const data = await resp.json();
+            if (data.started && data.started.length) data.started.forEach(id => startPolling(id));
+            location.reload();
+        } catch (err) { alert('Erreur : ' + err.message); }
+    }
+
+    async function deleteBatch(batchId) {
+        if (!confirm('Supprimer ce batch et tous ses fichiers ?')) return;
+        try {
+            await csrfPost(urlFor(APP.urls.batchDelete, batchId));
+            location.reload();
+        } catch (err) { alert('Erreur : ' + err.message); }
+    }
+
+    let _currentBatchId = null;
+    function openBatchSettingsModal(batchId, mediaType) {
+        _currentBatchId = batchId;
+        const fmtSel = document.getElementById('batchSettingsFormat');
+        const errEl  = document.getElementById('batchSettingsError');
+        if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
+        // Peuple le dropdown avec les formats de la nature du batch
+        const formats = (FORMATS[mediaType] || {}).output || [];
+        fmtSel.innerHTML = '<option value="">— inchangé —</option>';
+        formats.forEach(f => {
+            const o = document.createElement('option');
+            o.value = f; o.textContent = '.' + f.toUpperCase();
+            fmtSel.appendChild(o);
+        });
+        new bootstrap.Modal(document.getElementById('batchSettingsModal')).show();
+    }
+
+    async function applyBatchSettings(thenStart) {
+        const fmt  = document.getElementById('batchSettingsFormat').value;
+        const qual = document.getElementById('batchSettingsQuality').value;
+        const errEl = document.getElementById('batchSettingsError');
+        const fd = new FormData();
+        fd.append('output_format', fmt);
+        fd.append('output_quality', qual);
+        try {
+            const resp = await csrfPost(urlFor(APP.urls.batchUpdate, _currentBatchId), fd);
+            const data = await resp.json();
+            if (!resp.ok || data.error) {
+                if (errEl) { errEl.textContent = data.error || 'Erreur'; errEl.style.display = ''; }
+                return;
+            }
+            const modal = bootstrap.Modal.getInstance(document.getElementById('batchSettingsModal'));
+            if (modal) modal.hide();
+            if (thenStart) { await csrfPost(urlFor(APP.urls.batchStart, _currentBatchId)); }
+            location.reload();
+        } catch (err) {
+            if (errEl) { errEl.textContent = 'Erreur réseau : ' + err.message; errEl.style.display = ''; }
+        }
+    }
+
+    document.getElementById('batchSettingsApplyBtn')?.addEventListener('click', () => applyBatchSettings(false));
+    document.getElementById('batchSettingsApplyStartBtn')?.addEventListener('click', () => applyBatchSettings(true));
 
     // ── Global buttons ────────────────────────────────────────────────────────
 
@@ -563,6 +663,10 @@
                     </label>
                 </div>
             `;
+        } else if (mediaType === 'document') {
+            body += `<div class="text-muted small">Conversion de document (Pandoc / PyMuPDF) — choisissez le format de sortie ci-dessus.</div>`;
+        } else if (mediaType === 'archive') {
+            body += `<div class="text-muted small">Conversion d'archive — choisissez le format de sortie ci-dessus.</div>`;
         } else {
             body += `<div class="alert alert-warning small">Type de média inconnu : ${escape(mediaType)}</div>`;
         }

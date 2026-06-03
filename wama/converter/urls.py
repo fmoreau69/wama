@@ -17,6 +17,14 @@ urlpatterns = [
     path('<int:pk>/download/',          views.download,             name='download'),
     path('<int:pk>/delete/',            views.delete,               name='delete'),
     path('<int:pk>/duplicate/',         views.duplicate,            name='duplicate'),
+    # Batch import
+    path('consolidate/',                views.consolidate,          name='consolidate'),
+    path('batch/preview/',              views.batch_preview,        name='batch_preview'),
+    path('batch/create/',               views.batch_create,         name='batch_create'),
+    # Batch (groupe)
+    path('batch/<int:pk>/start/',       views.batch_start,          name='batch_start'),
+    path('batch/<int:pk>/update/',      views.batch_update,         name='batch_update'),
+    path('batch/<int:pk>/delete/',      views.batch_delete,         name='batch_delete'),
     # Profiles
     path('profiles/',                   views.profile_list,         name='profile_list'),
     path('profiles/save/',              views.profile_save,         name='profile_save'),

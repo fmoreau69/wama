@@ -1,0 +1,87 @@
+{% comment %}
+Carte d'un ConversionJob — utilisée seule (batch-of-1) ou dans un groupe batch.
+Le JS converter.js opère sur .job-card[data-job-id] (délégation sur #converterQueue),
+donc l'imbrication dans un groupe ne change rien à son fonctionnement.
+{% endcomment %}
+<div class="job-card" data-job-id="{{ job.id }}" data-status="{{ job.status }}">
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+
+        <!-- File icon -->
+        <i class="fas fa-file{% if job.media_type == 'video' %}-video{% elif job.media_type == 'audio' %}-audio{% elif job.media_type == 'image' %}-image{% endif %} text-secondary"></i>
+
+        <!-- Filename (cliquable → aperçu de l'entrée, composant commun) + format badge -->
+        <div class="flex-grow-1 text-truncate" style="max-width:280px;">
+            {% if job.input_file %}
+            <span class="small fw-bold text-light preview-media-link" style="cursor:pointer;"
+                  title="Aperçu"
+                  data-preview-url="/filemanager/api/preview/?path={{ job.input_file.name|urlencode }}">
+                {{ job.input_filename }}
+            </span>
+            {% else %}
+            <span class="small fw-bold text-light">{{ job.input_filename }}</span>
+            {% endif %}
+            {% if job.output_format %}
+            <span class="badge bg-secondary badge-media ms-1">→ .{{ job.output_format }}</span>
+            {% endif %}
+        </div>
+
+        <!-- Status badge -->
+        <span class="badge status-badge
+            {% if job.status == 'DONE' %}bg-success
+            {% elif job.status == 'RUNNING' %}bg-warning text-dark
+            {% elif job.status == 'ERROR' %}bg-danger
+            {% else %}bg-secondary
+            {% endif %} badge-media">
+            {{ job.get_status_display }}
+        </span>
+
+        <!-- Action buttons (WAMA convention order) -->
+        <div class="d-flex gap-1 ms-auto">
+            <button class="btn btn-outline-secondary btn-sm py-0 px-2 job-settings-btn"
+                    title="Paramètres" data-job-id="{{ job.id }}">
+                <i class="fas fa-cog"></i>
+            </button>
+            <button class="btn btn-outline-success btn-sm py-0 px-2 job-start-btn"
+                    title="{% if job.status == 'DONE' %}Recommencer{% else %}Démarrer{% endif %}"
+                    data-job-id="{{ job.id }}"
+                    {% if job.status == 'RUNNING' %}disabled{% endif %}>
+                <i class="fas fa-{% if job.status == 'DONE' %}redo{% else %}play{% endif %}"></i>
+            </button>
+            {% if job.status == 'DONE' and job.output_file %}
+            <a href="{% url 'converter:download' job.id %}"
+               class="btn btn-outline-info btn-sm py-0 px-2" title="Télécharger">
+                <i class="fas fa-download"></i>
+            </a>
+            {% else %}
+            <button class="btn btn-outline-info btn-sm py-0 px-2" disabled title="Télécharger">
+                <i class="fas fa-download"></i>
+            </button>
+            {% endif %}
+            <button class="btn btn-outline-warning btn-sm py-0 px-2 job-duplicate-btn"
+                    title="Dupliquer" data-job-id="{{ job.id }}">
+                <i class="fas fa-copy"></i>
+            </button>
+            <button class="btn btn-outline-danger btn-sm py-0 px-2 job-delete-btn"
+                    title="Supprimer" data-job-id="{{ job.id }}">
+                <i class="fas fa-trash"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Progress / status line -->
+    {% if job.status == 'RUNNING' or job.status == 'PENDING' %}
+    <div class="wama-progress-track mt-2">
+        <div class="wama-progress-fill" style="width:{{ job.progress }}%"></div>
+    </div>
+    {% elif job.status == 'ERROR' %}
+    <div class="text-danger small mt-1">
+        <i class="fas fa-exclamation-triangle"></i>
+        {{ job.error_message|truncatechars:120 }}
+    </div>
+    {% elif job.status == 'DONE' and job.output_file %}
+    <div class="text-success small mt-1">
+        <i class="fas fa-check-circle"></i>
+        {{ job.output_filename }}
+    </div>
+    {% endif %}
+</div>

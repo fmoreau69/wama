@@ -174,19 +174,18 @@ APP_CATALOG = {
         'input_extensions': (IMAGE_EXTENSIONS + VIDEO_EXTENSIONS + AUDIO_EXTENSIONS
                              + DOCUMENT_EXTENSIONS + ARCHIVE_EXTENSIONS),
         'input_types': ('image', 'video', 'audio', 'document', 'archive'),
-        'batch_type':  None,
-        'has_batch':   False,
-        'has_url_import': False,
+        'batch_type':  'media_list',   # multi-fichiers (par nature) + fichier d'URLs
+        'has_batch':   True,
+        'has_url_import': True,         # fichier batch d'URLs locales/distantes
         'has_youtube': False,
         'output_types': ('image', 'video', 'audio', 'document', 'archive'),
         'conventions': _conv(
-            batch=False,             # 1-to-1 — pas de modèle batch
+            batch=True,              # ConversionBatch (multi-fichiers groupé par nature + fichier d'URLs) — 2026-06
             download_all=False,      # P2
             settings_modal_item=True, # Phase 0 (2026-05-16)
             save_profile=True,       # Phase 1 (2026-05-16)
             filemanager_import=True, # quick-action + dispatch wama:fileimported (2026-05-16)
             tool_api=True,           # convert_file + get_converter_status (2026-06-02)
-            eta_batch=None,          # N/A — pas de batch
             cross_app_options=False, # Phase 2 à implémenter (upscale + audio enhance)
         ),
     },
