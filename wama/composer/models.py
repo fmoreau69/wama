@@ -23,7 +23,7 @@ class ComposerGeneration(models.Model):
     # What to generate
     generation_type = models.CharField(max_length=10, choices=GENERATION_TYPE_CHOICES, default='music')
     prompt = models.TextField()
-    duration = models.FloatField(default=10.0, help_text='Durée en secondes (10–300)')
+    duration = models.FloatField(default=10.0, help_text='Durée en secondes (10–600)')
     model = models.CharField(max_length=64, default='musicgen-small')
 
     # Optional melody reference (MusicGen Melody only)

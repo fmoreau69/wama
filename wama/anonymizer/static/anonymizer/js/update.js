@@ -196,22 +196,21 @@ $(document).ready(function () {
             success: function (data) {
                 const progressBar = document.getElementById('globalProgressBar');
                 const statsText = document.getElementById('globalProgressStats');
+                const pctText = document.getElementById('globalProgressPct');
 
                 if (progressBar && statsText) {
                     const progress = data.overall_progress || 0;
                     progressBar.style.width = progress + '%';
-                    progressBar.textContent = progress + '%';
+                    if (pctText) pctText.textContent = progress + '%';
 
                     statsText.textContent = `${data.success}/${data.total} terminé`;
 
-                    // Update progress bar color based on status
-                    progressBar.className = 'progress-bar';
+                    // Style WAMA standard (.wama-progress-fill) : actif/erreur
+                    progressBar.className = 'wama-progress-fill';
                     if (data.failure > 0) {
-                        progressBar.classList.add('bg-danger');
+                        progressBar.classList.add('error');
                     } else if (data.running > 0) {
-                        progressBar.classList.add('progress-bar-animated', 'progress-bar-striped');
-                    } else if (data.success === data.total && data.total > 0) {
-                        progressBar.classList.add('bg-success');
+                        progressBar.classList.add('active');
                     }
                 }
             },

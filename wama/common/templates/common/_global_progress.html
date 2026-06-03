@@ -1,0 +1,28 @@
+{% comment %}
+Barre de progression globale de la file d'attente — composant commun WAMA.
+TOUJOURS visible : reste affichée même quand tout est terminé ou la file vide.
+
+IDs standard pilotés par common/js/wama-global-progress.js :
+  #globalStatus  #globalProgressStats  #globalProgressBar  #globalProgressPct
+
+Prérequis côté page :
+  - définir window.WAMA_GLOBAL_PROGRESS_URL = "{% url 'app:global_progress' %}"
+  - charger {% static 'common/js/wama-global-progress.js' %}
+  - l'endpoint renvoie un JSON {total, done, running, overall_progress}
+
+Styles .wama-progress-track / .wama-progress-fill : common/css/app_modern.css
+(chargé globalement par base.html → disponible dans toutes les apps).
+{% endcomment %}
+<div id="globalStatus" class="wama-global-progress mb-2">
+    <div class="d-flex justify-content-between align-items-baseline mb-1">
+        <small class="text-muted">
+            <span id="globalProgressStats">0/0 terminé</span>
+            <span class="wama-eta ms-2" id="globalEta"></span>
+        </small>
+        <small class="text-muted" id="globalProgressPct"
+               style="font-variant-numeric: tabular-nums;"></small>
+    </div>
+    <div class="wama-progress-track">
+        <div class="wama-progress-fill" id="globalProgressBar" style="width:0%"></div>
+    </div>
+</div>

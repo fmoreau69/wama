@@ -34,19 +34,8 @@
         padding: .25em .5em;
         border-radius: 4px;
     }
-    .wama-progress-track {
-        height: 6px;
-        background: #2d3440;
-        border-radius: 3px;
-        margin-top: .4rem;
-        overflow: hidden;
-    }
-    .wama-progress-fill {
-        height: 100%;
-        background: #20c997;
-        border-radius: 3px;
-        transition: width .4s ease;
-    }
+    /* Apparence de la barre = styles communs (app_modern.css, 3px gradient).
+       On ne conserve que l'état d'erreur spécifique converter. */
     .wama-progress-fill.error { background: #dc3545; }
 </style>
 {% endblock %}
@@ -347,9 +336,12 @@ window.CONVERTER_APP = {
     },
     supportedFormats: {{ supported_formats_json|safe }},
 };
+window.WAMA_GLOBAL_PROGRESS_URL = "{% url 'converter:global_progress' %}";
 </script>
+<script src="{% static 'common/js/wama-eta.js' %}"></script>
 <script src="{% static 'common/js/batch-import.js' %}"></script>
 <script src="{% static 'converter/js/converter.js' %}"></script>
+<script src="{% static 'common/js/wama-global-progress.js' %}"></script>
 {% endblock %}
 
 {# ── Main content : queue ────────────────────────────────────────────────── #}
@@ -357,6 +349,9 @@ window.CONVERTER_APP = {
 <div class="container-fluid py-2" style="overflow-x:hidden;">
 
     {% include 'common/batch_detect_bar.html' %}
+
+    {# Barre de progression globale (toujours visible) — composant commun #}
+    {% include 'common/_global_progress.html' %}
 
     <div id="converterQueue">
         {% for b in batches_list %}

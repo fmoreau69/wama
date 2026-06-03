@@ -105,10 +105,10 @@
         </span>
     </label>
     <input type="range" class="form-range" id="durationSlider"
-           min="10" max="300" step="5" value="10">
+           min="10" max="600" step="5" value="10">
     <div class="d-flex justify-content-between">
         <small class="text-muted">10s</small>
-        <small class="text-muted">5min</small>
+        <small class="text-muted">10min</small>
     </div>
 </div>
 
@@ -184,16 +184,13 @@
 
 {% block composer_content %}
 
-{# ── Barre de progression globale ─────────────────────────────────────── #}
-<div id="globalStatus" style="{% if queue_count == 0 %}opacity:0; pointer-events:none;{% endif %}">
+{# ── Barre de progression globale (TOUJOURS visible) ──────────────────── #}
+<div id="globalStatus">
     <div class="d-flex justify-content-between align-items-baseline mb-1">
-        <small class="text-muted" id="globalStatusText">
-            {# mis à jour par JS #}
-            {% if queue_count > 0 %}
-                <span id="gpRunning">—</span> en cours
-                · <span id="gpTotal">{{ queue_count }}</span> tâche(s)
-                · <span id="gpEta">calcul…</span>
-            {% endif %}
+        <small class="text-muted" id="globalStatusText">{# mis à jour par JS #}
+            <span id="gpRunning">0</span> en cours
+            · <span id="gpTotal">{{ queue_count }}</span> tâche(s)
+            · <span id="gpEta">—</span>
         </small>
         <small class="text-muted" id="gpPercent" style="font-variant-numeric: tabular-nums;"></small>
     </div>
@@ -315,7 +312,7 @@
                         </span>
                     </label>
                     <input type="range" class="form-range" id="settingsDuration"
-                           min="10" max="300" step="5" value="10">
+                           min="10" max="600" step="5" value="10">
                 </div>
             </div>
             <div class="modal-footer border-secondary py-2">
@@ -339,5 +336,6 @@
     };
     window.COMPOSER_QUEUE_COUNT = {{ queue_count }};
 </script>
+<script src="{% static 'common/js/wama-eta.js' %}"></script>
 <script src="{% static 'composer/js/index.js' %}"></script>
 {% endblock %}

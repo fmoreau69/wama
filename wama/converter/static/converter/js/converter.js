@@ -339,6 +339,12 @@
         if (!card) return;
         card.dataset.status = data.status;
 
+        // ETA (moteur commun) — débit observé, sans seed côté converter
+        if (window.WamaEta) {
+            const est = WamaEta.update(jobId, { progress: data.progress, status: data.status });
+            WamaEta.render(card.querySelector('[data-eta-card]'), est);
+        }
+
         // Status badge — cibler le badge de STATUT (.status-badge), pas le badge
         // de format qui est aussi un .badge et apparaît en premier.
         const badge = card.querySelector('.status-badge') || card.querySelector('.badge');

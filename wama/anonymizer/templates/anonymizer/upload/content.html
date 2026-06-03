@@ -2,23 +2,10 @@
 <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
 
 {% if medias.count > 0 %}
-<!-- Global Progress (only shown when medias exist) -->
-<div class="row mb-3 mt-4">
-    <div class="col-12">
-        <div class="card bg-dark border-secondary">
-            <div class="card-body py-2">
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                    <h6 class="mb-0 text-light">
-                        <i class="fas fa-chart-line"></i> Progression globale
-                    </h6>
-                    <small class="text-white-50" id="globalProgressStats">0/0 terminé</small>
-                </div>
-                <div class="progress" style="height: 20px;">
-                    <div class="progress-bar" id="globalProgressBar" role="progressbar" style="width: 0%">0%</div>
-                </div>
-            </div>
-        </div>
-    </div>
+{# Barre de progression globale — composant commun (homogène avec les autres apps).
+   Pilotée par anonymizer/js/update.js (IDs #globalProgressBar/Stats/Pct). #}
+<div class="mb-3 mt-4">
+    {% include 'common/_global_progress.html' %}
 </div>
 
 <!-- Queue Header -->

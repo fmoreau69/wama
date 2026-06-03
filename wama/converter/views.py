@@ -276,6 +276,43 @@ def status(request, pk):
 
 
 @login_required
+def global_progress(request):
+    """Progression globale de la file (toujours affichée côté UI).
+
+    Renvoie {total, done, running, overall_progress} pour le composant commun
+    common/_global_progress.html + wama-global-progress.js.
+    Les jobs éphémères (quick-convert in-place) sont exclus de la file.
+    """
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    jobs = list(ConversionJob.objects.filter(user=user, ephemeral=False)
+                .values('id', 'status', 'progress'))
+
+    total = len(jobs)
+    done = sum(1 for j in jobs if j['status'] == 'DONE')
+    running = sum(1 for j in jobs if j['status'] == 'RUNNING')
+
+    if total:
+        acc = 0
+        for j in jobs:
+            if j['status'] == 'DONE':
+                acc += 100
+            elif j['status'] == 'RUNNING':
+                acc += cache.get(f"converter_progress_{j['id']}", j['progress'] or 0)
+            else:
+                acc += j['progress'] or 0
+        overall = int(acc / total)
+    else:
+        overall = 0
+
+    return JsonResponse({
+        'total': total,
+        'done': done,
+        'running': running,
+        'overall_progress': overall,
+    })
+
+
+@login_required
 @require_POST
 def update_job(request, pk):
     """Update a job's output_format and options (only when not RUNNING)."""

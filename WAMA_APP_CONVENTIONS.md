@@ -594,52 +594,55 @@ Chaque item RUNNING affiche **obligatoirement** :
 | ETA individuel | `item.eta_seconds` depuis le cache (calculé dans la tâche Celery) |
 | Message d'étape | `item.progress_msg` depuis le cache |
 
-### 7.2 ETA — Estimation de durée
+### 7.2 ETA — Moteur commun `WamaEta` (OBLIGATOIRE, ne pas réimplémenter)
 
-**Trois niveaux d'ETA à exposer :**
+L'ETA est centralisé dans **`common/static/common/js/wama-eta.js`** (`window.WamaEta`).
+Un seul moteur pour les **3 niveaux** : carte individuelle, batch, barre globale.
 
-| Niveau | Description | Où l'afficher |
-|--------|-------------|---------------|
-| **Item** | Temps restant pour l'item courant | Dans la card, sous la barre |
-| **Batch** | Temps restant pour tout le batch | Dans l'en-tête du groupe batch |
-| **Queue** | Temps total restant pour toute la file | Dans la barre globale (header) |
+**Principe :** ETA calculé par **débit observé** (`restant = écoulé / Δprogress × (100−p)`),
+ce qui corrige automatiquement la lenteur initiale (chargement du modèle). Un **seed
+statique optionnel** (estimation a priori de l'app) sert avant d'avoir des mesures.
 
-**Stockage dans la tâche Celery :**
+**Trois niveaux de confiance** (atténuation + tilde, **jamais de feux tricolores** —
+réservés au statut) :
 
-```python
-def _set_progress(item_id, pct, msg='', eta_seconds=None):
-    cache.set(f'<app>_progress_{item_id}', {
-        'pct':         pct,
-        'msg':         msg,
-        'eta':         eta_seconds,
-        'updated_at':  time.time(),
-    }, timeout=3600)
+| Confiance | Affichage | CSS |
+|-----------|-----------|-----|
+| `loading` | « Estimation… » (spinner, gris italique) — pas de nombre | `.wama-eta--loading` |
+| `low`     | `≈ 2 min` (gris atténué, arrondi grossier) | `.wama-eta--low` |
+| `high`    | `~1 min 45 s` (net, précis) | `.wama-eta--high` |
+
+**Intégration côté app (un seul point par boucle de polling par-item) :**
+
+```html
+<!-- Carte : un span vide piloté par le moteur -->
+<span class="wama-eta"></span>
+<!-- Seed optionnel : data-estimated-seconds sur la carte (cf. composer) -->
 ```
-
-**Calcul de l'ETA (pattern recommandé) :**
-
-```python
-# Dans la tâche Celery, après chaque étape :
-elapsed = time.time() - start_time
-if pct > 0:
-    total_estimated = elapsed / (pct / 100)
-    eta = total_estimated - elapsed
-else:
-    eta = None
-_set_progress(item_id, pct, msg=f"Page {i}/{n}…", eta_seconds=eta)
-```
-
-**Formatage JS :**
 
 ```javascript
-function formatEta(seconds) {
-    if (!seconds || seconds < 0) return '';
-    if (seconds < 60) return `~${Math.round(seconds)}s`;
-    return `~${Math.round(seconds / 60)}min`;
+// Dans la fonction qui met à jour la carte (polling par-item) :
+if (window.WamaEta) {
+    const est = WamaEta.update(jobId, {
+        progress: data.progress, status: data.status,
+        seedSeconds: /* optionnel */ null, modelLoaded: /* optionnel */ false,
+    });
+    WamaEta.render(card.querySelector('.wama-eta'), est);
 }
+// À la suppression / clear :  WamaEta.reset(jobId);
 ```
 
-> **État actuel :** 🚧 L'ETA n'est implémenté dans aucune app — à ajouter progressivement.
+- **Barre globale** : le partial `common/_global_progress.html` contient `#globalEta` ;
+  `wama-global-progress.js` rend `WamaEta.aggregateAll()` automatiquement (rien à faire
+  si l'app alimente déjà `WamaEta.update` dans son polling par-item).
+- **Batch** : `WamaEta.render(headerEl, WamaEta.aggregate([id1, id2, …]))`.
+- **Sans seed**, l'ETA fonctionne quand même (débit observé). Le seed n'améliore que la
+  phase précoce. `modelLoaded:true` (singleton keep_loaded) saute la phase « chargement ».
+
+> **État actuel :** ✅ converter, avatarizer, composer (carte + globale).
+> 🚧 À déployer : describer, enhancer, transcriber, imager, reader, synthesizer, anonymizer
+> (ajouter le span `.wama-eta` + l'appel `WamaEta.update` dans leur polling). Coche la
+> non-conformité « ETA » du §15 au fur et à mesure.
 
 ---
 

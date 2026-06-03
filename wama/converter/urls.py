@@ -13,6 +13,7 @@ urlpatterns = [
     path('clear-all/',                  views.clear_all,            name='clear_all'),
     path('<int:pk>/start/',             views.start,                name='start'),
     path('<int:pk>/status/',            views.status,               name='status'),
+    path('global_progress/',            views.global_progress,      name='global_progress'),
     path('<int:pk>/update/',            views.update_job,           name='update'),
     path('<int:pk>/download/',          views.download,             name='download'),
     path('<int:pk>/delete/',            views.delete,               name='delete'),

@@ -157,13 +157,12 @@
         const cards = document.querySelectorAll('.generation-card');
         let running = 0, pending = 0, total = cards.length;
         let weightedProgress = 0, totalWeight = 0;
-        let totalRemainingSeconds = 0;
 
         cards.forEach(card => {
             const id = parseInt(card.dataset.id);
             const badge = card.querySelector('.badge');
             const status = badge?.textContent.trim();
-            const bar = card.querySelector('.progress-bar');
+            const bar = card.querySelector('.wama-progress-fill') || card.querySelector('.progress-bar');
             const pct = bar ? parseFloat(bar.style.width) || 0 : 0;
             const meta = genMeta[id] || { estimatedSeconds: 30 };
 
@@ -174,9 +173,14 @@
             weightedProgress += pct * w;
             totalWeight += w;
 
-            if (status === 'En cours' || status === 'En attente') {
-                const remaining = meta.estimatedSeconds * (1 - pct / 100);
-                totalRemainingSeconds += Math.max(0, remaining);
+            // ETA via moteur commun (seed = estimation a priori du modèle composer)
+            if (window.WamaEta) {
+                const estStatus = status === 'En cours' ? 'RUNNING'
+                                : status === 'En attente' ? 'PENDING' : 'DONE';
+                const est = WamaEta.update(id, {
+                    progress: pct, status: estStatus, seedSeconds: meta.estimatedSeconds, modelLoaded: true,
+                });
+                WamaEta.render(card.querySelector('.wama-eta'), est);
             }
         });
 
@@ -205,16 +209,25 @@
             if (gpTotal) gpTotal.textContent = active;
             if (gpPercent) gpPercent.textContent = overallPct ? overallPct + '%' : '';
             if (gpEta) {
-                gpEta.textContent = totalRemainingSeconds > 0
-                    ? formatDuration(totalRemainingSeconds).replace('~', '')
-                    : '…';
+                const agg = window.WamaEta ? WamaEta.aggregateAll() : null;
+                const txt = agg ? WamaEta.format(agg.seconds, agg.confidence) : null;
+                gpEta.textContent = txt || 'Estimation…';
             }
         } else if (total === 0) {
-            // No items at all — hide bar
-            globalStatus.style.opacity = '0';
-            globalStatus.style.pointerEvents = 'none';
+            // Aucune tâche — barre TOUJOURS visible, remise à zéro
+            globalStatus.style.opacity = '1';
+            globalStatus.style.pointerEvents = '';
+            globalFill.style.width = '0%';
+            globalFill.classList.remove('active');
+            if (gpPercent) gpPercent.textContent = '';
+            if (gpRunning) gpRunning.textContent = '0';
+            if (gpTotal)   gpTotal.textContent = '0';
+            if (gpEta)     gpEta.textContent = '—';
         }
     }
+
+    // Affiche l'état correct dès le chargement (barre toujours visible).
+    updateGlobalBar();
 
     // ---------------------------------------------------------------------------
     // Generate single item
@@ -551,14 +564,11 @@
                             FAILURE: ['border-danger', 'error'], PENDING: ['border-secondary'] };
         (borderMap[status] || ['border-secondary']).forEach(c => card.classList.add(c));
 
-        // Progress bar
-        const bar = card.querySelector('.progress-bar');
+        // Progress bar (cartes composer = .wama-progress-fill, pas .progress-bar Bootstrap)
+        const bar = card.querySelector('.wama-progress-fill');
         if (bar) {
             bar.style.width = progress + '%';
-            bar.className = 'progress-bar';
-            if (status === 'RUNNING') bar.classList.add('bg-warning', 'progress-bar-striped', 'progress-bar-animated');
-            else if (status === 'SUCCESS') bar.classList.add('bg-success');
-            else bar.classList.add('bg-secondary');
+            bar.classList.toggle('active', status === 'RUNNING');
         }
 
         // Progress text percentage

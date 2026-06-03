@@ -189,6 +189,41 @@ def progress(request, pk):
     })
 
 
+def global_progress(request):
+    """Progression globale de la file (toujours affichée côté UI).
+
+    Renvoie {total, done, running, overall_progress} pour le composant commun
+    common/_global_progress.html + wama-global-progress.js.
+    """
+    user = _get_user(request)
+    jobs = list(AvatarJob.objects.filter(user=user).values('id', 'status', 'progress'))
+
+    total = len(jobs)
+    done = sum(1 for j in jobs if j['status'] == 'SUCCESS')
+    running = sum(1 for j in jobs if j['status'] == 'RUNNING')
+
+    if total:
+        acc = 0
+        for j in jobs:
+            if j['status'] == 'SUCCESS':
+                acc += 100
+            elif j['status'] == 'RUNNING':
+                cached = cache.get(f"avatarizer_progress_{j['id']}")
+                acc += cached if cached is not None else (j['progress'] or 0)
+            else:
+                acc += j['progress'] or 0
+        overall = int(acc / total)
+    else:
+        overall = 0
+
+    return JsonResponse({
+        'total': total,
+        'done': done,
+        'running': running,
+        'overall_progress': overall,
+    })
+
+
 @require_POST
 def update_options(request, pk):
     """POST : Met à jour les paramètres d'un AvatarJob (avant relance)."""

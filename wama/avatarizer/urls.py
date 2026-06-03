@@ -8,6 +8,7 @@ urlpatterns = [
     path('create/', views.create, name='create'),
     path('start/<int:pk>/', views.start, name='start'),
     path('progress/<int:pk>/', views.progress, name='progress'),
+    path('global_progress/', views.global_progress, name='global_progress'),
     path('delete/<int:pk>/', views.delete, name='delete'),
     path('download/<int:pk>/', views.download, name='download'),
     path('gallery/', views.gallery_list, name='gallery_list'),

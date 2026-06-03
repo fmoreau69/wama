@@ -628,6 +628,12 @@
         if (fill)     fill.style.width = data.progress + '%';
         if (progText) progText.textContent = data.progress + '%';
 
+        // ETA (moteur commun) — débit observé
+        if (window.WamaEta) {
+            const est = WamaEta.update(jobId, { progress: data.progress, status: data.status });
+            WamaEta.render($('.wama-eta', card), est);
+        }
+
         // Step description (col 3)
         if (stepDesc) {
             const mode = data.mode || card.dataset.mode || 'pipeline';

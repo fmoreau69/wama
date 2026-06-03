@@ -25,6 +25,9 @@ donc l'imbrication dans un groupe ne change rien à son fonctionnement.
             {% endif %}
         </div>
 
+        <!-- ETA (temps restant estimé) -->
+        <span class="wama-eta me-1" data-eta-card="{{ job.id }}"></span>
+
         <!-- Status badge -->
         <span class="badge status-badge
             {% if job.status == 'DONE' %}bg-success

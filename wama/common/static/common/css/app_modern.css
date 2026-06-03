@@ -305,6 +305,29 @@ textarea {
     100% { background-position: -200% 0; }
 }
 
+/* === ETA — temps restant estimé (3 niveaux de confiance) === */
+/* Atténuation + tilde, jamais de feux tricolores (réservés au statut). */
+.wama-eta {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    font-size: 0.85em;
+}
+.wama-eta:empty { display: none; }
+.wama-eta::before {
+    content: "\f017";              /* fa-clock */
+    font-family: "Font Awesome 6 Free";
+    font-weight: 900;
+    margin-right: 0.35em;
+    opacity: 0.75;
+    display: inline-block;
+}
+.wama-eta--loading       { color: #8a92a3; font-style: italic; }   /* phase chargement */
+.wama-eta--loading::before { content: "\f110"; animation: wamaEtaSpin 1s linear infinite; }  /* fa-spinner */
+.wama-eta--low           { color: #9aa3b2; }                       /* confiance basse */
+.wama-eta--high          { color: #d7dce5; }                       /* confiance haute */
+
+@keyframes wamaEtaSpin { to { transform: rotate(360deg); } }
+
 /* === BATCH GROUP COLLAPSE === */
 .batch-group-header .fa-chevron-down {
     transition: transform 0.2s ease;

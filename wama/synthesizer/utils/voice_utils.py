@@ -253,20 +253,21 @@ VOICE_DOWNLOAD_CATALOG: Dict[str, List[tuple]] = {
         (f"{_LJ_BASE}/LJ001-0015.wav",       "LJSpeech EN fallback"),
     ],
     'english/adult/male_adult_2_en': [
-        (f"{_XTTS_BASE}/en_male_sample.wav", "XTTS-v2 EN male sample"),
+        (f"{_XTTS_BASE}/en_sample.wav",      "XTTS-v2 EN reference sample"),
         (f"{_LJ_BASE}/LJ001-0020.wav",       "LJSpeech EN fallback"),
     ],
 
     # ── Français — Adulte ─────────────────────────────────────────────────
+    # Note : le dépôt coqui/XTTS-v2 ne fournit qu'un seul échantillon par langue
+    # ({lang}_sample.wav) — pas de variantes gender (_male_/_female_, supprimées
+    # car 404). Les voix diversifiées proviennent de VoxPopuli (catalogue datasets).
     'french/adult/female_adult_1_fr': [
         (f"{_XTTS_BASE}/fr_sample.wav",        "XTTS-v2 FR reference sample"),
     ],
     'french/adult/female_adult_2_fr': [
-        (f"{_XTTS_BASE}/fr_female_sample.wav", "XTTS-v2 FR female sample"),
         (f"{_XTTS_BASE}/fr_sample.wav",        "XTTS-v2 FR fallback"),
     ],
     'french/adult/male_adult_1_fr': [
-        (f"{_XTTS_BASE}/fr_male_sample.wav",   "XTTS-v2 FR male sample"),
         (f"{_XTTS_BASE}/fr_sample.wav",        "XTTS-v2 FR fallback"),
     ],
 
@@ -281,9 +282,7 @@ VOICE_DOWNLOAD_CATALOG: Dict[str, List[tuple]] = {
     ],
 
     # ── Italien — Adulte ──────────────────────────────────────────────────
-    'italian/adult/female_adult_1_it': [
-        (f"{_XTTS_BASE}/it_sample.wav", "XTTS-v2 IT reference sample"),
-    ],
+    # (it_sample.wav absent du dépôt XTTS-v2 → italien uniquement via VoxPopuli)
 
     # ── Portugais — Adulte ────────────────────────────────────────────────
     'portuguese/adult/female_adult_1_pt': [
@@ -372,6 +371,51 @@ def _save_audio_array(arr, sr: int, target: Path) -> bool:  # noqa: ANN001
 
 
 
+def _decode_audio_item(audio) -> tuple:  # noqa: ANN001
+    """
+    Décode un item audio de `datasets` SANS torchcodec.
+
+    `datasets` 4.x décode la colonne Audio via torchcodec par défaut, ce qui
+    casse dès que torchcodec/FFmpeg ne sont pas parfaitement alignés avec la
+    version de torch (cf. `libtorchcodec` / `undefined symbol _ZN3c10...`).
+    On contourne en demandant les octets bruts (decode=False côté appelant)
+    puis en décodant avec soundfile (libsndfile), sans dépendance torch.
+
+    Accepte :
+      - dict déjà décodé : {'array': ndarray, 'sampling_rate': int}
+      - dict brut        : {'bytes': b'...', 'path': '...'} (decode=False)
+    Retourne (array, sampling_rate) ou (None, None) en cas d'échec.
+    """
+    import io
+    import os
+
+    if isinstance(audio, dict) and audio.get('array') is not None:
+        return audio['array'], audio.get('sampling_rate')
+
+    try:
+        import soundfile as sf
+    except ImportError:
+        return None, None
+
+    raw = audio.get('bytes') if isinstance(audio, dict) else None
+    if raw:
+        try:
+            arr, sr = sf.read(io.BytesIO(raw))
+            return arr, sr
+        except Exception:
+            pass
+
+    path = audio.get('path') if isinstance(audio, dict) else None
+    if path and os.path.exists(path):
+        try:
+            arr, sr = sf.read(path)
+            return arr, sr
+        except Exception:
+            pass
+
+    return None, None
+
+
 def _try_voxpopuli(target: Path, vp_lang: str) -> bool:
     """
     Télécharge un clip depuis VoxPopuli (Facebook/Meta).
@@ -384,6 +428,10 @@ def _try_voxpopuli(target: Path, vp_lang: str) -> bool:
         from datasets import load_dataset
     except ImportError:
         return False
+    try:
+        from datasets import Audio
+    except ImportError:
+        Audio = None
 
     # Langues supportées par VoxPopuli
     _VP_LANGS = {'en', 'fr', 'de', 'es', 'it', 'pt', 'pl', 'nl',
@@ -408,6 +456,14 @@ def _try_voxpopuli(target: Path, vp_lang: str) -> bool:
             split="train",
             streaming=True,
         )
+        # Décodage maison (soundfile) au lieu de torchcodec : on récupère les
+        # octets bruts. Évite `Could not load libtorchcodec` quand torchcodec
+        # n'est pas aligné avec torch/FFmpeg.
+        if Audio is not None:
+            try:
+                ds = ds.cast_column("audio", Audio(decode=False))
+            except Exception:
+                pass
     except Exception as exc:
         logger.warning(f"[voice_utils] Impossible d'ouvrir VoxPopuli ({vp_lang}) : {exc}")
         return False
@@ -421,8 +477,9 @@ def _try_voxpopuli(target: Path, vp_lang: str) -> bool:
             if speaker in used:
                 continue
 
-            arr      = item['audio']['array']
-            sr       = item['audio']['sampling_rate']
+            arr, sr = _decode_audio_item(item.get('audio'))
+            if arr is None or not sr:
+                continue
             duration = len(arr) / sr
             if not (_VP_MIN_S <= duration <= _VP_MAX_S):
                 continue

@@ -422,8 +422,10 @@ document.addEventListener("DOMContentLoaded", function() {
         const globalBarReset = document.getElementById('globalProgressBar');
         if (globalBarReset) {
             globalBarReset.style.width = '0%';
-            globalBarReset.innerText = '0%';
+            globalBarReset.className = 'wama-progress-fill';
         }
+        const globalPctReset = document.getElementById('globalProgressPct');
+        if (globalPctReset) globalPctReset.textContent = '0%';
 
         // Clear any existing polling intervals
         Object.keys(progressIntervals).forEach(mediaId => {
@@ -489,7 +491,9 @@ document.addEventListener("DOMContentLoaded", function() {
                         .then(data => {
                             const pct = data.progress || 0;
                             globalBar.style.width = pct + '%';
-                            globalBar.innerText = pct + '%';
+                            globalBar.classList.add('active');
+                            const gp = document.getElementById('globalProgressPct');
+                            if (gp) gp.textContent = pct + '%';
 
                             // Check if all processing is complete
                             if (pct >= 100 && isRunning) {

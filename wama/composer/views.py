@@ -111,7 +111,7 @@ def generate(request):
 
     try:
         duration = float(request.POST.get('duration', 10))
-        duration = max(10.0, min(300.0, duration))
+        duration = max(10.0, min(600.0, duration))
     except (ValueError, TypeError):
         duration = 10.0
 
@@ -171,7 +171,7 @@ def import_batch(request):
         default_model = 'musicgen-small'
     try:
         default_duration = float(request.POST.get('default_duration', 10))
-        default_duration = max(10.0, min(300.0, default_duration))
+        default_duration = max(10.0, min(600.0, default_duration))
     except (ValueError, TypeError):
         default_duration = 10.0
 
@@ -256,7 +256,7 @@ def update_settings(request, pk):
 
     try:
         duration = float(request.POST.get('duration', gen.duration))
-        duration = max(10.0, min(300.0, duration))
+        duration = max(10.0, min(600.0, duration))
     except (ValueError, TypeError):
         duration = gen.duration
 
@@ -431,7 +431,7 @@ def export_to_library(request, pk):
         shutil.copy2(src, dest)
         rel_dest = os.path.relpath(dest, settings.MEDIA_ROOT)
 
-        asset_type = 'music' if gen.generation_type == 'music' else 'sfx'
+        asset_type = 'audio_music' if gen.generation_type == 'music' else 'audio_sfx'
         UserAsset.objects.create(
             user=gen.user,
             asset_type=asset_type,

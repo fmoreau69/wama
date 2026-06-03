@@ -61,6 +61,7 @@
                 <div class="wama-progress-fill {% if gen.status == 'RUNNING' %}active{% endif %}"
                      style="width:{{ gen.progress }}%"></div>
             </div>
+            <span class="wama-eta d-block mt-1"></span>
             {% if gen.status == 'RUNNING' %}
             <small class="text-muted progress-text" style="font-variant-numeric:tabular-nums;">
                 {{ gen.progress }}%

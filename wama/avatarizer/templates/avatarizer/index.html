@@ -288,6 +288,9 @@
             <span class="badge bg-secondary ms-1" id="jobs-count">{{ jobs|length }}</span>
         </h6>
 
+        {# Barre de progression globale (toujours visible) — composant commun #}
+        {% include 'common/_global_progress.html' %}
+
         <div id="jobs-container">
             {% if jobs %}
                 {% for job in jobs %}
@@ -359,6 +362,7 @@
                                 <div class="progress-fill" style="width:{{ job.progress }}%"></div>
                             </div>
                             <small class="text-light progress-text">{{ job.progress }}%</small>
+                            <span class="wama-eta d-block mt-1"></span>
                         </div>
 
                         <!-- Col 5 : Actions -->
@@ -657,6 +661,9 @@ window.AVATARIZER_CONFIG = {
     mediaUrl:  "{{ MEDIA_URL }}",
     csrfToken: "{{ csrf_token }}",
 };
+window.WAMA_GLOBAL_PROGRESS_URL = "{% url 'avatarizer:global_progress' %}";
 </script>
+<script src="{% static 'common/js/wama-eta.js' %}"></script>
 <script src="{% static 'avatarizer/js/index.js' %}"></script>
+<script src="{% static 'common/js/wama-global-progress.js' %}"></script>
 {% endblock %}
