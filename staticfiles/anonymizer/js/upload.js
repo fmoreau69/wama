@@ -1,4 +1,22 @@
 $(function () {
+  // Consolidation des fichiers uploadés ensemble en UN batch (débouncé).
+  let _anonUploadedIds = [];
+  let _anonUploadTimer = null;
+  function _finalizeAnonUpload() {
+    const ids = _anonUploadedIds.slice();
+    _anonUploadedIds = [];
+    const refresh = () => { if (typeof window.refreshMediaTable === 'function') window.refreshMediaTable(); };
+    if (ids.length > 1) {
+      fetch('/anonymizer/batch/consolidate/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': $("input[name=csrfmiddlewaretoken]").val() },
+        body: JSON.stringify({ ids }),
+      }).then(refresh).catch(refresh);
+    } else {
+      refresh();
+    }
+  }
+
   // Initialize modal once and reuse the instance
   let progressModal = null;
   const modalElement = document.getElementById('modal-progress');
@@ -136,6 +154,9 @@ $(function () {
         if (typeof window.initMediaPreview === 'function') {
           window.initMediaPreview();
         }
+        // Collecte des ids pour consolidation en batch (upload multi-fichiers)
+        medias.forEach(function (m) { if (m.id) _anonUploadedIds.push(m.id); });
+        if (window.WamaFM) WamaFM.uploaded();  // fichier ajouté → refresh filemanager
 
         if (data.result.errors && data.result.errors.length) {
           console.warn("Erreurs lors de l'ajout de médias :", data.result.errors);
@@ -145,11 +166,9 @@ $(function () {
         alert(error);
       }
 
-      // Rafraîchir uniquement la table des médias après upload
-      refreshMediaTable(() => {
-        // Optionnel: démarrer le process si l'utilisateur le souhaite (ex: prompt)
-        // Ici, on ne démarre pas automatiquement, mais le bouton est prêt
-      });
+      // Consolidation débouncée : un seul batch si plusieurs fichiers uploadés ensemble.
+      clearTimeout(_anonUploadTimer);
+      _anonUploadTimer = setTimeout(_finalizeAnonUpload, 600);
     },
 
     fail: function (e, data) {

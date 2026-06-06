@@ -187,10 +187,9 @@
 {# ── Barre de progression globale (TOUJOURS visible) ──────────────────── #}
 <div id="globalStatus">
     <div class="d-flex justify-content-between align-items-baseline mb-1">
-        <small class="text-muted" id="globalStatusText">{# mis à jour par JS #}
-            <span id="gpRunning">0</span> en cours
-            · <span id="gpTotal">{{ queue_count }}</span> tâche(s)
-            · <span id="gpEta">—</span>
+        <small class="text-muted">{# mis à jour par JS #}
+            <span id="globalProgressStats">0/0 terminé · 0 en cours · 0 échoué</span>
+            <span class="wama-eta ms-2" id="gpEta"></span>
         </small>
         <small class="text-muted" id="gpPercent" style="font-variant-numeric: tabular-nums;"></small>
     </div>
@@ -222,8 +221,20 @@
             <i class="fas fa-layer-group" style="color:#a78bfa;"></i>
             <span class="text-light fw-bold small">Batch #{{ batch_info.obj.id }}</span>
             <span class="badge bg-secondary">{{ batch_info.obj.total }} items</span>
+            <span class="wama-eta" data-eta-ids="{% for item in batch_info.items %}{% if item.generation %}{{ item.generation.id }},{% endif %}{% endfor %}"></span>
             <small class="text-muted ms-1">{{ batch_info.obj.created_at|date:"d/m/Y H:i" }}</small>
             <div class="ms-auto d-flex gap-1" onclick="event.stopPropagation()">
+                <button class="btn btn-sm btn-outline-info batch-settings-btn"
+                        data-batch-id="{{ batch_info.obj.id }}" title="Paramètres du batch (appliqués à tous les éléments)">
+                    <i class="fas fa-cog"></i>
+                </button>
+                {% if batch_info.has_success %}
+                <a class="btn btn-sm btn-outline-info"
+                   href="{% url 'composer:batch_download' batch_info.obj.id %}"
+                   title="Télécharger toutes les sorties (ZIP)">
+                    <i class="fas fa-download"></i>
+                </a>
+                {% endif %}
                 <button class="btn btn-sm btn-outline-secondary batch-duplicate-btn"
                         data-batch-id="{{ batch_info.obj.id }}" title="Dupliquer le batch">
                     <i class="fas fa-copy"></i>

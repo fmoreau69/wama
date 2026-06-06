@@ -63,7 +63,8 @@
             ? `<div class="wama-progress-track mt-2">
                  <div class="wama-progress-fill active" style="width:${item.progress}%"></div>
                </div>
-               <small class="text-warning">${item.progress_msg || 'En cours…'}</small>`
+               <small class="text-warning">${item.progress_msg || 'En cours…'}</small>
+               <span class="wama-eta d-block"></span>`
             : (item.status === 'DONE')
             ? `<div class="wama-progress-track mt-2">
                  <div class="wama-progress-fill" style="width:100%"></div>
@@ -186,6 +187,7 @@
             const container = document.getElementById('queueContainer');
             container.prepend(card);
         }
+        if (window.WamaEta) WamaEta.render(card.querySelector('.wama-eta'), WamaEta.update(item.id, { progress: item.progress, status: item.status }));
         bindCardActions(card, item);
         updateDownloadAllBtn();
         return card;
@@ -238,6 +240,7 @@
                 upsertCard(item);
                 if (item.status !== 'RUNNING' && item.status !== 'PENDING') {
                     stopPolling(id);
+                    if (window.WamaFM) WamaFM.processed();  // sortie créée → refresh filemanager
                 }
             } catch (e) {
                 stopPolling(id);
@@ -275,6 +278,7 @@
             await csrfFetch(urlFor('delete', id), { method: 'POST' });
             removeCard(id);
             updateGlobalProgress();
+            if (window.WamaFM) WamaFM.deleted();  // fichier supprimé → refresh filemanager
         } catch (e) {
             console.error('[Reader] delete error:', e);
         }
@@ -432,6 +436,7 @@
             }
             (data.created || []).forEach(item => upsertCard(item));
             updateGlobalProgress();
+            if (window.WamaFM) WamaFM.uploaded();  // fichier ajouté → refresh filemanager
         } catch (e) {
             console.error('[Reader] upload error:', e);
         }
@@ -477,6 +482,7 @@
             Object.keys(pollingTimers).forEach(stopPolling);
             try {
                 await csrfFetch(urls.clearAll, { method: 'POST' });
+                if (window.WamaFM) WamaFM.deleted();  // fichiers supprimés → refresh filemanager
                 document.getElementById('queueContainer').innerHTML =
                     `<div id="emptyState" class="text-center text-secondary py-5">
                         <i class="fas fa-inbox fa-3x mb-3 opacity-50"></i>
@@ -520,6 +526,7 @@
                 const pct          = document.getElementById('globalProgressPct');
                 const globalStatus = document.getElementById('globalStatus');
                 const p = data.overall_progress || 0;
+                if (window.WamaEta) WamaEta.render(document.getElementById('globalEta'), WamaEta.aggregateAll());
                 if (bar)   bar.style.width    = p + '%';
                 if (stats) stats.textContent  = `${data.done}/${data.total} terminé · ${data.running} en cours`;
                 if (pct)   pct.textContent    = p ? p + '%' : '';
@@ -569,6 +576,7 @@
         if (!confirm('Supprimer ce batch et tous ses éléments ?')) return;
         try {
             await csrfFetch(urlForBatch('batchDelete', batchId), { method: 'POST' });
+            if (window.WamaFM) WamaFM.deleted();  // fichiers supprimés → refresh filemanager
             const el = document.querySelector(`.batch-group[data-batch-id="${batchId}"]`);
             if (el) el.remove();
             if (document.querySelectorAll('.reader-card, .batch-group').length === 0) {

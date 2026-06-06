@@ -46,6 +46,7 @@ document.addEventListener("DOMContentLoaded", function() {
                     }
                     const pctEl = tr.querySelector('.progress-pct');
                     if (pctEl) pctEl.textContent = (pct > 0 && pct < 100) ? pct + '%' : '';
+                    if (window.WamaEta) WamaEta.render(tr.querySelector('.wama-eta'), WamaEta.update(mediaId, { progress: pct, status: pct >= 100 ? 'DONE' : 'RUNNING' }));
 
                     // Update status badge
                     const statusBadge = tr.querySelector('.status-badge');
@@ -62,6 +63,7 @@ document.addEventListener("DOMContentLoaded", function() {
                     if (pct >= 100) {
                         clearInterval(progressIntervals[mediaId]);
                         delete progressIntervals[mediaId];
+                        if (window.WamaFM) WamaFM.processed();  // sortie créée → refresh filemanager
                         console.log(`[process.js] Completed polling for media ${mediaId}`);
 
                         // Update the row to reflect processed state

@@ -662,6 +662,85 @@ def queue_count(request):
     return JsonResponse({'count': count})
 
 
+def _wrap_media_in_batch(media):
+    """Range un Media seul dans un BatchAnonymizer-of-1."""
+    batch = BatchAnonymizer.objects.create(user=media.user, total=1)
+    BatchAnonymizerItem.objects.create(batch=batch, media=media, row_index=0)
+    return batch
+
+
+def _group_medias_into_batches(user, medias, unwrap_singletons=None):
+    """Crée UN batch PAR NATURE (image/vidéo/audio) — règle commune."""
+    from wama.common.utils.batch_common import group_into_batches_by_nature
+    group_into_batches_by_nature(
+        medias,
+        nature_of=lambda m: m.media_type or 'video',
+        create_batch=lambda nature, total: BatchAnonymizer.objects.create(user=user, total=total),
+        link_item=lambda batch, m, idx: BatchAnonymizerItem.objects.create(
+            batch=batch, media=m, row_index=idx),
+        unwrap_singletons=unwrap_singletons,
+    )
+
+
+def _auto_wrap_orphans(user):
+    """Range les Media pas encore en batch (au build du contexte / refresh table),
+    groupés PAR NATURE (image/vidéo/audio) — règle générale commune."""
+    existing_ids = set(
+        BatchAnonymizerItem.objects.filter(batch__user=user).values_list('media_id', flat=True)
+    )
+    orphans = list(Media.objects.filter(user=user).exclude(id__in=existing_ids).order_by('id'))
+    if orphans:
+        _group_medias_into_batches(user, orphans)
+
+
+def _get_anonymizer_batches_list(user):
+    """Groupe les Media par batch pour le rendu (multi-batches d'abord)."""
+    _auto_wrap_orphans(user)
+    batches = (BatchAnonymizer.objects.filter(user=user)
+               .prefetch_related('items__media').order_by('-created_at'))
+    result = []
+    for batch in batches:
+        items = [it.media for it in batch.items.order_by('row_index') if it.media]
+        if not items:
+            continue
+        result.append({
+            'obj': batch,
+            'items': items,
+            'total': batch.total,
+            'done_count': sum(1 for m in items if m.processed),
+        })
+    result.sort(key=lambda b: 0 if b['total'] > 1 else 1)
+    return result
+
+
+def consolidate(request):
+    """Regroupe plusieurs Media importés ensemble en UN batch-of-N."""
+    import json as _json
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST requis'}, status=405)
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    try:
+        ids = _json.loads(request.body or '{}').get('ids', [])
+    except (ValueError, TypeError):
+        ids = request.POST.getlist('ids[]') or request.POST.getlist('ids')
+    ids = [int(i) for i in ids if str(i).isdigit()]
+
+    items = list(Media.objects.filter(id__in=ids, user=user))
+    order = {mid: pos for pos, mid in enumerate(ids)}
+    items.sort(key=lambda m: order.get(m.id, 0))
+    if len(items) < 2:
+        return JsonResponse({'consolidated': False})
+
+    def _unwrap(item_ids):
+        BatchAnonymizer.objects.filter(
+            user=user, total=1, items__media_id__in=item_ids
+        ).distinct().delete()
+
+    # Regroupement PAR NATURE (image / vidéo / audio) — règle commune.
+    _group_medias_into_batches(user, items, unwrap_singletons=_unwrap)
+    return JsonResponse({'consolidated': True, 'count': len(items)})
+
+
 def get_context(request):
     if request.user.is_authenticated:
         user = request.user
@@ -724,6 +803,7 @@ def get_context(request):
     return {
         'user': user,
         'medias': medias,
+        'batches_list': _get_anonymizer_batches_list(user),
         'media_settings_form': media_settings_form,
         'global_settings': global_settings,
         'user_settings_form': user_settings_form,
@@ -1525,6 +1605,49 @@ def duplicate_media(request, media_id):
         clear_fields=[],
     )
     return JsonResponse({'duplicated': new_media.id})
+
+
+def batch_duplicate(request, pk):
+    """Duplique un batch et tous ses médias (entrées partagées, état remis à zéro)."""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST requis'}, status=405)
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    batch = get_object_or_404(BatchAnonymizer, pk=pk, user=user)
+    new_batch = BatchAnonymizer.objects.create(user=user, total=0)
+    idx = 0
+    for item in batch.items.select_related('media').order_by('row_index'):
+        if not item.media:
+            continue
+        new_media = duplicate_instance(
+            item.media, reset_fields={'processed': False, 'blur_progress': 0}, clear_fields=[])
+        BatchAnonymizerItem.objects.create(batch=new_batch, media=new_media, row_index=idx)
+        idx += 1
+    new_batch.total = idx
+    new_batch.save(update_fields=['total'])
+    return JsonResponse({'duplicated': True, 'batch_id': new_batch.id})
+
+
+def batch_download(request, pk):
+    """ZIP de toutes les sorties traitées d'un batch."""
+    import io
+    import zipfile
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    batch = get_object_or_404(BatchAnonymizer, pk=pk, user=user)
+    buf = io.BytesIO()
+    added = 0
+    with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
+        for item in batch.items.select_related('media'):
+            m = item.media
+            if not m or not m.processed:
+                continue
+            fp = get_blurred_media_path(m.file.name, m.file_ext, m.user_id)
+            if os.path.exists(fp):
+                zf.write(str(fp), arcname=os.path.basename(fp))
+                added += 1
+    if added == 0:
+        return HttpResponseBadRequest("Aucune sortie disponible dans ce batch")
+    buf.seek(0)
+    return FileResponse(buf, as_attachment=True, filename=f'anonymizer_batch_{batch.id}.zip')
 
 
 class AboutView(TemplateView):

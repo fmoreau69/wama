@@ -154,6 +154,7 @@
     window.TRANSCRIBER_APP = Object.assign({}, window.TRANSCRIBER_APP, {
       csrfToken: '{{ csrf_token }}',
       uploadUrl: '{% url "transcriber:upload" %}',
+      consolidateUrl: '{% url "transcriber:consolidate" %}',
       uploadYoutubeUrl: '{% url "transcriber:upload_youtube" %}',
       startUrlTemplate: '{% url "transcriber:start" 0 %}',
       progressUrlTemplate: '{% url "transcriber:progress" 0 %}',
@@ -175,15 +176,21 @@
       batchCreateUrl: '{% url "transcriber:batch_create" %}',
       batchTemplateUrl: '{% url "transcriber:batch_template" %}',
       batchStartUrlTemplate: '{% url "transcriber:batch_start" 0 %}',
+      batchUpdateUrlTemplate: '{% url "transcriber:batch_update" 0 %}',
       batchStatusUrlTemplate: '{% url "transcriber:batch_status" 0 %}',
       batchDownloadUrlTemplate: '{% url "transcriber:batch_download" 0 %}',
       batchDeleteUrlTemplate: '{% url "transcriber:batch_delete" 0 %}',
       batchDuplicateUrlTemplate: '{% url "transcriber:batch_duplicate" 0 %}',
+      stageCommitUrlTemplate: '{% url "transcriber:stage_commit" 0 %}',
+      stageCommitAllUrl: '{% url "transcriber:stage_commit_all" %}',
+      stageClearUrl: '{% url "transcriber:stage_clear" %}',
+      stageUpdateAllUrl: '{% url "transcriber:stage_update_all" %}',
     });
 
     // Diarization is now always visible (uses pyannote, backend-agnostic)
 </script>
 <script src="{% static 'common/js/batch-import.js' %}"></script>
+<script src="{% static 'common/js/wama-eta.js' %}"></script>
 <script src="{% static 'transcriber/js/index.js' %}"></script>
 <script>
 window._batchImport = WamaBatchImport({
@@ -239,13 +246,77 @@ window._batchImport = WamaBatchImport({
 
 <div id="globalStatus" style="opacity:0; pointer-events:none;">
     <div class="d-flex justify-content-between align-items-baseline mb-1">
-        <small class="text-muted" id="globalProgressStats"></small>
+        <small class="text-muted"><span id="globalProgressStats"></span><span class="wama-eta ms-2" id="globalEta"></span></small>
         <small class="text-muted" id="globalProgressPct" style="font-variant-numeric: tabular-nums;"></small>
     </div>
     <div class="wama-progress-track">
         <div class="wama-progress-fill active" id="globalProgressBar" style="width:0%"></div>
     </div>
     <div style="height:12px;"></div>
+</div>
+
+<!-- Staging zone (« à valider ») -->
+<div class="row mb-2" id="stagingZone" {% if not staging_list %}style="display:none;"{% endif %}>
+    <div class="col-12">
+        <div class="border rounded p-2" style="border-color:#ffc107 !important; background:#2a2410;">
+            <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+                <i class="fas fa-inbox" style="color:#ffc107;"></i>
+                <strong class="text-light">À valider</strong>
+                <span class="badge bg-warning text-dark" id="stagingCount">{{ staging_list|length }}</span>
+                <small class="text-white-50 d-none d-md-inline">Réglez les paramètres, puis ajoutez à la file ou lancez.</small>
+                <div class="ms-auto d-flex gap-1 flex-wrap">
+                    <button class="btn btn-sm btn-outline-light" id="stagingSettingsAll" title="Appliquer les paramètres du volet droit à tous les éléments à valider">
+                        <i class="fas fa-cog"></i> Param. à tous
+                    </button>
+                    <button class="btn btn-sm btn-outline-info" id="stagingAddAll">
+                        <i class="fas fa-plus"></i> Tout ajouter
+                    </button>
+                    <button class="btn btn-sm btn-success" id="stagingStartAll">
+                        <i class="fas fa-play"></i> Tout lancer
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" id="stagingClear" title="Vider la zone à valider">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </div>
+            <div id="stagingItems">
+                {% for t in staging_list %}
+                <div class="synthesis-card staging-card mb-1" data-id="{{ t.id }}" data-stage="1">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="fas fa-file-audio text-warning"></i>
+                        <span class="text-light flex-grow-1 text-truncate">{{ t.filename|default:"(audio)" }}</span>
+                        <small class="text-white-50 d-none d-md-inline">{{ t.backend|default:"auto" }}{% if t.preprocess_audio %} · prétrait.{% endif %}</small>
+                        <div class="d-flex gap-1">
+                            <button class="btn btn-sm btn-secondary settings-btn"
+                                    data-id="{{ t.id }}"
+                                    data-backend="{{ t.backend }}"
+                                    data-hotwords="{{ t.hotwords }}"
+                                    data-preprocess="{{ t.preprocess_audio|yesno:'true,false' }}"
+                                    data-diarization="{{ t.enable_diarization|yesno:'true,false' }}"
+                                    data-temperature="{{ t.temperature }}"
+                                    data-max-tokens="{{ t.max_tokens }}"
+                                    data-generate-summary="{{ t.generate_summary|yesno:'true,false' }}"
+                                    data-summary-type="{{ t.summary_type }}"
+                                    data-verify-coherence="{{ t.verify_coherence|yesno:'true,false' }}"
+                                    title="Paramètres">
+                                <i class="fas fa-cog"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-info stage-add-btn" data-id="{{ t.id }}" title="Ajouter à la file">
+                                <i class="fas fa-plus"></i>
+                            </button>
+                            <button class="btn btn-sm btn-success stage-start-btn" data-id="{{ t.id }}" title="Lancer">
+                                <i class="fas fa-play"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger stage-del-btn" data-id="{{ t.id }}" title="Supprimer">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- Transcripts Queue -->
@@ -330,6 +401,7 @@ window._batchImport = WamaBatchImport({
                             <div class="wama-progress-fill {% if t.status == 'RUNNING' %}active{% endif %}" style="width: {{ t.progress }}%"></div>
                         </div>
                         <small class="text-light progress-text">{{ t.progress }}%</small>
+                        <span class="wama-eta d-block"></span>
                     </div>
 
                     <!-- Actions -->
@@ -417,6 +489,7 @@ window._batchImport = WamaBatchImport({
                         <strong class="text-light">Batch #{{ batch_info.obj.id }}</strong>
                         <small class="text-muted">{{ batch_info.obj.created_at|date:"d/m H:i" }}</small>
                         <span class="badge bg-secondary">{{ batch_info.success_count }}/{{ batch_info.obj.total }}</span>
+                        <span class="wama-eta" data-eta-ids="{% for item in batch_info.items %}{% if item.transcript %}{{ item.transcript.id }},{% endif %}{% endfor %}"></span>
                         <div class="flex-grow-1">
                             <div class="wama-progress-track">
                                 <div class="wama-progress-fill" style="width:{{ batch_info.success_pct }}%;"></div>
@@ -425,11 +498,26 @@ window._batchImport = WamaBatchImport({
                         <i class="fas fa-chevron-down text-muted" style="font-size:.7rem;"></i>
                     </div>
                     <div class="d-flex gap-1 flex-shrink-0">
+                        <button class="btn btn-sm batch-settings-btn py-0 px-2"
+                                data-batch-id="{{ batch_info.obj.id }}"
+                                style="background:rgba(13,202,240,0.15); color:#0dcaf0; border:1px solid #0dcaf0; font-size:.75rem;"
+                                title="Paramètres du batch (appliqués à tous les éléments)">
+                            <i class="fas fa-cog"></i>
+                        </button>
                         {% if batch_info.has_success %}
-                        <a href="{% url 'transcriber:batch_download' batch_info.obj.id %}"
-                           class="btn btn-sm btn-outline-info py-0 px-2" style="font-size:.75rem;" title="Télécharger ZIP">
-                            <i class="fas fa-download"></i> ZIP
-                        </a>
+                        <div class="dropdown d-inline-block">
+                            <button class="btn btn-sm btn-outline-info py-0 px-2 dropdown-toggle"
+                                    type="button" data-bs-toggle="dropdown" aria-expanded="false"
+                                    style="font-size:.75rem;" title="Télécharger toutes les sorties (ZIP)">
+                                <i class="fas fa-download"></i> ZIP
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end">
+                                <li><a class="dropdown-item" href="{% url 'transcriber:batch_download' batch_info.obj.id %}?fmt=txt">Tout en TXT</a></li>
+                                <li><a class="dropdown-item" href="{% url 'transcriber:batch_download' batch_info.obj.id %}?fmt=srt">Tout en SRT</a></li>
+                                <li><a class="dropdown-item" href="{% url 'transcriber:batch_download' batch_info.obj.id %}?fmt=pdf">Tout en PDF</a></li>
+                                <li><a class="dropdown-item" href="{% url 'transcriber:batch_download' batch_info.obj.id %}?fmt=docx">Tout en DOCX</a></li>
+                            </ul>
+                        </div>
                         {% endif %}
                         <button class="btn btn-sm batch-duplicate-btn py-0 px-2"
                                 data-batch-id="{{ batch_info.obj.id }}"
@@ -492,6 +580,20 @@ window._batchImport = WamaBatchImport({
                             <div class="col-md-3">
                                 <div class="btn-group-actions">
                                     {% if t.status != 'RUNNING' %}
+                                    <button class="btn btn-sm btn-secondary settings-btn"
+                                            data-id="{{ t.id }}"
+                                            data-backend="{{ t.backend }}"
+                                            data-hotwords="{{ t.hotwords }}"
+                                            data-preprocess="{{ t.preprocess_audio|yesno:'true,false' }}"
+                                            data-diarization="{{ t.enable_diarization|yesno:'true,false' }}"
+                                            data-temperature="{{ t.temperature }}"
+                                            data-max-tokens="{{ t.max_tokens }}"
+                                            data-generate-summary="{{ t.generate_summary|yesno:'true,false' }}"
+                                            data-summary-type="{{ t.summary_type }}"
+                                            data-verify-coherence="{{ t.verify_coherence|yesno:'true,false' }}"
+                                            title="Paramètres">
+                                        <i class="fas fa-cog"></i>
+                                    </button>
                                     <button class="btn btn-sm btn-primary start-btn" data-id="{{ t.id }}" title="Démarrer">
                                         <i class="fas fa-play"></i>
                                     </button>
@@ -522,6 +624,10 @@ window._batchImport = WamaBatchImport({
                                         </ul>
                                     </div>
                                     {% endif %}
+                                    <button class="btn btn-sm btn-outline-info duplicate-btn" data-id="{{ t.id }}"
+                                            title="Dupliquer dans le batch (tester un autre modèle)">
+                                        <i class="fas fa-copy"></i>
+                                    </button>
                                     <button class="btn btn-sm btn-danger delete-btn" data-id="{{ t.id }}" title="Supprimer">
                                         <i class="fas fa-trash"></i>
                                     </button>
@@ -769,15 +875,17 @@ window._batchImport = WamaBatchImport({
             </div>
             <div class="modal-body" style="color: #000000;">
                 <h6>Qu'est-ce que le prétraitement audio ?</h6>
-                <p>Le prétraitement améliore la qualité de vos enregistrements avant la transcription :</p>
+                <p>Le prétraitement nettoie vos enregistrements avant la transcription :</p>
                 <ul>
-                    <li><strong>Normalisation</strong> : Convertit l'audio en mono 16kHz</li>
-                    <li><strong>Réduction de bruit</strong> : Élimine le bruit de fond</li>
-                    <li><strong>Ajustement du volume</strong> : Optimise les niveaux sonores</li>
+                    <li><strong>Débruitage IA (DeepFilterNet)</strong> : supprime le bruit de fond et la
+                        réverbération en préservant la parole (modèle neuronal, sûr pour la reconnaissance)</li>
+                    <li><strong>Mise au format ASR</strong> : conversion en mono 16&nbsp;kHz + normalisation
+                        légère (entrée native de Whisper)</li>
                 </ul>
-                <div class="alert alert-info">
-                    <i class="fas fa-clock"></i>
-                    Le prétraitement ajoute 2-5 secondes par minute d'audio.
+                <div class="alert alert-warning">
+                    <i class="fas fa-circle-info"></i>
+                    Optionnel : Whisper est robuste au bruit et transcrit souvent très bien l'audio brut.
+                    N'activez le débruitage que pour des enregistrements vraiment dégradés.
                 </div>
             </div>
             <div class="modal-footer" style="background-color: #f8f9fa; border-top: 1px solid #dee2e6;">

@@ -27,6 +27,7 @@ Schéma de colonne (pour parse_pipe_batch) :
 """
 
 import os
+import shlex
 import tempfile
 import logging
 from typing import Callable, List, Optional, Tuple, Dict
@@ -200,12 +201,20 @@ def parse_media_list_batch(
         https://example.com/media.jpg
         ...
 
+    Le format à balises unifié (``-i <fichier> [-o …] [--clé …]``) est détecté
+    automatiquement (cf. Phase B) : la balise ``-i`` alimente ``path`` et les
+    autres balises (``-o``, ``-p``, ``--option``) sont transportées telles quelles
+    pour les apps qui les consomment. Sinon → format legacy « 1 chemin/URL par ligne ».
+
     Returns:
         (items, warnings)
         Each item dict has keys: path (str), line_num (int)
+        [+ output / prompt / reference / options si fournis en format à balises]
         warnings is a list of human-readable warning strings.
     """
     raw_text = extract_batch_file_text(file_path)
+    if is_structured_batch_text(raw_text):
+        return _structured_items_to_media(raw_text)
     return _parse_media_lines(raw_text)
 
 
@@ -221,6 +230,35 @@ def _parse_media_lines(text: str) -> Tuple[List[Dict], List[str]]:
         items.append({'path': line, 'line_num': line_num})
 
     if not items:
+        warnings.append("Aucune entrée valide trouvée dans le fichier batch")
+
+    return items, warnings
+
+
+def _structured_items_to_media(text: str) -> Tuple[List[Dict], List[str]]:
+    """Apps Type A : items structurés (CSV/balises) → liste média (``input`` → ``path``).
+
+    Les champs ``output`` / ``prompt`` / ``reference`` / ``options`` sont
+    transportés s'ils sont présents (consommés par l'app si pertinent).
+    """
+    norm_items, warnings = parse_structured_batch_text(text)
+    items: List[Dict] = []
+    for parsed in norm_items:
+        path = parsed.get('input')
+        if not path:
+            warnings.append(
+                f"Ligne {parsed.get('line_num')} : entrée (input / -i) manquante, ignorée"
+            )
+            continue
+        item: Dict = {'path': path, 'line_num': parsed.get('line_num')}
+        for key in ('output', 'prompt', 'reference'):
+            if parsed.get(key):
+                item[key] = parsed[key]
+        if parsed.get('options'):
+            item['options'] = parsed['options']
+        items.append(item)
+
+    if not items and not warnings:
         warnings.append("Aucune entrée valide trouvée dans le fichier batch")
 
     return items, warnings
@@ -449,3 +487,230 @@ def _parse_pipe_with_schema(
         warnings.append("Aucune entrée valide trouvée dans le fichier batch")
 
     return tasks, warnings
+
+
+# ---------------------------------------------------------------------------
+# Phase B — Format batch UNIFIÉ à balises (ffmpeg-style, ordre libre)
+# ---------------------------------------------------------------------------
+# Un seul format pour toutes les apps. Une URL/un fichier de travail et un
+# prompt ne sont que des CHAMPS — l'app consomme ceux qui la concernent.
+#
+#   -i / --input      fichier ou URL de travail (entrée à traiter)
+#   -p / --prompt     texte (génération, TTS, guidage…)
+#   -r / --reference  référence (voix de clonage, mélodie, image avatar…)
+#   -o / --output     nom/chemin de sortie (optionnel)
+#   --clé valeur      option propre à l'app (voice, speed, model, language…)
+#   -x valeur         option courte → options['x']
+#
+# Exemples (une ligne = un item) :
+#   -i "https://…/clip.mp4" -o "résumé_1.txt"
+#   -p "upbeat jazz piano" -r "melody.wav" --duration 30 -o "track_1.wav"
+#
+# Voir BATCH_FORMAT.md pour la matrice des champs par app.
+
+_UNIFIED_FLAG_MAP = {
+    '-i': 'input', '--input': 'input',
+    '-p': 'prompt', '--prompt': 'prompt',
+    '-r': 'reference', '--reference': 'reference',
+    '-o': 'output', '--output': 'output',
+}
+
+
+def parse_unified_batch_line(line: str) -> Optional[Dict]:
+    """Parse une ligne à balises → ``{input, prompt, reference, output, options{}}``.
+
+    Renvoie ``None`` si la ligne ne contient AUCUNE balise reconnue (permet à
+    l'appelant de retomber sur un parseur legacy positionnel).
+    """
+    try:
+        tokens = shlex.split(line, comments=False, posix=True)
+    except ValueError:
+        tokens = line.split()
+
+    item: Dict = {'input': None, 'prompt': None, 'reference': None, 'output': None, 'options': {}}
+    found = False
+    i = 0
+    while i < len(tokens):
+        tok = tokens[i]
+        nxt = tokens[i + 1] if i + 1 < len(tokens) else ''
+        if tok in _UNIFIED_FLAG_MAP:
+            item[_UNIFIED_FLAG_MAP[tok]] = nxt
+            found = True
+            i += 2
+        elif tok.startswith('--') and len(tok) > 2:
+            item['options'][tok[2:]] = nxt
+            found = True
+            i += 2
+        elif tok.startswith('-') and len(tok) > 1:
+            item['options'][tok[1:]] = nxt
+            found = True
+            i += 2
+        else:
+            i += 1
+    return item if found else None
+
+
+def is_unified_batch_text(text: str) -> bool:
+    """True si le fichier utilise le format à balises (1ʳᵉ ligne utile commence par une balise)."""
+    for line in text.splitlines():
+        s = line.strip()
+        if not s or s.startswith('#'):
+            continue
+        first = s.split(None, 1)[0]
+        return first in _UNIFIED_FLAG_MAP or (first.startswith('-') and len(first) > 1)
+    return False
+
+
+def _parse_balise_text(text: str) -> Tuple[List[Dict], List[str]]:
+    """Parse le format à balises (ffmpeg-style) → items normalisés."""
+    items: List[Dict] = []
+    warnings: List[str] = []
+    for line_num, line in enumerate(text.splitlines(), start=1):
+        s = line.strip()
+        if not s or s.startswith('#'):
+            continue
+        parsed = parse_unified_batch_line(s)
+        if parsed is None:
+            warnings.append(f"Ligne {line_num} : aucune balise reconnue (-i/-p/-r/-o), ignorée")
+            continue
+        parsed['line_num'] = line_num
+        items.append(parsed)
+    if not items:
+        warnings.append("Aucune entrée valide (format à balises)")
+    return items, warnings
+
+
+def parse_structured_batch_text(text: str) -> Tuple[List[Dict], List[str]]:
+    """Parse un batch STRUCTURÉ (CSV à en-têtes OU balises) → items normalisés.
+
+    Chaque item : ``{input, prompt, reference, output, options{}, line_num}``.
+    Dispatche automatiquement : CSV à en-têtes si la 1ʳᵉ ligne utile contient des
+    colonnes reconnues, sinon format à balises.
+    """
+    if is_csv_header_batch(text):
+        return parse_csv_header_batch(text)
+    return _parse_balise_text(text)
+
+
+def parse_unified_batch(file_path: str) -> Tuple[List[Dict], List[str]]:
+    """Parse un fichier batch structuré → liste d'items normalisés.
+
+    Accepte le **CSV à en-têtes** (tableur) et le **format à balises**.
+    Chaque item : ``{input, prompt, reference, output, options{}, line_num}``.
+    L'app valide ensuite les champs requis (ex. ``input`` pour les apps média,
+    ``prompt`` pour les apps génératives).
+    """
+    return parse_structured_batch_text(extract_batch_file_text(file_path))
+
+
+# ---------------------------------------------------------------------------
+# Phase B (suite) — Variante CSV à en-têtes (« tableur »)
+# ---------------------------------------------------------------------------
+# Même item normalisé que le format à balises, mais construit depuis un CSV où
+# la 1ʳᵉ ligne nomme les colonnes. Le module csv gère les virgules dans une
+# cellule entre guillemets (`"Bonjour, le monde"`) — donc un prompt avec des
+# virgules ne casse pas la structure.
+#
+# En-têtes reconnus (insensibles casse/accents) → champ canonique ; toute autre
+# colonne devient une option (``options[nom_colonne]``).
+
+_CSV_HEADER_ALIASES = {
+    'input': 'input', 'file': 'input', 'fichier': 'input', 'url': 'input',
+    'media': 'input', 'path': 'input', 'chemin': 'input', 'entree': 'input', 'source': 'input',
+    'prompt': 'prompt', 'text': 'prompt', 'texte': 'prompt', 'description': 'prompt', 'contenu': 'prompt',
+    # NB : `voice`/`voix` ne sont PAS la référence — ce sont des OPTIONS (preset TTS),
+    # cohérent avec le format à balises (`--voice` = option, `-r` = référence clonage).
+    'reference': 'reference', 'ref': 'reference',
+    'avatar': 'reference', 'melody': 'reference', 'melodie': 'reference',
+    'output': 'output', 'sortie': 'output', 'name': 'output', 'nom': 'output', 'filename': 'output',
+}
+
+
+def _normalize_header(h: str) -> str:
+    """minuscule + suppression des accents pour le matching d'en-tête."""
+    import unicodedata
+    h = (h or '').strip().lower()
+    return ''.join(c for c in unicodedata.normalize('NFD', h)
+                   if unicodedata.category(c) != 'Mn')
+
+
+def is_csv_header_batch(text: str) -> bool:
+    """True si la 1ʳᵉ ligne utile est un en-tête CSV avec ≥1 colonne reconnue."""
+    import csv
+    for line in text.splitlines():
+        s = line.strip()
+        if not s or s.startswith('#'):
+            continue
+        try:
+            row = next(csv.reader([s]))
+        except Exception:
+            return False
+        if len(row) < 2:
+            return False
+        canon = {_CSV_HEADER_ALIASES.get(_normalize_header(c)) for c in row}
+        return bool(canon & {'input', 'prompt', 'reference'})
+    return False
+
+
+def parse_csv_header_batch(text: str) -> Tuple[List[Dict], List[str]]:
+    """Parse un CSV à en-têtes → items normalisés (mêmes clés que les balises)."""
+    import csv
+    import io
+    items: List[Dict] = []
+    warnings: List[str] = []
+
+    # On retire les lignes de commentaire AVANT l'en-tête / entre les lignes.
+    kept = [l for l in text.splitlines() if not l.strip().startswith('#')]
+    reader = csv.DictReader(io.StringIO('\n'.join(kept)))
+
+    # En-tête → ligne 1 ; les données commencent en ligne 2.
+    for idx, row in enumerate(reader, start=2):
+        item: Dict = {'input': None, 'prompt': None, 'reference': None,
+                      'output': None, 'options': {}, 'line_num': idx}
+        for header, val in row.items():
+            if header is None or val is None:
+                continue
+            val = val.strip()
+            if not val:
+                continue
+            canon = _CSV_HEADER_ALIASES.get(_normalize_header(header))
+            if canon:
+                item[canon] = val
+            else:
+                item['options'][_normalize_header(header)] = val
+        if not any([item['input'], item['prompt'], item['reference']]):
+            warnings.append(f"Ligne {idx} : aucune colonne utile (input/prompt/reference), ignorée")
+            continue
+        items.append(item)
+
+    if not items:
+        warnings.append("Aucune ligne valide (CSV à en-têtes)")
+    return items, warnings
+
+
+def is_structured_batch_text(text: str) -> bool:
+    """True si le texte est un batch structuré (CSV à en-têtes OU balises)."""
+    return is_csv_header_batch(text) or is_unified_batch_text(text)
+
+
+def apply_indexed_output_names(tasks, source_name, default_ext, *, key='output_filename'):
+    """Nomme les sorties manquantes : ``<stem_du_fichier_batch>_<NN>.<ext>``.
+
+    **Décision projet (Cas 2)** : un fichier batch de N prompts SANS nom de sortie
+    par ligne → noms dérivés du **nom du fichier batch**, indexés 01, 02, 03…
+    (ex. ``poems.csv`` → ``poems_01.wav``, ``poems_02.wav``).
+
+    - N'écrase **jamais** un nom explicite (``-o`` / colonne ``output``) ; lui ajoute
+      seulement l'extension si absente.
+    - L'index est la position (1-based) de la tâche dans la liste.
+    """
+    import os
+    stem = os.path.splitext(os.path.basename(source_name or 'batch'))[0] or 'batch'
+    ext = (default_ext or 'out').lstrip('.')
+    for i, t in enumerate(tasks, start=1):
+        cur = (t.get(key) or '').strip()
+        if not cur:
+            t[key] = f"{stem}_{i:02d}.{ext}"
+        elif not os.path.splitext(cur)[1]:
+            t[key] = f"{cur}.{ext}"
+    return tasks

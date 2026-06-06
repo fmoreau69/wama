@@ -437,6 +437,7 @@
         });
         const data = await resp.json();
         if (!resp.ok) throw new Error(data.error || 'Erreur création job');
+        if (window.WamaFM) WamaFM.uploaded();  // fichiers d'entrée ajoutés → refresh filemanager
         return data.job_id;
     }
 
@@ -856,6 +857,7 @@
                         delete activePollers[jid];
                         card.remove();
                         updateJobsCount(-1);
+                        if (window.WamaFM) WamaFM.deleted();  // fichier supprimé → refresh filemanager
                         if (!$('.synthesis-card')) {
                             const container = $('#jobs-container');
                             if (container) container.innerHTML = `
@@ -926,6 +928,7 @@
                     card.remove();
                 } catch (_) {}
             }
+            if (window.WamaFM) WamaFM.deleted();  // fichiers supprimés → refresh filemanager
             const container = $('#jobs-container');
             if (container && !$('.synthesis-card')) {
                 container.innerHTML = `
@@ -938,5 +941,99 @@
             if (counter) counter.textContent = '0';
         });
     }
+
+    /* ============================================================
+     * Import par fichier batch (format à balises)
+     * ============================================================ */
+    (function initBatchImport() {
+        const fileInput = $('#batch-file-input');
+        const importBtn = $('#btn-batch-import');
+        const msg = $('#batch-import-msg');
+        if (!fileInput || !importBtn) return;
+
+        fileInput.addEventListener('change', () => {
+            importBtn.disabled = !fileInput.files.length;
+            if (msg) msg.textContent = '';
+        });
+
+        importBtn.addEventListener('click', async () => {
+            if (!fileInput.files.length) return;
+            const fd = new FormData();
+            fd.append('batch_file', fileInput.files[0]);
+            importBtn.disabled = true;
+            if (msg) msg.textContent = 'Import en cours…';
+            try {
+                const r = await fetch(cfg.urls.batchCreate, {
+                    method: 'POST', headers: { 'X-CSRFToken': csrf }, body: fd,
+                });
+                const data = await r.json();
+                if (r.ok) {
+                    if (msg) msg.textContent = `${data.jobs} job(s) dans ${data.batches} lot(s).`;
+                    if (window.WamaFM) WamaFM.uploaded();
+                    window.location.reload();
+                } else {
+                    if (msg) msg.textContent = data.error || 'Erreur d\'import.';
+                    importBtn.disabled = false;
+                }
+            } catch (_) {
+                if (msg) msg.textContent = 'Erreur réseau.';
+                importBtn.disabled = false;
+            }
+        });
+    })();
+
+    /* ============================================================
+     * Duplication (item) + actions de lot (start / duplicate / delete)
+     * ============================================================ */
+    function postJson(url) {
+        return fetch(url, { method: 'POST', headers: { 'X-CSRFToken': csrf } });
+    }
+
+    document.addEventListener('click', async (e) => {
+        // ── Dupliquer un job (item) ──
+        const dupBtn = e.target.closest('.btn-duplicate-job');
+        if (dupBtn) {
+            e.preventDefault();
+            try {
+                const r = await postJson(`${cfg.urls.duplicate}${dupBtn.dataset.jobId}/`);
+                if (r.ok) { if (window.WamaFM) WamaFM.uploaded(); window.location.reload(); }
+                else alert('Erreur lors de la duplication.');
+            } catch (_) { alert('Erreur réseau.'); }
+            return;
+        }
+        // ── Démarrer un lot ──
+        const startBtn = e.target.closest('.batch-start-btn');
+        if (startBtn) {
+            e.preventDefault();
+            try {
+                const r = await postJson(`${cfg.urls.batchStart}${startBtn.dataset.batchId}/start/`);
+                if (r.ok) window.location.reload(); else alert('Erreur au démarrage du lot.');
+            } catch (_) { alert('Erreur réseau.'); }
+            return;
+        }
+        // ── Dupliquer un lot ──
+        const bDup = e.target.closest('.batch-duplicate-btn');
+        if (bDup) {
+            e.preventDefault();
+            try {
+                const r = await postJson(`${cfg.urls.batchDuplicate}${bDup.dataset.batchId}/duplicate/`);
+                if (r.ok) { if (window.WamaFM) WamaFM.uploaded(); window.location.reload(); }
+                else alert('Erreur lors de la duplication du lot.');
+            } catch (_) { alert('Erreur réseau.'); }
+            return;
+        }
+        // ── Supprimer un lot ──
+        const bDel = e.target.closest('.batch-delete-btn');
+        if (bDel) {
+            e.preventDefault();
+            if (!confirm('Supprimer ce lot et tous ses jobs ?')) return;
+            try {
+                const r = await postJson(`${cfg.urls.batchDelete}${bDel.dataset.batchId}/delete/`);
+                if (r.ok) { if (window.WamaFM) WamaFM.deleted(); window.location.reload(); }
+                else alert('Erreur lors de la suppression du lot.');
+            } catch (_) { alert('Erreur réseau.'); }
+            return;
+        }
+    });
 
 })();

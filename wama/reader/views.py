@@ -625,22 +625,61 @@ def batch_status(request, pk):
     })
 
 
+def _build_reading_bytes(item, fmt):
+    """Return (ext, bytes) for an OCR result in `fmt` (txt/md/pdf/docx/json), or None.
+
+    Shared format builder for the batch ZIP dropdown (WAMA_APP_CONVENTIONS §9.10).
+    """
+    fmt = (fmt or 'txt').lower()
+    if fmt == 'json':
+        if not item.raw_result:
+            return None
+        return ('json', item.raw_result.encode('utf-8'))
+    if not item.result_text:
+        return None
+    if fmt == 'pdf':
+        try:
+            from wama.common.utils.document_export import generate_reader_pdf
+            return ('pdf', generate_reader_pdf(item))
+        except Exception as e:
+            logger.warning(f"[Reader] PDF skipped for {item.id}: {e}")
+            return None
+    if fmt == 'docx':
+        try:
+            from wama.common.utils.document_export import generate_reader_docx
+            return ('docx', generate_reader_docx(item))
+        except Exception as e:
+            logger.warning(f"[Reader] DOCX skipped for {item.id}: {e}")
+            return None
+    ext = 'md' if fmt == 'md' else 'txt'
+    return (ext, _extract_natural_text(item.result_text).encode('utf-8'))
+
+
 def batch_download(request, pk):
-    """Download a ZIP of all completed OCR results in a batch."""
+    """Download a ZIP of all completed OCR results in a batch.
+
+    Format chosen via ?fmt=txt|md|pdf|docx|json (default txt) — dropdown variant
+    of the multi-format batch ZIP convention (WAMA_APP_CONVENTIONS §9.10).
+    """
     user = _get_user(request)
     batch = get_object_or_404(BatchReadingItem, pk=pk, user=user)
+    fmt = (request.GET.get('fmt') or 'txt').lower()
+    if fmt not in ('txt', 'md', 'pdf', 'docx', 'json'):
+        fmt = 'txt'
 
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as archive:
         for item in batch.items.select_related('reading').order_by('row_index'):
             r = item.reading
-            if r and r.status == 'DONE' and r.result_text:
-                ext = '.md' if r.output_format == 'markdown' else '.txt'
+            if r and r.status == 'DONE':
                 stem = os.path.splitext(r.filename)[0] if r.filename else f'item_{r.id}'
-                archive.writestr(f'{stem}_ocr{ext}', r.result_text.encode('utf-8'))
+                built = _build_reading_bytes(r, fmt)
+                if built:
+                    ext, data = built
+                    archive.writestr(f'{stem}_ocr.{ext}', data)
 
     buffer.seek(0)
-    zip_name = f"batch_reader_{pk}_{datetime.date.today()}.zip"
+    zip_name = f"batch_reader_{pk}_{fmt}_{datetime.date.today()}.zip"
     return FileResponse(buffer, as_attachment=True, filename=zip_name)
 
 

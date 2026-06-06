@@ -81,29 +81,24 @@ def consolidate_jobs_into_batches(job_ids, user):
     crée directement les batchs-of-N. Réglages de sortie communs par batch →
     on ne mélange jamais les natures. Retourne la liste des batchs créés.
     """
-    from collections import OrderedDict
     from .models import ConversionBatch
-    from wama.common.utils.batch_common import consolidate_into_batch
+    from wama.common.utils.batch_common import group_into_batches_by_nature
 
     jobs = list(ConversionJob.objects.filter(id__in=job_ids, user=user, ephemeral=False))
-    by_nature = OrderedDict()
-    for j in jobs:
-        by_nature.setdefault(j.media_type, []).append(j)
 
-    batches = []
-    for nature, group in by_nature.items():
-        def _create(total, _n=nature):
-            return ConversionBatch.objects.create(user=user, media_type=_n, total=total)
+    def _link(batch, job, idx):
+        job.batch = batch
+        job.batch_row_index = idx
+        job.save(update_fields=['batch', 'batch_row_index'])
 
-        def _link(batch, job, idx):
-            job.batch = batch
-            job.batch_row_index = idx
-            job.save(update_fields=['batch', 'batch_row_index'])
-
-        b = consolidate_into_batch(group, create_batch=_create, link_item=_link)
-        if b:
-            batches.append(b)
-    return batches
+    # Règle commune : un ConversionBatch PAR NATURE (la nature est stockée sur le batch).
+    return group_into_batches_by_nature(
+        jobs,
+        nature_of=lambda j: j.media_type,
+        create_batch=lambda nature, total: ConversionBatch.objects.create(
+            user=user, media_type=nature, total=total),
+        link_item=_link,
+    )
 
 
 class IndexView(View):
@@ -308,6 +303,7 @@ def global_progress(request):
         'total': total,
         'done': done,
         'running': running,
+        'failed': sum(1 for j in jobs if j['status'] == 'ERROR'),
         'overall_progress': overall,
     })
 
@@ -406,6 +402,52 @@ def duplicate(request, pk):
         clear_fields=['output_file'],
     )
     return JsonResponse({'success': True, 'job_id': new_job.id})
+
+
+@login_required
+@require_POST
+def batch_duplicate(request, pk):
+    """Duplique un batch et tous ses jobs (entrées partagées, sorties vidées)."""
+    from .models import ConversionBatch
+    batch = get_object_or_404(ConversionBatch, pk=pk, user=request.user)
+    new_batch = ConversionBatch.objects.create(
+        user=request.user, media_type=batch.media_type, total=0)
+    idx = 0
+    for job in ConversionJob.objects.filter(batch=batch, user=request.user).order_by('batch_row_index'):
+        new_job = duplicate_instance(
+            instance=job,
+            reset_fields={'status': 'PENDING', 'progress': 0, 'task_id': '', 'error_message': ''},
+            clear_fields=['output_file'],
+        )
+        new_job.batch = new_batch
+        new_job.batch_row_index = idx
+        new_job.save(update_fields=['batch', 'batch_row_index'])
+        idx += 1
+    new_batch.total = idx
+    new_batch.save(update_fields=['total'])
+    return JsonResponse({'success': True, 'batch_id': new_batch.id})
+
+
+@login_required
+def batch_download(request, pk):
+    """Télécharge toutes les sorties d'un batch en un ZIP."""
+    import io
+    import zipfile
+    from .models import ConversionBatch
+    batch = get_object_or_404(ConversionBatch, pk=pk, user=request.user)
+    jobs = (ConversionJob.objects.filter(batch=batch, user=request.user, status='DONE')
+            .exclude(output_file=''))
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
+        for job in jobs:
+            try:
+                path = job.output_file.path
+                if os.path.exists(path):
+                    zf.write(path, os.path.basename(path))
+            except Exception:
+                pass
+    buf.seek(0)
+    return FileResponse(buf, as_attachment=True, filename=f'converter_batch_{batch.id}.zip')
 
 
 @login_required

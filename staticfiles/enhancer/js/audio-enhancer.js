@@ -67,8 +67,10 @@ document.addEventListener('DOMContentLoaded', function () {
       const data = await resp.json();
       if (data.error) throw new Error(data.error);
       appendAudioRow(data);
+      return data.id || null;
     } catch (err) {
       alert('Erreur upload audio: ' + err.message);
+      return null;
     }
   }
 
@@ -81,8 +83,21 @@ document.addEventListener('DOMContentLoaded', function () {
         return;
       }
     }
+    // Upload tous les fichiers, puis consolide en UN batch si plusieurs.
+    const ids = [];
     for (const f of fileList) {
-      await uploadAudioFile(f);
+      const id = await uploadAudioFile(f);
+      if (id) ids.push(id);
+    }
+    if (ids.length > 1 && cfg.audioConsolidateUrl) {
+      try {
+        await fetch(cfg.audioConsolidateUrl, {
+          method: 'POST',
+          headers: csrfHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify({ ids }),
+        });
+      } catch (_e) { /* à défaut : items individuels */ }
+      location.reload();
     }
   }
 

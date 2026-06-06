@@ -39,8 +39,8 @@
 
                     if (stats) {
                         stats.textContent = total
-                            ? (done + '/' + total + ' terminé'
-                               + (running ? ' · ' + running + ' en cours' : ''))
+                            ? (done + '/' + total + ' terminé · ' + running
+                               + ' en cours · ' + (d.failed || 0) + ' échoué')
                             : 'Aucune tâche';
                     }
                     if (pct) pct.textContent = total ? p + '%' : '';

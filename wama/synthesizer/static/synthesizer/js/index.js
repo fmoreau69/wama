@@ -351,6 +351,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (r.ok) {
                     const card = deleteBtn.closest('.synthesis-card');
                     if (card) card.remove();
+                    if (window.WamaFM) WamaFM.deleted();  // fichier supprimé → refresh filemanager
                 } else {
                     alert('Erreur lors de la suppression');
                 }
@@ -456,6 +457,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     progressBar.classList.add('active');
                 }
                 if (progressText) progressText.textContent = data.progress + '%';
+                if (window.WamaEta) WamaEta.render(card.querySelector('.wama-eta'), WamaEta.update(card.dataset.id, { progress: data.progress, status: data.status }));
 
                 // Update card in-place on completion — no full page reload
                 // (a full reload interrupts audio preview and reloads the slow FileManager)
@@ -472,6 +474,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     } catch (fetchErr) {
                         console.error('[Synthesizer] Card refresh error:', fetchErr);
                     }
+                    if (window.WamaFM) WamaFM.processed();  // sortie créée → refresh filemanager
                 }
             } catch (error) {
                 console.error('Progress update error:', error);
@@ -491,6 +494,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const globalStatus = document.getElementById('globalStatus');
 
             const p = data.global_progress || 0;
+            if (window.WamaEta) WamaEta.render(document.getElementById('globalEta'), WamaEta.aggregateAll());
             if (globalProgressBar) globalProgressBar.style.width = p + '%';
             if (globalProgressText) globalProgressText.textContent = p ? p + '%' : '';
             if (globalProgressStats) {
@@ -814,9 +818,23 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     async function handleFiles(files) {
+        // Upload tous les fichiers, puis consolide en UN batch si plusieurs
+        // (le serveur défait les batch-of-1 créés à l'upload). Un seul reload.
+        const ids = [];
         for (const file of files) {
-            await uploadFile(file);
+            const id = await uploadFile(file);
+            if (id) ids.push(id);
         }
+        if (ids.length > 1 && URLS.consolidate) {
+            try {
+                await fetch(URLS.consolidate, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+                    body: JSON.stringify({ ids }),
+                });
+            } catch (_e) { /* à défaut : items individuels */ }
+        }
+        if (ids.length > 0) location.reload();
     }
 
     // ── Batch detection ───────────────────────────────────────────────────────
@@ -1058,13 +1076,17 @@ document.addEventListener('DOMContentLoaded', function() {
             const data = await response.json();
 
             if (response.ok) {
-                location.reload();
+                // Ne PAS recharger ici : handleFiles consolide d'abord les
+                // imports multiples en UN seul batch, puis recharge une fois.
+                return data.id || null;
             } else {
                 alert('Erreur: ' + (data.error || 'Upload échoué'));
+                return null;
             }
         } catch (error) {
             console.error('Upload error:', error);
             alert('Erreur de communication: ' + error.message);
+            return null;
         }
     }
 

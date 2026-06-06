@@ -1654,7 +1654,9 @@ def import_to_transcriber(source_path, user):
 
     dest_path, relative_path = copy_into_app_input(source_path, 'transcriber', user.id, 'input')
 
-    transcript = Transcript.objects.create(user=user)
+    # status='DRAFT' → l'élément arrive en zone de staging (« À valider »), pas
+    # directement en file (cohérent avec l'upload / l'URL). Cf. conventions §8.X.
+    transcript = Transcript.objects.create(user=user, status='DRAFT')
     transcript.audio.name = relative_path
     transcript.save()
 
@@ -1664,6 +1666,7 @@ def import_to_transcriber(source_path, user):
         'id': transcript.id,
         'filename': dest_path.name,
         'path': relative_path,
+        'staged': True,
     }
 
 

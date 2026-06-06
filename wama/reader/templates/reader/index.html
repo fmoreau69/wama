@@ -210,6 +210,7 @@ window.READER_APP = Object.assign({}, window.READER_APP || {}, {
 });
 </script>
 <script src="{% static 'common/js/batch-import.js' %}"></script>
+<script src="{% static 'common/js/wama-eta.js' %}"></script>
 <script src="{% static 'reader/js/reader.js' %}"></script>
 <script>
 window._batchImport = WamaBatchImport({
@@ -237,7 +238,7 @@ window._batchImport = WamaBatchImport({
     <!-- Global progress bar -->
     <div id="globalStatus" style="opacity:0; pointer-events:none;">
         <div class="d-flex justify-content-between align-items-baseline mb-1">
-            <small class="text-muted" id="globalProgressStats"></small>
+            <small class="text-muted"><span id="globalProgressStats"></span><span class="wama-eta ms-2" id="globalEta"></span></small>
             <small class="text-muted" id="globalProgressPct" style="font-variant-numeric: tabular-nums;"></small>
         </div>
         <div class="wama-progress-track">
@@ -275,6 +276,7 @@ window._batchImport = WamaBatchImport({
                     <strong class="text-light">Batch #{{ batch_info.obj.id }}</strong>
                     <small class="text-muted">{{ batch_info.obj.created_at|date:"d/m H:i" }}</small>
                     <span class="badge bg-secondary">{{ batch_info.success_count }}/{{ batch_info.obj.total }}</span>
+                    <span class="wama-eta" data-eta-ids="{% for item in batch_info.items %}{% if item.reading %}{{ item.reading.id }},{% endif %}{% endfor %}"></span>
                     <div class="flex-grow-1">
                         <div class="wama-progress-track">
                             <div class="wama-progress-fill" style="width:{{ batch_info.success_pct }}%;"></div>
@@ -293,10 +295,20 @@ window._batchImport = WamaBatchImport({
                         <i class="fas fa-cog"></i>
                     </button>
                     {% if batch_info.has_success %}
-                    <a href="{% url 'reader:batch_download' batch_info.obj.id %}"
-                       class="btn btn-sm btn-outline-info py-0 px-2" style="font-size:.75rem;" title="Télécharger ZIP">
-                        <i class="fas fa-download"></i> ZIP
-                    </a>
+                    <div class="dropdown d-inline-block">
+                        <button class="btn btn-sm btn-outline-info py-0 px-2 dropdown-toggle"
+                                type="button" data-bs-toggle="dropdown" aria-expanded="false"
+                                style="font-size:.75rem;" title="Télécharger toutes les sorties (ZIP)">
+                            <i class="fas fa-download"></i> ZIP
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li><a class="dropdown-item" href="{% url 'reader:batch_download' batch_info.obj.id %}?fmt=txt">Tout en TXT</a></li>
+                            <li><a class="dropdown-item" href="{% url 'reader:batch_download' batch_info.obj.id %}?fmt=md">Tout en Markdown</a></li>
+                            <li><a class="dropdown-item" href="{% url 'reader:batch_download' batch_info.obj.id %}?fmt=pdf">Tout en PDF</a></li>
+                            <li><a class="dropdown-item" href="{% url 'reader:batch_download' batch_info.obj.id %}?fmt=docx">Tout en DOCX</a></li>
+                            <li><a class="dropdown-item" href="{% url 'reader:batch_download' batch_info.obj.id %}?fmt=json">Tout en JSON</a></li>
+                        </ul>
+                    </div>
                     {% endif %}
                     <button class="btn btn-sm batch-start-btn py-0 px-2"
                             data-batch-id="{{ batch_info.obj.id }}"

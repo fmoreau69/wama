@@ -59,6 +59,52 @@ def _wrap_synthesis_in_batch(synthesis):
     return batch
 
 
+def consolidate(request):
+    """Regroupe plusieurs synthèses importées ensemble en UN seul batch-de-N.
+
+    Appelé après un import multi-fichiers (drag&drop / explorateur). Défait les
+    batch-of-1 créés à l'upload puis crée le batch-de-N (généralisation common).
+    Si < 2 ids → ne fait rien.
+    """
+    import json as _json
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+
+    try:
+        ids = _json.loads(request.body or '{}').get('ids', [])
+    except (ValueError, TypeError):
+        ids = request.POST.getlist('ids[]') or request.POST.getlist('ids')
+    ids = [int(i) for i in ids if str(i).isdigit()]
+
+    syntheses = list(VoiceSynthesis.objects.filter(id__in=ids, user=user))
+    order = {sid: pos for pos, sid in enumerate(ids)}
+    syntheses.sort(key=lambda s: order.get(s.id, 0))
+
+    if len(syntheses) < 2:
+        return JsonResponse({'consolidated': False})
+
+    from wama.common.utils.batch_common import consolidate_into_batch
+
+    def _create(total):
+        return BatchSynthesis.objects.create(user=user, total=total)
+
+    def _link(batch, s, idx):
+        stem = (os.path.splitext(os.path.basename(s.text_file.name))[0]
+                if s.text_file else f'synthesis_{s.id}')
+        BatchSynthesisItem.objects.create(
+            batch=batch, synthesis=s, output_filename=stem + '.wav', row_index=idx,
+        )
+
+    def _unwrap(item_ids):
+        BatchSynthesis.objects.filter(
+            user=user, total=1, items__synthesis_id__in=item_ids
+        ).distinct().delete()
+
+    batch = consolidate_into_batch(
+        syntheses, create_batch=_create, link_item=_link, unwrap_singletons=_unwrap,
+    )
+    return JsonResponse({'consolidated': True, 'batch_id': batch.id, 'count': len(syntheses)})
+
+
 def _auto_wrap_orphans(user):
     """Lazily wrap any VoiceSynthesis not yet in a batch into a batch-of-1 (on page load)."""
     existing_batch_ids = set(
@@ -684,7 +730,23 @@ def duplicate(request, pk: int):
         },
         clear_fields=['audio_output'],
     )
-    _wrap_synthesis_in_batch(new_s)
+    # Dupliquer DANS le même batch que l'original (élément frère) — pas dans un
+    # nouveau batch hors groupe. Cas d'usage : relancer une variante d'un élément
+    # (autre voix/modèle) sans dupliquer tout le batch.
+    orig_item = BatchSynthesisItem.objects.filter(synthesis=synthesis).select_related('batch').first()
+    if orig_item:
+        from django.db.models import Max
+        batch = orig_item.batch
+        next_idx = (batch.items.aggregate(m=Max('row_index'))['m'] or 0) + 1
+        stem = (os.path.splitext(os.path.basename(new_s.text_file.name))[0]
+                if new_s.text_file else f'synthesis_{new_s.id}')
+        BatchSynthesisItem.objects.create(
+            batch=batch, synthesis=new_s, output_filename=stem + '.wav', row_index=next_idx,
+        )
+        batch.total = batch.items.count()
+        batch.save(update_fields=['total'])
+    else:
+        _wrap_synthesis_in_batch(new_s)
     return JsonResponse({'duplicated': new_s.id})
 
 
@@ -1087,7 +1149,8 @@ def batch_preview(request):
 
         from .utils.batch_parser import parse_batch_file
         tasks, warnings = parse_batch_file(
-            tmp_path, default_voice=default_voice, default_speed=default_speed
+            tmp_path, default_voice=default_voice, default_speed=default_speed,
+            source_name=batch_file.name,
         )
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=400)
@@ -1148,7 +1211,8 @@ def batch_create(request):
                 return JsonResponse({'error': f'Format non supporté : {ext}'}, status=400)
             from .utils.batch_parser import parse_batch_file
             tasks, warnings = parse_batch_file(
-                str(abs_path), default_voice=default_voice, default_speed=default_speed
+                str(abs_path), default_voice=default_voice, default_speed=default_speed,
+                source_name=os.path.basename(server_path),
             )
         else:
             ext = os.path.splitext(batch_file.name)[1][1:].lower()
@@ -1160,7 +1224,8 @@ def batch_create(request):
                 tmp_path = tmp.name
             from .utils.batch_parser import parse_batch_file
             tasks, warnings = parse_batch_file(
-                tmp_path, default_voice=default_voice, default_speed=default_speed
+                tmp_path, default_voice=default_voice, default_speed=default_speed,
+                source_name=batch_file.name,
             )
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=400)

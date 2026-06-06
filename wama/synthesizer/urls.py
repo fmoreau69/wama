@@ -16,6 +16,7 @@ urlpatterns = [
 
     # Opérations sur les synthèses
     path('upload/', views.upload, name='upload'),
+    path('consolidate/', views.consolidate, name='consolidate'),
     path('upload-text/', views.upload_text, name='upload_text'),
     path('text-preview/<int:pk>/', views.text_preview, name='text_preview'),
     path('voice-preview/', views.voice_preview, name='voice_preview'),

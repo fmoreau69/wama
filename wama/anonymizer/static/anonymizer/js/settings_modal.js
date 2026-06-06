@@ -815,6 +815,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Update UI dynamically using refreshMediaTable
                 if (typeof window.refreshMediaTable === 'function') {
                     window.refreshMediaTable();
+                    if (window.WamaFM) WamaFM.deleted();  // fichier supprimé → refresh filemanager
                     if (typeof window.updateQueueCount === 'function') {
                         window.updateQueueCount();
                     }

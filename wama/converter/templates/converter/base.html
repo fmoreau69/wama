@@ -24,9 +24,10 @@
     <div class="mb-4">
         <h5>Qu'est-ce que Converter ?</h5>
         <p class="text-light">
-            Converter permet de changer le format de vos fichiers images, vidéos et audio
-            sans perte de qualité inutile. Chaque fichier est converti localement,
-            directement sur votre serveur WAMA.
+            Converter change le format de vos fichiers — images, vidéos, audio,
+            documents et archives — sans perte de qualité inutile. Tout est converti
+            <strong>localement</strong> sur votre serveur WAMA : aucun fichier n'est
+            envoyé vers un service tiers.
         </p>
     </div>
     <div class="mb-4">
@@ -37,14 +38,82 @@
                 <tr><td>Image</td><td>JPG, PNG, WebP, BMP, TIFF, GIF, HEIC, AVIF</td><td>JPG, PNG, WebP, TIFF, BMP, GIF, AVIF, PDF</td></tr>
                 <tr><td>Vidéo</td><td>MP4, AVI, MOV, MKV, WebM, FLV, MPEG…</td><td>MP4, WebM, AVI, MOV, MKV, GIF, MP3, WAV, OGG</td></tr>
                 <tr><td>Audio</td><td>MP3, WAV, FLAC, OGG, M4A, AAC, OPUS, WMA</td><td>MP3, WAV, FLAC, OGG, M4A, AAC, OPUS</td></tr>
+                <tr><td>Document</td><td>PDF, DOCX, ODT, RTF, MD, HTML, TXT, EPUB, LaTeX</td><td>PDF, DOCX, ODT, RTF, MD, HTML, TXT, EPUB</td></tr>
+                <tr><td>Ebook</td><td>EPUB, MOBI, AZW3, FB2, PDF…</td><td>EPUB, MOBI, AZW3, PDF…</td></tr>
+                <tr><td>Archive</td><td>ZIP, TAR, TAR.GZ, TAR.BZ2, 7Z</td><td>ZIP, TAR, TAR.GZ, TAR.BZ2, 7Z</td></tr>
             </tbody>
         </table>
     </div>
     <div class="mb-4">
         <h5>Moteurs</h5>
         <ul class="text-light">
-            <li><strong>Images</strong> : Pillow (Python Imaging Library)</li>
+            <li><strong>Images</strong> : Pillow</li>
             <li><strong>Vidéos &amp; Audio</strong> : FFmpeg</li>
+            <li><strong>Documents</strong> : Pandoc — <strong>PDF → DOCX</strong> via pdf2docx
+                (images, tableaux et mise en page préservés)</li>
+            <li><strong>Ebooks</strong> : Calibre (<code>ebook-convert</code>)</li>
+            <li><strong>Archives</strong> : zipfile / tarfile / py7zr</li>
+        </ul>
+    </div>
+    <div class="mb-4">
+        <h5>Fonctionnalités</h5>
+        <ul class="text-light">
+            <li><strong>Qualité de sortie</strong> : Web (léger) · Équilibré · Maximum</li>
+            <li><strong>Profils</strong> : enregistrez vos réglages favoris pour les réutiliser</li>
+            <li><strong>Traitement par lot</strong> : déposez plusieurs fichiers ou un fichier
+                liste — ils sont regroupés en lots par nature</li>
+            <li><strong>File d'attente</strong> : progression, ETA et aperçu du résultat</li>
+        </ul>
+    </div>
+</div>
+{% endblock %}
+
+{% block help_content %}
+<div class="info-card">
+    <h3><i class="fas fa-circle-question me-2" style="color:#20c997;"></i>Aide — Converter</h3>
+
+    <div class="mb-4">
+        <h5>Convertir un fichier</h5>
+        <ol class="text-light">
+            <li>Déposez un fichier dans la zone prévue (glisser-déposer) ou cliquez pour le sélectionner.
+                Vous pouvez aussi l'envoyer depuis le <strong>Gestionnaire de fichiers</strong>
+                (« Envoyer vers → Converter »).</li>
+            <li>Le format de sortie est proposé automatiquement selon le type ; ajustez-le si besoin
+                via le bouton <i class="fas fa-cog"></i> <strong>Paramètres</strong>.</li>
+            <li>Choisissez la <strong>qualité</strong> (Web / Équilibré / Maximum).</li>
+            <li>Cliquez sur <i class="fas fa-play"></i> <strong>Démarrer</strong>, puis
+                <i class="fas fa-download"></i> <strong>Télécharger</strong> une fois terminé.</li>
+        </ol>
+    </div>
+
+    <div class="mb-4">
+        <h5>Traitement par lot</h5>
+        <ul class="text-light">
+            <li>Déposez <strong>plusieurs fichiers</strong> en même temps : ils sont regroupés
+                automatiquement en lots par nature (images, vidéos, documents…).</li>
+            <li>Ou importez un <strong>fichier liste</strong> (.txt / .csv) contenant des chemins
+                ou URLs, un par ligne.</li>
+            <li>Réglez le format/qualité du lot via <i class="fas fa-cog"></i> dans l'en-tête du groupe,
+                puis <i class="fas fa-play"></i> pour tout lancer.</li>
+        </ul>
+    </div>
+
+    <div class="mb-4">
+        <h5>Profils</h5>
+        <p class="text-light mb-0">
+            Enregistrez une combinaison format + qualité + options comme <strong>profil</strong>
+            pour la réappliquer en un clic sur vos prochaines conversions.</p>
+    </div>
+
+    <div class="mb-4">
+        <h5>Bon à savoir</h5>
+        <ul class="text-light">
+            <li><strong>PDF → DOCX</strong> : la mise en forme, les images et les tableaux sont
+                reconstruits. Un PDF entièrement scanné (image) donnera un DOCX avec les images
+                mais sans texte sélectionnable — utilisez le <strong>Reader</strong> (OCR) pour
+                extraire le texte.</li>
+            <li>Toutes les conversions sont <strong>locales</strong> : vos fichiers ne quittent
+                jamais le serveur.</li>
         </ul>
     </div>
 </div>

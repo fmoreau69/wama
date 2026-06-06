@@ -17,9 +17,11 @@ from django.views.decorators.http import require_POST
 from django.core.validators import FileExtensionValidator
 from django.core.exceptions import ValidationError
 
-from .models import AvatarJob
+from .models import AvatarJob, BatchAvatarJob, BatchAvatarJobItem
 from wama.synthesizer.models import CustomVoice
 from wama.accounts.views import get_or_create_anonymous_user
+from wama.common.utils.queue_duplication import duplicate_instance, safe_delete_file
+from wama.common.utils.batch_common import group_into_batches_by_nature
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +65,7 @@ class IndexView(View):
 
         context = {
             'jobs': jobs,
+            'batches_list': _get_batches_list(user),
             'gallery_images': gallery,
             'tts_models': AvatarJob.TTS_MODEL_CHOICES,
             'languages': AvatarJob.LANGUAGE_CHOICES,
@@ -220,6 +223,7 @@ def global_progress(request):
         'total': total,
         'done': done,
         'running': running,
+        'failed': sum(1 for j in jobs if j['status'] == 'FAILURE'),
         'overall_progress': overall,
     })
 
@@ -279,6 +283,35 @@ def delete(request, pk):
 
     job.delete()
     return JsonResponse({'status': 'deleted'})
+
+
+@require_POST
+def duplicate(request, pk):
+    """POST : Duplique un AvatarJob (entrées partagées, sortie vidée).
+
+    Si le job appartient à un lot, la copie rejoint le MÊME lot (élément frère).
+    """
+    user = _get_user(request)
+    job = get_object_or_404(AvatarJob, pk=pk, user=user)
+
+    copy = duplicate_instance(
+        job,
+        reset_fields={'status': 'PENDING', 'progress': 0, 'task_id': '', 'error_message': ''},
+        clear_fields=['output_video'],
+    )
+
+    orig_item = BatchAvatarJobItem.objects.filter(job=job).select_related('batch').first()
+    if orig_item:
+        from django.db.models import Max
+        batch = orig_item.batch
+        idx = (batch.items.aggregate(m=Max('row_index'))['m'] or 0) + 1
+        BatchAvatarJobItem.objects.create(batch=batch, job=copy, row_index=idx)
+        batch.total = batch.items.count()
+        batch.save(update_fields=['total'])
+    else:
+        _wrap_job_in_batch(copy)
+
+    return JsonResponse({'status': 'duplicated', 'job_id': copy.id})
 
 
 def download(request, pk):
@@ -368,3 +401,344 @@ def gallery_list(request):
     return JsonResponse({
         'images': [{'name': name, 'url': gallery_url + name} for name in images]
     })
+
+
+# ---------------------------------------------------------------------------
+# Batch — import par fichier (format à balises unifié) + groupes
+# ---------------------------------------------------------------------------
+
+def _avatar_nature(job: AvatarJob) -> str:
+    """Nature d'un job = son mode (pipeline / standalone)."""
+    return job.mode or 'pipeline'
+
+
+def _wrap_job_in_batch(job: AvatarJob) -> BatchAvatarJob:
+    """Enveloppe un job autonome dans un lot-de-1."""
+    batch = BatchAvatarJob.objects.create(user=job.user, total=1)
+    BatchAvatarJobItem.objects.create(batch=batch, job=job, row_index=0)
+    return batch
+
+
+def _auto_wrap_orphans(user) -> None:
+    """Enveloppe paresseusement les jobs sans lot dans des lots-de-1."""
+    orphans = AvatarJob.objects.filter(user=user, batch_item__isnull=True).order_by('id')
+    for job in orphans:
+        _wrap_job_in_batch(job)
+
+
+def _get_batches_list(user):
+    """Liste de dicts {obj, items, total, done_count, has_success} pour le template."""
+    _auto_wrap_orphans(user)
+    batches = BatchAvatarJob.objects.filter(user=user).prefetch_related('items__job').order_by('-created_at')
+    result = []
+    for batch in batches:
+        items = [it.job for it in batch.items.select_related('job').order_by('row_index') if it.job]
+        done = sum(1 for j in items if j.status == 'SUCCESS')
+        has_success = any(j.status == 'SUCCESS' and j.output_video for j in items)
+        result.append({
+            'obj': batch,
+            'items': items,
+            'total': len(items),
+            'done_count': done,
+            'has_success': has_success,
+        })
+    # lots multi-éléments en premier
+    result.sort(key=lambda b: 0 if b['total'] > 1 else 1)
+    return result
+
+
+def batch_template(request):
+    """GET : Modèle de fichier batch (format à balises unifié)."""
+    from django.http import HttpResponse
+    lines = [
+        "# WAMA Avatarizer — fichier batch (format à balises)",
+        "# Pipeline (texte → TTS → avatar) :",
+        '#   -p "texte à dire" -r nom_avatar.png [--voice default] [--language fr] [--tts xtts_v2] [--quality fast] [-o sortie.mp4]',
+        "# Standalone (audio déjà prêt) :",
+        '#   -i chemin/audio.wav -r nom_avatar.png [--quality quality]',
+        "# -r = nom d'un avatar de la galerie partagée. Une ligne = un job.",
+        "",
+        '-p "Bonjour et bienvenue sur WAMA." -r avatar1.png --voice default --language fr',
+        '-p "Ceci est une seconde vidéo." -r avatar1.png --language fr --quality quality',
+    ]
+    resp = HttpResponse('\n'.join(lines), content_type='text/plain; charset=utf-8')
+    resp['Content-Disposition'] = 'attachment; filename="batch_avatarizer_template.txt"'
+    return resp
+
+
+def _parse_avatar_batch_from_request(request):
+    """Parse le batch_file uploadé (format à balises) → (rows, warnings)."""
+    from wama.common.utils.batch_parsers import (
+        extract_batch_file_text, is_structured_batch_text, parse_unified_batch,
+    )
+    SUPPORTED = ('txt', 'md', 'csv', 'pdf', 'docx')
+    batch_file = request.FILES.get('batch_file')
+    if not batch_file:
+        raise ValueError('Aucun fichier fourni')
+    ext = os.path.splitext(batch_file.name)[1][1:].lower()
+    if ext not in SUPPORTED:
+        raise ValueError(f'Format non supporté : .{ext}')
+
+    tmp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=f'.{ext}') as tmp:
+            for chunk in batch_file.chunks():
+                tmp.write(chunk)
+            tmp_path = tmp.name
+        text = extract_batch_file_text(tmp_path)
+        if not is_structured_batch_text(text):
+            raise ValueError(
+                'Format attendu : CSV à en-têtes ou balises (-p/-i/-r…). Voir le modèle.'
+            )
+        items, warnings = parse_unified_batch(tmp_path)
+    finally:
+        if tmp_path:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+
+    rows, extra = [], []
+    for it in items:
+        row = _unified_item_to_avatar_row(it)
+        if row.get('error'):
+            extra.append(f"Ligne {it.get('line_num')} : {row['error']}, ignorée")
+            continue
+        rows.append(row)
+    if not rows:
+        extra.append('Aucune ligne valide')
+    return rows, warnings + extra
+
+
+def _unified_item_to_avatar_row(it: dict) -> dict:
+    """Mappe un item unifié → champs AvatarJob. {'error': msg} si invalide."""
+    opts = it.get('options') or {}
+    reference = it.get('reference')
+    if not reference:
+        return {'error': 'avatar de référence (-r) manquant'}
+
+    prompt = it.get('prompt')
+    audio = it.get('input')
+    if prompt:
+        mode = 'pipeline'
+    elif audio:
+        mode = 'standalone'
+    else:
+        return {'error': 'ni texte (-p) ni audio (-i) fourni'}
+
+    quality = opts.get('quality', 'fast')
+    quality = quality if quality in ('fast', 'quality') else 'fast'
+    try:
+        bbox = max(-10, min(10, int(opts.get('bbox', 0))))
+    except (ValueError, TypeError):
+        bbox = 0
+
+    return {
+        'mode': mode,
+        'text_content': prompt or '',
+        'audio_path': audio or '',
+        'avatar_gallery_name': reference,
+        'tts_model': opts.get('tts') or opts.get('model') or 'xtts_v2',
+        'language': opts.get('language', 'fr'),
+        'voice_preset': opts.get('voice', 'default'),
+        'quality_mode': quality,
+        'use_enhancer': str(opts.get('enhancer', '')).lower() in ('1', 'true', 'yes'),
+        'bbox_shift': bbox,
+        'output': it.get('output', ''),
+        'line_num': it.get('line_num'),
+    }
+
+
+@require_POST
+def batch_preview(request):
+    """POST : Aperçu d'un fichier batch (sans création)."""
+    try:
+        rows, warnings = _parse_avatar_batch_from_request(request)
+    except ValueError as exc:
+        return JsonResponse({'error': str(exc)}, status=400)
+    preview = [
+        {
+            'mode': r['mode'],
+            'avatar': r['avatar_gallery_name'],
+            'text': (r['text_content'] or r['audio_path'])[:60],
+            'language': r['language'],
+        }
+        for r in rows
+    ]
+    return JsonResponse({'items': preview, 'warnings': warnings, 'count': len(rows)})
+
+
+@require_POST
+def batch_create(request):
+    """POST : Crée N AvatarJob depuis un fichier batch, groupés par nature (mode)."""
+    user = _get_user(request)
+    try:
+        rows, warnings = _parse_avatar_batch_from_request(request)
+    except ValueError as exc:
+        return JsonResponse({'error': str(exc)}, status=400)
+
+    media_root = Path(settings.MEDIA_ROOT).resolve()
+
+    def _make_job(row):
+        job = AvatarJob(
+            user=user,
+            mode=row['mode'],
+            text_content=row['text_content'],
+            tts_model=row['tts_model'],
+            language=row['language'],
+            voice_preset=row['voice_preset'],
+            avatar_source='gallery',
+            avatar_gallery_name=row['avatar_gallery_name'],
+            quality_mode=row['quality_mode'],
+            use_enhancer=row['use_enhancer'],
+            bbox_shift=row['bbox_shift'],
+        )
+        # Standalone : rattacher l'audio s'il résout sous MEDIA_ROOT (partage, pas de copie)
+        if row['mode'] == 'standalone' and row['audio_path']:
+            try:
+                target = (media_root / row['audio_path']).resolve()
+                if str(target).startswith(str(media_root)) and target.exists():
+                    job.audio_input.name = os.path.relpath(str(target), str(media_root)).replace('\\', '/')
+            except Exception:
+                pass
+        job.save()
+        return job
+
+    jobs = [_make_job(r) for r in rows]
+
+    batches = group_into_batches_by_nature(
+        jobs,
+        nature_of=_avatar_nature,
+        create_batch=lambda nature, total: BatchAvatarJob.objects.create(user=user, total=total),
+        link_item=lambda batch, job, idx: BatchAvatarJobItem.objects.create(
+            batch=batch, job=job, row_index=idx),
+    )
+
+    return JsonResponse({
+        'status': 'created',
+        'jobs': len(jobs),
+        'batches': len(batches),
+        'warnings': warnings,
+    })
+
+
+@require_POST
+def consolidate(request):
+    """POST : Regroupe les jobs autonomes en lots par nature (mode)."""
+    user = _get_user(request)
+    # défait les lots-de-1 existants puis regroupe par nature
+    singles = list(BatchAvatarJob.objects.filter(user=user, total=1))
+    job_ids = []
+    for b in singles:
+        job_ids += [it.job_id for it in b.items.all() if it.job_id]
+    jobs = list(AvatarJob.objects.filter(id__in=job_ids).order_by('id')) if job_ids else \
+        list(AvatarJob.objects.filter(user=user, batch_item__isnull=True).order_by('id'))
+
+    if not jobs:
+        return JsonResponse({'status': 'noop', 'batches': 0})
+
+    def _unwrap(ids):
+        BatchAvatarJobItem.objects.filter(job_id__in=ids).delete()
+        BatchAvatarJob.objects.filter(user=user, total=1, items__isnull=True).delete()
+
+    batches = group_into_batches_by_nature(
+        jobs,
+        nature_of=_avatar_nature,
+        create_batch=lambda nature, total: BatchAvatarJob.objects.create(user=user, total=total),
+        link_item=lambda batch, job, idx: BatchAvatarJobItem.objects.create(
+            batch=batch, job=job, row_index=idx),
+        unwrap_singletons=_unwrap,
+    )
+    # purge des lots devenus vides
+    BatchAvatarJob.objects.filter(user=user, items__isnull=True).delete()
+    return JsonResponse({'status': 'ok', 'batches': len(batches)})
+
+
+@require_POST
+def batch_start(request, pk):
+    """POST : Lance tous les jobs non terminés d'un lot."""
+    user = _get_user(request)
+    batch = get_object_or_404(BatchAvatarJob, pk=pk, user=user)
+    _ensure_workers_imported()
+
+    started = 0
+    for it in batch.items.select_related('job').order_by('row_index'):
+        job = it.job
+        if not job or job.status == 'RUNNING':
+            continue
+        task = _generate_avatar.delay(job.id)
+        job.status = 'PENDING'
+        job.task_id = task.id
+        job.progress = 0
+        job.error_message = ''
+        job.save(update_fields=['status', 'task_id', 'progress', 'error_message'])
+        started += 1
+    return JsonResponse({'status': 'started', 'count': started})
+
+
+@require_POST
+def batch_duplicate(request, pk):
+    """POST : Duplique un lot et tous ses jobs (entrées partagées, sorties vidées)."""
+    user = _get_user(request)
+    batch = get_object_or_404(BatchAvatarJob, pk=pk, user=user)
+
+    new_batch = BatchAvatarJob.objects.create(user=user, total=batch.total)
+    for it in batch.items.select_related('job').order_by('row_index'):
+        if not it.job:
+            continue
+        copy = duplicate_instance(
+            it.job,
+            reset_fields={'status': 'PENDING', 'progress': 0, 'task_id': '', 'error_message': ''},
+            clear_fields=['output_video'],
+        )
+        BatchAvatarJobItem.objects.create(batch=new_batch, job=copy, row_index=it.row_index)
+    new_batch.total = new_batch.items.count()
+    new_batch.save(update_fields=['total'])
+    return JsonResponse({'status': 'duplicated', 'batch_id': new_batch.id})
+
+
+def batch_download(request, pk):
+    """GET : ZIP de toutes les vidéos générées d'un lot (mono-format MP4)."""
+    import io
+    import zipfile
+    from django.http import HttpResponse
+    user = _get_user(request)
+    batch = get_object_or_404(BatchAvatarJob, pk=pk, user=user)
+
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as archive:
+        for it in batch.items.select_related('job').order_by('row_index'):
+            job = it.job
+            if job and job.status == 'SUCCESS' and job.output_video:
+                try:
+                    archive.write(job.output_video.path, os.path.basename(job.output_video.name))
+                except Exception:
+                    continue
+    buffer.seek(0)
+    response = HttpResponse(buffer.read(), content_type='application/zip')
+    response['Content-Disposition'] = f'attachment; filename="batch_avatarizer_{pk}.zip"'
+    return response
+
+
+@require_POST
+def batch_delete(request, pk):
+    """POST : Supprime un lot, ses jobs et leurs fichiers."""
+    user = _get_user(request)
+    batch = get_object_or_404(BatchAvatarJob, pk=pk, user=user)
+
+    jobs = [it.job for it in batch.items.select_related('job').all() if it.job]
+    for job in jobs:
+        if job.task_id:
+            try:
+                from celery.result import AsyncResult
+                AsyncResult(job.task_id).revoke(terminate=False)
+            except Exception:
+                pass
+    safe_delete_file(batch, 'batch_file')
+    batch.delete()  # CASCADE supprime les liens
+    for job in jobs:
+        for fld in ('audio_input', 'avatar_upload', 'output_video'):
+            safe_delete_file(job, fld)
+        cache.delete(f"avatarizer_progress_{job.id}")
+        job.delete()
+    return JsonResponse({'status': 'deleted', 'batch_id': pk})

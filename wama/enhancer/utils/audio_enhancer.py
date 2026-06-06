@@ -394,6 +394,24 @@ class DeepFilterNetBackend:
 
 
 # ---------------------------------------------------------------------------
+# Singleton DeepFilterNet (keep_loaded) — partagé enhancer + transcriber
+# ---------------------------------------------------------------------------
+# DeepFilterNet est minuscule (<1 Go VRAM) : on garde l'instance chargée et on
+# la réutilise entre tâches (et entre apps). Évite de recharger le modèle à
+# chaque fichier d'un batch. Cohabite sans problème avec l'ASR (Whisper) en VRAM.
+
+_DFN_SINGLETON = None
+
+
+def get_deepfilternet_backend():
+    """Retourne l'instance DeepFilterNet partagée (chargée à la 1ʳᵉ demande)."""
+    global _DFN_SINGLETON
+    if _DFN_SINGLETON is None:
+        _DFN_SINGLETON = DeepFilterNetBackend()
+    return _DFN_SINGLETON
+
+
+# ---------------------------------------------------------------------------
 # Routing helper
 # ---------------------------------------------------------------------------
 
@@ -426,7 +444,7 @@ def run_audio_enhancement(
             raise RuntimeError(
                 "DeepFilterNet non installé. Exécutez : pip install deepfilternet"
             )
-        backend = DeepFilterNetBackend()
+        backend = get_deepfilternet_backend()  # singleton keep_loaded
         return backend.enhance(input_path, output_path, progress_callback=progress_callback)
 
     else:  # resemble (default)

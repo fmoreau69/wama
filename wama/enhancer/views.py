@@ -30,18 +30,93 @@ def _wrap_enhancement_in_batch(enhancement):
     return batch
 
 
+def _group_enhancements_into_batches(user, enhancements, unwrap_singletons=None):
+    """Crée UN batch PAR NATURE (image/vidéo) — règle commune group_into_batches_by_nature."""
+    from wama.common.utils.batch_common import group_into_batches_by_nature
+    group_into_batches_by_nature(
+        enhancements,
+        nature_of=lambda e: e.media_type or 'image',
+        create_batch=lambda nature, total: BatchEnhancement.objects.create(user=user, total=total),
+        link_item=lambda batch, e, idx: BatchEnhancementItem.objects.create(
+            batch=batch, enhancement=e, row_index=idx),
+        unwrap_singletons=unwrap_singletons,
+    )
+
+
 def _auto_wrap_orphans(user):
-    """Wrap any Enhancement not yet in a batch into a batch-of-1 (called on page load)."""
+    """Range les Enhancement (médias) pas encore en batch, groupés PAR NATURE (image/vidéo)."""
     existing_ids = set(
         BatchEnhancementItem.objects.filter(batch__user=user)
         .values_list('enhancement_id', flat=True)
     )
-    orphans = Enhancement.objects.filter(user=user).exclude(id__in=existing_ids)
-    for orphan in orphans:
-        try:
-            _wrap_enhancement_in_batch(orphan)
-        except Exception:
-            pass
+    orphans = list(
+        Enhancement.objects.filter(user=user).exclude(id__in=existing_ids).order_by('id')
+    )
+    if orphans:
+        _group_enhancements_into_batches(user, orphans)
+
+
+@require_POST
+def consolidate(request):
+    """Regroupe plusieurs enhancements (médias) importés ensemble en UN batch-of-N."""
+    import json as _json
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    try:
+        ids = _json.loads(request.body or '{}').get('ids', [])
+    except (ValueError, TypeError):
+        ids = request.POST.getlist('ids[]') or request.POST.getlist('ids')
+    ids = [int(i) for i in ids if str(i).isdigit()]
+
+    items = list(Enhancement.objects.filter(id__in=ids, user=user))
+    order = {eid: pos for pos, eid in enumerate(ids)}
+    items.sort(key=lambda e: order.get(e.id, 0))
+    if len(items) < 2:
+        return JsonResponse({'consolidated': False})
+
+    def _unwrap(item_ids):
+        BatchEnhancement.objects.filter(
+            user=user, total=1, items__enhancement_id__in=item_ids
+        ).distinct().delete()
+
+    # Regroupement PAR NATURE (image / vidéo) — règle commune.
+    _group_enhancements_into_batches(user, items, unwrap_singletons=_unwrap)
+    return JsonResponse({'consolidated': True, 'count': len(items)})
+
+
+def audio_consolidate(request):
+    """Regroupe plusieurs AudioEnhancement importés ensemble en UN batch-of-N.
+
+    Audio = nature unique → consolidation simple (défait les batch-of-1 créés à
+    l'upload). Mirroir de la consolidation média / synthesizer.
+    """
+    import json as _json
+    from wama.common.utils.batch_common import consolidate_into_batch
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    try:
+        ids = _json.loads(request.body or '{}').get('ids', [])
+    except (ValueError, TypeError):
+        ids = request.POST.getlist('ids[]') or request.POST.getlist('ids')
+    ids = [int(i) for i in ids if str(i).isdigit()]
+
+    items = list(AudioEnhancement.objects.filter(id__in=ids, user=user))
+    order = {aid: pos for pos, aid in enumerate(ids)}
+    items.sort(key=lambda a: order.get(a.id, 0))
+    if len(items) < 2:
+        return JsonResponse({'consolidated': False})
+
+    def _create(total):
+        return BatchAudioEnhancement.objects.create(user=user, total=total)
+
+    def _link(batch, ae, idx):
+        BatchAudioEnhancementItem.objects.create(batch=batch, audio_enhancement=ae, row_index=idx)
+
+    def _unwrap(item_ids):
+        BatchAudioEnhancement.objects.filter(
+            user=user, total=1, items__audio_enhancement_id__in=item_ids
+        ).distinct().delete()
+
+    batch = consolidate_into_batch(items, create_batch=_create, link_item=_link, unwrap_singletons=_unwrap)
+    return JsonResponse({'consolidated': True, 'batch_id': batch.id, 'count': len(items)})
 
 
 def _wrap_audio_in_batch(audio_enhancement):
@@ -52,17 +127,35 @@ def _wrap_audio_in_batch(audio_enhancement):
 
 
 def _auto_wrap_audio_orphans(user):
-    """Wrap any AudioEnhancement not yet in a batch into a batch-of-1 (called on page load)."""
+    """Range les AudioEnhancement pas encore en batch (chargement de page).
+
+    1 orphelin → batch-of-1 ; plusieurs (import multi-fichiers) → UN batch-of-N.
+    """
     existing_ids = set(
         BatchAudioEnhancementItem.objects.filter(batch__user=user)
         .values_list('audio_enhancement_id', flat=True)
     )
-    orphans = AudioEnhancement.objects.filter(user=user).exclude(id__in=existing_ids)
-    for orphan in orphans:
+    orphans = list(
+        AudioEnhancement.objects.filter(user=user).exclude(id__in=existing_ids).order_by('id')
+    )
+    if not orphans:
+        return
+    if len(orphans) == 1:
         try:
-            _wrap_audio_in_batch(orphan)
+            _wrap_audio_in_batch(orphans[0])
         except Exception:
             pass
+        return
+    try:
+        batch = BatchAudioEnhancement.objects.create(user=user, total=len(orphans))
+        for idx, orphan in enumerate(orphans):
+            BatchAudioEnhancementItem.objects.create(batch=batch, audio_enhancement=orphan, row_index=idx)
+    except Exception:
+        for orphan in orphans:
+            try:
+                _wrap_audio_in_batch(orphan)
+            except Exception:
+                pass
 
 
 class IndexView(View):
@@ -456,11 +549,20 @@ def duplicate(request, pk: int):
         },
         clear_fields=['output_file'],
     )
-    # Wrap duplicate in its own batch-of-1
-    try:
-        _wrap_enhancement_in_batch(new_e)
-    except Exception:
-        pass
+    # Dupliquer DANS le même batch que l'original (élément frère).
+    orig_item = BatchEnhancementItem.objects.filter(enhancement=enhancement).select_related('batch').first()
+    if orig_item:
+        from django.db.models import Max
+        batch = orig_item.batch
+        next_idx = (batch.items.aggregate(m=Max('row_index'))['m'] or 0) + 1
+        BatchEnhancementItem.objects.create(batch=batch, enhancement=new_e, row_index=next_idx)
+        batch.total = batch.items.count()
+        batch.save(update_fields=['total'])
+    else:
+        try:
+            _wrap_enhancement_in_batch(new_e)
+        except Exception:
+            pass
     return JsonResponse({'duplicated': new_e.id})
 
 
@@ -572,6 +674,38 @@ def download_all(request):
     return FileResponse(buffer, as_attachment=True, filename="enhanced_files.zip")
 
 
+def _apply_enhancement_settings(e, post):
+    """Applique ai_model/denoise/blend_factor (depuis le form) à un Enhancement (sans save)."""
+    ai_model = post.get('ai_model')
+    if ai_model:
+        e.ai_model = ai_model
+    denoise = post.get('denoise')
+    if denoise is not None:
+        e.denoise = denoise.lower() in ('1', 'true', 'on')
+    blend_factor = post.get('blend_factor')
+    if blend_factor is not None:
+        try:
+            e.blend_factor = float(blend_factor)
+        except (ValueError, TypeError):
+            pass
+
+
+@require_POST
+def batch_update(request, pk):
+    """Applique les réglages à TOUS les items non-RUNNING du batch (mode batch de la modale)."""
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    batch = get_object_or_404(BatchEnhancement, id=pk, user=user)
+    updated = 0
+    for item in batch.items.select_related('enhancement'):
+        e = item.enhancement
+        if not e or e.status == 'RUNNING':
+            continue
+        _apply_enhancement_settings(e, request.POST)
+        e.save()
+        updated += 1
+    return JsonResponse({'success': True, 'updated': updated})
+
+
 @require_POST
 def update_settings(request, pk: int):
     """Update enhancement settings."""
@@ -581,19 +715,7 @@ def update_settings(request, pk: int):
     if enhancement.status == 'RUNNING':
         return JsonResponse({'error': 'Cannot update running enhancement'}, status=400)
 
-    # Update settings
-    ai_model = request.POST.get('ai_model')
-    if ai_model:
-        enhancement.ai_model = ai_model
-
-    denoise = request.POST.get('denoise')
-    if denoise is not None:
-        enhancement.denoise = denoise.lower() in ('1', 'true', 'on')
-
-    blend_factor = request.POST.get('blend_factor')
-    if blend_factor is not None:
-        enhancement.blend_factor = float(blend_factor)
-
+    _apply_enhancement_settings(enhancement, request.POST)
     enhancement.save()
 
     return JsonResponse({

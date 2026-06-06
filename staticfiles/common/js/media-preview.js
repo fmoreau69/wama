@@ -336,7 +336,7 @@
             openBtn.innerHTML = '<i class="fas fa-external-link-alt"></i> Ouvrir';
 
             toolbar.appendChild(copyBtn);
-            toolbar.appendChild(openBtn);
+            if (data.url) toolbar.appendChild(openBtn);
 
             const pre = document.createElement('pre');
             pre.className = 'text-light p-3 mb-0';
@@ -353,10 +353,17 @@
             wrapper.appendChild(toolbar);
             wrapper.appendChild(pre);
 
-            fetch(data.url)
-                .then(r => r.ok ? r.text() : Promise.reject(r.status))
-                .then(text => { pre.textContent = text; })
-                .catch(err => { pre.textContent = `Erreur lors du chargement (${err}).`; });
+            if (data.text_content != null) {
+                // Contenu déjà extrait côté serveur (docx, odt, rtf…) — pas de fetch
+                pre.textContent = data.text_content;
+            } else if (data.url) {
+                fetch(data.url)
+                    .then(r => r.ok ? r.text() : Promise.reject(r.status))
+                    .then(text => { pre.textContent = text; })
+                    .catch(err => { pre.textContent = `Erreur lors du chargement (${err}).`; });
+            } else {
+                pre.textContent = data.error ? `Aperçu indisponible : ${data.error}` : 'Aperçu indisponible.';
+            }
 
             return wrapper;
         } else if (data.text_content !== undefined) {

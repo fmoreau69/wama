@@ -151,7 +151,22 @@ document.addEventListener('DOMContentLoaded', function() {
         if (fileList.length === 1 && window._batchImport) {
             if (await window._batchImport.detectAndHandle(fileList[0])) return;
         }
-        fileList.forEach(file => uploadFile(file));
+        // Upload séquentiel puis consolidation en UN batch si plusieurs fichiers.
+        const ids = [];
+        for (const file of fileList) {
+            const id = await uploadFile(file);
+            if (id) ids.push(id);
+        }
+        if (ids.length > 1 && config.urls.consolidate) {
+            try {
+                await fetch(config.urls.consolidate, {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': config.csrfToken, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ids }),
+                });
+            } catch (e) { /* ignore : à défaut, items individuels */ }
+            window.location.reload();
+        }
     }
 
     async function handleFileManagerImport(path) {
@@ -191,10 +206,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
             addQueueItem(data);
             updateQueueCount();
+            if (window.WamaFM) WamaFM.uploaded();  // fichier ajouté → refresh filemanager
+            return data.id;
 
         } catch (error) {
             console.error('Upload error:', error);
             showToast('Erreur lors de l\'upload', 'danger');
+            return null;
         }
     }
 
@@ -346,7 +364,43 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // Mode batch de la modale : réutilise la modale individuelle (conventions §9.8).
+    let _settingsBatchId = null;
+
+    document.addEventListener('click', function (e) {
+        const bbtn = e.target.closest('.batch-settings-btn');
+        if (!bbtn) return;
+        openBatchSettings(bbtn);
+    });
+
+    // Duplication d'un item (carte autonome ou dans un batch) — la vue place la
+    // copie DANS le même batch (élément frère). Aucun handler n'existait avant.
+    document.addEventListener('click', function (e) {
+        const dbtn = e.target.closest('.duplicate-btn');
+        if (!dbtn || !dbtn.dataset.duplicateUrl) return;
+        fetch(dbtn.dataset.duplicateUrl, { method: 'POST', headers: { 'X-CSRFToken': config.csrfToken } })
+            .then(r => r.json())
+            .then(() => window.location.reload())
+            .catch(() => {});
+    });
+
+    function openBatchSettings(btn) {
+        const group = btn.closest('.batch-group');
+        const firstItemBtn = group ? group.querySelector('.settings-btn') : null;
+        if (firstItemBtn) {
+            openSettings(firstItemBtn);
+        } else if (settingsModalInstance) {
+            settingsModalInstance.show();
+        }
+        _settingsBatchId = btn.dataset.batchId;
+        const title = document.querySelector('#settingsModal .modal-title');
+        if (title) title.textContent = 'Paramètres du batch — appliqués à tous les éléments';
+    }
+
     function openSettings(btn) {
+        _settingsBatchId = null;
+        const _t = document.querySelector('#settingsModal .modal-title');
+        if (_t) _t.textContent = 'Paramètres';
         const id = btn.dataset.id;
         const outputFormat = btn.dataset.outputFormat;
         const outputLanguage = btn.dataset.outputLanguage;
@@ -380,6 +434,35 @@ document.addEventListener('DOMContentLoaded', function() {
         const maxLength = document.getElementById('settingsMaxLength').value;
         const generateSummary = document.getElementById('settingsGenerateSummary')?.checked || false;
         const verifyCoherence = document.getElementById('settingsVerifyCoherence')?.checked || false;
+
+        const payload = {
+            output_format: outputFormat,
+            output_language: outputLanguage,
+            max_length: parseInt(maxLength),
+            generate_summary: generateSummary,
+            verify_coherence: verifyCoherence,
+        };
+
+        // Mode batch : applique à tous les items + relance éventuelle.
+        if (_settingsBatchId) {
+            const bid = _settingsBatchId;
+            _settingsBatchId = null;
+            try {
+                await fetch(config.urls.batchUpdate.replace('/0/', `/${bid}/`), {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': config.csrfToken, 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                });
+                if (settingsModalInstance) settingsModalInstance.hide();
+                if (startAfterSave) {
+                    await fetch(config.urls.batchStart.replace('/0/', `/${bid}/`), {
+                        method: 'POST', headers: { 'X-CSRFToken': config.csrfToken },
+                    });
+                }
+            } catch (e) { /* ignore */ }
+            window.location.reload();
+            return;
+        }
 
         try {
             const response = await fetch(config.urls.updateOptions.replace('/0/', `/${descriptionId}/`), {
@@ -528,6 +611,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Stop polling if done
                 if (data.status === 'SUCCESS' || data.status === 'FAILURE') {
                     stopPolling(id);
+                    if (window.WamaFM) WamaFM.processed();  // sortie créée → refresh filemanager
 
                     if (data.status === 'SUCCESS') {
                         updateCardWithResult(card, data);
@@ -580,6 +664,12 @@ document.addEventListener('DOMContentLoaded', function() {
         const progressText = card.querySelector('.progress-text');
         if (progressText) {
             progressText.textContent = progress + '%';
+        }
+
+        // ETA (moteur commun)
+        if (window.WamaEta) {
+            WamaEta.render(card.querySelector('.wama-eta'),
+                           WamaEta.update(card.dataset.id, { progress: progress, status: status }));
         }
 
         // Update card class and hide start button once running
@@ -665,6 +755,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const card = document.querySelector(`.synthesis-card[data-id="${id}"]`);
                 if (card) card.remove();
                 updateQueueCount();
+                if (window.WamaFM) WamaFM.deleted();  // fichier supprimé → refresh filemanager
                 showToast('Description supprimee', 'success');
             }
 
@@ -897,6 +988,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const p = data.overall_progress || 0;
             if (progressBar) progressBar.style.width = p + '%';
             if (progressStats) progressStats.textContent = `${data.success}/${data.total} terminé · ${data.running} en cours`;
+            if (window.WamaEta) WamaEta.render(document.getElementById('globalEta'), WamaEta.aggregateAll());
             if (progressPct) progressPct.textContent = p ? p + '%' : '';
             if (globalStatus) {
                 const active = (data.total || 0) > 0;

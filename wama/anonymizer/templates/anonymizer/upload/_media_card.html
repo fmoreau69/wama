@@ -1,0 +1,113 @@
+{% comment %}
+Carte d'un Media anonymizer — utilisée seule (batch-of-1) ou dans un groupe batch.
+Attend la variable `media` dans le contexte.
+{% endcomment %}
+{% if user.id == media.user.id %}
+<div class="card bg-dark border-secondary mb-2"
+     data-media-id="{{ media.id }}"
+     data-media-name="{{ media.get_filename }}"
+     data-media-processed="{{ media.processed|lower }}">
+    <div class="card-body py-2 px-3">
+
+        {# ── Ligne 1 : Nom du fichier + boutons d'action ── #}
+        <div class="d-flex justify-content-between align-items-center mb-1">
+            <button type="button"
+                    class="btn btn-link p-0 preview-media-link text-decoration-none d-flex align-items-center gap-2 overflow-hidden"
+                    data-preview-url="{% url 'common:unified_preview' 'anonymizer' media.id %}">
+                {% if media.media_type == 'image' %}
+                    <i class="fas fa-image text-info flex-shrink-0"></i>
+                {% elif media.media_type == 'video' %}
+                    <i class="fas fa-video text-warning flex-shrink-0"></i>
+                {% else %}
+                    <i class="fas fa-file text-secondary flex-shrink-0"></i>
+                {% endif %}
+                <span class="fw-semibold text-light text-truncate" style="max-width:260px;">{{ media.get_filename }}</span>
+            </button>
+
+            {# Boutons d'action — ordre : ⚙ ▶ ⬇ ⧉ 🗑 #}
+            <div class="d-flex gap-1 flex-shrink-0 ms-2">
+                <button type="button" class="btn btn-warning btn-sm settings-btn"
+                        data-media-id="{{ media.id }}" title="Configurer les paramètres">
+                    <i class="fas fa-cog"></i>
+                </button>
+                <button type="button" class="btn btn-outline-success btn-sm restart-btn"
+                        data-media-id="{{ media.id }}" title="Relancer le traitement">
+                    <i class="fas fa-play"></i>
+                </button>
+                <form method="post" action="{% url 'anonymizer:download_media' %}" class="d-inline m-0">
+                    {% csrf_token %}
+                    <input type="hidden" name="media_id" value="{{ media.id }}">
+                    <button type="submit"
+                            class="btn btn-outline-info btn-sm {% if not media.processed %}disabled{% endif %}"
+                            {% if not media.processed %}disabled aria-disabled="true" tabindex="-1"{% endif %}
+                            title="Télécharger le média traité">
+                        <i class="fas fa-download"></i>
+                    </button>
+                </form>
+                <button type="button" class="btn btn-outline-secondary btn-sm duplicate-btn"
+                        data-duplicate-url="{% url 'anonymizer:duplicate_media' media.id %}"
+                        title="Dupliquer (tester d'autres paramètres)">
+                    <i class="fas fa-copy"></i>
+                </button>
+                <button type="button" class="btn btn-outline-danger btn-sm delete-btn"
+                        data-media-id="{{ media.id }}" title="Supprimer le média">
+                    <i class="fas fa-trash-alt"></i>
+                </button>
+            </div>
+        </div>
+
+        {# ── Ligne 2 : Statut + métadonnées + badges de configuration ── #}
+        <div class="d-flex flex-wrap align-items-center gap-1" style="font-size:0.78rem;">
+            {% if media.processed %}
+                <span class="badge bg-success status-badge">Terminé</span>
+            {% elif media.blur_progress > 0 %}
+                <span class="badge bg-warning text-dark status-badge">En cours</span>
+            {% else %}
+                <span class="badge bg-secondary status-badge">En attente</span>
+            {% endif %}
+
+            {% if media.width and media.height or media.duration_inMinSec %}
+            <span class="text-muted">·</span>
+            {% endif %}
+
+            {% if media.width and media.height %}
+            <span class="text-muted">{{ media.width }}×{{ media.height }}{% if media.fps %} · {{ media.fps }} fps{% endif %}</span>
+            {% endif %}
+
+            {% if media.duration_inMinSec %}
+            <span class="text-muted">{{ media.duration_inMinSec }}</span>
+            {% endif %}
+
+            {% if media.MSValues_customised or media.interpolate_detections or media.use_segmentation %}
+            <span class="text-muted">·</span>
+            {% if media.MSValues_customised %}
+                <span class="badge bg-info text-dark">Personnalisé</span>
+            {% endif %}
+            {% if media.interpolate_detections %}
+                <span class="badge bg-primary">Interpolation</span>
+            {% endif %}
+            {% if media.use_segmentation %}
+                <span class="badge bg-success">Segmentation</span>
+            {% endif %}
+            {% endif %}
+        </div>
+
+        {# ── Ligne 3 : Progression ── #}
+        {% if media.blur_progress > 0 or media.processed %}
+        <div class="progress mt-2" style="height:3px;">
+            <div class="progress-bar
+                {% if media.processed %}bg-success
+                {% else %}bg-warning progress-bar-striped progress-bar-animated
+                {% endif %}"
+                 role="progressbar"
+                 style="width: {{ media.blur_progress }}%;"></div>
+        </div>
+        {% if not media.processed and media.blur_progress > 0 %}
+        <small class="progress-pct text-warning">{{ media.blur_progress }}%</small>
+        <span class="wama-eta d-block"></span>
+        {% endif %}
+        {% endif %}
+
+    </div>
+</div>
+{% endif %}

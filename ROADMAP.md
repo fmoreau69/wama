@@ -11,6 +11,7 @@
 |-----------|----------|--------|-------|
 | **Qwen3-ASR** (Transcriber) | Backend implémenté (`qwen_asr_backend.py`) mais non fonctionnel — erreurs de dépendances à l'import | 🐛 Bloqué | Résoudre conflits deps pip (transformers, torchaudio, accelerate) |
 | **Higgs Audio V2** (Synthesizer) | Audio généré inaudible, artefacts, bruits de fond — modèle inutilisable | 🐛 Bloqué | Nombreux patches appliqués + CUDA graphs désactivés (voir memory/). Prochaine étape : test sans voice reference pour isoler |
+| **Prétraitement audio** (Transcriber) | L'ancien pipeline (pydub + `noisereduce`/spectral-gating) dégradait l'ASR | ✅ Corrigé | Remplacé par débruitage IA **DeepFilterNet** (singleton keep_loaded partagé avec l'enhancer) + format ASR 16k mono. Optionnel, défaut OFF (Whisper robuste au bruit). Resemble Enhance possible en option « restauration » (générative, peut altérer l'ASR) — non câblé |
 
 ---
 
@@ -33,10 +34,19 @@
 ### 1.2 Features transversales manquantes
 | Feature | Statut | Apps concernées |
 |---------|--------|-----------------|
-| ETA (barre de progression) | ⏳ | Toutes les apps |
+| ETA (barre de progression) | ✅ | Carte + globale + batch — toutes les apps (moteur commun `WamaEta`) |
+| Auto-refresh filemanager (ajout input + sortie + suppression) | ✅ | **Commun** : `WamaFM` (`media:uploaded`/`processed`/`deleted`) + poll mtime non bloquant. **Triggers instantanés posés sur TOUTES les apps** (audit conventions §8). |
+| Consolidation import multi-fichiers → batch | ✅ | converter, reader, transcriber, describer, enhancer, **anonymizer** (+ DnD filemanager multi-fichiers) ; composer/synthesizer = N/A (pas d'import média) |
+| Mode batch anonymizer (groupes + consolidation) | ✅ | Modèles existants + `consolidate`/`_auto_wrap_orphans` + rendu groupé `media_table.html` + suppr. batch. Traitement reste global (pas de start par-batch) |
 | Import dossier récursif | ⏳ | Toutes les apps acceptant des fichiers |
 | Download All (ZIP) | ✅ | Composer |
 | Drag & drop zone | ✅ | Imager (prompt image, style ref, img2vid, description) |
+| Parité batch UI (⚙ batch + ⚙/⧉ par item + duplication in-batch) | ✅ | **Terminée** : transcriber, reader, synthesizer, describer, composer, enhancer, converter, anonymizer (⚙ batch = global). Group-by-nature commun (converter/describer/enhancer/anonymizer). Cf. conventions §9.8/§9.9. |
+| **Phase B — Format batch unifié à balises** (`-i/-p/-r/-o`) | ✅ | Parseur commun `parse_unified_batch` + détection legacy + **`BATCH_FORMAT.md`**. **Câblé partout** : apps Type A (reader/describer/transcriber/converter/anonymizer/enhancer) via `parse_media_list_batch` rendu balise-aware (`-i`→path, `-o/-p/--opt` transportés) ; **imager** (`-p`→prompt, `--steps/--cfg/--model/--np`…) ; **synthesizer** (`-p`→texte, `--voice/--speed/-r/--language`) ; **composer** (réf. : auto-modèle musicgen-melody si `-r`) ; **avatarizer** (nouveau système de lots `BatchAvatarJob` + import par fichier balise + group-by-nature pipeline/standalone + UI groupes ▶/⬇/⧉/🗑). **Variante CSV à en-têtes** ✅ (centralisée : `is_csv_header_batch`/`parse_csv_header_batch`, gérée par `parse_unified_batch`/`parse_media_list_batch` → toutes les apps). Virgules dans une cellule gérées via guillemets (`csv.DictReader`). |
+| Duplication d'un élément = DANS le batch (fix) | ✅ | Synthesizer + Transcriber (était hors groupe = bug) |
+| **Zone de staging (« À valider »)** — import → réglage → file | 🔶 Pilote | **Transcriber ✅** (statut `DRAFT` serveur ; `stage_commit`/`commit_all`/`clear`/`update_all` ; zone UI + handlers). Décision : DRAFT serveur + pilote-puis-généralisation. Cf. conventions §8.X. **Reste** : généraliser (describer/enhancer/reader/synthesizer/converter/anonymizer/composer/imager/avatarizer) + extraire `common/staging.py` + `wama-staging.js`. |
+| **Architecture UI « card-centric »** (card auto-suffisante + volet droit = inspecteur) | 🔶 Décidée | **Décision projet 2026-06** : voir **`CARD_CENTRIC_UI.md`** (spec + phases). Card de composition (dépôt/prompt/référence/RAG par card), volet droit reflète la sélection, 1 source (filemanager) + 1 destination (card) par app, RAG ponctuel isolé par card, modales conservées puis rationalisées. Bâtit sur le staging. Multi-drop→1 batch ✅ corrigé partout (dont enhancer audio). |
+| **Drag & drop appartenance batch** (entrer/sortir une carte d'un batch) | ⏳ Phase 2 | Toutes les apps à batch — appartenance fluide |
 
 ---
 
@@ -46,6 +56,10 @@
 
 | Élément | Statut | Fichier cible | Impact |
 |---------|--------|--------------|--------|
+| `wama-eta.js` — moteur ETA commun | ✅ | `common/static/common/js/wama-eta.js` | Toutes les apps (carte/batch/globale) |
+| `wama-global-progress.js` + `_global_progress.html` — barre globale | ✅ | `common/…` | converter, avatarizer (autres = barre maison) |
+| `wama-fm-notify.js` — notify filemanager (`WamaFM`) | ✅ | `common/static/common/js/wama-fm-notify.js` | Auto-refresh homogène, toutes les apps |
+| `batch_common.py` — consolidation import multi-fichiers | ✅ | `common/utils/batch_common.py` | converter, reader, transcriber, describer, enhancer |
 | `backend_selector.py` — sélection VRAM-aware | ⏳ | `common/utils/backend_selector.py` | Reader, Transcriber, Describer |
 | `wama-app-base.js` — JS inter-apps | ⏳ | `common/static/common/js/wama-app-base.js` | Éliminerait ~70% duplication JS |
 | `_settings_modal.html` — modal paramètres générique | ⏳ | `common/templates/common/_settings_modal.html` | Toutes les apps |

@@ -126,18 +126,89 @@ def _wrap_transcript_in_batch(transcript):
     return batch
 
 
+@require_POST
+def consolidate(request):
+    """Regroupe plusieurs transcripts importés ensemble en UN seul batch-of-N.
+
+    Appelé après un import multi-fichiers (drag&drop, explorateur, « Envoyer
+    vers »). Reprend la généralisation common : on défait les batch-of-1 créés
+    à l'upload puis on crée le batch-of-N. Si < 2 ids, ne fait rien.
+    """
+    import json as _json
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+
+    try:
+        ids = _json.loads(request.body or '{}').get('ids', [])
+    except (ValueError, TypeError):
+        ids = request.POST.getlist('ids[]') or request.POST.getlist('ids')
+    ids = [int(i) for i in ids if str(i).isdigit()]
+
+    # Conserve l'ordre d'import
+    transcripts = list(Transcript.objects.filter(id__in=ids, user=user))
+    order = {tid: pos for pos, tid in enumerate(ids)}
+    transcripts.sort(key=lambda t: order.get(t.id, 0))
+
+    if len(transcripts) < 2:
+        return JsonResponse({'consolidated': False})
+
+    from wama.common.utils.batch_common import consolidate_into_batch
+
+    def _create(total):
+        return BatchTranscript.objects.create(user=user, total=total)
+
+    def _link(batch, transcript, idx):
+        BatchTranscriptItem.objects.create(batch=batch, transcript=transcript, row_index=idx)
+
+    def _unwrap(item_ids):
+        # Supprime les batch-of-1 créés à l'upload (cascade sur leurs items ;
+        # les Transcript eux-mêmes ne sont pas supprimés).
+        BatchTranscript.objects.filter(
+            user=user, total=1, items__transcript_id__in=item_ids
+        ).distinct().delete()
+
+    batch = consolidate_into_batch(
+        transcripts, create_batch=_create, link_item=_link, unwrap_singletons=_unwrap,
+    )
+    return JsonResponse({'consolidated': True, 'batch_id': batch.id, 'count': len(transcripts)})
+
+
 def _auto_wrap_orphans(user):
-    """Wrap any Transcript not yet in a batch into a batch-of-1 (called on page load)."""
+    """Range les Transcript pas encore en batch (appelé au chargement de page).
+
+    Les orphelins proviennent des imports serveur (« Envoyer vers » du
+    filemanager) — l'upload JS, lui, enveloppe déjà en batch-of-1. Un seul
+    orphelin → batch-of-1 ; plusieurs orphelins (import multi-fichiers) → UN
+    seul batch-of-N, comme attendu pour le fonctionnement batch généralisé.
+    """
     existing_ids = set(
         BatchTranscriptItem.objects.filter(batch__user=user)
         .values_list('transcript_id', flat=True)
     )
-    orphans = Transcript.objects.filter(user=user).exclude(id__in=existing_ids)
-    for orphan in orphans:
+    orphans = list(
+        Transcript.objects.filter(user=user)
+        .exclude(id__in=existing_ids)
+        .exclude(status='DRAFT')  # les éléments en staging ne sont pas mis en file
+        .order_by('id')
+    )
+    if not orphans:
+        return
+    if len(orphans) == 1:
         try:
-            _wrap_transcript_in_batch(orphan)
+            _wrap_transcript_in_batch(orphans[0])
         except Exception:
             pass
+        return
+    try:
+        batch = BatchTranscript.objects.create(user=user, total=len(orphans))
+        for idx, orphan in enumerate(orphans):
+            BatchTranscriptItem.objects.create(batch=batch, transcript=orphan, row_index=idx)
+    except Exception:
+        # Repli : au pire, batch-of-1 individuels
+        for orphan in orphans:
+            try:
+                _wrap_transcript_in_batch(orphan)
+            except Exception:
+                pass
 
 
 class IndexView(View):
@@ -167,6 +238,11 @@ class IndexView(View):
         batches_list.sort(key=lambda b: 0 if b['obj'].total > 1 else 1)
         queue_count = sum(len(b['items']) for b in batches_list)
 
+        # Zone de staging (« à valider ») — éléments DRAFT pas encore en file
+        staging_list = list(
+            Transcript.objects.filter(user=user, status='DRAFT').order_by('id')
+        )
+
         # Backfill duration for existing transcripts that were stored without it
         all_transcripts = Transcript.objects.filter(user=user)
         for t in all_transcripts:
@@ -174,7 +250,9 @@ class IndexView(View):
                 _describe_audio(t)
 
         # Récupérer les préférences utilisateur
-        enable_preprocessing = cache.get(f"user_{user.id}_preprocessing_enabled", True)
+        # Défaut OFF : Whisper est robuste au bruit ; le débruitage IA est opt-in
+        # (à activer pour de l'audio vraiment dégradé seulement).
+        enable_preprocessing = cache.get(f"user_{user.id}_preprocessing_enabled", False)
         selected_backend = cache.get(f"user_{user.id}_transcriber_backend", 'auto')
         user_hotwords = cache.get(f"user_{user.id}_transcriber_hotwords", '')
         global_diarization = cache.get(f"user_{user.id}_transcriber_diarization", True)
@@ -186,6 +264,7 @@ class IndexView(View):
         # blocking the page render on heavy transformers imports (VibeVoice, Qwen3-ASR).
         return render(request, 'transcriber/index.html', {
             'batches_list': batches_list,
+            'staging_list': staging_list,
             'queue_count': queue_count,
             'transcripts': all_transcripts,  # kept for global progress bar
             'preprocessing_enabled': enable_preprocessing,
@@ -228,8 +307,12 @@ def upload(request):
     from ..common.utils.video_utils import is_video_file, extract_audio_from_video
 
     # Common transcript fields
+    # status='DRAFT' → l'élément arrive en zone de staging (« à valider »), PAS
+    # directement en file d'attente : l'utilisateur règle les paramètres puis
+    # clique « Ajouter » / « Lancer ». Voir WAMA_APP_CONVENTIONS §8.X (staging).
     transcript_fields = {
         'user': user,
+        'status': 'DRAFT',
         'preprocess_audio': preprocess_requested,
         'backend': backend_requested,
         'hotwords': hotwords_requested,
@@ -283,12 +366,14 @@ def upload(request):
         )
 
     _describe_audio(t)
-    _wrap_transcript_in_batch(t)
+    # Pas de _wrap_transcript_in_batch ici : l'élément reste en staging (DRAFT)
+    # jusqu'à validation (stage_commit), où il sera enveloppé en batch par nature.
     return JsonResponse({
         'id': t.id,
         'audio_url': t.audio.url,
         'audio_label': os.path.basename(smart_str(t.audio.name)),
         'status': t.status,
+        'staged': True,
         'properties': t.properties,
         'duration_display': t.duration_display,
         'preprocess_audio': t.preprocess_audio,
@@ -339,10 +424,12 @@ def upload_youtube(request):
         audio_name = f"{video_title[:100]}_youtube.wav"  # Limiter la longueur du nom
         audio_django_file = ContentFile(audio_content, name=audio_name)
 
-        # Créer le transcript
+        # Créer le transcript en STAGING (DRAFT) — comme l'upload de fichier :
+        # l'élément arrive en zone « À valider », pas directement en file.
         t = Transcript.objects.create(
             user=user,
             audio=audio_django_file,
+            status='DRAFT',
             preprocess_audio=preprocess_requested,
         )
 
@@ -353,13 +440,14 @@ def upload_youtube(request):
             pass
 
         _describe_audio(t)
-        _wrap_transcript_in_batch(t)
+        # Pas de _wrap_transcript_in_batch : reste en staging jusqu'à validation.
 
         return JsonResponse({
             'id': t.id,
             'audio_url': t.audio.url,
             'audio_label': os.path.basename(smart_str(t.audio.name)),
             'status': t.status,
+            'staged': True,
             'properties': t.properties,
             'duration_display': t.duration_display,
             'preprocess_audio': t.preprocess_audio,
@@ -412,6 +500,93 @@ def start(request, pk: int):
     })
 
 
+# ---------------------------------------------------------------------------
+# Staging (« à valider ») — DRAFT → file d'attente
+# ---------------------------------------------------------------------------
+
+def _launch_transcript(t: Transcript) -> str:
+    """Démarre la transcription d'un élément (respecte preprocess_audio)."""
+    from .workers import transcribe, transcribe_without_preprocessing
+    if t.preprocess_audio:
+        task = transcribe.delay(t.id)
+    else:
+        task = transcribe_without_preprocessing.delay(t.id)
+    t.task_id = task.id
+    t.status = 'RUNNING'
+    t.save(update_fields=['task_id', 'status'])
+    cache.set(f"transcriber_progress_{t.id}", 0, timeout=3600)
+    return task.id
+
+
+@require_POST
+def stage_commit(request, pk: int):
+    """Valide UN élément en staging : DRAFT → file d'attente (+ démarrage si ?start=1)."""
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    t = get_object_or_404(Transcript, pk=pk, user=user, status='DRAFT')
+    start = str(request.POST.get('start', '')).lower() in ('1', 'true', 'on')
+
+    t.status = 'PENDING'
+    t.save(update_fields=['status'])
+    _wrap_transcript_in_batch(t)  # enveloppe par nature (mono-nature audio)
+    if start:
+        _launch_transcript(t)
+    return JsonResponse({'status': t.status, 'committed': True, 'started': start})
+
+
+@require_POST
+def stage_commit_all(request):
+    """Valide TOUS les éléments en staging en un seul batch-de-N (+ start optionnel)."""
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    start = str(request.POST.get('start', '')).lower() in ('1', 'true', 'on')
+
+    drafts = list(Transcript.objects.filter(user=user, status='DRAFT').order_by('id'))
+    if not drafts:
+        return JsonResponse({'status': 'noop', 'count': 0})
+
+    for t in drafts:
+        t.status = 'PENDING'
+        t.save(update_fields=['status'])
+    _auto_wrap_orphans(user)  # regroupe les nouveaux PENDING en UN batch-de-N
+    if start:
+        for t in drafts:
+            _launch_transcript(t)
+    return JsonResponse({'status': 'committed', 'count': len(drafts), 'started': start})
+
+
+@require_POST
+def stage_clear(request):
+    """Vide la zone de staging : supprime tous les éléments DRAFT et leurs fichiers."""
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    drafts = list(Transcript.objects.filter(user=user, status='DRAFT'))
+    for t in drafts:
+        safe_delete_file(t, 'audio')
+        cache.delete(f"transcriber_progress_{t.id}")
+        t.delete()
+    return JsonResponse({'status': 'cleared', 'count': len(drafts)})
+
+
+@require_POST
+def stage_update_all(request):
+    """Applique des paramètres (backend / hotwords / preprocess) à tous les DRAFT."""
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    drafts = Transcript.objects.filter(user=user, status='DRAFT')
+
+    fields = []
+    if 'backend' in request.POST:
+        backend = request.POST.get('backend', 'auto')
+        drafts.update(backend=backend)
+        fields.append('backend')
+    if 'hotwords' in request.POST:
+        drafts.update(hotwords=request.POST.get('hotwords', ''))
+        fields.append('hotwords')
+    if 'preprocess_audio' in request.POST:
+        pp = str(request.POST.get('preprocess_audio', '')).lower() in ('1', 'true', 'on')
+        drafts.update(preprocess_audio=pp)
+        fields.append('preprocess_audio')
+
+    return JsonResponse({'status': 'updated', 'fields': fields, 'count': drafts.count()})
+
+
 def progress(request, pk: int):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     t = get_object_or_404(Transcript, pk=pk, user=user)
@@ -443,6 +618,51 @@ def _output_stem(t: Transcript) -> str:
     """Build output filename stem: {input_stem}_{backend}."""
     input_stem = os.path.splitext(t.filename)[0]
     return f"{input_stem}_{t.used_backend}" if t.used_backend else input_stem
+
+
+def _srt_ts(s):
+    """Seconds → SRT timestamp HH:MM:SS,mmm."""
+    h, rem = divmod(int(s), 3600)
+    m, sec = divmod(rem, 60)
+    ms = int((s - int(s)) * 1000)
+    return f"{h:02d}:{m:02d}:{sec:02d},{ms:03d}"
+
+
+def _build_transcript_bytes(t: Transcript, fmt: str):
+    """Return (ext, bytes) for a transcript in `fmt` (txt/srt/pdf/docx), or None.
+
+    Shared by single download and batch ZIP so format options stay in sync.
+    """
+    fmt = (fmt or 'txt').lower()
+    if not t.text:
+        return None
+    if fmt == 'srt':
+        from .models import TranscriptSegment
+        segments = TranscriptSegment.objects.filter(transcript=t).order_by('order')
+        srt_lines = []
+        if segments.exists():
+            for i, seg in enumerate(segments, 1):
+                speaker = f'[{seg.speaker_id}] ' if seg.speaker_id else ''
+                srt_lines += [str(i), f"{_srt_ts(seg.start_time)} --> {_srt_ts(seg.end_time)}",
+                              speaker + seg.text, '']
+        else:
+            srt_lines = ['1', '00:00:00,000 --> 99:59:59,000', t.text, '']
+        return ('srt', '\n'.join(srt_lines).encode('utf-8'))
+    if fmt == 'pdf':
+        try:
+            from wama.common.utils.document_export import generate_transcript_pdf
+            return ('pdf', generate_transcript_pdf(t))
+        except Exception as e:
+            logger.warning(f"[Transcriber] PDF skipped for {t.id}: {e}")
+            return None
+    if fmt == 'docx':
+        try:
+            from wama.common.utils.document_export import generate_transcript_docx
+            return ('docx', generate_transcript_docx(t))
+        except Exception as e:
+            logger.warning(f"[Transcriber] DOCX skipped for {t.id}: {e}")
+            return None
+    return ('txt', t.text.encode('utf-8'))
 
 
 def download(request, pk: int):
@@ -593,7 +813,17 @@ def duplicate(request, pk: int):
         },
         clear_fields=['segments_json', 'key_points', 'action_items', 'coherence_score'],
     )
-    _wrap_transcript_in_batch(new_t)
+    # Dupliquer DANS le même batch que l'original (élément frère) — pas hors groupe.
+    orig_item = BatchTranscriptItem.objects.filter(transcript=t).select_related('batch').first()
+    if orig_item:
+        from django.db.models import Max
+        batch = orig_item.batch
+        next_idx = (batch.items.aggregate(m=Max('row_index'))['m'] or 0) + 1
+        BatchTranscriptItem.objects.create(batch=batch, transcript=new_t, row_index=next_idx)
+        batch.total = batch.items.count()
+        batch.save(update_fields=['total'])
+    else:
+        _wrap_transcript_in_batch(new_t)
     return JsonResponse({'duplicated': new_t.id})
 
 
@@ -868,9 +1098,16 @@ def batch_status(request, pk):
 
 
 def batch_download(request, pk):
-    """Download a ZIP of all completed transcription results in a batch."""
+    """Download a ZIP of all completed transcription results in a batch.
+
+    Format chosen via ?fmt=txt|srt|pdf|docx (default txt) — dropdown variant
+    for the multi-format batch ZIP convention (WAMA_APP_CONVENTIONS §9.10).
+    """
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     batch = get_object_or_404(BatchTranscript, pk=pk, user=user)
+    fmt = (request.GET.get('fmt') or 'txt').lower()
+    if fmt not in ('txt', 'srt', 'pdf', 'docx'):
+        fmt = 'txt'
 
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as archive:
@@ -880,10 +1117,13 @@ def batch_download(request, pk):
                 stem = _output_stem(t) if t.audio else (
                     os.path.splitext(t.source_url.split('/')[-1])[0] or f'transcript_{t.id}'
                 )
-                archive.writestr(f'{stem}.txt', t.text.encode('utf-8'))
+                built = _build_transcript_bytes(t, fmt)
+                if built:
+                    ext, data = built
+                    archive.writestr(f'{stem}.{ext}', data)
 
     buffer.seek(0)
-    zip_name = f"batch_transcriber_{pk}_{datetime.date.today()}.zip"
+    zip_name = f"batch_transcriber_{pk}_{fmt}_{datetime.date.today()}.zip"
     return FileResponse(buffer, as_attachment=True, filename=zip_name)
 
 
@@ -1149,6 +1389,56 @@ def download_srt(request, pk: int):
     )
 
 
+def _apply_transcript_settings(t, data):
+    """Applique les paramètres (depuis la modale) à un Transcript (sans save)."""
+    if 'backend' in data:
+        t.backend = data['backend']
+    if 'hotwords' in data:
+        t.hotwords = data['hotwords']
+    if 'enable_diarization' in data:
+        t.enable_diarization = bool(data['enable_diarization'])
+    if 'temperature' in data:
+        t.temperature = float(data['temperature'])
+    if 'max_tokens' in data:
+        t.max_tokens = int(data['max_tokens'])
+    if 'preprocess_audio' in data:
+        t.preprocess_audio = bool(data['preprocess_audio'])
+    if 'generate_summary' in data:
+        t.generate_summary = bool(data['generate_summary'])
+    if 'summary_type' in data:
+        t.summary_type = data['summary_type']
+    if 'verify_coherence' in data:
+        t.verify_coherence = bool(data['verify_coherence'])
+
+
+@require_POST
+def batch_update_settings(request, pk: int):
+    """Applique les paramètres de la modale à TOUS les items non-RUNNING du batch.
+
+    Réutilise la même modale que les réglages individuels (mode batch côté JS).
+    Modèle override+héritage (conventions §9.9) : ici l'application batch écrase
+    les réglages de tous les éléments (application en masse).
+    """
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    batch = get_object_or_404(BatchTranscript, pk=pk, user=user)
+
+    try:
+        data = json.loads(request.body.decode('utf-8'))
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        data = {}
+
+    updated = 0
+    for item in batch.items.select_related('transcript'):
+        t = item.transcript
+        if not t or t.status == 'RUNNING':
+            continue
+        _apply_transcript_settings(t, data)
+        t.save()
+        updated += 1
+
+    return JsonResponse({'updated': updated, 'batch_id': batch.id})
+
+
 @require_POST
 def save_settings(request, pk: int):
     """
@@ -1171,26 +1461,8 @@ def save_settings(request, pk: int):
     except (json.JSONDecodeError, UnicodeDecodeError):
         data = {}
 
-    # Update fields
-    if 'backend' in data:
-        t.backend = data['backend']
-    if 'hotwords' in data:
-        t.hotwords = data['hotwords']
-    if 'enable_diarization' in data:
-        t.enable_diarization = bool(data['enable_diarization'])
-    if 'temperature' in data:
-        t.temperature = float(data['temperature'])
-    if 'max_tokens' in data:
-        t.max_tokens = int(data['max_tokens'])
-    if 'preprocess_audio' in data:
-        t.preprocess_audio = bool(data['preprocess_audio'])
-    if 'generate_summary' in data:
-        t.generate_summary = bool(data['generate_summary'])
-    if 'summary_type' in data:
-        t.summary_type = data['summary_type']
-    if 'verify_coherence' in data:
-        t.verify_coherence = bool(data['verify_coherence'])
-
+    # Update fields (logique partagée avec batch_update_settings)
+    _apply_transcript_settings(t, data)
     t.save()
 
     return JsonResponse({

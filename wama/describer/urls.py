@@ -13,6 +13,7 @@ urlpatterns = [
 
     # File operations
     path('upload/', views.upload, name='upload'),
+    path('consolidate/', views.consolidate, name='consolidate'),
     path('start/<int:pk>/', views.start, name='start'),
     path('progress/<int:pk>/', views.progress, name='progress'),
     path('download/<int:pk>/', views.download, name='download'),
@@ -32,6 +33,7 @@ urlpatterns = [
     path('batch/create/', views.batch_create, name='batch_create'),
     path('batch/list/', views.batch_list, name='batch_list'),
     path('batch/<int:pk>/start/', views.batch_start, name='batch_start'),
+    path('batch/<int:pk>/update/', views.batch_update, name='batch_update'),
     path('batch/<int:pk>/status/', views.batch_status, name='batch_status'),
     path('batch/<int:pk>/download/', views.batch_download, name='batch_download'),
     path('batch/<int:pk>/delete/', views.batch_delete, name='batch_delete'),

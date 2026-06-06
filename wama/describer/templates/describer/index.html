@@ -126,7 +126,7 @@
 <!-- Global Progress Bar -->
 <div id="globalStatus" style="opacity:0; pointer-events:none;">
     <div class="d-flex justify-content-between align-items-baseline mb-1">
-        <small class="text-muted" id="globalProgressStats"></small>
+        <small class="text-muted"><span id="globalProgressStats"></span><span class="wama-eta ms-2" id="globalEta"></span></small>
         <small class="text-muted" id="globalProgressPct" style="font-variant-numeric: tabular-nums;"></small>
     </div>
     <div class="wama-progress-track">
@@ -199,6 +199,7 @@
                             <div class="wama-progress-fill {% if desc.status == 'RUNNING' %}active{% endif %}" style="width: {{ desc.progress }}%"></div>
                         </div>
                         <small class="text-light progress-text">{{ desc.progress }}%</small>
+                        <span class="wama-eta d-block"></span>
                     </div>
                     <div class="col-md-2">
                         <div class="btn-group-actions">
@@ -269,6 +270,7 @@
                         <strong class="text-light">Batch #{{ batch_info.obj.id }}</strong>
                         <small class="text-muted">{{ batch_info.obj.created_at|date:"d/m H:i" }}</small>
                         <span class="badge bg-secondary">{{ batch_info.success_count }}/{{ batch_info.obj.total }}</span>
+                        <span class="wama-eta" data-eta-ids="{% for item in batch_info.items %}{% if item.description %}{{ item.description.id }},{% endif %}{% endfor %}"></span>
                         <div class="flex-grow-1">
                             <div class="wama-progress-track">
                                 <div class="wama-progress-fill" style="width:{{ batch_info.success_pct }}%;"></div>
@@ -277,11 +279,25 @@
                         <i class="fas fa-chevron-down text-muted" style="font-size:.7rem;"></i>
                     </div>
                     <div class="d-flex gap-1 flex-shrink-0">
+                        <button class="btn btn-sm batch-settings-btn py-0 px-2"
+                                data-batch-id="{{ batch_info.obj.id }}"
+                                style="background:rgba(13,202,240,0.15); color:#0dcaf0; border:1px solid #0dcaf0; font-size:.75rem;"
+                                title="Paramètres du batch (appliqués à tous les éléments)">
+                            <i class="fas fa-cog"></i>
+                        </button>
                         {% if batch_info.has_success %}
-                        <a href="{% url 'describer:batch_download' batch_info.obj.id %}"
-                           class="btn btn-sm btn-outline-info py-0 px-2" style="font-size:.75rem;" title="Télécharger ZIP">
-                            <i class="fas fa-download"></i> ZIP
-                        </a>
+                        <div class="dropdown d-inline-block">
+                            <button class="btn btn-sm btn-outline-info py-0 px-2 dropdown-toggle"
+                                    type="button" data-bs-toggle="dropdown" aria-expanded="false"
+                                    style="font-size:.75rem;" title="Télécharger toutes les sorties (ZIP)">
+                                <i class="fas fa-download"></i> ZIP
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end">
+                                <li><a class="dropdown-item" href="{% url 'describer:batch_download' batch_info.obj.id %}?fmt=txt">Tout en TXT</a></li>
+                                <li><a class="dropdown-item" href="{% url 'describer:batch_download' batch_info.obj.id %}?fmt=pdf">Tout en PDF</a></li>
+                                <li><a class="dropdown-item" href="{% url 'describer:batch_download' batch_info.obj.id %}?fmt=docx">Tout en DOCX</a></li>
+                            </ul>
+                        </div>
                         {% endif %}
                         <button class="btn btn-sm batch-duplicate-btn py-0 px-2"
                                 data-batch-id="{{ batch_info.obj.id }}"
@@ -339,6 +355,16 @@
                             <div class="col-md-3">
                                 <div class="btn-group-actions">
                                     {% if desc.status != 'RUNNING' %}
+                                    <button class="btn btn-sm btn-secondary settings-btn"
+                                            data-id="{{ desc.id }}"
+                                            data-output-format="{{ desc.output_format }}"
+                                            data-output-language="{{ desc.output_language }}"
+                                            data-max-length="{{ desc.max_length }}"
+                                            data-generate-summary="{{ desc.generate_summary|yesno:'true,false' }}"
+                                            data-verify-coherence="{{ desc.verify_coherence|yesno:'true,false' }}"
+                                            title="Paramètres">
+                                        <i class="fas fa-cog"></i>
+                                    </button>
                                     <button class="btn btn-sm btn-primary start-btn" data-id="{{ desc.id }}" title="Démarrer">
                                         <i class="fas fa-play"></i>
                                     </button>
@@ -366,6 +392,11 @@
                                         </ul>
                                     </div>
                                     {% endif %}
+                                    <button class="btn btn-sm btn-outline-info duplicate-btn"
+                                            data-duplicate-url="{% url 'describer:duplicate' desc.id %}"
+                                            title="Dupliquer dans le batch">
+                                        <i class="fas fa-copy"></i>
+                                    </button>
                                     <button class="btn btn-sm btn-danger delete-btn" data-id="{{ desc.id }}" title="Supprimer">
                                         <i class="fas fa-trash"></i>
                                     </button>
@@ -570,6 +601,7 @@
     window.DESCRIBER_CONFIG = {
         urls: {
             upload: "{% url 'describer:upload' %}",
+            consolidate: "{% url 'describer:consolidate' %}",
             start: "{% url 'describer:start' pk=0 %}",
             progress: "{% url 'describer:progress' pk=0 %}",
             globalProgress: "{% url 'describer:global_progress' %}",
@@ -581,6 +613,7 @@
             clearAll: "{% url 'describer:clear_all' %}",
             console: "{% url 'describer:console' %}",
             updateOptions: "{% url 'describer:update_options' pk=0 %}",
+            batchUpdate: "{% url 'describer:batch_update' pk=0 %}",
             batchPreview: "{% url 'describer:batch_preview' %}",
             batchImport: "{% url 'describer:batch_import' %}",
             batchCreate: "{% url 'describer:batch_create' %}",
@@ -594,6 +627,7 @@
         csrfToken: "{{ csrf_token }}"
     };
 </script>
+<script src="{% static 'common/js/wama-eta.js' %}"></script>
 <script src="{% static 'common/js/batch-import.js' %}"></script>
 <script src="{% static 'describer/js/index.js' %}"></script>
 <script>

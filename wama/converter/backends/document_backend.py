@@ -89,6 +89,28 @@ def _extract_pdf_text(pdf_path: str) -> str:
     return "\n".join(lines)
 
 
+def _pdf_to_docx(input_path: str, output_path: str) -> None:
+    """PDF → DOCX en préservant la mise en page (texte, images, tableaux).
+
+    Utilise pdf2docx (reconstruit la disposition page par page). Fallback en
+    erreur explicite si la lib n'est pas installée (la route texte pandoc
+    perdrait tout le formatage, on préfère un message clair).
+    """
+    try:
+        from pdf2docx import Converter
+    except ImportError as exc:
+        raise RuntimeError(
+            "pdf2docx requis pour convertir PDF → DOCX en préservant la mise en "
+            "forme et les images. Installez-le : pip install pdf2docx"
+        ) from exc
+
+    cv = Converter(input_path)
+    try:
+        cv.convert(output_path, start=0, end=None)
+    finally:
+        cv.close()
+
+
 def convert_document(input_path: str, output_path: str, output_format: str,
                      options: dict = None) -> None:
     """
@@ -105,6 +127,16 @@ def convert_document(input_path: str, output_path: str, output_format: str,
 
     in_ext  = Path(input_path).suffix.lower().lstrip('.')
     out_ext = output_format.lower().lstrip('.')
+
+    # ── PDF → DOCX : conversion fidèle (images, tableaux, mise en forme) ──────
+    # Pandoc ne lit pas le PDF : la route texte (PyMuPDF→markdown) perd tout le
+    # formatage. pdf2docx reconstruit la mise en page (texte, images, tableaux).
+    if in_ext == 'pdf' and out_ext == 'docx':
+        _pdf_to_docx(input_path, output_path)
+        if not os.path.exists(output_path):
+            raise RuntimeError(f"Fichier de sortie introuvable : {output_path}")
+        logger.info(f"PDF → DOCX (pdf2docx, mise en forme préservée) : {input_path} → {output_path}")
+        return
 
     # Calibre route : any mobi/azw3/azw side goes through ebook-convert, which
     # handles the full chain (epub↔mobi↔azw3↔pdf↔docx…) on its own.

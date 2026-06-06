@@ -26,6 +26,8 @@ urlpatterns = [
     path('batch/<int:pk>/start/',       views.batch_start,          name='batch_start'),
     path('batch/<int:pk>/update/',      views.batch_update,         name='batch_update'),
     path('batch/<int:pk>/delete/',      views.batch_delete,         name='batch_delete'),
+    path('batch/<int:pk>/duplicate/',   views.batch_duplicate,      name='batch_duplicate'),
+    path('batch/<int:pk>/download/',    views.batch_download,       name='batch_download'),
     # Profiles
     path('profiles/',                   views.profile_list,         name='profile_list'),
     path('profiles/save/',              views.profile_save,         name='profile_save'),

@@ -89,8 +89,11 @@ def _preprocess_audio(transcript: Transcript, audio_path: str) -> str:
             stationary=False
         )
 
-        base_name = os.path.splitext(audio_path)[0]
-        cleaned_path = f"{base_name}_cleaned.wav"
+        # Écrire le fichier prétraité dans un dossier temp (PAS dans input/) pour
+        # ne pas déclencher de refresh du filemanager sur un fichier intermédiaire.
+        import tempfile
+        base_name = os.path.splitext(os.path.basename(audio_path))[0]
+        cleaned_path = os.path.join(tempfile.gettempdir(), f"{base_name}_cleaned.wav")
         result_path = preprocessor.preprocess(audio_path, cleaned_path)
 
         _console(transcript.user_id, "Prétraitement terminé ✓")

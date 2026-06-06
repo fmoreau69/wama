@@ -83,7 +83,11 @@
         }
 
         wasProcessing = processing;
-        if (processing) return;  // Skip auto-refresh while processing
+        // NB : on ne saute PLUS le poll pendant un traitement — sinon les fichiers
+        // de SORTIE créés en cours de process n'apparaissent qu'après coup. Le poll
+        // ne déclenche un refresh que si le hash mtime change réellement, et le
+        // refresh est débouncé → pas de churn. Couvre toutes les apps sans code
+        // par-app (en complément des appels instantanés WamaFM).
 
         try {
             // Use lightweight mtime endpoint instead of full tree scan
@@ -94,7 +98,7 @@
 
             if (lastTreeHash && newHash !== lastTreeHash) {
                 console.log('[FileManager] Tree changed, refreshing...');
-                tree.refresh();
+                refreshTree();
             }
             lastTreeHash = newHash;
         } catch (error) {
@@ -203,7 +207,30 @@
             // Persistance de l'état plié/déplié (gère le lazy-loading nativement,
             // contrairement à l'ancienne restauration manuelle). La section
             // "Mes fichiers" conserve ainsi son état entre apps et rafraîchissements.
-            'state': { 'key': 'wama_filemanager_state' },
+            'state': {
+                'key': 'wama_filemanager_state',
+                // Ne restaure QUE la section "Mes fichiers" + l'app courante.
+                // Sinon le plugin rouvre tous les dossiers jamais dépliés de TOUTES
+                // les apps → un api_children par dossier → cascade de requêtes (~10 s
+                // au changement d'app). Or autoExpandCurrentAppFolder referme de toute
+                // façon les autres apps : les rouvrir d'abord était du gaspillage pur.
+                'filter': function (state) {
+                    try {
+                        var open = state && state.core && state.core.open;
+                        if (Array.isArray(open)) {
+                            var parts = window.location.pathname.split('/').filter(Boolean);
+                            var app = (parts[0] === 'lab' && parts[1])
+                                ? parts[1].replace(/-/g, '_') : (parts[0] || '');
+                            state.core.open = open.filter(function (id) {
+                                if (id.indexOf('section') === 0 || id === 'temp'
+                                    || id.indexOf('mount') === 0 || id === 'wama_lab') return true;
+                                return app && (id === app || id.indexOf(app + '_') === 0);
+                            });
+                        }
+                    } catch (e) { /* en cas d'erreur, garder l'état tel quel */ }
+                    return state;
+                }
+            },
             'types': {
                 'folder':  { 'icon': 'fa fa-folder text-warning' },
                 'file':    { 'icon': 'fa fa-file text-secondary' },
@@ -269,17 +296,36 @@
         // vakata.dnd doesn't use native HTML5 drag events, so we need to track the dragged data globally
         $(document).on('dnd_start.vakata', function(e, data) {
             console.log('[FileManager DND] dnd_start event fired', data);
-            // Store the dragged node data globally for external drops
+            // Store the dragged node data globally for external drops.
+            // On capture TOUS les fichiers sélectionnés (pas seulement le 1er) →
+            // un drag multi-fichiers vers une app peut être consolidé en batch.
             if (data.data && data.data.nodes && data.data.nodes.length > 0) {
-                const nodeId = data.data.nodes[0];
-                const node = tree.get_node(nodeId);
-                if (node && node.type === 'file' && node.data?.path) {
-                    window._fileManagerDragData = {
-                        path: node.data.path,
-                        name: node.text,
-                        mime: node.data.mime || 'application/octet-stream'
-                    };
-                    console.log('[FileManager DND] Stored drag data:', window._fileManagerDragData);
+                // jstree ne met souvent que le nœud SAISI dans data.data.nodes.
+                // Si ce nœud fait partie d'une multi-sélection, on glisse TOUTE la
+                // sélection → drag multi-fichiers depuis l'arbre fonctionne.
+                let nodeIds = data.data.nodes;
+                try {
+                    const sel = tree.get_selected();
+                    if (sel && sel.length > 1 && nodeIds.some(function (id) { return sel.indexOf(id) !== -1; })) {
+                        nodeIds = sel;
+                    }
+                } catch (e) { /* garder data.data.nodes */ }
+
+                const files = [];
+                nodeIds.forEach(function (nodeId) {
+                    const node = tree.get_node(nodeId);
+                    if (node && node.type === 'file' && node.data?.path) {
+                        files.push({
+                            path: node.data.path,
+                            name: node.text,
+                            mime: node.data.mime || 'application/octet-stream',
+                        });
+                    }
+                });
+                if (files.length) {
+                    // path/name/mime = 1er fichier (rétrocompat avec le code existant)
+                    window._fileManagerDragData = Object.assign({ files: files }, files[0]);
+                    console.log('[FileManager DND] Stored drag data:', files.length, 'fichier(s)');
                 }
             }
         });
@@ -936,10 +982,14 @@
     }
 
     async function fetchTreeHash() {
+        // DOIT utiliser le même endpoint/format que checkForChanges (mtime_hash),
+        // sinon lastTreeHash (JSON du full tree) ne correspond jamais au hash mtime
+        // → checkForChanges déclenche un refresh complet à CHAQUE poll (toutes les
+        // 5 s), en boucle, rechargeant le squelette + relançant tout le lazy-load.
         try {
-            const response = await fetch(config.apiTreeUrl || '/filemanager/api/tree/');
+            const response = await fetch(config.apiTreeMtimeUrl || '/filemanager/api/tree/mtime/');
             const data = await response.json();
-            lastTreeHash = JSON.stringify(data);
+            lastTreeHash = data.mtime_hash;
         } catch (error) {
             console.warn('[FileManager] Could not fetch tree hash:', error);
         }
@@ -1028,10 +1078,17 @@
         }
     }
 
+    let _refreshTimer = null;
     function refreshTree() {
-        if (tree) {
-            tree.refresh();
-        }
+        if (!tree) return;
+        // Debounce : des événements rapprochés (media:processed émis à CHAQUE
+        // tâche terminée pendant un batch) déclenchaient autant de tree.refresh()
+        // complets — chacun rechargeant le squelette + relançant le lazy-load de
+        // tous les dossiers ouverts → plusieurs secondes de latence. On coalesce.
+        clearTimeout(_refreshTimer);
+        _refreshTimer = setTimeout(function () {
+            if (tree) tree.refresh();
+        }, 600);
     }
 
     // === FILE OPERATIONS ===
@@ -1770,41 +1827,55 @@
                 const app = getAppFromDropZone(currentDropZone);
                 console.log('[FileManager DND] Dropping on app:', app, 'file:', dragData.path);
 
-                if (app && dragData.path) {
+                // Tous les fichiers glissés (multi-sélection) — rétrocompat : si
+                // pas de tableau `files`, on retombe sur le fichier unique.
+                const dragFiles = (dragData.files && dragData.files.length)
+                    ? dragData.files
+                    : (dragData.path ? [{ path: dragData.path, name: dragData.name, mime: dragData.mime }] : []);
+
+                if (app && dragFiles.length) {
                     // These apps handle the blob fetch themselves via filemanager:filedrop custom event.
                     if (app === 'imager' || app === 'avatarizer' || app === 'cam_analyzer') {
-                        currentDropZone.dispatchEvent(new CustomEvent('filemanager:filedrop', {
-                            detail: { path: dragData.path, name: dragData.name, mime: dragData.mime },
-                            bubbles: false,
-                        }));
+                        dragFiles.forEach(function (f) {
+                            currentDropZone.dispatchEvent(new CustomEvent('filemanager:filedrop', {
+                                detail: { path: f.path, name: f.name, mime: f.mime },
+                                bubbles: false,
+                            }));
+                        });
                     } else {
-                        // Other apps: server-side import → dispatch event, then reload if not handled
+                        // Autres apps : import serveur de TOUS les fichiers, puis UN
+                        // SEUL reload. Les imports créent des orphelins → _auto_wrap_orphans
+                        // les regroupe en un batch au chargement (transcriber/describer/
+                        // enhancer). Un seul fichier → comportement inchangé.
                         const capturedZone = currentDropZone;
-                        importToApp(dragData.path, app)
-                            .then(result => {
-                                if (result.imported) {
-                                    showToast(`Fichier importé vers ${app}`, 'success');
-                                    // Dispatch cancelable event — allows drop zones to handle batch/special results
-                                    const ev = new CustomEvent('filemanager:imported', {
-                                        detail: result,
-                                        bubbles: false,
-                                        cancelable: true,
-                                    });
-                                    if (capturedZone) capturedZone.dispatchEvent(ev);
-                                    if (!ev.defaultPrevented) {
-                                        // No special handler — default behavior
-                                        if (app === 'face_analyzer' && result.id) {
-                                            window.location.href = `/lab/face-analyzer/video/?session=${result.id}`;
-                                        } else {
-                                            window.location.reload();
-                                        }
-                                    }
-                                }
-                            })
-                            .catch(error => {
-                                console.error('[FileManager DND] Import error:', error);
-                                showToast('Erreur d\'import: ' + error.message, 'danger');
+                        Promise.all(dragFiles.map(function (f) {
+                            return importToApp(f.path, app).then(function (r) { return r; }).catch(function () { return null; });
+                        })).then(function (results) {
+                            const ok = results.filter(function (r) { return r && r.imported; });
+                            if (!ok.length) return;
+                            showToast(`${ok.length} fichier(s) importé(s) vers ${app}`, 'success');
+
+                            // Évènement annulable par fichier (synthesizer & co peuvent gérer)
+                            let anyDefault = false;
+                            ok.forEach(function (result) {
+                                const ev = new CustomEvent('filemanager:imported', {
+                                    detail: result, bubbles: false, cancelable: true,
+                                });
+                                if (capturedZone) capturedZone.dispatchEvent(ev);
+                                if (!ev.defaultPrevented) anyDefault = true;
                             });
+
+                            if (anyDefault) {
+                                if (app === 'face_analyzer' && ok.length === 1 && ok[0].id) {
+                                    window.location.href = `/lab/face-analyzer/video/?session=${ok[0].id}`;
+                                } else {
+                                    window.location.reload();  // un seul reload → orphelins groupés
+                                }
+                            }
+                        }).catch(function (error) {
+                            console.error('[FileManager DND] Import error:', error);
+                            showToast('Erreur d\'import: ' + error.message, 'danger');
+                        });
                     }
                 }
             }

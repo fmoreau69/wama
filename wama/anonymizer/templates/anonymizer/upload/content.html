@@ -2,8 +2,10 @@
 <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
 
 {% if medias.count > 0 %}
-{# Barre de progression globale — composant commun (homogène avec les autres apps).
-   Pilotée par anonymizer/js/update.js (IDs #globalProgressBar/Stats/Pct). #}
+{% comment %}
+Barre de progression globale — composant commun (homogène avec les autres apps).
+   Pilotée par anonymizer/js/update.js (IDs #globalProgressBar/Stats/Pct).
+{% endcomment %}
 <div class="mb-3 mt-4">
     {% include 'common/_global_progress.html' %}
 </div>

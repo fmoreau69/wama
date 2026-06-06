@@ -6,6 +6,7 @@ app_name = 'enhancer'
 urlpatterns = [
     path('', views.IndexView.as_view(), name='index'),
     path('upload/', views.upload, name='upload'),
+    path('consolidate/', views.consolidate, name='consolidate'),
     path('start/<int:pk>/', views.start, name='start'),
     path('progress/<int:pk>/', views.progress, name='progress'),
     path('download/<int:pk>/', views.download, name='download'),
@@ -15,6 +16,7 @@ urlpatterns = [
     path('clear_all/', views.clear_all, name='clear_all'),
     path('download_all/', views.download_all, name='download_all'),
     path('update_settings/<int:pk>/', views.update_settings, name='update_settings'),
+    path('batch/<int:pk>/update/', views.batch_update, name='batch_update'),
     path('console/', views.console_content, name='console'),
     path('global_progress/', views.global_progress, name='global_progress'),
     # Batch enhancement (image/video)
@@ -29,6 +31,7 @@ urlpatterns = [
     path('batch/<int:pk>/duplicate/', views.batch_duplicate, name='batch_duplicate'),
     # Audio enhancement
     path('audio/upload/', views.audio_upload, name='audio_upload'),
+    path('audio/consolidate/', views.audio_consolidate, name='audio_consolidate'),
     path('audio/start/<int:pk>/', views.audio_start, name='audio_start'),
     path('audio/progress/<int:pk>/', views.audio_progress, name='audio_progress'),
     path('audio/download/<int:pk>/', views.audio_download, name='audio_download'),

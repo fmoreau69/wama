@@ -117,3 +117,40 @@ class AvatarJob(models.Model):
         if self.output_video:
             return self.output_video.name.split('/')[-1]
         return "N/A"
+
+
+class BatchAvatarJob(models.Model):
+    """Conteneur d'un lot de jobs d'avatar (import par fichier batch)."""
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='batch_avatar_jobs')
+    created_at = models.DateTimeField(auto_now_add=True)
+    batch_file = models.FileField(
+        upload_to=UploadToUserPath('avatarizer', 'input/batch'),
+        blank=True, null=True,
+    )
+    total = models.IntegerField(default=0)
+
+    class Meta:
+        verbose_name = "Lot de jobs d'avatars"
+        verbose_name_plural = "Lots de jobs d'avatars"
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"BatchAvatarJob #{self.id} — {self.user.username} ({self.total} items)"
+
+
+class BatchAvatarJobItem(models.Model):
+    """Lien entre un lot et un AvatarJob (préserve l'ordre des lignes)."""
+
+    batch = models.ForeignKey(BatchAvatarJob, on_delete=models.CASCADE, related_name='items')
+    job = models.OneToOneField(
+        AvatarJob, on_delete=models.CASCADE,
+        related_name='batch_item', null=True, blank=True,
+    )
+    row_index = models.IntegerField(default=0)
+
+    class Meta:
+        ordering = ['row_index']
+
+    def __str__(self):
+        return f"BatchAvatarJobItem(batch={self.batch_id}, job={self.job_id}, row={self.row_index})"

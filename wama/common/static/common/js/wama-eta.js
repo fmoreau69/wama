@@ -157,3 +157,18 @@ window.WamaEta = (function () {
     return { update: update, get: get, reset: reset, format: format,
              aggregate: aggregate, aggregateAll: aggregateAll, render: render };
 })();
+
+/* Ticker batch générique : rend chaque <span class="wama-eta" data-eta-ids="1,2,3">
+   en agrégeant l'ETA de ses items. Les ids sont fournis côté serveur dans l'en-tête
+   du groupe batch. Fonctionne dans toutes les apps qui chargent wama-eta.js. */
+(function () {
+    function tickBatches() {
+        document.querySelectorAll('.wama-eta[data-eta-ids]').forEach(function (el) {
+            var ids = (el.dataset.etaIds || '').split(',').filter(Boolean);
+            if (ids.length) window.WamaEta.render(el, window.WamaEta.aggregate(ids));
+        });
+    }
+    function start() { tickBatches(); setInterval(tickBatches, 1500); }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
+    else start();
+})();

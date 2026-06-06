@@ -330,6 +330,7 @@ window.CONVERTER_APP = {
         batchStart:    "{% url 'converter:batch_start' 0 %}",
         batchUpdate:   "{% url 'converter:batch_update' 0 %}",
         batchDelete:   "{% url 'converter:batch_delete' 0 %}",
+        batchDuplicate:"{% url 'converter:batch_duplicate' 0 %}",
         consolidate:   "{% url 'converter:consolidate' %}",
         batchPreview:  "{% url 'converter:batch_preview' %}",
         batchCreate:   "{% url 'converter:batch_create' %}",
@@ -366,6 +367,7 @@ window.WAMA_GLOBAL_PROGRESS_URL = "{% url 'converter:global_progress' %}";
                     Batch {{ b.media_label }} — {{ b.obj.total }} fichier{{ b.obj.total|pluralize }}
                 </span>
                 <span class="badge bg-secondary badge-media ms-1">{{ b.done_count }}/{{ b.obj.total }} ✓</span>
+                <span class="wama-eta ms-1" data-eta-ids="{% for job in b.items %}{{ job.id }}{% if not forloop.last %},{% endif %}{% endfor %}"></span>
                 <!-- Actions batch (stopPropagation côté JS pour ne pas toggler le collapse) -->
                 <div class="d-flex gap-1 ms-auto">
                     <button class="btn btn-outline-secondary btn-sm py-0 px-2 batch-settings-btn"
@@ -376,6 +378,16 @@ window.WAMA_GLOBAL_PROGRESS_URL = "{% url 'converter:global_progress' %}";
                     <button class="btn btn-outline-success btn-sm py-0 px-2 batch-start-btn"
                             title="Démarrer le batch" data-batch-id="{{ b.obj.id }}">
                         <i class="fas fa-play"></i>
+                    </button>
+                    {% if b.done_count %}
+                    <a class="btn btn-outline-info btn-sm py-0 px-2"
+                       href="{% url 'converter:batch_download' b.obj.id %}" title="Télécharger le batch (ZIP)">
+                        <i class="fas fa-download"></i>
+                    </a>
+                    {% endif %}
+                    <button class="btn btn-outline-secondary btn-sm py-0 px-2 batch-duplicate-btn"
+                            title="Dupliquer le batch" data-batch-id="{{ b.obj.id }}">
+                        <i class="fas fa-copy"></i>
                     </button>
                     <button class="btn btn-outline-danger btn-sm py-0 px-2 batch-delete-btn"
                             title="Supprimer le batch" data-batch-id="{{ b.obj.id }}">

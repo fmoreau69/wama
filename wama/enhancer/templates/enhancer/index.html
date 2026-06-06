@@ -296,7 +296,7 @@
 
 <div id="globalStatus" style="opacity:0; pointer-events:none;">
     <div class="d-flex justify-content-between align-items-baseline mb-1">
-        <small class="text-muted" id="globalProgressStats"></small>
+        <small class="text-muted"><span id="globalProgressStats"></span><span class="wama-eta ms-2" id="globalEta"></span></small>
         <small class="text-muted" id="globalProgressPct" style="font-variant-numeric: tabular-nums;"></small>
     </div>
     <div class="wama-progress-track">
@@ -347,6 +347,7 @@
                             <div class="wama-progress-fill {% if e.status == 'RUNNING' %}active{% endif %}" style="width: {{ e.progress }}%"></div>
                         </div>
                         <small class="progress-text text-light">{{ e.progress }}%</small>
+                        <span class="wama-eta d-block"></span>
                     </div>
                     <div class="col-md-4">
                         <div class="btn-group-actions">
@@ -410,6 +411,7 @@
                         <strong class="text-light">Batch #{{ batch_info.obj.id }}</strong>
                         <small class="text-muted">{{ batch_info.obj.created_at|date:"d/m H:i" }}</small>
                         <span class="badge bg-secondary">{{ batch_info.success_count }}/{{ batch_info.obj.total }}</span>
+                        <span class="wama-eta" data-eta-ids="{% for item in batch_info.items %}{% if item.enhancement %}{{ item.enhancement.id }},{% endif %}{% endfor %}"></span>
                         <div class="flex-grow-1">
                             <div class="wama-progress-track">
                                 <div class="wama-progress-fill" style="width:{{ batch_info.success_pct }}%;"></div>
@@ -430,6 +432,12 @@
                             <i class="fas fa-download"></i> ZIP
                         </a>
                         {% endif %}
+                        <button class="btn btn-sm batch-settings-btn py-0 px-2"
+                                data-batch-id="{{ batch_info.obj.id }}"
+                                style="background:rgba(13,202,240,0.15); color:#0dcaf0; border:1px solid #0dcaf0; font-size:.75rem;"
+                                title="Paramètres du batch (appliqués à tous les éléments)">
+                            <i class="fas fa-cog"></i>
+                        </button>
                         <button class="btn btn-sm batch-duplicate-btn py-0 px-2"
                                 data-batch-id="{{ batch_info.obj.id }}"
                                 style="background:rgba(13,202,240,0.15); color:#0dcaf0; border:1px solid #0dcaf0; font-size:.75rem;"
@@ -500,6 +508,11 @@
                                         <i class="fas fa-download"></i>
                                     </a>
                                     {% endif %}
+                                    <button class="btn btn-sm btn-outline-info duplicate-btn"
+                                            data-duplicate-url="{% url 'enhancer:duplicate' e.id %}"
+                                            title="Dupliquer dans le batch">
+                                        <i class="fas fa-copy"></i>
+                                    </button>
                                     <button class="btn btn-sm btn-danger js-delete-enhancement"
                                             data-delete-url="{% url 'enhancer:delete' e.id %}"
                                             title="Supprimer">
@@ -623,6 +636,7 @@
                         <strong class="text-light">Batch audio #{{ batch_info.obj.id }}</strong>
                         <small class="text-muted">{{ batch_info.obj.created_at|date:"d/m H:i" }}</small>
                         <span class="badge bg-secondary">{{ batch_info.success_count }}/{{ batch_info.obj.total }}</span>
+                        <span class="wama-eta" data-eta-ids="{% for item in batch_info.items %}{% if item.enhancement %}{{ item.enhancement.id }},{% endif %}{% endfor %}"></span>
                         <div class="flex-grow-1">
                             <div class="wama-progress-track">
                                 <div class="wama-progress-fill" style="width:{{ batch_info.success_pct }}%;"></div>
@@ -720,6 +734,7 @@
     window.ENHANCER_APP = Object.assign({}, window.ENHANCER_APP, {
       csrfToken: '{{ csrf_token }}',
       uploadUrl: '{% url "enhancer:upload" %}',
+      consolidateUrl: '{% url "enhancer:consolidate" %}',
       startUrlTemplate: '{% url "enhancer:start" 0 %}',
       progressUrlTemplate: '{% url "enhancer:progress" 0 %}',
       deleteUrlTemplate: '{% url "enhancer:delete" 0 %}',
@@ -734,6 +749,7 @@
       batchCreateUrl: '{% url "enhancer:batch_create" %}',
       batchTemplateUrl: '{% url "enhancer:batch_template" %}',
       batchStartUrlTemplate: '{% url "enhancer:batch_start" 0 %}',
+      batchUpdateUrlTemplate: '{% url "enhancer:batch_update" 0 %}',
       batchStatusUrlTemplate: '{% url "enhancer:batch_status" 0 %}',
       batchDownloadUrlTemplate: '{% url "enhancer:batch_download" 0 %}',
       batchDeleteUrlTemplate: '{% url "enhancer:batch_delete" 0 %}',
@@ -743,6 +759,7 @@
     window.AUDIO_ENHANCER_APP = {
       csrfToken: '{{ csrf_token }}',
       audioUploadUrl: '{% url "enhancer:audio_upload" %}',
+      audioConsolidateUrl: '{% url "enhancer:audio_consolidate" %}',
       audioStartUrlTemplate: '{% url "enhancer:audio_start" 0 %}',
       audioProgressUrlTemplate: '{% url "enhancer:audio_progress" 0 %}',
       audioDeleteUrlTemplate: '{% url "enhancer:audio_delete" 0 %}',
@@ -823,6 +840,7 @@
       }
     });
 </script>
+<script src="{% static 'common/js/wama-eta.js' %}"></script>
 <script src="{% static 'common/js/batch-import.js' %}"></script>
 <script src="{% static 'enhancer/js/index.js' %}"></script>
 <script src="{% static 'enhancer/js/audio-enhancer.js' %}"></script>

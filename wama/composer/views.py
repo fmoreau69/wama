@@ -64,7 +64,11 @@ def _get_batches_list(user):
     result = []
     for batch in batches:
         items = list(batch.items.select_related('generation').order_by('row_index'))
-        result.append({'obj': batch, 'items': items})
+        has_success = any(
+            it.generation and it.generation.status == 'SUCCESS' and it.generation.audio_output
+            for it in items
+        )
+        result.append({'obj': batch, 'items': items, 'has_success': has_success})
     result.sort(key=lambda b: 0 if b['obj'].total > 1 else 1)
     return result
 
@@ -188,7 +192,9 @@ def import_batch(request):
 
     try:
         from .utils.batch_parser import parse_batch_file
-        tasks, warnings = parse_batch_file(tmp_path, default_model, default_duration)
+        tasks, warnings = parse_batch_file(
+            tmp_path, default_model, default_duration, source_name=batch_file.name,
+        )
     except Exception as exc:
         os.remove(tmp_path)
         return JsonResponse({'error': str(exc)}, status=400)
@@ -472,8 +478,47 @@ def duplicate(request, pk):
         },
         clear_fields=['audio_output'],
     )
-    _wrap_generation_in_batch(new_gen)
+    # Dupliquer DANS le même batch que l'original (élément frère).
+    orig_item = ComposerBatchItem.objects.filter(generation=gen).select_related('batch').first()
+    if orig_item:
+        from django.db.models import Max
+        batch = orig_item.batch
+        next_idx = (batch.items.aggregate(m=Max('row_index'))['m'] or 0) + 1
+        ComposerBatchItem.objects.create(
+            batch=batch, generation=new_gen, output_filename=output_filename, row_index=next_idx)
+        batch.total = batch.items.count()
+        batch.save(update_fields=['total'])
+    else:
+        _wrap_generation_in_batch(new_gen)
     return JsonResponse({'success': True, 'id': new_gen.id})
+
+
+@require_POST
+def batch_update(request, pk):
+    """Applique les paramètres (modèle, durée) à TOUS les items non-RUNNING du batch.
+
+    Réutilise la même modale que les réglages individuels (mode batch côté JS).
+    """
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    batch = get_object_or_404(ComposerBatch, id=pk, user=user)
+    model = request.POST.get('model')
+    duration = request.POST.get('duration')
+    updated = 0
+    for item in batch.items.select_related('generation'):
+        g = item.generation
+        if not g or g.status == 'RUNNING':
+            continue
+        if model and model in COMPOSER_MODELS:
+            g.model = model
+            g.generation_type = COMPOSER_MODELS[model]['type']
+        if duration:
+            try:
+                g.duration = max(10.0, min(600.0, float(duration)))
+            except (ValueError, TypeError):
+                pass
+        g.save()
+        updated += 1
+    return JsonResponse({'success': True, 'updated': updated})
 
 
 @require_POST
@@ -508,6 +553,35 @@ def batch_duplicate(request, pk):
         )
 
     return JsonResponse({'success': True, 'id': new_batch.id})
+
+
+def batch_download(request, pk):
+    """Download a ZIP of all completed audio outputs in a batch (mono-format WAV).
+
+    Simple-button variant of the batch ZIP convention (WAMA_APP_CONVENTIONS §9.10).
+    """
+    import io as _io
+    import zipfile
+    from django.http import HttpResponse
+
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    batch = get_object_or_404(ComposerBatch, id=pk, user=user)
+
+    buffer = _io.BytesIO()
+    with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
+        for item in batch.items.select_related('generation').order_by('row_index'):
+            gen = item.generation
+            if gen and gen.status == 'SUCCESS' and gen.audio_output:
+                try:
+                    arcname = item.output_filename or os.path.basename(gen.audio_output.name)
+                    zf.write(gen.audio_output.path, arcname)
+                except Exception:
+                    continue
+
+    buffer.seek(0)
+    response = HttpResponse(buffer.read(), content_type='application/zip')
+    response['Content-Disposition'] = f'attachment; filename="batch_composer_{pk}.zip"'
+    return response
 
 
 def download_all(request):

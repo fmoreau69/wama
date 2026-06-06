@@ -69,6 +69,11 @@ def parse_text_prompts(file_path: str) -> List[Dict[str, Any]]:
     if content is None:
         raise ValueError(f"Could not decode file: {file_path}")
 
+    # Batch structuré (CSV à en-têtes OU balises -p "prompt" --steps 30 …) ?
+    from wama.common.utils.batch_parsers import is_structured_batch_text
+    if is_structured_batch_text(content):
+        return _parse_unified_prompts(content)
+
     for line in content.splitlines():
         line = line.strip()
 
@@ -79,6 +84,44 @@ def parse_text_prompts(file_path: str) -> List[Dict[str, Any]]:
         prompts.append({'prompt': line})
 
     logger.info(f"Parsed {len(prompts)} prompts from text file")
+    return prompts
+
+
+# Alias d'options → clés reconnues par validate_prompt_config()
+_IMAGER_OPTION_ALIASES = {
+    'negative': 'negative_prompt', 'np': 'negative_prompt', 'neg': 'negative_prompt',
+    'cfg': 'guidance_scale', 'guidance': 'guidance_scale',
+    'w': 'width', 'h': 'height', 'n': 'num_images',
+}
+
+
+def _parse_unified_prompts(content: str) -> List[Dict[str, Any]]:
+    """Parse un batch structuré (CSV à en-têtes OU balises) pour la génération d'images.
+
+    ``prompt`` (col. ``prompt``/``text`` ou balise ``-p``) est requis. Les autres
+    colonnes/options alimentent les paramètres (steps, guidance_scale, width,
+    height, seed, num_images, model, negative_prompt…). ``output``/``-o`` et la
+    référence (``reference``/``-r``, image de style) sont transportés.
+    """
+    from wama.common.utils.batch_parsers import parse_structured_batch_text
+
+    norm_items, _warnings = parse_structured_batch_text(content)
+    prompts: List[Dict[str, Any]] = []
+    for parsed in norm_items:
+        if not parsed.get('prompt'):
+            logger.warning(f"Ligne {parsed.get('line_num')} sans prompt ignorée")
+            continue
+
+        cfg: Dict[str, Any] = {'prompt': parsed['prompt']}
+        for key, val in (parsed.get('options') or {}).items():
+            cfg[_IMAGER_OPTION_ALIASES.get(key, key)] = val
+        if parsed.get('output'):
+            cfg['output_filename'] = parsed['output']
+        if parsed.get('reference'):
+            cfg['style_reference'] = parsed['reference']
+        prompts.append(cfg)
+
+    logger.info(f"Parsed {len(prompts)} prompts (batch structuré)")
     return prompts
 
 

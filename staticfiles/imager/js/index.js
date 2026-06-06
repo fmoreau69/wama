@@ -1124,6 +1124,7 @@
                 if (videoCard) videoCard.remove();
                 updateQueueCount();
                 updateVideoQueueCount();
+                if (window.WamaFM) WamaFM.deleted();  // fichier supprimé → refresh filemanager
             } else {
                 showNotification('Erreur : ' + (data.error || 'Erreur inconnue'), 'danger');
             }
@@ -1209,6 +1210,7 @@
         const total = stats.total || 0;
         if (progressBar) progressBar.style.width = progress + '%';
         if (statsText) statsText.textContent = `${stats.success || 0}/${total} terminé · ${stats.running || 0} en cours`;
+        if (window.WamaEta) WamaEta.render(document.getElementById('globalEta'), WamaEta.aggregateAll());
         if (pctEl) pctEl.textContent = progress ? progress + '%' : '';
         if (statusEl) {
             const active = total > 0;
@@ -1290,6 +1292,7 @@
             else progressBar.classList.remove('active');
         }
         if (progressText) progressText.textContent = data.progress + '%';
+        if (window.WamaEta) WamaEta.render(card.querySelector('.wama-eta'), WamaEta.update(card.dataset.id, { progress: data.progress, status: data.status }));
 
         // Show/hide error message
         if (data.error_message && data.status === 'FAILURE') {

@@ -41,15 +41,31 @@ document.addEventListener('DOMContentLoaded', function () {
       console.log('[Enhancer] Upload response:', data);
       data.status = data.status || 'PENDING';
       appendRow(data);
+      if (window.WamaFM) WamaFM.uploaded();  // fichier ajouté → refresh filemanager
+      return data.id;
     } catch (error) {
       alert(`Erreur pour ${file.name}: ${error.message}`);
+      return null;
     }
   }
 
   async function handleFiles(files) {
+    const ids = [];
     for (const file of files) {
       if (window._batchImport && await window._batchImport.detectAndHandle(file)) continue;
-      await uploadFile(file);
+      const id = await uploadFile(file);
+      if (id) ids.push(id);
+    }
+    // Consolidation en UN batch si plusieurs fichiers médias importés ensemble.
+    if (ids.length > 1 && config.consolidateUrl) {
+      try {
+        await fetch(config.consolidateUrl, {
+          method: 'POST',
+          headers: Object.assign({ 'Content-Type': 'application/json' }, csrfHeaders()),
+          body: JSON.stringify({ ids }),
+        });
+      } catch (e) { /* ignore : à défaut, items individuels */ }
+      location.reload();
     }
   }
 
@@ -285,6 +301,8 @@ document.addEventListener('DOMContentLoaded', function () {
     const progressText = card.querySelector('.progress-text');
     if (progressText) progressText.textContent = `${progress}%`;
 
+    if (window.WamaEta) WamaEta.render(card.querySelector('.wama-eta'), WamaEta.update(id, { progress: progress, status: status }));
+
     // Status badge
     const statusBadge = card.querySelector('.status-badge');
     if (statusBadge) {
@@ -337,6 +355,7 @@ document.addEventListener('DOMContentLoaded', function () {
       }
       if (progress < 100 && fill) fill.style.width = '100%';
       stopPolling(id);
+      if (window.WamaFM) WamaFM.processed();  // sortie créée → refresh filemanager
     } else if (status === 'FAILURE') {
       stopPolling(id);
     } else if (progress >= 100) {
@@ -463,6 +482,7 @@ document.addEventListener('DOMContentLoaded', function () {
           const id = card.dataset.id;
           card.remove();
           stopPolling(id);
+          if (window.WamaFM) WamaFM.deleted();  // fichier supprimé → refresh filemanager
           insertEmptyRowIfNeeded();
           updateDownloadAllState();
         }
@@ -482,6 +502,23 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!form) return;
 
     const formData = new FormData(form);
+
+    // Mode batch : applique les réglages du form à tous les items du batch.
+    if (window._enhancerBatchId) {
+      const bid = window._enhancerBatchId;
+      window._enhancerBatchId = null;
+      fetch(getUrl(config.batchUpdateUrlTemplate, bid), {
+        method: 'POST', headers: csrfHeaders(), body: formData,
+      })
+        .then((r) => r.json())
+        .then(() => {
+          const m = bootstrap.Modal.getInstance(document.getElementById(`settingsModal${enhancementId}`));
+          if (m) m.hide();
+          location.reload();
+        })
+        .catch(() => {});
+      return;
+    }
 
     fetch(getUrl(config.updateSettingsUrlTemplate, enhancementId), {
       method: 'POST',
@@ -605,6 +642,7 @@ document.addEventListener('DOMContentLoaded', function () {
       .then(() => {
         queueTable.querySelectorAll('[data-id]').forEach((card) => card.remove());
         pollers.forEach((_, id) => stopPolling(id));
+        if (window.WamaFM) WamaFM.deleted();  // fichiers supprimés → refresh filemanager
         insertEmptyRowIfNeeded(true);
         updateDownloadAllState();
       })
@@ -663,6 +701,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const progress = data.overall_progress || 0;
         if (progressBar) progressBar.style.width = progress + '%';
         if (statsText) statsText.textContent = `${data.success}/${data.total} terminé · ${data.running} en cours`;
+        if (window.WamaEta) WamaEta.render(document.getElementById('globalEta'), WamaEta.aggregateAll());
         if (pct) pct.textContent = progress ? progress + '%' : '';
         if (globalStatus) {
           const active = (data.total || 0) > 0;
@@ -838,6 +877,28 @@ document.addEventListener('DOMContentLoaded', function () {
         else location.reload();
       })
       .catch(() => alert('Erreur lors de la suppression'));
+  });
+
+  // ── Duplication d'un item (autonome ou dans un batch) — la vue place la copie
+  //    DANS le même batch. Aucun handler n'existait avant. ──────────────────
+  document.addEventListener('click', function(e) {
+    const dbtn = e.target.closest('.duplicate-btn');
+    if (!dbtn || !dbtn.dataset.duplicateUrl) return;
+    fetch(dbtn.dataset.duplicateUrl, { method: 'POST', headers: { 'X-CSRFToken': csrfToken } })
+      .then(r => r.json())
+      .then(() => location.reload())
+      .catch(() => {});
+  });
+
+  // ── ⚙ Batch settings : réutilise la modale du 1er item en mode batch ────
+  document.addEventListener('click', function(e) {
+    const bs = e.target.closest('.batch-settings-btn');
+    if (!bs) return;
+    const group = bs.closest('.batch-group');
+    const firstOpen = group ? group.querySelector('.js-open-settings') : null;
+    if (!firstOpen) return;
+    window._enhancerBatchId = bs.dataset.batchId;   // bascule la sauvegarde vers batch_update
+    firstOpen.click();                               // construit + affiche la modale du 1er item
   });
 
   // ── Batch duplicate ────────────────────────────────────────────────────

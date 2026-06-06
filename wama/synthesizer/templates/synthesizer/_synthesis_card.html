@@ -1,6 +1,7 @@
 {% load static %}
 {# Partial: renders one synthesis card. Expects 'synthesis' in context. #}
-{# Optional 'card_label' overrides the displayed filename (used for batch items). #}
+{# 'card_label' = nom du fichier de SORTIE (.wav) ; le libellé principal affiche
+   le fichier d'ENTRÉE (extension réelle, ex. .docx) quand il existe. #}
 <div class="synthesis-card {% if synthesis.status == 'RUNNING' %}processing{% elif synthesis.status == 'SUCCESS' %}success{% elif synthesis.status == 'FAILURE' %}error{% endif %}"
      data-id="{{ synthesis.id }}">
     <div class="row align-items-center">
@@ -10,9 +11,13 @@
                 <button type="button" class="btn btn-link p-0 text-start preview-text-btn"
                         data-id="{{ synthesis.id }}"
                         style="color: #fff; text-decoration: none;">
-                    <i class="fas fa-file-alt"></i> {% if card_label %}{{ card_label }}{% else %}{{ synthesis.filename }}{% endif %}
+                    <i class="fas fa-file-alt"></i>
+                    {% if synthesis.text_file %}{{ synthesis.filename }}{% else %}{{ card_label|default:synthesis.filename }}{% endif %}
                 </button>
             </strong>
+            {% if synthesis.text_file and card_label %}
+            <br><small class="text-white-50"><i class="fas fa-arrow-right" style="font-size:.65rem;"></i> {{ card_label }}</small>
+            {% endif %}
             <br>
             <small class="text-white-50">
                 {{ synthesis.word_count }} mots •
@@ -50,6 +55,7 @@
                 <div class="wama-progress-fill {% if synthesis.status == 'RUNNING' %}active{% endif %}" style="width: {{ synthesis.progress }}%"></div>
             </div>
             <small class="progress-text text-light">{{ synthesis.progress }}%</small>
+            <span class="wama-eta d-block"></span>
         </div>
 
         <!-- Actions -->

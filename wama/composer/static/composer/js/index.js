@@ -155,7 +155,7 @@
 
     function updateGlobalBar() {
         const cards = document.querySelectorAll('.generation-card');
-        let running = 0, pending = 0, total = cards.length;
+        let running = 0, pending = 0, done = 0, failed = 0, total = cards.length;
         let weightedProgress = 0, totalWeight = 0;
 
         cards.forEach(card => {
@@ -168,6 +168,8 @@
 
             if (status === 'En cours') running++;
             if (status === 'En attente') pending++;
+            if (status === 'Succès') done++;
+            if (status === 'Échec') failed++;
 
             const w = meta.estimatedSeconds || 30;
             weightedProgress += pct * w;
@@ -186,6 +188,10 @@
 
         const active = running + pending;
 
+        const globalStats = document.getElementById('globalProgressStats');
+        if (globalStats) globalStats.textContent =
+            `${done}/${total} terminé · ${running} en cours · ${failed} échoué`;
+
         if (!globalStatus) return;
 
         if (active === 0 && total > 0) {
@@ -195,8 +201,7 @@
             globalFill.style.width = '100%';
             globalFill.classList.remove('active');
             if (gpPercent) gpPercent.textContent = '100%';
-            if (gpRunning) gpRunning.textContent = '0';
-            if (gpEta) gpEta.textContent = 'terminé';
+            if (gpEta) gpEta.textContent = '';
         } else if (active > 0) {
             globalStatus.style.opacity = '1';
             globalStatus.style.pointerEvents = '';
@@ -220,9 +225,7 @@
             globalFill.style.width = '0%';
             globalFill.classList.remove('active');
             if (gpPercent) gpPercent.textContent = '';
-            if (gpRunning) gpRunning.textContent = '0';
-            if (gpTotal)   gpTotal.textContent = '0';
-            if (gpEta)     gpEta.textContent = '—';
+            if (gpEta)     gpEta.textContent = '';
         }
     }
 
@@ -411,6 +414,7 @@
                     delete genMeta[id];
                     updateGlobalBar();
                     checkEmptyState();
+                    if (window.WamaFM) WamaFM.deleted();  // fichier supprimé → refresh filemanager
                 });
             return;
         }
@@ -428,6 +432,7 @@
                     }
                     updateGlobalBar();
                     checkEmptyState();
+                    if (window.WamaFM) WamaFM.deleted();  // fichiers supprimés → refresh filemanager
                 });
             return;
         }
@@ -450,8 +455,26 @@
             return;
         }
 
+        // ⚙ batch : réutilise la modale individuelle en mode batch.
+        const batchSettingsBtn = e.target.closest('.batch-settings-btn');
+        if (batchSettingsBtn) {
+            const group = batchSettingsBtn.closest('.batch-group');
+            const firstItemBtn = group ? group.querySelector('.settings-btn') : null;
+            window._composerBatchSettingsId = batchSettingsBtn.dataset.batchId;
+            document.getElementById('settingsGenId').value = firstItemBtn ? firstItemBtn.dataset.id : '';
+            if (settingsModel) settingsModel.value = (firstItemBtn && firstItemBtn.dataset.model) || 'musicgen-small';
+            if (settingsDuration) {
+                settingsDuration.value = (firstItemBtn && firstItemBtn.dataset.duration) || 10;
+                settingsDurationVal.textContent = _fmtDur(settingsDuration.value);
+            }
+            updateSettingsEstimate();
+            new bootstrap.Modal(document.getElementById('settingsModal')).show();
+            return;
+        }
+
         const settingsBtn = e.target.closest('.settings-btn');
         if (settingsBtn) {
+            window._composerBatchSettingsId = null;
             const id = settingsBtn.dataset.id;
             document.getElementById('settingsGenId').value = id;
             if (settingsModel) settingsModel.value = settingsBtn.dataset.model || 'musicgen-small';
@@ -486,6 +509,23 @@
     const settingsSaveBtn = document.getElementById('settingsSaveBtn');
     if (settingsSaveBtn) {
         settingsSaveBtn.addEventListener('click', () => {
+            // Mode batch : applique modèle + durée à tous les items du batch.
+            if (window._composerBatchSettingsId) {
+                const bid = window._composerBatchSettingsId;
+                window._composerBatchSettingsId = null;
+                const fd = new FormData();
+                fd.append('csrfmiddlewaretoken', CSRF);
+                fd.append('model', settingsModel.value);
+                fd.append('duration', settingsDuration.value);
+                fetch(`/composer/batch/${bid}/update/`, { method: 'POST', body: fd })
+                    .then(r => r.json())
+                    .then(() => {
+                        bootstrap.Modal.getInstance(document.getElementById('settingsModal'))?.hide();
+                        location.reload();
+                    })
+                    .catch(() => {});
+                return;
+            }
             const id = document.getElementById('settingsGenId').value;
             const formData = new FormData();
             formData.append('csrfmiddlewaretoken', CSRF);
@@ -543,6 +583,7 @@
 
                 if (data.status === 'SUCCESS' || data.status === 'FAILURE') {
                     stopPolling(genId);
+                    if (window.WamaFM) WamaFM.processed();  // sortie créée → refresh filemanager
                     if (data.status === 'SUCCESS') {
                         showToast('Génération terminée !', 'success');
                     } else {

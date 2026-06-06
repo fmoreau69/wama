@@ -475,7 +475,7 @@
 
 <div id="globalStatus" style="opacity:0; pointer-events:none;">
     <div class="d-flex justify-content-between align-items-baseline mb-1">
-        <small class="text-muted" id="globalProgressStats"></small>
+        <small class="text-muted"><span id="globalProgressStats"></span><span class="wama-eta ms-2" id="globalEta"></span></small>
         <small class="text-muted" id="globalProgressPct" style="font-variant-numeric: tabular-nums;"></small>
     </div>
     <div class="wama-progress-track">
@@ -526,6 +526,7 @@
                                 <div class="wama-progress-fill {% if gen.status == 'RUNNING' %}active{% endif %}" style="width: {{ gen.progress }}%"></div>
                             </div>
                             <small class="progress-text text-light">{{ gen.progress }}%</small>
+                            <span class="wama-eta d-block"></span>
                         </div>
 
                         <!-- Actions Column -->
@@ -884,6 +885,7 @@
                                 <div class="wama-progress-fill {% if gen.status == 'RUNNING' %}active{% endif %}" style="width: {{ gen.progress }}%"></div>
                             </div>
                             <small class="progress-text text-light">{{ gen.progress }}%</small>
+                            <span class="wama-eta d-block"></span>
                         </div>
 
                         <!-- Actions Column -->
@@ -1451,5 +1453,6 @@ function _mpInjectImage(file, inputId, previewId) {
         csrfToken: "{{ csrf_token }}"
     };
 </script>
+<script src="{% static 'common/js/wama-eta.js' %}"></script>
 <script src="{% static 'imager/js/index.js' %}"></script>
 {% endblock %}

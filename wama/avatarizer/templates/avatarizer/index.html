@@ -188,6 +188,29 @@
 <button id="btn-generate" class="btn btn-info w-100 mb-2" disabled>
     <i class="fas fa-play-circle me-1"></i> Générer la vidéo
 </button>
+
+{# ── Import par fichier batch (format à balises) ── #}
+<div class="mb-2">
+    <button class="btn btn-outline-info w-100 btn-sm" type="button"
+            data-bs-toggle="collapse" data-bs-target="#batchImportPanel">
+        <i class="fas fa-file-import me-1"></i> Importer un lot (fichier batch)
+    </button>
+    <div class="collapse mt-2" id="batchImportPanel">
+        <input type="file" id="batch-file-input" class="form-control form-control-sm mb-1"
+               accept=".txt,.md,.csv,.pdf,.docx">
+        <div class="d-flex gap-1">
+            <a href="{% url 'avatarizer:batch_template' %}" class="btn btn-outline-secondary btn-sm flex-grow-1"
+               title="Télécharger un modèle">
+                <i class="fas fa-download"></i> Modèle
+            </a>
+            <button id="btn-batch-import" class="btn btn-info btn-sm flex-grow-1" disabled>
+                <i class="fas fa-upload"></i> Importer
+            </button>
+        </div>
+        <small id="batch-import-msg" class="text-white-50 d-block mt-1"></small>
+    </div>
+</div>
+
 <button id="btn-clear-all" class="btn btn-outline-danger w-100 btn-sm">
     <i class="fas fa-trash-alt me-1"></i> Vider l'historique
 </button>
@@ -292,8 +315,29 @@
         {% include 'common/_global_progress.html' %}
 
         <div id="jobs-container">
-            {% if jobs %}
-                {% for job in jobs %}
+            {% if batches_list %}
+                {% for b in batches_list %}
+                {% if b.total > 1 %}
+                {# ── En-tête de lot ── #}
+                <div class="batch-group mb-2 border rounded" data-batch-id="{{ b.obj.id }}" style="border-color:#0dcaf0 !important;">
+                    <div class="batch-group-header d-flex align-items-center gap-2 p-2"
+                         style="background:#0c2730; cursor:pointer;"
+                         data-bs-toggle="collapse" data-bs-target="#batchItems{{ b.obj.id }}" aria-expanded="true">
+                        <i class="fas fa-layer-group" style="color:#0dcaf0;"></i>
+                        <strong class="text-light">Lot #{{ b.obj.id }}</strong>
+                        <span class="badge bg-secondary">{{ b.done_count }}/{{ b.total }}</span>
+                        <span class="wama-eta" data-eta-ids="{% for j in b.items %}{{ j.id }},{% endfor %}"></span>
+                        <i class="fas fa-chevron-down text-muted ms-auto" style="font-size:.7rem;"></i>
+                        <div class="d-flex gap-1 flex-shrink-0" onclick="event.stopPropagation()">
+                            <button class="btn btn-sm btn-outline-success py-0 px-2 batch-start-btn" data-batch-id="{{ b.obj.id }}" title="Démarrer le lot"><i class="fas fa-play"></i></button>
+                            {% if b.has_success %}<a class="btn btn-sm btn-outline-info py-0 px-2" href="{% url 'avatarizer:batch_download' b.obj.id %}" title="Télécharger le lot (ZIP)"><i class="fas fa-download"></i></a>{% endif %}
+                            <button class="btn btn-sm btn-outline-secondary py-0 px-2 batch-duplicate-btn" data-batch-id="{{ b.obj.id }}" title="Dupliquer le lot"><i class="fas fa-copy"></i></button>
+                            <button class="btn btn-sm btn-outline-danger py-0 px-2 batch-delete-btn" data-batch-id="{{ b.obj.id }}" title="Supprimer le lot"><i class="fas fa-trash"></i></button>
+                        </div>
+                    </div>
+                    <div class="collapse show ps-2 pt-1" id="batchItems{{ b.obj.id }}" data-wama-batch-key="avatarizer_{{ b.obj.id }}" style="border-left:2px solid #0dcaf0; margin-left:.5rem;">
+                {% endif %}
+                {% for job in b.items %}
                 <div class="synthesis-card {% if job.status == 'RUNNING' %}processing{% elif job.status == 'SUCCESS' %}success{% elif job.status == 'FAILURE' %}error{% endif %}"
                      id="job-{{ job.id }}" data-job-id="{{ job.id }}"
                      data-status="{{ job.status }}" data-mode="{{ job.mode }}"
@@ -392,6 +436,10 @@
                                     <i class="fas fa-download"></i>
                                 </a>
                                 {% endif %}
+                                <button class="btn btn-sm btn-outline-secondary btn-duplicate-job"
+                                        data-job-id="{{ job.id }}" title="Dupliquer">
+                                    <i class="fas fa-copy"></i>
+                                </button>
                                 <button class="btn btn-sm btn-danger btn-delete-job"
                                         data-job-id="{{ job.id }}" title="Supprimer">
                                     <i class="fas fa-trash"></i>
@@ -414,7 +462,12 @@
                     <div id="preview-row-{{ job.id }}"></div>
                     {% endif %}
                 </div>
-                {% endfor %}
+                {% endfor %}{# job in b.items #}
+                {% if b.total > 1 %}
+                    </div><!-- /collapse -->
+                </div><!-- /batch-group -->
+                {% endif %}
+                {% endfor %}{# b in batches_list #}
             {% else %}
             <div id="no-jobs-msg" class="text-center text-muted py-4">
                 <i class="fas fa-film fa-3x mb-2 d-block opacity-50"></i>
@@ -656,7 +709,14 @@ window.AVATARIZER_CONFIG = {
         delete:        "/avatarizer/delete/",
         download:      "/avatarizer/download/",
         updateOptions: "/avatarizer/update-options/",
+        duplicate:     "/avatarizer/duplicate/",
         extractText:   "{% url 'avatarizer:extract_text' %}",
+        batchTemplate: "{% url 'avatarizer:batch_template' %}",
+        batchPreview:  "{% url 'avatarizer:batch_preview' %}",
+        batchCreate:   "{% url 'avatarizer:batch_create' %}",
+        batchStart:    "/avatarizer/batch/",
+        batchDuplicate:"/avatarizer/batch/",
+        batchDelete:   "/avatarizer/batch/",
     },
     mediaUrl:  "{{ MEDIA_URL }}",
     csrfToken: "{{ csrf_token }}",

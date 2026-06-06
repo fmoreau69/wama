@@ -202,6 +202,7 @@
                 alert('Erreur : ' + (data.error || resp.statusText));
                 return null;
             }
+            if (window.WamaFM) WamaFM.uploaded();  // fichier ajouté → refresh filemanager
             return data.job_id || null;
         } catch (err) {
             alert('Erreur réseau : ' + err.message);
@@ -291,6 +292,7 @@
             const card = document.querySelector(`.job-card[data-job-id="${jobId}"]`);
             if (card) card.remove();
             stopPolling(jobId);
+            if (window.WamaFM) WamaFM.deleted();  // fichier supprimé → refresh filemanager
             if (!queue.querySelector('.job-card')) {
                 if (!emptyState) location.reload();
             }
@@ -450,9 +452,19 @@
         const bStart = e.target.closest('.batch-start-btn');
         if (bStart) { e.stopPropagation(); startBatch(bStart.dataset.batchId); return; }
 
+        const bDup = e.target.closest('.batch-duplicate-btn');
+        if (bDup) { e.stopPropagation(); duplicateBatch(bDup.dataset.batchId); return; }
+
         const bDel = e.target.closest('.batch-delete-btn');
         if (bDel) { e.stopPropagation(); deleteBatch(bDel.dataset.batchId); return; }
     });
+
+    async function duplicateBatch(batchId) {
+        try {
+            await csrfPost(urlFor(APP.urls.batchDuplicate, batchId));
+            location.reload();
+        } catch (err) { alert('Erreur : ' + err.message); }
+    }
 
     // ── Batch group actions ─────────────────────────────────────────────────────
 

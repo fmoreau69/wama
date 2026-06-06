@@ -96,6 +96,28 @@ def get_user(request):
     return get_or_create_anonymous_user()
 
 
+_DESCRIBER_IMG_EXTS = {'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'tiff', 'tif', 'heic', 'avif'}
+_DESCRIBER_VID_EXTS = {'mp4', 'webm', 'mkv', 'avi', 'mov', 'flv', 'mpg', 'mpeg', 'm4v', '3gp'}
+_DESCRIBER_AUD_EXTS = {'mp3', 'wav', 'flac', 'ogg', 'm4a', 'aac', 'opus', 'wma'}
+_DESCRIBER_DOC_EXTS = {'txt', 'md', 'csv', 'docx', 'doc', 'pdf', 'rtf', 'odt'}
+
+
+def _describer_nature(description):
+    """Nature d'une Description (image/video/audio/document) pour le groupement batch."""
+    dt = (description.detected_type or '').lower()
+    if dt in ('image', 'video', 'audio', 'document'):
+        return dt
+    name = (description.input_file.name if description.input_file else '') or (description.source_url or '')
+    ext = name.rsplit('.', 1)[-1].lower() if '.' in name else ''
+    if ext in _DESCRIBER_IMG_EXTS:
+        return 'image'
+    if ext in _DESCRIBER_VID_EXTS:
+        return 'video'
+    if ext in _DESCRIBER_AUD_EXTS:
+        return 'audio'
+    return 'document'
+
+
 def _wrap_description_in_batch(description):
     """Wrap a standalone Description in a new BatchDescription-of-1."""
     batch = BatchDescription.objects.create(user=description.user, total=1)
@@ -103,18 +125,58 @@ def _wrap_description_in_batch(description):
     return batch
 
 
+def _group_descriptions_into_batches(user, descriptions, unwrap_singletons=None):
+    """Crée UN batch PAR NATURE — règle commune `group_into_batches_by_nature`."""
+    from wama.common.utils.batch_common import group_into_batches_by_nature
+    group_into_batches_by_nature(
+        descriptions,
+        nature_of=_describer_nature,
+        create_batch=lambda nature, total: BatchDescription.objects.create(user=user, total=total),
+        link_item=lambda batch, d, idx: BatchDescriptionItem.objects.create(
+            batch=batch, description=d, row_index=idx),
+        unwrap_singletons=unwrap_singletons,
+    )
+
+
 def _auto_wrap_orphans(user):
-    """Wrap any Description not yet in a batch into a batch-of-1 (called on page load)."""
+    """Range les Description pas encore en batch (chargement de page), groupées PAR NATURE.
+
+    Orphelins = imports serveur (« Envoyer vers ») / upload multi-fichiers.
+    """
     existing_ids = set(
         BatchDescriptionItem.objects.filter(batch__user=user)
         .values_list('description_id', flat=True)
     )
-    orphans = Description.objects.filter(user=user).exclude(id__in=existing_ids)
-    for orphan in orphans:
-        try:
-            _wrap_description_in_batch(orphan)
-        except Exception:
-            pass
+    orphans = list(
+        Description.objects.filter(user=user).exclude(id__in=existing_ids).order_by('id')
+    )
+    if orphans:
+        _group_descriptions_into_batches(user, orphans)
+
+
+@require_POST
+def consolidate(request):
+    """Regroupe plusieurs descriptions importées ensemble en UN batch-of-N."""
+    import json as _json
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    try:
+        ids = _json.loads(request.body or '{}').get('ids', [])
+    except (ValueError, TypeError):
+        ids = request.POST.getlist('ids[]') or request.POST.getlist('ids')
+    ids = [int(i) for i in ids if str(i).isdigit()]
+
+    items = list(Description.objects.filter(id__in=ids, user=user))
+    order = {did: pos for pos, did in enumerate(ids)}
+    items.sort(key=lambda d: order.get(d.id, 0))
+    if len(items) < 2:
+        return JsonResponse({'consolidated': False})
+
+    # Défaire d'abord les éventuels batch-of-1 de ces items, puis regrouper PAR NATURE.
+    BatchDescription.objects.filter(
+        user=user, total=1, items__description_id__in=[d.id for d in items]
+    ).distinct().delete()
+    _group_descriptions_into_batches(user, items)
+    return JsonResponse({'consolidated': True, 'count': len(items)})
 
 
 class IndexView(TemplateView):
@@ -563,6 +625,17 @@ def duplicate(request, pk):
         },
         clear_fields=['result_file'],
     )
+    # Dupliquer DANS le même batch que l'original (élément frère).
+    orig_item = BatchDescriptionItem.objects.filter(description=description).select_related('batch').first()
+    if orig_item:
+        from django.db.models import Max
+        batch = orig_item.batch
+        next_idx = (batch.items.aggregate(m=Max('row_index'))['m'] or 0) + 1
+        BatchDescriptionItem.objects.create(batch=batch, description=new_desc, row_index=next_idx)
+        batch.total = batch.items.count()
+        batch.save(update_fields=['total'])
+    else:
+        _wrap_description_in_batch(new_desc)
     return JsonResponse({'duplicated': new_desc.id})
 
 
@@ -937,26 +1010,60 @@ def batch_status(request, pk):
     })
 
 
+def _build_description_bytes(d, fmt):
+    """Return (ext, bytes) for a description in `fmt` (txt/pdf/docx), or None.
+
+    Shared format builder for the batch ZIP dropdown (WAMA_APP_CONVENTIONS §9.10).
+    """
+    fmt = (fmt or 'txt').lower()
+    if fmt == 'pdf':
+        try:
+            from wama.common.utils.document_export import generate_description_pdf
+            return ('pdf', generate_description_pdf(d))
+        except Exception as e:
+            logger.warning(f"[Describer] PDF skipped for {d.id}: {e}")
+            return None
+    if fmt == 'docx':
+        try:
+            from wama.common.utils.document_export import generate_description_docx
+            return ('docx', generate_description_docx(d))
+        except Exception as e:
+            logger.warning(f"[Describer] DOCX skipped for {d.id}: {e}")
+            return None
+    # txt: prefer the stored result file, else the raw text
+    if d.result_file and os.path.exists(d.result_file.path):
+        with d.result_file.open('rb') as f:
+            return ('txt', f.read())
+    if d.result_text:
+        return ('txt', d.result_text.encode('utf-8'))
+    return None
+
+
 def batch_download(request, pk):
-    """Download a ZIP of all completed description results in a batch."""
+    """Download a ZIP of all completed description results in a batch.
+
+    Format chosen via ?fmt=txt|pdf|docx (default txt) — dropdown variant of the
+    multi-format batch ZIP convention (WAMA_APP_CONVENTIONS §9.10).
+    """
     user = get_user(request)
     batch = get_object_or_404(BatchDescription, pk=pk, user=user)
+    fmt = (request.GET.get('fmt') or 'txt').lower()
+    if fmt not in ('txt', 'pdf', 'docx'):
+        fmt = 'txt'
 
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as archive:
         for item in batch.items.select_related('description').order_by('row_index'):
             d = item.description
             if d and d.status == 'SUCCESS':
-                if d.result_file:
-                    fname = d.result_file.name.split('/')[-1]
-                    with d.result_file.open('rb') as f:
-                        archive.writestr(fname, f.read())
-                elif d.result_text:
-                    stem = os.path.splitext(d.filename)[0] if d.filename else f'desc_{d.id}'
-                    archive.writestr(f'{stem}_result.txt', d.result_text.encode('utf-8'))
+                stem = os.path.splitext(d.filename)[0] if d.filename else f'desc_{d.id}'
+                built = _build_description_bytes(d, fmt)
+                if built:
+                    ext, data = built
+                    archive.writestr(f'{stem}_description.{ext}', data)
 
     buffer.seek(0)
-    zip_name = f"batch_describer_{pk}_{datetime.date.today()}.zip"
+    zip_name = f"batch_describer_{pk}_{fmt}_{datetime.date.today()}.zip"
     return FileResponse(buffer, as_attachment=True, filename=zip_name)
 
 
@@ -1058,6 +1165,43 @@ def global_progress(request):
     })
 
 
+def _apply_description_options(description, data):
+    """Applique les options de la modale à une Description (sans save)."""
+    if 'output_format' in data:
+        description.output_format = data['output_format']
+    if 'output_language' in data:
+        description.output_language = data['output_language']
+    if 'max_length' in data:
+        description.max_length = int(data['max_length'])
+    if 'generate_summary' in data:
+        description.generate_summary = bool(data['generate_summary'])
+    if 'verify_coherence' in data:
+        description.verify_coherence = bool(data['verify_coherence'])
+
+
+@require_POST
+def batch_update(request, pk):
+    """Applique les options à TOUS les items non-RUNNING du batch.
+
+    Réutilise la même modale que les réglages individuels (mode batch côté JS).
+    """
+    user = get_user(request)
+    batch = get_object_or_404(BatchDescription, pk=pk, user=user)
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        data = request.POST
+    updated = 0
+    for item in batch.items.select_related('description'):
+        d = item.description
+        if not d or d.status == 'RUNNING':
+            continue
+        _apply_description_options(d, data)
+        d.save()
+        updated += 1
+    return JsonResponse({'updated': updated, 'batch_id': batch.id})
+
+
 @require_POST
 def update_options(request, pk):
     """Update description options."""
@@ -1072,17 +1216,7 @@ def update_options(request, pk):
     except json.JSONDecodeError:
         data = request.POST
 
-    if 'output_format' in data:
-        description.output_format = data['output_format']
-    if 'output_language' in data:
-        description.output_language = data['output_language']
-    if 'max_length' in data:
-        description.max_length = int(data['max_length'])
-    if 'generate_summary' in data:
-        description.generate_summary = bool(data['generate_summary'])
-    if 'verify_coherence' in data:
-        description.verify_coherence = bool(data['verify_coherence'])
-
+    _apply_description_options(description, data)
     description.save()
 
     return JsonResponse({

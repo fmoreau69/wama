@@ -102,6 +102,44 @@ $(document).ready(function () {
     /* ============================
      * 🧹 Bouton "Clear All Media"
      * ============================ */
+    // Duplication d'un groupe batch (et de tous ses médias)
+    $(document).on("click", ".batch-duplicate-btn", function (e) {
+        e.preventDefault();
+        const batchId = $(this).data("batch-id");
+        $.ajax({
+            type: "POST",
+            url: `/anonymizer/batch/${batchId}/duplicate/`,
+            data: { csrfmiddlewaretoken: $("input[name=csrfmiddlewaretoken]").val() },
+            success: function () {
+                if (typeof window.refreshMediaTable === 'function') window.refreshMediaTable();
+                else window.location.reload();
+            },
+            error: function (xhr) {
+                alert("Erreur lors de la duplication du batch : " + (xhr.responseText || "Erreur inconnue"));
+            },
+        });
+    });
+
+    // Suppression d'un groupe batch (et de tous ses médias)
+    $(document).on("click", ".batch-delete-btn", function (e) {
+        e.preventDefault();
+        const batchId = $(this).data("batch-id");
+        if (!confirm("Supprimer ce batch et tous ses médias ?")) return;
+        $.ajax({
+            type: "POST",
+            url: `/anonymizer/batch/${batchId}/delete/`,
+            data: { csrfmiddlewaretoken: $("input[name=csrfmiddlewaretoken]").val() },
+            success: function () {
+                if (typeof window.refreshMediaTable === 'function') window.refreshMediaTable();
+                else window.location.reload();
+                if (window.WamaFM) WamaFM.deleted();  // fichiers supprimés → refresh filemanager
+            },
+            error: function (xhr) {
+                alert("Erreur lors de la suppression du batch : " + (xhr.responseText || "Erreur inconnue"));
+            },
+        });
+    });
+
     $(document).on("click", "#clear_all_media_btn", function (e) {
         e.preventDefault();
         if (!confirm("Voulez-vous vraiment supprimer tous les médias ?")) return;
@@ -121,6 +159,7 @@ $(document).ready(function () {
                     } else {
                         window.location.reload();
                     }
+                    if (window.WamaFM) WamaFM.deleted();  // fichiers supprimés → refresh filemanager
                     // Update queue count
                     if (typeof window.updateQueueCount === 'function') {
                         window.updateQueueCount();
@@ -203,7 +242,8 @@ $(document).ready(function () {
                     progressBar.style.width = progress + '%';
                     if (pctText) pctText.textContent = progress + '%';
 
-                    statsText.textContent = `${data.success}/${data.total} terminé`;
+                    statsText.textContent = `${data.success}/${data.total} terminé · ${data.running || 0} en cours · ${data.failure || 0} échoué`;
+                    if (window.WamaEta) WamaEta.render(document.getElementById('globalEta'), WamaEta.aggregateAll());
 
                     // Style WAMA standard (.wama-progress-fill) : actif/erreur
                     progressBar.className = 'wama-progress-fill';

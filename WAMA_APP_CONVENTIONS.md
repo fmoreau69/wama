@@ -639,10 +639,12 @@ if (window.WamaEta) {
 - **Sans seed**, l'ETA fonctionne quand même (débit observé). Le seed n'améliore que la
   phase précoce. `modelLoaded:true` (singleton keep_loaded) saute la phase « chargement ».
 
-> **État actuel :** ✅ converter, avatarizer, composer (carte + globale).
-> 🚧 À déployer : describer, enhancer, transcriber, imager, reader, synthesizer, anonymizer
-> (ajouter le span `.wama-eta` + l'appel `WamaEta.update` dans leur polling). Coche la
-> non-conformité « ETA » du §15 au fur et à mesure.
+> **État actuel :** ✅ **ETA carte + globale + batch dans TOUTES les apps.**
+> - Carte + globale : converter, avatarizer, composer, describer, enhancer, transcriber,
+>   imager, reader, synthesizer, anonymizer.
+> - **Batch** : en-tête de groupe via `<span class="wama-eta" data-eta-ids="id1,id2,…">` ;
+>   un ticker générique dans `wama-eta.js` agrège automatiquement (apps avec groupes batch :
+>   converter, reader, describer, enhancer, transcriber, synthesizer, composer).
 
 ---
 
@@ -734,6 +736,48 @@ document.addEventListener('wama:fileimported', e => {
 });
 ```
 
+#### Règle obligatoire — rafraîchir le FileManager (sens app → FileManager)
+
+`wama:fileimported` va du FileManager vers l'app. **Dans l'autre sens** — quand l'app
+crée/produit des fichiers (ajout d'un fichier de travail, sortie en fin de process) —
+il faut prévenir le FileManager pour qu'il rafraîchisse son arborescence. On utilise
+l'API commune **`WamaFM`** (`common/js/wama-fm-notify.js`, chargée globalement) :
+
+```javascript
+WamaFM.uploaded();   // fichier de travail ajouté (input)
+WamaFM.processed();  // sortie créée (fin de traitement)
+WamaFM.deleted();    // fichier supprimé
+```
+
+- **Filet de sécurité commun** : le FileManager poll les mtime (~5 s) **même pendant
+  un traitement** → les fichiers de sortie finissent par apparaître sans appel explicite.
+  Les appels `WamaFM` ne servent qu'au feedback **instantané**.
+- Ne pas dispatcher les events `media:*` à la main : passer par `WamaFM` (noms centralisés).
+
+**Table des triggers — TOUTE opération qui modifie des fichiers doit poser le sien.**
+À auditer pour chaque app (c'est l'oubli le plus fréquent) :
+
+| Opération (JS, au succès) | Trigger |
+|---|---|
+| Upload / import d'un fichier de travail (input) | `WamaFM.uploaded()` |
+| Process terminé (sortie créée) — dans le polling, statut terminal | `WamaFM.processed()` |
+| Suppression d'un item | `WamaFM.deleted()` |
+| Suppression d'un batch | `WamaFM.deleted()` |
+| « Tout effacer » (clear all) | `WamaFM.deleted()` |
+| Consolidation / création batch (reload de toute façon) | — (le reload couvre) |
+| Duplication | — (partage le fichier d'entrée, sortie vide tant que pas relancé) |
+
+**État de l'audit : ✅ TOUTES les apps.**
+Transcriber · Reader · Synthesizer · Describer · Enhancer · Composer · Converter ·
+Imager · Avatarizer · Anonymizer.
+Triggers `WamaFM` posés sur upload/complétion/delete item+batch ; les chemins qui font
+déjà `location.reload()` (clear-all transcriber/reader, batch-delete synthesizer/composer,
+complétion imager) sont couverts par le reload. Complétion converter/avatarizer couverte
+aussi par le common `wama-global-progress.js`.
+⚠️ **Anonymizer** utilise `refreshMediaTable()` (AJAX, PAS de reload) → triggers explicites
+posés sur delete/clear/batch-delete (`WamaFM.deleted()`) + complétion par-média
+(`WamaFM.processed()`). Filet commun : poll mtime ≤5 s.
+
 #### Anti-pattern à éviter
 
 ❌ **Polling périodique** (`setInterval(checkForNewJobs, 5000)`) pour détecter
@@ -795,6 +839,44 @@ l'input + création de la tâche). Les anciens `if (id === 'dropZoneXxx')` codé
 en dur dans `getAppFromDropZone` sont **legacy** — `data-wama-app` est la voie
 homogène (fallback déjà en place).
 
+### 8.X Zone de staging (« À valider ») — import → réglage → file d'attente
+
+> **Principe (décision projet 2026-06)** : un fichier importé **n'entre pas
+> directement en file d'attente**. Il arrive d'abord dans une **zone de staging**
+> (« À valider »), où l'utilisateur peut **régler les paramètres** (volet droit ou
+> modale item), **puis** cliquer **« Ajouter »** (→ file) ou **« Lancer »**
+> (→ file + démarrage). Plus besoin de penser à régler les paramètres *avant*
+> l'import.
+
+**Implémentation — statut `DRAFT` côté serveur** (robuste, persiste au rechargement,
+réutilise les modales item/batch existantes) :
+
+| Élément | Règle |
+|---------|-------|
+| Statut | Nouveau statut **`DRAFT`** (champ `status` ; pas de migration si `CharField` libre). Un `DRAFT` n'est **jamais** mis en file ni enveloppé en batch. |
+| Import | La vue d'upload crée l'élément en `status='DRAFT'` (pas de `_wrap_*_in_batch`, pas de `.delay()`). |
+| `_auto_wrap_orphans` | **Exclure `DRAFT`** (`.exclude(status='DRAFT')`) pour ne pas les committer. |
+| Rendu | `IndexView` passe `staging_list` (les `DRAFT`) ; zone affichée au-dessus de la file, masquée si vide. |
+| Réglages | Bouton ⚙ par item = **modale item existante** (`.settings-btn` + mêmes `data-*`). Bouton « Param. à tous » = applique les défauts du volet à tous les `DRAFT`. |
+| Transitions | `stage_commit(pk, ?start=1)` : `DRAFT`→`PENDING` + `_wrap_*_in_batch` (+ start). `stage_commit_all(?start)` : tous → `PENDING` + `_auto_wrap_orphans` (UN batch-de-N) (+ start). `stage_clear` : supprime tous les `DRAFT`. `stage_update_all` : applique des paramètres à tous les `DRAFT`. |
+| URLs | `stage/<pk>/commit/`, `stage/commit_all/`, `stage/clear/`, `stage/update_all/`. |
+| JS | Upload → `location.reload()` (la zone se rend côté serveur). Handlers délégués `.stage-add-btn` / `.stage-start-btn` / `.stage-del-btn` + en-tête « Tout ajouter / Tout lancer / Vider / Param. à tous ». |
+
+**Quels imports passent par le staging ?**
+- **Imports interactifs ad hoc → staging (`DRAFT`)** : upload/drag&drop de fichier,
+  URL simple, drag depuis le filemanager. L'utilisateur n'a pas encore « validé » →
+  il règle puis `Ajouter`/`Lancer`.
+- **Import de fichier batch → file directement** : le fichier batch **est** la
+  spécification explicite (paramètres par ligne / défauts du volet) ; il crée donc le
+  batch sans étape de staging.
+
+**État de déploiement :** **Transcriber ✅ (pilote)** — staging sur les 3 imports
+interactifs (upload `upload()`, URL `upload_youtube()`, filemanager `import_to_transcriber()`).
+À généraliser ensuite à describer, enhancer, reader, synthesizer, converter, anonymizer,
+composer, imager, avatarizer (même pattern ; extraire un helper commun
+`wama/common/.../staging.py` + JS `wama-staging.js` lors de la généralisation).
+Cible UX globale : voir **`CARD_CENTRIC_UI.md`** (card-centric + descripteur d'app).
+
 ---
 
 ## 9. Système de Batch
@@ -817,6 +899,35 @@ Pattern recommandé (voir Synthesizer comme référence) :
 - `MyItem.batch = FK(MyBatch, null=True)`
 - `_wrap_in_batch(item)` → crée un batch-de-1 si item isolé
 - `_auto_wrap_orphans(user)` → migration lazy des anciens items
+
+### 9.2bis Regroupement batch PAR NATURE — règle GÉNÉRALE (commune)
+
+**Règle unique pour toutes les apps** : à la consolidation d'un import multi-fichiers,
+on crée **UN batch par nature de média** (image / vidéo / audio / document…).
+- App **mono-nature** (transcriber, reader, synthesizer) → le classifier renvoie une
+  constante → un seul batch (comportement inchangé, aucun cas particulier à coder).
+- App **multi-natures** (converter, describer, enhancer, anonymizer) → un batch par
+  nature → réglages cohérents par groupe + UI plus lisible.
+
+**Helper commun** : `group_into_batches_by_nature()` de `common/utils/batch_common.py`.
+Chaque app fournit seulement :
+
+```python
+from wama.common.utils.batch_common import group_into_batches_by_nature
+group_into_batches_by_nature(
+    items,
+    nature_of=lambda x: x.media_type,                 # ou un classifier par extension
+    create_batch=lambda nature, total: MyBatch.objects.create(user=user, total=total),
+    link_item=lambda batch, x, idx: MyItem.objects.create(batch=batch, <fk>=x, row_index=idx),
+    unwrap_singletons=_unwrap,                         # optionnel (défait les batch-of-1)
+)
+```
+
+`_auto_wrap_orphans()` **et** `consolidate()` doivent passer par ce helper (ne pas
+réécrire de regroupement par-app). Classifiers : `media_type` quand le modèle le porte
+(enhancer, anonymizer, converter), sinon par extension (describer : `_describer_nature`).
+**Conformes :** converter, describer, enhancer, anonymizer. Mono-nature (transcriber,
+reader, synthesizer) = cas trivial (un seul batch).
 
 ### 9.3 Utilitaires de duplication batch (dans `wama/common/`)
 
@@ -1065,8 +1176,88 @@ non-RUNNING du batch. URL : `batch/<int:pk>/update/`.
 **Contexte IndexView** : ajouter `first_<param>` dans chaque entrée de `batches_list` pour
 pré-remplir la modale avec les valeurs du premier item du batch.
 
-**Apps conformes :** Synthesizer ✅ | Reader ✅
-**Apps à porter :** Transcriber | Describer | Enhancer | Composer | Anonymizer
+**Apps conformes :** Synthesizer ✅ | Reader ✅ | Transcriber ✅ (modale individuelle réutilisée en mode batch — `_settingsBatchId` + endpoint `batch_update`)
+**Apps à porter :** Describer | Enhancer | Composer | Anonymizer
+
+### 9.9 Cartes d'élément DANS un groupe batch — boutons + comportement
+
+**Règle :** une carte d'élément à l'intérieur d'un groupe batch expose **les mêmes
+boutons** qu'une carte autonome, dans l'ordre conventionnel
+`[⚙ Paramètres] [▶ Start] [⬇ Download] [⧉ Dupliquer] [🗑 Supprimer]`.
+Le bouton ⚙ **réutilise la modale de paramètres individuelle existante** (même classe
+`.settings-btn` + mêmes `data-*` que la carte autonome) — **ne pas créer de modale dédiée**.
+C'est le trou le plus fréquent : les items batch sont souvent rendus inline sans ces boutons.
+
+**Modèle de paramètres — override + héritage (décision projet) :**
+- Le **batch** porte les **valeurs par défaut** (cf. §9.8, application en masse).
+- Un **élément** hérite de ces défauts et peut **surcharger** certains champs
+  (ex. voix/vitesse/modèle). **La surcharge de l'élément l'emporte** ; sinon, défaut du batch.
+- La modale batch « appliquer à tous » doit indiquer si elle **écrase les réglages perso**.
+
+**Duplication d'un élément = DANS le batch (élément frère), jamais hors groupe.**
+Ajouter l'item au **même** batch (`batch.items` + `total++`), pas un nouveau batch-of-1.
+Erreur classique (corrigée synthesizer/transcriber) : `duplicate()` qui fait
+`_wrap_*_in_batch(copy)` → la copie sort du groupe.
+
+```python
+orig_item = BatchXItem.objects.filter(<obj>=original).select_related('batch').first()
+if orig_item:
+    from django.db.models import Max
+    batch = orig_item.batch
+    idx = (batch.items.aggregate(m=Max('row_index'))['m'] or 0) + 1
+    BatchXItem.objects.create(batch=batch, <obj>=copy, row_index=idx)
+    batch.total = batch.items.count(); batch.save(update_fields=['total'])
+else:
+    _wrap_<obj>_in_batch(copy)   # élément autonome → batch-of-1
+```
+
+**Appartenance fluide (drag & drop in/out de batch)** : prévu — voir ROADMAP §1.2 (phase 2).
+Glisser une carte autonome **dans** un batch (rejoint), ou une carte **hors** d'un batch
+(redevient batch-of-1).
+
+**Apps conformes :** Synthesizer ✅ | Reader ✅ | Transcriber ✅ | **Describer ✅**
+(⚙ batch réutilisant la modale individuelle + ⚙/⧉ par item + duplication in-batch + group-by-nature)
+| Anonymizer ✅ (groupes batch + consolidation + ⚙/▶/⬇/⧉/🗑 par item + suppr. batch ;
+pas de ⚙/▶ batch — traitement **global** par conception)
+**Composer ✅** (⚙ batch via modale partagée + ⚙/⧉ par item + duplication in-batch).
+**Enhancer ✅** (média : ⚙ batch via réutilisation de la modale par-item du 1er élément
+[`window._enhancerBatchId` → `batch_update`] + ⚙/⧉ par item + duplication in-batch).
+**Avatarizer ✅** (lots créés par **import de fichier batch** au format à balises ;
+groupes par nature = mode pipeline/standalone ; ⧉ par item + duplication in-batch ;
+▶/⬇ ZIP/⧉/🗑 au niveau du lot ; partage `BatchAvatarJob`/`BatchAvatarJobItem`).
+
+**→ Parité batch UI terminée sur toutes les apps à groupes batch.**
+
+### 9.10 Bouton « Télécharger le batch (ZIP) » dans l'en-tête du groupe
+
+**Règle :** chaque en-tête de groupe batch expose un bouton **⬇ ZIP** qui télécharge
+**toutes les sorties produites** du batch en une archive.
+
+- **Position : à GAUCHE du bouton Dupliquer** → ordre d'en-tête
+  `[⬇ ZIP] [⧉ Dupliquer] [🗑 Supprimer]` (+ `[⚙ batch]` / `[▶ batch]` à gauche du ZIP
+  pour les apps qui les exposent — l'anonymizer n'en a pas, traitement global).
+- **Guard `{% if b.done_count %}`** : ne s'affiche que si ≥ 1 sortie est prête.
+- **Vue `batch_download(request, pk)`** : construit le ZIP en mémoire
+  (`io.BytesIO` + `zipfile`) des fichiers de sortie des items `DONE`, renvoyé en
+  `FileResponse`/`HttpResponse` `application/zip`. Réutilise le chemin de sortie
+  canonique de l'app (ex. anonymizer `get_blurred_media_path`, converter `job.output_file.path`).
+- **URL** : `batch/<int:pk>/download/` → `name='batch_download'`.
+
+**Variante déroulante (apps multi-formats)** : si un même item peut produire **plusieurs
+formats de sortie** (transcriber `txt/srt/vtt/json`, describer, reader), le bouton devient
+un **dropdown** « Télécharger tout en … » listant les formats disponibles, chaque entrée
+appelant `batch_download?fmt=<ext>`. Pour les apps **mono-format par item**
+(anonymizer, converter, enhancer, composer), c'est un **bouton simple** (le ZIP contient
+les sorties telles quelles).
+
+**Apps conformes (ZIP batch) — toutes :**
+- **Bouton simple** (mono-format par item) : Anonymizer ✅ | Converter ✅ |
+  Enhancer ✅ (image/vidéo + audio) | Composer ✅ (WAV) | Synthesizer ✅ |
+  Avatarizer ✅ (MP4)
+- **Dropdown multi-formats** : Reader ✅ (`txt/md/pdf/docx/json`) | Transcriber ✅
+  (`txt/srt/pdf/docx`) | Describer ✅ (`txt/pdf/docx`)
+  — chaque app expose un helper `_build_<obj>_bytes(obj, fmt)` réutilisé par le
+  téléchargement unitaire et le ZIP, et `batch_download?fmt=<ext>` (GET).
 
 ---
 

@@ -65,10 +65,13 @@ document.addEventListener('DOMContentLoaded', function () {
       });
       const data = await response.json();
       if (data.error) throw new Error(data.error);
-      data.status = data.status || 'PENDING';
-      appendCard(data);
+      // L'élément arrive en zone de staging (DRAFT) — il n'est PAS ajouté à la
+      // file ici ; le rechargement affiche la zone « À valider » (rendu serveur).
+      if (window.WamaFM) WamaFM.uploaded();  // fichier de travail ajouté → refresh filemanager
+      return data.id;
     } catch (error) {
       alert(`Erreur pour ${file.name}: ${error.message}`);
+      return null;
     }
   }
 
@@ -97,8 +100,98 @@ document.addEventListener('DOMContentLoaded', function () {
     if (fileList.length === 1 && window._batchImport) {
       if (await window._batchImport.detectAndHandle(fileList[0])) return;
     }
-    for (const file of fileList) await uploadFile(file);
+    // Upload tous les fichiers puis consolide en UN batch si plusieurs (le
+    // serveur défait les batch-of-1 créés à l'upload). Couvre drag&drop,
+    // explorateur Windows et sélecteur de fichiers.
+    let any = false;
+    for (const file of fileList) {
+      const id = await uploadFile(file);
+      if (id) any = true;
+    }
+    // Les éléments importés arrivent en zone de staging (DRAFT) : on recharge
+    // pour afficher la zone « À valider » (rendu serveur). La consolidation en
+    // batch se fait à la validation (stage_commit), pas à l'upload.
+    if (any) location.reload();
   }
+
+  // ======================================================================
+  // Staging (« à valider ») — DRAFT → file d'attente
+  // ======================================================================
+  function stagePost(url, extra) {
+    const body = new FormData();
+    for (const k in (extra || {})) body.append(k, extra[k]);
+    return fetch(url, { method: 'POST', headers: csrfHeaders(), body });
+  }
+
+  document.addEventListener('click', async function (e) {
+    // ── Ajouter / Lancer un élément en staging ──
+    const addBtn = e.target.closest('.stage-add-btn');
+    const startBtn = e.target.closest('.stage-start-btn');
+    if (addBtn || startBtn) {
+      e.preventDefault();
+      const id = (addBtn || startBtn).dataset.id;
+      const url = config.stageCommitUrlTemplate.replace('/0/', `/${id}/`);
+      try {
+        const r = await stagePost(url, { start: startBtn ? '1' : '0' });
+        if (r.ok) location.reload(); else showToast('Erreur lors de la validation', 'danger');
+      } catch (_) { showToast('Erreur réseau', 'danger'); }
+      return;
+    }
+    // ── Supprimer un élément en staging ──
+    const delBtn = e.target.closest('.stage-del-btn');
+    if (delBtn) {
+      e.preventDefault();
+      const id = delBtn.dataset.id;
+      const url = config.deleteUrlTemplate.replace('/0/', `/${id}/`);
+      try {
+        const r = await stagePost(url);
+        if (r.ok) {
+          const card = delBtn.closest('.staging-card');
+          if (card) card.remove();
+          if (window.WamaFM) WamaFM.deleted();
+          const remaining = document.querySelectorAll('#stagingItems .staging-card').length;
+          const cnt = document.getElementById('stagingCount');
+          if (cnt) cnt.textContent = remaining;
+          if (remaining === 0) { const z = document.getElementById('stagingZone'); if (z) z.style.display = 'none'; }
+        }
+      } catch (_) { showToast('Erreur réseau', 'danger'); }
+      return;
+    }
+    // ── Tout ajouter / Tout lancer ──
+    if (e.target.closest('#stagingAddAll') || e.target.closest('#stagingStartAll')) {
+      e.preventDefault();
+      const start = !!e.target.closest('#stagingStartAll');
+      try {
+        const r = await stagePost(config.stageCommitAllUrl, { start: start ? '1' : '0' });
+        if (r.ok) location.reload(); else showToast('Erreur lors de la validation', 'danger');
+      } catch (_) { showToast('Erreur réseau', 'danger'); }
+      return;
+    }
+    // ── Vider le staging ──
+    if (e.target.closest('#stagingClear')) {
+      e.preventDefault();
+      if (!confirm('Vider la zone « À valider » ? Les fichiers non validés seront supprimés.')) return;
+      try {
+        const r = await stagePost(config.stageClearUrl);
+        if (r.ok) { if (window.WamaFM) WamaFM.deleted(); location.reload(); }
+      } catch (_) { showToast('Erreur réseau', 'danger'); }
+      return;
+    }
+    // ── Appliquer les paramètres du volet droit à tous les éléments à valider ──
+    if (e.target.closest('#stagingSettingsAll')) {
+      e.preventDefault();
+      const backendSel = document.getElementById('backendSelect');
+      const hotwordsIn = document.getElementById('hotwordsInput');
+      const extra = { preprocess_audio: preprocessEnabled ? '1' : '0' };
+      if (backendSel) extra.backend = backendSel.value;
+      if (hotwordsIn) extra.hotwords = hotwordsIn.value;
+      try {
+        const r = await stagePost(config.stageUpdateAllUrl, extra);
+        if (r.ok) location.reload(); else showToast('Erreur', 'danger');
+      } catch (_) { showToast('Erreur réseau', 'danger'); }
+      return;
+    }
+  });
 
   // ── Batch delete ─────────────────────────────────────────────────────────
   document.addEventListener('click', function(e) {
@@ -114,6 +207,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (el) el.remove();
         else location.reload();
         updateQueueCount();
+        if (window.WamaFM) WamaFM.deleted();  // fichiers supprimés → refresh filemanager
       })
       .catch(() => showToast('Erreur lors de la suppression', 'danger'));
   });
@@ -179,9 +273,10 @@ document.addEventListener('DOMContentLoaded', function () {
         const response = await fetch(config.uploadYoutubeUrl, { method: 'POST', headers: csrfHeaders(), body });
         const data = await response.json();
         if (data.error) throw new Error(data.error);
-        data.status = data.status || 'PENDING';
-        appendCard(data);
         youtubeUrl.value = '';
+        if (window.WamaFM) WamaFM.uploaded();
+        // L'élément arrive en zone de staging (DRAFT) → recharge (rendu serveur).
+        location.reload();
       } catch (error) {
         alert(`Erreur YouTube: ${error.message}`);
       } finally {
@@ -291,6 +386,8 @@ document.addEventListener('DOMContentLoaded', function () {
     }
     if (progressText) progressText.textContent = `${progress}%`;
 
+    if (window.WamaEta) WamaEta.render(card.querySelector('.wama-eta'), WamaEta.update(id, { progress: progress, status: status }));
+
     // Update status badge
     const badge = card.querySelector('.status-badge');
     if (badge) {
@@ -314,6 +411,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (['SUCCESS', 'FAILURE'].includes(status) || progress >= 100) {
       stopPolling(id);
       rebuildActions(card, id, status);
+      if (window.WamaFM) WamaFM.processed();  // sortie créée → refresh filemanager
     }
 
     updateDownloadAllState();
@@ -473,6 +571,7 @@ document.addEventListener('DOMContentLoaded', function () {
         stopPolling(id);
         insertEmptyStateIfNeeded();
         updateDownloadAllState();
+        if (window.WamaFM) WamaFM.deleted();  // fichier supprimé → refresh filemanager
       })
       .catch(err => alert(err.message || 'Erreur lors de la suppression'));
   }
@@ -495,9 +594,37 @@ document.addEventListener('DOMContentLoaded', function () {
   // ======================================================================
   // Settings modal
   // ======================================================================
+  // Mode batch de la modale de paramètres : la même modale individuelle est
+  // réutilisée pour le batch (pas de modale dédiée). _settingsBatchId != null
+  // → la sauvegarde s'applique à TOUS les items du batch (conventions §9.8/§9.9).
+  let _settingsBatchId = null;
+
+  document.addEventListener('click', function (e) {
+    const bbtn = e.target.closest('.batch-settings-btn');
+    if (!bbtn) return;
+    openBatchSettingsModal(bbtn);
+  });
+
+  function openBatchSettingsModal(btn) {
+    const group = btn.closest('.batch-group');
+    const firstItemBtn = group ? group.querySelector('.settings-btn') : null;
+    if (firstItemBtn) {
+      openSettingsModal(firstItemBtn);   // pré-remplit avec les réglages du 1er élément
+    } else {
+      const m = document.getElementById('settingsModal');
+      if (m) new bootstrap.Modal(m).show();
+    }
+    _settingsBatchId = btn.dataset.batchId;   // bascule en mode batch APRÈS le prefill
+    const title = document.querySelector('#settingsModal .modal-title');
+    if (title) title.textContent = 'Paramètres du batch — appliqués à tous les éléments';
+  }
+
   function openSettingsModal(btn) {
     const modal = document.getElementById('settingsModal');
     if (!modal) return;
+    _settingsBatchId = null;                   // mode individuel par défaut
+    const _t = modal.querySelector('.modal-title');
+    if (_t) _t.textContent = 'Paramètres de transcription';
 
     document.getElementById('settingsTranscriptId').value = btn.dataset.id;
     document.getElementById('settingsBackend').value = btn.dataset.backend || 'auto';
@@ -561,6 +688,30 @@ document.addEventListener('DOMContentLoaded', function () {
       summary_type: summaryTypeEl ? summaryTypeEl.value : 'structured',
       verify_coherence: document.getElementById('settingsVerifyCoherence')?.checked || false,
     };
+
+    // Mode batch : applique à tous les items + relance éventuelle du batch.
+    if (_settingsBatchId) {
+      const bid = _settingsBatchId;
+      _settingsBatchId = null;
+      fetch(getUrl(config.batchUpdateUrlTemplate, bid), {
+        method: 'POST',
+        headers: csrfHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify(payload),
+      })
+        .then(r => r.json())
+        .then(() => {
+          const m = bootstrap.Modal.getInstance(document.getElementById('settingsModal'));
+          if (m) m.hide();
+          if (andStart) {
+            fetch(getUrl(config.batchStartUrlTemplate, bid), { method: 'POST', headers: csrfHeaders() })
+              .finally(() => location.reload());
+          } else {
+            location.reload();
+          }
+        })
+        .catch(() => showToast('Erreur lors de la mise à jour du batch', 'danger'));
+      return;
+    }
 
     const url = getUrl(config.settingsUrlTemplate, id);
     fetch(url, {
@@ -978,6 +1129,7 @@ document.addEventListener('DOMContentLoaded', function () {
         pollers.forEach((_, id) => stopPolling(id));
         insertEmptyStateIfNeeded();
         updateDownloadAllState();
+        if (window.WamaFM) WamaFM.deleted();  // fichiers supprimés → refresh filemanager
       })
       .catch(err => alert(err.message || 'Erreur'))
       .finally(() => { clearAllBtn.disabled = false; });
@@ -1148,6 +1300,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const p = data.overall_progress || 0;
         if (bar) bar.style.width = p + '%';
         if (stats) stats.textContent = `${data.success}/${data.total} terminé · ${data.running} en cours`;
+        if (window.WamaEta) WamaEta.render(document.getElementById('globalEta'), WamaEta.aggregateAll());
         if (pct) pct.textContent = p ? p + '%' : '';
         if (globalStatus) {
           const active = (data.total || 0) > 0;

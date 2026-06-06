@@ -11,6 +11,7 @@ urlpatterns = [
 
     # Opérations
     path('upload/', views.upload, name='upload'),
+    path('consolidate/', views.consolidate, name='consolidate'),
     path('upload_youtube/', views.upload_youtube, name='upload_youtube'),
     path('start/<int:pk>/', views.start, name='start'),
     path('enrich/<int:pk>/', views.enrich, name='enrich'),
@@ -18,6 +19,12 @@ urlpatterns = [
     path('download/<int:pk>/', views.download, name='download'),
     path('delete/<int:pk>/', views.delete, name='delete'),
     path('duplicate/<int:pk>/', views.duplicate, name='duplicate'),
+
+    # Staging (« à valider ») — DRAFT → file d'attente
+    path('stage/<int:pk>/commit/', views.stage_commit, name='stage_commit'),
+    path('stage/commit_all/', views.stage_commit_all, name='stage_commit_all'),
+    path('stage/clear/', views.stage_clear, name='stage_clear'),
+    path('stage/update_all/', views.stage_update_all, name='stage_update_all'),
 
     # Opérations groupées
     path('start_all/', views.start_all, name='start_all'),
@@ -49,6 +56,7 @@ urlpatterns = [
     path('batch/create/', views.batch_create, name='batch_create'),
     path('batch/list/', views.batch_list, name='batch_list'),
     path('batch/<int:pk>/start/', views.batch_start, name='batch_start'),
+    path('batch/<int:pk>/update/', views.batch_update_settings, name='batch_update'),
     path('batch/<int:pk>/status/', views.batch_status, name='batch_status'),
     path('batch/<int:pk>/download/', views.batch_download, name='batch_download'),
     path('batch/<int:pk>/delete/', views.batch_delete, name='batch_delete'),

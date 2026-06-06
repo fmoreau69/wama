@@ -246,6 +246,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jstree/3.3.16/jstree.min.js"></script>
     <!-- WAMA App Catalog (injected server-side — used by FileManager JS) -->
     <script>window.WAMA_APP_CATALOG = {{ app_catalog_json|safe }};</script>
+    <!-- WAMA FileManager notify (API commune media:uploaded/processed/deleted) -->
+    <script src="{% static 'common/js/wama-fm-notify.js' %}"></script>
     <!-- FileManager JS -->
     <script src="{% static 'filemanager/js/filemanager.js' %}"></script>
     <!-- Unified media preview (modal + fullscreen — common à toutes les apps) -->

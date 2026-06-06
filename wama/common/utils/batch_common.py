@@ -71,3 +71,43 @@ def consolidate_into_batch(items: Iterable,
     for idx, item in enumerate(items):
         link_item(batch, item, idx)
     return batch
+
+
+def group_into_batches_by_nature(items,
+                                 *,
+                                 nature_of: Callable[[object], str],
+                                 create_batch: Callable[[str, int], object],
+                                 link_item: Callable[[object, object, int], None],
+                                 unwrap_singletons: Optional[Callable[[List], None]] = None):
+    """Crée UN batch PAR NATURE — **règle générale** de regroupement batch (conventions §9).
+
+    Règle unifiée pour TOUTES les apps :
+      - app mono-nature → ``nature_of`` renvoie une constante → un seul batch
+        (comportement identique à une consolidation simple) ;
+      - app multi-natures (image/vidéo/audio/document…) → un batch par nature
+        (réglages cohérents par groupe, UI plus lisible).
+
+    Callbacks fournis par l'app (chaque app garde son modèle batch) :
+        nature_of(item)              -> str (nature)
+        create_batch(nature, total)  -> instance batch (la nature peut être ignorée
+                                        si l'app ne la stocke pas sur le batch)
+        link_item(batch, item, idx)  -> lien batch↔item
+        unwrap_singletons(item_ids)  -> (optionnel) supprime les batch-of-1 préalables
+
+    Returns: liste des batchs créés (un par nature, dans l'ordre d'apparition).
+    """
+    items = list(items)
+    if not items:
+        return []
+    if unwrap_singletons:
+        unwrap_singletons([getattr(i, 'id', i) for i in items])
+    by_nature: "OrderedDict[str, List]" = OrderedDict()
+    for it in items:
+        by_nature.setdefault(nature_of(it), []).append(it)
+    batches = []
+    for nature, group in by_nature.items():
+        batch = create_batch(nature, len(group))
+        for idx, it in enumerate(group):
+            link_item(batch, it, idx)
+        batches.append(batch)
+    return batches
