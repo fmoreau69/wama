@@ -152,10 +152,18 @@ def diarize(
         logger.info(f"[pyannote] Diarizing: {audio_path}")
         diarization = pipeline(audio_input, **diarize_kwargs)
 
+        # Compat pyannote 3.x (Annotation, .itertracks) ↔ 4.x (DiarizeOutput :
+        # l'Annotation est dans .speaker_diarization / .diarization).
+        annotation = diarization
+        if not hasattr(annotation, 'itertracks'):
+            annotation = (getattr(diarization, 'speaker_diarization', None)
+                          or getattr(diarization, 'diarization', None)
+                          or annotation)
+
         # Extract (start, end, speaker) turns from pyannote output
         dia_turns: List[tuple] = [
             (turn.start, turn.end, speaker)
-            for turn, _, speaker in diarization.itertracks(yield_label=True)
+            for turn, _, speaker in annotation.itertracks(yield_label=True)
         ]
         logger.info(f"[pyannote] {len(dia_turns)} diarization turns found")
 

@@ -7,7 +7,7 @@ import zipfile
 import shutil
 import platform
 import subprocess
-from django.shortcuts import render, get_object_or_404
+from django.shortcuts import render, get_object_or_404, redirect
 from django.views import View
 from django.views.generic import TemplateView
 from django.http import JsonResponse, FileResponse, HttpResponseBadRequest
@@ -294,6 +294,11 @@ def upload(request):
     preprocess_requested = str(request.POST.get('preprocess_audio', '')).lower() in ('1', 'true', 'on')
     backend_requested = request.POST.get('backend', 'auto')
     hotwords_requested = request.POST.get('hotwords', '')
+    # Capture l'état COMPLET du volet droit au dépôt (sinon ces réglages sont perdus).
+    diarization_requested = str(request.POST.get('enable_diarization', 'true')).lower() in ('1', 'true', 'on')
+    generate_summary_requested = str(request.POST.get('generate_summary', '')).lower() in ('1', 'true', 'on')
+    summary_type_requested = request.POST.get('summary_type', 'structured')
+    verify_coherence_requested = str(request.POST.get('verify_coherence', '')).lower() in ('1', 'true', 'on')
 
     # Persist preferences for future uploads
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
@@ -316,6 +321,10 @@ def upload(request):
         'preprocess_audio': preprocess_requested,
         'backend': backend_requested,
         'hotwords': hotwords_requested,
+        'enable_diarization': diarization_requested,
+        'generate_summary': generate_summary_requested,
+        'summary_type': summary_type_requested,
+        'verify_coherence': verify_coherence_requested,
     }
 
     # Vérifier si c'est une vidéo
@@ -402,6 +411,12 @@ def upload_youtube(request):
         }, status=400)
 
     preprocess_requested = str(request.POST.get('preprocess_audio', '')).lower() in ('1', 'true', 'on')
+    diarization_requested = str(request.POST.get('enable_diarization', 'true')).lower() in ('1', 'true', 'on')
+    generate_summary_requested = str(request.POST.get('generate_summary', '')).lower() in ('1', 'true', 'on')
+    summary_type_requested = request.POST.get('summary_type', 'structured')
+    verify_coherence_requested = str(request.POST.get('verify_coherence', '')).lower() in ('1', 'true', 'on')
+    backend_requested = request.POST.get('backend', 'auto')
+    hotwords_requested = request.POST.get('hotwords', '')
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     cache.set(f"user_{user.id}_preprocessing_enabled", preprocess_requested, timeout=30 * 24 * 3600)
 
@@ -431,6 +446,12 @@ def upload_youtube(request):
             audio=audio_django_file,
             status='DRAFT',
             preprocess_audio=preprocess_requested,
+            backend=backend_requested,
+            hotwords=hotwords_requested,
+            enable_diarization=diarization_requested,
+            generate_summary=generate_summary_requested,
+            summary_type=summary_type_requested,
+            verify_coherence=verify_coherence_requested,
         )
 
         # Nettoyer le dossier temporaire
@@ -504,6 +525,34 @@ def start(request, pk: int):
 # Staging (« à valider ») — DRAFT → file d'attente
 # ---------------------------------------------------------------------------
 
+def _apply_panel_settings(drafts, post):
+    """Applique en masse aux DRAFT les paramètres du volet présents dans POST.
+
+    Ne touche que les champs effectivement fournis. Renvoie la liste des champs MAJ.
+    """
+    def _b(key, default=''):
+        return str(post.get(key, default)).lower() in ('1', 'true', 'on')
+
+    updates = {}
+    if 'backend' in post:
+        updates['backend'] = post.get('backend', 'auto')
+    if 'hotwords' in post:
+        updates['hotwords'] = post.get('hotwords', '')
+    if 'preprocess_audio' in post:
+        updates['preprocess_audio'] = _b('preprocess_audio')
+    if 'enable_diarization' in post:
+        updates['enable_diarization'] = _b('enable_diarization')
+    if 'generate_summary' in post:
+        updates['generate_summary'] = _b('generate_summary')
+    if 'summary_type' in post:
+        updates['summary_type'] = post.get('summary_type', 'structured')
+    if 'verify_coherence' in post:
+        updates['verify_coherence'] = _b('verify_coherence')
+    if updates:
+        drafts.update(**updates)
+    return list(updates.keys())
+
+
 def _launch_transcript(t: Transcript) -> str:
     """Démarre la transcription d'un élément (respecte preprocess_audio)."""
     from .workers import transcribe, transcribe_without_preprocessing
@@ -539,13 +588,15 @@ def stage_commit_all(request):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     start = str(request.POST.get('start', '')).lower() in ('1', 'true', 'on')
 
-    drafts = list(Transcript.objects.filter(user=user, status='DRAFT').order_by('id'))
+    draft_qs = Transcript.objects.filter(user=user, status='DRAFT')
+    # Actions de lot : applique l'état complet du volet droit à tous les éléments.
+    _apply_panel_settings(draft_qs, request.POST)
+
+    drafts = list(draft_qs.order_by('id'))
     if not drafts:
         return JsonResponse({'status': 'noop', 'count': 0})
 
-    for t in drafts:
-        t.status = 'PENDING'
-        t.save(update_fields=['status'])
+    Transcript.objects.filter(id__in=[t.id for t in drafts]).update(status='PENDING')
     _auto_wrap_orphans(user)  # regroupe les nouveaux PENDING en UN batch-de-N
     if start:
         for t in drafts:
@@ -567,24 +618,96 @@ def stage_clear(request):
 
 @require_POST
 def stage_update_all(request):
-    """Applique des paramètres (backend / hotwords / preprocess) à tous les DRAFT."""
+    """Applique TOUS les paramètres du volet droit fournis à tous les DRAFT."""
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     drafts = Transcript.objects.filter(user=user, status='DRAFT')
-
-    fields = []
-    if 'backend' in request.POST:
-        backend = request.POST.get('backend', 'auto')
-        drafts.update(backend=backend)
-        fields.append('backend')
-    if 'hotwords' in request.POST:
-        drafts.update(hotwords=request.POST.get('hotwords', ''))
-        fields.append('hotwords')
-    if 'preprocess_audio' in request.POST:
-        pp = str(request.POST.get('preprocess_audio', '')).lower() in ('1', 'true', 'on')
-        drafts.update(preprocess_audio=pp)
-        fields.append('preprocess_audio')
-
+    fields = _apply_panel_settings(drafts, request.POST)
     return JsonResponse({'status': 'updated', 'fields': fields, 'count': drafts.count()})
+
+
+# ---------------------------------------------------------------------------
+# Éditeur de correction manuelle (/edit/<id>/) — voir TRANSCRIBER_CORRECTION.md
+# ---------------------------------------------------------------------------
+
+def _editor_segments(t: Transcript):
+    """Segments pour l'éditeur : version corrigée si dispo, sinon l'originale ASR."""
+    if t.corrected_segments_json:
+        return t.corrected_segments_json
+    if t.segments_json:
+        return t.segments_json
+    return [
+        {'speaker_id': s.speaker_id, 'start_time': s.start_time, 'end_time': s.end_time,
+         'text': s.text, 'confidence': s.confidence}
+        for s in t.segments.order_by('order')
+    ]
+
+
+def _rebuild_segments_from(t: Transcript, segs):
+    """Reconstruit les lignes TranscriptSegment depuis les segments corrigés
+    (pour que SRT/aperçus reflètent la correction). Appelé à la finalisation."""
+    from .models import TranscriptSegment
+    TranscriptSegment.objects.filter(transcript=t).delete()
+    rows = []
+    for i, s in enumerate(segs):
+        rows.append(TranscriptSegment(
+            transcript=t,
+            speaker_id=s.get('speaker_id', '') or '',
+            start_time=float(s.get('start_time', 0) or 0),
+            end_time=float(s.get('end_time', 0) or 0),
+            text=(s.get('text') or '').strip(),
+            confidence=s.get('confidence'),
+            order=i,
+        ))
+    if rows:
+        TranscriptSegment.objects.bulk_create(rows)
+
+
+def edit(request, pk: int):
+    """Page éditeur de correction (forme d'onde + transcript synchronisé éditable)."""
+    import json as _json
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    t = get_object_or_404(Transcript, pk=pk, user=user)
+    if t.status != 'SUCCESS':
+        from django.contrib import messages
+        messages.warning(request, "La correction n'est disponible qu'après une transcription réussie.")
+        return redirect('transcriber:index')
+
+    segments = _editor_segments(t)
+    return render(request, 'transcriber/edit.html', {
+        'transcript': t,
+        'audio_url': t.audio.url if t.audio else '',
+        'segments_json': _json.dumps(segments, ensure_ascii=False),
+        'is_corrected': bool(t.corrected_segments_json),
+        'correction_status': t.correction_status,
+    })
+
+
+@require_POST
+def save_correction(request, pk: int):
+    """Auto-save de la correction (segments corrigés). status: draft | done."""
+    import json as _json
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    t = get_object_or_404(Transcript, pk=pk, user=user)
+    try:
+        data = _json.loads(request.body or '{}')
+    except (ValueError, TypeError):
+        return JsonResponse({'error': 'payload invalide'}, status=400)
+
+    segs = data.get('segments') or []
+    status = data.get('status', 'draft')
+    status = status if status in ('draft', 'done') else 'draft'
+
+    t.corrected_segments_json = segs
+    t.correction_status = status
+    # Le texte de travail (téléchargements TXT) reflète la correction.
+    t.text = ' '.join((s.get('text') or '').strip() for s in segs).strip()
+    t.save(update_fields=['corrected_segments_json', 'correction_status', 'text'])
+
+    # À la finalisation, on reconstruit les lignes de segments (SRT/aperçus cohérents).
+    if status == 'done':
+        _rebuild_segments_from(t, segs)
+
+    return JsonResponse({'status': 'saved', 'correction_status': t.correction_status})
 
 
 def progress(request, pk: int):

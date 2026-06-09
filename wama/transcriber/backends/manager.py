@@ -19,14 +19,16 @@ class TranscriberBackendManager:
     Handles backend registration, availability checking, and priority-based selection.
     """
 
-    # Priority order for auto-selection (first available wins)
-    # Note: qwen_asr is deliberately after whisper — it reports is_available()=True
-    # as soon as transformers is installed, but requires an explicit model download.
-    # Whisper (faster-whisper) is more reliable for auto mode.
+    # Priority order for auto-selection (first available wins).
+    # Whisper d'abord : meilleure qualité FR, plus léger (~10 GB vs 16 GB pour
+    # VibeVoice), et la diarisation est assurée par pyannote (backend-agnostique).
+    # VibeVoice reste sélectionnable explicitement (diarisation native). qwen_asr
+    # en dernier : is_available()=True dès transformers installé, mais nécessite
+    # un téléchargement explicite + son intérêt (context biasing) est opt-in.
     BACKEND_PRIORITY = [
-        'vibevoice',   # Best quality: native diarization (16 GB VRAM)
-        'whisper',     # Reliable default: faster-whisper, many model sizes
-        'qwen_asr',    # Context biasing: select explicitly once model is downloaded
+        'whisper',     # Défaut fiable : faster-whisper large-v3 + pyannote
+        'vibevoice',   # Option : diarisation native (16 GB VRAM)
+        'qwen_asr',    # Option : context biasing (hotwords), une fois le modèle dispo
     ]
 
     _backends: Dict[str, Type[SpeechToTextBackend]] = {}

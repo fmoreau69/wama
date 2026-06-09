@@ -759,6 +759,16 @@ ul.modal-menu ul {
 /*  === TEXT VISIBILITY ON DARK BACKGROUND === */
 /* Fix for Bootstrap's muted text colors that don't contrast well with dark themes */
 
+/* Placeholders lisibles : sans cette règle, le texte d'exemple des champs
+   (ex. « Noms propres, termes techniques ») est foncé-sur-foncé donc illisible.
+   opacity:1 corrige l'atténuation par défaut de Firefox. */
+.form-control::placeholder,
+.form-select::placeholder,
+textarea.form-control::placeholder {
+    color: #9ca3af !important;
+    opacity: 1 !important;
+}
+
 /* Base text colors for dark theme */
 body {
     color: #e5e7eb;

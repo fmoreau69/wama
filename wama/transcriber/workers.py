@@ -421,6 +421,31 @@ def transcribe(self, transcript_id: int):
             except Exception as coh_err:
                 _console(t.user_id, f"Avertissement: vérification cohérence échouée ({coh_err})", level='warning')
 
+            # Step 8b: cohérence PAR SEGMENT → heatmap de l'éditeur (1 appel LLM, défensif :
+            # en cas d'échec, segments_json reste sans coh → l'éditeur retombe sur la confiance).
+            try:
+                segs = t.segments_json or []
+                if segs:
+                    from wama.common.utils.llm_utils import analyze_segments_coherence
+                    issues = analyze_segments_coherence(
+                        [{'index': i, 'text': s.get('text', '')} for i, s in enumerate(segs)],
+                        t.language or 'fr',
+                    )
+                    for i, s in enumerate(segs):
+                        iss = issues.get(i)
+                        if iss:
+                            s['coh_severity'] = iss['severity']
+                            s['coh_note'] = iss['note']
+                        else:
+                            s.pop('coh_severity', None)
+                            s.pop('coh_note', None)
+                    t.segments_json = segs
+                    t.save(update_fields=['segments_json'])
+                    if issues:
+                        _console(t.user_id, f"Cohérence par segment : {len(issues)} segment(s) signalé(s)")
+            except Exception as seg_err:
+                _console(t.user_id, f"Avertissement: cohérence par-segment échouée ({seg_err})", level='warning')
+
         _set_progress(t, 100)
         _console(t.user_id, f"Transcription {t.id} terminée ({backend.display_name}) ✓")
 

@@ -48,18 +48,68 @@ Principe : **1 source + 1 destination par app**, + la surface globale.
 
 ## 5. Volet droit = inspecteur
 
-- Au clic sur une card → ses paramètres s'affichent dans le volet droit (éditables, live).
+- Au clic sur une card → ses paramètres **et sa preview complète** s'affichent dans le
+  volet droit (éditables, live) — cf. §5bis (modèle de preview à 3 niveaux).
 - Au clic sur un en-tête de batch → paramètres du batch (appliqués à tous).
+
+**Niveau 2 implémenté (transcriber, pilote)** : clic sur une card → bannière
+« Réglages de l'élément #N · [×] » dans le volet + card surlignée (`.inspector-selected`).
+Les contrôles du volet sont peuplés depuis la card et toute modification est **enregistrée
+sur CET élément** (endpoint `settings`) au lieu des défauts. `[×]` (ou `deselect`) revient
+aux **valeurs par défaut** (snapshot restauré). `savePanelSettings()` branche sur
+`_inspectorId`. Reste : preview complète dans le volet + sélection des en-têtes de batch +
+généralisation aux autres apps.
 - Rien sélectionné → défauts (gabarit).
 - **Validation découplée** : peu importe où les paramètres ont été réglés (inspecteur,
   modale item, modale batch), `Ajouter`/`Lancer` agit sur l'état courant (`DRAFT→PENDING`).
 - Drag d'une card **vers/depuis un batch** pour réorganiser la file.
 
+## 5bis. Preview du résultat — modèle à 3 niveaux (divulgation progressive)
+
+> **Décision** (validée) : 3 niveaux complémentaires, choisi face à « card seule » et
+> « volet seul ». Objectif : **scannabilité de toute la file** + **détail sans surcharge**
+> + **retrait du bouton œil** (le geste remplace le bouton).
+
+| Niveau | Geste | Contenu | Rôle |
+|--------|-------|---------|------|
+| **Card** | toujours visible (sous la barre de progression) | preview **compacte typée par média** : image→miniature · vidéo→miniature+durée · audio→forme d'onde+durée · texte/OCR/transcript→extrait + **ligne de métriques** (« Transcription 77 mots · Diarisation · Résumé 48 mots · Cohérence 88 mots ») | **scanner** la file |
+| **Volet droit (inspecteur)** | **clic** sur la card | preview **complète** + paramètres éditables | **détailler** la sélection |
+| **Overlay plein écran** | **double-clic** (ou clic sur la miniature) | vue maximisée (transcript intégral, grande image, audio scrubbable) = la modale de preview actuelle repositionnée | **inspection approfondie** |
+
+- Card (compact) et volet (complet) se **complètent**, ne se dupliquent pas.
+- Le **bouton œil disparaît** : clic = sélection/inspecteur, double-clic = overlay.
+- **Coût** : artefacts légers déjà générés (miniature, extrait, forme d'onde) +
+  **lazy-load** des vignettes pour ne pas alourdir le rendu de la file.
+- Le **type** de preview compacte + le gabarit de métriques sont déclarés dans
+  `APP_SPEC.output_preview` (§6bis) → généralisable à toutes les apps (comme imager).
+
+**Composant commun (implémenté)** : classe `.wama-card-preview` → `media-preview.js`
+(commun) binde le **double-clic** et **émet l'événement `wama:card-expand`**
+(`detail: {id, url, el}`, *cancelable*). Style commun dans `media-preview.css`.
+Deux façons d'ouvrir le détail :
+- **L'app gère son propre détail** (cas transcriber/reader : le **résultat**, pas
+  l'entrée) : elle écoute `wama:card-expand`, appelle `preventDefault()` et ouvre son
+  modal (ex. `openResultModal(id)`). La card porte `data-id`.
+- **Apps média** (sortie = média) : pas de listener → fallback automatique sur
+  l'overlay commun `common:unified_preview` via `data-preview-url`.
+
+⚠️ Distinction importante : pour transcriber, le **simple-clic sur le nom de fichier**
+(`.preview-media-link`) prévisualise l'**audio d'entrée** ; le **double-clic sur la
+preview** ouvre le **résultat de transcription** (modal existant). Ce sont deux previews
+différentes.
+
+Généralisé depuis le pattern de **Reader** (qui garde son modal bespoke pour l'instant).
+**1ᵉʳ consommateur : Transcriber** (preview compacte sous la barre + métriques
+« Transcription N mots · Diarisation · Résumé N mots · Cohérence N/100 », **bouton œil
+retiré**). Reste : appliquer aux autres apps + migrer reader sur le commun.
+
 ## 6. Modales
 
 On **conserve les modales item + batch** pour l'instant (déjà en place, 1 bouton).
 À terme, la modale = **le même inspecteur en overlay focalisé** (utile petit écran),
-**pas un 2ᵉ jeu de champs**. Pas de retrait tant que l'inspecteur live n'est pas validé.
+**pas un 2ᵉ jeu de champs**. La **modale de preview actuelle** devient l'**overlay
+plein écran** du niveau 3 (§5bis), déclenché au double-clic. Pas de retrait tant que
+l'inspecteur live n'est pas validé.
 
 ## 6bis. Vision étendue — templates génériques pilotés par descripteur
 

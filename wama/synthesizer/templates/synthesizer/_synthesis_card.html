@@ -1,7 +1,6 @@
 {% load static %}
 {# Partial: renders one synthesis card. Expects 'synthesis' in context. #}
-{# 'card_label' = nom du fichier de SORTIE (.wav) ; le libellé principal affiche
-   le fichier d'ENTRÉE (extension réelle, ex. .docx) quand il existe. #}
+{# card_label = nom de SORTIE (.wav) ; le libelle principal affiche le fichier d'ENTREE (ex. .docx) si present #}
 <div class="synthesis-card {% if synthesis.status == 'RUNNING' %}processing{% elif synthesis.status == 'SUCCESS' %}success{% elif synthesis.status == 'FAILURE' %}error{% endif %}"
      data-id="{{ synthesis.id }}">
     <div class="row align-items-center">

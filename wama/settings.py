@@ -1,6 +1,14 @@
-import os, logging, socket
+import os, logging, socket, mimetypes
 from pathlib import Path
 from dotenv import load_dotenv
+
+# Types MIME audio/vidéo explicites (sinon servis en octet-stream selon l'OS,
+# ce qui peut empêcher la lecture <audio>/<video> dans le navigateur — ex. .m4a).
+mimetypes.add_type('audio/mp4', '.m4a')
+mimetypes.add_type('audio/aac', '.aac')
+mimetypes.add_type('audio/ogg', '.ogg')
+mimetypes.add_type('audio/flac', '.flac')
+mimetypes.add_type('audio/webm', '.weba')
 
 # Load environment variables from .env file
 load_dotenv()

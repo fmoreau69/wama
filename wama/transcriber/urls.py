@@ -20,6 +20,10 @@ urlpatterns = [
     path('delete/<int:pk>/', views.delete, name='delete'),
     path('duplicate/<int:pk>/', views.duplicate, name='duplicate'),
 
+    # Éditeur de correction manuelle
+    path('edit/<int:pk>/', views.edit, name='edit'),
+    path('edit/<int:pk>/save/', views.save_correction, name='save_correction'),
+
     # Staging (« à valider ») — DRAFT → file d'attente
     path('stage/<int:pk>/commit/', views.stage_commit, name='stage_commit'),
     path('stage/commit_all/', views.stage_commit_all, name='stage_commit_all'),

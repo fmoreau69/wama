@@ -71,6 +71,22 @@
         ctx.fillRect(cx, 0, 1, H);
     }
 
+    /* Timeline de repli (fichiers longs/non décodables) : pas de pics, mais
+       lecture + seek fonctionnels avec une tête de lecture mobile. */
+    function drawTimeline(canvas, progress) {
+        var ctx = canvas.getContext('2d');
+        var W = canvas.width, H = canvas.height;
+        if (!W || !H) return;
+        ctx.clearRect(0, 0, W, H);
+        ctx.fillStyle = '#2c3e50';
+        ctx.fillRect(0, H / 2 - 1, W, 2);                 // ligne de base
+        ctx.fillStyle = '#0dcaf0';
+        ctx.fillRect(0, H / 2 - 1, Math.floor(W * progress), 2);  // portion lue
+        var cx = Math.min(Math.floor(W * progress), W - 1);
+        ctx.fillStyle = '#20c997';
+        ctx.fillRect(cx, 2, 1, H - 4);                    // tête de lecture
+    }
+
     /* ── Initialisation d'un player ─────────────────────────────────── */
 
     function initPlayer(container, autoplay) {
@@ -115,13 +131,30 @@
         var state = { audio: audio, canvas: canvas, channelData: null, height: height };
         registry.set(playerId, state);
 
+        function sizeCanvas() {
+            canvas.width  = waveformEl ? (waveformEl.offsetWidth || 400) : 400;
+            canvas.height = height;
+        }
+        // Repli timeline : l'<audio> reste lisible/seekable même sans onde décodée
+        // (fichiers longs/volumineux : décoder tout le PCM en mémoire échouerait).
+        function fallbackTimeline() {
+            state.fallback = true;
+            sizeCanvas();
+            drawTimeline(canvas, 0);
+            if (loadingEl) loadingEl.style.display = 'none';
+        }
+
         /* Décodage waveform (fetch séparé pour ne pas bloquer la lecture) */
+        var MAX_DECODE_BYTES = 30 * 1024 * 1024;  // au-delà → pas de décodage onde
         fetch(audioUrl)
             .then(function(r) {
                 if (!r.ok) throw new Error('HTTP ' + r.status);
+                var len = parseInt(r.headers.get('content-length') || '0', 10);
+                if (len > MAX_DECODE_BYTES) return null;  // trop gros → repli
                 return r.arrayBuffer();
             })
             .then(function(buf) {
+                if (!buf) { fallbackTimeline(); return null; }
                 var ActxClass = global.AudioContext || global.webkitAudioContext;
                 if (!ActxClass) throw new Error('AudioContext non disponible');
                 var actx = new ActxClass();
@@ -131,21 +164,17 @@
                 });
             })
             .then(function(audioBuf) {
+                if (!audioBuf) return;  // repli déjà géré
                 state.channelData = audioBuf.getChannelData(0);
-                // Dimensionner le canvas une seule fois
-                canvas.width  = waveformEl ? (waveformEl.offsetWidth || 400) : 400;
-                canvas.height = height;
+                sizeCanvas();
                 drawWaveform(canvas, state.channelData, 0);
                 if (loadingEl) loadingEl.style.display = 'none';
             })
             .catch(function(err) {
-                console.warn('WamaAudioPlayer waveform [' + playerId + ']:', err);
-                if (loadingEl) {
-                    loadingEl.innerHTML =
-                        '<small class="text-danger" style="font-size:0.7rem;">' +
-                        '<i class="fas fa-exclamation-triangle me-1"></i>Erreur audio</small>';
-                    loadingEl.style.display = 'flex';
-                }
+                // Échec décodage (codec/mémoire/long) → repli timeline, PAS une erreur
+                // bloquante : la lecture <audio> peut très bien fonctionner.
+                console.warn('WamaAudioPlayer waveform [' + playerId + '] → timeline:', err);
+                fallbackTimeline();
             });
 
         /* Évènements audio ---------------------------------------------- */
@@ -155,16 +184,13 @@
 
         audio.addEventListener('timeupdate', function() {
             if (currentEl) currentEl.textContent = formatTime(audio.currentTime);
-            if (state.channelData && audio.duration) {
-                var progress = audio.currentTime / audio.duration;
-                // Redimensionner si besoin (e.g. après redimensionnement fenêtre)
-                var w = waveformEl ? (waveformEl.offsetWidth || canvas.width) : canvas.width;
-                if (Math.abs(canvas.width - w) > 2) {
-                    canvas.width  = w;
-                    canvas.height = height;
-                }
-                drawWaveform(canvas, state.channelData, progress);
-            }
+            if (!audio.duration) return;
+            var progress = audio.currentTime / audio.duration;
+            // Redimensionner si besoin (e.g. après redimensionnement fenêtre)
+            var w = waveformEl ? (waveformEl.offsetWidth || canvas.width) : canvas.width;
+            if (Math.abs(canvas.width - w) > 2) { canvas.width = w; canvas.height = height; }
+            if (state.channelData) drawWaveform(canvas, state.channelData, progress);
+            else if (state.fallback) drawTimeline(canvas, progress);
         });
 
         audio.addEventListener('play', function() {
@@ -179,6 +205,7 @@
         audio.addEventListener('ended', function() {
             if (playBtnIcon) playBtnIcon.className = 'fas fa-play fa-xs';
             if (state.channelData) drawWaveform(canvas, state.channelData, 0);
+            else if (state.fallback) drawTimeline(canvas, 0);
         });
 
         audio.addEventListener('error', function() {
@@ -287,6 +314,30 @@
             registry.forEach(function(state) {
                 if (state.audio && !state.audio.paused) state.audio.pause();
             });
+        },
+
+        /** Force l'initialisation d'un player par id (sans lecture auto). */
+        ensureInit: function(playerId) {
+            var c = getContainer(String(playerId));
+            if (c) initPlayer(c, false);
+            return registry.has(String(playerId));
+        },
+
+        /** Retourne l'élément <audio> d'un player (init si nécessaire), ou null.
+         *  Permet aux apps (ex. éditeur transcriber) d'écouter timeupdate / seek. */
+        getAudio: function(playerId) {
+            var id = String(playerId);
+            if (!registry.has(id)) this.ensureInit(id);
+            var s = registry.get(id);
+            return s ? s.audio : null;
+        },
+
+        /** Positionne la lecture à `seconds` (init si nécessaire) + joue optionnellement. */
+        seek: function(playerId, seconds, play) {
+            var a = this.getAudio(playerId);
+            if (!a || !isFinite(seconds)) return;
+            try { a.currentTime = Math.max(0, seconds); } catch (e) {}
+            if (play) { this.pauseAll(); a.play().catch(function() {}); }
         },
     };
 

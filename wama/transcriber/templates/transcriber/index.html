@@ -35,6 +35,19 @@
 
 {# ── Right panel : paramètres ────────────────────────────────────────────── #}
 {% block app_right_panel_settings %}
+<style>
+  .synthesis-card.inspector-selected { outline: 2px solid #0dcaf0; outline-offset: 1px; }
+  #inspectorBanner { background: rgba(13,202,240,0.12); border: 1px solid #0dcaf0; }
+</style>
+<!-- Inspecteur : reflète la card sélectionnée (sinon = valeurs par défaut) -->
+<div id="inspectorBanner" class="d-none align-items-center gap-2 p-2 mb-2 rounded small">
+    <i class="fas fa-crosshairs" style="color:#0dcaf0;"></i>
+    <span class="text-light flex-grow-1">Réglages de <strong id="inspectorLabel">l'élément</strong></span>
+    <button type="button" id="inspectorDeselect" class="btn btn-sm btn-outline-light py-0 px-2" title="Revenir aux valeurs par défaut">
+        <i class="fas fa-times"></i>
+    </button>
+</div>
+
 <!-- Backend Selection -->
 <div class="mb-3">
     <label class="form-label small fw-bold text-light">
@@ -67,7 +80,7 @@
         </label>
     </div>
     <small class="d-block mt-1">
-        Normalisation + réduction de bruit
+        Débruitage IA (DeepFilterNet) + 16 kHz mono
     </small>
 </div>
 
@@ -161,6 +174,7 @@
       deleteUrlTemplate: '{% url "transcriber:delete" 0 %}',
       duplicateUrlTemplate: '{% url "transcriber:duplicate" 0 %}',
       downloadUrlTemplate: '{% url "transcriber:download" 0 %}',
+      editUrlTemplate: '{% url "transcriber:edit" 0 %}',
       downloadSrtUrlTemplate: '{% url "transcriber:download_srt" 0 %}',
       segmentsUrlTemplate: '{% url "transcriber:segments" 0 %}',
       settingsUrlTemplate: '{% url "transcriber:save_settings" 0 %}',
@@ -374,9 +388,11 @@ window._batchImport = WamaBatchImport({
                         </small>
                     </div>
 
-                    <!-- Result Preview -->
+                    <!-- Statut texte (le résultat va dans la preview en bas de card) -->
                     <div class="col-md-2">
-                        {% if t.text %}
+                        {% if t.status == 'SUCCESS' %}
+                        <small class="text-success"><i class="fas fa-check-circle"></i> Terminé</small>
+                        {% elif t.text %}
                         <small class="text-light result-preview" style="max-height: 60px; overflow: hidden; display: block;">
                             {{ t.text|truncatechars:120 }}
                         </small>
@@ -408,11 +424,7 @@ window._batchImport = WamaBatchImport({
                     <div class="col-md-3">
                         <div class="btn-group-actions">
                             {% if t.status != 'RUNNING' %}
-                            <button class="btn btn-sm btn-primary start-btn"
-                                    data-id="{{ t.id }}"
-                                    title="Démarrer">
-                                <i class="fas fa-play"></i>
-                            </button>
+                            {# Ordre conventionnel : ⚙ Paramètres → ▶ Start (cf. WAMA_APP_CONVENTIONS §6) #}
                             <button class="btn btn-sm btn-secondary settings-btn"
                                     data-id="{{ t.id }}"
                                     data-backend="{{ t.backend }}"
@@ -427,14 +439,19 @@ window._batchImport = WamaBatchImport({
                                     title="Paramètres">
                                 <i class="fas fa-cog"></i>
                             </button>
+                            <button class="btn btn-sm btn-primary start-btn"
+                                    data-id="{{ t.id }}"
+                                    title="Démarrer">
+                                <i class="fas fa-play"></i>
+                            </button>
                             {% endif %}
 
                             {% if t.status == 'SUCCESS' %}
-                            <button class="btn btn-sm btn-success preview-btn"
-                                    data-id="{{ t.id }}"
-                                    title="Voir le résultat">
-                                <i class="fas fa-eye"></i>
-                            </button>
+                            {# Bouton œil retiré : double-clic sur la preview en bas de card → overlay #}
+                            <a href="{% url 'transcriber:edit' t.id %}"
+                               class="btn btn-sm btn-outline-warning" title="Corriger (éditeur audio + texte)">
+                                <i class="fas fa-pen-to-square"></i>{% if t.correction_status == 'draft' %} <span class="badge bg-warning text-dark" style="font-size:.55rem;">brouillon</span>{% elif t.correction_status == 'done' %} <span class="badge bg-success" style="font-size:.55rem;">corrigé</span>{% endif %}
+                            </a>
                             <div class="btn-group btn-group-sm">
                                 <a href="{% url 'transcriber:download' t.id %}?format=txt"
                                    class="btn btn-outline-info download-txt-btn" title="Télécharger TXT">
@@ -471,6 +488,19 @@ window._batchImport = WamaBatchImport({
                         </div>
                     </div>
                 </div>
+                {# Preview compacte (niveau 1) sous la barre ; double-clic -> overlay (niveau 3) ; composant commun .wama-card-preview #}
+                {% if t.status == 'SUCCESS' and t.text %}
+                <div class="wama-card-preview mt-2 p-2 rounded bg-black bg-opacity-50 small"
+                     data-id="{{ t.id }}" title="Double-cliquez pour voir le résultat">
+                    <span class="text-light d-block" style="max-height:48px; overflow:hidden;">{{ t.text|truncatechars:160 }}</span>
+                    <div class="mt-1 d-flex flex-wrap gap-2 text-white-50" style="font-size:.72rem;">
+                        <span><i class="fas fa-align-left"></i> Transcription {{ t.text|wordcount }} mots</span>
+                        {% if t.enable_diarization %}<span><i class="fas fa-users"></i> Diarisation{% if t.speaker_count %} ({{ t.speaker_count }} voix){% endif %}</span>{% endif %}
+                        {% if t.summary %}<span><i class="fas fa-file-lines"></i> Résumé {{ t.summary|wordcount }} mots</span>{% endif %}
+                        {% if t.coherence_score is not None %}<span><i class="fas fa-spell-check"></i> Cohérence {{ t.coherence_score }}/100</span>{% endif %}
+                    </div>
+                </div>
+                {% endif %}
             </div>
             {% endwith %}
             {% endif %}{% endfor %}
@@ -556,7 +586,9 @@ window._batchImport = WamaBatchImport({
                                 <small class="text-white-50">{{ t.duration_display|default:"" }}</small>
                             </div>
                             <div class="col-md-3">
-                                {% if t.text %}
+                                {% if t.status == 'SUCCESS' %}
+                                <small class="text-success"><i class="fas fa-check-circle"></i> Terminé</small>
+                                {% elif t.text %}
                                 <small class="text-light result-preview" style="max-height:40px; overflow:hidden; display:block;">
                                     {{ t.text|truncatechars:100 }}
                                 </small>
@@ -599,9 +631,11 @@ window._batchImport = WamaBatchImport({
                                     </button>
                                     {% endif %}
                                     {% if t.status == 'SUCCESS' %}
-                                    <button class="btn btn-sm btn-success preview-btn" data-id="{{ t.id }}" title="Voir">
-                                        <i class="fas fa-eye"></i>
-                                    </button>
+                                    {# Bouton œil retiré : double-clic sur la preview en bas de card → overlay #}
+                                    <a href="{% url 'transcriber:edit' t.id %}"
+                                       class="btn btn-sm btn-outline-warning" title="Corriger (éditeur audio + texte)">
+                                        <i class="fas fa-pen-to-square"></i>
+                                    </a>
                                     <div class="btn-group btn-group-sm">
                                         <a href="{% url 'transcriber:download' t.id %}?format=txt"
                                            class="btn btn-outline-info" title="Télécharger TXT">
@@ -634,6 +668,18 @@ window._batchImport = WamaBatchImport({
                                 </div>
                             </div>
                         </div>
+                        {% if t.status == 'SUCCESS' and t.text %}
+                        <div class="wama-card-preview mt-2 p-2 rounded bg-black bg-opacity-50 small"
+                             data-id="{{ t.id }}" title="Double-cliquez pour voir le résultat">
+                            <span class="text-light d-block" style="max-height:40px; overflow:hidden;">{{ t.text|truncatechars:140 }}</span>
+                            <div class="mt-1 d-flex flex-wrap gap-2 text-white-50" style="font-size:.7rem;">
+                                <span><i class="fas fa-align-left"></i> Transcription {{ t.text|wordcount }} mots</span>
+                                {% if t.enable_diarization %}<span><i class="fas fa-users"></i> Diarisation{% if t.speaker_count %} ({{ t.speaker_count }} voix){% endif %}</span>{% endif %}
+                                {% if t.summary %}<span><i class="fas fa-file-lines"></i> Résumé {{ t.summary|wordcount }} mots</span>{% endif %}
+                                {% if t.coherence_score is not None %}<span><i class="fas fa-spell-check"></i> Cohérence {{ t.coherence_score }}/100</span>{% endif %}
+                            </div>
+                        </div>
+                        {% endif %}
                     </div>
                     {% endwith %}
                     {% endif %}{% endfor %}
@@ -699,7 +745,7 @@ window._batchImport = WamaBatchImport({
                                 <i class="fas fa-wand-magic-sparkles"></i> Prétraitement audio
                             </label>
                         </div>
-                        <small class="text-muted">Normalisation + réduction de bruit</small>
+                        <small class="text-muted">Débruitage IA (DeepFilterNet) + 16 kHz mono</small>
                     </div>
 
                     <!-- Diarization Toggle -->

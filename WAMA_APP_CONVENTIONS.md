@@ -862,6 +862,14 @@ réutilise les modales item/batch existantes) :
 | URLs | `stage/<pk>/commit/`, `stage/commit_all/`, `stage/clear/`, `stage/update_all/`. |
 | JS | Upload → `location.reload()` (la zone se rend côté serveur). Handlers délégués `.stage-add-btn` / `.stage-start-btn` / `.stage-del-btn` + en-tête « Tout ajouter / Tout lancer / Vider / Param. à tous ». |
 
+**Application des paramètres du volet (staging) :**
+- **Au dépôt** : l'élément DRAFT capture l'**état complet** du volet droit (tous les
+  champs, pas seulement quelques-uns).
+- **Actions de lot** (« Tout ajouter » / « Tout lancer » / « Param. à tous ») : le
+  **volet droit fait foi** → ses valeurs sont appliquées à tous les éléments à valider.
+- **Action par élément** (« Ajouter » / « Lancer » sur une card) : commit **tel quel**,
+  conserve les réglages propres à l'élément (ex. ceux de l'inspecteur §10 / de la modale).
+
 **Quels imports passent par le staging ?**
 - **Imports interactifs ad hoc → staging (`DRAFT`)** : upload/drag&drop de fichier,
   URL simple, drag depuis le filemanager. L'utilisateur n'a pas encore « validé » →

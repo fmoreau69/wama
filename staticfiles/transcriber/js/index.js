@@ -48,16 +48,38 @@ document.addEventListener('DOMContentLoaded', function () {
   // ======================================================================
   // Upload
   // ======================================================================
+  // Ajoute TOUS les paramètres du volet droit au FormData (pas seulement
+  // backend/hotwords/preprocess) afin que l'élément DRAFT capture l'état complet
+  // du volet au moment du dépôt.
+  function _appendPanelParams(body) {
+    const v = _panelReadValues();
+    body.append('preprocess_audio', v.preprocess_audio ? '1' : '0');
+    body.append('backend', v.backend);
+    body.append('hotwords', v.hotwords);
+    body.append('enable_diarization', v.enable_diarization ? '1' : '0');
+    body.append('generate_summary', v.generate_summary ? '1' : '0');
+    body.append('summary_type', v.summary_type);
+    body.append('verify_coherence', v.verify_coherence ? '1' : '0');
+  }
+
+  // Mêmes paramètres sous forme d'objet (pour les POST de staging).
+  function _panelParamsObj() {
+    const v = _panelReadValues();
+    return {
+      preprocess_audio:   v.preprocess_audio ? '1' : '0',
+      backend:            v.backend,
+      hotwords:           v.hotwords,
+      enable_diarization: v.enable_diarization ? '1' : '0',
+      generate_summary:   v.generate_summary ? '1' : '0',
+      summary_type:       v.summary_type,
+      verify_coherence:   v.verify_coherence ? '1' : '0',
+    };
+  }
+
   async function uploadFile(file) {
     const body = new FormData();
     body.append('file', file);
-    body.append('preprocess_audio', preprocessEnabled ? '1' : '0');
-
-    // Include current panel settings
-    const backendSel = document.getElementById('backendSelect');
-    const hotwordsIn = document.getElementById('hotwordsInput');
-    if (backendSel) body.append('backend', backendSel.value);
-    if (hotwordsIn) body.append('hotwords', hotwordsIn.value);
+    _appendPanelParams(body);
 
     try {
       const response = await fetch(config.uploadUrl, {
@@ -162,7 +184,10 @@ document.addEventListener('DOMContentLoaded', function () {
       e.preventDefault();
       const start = !!e.target.closest('#stagingStartAll');
       try {
-        const r = await stagePost(config.stageCommitAllUrl, { start: start ? '1' : '0' });
+        // Actions de lot : applique l'état COMPLET du volet droit à tous les
+        // éléments à valider au moment de l'ajout (WYSIWYG).
+        const r = await stagePost(config.stageCommitAllUrl,
+          Object.assign({ start: start ? '1' : '0' }, _panelParamsObj()));
         if (r.ok) location.reload(); else showToast('Erreur lors de la validation', 'danger');
       } catch (_) { showToast('Erreur réseau', 'danger'); }
       return;
@@ -180,13 +205,8 @@ document.addEventListener('DOMContentLoaded', function () {
     // ── Appliquer les paramètres du volet droit à tous les éléments à valider ──
     if (e.target.closest('#stagingSettingsAll')) {
       e.preventDefault();
-      const backendSel = document.getElementById('backendSelect');
-      const hotwordsIn = document.getElementById('hotwordsInput');
-      const extra = { preprocess_audio: preprocessEnabled ? '1' : '0' };
-      if (backendSel) extra.backend = backendSel.value;
-      if (hotwordsIn) extra.hotwords = hotwordsIn.value;
       try {
-        const r = await stagePost(config.stageUpdateAllUrl, extra);
+        const r = await stagePost(config.stageUpdateAllUrl, _panelParamsObj());
         if (r.ok) location.reload(); else showToast('Erreur', 'danger');
       } catch (_) { showToast('Erreur réseau', 'danger'); }
       return;
@@ -269,7 +289,7 @@ document.addEventListener('DOMContentLoaded', function () {
       try {
         const body = new FormData();
         body.append('youtube_url', url);
-        body.append('preprocess_audio', preprocessEnabled ? '1' : '0');
+        _appendPanelParams(body);
         const response = await fetch(config.uploadYoutubeUrl, { method: 'POST', headers: csrfHeaders(), body });
         const data = await response.json();
         if (data.error) throw new Error(data.error);
@@ -407,11 +427,17 @@ document.addEventListener('DOMContentLoaded', function () {
     // Update live transcription display
     updateLiveTranscriptionFromQueue(id, status, data.partial_text);
 
-    // When done, rebuild actions to show download buttons
-    if (['SUCCESS', 'FAILURE'].includes(status) || progress >= 100) {
+    // Fin de process : agir UNIQUEMENT sur un statut terminal réel (pas sur
+    // progress>=100 seul, qui peut précéder le passage en SUCCESS).
+    if (status === 'SUCCESS') {
+      stopPolling(id);
+      if (window.WamaFM) WamaFM.processed();  // sortie créée → refresh filemanager
+      // Reload → rendu serveur complet : preview compacte, options à jour,
+      // onglet cohérence, barre à 100 %. Évite le « revert » des options.
+      setTimeout(() => location.reload(), 300);
+    } else if (status === 'FAILURE') {
       stopPolling(id);
       rebuildActions(card, id, status);
-      if (window.WamaFM) WamaFM.processed();  // sortie créée → refresh filemanager
     }
 
     updateDownloadAllState();
@@ -438,12 +464,17 @@ document.addEventListener('DOMContentLoaded', function () {
     let html = '';
 
     if (status !== 'RUNNING') {
-      html += `<button class="btn btn-sm btn-primary start-btn" data-id="${id}" title="Démarrer"><i class="fas fa-play"></i></button>`;
+      // Ordre conventionnel : ⚙ Paramètres → ▶ Start (cf. WAMA_APP_CONVENTIONS §6)
       html += `<button class="btn btn-sm btn-secondary settings-btn" data-id="${id}" title="Paramètres"><i class="fas fa-cog"></i></button>`;
+      html += `<button class="btn btn-sm btn-primary start-btn" data-id="${id}" title="Démarrer"><i class="fas fa-play"></i></button>`;
     }
 
     if (status === 'SUCCESS') {
-      html += `<button class="btn btn-sm btn-success preview-btn" data-id="${id}" title="Voir le résultat"><i class="fas fa-eye"></i></button>`;
+      // Bouton œil retiré : la preview compacte (.wama-card-preview) + double-clic remplace.
+      // Bouton « Corriger » (éditeur) — cohérent avec le rendu serveur des cards.
+      if (config.editUrlTemplate) {
+        html += `<a href="${getUrl(config.editUrlTemplate, id)}" class="btn btn-sm btn-outline-warning" title="Corriger (éditeur audio + texte)"><i class="fas fa-pen-to-square"></i></a>`;
+      }
       const dlBase = getUrl(config.downloadUrlTemplate, id);
       html += `<div class="btn-group btn-group-sm">` +
         `<a href="${dlBase}?format=txt" class="btn btn-outline-info download-txt-btn" title="Télécharger TXT"><i class="fas fa-download"></i></a>` +
@@ -496,12 +527,6 @@ document.addEventListener('DOMContentLoaded', function () {
       if (btn.dataset.bound === '1') return;
       btn.dataset.bound = '1';
       btn.addEventListener('click', () => openSettingsModal(btn));
-    });
-
-    root.querySelectorAll('.preview-btn').forEach(btn => {
-      if (btn.dataset.bound === '1') return;
-      btn.dataset.bound = '1';
-      btn.addEventListener('click', () => openResultModal(btn.dataset.id));
     });
 
     root.querySelectorAll('.delete-btn').forEach(btn => {
@@ -982,11 +1007,23 @@ document.addEventListener('DOMContentLoaded', function () {
   // ======================================================================
   function startPolling(id) {
     if (pollers.has(id)) return;
+    let fails = 0;
     const interval = setInterval(() => {
       fetch(getUrl(config.progressUrlTemplate, id))
-        .then(r => r.json())
-        .then(data => updateCard(id, data))
-        .catch(() => stopPolling(id));
+        .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+        .then(data => {
+          fails = 0;
+          // Une exception dans updateCard ne doit PAS tuer le polling (sinon la card
+          // reste figée et le reload de fin ne se déclenche jamais).
+          try { updateCard(id, data); } catch (e) { console.error('[transcriber] updateCard', id, e); }
+        })
+        .catch(err => {
+          // Erreur transitoire (réseau / phase LLM longue) → on NE coupe PAS le
+          // polling : on réessaie. Arrêt seulement après plusieurs échecs d'affilée.
+          fails++;
+          console.warn('[transcriber] poll', id, 'échec', fails, err);
+          if (fails >= 10) stopPolling(id);
+        });
     }, 1200);
     pollers.set(id, interval);
   }
@@ -1031,6 +1068,8 @@ document.addEventListener('DOMContentLoaded', function () {
       preprocessToggle.checked = preprocessEnabled;
       preprocessToggle.addEventListener('change', () => {
         preprocessEnabled = preprocessToggle.checked;
+        // Inspecteur : édite l'élément sélectionné sans toucher le défaut.
+        if (_inspectorId) { saveInspectorItem(); return; }
         persistPreprocessingPreference(preprocessEnabled);
         savePanelSettings();
       });
@@ -1153,7 +1192,135 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
 
+  // ======================================================================
+  // Inspecteur (niveau 2) — le volet droit reflète la card sélectionnée
+  // ======================================================================
+  let _inspectorId = null;
+  let _panelDefaults = null;  // snapshot des défauts, restauré à la désélection
+
+  function _panelReadValues() {
+    const st = document.querySelector('input[name="globalSummaryType"]:checked');
+    const e = id => document.getElementById(id);
+    return {
+      backend:            e('backendSelect') ? e('backendSelect').value : 'auto',
+      hotwords:           e('hotwordsInput') ? e('hotwordsInput').value : '',
+      preprocess_audio:   e('preprocessingToggle') ? e('preprocessingToggle').checked : false,
+      enable_diarization: e('diarizationToggle') ? e('diarizationToggle').checked : true,
+      generate_summary:   e('globalGenerateSummary') ? e('globalGenerateSummary').checked : false,
+      summary_type:       st ? st.value : 'structured',
+      verify_coherence:   e('globalVerifyCoherence') ? e('globalVerifyCoherence').checked : false,
+    };
+  }
+
+  function _panelApplyValues(s) {
+    const e = id => document.getElementById(id);
+    if (e('backendSelect') && s.backend) e('backendSelect').value = s.backend;
+    if (e('hotwordsInput')) e('hotwordsInput').value = s.hotwords || '';
+    if (e('preprocessingToggle')) { e('preprocessingToggle').checked = !!s.preprocess_audio; preprocessEnabled = !!s.preprocess_audio; }
+    if (e('diarizationToggle')) e('diarizationToggle').checked = s.enable_diarization !== false;
+    if (e('globalGenerateSummary')) {
+      e('globalGenerateSummary').checked = !!s.generate_summary;
+      const g = e('globalSummaryTypeGroup');
+      if (g) g.style.display = s.generate_summary ? 'block' : 'none';
+    }
+    const stEl = document.querySelector(`input[name="globalSummaryType"][value="${s.summary_type || 'structured'}"]`);
+    if (stEl) stEl.checked = true;
+    if (e('globalVerifyCoherence')) e('globalVerifyCoherence').checked = !!s.verify_coherence;
+  }
+
+  function _cardSettings(card) {
+    const b = card.querySelector('.settings-btn');
+    const d = b ? b.dataset : card.dataset;
+    return {
+      backend: d.backend || 'auto',
+      hotwords: d.hotwords || '',
+      preprocess_audio: d.preprocess === 'true',
+      enable_diarization: d.diarization !== 'false',
+      generate_summary: d.generateSummary === 'true',
+      summary_type: d.summaryType || 'structured',
+      verify_coherence: d.verifyCoherence === 'true',
+      temperature: parseFloat(d.temperature) || 0,
+      max_tokens: parseInt(d.maxTokens) || 32768,
+    };
+  }
+
+  function selectCard(id) {
+    if (!queueContainer) return;
+    const card = queueContainer.querySelector(`.synthesis-card[data-id="${id}"]`);
+    if (!card) return;
+    if (_inspectorId === null) _panelDefaults = _panelReadValues();  // snapshot une fois
+    _inspectorId = id;
+    queueContainer.querySelectorAll('.synthesis-card.inspector-selected')
+      .forEach(c => c.classList.remove('inspector-selected'));
+    card.classList.add('inspector-selected');
+    _panelApplyValues(_cardSettings(card));
+    const banner = document.getElementById('inspectorBanner');
+    const label = document.getElementById('inspectorLabel');
+    if (label) label.textContent = `l'élément #${id}`;
+    if (banner) { banner.classList.remove('d-none'); banner.classList.add('d-flex'); }
+  }
+
+  function deselectCard() {
+    _inspectorId = null;
+    if (queueContainer) {
+      queueContainer.querySelectorAll('.synthesis-card.inspector-selected')
+        .forEach(c => c.classList.remove('inspector-selected'));
+    }
+    if (_panelDefaults) _panelApplyValues(_panelDefaults);
+    const banner = document.getElementById('inspectorBanner');
+    if (banner) { banner.classList.add('d-none'); banner.classList.remove('d-flex'); }
+  }
+
+  function saveInspectorItem() {
+    const id = _inspectorId;
+    if (!id || !config.settingsUrlTemplate) return;
+    const card = queueContainer ? queueContainer.querySelector(`.synthesis-card[data-id="${id}"]`) : null;
+    const cur = card ? _cardSettings(card) : { temperature: 0, max_tokens: 32768 };
+    const payload = Object.assign({}, _panelReadValues(), {
+      temperature: cur.temperature,
+      max_tokens: cur.max_tokens,
+    });
+    fetch(getUrl(config.settingsUrlTemplate, id), {
+      method: 'POST',
+      headers: csrfHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify(payload),
+    })
+      .then(r => r.json())
+      .then(() => {
+        // Garde la card synchronisée (data-* du bouton paramètres)
+        if (card) {
+          const b = card.querySelector('.settings-btn');
+          if (b) {
+            b.dataset.backend = payload.backend;
+            b.dataset.hotwords = payload.hotwords;
+            b.dataset.preprocess = payload.preprocess_audio ? 'true' : 'false';
+            b.dataset.diarization = payload.enable_diarization ? 'true' : 'false';
+            b.dataset.generateSummary = payload.generate_summary ? 'true' : 'false';
+            b.dataset.summaryType = payload.summary_type;
+            b.dataset.verifyCoherence = payload.verify_coherence ? 'true' : 'false';
+          }
+        }
+      })
+      .catch(() => showToast('Erreur lors de l\'enregistrement', 'danger'));
+  }
+
+  function initInspector() {
+    // Clic sur une card (hors boutons/preview) → sélectionne pour l'inspecteur.
+    if (queueContainer) {
+      queueContainer.addEventListener('click', function (e) {
+        if (e.target.closest('button, a, input, select, textarea, .wama-card-preview, .btn-group-actions')) return;
+        const card = e.target.closest('.synthesis-card');
+        if (card && card.dataset.id) selectCard(card.dataset.id);
+      });
+    }
+    const deselectBtn = document.getElementById('inspectorDeselect');
+    if (deselectBtn) deselectBtn.addEventListener('click', deselectCard);
+  }
+
   function savePanelSettings() {
+    // Inspecteur (niveau 2) : si une card est sélectionnée, le volet édite CET
+    // élément, pas les valeurs par défaut.
+    if (_inspectorId) { saveInspectorItem(); return; }
     if (!config.saveUserSettingsUrl) return;
     const backendSel  = document.getElementById('backendSelect');
     const hotwordsIn  = document.getElementById('hotwordsInput');
@@ -1367,7 +1534,17 @@ document.addEventListener('DOMContentLoaded', function () {
   initExistingCards();
   initSpeech();
   initBulkActions();
+  initInspector();
   loadBackendsAsync();
+
+  // Preview compacte (double-clic) → modal de RÉSULTAT de transcription (pas l'aperçu
+  // audio de l'entrée). Émis par le composant commun .wama-card-preview (media-preview.js).
+  document.addEventListener('wama:card-expand', function (e) {
+    if (e.detail && e.detail.id) {
+      e.preventDefault();
+      openResultModal(e.detail.id);
+    }
+  });
 
   updateGlobalProgress();
   setInterval(updateGlobalProgress, 2000);

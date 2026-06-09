@@ -394,6 +394,64 @@ def verify_text_coherence(
     }
 
 
+def analyze_segments_coherence(
+    segments: list,
+    language: str = 'fr',
+    model: str = 'qwen3.5:9b',
+) -> dict:
+    """Analyse la cohérence PAR SEGMENT (1 seul appel LLM).
+
+    Args:
+        segments: liste de dicts {'index': int, 'text': str}.
+        language: 'fr' | 'en'.
+
+    Returns:
+        {index: {"severity": "warn"|"error", "note": str}} — uniquement les
+        segments problématiques. **Ne lève jamais** : renvoie {} en cas d'échec
+        (l'appelant retombe alors sur la confiance ASR pour la heatmap).
+    """
+    items = [s for s in segments if (s.get('text') or '').strip()]
+    if not items:
+        return {}
+    lang_label = "en français" if language == 'fr' else "in English"
+    lines = [f"[{s['index']}] {(s.get('text') or '').strip()[:300]}" for s in items[:200]]
+    messages = [
+        {"role": "system", "content": (
+            "Tu es un expert en contrôle qualité de transcriptions audio. "
+            f"Réponds toujours {lang_label} avec un JSON valide et rien d'autre.")},
+        {"role": "user", "content": (
+            "Voici une transcription découpée en segments numérotés. Repère UNIQUEMENT les "
+            "segments problématiques : répétitions, phrases tronquées/incomplètes, "
+            "hallucinations, incohérences sémantiques, mots douteux, changement de langue.\n\n"
+            'Retourne un JSON : {"issues": [{"i": <numéro de segment>, '
+            '"severity": "warn" ou "error", "note": "<problème en quelques mots>"}]}. '
+            'Ne liste QUE les segments à problème ("error" = à corriger, "warn" = à vérifier) ; '
+            "les autres sont implicitement corrects.\n\n"
+            f"Segments :\n{chr(10).join(lines)}\n\nRéponds UNIQUEMENT avec le JSON.")},
+    ]
+    try:
+        result_text, error = ollama_chat(messages, model=model)
+        if error or not result_text:
+            logger.warning(f"[llm_utils] analyze_segments_coherence: {error or 'réponse vide'}")
+            return {}
+        data = extract_json_from_llm(result_text)
+        if not data:
+            return {}
+        out = {}
+        for it in (data.get("issues") or []):
+            try:
+                i = int(it.get("i"))
+            except (TypeError, ValueError):
+                continue
+            sev = it.get("severity", "warn")
+            out[i] = {"severity": sev if sev in ("warn", "error") else "warn",
+                      "note": str(it.get("note", "")).strip()}
+        return out
+    except Exception as e:
+        logger.warning(f"[llm_utils] analyze_segments_coherence failed: {e}")
+        return {}
+
+
 def generate_structured_summary(
     text: str,
     content_hint: str = 'transcription',

@@ -211,12 +211,24 @@ class WhisperBackend(SpeechToTextBackend):
 
             for seg in segments_gen:
                 confidence = getattr(seg, 'avg_logprob', None)
+                # Timing mot-à-mot (word_timestamps=True) → conservé pour la synchro
+                # fine onde↔texte et la heatmap par mot (probability = confiance mot).
+                words = None
+                seg_words = getattr(seg, 'words', None)
+                if seg_words:
+                    words = [{
+                        'word': w.word,
+                        'start': w.start,
+                        'end': w.end,
+                        'probability': getattr(w, 'probability', None),
+                    } for w in seg_words]
                 segments.append(TranscriptionSegment(
                     speaker_id = '',          # filled by pyannote later
                     start_time = seg.start,
                     end_time   = seg.end,
                     text       = seg.text.strip(),
                     confidence = confidence,
+                    words      = words,
                 ))
                 text_parts.append(seg.text.strip())
 

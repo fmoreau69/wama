@@ -3,6 +3,11 @@
  * Styles pour le modal de preview unifié et le fullscreen.
  */
 
+/* === PREVIEW COMPACTE EN CARD (niveau 1 → double-clic → overlay niveau 3) === */
+/* Composant commun, généralisé depuis Reader. Cf. CARD_CENTRIC_UI.md §5bis. */
+.wama-card-preview { cursor: zoom-in; transition: background-color .15s ease; }
+.wama-card-preview:hover { background-color: rgba(13, 202, 240, 0.12) !important; }
+
 /* === PREVIEW MODAL === */
 
 #wamaMediaPreviewModal .modal-content {

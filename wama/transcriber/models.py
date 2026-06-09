@@ -60,6 +60,12 @@ class Transcript(models.Model):
     coherence_notes = models.TextField(blank=True, default='')
     coherence_suggestion = models.TextField(blank=True, default='')
 
+    # Couche de correction manuelle (éditeur /edit/<id>/) — la sortie ASR
+    # (segments_json) reste IMMUABLE ; la version corrigée est stockée à part.
+    # Voir TRANSCRIBER_CORRECTION.md.
+    corrected_segments_json = models.JSONField(null=True, blank=True)
+    correction_status = models.CharField(max_length=16, default='none')  # none/draft/done
+
     def __str__(self):
         return f"Transcript {self.id} ({self.user.username})"
 

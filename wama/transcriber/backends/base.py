@@ -20,15 +20,21 @@ class TranscriptionSegment:
     end_time: float    # seconds
     text: str
     confidence: Optional[float] = None
+    # Timing mot-à-mot (si dispo) : liste de {word, start, end, probability}.
+    # Alimente la synchro fine onde↔texte et la granularité de la heatmap.
+    words: Optional[List[dict]] = None
 
     def to_dict(self) -> dict:
-        return {
+        d = {
             'speaker_id': self.speaker_id,
             'start_time': self.start_time,
             'end_time': self.end_time,
             'text': self.text,
             'confidence': self.confidence,
         }
+        if self.words:
+            d['words'] = self.words
+        return d
 
 
 @dataclass

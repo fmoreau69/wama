@@ -60,46 +60,75 @@
     }
 
     /**
+     * Fetch a preview endpoint and show the overlay modal.
+     * Shared by the click trigger (.preview-media-link) and the double-click
+     * trigger on compact card previews (.wama-card-preview).
+     */
+    function openPreview(endpoint, indicatorEl) {
+        if (!endpoint) {
+            console.warn('[MediaPreview] No preview URL specified');
+            return;
+        }
+        if (indicatorEl) indicatorEl.style.opacity = '0.5';
+        fetch(endpoint)
+            .then(function(response) {
+                if (!response.ok) {
+                    throw new Error('Preview unavailable');
+                }
+                return response.json();
+            })
+            .then(function(data) {
+                showPreviewModal(data);
+            })
+            .catch(function(err) {
+                showPreviewError(err.message);
+            })
+            .finally(function() {
+                if (indicatorEl) indicatorEl.style.opacity = '1';
+            });
+    }
+
+    /**
      * Initialize media preview functionality.
-     * Binds click handlers to elements with .preview-media-link class.
+     * - Click on .preview-media-link → overlay (niveau 3).
+     * - Double-click on .wama-card-preview → overlay (preview compacte en card,
+     *   niveau 1 → niveau 3 ; généralise le pattern de Reader, cf. CARD_CENTRIC_UI §5bis).
+     * Les deux lisent data-preview-url (endpoint common:unified_preview).
      */
     function initMediaPreview() {
         document.querySelectorAll('.preview-media-link').forEach(function(btn) {
-            // Skip if already bound
             if (btn.dataset.previewBound === '1') {
                 return;
             }
             btn.dataset.previewBound = '1';
-
             btn.addEventListener('click', function(event) {
                 event.preventDefault();
                 event.stopPropagation();
+                openPreview(btn.dataset.previewUrl, btn);
+            });
+        });
 
-                const endpoint = btn.dataset.previewUrl;
-                if (!endpoint) {
-                    console.warn('[MediaPreview] No preview URL specified');
-                    return;
+        document.querySelectorAll('.wama-card-preview').forEach(function(el) {
+            if (el.dataset.previewBound === '1') {
+                return;
+            }
+            el.dataset.previewBound = '1';
+            el.style.cursor = 'zoom-in';
+            if (!el.title) el.title = 'Double-cliquez pour agrandir';
+            el.addEventListener('dblclick', function(event) {
+                event.preventDefault();
+                event.stopPropagation();
+                // L'app peut ouvrir SON détail (ex. modal de résultat transcriber/reader)
+                // en écoutant 'wama:card-expand' et en appelant preventDefault().
+                var ev = new CustomEvent('wama:card-expand', {
+                    bubbles: true, cancelable: true,
+                    detail: { id: el.dataset.id || null, url: el.dataset.previewUrl || null, el: el }
+                });
+                var notHandled = el.dispatchEvent(ev);
+                // Sinon (apps média) : overlay commun via data-preview-url.
+                if (notHandled && el.dataset.previewUrl) {
+                    openPreview(el.dataset.previewUrl, el);
                 }
-
-                // Show loading state
-                btn.style.opacity = '0.5';
-
-                fetch(endpoint)
-                    .then(function(response) {
-                        if (!response.ok) {
-                            throw new Error('Preview unavailable');
-                        }
-                        return response.json();
-                    })
-                    .then(function(data) {
-                        showPreviewModal(data);
-                    })
-                    .catch(function(err) {
-                        showPreviewError(err.message);
-                    })
-                    .finally(function() {
-                        btn.style.opacity = '1';
-                    });
             });
         });
     }
