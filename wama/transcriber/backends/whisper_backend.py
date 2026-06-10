@@ -204,6 +204,14 @@ class WhisperBackend(SpeechToTextBackend):
             if 'temperature' in kwargs:
                 transcribe_opts['temperature'] = float(kwargs['temperature'])
 
+            # Mots-clés contextuels → param NATIF `hotwords` de faster-whisper.
+            # ⚠️ NE PAS utiliser initial_prompt : un prompt sans ponctuation fait que
+            # Whisper imite ce style (= sortie sans majuscules/ponctuation).
+            hw = (hotwords or kwargs.get('hotwords') or '').strip()
+            if hw:
+                transcribe_opts['hotwords'] = hw
+                logger.info(f"[Whisper] hotwords: {hw[:120]}")
+
             segments_gen, info = self._model.transcribe(audio_path, **transcribe_opts)
 
             segments:    list[TranscriptionSegment] = []

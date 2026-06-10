@@ -346,7 +346,8 @@ document.addEventListener('DOMContentLoaded', function () {
           </small>
         </div>
         <div class="col-md-2">
-          <small class="text-white-50">${props}</small>
+          ${data.properties ? `<small class="text-white-50 d-block"><i class="fas fa-wave-square"></i> ${props}</small>` : ''}
+          <small class="card-state text-white-50">En attente</small>
         </div>
         <div class="col-md-2">
           <span class="badge status-badge bg-secondary">PENDING</span>
@@ -423,6 +424,15 @@ document.addEventListener('DOMContentLoaded', function () {
       RUNNING: ' processing', SUCCESS: ' success', FAILURE: ' error'
     }[status] || '');
     card.dataset.status = status;
+
+    // État textuel de la card (col propriétés audio) — évite « En attente » figé pendant RUNNING
+    const st = card.querySelector('.card-state');
+    if (st) {
+      if (status === 'RUNNING') { st.className = 'card-state text-warning'; st.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Traitement…'; }
+      else if (status === 'PENDING') { st.className = 'card-state text-white-50'; st.textContent = 'En attente'; }
+      else if (status === 'FAILURE') { st.className = 'card-state text-danger'; st.innerHTML = '<i class="fas fa-triangle-exclamation"></i> Échec'; }
+      else { st.className = 'card-state'; st.textContent = ''; }
+    }
 
     // Update live transcription display
     updateLiveTranscriptionFromQueue(id, status, data.partial_text);

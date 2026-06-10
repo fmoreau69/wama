@@ -348,10 +348,13 @@ def transcribe(self, transcript_id: int):
         _set_progress(t, 80)
 
         # Step 5: Save results
+        # NB : on NE passe PAS en SUCCESS ici — les étapes LLM (résumé, cohérence,
+        # cohérence par-segment) suivent. Sinon le front voit SUCCESS trop tôt et
+        # recharge avant la fin (barre figée + options/cohérence absentes).
+        # Le statut SUCCESS est posé à la toute fin (après _set_progress 100).
         t.text = result.text
         t.language = result.language
         t.used_backend = backend.name
-        t.status = 'SUCCESS'
 
         # Save segments if available (diarization)
         num_segments = _save_segments(t, result)
@@ -374,6 +377,7 @@ def transcribe(self, transcript_id: int):
 
         # Step 7: Optional LLM summary (structured or meeting compte-rendu)
         if t.generate_summary and t.text:
+            _set_progress(t, 96)
             try:
                 _set_partial_text(t.id, t.text + "\n\n⏳ Génération du résumé en cours…")
                 from wama.common.utils.llm_utils import (
@@ -409,6 +413,7 @@ def transcribe(self, transcript_id: int):
 
         # Step 8: Optional coherence verification
         if t.verify_coherence and t.text:
+            _set_progress(t, 98)
             try:
                 _console(t.user_id, "Vérification de cohérence (Ollama)…")
                 from wama.common.utils.llm_utils import verify_text_coherence
@@ -447,6 +452,10 @@ def transcribe(self, transcript_id: int):
                 _console(t.user_id, f"Avertissement: cohérence par-segment échouée ({seg_err})", level='warning')
 
         _set_progress(t, 100)
+        # SUCCESS seulement maintenant : tout est prêt (texte, segments, résumé,
+        # cohérence globale + par-segment) → le front recharge au bon moment.
+        t.status = 'SUCCESS'
+        t.save(update_fields=['status'])
         _console(t.user_id, f"Transcription {t.id} terminée ({backend.display_name}) ✓")
 
         # Unload model to free memory

@@ -252,6 +252,72 @@ def generate_description_docx(description) -> bytes:
 # TRANSCRIBER — PDF
 # ──────────────────────────────────────────────────────────────────────────────
 
+def _transcript_blocks(transcript):
+    """Blocs de transcription compactés par locuteur (segments consécutifs d'un même
+    locuteur fusionnés) pour un document de sortie lisible.
+
+    Retourne une liste de dicts {speaker, start, end, text}. Les libellés sont déjà
+    résolus via speaker_map (nom personnalisé si défini). Fallback : [] si pas de segments.
+    """
+    from wama.transcriber.models import TranscriptSegment
+    from wama.transcriber.utils.speakers import display_speaker
+    spk_map = transcript.speaker_map or {}
+    segs = list(TranscriptSegment.objects.filter(transcript=transcript).order_by('order'))
+    blocks = []
+    for s in segs:
+        spk = display_speaker(s.speaker_id, spk_map)
+        txt = (s.text or '').strip()
+        if not txt:
+            continue
+        if blocks and blocks[-1]['speaker'] == spk:
+            # Même locuteur que le bloc précédent → on fusionne (compactage).
+            blocks[-1]['text'] += ' ' + txt
+            blocks[-1]['end'] = s.end_time
+        else:
+            blocks.append({'speaker': spk, 'start': s.start_time, 'end': s.end_time, 'text': txt})
+    return blocks
+
+
+def _transcript_speakers(transcript):
+    """Liste ordonnée des intervenants (noms d'affichage) présents dans la transcription."""
+    from wama.transcriber.models import TranscriptSegment
+    from wama.transcriber.utils.speakers import unique_speakers, display_speaker
+    spk_map = transcript.speaker_map or {}
+    rows = TranscriptSegment.objects.filter(transcript=transcript).order_by('order')
+    canon = unique_speakers([{'speaker_id': r.speaker_id} for r in rows])
+    return [display_speaker(c, spk_map) for c in canon]
+
+
+def generate_transcript_txt(transcript) -> bytes:
+    """Génère un .txt mis en forme : avant-propos (titre/date/intervenants) + blocs
+    compactés par locuteur. Fallback sur transcript.text brut si pas de segments."""
+    lines = []
+    title = (transcript.title or '').strip() or (getattr(transcript, 'filename', '') or 'Transcription')
+    lines.append(title)
+    lines.append('=' * len(title))
+    if transcript.meeting_date:
+        lines.append(f"Date : {transcript.meeting_date.strftime('%d/%m/%Y')}")
+    stem = getattr(transcript, 'filename', None) or '—'
+    lines.append(f"Fichier source : {stem}")
+    if transcript.duration_display:
+        lines.append(f"Durée : {transcript.duration_display}")
+    speakers = _transcript_speakers(transcript)
+    if speakers:
+        lines.append("Intervenants : " + ', '.join(speakers))
+    lines.append('')
+
+    blocks = _transcript_blocks(transcript)
+    if blocks:
+        for b in blocks:
+            ts = f"[{_fmt_time(b['start'])} — {_fmt_time(b['end'])}]"
+            lines.append(f"{b['speaker'] or 'SPK'} {ts}")
+            lines.append(b['text'])
+            lines.append('')
+    else:
+        lines.append(transcript.text or '')
+    return ('\n'.join(lines)).encode('utf-8')
+
+
 def generate_transcript_pdf(transcript) -> bytes:
     """Generate a PDF from a Transcript instance. Returns raw PDF bytes."""
     pdf = _make_pdf()
@@ -259,24 +325,29 @@ def generate_transcript_pdf(transcript) -> bytes:
 
     # Detect if meeting report format
     is_meeting = (transcript.summary_type == 'meeting') if transcript.summary_type else False
-    doc_title = 'COMPTE-RENDU DE RÉUNION' if is_meeting else 'TRANSCRIPTION'
+    custom_title = (transcript.title or '').strip()
+    doc_title = custom_title or ('COMPTE-RENDU DE RÉUNION' if is_meeting else 'TRANSCRIPTION')
 
     # ── Title ──
     pdf.set_font('Helvetica', 'B', 16)
     pdf.set_text_color(20, 20, 20)
-    pdf.cell(0, 10, doc_title, align='C', ln=True)
+    pdf.cell(0, 10, _sanitize_for_latin1(doc_title), align='C', ln=True)
     pdf.ln(2)
 
-    # ── Metadata ──
+    # ── Metadata / avant-propos ──
     _section_title(pdf, 'Informations')
     stem = getattr(transcript, 'filename', None) or (
         transcript.audio.name.split('/')[-1] if transcript.audio else '—'
     )
+    if transcript.meeting_date:
+        _meta_line(pdf, 'Date', transcript.meeting_date.strftime('%d/%m/%Y'))
     _meta_line(pdf, 'Fichier source', stem)
     _meta_line(pdf, 'Durée', transcript.duration_display or '—')
     _meta_line(pdf, 'Backend', transcript.used_backend or transcript.backend or 'auto')
     _meta_line(pdf, 'Langue', transcript.language or 'auto')
-    _meta_line(pdf, 'Date', transcript.created_at.strftime('%d/%m/%Y %H:%M'))
+    speakers = _transcript_speakers(transcript)
+    if speakers:
+        _meta_line(pdf, 'Intervenants', _sanitize_for_latin1(', '.join(speakers)))
     pdf.ln(4)
 
     # ── Summary / key points (if meeting) ──
@@ -299,25 +370,20 @@ def generate_transcript_pdf(transcript) -> bytes:
             _bullet_list(pdf, ai)
             pdf.ln(2)
 
-    # ── Full transcript ──
+    # ── Full transcript (compacté par locuteur) ──
     _section_title(pdf, 'Transcription Complète')
 
-    # Try to use diarized segments if available
     try:
-        from wama.transcriber.models import TranscriptSegment
-        segments = TranscriptSegment.objects.filter(transcript=transcript).order_by('order')
-        if segments.exists():
-            for seg in segments:
-                # Speaker label
+        blocks = _transcript_blocks(transcript)
+        if blocks:
+            for b in blocks:
                 pdf.set_font('Helvetica', 'B', 9)
                 pdf.set_text_color(40, 120, 200)
-                speaker = seg.speaker_id or 'SPK'
-                time_str = f"{_fmt_time(seg.start_time)} — {_fmt_time(seg.end_time)}"
-                pdf.cell(0, 5, f'[{speaker}]  {time_str}', ln=True)
-                # Text
+                time_str = f"{_fmt_time(b['start'])} — {_fmt_time(b['end'])}"
+                pdf.cell(0, 5, _sanitize_for_latin1(f"[{b['speaker'] or 'SPK'}]  {time_str}"), ln=True)
                 pdf.set_font('Helvetica', '', 10)
                 pdf.set_text_color(30, 30, 30)
-                pdf.multi_cell(0, 5, seg.text or '')
+                pdf.multi_cell(0, 5, b['text'])
                 pdf.ln(1)
         else:
             _body_text(pdf, transcript.text or '')
@@ -434,22 +500,28 @@ def generate_transcript_docx(transcript) -> bytes:
 
     doc = Document()
     is_meeting = (transcript.summary_type == 'meeting') if transcript.summary_type else False
-    doc_title = 'Compte-Rendu de Réunion' if is_meeting else 'Transcription'
+    custom_title = (transcript.title or '').strip()
+    doc_title = custom_title or ('Compte-Rendu de Réunion' if is_meeting else 'Transcription')
     doc.add_heading(doc_title, 0)
 
     stem = getattr(transcript, 'filename', None) or (
         transcript.audio.name.split('/')[-1] if transcript.audio else '—'
     )
 
-    # Metadata table
-    table = doc.add_table(rows=4, cols=2)
-    table.style = 'Table Grid'
-    rows_data = [
+    # Metadata table / avant-propos
+    rows_data = []
+    if transcript.meeting_date:
+        rows_data.append(('Date', transcript.meeting_date.strftime('%d/%m/%Y')))
+    rows_data += [
         ('Fichier source', stem),
         ('Durée', transcript.duration_display or '—'),
         ('Backend', transcript.used_backend or 'auto'),
-        ('Date', transcript.created_at.strftime('%d/%m/%Y %H:%M')),
     ]
+    speakers = _transcript_speakers(transcript)
+    if speakers:
+        rows_data.append(('Intervenants', ', '.join(speakers)))
+    table = doc.add_table(rows=len(rows_data), cols=2)
+    table.style = 'Table Grid'
     for i, (k, v) in enumerate(rows_data):
         table.rows[i].cells[0].text = k
         table.rows[i].cells[1].text = v
@@ -472,17 +544,16 @@ def generate_transcript_docx(transcript) -> bytes:
         for ai in transcript.action_items:
             doc.add_paragraph(str(ai), style='List Bullet')
 
-    # Full transcript
+    # Full transcript (compacté par locuteur)
     doc.add_heading('Transcription Complète', 1)
     try:
-        from wama.transcriber.models import TranscriptSegment
-        segments = TranscriptSegment.objects.filter(transcript=transcript).order_by('order')
-        if segments.exists():
-            for seg in segments:
+        blocks = _transcript_blocks(transcript)
+        if blocks:
+            for b in blocks:
                 p = doc.add_paragraph()
-                run = p.add_run(f'[{seg.speaker_id or "SPK"}]  {_fmt_time(seg.start_time)}—{_fmt_time(seg.end_time)}\n')
+                run = p.add_run(f"[{b['speaker'] or 'SPK'}]  {_fmt_time(b['start'])}—{_fmt_time(b['end'])}\n")
                 run.bold = True
-                p.add_run(seg.text or '')
+                p.add_run(b['text'])
         else:
             doc.add_paragraph(transcript.text or '')
     except Exception:

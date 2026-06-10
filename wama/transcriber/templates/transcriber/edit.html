@@ -7,7 +7,7 @@
 {# NE PAS recharger app_modern.css/filemanager.css ici (déjà dans base.html) : un rechargement réécraserait l'offset body>.container des panneaux. #}
 <style>
   .editor-wrap { max-width: 1100px; margin: 0 auto; }
-  .editor-toolbar { position: sticky; top: 0; z-index: 5; background: #0b0b0d;
+  .editor-toolbar { position: sticky; top: 0; z-index: 6; background: #0b0b0d;
     border-bottom: 1px solid #2a2a30; padding: .5rem 0; }
   .seg-row { display: flex; gap: .5rem; padding: .4rem .5rem; border-radius: .4rem;
     border: 1px solid transparent; align-items: flex-start; }
@@ -17,6 +17,14 @@
   .seg-row.seg-selected { box-shadow: inset 3px 0 0 #ffc107; background: rgba(255,193,7,0.07); }
   /* Segment en cours d'édition (curseur actif) — distinct de lecture/sélection */
   .seg-row:has(.seg-text:focus) { border-color: #6ea8fe; background: rgba(110,168,254,0.10); }
+  /* Poignée de glisser-déposer (fusion par drag&drop) */
+  .seg-drag { flex: 0 0 auto; cursor: grab; color: #5a5f68; padding: .25rem .15rem 0;
+    font-size: .8rem; user-select: none; }
+  .seg-drag:hover { color: #9ca3af; }
+  .seg-drag:active { cursor: grabbing; }
+  .seg-row.seg-dragging { opacity: .45; }
+  .seg-row.seg-drop-target { box-shadow: inset 0 2px 0 #0dcaf0, inset 0 -2px 0 #0dcaf0;
+    background: rgba(13,202,240,0.10); }
   .seg-time { flex: 0 0 64px; font-size: .72rem; color: #8a8f98; padding-top: .25rem;
     font-variant-numeric: tabular-nums; }
   .seg-speaker { flex: 0 0 92px; }
@@ -40,79 +48,219 @@
     background: #16161a; overflow: hidden; }
   .seg-heatmap .hz { position: absolute; top: 0; bottom: 0; cursor: pointer; opacity: .85; }
   .seg-heatmap .hz:hover { opacity: 1; outline: 1px solid rgba(255,255,255,0.5); }
+  /* Player audio fixe en bas (cf. cam_analyzer) — reste visible pendant le scroll du texte.
+     bottom: 40px → posé AU-DESSUS du footer WAMA fixe (body>footer height:40px, z-index:1030). */
+  /* Alignée sur la zone de contenu : entre la sidebar gauche et le volet droit (vars filemanager).
+     z-index 1031 > panneaux (1025) ; bottom 40px = au-dessus du footer. */
+  .editor-audiobar { position: fixed; left: var(--fm-sidebar-width, 0); right: var(--fm-right-panel-width, 0);
+    bottom: 40px; z-index: 1031;
+    background: #0b0b0d; border-top: 1px solid #2a2a30; box-shadow: 0 -4px 14px rgba(0,0,0,0.45); }
+  body.wama-simple .editor-audiobar { left: 0; right: 0; }   /* mode plein écran : panneaux masqués */
+  .editor-audiobar-inner { max-width: 1100px; margin: 0 auto; padding: .5rem 1rem .6rem;
+    position: relative; }
+  .editor-audiobar-toggle { position: absolute; top: -26px; right: 12px; width: 40px; height: 24px;
+    border: 1px solid #2a2a30; border-bottom: none; background: #0b0b0d; color: #9ca3af;
+    border-radius: 6px 6px 0 0; cursor: pointer; font-size: .75rem; }
+  .editor-audiobar-toggle:hover { color: #e6edf3; }
+  .editor-audiobar.collapsed .editor-audiobar-body { display: none; }
+  .editor-audiobar.collapsed .editor-audiobar-toggle i { transform: rotate(180deg); }
+  /* Scroll INTERNE de la liste des segments : seuls les champs défilent, le chrome (toolbar
+     haut, player bas, footer) reste fixe. Hauteur précise calculée par JS (sizeSegments) ;
+     fallback CSS au cas où. */
+  #segments { overflow-y: auto; max-height: calc(100vh - var(--fm-header-height, 56px) - 320px); }
+  .editor-wrap { padding-bottom: 12px; }
+
+  /* Le contenu du volet droit utilise le vrai #wama-right-panel (base.html) ; styles ci-dessous. */
+  .rp-actions { display: flex; flex-wrap: wrap; gap: .3rem; align-items: center; }
+  /* Tableau des raccourcis */
+  .kbd-table { width: 100%; font-size: .72rem; border-collapse: collapse; }
+  .kbd-table tr.kbd-head td { color: #0dcaf0; font-weight: 600; padding-top: .5rem; border: none; }
+  .kbd-table td { padding: .2rem .3rem; border-bottom: 1px solid #1f1f26; vertical-align: top; }
+  .kbd-table td:first-child { white-space: nowrap; color: #e6edf3; width: 46%; }
+  .kbd-table kbd { font-size: .66rem; padding: .05rem .25rem; }
+  /* Intervenants */
+  .spk-row { display: flex; align-items: center; gap: .4rem; margin-bottom: .35rem; }
+  .spk-row .spk-label { flex: 0 0 96px; font-size: .72rem; color: #8a8f98; font-variant-numeric: tabular-nums; }
+  .spk-row input { flex: 1; min-width: 0; font-size: .78rem; background: #16161a; border: 1px solid #2a2a30;
+    color: #e6edf3; border-radius: .3rem; padding: .2rem .4rem; }
+  /* Métadonnées */
+  .meta-field { margin-bottom: .5rem; }
+  .meta-field label { display: block; font-size: .7rem; color: #8a8f98; margin-bottom: .15rem; }
+  .meta-field input { width: 100%; font-size: .82rem; background: #16161a; border: 1px solid #2a2a30;
+    color: #e6edf3; border-radius: .3rem; padding: .25rem .4rem; }
+  .meta-ro { font-size: .74rem; color: #9ca3af; margin-top: .3rem; }
+  .meta-ro div { padding: .12rem 0; }
+  /* Nom de locuteur (mappé) affiché sous l'id canonique dans la ligne de segment */
+  .seg-spk-name { font-size: .64rem; color: #0dcaf0; display: block; margin-top: .1rem;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="editor-wrap py-3">
 
-  <!-- Toolbar -->
+  <!-- Toolbar : Retour + nom du fichier + actions (aussi disponibles dans le volet droit) -->
   <div class="editor-toolbar d-flex align-items-center gap-2 flex-wrap">
     <a href="{% url 'transcriber:index' %}" class="btn btn-sm btn-outline-light">
       <i class="fas fa-arrow-left"></i> Retour
     </a>
     <div class="flex-grow-1 text-truncate">
       <i class="fas fa-pen-to-square text-info"></i>
-      <strong class="text-light">{{ transcript.filename }}</strong>
+      <strong class="text-light">{{ transcript.title|default:transcript.filename }}</strong>
       <span class="badge bg-secondary ms-1">{{ transcript.used_backend|default:"—" }}</span>
     </div>
-    <button id="compactBtn" class="btn btn-sm btn-outline-light" title="Fusionner les segments consécutifs d'un même locuteur">
+    <button class="t-undo btn btn-sm btn-outline-light" title="Annuler (Ctrl+Z) — texte, locuteur, scission, fusion, compactage" disabled>
+      <i class="fas fa-rotate-left"></i>
+    </button>
+    <button class="t-redo btn btn-sm btn-outline-light" title="Rétablir (Ctrl+Maj+Z)" disabled>
+      <i class="fas fa-rotate-right"></i>
+    </button>
+    <button class="t-compact btn btn-sm btn-outline-light" title="Fusionner les segments consécutifs d'un même locuteur">
       <i class="fas fa-compress"></i> Compacter
     </button>
-    <span id="saveState" class="save-state text-white-50"><i class="fas fa-check"></i> À jour</span>
-    <button id="finalizeBtn" class="btn btn-sm btn-success">
+    <span class="t-savestate save-state text-white-50"><i class="fas fa-check"></i> À jour</span>
+    <button class="t-finalize btn btn-sm btn-success" title="Marquer la correction comme terminée">
       <i class="fas fa-check-double"></i> Terminer la correction
     </button>
   </div>
 
-  <!-- Forme d'onde (composant commun) -->
-  <div class="mt-3">
-    {% include 'common/_audio_waveform.html' with audio_url=audio_url player_id=transcript.id %}
-  </div>
-
-  <!-- Heatmap cohérence/confiance (bande colorée sous l'onde, mappée sur le temps) -->
-  <div id="segHeatmap" class="seg-heatmap" title="Qualité par segment — cliquez pour écouter"></div>
-  <div class="d-flex align-items-center gap-3 small text-white-50 mt-1" id="heatmapLegend" style="display:none;">
-    <span><i class="fas fa-square" style="color:#22c55e;"></i> OK</span>
-    <span><i class="fas fa-square" style="color:#f59e0b;"></i> à vérifier</span>
-    <span><i class="fas fa-square" style="color:#ef4444;"></i> à corriger</span>
-    <span class="ms-auto"><i class="fas fa-info-circle"></i> survolez une zone pour le détail</span>
-  </div>
-
-  <!-- Transport : saut avant/arrière + vitesse de lecture -->
-  <div class="d-flex align-items-center gap-2 mb-3 mt-2 flex-wrap small">
-    <button class="btn btn-sm btn-outline-light" id="skipBack" title="Reculer 5 s (←)"><i class="fas fa-backward"></i> 5s</button>
-    <button class="btn btn-sm btn-outline-light" id="skipFwd" title="Avancer 5 s (→)">5s <i class="fas fa-forward"></i></button>
-    <span class="text-white-50 ms-3"><i class="fas fa-gauge-high"></i> Vitesse</span>
-    <button class="btn btn-sm btn-outline-light" id="speedDown" title="Ralentir"><i class="fas fa-minus"></i></button>
-    <span id="speedVal" class="badge bg-secondary" style="min-width:42px;">1.0×</span>
-    <button class="btn btn-sm btn-outline-light" id="speedUp" title="Accélérer"><i class="fas fa-plus"></i></button>
-  </div>
-
-  <!-- Aide raccourcis -->
-  <div class="small text-white-50 mb-2">
-    <i class="fas fa-keyboard"></i>
-    <strong>🎧 Navigation :</strong> <kbd>L</kbd> + rapide / <kbd>J</kbd> + lent puis arrière / <kbd>K</kbd> stop (échelle ◀◀16× … 1× … 16×▶▶) · <kbd>Espace</kbd> lecture normale · <kbd>←</kbd>/<kbd>→</kbd> ±5 s · <kbd>↑</kbd>/<kbd>↓</kbd> choisir un segment (sans entrer) · <kbd>Tab</kbd>/<kbd>Maj+Tab</kbd> ou <kbd>Entrée</kbd> éditer / balayer les champs.
-    &nbsp; <strong>✍️ Édition :</strong> tapez · <kbd>Tab</kbd>/<kbd>Maj+Tab</kbd> champ suivant/préc. · <kbd>Ctrl+Entrée</kbd> scinder au curseur · <kbd>Suppr</kbd> (fin)/<kbd>⌫</kbd> (début) fusionner · <kbd>Échap</kbd> revenir en Navigation.
-    &nbsp; <kbd>Alt</kbd>+<kbd>↑</kbd>/<kbd>↓</kbd> change de segment dans les deux modes.
-  </div>
-
-  <!-- Transcript synchronisé éditable -->
-  <div id="segments" class="border border-secondary rounded p-2"
+  <!-- Transcript synchronisé éditable (les métadonnées / intervenants / aide sont dans le volet droit) -->
+  <div id="segments" class="border border-secondary rounded p-2 mt-2"
        data-player-id="{{ transcript.id }}"></div>
 
 </div>
 
+<!-- Player audio fixe en bas (onde + heatmap + transport) — reste visible au scroll -->
+<div class="editor-audiobar" id="editorAudiobar">
+  <div class="editor-audiobar-inner">
+    <button id="audiobarToggle" class="editor-audiobar-toggle" title="Réduire / afficher le lecteur">
+      <i class="fas fa-chevron-down"></i>
+    </button>
+    <div class="editor-audiobar-body">
+      <!-- Forme d'onde (composant commun) -->
+      {% include 'common/_audio_waveform.html' with audio_url=audio_url player_id=transcript.id %}
+
+      <!-- Heatmap cohérence/confiance (bande colorée sous l'onde, mappée sur le temps) -->
+      <div id="segHeatmap" class="seg-heatmap" title="Qualité par segment — cliquez pour écouter (légende dans l'onglet Aide)"></div>
+
+      <!-- Transport : saut avant/arrière + vitesse de lecture -->
+      <div class="d-flex align-items-center gap-2 mt-2 flex-wrap small">
+        <button class="btn btn-sm btn-outline-light" id="skipBack" title="Reculer 5 s (←)"><i class="fas fa-backward"></i> 5s</button>
+        <button class="btn btn-sm btn-outline-light" id="skipFwd" title="Avancer 5 s (→)">5s <i class="fas fa-forward"></i></button>
+        <span class="text-white-50 ms-3"><i class="fas fa-gauge-high"></i> Vitesse</span>
+        <button class="btn btn-sm btn-outline-light" id="speedDown" title="Ralentir"><i class="fas fa-minus"></i></button>
+        <span id="speedVal" class="badge bg-secondary" style="min-width:42px;">1.0×</span>
+        <button class="btn btn-sm btn-outline-light" id="speedUp" title="Accélérer"><i class="fas fa-plus"></i></button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script id="segmentsData" type="application/json">{{ segments_json|safe }}</script>
+<script id="latestData" type="application/json">{{ latest_json|safe }}</script>
 <script>
   window.TRANSCRIBER_EDIT = {
     transcriptId: {{ transcript.id }},
     playerId: "{{ transcript.id }}",
     saveUrl: "{% url 'transcriber:save_correction' transcript.id %}",
+    saveMetaUrl: "{% url 'transcriber:save_meta' transcript.id %}",
+    suggestSpeakersUrl: "{% url 'transcriber:suggest_speakers' transcript.id %}",
     csrfToken: "{{ csrf_token }}",
     correctionStatus: "{{ correction_status }}",
+    speakerMap: {{ speaker_map_json|safe }},
   };
 </script>
+{% endblock %}
+
+{# ── Volet droit natif (#wama-right-panel) : sections Médias / Paramètres / Actions ── #}
+{% block right_panel_media_title %}<i class="fas fa-headphones me-1"></i> Audio{% endblock %}
+{% block right_panel_media %}
+  <audio controls preload="none" style="width:100%;" src="{{ audio_url }}"></audio>
+  {% if transcript.properties %}<div class="small text-white-50 mt-1"><i class="fas fa-wave-square"></i> {{ transcript.properties }}</div>{% endif %}
+{% endblock %}
+
+{% block right_panel_settings_title %}<i class="fas fa-circle-info me-1"></i> Correction{% endblock %}
+{% block right_panel_settings %}
+  <!-- Métadonnées (avant-propos du document) -->
+  <div class="meta-field">
+    <label>Titre du document</label>
+    <input type="text" id="metaTitle" placeholder="ex. Réunion projet WAMA" value="{{ transcript.title }}">
+  </div>
+  <div class="meta-field">
+    <label>Date</label>
+    <input type="date" id="metaDate" value="{{ transcript.meeting_date|date:'Y-m-d' }}">
+  </div>
+  <div class="meta-ro">
+    <div><i class="fas fa-file-audio"></i> {{ transcript.filename }}</div>
+    <div><i class="fas fa-clock"></i> {{ transcript.duration_display|default:'—' }}</div>
+    <div><i class="fas fa-microchip"></i> {{ transcript.used_backend|default:'auto' }}</div>
+    <div><i class="fas fa-globe"></i> {{ transcript.language|default:'auto' }}</div>
+  </div>
+
+  {% if has_newer_generation %}
+  <div class="alert alert-warning py-2 mt-2 mb-0 small" role="alert">
+    Vous éditez <strong>votre correction</strong>. Si vous avez relancé la transcription, vous pouvez charger la dernière version générée (cela remplacera votre correction).
+    <button id="loadLatestBtn" class="btn btn-sm btn-outline-dark mt-1 w-100">Charger la dernière transcription</button>
+  </div>
+  {% endif %}
+
+  <!-- Intervenants : renommage en une passe (persisté dans speaker_map) -->
+  <hr class="my-2" style="border-color:#2a2a30;">
+  <div class="right-panel-section-title mb-1"><i class="fas fa-users me-1"></i> Intervenants</div>
+  <p class="small text-white-50 mb-2">Renommez chaque intervenant. Les noms apparaissent dans le document de sortie (l'audio et les segments ne sont pas modifiés).</p>
+  <div id="speakerList"></div>
+  <p class="small text-white-50 mb-2" id="speakerEmpty" style="display:none;">Aucun locuteur détecté (diarisation désactivée).</p>
+  <button id="suggestSpeakersBtn" class="btn btn-sm btn-outline-info w-100 mb-1" title="Détecter les noms à partir des présentations dans l'audio (IA)">
+    <i class="fas fa-wand-magic-sparkles"></i> Identifier automatiquement
+  </button>
+  <button id="applySpeakersBtn" class="btn btn-sm btn-info w-100"><i class="fas fa-user-check"></i> Appliquer les noms</button>
+{% endblock %}
+
+{% block right_panel_actions %}
+  <div class="rp-actions mb-2">
+    <button class="t-undo btn btn-sm btn-outline-light" title="Annuler (Ctrl+Z) — texte, locuteur, scission, fusion, compactage" disabled>
+      <i class="fas fa-rotate-left"></i>
+    </button>
+    <button class="t-redo btn btn-sm btn-outline-light" title="Rétablir (Ctrl+Maj+Z)" disabled>
+      <i class="fas fa-rotate-right"></i>
+    </button>
+    <button class="t-compact btn btn-sm btn-outline-light" title="Fusionner les segments consécutifs d'un même locuteur">
+      <i class="fas fa-compress"></i> Compacter
+    </button>
+  </div>
+  <button class="t-finalize btn btn-sm btn-success w-100 mb-1" title="Marquer la correction comme terminée">
+    <i class="fas fa-check-double"></i> Terminer la correction
+  </button>
+  <div class="text-end mb-2"><span class="t-savestate save-state text-white-50"><i class="fas fa-check"></i> À jour</span></div>
+
+  <!-- Raccourcis clavier (repliable) + légende heatmap -->
+  <details class="small">
+    <summary class="text-white-50" style="cursor:pointer;"><i class="fas fa-keyboard"></i> Raccourcis clavier</summary>
+    <table class="kbd-table mt-1">
+      <tr class="kbd-head"><td colspan="2">🎧 Navigation</td></tr>
+      <tr><td><kbd>L</kbd> / <kbd>J</kbd> / <kbd>K</kbd></td><td>+ rapide / + lent puis arrière / stop (◀◀16×…16×▶▶)</td></tr>
+      <tr><td><kbd>Espace</kbd></td><td>lecture normale</td></tr>
+      <tr><td><kbd>←</kbd> / <kbd>→</kbd></td><td>reculer / avancer 5 s</td></tr>
+      <tr><td><kbd>Tab</kbd> / <kbd>Maj+Tab</kbd></td><td>segment audio suivant / précédent</td></tr>
+      <tr><td><kbd>↑</kbd> / <kbd>↓</kbd></td><td>choisir un segment (sans bouger l'audio)</td></tr>
+      <tr><td><kbd>Entrée</kbd></td><td>éditer le segment</td></tr>
+      <tr class="kbd-head"><td colspan="2">✍️ Édition</td></tr>
+      <tr><td><kbd>Tab</kbd> / <kbd>Maj+Tab</kbd></td><td>champ suivant / précédent</td></tr>
+      <tr><td><kbd>Ctrl+Entrée</kbd></td><td>scinder au curseur</td></tr>
+      <tr><td><kbd>Suppr</kbd> / <kbd>⌫</kbd></td><td>fusionner (fin / début)</td></tr>
+      <tr><td><i class="fas fa-grip-vertical"></i> glisser</td><td>fusionner une plage (poignée → autre segment)</td></tr>
+      <tr><td><kbd>Échap</kbd></td><td>revenir en Navigation</td></tr>
+      <tr class="kbd-head"><td colspan="2">⌨ Commun</td></tr>
+      <tr><td><kbd>Alt+↑</kbd> / <kbd>Alt+↓</kbd></td><td>changer de segment</td></tr>
+      <tr><td><kbd>Ctrl+Z</kbd> / <kbd>Ctrl+Maj+Z</kbd></td><td>annuler / rétablir</td></tr>
+    </table>
+    <div class="mt-2 text-white-50">
+      <strong>Légende heatmap</strong><br>
+      <span style="color:#22c55e;">■</span> OK ·
+      <span style="color:#f59e0b;">■</span> à vérifier ·
+      <span style="color:#ef4444;">■</span> à corriger
+    </div>
+  </details>
 {% endblock %}
 
 {% block extra_js %}

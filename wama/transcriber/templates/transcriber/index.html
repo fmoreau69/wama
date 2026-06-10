@@ -388,18 +388,23 @@ window._batchImport = WamaBatchImport({
                         </small>
                     </div>
 
-                    <!-- Statut texte (le résultat va dans la preview en bas de card) -->
+                    <!-- Propriétés audio source + état (le résultat va dans la preview en bas de card) -->
                     <div class="col-md-2">
-                        {% if t.status == 'SUCCESS' %}
-                        <small class="text-success"><i class="fas fa-check-circle"></i> Terminé</small>
-                        {% elif t.text %}
-                        <small class="text-light result-preview" style="max-height: 60px; overflow: hidden; display: block;">
+                        {% if t.properties %}
+                        <small class="text-white-50 d-block"><i class="fas fa-wave-square"></i> {{ t.properties }}</small>
+                        {% endif %}
+                        {% if t.status == 'RUNNING' %}
+                        <small class="card-state text-warning"><i class="fas fa-spinner fa-spin"></i> Traitement…</small>
+                        {% elif t.status == 'PENDING' %}
+                        <small class="card-state text-white-50">En attente</small>
+                        {% elif t.status == 'FAILURE' %}
+                        <small class="card-state text-danger"><i class="fas fa-triangle-exclamation"></i> Échec</small>
+                        {% elif t.status != 'SUCCESS' and t.text %}
+                        <small class="card-state text-light result-preview" style="max-height: 60px; overflow: hidden; display: block;">
                             {{ t.text|truncatechars:120 }}
                         </small>
                         {% else %}
-                        <small class="text-white-50">
-                            {{ t.properties|default:"En attente" }}
-                        </small>
+                        <small class="card-state"></small>
                         {% endif %}
                     </div>
 
@@ -584,16 +589,28 @@ window._batchImport = WamaBatchImport({
                                 {% endif %}
                                 <br>
                                 <small class="text-white-50">{{ t.duration_display|default:"" }}</small>
+                                {# Réglages utilisateur (étaient absents des cards batch) #}
+                                <br>
+                                <small class="text-white-50" style="font-size:.7rem;">
+                                    <i class="fas fa-microchip"></i> {{ t.backend|default:"auto" }}{% if t.enable_diarization %} · <i class="fas fa-users"></i> Diar.{% endif %}{% if t.hotwords %} · <i class="fas fa-tags"></i> {{ t.hotwords|truncatechars:14 }}{% endif %}{% if t.preprocess_audio %} · <span class="badge bg-warning text-dark" style="font-size:.55rem;">Prétr.</span>{% endif %}
+                                </small>
                             </div>
                             <div class="col-md-3">
-                                {% if t.status == 'SUCCESS' %}
-                                <small class="text-success"><i class="fas fa-check-circle"></i> Terminé</small>
-                                {% elif t.text %}
-                                <small class="text-light result-preview" style="max-height:40px; overflow:hidden; display:block;">
+                                {% if t.properties %}
+                                <small class="text-white-50 d-block" style="font-size:.7rem;"><i class="fas fa-wave-square"></i> {{ t.properties }}</small>
+                                {% endif %}
+                                {% if t.status == 'RUNNING' %}
+                                <small class="card-state text-warning"><i class="fas fa-spinner fa-spin"></i> Traitement…</small>
+                                {% elif t.status == 'PENDING' %}
+                                <small class="card-state text-white-50 result-preview">En attente…</small>
+                                {% elif t.status == 'FAILURE' %}
+                                <small class="card-state text-danger"><i class="fas fa-triangle-exclamation"></i> Échec</small>
+                                {% elif t.status != 'SUCCESS' and t.text %}
+                                <small class="card-state text-light result-preview" style="max-height:40px; overflow:hidden; display:block;">
                                     {{ t.text|truncatechars:100 }}
                                 </small>
                                 {% else %}
-                                <small class="text-white-50 result-preview">En attente…</small>
+                                <small class="card-state"></small>
                                 {% endif %}
                             </div>
                             <div class="col-md-2">

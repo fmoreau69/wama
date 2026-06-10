@@ -376,7 +376,12 @@ def verify_text_coherence(
         },
     ]
 
-    result_text, error = ollama_chat(messages, model=model)
+    # think=False : tâche de sortie JSON → pas de raisonnement qui consomme le budget
+    # de tokens (cause des réponses vides avec les modèles « thinking » type qwen3).
+    # + 1 retry sur réponse vide (intermittence Ollama).
+    result_text, error = ollama_chat(messages, model=model, think=False, num_predict=4096)
+    if not result_text:
+        result_text, error = ollama_chat(messages, model=model, think=False, num_predict=4096)
 
     if error or not result_text:
         logger.warning(f"[llm_utils] verify_text_coherence failed: {error}")
@@ -430,7 +435,10 @@ def analyze_segments_coherence(
             f"Segments :\n{chr(10).join(lines)}\n\nRéponds UNIQUEMENT avec le JSON.")},
     ]
     try:
-        result_text, error = ollama_chat(messages, model=model)
+        # think=False (sortie JSON) + 1 retry sur réponse vide.
+        result_text, error = ollama_chat(messages, model=model, think=False)
+        if not result_text:
+            result_text, error = ollama_chat(messages, model=model, think=False)
         if error or not result_text:
             logger.warning(f"[llm_utils] analyze_segments_coherence: {error or 'réponse vide'}")
             return {}
@@ -449,6 +457,76 @@ def analyze_segments_coherence(
         return out
     except Exception as e:
         logger.warning(f"[llm_utils] analyze_segments_coherence failed: {e}")
+        return {}
+
+
+def suggest_speaker_names(
+    segments: list,
+    language: str = 'fr',
+    model: str = 'qwen3.5:9b',
+) -> dict:
+    """Propose des noms d'intervenants à partir des présentations dans la transcription.
+
+    Cherche les indices d'identité (« je suis X », « bonjour, ici Y », « je passe la
+    parole à Z ») pour associer un nom à chaque libellé de locuteur (SPEAKER_NN).
+
+    Args:
+        segments: liste de dicts {'speaker_id': str, 'text': str} (libellés canoniques).
+        language: 'fr' | 'en'.
+
+    Returns:
+        {SPEAKER_NN: "Nom proposé"} — uniquement les locuteurs pour lesquels un nom
+        plausible est trouvé. **Ne lève jamais** : renvoie {} en cas d'échec.
+    """
+    from wama.transcriber.utils.speakers import normalize_speaker_label
+    items = []
+    for s in segments:
+        spk = normalize_speaker_label(s.get('speaker_id'))
+        txt = (s.get('text') or '').strip()
+        if spk and txt:
+            items.append((spk, txt))
+    if not items:
+        return {}
+    speakers = []
+    for spk, _ in items:
+        if spk not in speakers:
+            speakers.append(spk)
+    lang_label = "en français" if language == 'fr' else "in English"
+    # On limite le contexte : début de réunion = là où on se présente le plus souvent.
+    lines = [f"{spk}: {txt[:200]}" for spk, txt in items[:120]]
+    messages = [
+        {"role": "system", "content": (
+            "Tu es un assistant qui identifie le nom des intervenants d'une transcription "
+            f"à partir de leurs présentations. Réponds toujours {lang_label} avec un JSON "
+            "valide et rien d'autre.")},
+        {"role": "user", "content": (
+            "Voici une transcription : chaque ligne commence par l'identifiant du locuteur "
+            "puis son texte. À partir des présentations (« je suis … », « ici … », « je passe "
+            "la parole à … », appels par le prénom, etc.), associe un NOM à chaque identifiant. "
+            "N'invente aucun nom : si tu n'as pas d'indice fiable pour un locuteur, ne l'inclus pas.\n\n"
+            f"Identifiants présents : {', '.join(speakers)}\n\n"
+            f"Transcription :\n{chr(10).join(lines)}\n\n"
+            'Retourne UNIQUEMENT un JSON : {"speakers": [{"id": "SPEAKER_00", "name": "Prénom Nom"}, ...]}.')},
+    ]
+    try:
+        result_text, error = ollama_chat(messages, model=model, think=False, num_predict=1024)
+        if not result_text:
+            result_text, error = ollama_chat(messages, model=model, think=False, num_predict=1024)
+        if error or not result_text:
+            logger.warning(f"[llm_utils] suggest_speaker_names: {error or 'réponse vide'}")
+            return {}
+        data = extract_json_from_llm(result_text)
+        if not data:
+            return {}
+        out = {}
+        for it in (data.get("speakers") or []):
+            sid = normalize_speaker_label(it.get("id"))
+            name = str(it.get("name", "")).strip()
+            if sid and name and sid in speakers:
+                out[sid] = name[:120]
+        return out
+    except Exception as e:
+        logger.warning(f"[llm_utils] suggest_speaker_names failed: {e}")
         return {}
 
 

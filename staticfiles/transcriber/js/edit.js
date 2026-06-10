@@ -14,9 +14,27 @@
   } catch (e) { segments = []; }
 
   const segContainer = document.getElementById('segments');
-  const saveState = document.getElementById('saveState');
+  // Indicateur d'enregistrement — présent en double (toolbar haut + volet droit) → on met
+  // à jour tous les exemplaires via la classe .t-savestate.
+  function setSaveState(html) {
+    document.querySelectorAll('.t-savestate').forEach(function (el) { el.innerHTML = html; });
+  }
   let activeIndex = -1;
   let dirty = false;
+
+  // Renommage des locuteurs (speaker_map) — clés canoniques « SPEAKER_NN » → noms.
+  let speakerMap = CFG.speakerMap || {};
+  function canonSpeaker(raw) {
+    if (raw == null) return '';
+    const s = String(raw).trim();
+    if (!s) return '';
+    const m = s.match(/^(?:speaker[\s_\-]*)?(\d+)$/i);
+    return m ? 'SPEAKER_' + String(parseInt(m[1], 10)).padStart(2, '0') : s;
+  }
+  function speakerDisplay(raw) {
+    const c = canonSpeaker(raw);
+    return (speakerMap && speakerMap[c]) ? speakerMap[c] : c;
+  }
 
   function fmt(s) {
     s = Math.max(0, Math.floor(s || 0));
@@ -33,9 +51,17 @@
       return (
         '<div class="seg-row" data-i="' + i + '" data-start="' + (s.start_time || 0) +
           '" data-end="' + (s.end_time || 0) + '">' +
+          '<span class="seg-drag" draggable="true" data-i="' + i +
+            '" title="Glisser sur un autre segment pour fusionner"><i class="fas fa-grip-vertical"></i></span>' +
           '<span class="seg-time">' + fmt(s.start_time) + '</span>' +
           '<div class="seg-speaker"><input type="text" value="' + esc(s.speaker_id || '') +
-            '" placeholder="Loc." data-i="' + i + '"></div>' +
+            '" placeholder="Loc." data-i="' + i + '">' +
+            (function () {
+              var nm = speakerDisplay(s.speaker_id);
+              return (nm && nm !== (s.speaker_id || '')) ?
+                '<span class="seg-spk-name" title="' + esc(nm) + '">' + esc(nm) + '</span>' : '';
+            })() +
+          '</div>' +
           '<button class="seg-play btn btn-sm btn-outline-info py-0 px-2" data-i="' + i +
             '" title="Écouter ce segment"><i class="fas fa-play fa-xs"></i></button>' +
           '<div class="seg-text-wrap">' +
@@ -57,8 +83,10 @@
     const row = segContainer.querySelector('.seg-row[data-i="' + idx + '"]');
     if (row) {
       row.classList.add('seg-active');
+      // Visibilité évaluée par rapport au conteneur scrollable (#segments), pas au viewport.
+      const cr = segContainer.getBoundingClientRect();
       const r = row.getBoundingClientRect();
-      if (r.top < 90 || r.bottom > window.innerHeight) {
+      if (r.top < cr.top + 8 || r.bottom > cr.bottom - 8) {
         row.scrollIntoView({ block: 'center', behavior: 'smooth' });
       }
     }
@@ -74,12 +102,12 @@
   let saveTimer = null;
   function markDirty() {
     dirty = true;
-    if (saveState) saveState.innerHTML = '<i class="fas fa-circle text-warning" style="font-size:.5rem;"></i> Modifié…';
+    setSaveState('<i class="fas fa-circle text-warning" style="font-size:.5rem;"></i> Modifié…');
     clearTimeout(saveTimer);
     saveTimer = setTimeout(function () { save('draft'); }, 800);
   }
   function save(status) {
-    if (saveState) saveState.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enregistrement…';
+    setSaveState('<i class="fas fa-spinner fa-spin"></i> Enregistrement…');
     return fetch(CFG.saveUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CFG.csrfToken },
@@ -88,18 +116,24 @@
       .then(function (r) { return r.json(); })
       .then(function () {
         dirty = false;
-        if (saveState) {
-          saveState.innerHTML = (status === 'done')
-            ? '<i class="fas fa-check-double text-success"></i> Correction terminée'
-            : '<i class="fas fa-check text-success"></i> À jour';
-        }
+        setSaveState((status === 'done')
+          ? '<i class="fas fa-check-double text-success"></i> Correction terminée'
+          : '<i class="fas fa-check text-success"></i> À jour');
       })
       .catch(function () {
-        if (saveState) saveState.innerHTML = '<i class="fas fa-triangle-exclamation text-danger"></i> Erreur';
+        setSaveState('<i class="fas fa-triangle-exclamation text-danger"></i> Erreur');
       });
   }
 
   /* ── Événements d'édition ───────────────────────────────────────────── */
+  // AVANT toute mutation du texte/locuteur → fige l'état d'avant-rafale dans l'historique
+  // (DOM et `segments` encore intacts ici). Une rafale de frappe = une seule entrée undo.
+  segContainer.addEventListener('beforeinput', function (e) {
+    const el = e.target;
+    if (el && (el.classList && el.classList.contains('seg-text') || el.tagName === 'INPUT')) {
+      beginTextBurst();
+    }
+  });
   segContainer.addEventListener('input', function (e) {
     const el = e.target;
     const i = parseInt(el.dataset.i, 10);
@@ -116,6 +150,44 @@
     if (isNaN(i) || !window.WamaAudioPlayer) return;
     WamaAudioPlayer.seek(playerId, segments[i].start_time || 0, true);
     highlight(i);
+  });
+
+  /* ── Drag & drop : glisser un segment (poignée ⋮⋮) sur un autre → fusion ──── */
+  let _dragIndex = -1;
+  segContainer.addEventListener('dragstart', function (e) {
+    const h = e.target.closest('.seg-drag');
+    if (!h) return;
+    _dragIndex = parseInt(h.dataset.i, 10);
+    e.dataTransfer.effectAllowed = 'move';
+    try { e.dataTransfer.setData('text/plain', String(_dragIndex)); } catch (_) {}
+    const row = h.closest('.seg-row');
+    if (row) row.classList.add('seg-dragging');
+  });
+  segContainer.addEventListener('dragover', function (e) {
+    if (_dragIndex < 0) return;
+    const row = e.target.closest('.seg-row');
+    if (!row) return;
+    e.preventDefault();                                // autorise le drop
+    e.dataTransfer.dropEffect = 'move';
+    segContainer.querySelectorAll('.seg-drop-target').forEach(function (r) { r.classList.remove('seg-drop-target'); });
+    const j = parseInt(row.dataset.i, 10);
+    if (j !== _dragIndex) row.classList.add('seg-drop-target');
+  });
+  segContainer.addEventListener('drop', function (e) {
+    if (_dragIndex < 0) return;
+    const row = e.target.closest('.seg-row');
+    if (row) {
+      e.preventDefault();
+      const j = parseInt(row.dataset.i, 10);
+      if (!isNaN(j) && j !== _dragIndex) mergeRange(_dragIndex, j);
+    }
+    _dragIndex = -1;
+  });
+  segContainer.addEventListener('dragend', function () {
+    _dragIndex = -1;
+    segContainer.querySelectorAll('.seg-dragging, .seg-drop-target').forEach(function (r) {
+      r.classList.remove('seg-dragging', 'seg-drop-target');
+    });
   });
 
   /* ── Clavier ────────────────────────────────────────────────────────── */
@@ -244,6 +316,22 @@
     } else { a.pause(); }
     shuttleLabel();
   }
+  // Navigation audio : relocalise la lecture au début du segment suivant (dir=1)
+  // ou précédent (dir=-1), relativement à la position courante. Conserve l'état
+  // lecture/pause (seek sans forcer play) + surligne le segment ciblé.
+  function seekSegment(dir) {
+    const a = audio(); if (!a || !segments.length) return;
+    let cur = indexAt(a.currentTime || 0);
+    if (cur < 0) {  // hors d'un segment → dernier dont le début précède la position
+      cur = 0;
+      for (let k = 0; k < segments.length; k++) {
+        if ((segments[k].start_time || 0) <= (a.currentTime || 0)) cur = k;
+      }
+    }
+    const i = Math.max(0, Math.min(segments.length - 1, cur + dir));
+    selectSeg(i);
+    if (window.WamaAudioPlayer) WamaAudioPlayer.seek(playerId, segments[i].start_time || 0, false);
+  }
   // Synchronise la sélection avec le focus (clic dans un segment = édition)
   segContainer.addEventListener('focusin', function (e) {
     if (e.target.classList && e.target.classList.contains('seg-text')) {
@@ -253,6 +341,7 @@
     }
   });
   segContainer.addEventListener('focusout', function (e) {
+    _burstActive = false;  // quitter un champ ferme la rafale → la frappe suivante = nouvelle entrée undo
     if (e.target.classList && e.target.classList.contains('seg-text')) {
       setTimeout(function () { if (!inEdit()) selectSeg(selIndex); }, 0);  // sortie d'édition → re-surligne
     }
@@ -279,7 +368,49 @@
     } catch (_) {}
   }
   function refresh() { render(); renderOverlays(); markDirty(); }
+  /* ── Historique undo / redo (état complet des segments) ────────────── */
+  // Couvre TOUTES les modifs : texte, locuteur, scission, fusion, compactage,
+  // load-latest. Les frappes sont coalescées en « rafales » (1 entrée par burst).
+  let undoStack = [];
+  let redoStack = [];
+  let _burstActive = false;   // une rafale de frappe est en cours (déjà snapshotée)
+  let _burstTimer = null;
+  const MAX_HISTORY = 100;
+  function snapshot() { return JSON.parse(JSON.stringify(segments)); }
+  function pushHistory() {
+    undoStack.push(snapshot());
+    if (undoStack.length > MAX_HISTORY) undoStack.shift();
+    redoStack.length = 0;
+    _burstActive = false;     // une nouvelle action structurelle ferme la rafale
+    updateUndoButtons();
+  }
+  // Fige l'état AVANT une rafale de frappe (beforeinput → DOM/segments encore intacts).
+  function beginTextBurst() {
+    if (!_burstActive) { pushHistory(); _burstActive = true; }
+    clearTimeout(_burstTimer);
+    _burstTimer = setTimeout(function () { _burstActive = false; }, 900);  // fin après 0,9 s
+  }
+  function restoreState(state) {
+    segments.length = 0; Array.prototype.push.apply(segments, state);
+    render(); renderOverlays(); markDirty(); updateUndoButtons();
+  }
+  function undo() {
+    if (!undoStack.length) return;
+    redoStack.push(snapshot());
+    restoreState(undoStack.pop());
+  }
+  function redo() {
+    if (!redoStack.length) return;
+    undoStack.push(snapshot());
+    restoreState(redoStack.pop());
+  }
+  function updateUndoButtons() {
+    document.querySelectorAll('.t-undo').forEach(function (b) { b.disabled = !undoStack.length; });
+    document.querySelectorAll('.t-redo').forEach(function (b) { b.disabled = !redoStack.length; });
+  }
+
   function splitAt(i, off) {                          // Ctrl+Entrée
+    pushHistory();
     const s = segments[i]; const text = s.text || '';
     off = Math.max(0, Math.min(text.length, off));
     const st = s.start_time || 0, en = s.end_time || st;
@@ -290,6 +421,7 @@
     refresh(); enterEditAt(i + 1, 0);                 // curseur au début de la 2e moitié
   }
   function mergeAt(i, j) {                            // i < j adjacents : j → i
+    pushHistory();
     const a = segments[i], b = segments[j];
     const join = (a.text || '').trim().length + 1;    // position du curseur à la jonction
     a.text = ((a.text || '').trim() + ' ' + (b.text || '').trim()).trim();
@@ -297,7 +429,25 @@
     segments.splice(j, 1);
     refresh(); enterEditAt(i, join);
   }
+  function mergeRange(a, b) {                         // drag&drop : fusionne la plage [min..max]
+    const lo = Math.min(a, b), hi = Math.max(a, b);
+    if (lo === hi || lo < 0 || hi >= segments.length) return;
+    pushHistory();
+    const first = segments[lo];
+    const parts = [];
+    for (let k = lo; k <= hi; k++) {
+      const tx = (segments[k].text || '').trim();
+      if (tx) parts.push(tx);
+    }
+    first.text = parts.join(' ').trim();
+    first.end_time = segments[hi].end_time;            // borne temporelle = fin du dernier
+    first.words = undefined;
+    segments.splice(lo + 1, hi - lo);                  // retire les segments fusionnés
+    refresh();
+    selectSeg(lo);
+  }
   function compact() {                               // fusionne segments consécutifs même locuteur
+    pushHistory();
     const out = [];
     segments.forEach(function (s) {
       const last = out[out.length - 1];
@@ -310,11 +460,164 @@
     segments.length = 0; Array.prototype.push.apply(segments, out);
     refresh();
   }
-  const compactBtn = document.getElementById('compactBtn');
-  if (compactBtn) compactBtn.addEventListener('click', compact);
+  // Boutons d'action présents en double (toolbar haut + volet droit) → bind sur tous via classe.
+  document.querySelectorAll('.t-compact').forEach(function (b) { b.addEventListener('click', compact); });
+  document.querySelectorAll('.t-undo').forEach(function (b) { b.addEventListener('click', undo); });
+  document.querySelectorAll('.t-redo').forEach(function (b) { b.addEventListener('click', redo); });
+
+  // Hauteur de la zone d'édition : seuls les champs défilent (toolbar + player + footer fixes).
+  function sizeSegments() {
+    if (!segContainer) return;
+    const top = segContainer.getBoundingClientRect().top;     // position dans le viewport
+    const bar = document.getElementById('editorAudiobar');
+    const reserve = 40 + (bar ? bar.offsetHeight : 0) + 16;    // footer (40) + barre audio + marge
+    segContainer.style.maxHeight = Math.max(160, window.innerHeight - top - reserve) + 'px';
+  }
+  window.addEventListener('resize', sizeSegments);
+
+  // Réduire / afficher le player fixe en bas (libère de l'espace pour le texte).
+  const audiobar = document.getElementById('editorAudiobar');
+  const audiobarToggle = document.getElementById('audiobarToggle');
+  if (audiobar && audiobarToggle) {
+    const KEY = 'wama_transcriber_audiobar_collapsed';
+    function applyCollapsed(c) {
+      audiobar.classList.toggle('collapsed', c);
+      sizeSegments();   // la barre change de hauteur → recalcule la zone scrollable
+    }
+    applyCollapsed(localStorage.getItem(KEY) === '1');
+    audiobarToggle.addEventListener('click', function () {
+      const c = !audiobar.classList.contains('collapsed');
+      applyCollapsed(c);
+      try { localStorage.setItem(KEY, c ? '1' : '0'); } catch (_) {}
+    });
+  }
+  sizeSegments();                       // calcul initial
+  setTimeout(sizeSegments, 350);        // re-calcul après layout tardif (onde/player)
+
+
+  /* ── Volet droit : métadonnées (titre + date) ───────────────────────── */
+  function saveMeta(payload) {
+    if (!CFG.saveMetaUrl) return;
+    fetch(CFG.saveMetaUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CFG.csrfToken },
+      body: JSON.stringify(payload),
+    }).catch(function () {});
+  }
+  let metaTimer = null;
+  function scheduleMetaSave() {
+    clearTimeout(metaTimer);
+    metaTimer = setTimeout(function () {
+      const titleEl = document.getElementById('metaTitle');
+      const dateEl = document.getElementById('metaDate');
+      saveMeta({ title: titleEl ? titleEl.value : '', meeting_date: dateEl ? (dateEl.value || null) : null });
+    }, 700);
+  }
+  ['metaTitle', 'metaDate'].forEach(function (id) {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('input', scheduleMetaSave);
+  });
+
+  /* ── Volet droit : intervenants (renommage en une passe) ────────────── */
+  function buildSpeakerList() {
+    const host = document.getElementById('speakerList');
+    const empty = document.getElementById('speakerEmpty');
+    if (!host) return;
+    // Locuteurs canoniques présents, dans l'ordre d'apparition.
+    const seen = [];
+    segments.forEach(function (s) {
+      const c = canonSpeaker(s.speaker_id);
+      if (c && seen.indexOf(c) === -1) seen.push(c);
+    });
+    if (!seen.length) {
+      host.innerHTML = '';
+      if (empty) empty.style.display = 'block';
+      return;
+    }
+    if (empty) empty.style.display = 'none';
+    host.innerHTML = seen.map(function (c) {
+      const val = speakerMap[c] || '';
+      return '<div class="spk-row"><span class="spk-label">' + esc(c) + '</span>' +
+        '<input type="text" data-spk="' + esc(c) + '" placeholder="Nom de l\'intervenant" value="' + esc(val) + '"></div>';
+    }).join('');
+  }
+  // Identification automatique des intervenants (IA) → pré-remplit les champs (sans appliquer).
+  const suggestSpeakersBtn = document.getElementById('suggestSpeakersBtn');
+  if (suggestSpeakersBtn) {
+    suggestSpeakersBtn.addEventListener('click', function () {
+      if (!CFG.suggestSpeakersUrl) return;
+      const orig = suggestSpeakersBtn.innerHTML;
+      suggestSpeakersBtn.disabled = true;
+      suggestSpeakersBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Analyse en cours…';
+      fetch(CFG.suggestSpeakersUrl, { method: 'POST', headers: { 'X-CSRFToken': CFG.csrfToken } })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          const sug = (data && data.suggestions) || {};
+          let n = 0;
+          Object.keys(sug).forEach(function (sid) {
+            const inp = document.querySelector('#speakerList input[data-spk="' + sid + '"]');
+            if (inp && !inp.value.trim()) { inp.value = sug[sid]; n++; }  // ne pas écraser une saisie manuelle
+          });
+          suggestSpeakersBtn.innerHTML = n
+            ? '<i class="fas fa-check"></i> ' + n + ' nom(s) proposé(s) — vérifiez puis Appliquer'
+            : '<i class="fas fa-circle-info"></i> Aucun nom détecté';
+        })
+        .catch(function () { suggestSpeakersBtn.innerHTML = '<i class="fas fa-triangle-exclamation"></i> Erreur'; })
+        .finally(function () {
+          suggestSpeakersBtn.disabled = false;
+          setTimeout(function () { suggestSpeakersBtn.innerHTML = orig; }, 3000);
+        });
+    });
+  }
+
+  const applySpeakersBtn = document.getElementById('applySpeakersBtn');
+  if (applySpeakersBtn) {
+    applySpeakersBtn.addEventListener('click', function () {
+      const map = {};
+      document.querySelectorAll('#speakerList input[data-spk]').forEach(function (inp) {
+        const name = (inp.value || '').trim();
+        if (name) map[inp.dataset.spk] = name;
+      });
+      speakerMap = map;
+      saveMeta({ speaker_map: map });
+      render(); renderOverlays();  // ré-affiche les chips de noms dans les segments
+      const old = applySpeakersBtn.innerHTML;
+      applySpeakersBtn.innerHTML = '<i class="fas fa-check"></i> Noms appliqués';
+      setTimeout(function () { applySpeakersBtn.innerHTML = old; }, 1500);
+    });
+  }
+  buildSpeakerList();  // la liste des intervenants est toujours visible dans le volet droit
+
+  // « Charger la dernière transcription » : remplace la correction par la dernière
+  // génération ASR (l'utilisateur garde sa correction tant qu'il ne clique pas).
+  const loadLatestBtn = document.getElementById('loadLatestBtn');
+  if (loadLatestBtn) {
+    loadLatestBtn.addEventListener('click', function () {
+      let latest = [];
+      try { latest = JSON.parse(document.getElementById('latestData').textContent) || []; } catch (_) {}
+      if (!latest.length) { alert('Aucune nouvelle transcription disponible.'); return; }
+      if (!confirm('Charger la dernière transcription générée ?\nVotre correction actuelle sera remplacée (annulable avec Ctrl+Z).')) return;
+      pushHistory();
+      segments.length = 0; Array.prototype.push.apply(segments, latest);
+      refresh();  // re-render + ticks + heatmap + auto-save (devient la nouvelle base corrigée)
+      const banner = loadLatestBtn.closest('.alert');
+      if (banner) banner.style.display = 'none';
+    });
+  }
 
   document.addEventListener('keydown', function (e) {
     const editing = inEdit();
+
+    // Undo/Redo (Ctrl+Z / Ctrl+Maj+Z / Ctrl+Y) — dans LES DEUX modes. On remplace
+    // l'annulation native du contenteditable par l'historique applicatif : source de
+    // vérité unique couvrant texte, locuteur, scission, fusion, compactage, load-latest.
+    if (e.ctrlKey || e.metaKey) {
+      const k = e.key.toLowerCase();
+      // restoreState() reconstruit le DOM (le champ édité disparaît) → on ferme la rafale
+      // en cours pour que la frappe d'après recrée une entrée d'historique propre.
+      if (k === 'z') { _burstActive = false; e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
+      if (k === 'y') { _burstActive = false; e.preventDefault(); redo(); return; }
+    }
 
     // Échap : en ÉDITION → sortir vers Navigation (l'audio se repilote au clavier).
     if (e.key === 'Escape') {
@@ -330,18 +633,15 @@
       return;
     }
 
-    // Tab / Maj+Tab : balaye les champs de correction (focus) — DANS LES DEUX MODES.
-    // En Navigation : entre dans le segment sélectionné, puis enchaîne au suivant/précédent.
+    // Tab / Maj+Tab :
+    //  - Édition : champ de correction suivant/précédent (inchangé).
+    //  - Navigation : relocalise la LECTURE AUDIO au début du segment suivant/précédent
+    //    (complément de J/K/L) + sélection. N'entre PAS en édition (utiliser Entrée pour ça).
     if (e.key === 'Tab') {
-      if (!rows().length) return;
+      if (!segments.length) return;
       e.preventDefault();
-      if (editing) {
-        focusSeg(e.shiftKey ? -1 : 1);
-      } else {
-        let i = selIndex;
-        if (i < 0) i = e.shiftKey ? rows().length - 1 : 0;
-        enterEdit(i);
-      }
+      if (editing) focusSeg(e.shiftKey ? -1 : 1);
+      else seekSegment(e.shiftKey ? -1 : 1);
       return;
     }
 
@@ -380,13 +680,12 @@
   });
 
   /* ── Finaliser ──────────────────────────────────────────────────────── */
-  const finalizeBtn = document.getElementById('finalizeBtn');
-  if (finalizeBtn) {
-    finalizeBtn.addEventListener('click', function () {
+  document.querySelectorAll('.t-finalize').forEach(function (b) {
+    b.addEventListener('click', function () {
       clearTimeout(saveTimer);
       save('done');
     });
-  }
+  });
 
   // Avertir si modifications non enregistrées
   window.addEventListener('beforeunload', function (e) {

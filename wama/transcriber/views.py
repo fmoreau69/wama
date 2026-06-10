@@ -20,6 +20,7 @@ from django.utils.encoding import smart_str
 
 import datetime
 from .models import Transcript, BatchTranscript, BatchTranscriptItem
+from .utils.speakers import normalize_speaker_label, normalize_segments_speakers, unique_speakers, display_speaker
 from wama.common.utils.console_utils import get_console_lines
 from wama.accounts.views import get_or_create_anonymous_user
 from wama.common.utils.queue_duplication import safe_delete_file, duplicate_instance
@@ -630,14 +631,21 @@ def stage_update_all(request):
 # ---------------------------------------------------------------------------
 
 def _editor_segments(t: Transcript):
-    """Segments pour l'éditeur : version corrigée si dispo, sinon l'originale ASR."""
+    """Segments pour l'éditeur : version corrigée si dispo, sinon l'originale ASR.
+
+    Les libellés de locuteurs sont normalisés vers la forme canonique « SPEAKER_NN »
+    (les backends émettent « 0 » ou « SPEAKER_00 » selon le moteur — cf. utils/speakers).
+    """
+    from .utils.speakers import normalize_segments_speakers
+    import copy
     if t.corrected_segments_json:
-        return t.corrected_segments_json
+        return normalize_segments_speakers(copy.deepcopy(t.corrected_segments_json))
     if t.segments_json:
-        return t.segments_json
+        return normalize_segments_speakers(copy.deepcopy(t.segments_json))
+    from .utils.speakers import normalize_speaker_label
     return [
-        {'speaker_id': s.speaker_id, 'start_time': s.start_time, 'end_time': s.end_time,
-         'text': s.text, 'confidence': s.confidence}
+        {'speaker_id': normalize_speaker_label(s.speaker_id), 'start_time': s.start_time,
+         'end_time': s.end_time, 'text': s.text, 'confidence': s.confidence}
         for s in t.segments.order_by('order')
     ]
 
@@ -673,12 +681,91 @@ def edit(request, pk: int):
         return redirect('transcriber:index')
 
     segments = _editor_segments(t)
+    # Génération ASR brute la plus récente (pour proposer de mettre à jour la
+    # correction si l'utilisateur a relancé la transcription depuis sa correction).
+    latest = t.segments_json or []
+    has_newer = bool(t.corrected_segments_json and latest)
     return render(request, 'transcriber/edit.html', {
         'transcript': t,
         'audio_url': t.audio.url if t.audio else '',
         'segments_json': _json.dumps(segments, ensure_ascii=False),
+        'latest_json': _json.dumps(latest, ensure_ascii=False),
         'is_corrected': bool(t.corrected_segments_json),
+        'has_newer_generation': has_newer,
         'correction_status': t.correction_status,
+        'speaker_map_json': _json.dumps(t.speaker_map or {}, ensure_ascii=False),
+    })
+
+
+@require_POST
+def suggest_speakers(request, pk: int):
+    """Propose des noms d'intervenants via LLM (présentations dans l'audio).
+
+    Renvoie {"suggestions": {"SPEAKER_00": "Nom", ...}} — l'utilisateur valide ensuite
+    dans l'onglet Intervenants avant d'appliquer (rien n'est enregistré ici).
+    """
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    t = get_object_or_404(Transcript, pk=pk, user=user)
+    segs = _editor_segments(t)  # libellés déjà normalisés (SPEAKER_NN)
+    if not segs:
+        return JsonResponse({'suggestions': {}})
+    try:
+        from wama.common.utils.llm_utils import suggest_speaker_names
+        lang = 'fr' if (t.language or 'fr').lower().startswith('fr') else 'en'
+        suggestions = suggest_speaker_names(segs, language=lang)
+    except Exception as e:
+        logger.warning(f"[Transcriber] suggest_speakers failed: {e}")
+        suggestions = {}
+    return JsonResponse({'suggestions': suggestions})
+
+
+@require_POST
+def save_meta(request, pk: int):
+    """Enregistre l'avant-propos (titre, date) et le renommage des locuteurs (speaker_map).
+
+    Corps JSON : {"title": "...", "meeting_date": "YYYY-MM-DD"|null, "speaker_map": {"SPEAKER_00": "Nom", ...}}
+    Le speaker_map est appliqué à l'affichage et à l'export sans toucher les segments bruts.
+    """
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    t = get_object_or_404(Transcript, pk=pk, user=user)
+    try:
+        data = json.loads(request.body.decode('utf-8'))
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    update_fields = []
+    if 'title' in data:
+        t.title = (data.get('title') or '')[:300]
+        update_fields.append('title')
+    if 'meeting_date' in data:
+        md = data.get('meeting_date') or None
+        if md:
+            try:
+                t.meeting_date = datetime.datetime.strptime(md, '%Y-%m-%d').date()
+            except (ValueError, TypeError):
+                t.meeting_date = None
+        else:
+            t.meeting_date = None
+        update_fields.append('meeting_date')
+    if 'speaker_map' in data:
+        sm = data.get('speaker_map') or {}
+        # Normalise les clés (libellés canoniques) et ignore les noms vides.
+        clean = {}
+        if isinstance(sm, dict):
+            for k, v in sm.items():
+                name = (v or '').strip()
+                if name:
+                    clean[normalize_speaker_label(k)] = name
+        t.speaker_map = clean or None
+        update_fields.append('speaker_map')
+
+    if update_fields:
+        t.save(update_fields=update_fields)
+    return JsonResponse({
+        'ok': True,
+        'title': t.title,
+        'meeting_date': t.meeting_date.isoformat() if t.meeting_date else None,
+        'speaker_map': t.speaker_map or {},
     })
 
 
@@ -765,7 +852,7 @@ def _build_transcript_bytes(t: Transcript, fmt: str):
         srt_lines = []
         if segments.exists():
             for i, seg in enumerate(segments, 1):
-                speaker = f'[{seg.speaker_id}] ' if seg.speaker_id else ''
+                speaker = f'[{display_speaker(seg.speaker_id, t.speaker_map)}] ' if seg.speaker_id else ''
                 srt_lines += [str(i), f"{_srt_ts(seg.start_time)} --> {_srt_ts(seg.end_time)}",
                               speaker + seg.text, '']
         else:
@@ -778,6 +865,12 @@ def _build_transcript_bytes(t: Transcript, fmt: str):
         except Exception as e:
             logger.warning(f"[Transcriber] PDF skipped for {t.id}: {e}")
             return None
+    if fmt == 'txt':
+        try:
+            from wama.common.utils.document_export import generate_transcript_txt
+            return ('txt', generate_transcript_txt(t))
+        except Exception:
+            return ('txt', (t.text or '').encode('utf-8'))
     if fmt == 'docx':
         try:
             from wama.common.utils.document_export import generate_transcript_docx
@@ -816,7 +909,7 @@ def download(request, pk: int):
                     m, sec = divmod(rem, 60)
                     ms = int((s - int(s)) * 1000)
                     return f"{h:02d}:{m:02d}:{sec:02d},{ms:03d}"
-                speaker = f'[{seg.speaker_id}] ' if seg.speaker_id else ''
+                speaker = f'[{display_speaker(seg.speaker_id, t.speaker_map)}] ' if seg.speaker_id else ''
                 srt_lines += [str(i), f"{_srt_ts(seg.start_time)} --> {_srt_ts(seg.end_time)}", speaker + seg.text, '']
         else:
             srt_lines = ['1', '00:00:00,000 --> 99:59:59,000', t.text, '']
@@ -854,13 +947,14 @@ def download(request, pk: int):
             logger.error(f"[Transcriber] DOCX generation failed: {e}")
             return HttpResponseBadRequest(f'Erreur DOCX : {e}')
 
-    # Default: txt
-    from wama.common.utils.media_paths import get_app_media_path
-    disk_path = get_app_media_path('transcriber', user.id, 'output') / f"{stem}.txt"
-    if disk_path.exists():
-        return FileResponse(open(disk_path, 'rb'), as_attachment=True,
-                            filename=f"{stem}.txt", content_type='text/plain; charset=utf-8')
-    buf = io.BytesIO(t.text.encode('utf-8'))
+    # Default: txt mis en forme (avant-propos titre/date/intervenants + compactage par locuteur)
+    try:
+        from wama.common.utils.document_export import generate_transcript_txt
+        txt_bytes = generate_transcript_txt(t)
+    except Exception as e:
+        logger.warning(f"[Transcriber] TXT formaté indisponible ({e}), repli sur texte brut")
+        txt_bytes = (t.text or '').encode('utf-8')
+    buf = io.BytesIO(txt_bytes)
     buf.seek(0)
     return FileResponse(buf, as_attachment=True, filename=f"{stem}.txt",
                         content_type='text/plain; charset=utf-8')
@@ -936,9 +1030,11 @@ def duplicate(request, pk: int):
         },
         clear_fields=['segments_json', 'key_points', 'action_items', 'coherence_score'],
     )
-    # Dupliquer DANS le même batch que l'original (élément frère) — pas hors groupe.
+    # Élément d'un VRAI batch (>1) → la copie reste dans ce batch (élément frère).
+    # Élément autonome (batch-of-1) → la copie est un AUTRE élément autonome
+    # (pas de regroupement surprise en batch-de-2).
     orig_item = BatchTranscriptItem.objects.filter(transcript=t).select_related('batch').first()
-    if orig_item:
+    if orig_item and orig_item.batch.total > 1:
         from django.db.models import Max
         batch = orig_item.batch
         next_idx = (batch.items.aggregate(m=Max('row_index'))['m'] or 0) + 1

@@ -23,6 +23,8 @@ urlpatterns = [
     # Éditeur de correction manuelle
     path('edit/<int:pk>/', views.edit, name='edit'),
     path('edit/<int:pk>/save/', views.save_correction, name='save_correction'),
+    path('edit/<int:pk>/save-meta/', views.save_meta, name='save_meta'),
+    path('edit/<int:pk>/suggest-speakers/', views.suggest_speakers, name='suggest_speakers'),
 
     # Staging (« à valider ») — DRAFT → file d'attente
     path('stage/<int:pk>/commit/', views.stage_commit, name='stage_commit'),

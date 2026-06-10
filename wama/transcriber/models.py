@@ -66,6 +66,14 @@ class Transcript(models.Model):
     corrected_segments_json = models.JSONField(null=True, blank=True)
     correction_status = models.CharField(max_length=16, default='none')  # none/draft/done
 
+    # Avant-propos éditable (apparaît en tête du document de sortie)
+    title = models.CharField(max_length=300, blank=True, default='')
+    meeting_date = models.DateField(null=True, blank=True)
+
+    # Renommage des locuteurs : {"SPEAKER_00": "Fabien Moreau", ...} — appliqué à
+    # l'affichage et à l'export sans toucher les segments bruts (réversible).
+    speaker_map = models.JSONField(null=True, blank=True)
+
     def __str__(self):
         return f"Transcript {self.id} ({self.user.username})"
 
