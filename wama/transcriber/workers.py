@@ -41,6 +41,14 @@ def _set_progress(transcript: Transcript, value: int, *, force: bool = False) ->
     Transcript.objects.filter(pk=transcript.id).update(progress=value)
 
 
+def _set_status_message(transcript: Transcript, message: str) -> None:
+    """Message d'étape courant (« action en cours ») affiché sur la card pendant le traitement.
+
+    Stocké en cache (lecture par la vue `progress`) pour éviter d'écrire en base à chaque étape.
+    """
+    cache.set(f"transcriber_status_msg_{transcript.id}", message or '', timeout=3600)
+
+
 def _console(user_id: int, message: str, level: str = None) -> None:
     """Send message to user's console."""
     try:
@@ -271,6 +279,8 @@ def transcribe(self, transcript_id: int):
     Uses the backend system to select the best available engine.
     Supports VibeVoice (diarization) and Whisper backends.
     """
+    import time
+    _t0 = time.time()
     close_old_connections()
     t = Transcript.objects.get(pk=transcript_id)
     _set_progress(t, 5, force=True)
@@ -284,6 +294,7 @@ def transcribe(self, transcript_id: int):
     try:
         # Step 1: Preprocessing (if enabled)
         if t.preprocess_audio:
+            _set_status_message(t, "Prétraitement audio…")
             _set_partial_text(t.id, "🔧 Prétraitement audio...\n")
             cleaned_path = _preprocess_audio(t, audio_path)
         else:
@@ -298,6 +309,7 @@ def transcribe(self, transcript_id: int):
 
         _console(t.user_id, f"Utilisation de {backend.display_name}...")
         _set_progress(t, 20)
+        _set_status_message(t, f"Chargement du moteur {backend.display_name}…")
         _set_partial_text(t.id, f"📥 Chargement de {backend.display_name}...\n\n")
 
         # Step 3: Load model
@@ -309,6 +321,7 @@ def transcribe(self, transcript_id: int):
         _set_partial_text(t.id, "🎯 Transcription en cours...\n\nCela peut prendre quelques instants selon la durée de l'audio.\n")
 
         # Step 4: Transcribe
+        _set_status_message(t, "Transcription en cours…")
         _console(t.user_id, "Transcription en cours...")
 
         # Build kwargs for transcription
@@ -320,6 +333,11 @@ def transcribe(self, transcript_id: int):
             transcribe_kwargs['do_sample'] = True
         if t.max_tokens != 32768:
             transcribe_kwargs['max_tokens'] = t.max_tokens
+
+        # Progression intermédiaire pendant l'ASR (30 → 75 %) → l'ETA peut s'estimer.
+        def _asr_progress(ratio: float) -> None:
+            _set_progress(t, 30 + int(round(ratio * 45)))
+        transcribe_kwargs['progress_callback'] = _asr_progress
 
         result: TranscriptionResult = backend.transcribe(
             audio_path=cleaned_path,
@@ -336,6 +354,7 @@ def transcribe(self, transcript_id: int):
             try:
                 from .backends.pyannote_diarizer import is_available as pyannote_ok, diarize
                 if pyannote_ok():
+                    _set_status_message(t, "Diarisation des locuteurs…")
                     _console(t.user_id, "Diarisation des locuteurs (pyannote)…")
                     _set_partial_text(t.id, "🔎 Identification des locuteurs…\n")
                     result.segments = diarize(cleaned_path, result.segments)
@@ -378,6 +397,7 @@ def transcribe(self, transcript_id: int):
         # Step 7: Optional LLM summary (structured or meeting compte-rendu)
         if t.generate_summary and t.text:
             _set_progress(t, 96)
+            _set_status_message(t, "Génération du résumé…")
             try:
                 _set_partial_text(t.id, t.text + "\n\n⏳ Génération du résumé en cours…")
                 from wama.common.utils.llm_utils import (
@@ -414,6 +434,7 @@ def transcribe(self, transcript_id: int):
         # Step 8: Optional coherence verification
         if t.verify_coherence and t.text:
             _set_progress(t, 98)
+            _set_status_message(t, "Vérification de la cohérence…")
             try:
                 _console(t.user_id, "Vérification de cohérence (Ollama)…")
                 from wama.common.utils.llm_utils import verify_text_coherence
@@ -454,9 +475,18 @@ def transcribe(self, transcript_id: int):
         _set_progress(t, 100)
         # SUCCESS seulement maintenant : tout est prêt (texte, segments, résumé,
         # cohérence globale + par-segment) → le front recharge au bon moment.
+        t.processing_seconds = round(time.time() - _t0, 1)   # durée réelle (affichée à la place de l'ETA)
         t.status = 'SUCCESS'
-        t.save(update_fields=['status'])
-        _console(t.user_id, f"Transcription {t.id} terminée ({backend.display_name}) ✓")
+        t.save(update_fields=['status', 'processing_seconds'])
+        _set_status_message(t, '')                            # plus d'action en cours
+        _console(t.user_id, f"Transcription {t.id} terminée ({backend.display_name}) ✓ "
+                            f"en {t.processing_display}")
+
+        # Enveloppe de forme d'onde (peaks) — calcul asynchrone, non bloquant (éditeur /edit).
+        try:
+            compute_waveform_peaks.delay(t.id)
+        except Exception:
+            pass
 
         # Unload model to free memory
         try:
@@ -562,4 +592,37 @@ def enrich_transcript(self, transcript_id: int, summary_type: str = 'structured'
 
     except Exception as exc:
         push_console_line(user_id, f"[Transcriber] Enrichissement échoué : {exc}", app='transcriber', level='error')
+        return {'ok': False, 'error': str(exc)}
+
+
+@shared_task(name='wama.transcriber.compute_waveform_peaks')
+def compute_waveform_peaks(transcript_id: int):
+    """Calcule l'enveloppe de forme d'onde (peaks) UNE fois, en asynchrone.
+
+    Stocke le JSON sur disque (utils/waveform.py) et met à jour `waveform_status`
+    (pending → ready/failed). Utilisé par l'éditeur de correction pour le zoom fenêtré.
+    """
+    close_old_connections()
+    from .utils.waveform import compute_peaks, write_peaks
+    try:
+        t = Transcript.objects.get(pk=transcript_id)
+    except Transcript.DoesNotExist:
+        return {'ok': False, 'error': 'introuvable'}
+    if not t.audio:
+        Transcript.objects.filter(pk=transcript_id).update(waveform_status='failed')
+        return {'ok': False, 'error': 'pas d\'audio'}
+
+    Transcript.objects.filter(pk=transcript_id).update(waveform_status='pending')
+    try:
+        peaks, duration = compute_peaks(t.audio.path)
+        if peaks is None:
+            Transcript.objects.filter(pk=transcript_id).update(waveform_status='failed')
+            return {'ok': False, 'error': 'ffmpeg indisponible'}
+        write_peaks(t, peaks, duration)
+        Transcript.objects.filter(pk=transcript_id).update(waveform_status='ready')
+        return {'ok': True, 'buckets': len(peaks)}
+    except Exception as exc:
+        import traceback
+        print(f"[Transcriber] peaks error: {traceback.format_exc()}")
+        Transcript.objects.filter(pk=transcript_id).update(waveform_status='failed')
         return {'ok': False, 'error': str(exc)}

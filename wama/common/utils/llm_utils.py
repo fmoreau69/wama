@@ -274,7 +274,10 @@ def generate_meeting_summary(
         },
     ]
 
-    result_text, error = ollama_chat(messages, model=model)
+    # think=False + budget suffisant + retry (cf. generate_structured_summary).
+    result_text, error = ollama_chat(messages, model=model, think=False, num_predict=4096)
+    if not result_text:
+        result_text, error = ollama_chat(messages, model=model, think=False, num_predict=4096)
 
     if error or not result_text:
         logger.warning(f"[llm_utils] generate_meeting_summary failed: {error}")
@@ -584,7 +587,11 @@ def generate_structured_summary(
         },
     ]
 
-    result_text, error = ollama_chat(messages, model=model)
+    # think=False (sortie JSON) + num_predict suffisant + 1 retry : sans ça, un texte long
+    # fait que le modèle « thinking » épuise son budget en raisonnement → JSON vide.
+    result_text, error = ollama_chat(messages, model=model, think=False, num_predict=4096)
+    if not result_text:
+        result_text, error = ollama_chat(messages, model=model, think=False, num_predict=4096)
 
     if error or not result_text:
         logger.warning(f"[llm_utils] generate_structured_summary failed: {error}")

@@ -25,6 +25,8 @@ urlpatterns = [
     path('edit/<int:pk>/save/', views.save_correction, name='save_correction'),
     path('edit/<int:pk>/save-meta/', views.save_meta, name='save_meta'),
     path('edit/<int:pk>/suggest-speakers/', views.suggest_speakers, name='suggest_speakers'),
+    path('edit/<int:pk>/peaks/', views.waveform_peaks, name='waveform_peaks'),
+    path('realtime/save/', views.save_realtime, name='save_realtime'),
 
     # Staging (« à valider ») — DRAFT → file d'attente
     path('stage/<int:pk>/commit/', views.stage_commit, name='stage_commit'),

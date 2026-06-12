@@ -74,6 +74,17 @@ class Transcript(models.Model):
     # l'affichage et à l'export sans toucher les segments bruts (réversible).
     speaker_map = models.JSONField(null=True, blank=True)
 
+    # Enveloppe de forme d'onde (peaks) calculée 1 fois en asynchrone (éditeur /edit).
+    # none/pending/ready/failed — peaks stockés en fichier (utils/waveform.py).
+    waveform_status = models.CharField(max_length=16, default='none')
+
+    # Durée réelle du traitement (s) — affichée à la place de l'ETA une fois terminé.
+    processing_seconds = models.FloatField(default=0)
+
+    # Issu d'une transcription temps réel (bouton Speak) : audio enregistré au micro,
+    # texte live comme résultat provisoire (re-transcriptible via le pipeline complet).
+    is_realtime = models.BooleanField(default=False)
+
     def __str__(self):
         return f"Transcript {self.id} ({self.user.username})"
 
@@ -88,9 +99,18 @@ class Transcript(models.Model):
         return self.segments.exists()
 
     @property
+    def processing_display(self) -> str:
+        """Durée de traitement formatée (ex. '12 min 30 s' / '45 s')."""
+        s = int(self.processing_seconds or 0)
+        if s <= 0:
+            return ''
+        m, sec = divmod(s, 60)
+        return (f"{m} min {sec:02d} s" if m else f"{sec} s")
+
+    @property
     def speaker_count(self) -> int:
-        """Get number of unique speakers."""
-        return self.segments.values('speaker_id').distinct().count()
+        """Nombre de locuteurs identifiés (exclut les segments sans locuteur attribué)."""
+        return self.segments.exclude(speaker_id='').values('speaker_id').distinct().count()
 
 
 class TranscriptSegment(models.Model):

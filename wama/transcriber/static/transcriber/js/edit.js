@@ -21,6 +21,7 @@
   }
   let activeIndex = -1;
   let dirty = false;
+  let followLock = false;   // verrou « suivre la lecture » : la liste suit le playhead même en édition
 
   // Renommage des locuteurs (speaker_map) — clés canoniques « SPEAKER_NN » → noms.
   let speakerMap = CFG.speakerMap || {};
@@ -49,7 +50,8 @@
   function render() {
     segContainer.innerHTML = segments.map(function (s, i) {
       return (
-        '<div class="seg-row" data-i="' + i + '" data-start="' + (s.start_time || 0) +
+        '<div class="seg-row' + (s.reviewed ? ' seg-reviewed' : '') + '" data-i="' + i +
+          '" data-start="' + (s.start_time || 0) +
           '" data-end="' + (s.end_time || 0) + '">' +
           '<span class="seg-drag" draggable="true" data-i="' + i +
             '" title="Glisser sur un autre segment pour fusionner"><i class="fas fa-grip-vertical"></i></span>' +
@@ -68,9 +70,12 @@
             '<div class="seg-text" contenteditable="true" data-i="' + i + '" spellcheck="true">' +
               esc(s.text || '') + '</div>' +
           '</div>' +
+          '<button class="seg-review btn btn-sm py-0 px-1" data-i="' + i +
+            '" title="Marquer revu / non revu"><i class="fas fa-check"></i></button>' +
         '</div>'
       );
     }).join('');
+    updateReviewProgress();
   }
 
   /* ── Synchro : surligne le segment courant pendant la lecture ───────── */
@@ -83,11 +88,14 @@
     const row = segContainer.querySelector('.seg-row[data-i="' + idx + '"]');
     if (row) {
       row.classList.add('seg-active');
-      // Visibilité évaluée par rapport au conteneur scrollable (#segments), pas au viewport.
-      const cr = segContainer.getBoundingClientRect();
-      const r = row.getBoundingClientRect();
-      if (r.top < cr.top + 8 || r.bottom > cr.bottom - 8) {
-        row.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      // Scroll synchronisé liste ↔ audio : en Navigation (défaut), OU toujours si le verrou
+      // « suivre la lecture » est activé (force le suivi même en Édition).
+      if (followLock || !inEdit()) {
+        const cr = segContainer.getBoundingClientRect();
+        const r = row.getBoundingClientRect();
+        if (r.top < cr.top + 8 || r.bottom > cr.bottom - 8) {
+          row.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        }
       }
     }
   }
@@ -138,8 +146,42 @@
     const el = e.target;
     const i = parseInt(el.dataset.i, 10);
     if (isNaN(i)) return;
-    if (el.classList.contains('seg-text')) { segments[i].text = el.textContent; markDirty(); }
-    else if (el.tagName === 'INPUT') { segments[i].speaker_id = el.value; markDirty(); }
+    if (el.classList.contains('seg-text')) { segments[i].text = el.textContent; markReviewed(i); markDirty(); }
+    else if (el.tagName === 'INPUT') { segments[i].speaker_id = el.value; markReviewed(i); markDirty(); }
+  });
+
+  /* ── Suivi de relecture : « revu » auto à l'édition + bascule manuelle (✓) ──── */
+  function markReviewed(i) {
+    if (segments[i] && !segments[i].reviewed) {
+      segments[i].reviewed = true;
+      const row = segContainer.querySelector('.seg-row[data-i="' + i + '"]');
+      if (row) row.classList.add('seg-reviewed');
+      updateReviewProgress();
+    }
+  }
+  function updateReviewProgress() {
+    const total = segments.length;
+    let done = 0;
+    for (let k = 0; k < total; k++) { if (segments[k] && segments[k].reviewed) done++; }
+    const cnt = document.getElementById('reviewCount');
+    const fill = document.getElementById('reviewBarFill');
+    if (cnt) cnt.textContent = done + ' / ' + total;
+    if (fill) fill.style.width = (total ? (done / total * 100) : 0) + '%';
+  }
+
+  // Clic ✓ → bascule « revu » manuellement
+  segContainer.addEventListener('click', function (e) {
+    const rev = e.target.closest('.seg-review');
+    if (rev) {
+      const i = parseInt(rev.dataset.i, 10);
+      if (!isNaN(i) && segments[i]) {
+        segments[i].reviewed = !segments[i].reviewed;
+        const row = rev.closest('.seg-row');
+        if (row) row.classList.toggle('seg-reviewed', !!segments[i].reviewed);
+        updateReviewProgress(); markDirty();
+      }
+      return;
+    }
   });
 
   // Clic ▶ d'un segment → seek + lecture
@@ -207,6 +249,16 @@
     } catch (_) {}
   }
 
+  // Une seule lecture audio à la fois : démarrer une lecture met en pause toutes les autres
+  // (évite la superposition player principal ↔ aperçu audio du volet droit, etc.).
+  // 'play' ne bulle pas → écoute en phase de capture.
+  document.addEventListener('play', function (e) {
+    const playing = e.target;
+    document.querySelectorAll('audio, video').forEach(function (m) {
+      if (m !== playing && !m.paused) { try { m.pause(); } catch (_) {} }
+    });
+  }, true);
+
   /* ── Transport : saut avant/arrière + vitesse ──────────────────────── */
   let playbackRate = 1.0;
   function audio() { return window.WamaAudioPlayer ? WamaAudioPlayer.getAudio(playerId) : null; }
@@ -239,7 +291,9 @@
   // L incrémente, J décrémente sur l'échelle ci-dessous, K = stop. Donc depuis
   // 4× avant, J → 2× (réduit la vitesse), pas un passage direct en arrière.
   // L'arrière (<0) est un défilement silencieux (<audio> ne lit pas le son à l'envers).
-  const SHUTTLE = [-16, -8, -4, -2, -1, 0, 1, 2, 4, 8, 16];
+  // Paliers fins (1.25/1.5/1.75) entre 1 et 2 — comme les boutons vitesse — puis
+  // accélération rapide (4/8/16) pour le scrubbing. Symétrique en arrière.
+  const SHUTTLE = [-16, -8, -4, -2, -1.75, -1.5, -1.25, -1, 0, 1, 1.25, 1.5, 1.75, 2, 4, 8, 16];
   const STOP_IDX = SHUTTLE.indexOf(0);
   let shuttleIdx = STOP_IDX;
   let shuttle = 0;                 // = SHUTTLE[shuttleIdx], pour l'affichage
@@ -465,6 +519,29 @@
   document.querySelectorAll('.t-undo').forEach(function (b) { b.addEventListener('click', undo); });
   document.querySelectorAll('.t-redo').forEach(function (b) { b.addEventListener('click', redo); });
 
+  // Verrou « suivre la lecture » : la liste suit le playhead même en édition (Alt+L / bouton).
+  const followLockBtn = document.getElementById('followLockBtn');
+  function applyFollowLock() {
+    if (!followLockBtn) return;
+    followLockBtn.classList.toggle('btn-info', followLock);
+    followLockBtn.classList.toggle('btn-outline-light', !followLock);
+    followLockBtn.innerHTML = followLock ? '<i class="fas fa-lock"></i>' : '<i class="fas fa-lock-open"></i>';
+    followLockBtn.title = (followLock ? 'Suivi de lecture ACTIVÉ — clic ou Alt+L pour débrayer'
+                                      : 'Suivre la lecture (la liste suit l\'audio même en édition) — Alt+L');
+  }
+  function toggleFollowLock() {
+    followLock = !followLock;
+    try { localStorage.setItem('wama_transcriber_followlock', followLock ? '1' : '0'); } catch (_) {}
+    applyFollowLock();
+    if (followLock && activeIndex >= 0) {                        // recentre immédiatement
+      const row = segContainer.querySelector('.seg-row[data-i="' + activeIndex + '"]');
+      if (row) row.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }
+  }
+  followLock = localStorage.getItem('wama_transcriber_followlock') === '1';
+  applyFollowLock();
+  if (followLockBtn) followLockBtn.addEventListener('click', toggleFollowLock);
+
   // Hauteur de la zone d'édition : seuls les champs défilent (toolbar + player + footer fixes).
   function sizeSegments() {
     if (!segContainer) return;
@@ -619,6 +696,9 @@
       if (k === 'y') { _burstActive = false; e.preventDefault(); redo(); return; }
     }
 
+    // Alt+L : (dé)verrouille le suivi de lecture (les deux modes).
+    if (e.altKey && (e.key === 'l' || e.key === 'L')) { e.preventDefault(); toggleFollowLock(); return; }
+
     // Échap : en ÉDITION → sortir vers Navigation (l'audio se repilote au clavier).
     if (e.key === 'Escape') {
       if (editing) { e.preventDefault(); document.activeElement.blur(); }
@@ -692,35 +772,8 @@
     if (dirty) { e.preventDefault(); e.returnValue = ''; }
   });
 
-  /* ── Init ───────────────────────────────────────────────────────────── */
-  /* ── Calque de ticks de segments (overlay mappé sur le TEMPS) ───────── */
-  // Indépendant du décodage de l'onde → marche aussi sur la timeline de repli.
-  // Fondation réutilisée par la heatmap (Phase 2).
-  function waveformEl() {
-    const c = document.getElementById('audioPlayer_' + playerId);
-    return c ? c.querySelector('.wama-waveform') : null;
-  }
-  function renderTicks() {
-    const a = audio();
-    const dur = a && a.duration;
-    const wrap = waveformEl();
-    if (!wrap || !dur || !isFinite(dur)) return;
-    wrap.querySelectorAll('.seg-tick').forEach(function (t) { t.remove(); });
-    const frag = document.createDocumentFragment();
-    segments.forEach(function (s, i) {
-      if (i === 0) return;  // pas de tick au tout début
-      const pct = Math.max(0, Math.min(100, ((s.start_time || 0) / dur) * 100));
-      const tick = document.createElement('div');
-      tick.className = 'seg-tick';
-      tick.style.left = pct + '%';
-      frag.appendChild(tick);
-    });
-    wrap.appendChild(frag);
-  }
-
-  /* ── Heatmap qualité par segment (Phase 2) ─────────────────────────── */
-  // Couleur = sévérité : cohérence IA par-segment si dispo (Phase 2b :
-  // s.coh_severity / s.coh_note), sinon confiance ASR (Whisper avg_logprob).
+  /* ── Visualisation audio (onde zoomable + heatmap + mini-map) ───────── */
+  // Sévérité = cohérence IA par-segment (coh_severity) sinon confiance ASR (avg_logprob).
   function confidenceSeverity(c) {
     if (c == null) return 'none';
     if (c >= -0.4) return 'ok';
@@ -734,21 +787,94 @@
     if (s.coh_note) t += '\n⚠ ' + s.coh_note;
     return t;
   }
+
+  /* ── Forme d'onde ZOOMABLE (Phase B) : peaks serveur + rendu fenêtré ─── */
+  let peaks = null, peaksDur = 0, peaksReady = false;
+  let viewStart = 0, viewDur = 0;          // fenêtre visible (secondes)
+  const MIN_VIEW = 4;                       // zoom max : fenêtre de 4 s
+  const DEFAULT_VIEW = 240;                  // fenêtre initiale (s) : on ouvre déjà zoomé → onde visible d'emblée
+  const LEGIBLE_PXPS = 1.5;                  // seuil bas → l'onde apparaît avec peu de zoom (mini-map = vue d'ensemble)
+
+  function fullDur() {
+    const a = audio();
+    return (a && isFinite(a.duration) && a.duration) ? a.duration : (peaksDur || 0);
+  }
+  function clampView() {
+    const D = fullDur(); if (!D) return;
+    if (!viewDur || viewDur > D) viewDur = D;
+    viewDur = Math.max(MIN_VIEW, Math.min(D, viewDur));
+    viewStart = Math.max(0, Math.min(D - viewDur, viewStart));
+  }
+  function updateZoomLabel() {
+    const el = document.getElementById('zoomLabel'); if (!el) return;
+    const D = fullDur();
+    el.textContent = (D && viewDur) ? ('×' + (D / viewDur).toFixed(1)) : '×1';
+  }
+
+  function drawZoom() {
+    const cv = document.getElementById('zoomWave'); if (!cv) return;
+    const D = fullDur(); if (!D) return;
+    clampView();
+    const W = cv.clientWidth || 600, H = cv.clientHeight || 54;
+    if (cv.width !== W) cv.width = W;
+    if (cv.height !== H) cv.height = H;
+    const ctx = cv.getContext('2d');
+    ctx.clearRect(0, 0, W, H);
+    const pxps = W / viewDur, mid = H / 2;
+    if (peaksReady && peaks && peaks.length && pxps >= LEGIBLE_PXPS) {
+      const N = peaks.length;
+      ctx.fillStyle = '#3b82f6';
+      for (let x = 0; x < W; x++) {
+        const t0 = viewStart + (x / W) * viewDur;
+        const t1 = viewStart + ((x + 1) / W) * viewDur;
+        let i0 = Math.max(0, Math.min(N - 1, Math.floor(t0 / D * N)));
+        const i1 = Math.max(i0 + 1, Math.min(N, Math.ceil(t1 / D * N)));
+        let m = 0;
+        for (let k = i0; k < i1; k++) { if (peaks[k] > m) m = peaks[k]; }
+        const h = (m / 255) * (H - 4);
+        ctx.fillRect(x, mid - h / 2, 1, Math.max(1, h));
+      }
+    } else {
+      ctx.fillStyle = '#5a5f68'; ctx.font = '11px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText(!peaksReady ? 'Calcul de la forme d’onde…'
+                               : 'Zoomez pour afficher la forme d’onde', W / 2, mid + 4);
+    }
+    // Ticks de segments dans la fenêtre
+    ctx.strokeStyle = 'rgba(255,255,255,0.22)'; ctx.lineWidth = 1;
+    for (let i = 1; i < segments.length; i++) {
+      const t = segments[i].start_time || 0;
+      if (t < viewStart || t > viewStart + viewDur) continue;
+      const x = (t - viewStart) / viewDur * W;
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+    }
+    // Playhead
+    const a = audio();
+    if (a && isFinite(a.currentTime)) {
+      const x = (a.currentTime - viewStart) / viewDur * W;
+      if (x >= 0 && x <= W) {
+        ctx.strokeStyle = '#0dcaf0'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); ctx.lineWidth = 1;
+      }
+    }
+  }
+
+  // Heatmap FENÊTRÉE : zones repositionnées dans [viewStart, viewStart+viewDur].
   function renderHeatmap() {
-    const a = audio(); const dur = a && a.duration;
     const band = document.getElementById('segHeatmap');
-    if (!band || !dur || !isFinite(dur)) return;
+    const D = fullDur(); if (!band || !D) return;
+    clampView();
     band.innerHTML = '';
     const frag = document.createDocumentFragment();
     segments.forEach(function (s, i) {
       const st = s.start_time || 0, en = s.end_time || st;
-      const left = Math.max(0, Math.min(100, st / dur * 100));
-      const w = Math.max(0.3, Math.min(100 - left, (en - st) / dur * 100));
+      if (en < viewStart || st > viewStart + viewDur) return;     // hors fenêtre
+      const L = Math.max(0, (st - viewStart) / viewDur * 100);
+      const R = Math.min(100, (en - viewStart) / viewDur * 100);
       const sev = s.coh_severity || confidenceSeverity(s.confidence);
       const z = document.createElement('div');
       z.className = 'hz';
-      z.style.left = left + '%';
-      z.style.width = w + '%';
+      z.style.left = L + '%';
+      z.style.width = Math.max(0.4, R - L) + '%';
       z.style.background = SEV_COLOR[sev] || SEV_COLOR.none;
       z.title = segTooltip(s, i);
       z.addEventListener('click', function () {
@@ -758,23 +884,125 @@
       frag.appendChild(z);
     });
     band.appendChild(frag);
-    const legend = document.getElementById('heatmapLegend');
-    if (legend) legend.style.display = 'flex';
   }
-  function renderOverlays() { renderTicks(); renderHeatmap(); }
+
+  // Mini-map : heatmap pleine durée + rectangle de la fenêtre visible.
+  function drawMini() {
+    const cv = document.getElementById('zoomMini'); if (!cv) return;
+    const D = fullDur(); if (!D) return;
+    const W = cv.clientWidth || 600, H = cv.clientHeight || 14;
+    if (cv.width !== W) cv.width = W;
+    if (cv.height !== H) cv.height = H;
+    const ctx = cv.getContext('2d'); ctx.clearRect(0, 0, W, H);
+    segments.forEach(function (s) {
+      const st = s.start_time || 0, en = s.end_time || st;
+      const x = st / D * W, w = Math.max(1, (en - st) / D * W);
+      const sev = s.coh_severity || confidenceSeverity(s.confidence);
+      ctx.fillStyle = SEV_COLOR[sev] || SEV_COLOR.none;
+      ctx.fillRect(x, 0, w, H);
+    });
+    const vx = viewStart / D * W, vw = Math.max(2, viewDur / D * W);
+    ctx.fillStyle = 'rgba(13,202,240,0.18)'; ctx.fillRect(vx, 0, vw, H);
+    ctx.strokeStyle = '#0dcaf0'; ctx.lineWidth = 1.5;
+    ctx.strokeRect(vx + 0.5, 0.5, Math.max(1, vw - 1), H - 1);
+  }
+
+  function redrawWindow() { clampView(); drawZoom(); renderHeatmap(); drawMini(); updateZoomLabel(); }
+  function renderOverlays() { redrawWindow(); }     // remplace ticks+heatmap pleine durée
+
+  /* ── Zoom : interactions ────────────────────────────────────────────── */
+  function setZoom(newViewDur, centerT) {
+    const D = fullDur(); if (!D) return;
+    const a = audio();
+    const c = (centerT != null) ? centerT : (a ? a.currentTime : viewStart + viewDur / 2);
+    viewDur = Math.max(MIN_VIEW, Math.min(D, newViewDur));
+    viewStart = c - viewDur / 2;
+    redrawWindow();
+  }
+  function followWindow() {            // recentre si le playhead sort de la fenêtre
+    const a = audio(); if (!a) return false;
+    const t = a.currentTime;
+    if (t < viewStart || t > viewStart + viewDur) { viewStart = t - viewDur / 2; clampView(); return true; }
+    return false;
+  }
+  function initZoomUI() {
+    const cv = document.getElementById('zoomWave');
+    const mini = document.getElementById('zoomMini');
+    const zin = document.getElementById('zoomIn'), zout = document.getElementById('zoomOut');
+    if (zin) zin.addEventListener('click', function () { setZoom(viewDur * 0.6); });
+    if (zout) zout.addEventListener('click', function () { setZoom(viewDur * 1.7); });
+    if (cv) {
+      cv.addEventListener('wheel', function (e) {            // molette = zoom autour du curseur
+        e.preventDefault();
+        const W = cv.clientWidth || 600;
+        const ct = viewStart + (e.offsetX / W) * viewDur;
+        setZoom(viewDur * (e.deltaY > 0 ? 1.25 : 0.8), ct);
+      }, { passive: false });
+      let dragging = false, moved = false, lastX = 0;        // clic = seek ; glisser = déplacer
+      cv.addEventListener('mousedown', function (e) { dragging = true; moved = false; lastX = e.clientX; });
+      window.addEventListener('mousemove', function (e) {
+        if (!dragging) return;
+        const W = cv.clientWidth || 600, dx = e.clientX - lastX; lastX = e.clientX;
+        if (Math.abs(dx) > 1) moved = true;
+        viewStart -= (dx / W) * viewDur; clampView(); redrawWindow();
+      });
+      window.addEventListener('mouseup', function (e) {
+        if (!dragging) return; dragging = false;
+        if (!moved) {
+          const rect = cv.getBoundingClientRect();
+          const t = viewStart + ((e.clientX - rect.left) / (cv.clientWidth || 600)) * viewDur;
+          if (window.WamaAudioPlayer) WamaAudioPlayer.seek(playerId, Math.max(0, t), false);
+          redrawWindow();
+        }
+      });
+    }
+    if (mini) {
+      const jump = function (e) {
+        const D = fullDur(); if (!D) return;
+        const rect = mini.getBoundingClientRect();
+        viewStart = ((e.clientX - rect.left) / (mini.clientWidth || 600)) * D - viewDur / 2;
+        clampView(); redrawWindow();
+      };
+      let mdrag = false;
+      mini.addEventListener('mousedown', function (e) { mdrag = true; jump(e); });
+      window.addEventListener('mousemove', function (e) { if (mdrag) jump(e); });
+      window.addEventListener('mouseup', function () { mdrag = false; });
+    }
+    window.addEventListener('resize', redrawWindow);
+  }
+
+  /* ── Récupération asynchrone des peaks (poll jusqu'à prêt) ──────────── */
+  function fetchPeaks() {
+    if (!CFG.peaksUrl) { peaksReady = true; return; }
+    fetch(CFG.peaksUrl).then(function (r) { return r.json(); }).then(function (d) {
+      if (d.status === 'ready' && d.peaks) {
+        peaks = d.peaks; peaksDur = d.duration || 0; peaksReady = true; redrawWindow();
+      } else if (d.status === 'pending') {
+        setTimeout(fetchPeaks, 2500);
+      } else { peaksReady = true; redrawWindow(); }   // failed → pas d'onde, ticks/heatmap restent
+    }).catch(function () { peaksReady = true; });
+  }
 
   document.addEventListener('DOMContentLoaded', function () {
     render();
     initTransport();
+    initZoomUI();
+    fetchPeaks();
     if (window.WamaAudioPlayer) {
       const a = WamaAudioPlayer.getAudio(playerId);
       if (a) {
         a.playbackRate = playbackRate;
+        let raf = null;
+        function tick() { drawZoom(); raf = a.paused ? null : requestAnimationFrame(tick); }
+        a.addEventListener('play', function () { if (!raf) tick(); });
+        a.addEventListener('pause', drawZoom);
+        a.addEventListener('seeked', function () { followWindow(); redrawWindow(); });
         a.addEventListener('timeupdate', function () {
           highlight(indexAt(a.currentTime));
+          if (followWindow()) redrawWindow();
         });
-        a.addEventListener('loadedmetadata', renderOverlays);
-        if (a.duration) renderOverlays();
+        a.addEventListener('loadedmetadata', function () { if (!viewDur) viewDur = Math.min(a.duration, DEFAULT_VIEW); redrawWindow(); });
+        if (a.duration) { if (!viewDur) viewDur = Math.min(a.duration, DEFAULT_VIEW); redrawWindow(); }
       }
     }
   });

@@ -339,14 +339,18 @@ document.addEventListener('DOMContentLoaded', function () {
             ${duration}
             ${data.preprocess_audio ? '<span class="badge bg-warning text-dark ms-1">Prétraité</span>' : ''}
           </small>
+          ${data.properties ? `<small class="text-white-50 d-block"><i class="fas fa-wave-square"></i> ${props}</small>` : ''}
         </div>
         <div class="col-md-2">
           <small>
             <i class="fas fa-microchip"></i> ${backend}<br>
+            ${(data.hotwords || '') ? `<i class="fas fa-tags"></i> ${escapeHtml((data.hotwords || '').substring(0, 20))}<br>` : ''}
+            ${document.getElementById('diarizationToggle')?.checked !== false ? '<i class="fas fa-users"></i> Diarisation<br>' : ''}
+            ${document.getElementById('globalGenerateSummary')?.checked ? '<i class="fas fa-file-lines"></i> Résumé<br>' : ''}
+            ${document.getElementById('globalVerifyCoherence')?.checked ? '<i class="fas fa-spell-check"></i> Cohérence' : ''}
           </small>
         </div>
         <div class="col-md-2">
-          ${data.properties ? `<small class="text-white-50 d-block"><i class="fas fa-wave-square"></i> ${props}</small>` : ''}
           <small class="card-state text-white-50">En attente</small>
         </div>
         <div class="col-md-2">
@@ -425,10 +429,15 @@ document.addEventListener('DOMContentLoaded', function () {
     }[status] || '');
     card.dataset.status = status;
 
-    // État textuel de la card (col propriétés audio) — évite « En attente » figé pendant RUNNING
+    // État textuel de la card : pendant RUNNING, affiche l'action en cours (dernier message
+    // de log) si dispo, sinon « Traitement… ». Évite aussi « En attente » figé.
     const st = card.querySelector('.card-state');
     if (st) {
-      if (status === 'RUNNING') { st.className = 'card-state text-warning'; st.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Traitement…'; }
+      if (status === 'RUNNING') {
+        const msg = (data.status_message || '').trim();
+        st.className = 'card-state text-warning';
+        st.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ' + (msg ? escapeHtml(msg) : 'Traitement…');
+      }
       else if (status === 'PENDING') { st.className = 'card-state text-white-50'; st.textContent = 'En attente'; }
       else if (status === 'FAILURE') { st.className = 'card-state text-danger'; st.innerHTML = '<i class="fas fa-triangle-exclamation"></i> Échec'; }
       else { st.className = 'card-state'; st.textContent = ''; }
@@ -603,6 +612,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!data.deleted) throw new Error('Suppression impossible');
         const card = queueContainer.querySelector(`.synthesis-card[data-id="${id}"]`);
         if (card) card.remove();
+        if (String(id) === String(_inspectorId)) deselectCard();  // évite des actions inspecteur orphelines
         stopPolling(id);
         insertEmptyStateIfNeeded();
         updateDownloadAllState();
@@ -1206,6 +1216,7 @@ document.addEventListener('DOMContentLoaded', function () {
   // Inspecteur (niveau 2) — le volet droit reflète la card sélectionnée
   // ======================================================================
   let _inspectorId = null;
+  let _inspectorBatchId = null;   // inspection d'un BATCH (réglages appliqués à tous ses items)
   let _panelDefaults = null;  // snapshot des défauts, restauré à la désélection
 
   function _panelReadValues() {
@@ -1254,29 +1265,119 @@ document.addEventListener('DOMContentLoaded', function () {
     };
   }
 
+  // Reflète les actions de la card inspectée dans le volet (sinon vide → actions globales seules).
+  function renderInspectorActions(card) {
+    const host = document.getElementById('inspectorActions');
+    if (!host) return;
+    if (!card) { host.innerHTML = ''; return; }
+    const ga = card.querySelector('.btn-group-actions');
+    const id = card.dataset.id;
+    host.innerHTML =
+      '<div class="small text-white-50 mb-1"><i class="fas fa-crosshairs text-info"></i> Actions — élément #' + id + '</div>' +
+      '<div class="btn-group-actions d-flex flex-wrap gap-1">' + (ga ? ga.innerHTML : '') + '</div>' +
+      '<hr class="border-secondary my-2">';
+    // Les boutons clonés héritent de data-bound="1" → on le retire pour réautoriser le binding.
+    host.querySelectorAll('[data-bound]').forEach(function (b) { delete b.dataset.bound; });
+    bindCardActions(host);
+  }
+
+  // En mode inspecteur d'une card, le volet ne montre QUE les infos de la card → on masque
+  // les sections globales (import Médias, actions globales, Réinitialiser).
+  function _toggleGlobalPanelSections(inspecting) {
+    // Masque le Réinitialiser (global) pendant l'inspection ; affiche/masque le hint d'actions.
+    const reset = document.getElementById('resetOptions');
+    if (reset) reset.style.display = inspecting ? 'none' : '';
+    const hint = document.getElementById('inspectorActionsHint');
+    if (hint) hint.style.display = inspecting ? 'none' : '';
+    // Titre de la section paramètres : contextualisé pendant l'inspection.
+    const stTitle = document.querySelector('#settings-section .right-panel-section-title');
+    if (stTitle && !stTitle.dataset.orig) stTitle.dataset.orig = stTitle.innerHTML;
+    if (stTitle) {
+      stTitle.innerHTML = inspecting
+        ? '<i class="fas fa-cog me-1"></i> Paramètres de l\'élément'
+        : (stTitle.dataset.orig || stTitle.innerHTML);
+    }
+  }
+
+  function _clearInspectorHighlight() {
+    if (!queueContainer) return;
+    queueContainer.querySelectorAll('.inspector-selected')
+      .forEach(c => c.classList.remove('inspector-selected'));
+  }
+
   function selectCard(id) {
     if (!queueContainer) return;
     const card = queueContainer.querySelector(`.synthesis-card[data-id="${id}"]`);
     if (!card) return;
-    if (_inspectorId === null) _panelDefaults = _panelReadValues();  // snapshot une fois
-    _inspectorId = id;
-    queueContainer.querySelectorAll('.synthesis-card.inspector-selected')
-      .forEach(c => c.classList.remove('inspector-selected'));
+    if (_inspectorId === null && _inspectorBatchId === null) _panelDefaults = _panelReadValues();
+    _inspectorId = id; _inspectorBatchId = null;
+    _clearInspectorHighlight();
     card.classList.add('inspector-selected');
     _panelApplyValues(_cardSettings(card));
+    renderInspectorActions(card);
+    _toggleGlobalPanelSections(true);
     const banner = document.getElementById('inspectorBanner');
     const label = document.getElementById('inspectorLabel');
     if (label) label.textContent = `l'élément #${id}`;
     if (banner) { banner.classList.remove('d-none'); banner.classList.add('d-flex'); }
   }
 
+  // Inspection d'un BATCH : le volet édite les réglages communs (appliqués à tous les items)
+  // et reflète les actions du batch (démarrer tout, ZIP, dupliquer, supprimer).
+  function selectBatch(batchId) {
+    if (!queueContainer) return;
+    const group = queueContainer.querySelector(`.batch-group[data-batch-id="${batchId}"]`);
+    if (!group) return;
+    if (_inspectorId === null && _inspectorBatchId === null) _panelDefaults = _panelReadValues();
+    _inspectorBatchId = batchId; _inspectorId = null;
+    _clearInspectorHighlight();
+    group.classList.add('inspector-selected');
+    const firstItem = group.querySelector('.synthesis-card');   // réglages = ceux du 1er item
+    if (firstItem) _panelApplyValues(_cardSettings(firstItem));
+    renderBatchInspectorActions(batchId);
+    _toggleGlobalPanelSections(true);
+    const banner = document.getElementById('inspectorBanner');
+    const label = document.getElementById('inspectorLabel');
+    if (label) label.textContent = `le batch #${batchId} (tous les éléments)`;
+    if (banner) { banner.classList.remove('d-none'); banner.classList.add('d-flex'); }
+  }
+
+  // Actions batch autonomes (pas de clone : les handlers batch existants dépendent du DOM).
+  function renderBatchInspectorActions(batchId) {
+    const host = document.getElementById('inspectorActions');
+    if (!host) return;
+    const dl = (fmt) => getUrl(config.batchDownloadUrlTemplate, batchId) + '?fmt=' + fmt;
+    host.innerHTML =
+      '<div class="small text-white-50 mb-1"><i class="fas fa-layer-group text-info"></i> Actions — batch #' + batchId + '</div>' +
+      '<div class="d-flex flex-wrap gap-1">' +
+        '<button class="btn btn-sm btn-success" id="inspBatchStart" title="Démarrer tout le batch"><i class="fas fa-play"></i></button>' +
+        '<div class="dropdown d-inline-block"><button class="btn btn-sm btn-outline-info dropdown-toggle" data-bs-toggle="dropdown" title="Télécharger (ZIP)"><i class="fas fa-download"></i></button>' +
+          '<ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end">' +
+            '<li><a class="dropdown-item" href="' + dl('txt') + '">Tout en TXT</a></li>' +
+            '<li><a class="dropdown-item" href="' + dl('srt') + '">Tout en SRT</a></li>' +
+            '<li><a class="dropdown-item" href="' + dl('pdf') + '">Tout en PDF</a></li>' +
+            '<li><a class="dropdown-item" href="' + dl('docx') + '">Tout en DOCX</a></li>' +
+          '</ul></div>' +
+        '<button class="btn btn-sm btn-outline-info" id="inspBatchDup" title="Dupliquer le batch"><i class="fas fa-copy"></i></button>' +
+        '<button class="btn btn-sm btn-outline-danger" id="inspBatchDel" title="Supprimer le batch"><i class="fas fa-trash"></i></button>' +
+      '</div><hr class="border-secondary my-2">';
+    const post = (tpl) => fetch(getUrl(tpl, batchId), { method: 'POST', headers: csrfHeaders() });
+    const s = document.getElementById('inspBatchStart');
+    if (s) s.addEventListener('click', () => post(config.batchStartUrlTemplate).then(() => location.reload()).catch(() => {}));
+    const d = document.getElementById('inspBatchDup');
+    if (d) d.addEventListener('click', () => post(config.batchDuplicateUrlTemplate).then(() => location.reload()).catch(() => {}));
+    const x = document.getElementById('inspBatchDel');
+    if (x) x.addEventListener('click', () => {
+      if (confirm('Supprimer ce batch et toutes ses transcriptions ?')) post(config.batchDeleteUrlTemplate).then(() => location.reload()).catch(() => {});
+    });
+  }
+
   function deselectCard() {
-    _inspectorId = null;
-    if (queueContainer) {
-      queueContainer.querySelectorAll('.synthesis-card.inspector-selected')
-        .forEach(c => c.classList.remove('inspector-selected'));
-    }
+    _inspectorId = null; _inspectorBatchId = null;
+    _clearInspectorHighlight();
     if (_panelDefaults) _panelApplyValues(_panelDefaults);
+    renderInspectorActions(null);
+    _toggleGlobalPanelSections(false);
     const banner = document.getElementById('inspectorBanner');
     if (banner) { banner.classList.add('d-none'); banner.classList.remove('d-flex'); }
   }
@@ -1315,21 +1416,33 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   function initInspector() {
-    // Clic sur une card (hors boutons/preview) → sélectionne pour l'inspecteur.
+    // Clic sur une card → inspecteur de la card ; clic sur l'en-tête d'un batch → inspecteur du batch.
     if (queueContainer) {
       queueContainer.addEventListener('click', function (e) {
         if (e.target.closest('button, a, input, select, textarea, .wama-card-preview, .btn-group-actions')) return;
         const card = e.target.closest('.synthesis-card');
-        if (card && card.dataset.id) selectCard(card.dataset.id);
+        if (card && card.dataset.id) { selectCard(card.dataset.id); return; }
+        const batch = e.target.closest('.batch-group');
+        if (batch && batch.dataset.batchId) selectBatch(batch.dataset.batchId);
       });
     }
     const deselectBtn = document.getElementById('inspectorDeselect');
     if (deselectBtn) deselectBtn.addEventListener('click', deselectCard);
   }
 
+  function saveInspectorBatch() {
+    const bid = _inspectorBatchId;
+    if (!bid || !config.batchUpdateUrlTemplate) return;
+    fetch(getUrl(config.batchUpdateUrlTemplate, bid), {
+      method: 'POST',
+      headers: csrfHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify(_panelReadValues()),
+    }).then(r => r.json()).catch(() => showToast('Erreur lors de l\'enregistrement du batch', 'danger'));
+  }
+
   function savePanelSettings() {
-    // Inspecteur (niveau 2) : si une card est sélectionnée, le volet édite CET
-    // élément, pas les valeurs par défaut.
+    // Inspecteur (niveau 2) : selon la sélection, le volet édite le batch, l'élément, ou les défauts.
+    if (_inspectorBatchId) { saveInspectorBatch(); return; }
     if (_inspectorId) { saveInspectorItem(); return; }
     if (!config.saveUserSettingsUrl) return;
     const backendSel  = document.getElementById('backendSelect');
@@ -1412,54 +1525,94 @@ document.addEventListener('DOMContentLoaded', function () {
   function initSpeech() {
     if (!speakButton || !liveOutput || !liveStatus) return;
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
+    const canRecord = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder);
+    if (!SpeechRecognition && !canRecord) {
       speakButton.disabled = true;
       liveStatus.textContent = 'Non supporté par ce navigateur';
       return;
     }
 
-    const recognition = new SpeechRecognition();
-    recognition.lang = 'fr-FR';
-    recognition.continuous = true;
-    recognition.interimResults = true;
-
     let listening = false;
     let finalTranscript = '';
+    let mediaRecorder = null, mediaStream = null, chunks = [];
 
-    recognition.onstart = () => {
-      listening = true; finalTranscript = '';
+    let recognition = null;
+    if (SpeechRecognition) {
+      recognition = new SpeechRecognition();
+      recognition.lang = 'fr-FR';
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.onerror = (event) => { liveStatus.textContent = `Erreur: ${event.error}`; };
+      recognition.onresult = (event) => {
+        let interim = '';
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const tr = event.results[i][0].transcript;
+          if (event.results[i].isFinal) finalTranscript += tr + '\n';
+          else interim += tr;
+        }
+        const full = (finalTranscript + interim).trim();
+        if (full && full !== '...') displayTextWithHighlight(full);
+        else liveOutput.textContent = '...';
+      };
+    }
+
+    function setIdle(msg) {
+      listening = false;
+      speakButton.classList.remove('active');
+      speakButton.innerHTML = '<i class="fas fa-microphone"></i> Speak';
+      if (msg) liveStatus.textContent = msg;
+    }
+
+    async function startAll() {
+      finalTranscript = ''; chunks = [];
+      // Capture l'audio du micro (pour sauver la card). Sans micro → texte live seulement.
+      if (canRecord) {
+        try {
+          mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          mediaRecorder = new MediaRecorder(mediaStream);
+          mediaRecorder.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
+          mediaRecorder.onstop = uploadRealtime;
+          mediaRecorder.start();
+        } catch (err) { mediaRecorder = null; liveStatus.textContent = 'Micro refusé — texte live seulement'; }
+      }
+      listening = true;
       speakButton.classList.add('active');
       speakButton.innerHTML = '<i class="fas fa-stop"></i> Stop';
-      liveStatus.textContent = 'Écoute en cours...';
-    };
-    recognition.onerror = (event) => {
-      liveStatus.textContent = `Erreur: ${event.error}`;
-      speakButton.classList.remove('active');
-      speakButton.innerHTML = '<i class="fas fa-microphone"></i> Speak';
-      listening = false;
-    };
-    recognition.onend = () => {
-      speakButton.classList.remove('active');
-      speakButton.innerHTML = '<i class="fas fa-microphone"></i> Speak';
-      listening = false;
-      liveStatus.textContent = finalTranscript ? 'Session terminée' : 'En attente...';
-    };
-    recognition.onresult = (event) => {
-      let interimTranscript = '';
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const transcript = event.results[i][0].transcript;
-        if (event.results[i].isFinal) finalTranscript += transcript + '\n';
-        else interimTranscript += transcript;
-      }
-      const fullText = (finalTranscript + interimTranscript).trim();
-      if (fullText && fullText !== '...') displayTextWithHighlight(fullText);
-      else liveOutput.textContent = '...';
-    };
+      liveStatus.textContent = 'Écoute en cours…';
+      if (recognition) { try { recognition.start(); } catch (_) {} }
+    }
 
-    speakButton.addEventListener('click', () => {
-      if (listening) recognition.stop();
-      else try { recognition.start(); } catch (e) { console.error(e); }
-    });
+    function stopAll() {
+      if (recognition) { try { recognition.stop(); } catch (_) {} }
+      if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        mediaRecorder.stop();                 // → onstop → uploadRealtime (sauve la card)
+      } else {
+        setIdle(finalTranscript ? 'Session terminée' : 'En attente...');
+      }
+      if (mediaStream) { mediaStream.getTracks().forEach(t => t.stop()); mediaStream = null; }
+    }
+
+    // À l'arrêt : envoie l'audio + le texte live → crée une card « temps réel » dans la file.
+    function uploadRealtime() {
+      const blob = new Blob(chunks, { type: (mediaRecorder && mediaRecorder.mimeType) || 'audio/webm' });
+      chunks = [];
+      if (!blob.size || !config.saveRealtimeUrl) { setIdle('En attente...'); return; }
+      setIdle('Enregistrement dans la file…');
+      const fd = new FormData();
+      const ext = (blob.type.indexOf('ogg') >= 0) ? 'ogg' : 'webm';
+      fd.append('audio', blob, 'realtime.' + ext);
+      fd.append('text', finalTranscript.trim());
+      fd.append('language', ((recognition && recognition.lang) || 'fr').slice(0, 2));
+      fetch(config.saveRealtimeUrl, { method: 'POST', headers: { 'X-CSRFToken': csrfToken }, body: fd })
+        .then(r => r.json())
+        .then(d => {
+          if (d && d.ok) { liveStatus.textContent = 'Ajouté à la file ✓'; setTimeout(() => location.reload(), 400); }
+          else { liveStatus.textContent = 'Échec de l\'enregistrement dans la file'; }
+        })
+        .catch(() => { liveStatus.textContent = 'Erreur réseau'; });
+    }
+
+    speakButton.addEventListener('click', () => { if (listening) stopAll(); else startAll(); });
   }
 
   // ======================================================================
@@ -1506,7 +1659,26 @@ document.addEventListener('DOMContentLoaded', function () {
   // ======================================================================
   // Async backends loading (non-blocking)
   // ======================================================================
+  // Descriptif dynamique du moteur (sous le menu) — replie l'ancien encart statique.
+  const BACKEND_HELP = {
+    auto:      'Sélectionne automatiquement le meilleur moteur disponible.',
+    whisper:   'Whisper large-v3 — rapide, polyvalent, multilingue. Diarisation via pyannote.',
+    vibevoice: 'VibeVoice — diarisation + timestamps natifs. ~10 min de chargement, audio ≤ 60 min.',
+    qwen_asr:  'Qwen3-ASR — context biasing natif des mots-clés (expérimental).',
+  };
+  let _backendMeta = {};
+  function updateBackendHelp() {
+    const sel = document.getElementById('backendSelect');
+    const help = document.getElementById('backendHelp');
+    if (!sel || !help) return;
+    const meta = _backendMeta[sel.value] || {};
+    let txt = meta.description || BACKEND_HELP[sel.value] || '';
+    if (meta.vram_gb) txt += ' · ' + meta.vram_gb + ' Go VRAM';
+    help.textContent = txt;
+  }
+
   async function loadBackendsAsync() {
+    updateBackendHelp();   // affiche déjà le descriptif d'« Auto » avant le chargement async
     if (!config.backendsUrl) return;
     try {
       const resp = await fetch(config.backendsUrl);
@@ -1514,6 +1686,7 @@ document.addEventListener('DOMContentLoaded', function () {
       const data = await resp.json();
       const backends = data.backends || [];
       if (!backends.length) return;
+      backends.forEach(function (b) { _backendMeta[b.name] = b; });
 
       const options = backends.map(b => {
         const label = b.display_name + (b.supports_diarization ? ' (diarisation)' : '');
@@ -1526,6 +1699,8 @@ document.addEventListener('DOMContentLoaded', function () {
         const savedValue = globalSel.dataset.selected || 'auto';
         globalSel.insertAdjacentHTML('beforeend', options);
         globalSel.value = savedValue;
+        globalSel.addEventListener('change', updateBackendHelp);
+        updateBackendHelp();
       }
 
       // Populate settings modal selector (value set when modal opens)

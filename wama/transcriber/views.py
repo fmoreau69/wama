@@ -630,19 +630,55 @@ def stage_update_all(request):
 # Éditeur de correction manuelle (/edit/<id>/) — voir TRANSCRIBER_CORRECTION.md
 # ---------------------------------------------------------------------------
 
+def _backfill_speakers(target, source):
+    """Reporte les locuteurs de `source` (ASR diarisé) vers `target` (version corrigée)
+    PAR RECOUVREMENT TEMPOREL, uniquement si `target` n'a aucun locuteur et `source` en a.
+
+    Cas typique : re-transcription diarisée alors qu'une correction antérieure (sans
+    locuteurs, segmentation différente) existe → on restaure la diarisation sans perdre
+    les corrections de texte. `source` est supposée triée par temps (segments ASR ordonnés).
+    """
+    if not target or not source:
+        return target
+    if any((s.get('speaker_id') or '').strip() for s in target):
+        return target  # la correction a déjà des locuteurs → ne pas écraser
+    src = [(float(s.get('start_time', 0) or 0), float(s.get('end_time', 0) or 0),
+            (s.get('speaker_id') or '')) for s in source]
+    if not any(spk for _, _, spk in src):
+        return target  # l'ASR n'a pas de locuteurs non plus → rien à reporter
+    for seg in target:
+        st = float(seg.get('start_time', 0) or 0)
+        en = float(seg.get('end_time', 0) or st)
+        best_spk, best_ov = '', 0.0
+        for a, b, spk in src:
+            if a > en:
+                break              # src triée → plus aucun recouvrement possible
+            if b < st or not spk:
+                continue
+            ov = min(en, b) - max(st, a)
+            if ov > best_ov:
+                best_ov, best_spk = ov, spk
+        if best_spk:
+            seg['speaker_id'] = best_spk
+    return target
+
+
 def _editor_segments(t: Transcript):
     """Segments pour l'éditeur : version corrigée si dispo, sinon l'originale ASR.
 
     Les libellés de locuteurs sont normalisés vers la forme canonique « SPEAKER_NN »
     (les backends émettent « 0 » ou « SPEAKER_00 » selon le moteur — cf. utils/speakers).
     """
-    from .utils.speakers import normalize_segments_speakers
+    from .utils.speakers import normalize_segments_speakers, normalize_speaker_label
     import copy
     if t.corrected_segments_json:
-        return normalize_segments_speakers(copy.deepcopy(t.corrected_segments_json))
+        segs = normalize_segments_speakers(copy.deepcopy(t.corrected_segments_json))
+        # Si la correction n'a pas de locuteurs mais l'ASR brut en a → on les reporte.
+        if t.segments_json:
+            _backfill_speakers(segs, normalize_segments_speakers(copy.deepcopy(t.segments_json)))
+        return segs
     if t.segments_json:
         return normalize_segments_speakers(copy.deepcopy(t.segments_json))
-    from .utils.speakers import normalize_speaker_label
     return [
         {'speaker_id': normalize_speaker_label(s.speaker_id), 'start_time': s.start_time,
          'end_time': s.end_time, 'text': s.text, 'confidence': s.confidence}
@@ -681,6 +717,16 @@ def edit(request, pk: int):
         return redirect('transcriber:index')
 
     segments = _editor_segments(t)
+
+    # Démarre le calcul de l'enveloppe de forme d'onde si pas encore fait (asynchrone).
+    if t.waveform_status in ('none', 'failed') and t.audio:
+        Transcript.objects.filter(pk=t.id).update(waveform_status='pending')
+        try:
+            from .workers import compute_waveform_peaks
+            compute_waveform_peaks.delay(t.id)
+        except Exception:
+            pass
+
     # Génération ASR brute la plus récente (pour proposer de mettre à jour la
     # correction si l'utilisateur a relancé la transcription depuis sa correction).
     latest = t.segments_json or []
@@ -695,6 +741,73 @@ def edit(request, pk: int):
         'correction_status': t.correction_status,
         'speaker_map_json': _json.dumps(t.speaker_map or {}, ensure_ascii=False),
     })
+
+
+def waveform_peaks(request, pk: int):
+    """Renvoie l'enveloppe de forme d'onde (peaks) calculée en asynchrone.
+
+    {"status": "ready", "duration": float, "peaks": [int...]} si prête,
+    sinon {"status": "pending"|"failed"}. Lance le calcul si pas encore démarré.
+    """
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    t = get_object_or_404(Transcript, pk=pk, user=user)
+    from .utils.waveform import read_peaks
+    if t.waveform_status == 'ready':
+        data = read_peaks(t)
+        if data:
+            return JsonResponse({'status': 'ready', 'duration': data.get('duration', 0),
+                                 'peaks': data.get('peaks', [])})
+        t.waveform_status = 'none'  # fichier disparu → recalcul
+    if t.waveform_status in ('none', 'failed') and t.audio:
+        Transcript.objects.filter(pk=pk).update(waveform_status='pending')
+        try:
+            from .workers import compute_waveform_peaks
+            compute_waveform_peaks.delay(t.id)
+        except Exception:
+            pass
+        return JsonResponse({'status': 'pending'})
+    return JsonResponse({'status': t.waveform_status or 'none'})
+
+
+@require_POST
+def save_realtime(request):
+    """Sauvegarde une transcription temps réel (bouton Speak) comme card de la file.
+
+    L'audio enregistré au micro est sauvé dans input/, et le texte live devient le
+    résultat provisoire (status SUCCESS). La card est re-transcriptible via le pipeline
+    complet (bouton Démarrer/Re-transcrire). Homogène avec une transcription par fichier.
+    """
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    audio = request.FILES.get('audio')
+    text = (request.POST.get('text') or '').strip()
+    language = request.POST.get('language', 'fr') or 'fr'
+    if not audio:
+        return JsonResponse({'error': 'Aucun audio reçu'}, status=400)
+
+    import time as _time
+    t = Transcript(
+        user=user,
+        status='SUCCESS',
+        is_realtime=True,
+        used_backend='temps réel',
+        text=text,
+        language=language,
+        enable_diarization=True,
+    )
+    ext = '.webm'
+    name = audio.name or ''
+    if '.' in name:
+        ext = '.' + name.rsplit('.', 1)[-1]
+    t.audio.save(f"realtime_{int(_time.time())}{ext}", audio, save=False)
+    t.save()
+
+    # Propriétés audio (codec/kHz/canaux) + durée, comme un import normal.
+    try:
+        _describe_audio(t)
+    except Exception:
+        pass
+    _wrap_transcript_in_batch(t)  # apparaît comme une card simple dans la file
+    return JsonResponse({'ok': True, 'id': t.id})
 
 
 @require_POST
@@ -809,9 +922,12 @@ def progress(request, pk: int):
         'progress': p,
         'status': t.status,
         'partial_text': partial_text,
+        'status_message': cache.get(f"transcriber_status_msg_{t.id}", ''),  # action en cours
     }
 
     if t.status == 'SUCCESS':
+        response_data['processing_seconds'] = t.processing_seconds or 0
+        response_data['processing_display'] = t.processing_display
         response_data['text'] = t.text or ''
         response_data['summary'] = t.summary or ''
         response_data['summary_type'] = t.summary_type or 'structured'

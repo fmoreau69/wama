@@ -217,8 +217,23 @@ class WhisperBackend(SpeechToTextBackend):
             segments:    list[TranscriptionSegment] = []
             text_parts:  list[str]                  = []
 
+            # Progression intermédiaire : faster-whisper yield les segments au fil de l'audio
+            # → on reporte `seg.end / durée` (sinon la barre reste figée toute la transcription,
+            # ce qui empêche l'ETA de s'estimer). Throttlé à ~2 % pour limiter les écritures DB.
+            total_dur = float(getattr(info, 'duration', 0) or 0)
+            prog_cb = kwargs.get('progress_callback')
+            last_emit = 0.0
+
             for seg in segments_gen:
                 confidence = getattr(seg, 'avg_logprob', None)
+                if prog_cb and total_dur > 0:
+                    ratio = min(1.0, max(0.0, (getattr(seg, 'end', 0) or 0) / total_dur))
+                    if ratio - last_emit >= 0.02:
+                        last_emit = ratio
+                        try:
+                            prog_cb(ratio)
+                        except Exception:
+                            pass
                 # Timing mot-à-mot (word_timestamps=True) → conservé pour la synchro
                 # fine onde↔texte et la heatmap par mot (probability = confiance mot).
                 words = None

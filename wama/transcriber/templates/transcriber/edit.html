@@ -43,7 +43,14 @@
   .wama-waveform { position: relative; }
   .seg-tick { position: absolute; top: 0; bottom: 0; width: 1px;
     background: rgba(255,255,255,0.28); pointer-events: none; z-index: 2; }
-  /* Heatmap : bande de zones colorées par segment (qualité), mappée sur le temps */
+  /* Onde partagée masquée dans l'éditeur : on utilise la forme d'onde zoomable maison
+     (on garde le composant pour l'élément audio + bouton lecture + temps). */
+  .editor-audiobar .wama-waveform-wrap { display: none; }
+  .zoom-wave { display: block; width: 100%; height: 54px; background: #0d1117;
+    border-radius: 4px; cursor: crosshair; }
+  .zoom-mini { display: block; width: 100%; height: 14px; margin-top: 3px; background: #16161a;
+    border-radius: 3px; cursor: pointer; }
+  /* Heatmap : bande de zones colorées par segment (qualité), fenêtrée sur le zoom */
   .seg-heatmap { position: relative; height: 10px; margin-top: 3px; border-radius: 3px;
     background: #16161a; overflow: hidden; }
   .seg-heatmap .hz { position: absolute; top: 0; bottom: 0; cursor: pointer; opacity: .85; }
@@ -93,6 +100,15 @@
   /* Nom de locuteur (mappé) affiché sous l'id canonique dans la ligne de segment */
   .seg-spk-name { font-size: .64rem; color: #0dcaf0; display: block; margin-top: .1rem;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* Suivi de relecture : ✓ par segment + atténuation des segments revus */
+  .seg-review { flex: 0 0 auto; color: #3a3f48; background: transparent; border: none; align-self: center; }
+  .seg-review:hover { color: #9ca3af; }
+  .seg-row.seg-reviewed { opacity: .6; }
+  .seg-row.seg-reviewed:hover, .seg-row.seg-reviewed.seg-active, .seg-row.seg-reviewed.seg-selected { opacity: 1; }
+  .seg-row.seg-reviewed .seg-review { color: #22c55e; }
+  /* Barre de progression globale de relecture (volet droit) */
+  .review-bar { height: 5px; background: #16161a; border-radius: 3px; overflow: hidden; }
+  .review-bar > div { height: 100%; width: 0; background: #22c55e; transition: width .2s; }
 </style>
 {% endblock %}
 
@@ -137,20 +153,29 @@
       <i class="fas fa-chevron-down"></i>
     </button>
     <div class="editor-audiobar-body">
-      <!-- Forme d'onde (composant commun) -->
+      <!-- Composant commun : fournit l'élément audio + bouton lecture + temps (onde masquée, on utilise le zoom) -->
       {% include 'common/_audio_waveform.html' with audio_url=audio_url player_id=transcript.id %}
 
-      <!-- Heatmap cohérence/confiance (bande colorée sous l'onde, mappée sur le temps) -->
-      <div id="segHeatmap" class="seg-heatmap" title="Qualité par segment — cliquez pour écouter (légende dans l'onglet Aide)"></div>
+      <!-- Forme d'onde ZOOMABLE (rendu fenêtré depuis les peaks serveur) + ticks + playhead -->
+      <canvas id="zoomWave" class="zoom-wave" title="Forme d'onde — clic : placer · glisser : déplacer · molette : zoom"></canvas>
+      <!-- Heatmap qualité par segment (fenêtrée, alignée sur la fenêtre de zoom) -->
+      <div id="segHeatmap" class="seg-heatmap" title="Qualité par segment — cliquez pour écouter"></div>
+      <!-- Mini-map : vue d'ensemble du fichier + rectangle de la fenêtre visible -->
+      <canvas id="zoomMini" class="zoom-mini" title="Vue d'ensemble — cliquez/glissez pour vous déplacer"></canvas>
 
-      <!-- Transport : saut avant/arrière + vitesse de lecture -->
+      <!-- Transport : saut + vitesse + zoom + verrou de suivi -->
       <div class="d-flex align-items-center gap-2 mt-2 flex-wrap small">
         <button class="btn btn-sm btn-outline-light" id="skipBack" title="Reculer 5 s (←)"><i class="fas fa-backward"></i> 5s</button>
         <button class="btn btn-sm btn-outline-light" id="skipFwd" title="Avancer 5 s (→)">5s <i class="fas fa-forward"></i></button>
-        <span class="text-white-50 ms-3"><i class="fas fa-gauge-high"></i> Vitesse</span>
+        <span class="text-white-50 ms-2"><i class="fas fa-gauge-high"></i></span>
         <button class="btn btn-sm btn-outline-light" id="speedDown" title="Ralentir"><i class="fas fa-minus"></i></button>
         <span id="speedVal" class="badge bg-secondary" style="min-width:42px;">1.0×</span>
         <button class="btn btn-sm btn-outline-light" id="speedUp" title="Accélérer"><i class="fas fa-plus"></i></button>
+        <span class="text-white-50 ms-2"><i class="fas fa-magnifying-glass"></i></span>
+        <button class="btn btn-sm btn-outline-light" id="zoomOut" title="Dézoomer"><i class="fas fa-minus"></i></button>
+        <span id="zoomLabel" class="badge bg-secondary" style="min-width:42px;">×1</span>
+        <button class="btn btn-sm btn-outline-light" id="zoomIn" title="Zoomer"><i class="fas fa-plus"></i></button>
+        <button class="btn btn-sm btn-outline-light ms-2" id="followLockBtn" title="Suivre la lecture — la liste suit l'audio même en édition (Alt+L)"><i class="fas fa-lock-open"></i></button>
       </div>
     </div>
   </div>
@@ -165,6 +190,7 @@
     saveUrl: "{% url 'transcriber:save_correction' transcript.id %}",
     saveMetaUrl: "{% url 'transcriber:save_meta' transcript.id %}",
     suggestSpeakersUrl: "{% url 'transcriber:suggest_speakers' transcript.id %}",
+    peaksUrl: "{% url 'transcriber:waveform_peaks' transcript.id %}",
     csrfToken: "{{ csrf_token }}",
     correctionStatus: "{{ correction_status }}",
     speakerMap: {{ speaker_map_json|safe }},
@@ -217,6 +243,14 @@
 {% endblock %}
 
 {% block right_panel_actions %}
+  <!-- Progression de relecture (segments passés en revue) -->
+  <div class="mb-2">
+    <div class="d-flex justify-content-between small text-white-50">
+      <span><i class="fas fa-list-check"></i> Relecture</span>
+      <span id="reviewCount">0 / 0</span>
+    </div>
+    <div class="review-bar mt-1"><div id="reviewBarFill"></div></div>
+  </div>
   <div class="rp-actions mb-2">
     <button class="t-undo btn btn-sm btn-outline-light" title="Annuler (Ctrl+Z) — texte, locuteur, scission, fusion, compactage" disabled>
       <i class="fas fa-rotate-left"></i>
@@ -238,7 +272,7 @@
     <summary class="text-white-50" style="cursor:pointer;"><i class="fas fa-keyboard"></i> Raccourcis clavier</summary>
     <table class="kbd-table mt-1">
       <tr class="kbd-head"><td colspan="2">🎧 Navigation</td></tr>
-      <tr><td><kbd>L</kbd> / <kbd>J</kbd> / <kbd>K</kbd></td><td>+ rapide / + lent puis arrière / stop (◀◀16×…16×▶▶)</td></tr>
+      <tr><td><kbd>L</kbd> / <kbd>J</kbd> / <kbd>K</kbd></td><td>+ rapide / + lent puis arrière / stop (1 · 1.25 · 1.5 · 1.75 · 2 · 4 · 8 · 16×)</td></tr>
       <tr><td><kbd>Espace</kbd></td><td>lecture normale</td></tr>
       <tr><td><kbd>←</kbd> / <kbd>→</kbd></td><td>reculer / avancer 5 s</td></tr>
       <tr><td><kbd>Tab</kbd> / <kbd>Maj+Tab</kbd></td><td>segment audio suivant / précédent</td></tr>
@@ -252,7 +286,9 @@
       <tr><td><kbd>Échap</kbd></td><td>revenir en Navigation</td></tr>
       <tr class="kbd-head"><td colspan="2">⌨ Commun</td></tr>
       <tr><td><kbd>Alt+↑</kbd> / <kbd>Alt+↓</kbd></td><td>changer de segment</td></tr>
+      <tr><td><kbd>Alt+L</kbd></td><td>verrou « suivre la lecture » (liste suit l'audio même en édition)</td></tr>
       <tr><td><kbd>Ctrl+Z</kbd> / <kbd>Ctrl+Maj+Z</kbd></td><td>annuler / rétablir</td></tr>
+      <tr><td><i class="fas fa-check"></i> (clic)</td><td>marquer un segment « revu » (auto à l'édition)</td></tr>
     </table>
     <div class="mt-2 text-white-50">
       <strong>Légende heatmap</strong><br>

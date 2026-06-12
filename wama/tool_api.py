@@ -1802,11 +1802,176 @@ def get_media_asset_url(user, asset_id: int) -> dict:
 
 
 # ===========================================================================
+# Avatarizer tools
+# ===========================================================================
+
+def add_to_avatarizer(
+    user,
+    mode: str = 'pipeline',
+    text_content: str = '',
+    tts_model: str = 'xtts_v2',
+    language: str = 'fr',
+    voice_preset: str = 'default',
+    audio_path: str = '',
+    avatar_source: str = 'gallery',
+    avatar_gallery_name: str = '',
+    avatar_image_path: str = '',
+    quality_mode: str = 'fast',
+    use_enhancer: bool = False,
+    bbox_shift: int = 0,
+) -> dict:
+    """
+    Crée un job de génération d'avatar parlant (vidéo) en attente.
+
+    Args:
+        mode:                'pipeline' (texte → TTS → avatar) | 'standalone' (audio fourni)
+        text_content:        Texte à synthétiser (requis si mode='pipeline')
+        tts_model:           Modèle TTS (ex: 'xtts_v2') — mode pipeline
+        language:            Langue TTS (ex: 'fr') — mode pipeline
+        voice_preset:        Voix TTS (ex: 'default') — mode pipeline
+        audio_path:          Chemin (relatif à MEDIA_ROOT) d'un audio — requis si mode='standalone'
+        avatar_source:       'gallery' (galerie partagée) | 'upload' (image fournie)
+        avatar_gallery_name: Nom de l'avatar dans la galerie — requis si avatar_source='gallery'
+        avatar_image_path:   Chemin (relatif à MEDIA_ROOT) d'une image avatar — requis si 'upload'
+        quality_mode:        'fast' (MuseTalk seul) | 'quality' (MuseTalk + CodeFormer)
+        use_enhancer:        Appliquer l'enhancer facial (défaut: False)
+        bbox_shift:          Décalage de la bbox -10..10 (défaut: 0)
+
+    Returns:
+        {"job_id": int, "mode": str, "status": "pending"}
+    """
+    from django.core.files import File
+    from wama.avatarizer.models import AvatarJob
+
+    mode = mode if mode in ('pipeline', 'standalone') else 'pipeline'
+    job = AvatarJob(user=user, mode=mode)
+
+    if mode == 'pipeline':
+        if not (text_content or '').strip():
+            return {'error': "Le texte (text_content) est obligatoire en mode pipeline."}
+        job.text_content = text_content.strip()
+        job.tts_model = tts_model or 'xtts_v2'
+        job.language = language or 'fr'
+        job.voice_preset = voice_preset or 'default'
+    else:  # standalone
+        if not audio_path:
+            return {'error': "Un audio (audio_path) est obligatoire en mode standalone."}
+        src = (Path(settings.MEDIA_ROOT) / audio_path).resolve()
+        if not str(src).startswith(str(Path(settings.MEDIA_ROOT).resolve())):
+            return {'error': 'Accès refusé : chemin hors de MEDIA_ROOT.'}
+        if not src.exists():
+            return {'error': f'Audio introuvable : {audio_path}'}
+        if src.suffix.lower() not in ('.wav', '.mp3', '.ogg', '.flac'):
+            return {'error': f'Format audio non supporté : {src.suffix}. Attendu : wav, mp3, ogg, flac.'}
+        with open(str(src), 'rb') as f:
+            job.audio_input = File(f, name=src.name)
+            job.save()  # persiste le fichier audio avant de continuer
+
+    avatar_source = avatar_source if avatar_source in ('gallery', 'upload') else 'gallery'
+    job.avatar_source = avatar_source
+    if avatar_source == 'gallery':
+        if not avatar_gallery_name:
+            return {'error': "Sélectionnez un avatar de la galerie (avatar_gallery_name)."}
+        job.avatar_gallery_name = avatar_gallery_name
+    else:
+        if not avatar_image_path:
+            return {'error': "Fournissez une image avatar (avatar_image_path)."}
+        asrc = (Path(settings.MEDIA_ROOT) / avatar_image_path).resolve()
+        if not str(asrc).startswith(str(Path(settings.MEDIA_ROOT).resolve())):
+            return {'error': 'Accès refusé : chemin avatar hors de MEDIA_ROOT.'}
+        if not asrc.exists():
+            return {'error': f'Image avatar introuvable : {avatar_image_path}'}
+        if asrc.suffix.lower() not in ('.jpg', '.jpeg', '.png', '.webp'):
+            return {'error': f'Format image non supporté : {asrc.suffix}. Attendu : jpg, jpeg, png, webp.'}
+        with open(str(asrc), 'rb') as f:
+            job.avatar_upload = File(f, name=asrc.name)
+            job.save()
+
+    job.quality_mode = quality_mode if quality_mode in ('fast', 'quality') else 'fast'
+    job.use_enhancer = bool(use_enhancer)
+    try:
+        job.bbox_shift = max(-10, min(10, int(bbox_shift)))
+    except (ValueError, TypeError):
+        job.bbox_shift = 0
+
+    try:
+        job.save()
+    except Exception as e:
+        return {'error': f'Erreur création AvatarJob : {e}'}
+
+    return {'job_id': job.id, 'mode': job.mode, 'status': 'pending'}
+
+
+def start_avatarizer(user, job_id: int = None) -> dict:
+    """
+    Lance la génération Celery d'un avatar (ou de tous les jobs en attente).
+
+    Args:
+        job_id: ID du job à lancer (None = tous les jobs PENDING de l'utilisateur)
+
+    Returns:
+        {"task_id": str, "status": "started", "job_id": int} ou agrégat si job_id=None
+    """
+    from wama.avatarizer.models import AvatarJob
+    from wama.avatarizer.workers import generate_avatar
+
+    def _launch(job):
+        task = generate_avatar.delay(job.id)
+        job.status = 'PENDING'
+        job.task_id = task.id
+        job.progress = 0
+        job.error_message = ''
+        job.save(update_fields=['status', 'task_id', 'progress', 'error_message'])
+        return task.id
+
+    if job_id is not None:
+        try:
+            job = AvatarJob.objects.get(pk=job_id, user=user)
+        except AvatarJob.DoesNotExist:
+            return {'error': f'AvatarJob #{job_id} introuvable ou non autorisé.'}
+        if job.status == 'RUNNING':
+            return {'error': f'AvatarJob #{job_id} est déjà en cours.'}
+        return {'task_id': _launch(job), 'status': 'started', 'job_id': job_id}
+
+    pending = AvatarJob.objects.filter(user=user, status='PENDING')
+    if not pending.exists():
+        return {'error': 'Aucun job avatar en attente.'}
+    ids = [job.id for job in pending if _launch(job)]
+    return {'status': 'started', 'job_id': None, 'count': len(ids), 'ids': ids}
+
+
+def get_avatarizer_status(user) -> dict:
+    """
+    Retourne l'état des 10 derniers jobs avatar de l'utilisateur connecté.
+
+    Returns:
+        {"jobs": [{"id", "mode", "status", "progress", "output_url", "duration_seconds"}]}
+    """
+    from wama.avatarizer.models import AvatarJob
+
+    jobs = []
+    for job in AvatarJob.objects.filter(user=user).order_by('-id')[:10]:
+        jobs.append({
+            'id': job.id,
+            'mode': job.mode,
+            'status': job.status,
+            'progress': job.progress,
+            'output_url': job.output_video.url if job.output_video else None,
+            'duration_seconds': job.duration_seconds,
+            'error': job.error_message or None,
+        })
+    return {'jobs': jobs}
+
+
+# ===========================================================================
 # Tool dispatcher (used by the agentic loop in views.py)
 # ===========================================================================
 
 TOOL_REGISTRY = {
     'list_user_files':       list_user_files,
+    'add_to_avatarizer':     add_to_avatarizer,
+    'start_avatarizer':      start_avatarizer,
+    'get_avatarizer_status': get_avatarizer_status,
     'add_to_anonymizer':     add_to_anonymizer,
     'start_anonymizer':      start_anonymizer,
     'get_anonymizer_status': get_anonymizer_status,
@@ -2053,6 +2218,39 @@ TOOL_DESCRIPTIONS = {
         'description': "Retourne l'URL de fichier d'un asset spécifique de la Médiathèque.",
         'args': {
             'asset_id': 'int — ID de l\'UserAsset',
+        },
+    },
+    'add_to_avatarizer': {
+        'description': "Crée un job d'avatar parlant (vidéo) en attente : pipeline (texte → TTS → avatar) ou standalone (audio fourni).",
+        'args': {
+            'mode':                "str  — 'pipeline' (texte → TTS) | 'standalone' (audio fourni) (défaut: 'pipeline')",
+            'text_content':        'str  — texte à synthétiser (requis si mode=pipeline)',
+            'tts_model':           "str  — modèle TTS (ex: 'xtts_v2') (mode pipeline)",
+            'language':            "str  — langue TTS (ex: 'fr') (mode pipeline)",
+            'voice_preset':        "str  — voix TTS (ex: 'default') (mode pipeline)",
+            'audio_path':          'str  — chemin relatif à MEDIA_ROOT d\'un audio (requis si mode=standalone)',
+            'avatar_source':       "str  — 'gallery' (galerie partagée) | 'upload' (image fournie) (défaut: 'gallery')",
+            'avatar_gallery_name': 'str  — nom de l\'avatar dans la galerie (requis si avatar_source=gallery)',
+            'avatar_image_path':   'str  — chemin relatif à MEDIA_ROOT d\'une image avatar (requis si avatar_source=upload)',
+            'quality_mode':        "str  — 'fast' (MuseTalk) | 'quality' (MuseTalk + CodeFormer) (défaut: 'fast')",
+            'use_enhancer':        'bool — appliquer l\'enhancer facial (défaut: false)',
+            'bbox_shift':          'int  — décalage bbox -10..10 (défaut: 0)',
+        },
+    },
+    'start_avatarizer': {
+        'description': "Lance la génération Celery d'un avatar (ou de tous les jobs en attente).",
+        'args': {
+            'job_id': 'int|null — ID retourné par add_to_avatarizer, ou null pour lancer tous les jobs en attente',
+        },
+    },
+    'get_avatarizer_status': {
+        'description': "Retourne l'état des 10 derniers jobs avatar de l'utilisateur connecté (mode, progression, URL de sortie).",
+        'args': {},
+    },
+    'switch_ui_mode': {
+        'description': "Bascule le mode d'interface WAMA pour l'utilisateur (vue simple/chatbot ou avancée/complète).",
+        'args': {
+            'mode': "str — 'simple' (vue chatbot) | 'advanced' (interface complète) (défaut: 'simple')",
         },
     },
 }

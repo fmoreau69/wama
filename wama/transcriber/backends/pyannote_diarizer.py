@@ -168,6 +168,7 @@ def diarize(
         logger.info(f"[pyannote] {len(dia_turns)} diarization turns found")
 
         # Assign speaker to each Whisper segment by maximum time overlap
+        unassigned = 0
         for seg in segments:
             best_speaker = ""
             best_overlap = 0.0
@@ -176,9 +177,21 @@ def diarize(
                 if overlap > best_overlap:
                     best_overlap = overlap
                     best_speaker = speaker
+            # Aucun recouvrement (mot isolé dans un trou entre deux tours) → on rattache au
+            # locuteur du tour le PLUS PROCHE, plutôt que de laisser un segment sans locuteur
+            # (sinon il apparaît « non identifié » et fausse le compte des intervenants).
+            if not best_speaker:
+                mid = (seg.start_time + seg.end_time) / 2.0
+                nearest, ndist = "", float('inf')
+                for d_start, d_end, speaker in dia_turns:
+                    dist = (d_start - mid) if mid < d_start else (mid - d_end if mid > d_end else 0.0)
+                    if dist < ndist:
+                        ndist, nearest = dist, speaker
+                best_speaker = nearest
+                unassigned += 1
             seg.speaker_id = best_speaker
 
-        logger.info("[pyannote] Speaker IDs assigned ✓")
+        logger.info(f"[pyannote] Speaker IDs assigned ✓ ({unassigned} segment(s) rattaché(s) au plus proche)")
         return segments
 
     except Exception as e:
