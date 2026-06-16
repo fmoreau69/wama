@@ -80,6 +80,8 @@ class Transcript(models.Model):
 
     # Durée réelle du traitement (s) — affichée à la place de l'ETA une fois terminé.
     processing_seconds = models.FloatField(default=0)
+    # Horodatage de fin de traitement (affiché sur la card une fois terminé).
+    finished_at = models.DateTimeField(null=True, blank=True)
 
     # Issu d'une transcription temps réel (bouton Speak) : audio enregistré au micro,
     # texte live comme résultat provisoire (re-transcriptible via le pipeline complet).

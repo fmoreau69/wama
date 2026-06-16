@@ -12,30 +12,28 @@ document.addEventListener('DOMContentLoaded', function () {
   const preprocessToggle = document.getElementById('preprocessingToggle');
   const toggleDatasetUrl = preprocessToggle ? preprocessToggle.dataset.preprocessUrl : '';
 
-  const pollers = new Map();
+  // Polling + état vide délégués au module commun (common/js/wama-app-base.js).
+  const _poller = new WamaApp.Poller({
+    urlTemplate: config.progressUrlTemplate,
+    onData: function (id, data) { updateCard(id, data); },
+    interval: 1200,
+    maxFails: 10,
+  });
+  const _empty = WamaApp.emptyState({
+    container: queueContainer,
+    cardSelector: '.synthesis-card',
+    html: '<i class="fas fa-inbox fa-3x mb-3 text-white-50"></i><p class="text-white-50">Aucune transcription en attente</p>',
+  });
   let preprocessEnabled = !!config.preprocessingEnabled;
   if (typeof config.preprocessingEnabled === 'string') {
     preprocessEnabled = config.preprocessingEnabled === 'true';
   }
 
-  function getUrl(template, id) {
-    return template.replace('/0/', `/${id}/`);
-  }
-
-  function csrfHeaders(extra = {}) {
-    return Object.assign({}, extra, { 'X-CSRFToken': csrfToken });
-  }
-
-  function escapeHtml(str) {
-    return (str || '').replace(/[&<>"']/g, function (m) {
-      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m];
-    });
-  }
-
-  function wordCount(text) {
-    if (!text || !text.trim()) return 0;
-    return text.trim().split(/\s+/).filter(Boolean).length;
-  }
+  // Helpers génériques délégués au module commun (common/js/wama-app-base.js).
+  const getUrl     = WamaApp.getUrl;
+  const escapeHtml = WamaApp.escapeHtml;
+  const wordCount  = WamaApp.wordCount;
+  function csrfHeaders(extra = {}) { return WamaApp.csrfHeaders(csrfToken, extra); }
 
   function setWordCount(spanId, text) {
     const span = document.getElementById(spanId);
@@ -330,16 +328,17 @@ document.addEventListener('DOMContentLoaded', function () {
     card.innerHTML = `
       <div class="row align-items-center">
         <div class="col-md-3">
+          <small class="text-muted d-block" style="font-size:.65rem;">#${data.id} · <i class="fas fa-calendar-alt" title="Ajouté le"></i> ${(()=>{const n=new Date();const p=x=>String(x).padStart(2,'0');return `${p(n.getDate())}/${p(n.getMonth()+1)} ${p(n.getHours())}:${p(n.getMinutes())}`;})()}</small>
           <button type="button" class="btn btn-link p-0 text-decoration-none preview-media-link filename"
                   data-preview-url="${escapeHtml(previewUrl)}"
                   style="color: inherit;">
             <i class="fas fa-file-audio"></i> ${label}
           </button><br>
-          <small class="text-white-50">
-            ${duration}
+          ${data.properties ? `<small class="text-white-50 d-block"><i class="fas fa-wave-square"></i> ${props}</small>` : ''}
+          <small class="text-white-50 d-block">
+            <i class="fas fa-clock"></i> ${duration}
             ${data.preprocess_audio ? '<span class="badge bg-warning text-dark ms-1">Prétraité</span>' : ''}
           </small>
-          ${data.properties ? `<small class="text-white-50 d-block"><i class="fas fa-wave-square"></i> ${props}</small>` : ''}
         </div>
         <div class="col-md-2">
           <small>
@@ -612,7 +611,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!data.deleted) throw new Error('Suppression impossible');
         const card = queueContainer.querySelector(`.synthesis-card[data-id="${id}"]`);
         if (card) card.remove();
-        if (String(id) === String(_inspectorId)) deselectCard();  // évite des actions inspecteur orphelines
+        if (_inspector && String(id) === String(_inspector.state().itemId)) _inspector.deselect();  // évite des actions inspecteur orphelines
         stopPolling(id);
         insertEmptyStateIfNeeded();
         updateDownloadAllState();
@@ -1025,53 +1024,17 @@ document.addEventListener('DOMContentLoaded', function () {
   // ======================================================================
   // Polling
   // ======================================================================
-  function startPolling(id) {
-    if (pollers.has(id)) return;
-    let fails = 0;
-    const interval = setInterval(() => {
-      fetch(getUrl(config.progressUrlTemplate, id))
-        .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-        .then(data => {
-          fails = 0;
-          // Une exception dans updateCard ne doit PAS tuer le polling (sinon la card
-          // reste figée et le reload de fin ne se déclenche jamais).
-          try { updateCard(id, data); } catch (e) { console.error('[transcriber] updateCard', id, e); }
-        })
-        .catch(err => {
-          // Erreur transitoire (réseau / phase LLM longue) → on NE coupe PAS le
-          // polling : on réessaie. Arrêt seulement après plusieurs échecs d'affilée.
-          fails++;
-          console.warn('[transcriber] poll', id, 'échec', fails, err);
-          if (fails >= 10) stopPolling(id);
-        });
-    }, 1200);
-    pollers.set(id, interval);
-  }
-
-  function stopPolling(id) {
-    const interval = pollers.get(id);
-    if (interval) { clearInterval(interval); pollers.delete(id); }
-  }
+  // Polling de progression — délégué à WamaApp.Poller (comportement identique :
+  // résilient aux erreurs réseau transitoires, updateCard protégé par try/catch).
+  function startPolling(id) { _poller.start(id); }
+  function stopPolling(id) { _poller.stop(id); }
 
   // ======================================================================
   // Empty state
   // ======================================================================
-  function removeEmptyState() {
-    if (!queueContainer) return;
-    const empty = queueContainer.querySelector('.empty-queue');
-    if (empty) empty.remove();
-  }
-
-  function insertEmptyStateIfNeeded() {
-    if (!queueContainer) return;
-    const hasCards = queueContainer.querySelectorAll('.synthesis-card').length > 0;
-    if (!hasCards && !queueContainer.querySelector('.empty-queue')) {
-      const div = document.createElement('div');
-      div.className = 'text-center py-5 empty-queue';
-      div.innerHTML = '<i class="fas fa-inbox fa-3x mb-3 text-white-50"></i><p class="text-white-50">Aucune transcription en attente</p>';
-      queueContainer.appendChild(div);
-    }
-  }
+  // État vide — délégué à WamaApp.emptyState (instance `_empty` créée en tête).
+  function removeEmptyState() { _empty.remove(); }
+  function insertEmptyStateIfNeeded() { _empty.insertIfNeeded(); }
 
   // ======================================================================
   // Bulk actions
@@ -1088,9 +1051,10 @@ document.addEventListener('DOMContentLoaded', function () {
       preprocessToggle.checked = preprocessEnabled;
       preprocessToggle.addEventListener('change', () => {
         preprocessEnabled = preprocessToggle.checked;
-        // Inspecteur : édite l'élément sélectionné sans toucher le défaut.
-        if (_inspectorId) { saveInspectorItem(); return; }
-        persistPreprocessingPreference(preprocessEnabled);
+        // Inspecteur : si un élément/batch est inspecté, on l'édite sans toucher le défaut ;
+        // sinon on persiste la préférence globale de prétraitement.
+        const st = _inspector ? _inspector.state() : {};
+        if (!st.itemId && !st.batchId) persistPreprocessingPreference(preprocessEnabled);
         savePanelSettings();
       });
     }
@@ -1106,6 +1070,10 @@ document.addEventListener('DOMContentLoaded', function () {
     if (panelDiarToggle) panelDiarToggle.addEventListener('change', savePanelSettings);
     if (panelGenSumm)    panelGenSumm.addEventListener('change', savePanelSettings);
     if (panelVerifCoh)   panelVerifCoh.addEventListener('change', savePanelSettings);
+    const panelTemp = document.getElementById('panelTemperature');
+    const panelMaxTok = document.getElementById('panelMaxTokens');
+    if (panelTemp)   panelTemp.addEventListener('change', savePanelSettings);
+    if (panelMaxTok) panelMaxTok.addEventListener('change', savePanelSettings);
     document.querySelectorAll('input[name="globalSummaryType"]').forEach(r =>
       r.addEventListener('change', savePanelSettings)
     );
@@ -1185,7 +1153,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (queueContainer) {
           queueContainer.querySelectorAll('.synthesis-card').forEach(c => c.remove());
         }
-        pollers.forEach((_, id) => stopPolling(id));
+        _poller.stopAll();
         insertEmptyStateIfNeeded();
         updateDownloadAllState();
         if (window.WamaFM) WamaFM.deleted();  // fichiers supprimés → refresh filemanager
@@ -1215,9 +1183,7 @@ document.addEventListener('DOMContentLoaded', function () {
   // ======================================================================
   // Inspecteur (niveau 2) — le volet droit reflète la card sélectionnée
   // ======================================================================
-  let _inspectorId = null;
-  let _inspectorBatchId = null;   // inspection d'un BATCH (réglages appliqués à tous ses items)
-  let _panelDefaults = null;  // snapshot des défauts, restauré à la désélection
+  let _inspector = null;   // instance WamaInspector (module commun) — créée dans initInspector
 
   function _panelReadValues() {
     const st = document.querySelector('input[name="globalSummaryType"]:checked');
@@ -1230,6 +1196,8 @@ document.addEventListener('DOMContentLoaded', function () {
       generate_summary:   e('globalGenerateSummary') ? e('globalGenerateSummary').checked : false,
       summary_type:       st ? st.value : 'structured',
       verify_coherence:   e('globalVerifyCoherence') ? e('globalVerifyCoherence').checked : false,
+      temperature:        e('panelTemperature') ? (parseFloat(e('panelTemperature').value) || 0) : 0,
+      max_tokens:         e('panelMaxTokens') ? (parseInt(e('panelMaxTokens').value) || 32768) : 32768,
     };
   }
 
@@ -1247,6 +1215,12 @@ document.addEventListener('DOMContentLoaded', function () {
     const stEl = document.querySelector(`input[name="globalSummaryType"][value="${s.summary_type || 'structured'}"]`);
     if (stEl) stEl.checked = true;
     if (e('globalVerifyCoherence')) e('globalVerifyCoherence').checked = !!s.verify_coherence;
+    if (e('panelTemperature')) {
+      const t = (s.temperature != null) ? s.temperature : 0;
+      e('panelTemperature').value = t;
+      const tv = e('panelTemperatureValue'); if (tv) tv.textContent = t;
+    }
+    if (e('panelMaxTokens')) e('panelMaxTokens').value = s.max_tokens || 32768;
   }
 
   function _cardSettings(card) {
@@ -1265,11 +1239,8 @@ document.addEventListener('DOMContentLoaded', function () {
     };
   }
 
-  // Reflète les actions de la card inspectée dans le volet (sinon vide → actions globales seules).
-  function renderInspectorActions(card) {
-    const host = document.getElementById('inspectorActions');
-    if (!host) return;
-    if (!card) { host.innerHTML = ''; return; }
+  // Actions de la card inspectée (callback WamaInspector) : clone des boutons de la card + rebind.
+  function _renderItemActions(host, card) {
     const ga = card.querySelector('.btn-group-actions');
     const id = card.dataset.id;
     host.innerHTML =
@@ -1281,71 +1252,9 @@ document.addEventListener('DOMContentLoaded', function () {
     bindCardActions(host);
   }
 
-  // En mode inspecteur d'une card, le volet ne montre QUE les infos de la card → on masque
-  // les sections globales (import Médias, actions globales, Réinitialiser).
-  function _toggleGlobalPanelSections(inspecting) {
-    // Masque le Réinitialiser (global) pendant l'inspection ; affiche/masque le hint d'actions.
-    const reset = document.getElementById('resetOptions');
-    if (reset) reset.style.display = inspecting ? 'none' : '';
-    const hint = document.getElementById('inspectorActionsHint');
-    if (hint) hint.style.display = inspecting ? 'none' : '';
-    // Titre de la section paramètres : contextualisé pendant l'inspection.
-    const stTitle = document.querySelector('#settings-section .right-panel-section-title');
-    if (stTitle && !stTitle.dataset.orig) stTitle.dataset.orig = stTitle.innerHTML;
-    if (stTitle) {
-      stTitle.innerHTML = inspecting
-        ? '<i class="fas fa-cog me-1"></i> Paramètres de l\'élément'
-        : (stTitle.dataset.orig || stTitle.innerHTML);
-    }
-  }
-
-  function _clearInspectorHighlight() {
-    if (!queueContainer) return;
-    queueContainer.querySelectorAll('.inspector-selected')
-      .forEach(c => c.classList.remove('inspector-selected'));
-  }
-
-  function selectCard(id) {
-    if (!queueContainer) return;
-    const card = queueContainer.querySelector(`.synthesis-card[data-id="${id}"]`);
-    if (!card) return;
-    if (_inspectorId === null && _inspectorBatchId === null) _panelDefaults = _panelReadValues();
-    _inspectorId = id; _inspectorBatchId = null;
-    _clearInspectorHighlight();
-    card.classList.add('inspector-selected');
-    _panelApplyValues(_cardSettings(card));
-    renderInspectorActions(card);
-    _toggleGlobalPanelSections(true);
-    const banner = document.getElementById('inspectorBanner');
-    const label = document.getElementById('inspectorLabel');
-    if (label) label.textContent = `l'élément #${id}`;
-    if (banner) { banner.classList.remove('d-none'); banner.classList.add('d-flex'); }
-  }
-
-  // Inspection d'un BATCH : le volet édite les réglages communs (appliqués à tous les items)
-  // et reflète les actions du batch (démarrer tout, ZIP, dupliquer, supprimer).
-  function selectBatch(batchId) {
-    if (!queueContainer) return;
-    const group = queueContainer.querySelector(`.batch-group[data-batch-id="${batchId}"]`);
-    if (!group) return;
-    if (_inspectorId === null && _inspectorBatchId === null) _panelDefaults = _panelReadValues();
-    _inspectorBatchId = batchId; _inspectorId = null;
-    _clearInspectorHighlight();
-    group.classList.add('inspector-selected');
-    const firstItem = group.querySelector('.synthesis-card');   // réglages = ceux du 1er item
-    if (firstItem) _panelApplyValues(_cardSettings(firstItem));
-    renderBatchInspectorActions(batchId);
-    _toggleGlobalPanelSections(true);
-    const banner = document.getElementById('inspectorBanner');
-    const label = document.getElementById('inspectorLabel');
-    if (label) label.textContent = `le batch #${batchId} (tous les éléments)`;
-    if (banner) { banner.classList.remove('d-none'); banner.classList.add('d-flex'); }
-  }
-
-  // Actions batch autonomes (pas de clone : les handlers batch existants dépendent du DOM).
-  function renderBatchInspectorActions(batchId) {
-    const host = document.getElementById('inspectorActions');
-    if (!host) return;
+  // Actions batch autonomes (callback WamaInspector) — pas de clone : les handlers batch
+  // existants dépendent de l'arborescence DOM, on (re)construit donc des boutons dédiés.
+  function _renderBatchActions(host, batchId) {
     const dl = (fmt) => getUrl(config.batchDownloadUrlTemplate, batchId) + '?fmt=' + fmt;
     host.innerHTML =
       '<div class="small text-white-50 mb-1"><i class="fas fa-layer-group text-info"></i> Actions — batch #' + batchId + '</div>' +
@@ -1372,25 +1281,12 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
 
-  function deselectCard() {
-    _inspectorId = null; _inspectorBatchId = null;
-    _clearInspectorHighlight();
-    if (_panelDefaults) _panelApplyValues(_panelDefaults);
-    renderInspectorActions(null);
-    _toggleGlobalPanelSections(false);
-    const banner = document.getElementById('inspectorBanner');
-    if (banner) { banner.classList.add('d-none'); banner.classList.remove('d-flex'); }
-  }
-
-  function saveInspectorItem() {
-    const id = _inspectorId;
+  // Sauvegarde des réglages de l'élément inspecté (callback WamaInspector).
+  function saveInspectorItem(id) {
     if (!id || !config.settingsUrlTemplate) return;
     const card = queueContainer ? queueContainer.querySelector(`.synthesis-card[data-id="${id}"]`) : null;
-    const cur = card ? _cardSettings(card) : { temperature: 0, max_tokens: 32768 };
-    const payload = Object.assign({}, _panelReadValues(), {
-      temperature: cur.temperature,
-      max_tokens: cur.max_tokens,
-    });
+    // Le volet inclut désormais Température + Max tokens → on lit tout depuis le panneau.
+    const payload = _panelReadValues();
     fetch(getUrl(config.settingsUrlTemplate, id), {
       method: 'POST',
       headers: csrfHeaders({ 'Content-Type': 'application/json' }),
@@ -1409,29 +1305,16 @@ document.addEventListener('DOMContentLoaded', function () {
             b.dataset.generateSummary = payload.generate_summary ? 'true' : 'false';
             b.dataset.summaryType = payload.summary_type;
             b.dataset.verifyCoherence = payload.verify_coherence ? 'true' : 'false';
+            b.dataset.temperature = payload.temperature;
+            b.dataset.maxTokens = payload.max_tokens;
           }
         }
       })
       .catch(() => showToast('Erreur lors de l\'enregistrement', 'danger'));
   }
 
-  function initInspector() {
-    // Clic sur une card → inspecteur de la card ; clic sur l'en-tête d'un batch → inspecteur du batch.
-    if (queueContainer) {
-      queueContainer.addEventListener('click', function (e) {
-        if (e.target.closest('button, a, input, select, textarea, .wama-card-preview, .btn-group-actions')) return;
-        const card = e.target.closest('.synthesis-card');
-        if (card && card.dataset.id) { selectCard(card.dataset.id); return; }
-        const batch = e.target.closest('.batch-group');
-        if (batch && batch.dataset.batchId) selectBatch(batch.dataset.batchId);
-      });
-    }
-    const deselectBtn = document.getElementById('inspectorDeselect');
-    if (deselectBtn) deselectBtn.addEventListener('click', deselectCard);
-  }
-
-  function saveInspectorBatch() {
-    const bid = _inspectorBatchId;
+  // Sauvegarde des réglages du batch inspecté → tous les items (callback WamaInspector).
+  function saveInspectorBatch(bid) {
     if (!bid || !config.batchUpdateUrlTemplate) return;
     fetch(getUrl(config.batchUpdateUrlTemplate, bid), {
       method: 'POST',
@@ -1440,10 +1323,8 @@ document.addEventListener('DOMContentLoaded', function () {
     }).then(r => r.json()).catch(() => showToast('Erreur lors de l\'enregistrement du batch', 'danger'));
   }
 
-  function savePanelSettings() {
-    // Inspecteur (niveau 2) : selon la sélection, le volet édite le batch, l'élément, ou les défauts.
-    if (_inspectorBatchId) { saveInspectorBatch(); return; }
-    if (_inspectorId) { saveInspectorItem(); return; }
+  // Sauvegarde des valeurs par défaut (niveau file, rien d'inspecté).
+  function saveGlobalSettings() {
     if (!config.saveUserSettingsUrl) return;
     const backendSel  = document.getElementById('backendSelect');
     const hotwordsIn  = document.getElementById('hotwordsInput');
@@ -1465,6 +1346,29 @@ document.addEventListener('DOMContentLoaded', function () {
       headers: csrfHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(payload),
     }).catch(() => {});
+  }
+
+  // Routage de la sauvegarde via l'inspecteur commun (item / batch / défauts file).
+  function savePanelSettings() { if (_inspector) _inspector.save(); else saveGlobalSettings(); }
+
+  // Crée l'inspecteur commun (WamaInspector) câblé aux spécificités du transcriber.
+  function initInspector() {
+    if (!queueContainer || !window.WamaInspector) return;
+    _inspector = WamaInspector.init({
+      queueContainer: queueContainer,
+      hideOnInspect: ['resetOptions'],
+      settingsTitleSelector: '#settings-section .right-panel-section-title',
+      settingsTitleInspect: '<i class="fas fa-cog me-1"></i> Paramètres de l\'élément',
+      panel: { read: _panelReadValues, apply: _panelApplyValues },
+      cardSettings: _cardSettings,
+      renderItemActions: _renderItemActions,
+      renderBatchActions: _renderBatchActions,
+      saveItem: saveInspectorItem,
+      saveBatch: saveInspectorBatch,
+      saveGlobal: saveGlobalSettings,
+      itemLabel: (id) => "l'élément #" + id,
+      batchLabel: (id) => "le batch #" + id + " (tous les éléments)",
+    });
   }
 
   // ======================================================================
@@ -1659,26 +1563,17 @@ document.addEventListener('DOMContentLoaded', function () {
   // ======================================================================
   // Async backends loading (non-blocking)
   // ======================================================================
-  // Descriptif dynamique du moteur (sous le menu) — replie l'ancien encart statique.
-  const BACKEND_HELP = {
-    auto:      'Sélectionne automatiquement le meilleur moteur disponible.',
-    whisper:   'Whisper large-v3 — rapide, polyvalent, multilingue. Diarisation via pyannote.',
-    vibevoice: 'VibeVoice — diarisation + timestamps natifs. ~10 min de chargement, audio ≤ 60 min.',
-    qwen_asr:  'Qwen3-ASR — context biasing natif des mots-clés (expérimental).',
+  // Descriptif dynamique du moteur (sous le menu) — composant commun WamaModelHelp.
+  // Les descriptions viennent de l'endpoint backends (source : backend.description) ;
+  // BACKEND_FALLBACK ne sert que pour « auto » (et de repli si l'endpoint n'en a pas).
+  const BACKEND_FALLBACK = {
+    auto: 'Sélectionne automatiquement le meilleur moteur disponible.',
   };
-  let _backendMeta = {};
-  function updateBackendHelp() {
-    const sel = document.getElementById('backendSelect');
-    const help = document.getElementById('backendHelp');
-    if (!sel || !help) return;
-    const meta = _backendMeta[sel.value] || {};
-    let txt = meta.description || BACKEND_HELP[sel.value] || '';
-    if (meta.vram_gb) txt += ' · ' + meta.vram_gb + ' Go VRAM';
-    help.textContent = txt;
-  }
+  let _modelHelp = window.WamaModelHelp ? WamaModelHelp.init({
+    selectId: 'backendSelect', helpId: 'backendHelp', meta: {}, fallback: BACKEND_FALLBACK,
+  }) : null;
 
   async function loadBackendsAsync() {
-    updateBackendHelp();   // affiche déjà le descriptif d'« Auto » avant le chargement async
     if (!config.backendsUrl) return;
     try {
       const resp = await fetch(config.backendsUrl);
@@ -1686,11 +1581,14 @@ document.addEventListener('DOMContentLoaded', function () {
       const data = await resp.json();
       const backends = data.backends || [];
       if (!backends.length) return;
-      backends.forEach(function (b) { _backendMeta[b.name] = b; });
+      const meta = {};
+      backends.forEach(function (b) { meta[b.name] = b; });
+      if (_modelHelp) _modelHelp.setMeta(meta);   // descriptions dynamiques sous le menu
 
       const options = backends.map(b => {
-        const label = b.display_name + (b.supports_diarization ? ' (diarisation)' : '');
-        return `<option value="${escapeHtml(b.name)}">${escapeHtml(label)}</option>`;
+        // Pas de suffixe « (diarisation) » : le Transcriber diarise TOUJOURS
+        // (VibeVoice nativement, Whisper/Qwen via pyannote) → info technique trompeuse.
+        return `<option value="${escapeHtml(b.name)}">${escapeHtml(b.display_name)}</option>`;
       }).join('');
 
       // Populate global panel selector and restore saved value
@@ -1699,8 +1597,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const savedValue = globalSel.dataset.selected || 'auto';
         globalSel.insertAdjacentHTML('beforeend', options);
         globalSel.value = savedValue;
-        globalSel.addEventListener('change', updateBackendHelp);
-        updateBackendHelp();
+        if (_modelHelp) _modelHelp.render();
       }
 
       // Populate settings modal selector (value set when modal opens)

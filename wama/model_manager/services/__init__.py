@@ -1,5 +1,11 @@
 # Model Manager Services
 from .model_registry import ModelRegistry, ModelInfo, ModelType, ModelSource
+from .model_selector import (
+    select_model,
+    list_models,
+    describe_model,
+    get_free_vram_gb,
+)
 from .memory_manager import MemoryManager, MemoryStrategy, MODEL_SIZE_PRESETS
 from .format_converter import FormatConverter, ConversionResult, ConversionSuggestion
 from .memory_monitor import WAMAMemoryMonitor, RAMUsage, GPUUsage, MemorySnapshot
@@ -21,6 +27,11 @@ __all__ = [
     'ModelInfo',
     'ModelType',
     'ModelSource',
+    # Model Selector (sélection intelligente centralisée)
+    'select_model',
+    'list_models',
+    'describe_model',
+    'get_free_vram_gb',
     # Memory Manager
     'MemoryManager',
     'MemoryStrategy',

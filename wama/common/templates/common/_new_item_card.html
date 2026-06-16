@@ -1,0 +1,68 @@
+{% comment %}
+WAMA — Card « Nouvel élément » : point d'entrée d'import (fichier / URL / batch) en tête de file.
+Zone centrale → disponible en mode simple (sans volets). Chaque app fournit ses ids/handlers.
+
+Variables :
+  card_id          — id de la card (défaut: newItemCard)
+  drop_zone_id     — id de la drop zone (REQUIS — handlers drag&drop de l'app)
+  file_input_id    — id de l'<input type=file> (REQUIS)
+  file_accept      — attribut accept (défaut: 'audio/*,video/*')
+  formats_label    — texte des formats acceptés (ex: 'MP3, WAV, FLAC, MP4, MKV…')
+  batch_template_url — (optionnel) URL du template batch → affiche le lien « Template »
+  batch_template_id  — id du lien template (défaut: batchTemplateLink)
+  show_batch_bar   — (bool) inclure common/batch_detect_bar.html sous la drop zone
+  show_url         — (bool) afficher le champ d'import par URL
+  url_input_id, url_submit_id — ids du champ/bouton URL
+  url_placeholder  — placeholder du champ URL
+  url_label        — libellé (défaut: 'ou depuis une URL')
+  url_hint         — aide sous le champ (optionnel)
+  url_icon         — classe d'icône (défaut: 'fas fa-link')
+  url_icon_class   — classe couleur de l'icône (défaut: 'text-info')
+
+Usage (transcriber) :
+  {% url 'transcriber:batch_template' as batch_tpl %}
+  {% include 'common/_new_item_card.html' with drop_zone_id='dropZoneTranscriber' file_input_id='transcriber-file' file_accept='audio/*,video/*' formats_label='MP3, WAV, FLAC, MP4, MKV…' batch_template_url=batch_tpl show_batch_bar=True show_url=True url_input_id='youtubeUrl' url_submit_id='youtubeSubmitBtn' url_placeholder='https://youtube.com/watch?v=…' url_label='ou depuis une URL' url_hint='YouTube, ou lien direct vers un fichier audio/vidéo.' url_icon='fab fa-youtube' url_icon_class='text-danger' %}
+{% endcomment %}
+<div class="card bg-dark mb-3 shadow-sm wama-new-item-card" id="{{ card_id|default:'newItemCard' }}" style="border:1px dashed #495057;">
+    <div class="card-body py-2">
+        <div class="d-flex align-items-center gap-2 mb-2 small text-white-50">
+            <i class="fas fa-plus-circle text-info"></i> <strong>Nouvel élément</strong>
+            <span class="text-muted">— glissez un fichier{% if show_url %}, ou collez une URL{% endif %}</span>
+        </div>
+        <div class="row g-2 align-items-start">
+            <div class="{% if show_url %}col-md-6{% else %}col-12{% endif %}">
+                <div class="drop-zone drop-zone-sm mb-0" id="{{ drop_zone_id }}">
+                    <i class="fas fa-cloud-upload-alt text-primary"></i>
+                    <p class="mb-0 small text-light mt-1">Glissez ou cliquez pour importer</p>
+                    <small class="text-muted">{{ formats_label }}</small>
+                    <input type="file" id="{{ file_input_id }}" multiple accept="{{ file_accept|default:'audio/*,video/*' }}" style="display:none">
+                    {% if batch_template_url %}
+                    <small class="text-muted d-block mt-1">
+                        Batch ?
+                        <a href="{{ batch_template_url }}" class="text-muted" id="{{ batch_template_id|default:'batchTemplateLink' }}" download>
+                            <i class="fas fa-download"></i> Template
+                        </a>
+                    </small>
+                    {% endif %}
+                </div>
+                {% if show_batch_bar %}{% include 'common/batch_detect_bar.html' %}{% endif %}
+            </div>
+            {% if show_url %}
+            <div class="col-md-6">
+                <label class="form-label small text-white-50 mb-1">
+                    <i class="{{ url_icon|default:'fas fa-link' }} {{ url_icon_class|default:'text-info' }}"></i> {{ url_label|default:'ou depuis une URL' }}
+                </label>
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text bg-dark border-secondary {{ url_icon_class|default:'text-info' }} px-2"><i class="{{ url_icon|default:'fas fa-link' }}"></i></span>
+                    <input type="text" class="form-control bg-dark text-white border-secondary"
+                           id="{{ url_input_id }}" placeholder="{{ url_placeholder }}">
+                    <button class="btn btn-danger" type="button" id="{{ url_submit_id }}" title="Importer depuis l'URL">
+                        <i class="fas fa-download"></i>
+                    </button>
+                </div>
+                {% if url_hint %}<small class="text-muted d-block mt-1">{{ url_hint }}</small>{% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>

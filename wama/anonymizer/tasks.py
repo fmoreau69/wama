@@ -264,14 +264,36 @@ def process_single_media(self, media_id, force_individual=False):
                 return {"processing": "parallel", "media_id": media.id, "models": len(parallel_info['models'])}
 
             elif not parallel_info['parallel'] and len(parallel_info['models']) == 1:
-                # Single model selected by ModelSelector - use it directly
-                # This overrides the user's default model when it doesn't support
-                # the requested classes (e.g., user has yolo11n.pt but needs face detection)
+                # Single model selected by ModelSelector.
+                # The override is only legitimate when the user's model does NOT
+                # support the requested classes (e.g. user has yolo11n.pt but needs
+                # face detection). If the user EXPLICITLY chose a model that already
+                # covers the requested classes (e.g. yolov9s-face-lindevs.pt for
+                # 'face'), respect that choice instead of forcing another model.
                 selected = parallel_info['models'][0]
                 from .utils.yolo_utils import get_model_path as _gmp
-                kwargs['model_path'] = _gmp(selected['id'])
-                _console(user.id, f"Auto-selected model: {selected['id']} for classes {selected['classes']}")
-                logger.info(f"[ModelSelection] Using ModelSelector result: {selected['id']} (overriding user default)")
+
+                keep_user_model = False
+                if user_specified_model:
+                    try:
+                        from .utils.model_selector import get_model_classes
+                        user_model_abs = _gmp(user_specified_model)
+                        user_classes = set(get_model_classes(user_model_abs).values())
+                        requested = {c.lower() for c in kwargs['classes2blur']}
+                        if requested and requested.issubset(user_classes):
+                            keep_user_model = True
+                    except Exception as e:
+                        logger.warning(f"[ModelSelection] Could not verify user model classes: {e}")
+
+                if keep_user_model:
+                    kwargs['model_path'] = _gmp(user_specified_model)
+                    _console(user.id, f"Respecting user-specified model: {user_specified_model}")
+                    logger.info(f"[ModelSelection] Keeping user-specified model {user_specified_model} "
+                                f"(already covers {kwargs['classes2blur']}) — no override")
+                else:
+                    kwargs['model_path'] = _gmp(selected['id'])
+                    _console(user.id, f"Auto-selected model: {selected['id']} for classes {selected['classes']}")
+                    logger.info(f"[ModelSelection] Using ModelSelector result: {selected['id']} (overriding user default)")
 
         # ======================================================================
         # SINGLE MODEL PATH: Standard processing (existing flow)

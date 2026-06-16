@@ -41,6 +41,14 @@ class VibeVoiceBackend(SpeechToTextBackend):
 
     name = "vibevoice"
     display_name = "VibeVoice ASR (Microsoft)"
+    description = "VibeVoice-ASR — multi-locuteurs, précis, un seul passage. Diarisation + timestamps natifs."
+    description_long = (
+        "VibeVoice ASR (Microsoft, 7B) : transcription, diarisation des locuteurs et "
+        "timestamps produits nativement en un seul passage (pas de pyannote). Idéal pour "
+        "les réunions/entretiens multi-locuteurs. Chargement long (~10 min). Budget de "
+        "64K tokens ≈ 60 min de parole par passage : au-delà, la fin peut être tronquée "
+        "(pas de chunking pour l'instant). ~16–24 Go VRAM."
+    )
 
     supports_diarization = True   # native — no pyannote needed
     supports_timestamps  = True
@@ -73,6 +81,12 @@ class VibeVoiceBackend(SpeechToTextBackend):
             from vibevoice.processor.vibevoice_asr_processor import VibeVoiceASRProcessor               # noqa: F401
             return True
         except ImportError:
+            return False
+        except Exception as e:
+            # Ex. course d'imports accelerate (« KeyError: 'accelerate' ») : le paquet
+            # est installé mais l'import a échoué pour une raison d'environnement.
+            # On le signale clairement plutôt que de masquer derrière ImportError.
+            logger.warning(f"[VibeVoice] is_available() non-import error: {e!r}")
             return False
 
     # ------------------------------------------------------------------

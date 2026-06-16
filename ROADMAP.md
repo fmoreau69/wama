@@ -695,7 +695,12 @@ distinct pour permettre l'analyse incrémentale, l'invalidation en cascade
 
 > Base existante : `UserProfile.preferred_language` déjà en place dans `accounts/models.py`
 
-### Approche retenue : Django i18n + translategemma en batch ⏳
+> **Deux couches distinctes, à ne pas confondre :**
+> - **10.A — i18n UI statique** : chaînes d'interface (`.po`/`.mo`), traduites *une fois* en batch, lookup microseconde au runtime, **zéro inférence**.
+> - **10.B — Translator runtime (app)** : traduction + enrichissement *à la requête* des consignes utilisateur (AI-Assistant, prompts SAM3 / image / vidéo / musique) et des sorties textuelles trans-app, via LLM, **avec cache**.
+> Un seul « cerveau » de traduction (même modèle/service) alimente les deux couches.
+
+### 10.A — Approche retenue : Django i18n + translategemma en batch ⏳
 
 **Principe :** translategemma:12b traduit les fichiers `.po` une seule fois en batch.
 À runtime, Django sert depuis des fichiers `.mo` compilés — aucune inférence LLM.
@@ -726,6 +731,67 @@ FR · EN · ES · DE · IT · PT · NL · JA · ZH
 - Les strings JS nécessitent `{% trans %}` dans les templates ou `JavaScriptCatalog` view
 - wama-dev-ai (Phase 2+) pourrait automatiser le tagging des templates via `search_content` + `edit_file`
 - Régénération des `.po` à chaque ajout de string : intégrable dans le workflow CI ou wama-dev-ai nightly
+
+---
+
+### 10.B — Translator runtime : enrichissement + traduction des consignes & sorties ⏳
+
+> **Vision.** L'utilisateur s'exprime et visualise WAMA **dans sa propre langue**. L'anglais (ou la langue
+> optimale du modèle) n'est qu'un **pivot interne**. Toute consigne libre (AI-Assistant, prompt SAM3,
+> prompts image/vidéo/musique/bruitages) passe par un workflow d'**enrichissement (prompt + RAG)**
+> et de **traduction** afin d'optimiser la requête quels que soient la langue et le niveau de détail.
+
+#### Principe directeur : l'anglais comme pivot interne
+- L'utilisateur écrit et lit **toujours** dans sa langue.
+- **Entrée** (consigne → modèle) : on optimise *vers* la langue cible du modèle.
+- **Sortie** (modèle → utilisateur) : on retraduit *vers* la langue de l'utilisateur — sauf réglage
+  « langue d'origine » ou demande explicite d'une cible de traduction en sortie.
+
+#### Sens du workflow d'entrée — décision actée
+Ne **pas** enchaîner deux traductions automatiques naïves. Préférence, dans l'ordre :
+
+| Schéma | Verdict |
+|--------|---------|
+| Traduire d'abord, enrichir ensuite | ❌ perte d'intention sur prompt court, erreurs propagées |
+| Enrichir en langue native, **traduire en dernier** | 🟡 fallback acceptable si réutilisation d'un service MT générique |
+| **Passe LLM unique : comprendre → enrichir (RAG) → émettre directement dans la langue cible** | ✅ **retenu** — pas de double-traduction, prompt cible idiomatique |
+
+→ **Retenu : passe LLM jointe** (détecter langue source → comprendre l'intention → récupérer RAG →
+produire le prompt optimisé directement dans la langue/format du modèle cible). Équivaut au
+« prompt upsampling » des générateurs modernes.
+
+#### Garde-fous transversaux
+- **Glossaire « ne pas traduire »** : noms propres, **termes métier Lescot (SHS / ergonomie / transports)**,
+  hotwords, noms de fichiers, code, entités nommées → masquage par placeholders avant MT, restauration après.
+- **Carte langue-cible par modèle** : SDXL / Flux / SAM3 / MusicGen / AudioGen → **EN** ;
+  SAM3 = **nom de concept court EN** (pas une phrase d'instruction — cf. bug « Floutes les visages » → 0 masque) ;
+  Qwen / describer multilingues → langue native possible.
+- **Passthrough + cache** : si langue source == cible → skip ; cache `(texte, langue_cible, modèle) → résultat`
+  pour éviter de ré-inférer (UI répétée, prompts identiques).
+- **Détection de langue** rapide en amont (gate cheap : lingua / fasttext) avant tout appel LLM.
+- **Tiering modèle** : détection + MT simple = modèle léger ; enrichissement = LLM fort (describer / Qwen).
+
+#### Usages (une seule app `wama/translator/`, plusieurs points d'entrée)
+1. **Traduction UI** — alimente la génération batch des `.po` (§10.A) avec le même cerveau.
+2. **Optimisation de prompt** — pré-traitement des consignes de génération (image/vidéo/musique/SAM3).
+3. **Traduction des consignes AI-Assistant** — comprendre l'intention quelle que soit la langue.
+4. **Traduction trans-app des sorties textuelles** — transcriptions, descriptions, résumés, OCR…
+   affichés/exportés dans la langue de l'utilisateur.
+
+#### Étapes ⏳
+| Étape | Effort | Fichier / Note |
+|-------|--------|----------------|
+| App `wama/translator/` + service `TranslatorService` (detect/translate/enrich) | 2-3 j | centralisé dans `common/` pour appel inter-app |
+| API outil AI-Assistant (`translate`, `enrich_prompt`) | 0.5 j | `tool_api.py` |
+| Glossaire « do-not-translate » + masquage placeholders | 1 j | terminologie Lescot configurable |
+| Carte langue-cible par modèle + hook pré-génération (imager/composer/anonymizer SAM3…) | 1-2 j | point d'injection unique par app |
+| Cache traductions/enrichissements (Redis) | 0.5 j | clé `(hash, lang, model)` |
+| Réglage utilisateur « langue de sortie / langue d'origine » | 0.5 j | `UserProfile` (étend `preferred_language`) |
+
+#### Décisions actées
+- **Pivot interne = anglais** ; l'utilisateur ne le voit jamais sauf réglage explicite.
+- **Workflow d'entrée = passe LLM jointe** (comprendre→enrichir→émettre en langue cible), pas de MT en chaîne.
+- **i18n statique (10.A) et Translator runtime (10.B) restent deux couches** mais partagent le modèle de traduction.
 
 ---
 

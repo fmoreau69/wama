@@ -67,6 +67,11 @@ class SpeechToTextBackend(ABC):
     # Class-level attributes to be overridden by subclasses
     name: str = "base"
     display_name: str = "Base Backend"
+    # Descriptif COURT (une ligne) affiché sous le choix du moteur (volet/modale).
+    description: str = ""
+    # Descriptif LONG (paragraphe) pour l'à-propos / le tooltip détaillé / le catalogue.
+    # Vide → on retombe sur `description`.
+    description_long: str = ""
 
     # Feature flags
     supports_diarization: bool = False

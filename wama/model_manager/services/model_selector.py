@@ -1,0 +1,141 @@
+"""
+Sélection intelligente de modèles — centralisée pour toutes les apps WAMA.
+
+S'appuie sur le catalogue `AIModel` (source de vérité : téléchargé ? chargé ? VRAM,
+capacités via `extra_info`) et la VRAM live (`memory_monitor`). Unifie les logiques
+jusque-là dupliquées par app (anonymizer `ModelSelector`, transcriber `manager`, et le
+`backend_selector` VRAM-aware qui était planifié).
+
+Principe : model_manager = cerveau + source de vérité ; les apps appellent ce service
+(ou en font de fins adaptateurs). Voir `memory/project_model_manager_centralization.md`.
+"""
+
+import logging
+from typing import List, Optional
+
+logger = logging.getLogger(__name__)
+
+
+def get_free_vram_gb() -> Optional[float]:
+    """VRAM libre (Go) du GPU le plus libre, ou None si indéterminable."""
+    try:
+        from .memory_monitor import WAMAMemoryMonitor
+        gpus = WAMAMemoryMonitor().get_gpu_usage()
+        if gpus:
+            return max((g.free_gb for g in gpus), default=None)
+    except Exception as e:
+        logger.debug(f"[model_selector] free VRAM indéterminable : {e}")
+    return None
+
+
+def _supports(model, requires, classes) -> bool:
+    """Filtre capacités via extra_info : `requires` = clés truthy ; `classes` ⊆ extra_info['classes']."""
+    ei = model.extra_info or {}
+    if requires and not all(ei.get(k) for k in requires):
+        return False
+    if classes:
+        supported = set(ei.get('classes') or [])
+        if not set(classes).issubset(supported):
+            return False
+    return True
+
+
+def _best_by_vram(models, budget_gb: Optional[float]):
+    """
+    Parmi `models`, choisir le meilleur compromis qualité/VRAM :
+      - déjà chargé prioritaire (tuple de tri),
+      - sinon le plus « gros » (vram_gb) qui TIENT dans le budget (meilleure qualité sans OOM),
+      - si rien ne tient, le plus léger (meilleure chance de charger).
+    """
+    if budget_gb is None:
+        return max(models, key=lambda m: (m.is_loaded, m.vram_gb or 0))
+    fit = [m for m in models if (m.vram_gb or 0) <= budget_gb]
+    if fit:
+        return max(fit, key=lambda m: (m.is_loaded, m.vram_gb or 0))
+    return min(models, key=lambda m: (m.vram_gb or 0))
+
+
+def select_model(
+    source: str,
+    *,
+    model_type: Optional[str] = None,
+    requires: Optional[List[str]] = None,
+    classes: Optional[List[str]] = None,
+    prefer_loaded: bool = True,
+    downloaded_only: bool = True,
+    vram_budget_gb: Optional[float] = None,
+    candidates: Optional[List[str]] = None,
+    name_contains: Optional[str] = None,
+):
+    """
+    Choisit le meilleur `AIModel` pour `source` (valeur ModelSource), ou None.
+
+    Args:
+        source:          app/source ('transcriber', 'anonymizer', 'imager', …).
+        model_type:      filtre ModelType ('speech', 'vision', …).
+        requires:        capacités requises (clés truthy de extra_info).
+        classes:         classes à couvrir (⊆ extra_info['classes'] — ex. anonymizer).
+        prefer_loaded:   si un candidat est déjà chargé (is_loaded), le renvoyer d'office
+                         (règle keep_loaded — évite un rechargement coûteux en batch).
+        downloaded_only: ne considérer que les modèles téléchargés.
+        vram_budget_gb:  budget VRAM explicite ; si None, lecture de la VRAM libre live.
+        candidates:      restreindre à une liste de model_key.
+        name_contains:   sous-chaîne (model_key ou name), insensible à la casse.
+
+    Returns:
+        AIModel | None.
+    """
+    from ..models import AIModel
+
+    qs = AIModel.objects.filter(source=source, is_available=True)
+    if downloaded_only:
+        qs = qs.filter(is_downloaded=True)
+    if model_type:
+        qs = qs.filter(model_type=model_type)
+    if candidates:
+        qs = qs.filter(model_key__in=candidates)
+
+    models = list(qs)
+    if name_contains:
+        nc = name_contains.lower()
+        models = [m for m in models if nc in m.model_key.lower() or nc in (m.name or '').lower()]
+
+    models = [m for m in models if _supports(m, requires, classes)]
+    if not models:
+        logger.info(f"[model_selector] aucun modèle pour source={source} "
+                    f"(type={model_type}, classes={classes}, requires={requires})")
+        return None
+
+    # Règle keep_loaded : préférer un candidat déjà en mémoire.
+    if prefer_loaded:
+        loaded = [m for m in models if m.is_loaded]
+        if loaded:
+            choice = _best_by_vram(loaded, vram_budget_gb)
+            logger.info(f"[model_selector] {source} → {choice.model_key} (déjà chargé)")
+            return choice
+
+    budget = vram_budget_gb if vram_budget_gb is not None else get_free_vram_gb()
+    choice = _best_by_vram(models, budget)
+    logger.info(f"[model_selector] {source} → {choice.model_key} "
+                f"(vram_gb={choice.vram_gb}, budget={budget})")
+    return choice
+
+
+def list_models(source: str, downloaded_only: bool = True) -> List[dict]:
+    """Liste des modèles d'une source (dicts to_dict — description courte/longue + vram)."""
+    from ..models import AIModel
+    qs = AIModel.objects.filter(source=source, is_available=True)
+    if downloaded_only:
+        qs = qs.filter(is_downloaded=True)
+    return [m.to_dict() for m in qs]
+
+
+def describe_model(model_key: str, tier: str = 'short') -> str:
+    """Description d'un modèle. tier='short' → une ligne (fallback long) ; 'long' → paragraphe."""
+    from ..models import AIModel
+    m = AIModel.objects.filter(model_key=model_key).first()
+    if not m:
+        return ''
+    if tier == 'long':
+        return m.description or m.description_short or ''
+    return m.description_short or m.description or ''

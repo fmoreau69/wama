@@ -1,0 +1,27 @@
+{% comment %}
+WAMA — Barre d'actions globales de la file (zone centrale → dispo en mode simple, sans volets).
+Chaque app fournit ses ids (les handlers JS de l'app y sont attachés).
+
+Variables :
+  start_id     — id du bouton « Démarrer tout » (REQUIS)
+  clear_id     — id du bouton « Tout effacer » (REQUIS)
+  download_id  — id du bouton « Télécharger tout » (si show_download)
+  show_download — (bool) afficher le bouton de téléchargement global
+  start_label, clear_label, download_label — libellés (défauts ci-dessous)
+
+Usage :
+  {% include 'common/_queue_actions.html' with start_id='transcriber-process-btn' download_id='transcriber-download-all-btn' clear_id='transcriber-clear-btn' show_download=True %}
+{% endcomment %}
+<div class="d-flex gap-2 flex-wrap wama-queue-actions">
+    <button id="{{ start_id }}" class="btn btn-success btn-sm">
+        <i class="fas fa-play"></i> {{ start_label|default:'Démarrer tout' }}
+    </button>
+    {% if show_download %}
+    <button id="{{ download_id }}" class="btn btn-info btn-sm" disabled>
+        <i class="fas fa-download"></i> {{ download_label|default:'Télécharger tout' }}
+    </button>
+    {% endif %}
+    <button id="{{ clear_id }}" class="btn btn-outline-danger btn-sm">
+        <i class="fas fa-trash"></i> {{ clear_label|default:'Tout effacer' }}
+    </button>
+</div>

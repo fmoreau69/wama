@@ -307,6 +307,17 @@ def transcribe(self, transcript_id: int):
         backend_name = t.backend if t.backend and t.backend != 'auto' else None
         backend = get_backend(backend_name)
 
+        # Repli transparent : l'utilisateur a demandé un moteur précis mais il est
+        # indisponible (ex. VibeVoice KO) → on le signale clairement au lieu d'un
+        # changement silencieux. used_backend (enregistré plus bas) reflète le réel.
+        if backend_name and backend.name != backend_name:
+            _console(
+                t.user_id,
+                f"⚠ Moteur « {backend_name} » indisponible — repli sur {backend.display_name}.",
+                level='warning',
+            )
+            _set_status_message(t, f"« {backend_name} » indisponible → {backend.display_name}")
+
         _console(t.user_id, f"Utilisation de {backend.display_name}...")
         _set_progress(t, 20)
         _set_status_message(t, f"Chargement du moteur {backend.display_name}…")
@@ -475,9 +486,11 @@ def transcribe(self, transcript_id: int):
         _set_progress(t, 100)
         # SUCCESS seulement maintenant : tout est prêt (texte, segments, résumé,
         # cohérence globale + par-segment) → le front recharge au bon moment.
+        from django.utils import timezone
         t.processing_seconds = round(time.time() - _t0, 1)   # durée réelle (affichée à la place de l'ETA)
+        t.finished_at = timezone.now()
         t.status = 'SUCCESS'
-        t.save(update_fields=['status', 'processing_seconds'])
+        t.save(update_fields=['status', 'processing_seconds', 'finished_at'])
         _set_status_message(t, '')                            # plus d'action en cours
         _console(t.user_id, f"Transcription {t.id} terminée ({backend.display_name}) ✓ "
                             f"en {t.processing_display}")

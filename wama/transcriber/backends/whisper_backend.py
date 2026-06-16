@@ -28,6 +28,13 @@ class WhisperBackend(SpeechToTextBackend):
 
     name = "whisper"
     display_name = "Whisper (faster-whisper)"
+    description = "large-v3 — rapide, polyvalent, multilingue. Diarisation via pyannote."
+    description_long = (
+        "Whisper large-v3 (faster-whisper / CTranslate2) : transcription multilingue "
+        "rapide et robuste, excellente qualité en français. Pas de diarisation native — "
+        "l'attribution des locuteurs est faite en post-traitement par pyannote "
+        "(backend-agnostique). ~10 Go VRAM. Bon défaut polyvalent."
+    )
 
     supports_diarization = False   # pyannote post-processing in workers.py
     supports_timestamps  = True

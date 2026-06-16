@@ -85,36 +85,19 @@ def _load_pipeline(hf_token: Optional[str] = None):
 
 def _preload_audio(audio_path: str) -> dict:
     """
-    Load audio file into a {'waveform': tensor, 'sample_rate': int} dict.
+    Load audio into the {'waveform': tensor, 'sample_rate': int} dict expected by
+    pyannote, bypassing its torchcodec/FFmpeg decoder (cassé dans ce venv).
 
-    This bypasses pyannote's built-in torchcodec/FFmpeg audio decoder, which
-    requires specific shared libraries that may not be available.  We use
-    soundfile (bundled with faster-whisper / openai-whisper) or torchaudio
-    as a fallback.
+    Délègue au helper commun `common/utils/audio_decode.decode_for_pyannote`
+    (chaîne robuste soundfile → faster-whisper/PyAV → ffmpeg, gère m4a/mp3/aac).
+    En cas d'échec total, on renvoie le chemin brut (dernier recours pyannote).
     """
-    import torch
-
-    # Primary: soundfile — no FFmpeg required, reads WAV/FLAC/OGG natively
     try:
-        import soundfile as sf
-        import numpy as np
-        data, sr = sf.read(audio_path, dtype='float32', always_2d=True)
-        # soundfile → (time, channels); pyannote expects (channels, time)
-        waveform = torch.from_numpy(data.T)
-        return {'waveform': waveform, 'sample_rate': sr}
-    except Exception as e_sf:
-        logger.debug(f"[pyannote] soundfile preload failed: {e_sf}, trying torchaudio")
-
-    # Fallback: torchaudio
-    try:
-        import torchaudio
-        waveform, sr = torchaudio.load(audio_path)
-        return {'waveform': waveform, 'sample_rate': sr}
-    except Exception as e_ta:
-        logger.warning(f"[pyannote] torchaudio preload failed: {e_ta}, passing raw path")
-
-    # Last resort: let pyannote try to load the path directly
-    return audio_path  # type: ignore[return-value]
+        from wama.common.utils.audio_decode import decode_for_pyannote
+        return decode_for_pyannote(audio_path, target_sr=16000)
+    except Exception as e:
+        logger.warning(f"[pyannote] decode failed ({e}), passing raw path")
+        return audio_path  # type: ignore[return-value]
 
 
 def diarize(

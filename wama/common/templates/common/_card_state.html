@@ -1,0 +1,22 @@
+{% comment %}
+WAMA — État textuel d'une card de file (élément `.card-state`, mis à jour en live par le JS
+de l'app pendant le traitement). Commun à toutes les apps.
+
+Variables :
+  status — 'PENDING' | 'RUNNING' | 'SUCCESS' | 'FAILURE'
+  text   — (optionnel) aperçu texte affiché tant que non terminé
+
+Usage :
+  {% include 'common/_card_state.html' with status=obj.status text=obj.text %}
+{% endcomment %}
+{% if status == 'RUNNING' %}
+<small class="card-state text-warning"><i class="fas fa-spinner fa-spin"></i> Traitement…</small>
+{% elif status == 'PENDING' %}
+<small class="card-state text-white-50">En attente</small>
+{% elif status == 'FAILURE' %}
+<small class="card-state text-danger"><i class="fas fa-triangle-exclamation"></i> Échec</small>
+{% elif status != 'SUCCESS' and text %}
+<small class="card-state text-light result-preview" style="max-height:60px; overflow:hidden; display:block;">{{ text|truncatechars:120 }}</small>
+{% else %}
+<small class="card-state"></small>
+{% endif %}

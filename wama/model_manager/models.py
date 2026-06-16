@@ -67,8 +67,11 @@ class AIModel(models.Model):
         db_index=True
     )
 
-    # Description
+    # Description — deux tiers par usage :
+    #   description       = long/canonique (page model_manager, à-propos, tooltip détaillé)
+    #   description_short = une ligne pour l'aide sous le sélecteur de modèle (WamaModelHelp)
     description = models.TextField(blank=True, default='')
+    description_short = models.CharField(max_length=255, blank=True, default='')
 
     # External references
     hf_id = models.CharField(
@@ -196,6 +199,7 @@ class AIModel(models.Model):
             'type': self.model_type,
             'source': self.source,
             'description': self.description,
+            'description_short': self.description_short,
             'hf_id': self.hf_id,
             'vram_gb': self.vram_gb,
             'ram_gb': self.ram_gb,

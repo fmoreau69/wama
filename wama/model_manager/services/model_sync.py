@@ -137,11 +137,21 @@ class ModelSyncService:
         """
         from ..models import AIModel
 
+        # Description courte : explicite si fournie, sinon dérivée du long (1re phrase,
+        # tronquée à 200c) → le catalogue a toujours un court exploitable pour l'UI.
+        long_desc = model_info.description or ''
+        short_desc = getattr(model_info, 'description_short', '') or ''
+        if not short_desc and long_desc:
+            short_desc = long_desc.split('. ')[0].strip()
+            if len(short_desc) > 200:
+                short_desc = short_desc[:197].rstrip() + '…'
+
         defaults = {
             'name': model_info.name,
             'model_type': model_info.model_type.value,
             'source': model_info.source.value,
-            'description': model_info.description or '',
+            'description': long_desc,
+            'description_short': short_desc,
             'hf_id': model_info.hf_id or '',
             'vram_gb': model_info.vram_gb or 0,
             'ram_gb': model_info.ram_gb or 0,

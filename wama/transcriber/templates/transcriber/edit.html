@@ -163,8 +163,13 @@
       <!-- Mini-map : vue d'ensemble du fichier + rectangle de la fenêtre visible -->
       <canvas id="zoomMini" class="zoom-mini" title="Vue d'ensemble — cliquez/glissez pour vous déplacer"></canvas>
 
-      <!-- Transport : saut + vitesse + zoom + verrou de suivi -->
+      <!-- Transport : aller à + saut + vitesse + zoom + verrou de suivi -->
       <div class="d-flex align-items-center gap-2 mt-2 flex-wrap small">
+        <span class="text-white-50"><i class="fas fa-clock"></i></span>
+        <input type="text" id="gotoTime" class="form-control form-control-sm" style="width:84px;"
+               placeholder="mm:ss" title="Aller à un timecode (mm:ss ou hh:mm:ss) — Entrée">
+        <button class="btn btn-sm btn-outline-light" id="gotoBtn" title="Aller au timecode"><i class="fas fa-arrow-right-to-bracket"></i></button>
+        <span class="text-white-50 ms-1">·</span>
         <button class="btn btn-sm btn-outline-light" id="skipBack" title="Reculer 5 s (←)"><i class="fas fa-backward"></i> 5s</button>
         <button class="btn btn-sm btn-outline-light" id="skipFwd" title="Avancer 5 s (→)">5s <i class="fas fa-forward"></i></button>
         <span class="text-white-50 ms-2"><i class="fas fa-gauge-high"></i></span>

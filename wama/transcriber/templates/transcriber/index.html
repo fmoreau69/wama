@@ -18,6 +18,12 @@
   #inspectorBanner { background: rgba(13,202,240,0.12); border: 1px solid #0dcaf0; }
   /* Section Médias du volet masquée : l'import vit dans la card « Nouvel élément » (zone centrale). */
   #media-section { display: none; }
+  /* Nom de fichier : icône à gauche alignée, sur une seule ligne tronquée (évite l'icône centrée
+     au-dessus du nom dans les colonnes étroites — cards batch notamment). Single + batch identiques. */
+  .synthesis-card button.filename {
+    display: inline-block; max-width: 100%; text-align: left; vertical-align: middle;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
 </style>
 <!-- Inspecteur : reflète la card sélectionnée (sinon = valeurs par défaut) -->
 <div id="inspectorBanner" class="d-none align-items-center gap-2 p-2 mb-2 rounded small">
@@ -48,7 +54,7 @@
     </label>
     <textarea id="hotwordsInput" class="form-control form-control-sm"
               rows="2" placeholder="Noms propres, termes techniques...">{{ user_hotwords }}</textarea>
-    <small class="text-muted">Séparés par des virgules — <i>context biasing natif avec Qwen3-ASR</i></small>
+    <small class="text-muted">Séparés par des virgules</small>
 </div>
 
 <!-- Preprocessing Toggle -->
@@ -106,6 +112,24 @@
             <i class="fas fa-spell-check"></i> Vérifier la cohérence
         </label>
     </div>
+    <small class="d-block mt-1">Score + correction proposée côte à côte</small>
+</div>
+
+<!-- Temperature (mêmes paramètres que la modale, pour que l'inspecteur reflète la card) -->
+<div class="mb-3">
+    <label for="panelTemperature" class="form-label small fw-bold text-light">
+        <i class="fas fa-temperature-half"></i> Température : <span id="panelTemperatureValue">0.0</span>
+    </label>
+    <input type="range" class="form-range" id="panelTemperature" min="0" max="1" step="0.1" value="0"
+           oninput="document.getElementById('panelTemperatureValue').textContent = this.value">
+</div>
+
+<!-- Max tokens -->
+<div class="mb-3">
+    <label for="panelMaxTokens" class="form-label small fw-bold text-light">
+        <i class="fas fa-text-width"></i> Max tokens
+    </label>
+    <input type="number" class="form-control form-control-sm" id="panelMaxTokens" min="1024" max="131072" value="32768">
 </div>
 
 <!-- Reset Button -->
@@ -165,8 +189,11 @@
 
     // Diarization is now always visible (uses pyannote, backend-agnostic)
 </script>
+<script src="{% static 'common/js/wama-app-base.js' %}"></script>
 <script src="{% static 'common/js/batch-import.js' %}"></script>
 <script src="{% static 'common/js/wama-eta.js' %}"></script>
+<script src="{% static 'common/js/wama-inspector.js' %}"></script>
+<script src="{% static 'common/js/wama-model-help.js' %}"></script>
 <script src="{% static 'transcriber/js/index.js' %}"></script>
 <script>
 window._batchImport = WamaBatchImport({
@@ -220,45 +247,10 @@ window._batchImport = WamaBatchImport({
 
 <hr class="border-secondary">
 
-<!-- Card « Nouvel élément » : point d'entrée d'import (fichier / URL / batch), central → dispo en mode simple.
-     Mêmes IDs que l'ancien volet Médias → les handlers JS (upload/drag&drop/youtube) marchent sans changement. -->
-<div class="card bg-dark mb-3 shadow-sm" id="newItemCard" style="border:1px dashed #495057;">
-    <div class="card-body py-2">
-        <div class="d-flex align-items-center gap-2 mb-2 small text-white-50">
-            <i class="fas fa-plus-circle text-info"></i> <strong>Nouvel élément</strong>
-            <span class="text-muted">— glissez un fichier, ou collez une URL</span>
-        </div>
-        <div class="row g-2 align-items-start">
-            <div class="col-md-6">
-                <div class="drop-zone drop-zone-sm mb-0" id="dropZoneTranscriber">
-                    <i class="fas fa-cloud-upload-alt text-primary"></i>
-                    <p class="mb-0 small text-light mt-1">Glissez ou cliquez pour importer</p>
-                    <small class="text-muted">MP3, WAV, FLAC, MP4, MKV…</small>
-                    <input type="file" id="transcriber-file" multiple accept="audio/*,video/*" style="display:none">
-                    <small class="text-muted d-block mt-1">
-                        Batch ?
-                        <a href="{% url 'transcriber:batch_template' %}" class="text-muted" id="batchTemplateLink" download>
-                            <i class="fas fa-download"></i> Template
-                        </a>
-                    </small>
-                </div>
-                {% include 'common/batch_detect_bar.html' %}
-            </div>
-            <div class="col-md-6">
-                <label class="form-label small text-white-50 mb-1"><i class="fab fa-youtube text-danger"></i> ou depuis une URL</label>
-                <div class="input-group input-group-sm">
-                    <span class="input-group-text bg-dark border-secondary text-danger px-2"><i class="fab fa-youtube"></i></span>
-                    <input type="text" class="form-control bg-dark text-white border-secondary"
-                           id="youtubeUrl" placeholder="https://youtube.com/watch?v=…">
-                    <button class="btn btn-danger" type="button" id="youtubeSubmitBtn" title="Télécharger & Transcrire">
-                        <i class="fas fa-download"></i>
-                    </button>
-                </div>
-                <small class="text-muted d-block mt-1">YouTube, ou lien direct vers un fichier audio/vidéo.</small>
-            </div>
-        </div>
-    </div>
-</div>
+<!-- Card « Nouvel élément » : import (fichier / URL / batch) — brique commune _new_item_card.
+     Mêmes IDs que les handlers JS du transcriber (upload/drag&drop/youtube) → inchangés. -->
+{% url 'transcriber:batch_template' as batch_tpl %}
+{% include 'common/_new_item_card.html' with drop_zone_id='dropZoneTranscriber' file_input_id='transcriber-file' file_accept='audio/*,video/*' formats_label='MP3, WAV, FLAC, MP4, MKV…' batch_template_url=batch_tpl show_batch_bar=True show_url=True url_input_id='youtubeUrl' url_submit_id='youtubeSubmitBtn' url_placeholder='https://youtube.com/watch?v=…' url_label='ou depuis une URL' url_hint='YouTube, ou lien direct vers un fichier audio/vidéo.' url_icon='fab fa-youtube' url_icon_class='text-danger' %}
 
 <div id="globalStatus" style="opacity:0; pointer-events:none;">
     <div class="d-flex justify-content-between align-items-baseline mb-1">
@@ -343,12 +335,8 @@ window._batchImport = WamaBatchImport({
                 <i class="fas fa-list"></i> File d'attente
                 <span class="badge bg-info" id="queueCount">{{ queue_count }}</span>
             </h4>
-            <!-- Actions globales de la file (zone centrale → dispo en mode simple ; mêmes IDs que le volet Actions). -->
-            <div class="d-flex gap-2 flex-wrap">
-                <button id="transcriber-process-btn" class="btn btn-success btn-sm"><i class="fas fa-play"></i> Démarrer tout</button>
-                <button id="transcriber-download-all-btn" class="btn btn-info btn-sm" disabled><i class="fas fa-download"></i> Télécharger tout</button>
-                <button id="transcriber-clear-btn" class="btn btn-outline-danger btn-sm"><i class="fas fa-trash"></i> Tout effacer</button>
-            </div>
+            <!-- Actions globales de la file (brique commune ; dispo en mode simple ; IDs = handlers JS). -->
+            {% include 'common/_queue_actions.html' with start_id='transcriber-process-btn' download_id='transcriber-download-all-btn' clear_id='transcriber-clear-btn' show_download=True %}
         </div>
 
         <div id="transcriptQueue">
@@ -363,6 +351,7 @@ window._batchImport = WamaBatchImport({
                 <div class="row align-items-center">
                     <!-- File Info -->
                     <div class="col-md-3">
+                        <small class="text-muted d-block" style="font-size:.65rem;">#{{ t.id }} · <i class="fas fa-calendar-alt" title="Ajouté le"></i> {{ t.created_at|date:"d/m H:i" }}</small>
                         {% if t.audio %}
                         <button type="button" class="btn btn-link p-0 text-decoration-none preview-media-link filename"
                                 data-preview-url="{% url 'common:unified_preview' 'transcriber' t.id %}"
@@ -377,8 +366,12 @@ window._batchImport = WamaBatchImport({
                         </span>
                         {% endif %}
                         <br>
-                        <small class="text-white-50">
-                            {{ t.duration_display|default:"--:--" }}
+                        {# Propriétés audio source juste sous le nom, puis la durée en dessous #}
+                        {% if t.properties %}
+                        <small class="text-white-50 d-block"><i class="fas fa-wave-square"></i> {{ t.properties }}</small>
+                        {% endif %}
+                        <small class="text-white-50 d-block">
+                            <i class="fas fa-clock"></i> {{ t.duration_display|default:"--:--" }}
                             {% if t.is_realtime %}
                             <span class="badge bg-info text-dark ms-1" title="Transcription temps réel (micro) — provisoire, re-transcriptible"><i class="fas fa-microphone"></i> temps réel</span>
                             {% endif %}
@@ -386,16 +379,12 @@ window._batchImport = WamaBatchImport({
                             <span class="badge bg-warning text-dark ms-1">Prétraité</span>
                             {% endif %}
                         </small>
-                        {# Propriétés audio du fichier source, sous la durée #}
-                        {% if t.properties %}
-                        <small class="text-white-50 d-block"><i class="fas fa-wave-square"></i> {{ t.properties }}</small>
-                        {% endif %}
                     </div>
 
                     <!-- Options (en colonne) -->
                     <div class="col-md-2">
                         <small>
-                            <i class="fas fa-microchip"></i> {{ t.backend|default:"auto" }}<br>
+                            <i class="fas fa-microchip"></i> {% if t.used_backend and t.backend != 'auto' and t.used_backend != t.backend %}{{ t.used_backend }} <i class="fas fa-triangle-exclamation text-warning" title="Demandé : {{ t.backend }} (indisponible) — repli sur {{ t.used_backend }}"></i>{% elif t.backend == 'auto' and t.used_backend %}{{ t.used_backend }} (auto){% else %}{{ t.backend|default:"auto" }}{% endif %}<br>
                             {% if t.hotwords %}
                             <i class="fas fa-tags"></i> {{ t.hotwords|truncatechars:20 }}<br>
                             {% endif %}
@@ -405,41 +394,14 @@ window._batchImport = WamaBatchImport({
                         </small>
                     </div>
 
-                    <!-- État (le résultat va dans la preview en bas de card) -->
+                    <!-- État (brique commune ; le résultat va dans la preview en bas de card) -->
                     <div class="col-md-2">
-                        {% if t.status == 'RUNNING' %}
-                        <small class="card-state text-warning"><i class="fas fa-spinner fa-spin"></i> Traitement…</small>
-                        {% elif t.status == 'PENDING' %}
-                        <small class="card-state text-white-50">En attente</small>
-                        {% elif t.status == 'FAILURE' %}
-                        <small class="card-state text-danger"><i class="fas fa-triangle-exclamation"></i> Échec</small>
-                        {% elif t.status != 'SUCCESS' and t.text %}
-                        <small class="card-state text-light result-preview" style="max-height: 60px; overflow: hidden; display: block;">
-                            {{ t.text|truncatechars:120 }}
-                        </small>
-                        {% else %}
-                        <small class="card-state"></small>
-                        {% endif %}
+                        {% include 'common/_card_state.html' with status=t.status text=t.text %}
                     </div>
 
-                    <!-- Status & Progress -->
+                    <!-- Statut + progression + ETA + temps écoulé (brique commune) -->
                     <div class="col-md-2">
-                        <span class="badge status-badge
-                            {% if t.status == 'PENDING' %}bg-secondary
-                            {% elif t.status == 'RUNNING' %}bg-warning
-                            {% elif t.status == 'SUCCESS' %}bg-success
-                            {% elif t.status == 'FAILURE' %}bg-danger
-                            {% endif %}">
-                            {{ t.status }}
-                        </span>
-                        <div class="wama-progress-track mt-2">
-                            <div class="wama-progress-fill {% if t.status == 'RUNNING' %}active{% endif %}" style="width: {{ t.progress }}%"></div>
-                        </div>
-                        <small class="text-light progress-text">{{ t.progress }}%</small>
-                        <span class="wama-eta d-block"></span>
-                        {% if t.status == 'SUCCESS' and t.processing_seconds %}
-                        <small class="text-white-50 d-block proc-elapsed" title="Durée du traitement"><i class="fas fa-stopwatch"></i> {{ t.processing_display }}</small>
-                        {% endif %}
+                        {% include 'common/_card_progress.html' with status=t.status progress=t.progress elapsed=t.processing_display %}
                     </div>
 
                     <!-- Actions -->
@@ -592,13 +554,16 @@ window._batchImport = WamaBatchImport({
                     <div class="synthesis-card {% if t.status == 'RUNNING' %}processing{% elif t.status == 'SUCCESS' %}success{% elif t.status == 'FAILURE' %}error{% endif %}"
                          data-id="{{ t.id }}">
                         <div class="row align-items-center">
-                            <!-- Fichier + durée + propriétés audio (identique aux cards individuelles) -->
+                            <!-- Fichier (preview cliquable) + propriétés + durée (identique aux cards individuelles) -->
                             <div class="col-md-3">
+                                <small class="text-muted d-block" style="font-size:.65rem;">#{{ t.id }} · <i class="fas fa-calendar-alt" title="Ajouté le"></i> {{ t.created_at|date:"d/m H:i" }}</small>
                                 {% if t.audio %}
-                                <span class="filename text-light">
+                                <button type="button" class="btn btn-link p-0 text-decoration-none preview-media-link filename"
+                                        data-preview-url="{% url 'common:unified_preview' 'transcriber' t.id %}"
+                                        style="color: inherit;">
                                     <i class="fas fa-file-audio"></i>
                                     {{ t.filename }}
-                                </span>
+                                </button>
                                 {% else %}
                                 <span class="filename text-light">
                                     <i class="fas fa-link"></i>
@@ -606,55 +571,31 @@ window._batchImport = WamaBatchImport({
                                 </span>
                                 {% endif %}
                                 <br>
-                                <small class="text-white-50">
-                                    {{ t.duration_display|default:"--:--" }}
-                                    {% if t.preprocess_audio %}<span class="badge bg-warning text-dark ms-1">Prétraité</span>{% endif %}
-                                </small>
                                 {% if t.properties %}
                                 <small class="text-white-50 d-block"><i class="fas fa-wave-square"></i> {{ t.properties }}</small>
                                 {% endif %}
+                                <small class="text-white-50 d-block">
+                                    <i class="fas fa-clock"></i> {{ t.duration_display|default:"--:--" }}
+                                    {% if t.preprocess_audio %}<span class="badge bg-warning text-dark ms-1">Prétraité</span>{% endif %}
+                                </small>
                             </div>
                             <!-- Options (en colonne, comme les cards individuelles) -->
                             <div class="col-md-2">
                                 <small>
-                                    <i class="fas fa-microchip"></i> {{ t.backend|default:"auto" }}<br>
+                                    <i class="fas fa-microchip"></i> {% if t.used_backend and t.backend != 'auto' and t.used_backend != t.backend %}{{ t.used_backend }} <i class="fas fa-triangle-exclamation text-warning" title="Demandé : {{ t.backend }} (indisponible) — repli sur {{ t.used_backend }}"></i>{% elif t.backend == 'auto' and t.used_backend %}{{ t.used_backend }} (auto){% else %}{{ t.backend|default:"auto" }}{% endif %}<br>
                                     {% if t.hotwords %}<i class="fas fa-tags"></i> {{ t.hotwords|truncatechars:20 }}<br>{% endif %}
                                     {% if t.enable_diarization %}<i class="fas fa-users"></i> Diarisation<br>{% endif %}
                                     {% if t.generate_summary %}<i class="fas fa-file-lines"></i> Résumé<br>{% endif %}
                                     {% if t.verify_coherence %}<i class="fas fa-spell-check"></i> Cohérence{% endif %}
                                 </small>
                             </div>
-                            <!-- État -->
+                            <!-- État (brique commune) -->
                             <div class="col-md-2">
-                                {% if t.status == 'RUNNING' %}
-                                <small class="card-state text-warning"><i class="fas fa-spinner fa-spin"></i> Traitement…</small>
-                                {% elif t.status == 'PENDING' %}
-                                <small class="card-state text-white-50 result-preview">En attente…</small>
-                                {% elif t.status == 'FAILURE' %}
-                                <small class="card-state text-danger"><i class="fas fa-triangle-exclamation"></i> Échec</small>
-                                {% elif t.status != 'SUCCESS' and t.text %}
-                                <small class="card-state text-light result-preview" style="max-height:40px; overflow:hidden; display:block;">
-                                    {{ t.text|truncatechars:100 }}
-                                </small>
-                                {% else %}
-                                <small class="card-state"></small>
-                                {% endif %}
+                                {% include 'common/_card_state.html' with status=t.status text=t.text %}
                             </div>
+                            <!-- Statut + progression + ETA + temps écoulé (brique commune) -->
                             <div class="col-md-2">
-                                <span class="badge status-badge
-                                    {% if t.status == 'PENDING' %}bg-secondary
-                                    {% elif t.status == 'RUNNING' %}bg-warning
-                                    {% elif t.status == 'SUCCESS' %}bg-success
-                                    {% elif t.status == 'FAILURE' %}bg-danger
-                                    {% endif %}">
-                                    {{ t.status }}
-                                </span>
-                                <div class="wama-progress-track mt-1">
-                                    <div class="wama-progress-fill {% if t.status == 'RUNNING' %}active{% endif %}" style="width: {{ t.progress }}%"></div>
-                                </div>
-                                {% if t.status == 'SUCCESS' and t.processing_seconds %}
-                                <small class="text-white-50 d-block proc-elapsed" style="font-size:.65rem;"><i class="fas fa-stopwatch"></i> {{ t.processing_display }}</small>
-                                {% endif %}
+                                {% include 'common/_card_progress.html' with status=t.status progress=t.progress elapsed=t.processing_display %}
                             </div>
                             <div class="col-md-3">
                                 <div class="btn-group-actions">
@@ -795,14 +736,15 @@ window._batchImport = WamaBatchImport({
                         <small class="text-muted">Débruitage IA (DeepFilterNet) + 16 kHz mono</small>
                     </div>
 
-                    <!-- Diarization Toggle -->
+                    <!-- Diarization Toggle (libellés alignés sur le volet inspecteur) -->
                     <div class="mb-3">
                         <div class="form-check form-switch">
                             <input class="form-check-input" type="checkbox" id="settingsDiarization" name="enable_diarization">
                             <label class="form-check-label" for="settingsDiarization">
-                                <i class="fas fa-users"></i> Identifier les locuteurs (pyannote)
+                                <i class="fas fa-users"></i> Identifier les locuteurs
                             </label>
                         </div>
+                        <small class="text-muted d-block mt-1">Séparation des locuteurs (pyannote)</small>
                     </div>
 
                     <!-- Summary -->
@@ -810,18 +752,18 @@ window._batchImport = WamaBatchImport({
                         <div class="form-check form-switch">
                             <input class="form-check-input" type="checkbox" id="settingsGenerateSummary" name="generate_summary">
                             <label class="form-check-label" for="settingsGenerateSummary">
-                                <i class="fas fa-file-lines"></i> Générer un résumé (LLM)
+                                <i class="fas fa-file-lines"></i> Générer un résumé
                             </label>
                         </div>
                     </div>
                     <div class="mb-3 ms-3" id="summaryTypeGroup" style="display: none;">
                         <div class="form-check form-check-inline">
                             <input class="form-check-input" type="radio" name="summary_type" id="summaryTypeStructured" value="structured" checked>
-                            <label class="form-check-label small" for="summaryTypeStructured">Résumé structuré</label>
+                            <label class="form-check-label small" for="summaryTypeStructured">Structuré</label>
                         </div>
                         <div class="form-check form-check-inline">
                             <input class="form-check-input" type="radio" name="summary_type" id="summaryTypeMeeting" value="meeting">
-                            <label class="form-check-label small" for="summaryTypeMeeting">Compte-rendu de réunion</label>
+                            <label class="form-check-label small" for="summaryTypeMeeting">Réunion</label>
                         </div>
                     </div>
 
@@ -839,7 +781,7 @@ window._batchImport = WamaBatchImport({
                     <!-- Temperature -->
                     <div class="mb-3">
                         <label for="settingsTemperature" class="form-label">
-                            <i class="fas fa-temperature-half"></i> Temperature: <span id="settingsTemperatureValue">0.0</span>
+                            <i class="fas fa-temperature-half"></i> Température : <span id="settingsTemperatureValue">0.0</span>
                         </label>
                         <input type="range" class="form-range" id="settingsTemperature" name="temperature"
                                min="0" max="1" step="0.1" value="0"

@@ -34,6 +34,10 @@ class TranscriberBackendManager:
     _backends: Dict[str, Type[SpeechToTextBackend]] = {}
     _instances: Dict[str, SpeechToTextBackend] = {}
     _availability_cache: Dict[str, bool] = {}
+    # True si un check a échoué sur EXCEPTION (vs False propre) → cache « incomplet »,
+    # à ré-évaluer au prochain appel. Couvre les indispos transitoires au démarrage
+    # (ex. course d'imports accelerate qui casse VibeVoice le temps que ça se stabilise).
+    _availability_incomplete: bool = False
     _instance: Optional['TranscriberBackendManager'] = None
 
     @classmethod
@@ -80,10 +84,12 @@ class TranscriberBackendManager:
         Returns:
             Dict mapping backend name to availability status.
         """
-        if not force and self._availability_cache:
+        # Cache réutilisé seulement s'il est COMPLET (aucun check n'a planté sur exception).
+        if not force and self._availability_cache and not self._availability_incomplete:
             return self._availability_cache.copy()
 
         self._availability_cache = {}
+        self._availability_incomplete = False
         for name, backend_class in self._backends.items():
             try:
                 available = backend_class.is_available()
@@ -91,8 +97,12 @@ class TranscriberBackendManager:
                 status = "available" if available else "not available"
                 logger.info(f"[TranscriberManager] {name}: {status}")
             except Exception as e:
+                # Échec sur exception (≠ False propre) : probablement transitoire
+                # (course d'imports au démarrage). On ne verrouille PAS ce négatif →
+                # le cache est marqué incomplet pour forcer une ré-évaluation ensuite.
                 self._availability_cache[name] = False
-                logger.warning(f"[TranscriberManager] Error checking {name}: {e}")
+                self._availability_incomplete = True
+                logger.warning(f"[TranscriberManager] Error checking {name}: {e} (sera re-testé)")
 
         return self._availability_cache.copy()
 
@@ -129,6 +139,12 @@ class TranscriberBackendManager:
             return self._get_best_backend()
 
         availability = self.check_availability()
+        if not availability.get(name, False):
+            # L'utilisateur a demandé CE moteur explicitement : avant de replier,
+            # forcer un re-test (l'indispo peut être une race d'import transitoire au
+            # démarrage, déjà résorbée au moment où la tâche tourne).
+            logger.info(f"[TranscriberManager] {name} marqué indisponible — re-test forcé")
+            availability = self.check_availability(force=True)
         if not availability.get(name, False):
             logger.warning(f"[TranscriberManager] Backend not available: {name}")
             return self._get_best_backend()
@@ -185,6 +201,8 @@ class TranscriberBackendManager:
             info = {
                 'name': name,
                 'display_name': backend_class.display_name,
+                'description': getattr(backend_class, 'description', ''),
+                'description_long': getattr(backend_class, 'description_long', ''),
                 'available': availability.get(name, False),
                 'supports_diarization': backend_class.supports_diarization,
                 'supports_timestamps': backend_class.supports_timestamps,

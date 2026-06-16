@@ -37,6 +37,13 @@ class QwenASRBackend(SpeechToTextBackend):
 
     name = "qwen_asr"
     display_name = "Qwen3-ASR (Alibaba)"
+    description = "Qwen3-ASR — multilingue (52 langues), context biasing des mots-clés (expérimental). Diarisation via pyannote."
+    description_long = (
+        "Qwen3-ASR (Alibaba) : transcription multilingue (52 langues) avec context "
+        "biasing natif — les mots-clés/hotwords fournis sont injectés dans le décodage "
+        "pour mieux reconnaître le vocabulaire métier. Pas de diarisation native "
+        "(pyannote en post-traitement). Statut expérimental dans WAMA. ~2–4 Go VRAM."
+    )
 
     supports_diarization = False   # pyannote post-processing in workers.py
     supports_timestamps  = True    # timestamp tokens in decoder output

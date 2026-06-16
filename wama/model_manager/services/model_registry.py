@@ -89,6 +89,7 @@ class ModelInfo:
     model_type: ModelType
     source: ModelSource
     description: str = ""
+    description_short: str = ""   # une ligne pour l'aide sous le sélecteur (sinon dérivé du long)
     hf_id: Optional[str] = None
     vram_gb: float = 0
     ram_gb: float = 0

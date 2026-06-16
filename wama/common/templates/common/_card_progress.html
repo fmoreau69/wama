@@ -1,0 +1,27 @@
+{% comment %}
+WAMA — Bloc « statut + progression » commun à toutes les cards de file.
+Badge de statut coloré + barre de progression + % + ETA (rempli par wama-eta.js)
++ temps écoulé affiché une fois terminé.
+
+Variables :
+  status   — 'PENDING' | 'RUNNING' | 'SUCCESS' | 'FAILURE'
+  progress — 0–100
+  elapsed  — (optionnel) durée de traitement formatée, affichée sur SUCCESS
+
+Usage :
+  {% include 'common/_card_progress.html' with status=obj.status progress=obj.progress elapsed=obj.processing_display %}
+{% endcomment %}
+<span class="badge status-badge
+    {% if status == 'PENDING' %}bg-secondary
+    {% elif status == 'RUNNING' %}bg-warning
+    {% elif status == 'SUCCESS' %}bg-success
+    {% elif status == 'FAILURE' %}bg-danger
+    {% endif %}">{{ status }}</span>
+<div class="wama-progress-track mt-2">
+    <div class="wama-progress-fill {% if status == 'RUNNING' %}active{% endif %}" style="width: {{ progress|default:0 }}%"></div>
+</div>
+<small class="text-light progress-text">{{ progress|default:0 }}%</small>
+<span class="wama-eta d-block"></span>
+{% if status == 'SUCCESS' and elapsed %}
+<small class="text-white-50 d-block proc-elapsed" title="Durée du traitement"><i class="fas fa-stopwatch"></i> {{ elapsed }}</small>
+{% endif %}

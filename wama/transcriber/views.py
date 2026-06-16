@@ -785,6 +785,7 @@ def save_realtime(request):
         return JsonResponse({'error': 'Aucun audio reçu'}, status=400)
 
     import time as _time
+    from django.utils import timezone
     t = Transcript(
         user=user,
         status='SUCCESS',
@@ -793,6 +794,7 @@ def save_realtime(request):
         text=text,
         language=language,
         enable_diarization=True,
+        finished_at=timezone.now(),
     )
     ext = '.webm'
     name = audio.name or ''

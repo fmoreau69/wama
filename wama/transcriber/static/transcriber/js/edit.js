@@ -685,6 +685,14 @@
   document.addEventListener('keydown', function (e) {
     const editing = inEdit();
 
+    // Frappe dans un champ (timecode, locuteur, recherche…) → ne pas déclencher les raccourcis
+    // de transport/navigation (J/K/L, Espace, ←/→…). On laisse passer Ctrl/Alt + Échap.
+    const tgt = e.target;
+    if (tgt && (tgt.tagName === 'INPUT' || tgt.tagName === 'TEXTAREA' || tgt.tagName === 'SELECT')
+        && !e.ctrlKey && !e.metaKey && !e.altKey && e.key !== 'Escape') {
+      return;
+    }
+
     // Undo/Redo (Ctrl+Z / Ctrl+Maj+Z / Ctrl+Y) — dans LES DEUX modes. On remplace
     // l'annulation native du contenteditable par l'historique applicatif : source de
     // vérité unique couvrant texte, locuteur, scission, fusion, compactage, load-latest.
@@ -925,12 +933,43 @@
     if (t < viewStart || t > viewStart + viewDur) { viewStart = t - viewDur / 2; clampView(); return true; }
     return false;
   }
+
+  /* ── Aller à un timecode (mm:ss / hh:mm:ss / ss) ───────────────────── */
+  function parseTimecode(s) {
+    s = (s || '').trim();
+    if (!s) return null;
+    const parts = s.split(':').map(function (p) { return parseFloat(p.replace(',', '.')); });
+    if (parts.some(isNaN)) return null;
+    let sec;
+    if (parts.length === 1) sec = parts[0];
+    else if (parts.length === 2) sec = parts[0] * 60 + parts[1];
+    else if (parts.length === 3) sec = parts[0] * 3600 + parts[1] * 60 + parts[2];
+    else return null;
+    return Math.max(0, sec);
+  }
+  function gotoTimecode() {
+    const inp = document.getElementById('gotoTime');
+    const sec = parseTimecode(inp && inp.value);
+    if (sec == null) { if (inp) { inp.classList.add('is-invalid'); setTimeout(function () { inp.classList.remove('is-invalid'); }, 1200); } return; }
+    const D = fullDur();
+    const t = D ? Math.min(sec, D) : sec;
+    if (window.WamaAudioPlayer) WamaAudioPlayer.seek(playerId, t, false);
+    viewStart = t - viewDur / 2; clampView(); redrawWindow();   // recentre la fenêtre d'onde
+    const i = indexAt(t); if (i >= 0) { selectSeg(i); }          // surligne/sélectionne le segment
+  }
   function initZoomUI() {
     const cv = document.getElementById('zoomWave');
     const mini = document.getElementById('zoomMini');
     const zin = document.getElementById('zoomIn'), zout = document.getElementById('zoomOut');
     if (zin) zin.addEventListener('click', function () { setZoom(viewDur * 0.6); });
     if (zout) zout.addEventListener('click', function () { setZoom(viewDur * 1.7); });
+    // Aller à un timecode (bouton + Entrée dans le champ)
+    const gotoBtn = document.getElementById('gotoBtn');
+    const gotoInp = document.getElementById('gotoTime');
+    if (gotoBtn) gotoBtn.addEventListener('click', gotoTimecode);
+    if (gotoInp) gotoInp.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); gotoTimecode(); }
+    });
     if (cv) {
       cv.addEventListener('wheel', function (e) {            // molette = zoom autour du curseur
         e.preventDefault();
