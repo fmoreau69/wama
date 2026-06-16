@@ -13,6 +13,16 @@ class TranscriberConfig(AppConfig):
         except Exception:
             pass
 
+        # Invalide le cache des infos backends (descriptions/disponibilité) à chaque
+        # démarrage de process : un changement de code (description, libellé, nouveau
+        # moteur) est ainsi répercuté au redémarrage sans vidage manuel. La vue
+        # get_backends re-remplit le cache à la 1re requête. Voir views.get_backends.
+        try:
+            from django.core.cache import cache
+            cache.delete('transcriber_backends_info')
+        except Exception:
+            pass
+
         # Register for unified preview
         from wama.common.utils.preview_registry import PreviewRegistry
         from wama.common.utils.preview_utils import transcriber_preview_adapter

@@ -66,6 +66,8 @@ def select_model(
     vram_budget_gb: Optional[float] = None,
     candidates: Optional[List[str]] = None,
     name_contains: Optional[str] = None,
+    priority: Optional[List[str]] = None,
+    availability_probe=None,
 ):
     """
     Choisit le meilleur `AIModel` pour `source` (valeur ModelSource), ou None.
@@ -81,6 +83,14 @@ def select_model(
         vram_budget_gb:  budget VRAM explicite ; si None, lecture de la VRAM libre live.
         candidates:      restreindre à une liste de model_key.
         name_contains:   sous-chaîne (model_key ou name), insensible à la casse.
+        priority:        ordre de préférence (sous-chaînes de model_key/name). Si fourni,
+                         DOMINE la VRAM : le 1er palier de priorité ayant des candidats
+                         l'emporte (utile aux apps « par moteur » à défaut délibéré, ex.
+                         Transcriber whisper-first — ≠ logique VRAM-greedy).
+        availability_probe: callable(AIModel)->bool — disponibilité RUNTIME au-delà du
+                         catalogue (ex. import Python réellement possible). Permet de
+                         couvrir les apps « backend-class » sans se fier au seul
+                         is_downloaded du catalogue.
 
     Returns:
         AIModel | None.
@@ -101,23 +111,44 @@ def select_model(
         models = [m for m in models if nc in m.model_key.lower() or nc in (m.name or '').lower()]
 
     models = [m for m in models if _supports(m, requires, classes)]
+
+    # Disponibilité runtime (au-delà du catalogue) : ex. l'import Python du backend.
+    if availability_probe:
+        def _probe(m):
+            try:
+                return bool(availability_probe(m))
+            except Exception as e:
+                logger.debug(f"[model_selector] probe a échoué pour {m.model_key}: {e}")
+                return False
+        models = [m for m in models if _probe(m)]
+
     if not models:
         logger.info(f"[model_selector] aucun modèle pour source={source} "
                     f"(type={model_type}, classes={classes}, requires={requires})")
         return None
 
-    # Règle keep_loaded : préférer un candidat déjà en mémoire.
-    if prefer_loaded:
-        loaded = [m for m in models if m.is_loaded]
-        if loaded:
-            choice = _best_by_vram(loaded, vram_budget_gb)
-            logger.info(f"[model_selector] {source} → {choice.model_key} (déjà chargé)")
-            return choice
-
     budget = vram_budget_gb if vram_budget_gb is not None else get_free_vram_gb()
-    choice = _best_by_vram(models, budget)
-    logger.info(f"[model_selector] {source} → {choice.model_key} "
-                f"(vram_gb={choice.vram_gb}, budget={budget})")
+
+    def _pick(pool):
+        # keep_loaded prioritaire, puis meilleur compromis VRAM.
+        if prefer_loaded:
+            loaded = [m for m in pool if m.is_loaded]
+            if loaded:
+                return _best_by_vram(loaded, budget)
+        return _best_by_vram(pool, budget)
+
+    # Priorité explicite : le 1er palier ayant des candidats l'emporte (domine la VRAM).
+    if priority:
+        for p in priority:
+            pl = p.lower()
+            tier = [m for m in models if pl in m.model_key.lower() or pl in (m.name or '').lower()]
+            if tier:
+                choice = _pick(tier)
+                logger.info(f"[model_selector] {source} → {choice.model_key} (priorité « {p} »)")
+                return choice
+
+    choice = _pick(models)
+    logger.info(f"[model_selector] {source} → {choice.model_key} (vram_gb={choice.vram_gb}, budget={budget})")
     return choice
 
 

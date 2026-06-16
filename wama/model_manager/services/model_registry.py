@@ -509,20 +509,35 @@ class ModelRegistry:
                     extra = {'hf_id': hf_id, 'path': str(qwen_asr_dir)}
 
                 else:
-                    # Whisper: openai .pt format OR faster-whisper HF hub format
+                    # Whisper : plusieurs formats possibles sur disque. On CONSTATE le
+                    # contenu (helper robuste) au lieu de DEVINER les noms de dossiers.
+                    # La variante réelle vient du hf_model_id ('openai/whisper-large-v3'
+                    # → 'large-v3'), car model_id peut être abrégé ('large').
                     short_id = config.get('model_id', model_id.replace('whisper-', ''))
-                    pt_file = whisper_dir / f"{short_id}.pt"
-                    hf_dir = whisper_dir / f"models--Systran--faster-whisper-{short_id}"
-                    ct2_dir = whisper_dir / short_id   # CTranslate2 direct download
+                    variant = (hf_id.split('/')[-1].replace('whisper-', '') if hf_id else short_id)
+                    pt_file = whisper_dir / f"{short_id}.pt"          # openai-whisper .pt
+                    pt_file_v = whisper_dir / f"{variant}.pt"
+                    ct2_dir = whisper_dir / short_id                  # CTranslate2 direct
+                    ct2_dir_v = whisper_dir / variant
+                    # faster-whisper (Systran) et openai HF, via le helper robuste (gère
+                    # models--org--name/snapshots, scan tolérant) — corrige le faux négatif
+                    # 'faster-whisper-large' vs réel 'faster-whisper-large-v3'.
+                    hf_ok = (
+                        _check_hf_model_downloaded(whisper_dir, f"Systran/faster-whisper-{variant}")
+                        or _check_hf_model_downloaded(whisper_dir, hf_id)
+                    )
                     is_downloaded = (
-                        pt_file.exists() or
-                        (hf_dir.exists() and hf_dir.is_dir()) or
-                        (ct2_dir.exists() and ct2_dir.is_dir())
+                        pt_file.exists() or pt_file_v.exists()
+                        or (ct2_dir.exists() and ct2_dir.is_dir())
+                        or (ct2_dir_v.exists() and ct2_dir_v.is_dir())
+                        or hf_ok
                     )
                     name = f"Whisper {short_id.capitalize()}"
                     fmt = 'pt'
                     path = (str(pt_file) if pt_file.exists()
-                            else str(hf_dir) if hf_dir.exists()
+                            else str(pt_file_v) if pt_file_v.exists()
+                            else str(whisper_dir / f"models--Systran--faster-whisper-{variant}") if hf_ok
+                            else str(ct2_dir_v) if ct2_dir_v.exists()
                             else str(ct2_dir))
                     extra = {'hf_id': hf_id, 'path': path if is_downloaded else ''}
 

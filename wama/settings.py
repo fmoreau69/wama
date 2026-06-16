@@ -387,6 +387,19 @@ if ENABLE_CELERY:
     }
     CELERY_TASK_DEFAULT_QUEUE = 'default'
 
+    # Réconciliation périodique du catalogue model_manager (catalogue ↔ disque) :
+    # garde la page de gestion des modèles fiable sans intervention manuelle.
+    # Intervalle paramétrable (secondes) — modifiable ici ou via la variable d'env.
+    MODEL_SYNC_INTERVAL_SECONDS = int(os.environ.get('MODEL_SYNC_INTERVAL_SECONDS', 2 * 3600))
+    CELERY_BEAT_SCHEDULE = {
+        'model-manager-reconcile': {
+            'task': 'model_manager.sync_models',
+            'schedule': float(MODEL_SYNC_INTERVAL_SECONDS),
+            'kwargs': {'clean': False},
+            'options': {'queue': 'default'},  # tâche CPU (scan disque), jamais sur la queue GPU
+        },
+    }
+
     # Logging : les loggers wama.* propagent vers le handler Celery (logfile)
     # worker_hijack_root_logger=True (défaut) → Celery prend en charge le root logger
     # On s'assure que les loggers WAMA ne désactivent pas la propagation
