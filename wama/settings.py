@@ -77,16 +77,18 @@ MODEL_PATHS = {
         'flux2_klein': AI_MODELS_DIR / "models" / "diffusion" / "flux2-klein",
     },
     # Vision-Language models (BLIP, LLaVA, etc.)
-    'vision_language': {
-        'root': AI_MODELS_DIR / "models" / "vision-language",
-        'blip': AI_MODELS_DIR / "models" / "vision-language" / "blip",
-        'bart': AI_MODELS_DIR / "models" / "vision-language" / "bart",
+    # VLM (vision-language) — dossier = catégorie ModelType. Clé legacy 'vision_language'
+    # conservée en alias pour compat ascendante des appels existants.
+    'vlm': {
+        'root': AI_MODELS_DIR / "models" / "vlm",
+        'blip': AI_MODELS_DIR / "models" / "vlm" / "blip",
+        'bart': AI_MODELS_DIR / "models" / "vlm" / "bart",
     },
-    # Reader — OCR models (olmOCR-2, docTR)
-    'reader': {
-        'root':    AI_MODELS_DIR / "models" / "reader",
-        'olmocr':  AI_MODELS_DIR / "models" / "reader" / "olmocr",
-        'doctr':   AI_MODELS_DIR / "models" / "reader" / "doctr",
+    # OCR — modèles OCR/document (olmOCR, docTR). Dossier = catégorie (ex-'reader' = nom d'app).
+    'ocr': {
+        'root':    AI_MODELS_DIR / "models" / "ocr",
+        'olmocr':  AI_MODELS_DIR / "models" / "ocr" / "olmocr",
+        'doctr':   AI_MODELS_DIR / "models" / "ocr" / "doctr",
     },
     # Music generation models (AudioCraft: MusicGen + AudioGen)
     'music': {
@@ -103,6 +105,12 @@ MODEL_PATHS = {
         'huggingface': AI_MODELS_DIR / "cache" / "huggingface",
     },
 }
+
+# Alias ascendants : clés historiques (nom d'app / nom long) → catégorie canonique.
+# Garantit que d'anciennes références MODEL_PATHS['vision_language'/'reader'] fonctionnent
+# encore (filet de sécurité le temps de la migration vers les catégories).
+MODEL_PATHS['vision_language'] = MODEL_PATHS['vlm']
+MODEL_PATHS['reader'] = MODEL_PATHS['ocr']
 
 # Create all model directories
 for category in MODEL_PATHS.values():

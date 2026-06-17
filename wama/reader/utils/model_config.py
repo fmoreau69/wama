@@ -13,11 +13,12 @@ logger = logging.getLogger(__name__)
 # ── Paths ─────────────────────────────────────────────────────────────────────
 MODEL_PATHS = getattr(settings, 'MODEL_PATHS', {})
 
-OLMOCR_DIR = MODEL_PATHS.get('reader', {}).get(
-    'olmocr', settings.AI_MODELS_DIR / "models" / "reader" / "olmocr"
+# Catégorie 'ocr' (ex-'reader' = nom d'app). Alias 'reader' conservé dans MODEL_PATHS.
+OLMOCR_DIR = MODEL_PATHS.get('ocr', {}).get(
+    'olmocr', settings.AI_MODELS_DIR / "models" / "ocr" / "olmocr"
 )
-DOCTR_DIR = MODEL_PATHS.get('reader', {}).get(
-    'doctr', settings.AI_MODELS_DIR / "models" / "reader" / "doctr"
+DOCTR_DIR = MODEL_PATHS.get('ocr', {}).get(
+    'doctr', settings.AI_MODELS_DIR / "models" / "ocr" / "doctr"
 )
 
 Path(OLMOCR_DIR).mkdir(parents=True, exist_ok=True)

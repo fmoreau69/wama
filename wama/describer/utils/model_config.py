@@ -20,9 +20,9 @@ logger = logging.getLogger(__name__)
 # Get centralized paths from settings
 MODEL_PATHS = getattr(settings, 'MODEL_PATHS', {})
 
-# Vision-Language models
-BLIP_DIR = MODEL_PATHS.get('vision_language', {}).get('blip',
-    settings.AI_MODELS_DIR / "models" / "vision-language" / "blip")
+# Vision-Language models — catégorie 'vlm' (ex-'vision-language')
+BLIP_DIR = MODEL_PATHS.get('vlm', {}).get('blip',
+    settings.AI_MODELS_DIR / "models" / "vlm" / "blip")
 
 # Speech models (Whisper)
 WHISPER_DIR = MODEL_PATHS.get('speech', {}).get('whisper',

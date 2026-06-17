@@ -315,12 +315,12 @@ class ModelRegistry:
                 else:
                     # HuggingFace models (BLIP)
                     if 'blip' in model_id.lower():
-                        blip_dir = model_paths.get('vision_language', {}).get('blip')
+                        blip_dir = model_paths.get('vlm', {}).get('blip')
                         if blip_dir:
                             cache_dirs.append(Path(blip_dir))
 
                     # Add generic directories as fallback
-                    vlm_root = model_paths.get('vision_language', {}).get('root')
+                    vlm_root = model_paths.get('vlm', {}).get('root')
                     if vlm_root:
                         cache_dirs.append(Path(vlm_root))
                     hf_cache = model_paths.get('cache', {}).get('huggingface')
