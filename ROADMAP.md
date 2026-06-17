@@ -238,11 +238,25 @@ concurrence par plusieurs threads** (le thread de préchargement Kokoro le pose 
 pendant qu'un autre thread charge pyannote/qwen/olmOCR → tout atterrit dans kokoro). Le
 `try/finally` de restauration **n'est pas thread-safe**. + dépendances partagées (t5, bert)
 dupliquées par app.
-**Fix durable (⏳)** :
-- **Toujours passer `cache_dir=<dossier dédié>` explicite** à `from_pretrained()`/pipeline
-  (paramètre local, thread-safe) ; **ne jamais router via la variable globale**.
-- **Dépendances partagées → un seul cache commun** (`AI-models/cache/huggingface/`).
-- **Script de migration/dédup** des ~8 Go mal placés (dry-run d'abord).
+**Déclencheur principal supprimé (FAIT)** : le thread de préchargement Kokoro (mutateur
+concurrent de l'env) a été retiré (vocalisation → microservice TTS). Sans concurrence, les
+mutations d'env restantes sont séquentielles → risque de re-dump déjà fortement réduit.
+
+**Dédup/migration FAIT** : commande `dedup_models` (dry-run par défaut ; `--apply` supprime
+les doublons en gardant ≥1 copie ; `--move-misplaced` déplace, jamais supprime). Exécutée :
+~9,56 Go récupérés (musicgen/t5/kokoro doublons) + 4 pyannote déplacés `speech/kokoro`→
+`speech/diarization` (là où le diariseur les attend). ✅
+
+**Fix durable systémique (⏳ — à faire délibérément, design validé 2026-06-17)** — distinguer :
+- **Modèles principaux (catalogue)** → restent **catégorisés** `models/{category}/{family}/`
+  via `cache_dir=` explicite (thread-safe). La catégorisation est PRÉSERVÉE.
+- **Sous-dépendances transitoires** (t5, bert, tokenizers tirées en interne par un pipeline,
+  PAS dans le catalogue, partagées entre modèles) → un **cache partagé unique**. La lib ne
+  les route que par la var d'env HF → poser **`HF_HOME` UNE SEULE FOIS au démarrage** sur
+  `AI-models/cache/huggingface/` (jamais re-muté par-modèle) → fin de la course env.
+- Résultat : modèles bien rangés par catégorie + sous-deps regroupées (pas éparpillées).
+  NB : `cache_dir=` est déjà passé dans la plupart des backends ; reste à retirer la mutation
+  per-modèle de `HF_HUB_CACHE` et poser `HF_HOME` au démarrage.
 
 **Chemins dérivés de la CATÉGORIE** (⏳) : `models/{category}/{family}/` où `category` =
 `ModelType` (source unique, model_manager). Helper unique `model_dir(category, family)` →

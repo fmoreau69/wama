@@ -147,22 +147,6 @@ def api_clear_gpu(request):
 
 @login_required
 @user_passes_test(is_admin_or_dev)
-@require_POST
-def api_refresh_models(request):
-    """API: Refresh the model list."""
-    registry = ModelRegistry()
-    registry._models.clear()
-    models = registry.discover_all_models()
-
-    return JsonResponse({
-        'success': True,
-        'count': len(models),
-        'message': f'Found {len(models)} models',
-    })
-
-
-@login_required
-@user_passes_test(is_admin_or_dev)
 @require_GET
 def api_debug_stats(request):
     """API: Debug endpoint showing raw system stats."""
