@@ -306,6 +306,21 @@ chaud, traduction→Ollama.
   adaptateurs ; **piloter `select_model` sur une app par-variante** (describer/imager) plutôt
   que le Transcriber (qui a raison de garder sa sélection runtime backend-class).
 
+### Capacités des modèles → filtrage UI + sélection + cross-app (⏳ — unifié avec ci-dessus)
+> Décidé 2026-06-17. **Pas un quick-win** : nécessite un schéma de **capacités par modèle**.
+Définir, dans le catalogue (`AIModel.extra_info` ou champs dédiés), les **capacités** de chaque
+modèle : `supports_cloning` (voix custom), `languages` supportées, modalités, taille/qualité,
+aptitude par tâche… **Source UNIQUE** consommée par :
+- **Filtrage UI dynamique** : n'afficher que les voix/langues **compatibles** avec le modèle
+  choisi (ex. masquer « Mes voix » si le modèle ne clone pas ; restreindre les langues).
+  Concerne **synthesizer** (voix/langues), **avatarizer** (voix TTS), **ai-assistant**
+  (voix de vocalisation + capacités LLM), potentiellement **imager** (capacités modèle).
+- **Sélection intelligente par tâche** (`select_model` + `requires`/capacités).
+- **Description dynamique** (`WamaModelHelp`) déjà branchée.
+→ À faire **en même temps que le model_manager intelligent** (mêmes métadonnées). Exposer via
+l'endpoint catalogue + un helper commun `WamaModelCaps` (front) qui filtre les `<select>`
+dépendants au `change` du modèle. Lié à [[project-assistant-vision]] (TTS auto-select).
+
 ---
 
 ## 6. wama-dev-ai — Phases
@@ -993,3 +1008,69 @@ Client → Linux:80 (Nginx) → localhost:8000 (Gunicorn) → Django/DB/Redis
 - **wama-dev-ai** : ajout outil `web_fetch(url)` pour veille modèles sans cron séparé
 - **Describer** : intégration `Llama-3.1_OpenScholar-8B` — à benchmarker vs Qwen3.5:9b sur corpus Lescot avant décision
 - **RAG** : connecteur Isidore API (SHS francophones) comme source d'enrichissement secondaire (§8c Phase 2+)
+
+---
+
+## 14. Couche MÉTADONNÉES d'app — la fondation transverse (PRIORITÉ stratégique)
+
+> Insight clé (2026-06-17) : **5 chantiers majeurs consomment la MÊME métadonnée d'app.**
+> La formaliser est le levier à plus fort impact ; tout le reste en découle.
+
+Chaque app WAMA expose, en source unique :
+- **Tool API** (`tool_api`, FAIT — 36 outils) ;
+- **Capacités modèles** (cloning, langues, modalités, aptitude par tâche, VRAM) — cf. §5b ;
+- **Schéma de paramètres** (`params.py` / `WamaParams`, amorcé Transcriber) ;
+- **Capacités d'app** (`has_realtime`, `has_edit_page`, **types d'ENTRÉE/SORTIE + formats**) ;
+
+Consommée par : **(1) UI** (modale/volet + filtrage voix/langues), **(2) Agent IA** (mode C
+hybride : pilotage + choix outil/modèle par tâche), **(3) Méta-app pipeline** (§15), **(4)
+orchestrateur de modèles** (§5b/§8d), **(5) génération/scaffold d'apps**.
+→ **Règle de migration** : migrer une app = solidifier sa métadonnée (params + capacités +
+I/O typés + tool API), pas seulement déplacer du HTML. À faire AVANT de migrer en masse.
+Mode visé = **C (hybride chat ↔ UI synchronisés)**.
+
+## 15. Méta-app « Pipeline » — programmation graphique de chaînes (priorité basse)
+
+> Idée 2026-06-17. ComfyUI-like **très simplifié**, orienté utilisateur. Dépend de §14.
+
+Chaque app WAMA = une **card** avec tous ses paramètres (générés depuis sa métadonnée §14).
+L'utilisateur glisse des **cards d'entrée** typées (`travail` = fichiers/prompts → batch 1/N,
+`contexte` = RAG, `référence` = voix/photo…, + médiathèque/URL), les **chaîne** vers les
+entrées compatibles d'une card d'app (**vérif systématique compat I/O**), paramètre, puis
+chaîne la sortie vers une autre app (ex. synthesizer → avatarizer) ou un dossier/URL de sortie.
+Sauvegarde de la chaîne ; à réfléchir : appliquer une chaîne à une file (batch).
+- **C'est le frère VISUEL de l'agent** : tous deux orchestrent les apps via la même méta + tool API.
+  La méta-app pourrait **simplifier le chaînage multi-apps de l'AI-Assistant** (abstraction « graphe »).
+- **Ne PAS coder le canvas from scratch** : réutiliser une lib de node-graph (React Flow /
+  Rete.js / LiteGraph.js / Drawflow).
+- **Prérequis dur** : le **contrat de types I/O** des apps (audio/image/vidéo/texte-prompt/
+  référence:voix/contexte:rag…) — à définir dans `WAMA_APP_CONVENTIONS.md`.
+
+## 16. Grappe IA de DEV + orchestrateur cloud/local (chantier infra — à cadrer)
+
+> Vision : multi-agents dev (Claude Code + Codex UGE + Headroom) côté DEV ; orchestrateur de
+> modèles cloud/local côté PROD pour l'AI-Assistant. Analyse externe reçue 2026-06-17.
+
+**Décisions actées :**
+- **Réutiliser, ne pas réécrire** : LiteLLM (routeur modèles, déjà §8d), MCP (exposer
+  `tool_api` existant — PAS un protocole maison), Headroom (compression tokens, dev), cron/
+  tâche planifiée (pas de scheduler maison). N'introduire LangGraph/CrewAI que si réel besoin.
+- **3 couches, dépendance unidirectionnelle** : Dev Cluster (PC dev, moi seul) → lit/teste →
+  Core AI prod (routeur+RAG+MCP+prefs) → apps. La prod ne connaît jamais le dev.
+- **Plein local par défaut**, mixte cloud opt-in (consentement 1ère connexion, modifiable).
+  L'orchestrateur = **extension de `model_selector`** (ajouter pool cloud + politique
+  local/mixte + état VRAM live), pas un nouveau module.
+
+**Corrections vs l'analyse externe (critique) :**
+- **Sécurité MCP** : outils dev/admin (`run_tests`, `open_branch`…) dans un serveur MCP
+  **séparé/process distinct**, JAMAIS chargés dans le process prod (défense en profondeur >
+  simple scope de jeton).
+- **Headroom ≠ filtre de confidentialité** : compression LOSSY (OK pour logs/dev). La privacy
+  avant cloud = **Anonymizer** (déterministe), pas Headroom. Ne pas confondre les deux.
+- **Sous-exploite l'existant WAMA** : `tool_api`=MCP-ready, `AIModel`=registre (105 entrées),
+  `model_selector`=couche policy, RAG §8c, LiteLLM §8d déjà planifiés → **bridger**, pas rebâtir.
+- **« 100+ modèles »** trompeur : ~10-15 modèles CORE réellement actifs (le reste = variantes
+  YOLO/Ollama). Veille ciblée sur les core, pas sur 100+.
+- **Concurrence (3 modèles + juge)** : gaspille les quotas → préférer **spécialisation** par
+  type de tâche (Codex = implémentation bornée, Claude = archi/intégration).
+- **Conventions** : `WAMA_APP_CONVENTIONS.md` existe déjà → l'étendre (PAS de nouveau fichier).

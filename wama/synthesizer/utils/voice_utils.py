@@ -174,6 +174,41 @@ def scan_voice_refs() -> List[Dict]:
 # Résolution preset → chemin absolu
 # ---------------------------------------------------------------------------
 
+def resolve_speaker_wav(voice_preset: str, user=None) -> Optional[str]:
+    """
+    Résout un voice_preset en chemin `speaker_wav` (audio de référence) pour le CLONAGE
+    de voix (XTTS). Logique CENTRALISÉE, partagée par le worker et la preview :
+      - ua_<id> → UserAsset (médiathèque) ;
+      - cv_<id> → CustomVoice (legacy) ;
+      - sinon   → resolve_voice_preset() (voix par défaut/héritage).
+    Fallback sur la voix 'default' si l'asset est introuvable. `user` restreint l'UserAsset.
+    """
+    if not voice_preset:
+        return resolve_voice_preset('default')
+    if voice_preset.startswith('ua_'):
+        try:
+            from wama.media_library.models import UserAsset
+            qs = UserAsset.objects.filter(pk=int(voice_preset[3:]))
+            if user is not None:
+                qs = qs.filter(user=user)
+            ua = qs.first()
+            if ua and ua.file:
+                return ua.file.path
+        except Exception:
+            pass
+        return resolve_voice_preset('default')
+    if voice_preset.startswith('cv_'):
+        try:
+            from wama.synthesizer.models import CustomVoice
+            cv = CustomVoice.objects.filter(pk=int(voice_preset[3:])).first()
+            if cv and cv.audio:
+                return cv.audio.path
+        except Exception:
+            pass
+        return resolve_voice_preset('default')
+    return resolve_voice_preset(voice_preset)
+
+
 def resolve_voice_preset(preset_value: str) -> Optional[str]:
     """
     Résout un ID de preset en chemin absolu vers un fichier WAV.

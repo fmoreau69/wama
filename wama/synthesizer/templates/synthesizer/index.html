@@ -764,12 +764,38 @@
     };
 </script>
 <script src="{% static 'common/js/wama-eta.js' %}"></script>
+<script src="{% static 'common/js/wama-model-caps.js' %}"></script>
 <script src="{% static 'synthesizer/js/index.js' %}"></script>
 <script>
 // Batch group actions: delete, settings modal
 document.addEventListener('DOMContentLoaded', function () {
     const URLS = window.WAMA_CONFIG.urls;
     const csrf = window.WAMA_CONFIG.csrfToken;
+
+    // Filtrage dynamique voix/langues selon les capacités du modèle TTS (AIModel.capabilities).
+    // Voix de clonage (« Mes voix » ua_/cv_) masquées si le modèle ne clone pas ; langues
+    // restreintes à celles du modèle. Dégradation douce si le catalogue est indisponible.
+    if (window.WamaModelCaps) {
+        WamaModelCaps.init({
+            source: 'synthesizer',
+            modelSelectId: 'tts_model',
+            resolveKey: function (v) {
+                const m = { xtts_v2: 'coqui-xtts', higgs_audio: 'higgs-audio' };
+                return 'synthesizer:' + (m[v] || v);
+            },
+            filters: [
+                { selectId: 'voice_preset',
+                  hideOption: function (caps, opt) {
+                      return caps.supports_cloning === false && /^(ua_|cv_)/.test(opt.value);
+                  } },
+                { selectId: 'language',
+                  hideOption: function (caps, opt) {
+                      return Array.isArray(caps.languages) && caps.languages.length > 0
+                             && caps.languages.indexOf(opt.value) === -1;
+                  } },
+            ],
+        });
+    }
 
     // Language compatibility warning for batch settings modal
     const ENGLISH_ONLY_MODELS = new Set(['tacotron2', 'speedy_speech', 'vits']);

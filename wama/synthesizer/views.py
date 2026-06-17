@@ -1584,12 +1584,18 @@ def voice_preview(request):
         import time
         preview_id = hashlib.md5(f"{text_content}{time.time()}".encode()).hexdigest()[:8]
 
+        # Résoudre la voix de clonage (ua_<id>/cv_<id>/preset) → speaker_wav, comme la
+        # synthèse complète. Sinon la preview XTTS ignorait la voix custom (voix par défaut).
+        from .utils.voice_utils import resolve_speaker_wav
+        speaker_wav = resolve_speaker_wav(voice_preset, request.user)
+
         # Stocker les paramètres dans le cache pour le traitement
         cache.set(f'voice_preview_{preview_id}', {
             'text': preview_text,
             'tts_model': tts_model,
             'language': language,
             'voice_preset': voice_preset,
+            'speaker_wav': speaker_wav,
             'speed': speed,
             'pitch': pitch,
             'status': 'pending',
@@ -1648,6 +1654,7 @@ def voice_preview_stream(request, preview_id):
             tts_model_name = preview_data.get('tts_model', 'xtts_v2')
             language = preview_data.get('language', 'fr')
             voice_preset = preview_data.get('voice_preset', 'default')
+            speaker_wav = preview_data.get('speaker_wav')  # résolu côté voice_preview (clonage XTTS)
             speed = preview_data.get('speed', 1.0)
             pitch = preview_data.get('pitch', 1.0)
 
@@ -1672,6 +1679,7 @@ def voice_preview_stream(request, preview_id):
                             'model': tts_model_name,
                             'language': language,
                             'voice_preset': voice_preset,
+                            'speaker_wav': speaker_wav,  # clonage XTTS : voix résolue (ua_/cv_)
                         },
                         timeout=60,
                     )

@@ -102,6 +102,7 @@ class ModelInfo:
     format: str = ""  # Current format: 'pt', 'safetensors', 'onnx', 'bin', etc.
     preferred_format: str = ""  # Recommended format per policy
     can_convert_to: List[str] = field(default_factory=list)  # Available conversions
+    capabilities: Dict = field(default_factory=dict)  # cloning/languages/classes/task… (cf. AIModel.capabilities)
 
 
 class ModelRegistry:
@@ -606,6 +607,11 @@ class ModelRegistry:
                 preferred_format=preferred,
                 can_convert_to=['onnx', 'safetensors'],
                 extra_info={'path': str(coqui_model_path) if coqui_model_path else ''},
+                capabilities={
+                    'supports_cloning': True,  # XTTS = clonage de voix par speaker_wav
+                    'languages': ['fr', 'en', 'es', 'it', 'pt', 'de', 'nl', 'pl', 'ru',
+                                  'cs', 'ar', 'zh-cn', 'ja', 'ko', 'tr', 'hu', 'hi'],
+                },
             )
 
             # Check for Bark TTS
@@ -639,6 +645,11 @@ class ModelRegistry:
                 preferred_format=preferred,
                 can_convert_to=['onnx', 'safetensors'],
                 extra_info={'path': str(bark_model_path) if bark_model_path else ''},
+                capabilities={
+                    'supports_cloning': False,  # Bark = presets de locuteurs, pas de clonage libre
+                    'languages': ['en', 'de', 'es', 'fr', 'hi', 'it', 'ja', 'ko',
+                                  'pl', 'pt', 'ru', 'tr', 'zh-cn'],
+                },
             )
 
             # Check for Higgs Audio v2
@@ -662,6 +673,10 @@ class ModelRegistry:
                 can_convert_to=[],
                 extra_info={'hf_id': 'bosonai/higgs-audio-v2-generation-3B-base',
                             'path': str(higgs_dir)},
+                capabilities={
+                    'supports_cloning': True,  # Higgs = clonage multi-locuteurs
+                    'languages': ['en', 'fr', 'de', 'es', 'it', 'pt', 'zh-cn', 'ja', 'ko'],
+                },
             )
 
             # Check for Kokoro 82M
@@ -683,6 +698,10 @@ class ModelRegistry:
                 preferred_format=preferred,
                 can_convert_to=[],
                 extra_info={'hf_id': 'hexgrad/Kokoro-82M', 'path': str(kokoro_dir)},
+                capabilities={
+                    'supports_cloning': False,  # Kokoro = voix fixes par langue
+                    'languages': ['fr', 'en', 'es', 'it', 'pt', 'ja', 'zh-cn'],
+                },
             )
 
             logger.info(

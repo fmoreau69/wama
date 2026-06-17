@@ -134,6 +134,18 @@ class AIModel(models.Model):
         help_text="Additional model-specific metadata"
     )
 
+    # Capacités fonctionnelles du modèle — source UNIQUE consommée par : filtrage UI
+    # (voix/langues), sélection par tâche (select_model requires=…), méta-app (compat I/O),
+    # description dynamique. Schéma souple par type. Conventions courantes :
+    #   speech/TTS : {"supports_cloning": bool, "languages": ["fr","en",...]}
+    #   vision/YOLO: {"classes": ["face","plate",...], "task": "detect|segment|pose"}
+    #   vlm/llm    : {"languages": [...], "context_length": int}
+    capabilities = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Functional capabilities (cloning, languages, classes, task...) — single source for UI filtering & task selection"
+    )
+
     # Conversion capabilities
     can_convert_to = models.JSONField(
         default=list,
@@ -217,6 +229,7 @@ class AIModel(models.Model):
             'can_convert_to': self.can_convert_to,
             'backend_ref': self.backend_ref,
             'extra_info': self.extra_info,
+            'capabilities': self.capabilities,
         }
 
 

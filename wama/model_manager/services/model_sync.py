@@ -163,6 +163,7 @@ class ModelSyncService:
             'can_convert_to': model_info.can_convert_to or [],
             'backend_ref': model_info.backend_ref or '',
             'extra_info': model_info.extra_info or {},
+            'capabilities': getattr(model_info, 'capabilities', None) or {},
             'last_synced_at': timezone.now(),
         }
 

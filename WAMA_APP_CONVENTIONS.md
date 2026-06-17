@@ -180,6 +180,47 @@ class MyItem(models.Model):
 
 ---
 
+## 2bis. Métadonnée d'app — capacités & types d'entrée/sortie (CONTRAT)
+
+> **Source unique** consommée par : l'UI (filtrage voix/langues), l'AI-Assistant (mode C),
+> la méta-app « Pipeline » (compat I/O), l'orchestrateur de modèles, le scaffold d'app.
+> Voir ROADMAP §14/§15/§16. **Migrer une app = solidifier cette métadonnée, pas que le HTML.**
+
+### 2bis.1 Capacités MODÈLES — `AIModel.capabilities` (JSON)
+Renseignées à la découverte (`model_registry`) depuis le `model_config` de l'app, persistées
+dans `AIModel.capabilities`, exposées par `api/models/db/`. Schéma souple **par type** :
+| Type | Clés conventionnelles |
+|------|------------------------|
+| speech / TTS | `supports_cloning: bool`, `languages: ["fr","en",…]` |
+| vision / YOLO | `classes: ["face","plate",…]`, `task: "detect|segment|pose"` |
+| vlm / llm | `languages: [...]`, `context_length: int` |
+> Fait (2026-06-17) : capacités TTS peuplées (xtts/higgs = cloning ; kokoro/bark = non).
+
+### 2bis.2 Types d'ENTRÉE/SORTIE des apps — contrat de chaînage
+Vocabulaire **canonique** des flux entre apps (pour la compat I/O de la méta-app + le
+chaînage de l'AI-Assistant). Deux axes :
+- **Rôle** (sémantique de l'entrée) : `travail` (fichiers/prompts à traiter — batch 1/N),
+  `contexte` (RAG), `référence` (voix/photo/style…).
+- **Nature/MIME** (type de média) : `audio`, `image`, `video`, `text`, `prompt`, `pdf`,
+  `document`, + sous-types de référence : `reference:voice`, `reference:portrait`, `reference:style`.
+
+Chaque app déclare (à terme dans `common/app_registry`) :
+```python
+io = {
+  'inputs':  [{'role': 'travail',   'types': ['text', 'prompt']},
+              {'role': 'référence', 'types': ['reference:voice']}],   # ex. synthesizer
+  'outputs': [{'types': ['audio'], 'formats': ['wav', 'mp3']}],
+}
+```
+**Règle de compat** : une sortie de l'app A peut alimenter une entrée de l'app B ssi
+`set(B.input.types) ∩ set(A.output.types) ≠ ∅` (vérif systématique côté méta-app).
+
+### 2bis.3 Capacités d'APP — drapeaux (pilotent l'UI générique + l'agent)
+`has_realtime` (preview/micro), `has_edit_page` (éditeur/correction), `instant_preview`,
+`batch` … → composent le template (cf. §4) et informent l'agent de ce que l'app sait faire.
+
+---
+
 ## 3. URLs & Vues Standard
 
 ### 3.1 URL patterns obligatoires
