@@ -14,8 +14,10 @@ from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
-# Remote backup configuration
-REMOTE_BACKUP_PATH = r"\\vrlescot\SAVES\DEEP_LEARNING\MODELS"
+# Remote backup configuration — surchargeable par env (point de montage WSL à terme).
+# Défaut = partage réseau Windows (UNC). En WSL/Linux, ce chemin UNC n'est PAS utilisable
+# tant que le partage n'est pas monté → définir WAMA_MODEL_BACKUP_PATH vers le montage.
+REMOTE_BACKUP_PATH = os.environ.get('WAMA_MODEL_BACKUP_PATH', r"\\vrlescot\SAVES\DEEP_LEARNING\MODELS")
 
 
 @dataclass
@@ -41,24 +43,32 @@ class RemoteBackupService:
         if self._is_available is not None:
             return self._is_available
 
+        p = str(self.remote_path)
+
+        # Chemin UNC Windows (\\serveur\partage) inutilisable hors Windows tant que le
+        # partage n'est pas monté : NE PAS tenter de le créer (sinon on fabrique un
+        # dossier-poubelle local au cwd). Backup désactivé proprement.
+        if (p.startswith('\\\\') or p.startswith('//')) and os.name != 'nt':
+            logger.info(
+                f"[remote_backup] Chemin UNC '{p}' non monté en WSL/Linux → backup désactivé. "
+                f"Définir WAMA_MODEL_BACKUP_PATH vers le point de montage."
+            )
+            self._is_available = False
+            return self._is_available
+
         try:
-            # Try to access the remote path
-            if self.remote_path.exists():
-                # Try to list contents (verifies read access)
-                list(self.remote_path.iterdir())
+            # Disponible UNIQUEMENT si le dossier existe DÉJÀ et est inscriptible.
+            # On NE crée JAMAIS la racine ici (la création est un effet de bord interdit
+            # pour un simple test de disponibilité — c'était la cause du dossier-poubelle).
+            if self.remote_path.exists() and self.remote_path.is_dir():
+                test_file = self.remote_path / ".wama_test"
+                test_file.touch()
+                test_file.unlink()
                 self._is_available = True
             else:
-                # Try to create a test file (verifies write access)
-                test_file = self.remote_path / ".wama_test"
-                try:
-                    self.remote_path.mkdir(parents=True, exist_ok=True)
-                    test_file.touch()
-                    test_file.unlink()
-                    self._is_available = True
-                except Exception:
-                    self._is_available = False
+                self._is_available = False
         except Exception as e:
-            logger.warning(f"Remote backup path not accessible: {e}")
+            logger.warning(f"[remote_backup] cible non inscriptible : {e}")
             self._is_available = False
 
         return self._is_available

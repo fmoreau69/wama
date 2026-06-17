@@ -61,10 +61,38 @@
 | `wama-global-progress.js` + `_global_progress.html` — barre globale | ✅ | `common/…` | converter, avatarizer (autres = barre maison) |
 | `wama-fm-notify.js` — notify filemanager (`WamaFM`) | ✅ | `common/static/common/js/wama-fm-notify.js` | Auto-refresh homogène, toutes les apps |
 | `batch_common.py` — consolidation import multi-fichiers | ✅ | `common/utils/batch_common.py` | converter, reader, transcriber, describer, enhancer |
-| `backend_selector.py` — sélection VRAM-aware | ⏳ | `common/utils/backend_selector.py` | Reader, Transcriber, Describer |
-| `wama-app-base.js` — JS inter-apps | ⏳ | `common/static/common/js/wama-app-base.js` | Éliminerait ~70% duplication JS |
-| `_settings_modal.html` — modal paramètres générique | ⏳ | `common/templates/common/_settings_modal.html` | Toutes les apps |
+| sélection VRAM-aware centralisée | ✅ | `model_manager/services/model_selector.py` | cf. §5b (PAS dans common : model_manager=source de vérité) |
+| `wama-app-base.js` — JS inter-apps (Poller, csrf/url, emptyState) | ✅ | `common/static/common/js/wama-app-base.js` | Transcriber rebranché ; à adopter par les autres |
+| `audio_decode.py` — décodage multi-format (PyAV/ffmpeg) | ✅ | `common/utils/audio_decode.py` | torchcodec cassé ; à faire converger voice_utils/enhancer/preprocessor |
+| `wama-inspector.js`, `wama-model-help.js` | ✅ | `common/static/common/js/` | Volet inspecteur + descriptif modèle (court/long) |
+| Briques card : `_card_progress`, `_card_state`, `_new_item_card`, `_queue_actions` | ✅ | `common/templates/common/` | Assemblées par app (pas de card monolithique) |
 | `keep_loaded` singleton pattern | ⏳ | Généraliser depuis Reader (olmOCR) | Transcriber (Whisper), Describer, Enhancer |
+
+### Templating générique — paramètres & composition (discuté 2026-06-16)
+
+> Constat : l'affichage des paramètres est **hardcodé par app ET par template**
+> (modale item/batch vs volet card/batch/file) → divergences inévitables (déjà constatées).
+
+**A. Schéma de paramètres single-source ⏳ (à faire — fort ROI, pilote Transcriber)**
+- Décrire les paramètres comme **donnée** (`wama/<app>/params.py` : champs name/type/label/
+  help/choices/default/contexts), et **rendre toutes les surfaces depuis un seul moteur**
+  commun (`WamaParams.render(container, schema, {context, values})` + inclusion Django +
+  `WamaParams.read/apply`). Une édition du schéma → répercutée partout.
+- Les divergences modale (`name=` pour POST) vs volet (`data-*` + état Django) deviennent des
+  **affaires de contexte du moteur**, pas du markup dupliqué. **C'est l'évolution correcte de
+  la décision « pas de partial commun »** (le problème était de copier du markup, pas la donnée).
+
+**B. Génération automatique de templates (queues/console/about/help) — REJETÉ tel quel**
+- ❌ Pas de **générateur** méta→template : piège « inner-platform » (la config devient un
+  template, en pire). Les apps ont des spécificités réelles (édition Transcriber, micro temps
+  réel, onglets diarisation, galeries…).
+- ✅ **Composition pilotée par capacités** : les méta-infos d'`app_registry` (types d'entrée,
+  formats de sortie via converter, modèles via model_manager, boutons d'action, `has_realtime`,
+  `has_edit_page`, `instant_preview`…) **paramètrent/assemblent** les briques communes
+  (`app_modern_base.html` + partials), elles ne les **génèrent** pas. Incrémental, app par app.
+
+**Ordre** : A (schéma params, pilote Transcriber) → étendre `app_registry` (capacités) →
+composition par capacités. Voir aussi §10.B (Translator) et §5b (sélection/descriptions).
 
 ---
 
@@ -162,6 +190,110 @@ Celery beat : 0 2 * * *
 
 ---
 
+## 5b. Model Manager — Fiabilité du catalogue + sélection centralisée
+
+> Décidé 2026-06-16. **Le catalogue est la source de vérité ; s'il ment, il trompe
+> l'utilisateur (page de gestion).** model_manager = cerveau/données ; common = glu.
+
+### Fiabilité de la découverte — « constater, ne jamais deviner » (FAIT)
+- **Bug whisper corrigé** : la détection devinait `faster-whisper-{model_id}` (=`...-large`)
+  au lieu du réel `faster-whisper-large-v3` → faux négatif. Désormais via
+  `_check_hf_model_downloaded("Systran/faster-whisper-<variante dérivée du hf_id>")`. ✅
+- **Bug description Ollama corrigé** : `ollama list` a les colonnes `NAME ID SIZE`, le code
+  prenait `parts[1]` (=ID) comme taille → `Ollama LLM (<hash>)` + `ram_gb=0`. Parsing
+  robuste par regex (`\d+ (GB|MB|TB)`) + `disk_gb`/`ollama_id` dans extra_info. ✅
+- **Principe à appliquer partout** : détecter par contenu (helper/`glob`/cache HF), jamais
+  par reconstruction de nom. Audit fait : les autres apps utilisent déjà le helper/`glob`.
+
+### Réconciliation automatique (FAIT)
+- **Périodique (Celery Beat)** : `sync_models` toutes les `MODEL_SYNC_INTERVAL_SECONDS`
+  (défaut 2 h, paramétrable/env), queue `default`. ✅
+- **Au démarrage** : `model_manager.apps.ready()` dispatche une réconciliation non bloquante,
+  dédupliquée multi-process (verrou cache Redis), prod-compatible (≠ `RUN_MAIN`). ✅
+- **Watcher** : dev/`runserver` uniquement (prod couverte par démarrage + Beat). ✅
+- **Commande `verify_models`** : rapport dry-run des écarts catalogue↔disque. ✅
+- **Cache `transcriber_backends_info`** vidé au `ready()` du transcriber (descriptions
+  fraîches après redémarrage, sans vidage manuel). ✅
+
+### À NE JAMAIS faire / à robustifier (⏳)
+- **Ne jamais auto-supprimer les orphelins d'une source RÉSEAU sur « non découvert »** :
+  Ollama tourne **côté Windows, hors WAMA** ; s'il est injoignable un instant → 0 découvert
+  → un `clean=True` aveugle **viderait le catalogue**. → `clean=False` conservé.
+- **(b) Clean gardé** : ne supprimer les orphelins d'une source que si **sa** découverte a
+  réussi (liste non vide). ⏳
+- **(c) Normaliser les tags `:latest`** dans la découverte Ollama (canon = sans `:latest`)
+  pour éliminer les doublons (`mxbai-embed-large` + `mxbai-embed-large:latest`). ⏳
+  (entremêlé avec la gestion des orphelins → à faire ensemble)
+- **Modèles RECOMMANDÉS / non téléchargés à conserver** : la veille wama-dev-ai (§5/§6)
+  produira des cartes de modèles **recommandés** (non présents sur disque, à télécharger à
+  la demande admin). Le catalogue doit les **conserver** malgré la réconciliation → prévoir
+  un statut/flag (`recommended`/`keep`, distinct de `is_downloaded`) que `clean` ne touche
+  jamais. **À concevoir avec le système de veille.**
+
+### Emplacements & catégories des modèles (chantier — récurrent depuis le début)
+**Cause racine des mauvais emplacements / doublons** (constaté : `speech/kokoro`=4.9 Go,
+`vision/sam`=3.6 Go gonflés de modèles étrangers — Qwen3-ASR, olmOCR, musicgen, pyannote, t5) :
+`os.environ['HF_HUB_CACHE']` est **global au process** mais muté par-modèle et **lu en
+concurrence par plusieurs threads** (le thread de préchargement Kokoro le pose à `kokoro_dir`
+pendant qu'un autre thread charge pyannote/qwen/olmOCR → tout atterrit dans kokoro). Le
+`try/finally` de restauration **n'est pas thread-safe**. + dépendances partagées (t5, bert)
+dupliquées par app.
+**Fix durable (⏳)** :
+- **Toujours passer `cache_dir=<dossier dédié>` explicite** à `from_pretrained()`/pipeline
+  (paramètre local, thread-safe) ; **ne jamais router via la variable globale**.
+- **Dépendances partagées → un seul cache commun** (`AI-models/cache/huggingface/`).
+- **Script de migration/dédup** des ~8 Go mal placés (dry-run d'abord).
+
+**Chemins dérivés de la CATÉGORIE** (⏳) : `models/{category}/{family}/` où `category` =
+`ModelType` (source unique, model_manager). Helper unique `model_dir(category, family)` →
+`MODEL_PATHS` + `model_config` + découverte + `cache_dir=` en sortent.
+- **Enums `ModelType` unifiés** : `services/model_registry.py` avait déjà `MUSIC`/`OCR` ;
+  ajoutés à l'enum DB `models.py` (migration 0004). ✅
+- **Renommer pour coller à la catégorie** : `vision-language`→`vlm`, `reader`(=nom d'app)→`ocr`.
+  `music` est déjà correct. YOLO garde sa nomenclature interne dans `vision/yolo/`. ⏳
+- Speech reste une catégorie large (familles whisper/kokoro/diarization/qwen_asr) — **pas** de
+  sous-catégorie TTS/ASR (peu de modèles, couche d'orga inutile à cette échelle).
+
+### Warm-loading VRAM — modèles temps réel chauds (chantier prod)
+> But : sur serveur de prod (grosse VRAM), garder chargés les modèles **temps réel**
+> (AI-Assistant LLM+vocalisation+traduction, preview synthesizer, speak Transcriber).
+
+**Principe (comme vLLM/TGI/Triton/TorchServe/Ray Serve/Ollama)** : un modèle chaud vit dans
+un **service d'inférence dédié persistant**, JAMAIS dans un thread du process Django/Celery
+(fork, CUDA par process, course env = nos bugs). WAMA est **déjà à mi-chemin** :
+- **Ollama** (LLM) tient déjà les LLM chauds (régler `keep_alive`).
+- **Microservice TTS** (`tts_service.py`, port 8001) tient déjà Kokoro/XTTS/Bark préchargés.
+
+**Fix Kokoro (⏳, avec soin — ne pas casser AI-assistant/synthesizer)** : le thread Kokoro de
+`wama/views.py` est un **bug d'archi** (la vocalisation AI-assistant recharge Kokoro dans
+Django au lieu d'appeler le microservice TTS déjà chaud). → **router la vocalisation vers le
+microservice TTS + retirer le thread/`_get_kokoro`**. Élimine la course env ET garde l'instantané.
+
+**Orchestration (`model_manager`)** : registre des modèles **épinglés/keep-warm** + budget
+VRAM + **éviction LRU** des modèles à la demande (s'appuie sur memory_manager/cleaner existants).
+Set temps réel : LLM→Ollama, vocalisation/preview→microservice TTS, speak→futur service Whisper
+chaud, traduction→Ollama.
+
+### Backup réseau (vrlescot)
+- `REMOTE_BACKUP_PATH` configurable par env `WAMA_MODEL_BACKUP_PATH` ; garde-fou : chemin UNC
+  hors Windows non monté → backup **désactivé** sans créer de dossier-poubelle (constater, pas
+  créer). ✅ **À finir** : monter le partage en WSL (`/mnt/...`) + tester (conversion .pt→.onnx).
+
+### Sélection centralisée — `services/model_selector.py` (FAIT, étape 3 ⏳)
+- `select_model(source, *, model_type, requires, classes, prefer_loaded, downloaded_only,
+  vram_budget_gb, candidates, name_contains, priority, availability_probe)`.
+- 3 concerns distincts : **téléchargé** (catalogue) ≠ **`availability_probe`** (dispo runtime,
+  ex. import Python OK) ≠ **VRAM** (`get_free_vram_gb`). + règle **keep_loaded**.
+- `priority` (préférence ordonnée, domine la VRAM) pour les apps « par moteur » (Transcriber
+  whisper-first) ; logique VRAM-greedy (le plus gros qui tient) pour les apps « par variante ».
+- **Descriptions à deux tiers** : `AIModel.description` (long) + `description_short` (court),
+  dérivation auto, migration 0003. `WamaModelHelp` : court sous le sélecteur + long en ⓘ.
+- **Étape 3 (⏳)** : faire de l'anonymizer `ModelSelector` / du transcriber `manager` de fins
+  adaptateurs ; **piloter `select_model` sur une app par-variante** (describer/imager) plutôt
+  que le Transcriber (qui a raison de garder sa sélection runtime backend-class).
+
+---
+
 ## 6. wama-dev-ai — Phases
 
 > Principe : Claude réfléchit · wama-dev-ai exécute · L'humain valide
@@ -176,6 +308,16 @@ Celery beat : 0 2 * * *
 - [x] Mémoire persistante `memory.json` — bugs connus, règles, notes — + outil `write_memory` + injection prompt
 - [ ] Premier audit complet avec `write_report` appelé (3+ audits validés avant de monter en autonomie)
 - [ ] Cron nightly : `0 2 * * *`
+
+### Phase 1b — Schémas d'architecture WAMA (read-only, tâche de fond) ⏳
+> WAMA grossit vite et on perd la vue d'ensemble de ce qui est déjà en place. wama-dev-ai
+> (accès lecture codebase, RAG) maintient en continu :
+- **Schéma fonctionnel** : flux apps ↔ services (Ollama, microservice TTS, Celery/Redis) ↔
+  modèles ↔ converter ↔ media_library ; queues GPU/default ; temps réel vs batch.
+- **Schéma descriptif** : composants, dépendances, points d'injection communs (common/),
+  inventaire des services persistants et des modèles chauds.
+- Régénéré périodiquement (diff vs version précédente) → évite l'oubli de l'existant.
+- **Gros chantier wama-dev-ai à prévoir** (au-delà de l'audit) : à cadrer.
 
 ### Phase 2 — Tests API nocturnes ⏳
 - Outil `wama_api_call(endpoint, method, params)` dans AuditToolRegistry

@@ -21,6 +21,10 @@ class ModelType(models.TextChoices):
     SUMMARIZATION = 'summarization', 'Summarization'
     UPSCALING = 'upscaling', 'Upscaling'
     LIPSYNC = 'lipsync', 'Lip Sync'
+    # Alignées sur l'enum de découverte (services/model_registry.py) : la découverte
+    # écrivait déjà 'music'/'ocr' dans le CharField, mais ils manquaient ici (choices/admin).
+    MUSIC = 'music', 'Music / Audio'
+    OCR = 'ocr', 'OCR / Document'
 
 
 class ModelSource(models.TextChoices):

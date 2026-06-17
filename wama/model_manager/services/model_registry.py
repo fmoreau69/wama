@@ -5,6 +5,7 @@ Model Registry - Unified model discovery across all WAMA apps and external sourc
 import json
 import logging
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -819,17 +820,19 @@ class ModelRegistry:
                         parts = line.split()
                         if len(parts) >= 2:
                             model_name = parts[0]
-                            model_size = parts[1] if len(parts) > 1 else 'unknown'
+                            model_id_hash = parts[1]  # colonne ID d'`ollama list` (≠ taille)
 
-                            # Parse size (e.g., "4.7 GB" -> 4.7)
-                            ram_gb = 0
-                            try:
-                                size_str = parts[1].replace('GB', '').replace('MB', '').strip()
-                                ram_gb = float(size_str)
-                                if 'MB' in parts[1]:
-                                    ram_gb /= 1024
-                            except (ValueError, IndexError):
-                                pass
+                            # Taille : repérée par regex où qu'elle soit sur la ligne
+                            # (format `NAME ID SIZE MODIFIED`, ex. "18 GB" ou "669 MB"),
+                            # au lieu de supposer parts[1] = taille (qui est l'ID).
+                            ram_gb = 0.0
+                            size_display = 'taille inconnue'
+                            sm = re.search(r'(\d+(?:[.,]\d+)?)\s*(GB|MB|TB)', line, re.IGNORECASE)
+                            if sm:
+                                num = float(sm.group(1).replace(',', '.'))
+                                unit = sm.group(2).upper()
+                                ram_gb = num if unit == 'GB' else (num / 1024 if unit == 'MB' else num * 1024)
+                                size_display = f"{sm.group(1)} {unit}"
 
                             # Ollama models use GGUF format
                             preferred = self._get_preferred_format(ModelType.LLM)
@@ -839,13 +842,14 @@ class ModelRegistry:
                                 name=model_name,
                                 model_type=ModelType.LLM,
                                 source=ModelSource.OLLAMA,
-                                description=f"Ollama LLM ({model_size})",
+                                description=f"Ollama LLM ({size_display})",
                                 ram_gb=ram_gb,
                                 is_downloaded=True,
                                 backend_ref='ollama',
                                 format='gguf',
                                 preferred_format=preferred,
                                 can_convert_to=[],  # Managed by Ollama
+                                extra_info={'disk_gb': ram_gb, 'ollama_id': model_id_hash},
                             )
                             models_found = True
             except (FileNotFoundError, subprocess.TimeoutExpired):
