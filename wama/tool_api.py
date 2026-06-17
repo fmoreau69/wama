@@ -2416,3 +2416,19 @@ def convert_file_view(request):
 @require_GET
 def get_converter_status_view(request):
     return JsonResponse(get_converter_status(request.user))
+
+
+def build_tools_list() -> str:
+    """Génère la liste des outils (nom + args + description) depuis TOOL_DESCRIPTIONS.
+
+    Source UNIQUE pour le prompt système de l'AI-Assistant → liste toujours exhaustive
+    et à jour (avatarizer/composer/converter inclus), plus de divergence prompt↔registre.
+    """
+    # Ordre alphabétique systématique (convention WAMA : applications listées par ordre
+    # alphabétique) — l'ordre de définition reflétait l'ordre d'implémentation, sans logique.
+    lines = ['Available tools:']
+    for name, meta in sorted(TOOL_DESCRIPTIONS.items()):
+        args = ', '.join((meta.get('args') or {}).keys())
+        desc = meta.get('description', '')
+        lines.append(f'- {name}({args}): {desc}')
+    return '\n'.join(lines)

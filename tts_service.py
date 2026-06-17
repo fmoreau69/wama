@@ -128,8 +128,10 @@ def _unload_current():
         del _higgs_engine
         _higgs_engine = None
     elif _current_engine == "kokoro":
-        logger.info("Unloading Kokoro")
-        _kokoro_pipelines.clear()
+        # Kokoro est minuscule (~82M) et sert le TEMPS RÉEL (vocalisation AI-Assistant) :
+        # on le GARDE résident pour éviter le rechargement (thrash) à chaque bascule
+        # synthesizer↔assistant → vocalisation instantanée. On ne vide PAS _kokoro_pipelines.
+        logger.info("Kokoro reste résident (warm) — pas de déchargement")
 
     _current_engine = None
     _current_model_name = None
@@ -768,6 +770,13 @@ async def startup():
         try:
             _switch_model("xtts_v2")
             logger.info("XTTS v2 preloaded successfully — service ready")
+            # Warm Kokoro (FR, ~82M) pour la vocalisation temps réel de l'AI-Assistant :
+            # il reste résident (cf. _unload_current) → 1re vocalisation chaude, sans thrash.
+            try:
+                _get_kokoro_pipeline('f')
+                logger.info("Kokoro (FR) préchargé et résident")
+            except Exception as ke:
+                logger.warning(f"Préchargement Kokoro échoué (chargé à la 1re demande): {ke}")
         except Exception as e:
             logger.error(f"Failed to preload XTTS v2: {e}", exc_info=True)
             logger.warning("TTS Service starting without preloaded model — will load on first request")

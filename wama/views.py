@@ -46,56 +46,7 @@ You can interact with WAMA applications by calling tools.
 When you need to perform an action, output ONLY the JSON tool call on a single line, with NO surrounding text:
 {"tool": "<name>", "args": {<arguments>}}
 
-Available tools:
-
-Anonymizer:
-- list_user_files(folder="temp"): List the user's files. Folders: "temp" (temporary uploads), "anon_input" (anonymizer input), "anon_output" (anonymizer output), "transcriber_input" (transcriber audio/video), "describer_input" (describer files).
-- add_to_anonymizer(file_path, use_sam3=false, sam3_prompt="", classes=["face"], precision_level=50): Add a file to the anonymizer queue. file_path is the "path" value returned by list_user_files.
-- start_anonymizer(media_id=null): Launch anonymizer processing. Provide media_id from add_to_anonymizer, or null to process all pending files.
-- get_anonymizer_status(): Get the current status and progress of anonymizer jobs. Returns output_url when status="done".
-- sam3_examples(): Get examples of SAM3 text prompts for segmentation.
-
-Imager:
-- create_image(prompt, model="hunyuan-image-2.1", width=1024, height=1024, steps=30, guidance_scale=7.5, negative_prompt="", seed=null, num_images=1): Create a text-to-image generation job (status: pending). Returns generation_id.
-- start_imager(generation_id=null): Launch image generation. Provide generation_id from create_image, or null to start all pending jobs.
-- get_imager_status(): Get status and progress of the user's recent image generation jobs. Returns output_urls (images) or video_url when status="SUCCESS".
-
-Enhancer (image/vidéo):
-- add_to_enhancer(file_path, ai_model="RealESR_Gx4", denoise=false, blend_factor=0.0): Register an image/video file for AI upscaling. file_path is the "path" value from list_user_files. Models: RealESR_Gx4 (fast), RealESR_Animex4 (anime), BSRGANx2/x4 (quality), RealESRGANx4 (high quality), IRCNN_Mx1/Lx1 (denoise only). Returns enhancement_id.
-- start_enhancer(enhancement_id=null): Launch enhancement processing. Provide enhancement_id from add_to_enhancer, or null to start all pending jobs.
-- get_enhancer_status(): Get status and progress of the user's recent image/video enhancement jobs. Returns output_url when status="SUCCESS".
-
-Audio Enhancer (alternative à Adobe Podcast):
-- add_to_audio_enhancer(file_path, engine="resemble", mode="both", denoising_strength=0.5, quality=64): Register an audio file for speech enhancement. Engines: "resemble" (quality, 44.1kHz) or "deepfilternet" (ultra-fast). Modes: "both" (denoise+enhance), "denoise", "enhance". Returns audio_enhancement_id.
-- start_audio_enhancer(audio_enhancement_id=null): Launch audio enhancement. Provide audio_enhancement_id or null to start all pending jobs.
-- get_audio_enhancer_status(): Get status and progress of the user's recent audio enhancement jobs. Returns output_url when status="SUCCESS".
-
-Synthesizer:
-- synthesize_text(text, language="fr", tts_model="xtts_v2", voice_preset="default", speed=1.0, pitch=1.0, emotion_intensity=1.0): Create a text-to-speech job from raw text. Returns synthesis_id.
-- start_synthesizer(synthesis_id=null): Launch synthesis processing. Provide synthesis_id from synthesize_text, or null to start all pending jobs.
-- get_synthesizer_status(): Get status and progress of the user's recent synthesis jobs. Returns audio_url when status="SUCCESS".
-
-Describer:
-- add_to_describer(file_path, output_format="detailed", output_language="fr", max_length=500): Register a file (image, video, audio, text, PDF) for AI description/summary. file_path is the "path" value from list_user_files. Formats: "summary", "detailed", "scientific", "bullet_points". Returns description_id.
-- start_describer(description_id=null): Launch description processing. Provide description_id from add_to_describer, or null to start all pending jobs.
-- get_describer_status(): Get status and result preview of the user's recent description jobs.
-
-Transcriber:
-- add_to_transcriber(file_path, backend="auto", preprocess_audio=false, hotwords="", enable_diarization=true): Register an audio or video file for transcription. file_path is the "path" value from list_user_files. Backends: "auto", "whisper", "vibevoice". Returns transcript_id.
-- start_transcriber(transcript_id=null): Launch transcription. Provide transcript_id from add_to_transcriber, or null to start all pending jobs.
-- get_transcriber_status(): Get status and text preview of the user's recent transcription jobs.
-
-Reader (OCR — extraction de texte de documents):
-- add_to_reader(file_path, backend="auto", mode="auto", output_format="txt", language=""): Register a PDF or image file for OCR text extraction. Backends: "auto", "olmocr" (GPU, quality), "doctr" (CPU, fast). Modes: "auto", "printed", "handwritten". Returns item_id.
-- start_reader(item_id=null): Launch OCR processing. Provide item_id or null for all pending jobs.
-- get_reader_status(): Get status and text preview of the user's recent OCR jobs.
-
-Médiathèque (assets personnels réutilisables):
-- list_media_assets(asset_type="", q=""): Liste les assets de la médiathèque de l'utilisateur. Types: "voice", "audio_music", "audio_sfx", "image", "video", "document", "avatar". Retourne id, name, asset_type, file_url pour chaque asset.
-- get_media_asset_url(asset_id): Retourne l'URL de fichier d'un asset spécifique par son ID.
-
-Interface:
-- switch_ui_mode(mode): Bascule l'interface entre "simple" (chatbot) et "advanced" (complète). Utilise ce tool si l'utilisateur demande de changer de mode, d'afficher l'interface complète, ou de revenir à la vue simplifiée.
+{TOOLS}
 
 Rules:
 - Make ONE tool call per turn. Wait for the result before calling another tool.
@@ -302,13 +253,16 @@ def _chat_with_ollama(message: str, model: str = "fast", user=None, history: lis
     Returns:
         dict with success, response, model, usage, tool_steps
     """
-    from .tool_api import execute_tool
+    from .tool_api import execute_tool, build_tools_list
 
     ollama_model = _OLLAMA_MODEL_MAP.get(model, model)
 
     # Inject current WAMA queue state into system prompt (when user is known)
     wama_context = _build_wama_context(user) if user else ""
-    system_prompt = WAMA_SYSTEM_PROMPT + wama_context + (WAMA_TOOLS_PROMPT if user else "")
+    # Liste des outils GÉNÉRÉE depuis le registre tool_api (source unique → exhaustive,
+    # avatarizer/composer/converter inclus). Le préambule + règles restent rédigés à la main.
+    tools_prompt = WAMA_TOOLS_PROMPT.replace('{TOOLS}', build_tools_list()) if user else ""
+    system_prompt = WAMA_SYSTEM_PROMPT + wama_context + tools_prompt
 
     # Build messages: system + prior history (capped) + current user message
     prior = (history or [])[-20:]  # keep last 10 exchanges max
@@ -534,16 +488,76 @@ def _get_kokoro(lang_code: str):
     return _kokoro_pipelines[lang_code]
 
 
-def _preload_kokoro():
-    """Pre-warm Kokoro French pipeline in background to avoid blocking first TTS request."""
+# NB : plus de thread de préchargement Kokoro ici. Il causait (a) une course d'imports
+# accelerate et (b) le dump de modèles dans speech/kokoro (os.environ['HF_HUB_CACHE']
+# global muté en concurrence). Le warm-loading est désormais assuré par le MICROSERVICE
+# TTS dédié (tts_service.py, port 8001), que kokoro_tts() appelle ; `_get_kokoro` ci-dessus
+# ne sert plus que de repli en-process si le service est indisponible.
+
+
+def _clean_text_for_tts(text: str) -> str:
+    """
+    Nettoie le texte avant vocalisation : la TTS doit LIRE le texte, pas décrire les images.
+    - Retire emojis/pictogrammes (sinon espeak verbalise leur nom Unicode → illisible).
+    - Aplatit le Markdown (tableaux `|`/`---`, titres `#`, gras/italique `*`, liens, code).
+    Préserve les accents (catégories Mn non touchées → français intact).
+    """
+    if not text:
+        return text
+    import re
+    import unicodedata
+    text = unicodedata.normalize('NFC', text)
+    # Flèches et puces → virgule (pause) : sinon le mot suivant est enchaîné sans respiration
+    # (ex. « Anonymisation → Masque » lu d'un trait). À faire AVANT le strip des symboles.
+    text = re.sub(r'\s*[→⇒➜➔↦⇨▶►▸‣•◦∙]\s*', ', ', text)
+    # Emojis / pictos / modificateurs (So, Sk), marques englobantes des keycaps (Me),
+    # surrogates (Cs) + sélecteurs de variation, ZWJ, keycap combiner. NFC d'abord →
+    # les accents français restent des codepoints uniques (Ll/Lu), donc non retirés.
+    _EMOJI_EXTRA = {'‍', '︎', '️', '⃣'}  # ZWJ, VS15/16, keycap combiner
+    text = ''.join(
+        c for c in text
+        if unicodedata.category(c) not in ('So', 'Sk', 'Cs', 'Me') and c not in _EMOJI_EXTRA
+    )
+    text = re.sub(r'\[([^\]]+)\]\([^)]+\)', r'\1', text)        # [libellé](url) → libellé
+    text = re.sub(r'^[ \t]*\|?[ \t:|-]{3,}\|?[ \t]*$', '', text, flags=re.M)  # séparateurs de table
+    text = text.replace('|', ' ')                               # cellules de table
+    text = re.sub(r'[#*`_>~]', '', text)                        # marqueurs Markdown
+    text = re.sub(r'[ \t]{2,}', ' ', text)
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    return text.strip()
+
+
+def _tts_via_service(text: str, voice: str):
+    """
+    Génère la vocalisation via le microservice TTS (modèle chaud, process dédié → pas de
+    course env dans Django). Renvoie le WAV en base64, ou None si le service est indisponible
+    (→ l'appelant retombe sur Kokoro en-process).
+
+    Mapping exact voix brute → (language, voice_preset) : le service recalcule la même voix
+    via KOKORO_VOICE_MAP (voice[0]=lang_code, voice[1]=='m' → masculin).
+    """
     try:
-        _get_kokoro('f')
-        logger.info("Kokoro TTS: French pipeline ready")
+        import requests
+        import base64
+        from wama.common.tts.constants import KOKORO_LANG_MAP
+
+        lang_code = (voice[:1] or 'a')
+        is_male = len(voice) > 1 and voice[1] == 'm'
+        language = next((k for k, v in KOKORO_LANG_MAP.items() if v == lang_code), 'en')
+        voice_preset = 'male_1' if is_male else 'default'
+
+        resp = requests.post(
+            f"{settings.TTS_SERVICE_URL}/tts",
+            json={'text': text, 'model': 'kokoro', 'language': language, 'voice_preset': voice_preset},
+            timeout=30,
+        )
+        ctype = resp.headers.get('content-type', '')
+        if resp.status_code == 200 and ctype.startswith('audio'):
+            return base64.b64encode(resp.content).decode('utf-8')
+        logger.info(f"[kokoro_tts] TTS service non prêt ({resp.status_code}) → repli en-process")
     except Exception as e:
-        logger.warning(f"Kokoro TTS preload failed: {e}")
-
-
-threading.Thread(target=_preload_kokoro, daemon=True, name='kokoro-preload').start()
+        logger.info(f"[kokoro_tts] TTS service indisponible ({e}) → repli en-process")
+    return None
 
 
 @require_http_methods(["POST"])
@@ -562,6 +576,17 @@ def kokoro_tts(request):
         if not text:
             return JsonResponse({'error': 'text requis'}, status=400)
 
+        # Lire le texte, pas décrire les images : retire emojis/Markdown avant la TTS.
+        text = _clean_text_for_tts(text)
+        if not text:
+            return JsonResponse({'error': 'texte vide après nettoyage'}, status=400)
+
+        # 1) Voie normale : microservice TTS (modèle chaud, hors process Django).
+        audio_b64 = _tts_via_service(text, voice)
+        if audio_b64 is not None:
+            return JsonResponse({'audio_b64': audio_b64})
+
+        # 2) Repli en-process (service indisponible) — comportement historique, même voix.
         # Derive lang_code from voice prefix (ff_siwis → 'f', am_adam → 'a')
         lang_code = voice[0] if voice else 'f'
         pipeline = _get_kokoro(lang_code)

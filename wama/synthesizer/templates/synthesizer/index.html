@@ -70,39 +70,8 @@
         </div>
     </div>
 </div>
-<!-- Saisie texte directe -->
-<div class="mb-2">
-    <form id="textInputForm">
-        {% csrf_token %}
-        <input type="text" class="form-control form-control-sm mb-2" id="textTitle" name="title"
-               placeholder="Titre (optionnel)">
-        <textarea class="form-control form-control-sm mb-2" id="textContent" name="text_content" rows="3"
-                  placeholder="Texte à synthétiser…"></textarea>
-        <div class="d-flex gap-1">
-            <button type="button" class="btn btn-info btn-sm flex-fill" id="previewTextBtn">
-                <i class="fas fa-play-circle"></i> Preview
-            </button>
-            <button type="submit" class="btn btn-success btn-sm flex-fill" id="submitTextBtn">
-                <i class="fas fa-plus-circle"></i> Ajouter
-            </button>
-        </div>
-        <div id="previewAudioContainer" class="mt-2" style="display:none;">
-            <audio id="previewAudioPlayer" controls class="w-100 mt-1">
-                <source src="" type="audio/wav">
-            </audio>
-        </div>
-        <div id="previewLoader" class="mt-2" style="display:none;">
-            <div class="text-center">
-                <div class="spinner-border spinner-border-sm text-info" role="status"></div>
-                <small class="text-muted ms-1">Génération…</small>
-            </div>
-            <div class="progress mt-1" style="height:6px;">
-                <div id="previewProgress" class="progress-bar progress-bar-striped progress-bar-animated" style="width:0%"></div>
-            </div>
-            <small id="previewStatus" class="text-muted d-block text-center">Préparation…</small>
-        </div>
-    </form>
-</div>
+<!-- La « Saisie texte directe / Preview » a été remontée dans la colonne principale
+     (bloc temps réel au-dessus de la file), cf. block synthesizer_content. -->
 {% endblock %}
 
 {# ── Right panel : paramètres ────────────────────────────────────────────── #}
@@ -270,6 +239,46 @@
 
 {% block synthesizer_content %}
 <div style="overflow-x:hidden;">
+
+<!-- Temps réel : preview / saisie directe — EN TÊTE (comme Transcriber). Tester les
+     paramètres avant d'ajouter à la file ou de lancer un batch. IDs inchangés → JS OK. -->
+<div class="card bg-dark border-secondary mb-3">
+    <div class="card-body py-2">
+        <h6 class="text-light mb-2">
+            <i class="fas fa-play-circle text-info"></i> Aperçu rapide (preview)
+        </h6>
+        <form id="textInputForm">
+            {% csrf_token %}
+            <input type="text" class="form-control form-control-sm mb-2" id="textTitle" name="title"
+                   placeholder="Titre (optionnel)">
+            <textarea class="form-control form-control-sm mb-2" id="textContent" name="text_content" rows="3"
+                      placeholder="Texte à synthétiser…"></textarea>
+            <div class="d-flex gap-1">
+                <button type="button" class="btn btn-info btn-sm flex-fill" id="previewTextBtn">
+                    <i class="fas fa-play-circle"></i> Preview
+                </button>
+                <button type="submit" class="btn btn-success btn-sm flex-fill" id="submitTextBtn">
+                    <i class="fas fa-plus-circle"></i> Ajouter à la file
+                </button>
+            </div>
+            <div id="previewAudioContainer" class="mt-2" style="display:none;">
+                <audio id="previewAudioPlayer" controls class="w-100 mt-1">
+                    <source src="" type="audio/wav">
+                </audio>
+            </div>
+            <div id="previewLoader" class="mt-2" style="display:none;">
+                <div class="text-center">
+                    <div class="spinner-border spinner-border-sm text-info" role="status"></div>
+                    <small class="text-muted ms-1">Génération…</small>
+                </div>
+                <div class="progress mt-1" style="height:6px;">
+                    <div id="previewProgress" class="progress-bar progress-bar-striped progress-bar-animated" style="width:0%"></div>
+                </div>
+                <small id="previewStatus" class="text-muted d-block text-center">Préparation…</small>
+            </div>
+        </form>
+    </div>
+</div>
 
 <div id="globalStatus" style="opacity:0; pointer-events:none;">
     <div class="d-flex justify-content-between align-items-baseline mb-1">
