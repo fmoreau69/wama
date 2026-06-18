@@ -1074,3 +1074,66 @@ Sauvegarde de la chaîne ; à réfléchir : appliquer une chaîne à une file (b
 - **Concurrence (3 modèles + juge)** : gaspille les quotas → préférer **spécialisation** par
   type de tâche (Codex = implémentation bornée, Claude = archi/intégration).
 - **Conventions** : `WAMA_APP_CONVENTIONS.md` existe déjà → l'étendre (PAS de nouveau fichier).
+
+### 16.1 Auto-maintenance Ollama — détection vs prospection (décidé 2026-06-18)
+
+> Ollama = bon pilote (pull sans risque de deps, déjà dans le catalogue `AIModel`).
+> **« Automatisée » = détection + rapport ; JAMAIS l'action (pull/replace).**
+
+| Couche | Quoi | LLM ? | Action |
+|--------|------|-------|--------|
+| **Détection** (faire en 1er) | tâche Beat : `ollama list` + registre Ollama → flag « MAJ dispo » sur les AIModel ollama (digest/tag plus récent) | ❌ déterministe | rapport, jamais auto-pull |
+| **Prospection** (plus tard, wama-dev-ai fiabilisé) | recherche de modèles notables (coder, embedding FR, traduction) → **rapport CITÉ** + entrées catalogue `recommended` (non téléchargées) | ✅ guardé (cite ses sources) | admin relit + `ollama pull` |
+
+- Réutilise l'existant : `AIModel` (registre), Celery Beat (planif), flag `recommended` (§5b).
+- **Hallucinations** : la prospection LLM ne s'auto-applique JAMAIS (cf. deepseek-coder qui hallucinait). Propose-cite-tu-valides.
+- **Quick-win qualité indépendant** : tester un embedding **multilingue** (`bge-m3` / `qwen3-embedding`) pour le RAG FR (Lescot) — `nomic`/`mxbai` sont anglo-centrés. Garder les anciens en comparaison.
+- Les comparatifs coder (qwen3.x, gemma4…) reçus = **invérifiables/datés → tester soi-même**, ne rien basculer à l'aveugle.
+
+### 16.2 Outils tiers évalués (scope WAMA, 2026-06-18)
+
+> Principe : WAMA est un PRODUIT (apps + assistant + catalogue + Anonymizer). Ne prendre que
+> ce qui comble un VRAI trou ; rejeter ce qui duplique/fragmente le cœur de WAMA.
+
+- ✅ **Adoptés/alignés** : LiteLLM (§8d, routeur LLM), pgvector (RAG dans Postgres existant), Headroom (dev).
+- 🟡 **À évaluer (gaps réels)** : Presidio (PII **texte** avant cloud — complète l'Anonymizer média) ; Docling (parsing PDF layout pour ingestion RAG) ; Langfuse (observabilité LLM, quand l'orchestrateur grossit) ; Kilo Code / Claude Code Router (économie de quota dev : router le routinier vers Codex-UGE/Ollama ; Kilo = plugin JetBrains/PyCharm).
+- ❌ **Rejetés (dupliquent/fragmentent ou sur-ingénierie)** : Bifrost (LiteLLM couvre) ; LocalAI/BentoML/Triton (les apps WAMA + microservice TTS + Celery SONT la couche de service) ; Open WebUI/LibreChat (WAMA a déjà son assistant tool_api — adoption = perte d'intégration) ; MLflow (AIModel=registre, pas d'entraînement) ; LM Studio (Ollama couvre) ; MemPalace (Headroom fait la mémoire agents) ; Label Studio (pas d'annotation) ; OpenClaw/ollama-mcp (niche).
+- **3 vrais gains** : pgvector (RAG), Presidio (privacy texte), CCR/Kilo (quota dev).
+
+#### Précisions vérifiées (2026-06-18)
+- **Cadre conceptuel** : les 100+ modèles WAMA (Detector/Anonymizer/…) ne sont **PAS** des fournisseurs interchangeables pour une même tâche (logique LiteLLM) — c'est **ton pipeline métier**. Le besoin n'est donc pas « LiteLLM pour le non-LLM » (routage entre concurrents) mais soit (a) **exposition standardisée** de tes propres modèles, soit (b) **routage local/cloud par tâche** pour les modèles non-LLM. → à trancher (§16.3).
+- **LocalAI** (candidat sérieux) : ajouts 2026 = **reconnaissance faciale + liveness/antispoofing** (avr. 2026) et **détection objets vocabulaire ouvert** (`locate-anything.cpp`, juin 2026) → touche **directement Anonymizer/Detector**, pas que Whisper/SD/Llava. Premier pas peu coûteux : LocalAI en Docker derrière **Transcriber seul** (Whisper mature) et comparer maintenance+qualité vs l'intégration actuelle. Les modèles propres au Lescot (trajectoires, oculométrie, comportements) resteront du **code maison** quel que soit l'outil.
+- **Bifrost** : dépôt exact = **maximhq/bifrost** (Go, ~11 µs overhead @5000 req/s). Son « multimodal » = transmet payloads image/audio aux **endpoints LLM** des fournisseurs — **ne fait pas tourner** Whisper/SD lui-même. = alternative à LiteLLM (même problème), pas une réponse au besoin non-LLM.
+- **BentoML ⊃ Triton** : BentoML sait utiliser Triton comme moteur (`bentoml.triton.Runner`) → l'adopter ne ferme pas la porte à Triton. Triton seulement quand contention GPU multi-utilisateurs **prouvée** (config.pbtxt/ONNX/TensorRT = complexité d'exploitation).
+- **Open WebUI vs LibreChat** : Open WebUI a changé de licence en 2025 (branding imposé >50 users/30 j) → **friction** avec « WAMA open source/gratuite ». **LibreChat = MIT pur**. Donc : WAMA garde son assistant (tool_api) ; SI un jour une UI chat prête-à-l'emploi est voulue → **LibreChat**, pas Open WebUI.
+- **CCR / Kilo — alerte facturation** : « BYOK / zero markup » = paiement **au token** (pas l'abo Pro fixe). Vérifier l'auth Anthropic (clé API facturée vs passthrough abonnement) **avant** de migrer. Sinon : Claude Code pour Claude, CCR/Kilo réservés à Codex-UGE / locaux gratuits. Kilo = plugin **JetBrains** ; OpenClaw (agent planifié Slack/…) + revue PR = les briques « à construire » existent en produit → tester sur une tâche de veille secondaire avant d'arbitrer maison vs produit.
+- **ollama-mcp** : préférer le fork **hyzhak/ollama-mcp-server** (NightTrek peu actif). N'a de sens que pour laisser Claude déléguer une sous-tâche à un modèle local **en pleine session** ; sinon un seul chemin vers Ollama.
+- **LM Studio** : redondant avec Ollama pour le service ; à garder comme **bac à sable** d'exploration manuelle, pas comme composant servi.
+- **MemPalace** : promesses contestées publiquement (« +34 % recall » = filtrage métadonnées classique ; « 30x sans perte » = ~12 % de perte de récupération mesurée). = **confort** (mémoire inter-sessions), pas brique critique ; Headroom couvre déjà ce besoin.
+
+### 16.3 Questions ouvertes — à trancher prochainement
+1. **Routeur local/cloud pour modèles NON-LLM** (le vrai besoin reformulé par Fabien) : LiteLLM reste le routeur du cerveau LLM ; pour les modèles non-LLM, choisir entre (a) exposition standardisée OpenAI-compatible via **LocalAI** (couvre Whisper/SD/Flux/Llava + désormais visages/détection), (b) garder les apps WAMA comme couche de service et n'ajouter qu'un routeur local/cloud par-dessus. → décider après le test LocalAI/Transcriber.
+2. **Privacy texte avant cloud** : **Presidio** (MS, NER + règles, masquage configurable) vs **openai/privacy-filter** (HF) — à comparer (couverture FR, perf, licence, intégration) comme pièce texte de la règle « anonymiser avant cloud », en complément de l'Anonymizer média.
+
+### 16.4 Anonymisation multimodale — décision 2026-06-18 (recherche web)
+
+> Objectif Fabien : généraliser l'Anonymizer (média) à **toutes les modalités** (documents + audio en plus des images/vidéos). Résout Q1 de §16.3.
+
+- **`openai/privacy-filter`** CONFIRMÉ réel (22 avr. 2026, Apache 2.0, MoE 1.5B/50M actifs, classif. tokens, ~8 catégories, F1 96 % PII-Masking-300k) MAIS **anglo-centré** + ⚠️ **typosquat `Open-OSS/privacy-filter`** (vérifier l'org). Pattern industrie = « Presidio + Privacy Filter ensemble ».
+- **DÉCISION : Presidio = colonne vertébrale** (framework multimodal MIT, cœur Analyzer/Anonymizer unique) ; les détecteurs neuronaux sont des *recognizers* branchés dedans.
+  - **FR (Lescot)** : **GLiNER** multilingue (`GLiNER2-PII` / `knowledgator/gliner-pii-edge`, 40-60+ types) ou NER FR spaCy/transformers comme recognizer Presidio. `privacy-filter` = booster de rappel **anglais seulement**.
+  - **Garanties** : regex+checksum (structuré = déterministe) + NER/modèle (rappel noms). Presidio prévient lui-même « no guarantee all PII found » → revue humaine pour high-stakes, **jamais un seul modèle pour une porte dure**.
+- **Anonymizer = dispatcher par modalité** (pattern onglets type enhancer image/audio). WAMA déjà bien placé car il POSSÈDE les couches d'extraction dont Presidio a besoin (Transcriber, Reader/OCR) :
+  - Image/vidéo visages/plaques : YOLO/SAM3 existant (inchangé).
+  - Image/vidéo texte PII incrusté : `presidio-image-redactor` (OCR Tesseract) — NOUVEAU.
+  - Document (PDF/scan/Office) : scanné→image-redactor ; natif→extraction (Reader/Docling)→Presidio texte — NOUVEAU.
+  - **Audio — DEUX axes distincts (ne pas confondre)** : (a) **PII de contenu** (noms/numéros prononcés) = Transcriber existant → Presidio texte → bip/mute par timestamps (grosse synergie) ; (b) **identité vocale** (voix = biométrie) = anonymisation de locuteur **VoicePAT / VoicePrivacy** (DigitalPhonetics), conversion de voix — NOUVEL axe.
+  - Texte (chat, docs RAG) : Presidio + GLiNER FR — mask/replace/cipher réversible.
+- **CONVERGENCE Q1↔Q2** : le **mode « texte » de l'Anonymizer** ET la **porte privacy avant-cloud** (§16.3 / §16.2 routage cloud) = **LE MÊME composant** → construire une fois (Presidio + GLiNER FR), utiliser aux deux endroits.
+
+### Transcriber — exports + archétype d'export (2026-06-19)
+- **Bugs export corrigés** : DOCX (`HttpResponse` non importé dans `views.py`), PDF (curseur `multi_cell` qui dérive → `new_x="LMARGIN"` ; texte FR), diarisation rendue conditionnellement (labels si `speaker_id`, sinon timecode seul).
+- **PDF = police Unicode DejaVuSans** bundlée (`wama/common/assets/fonts/`) enregistrée dans `_make_pdf` → français préservé (fini le `_sanitize_for_latin1` lossy, désormais passthrough quand DejaVu actif). Fallback Helvetica+sanitize si police absente.
+- **« Télécharger tout » multi-format** : `download_all?format=` (txt/srt/pdf/docx) via le helper partagé `_build_transcript_bytes` ; bouton transformé en dropdown.
+- **Archétype d'export formalisé** : late-binding (master-based : Transcriber) vs early-binding (render-based : Imager/vidéo/Enhancer). Drapeau `export_binding`. Doc complète : `WAMA_APP_CONVENTIONS.md §6.4` (+ §2bis.3). Anonymizer = cas hybride migrable (lié §15/§16).
+- Reste (data, serveur) : item 142 sans locuteurs = diarisation m4a échouée en amont (cf. décodage m4a), à re-tester côté serveur.

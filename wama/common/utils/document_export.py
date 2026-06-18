@@ -6,6 +6,33 @@ des applications Describer et Transcriber.
 import io
 import re
 import datetime
+import os
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Unicode font for PDF — DejaVuSans is bundled in the repo so French text
+# (œ, —, curly quotes, …) renders correctly. Falls back to fpdf2's Latin-1 core
+# Helvetica (with _sanitize_for_latin1) if the font files are unavailable.
+# ──────────────────────────────────────────────────────────────────────────────
+_FONT_DIR = os.path.join(os.path.dirname(__file__), os.pardir, 'assets', 'fonts')
+_DEJAVU_STYLES = {
+    '': 'DejaVuSans.ttf',
+    'B': 'DejaVuSans-Bold.ttf',
+    'I': 'DejaVuSans-Oblique.ttf',
+    'BI': 'DejaVuSans-BoldOblique.ttf',
+}
+
+
+def _dejavu_paths():
+    """Return {style: path} for bundled DejaVuSans, or None if any file is missing."""
+    paths = {s: os.path.join(_FONT_DIR, name) for s, name in _DEJAVU_STYLES.items()}
+    if all(os.path.exists(p) for p in paths.values()):
+        return paths
+    return None
+
+
+_DEJAVU = _dejavu_paths()
+_PDF_FONT = 'DejaVu' if _DEJAVU else 'Helvetica'
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -37,8 +64,13 @@ def _strip_markdown(text: str) -> str:
 
 
 def _sanitize_for_latin1(text: str) -> str:
-    """Replace characters outside Latin-1 with ASCII equivalents for fpdf2 built-in fonts."""
+    """Replace characters outside Latin-1 with ASCII equivalents for fpdf2 built-in fonts.
+
+    No-op when a Unicode font (DejaVu) is active — it renders these characters natively.
+    """
     if not text:
+        return text
+    if _PDF_FONT != 'Helvetica':
         return text
     replacements = {
         '\u2014': '-', '\u2013': '-',        # em-dash, en-dash
@@ -63,18 +95,21 @@ def _make_pdf():
 
     class WamaPDF(FPDF):
         def header(self):
-            self.set_font('Helvetica', 'B', 8)
+            self.set_font(_PDF_FONT, 'B', 8)
             self.set_text_color(140, 140, 140)
             self.cell(0, 5, 'WAMA - Export', align='R')
             self.ln(3)
 
         def footer(self):
             self.set_y(-12)
-            self.set_font('Helvetica', '', 8)
+            self.set_font(_PDF_FONT, '', 8)
             self.set_text_color(160, 160, 160)
             self.cell(0, 8, f'Page {self.page_no()}', align='C')
 
     pdf = WamaPDF()
+    if _DEJAVU:
+        for style, path in _DEJAVU.items():
+            pdf.add_font('DejaVu', style, path)
     pdf.set_auto_page_break(auto=True, margin=18)
     pdf.set_margins(18, 18, 18)
     return pdf
@@ -82,7 +117,7 @@ def _make_pdf():
 
 def _section_title(pdf, text):
     """Print a section title line."""
-    pdf.set_font('Helvetica', 'B', 11)
+    pdf.set_font(_PDF_FONT, 'B', 11)
     pdf.set_text_color(40, 120, 200)
     pdf.cell(0, 6, text, ln=True)
     pdf.set_draw_color(40, 120, 200)
@@ -94,30 +129,33 @@ def _section_title(pdf, text):
 
 def _meta_line(pdf, label, value):
     """Print a key: value metadata line."""
-    pdf.set_font('Helvetica', 'B', 9)
+    pdf.set_font(_PDF_FONT, 'B', 9)
     pdf.set_text_color(80, 80, 80)
-    pdf.cell(35, 5, label + ' :', ln=False)
-    pdf.set_font('Helvetica', '', 9)
+    pdf.cell(35, 5, _sanitize_for_latin1(label + ' :'), ln=False)
+    pdf.set_font(_PDF_FONT, '', 9)
     pdf.set_text_color(30, 30, 30)
-    pdf.multi_cell(0, 5, str(value))
+    # new_x=LMARGIN: fpdf2's default (LEFT) returns the cursor to where this
+    # multi_cell started (after the label cell), making successive meta lines
+    # creep rightwards until they overflow the page. Reset to the left margin.
+    pdf.multi_cell(0, 5, _sanitize_for_latin1(str(value)), new_x="LMARGIN", new_y="NEXT")
 
 
 def _body_text(pdf, text, font_size=10):
     """Print multi-line body text with word-wrap."""
-    pdf.set_font('Helvetica', '', font_size)
+    pdf.set_font(_PDF_FONT, '', font_size)
     pdf.set_text_color(30, 30, 30)
-    # fpdf2 multi_cell handles Unicode and word-wrap
-    pdf.multi_cell(0, 5, text or '')
+    # Core font is Latin-1 only → sanitize to avoid FPDF crashes on French text
+    pdf.multi_cell(0, 5, _sanitize_for_latin1(text or ''))
     pdf.ln(2)
 
 
 def _bullet_list(pdf, items):
     """Print a bulleted list from a Python list of strings."""
-    pdf.set_font('Helvetica', '', 10)
+    pdf.set_font(_PDF_FONT, '', 10)
     pdf.set_text_color(30, 30, 30)
     for item in items:
-        pdf.cell(6, 5, '\u2022', ln=False)
-        pdf.multi_cell(0, 5, str(item))
+        pdf.cell(6, 5, '*', ln=False)
+        pdf.multi_cell(0, 5, _sanitize_for_latin1(str(item)), new_x="LMARGIN", new_y="NEXT")
     pdf.ln(2)
 
 
@@ -146,7 +184,7 @@ def generate_description_pdf(description) -> bytes:
     doc_title = _FORMAT_TITLES.get(description.output_format, 'DESCRIPTION')
 
     # ── Title block ──
-    pdf.set_font('Helvetica', 'B', 16)
+    pdf.set_font(_PDF_FONT, 'B', 16)
     pdf.set_text_color(20, 20, 20)
     pdf.cell(0, 10, doc_title, align='C', ln=True)
     pdf.ln(2)
@@ -182,7 +220,7 @@ def generate_description_pdf(description) -> bytes:
         if description.coherence_notes:
             _body_text(pdf, description.coherence_notes)
         if description.coherence_suggestion:
-            pdf.set_font('Helvetica', 'I', 9)
+            pdf.set_font(_PDF_FONT, 'I', 9)
             pdf.set_text_color(100, 100, 100)
             pdf.multi_cell(0, 5, 'Suggestion : ' + description.coherence_suggestion)
 
@@ -307,10 +345,11 @@ def generate_transcript_txt(transcript) -> bytes:
     lines.append('')
 
     blocks = _transcript_blocks(transcript)
+    show_speakers = any(b['speaker'] for b in blocks)
     if blocks:
         for b in blocks:
             ts = f"[{_fmt_time(b['start'])} — {_fmt_time(b['end'])}]"
-            lines.append(f"{b['speaker'] or 'SPK'} {ts}")
+            lines.append(f"[{b['speaker']}] {ts}" if (show_speakers and b['speaker']) else ts)
             lines.append(b['text'])
             lines.append('')
     else:
@@ -329,7 +368,7 @@ def generate_transcript_pdf(transcript) -> bytes:
     doc_title = custom_title or ('COMPTE-RENDU DE RÉUNION' if is_meeting else 'TRANSCRIPTION')
 
     # ── Title ──
-    pdf.set_font('Helvetica', 'B', 16)
+    pdf.set_font(_PDF_FONT, 'B', 16)
     pdf.set_text_color(20, 20, 20)
     pdf.cell(0, 10, _sanitize_for_latin1(doc_title), align='C', ln=True)
     pdf.ln(2)
@@ -375,15 +414,17 @@ def generate_transcript_pdf(transcript) -> bytes:
 
     try:
         blocks = _transcript_blocks(transcript)
+        show_speakers = any(b['speaker'] for b in blocks)
         if blocks:
             for b in blocks:
-                pdf.set_font('Helvetica', 'B', 9)
+                pdf.set_font(_PDF_FONT, 'B', 9)
                 pdf.set_text_color(40, 120, 200)
                 time_str = f"{_fmt_time(b['start'])} — {_fmt_time(b['end'])}"
-                pdf.cell(0, 5, _sanitize_for_latin1(f"[{b['speaker'] or 'SPK'}]  {time_str}"), ln=True)
-                pdf.set_font('Helvetica', '', 10)
+                header = f"[{b['speaker']}]  {time_str}" if (show_speakers and b['speaker']) else time_str
+                pdf.cell(0, 5, _sanitize_for_latin1(header), ln=True)
+                pdf.set_font(_PDF_FONT, '', 10)
                 pdf.set_text_color(30, 30, 30)
-                pdf.multi_cell(0, 5, b['text'])
+                pdf.multi_cell(0, 5, _sanitize_for_latin1(b['text']))
                 pdf.ln(1)
         else:
             _body_text(pdf, transcript.text or '')
@@ -411,7 +452,7 @@ def generate_reader_pdf(item) -> bytes:
     pdf.add_page()
 
     # ── Title ──
-    pdf.set_font('Helvetica', 'B', 16)
+    pdf.set_font(_PDF_FONT, 'B', 16)
     pdf.set_text_color(20, 20, 20)
     pdf.cell(0, 10, 'DOCUMENT OCR', align='C', ln=True)
     pdf.ln(2)
@@ -548,10 +589,12 @@ def generate_transcript_docx(transcript) -> bytes:
     doc.add_heading('Transcription Complète', 1)
     try:
         blocks = _transcript_blocks(transcript)
+        show_speakers = any(b['speaker'] for b in blocks)
         if blocks:
             for b in blocks:
                 p = doc.add_paragraph()
-                run = p.add_run(f"[{b['speaker'] or 'SPK'}]  {_fmt_time(b['start'])}—{_fmt_time(b['end'])}\n")
+                hdr = f"[{b['speaker']}]  " if (show_speakers and b['speaker']) else ""
+                run = p.add_run(f"{hdr}{_fmt_time(b['start'])}—{_fmt_time(b['end'])}\n")
                 run.bold = True
                 p.add_run(b['text'])
         else:

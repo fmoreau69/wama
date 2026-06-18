@@ -217,7 +217,8 @@ io = {
 
 ### 2bis.3 Capacités d'APP — drapeaux (pilotent l'UI générique + l'agent)
 `has_realtime` (preview/micro), `has_edit_page` (éditeur/correction), `instant_preview`,
-`batch` … → composent le template (cf. §4) et informent l'agent de ce que l'app sait faire.
+`batch`, `export_binding` (`'late'` = format choisi à l'export / `'early'` = format figé à la
+génération, cf. §6.4) … → composent le template (cf. §4) et informent l'agent de ce que l'app sait faire.
 
 ---
 
@@ -613,6 +614,43 @@ def download(request, pk):
 - Contenu narratif riche (compte-rendu, synthèse scientifique) → **WeasyPrint** (template HTML+CSS dédié par format)
 - Export simple sans mise en page → **fpdf2**
 - Format Word requis → **python-docx**
+
+> ⚠️ **fpdf2 — police Latin-1.** Les polices *core* (Helvetica) ne gèrent QUE le Latin-1 → le
+> texte FR (`œ`, `—`, guillemets courbes) plante (`FPDFUnicodeEncodingException` ou, dans le
+> word-wrap, le message trompeur `"Not enough horizontal space to render a single character"`).
+> WAMA embarque **DejaVuSans** (`wama/common/assets/fonts/`) enregistrée dans `_make_pdf`
+> (`document_export.py`) → français préservé. Piège associé : `multi_cell` ramène le curseur là
+> où il a commencé (`new_x` défaut `LEFT`), pas à la marge → passer `new_x="LMARGIN"` dans les
+> motifs `cell()+multi_cell()`. Détails : mémoire `reference_pdf_export_gotchas`.
+
+---
+
+### 6.4 Archétype d'export — late-binding vs early-binding (décision 2026-06-19)
+
+Le **moment** où le format de sortie est choisi distingue deux archétypes d'app. Terminologie
+établie (prépresse / édition non-destructive) — **ne pas dire « déterministe/non-déterministe »**
+(faux ami : « déterministe » = même entrée→même sortie, sans rapport avec *quand* on choisit le format).
+
+| Archétype | Format choisi… | Vocabulaire | Apps |
+|-----------|----------------|-------------|------|
+| **Master-based** | **après** le traitement, à la demande | *late binding* / non-destructif | Transcriber (master = segments/mots/locuteurs), à terme Anonymizer |
+| **Render-based** | **à la génération** | *early binding* / baked | Imager, génération vidéo, Enhancer |
+
+**Critère** (PAS le temps de calcul, simple indice corrélé) : le traitement produit-il un **master
+structuré agnostique au format** (→ late binding : le format n'est qu'un *rendu* du master) ou **le
+média déjà rendu** (→ early binding : reformater = job du Converter) ?
+
+**Règle UI qui en découle :**
+- **App master-based** (`export_binding='late'`) → sélecteur de format à **CHAQUE** téléchargement,
+  y compris **« Télécharger tout »** (dropdown multi-format, cf. §6.3). Le format n'est jamais figé en amont.
+  *Réf. transcriber : `download_all?format=`, dropdown construit dans `index.js`, génération via le
+  helper partagé `_build_transcript_bytes(t, fmt)` (zéro duplication avec `batch_download`).*
+- **App render-based** (`export_binding='early'`) → format choisi à la génération ; le téléchargement
+  sert le fichier produit tel quel. Reformatage ultérieur = Converter.
+
+**Anonymizer = cas hybride** (à faire) : la détection produit un master (boîtes/masques + source) et
+le floutage est une 2ᵉ passe peu coûteuse → migrable vers late-binding (réviser/cliquer les détections
+avant de « rendre » le format voulu). Chantier séparé (ROADMAP §15/§16).
 
 ---
 

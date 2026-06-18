@@ -1043,9 +1043,35 @@ document.addEventListener('DOMContentLoaded', function () {
     if (startProcessBtn) startProcessBtn.addEventListener('click', handleStartAll);
     if (clearAllBtn) clearAllBtn.addEventListener('click', handleClearAll);
     if (downloadAllBtn) {
-      downloadAllBtn.addEventListener('click', () => {
-        window.location.href = config.startAllUrl.replace('start_all', 'download_all');
-      });
+      // Bulk download = late-binding export: let the user pick the format (txt/srt/pdf/docx),
+      // mirroring the per-item download dropdown. The shared queue-actions partial renders a
+      // plain button; we wrap it into a Bootstrap dropdown here (transcriber is master-based).
+      const downloadAllUrl = config.startAllUrl.replace('start_all', 'download_all');
+      const wrap = document.createElement('div');
+      wrap.className = 'dropdown d-inline-block';
+      downloadAllBtn.parentNode.insertBefore(wrap, downloadAllBtn);
+      wrap.appendChild(downloadAllBtn);
+      downloadAllBtn.classList.add('dropdown-toggle');
+      downloadAllBtn.setAttribute('type', 'button');
+      downloadAllBtn.setAttribute('data-bs-toggle', 'dropdown');
+      downloadAllBtn.setAttribute('aria-expanded', 'false');
+      const menu = document.createElement('ul');
+      menu.className = 'dropdown-menu';
+      [['txt', 'Texte (.txt)'], ['srt', 'Sous-titres (.srt)'], ['pdf', 'PDF (.pdf)'], ['docx', 'Word (.docx)']]
+        .forEach(([fmt, label]) => {
+          const li = document.createElement('li');
+          const a = document.createElement('a');
+          a.className = 'dropdown-item';
+          a.href = '#';
+          a.textContent = label;
+          a.addEventListener('click', (e) => {
+            e.preventDefault();
+            window.location.href = downloadAllUrl + '?format=' + fmt;
+          });
+          li.appendChild(a);
+          menu.appendChild(li);
+        });
+      wrap.appendChild(menu);
     }
     if (preprocessToggle) {
       preprocessToggle.checked = preprocessEnabled;

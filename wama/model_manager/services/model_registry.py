@@ -251,6 +251,11 @@ class ModelRegistry:
                     f"vram_gb={vram_gb}, downloaded={is_downloaded}"
                 )
 
+                # Capacités : modalité (image vs vidéo) → task text-to-image/video.
+                _img_type = (config.get('type') or '').lower()
+                _is_video = (_img_type == 'video'
+                             or any(k in model_id.lower()
+                                    for k in ('video', 'cogvideo', 'ltx', 'mochi', 'wan')))
                 self._models[f"imager:{model_id}"] = ModelInfo(
                     id=f"imager:{model_id}",
                     name=name,
@@ -265,6 +270,10 @@ class ModelRegistry:
                     format=model_format,
                     preferred_format=preferred,
                     can_convert_to=convert_options,
+                    capabilities={
+                        'modalities': ['video'] if _is_video else ['image'],
+                        'task': 'text-to-video' if _is_video else 'text-to-image',
+                    },
                 )
         except ImportError as e:
             logger.debug(f"Could not import Imager models: {e}")
@@ -380,6 +389,11 @@ class ModelRegistry:
                     format=model_format,
                     preferred_format=preferred,
                     can_convert_to=convert_options,
+                    # Capacités : modalité d'entrée déduite du type de modèle (image/audio/texte).
+                    capabilities={'modalities': (
+                        ['image'] if model_type in (ModelType.VLM, ModelType.VISION)
+                        else ['audio'] if model_type == ModelType.SPEECH
+                        else ['text'])},
                 )
         except ImportError as e:
             logger.debug(f"Could not import Describer models: {e}")
@@ -448,6 +462,9 @@ class ModelRegistry:
                         format=model_format,
                         preferred_format=preferred,
                         can_convert_to=convert_options,
+                        # Capacités : tâche YOLO + classes détectables (→ sélection par classe,
+                        # filtrage UI : ne proposer qu'un modèle gérant les classes demandées).
+                        capabilities={'task': model_type, 'classes': class_list or []},
                     )
 
             # Add SAM3 if available
@@ -471,6 +488,8 @@ class ModelRegistry:
                     format='safetensors',
                     preferred_format=preferred,
                     can_convert_to=['onnx'],
+                    # SAM3 : segmentation pilotée par prompt texte (open-vocabulary).
+                    capabilities={'task': 'segment', 'text_promptable': True},
                 )
             except Exception:
                 pass
@@ -543,6 +562,16 @@ class ModelRegistry:
                             else str(ct2_dir))
                     extra = {'hf_id': hf_id, 'path': path if is_downloaded else ''}
 
+                # Capacités ASR : multilingue + timestamps ; diarisation NATIVE (vibevoice)
+                # vs pyannote (whisper/qwen) ; hotwords / context biasing (vibevoice, qwen).
+                caps = {'multilingual': True, 'supports_timestamps': True}
+                if model_id.startswith('vibevoice'):
+                    caps.update({'native_diarization': True, 'supports_hotwords': True})
+                elif model_id.startswith('qwen3-asr'):
+                    caps.update({'native_diarization': False, 'supports_hotwords': True, 'languages_count': 52})
+                else:  # whisper — diarisation via pyannote (post-traitement)
+                    caps.update({'native_diarization': False, 'supports_hotwords': False})
+
                 self._models[f"transcriber:{model_id}"] = ModelInfo(
                     id=f"transcriber:{model_id}",
                     name=name,
@@ -556,6 +585,7 @@ class ModelRegistry:
                     preferred_format=preferred,
                     can_convert_to=[],
                     extra_info=extra,
+                    capabilities=caps,
                 )
                 logger.debug(f"[ModelRegistry] Transcriber {model_id}: downloaded={is_downloaded}")
 
@@ -728,6 +758,17 @@ class ModelRegistry:
                     model_name = onnx_file.stem
                     size_mb = onnx_file.stat().st_size / (1024 * 1024)
 
+                    # Capacités : tâche (débruitage IRCNN vs upscaling) + facteur d'échelle.
+                    _n = model_name.lower()
+                    _caps = {
+                        'task': 'denoise' if 'ircnn' in _n else 'upscale',
+                        'modalities': ['image', 'video'],
+                    }
+                    if 'x4' in _n:
+                        _caps['scale'] = 4
+                    elif 'x2' in _n:
+                        _caps['scale'] = 2
+
                     # These models are already in ONNX format
                     self._models[f"enhancer:{model_name}"] = ModelInfo(
                         id=f"enhancer:{model_name}",
@@ -742,6 +783,7 @@ class ModelRegistry:
                         format='onnx',
                         preferred_format=preferred,
                         can_convert_to=[],  # Already optimal format
+                        capabilities=_caps,
                     )
         except Exception as e:
             logger.debug(f"Could not discover Enhancer models: {e}")
