@@ -5,6 +5,7 @@ from .model_selector import (
     list_models,
     describe_model,
     get_free_vram_gb,
+    get_registry_models,
 )
 from .memory_manager import MemoryManager, MemoryStrategy, MODEL_SIZE_PRESETS
 from .format_converter import FormatConverter, ConversionResult, ConversionSuggestion
@@ -36,6 +37,8 @@ __all__ = [
     # Update Checker (détecteur déterministe de MAJ, sans LLM)
     'check_updates',
     'apply_flags',
+    # Registre → dropdowns d'app (verrou n°1)
+    'get_registry_models',
     # Memory Manager
     'MemoryManager',
     'MemoryStrategy',

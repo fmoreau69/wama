@@ -48,6 +48,26 @@ def index(request):
         # Use fast methods to avoid slow torch/diffusers imports during page load
         models_choices = get_models_choices_fast()
         models_info = get_models_with_info_fast()  # Full info with descriptions
+        # Verrou n°1 (étape 1) — ENRICHIR la liste backend avec les métadonnées du registre
+        # AIModel (capacités, statut téléchargé, description/VRAM canoniques) SANS jamais
+        # masquer un modèle chargeable. La bascule « registre = source de la LISTE » viendra
+        # quand le catalogue sera complet + chargeur générique + pipeline de téléchargement
+        # (sinon on masquerait les modèles que le registre ne connaît pas encore).
+        try:
+            from wama.model_manager.services import get_registry_models
+            _, _reg_info = get_registry_models('imager')
+            _reg = {d['id']: d for d in _reg_info}
+            for d in models_info:
+                r = _reg.get(d.get('id'))
+                if r:
+                    d['capabilities'] = r.get('capabilities') or {}
+                    d['downloaded'] = r.get('downloaded')
+                    if r.get('description'):
+                        d['description'] = r['description']
+                    if r.get('vram'):
+                        d['vram'] = r['vram']
+        except Exception:
+            pass  # registre indispo → liste backend inchangée
         backend_info = get_backend_info_fast()
 
         backend_name = backend_info['backend_name']

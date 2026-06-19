@@ -161,6 +161,39 @@ def list_models(source: str, downloaded_only: bool = True) -> List[dict]:
     return [m.to_dict() for m in qs]
 
 
+def get_registry_models(source: str, allowed_ids=None, downloaded_only: bool = False):
+    """
+    (choices, info) pour le <select> d'une app, PILOTÉ par le registre AIModel (verrou n°1).
+
+    - choices : [(model_id, nom)]  — model_id = model_key sans le préfixe "source:"
+    - info    : [{id, name, description, vram, capabilities, downloaded}]
+
+    `allowed_ids` (optionnel) : restreint aux modèles que le backend sait CHARGER — sécurité,
+    on ne propose jamais un modèle non chargeable. Retourne ([], []) si le registre n'a rien
+    pour cette source → l'appelant doit alors faire un repli sur sa liste backend.
+    """
+    from ..models import AIModel
+    qs = AIModel.objects.filter(source=source, is_available=True)
+    if downloaded_only:
+        qs = qs.filter(is_downloaded=True)
+    qs = qs.order_by('-vram_gb', 'name')
+    choices, info = [], []
+    for m in qs:
+        mid = m.model_key.split(':', 1)[1] if ':' in m.model_key else m.model_key
+        if allowed_ids is not None and mid not in allowed_ids:
+            continue
+        choices.append((mid, m.name))
+        info.append({
+            'id': mid,
+            'name': m.name,
+            'description': m.description_short or m.description or '',
+            'vram': f"{int(m.vram_gb)}GB" if m.vram_gb else '',
+            'capabilities': m.capabilities or {},
+            'downloaded': m.is_downloaded,
+        })
+    return choices, info
+
+
 def describe_model(model_key: str, tier: str = 'short') -> str:
     """Description d'un modèle. tier='short' → une ligne (fallback long) ; 'long' → paragraphe."""
     from ..models import AIModel
