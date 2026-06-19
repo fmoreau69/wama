@@ -186,6 +186,17 @@ class ModelSyncService:
             f"vram_gb={defaults.get('vram_gb', 0)}"
         )
 
+        # Préserver les clés "collantes" de extra_info écrites hors découverte (détecteur de MAJ
+        # check_model_updates, décisions admin) : le sync réécrit extra_info → sans ça il les efface.
+        _sticky = ('update_check', 'recommended')
+        _existing = AIModel.objects.filter(model_key=model_key).values_list('extra_info', flat=True).first()
+        if _existing:
+            _merged = dict(defaults.get('extra_info') or {})
+            for _k in _sticky:
+                if _k in _existing and _k not in _merged:
+                    _merged[_k] = _existing[_k]
+            defaults['extra_info'] = _merged
+
         obj, created = AIModel.objects.update_or_create(
             model_key=model_key,
             defaults=defaults

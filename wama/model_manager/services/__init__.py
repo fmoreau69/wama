@@ -20,6 +20,7 @@ from .memory_cleaner import (
 from .remote_backup import RemoteBackupService, BackupResult, get_backup_service
 from .model_sync import ModelSyncService, SyncResult, get_sync_service
 from .file_watcher import ModelFileWatcher, get_file_watcher, is_watchdog_available
+from .update_checker import check_updates, apply_flags
 
 __all__ = [
     # Model Registry
@@ -32,6 +33,9 @@ __all__ = [
     'list_models',
     'describe_model',
     'get_free_vram_gb',
+    # Update Checker (détecteur déterministe de MAJ, sans LLM)
+    'check_updates',
+    'apply_flags',
     # Memory Manager
     'MemoryManager',
     'MemoryStrategy',
