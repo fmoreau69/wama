@@ -163,11 +163,22 @@ def llm_chat(
             'openai':    'gpt-4o',
             'anthropic': 'claude-sonnet-4-6',
             'grok':      'grok-3',
+            'xai':       'grok-3',
+            'gemini':    'gemini-2.0-flash',
             'mistral':   'mistral-large-latest',
+            'groq':      'llama-3.3-70b-versatile',
+            'deepseek':  'deepseek-chat',
         }
         model = _defaults.get(provider, 'gpt-4o')
 
-    litellm_model = f"{provider}/{model}" if '/' not in model else model
+    # Map du nom de fournisseur WAMA → préfixe attendu par LiteLLM (ex. grok → xai/).
+    _LITELLM_PREFIX = {'grok': 'xai', 'google': 'gemini'}
+    prefix = _LITELLM_PREFIX.get(provider, provider)
+    litellm_model = model if '/' in model else f"{prefix}/{model}"
+
+    # Ollama routé via LiteLLM (cas rare : provider='ollama' explicite) → api_base local par défaut.
+    if prefix == 'ollama' and not api_base:
+        api_base = getattr(settings, 'OLLAMA_HOST', 'http://127.0.0.1:11434')
 
     kwargs: dict = {
         'model':      litellm_model,
