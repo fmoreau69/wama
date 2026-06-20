@@ -22,8 +22,10 @@ from .remote_backup import RemoteBackupService, BackupResult, get_backup_service
 from .model_sync import ModelSyncService, SyncResult, get_sync_service
 from .file_watcher import ModelFileWatcher, get_file_watcher, is_watchdog_available
 from .update_checker import check_updates, apply_flags
-from .model_installer import pull_ollama_model, register_after_install
-from .prospector import prospect_hf, APP_TASKS
+from .model_installer import pull_ollama_model, pull_hf_model, register_after_install
+from .prospector import prospect_hf, apply_recommendations, APP_TASKS
+from .prospect_agents import assess_candidate, parse_agents
+from .vision_probe import describe_image_ollama
 
 __all__ = [
     # Model Registry
@@ -43,10 +45,17 @@ __all__ = [
     'get_registry_models',
     # Installation modèles (étape 2 : accept→download→register)
     'pull_ollama_model',
+    'pull_hf_model',
     'register_after_install',
     # Prospection déterministe (socle veille, sans LLM)
     'prospect_hf',
+    'apply_recommendations',
     'APP_TASKS',
+    # Prospection multi-agents (LLM, au-dessus du déterministe)
+    'assess_candidate',
+    'parse_agents',
+    # Sonde vision (bench Describer)
+    'describe_image_ollama',
     # Memory Manager
     'MemoryManager',
     'MemoryStrategy',
