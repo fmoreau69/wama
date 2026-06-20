@@ -1137,3 +1137,29 @@ Sauvegarde de la chaîne ; à réfléchir : appliquer une chaîne à une file (b
 - **« Télécharger tout » multi-format** : `download_all?format=` (txt/srt/pdf/docx) via le helper partagé `_build_transcript_bytes` ; bouton transformé en dropdown.
 - **Archétype d'export formalisé** : late-binding (master-based : Transcriber) vs early-binding (render-based : Imager/vidéo/Enhancer). Drapeau `export_binding`. Doc complète : `WAMA_APP_CONVENTIONS.md §6.4` (+ §2bis.3). Anonymizer = cas hybride migrable (lié §15/§16).
 - Reste (data, serveur) : item 142 sans locuteurs = diarisation m4a échouée en amont (cf. décodage m4a), à re-tester côté serveur.
+
+### 16.5 Runtime AI + couche QC + Gemma 4 (évalué 2026-06-20, avec accès repo)
+
+**Principe directeur : NE PAS reconstruire le « runtime » — WAMA l'a déjà à ~70 %.** Une étude externe proposait de bâtir orchestrateur/scheduler/MCP/router/mémoire from scratch en 5 phases. Mapping réel de l'existant :
+- Model Router → `model_selector.select_model()` (VRAM-aware, keep_loaded, capacités).
+- `ModelCapability` → `AIModel.capabilities` (peuplé).
+- MCP layer → `tool_api.py` (TOOL_REGISTRY, 36 outils).
+- Scheduler → Celery Beat. Dev Cluster → `wama-dev-ai`. Exec cloud/local → LiteLLM (`llm_gateway_check`).
+- Research agent (cœur) → détecteur `check_model_updates`. Memory → ChromaDB + MEMORY.md.
+→ La vision 3-couches (Platform / Runtime AI / Dev Cluster) est un **cap**, pas un plan de construction. **Mapper, pas recréer.** Avancer en briques incrémentales sur l'existant.
+
+**Couche QC / validation transversale (stratégique) — 3 garde-fous non négociables :**
+1. **Validateur INDÉPENDANT du générateur** (sinon validation circulaire : un modèle corrige sa propre copie). Autre famille de modèle, ou contrôles déterministes.
+2. **Score RELATIF** (régression N vs N+1, flag outliers → revue humaine), **PAS** un gate `accepted` automatique.
+3. **JAMAIS le seul filet RGPD** (Anonymizer) : déterministe + échantillonnage d'audit humain = filet PRINCIPAL ; le LLM = alerte secondaire qui escalade vers l'humain. Faux négatif VLM = fuite de données personnelles (sujets humains Lescot).
+→ Bonus USP : score qualité **versionné par run** = audit niveau recherche. Sert aussi à **évaluer les MAJ de modèles** (lien détecteur #3). Réutilise `capabilities`.
+
+**Gemma 4 (vérifié sur ollama.com/library/gemma4) :**
+- `e2b`/`e4b` : 128K, **texte+image+AUDIO** (e4b déjà installé). `12b`/`26b`/`31b` : 256K, **texte+image SANS audio**.
+- Corrections vs étude externe : (1) le **12b n'a PAS l'audio** → pour l'audio = `gemma4:e4b` ; (2) licence = **Gemma Terms of Use**, PAS Apache 2.0 (restrictions d'usage, non-OSI) → vigilance « open/gratuit » + redistribution.
+- `gemma4:12b` (7,6 Go, 256K, texte+image) = bon candidat **résident Describer/assistant**, tient large sur 4090. **À benchmarker sur inputs FR avant tout swap** (ne rien figer sur la hype).
+
+**Autres :**
+- **Concurrence « locale » = séquentielle** sur 1 GPU 24 Go (ne tient pas 3 modèles capables en VRAM). Vraie concurrence seulement sur le futur serveur 96 Go.
+- **Reproductibilité** : enregistrer hash/version du modèle **par run** (renforce la traçabilité scientifique).
+- Séquencement : prospection au-dessus du détecteur (#3) → QC v0 sur 1 app → bench Gemma. Tout incrémental.
