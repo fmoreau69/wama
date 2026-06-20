@@ -23,6 +23,7 @@ from .model_sync import ModelSyncService, SyncResult, get_sync_service
 from .file_watcher import ModelFileWatcher, get_file_watcher, is_watchdog_available
 from .update_checker import check_updates, apply_flags
 from .model_installer import pull_ollama_model, register_after_install
+from .prospector import prospect_hf, APP_TASKS
 
 __all__ = [
     # Model Registry
@@ -43,6 +44,9 @@ __all__ = [
     # Installation modèles (étape 2 : accept→download→register)
     'pull_ollama_model',
     'register_after_install',
+    # Prospection déterministe (socle veille, sans LLM)
+    'prospect_hf',
+    'APP_TASKS',
     # Memory Manager
     'MemoryManager',
     'MemoryStrategy',
