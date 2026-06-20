@@ -205,6 +205,32 @@ STABLE_DIFFUSION_MODELS = {
         'vram_gb': 4,
         'description': 'Deliberate v6 — réaliste/artistique',
     },
+    # Alignés sur diffusers_backend.SUPPORTED_MODELS : étaient offerts par le dropdown mais
+    # absents de la découverte → registre incomplet. Ajoutés pour aligner registre ↔ dropdown.
+    'stable-diffusion-2-1': {
+        'model_id': 'stable-diffusion-2-1',
+        'hf_id': 'stabilityai/stable-diffusion-2-1',
+        'type': 'image',
+        'pipeline': 'sd',
+        'vram_gb': 6,
+        'description': 'Stable Diffusion 2.1 — meilleure cohérence',
+    },
+    'dreamshaper-8': {
+        'model_id': 'dreamshaper-8',
+        'hf_id': 'Lykon/DreamShaper',
+        'type': 'image',
+        'pipeline': 'sd',
+        'vram_gb': 4,
+        'description': 'DreamShaper 8 — polyvalent, bon rapport qualité/vitesse',
+    },
+    'anything-v5': {
+        'model_id': 'anything-v5',
+        'hf_id': 'stablediffusionapi/anything-v5',
+        'type': 'image',
+        'pipeline': 'sd',
+        'vram_gb': 4,
+        'description': 'Anything V5 — style anime/manga',
+    },
 }
 
 # ─── Qwen Image 2 (Alibaba) ───────────────────────────────────────────────────
