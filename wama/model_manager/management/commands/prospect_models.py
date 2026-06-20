@@ -22,6 +22,8 @@ class Command(BaseCommand):
         parser.add_argument('--min-downloads', type=int, default=0)
         parser.add_argument('--library', help="Filtre de librairie HF (ex: diffusers, transformers).")
         parser.add_argument('--new-only', action='store_true', help="Masquer ce que WAMA possede deja.")
+        parser.add_argument('--apply', action='store_true',
+                            help="Creer des entrees 'recommended' (non telechargees) dans le catalogue pour les NOUVEAUX candidats.")
         parser.add_argument('--json', action='store_true')
 
     def handle(self, *args, **options):
@@ -60,3 +62,11 @@ class Command(BaseCommand):
         self.stdout.write(self.style.NOTICE(
             "\nSignal déterministe (popularité). La confrontation benchmarks/avis (agents) viendra "
             "par-dessus ; toute integration reste soumise a acceptation admin."))
+
+        if options['apply']:
+            from wama.model_manager.services.prospector import apply_recommendations
+            source = options.get('app') or 'huggingface'
+            n = apply_recommendations(res['candidates'], source, res['task'])
+            self.stdout.write(self.style.SUCCESS(
+                f"\n✓ {n} entree(s) 'recommended' creee(s)/maj (source={source}, non telechargees). "
+                "Visibles dans le catalogue model_manager ; installation = action admin."))

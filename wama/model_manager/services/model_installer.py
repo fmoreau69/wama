@@ -51,6 +51,51 @@ def pull_ollama_model(name: str, timeout: int = 1800, progress=None):
         return {'ok': False, 'error': f"{type(e).__name__}: {e}"}
 
 
+# ModelType (catalogue) → catégorie de dossier (model_locations.model_dir).
+_TYPE_CATEGORY = {
+    'diffusion': 'diffusion',
+    'speech':    'speech',
+    'vlm':       'vlm',
+    'vision':    'detect',
+    'upscaling': 'enhance',
+    'ocr':       'ocr',
+    'music':     'music',
+    'llm':       'llm',
+}
+
+
+def pull_hf_model(hf_id: str, category: str, family: str | None = None,
+                  dry_run: bool = False, allow_patterns=None, progress=None):
+    """
+    Télécharge un modèle HuggingFace DANS LE BON DOSSIER (catégorie WAMA) via l'API officielle
+    `snapshot_download(cache_dir=…)` — on catégorise par `cache_dir`, SANS muter `HF_HUB_CACHE`
+    global (cause de dispersion/doublons quand plusieurs threads le mutent en concurrence).
+
+    `dry_run` : ne télécharge pas, retourne juste le dossier cible (valide la logique de chemin).
+    Retourne {'ok': bool, 'path'|'target'|'error': …}.
+
+    NB : « téléchargé + catalogué » ≠ « utilisable dans l'app » — l'usage requiert un backend qui
+    sache charger ce modèle (problème du chargeur générique, séparé).
+    """
+    import os
+    try:
+        from wama.common.utils.model_locations import model_dir
+        target = str(model_dir(category, family or hf_id.split('/')[-1]))
+    except Exception as e:
+        return {'ok': False, 'error': f"résolution dossier: {type(e).__name__}: {e}"}
+
+    if dry_run:
+        return {'ok': True, 'target': target, 'dry_run': True}
+
+    os.makedirs(target, exist_ok=True)
+    try:
+        from huggingface_hub import snapshot_download
+        path = snapshot_download(repo_id=hf_id, cache_dir=target, allow_patterns=allow_patterns)
+        return {'ok': True, 'path': path, 'target': target}
+    except Exception as e:
+        return {'ok': False, 'error': f"{type(e).__name__}: {e}"}
+
+
 def register_after_install():
     """
     Re-synchronise le catalogue `AIModel` pour que le modèle fraîchement installé apparaisse.

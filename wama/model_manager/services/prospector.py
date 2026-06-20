@@ -25,6 +25,17 @@ APP_TASKS = {
     'enhancer':     'image-to-image',
 }
 
+# Tâche HF → ModelType valide (cf. models.ModelType).
+_TASK_MODEL_TYPE = {
+    'text-to-image':                 'diffusion',
+    'text-to-video':                 'diffusion',
+    'image-to-image':                'upscaling',
+    'automatic-speech-recognition':  'speech',
+    'text-to-speech':                'speech',
+    'image-text-to-text':            'vlm',
+    'object-detection':              'vision',
+}
+
 
 def prospect_hf(task: str, limit: int = 15, library: str | None = None, min_downloads: int = 0):
     """
@@ -72,3 +83,45 @@ def prospect_hf(task: str, limit: int = 15, library: str | None = None, min_down
             'have': m.id.lower() in have,
         })
     return {'ok': True, 'task': task, 'candidates': candidates}
+
+
+def apply_recommendations(candidates, source: str, task: str):
+    """
+    Crée/maj des entrées `recommended` dans le catalogue pour les candidats NOUVEAUX (pas déjà
+    dans WAMA). Non téléchargées, non disponibles, préfixe model_id `rec-` (distinctes des
+    modèles découverts). Le flag `extra_info['recommended']` est préservé par le sync. Retourne
+    le nombre d'entrées écrites. L'installation effective reste une action admin (HF à venir).
+    """
+    import re
+    from datetime import datetime, timezone
+    from wama.model_manager.models import AIModel
+
+    mt = _TASK_MODEL_TYPE.get(task, 'llm')
+    now = datetime.now(timezone.utc).isoformat()
+    n = 0
+    for c in candidates:
+        if c.get('have'):
+            continue
+        hf_id = c['hf_id']
+        model_id = 'rec-' + re.sub(r'[^a-z0-9.-]+', '-', hf_id.lower()).strip('-')
+        AIModel.objects.update_or_create(
+            model_key=f"{source}:{model_id}",
+            defaults={
+                'name': hf_id.split('/')[-1],
+                'source': source,
+                'model_type': mt,
+                'hf_id': hf_id,
+                'description': f"(Recommandé · prospection) {task} — {c['downloads']} téléchargements, {c['likes']} ♥",
+                'is_downloaded': False,
+                'is_available': False,
+                'extra_info': {'recommended': {
+                    'task': task,
+                    'downloads': c['downloads'],
+                    'likes': c['likes'],
+                    'pipeline_tag': c.get('pipeline_tag'),
+                    'prospected_at': now,
+                }},
+            },
+        )
+        n += 1
+    return n
