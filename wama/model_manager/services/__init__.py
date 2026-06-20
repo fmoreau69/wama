@@ -22,6 +22,7 @@ from .remote_backup import RemoteBackupService, BackupResult, get_backup_service
 from .model_sync import ModelSyncService, SyncResult, get_sync_service
 from .file_watcher import ModelFileWatcher, get_file_watcher, is_watchdog_available
 from .update_checker import check_updates, apply_flags
+from .model_installer import pull_ollama_model, register_after_install
 
 __all__ = [
     # Model Registry
@@ -39,6 +40,9 @@ __all__ = [
     'apply_flags',
     # Registre → dropdowns d'app (verrou n°1)
     'get_registry_models',
+    # Installation modèles (étape 2 : accept→download→register)
+    'pull_ollama_model',
+    'register_after_install',
     # Memory Manager
     'MemoryManager',
     'MemoryStrategy',
