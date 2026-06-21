@@ -964,6 +964,16 @@ produire le prompt optimisé directement dans la langue/format du modèle cible)
 - **Workflow d'entrée = passe LLM jointe** (comprendre→enrichir→émettre en langue cible), pas de MT en chaîne.
 - **i18n statique (10.A) et Translator runtime (10.B) restent deux couches** mais partagent le modèle de traduction.
 
+#### Raffinements (décidés 2026-06-21)
+- **La « carte langue-cible par modèle » = `AIModel.capabilities['languages']`** (la métadonnée déjà construite), PAS une carte codée en dur. L'orchestrateur lit les capacités du modèle choisi → décide direct/traduction. Unifie la traduction avec `model_selector` + la chaîne de gestion intelligente des modèles.
+- **PAS de pivot EN forcé en runtime** : pivot **seulement si le modèle l'exige** (générateurs EN-only : SDXL/Flux/SAM3). Un modèle **multilingue** → rentrer **directement** dans la langue (> 2 traductions). (Le pivot EN reste pour 10.A / l'enrichissement de prompt des générateurs.)
+- **🔑 Transparence pré-lancement (NOUVEAU)** : avant que l'utilisateur lance, afficher la décision résolue — « ⓘ média en *X*, le modèle *Y* ne gère pas *X* → traduction auto en amont/aval (qualité possiblement réduite) ». Consentement éclairé, jamais de dégradation silencieuse.
+- **Médias non-textuels** : « traduire l'entrée » ne vaut que pour les entrées **textuelles** (docs/transcripts) ; pour image/audio/vidéo, seuls le **prompt** et la **sortie** ont une langue.
+- **Caveat « universel » = best-effort** (FR/EN excellent, ZH/RU/ES correct, langues rares variables) → d'où la couche de transparence.
+
+#### Graine posée (2026-06-21) — Describer
+Branche « direct » de §10.B appliquée au Describer : `image_describer._vision_prompt(output_format, output_language, model)` prompte le modèle vision **dans `output_language`** si le modèle est multilingue (gemma4/qwen), sinon EN (reformaté en aval). Évite la chaîne « caption EN → reformatage FR ». Limite graine : FR/EN seulement (les autres langues → EN ; §10.B complet généralisera via translategemma). Lié au câblage gemma4:12b comme describer ([[project-intelligent-architecture]]).
+
 ---
 
 ## 11. Déploiement — Migration vers serveur Linux dédié

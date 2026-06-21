@@ -115,10 +115,11 @@ def _describe_with_ollama_vision(model: str, image_path: str, prompt: str) -> Op
 def _best_ollama_vision_model() -> Optional[str]:
     """
     Return the best available Ollama vision model name, or None.
-    Priority: qwen3-vl:8b > qwen3-vl > moondream2 > moondream
+    Priority: qwen3-vl:8b > qwen3-vl > gemma4:12b > gemma4:e4b > moondream2 > moondream
+    (gemma4:12b validé bon describer FR, 256K ; e4b = repli plus léger + audio.)
     """
     available = _get_available_ollama_models()
-    priority = ['qwen3-vl:8b', 'qwen3-vl', 'moondream2', 'moondream']
+    priority = ['qwen3-vl:8b', 'qwen3-vl', 'gemma4:12b', 'gemma4:e4b', 'moondream2', 'moondream']
     for model in priority:
         # Match prefix (Ollama can append :latest)
         for avail in available:
@@ -173,6 +174,34 @@ def get_blip_model():
     return _blip_processor, _blip_model
 
 
+# Prompts vision localisés — graine de l'orchestration de traduction (ROADMAP §10.B) :
+# si le modèle vision est multilingue, on le prompte DIRECTEMENT dans la langue de sortie
+# (évite la chaîne « caption EN → reformatage FR » en aval). Sinon EN.
+_VISION_PROMPTS = {
+    'detailed':      {'en': "Describe this image in detail.",
+                      'fr': "Décris cette image en détail."},
+    'scientific':    {'en': "Provide a scientific analysis of this image.",
+                      'fr': "Fournis une analyse scientifique de cette image."},
+    'bullet_points': {'en': "List the key elements visible in this image.",
+                      'fr': "Liste les éléments clés visibles dans cette image."},
+    'brief':         {'en': "Briefly describe this image.",
+                      'fr': "Décris brièvement cette image."},
+}
+
+
+def _is_multilingual_vision(model: Optional[str]) -> bool:
+    """Modèles vision Ollama multilingues (décrivent directement en langue cible)."""
+    m = (model or '').lower()
+    return m.startswith('gemma4') or 'qwen' in m  # moondream = anglophone
+
+
+def _vision_prompt(output_format: str, output_language: str, model: Optional[str]) -> str:
+    """Prompt vision dans output_language si le modèle est multilingue, sinon EN (reformaté en aval)."""
+    spec = _VISION_PROMPTS.get(output_format, _VISION_PROMPTS['brief'])
+    lang = output_language if (_is_multilingual_vision(model) and output_language in spec) else 'en'
+    return spec[lang]
+
+
 def describe_image(description, set_progress, set_partial, console):
     """
     Describe an image using BLIP model.
@@ -210,18 +239,11 @@ def describe_image(description, set_progress, set_partial, console):
         set_progress(description, 30)
         set_partial(description, "Analyse de l'image…")
 
-        # Build prompt according to requested format
-        if output_format == 'detailed':
-            moondream_prompt = "Describe this image in detail."
-        elif output_format == 'scientific':
-            moondream_prompt = "Provide a scientific analysis of this image."
-        elif output_format == 'bullet_points':
-            moondream_prompt = "List the key elements visible in this image."
-        else:
-            moondream_prompt = "Briefly describe this image."
-
-        # --- Try best available Ollama vision model ---
+        # --- Pick the vision model first: its language ability decides the prompt language ---
+        # Graine §10.B : prompter direct dans la langue de sortie si le modèle est multilingue
+        # (gemma4/qwen), au lieu de la chaîne « caption EN → reformatage FR » en aval.
         ollama_model = _best_ollama_vision_model()
+        moondream_prompt = _vision_prompt(output_format, output_language, ollama_model)
         caption = None
         if ollama_model:
             console(user_id, f"Essai {ollama_model} (Ollama)…")
