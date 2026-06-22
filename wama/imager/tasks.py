@@ -191,23 +191,13 @@ def generate_image_task(self, generation_id):
             reference_image_path = generation.reference_image.path
             _console(user_id, f"[Imager] Using reference image: {os.path.basename(reference_image_path)}")
 
-        # Pipeline de prompt commune (§16.6) : traduit/enrichit selon les capacités du modèle.
-        _prompt = generation.prompt
-        _negative = generation.negative_prompt
-        try:
-            from wama.model_manager.models import AIModel
-            from wama.common.utils.prompt_pipeline import process_prompt
-            _aim = AIModel.objects.filter(model_key=f"imager:{generation.model}").first()
-            _caps = _aim.capabilities if _aim else None
-            _mtype = _aim.model_type if _aim else 'diffusion'
-            _cons = lambda m: _console(user_id, f"[Imager] {m}")
-            _prompt = process_prompt(_prompt, kind='generative', model_capabilities=_caps,
-                                     model_type=_mtype, user=generation.user, console=_cons)['prompt']
-            if _negative:
-                _negative = process_prompt(_negative, kind='generative', model_capabilities=_caps,
-                                           model_type=_mtype, user=generation.user)['prompt']
-        except Exception as _e:
-            _console(user_id, f"[Imager] Pipeline prompt ignorée ({_e})")
+        # Pipeline de prompt commune (§16.6) — KIND déclaré dans app_metadata.PROMPT_TARGETS.
+        from wama.common.utils.app_metadata import process_prompt_for
+        _cons = lambda m: _console(user_id, f"[Imager] {m}")
+        _prompt = process_prompt_for('imager', 'prompt', generation.prompt,
+                                     instance=generation, user=generation.user, console=_cons)
+        _negative = process_prompt_for('imager', 'negative_prompt', generation.negative_prompt,
+                                       instance=generation, user=generation.user)
 
         # Create generation parameters with multi-modal support
         params = GenerationParams(

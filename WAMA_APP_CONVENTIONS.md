@@ -220,6 +220,16 @@ io = {
 `batch`, `export_binding` (`'late'` = format choisi à l'export / `'early'` = format figé à la
 génération, cf. §6.4) … → composent le template (cf. §4) et informent l'agent de ce que l'app sait faire.
 
+### 2bis.4 Prompt targets — déclaration des prompts (pilote la PromptPipeline §16.6)
+Chaque app déclare ses champs-prompt dans `common/utils/app_metadata.py::PROMPT_TARGETS` (source
+unique, découvrable par l'assistant/méta-app **sans lire le code**). Format par target :
+`{field, kind, [model_field, source, default_model_type, when]}`. **KIND** : `generative` (génération,
+SDXL/Flux/Qwen) / `concept` (concepts EN, SAM3) / `intent` (LLM assistant) / `text`.
+- Dans la tâche, NE PAS coder `kind=` en dur : appeler `app_metadata.process_prompt_for(app, field,
+  valeur, instance, user, console)` → détection langue + routing + traduction selon le KIND
+  ([[prompt_pipeline]] / [[lang_routing]]). Fail-safe.
+- Toute nouvelle app ayant un prompt → ajouter ses targets ici (pas de fonction de traduction dédiée).
+
 ---
 
 ## 3. URLs & Vues Standard

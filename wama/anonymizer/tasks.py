@@ -165,12 +165,13 @@ def process_single_media(self, media_id, force_individual=False):
         use_sam3 = media.use_sam3 if ms_custom else user_settings.use_sam3
         sam3_prompt = media.sam3_prompt if ms_custom else user_settings.sam3_prompt
 
-        # SAM3 attend des concepts en ANGLAIS → pipeline de prompt commune (§16.6), kind='concept'.
-        # Bug d'origine : « Floute les visages » (FR) → 0 masque. process_prompt est fail-safe.
+        # SAM3 = concepts EN → pipeline commune (§16.6) ; KIND déclaré dans app_metadata.
+        # Bug d'origine : « Floute les visages » (FR) → 0 masque. process_prompt_for est fail-safe.
         if use_sam3 and sam3_prompt and sam3_prompt.strip():
-            from wama.common.utils.prompt_pipeline import process_prompt
-            sam3_prompt = process_prompt(sam3_prompt, kind='concept', user=user,
-                                         console=lambda m: _console(user.id, f"[SAM3] {m}"))['prompt']
+            from wama.common.utils.app_metadata import process_prompt_for
+            sam3_prompt = process_prompt_for('anonymizer', 'sam3_prompt', sam3_prompt,
+                                             instance=media, user=user,
+                                             console=lambda m: _console(user.id, f"[SAM3] {m}"))
 
         # Debug: Log SAM3 settings retrieval
         print(f"[process_single_media] DEBUG: ms_custom={ms_custom}")
