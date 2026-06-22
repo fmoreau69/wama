@@ -165,23 +165,12 @@ def process_single_media(self, media_id, force_individual=False):
         use_sam3 = media.use_sam3 if ms_custom else user_settings.use_sam3
         sam3_prompt = media.sam3_prompt if ms_custom else user_settings.sam3_prompt
 
-        # SAM3 attend des concepts en ANGLAIS (ex. "face") → traduire la consigne FR→EN si besoin.
-        # Bug d'origine : « Floute les visages » (FR) → 0 masque. Fail-safe : erreur → consigne d'origine.
+        # SAM3 attend des concepts en ANGLAIS → pipeline de prompt commune (§16.6), kind='concept'.
+        # Bug d'origine : « Floute les visages » (FR) → 0 masque. process_prompt est fail-safe.
         if use_sam3 and sam3_prompt and sam3_prompt.strip():
-            try:
-                from wama.common.utils.lang_routing import routing_for_model
-                from wama.common.utils.translator import TranslatorService
-                _ulang = getattr(getattr(user, 'profile', None), 'preferred_language', None) or 'en'
-                _routing = routing_for_model({'languages': ['en']}, 'vision',
-                                             input_lang=_ulang, has_text_input=True, has_text_output=False)
-                if _routing['input_translate']:
-                    _tr = TranslatorService().translate_input(_routing, sam3_prompt, _ulang)
-                    if _tr.get('ok') and _tr.get('text'):
-                        _console(user.id, f"[SAM3] Consigne traduite {_ulang}→en : "
-                                          f"'{sam3_prompt[:30]}' → '{_tr['text'][:30]}'")
-                        sam3_prompt = _tr['text']
-            except Exception as _e:
-                _console(user.id, f"[SAM3] Traduction consigne ignorée ({_e})")
+            from wama.common.utils.prompt_pipeline import process_prompt
+            sam3_prompt = process_prompt(sam3_prompt, kind='concept', user=user,
+                                         console=lambda m: _console(user.id, f"[SAM3] {m}"))['prompt']
 
         # Debug: Log SAM3 settings retrieval
         print(f"[process_single_media] DEBUG: ms_custom={ms_custom}")

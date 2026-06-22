@@ -191,33 +191,23 @@ def generate_image_task(self, generation_id):
             reference_image_path = generation.reference_image.path
             _console(user_id, f"[Imager] Using reference image: {os.path.basename(reference_image_path)}")
 
-        # Traduction du prompt si le modèle ne gère pas la langue de l'utilisateur (ROADMAP §10.B).
-        # Fail-safe : toute erreur → prompt original (aucune régression).
+        # Pipeline de prompt commune (§16.6) : traduit/enrichit selon les capacités du modèle.
         _prompt = generation.prompt
         _negative = generation.negative_prompt
         try:
             from wama.model_manager.models import AIModel
-            from wama.common.utils.lang_routing import routing_for_model
-            from wama.common.utils.translator import TranslatorService
+            from wama.common.utils.prompt_pipeline import process_prompt
             _aim = AIModel.objects.filter(model_key=f"imager:{generation.model}").first()
-            _ulang = getattr(getattr(generation.user, 'profile', None), 'preferred_language', None) or 'en'
-            _routing = routing_for_model(
-                _aim.capabilities if _aim else None,
-                _aim.model_type if _aim else 'diffusion',
-                input_lang=_ulang, has_text_input=True, has_text_output=False)
-            if _routing['input_translate']:
-                _svc = TranslatorService()
-                _pr = _svc.translate_input(_routing, _prompt, _ulang)
-                if _pr.get('ok'):
-                    _prompt = _pr['text']
-                if _negative:
-                    _nr = _svc.translate_input(_routing, _negative, _ulang)
-                    if _nr.get('ok'):
-                        _negative = _nr['text']
-                _console(user_id, f"[Imager] Prompt traduit {_ulang}→{_routing['input_pivot']} "
-                                  f"(modèle {generation.model} non multilingue)")
+            _caps = _aim.capabilities if _aim else None
+            _mtype = _aim.model_type if _aim else 'diffusion'
+            _cons = lambda m: _console(user_id, f"[Imager] {m}")
+            _prompt = process_prompt(_prompt, kind='generative', model_capabilities=_caps,
+                                     model_type=_mtype, user=generation.user, console=_cons)['prompt']
+            if _negative:
+                _negative = process_prompt(_negative, kind='generative', model_capabilities=_caps,
+                                           model_type=_mtype, user=generation.user)['prompt']
         except Exception as _e:
-            _console(user_id, f"[Imager] Traduction prompt ignorée ({_e})")
+            _console(user_id, f"[Imager] Pipeline prompt ignorée ({_e})")
 
         # Create generation parameters with multi-modal support
         params = GenerationParams(
