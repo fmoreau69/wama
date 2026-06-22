@@ -1967,7 +1967,18 @@ def get_avatarizer_status(user) -> dict:
 # Tool dispatcher (used by the agentic loop in views.py)
 # ===========================================================================
 
+def translate_text(user, text, source_lang='fr', target_lang='en', glossary=None):
+    """Traduit un texte via translategemma (TranslatorService). Passthrough si source==target."""
+    from wama.common.utils.translator import TranslatorService
+    res = TranslatorService().translate(text or '', source_lang, target_lang, glossary=glossary)
+    if not res.get('ok'):
+        return {'error': res.get('error', 'échec traduction')}
+    return {'text': res['text'], 'source_lang': source_lang,
+            'target_lang': target_lang, 'cached': res.get('cached', False)}
+
+
 TOOL_REGISTRY = {
+    'translate_text': translate_text,
     'list_user_files':       list_user_files,
     'add_to_avatarizer':     add_to_avatarizer,
     'start_avatarizer':      start_avatarizer,
@@ -2008,6 +2019,15 @@ TOOL_REGISTRY = {
 
 # Metadata consumed by GET /api/v1/tools/ — update this when adding a new tool.
 TOOL_DESCRIPTIONS = {
+    'translate_text': {
+        'description': "Traduit un texte d'une langue vers une autre (translategemma). Passthrough si identiques.",
+        'args': {
+            'text':        'str — texte à traduire',
+            'source_lang': "str — code langue source (défaut: 'fr')",
+            'target_lang': "str — code langue cible (défaut: 'en')",
+            'glossary':    'list — termes à NE PAS traduire (optionnel)',
+        },
+    },
     'list_user_files': {
         'description': "Liste les fichiers média de l'utilisateur dans un dossier.",
         'args': {

@@ -974,6 +974,14 @@ produire le prompt optimisé directement dans la langue/format du modèle cible)
 #### Graine posée (2026-06-21) — Describer
 Branche « direct » de §10.B appliquée au Describer : `image_describer._vision_prompt(output_format, output_language, model)` prompte le modèle vision **dans `output_language`** si le modèle est multilingue (gemma4/qwen), sinon EN (reformaté en aval). Évite la chaîne « caption EN → reformatage FR ». Limite graine : FR/EN seulement (les autres langues → EN ; §10.B complet généralisera via translategemma). Lié au câblage gemma4:12b comme describer ([[project-intelligent-architecture]]).
 
+#### Compréhension de documents ≠ traduction (décidé 2026-06-21)
+**Distinction clé** : « comprendre un document scientifique (figures, schémas, layout) » n'est PAS un problème de traduction. Traduire le **texte** d'un PDF structuré **détruit** figures/mise en page/explications visuelles. Deux couches :
+1. **Ingestion** : doc → contenu structuré (texte + **figures extraites comme images** + tableaux + ordre de lecture) → **Docling** (IBM). À brancher dans l'app **Reader** (déjà OCR olmOCR/doctr).
+2. **Compréhension multimodale** : un modèle qui VOIT texte + figures et restitue **directement dans la langue cible** → gemma4:12b (multilingue + vision). Avec un bon modèle multilingue → sortie native, **AUCUNE traduction** (`lang_routing` renvoie `direct`).
+- **🔴 Garde-fou** : NE JAMAIS « traduire le texte d'entrée » d'un document structuré (préprocessing). `input_translate` = prompts COURTS + sorties texte finales, PAS l'ingestion de documents.
+- **Placement (corrigé)** : la description/synthèse de documents scientifiques est **GÉNÉRIQUE** → sous-page/mode « document » du **Describer** (tout chercheur peut l'utiliser). **OpenScholar** (synthèse de littérature RAG multi-papiers + citations) = sous-page du Describer. **WAMA Lab** est réservé au **spécifique métier** (données expérimentales labo, oculométrie, trajectoires Lescot), PAS la description scientifique générique.
+- Architecture cible : **Reader/Docling** (parse) → **modèle multimodal multilingue** (gemma4:12b) → **synthèse FR directe**. `synthese-doc` à évaluer.
+
 ---
 
 ## 11. Déploiement — Migration vers serveur Linux dédié
@@ -1173,3 +1181,25 @@ Sauvegarde de la chaîne ; à réfléchir : appliquer une chaîne à une file (b
 - **Concurrence « locale » = séquentielle** sur 1 GPU 24 Go (ne tient pas 3 modèles capables en VRAM). Vraie concurrence seulement sur le futur serveur 96 Go.
 - **Reproductibilité** : enregistrer hash/version du modèle **par run** (renforce la traçabilité scientifique).
 - Séquencement : prospection au-dessus du détecteur (#3) → QC v0 sur 1 app → bench Gemma. Tout incrémental.
+
+### 16.6 Pipeline de prompt commune (métadonnée-driven) + hiérarchie des visions méta (décidé 2026-06-22)
+
+**Constat (remarque Fabien)** : les traductions par app (imager prompt, SAM3 concept) sont de la GLU par app — v0 OK pour valider la chaîne, mais PAS la cible. **CIBLE = une `PromptPipeline` COMMUNE déclenchée par les métadonnées de l'app.**
+
+**Principe** : chaque app DÉCLARE dans sa description ses « prompt targets » + leur **KIND** :
+- imager → prompt `generative` (SDXL/Flux/…) ; anonymizer → `sam3_prompt` `concept` (SAM3, concepts EN) ; assistant → `intent`.
+- Dès qu'un prompt arrive : TRIGGER → `PromptPipeline.process(prompt, kind, app_meta, target_model)` → *détection langue → traduction si besoin (lang_routing+translator) → enrichissement selon le KIND → RAG user/labo → compréhension fichiers de référence*. **AUCUNE fonction par app.** Le **KIND est essentiel** (enrichir un prompt génératif ≠ extraire un concept EN ≠ comprendre une intention).
+- **Prochain consolidant** : refactorer la glu imager/SAM3 dans cette pipeline. Lié au layer métadonnée §2bis (capacités + types I/O + **KIND prompt**) et à `model_selector` (task→modèle).
+
+**Hiérarchie des visions « méta »** (4 faces d'UN moteur : capacités + model_selector + PromptPipeline + contrats I/O) :
+1. **Méta-app graphique à cards (§15)** — LA PLUS concrète (compose l'existant, zéro magie). Priorité interface.
+2. **Assistant orchestrateur** (tool_api) — façade NL, existe déjà.
+3. **Génération d'app = SCAFFOLD humain-in-loop** (méta-description + plan + boilerplate aux conventions), PAS usine autonome.
+4. **Méta-app spec-driven unique** = PoC recherche, plus tard.
+
+**Règles** :
+- **« Capacité-first »** : si la capacité existe (modèle + pipeline + contrat I/O), l'assistant l'orchestre SANS app dédiée ; scaffolder une app seulement quand le besoin est **récurrent**.
+- **« Généraliste > spécifique »** fait converger vers PEU d'apps généralistes + composition (évite la prolifération d'apps). WAMA Lab = spécifique métier uniquement.
+- **Outils d'éval** (Promptfoo/DeepEval/Langfuse/lm-eval = réels ; Modelator/Evvl/Benchscope/etc. = invérifiables) : **sur-dimensionnés**. WAMA a déjà l'équivalent (registry=`AIModel.capabilities`, judge=QC, adaptateurs=LiteLLM/backends). NE PAS bâtir de plateforme d'éval ; Promptfoo/DeepEval éventuellement pour la régression plus tard.
+
+**Séquencement** : fondation (métadonnée + `PromptPipeline` commune) AVANT les interfaces méta.

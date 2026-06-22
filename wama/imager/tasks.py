@@ -191,10 +191,38 @@ def generate_image_task(self, generation_id):
             reference_image_path = generation.reference_image.path
             _console(user_id, f"[Imager] Using reference image: {os.path.basename(reference_image_path)}")
 
+        # Traduction du prompt si le modèle ne gère pas la langue de l'utilisateur (ROADMAP §10.B).
+        # Fail-safe : toute erreur → prompt original (aucune régression).
+        _prompt = generation.prompt
+        _negative = generation.negative_prompt
+        try:
+            from wama.model_manager.models import AIModel
+            from wama.common.utils.lang_routing import routing_for_model
+            from wama.common.utils.translator import TranslatorService
+            _aim = AIModel.objects.filter(model_key=f"imager:{generation.model}").first()
+            _ulang = getattr(getattr(generation.user, 'profile', None), 'preferred_language', None) or 'en'
+            _routing = routing_for_model(
+                _aim.capabilities if _aim else None,
+                _aim.model_type if _aim else 'diffusion',
+                input_lang=_ulang, has_text_input=True, has_text_output=False)
+            if _routing['input_translate']:
+                _svc = TranslatorService()
+                _pr = _svc.translate_input(_routing, _prompt, _ulang)
+                if _pr.get('ok'):
+                    _prompt = _pr['text']
+                if _negative:
+                    _nr = _svc.translate_input(_routing, _negative, _ulang)
+                    if _nr.get('ok'):
+                        _negative = _nr['text']
+                _console(user_id, f"[Imager] Prompt traduit {_ulang}→{_routing['input_pivot']} "
+                                  f"(modèle {generation.model} non multilingue)")
+        except Exception as _e:
+            _console(user_id, f"[Imager] Traduction prompt ignorée ({_e})")
+
         # Create generation parameters with multi-modal support
         params = GenerationParams(
-            prompt=generation.prompt,
-            negative_prompt=generation.negative_prompt,
+            prompt=_prompt,
+            negative_prompt=_negative,
             model=generation.model,
             width=generation.width,
             height=generation.height,
