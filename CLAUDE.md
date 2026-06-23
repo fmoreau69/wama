@@ -2,6 +2,43 @@
 
 ---
 
+## 🧭 PHILOSOPHIE GÉNÉRALE WAMA (cadre de toutes les décisions)
+
+> WAMA est une plateforme média/IA pour un labo de recherche universitaire. L'objectif est un
+> **système global, intelligent et homogène**, où l'on ajoute des apps **vite et sans allers-retours**
+> en suivant des principes constants.
+
+1. **Code minimal, intelligent, zéro redondance.** Avant d'écrire, chercher la brique existante dans
+   `common/`. Si réutilisable et absente → l'y créer. Jamais de copier-coller entre apps. (Prime sur
+   l'architecture — voir la règle Centralisation plus bas.)
+
+2. **Généraliser le comportement ET l'UI/UX.** L'utilisateur doit retrouver les mêmes gestes partout
+   (mêmes boutons, même volet droit, même file d'attente). L'homogénéité est un objectif de design,
+   pas un effet de bord.
+
+3. **Métadonnée-driven.** L'UI s'**auto-génère à partir des descriptions/métadonnées des éléments**
+   (app, modèle, item…), pas de HTML écrit à la main par app. Exemples : volet droit auto-rempli
+   (`WamaAutofill` + `to_dict()`/`APP_CATALOG`), descriptif moteur (`wama-model-help.js`), pipeline de
+   prompts (`PROMPT_TARGETS`). **Soigner les métadonnées à la source** est ce qui « remplit » l'UI.
+
+4. **Spécificités déclarées, pas codées en dur partout.** L'homogénéité ne doit PAS écraser les
+   spécificités légitimes (ex. Transcriber : temps réel « Speak » + page de correction manuelle
+   assistée IA). On les **déclare précisément** (capacités d'app, méta-infos, schémas) plutôt que de
+   les disperser. Voir `WAMA_APP_CONVENTIONS.md` (capacités d'app + §22 volet droit auto-généré).
+
+5. **L'IA est dans la chaîne, pas à côté.** Traduction/enrichissement de prompts, correction assistée,
+   sélection de modèle VRAM-aware, auto-maintenance (libs, modèles, audits) : centralisés et
+   réutilisables. Chaque app expose son API à l'assistant IA (`tool_api.py`).
+
+6. **RAG = prochain grand chantier (pas encore implémenté).** Niveaux d'héritage prévus :
+   université → labo/service → équipe → utilisateur. Le RAG utilisateur est la base ; l'utilisateur
+   peut opter pour des niveaux plus globaux. Tout élément descriptible héritera du RAG.
+
+> En cas de doute sur « où mettre le code » ou « comment présenter une UI » : relire ces 6 points,
+> puis `WAMA_APP_CONVENTIONS.md` et `COMMON_REFACTORING.md`.
+
+---
+
 ## 🔴 RÈGLE OBLIGATOIRE : PATCHES DE COMPATIBILITÉ VENV → `patches/apply_patches.py`
 
 > **Toute correction manuelle dans `venv_linux/` ou `venv_win/` DOIT être ajoutée à `patches/apply_patches.py`.**

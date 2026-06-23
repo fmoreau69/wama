@@ -1,0 +1,52 @@
+/*
+ * WAMA — Inspector autofill (styles communs)
+ * Rendu générique du volet droit à partir des métadonnées d'un élément
+ * (app, modèle, item de file…). Voir wama-inspector-autofill.js.
+ * Classes préfixées `wai-` pour éviter toute collision app-locale.
+ */
+
+.wai-badges { margin-bottom: .6rem; display: flex; flex-wrap: wrap; gap: .35rem; }
+
+.wai-desc {
+    font-size: .85rem;
+    color: #ced4da;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    margin-bottom: .9rem;
+}
+
+.wai-section-title {
+    font-size: .72rem;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: #6c757d;
+    font-weight: 600;
+    margin: 1.1rem 0 .4rem;
+}
+.wai-section-title:first-child { margin-top: 0; }
+
+.wai-row {
+    display: flex;
+    justify-content: space-between;
+    gap: .75rem;
+    padding: .35rem 0;
+    border-bottom: 1px solid #343a40;
+    font-size: .85rem;
+}
+.wai-row:last-child { border-bottom: 0; }
+.wai-row .wai-k { color: #adb5bd; white-space: nowrap; }
+.wai-row .wai-v { color: #e9ecef; text-align: right; word-break: break-word; }
+
+.wai-code {
+    display: block;
+    font-family: 'Courier New', monospace;
+    font-size: .78rem;
+    color: #7fd8c0;
+    background: #1a1d20;
+    padding: .4rem .55rem;
+    border-radius: 4px;
+    word-break: break-all;
+}
+
+.wai-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+.wai-empty { color: #6c757d; font-size: .85rem; }

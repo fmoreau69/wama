@@ -16,7 +16,22 @@ Doc : [`PROMPT_PIPELINE.md`](PROMPT_PIPELINE.md).
 
 ## 2. Model Manager — centralisation + prospection + UI volet droit
 - ✅ Briques prospection/maintenance (détecteur MAJ, prospecteur HF, installeur Ollama+HF, QC, multi-agents, bench vision, sélecteur)
-- ⏳ **UI volet droit (PRIORITAIRE — bloque le test prospection via `/model-manager/`)** : inspecteur par-modèle (`WamaInspector` + `AIModel.to_dict()`) + dashboard prospection par défaut (gardé admin)
+- ✅ **UI volet droit (débloque le test prospection via `/model-manager/`)** : inspecteur par-modèle
+  câblé dans le **volet droit GLOBAL `#wama-right-panel`** (surcharge des blocs `right_panel_settings`
+  /`right_panel_actions` de `base.html`) — PAS un drawer ad hoc. Réutilise `WamaInspector` (pattern
+  transcriber) + auto-génération depuis `AIModel.to_dict()`. Clic carte → section « Inspecteur du
+  modèle » : statut, description longue, ressources (VRAM/RAM/disque), identité (type/source/clé/
+  backend/HF), format (actuel→préféré), chemin local, **capacités + extra_info** (métadonnées
+  prospection) ; section « Actions du modèle » : lien HF, décharger si en mémoire, convertir vers
+  `can_convert_to`. Highlight `.mm-active`, déselect restaure le hint.
+- ✅ **Brique générique `WamaAutofill`** (`common/static/common/js/wama-inspector-autofill.js` +
+  `common/css/wama-inspector-autofill.css`) : rendu du volet droit piloté par **schéma déclaratif**
+  (`renderSections(data, schema)` / `renderActions(data, actions)` ; supporte badges/description/rows/
+  kv/code, et actions when/href/onClick/expand). **model_manager rebranché dessus** (1er consommateur).
+  Doc : `COMMON_REFACTORING.md` + `WAMA_APP_CONVENTIONS.md §22` + philosophie dans `CLAUDE.md`.
+- ⏳ **À généraliser** : rebrancher l'inspecteur `/apps/` (catalogue) sur `WamaAutofill` (source =
+  `APP_CATALOG`/`description_long`), puis les items de file des apps génériques.
+- ⏳ Dashboard prospection par défaut (gardé admin)
 - ⏳ Étape 3 centralisation (adaptateurs anonymizer/transcriber + migration per-model)
 - ⏳ Chargeur générique ; agents cloud pour confronter ; recherche web benchmarks
 

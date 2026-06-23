@@ -6,6 +6,7 @@
 {% block console_app_name %}model_manager{% endblock %}
 
 {% block extra_css %}
+<link rel="stylesheet" href="{% static 'common/css/wama-inspector-autofill.css' %}">
 <style>
     .model-card {
         background: #2b3035;
@@ -559,6 +560,13 @@
     </div>
 </div>
 
+<!-- Inspecteur : highlight de la carte sélectionnée (contenu rendu via wama-inspector-autofill.css) -->
+<style>
+    .model-item.mm-active .model-card {
+        border-color: #0dcaf0 !important; box-shadow: 0 0 0 1px #0dcaf0;
+    }
+</style>
+
 <!-- Loading Overlay -->
 <div class="loading-overlay" id="loading-overlay">
     <div class="text-center text-white">
@@ -570,8 +578,32 @@
 </div>
 {% endblock %}
 
+{# ── Inspecteur dans le volet droit global (#wama-right-panel) ─────────────── #}
+{% block right_panel_settings_title %}Inspecteur du modèle{% endblock %}
+{% block right_panel_settings %}
+<div id="inspectorBanner" class="d-none align-items-center gap-2 mb-2">
+    <i class="fas fa-cube text-info"></i>
+    <strong id="inspectorLabel" class="flex-grow-1 text-truncate"></strong>
+    <button type="button" id="inspectorDeselect" class="btn btn-sm btn-outline-light py-0 px-2" title="Fermer l'inspecteur">
+        <i class="fas fa-times"></i>
+    </button>
+</div>
+<div id="inspectorActions">
+    <p class="text-muted small mb-0"><i class="fas fa-hand-pointer me-1"></i>Cliquez une carte de modèle pour l'inspecter.</p>
+</div>
+{% endblock %}
+
+{% block right_panel_actions_title %}Actions du modèle{% endblock %}
+{% block right_panel_actions %}
+<div id="inspectorActionButtons" class="d-flex flex-wrap gap-2">
+    <span class="text-muted small">—</span>
+</div>
+{% endblock %}
+
 {% block javascript %}
 {{ block.super }}
+<script src="{% static 'common/js/wama-inspector.js' %}"></script>
+<script src="{% static 'common/js/wama-inspector-autofill.js' %}"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const csrfToken = '{{ csrf_token }}';
@@ -701,6 +733,7 @@ document.addEventListener('DOMContentLoaded', function() {
                  data-downloaded="${model.is_downloaded}"
                  data-needs-conversion="${needsConversion(model)}"
                  data-model-id="${model.id}"
+                 data-id="${model.id}"
                  data-name="${(model.name || '').replace(/"/g, '&quot;')}"
                  data-description="${(model.description || '').replace(/"/g, '&quot;')}"
                  data-model-key="${(model.model_key || '').replace(/"/g, '&quot;')}">
@@ -784,6 +817,134 @@ document.addEventListener('DOMContentLoaded', function() {
         attachSelectionHandlers();
         attachConversionHandlers();
         applyFilters();
+        if (typeof mmReselect === 'function') mmReselect();
+    }
+
+    // =========================================================================
+    // Inspecteur dans le volet droit global (#wama-right-panel)
+    // Brique commune : WamaInspector (sélection/clic) + WamaAutofill (rendu
+    // générique piloté par schéma déclaratif depuis AIModel.to_dict()).
+    // =========================================================================
+    let mmCurrentId = null;
+    const MM_HINT = '<p class="text-muted small mb-0"><i class="fas fa-hand-pointer me-1"></i>Cliquez une carte de modèle pour l\'inspecter.</p>';
+
+    function mmReselect() {
+        if (!mmCurrentId) return;
+        const card = document.querySelector('.model-item[data-id="' + (window.CSS && CSS.escape ? CSS.escape(mmCurrentId) : mmCurrentId) + '"]');
+        if (card) card.classList.add('mm-active');
+    }
+
+    // Schéma de détail (section Paramètres). Déclare la spécificité « modèle ».
+    const MODEL_DETAIL_SCHEMA = [
+        { badges: function (m) {
+            return [
+                m.is_loaded ? '<span class="badge bg-info">en mémoire</span>'
+                    : (m.is_downloaded ? '<span class="badge bg-success">téléchargé</span>'
+                        : '<span class="badge bg-secondary">non téléchargé</span>'),
+                m.is_available ? '<span class="badge bg-success-subtle text-success border border-success">disponible</span>'
+                    : '<span class="badge bg-warning-subtle text-warning border border-warning">indisponible</span>',
+            ];
+        } },
+        { description: function (m) { return m.description || m.description_short || ''; } },
+        { section: 'Ressources', rows: [
+            { k: 'VRAM', field: 'vram_gb', suffix: ' Go' },
+            { k: 'RAM', field: 'ram_gb', suffix: ' Go' },
+            { k: 'Disque', field: 'disk_gb', suffix: ' Go' },
+        ] },
+        { section: 'Identité', rows: [
+            { k: 'Type', field: 'type' },
+            { k: 'App / source', field: 'source' },
+            { k: 'Clé', get: function (m) { return m.model_key || m.id; }, code: true },
+            { k: 'Backend', field: 'backend_ref' },
+            { k: 'HF id', field: 'hf_id', code: true },
+        ] },
+        { section: 'Format', rows: [
+            { k: 'Actuel → préféré', get: function (m) { return m.format || '—'; },
+              render: function (raw, m) {
+                  let s = WamaAutofill.esc(m.format || '—');
+                  if (m.preferred_format && m.preferred_format !== m.format) {
+                      s += ' <i class="fas fa-arrow-right small text-muted"></i> ' + WamaAutofill.esc(m.preferred_format);
+                  }
+                  return s;
+              } },
+            { k: 'Téléchargé', field: 'is_downloaded', badge: true },
+        ] },
+        { section: 'Chemin local', code: 'local_path' },
+        { section: 'Capacités', kv: 'capabilities' },
+        { section: 'Infos complémentaires', kv: 'extra_info' },
+    ];
+
+    // Schéma d'actions (section Actions). Décharger + conversions dynamiques.
+    const MODEL_ACTIONS_SCHEMA = [
+        { label: 'HuggingFace', icon: 'fas fa-external-link-alt', cls: 'btn btn-sm btn-outline-info',
+          when: function (m) { return !!m.hf_id; },
+          href: function (m) { return 'https://huggingface.co/' + m.hf_id; } },
+        { label: 'Décharger', icon: 'fas fa-eject', cls: 'btn btn-sm btn-outline-danger',
+          when: function (m) { return !!m.is_loaded; },
+          onClick: function (m) { mmUnloadModel(m); } },
+        { expand: function (m) {
+            return (Array.isArray(m.can_convert_to) ? m.can_convert_to : []).map(function (fmt) {
+                return {
+                    label: fmt, icon: 'fas fa-sync-alt', cls: 'btn btn-sm btn-outline-warning',
+                    onClick: function (d) { convertModel(d.id, fmt); },
+                };
+            });
+        } },
+    ];
+
+    async function mmUnloadModel(m) {
+        if (!confirm(`Décharger « ${m.name} » de la mémoire ?`)) return;
+        showLoading('Déchargement…');
+        try {
+            const r = await fetch('{% url "model_manager:api_unload_model" %}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+                body: JSON.stringify({ model_id: m.id })
+            });
+            const data = await r.json();
+            if (data.success) { updateMemoryDisplay(data.memory); loadModels(); }
+            else { alert('Échec du déchargement : ' + (data.error || data.message)); }
+        } catch (err) { alert('Erreur : ' + err.message); }
+        finally { hideLoading(); }
+    }
+
+    function renderModelInspector(host, card) {
+        const id = card.dataset.id || card.dataset.modelId;
+        mmCurrentId = id;
+        const m = (allModels || []).find(x => String(x.id) === String(id));
+        const btnHost = document.getElementById('inspectorActionButtons');
+        if (!m) {
+            host.innerHTML = '<p class="text-muted">Modèle introuvable.</p>';
+            if (btnHost) btnHost.innerHTML = '';
+            return;
+        }
+        host.innerHTML = WamaAutofill.renderSections(m, MODEL_DETAIL_SCHEMA);
+        if (btnHost) {
+            const a = WamaAutofill.renderActions(m, MODEL_ACTIONS_SCHEMA);
+            btnHost.innerHTML = a.html;
+            a.wire(btnHost);
+        }
+    }
+
+    if (window.WamaInspector && window.WamaAutofill) {
+        WamaInspector.init({
+            queueContainer: document.getElementById('models-grid'),
+            cardSelector: '.model-item',
+            highlightClass: 'mm-active',
+            itemLabel: function (id) {
+                const m = (allModels || []).find(x => String(x.id) === String(id));
+                return m ? m.name : ('#' + id);
+            },
+            renderItemActions: renderModelInspector,
+        });
+        const mmDeselectBtn = document.getElementById('inspectorDeselect');
+        if (mmDeselectBtn) mmDeselectBtn.addEventListener('click', () => {
+            mmCurrentId = null;
+            const host = document.getElementById('inspectorActions');
+            if (host) host.innerHTML = MM_HINT;
+            const btnHost = document.getElementById('inspectorActionButtons');
+            if (btnHost) btnHost.innerHTML = '<span class="text-muted small">—</span>';
+        });
     }
 
     function attachUnloadHandlers() {

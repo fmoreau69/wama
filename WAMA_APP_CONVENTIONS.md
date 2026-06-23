@@ -2244,6 +2244,87 @@ Pas de changement par rapport à §6.1. Les boutons globaux ne remplacent pas le
 
 ---
 
+## 22. Volet droit — inspecteur auto-généré depuis les métadonnées
+
+> **Principe directeur WAMA** : le volet droit `#wama-right-panel` (global, défini dans `base.html`,
+> jamais ré-implémenté par app) **s'auto-complète à partir des descriptions/métadonnées de l'élément
+> sélectionné** (app, modèle, item de file…). Le rendu est **générique et homogène** entre apps ;
+> seule la *spécificité* (quels champs afficher, quelles actions) est déclarée — a minima — par l'app.
+
+### 22.0 Modèle de sélection (commun à toutes les files)
+
+Le contenu du volet droit suit la sélection dans la file (géré par `WamaInspector`) :
+
+| Sélection | Volet affiche | Mécanisme |
+|-----------|---------------|-----------|
+| **Aucune** | Paramètres **généraux de la file** (défauts) | `deselect()` restaure les defaults |
+| **Card d'un élément** | Infos/paramètres **de cet élément** | `selectItem(id)` |
+| **En-tête d'un batch** | Infos/paramètres **du batch** | `selectBatch(id)` |
+
+Rappel du modèle de file **universel** (cf. mémoire « Synthesizer — Unified batch model », à généraliser) :
+1 fichier = **batch unitaire** (rendu comme un élément seul) ; multi-fichiers ou fichier-batch =
+**batch multi-éléments**.
+
+### 22.1 Deux usages du volet — ne pas confondre
+
+- **Lecture seule (catalogues)** → `WamaAutofill` (ci-dessous). Ex. **model_manager**, **`/apps/`**.
+  Affiche des métadonnées descriptives ; pas de formulaire.
+- **Éditable (files d'apps généralistes)** → formulaire de réglages à 3 niveaux (Volet=défauts /
+  Item / Batch) via `panel.read`/`panel.apply` + `saveItem`/`saveBatch`/`saveGlobal` de `WamaInspector`
+  (voir **§10**). C'est un **formulaire**, pas du rendu autofill.
+
+Les deux **coexistent** : un inspecteur d'app peut afficher un en-tête descriptif (autofill) **au-dessus**
+du formulaire de réglages. `WamaAutofill` ne remplace jamais le formulaire éditable.
+
+### ❌ Interdit
+
+- Créer un drawer/aside « inspecteur » propre à une app. Le volet droit existe déjà (`base.html`,
+  sections `right_panel_media`/`right_panel_settings`/`right_panel_actions`, API `WAMA_RIGHT_PANEL`).
+- Écrire à la main le HTML détaillé de chaque champ (couplage, divergence entre apps).
+
+### ✅ Pattern obligatoire
+
+1. **Sélection** : `wama-inspector.js` (`WamaInspector.init`) gère clic carte → highlight + banner.
+2. **Rendu** : `wama-inspector-autofill.js` (`WamaAutofill`) génère le contenu depuis un **schéma
+   déclaratif** + la source de données de l'élément (`to_dict()` du modèle, entrée `APP_CATALOG`, …).
+
+```js
+// Détail (section Paramètres) — schéma déclaratif
+const DETAIL = [
+  { badges: d => [...] },
+  { description: d => d.description || d.description_short },
+  { section: 'Ressources', rows: [ { k:'VRAM', field:'vram_gb', suffix:' Go' } ] },
+  { section: 'Capacités', kv: 'capabilities' },        // dict -> lignes k/v
+  { section: 'Chemin local', code: 'local_path' },
+];
+// Actions (section Actions) — liens/boutons, when/href/onClick/expand
+const ACTIONS = [
+  { label:'HuggingFace', icon:'fas fa-external-link-alt', when:d=>!!d.hf_id, href:d=>'https://huggingface.co/'+d.hf_id },
+  { expand: d => (d.can_convert_to||[]).map(f => ({ label:f, onClick:dd=>convert(dd.id,f) })) },
+];
+
+WamaInspector.init({ cardSelector:'.model-item', highlightClass:'…',
+  renderItemActions(host, card) {
+    const data = lookup(card.dataset.id);
+    host.innerHTML = WamaAutofill.renderSections(data, DETAIL);
+    const a = WamaAutofill.renderActions(data, ACTIONS);
+    actionsHost.innerHTML = a.html; a.wire(actionsHost);
+  }});
+```
+
+Toute valeur vide masque sa ligne (et sa section si toutes vides). Charger les deux scripts + le CSS
+`common/css/wama-inspector-autofill.css` AVANT le JS de l'app. Référence : **model_manager** (premier
+consommateur). Détails brique : `COMMON_REFACTORING.md`.
+
+### Conséquence pour la création d'app
+
+La **richesse du volet droit dépend de la qualité des métadonnées** de l'élément (description longue,
+`extra_info`, capacités). Soigner ces champs à la source (catalogue d'app, `model_config.py`,
+`to_dict()`) est ce qui « remplit » l'inspecteur — pas du HTML par app. C'est l'application directe de
+la philosophie *métadonnée-driven* (voir `CLAUDE.md` § Philosophie générale).
+
+---
+
 ## Annexe A — Passage rapide en revue (wama-dev-ai)
 
 Lors d'un audit d'une app, vérifier dans l'ordre :
