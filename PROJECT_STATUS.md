@@ -41,8 +41,15 @@ Doc : [`PROMPT_PIPELINE.md`](PROMPT_PIPELINE.md).
   Paramètres, **visibles seulement si aucune card sélectionnée** (l'inspecteur prend la place quand
   une card est choisie). Corps de page = en-tête + filtres + catalogue. Footer (RAM/GPU global)
   inchangé. (Sûr : aucun appel externe à `WAMA_RIGHT_PANEL.*` n'écrase les sections du volet.)
-- ⏳ Dashboard prospection par défaut (gardé admin) — foyer naturel = la vue volet « aucune card
-  sélectionnée » (à côté du cleaner), à brancher sur le moteur de prospection CLI existant.
+- ✅ **Prospection « Proposés par IA » — Ollama-first (2026-06-24)** : chaîne complète prospect→cards
+  candidates→install dans l'UI. Champs `AIModel.is_proposed/proposal_kind/confidence/update_complexity`
+  (exclus de sync + update_checker). Service `prospect_ollama()` (MAJ Ollama anciens + seed curated,
+  idempotent). Endpoints `api/prospect/{ollama,install,reject}`. UI : filtre « ✨ Proposés par IA »,
+  cards badges confiance/complexité + Installer/Rejeter, inspecteur enrichi (section Prospection),
+  bouton « Prospecter (Ollama) » dans la vue volet « aucune card sélectionnée ».
+- ⏳ **Prospection — suites** : (a) confrontation multi-agents pour une confiance réelle (Ollama local
+  + cloud **gemini free** ou grok via passerelle LiteLLM `llm_chat`) ; (b) découverte « nouveaux »
+  large (registre Ollama) au-delà du seed curated ; (c) Celery beat hebdo (détecte/propose) ; (d) HF.
 - ⏳ Étape 3 centralisation (adaptateurs anonymizer/transcriber + migration per-model)
 - ⏳ Chargeur générique ; agents cloud pour confronter ; recherche web benchmarks
 
