@@ -20,6 +20,18 @@ Doc : [`PROMPT_PIPELINE.md`](PROMPT_PIPELINE.md).
 - ⏳ Étape 3 centralisation (adaptateurs anonymizer/transcriber + migration per-model)
 - ⏳ Chargeur générique ; agents cloud pour confronter ; recherche web benchmarks
 
+## 2bis. Inspecteur volet droit unifié (modèles + apps) — 🔄
+Un seul composant `WamaInspector`, deux catalogues, contenu généré depuis la métadonnée.
+- 🔄 **Apps** (`/apps/` ← `common/app_registry.py::APP_CATALOG`, 10 apps génériques) : ajout d'un champ
+  `description_long` par app → volet droit = inspecteur d'app (description complète + I/O + batch +
+  **score conformité live + conventions manquantes** via `get_conformity_summary`).
+- ⏳ **Modèles** : idem §2 (inspecteur par-modèle depuis `AIModel.to_dict()`).
+- ⏳ **Lacunes catalogue** : `media_library` et apps **WAMA Lab** (cam_analyzer, face_analyzer) absents
+  de `APP_CATALOG` (catalogue = apps génériques seulement) → décider de les inclure (flag `lab`/`hub`).
+- ⏳ **Grille §15** (WAMA_APP_CONVENTIONS) = photo manuelle (2026-05-16) dérivée du registre live →
+  remplacer par un pointeur vers `/apps/` (ou auto-sync). Scores live : converter/describer/reader/
+  transcriber=13 (top) ; **avatarizer, imager=6 (à travailler)**.
+
 ## 3. wama-dev-ai (agent Ollama local) — fiabilisé
 - ✅ Robustesse runner (troncature, retry EOF, read_file numéroté, fallback `gemma4:e4b`, `--force-model`, cp1252) — validé pour audit ciblé
 - ✅ Règle de délégation scopée (CLAUDE.md) + `wama-dev-ai/query_transcript.py`
