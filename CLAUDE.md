@@ -106,6 +106,11 @@ Si deux apps ont besoin de la même logique, elle va dans `common/` et les deux 
 > Déclarer les champs-prompt dans `common/utils/app_metadata.py::PROMPT_TARGETS` — ne JAMAIS patcher
 > la traduction/l'enrichissement par app.
 
+### Point d'étape des chantiers
+
+> **[`PROJECT_STATUS.md`](PROJECT_STATUS.md)** — photo des chantiers en cours (✅/🔄/⏳) + ordre de
+> reprise recommandé. À consulter en début de session et à mettre à jour aux paliers.
+
 ---
 
 ## ⚠️ RÈGLE OBLIGATOIRE : AJOUT D'UN NOUVEAU MODÈLE AI
