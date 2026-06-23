@@ -91,10 +91,20 @@ Si deux apps ont besoin de la même logique, elle va dans `common/` et les deux 
 
 ### Roadmap refactoring (à faire, dans l'ordre)
 
-Voir `memory/project_refactoring_common.md` pour le détail.
+> **Document de référence : [`COMMON_REFACTORING.md`](COMMON_REFACTORING.md)** — briques communes
+> disponibles, app de référence (Transcriber), recette d'adoption, décisions prises. **À lire avant
+> de créer/modifier une app.** Voir aussi `memory/project_refactoring_common.md` pour l'historique.
+
 1. `common/utils/backend_selector.py` — sélection VRAM + règle singleton
-2. `common/static/common/js/wama-app-base.js` — JS de base inter-apps
+2. `common/static/common/js/wama-app-base.js` — JS de base inter-apps ✅ (fait)
 3. `common/templates/common/_settings_modal.html` — modal paramètres générique
+
+### Pipeline de prompts commune
+
+> **Document de référence : [`PROMPT_PIPELINE.md`](PROMPT_PIPELINE.md)** — traitement centralisé
+> métadonnée-driven des prompts (traduction/enrichissement/fichiers de référence ; RAG à venir).
+> Déclarer les champs-prompt dans `common/utils/app_metadata.py::PROMPT_TARGETS` — ne JAMAIS patcher
+> la traduction/l'enrichissement par app.
 
 ---
 
