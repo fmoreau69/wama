@@ -889,7 +889,10 @@ def api_models_db(request):
     downloaded_only = request.GET.get('downloaded') == 'true'
     format_filter = request.GET.get('format')
 
-    queryset = AIModel.objects.filter(is_available=True)
+    # Inclure les candidats de prospection (is_proposed) bien qu'ils ne soient
+    # pas "available" — ils s'affichent comme cards sous le filtre « Proposés par IA ».
+    from django.db.models import Q
+    queryset = AIModel.objects.filter(Q(is_available=True) | Q(is_proposed=True))
 
     if source:
         queryset = queryset.filter(source=source)

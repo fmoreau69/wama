@@ -349,8 +349,8 @@
         </div>
     </div>
 
-    <!-- Disk Space Card -->
-    <div class="row mb-4">
+    <!-- Disk Space Card (déplacé par JS dans le volet droit, section Ressources) -->
+    <div class="row mb-4" id="mmDiskRow">
         <div class="col-12">
             <div class="memory-card">
                 <div class="d-flex justify-content-between align-items-center mb-3">
@@ -566,13 +566,16 @@
     .model-item.mm-active .model-card {
         border-color: #0dcaf0 !important; box-shadow: 0 0 0 1px #0dcaf0;
     }
-    /* Monitoring déplacé dans le volet droit étroit → forcer l'empilement vertical */
+    /* Monitoring déplacé dans le volet droit étroit → empiler verticalement
+       UNIQUEMENT les cartes de 1er niveau (enfants directs de la rangée), pas
+       les stats internes (Total/Loaded/Downloaded restent en ligne). */
     #mmResourceSlot > .row, #mmSystemSlot > .row { margin: 0; }
-    #mmResourceSlot [class*="col-"], #mmSystemSlot [class*="col-"] {
-        flex: 0 0 100%; max-width: 100%; padding: 0; margin-bottom: .75rem;
+    #mmResourceSlot > .row > [class*="col-"],
+    #mmSystemSlot > .row > [class*="col-"] {
+        flex: 0 0 100%; max-width: 100%; padding: 0 0 .75rem 0;
     }
-    #mmResourceSlot [class*="col-"]:last-child,
-    #mmSystemSlot [class*="col-"]:last-child { margin-bottom: 0; }
+    #mmResourceSlot > .row > [class*="col-"]:last-child,
+    #mmSystemSlot > .row > [class*="col-"]:last-child { padding-bottom: 0; }
     #mmResourceSlot .card, #mmSystemSlot .card { margin-bottom: 0; }
 </style>
 
@@ -1076,6 +1079,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const resSlot = document.getElementById('mmResourceSlot');
         const resRow = document.getElementById('mmResourceRow');
         if (resSlot && resRow) resSlot.appendChild(resRow);
+        const diskRow = document.getElementById('mmDiskRow');
+        if (resSlot && diskRow) resSlot.appendChild(diskRow);
         const sysSlot = document.getElementById('mmSystemSlot');
         const sysRow = document.getElementById('mmSystemRow');
         if (sysSlot && sysRow) sysSlot.appendChild(sysRow);
