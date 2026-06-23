@@ -161,6 +161,36 @@ class AIModel(models.Model):
         help_text="Backend identifier for model operations"
     )
 
+    # ── Prospection (proposé par IA) ──────────────────────────────────────────
+    # Une entrée is_proposed=True est un CANDIDAT (MAJ d'un modèle existant ou
+    # nouveau modèle/concurrent) suggéré par la prospection, pas un modèle réel
+    # installé. Exclu des filtres all/loaded/downloaded ; visible sous l'onglet
+    # « Proposés par IA ». Le verdict des agents est stocké dans extra_info.
+    is_proposed = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text="Candidat de prospection (proposé par IA), pas un modèle installé"
+    )
+    proposal_kind = models.CharField(
+        max_length=10,
+        blank=True,
+        default='',
+        choices=[('update', 'Mise à jour'), ('new', 'Nouveau / concurrent')],
+        help_text="Type de proposition : maj d'un modèle existant ou nouveau modèle"
+    )
+    confidence = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="Taux de confiance de la recommandation (0..1)"
+    )
+    update_complexity = models.CharField(
+        max_length=10,
+        blank=True,
+        default='',
+        choices=[('simple', 'Simple'), ('moderate', 'Modérée'), ('complex', 'Complexe')],
+        help_text="Complexité estimée de la mise à jour / installation"
+    )
+
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -230,6 +260,10 @@ class AIModel(models.Model):
             'backend_ref': self.backend_ref,
             'extra_info': self.extra_info,
             'capabilities': self.capabilities,
+            'is_proposed': self.is_proposed,
+            'proposal_kind': self.proposal_kind,
+            'confidence': self.confidence,
+            'update_complexity': self.update_complexity,
         }
 
 

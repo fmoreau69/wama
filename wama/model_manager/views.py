@@ -1252,3 +1252,70 @@ def api_check_disk_space(request):
         'message': message,
         'disk_percent': disk_info.get('percent', 0),
     })
+
+
+# ── Prospection (proposés par IA) — Ollama-first ─────────────────────────────
+
+@login_required
+@user_passes_test(is_admin_or_dev)
+@require_POST
+def api_prospect_ollama(request):
+    """On-demand : lance la prospection Ollama et écrit les candidats proposés."""
+    from .services.prospect_ollama import prospect_ollama
+    try:
+        summary = prospect_ollama()
+        return JsonResponse({'success': True, 'summary': summary})
+    except Exception as e:
+        logger.exception("api_prospect_ollama failed")
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@login_required
+@user_passes_test(is_admin_or_dev)
+@require_POST
+def api_prospect_install(request):
+    """Installe un candidat proposé (ollama pull) puis le retire de la liste proposée."""
+    from .models import AIModel
+    from .services.model_installer import pull_ollama_model, register_after_install
+    try:
+        data = json.loads(request.body or '{}')
+        model_id = data.get('model_id')
+        cand = AIModel.objects.filter(model_key=model_id, is_proposed=True).first()
+        if not cand:
+            return JsonResponse({'success': False, 'error': 'Candidat introuvable'}, status=404)
+        if cand.source != 'ollama':
+            return JsonResponse({'success': False, 'error': 'Installation Ollama uniquement (phase 1)'}, status=400)
+        res = pull_ollama_model(cand.name)
+        if not res.get('ok'):
+            return JsonResponse({'success': False, 'error': res.get('error', 'pull échoué')}, status=500)
+        # Re-synchronise pour que le modèle réel apparaisse, puis retire le candidat.
+        try:
+            register_after_install()
+        except Exception:
+            logger.warning("register_after_install a échoué (le sync périodique rattrapera)", exc_info=True)
+        installed_name = cand.name
+        cand.delete()
+        return JsonResponse({'success': True, 'installed': installed_name})
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        logger.exception("api_prospect_install failed")
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@login_required
+@user_passes_test(is_admin_or_dev)
+@require_POST
+def api_prospect_reject(request):
+    """Rejette (supprime) un candidat proposé."""
+    from .models import AIModel
+    try:
+        data = json.loads(request.body or '{}')
+        model_id = data.get('model_id')
+        n, _ = AIModel.objects.filter(model_key=model_id, is_proposed=True).delete()
+        return JsonResponse({'success': bool(n)})
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        logger.exception("api_prospect_reject failed")
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)

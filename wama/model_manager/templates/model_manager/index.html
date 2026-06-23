@@ -487,6 +487,7 @@
                     <option value="downloaded">Downloaded</option>
                     <option value="not-downloaded">Not Downloaded</option>
                     <option value="needs-conversion">Needs Conversion</option>
+                    <option value="proposed">✨ Proposés par IA</option>
                 </select>
             </div>
             <div class="col-auto">
@@ -605,6 +606,16 @@
 </div>
 <div id="inspectorActions">
     <p class="text-muted small mb-0"><i class="fas fa-hand-pointer me-1"></i>Cliquez une carte de modèle pour l'inspecter — sinon, gestion mémoire ci-dessous.</p>
+</div>
+{# Prospection (proposés par IA) — visible quand aucune card n'est sélectionnée. #}
+<div id="mmProspectBar" class="mt-3 p-2 rounded" style="background:rgba(111,66,193,0.12);border:1px solid rgba(111,66,193,0.4);">
+    <div class="d-flex align-items-center justify-content-between gap-2">
+        <span class="small text-light"><i class="fas fa-wand-magic-sparkles text-purple me-1" style="color:#b388ff"></i>Prospection de modèles</span>
+        <button type="button" id="mmProspectBtn" class="btn btn-sm btn-outline-light py-0">
+            <i class="fas fa-rotate me-1"></i>Prospecter (Ollama)
+        </button>
+    </div>
+    <p id="mmProspectStatus" class="small text-muted mb-0 mt-1">Détecte MAJ + modèles concurrents. Résultats sous le filtre « ✨ Proposés par IA ».</p>
 </div>
 {# mmSystemRow (cleaner + idle models) déplacé ici par JS ; masqué quand une card est sélectionnée. #}
 <div id="mmSystemSlot" class="mt-3"></div>
@@ -751,6 +762,7 @@ document.addEventListener('DOMContentLoaded', function() {
                  data-needs-conversion="${needsConversion(model)}"
                  data-model-id="${model.id}"
                  data-id="${model.id}"
+                 data-proposed="${model.is_proposed ? 'true' : 'false'}"
                  data-name="${(model.name || '').replace(/"/g, '&quot;')}"
                  data-description="${(model.description || '').replace(/"/g, '&quot;')}"
                  data-model-key="${(model.model_key || '').replace(/"/g, '&quot;')}">
@@ -762,18 +774,35 @@ document.addEventListener('DOMContentLoaded', function() {
                             <span class="type-badge type-${model.type} me-1">${model.type}</span>
                             <span class="source-badge">${model.source}</span>
                         </div>
-                        ${model.is_loaded ?
+                        ${model.is_proposed ?
+                            `<span class="badge" style="background:#6f42c1"><i class="fas fa-wand-magic-sparkles fa-xs me-1"></i>${model.proposal_kind === 'update' ? 'MAJ proposée' : 'Nouveau'}</span>` :
+                            (model.is_loaded ?
                             '<span class="badge bg-success"><i class="fas fa-circle fa-xs me-1"></i>Loaded</span>' :
                             (model.is_downloaded ?
                                 '<span class="badge bg-info"><i class="fas fa-download fa-xs me-1"></i>Ready</span>' :
                                 '<span class="badge bg-secondary"><i class="fas fa-cloud fa-xs me-1"></i>Not downloaded</span>'
-                            )
+                            ))
                         }
                     </div>
 
                     <h6 class="model-name mb-1">${model.name}</h6>
                     <p class="model-desc mb-2">${truncate(model.description, 60)}</p>
 
+                    ${model.is_proposed ? `
+                    <!-- Candidat proposé : confiance + complexité + actions -->
+                    <div class="model-meta mb-2">
+                        ${model.confidence != null ? `<span class="badge bg-success-subtle text-success border border-success me-1" title="Taux de confiance de la recommandation">${Math.round(model.confidence * 100)}% confiance</span>` : ''}
+                        ${model.update_complexity ? `<span class="badge bg-dark border border-secondary text-light" title="Complexité estimée d'installation / MAJ">${({simple: 'simple', moderate: 'modérée', complex: 'complexe'})[model.update_complexity] || model.update_complexity}</span>` : ''}
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-sm btn-primary flex-grow-1 btn-prospect-install" data-model-id="${model.id}" title="Installer ce modèle (ollama pull)">
+                            <i class="fas fa-download me-1"></i>Installer
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger btn-prospect-reject" data-model-id="${model.id}" title="Rejeter cette proposition">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    ` : `
                     <div class="d-flex justify-content-between align-items-center mb-2">
                         <div class="model-meta">
                             ${model.vram_gb ? `<span class="me-2" title="VRAM required"><i class="fas fa-microchip text-success"></i> ${model.vram_gb}GB</span>` : ''}
@@ -824,7 +853,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                 ${truncate(model.hf_id, 35)}
                             </a>
                         </div>
-                    ` : ''}
+                    ` : ''}`}
                 </div>
             </div>
         `).join('');
@@ -833,8 +862,54 @@ document.addEventListener('DOMContentLoaded', function() {
         attachUnloadHandlers();
         attachSelectionHandlers();
         attachConversionHandlers();
+        attachProspectHandlers();
         applyFilters();
         if (typeof mmReselect === 'function') mmReselect();
+    }
+
+    // Actions de prospection partagées (cards + inspecteur).
+    async function mmProspectInstall(id) {
+        if (!confirm('Installer ce modèle proposé (ollama pull) ?')) return;
+        showLoading('Installation (ollama pull)…');
+        try {
+            const r = await fetch('{% url "model_manager:api_prospect_install" %}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+                body: JSON.stringify({ model_id: id })
+            });
+            const data = await r.json();
+            if (data.success) { loadModels(); }
+            else { alert('Échec : ' + (data.error || 'inconnu')); }
+        } catch (err) { alert('Erreur : ' + err.message); }
+        finally { hideLoading(); }
+    }
+    async function mmProspectReject(id) {
+        if (!confirm('Rejeter cette proposition ?')) return;
+        try {
+            const r = await fetch('{% url "model_manager:api_prospect_reject" %}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+                body: JSON.stringify({ model_id: id })
+            });
+            const data = await r.json();
+            if (data.success) { loadModels(); }
+        } catch (err) { alert('Erreur : ' + err.message); }
+    }
+
+    // Actions des cards « proposées par IA ».
+    function attachProspectHandlers() {
+        document.querySelectorAll('.btn-prospect-install').forEach(btn => {
+            btn.addEventListener('click', function (e) {
+                e.preventDefault(); e.stopPropagation();
+                mmProspectInstall(this.dataset.modelId);
+            });
+        });
+        document.querySelectorAll('.btn-prospect-reject').forEach(btn => {
+            btn.addEventListener('click', function (e) {
+                e.preventDefault(); e.stopPropagation();
+                mmProspectReject(this.dataset.modelId);
+            });
+        });
     }
 
     // =========================================================================
@@ -854,6 +929,12 @@ document.addEventListener('DOMContentLoaded', function() {
     // Schéma de détail (section Paramètres). Déclare la spécificité « modèle ».
     const MODEL_DETAIL_SCHEMA = [
         { badges: function (m) {
+            if (m.is_proposed) {
+                return [
+                    '<span class="badge" style="background:#6f42c1">✨ ' + (m.proposal_kind === 'update' ? 'MAJ proposée' : 'Nouveau / concurrent') + '</span>',
+                    m.confidence != null ? '<span class="badge bg-success-subtle text-success border border-success">' + Math.round(m.confidence * 100) + '% confiance</span>' : '',
+                ].filter(Boolean);
+            }
             return [
                 m.is_loaded ? '<span class="badge bg-info">en mémoire</span>'
                     : (m.is_downloaded ? '<span class="badge bg-success">téléchargé</span>'
@@ -863,6 +944,11 @@ document.addEventListener('DOMContentLoaded', function() {
             ];
         } },
         { description: function (m) { return m.description || m.description_short || ''; } },
+        { section: 'Prospection', rows: [
+            { k: 'Type', get: function (m) { return m.is_proposed ? (m.proposal_kind === 'update' ? 'Mise à jour' : 'Nouveau / concurrent') : ''; } },
+            { k: 'Confiance', get: function (m) { return (m.is_proposed && m.confidence != null) ? Math.round(m.confidence * 100) + ' %' : ''; } },
+            { k: 'Complexité', get: function (m) { return m.is_proposed ? ({ simple: 'simple', moderate: 'modérée', complex: 'complexe' })[m.update_complexity] || m.update_complexity : ''; } },
+        ] },
         { section: 'Ressources', rows: [
             { k: 'VRAM', field: 'vram_gb', suffix: ' Go' },
             { k: 'RAM', field: 'ram_gb', suffix: ' Go' },
@@ -891,13 +977,19 @@ document.addEventListener('DOMContentLoaded', function() {
         { section: 'Infos complémentaires', kv: 'extra_info' },
     ];
 
-    // Schéma d'actions (section Actions). Décharger + conversions dynamiques.
+    // Schéma d'actions (section Actions). Proposés → installer/rejeter ; sinon HF/décharger/convertir.
     const MODEL_ACTIONS_SCHEMA = [
+        { label: 'Installer', icon: 'fas fa-download', cls: 'btn btn-sm btn-primary',
+          when: function (m) { return !!m.is_proposed; },
+          onClick: function (m) { mmProspectInstall(m.id); } },
+        { label: 'Rejeter', icon: 'fas fa-times', cls: 'btn btn-sm btn-outline-danger',
+          when: function (m) { return !!m.is_proposed; },
+          onClick: function (m) { mmProspectReject(m.id); } },
         { label: 'HuggingFace', icon: 'fas fa-external-link-alt', cls: 'btn btn-sm btn-outline-info',
-          when: function (m) { return !!m.hf_id; },
+          when: function (m) { return !m.is_proposed && !!m.hf_id; },
           href: function (m) { return 'https://huggingface.co/' + m.hf_id; } },
         { label: 'Décharger', icon: 'fas fa-eject', cls: 'btn btn-sm btn-outline-danger',
-          when: function (m) { return !!m.is_loaded; },
+          when: function (m) { return !m.is_proposed && !!m.is_loaded; },
           onClick: function (m) { mmUnloadModel(m); } },
         { expand: function (m) {
             return (Array.isArray(m.can_convert_to) ? m.can_convert_to : []).map(function (fmt) {
@@ -925,10 +1017,38 @@ document.addEventListener('DOMContentLoaded', function() {
         finally { hideLoading(); }
     }
 
-    // Outils système (cleaner + idle) : visibles seulement quand AUCUNE card n'est sélectionnée.
+    // Outils système (prospection + cleaner + idle) : visibles seulement quand AUCUNE card sélectionnée.
     function mmShowSystem(show) {
-        const sys = document.getElementById('mmSystemRow');
-        if (sys) sys.style.display = show ? '' : 'none';
+        ['mmSystemRow', 'mmProspectBar'].forEach(function (id) {
+            const el = document.getElementById(id);
+            if (el) el.style.display = show ? '' : 'none';
+        });
+    }
+
+    async function mmRunProspect() {
+        const btn = document.getElementById('mmProspectBtn');
+        const status = document.getElementById('mmProspectStatus');
+        if (btn) { btn.disabled = true; }
+        if (status) status.textContent = 'Prospection en cours…';
+        try {
+            const r = await fetch('{% url "model_manager:api_prospect_ollama" %}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+                body: '{}'
+            });
+            const data = await r.json();
+            if (data.success) {
+                const s = data.summary || {};
+                if (status) status.textContent = `${s.total || 0} candidat(s) — voir le filtre « ✨ Proposés par IA ».`;
+                loadModels();
+            } else {
+                if (status) status.textContent = 'Échec : ' + (data.error || 'inconnu');
+            }
+        } catch (err) {
+            if (status) status.textContent = 'Erreur : ' + err.message;
+        } finally {
+            if (btn) btn.disabled = false;
+        }
     }
 
     function renderModelInspector(host, card) {
@@ -979,6 +1099,8 @@ document.addEventListener('DOMContentLoaded', function() {
             if (btnHost) btnHost.innerHTML = '<span class="text-muted small">—</span>';
             mmShowSystem(true);  // plus de sélection → réafficher les outils système
         });
+        const prospectBtn = document.getElementById('mmProspectBtn');
+        if (prospectBtn) prospectBtn.addEventListener('click', mmRunProspect);
     }
 
     function attachUnloadHandlers() {
@@ -1050,6 +1172,15 @@ document.addEventListener('DOMContentLoaded', function() {
 
         document.querySelectorAll('.model-item').forEach(item => {
             let visible = true;
+
+            // Proposés par IA : visibles UNIQUEMENT sous le filtre « Proposés par IA » ;
+            // exclus de tous les autres filtres (y compris « all ») pour ne pas polluer.
+            const isProposed = item.dataset.proposed === 'true';
+            if (statusFilter === 'proposed') {
+                if (!isProposed) visible = false;
+            } else if (isProposed) {
+                visible = false;
+            }
 
             // Search filter - check name, description, and model_key
             if (searchQuery) {

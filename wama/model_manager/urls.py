@@ -67,4 +67,9 @@ urlpatterns = [
 
     # API endpoints - Diagnostics
     path('api/diagnose/', views.api_diagnose_models, name='api_diagnose_models'),
+
+    # API endpoints - Prospection (proposés par IA, Ollama-first)
+    path('api/prospect/ollama/', views.api_prospect_ollama, name='api_prospect_ollama'),
+    path('api/prospect/install/', views.api_prospect_install, name='api_prospect_install'),
+    path('api/prospect/reject/', views.api_prospect_reject, name='api_prospect_reject'),
 ]

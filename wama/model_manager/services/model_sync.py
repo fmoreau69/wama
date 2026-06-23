@@ -90,8 +90,10 @@ class ModelSyncService:
 
                 # Handle models no longer in sources
                 if delete_missing:
-                    # Delete models that no longer exist on disk
-                    missing_models = AIModel.objects.exclude(model_key__in=seen_keys)
+                    # Delete models that no longer exist on disk.
+                    # NB : exclure les candidats de prospection (is_proposed) — ils ne sont
+                    # pas sur disque par nature et ne doivent pas être réconciliés.
+                    missing_models = AIModel.objects.exclude(model_key__in=seen_keys).exclude(is_proposed=True)
                     removed_count = missing_models.count()
                     if removed_count > 0:
                         deleted_keys = list(missing_models.values_list('model_key', flat=True))
@@ -102,7 +104,7 @@ class ModelSyncService:
                     # Just mark as unavailable (legacy behavior)
                     removed_count = AIModel.objects.exclude(
                         model_key__in=seen_keys
-                    ).update(is_available=False)
+                    ).exclude(is_proposed=True).update(is_available=False)
                     result.removed = removed_count
 
             log.status = 'completed'

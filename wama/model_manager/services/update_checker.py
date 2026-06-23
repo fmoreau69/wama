@@ -82,7 +82,7 @@ def check_updates(age_days_threshold=120, hf_grace_days=7, do_hf=True):
     except Exception as e:
         logger.info(f"[update_checker] Ollama /api/tags indisponible: {e}")
 
-    for m in AIModel.objects.filter(source='ollama'):
+    for m in AIModel.objects.filter(source='ollama').exclude(is_proposed=True):
         # model_key = "ollama:<name>" ; le name (avec tag) est après le 1er ':'
         name = m.model_key.split(':', 1)[1] if ':' in m.model_key else m.name
         installed = _parse_dt(tags.get(name))
