@@ -513,7 +513,7 @@ def select_model_for_role(
 
     if verbose:
         print(f"[Memory] Available: {ram_available:.1f} GiB RAM / "
-              f"{vram_free:.1f} GiB VRAM → using {mem_label}, Usable: {usable_mem:.1f} GiB")
+              f"{vram_free:.1f} GiB VRAM -> using {mem_label}, Usable: {usable_mem:.1f} GiB")
 
     # Build candidate list
     candidates = []

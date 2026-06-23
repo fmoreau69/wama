@@ -354,7 +354,11 @@ class ToolRegistry:
         ))
 
     def _read_file(self, path: str, start_line: int = None, end_line: int = None) -> str:
-        """Read file contents."""
+        """Read file contents, prefixed with 1-based line numbers.
+
+        Line numbers let the model cite EXACT locations (e.g. for audit reports)
+        instead of estimating by counting — which it gets wrong on long files.
+        """
         file_path = self._resolve_path(path)
 
         if not file_path.exists():
@@ -362,14 +366,12 @@ class ToolRegistry:
 
         content = file_path.read_text(encoding='utf-8')
 
-        if start_line is not None or end_line is not None:
-            lines = content.splitlines()
-            start = (start_line or 1) - 1
-            end = end_line or len(lines)
-            lines = lines[start:end]
-            content = "\n".join(lines)
-
-        return content
+        lines = content.splitlines()
+        start = (start_line or 1) - 1 if (start_line is not None or end_line is not None) else 0
+        end = (end_line or len(lines)) if (start_line is not None or end_line is not None) else len(lines)
+        selected = lines[start:end]
+        # cat -n style: right-aligned line number + tab + content.
+        return "\n".join(f"{start + i + 1:>5}\t{ln}" for i, ln in enumerate(selected))
 
     def _write_file(self, path: str, content: str) -> str:
         """Write content to file."""

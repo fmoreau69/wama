@@ -20,6 +20,7 @@ Cron example (nightly at 2am):
 import sys
 import os
 import json
+import types
 import argparse
 import logging
 from datetime import datetime
@@ -367,23 +368,40 @@ class AuditAgent:
 
     MAX_TOOL_ROUNDS = 20   # Safety: stop after N tool call rounds
 
-    def __init__(self, model_role: str = "architect", verbose: bool = True):
+    # Stable last-resort model: non-thinking, light, leaves VRAM headroom on a shared
+    # 24 GB host (qwen3-coder:30b is too heavy for agentic use; qwen3.5:9b EOFs on this
+    # Ollama build). Empirically the only one that completes audits reliably here.
+    _FALLBACK_MODEL = "gemma4:e4b"
+
+    def __init__(self, model_role: str = "architect", verbose: bool = True,
+                 force_model: str = None):
         self.llm = LLMClient()
         self.tools = AuditToolRegistry(llm=self.llm)
         self.verbose = verbose
 
-        # Adaptive model selection
-        try:
-            mem = get_memory_status()
+        if force_model:
+            # Operator pinned an exact model → skip the RAM-gated selector entirely.
+            self._model_key = "forced"
+            self._model_cfg = types.SimpleNamespace(ollama_id=force_model, name=force_model)
             if verbose:
-                print(f"[Audit] Memory: {mem['available_gb']:.1f} GiB available")
-            self._model_key, self._model_cfg = select_model_for_role(model_role, verbose=verbose)
-            if verbose:
-                print(f"[Audit] Model: {self._model_cfg.name} ({self._model_cfg.ollama_id})")
-        except RuntimeError as e:
-            print(f"[Audit] WARNING: {e}")
-            self._model_key = "fast"
-            self._model_cfg = None
+                print(f"[Audit] Model: FORCED {force_model}")
+        else:
+            # Adaptive model selection
+            try:
+                mem = get_memory_status()
+                if verbose:
+                    print(f"[Audit] Memory: {mem['available_gb']:.1f} GiB available")
+                self._model_key, self._model_cfg = select_model_for_role(model_role, verbose=verbose)
+                if verbose:
+                    print(f"[Audit] Model: {self._model_cfg.name} ({self._model_cfg.ollama_id})")
+            except RuntimeError as e:
+                # Nothing fits the VRAM gate. Forcing a big hardcoded model (the old
+                # behavior) just EOFs. Degrade to the stable lightweight fallback instead.
+                print(f"[Audit] WARNING: {e}")
+                print(f"[Audit] Degrading to stable fallback: {self._FALLBACK_MODEL}")
+                self._model_key = "fallback"
+                self._model_cfg = types.SimpleNamespace(
+                    ollama_id=self._FALLBACK_MODEL, name=self._FALLBACK_MODEL)
 
         # Load audit system prompt
         audit_prompt_path = PROMPTS_DIR / "audit.txt"
@@ -420,7 +438,7 @@ class AuditAgent:
         out_path.write_text(text, encoding='utf-8')
         self._report_saved = True
         if self.verbose:
-            print(f"[Audit] Auto-saved response → {filename}")
+            print(f"[Audit] Auto-saved response -> {filename}")
 
     def run(self, task: str) -> str:
         """
@@ -437,7 +455,7 @@ class AuditAgent:
                   .replace("{tools}", tools_desc)
                   .replace("{task}", task))
 
-        model_id = self._model_cfg.ollama_id if self._model_cfg else "qwen3.5:9b"
+        model_id = self._model_cfg.ollama_id if self._model_cfg else self._FALLBACK_MODEL
 
         # Compute num_ctx from actual free VRAM (not system RAM).
         # Thinking models need larger context for their <think> blocks.
@@ -445,8 +463,8 @@ class AuditAgent:
         num_ctx = _compute_num_ctx(free_vram)
         thinking = _is_thinking_model(model_id)
         if self.verbose:
-            print(f"[Audit] VRAM free: {free_vram:.1f} GiB → num_ctx={num_ctx}"
-                  f"{' (thinking model → /no_think)' if thinking else ''}")
+            print(f"[Audit] VRAM free: {free_vram:.1f} GiB -> num_ctx={num_ctx}"
+                  f"{' (thinking model -> /no_think)' if thinking else ''}")
 
         # For thinking models, /no_think disables the <think> block so the model
         # responds directly — saves thousands of tokens and avoids context overflow.
@@ -464,11 +482,26 @@ class AuditAgent:
             # Call LLM directly via Ollama client (LLMClient.chat() manages its own
             # internal history — we bypass it to control multi-turn context ourselves).
             # num_ctx is computed from free VRAM to avoid EOF/OOM crashes.
-            raw = self.llm._client.chat(
-                model=model_id,
-                messages=messages,
-                options={"temperature": 0.3, "num_ctx": num_ctx},
-            )
+            # This Ollama build crashes transiently (EOF 500) on the first inference
+            # after a (re)load — retry with backoff so one transient crash doesn't kill
+            # the whole run (the model is usually warm/stable by the 2nd-3rd attempt).
+            raw = None
+            for attempt in range(4):
+                try:
+                    raw = self.llm._client.chat(
+                        model=model_id,
+                        messages=messages,
+                        options={"temperature": 0.3, "num_ctx": num_ctx},
+                    )
+                    break
+                except Exception as e:
+                    msg = str(e)
+                    if attempt == 3:
+                        raise
+                    if self.verbose:
+                        print(f"[Audit] chat attempt {attempt + 1} failed ({msg[:60]}) — retrying")
+                    import time
+                    time.sleep(3 * (attempt + 1))
             response_text = raw["message"]["content"]
             # Strip hallucinated DeepSeek <｜tool▁outputs▁begin｜>...<｜tool▁outputs▁end｜> blocks
             # before parsing, so they don't pollute context or confuse the parser.
@@ -497,16 +530,20 @@ class AuditAgent:
                 if call.tool_name == "write_report" and result.success:
                     self._report_saved = True
                 if self.verbose:
-                    status = "✓" if result.success else "✗"
+                    status = "[ok]" if result.success else "[x]"
                     print(f"  {status} {call.tool_name}({list(call.arguments.keys())}) "
-                          f"→ {result.output[:100] if result.success else result.error}")
+                          f"-> {result.output[:100] if result.success else result.error}")
                 tool_results.append((call, result))
 
             # Add assistant turn + tool results to messages
             messages.append({"role": "assistant", "content": response_text})
 
+            # Feed tool output back to the model. read_file/search_content return full
+            # file contents (often KBs) — a tiny cap blinds the agent and makes it loop
+            # re-reading the same file. Cap generously (per result) so code is actually visible.
+            _TOOL_OUT_CAP = 6000
             tool_result_text = "\n".join(
-                f"[{call.tool_name}] {'OK: ' + result.output[:200] if result.success else 'ERROR: ' + result.error}"
+                f"[{call.tool_name}] {'OK: ' + result.output[:_TOOL_OUT_CAP] if result.success else 'ERROR: ' + result.error}"
                 for call, result in tool_results
             )
             messages.append({"role": "user", "content": f"Tool results:\n{tool_result_text}"})
@@ -547,6 +584,12 @@ def main():
         default="audit",
         choices=["audit", "dev", "debug", "architect", "fast", "ultra_fast"],
         help="Model role to use (default: audit → gemma4:e4b, non-thinking)",
+    )
+    parser.add_argument(
+        "--force-model", "-F",
+        default=None,
+        help="Bypass the RAM-gated selector and use this exact Ollama model id "
+             "(e.g. 'gemma4:e4b'). Pair with --no-free-vram to keep it warm.",
     )
     parser.add_argument(
         "--non-interactive", "-n",
@@ -617,7 +660,7 @@ def main():
             import time
             time.sleep(2)  # Give the GPU a moment to settle
 
-    agent = AuditAgent(model_role=args.model, verbose=verbose)
+    agent = AuditAgent(model_role=args.model, verbose=verbose, force_model=args.force_model)
     result = agent.run(args.task)
 
     if not verbose:
