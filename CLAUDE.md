@@ -252,6 +252,23 @@ au codebase WAMA. Il travaille en complément de Claude (Anthropic).
 
 ### Principe : Claude réfléchit, wama-dev-ai exécute, l'humain valide.
 
+### Quand déléguer à wama-dev-ai (règle scopée — PAS de délégation systématique)
+
+> **Ne PAS déléguer les requêtes simples.** Pour un lookup exact/rapide, les outils natifs de Claude
+> (Grep/Read/Glob) sont **déterministes, instantanés, zéro-GPU, sans hallucination** — strictement
+> meilleurs. Déléguer un « trouve X » à un modèle Ollama (chargement VRAM + boucle multi-tours) est
+> plus lent, plus coûteux et faillible.
+
+**Déléguer à wama-dev-ai (de préférence en tâche de fond) UNIQUEMENT quand :**
+- la tâche est **read-only** ET **volumineuse** (audit multi-fichiers, exploration sémantique large) ;
+- l'offload **préserve le contexte/quota** de la session principale (le vrai gain) ;
+- un modèle stable est disponible (sur cet hôte 24 Go partagé : **`gemma4:e4b` non-thinking** est le
+  choix fiable ; `qwen3-coder:30b` trop lourd pour l'agentique ; voir `wama-dev-ai/run_audit.py`).
+
+**Toujours :** tâches **étroites et ciblées** (les tâches larges le font dériver) ; **valider** la
+sortie (hallucination possible) ; **jamais d'auto-application**. Règle **suggérée, pas obligatoire**
+tant que la fiabilité n'est pas éprouvée sur plus de runs.
+
 ### Phase 1 (actuelle) — Audit read-only
 
 **wama-dev-ai PEUT :**
