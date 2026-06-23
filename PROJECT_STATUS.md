@@ -52,6 +52,20 @@ Doc : [`PROMPT_PIPELINE.md`](PROMPT_PIPELINE.md).
   large (registre Ollama) au-delà du seed curated ; (c) Celery beat hebdo (détecte/propose) ; (d) HF.
 - ⏳ Étape 3 centralisation (adaptateurs anonymizer/transcriber + migration per-model)
 - ⏳ Chargeur générique ; agents cloud pour confronter ; recherche web benchmarks
+- ✅ **Backup distant en MIROIR (2026-06-24)** : `remote_backup` réplique l'arbo locale `AI-models/
+  models/` (`dest = WAMA_MODEL_BACKUP_PATH / source.relative_to(AI_MODELS_DIR/'models')`), récursif
+  (préserve blobs/refs/snapshots), zéro chemin en dur. + `offload_file()` (flag opt-in
+  `delete_source_after_backup` dans convert-and-backup) : backup → vérif taille distante → suppression
+  locale, garde-fou si vérif échoue. Montage WSL : `\\vrlescot\SAVES`→`/mnt/shares/SAVES` (drvfs/fstab),
+  env `WAMA_MODEL_BACKUP_PATH` dans `start_wama_prod.sh`.
+
+## Tests fonctionnels nocturnes (charpente, 2026-06-24)
+- ✅ **Charpente** : `common/services/nightly_tests.py` (registre déclaratif `Scenario` + runner
+  **sérialisé VRAM-aware** avec téardown avant/après + rapport JSON + **user de test dédié**
+  `wama_nightly_test`, jamais id=1) + commande `python manage.py run_nightly_tests [--app][--stage][--dry-run]`.
+  Étapes : `wired` (importable) | `model_loaded` | `output`. 2 scénarios smoke d'exemple OK.
+- ⏳ **À compléter** : vrais scénarios `model_loaded`/`output` par app (pilotés via tool_api),
+  timeout dur (Celery soft_time_limit), planification beat nocturne, page de résultats.
 
 ## 2bis. Inspecteur volet droit unifié (modèles + apps) — 🔄
 Un seul composant `WamaInspector`, deux catalogues, contenu généré depuis la métadonnée.
