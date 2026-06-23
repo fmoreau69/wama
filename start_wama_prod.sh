@@ -46,6 +46,11 @@ export OLLAMA_HOST=${OLLAMA_HOST:-http://$(ip route show | awk '/^default/{print
 # WSL2 hérite souvent UTC du noyau ; forcer TZ ici évite les logs décalés.
 export TZ=Europe/Paris
 
+# Backup distant des modèles (model_manager/remote_backup.py). Point de MONTAGE WSL,
+# pas le chemin UNC : monter \\vrlescot\SAVES sur /mnt/shares/SAVES (drvfs ou /etc/fstab).
+# Sûr même si non monté : is_available() voit que le dossier n'existe pas → backup désactivé proprement.
+export WAMA_MODEL_BACKUP_PATH=${WAMA_MODEL_BACKUP_PATH:-/mnt/shares/SAVES/DEEP_LEARNING/MODELS}
+
 # Resync WSL2 clock (dérive après sleep/hibernate — source du "substantial drift" Celery)
 sudo hwclock -s 2>/dev/null || true
 
