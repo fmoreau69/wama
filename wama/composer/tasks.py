@@ -67,10 +67,19 @@ def compose_task(self, generation_id: int):
         if gen.melody_reference:
             melody_abs = os.path.join(settings.MEDIA_ROOT, gen.melody_reference.name)
 
+        # PromptPipeline (§16.6) : MusicGen/AudioCraft est entraîné en anglais → un prompt FR
+        # est traduit avant génération (métadonnée PROMPT_TARGETS['composer'], KIND generative).
+        # Résource-safe : passthrough si déjà EN / modèle multilingue.
+        from wama.common.utils.app_metadata import process_prompt_for
+        routed_prompt = process_prompt_for(
+            'composer', 'prompt', gen.prompt,
+            instance=gen, user=gen.user, console=lambda m: _console(user_id, m),
+        )
+
         backend = AudioCraftBackend()
         backend.generate(
             model_id=gen.model,
-            prompt=gen.prompt,
+            prompt=routed_prompt,
             duration=gen.duration,
             output_path=output_abs_path,
             melody_path=melody_abs,

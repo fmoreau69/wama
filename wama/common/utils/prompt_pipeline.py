@@ -29,14 +29,19 @@ def _user_lang(user):
 
 
 def process_prompt(prompt, *, kind='generative', model_capabilities=None, model_type=None,
-                   user=None, input_lang=None, glossary=None, console=None, timeout=120):
+                   user=None, input_lang=None, glossary=None, enrich=False, console=None,
+                   timeout=120):
     """
     Traite un prompt selon les métadonnées (KIND + capacités du modèle cible).
 
-    Retourne {'prompt': traité, 'original': prompt, 'translated': bool, 'routing': dict|None,
-              'reason': str}. `console` : callback(msg) optionnel pour l'avis (transparence).
+    `enrich` : si True ET kind='generative', tente l'enrichissement (« upsampling »). Reste
+    sans effet tant que `settings.WAMA_PROMPT_ENRICH` est faux (interrupteur maître, OFF par
+    défaut → coût ressources nul) — cf. [[prompt_enrichment]].
+
+    Retourne {'prompt': traité, 'original': prompt, 'translated': bool, 'enriched': bool,
+              'routing': dict|None, 'reason': str}. `console` : callback(msg) optionnel (transparence).
     """
-    result = {'prompt': prompt, 'original': prompt, 'translated': False,
+    result = {'prompt': prompt, 'original': prompt, 'translated': False, 'enriched': False,
               'routing': None, 'reason': 'direct'}
     if not prompt or not str(prompt).strip():
         return result
@@ -63,10 +68,27 @@ def process_prompt(prompt, *, kind='generative', model_capabilities=None, model_
                 result['prompt'] = tr['text']
                 result['translated'] = True
                 if console:
-                    console(f"[prompt:{kind}] traduit {lang}→{routing['input_pivot']}")
+                    pivot = routing['input_pivot']
+                    why = ("ce modèle attend des concepts en anglais" if kind == 'concept'
+                           else f"ce modèle ne gère pas « {lang} »")
+                    console(f"🌐 Prompt traduit {lang}→{pivot} ({why}) — "
+                            f"la génération utilise la version traduite.")
+
+        # ── Hook A : enrichissement génératif (§16.6), piloté par KIND + flag metadata ──
+        # OFF par défaut (interrupteur maître `WAMA_PROMPT_ENRICH`) → aucun coût ressources
+        # tant que non activé. Enrichi dans la langue du prompt APRÈS routing (pivot si traduit,
+        # sinon langue d'entrée que le modèle gère).
+        if kind == 'generative' and enrich:
+            from .prompt_enrichment import enrich_generative, enrichment_enabled
+            if enrichment_enabled():
+                enr_lang = routing.get('input_pivot') if result['translated'] else lang
+                enriched = enrich_generative(result['prompt'], language=enr_lang or 'en',
+                                             glossary=glossary, console=console, timeout=timeout)
+                if enriched and enriched != result['prompt']:
+                    result['prompt'] = enriched
+                    result['enriched'] = True
 
         # ── Hooks futurs (§16.6), pilotés par KIND/metadata — no-op pour l'instant ──
-        # if kind == 'generative':  result['prompt'] = enrich_generative(result['prompt'], ...)
         # result['prompt'] = apply_rag(result['prompt'], user, ...)
         # result['prompt'] = comprehend_reference_files(result['prompt'], ...)
     except Exception as e:

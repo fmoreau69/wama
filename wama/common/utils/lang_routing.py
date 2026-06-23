@@ -16,6 +16,8 @@ from __future__ import annotations
 _TYPE_LANG_DEFAULT = {
     'diffusion': ['en'],   # générateurs image/vidéo : prompts en anglais
     'upscaling': ['en'],
+    'music': ['en'],       # MusicGen / AudioCraft : prompts entraînés en anglais
+    'audio_gen': ['en'],   # autres générateurs audio (SFX) pilotés par prompt EN
 }
 
 

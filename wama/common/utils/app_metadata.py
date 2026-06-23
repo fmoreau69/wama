@@ -22,13 +22,24 @@ logger = logging.getLogger(__name__)
 
 PROMPT_TARGETS = {
     'imager': [
+        # `enrich=True` : le prompt positif est « upsamplé » si l'enrichissement est activé
+        # (settings.WAMA_PROMPT_ENRICH, OFF par défaut). PAS le négatif (liste de choses à éviter,
+        # l'étoffer n'aurait pas de sens).
         {'field': 'prompt',          'kind': 'generative', 'model_field': 'model',
-         'source': 'imager', 'default_model_type': 'diffusion'},
+         'source': 'imager', 'default_model_type': 'diffusion', 'enrich': True},
         {'field': 'negative_prompt', 'kind': 'generative', 'model_field': 'model',
          'source': 'imager', 'default_model_type': 'diffusion'},
     ],
     'anonymizer': [
         {'field': 'sam3_prompt', 'kind': 'concept', 'when': 'use_sam3'},
+    ],
+    'composer': [
+        # MusicGen / AudioCraft : prompt texte décrivant la musique/SFX à générer, entraîné en
+        # anglais → un prompt FR doit être traduit. default_model_type='music' mappe sur ['en']
+        # ([[lang_routing]]) tant que les modèles composer ne sont pas catalogués avec leurs langues.
+        # PAS d'enrich pour l'instant (l'enrichissement « visuel » ne convient pas à l'audio).
+        {'field': 'prompt', 'kind': 'generative', 'model_field': 'model',
+         'source': 'composer', 'default_model_type': 'music'},
     ],
     'assistant': [
         # Le message chat = intention pour un LLM. Modèle résolu dynamiquement (pas un champ
@@ -38,6 +49,11 @@ PROMPT_TARGETS = {
         {'field': 'message', 'kind': 'intent', 'model_field': None, 'source': 'ollama'},
     ],
     # describer : le prompt vision est interne (piloté par output_language), pas un champ texte user.
+    # synthesizer : AUCUN target actif (décision §16.6). `text_content` = contenu à FAIRE DIRE
+    #   (TTS) → ne JAMAIS traduire (on prononce ce que l'utilisateur a écrit). `scene_description`
+    #   (conditionnement de scène Higgs Audio multi-speaker) = candidat 'concept' EN possible, mais
+    #   non câblé tant que la langue d'entraînement Higgs n'est pas vérifiée (prudence).
+    'synthesizer': [],
 }
 
 
@@ -92,4 +108,5 @@ def process_prompt_for(app: str, field: str, value, instance=None, user=None, co
     caps, mtype = _resolve_model(app, instance, tgt, model_id=model_id)
     return process_prompt(value, kind=tgt.get('kind', 'text'),
                           model_capabilities=caps, model_type=mtype,
+                          enrich=tgt.get('enrich', False),
                           user=user, console=console)['prompt']

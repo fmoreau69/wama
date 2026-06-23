@@ -446,6 +446,13 @@ OLLAMA_HOST = os.environ.get('OLLAMA_HOST', 'http://127.0.0.1:11434')
 # Supported values: 'ollama' | 'openai' | 'anthropic' | 'grok' | 'mistral'
 LITELLM_PROVIDER = os.environ.get('LITELLM_PROVIDER', 'ollama')
 
+# Enrichissement de prompt génératif (« upsampling ») — PromptPipeline hook A (ROADMAP §16.6).
+# OFF par défaut : interrupteur maître. Activé → une passe LLM locale légère étoffe les prompts
+# courts de génération d'image (champs marqués `enrich=True` dans app_metadata.PROMPT_TARGETS).
+# Modèle optionnel ; None → défaut llm_chat (qwen3.5:9b). Cf. common/utils/prompt_enrichment.py.
+WAMA_PROMPT_ENRICH = os.environ.get('WAMA_PROMPT_ENRICH', '0') in ('1', 'true', 'True')
+WAMA_PROMPT_ENRICH_MODEL = os.environ.get('WAMA_PROMPT_ENRICH_MODEL') or None
+
 # Anthropic API Configuration (for AI Chat feature)
 # Set your API key here or use ANTHROPIC_API_KEY environment variable
 ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY', None)
