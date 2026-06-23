@@ -74,13 +74,56 @@ class RemoteBackupService:
         return self._is_available
 
     def get_backup_path(self, model_type: str, model_name: str, format_type: str) -> Path:
-        """
+        r"""
         Get the destination path for a model backup.
 
-        Structure: \\remote\MODELS\{format}\{type}\{model_name}
-        Example: \\remote\MODELS\safetensors\diffusion\stable-diffusion-v1-5
+        Structure (LEGACY / fallback uniquement) : \\remote\MODELS\{format}\{type}\{model_name}
+        N'est utilisé que pour les sources HORS de AI-models/models/. Le cas normal passe par
+        mirror_dest() qui réplique l'arborescence locale (voir backup_file/backup_directory).
         """
         return self.remote_path / format_type / model_type / model_name
+
+    def _models_root(self) -> Optional[Path]:
+        """Racine locale des modèles : AI-models/models/."""
+        base = getattr(settings, 'AI_MODELS_DIR', None)
+        return (Path(base) / 'models') if base else None
+
+    def mirror_dest(self, source_path) -> Optional[Path]:
+        """
+        Destination MIROIR : réplique le chemin du modèle relatif à AI-models/models/ sous le
+        remote → garantit la cohérence remote ↔ local (même arbo domaine/famille/models--org--name/
+        {blobs,refs,snapshots}). Retourne None si la source est hors de AI-models/models/.
+        """
+        root = self._models_root()
+        if not root:
+            return None
+        try:
+            rel = Path(source_path).resolve().relative_to(root.resolve())
+        except (ValueError, OSError):
+            return None
+        return self.remote_path / rel
+
+    def _copy_one(self, source: Path, dest_file: Path, overwrite: bool):
+        """Copie un fichier vers dest_file (crée les dossiers parents). Retourne un BackupResult."""
+        import time
+        start = time.time()
+        try:
+            dest_file.parent.mkdir(parents=True, exist_ok=True)
+            if dest_file.exists() and not overwrite:
+                return BackupResult(
+                    success=True, source_path=str(source), dest_path=str(dest_file),
+                    size_mb=dest_file.stat().st_size / (1024 * 1024),
+                    error="File already exists (skipped)",
+                )
+            shutil.copy2(source, dest_file)
+            size_mb = dest_file.stat().st_size / (1024 * 1024)
+            return BackupResult(
+                success=True, source_path=str(source), dest_path=str(dest_file),
+                size_mb=size_mb, duration_seconds=time.time() - start,
+            )
+        except Exception as e:
+            logger.error(f"Backup copy failed: {e}")
+            return BackupResult(success=False, source_path=str(source), dest_path="", error=str(e))
 
     def backup_file(
         self,
@@ -123,49 +166,19 @@ class RemoteBackupService:
                 error=f"Remote path not accessible: {self.remote_path}"
             )
 
-        try:
-            # Create destination directory
-            dest_dir = self.get_backup_path(model_type, model_name, format_type)
-            dest_dir.mkdir(parents=True, exist_ok=True)
+        # Destination : MIROIR de l'arbo AI-models/models/ si la source en provient,
+        # sinon fallback legacy {format}/{type}/{name}.
+        mirror = self.mirror_dest(source)
+        if mirror is not None:
+            dest_file = mirror
+        else:
+            dest_file = self.get_backup_path(model_type, model_name, format_type) / source.name
 
-            # Destination file path
-            dest_file = dest_dir / source.name
-
-            # Check if already exists
-            if dest_file.exists() and not overwrite:
-                return BackupResult(
-                    success=True,
-                    source_path=str(source),
-                    dest_path=str(dest_file),
-                    size_mb=dest_file.stat().st_size / (1024 * 1024),
-                    error="File already exists (skipped)"
-                )
-
-            # Copy file
-            logger.info(f"Backing up {source} to {dest_file}")
-            shutil.copy2(source, dest_file)
-
-            duration = time.time() - start_time
-            size_mb = dest_file.stat().st_size / (1024 * 1024)
-
-            logger.info(f"Backup complete: {size_mb:.1f} MB in {duration:.1f}s")
-
-            return BackupResult(
-                success=True,
-                source_path=str(source),
-                dest_path=str(dest_file),
-                size_mb=size_mb,
-                duration_seconds=duration
-            )
-
-        except Exception as e:
-            logger.error(f"Backup failed: {e}")
-            return BackupResult(
-                success=False,
-                source_path=str(source),
-                dest_path="",
-                error=str(e)
-            )
+        logger.info(f"Backing up {source} -> {dest_file}")
+        result = self._copy_one(source, dest_file, overwrite)
+        if result.success and result.duration_seconds:
+            logger.info(f"Backup complete: {result.size_mb:.1f} MB in {result.duration_seconds:.1f}s")
+        return result
 
     def backup_directory(
         self,
@@ -200,26 +213,28 @@ class RemoteBackupService:
             )]
 
         results = []
+        mirror_root = self.mirror_dest(source)
 
-        # Default patterns for model files
-        if file_patterns is None:
-            file_patterns = [
-                '*.safetensors', '*.onnx', '*.pt', '*.bin',
-                '*.json', '*.txt', 'config.*', 'tokenizer*'
-            ]
-
-        # Find all matching files
-        for pattern in file_patterns:
-            for file_path in source.glob(pattern):
+        if mirror_root is not None:
+            # Cas normal : MIROIR RÉCURSIF — réplique TOUTE l'arbo (blobs/refs/snapshots/…)
+            # exactement comme en local, à l'emplacement domaine/famille/models--org--name.
+            for file_path in source.rglob('*'):
                 if file_path.is_file():
-                    result = self.backup_file(
-                        str(file_path),
-                        model_type,
-                        model_name,
-                        format_type,
-                        overwrite
-                    )
-                    results.append(result)
+                    rel = file_path.relative_to(source)
+                    results.append(self._copy_one(file_path, mirror_root / rel, overwrite))
+        else:
+            # Fallback legacy (source hors AI-models/models/) : copie plate filtrée par patterns.
+            if file_patterns is None:
+                file_patterns = [
+                    '*.safetensors', '*.onnx', '*.pt', '*.bin',
+                    '*.json', '*.txt', 'config.*', 'tokenizer*'
+                ]
+            for pattern in file_patterns:
+                for file_path in source.glob(pattern):
+                    if file_path.is_file():
+                        results.append(self.backup_file(
+                            str(file_path), model_type, model_name, format_type, overwrite
+                        ))
 
         return results
 
