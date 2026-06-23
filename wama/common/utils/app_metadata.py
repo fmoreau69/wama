@@ -30,8 +30,14 @@ PROMPT_TARGETS = {
     'anonymizer': [
         {'field': 'sam3_prompt', 'kind': 'concept', 'when': 'use_sam3'},
     ],
+    'assistant': [
+        # Le message chat = intention pour un LLM. Modèle résolu dynamiquement (pas un champ
+        # d'instance) → passer `model_id=` à process_prompt_for. LLM assistant multilingue →
+        # routing direct → AUCUNE traduction/chargement (résource-safe). Ne traduit que si le
+        # modèle résolu déclare explicitement ne pas gérer la langue de l'utilisateur.
+        {'field': 'message', 'kind': 'intent', 'model_field': None, 'source': 'ollama'},
+    ],
     # describer : le prompt vision est interne (piloté par output_language), pas un champ texte user.
-    # assistant : kind 'intent' (câblage à venir).
 }
 
 
@@ -47,32 +53,43 @@ def _target(app: str, field: str):
     return None
 
 
-def _resolve_model(app: str, instance, tgt):
-    """Capacités + type du modèle cible (AIModel) pour ce target, ou (None, default_type)."""
-    mfield = tgt.get('model_field')
-    if not mfield or instance is None:
+def _resolve_model(app: str, instance, tgt, model_id=None):
+    """
+    Capacités + type du modèle cible (AIModel) pour ce target, ou (None, default_type).
+
+    `model_id` (optionnel) court-circuite la lecture du `model_field` de l'instance : utile quand
+    le modèle est résolu dynamiquement (ex. assistant : modèle Ollama choisi à l'exécution).
+    """
+    mid = model_id
+    if mid is None:
+        mfield = tgt.get('model_field')
+        if not mfield or instance is None:
+            return None, tgt.get('default_model_type')
+        mid = getattr(instance, mfield, None)
+    if not mid:
         return None, tgt.get('default_model_type')
     try:
         from wama.model_manager.models import AIModel
-        mid = getattr(instance, mfield, None)
         source = tgt.get('source', app)
-        m = AIModel.objects.filter(model_key=f"{source}:{mid}").first() if mid else None
+        m = AIModel.objects.filter(model_key=f"{source}:{mid}").first()
         return (m.capabilities if m else None), (m.model_type if m else tgt.get('default_model_type'))
     except Exception:
         return None, tgt.get('default_model_type')
 
 
-def process_prompt_for(app: str, field: str, value, instance=None, user=None, console=None):
+def process_prompt_for(app: str, field: str, value, instance=None, user=None, console=None,
+                       model_id=None):
     """
     Traite UN prompt d'une app selon sa déclaration `PROMPT_TARGETS` (KIND + modèle cible).
     L'app passe la VALEUR résolue (gère ses propres fallbacks) ; le KIND vient de la déclaration.
+    `model_id` : id de modèle explicite (apps sans instance Django, ex. assistant).
     Fail-safe : retourne `value` inchangé si pas de target / valeur vide / erreur.
     """
     tgt = _target(app, field)
     if tgt is None or not value or not str(value).strip():
         return value
     from .prompt_pipeline import process_prompt
-    caps, mtype = _resolve_model(app, instance, tgt)
+    caps, mtype = _resolve_model(app, instance, tgt, model_id=model_id)
     return process_prompt(value, kind=tgt.get('kind', 'text'),
                           model_capabilities=caps, model_type=mtype,
                           user=user, console=console)['prompt']

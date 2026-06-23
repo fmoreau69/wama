@@ -275,6 +275,19 @@ def _chat_with_ollama(message: str, model: str = "fast", user=None, history: lis
     # Auto-upgrade model if context is too long for the selected model
     ollama_model = _route_model_by_context(ollama_model, messages)
 
+    # Intention (KIND 'intent', §2bis.4 / §16.6) : si le LLM résolu ne gère pas la langue de
+    # l'utilisateur, traduire le message vers une langue qu'il gère. Modèles assistant
+    # multilingues (qwen…) → routing direct → AUCUN appel/chargement traducteur (résource-safe :
+    # pas de cascade). Ne fait quelque chose que si le modèle déclare explicitement ses langues.
+    try:
+        from wama.common.utils.app_metadata import process_prompt_for
+        routed = process_prompt_for('assistant', 'message', message, user=user,
+                                    model_id=ollama_model)
+        if routed and routed != message:
+            messages[-1]['content'] = routed
+    except Exception:
+        pass
+
     tool_steps = []
     total_usage = {'input_tokens': 0, 'output_tokens': 0}
     MAX_TOOL_ITERATIONS = 5
