@@ -799,6 +799,8 @@ def api_convert_and_backup(request):
         model_type = data.get('model_type', 'unknown')
         model_name = data.get('model_name')
         backup_after = data.get('backup_after', True)
+        # Offload destructif du fichier SOURCE (ex. .pt) après conversion : OPT-IN explicite.
+        delete_source_after_backup = data.get('delete_source_after_backup', False)
 
         if not model_path:
             return JsonResponse({'success': False, 'error': 'model_path required'}, status=400)
@@ -859,6 +861,14 @@ def api_convert_and_backup(request):
                     'success': False,
                     'error': 'Remote backup path not accessible',
                 }
+
+        # Step 3: Offload du fichier SOURCE (ex. .pt) — OPT-IN explicite, destructif.
+        # Sauvegarde le source sur le remote (miroir), VÉRIFIE, puis supprime le local.
+        # Ne supprime jamais si la vérification échoue (garde-fou dans offload_file).
+        if delete_source_after_backup:
+            response['offload'] = get_backup_service().offload_file(
+                conversion_result.source_path
+            )
 
         return JsonResponse(response)
 

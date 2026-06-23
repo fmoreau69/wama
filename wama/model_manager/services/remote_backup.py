@@ -238,6 +238,55 @@ class RemoteBackupService:
 
         return results
 
+    def offload_file(self, source_path, overwrite: bool = True) -> dict:
+        """
+        OFFLOAD : sauvegarde un fichier sur le remote, VÉRIFIE la copie (présence + taille
+        identique), puis supprime le fichier LOCAL. Destructif → utilisé uniquement sur demande
+        explicite (flag). Garde-fou : ne supprime JAMAIS le local si la vérification échoue.
+
+        Retourne {success, backed_up, verified, deleted, dest_path, freed_mb, error}.
+        """
+        src = Path(source_path)
+        out = {'success': False, 'backed_up': False, 'verified': False,
+               'deleted': False, 'dest_path': '', 'freed_mb': 0.0, 'error': None}
+
+        if not src.exists() or not src.is_file():
+            out['error'] = f"Source introuvable ou non-fichier: {src}"
+            return out
+        if not self.is_available():
+            out['error'] = f"Remote inaccessible: {self.remote_path}"
+            return out
+
+        local_size = src.stat().st_size
+        result = self.backup_file(str(src), 'unknown', src.stem, 'unknown', overwrite=overwrite)
+        out['backed_up'] = result.success
+        out['dest_path'] = result.dest_path
+        if not result.success:
+            out['error'] = result.error or "backup échoué"
+            return out
+
+        # Vérification AVANT toute suppression : le distant existe et a la même taille.
+        dest = Path(result.dest_path)
+        try:
+            if dest.exists() and dest.stat().st_size == local_size:
+                out['verified'] = True
+            else:
+                out['error'] = "Vérification échouée (absent ou taille différente) — local conservé"
+                return out
+        except OSError as e:
+            out['error'] = f"Vérification impossible ({e}) — local conservé"
+            return out
+
+        # Vérifié → suppression locale sûre.
+        try:
+            src.unlink()
+            out['deleted'] = True
+            out['freed_mb'] = local_size / (1024 * 1024)
+            out['success'] = True
+        except OSError as e:
+            out['error'] = f"Suppression locale échouée: {e}"
+        return out
+
     def list_backups(self, format_type: str = None, model_type: str = None) -> List[Dict]:
         """
         List existing backups.
