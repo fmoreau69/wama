@@ -135,12 +135,19 @@ def apps_catalog_view(request):
     from .app_registry import APP_CATALOG, get_conformity_summary
     conformity = get_conformity_summary()
 
+    from django.urls import reverse, NoReverseMatch
+
     apps_list = []
     for name, spec in APP_CATALOG.items():
+        try:
+            url = reverse(spec['url_name']) if spec.get('url_name') else ''
+        except NoReverseMatch:
+            url = ''
         apps_list.append({
             'name':       name,
             'spec':       spec,
             'conformity': conformity[name],
+            'url':        url,
         })
 
     return render(request, 'common/apps.html', {'apps_list': apps_list})

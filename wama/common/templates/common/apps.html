@@ -4,8 +4,11 @@
 {% block title %}WAMA — Catalogue des applications{% endblock %}
 
 {% block extra_css %}
+<link rel="stylesheet" href="{% static 'common/css/wama-inspector-autofill.css' %}">
 <style>
     .apps-page { padding: 2rem 0; }
+    .app-item { cursor: pointer; }
+    .app-item.app-active .app-card { border-color: #0d6efd !important; box-shadow: 0 0 0 1px #0d6efd; }
     .apps-page h1 { font-size: 1.6rem; font-weight: 600; color: #e9ecef; margin-bottom: 0.25rem; }
     .apps-page .subtitle { color: #6c757d; font-size: 0.9rem; margin-bottom: 2rem; }
 
@@ -97,7 +100,7 @@
     <div class="row g-3 mb-5">
         {% for item in apps_list %}
         {% with spec=item.spec conf=item.conformity %}
-        <div class="col-12 col-md-6 col-xl-4">
+        <div class="col-12 col-md-6 col-xl-4 app-item" data-id="{{ item.name }}">
             <div class="app-card">
 
                 <div class="app-card-header">
@@ -249,4 +252,101 @@
     </div>
 
 </div>
+
+{{ apps_list|json_script:"apps-data" }}
+{% endblock %}
+
+{# ── Inspecteur dans le volet droit global (#wama-right-panel) ─────────────── #}
+{% block right_panel_settings_title %}Inspecteur de l'app{% endblock %}
+{% block right_panel_settings %}
+<div id="inspectorBanner" class="d-none align-items-center gap-2 mb-2">
+    <i class="fas fa-cube text-primary"></i>
+    <strong id="inspectorLabel" class="flex-grow-1 text-truncate"></strong>
+    <button type="button" id="inspectorDeselect" class="btn btn-sm btn-outline-light py-0 px-2" title="Fermer l'inspecteur">
+        <i class="fas fa-times"></i>
+    </button>
+</div>
+<div id="inspectorActions">
+    <p class="text-muted small mb-0"><i class="fas fa-hand-pointer me-1"></i>Cliquez une carte d'application pour l'inspecter.</p>
+</div>
+{% endblock %}
+
+{% block right_panel_actions_title %}Actions{% endblock %}
+{% block right_panel_actions %}
+<div id="inspectorActionButtons" class="d-flex flex-wrap gap-2">
+    <span class="text-muted small">—</span>
+</div>
+{% endblock %}
+
+{% block javascript %}
+{{ block.super }}
+<script src="{% static 'common/js/wama-inspector.js' %}"></script>
+<script src="{% static 'common/js/wama-inspector-autofill.js' %}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const dataEl = document.getElementById('apps-data');
+    if (!dataEl || !window.WamaInspector || !window.WamaAutofill) return;
+
+    const APPS_HINT = '<p class="text-muted small mb-0"><i class="fas fa-hand-pointer me-1"></i>Cliquez une carte d\'application pour l\'inspecter.</p>';
+
+    // Données serveur → lookup par nom (fusion spec + conformity + url).
+    const byId = {};
+    (JSON.parse(dataEl.textContent) || []).forEach(function (it) {
+        byId[it.name] = Object.assign({ _name: it.name, conformity: it.conformity, url: it.url }, it.spec);
+    });
+
+    const APP_DETAIL_SCHEMA = [
+        { badges: function (a) {
+            const c = a.conformity || {};
+            let cls = 'bg-secondary';
+            if (c.pct != null) cls = c.pct >= 90 ? 'bg-success' : (c.pct >= 66 ? 'bg-warning text-dark' : 'bg-danger');
+            return [
+                c.pct != null ? '<span class="badge ' + cls + '">Conformité ' + c.pct + '%</span>' : '',
+                a.has_batch ? '<span class="badge bg-info">batch</span>' : '',
+                a.has_url_import ? '<span class="badge bg-secondary">URL</span>' : '',
+                a.has_youtube ? '<span class="badge bg-danger">YouTube</span>' : '',
+            ].filter(Boolean);
+        } },
+        { description: function (a) { return a.description_long || a.description || ''; } },
+        { section: 'Entrées / sorties', rows: [
+            { k: 'Types entrée', get: function (a) { return (a.input_types || []).join(', '); } },
+            { k: 'Types sortie', get: function (a) { return (a.output_types || []).join(', '); } },
+            { k: 'Extensions', get: function (a) { return (a.input_extensions || []).length ? (a.input_extensions.length + ' formats') : ''; } },
+            { k: 'Type de batch', field: 'batch_type' },
+        ] },
+        { section: 'Conformité', rows: [
+            { k: 'Score', get: function (a) { return a.conformity ? (a.conformity.score + ' / ' + a.conformity.total) : ''; } },
+            { k: 'À corriger', get: function (a) { return a.conformity ? (a.conformity.issues || []).join(', ') : ''; } },
+        ] },
+    ];
+    const APP_ACTIONS_SCHEMA = [
+        { label: "Ouvrir l'application", icon: 'fas fa-arrow-right', cls: 'btn btn-sm btn-primary',
+          when: function (a) { return !!a.url; }, href: function (a) { return a.url; } },
+    ];
+
+    WamaInspector.init({
+        queueContainer: document.querySelector('.apps-page'),
+        cardSelector: '.app-item',
+        highlightClass: 'app-active',
+        itemLabel: function (id) { const a = byId[id]; return a ? (a.label || a._name) : id; },
+        renderItemActions: function (host, card) {
+            const a = byId[card.dataset.id];
+            const btnHost = document.getElementById('inspectorActionButtons');
+            if (!a) { host.innerHTML = '<p class="text-muted">Application inconnue.</p>'; if (btnHost) btnHost.innerHTML = ''; return; }
+            host.innerHTML = WamaAutofill.renderSections(a, APP_DETAIL_SCHEMA);
+            if (btnHost) {
+                const r = WamaAutofill.renderActions(a, APP_ACTIONS_SCHEMA);
+                btnHost.innerHTML = r.html;
+                r.wire(btnHost);
+            }
+        },
+    });
+
+    const ds = document.getElementById('inspectorDeselect');
+    if (ds) ds.addEventListener('click', function () {
+        const h = document.getElementById('inspectorActions'); if (h) h.innerHTML = APPS_HINT;
+        const b = document.getElementById('inspectorActionButtons'); if (b) b.innerHTML = '<span class="text-muted small">—</span>';
+    });
+});
+</script>
 {% endblock %}

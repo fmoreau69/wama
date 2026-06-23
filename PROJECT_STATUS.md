@@ -29,8 +29,12 @@ Doc : [`PROMPT_PIPELINE.md`](PROMPT_PIPELINE.md).
   (`renderSections(data, schema)` / `renderActions(data, actions)` ; supporte badges/description/rows/
   kv/code, et actions when/href/onClick/expand). **model_manager rebranché dessus** (1er consommateur).
   Doc : `COMMON_REFACTORING.md` + `WAMA_APP_CONVENTIONS.md §22` + philosophie dans `CLAUDE.md`.
-- ⏳ **À généraliser** : rebrancher l'inspecteur `/apps/` (catalogue) sur `WamaAutofill` (source =
-  `APP_CATALOG`/`description_long`), puis les items de file des apps génériques.
+- ✅ **Inspecteur `/apps/` (2e consommateur de `WamaAutofill`)** : catalogue d'apps câblé dans le volet
+  droit global — clic carte `.app-item[data-id]` → `WamaInspector` + `WamaAutofill` sur les métadonnées
+  `APP_CATALOG` (`description_long`, types E/S, type de batch, **conformité** score/%/issues) + action
+  « Ouvrir l'application ». Données exposées via `json_script` (`apps_list` + URL résolue côté vue).
+- ⏳ **À généraliser** : items de file des apps génériques (inspecteur éditable = formulaire 3 niveaux,
+  cf. `WAMA_APP_CONVENTIONS.md §22.1` — distinct du rendu lecture seule autofill).
 - ⏳ Dashboard prospection par défaut (gardé admin)
 - ⏳ Étape 3 centralisation (adaptateurs anonymizer/transcriber + migration per-model)
 - ⏳ Chargeur générique ; agents cloud pour confronter ; recherche web benchmarks
