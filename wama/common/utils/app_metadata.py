@@ -109,4 +109,31 @@ def process_prompt_for(app: str, field: str, value, instance=None, user=None, co
     return process_prompt(value, kind=tgt.get('kind', 'text'),
                           model_capabilities=caps, model_type=mtype,
                           enrich=tgt.get('enrich', False),
+                          reference_files=_resolve_reference_files(instance, tgt),
                           user=user, console=console)['prompt']
+
+
+def _resolve_reference_files(instance, tgt):
+    """Chemin(s) du/des fichier(s) de référence déclaré(s) par `reference_field`, ou None.
+
+    `reference_field` peut viser un FileField/ImageField (→ .path) ou une liste de fichiers.
+    """
+    rfield = tgt.get('reference_field')
+    if not rfield or instance is None:
+        return None
+    val = getattr(instance, rfield, None)
+    if not val:
+        return None
+    items = val if isinstance(val, (list, tuple)) else [val]
+    paths = []
+    for it in items:
+        # FileField/ImageField → .path (si un fichier est réellement associé), sinon str
+        p = getattr(it, 'path', None)
+        try:
+            if p is None and it:
+                p = str(it)
+        except Exception:
+            p = None
+        if p:
+            paths.append(p)
+    return paths or None

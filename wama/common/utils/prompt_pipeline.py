@@ -29,8 +29,8 @@ def _user_lang(user):
 
 
 def process_prompt(prompt, *, kind='generative', model_capabilities=None, model_type=None,
-                   user=None, input_lang=None, glossary=None, enrich=False, console=None,
-                   timeout=120):
+                   user=None, input_lang=None, glossary=None, enrich=False,
+                   reference_files=None, console=None, timeout=120):
     """
     Traite un prompt selon les métadonnées (KIND + capacités du modèle cible).
 
@@ -38,11 +38,16 @@ def process_prompt(prompt, *, kind='generative', model_capabilities=None, model_
     sans effet tant que `settings.WAMA_PROMPT_ENRICH` est faux (interrupteur maître, OFF par
     défaut → coût ressources nul) — cf. [[prompt_enrichment]].
 
+    `reference_files` : chemin(s) de fichier(s) de référence fournis par l'utilisateur. S'ils
+    existent, ils sont compris (image/doc/texte) et repliés dans le prompt comme contexte de
+    grounding (cf. [[reference_comprehension]]). Data-gated : aucun coût si la liste est vide.
+
     Retourne {'prompt': traité, 'original': prompt, 'translated': bool, 'enriched': bool,
-              'routing': dict|None, 'reason': str}. `console` : callback(msg) optionnel (transparence).
+              'reference_context': bool, 'routing': dict|None, 'reason': str}.
+    `console` : callback(msg) optionnel (transparence).
     """
     result = {'prompt': prompt, 'original': prompt, 'translated': False, 'enriched': False,
-              'routing': None, 'reason': 'direct'}
+              'reference_context': False, 'routing': None, 'reason': 'direct'}
     if not prompt or not str(prompt).strip():
         return result
 
@@ -88,9 +93,20 @@ def process_prompt(prompt, *, kind='generative', model_capabilities=None, model_
                     result['prompt'] = enriched
                     result['enriched'] = True
 
-        # ── Hooks futurs (§16.6), pilotés par KIND/metadata — no-op pour l'instant ──
+        # ── Hook : compréhension des fichiers de référence (§10.B) ──
+        # Data-gated : ne fait rien si aucun fichier fourni (no-op tant qu'aucune app ne déclare
+        # `reference_field` dans PROMPT_TARGETS). Replie un contexte de grounding dans le prompt.
+        if reference_files and kind in ('generative', 'intent'):
+            from .reference_comprehension import comprehend_files
+            ref_lang = (routing.get('input_pivot') if result['translated'] else lang) or 'en'
+            ctx = comprehend_files(reference_files, language=ref_lang, console=console, timeout=timeout)
+            if ctx:
+                result['prompt'] = f"{result['prompt']}\n\n[Reference context]\n{ctx}"
+                result['reference_context'] = True
+
+        # ── Hook futur (§16.6 / §8c) : RAG — récupération de contexte depuis le store ChromaDB
+        # (embeddings bge-m3). No-op tant que la fondation wama/rag/ + l'indexation n'existent pas.
         # result['prompt'] = apply_rag(result['prompt'], user, ...)
-        # result['prompt'] = comprehend_reference_files(result['prompt'], ...)
     except Exception as e:
         result['reason'] = f"pipeline ignorée ({e})"
         logger.debug(f"[prompt_pipeline] {e}")
