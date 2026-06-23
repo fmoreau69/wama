@@ -35,7 +35,14 @@ Doc : [`PROMPT_PIPELINE.md`](PROMPT_PIPELINE.md).
   « Ouvrir l'application ». Données exposées via `json_script` (`apps_list` + URL résolue côté vue).
 - ⏳ **À généraliser** : items de file des apps génériques (inspecteur éditable = formulaire 3 niveaux,
   cf. `WAMA_APP_CONVENTIONS.md §22.1` — distinct du rendu lecture seule autofill).
-- ⏳ Dashboard prospection par défaut (gardé admin)
+- ✅ **Page allégée (2026-06-23)** : monitoring déplacé du corps vers le volet droit (déplacement de
+  nœuds par JS `appendChild` → préserve handlers + polling). Section **Médias surchargée = jauges
+  ressources** (GPU/RAM/Models/Disk, toujours visibles). **Memory Cleaner + idle** en section
+  Paramètres, **visibles seulement si aucune card sélectionnée** (l'inspecteur prend la place quand
+  une card est choisie). Corps de page = en-tête + filtres + catalogue. Footer (RAM/GPU global)
+  inchangé. (Sûr : aucun appel externe à `WAMA_RIGHT_PANEL.*` n'écrase les sections du volet.)
+- ⏳ Dashboard prospection par défaut (gardé admin) — foyer naturel = la vue volet « aucune card
+  sélectionnée » (à côté du cleaner), à brancher sur le moteur de prospection CLI existant.
 - ⏳ Étape 3 centralisation (adaptateurs anonymizer/transcriber + migration per-model)
 - ⏳ Chargeur générique ; agents cloud pour confronter ; recherche web benchmarks
 

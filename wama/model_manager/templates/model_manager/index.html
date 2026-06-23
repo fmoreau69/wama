@@ -283,8 +283,8 @@
         </div>
     </div>
 
-    <!-- Memory Stats Cards -->
-    <div class="row mb-4">
+    <!-- Memory Stats Cards (déplacé par JS dans le volet droit, section Ressources — toujours visible) -->
+    <div class="row mb-4" id="mmResourceRow">
         <div class="col-md-4">
             <div class="memory-card h-100">
                 <div class="d-flex justify-content-between align-items-center mb-3">
@@ -375,8 +375,8 @@
         </div>
     </div>
 
-    <!-- Memory Management Section -->
-    <div class="row mb-4">
+    <!-- Memory Management Section (déplacé par JS dans le volet droit ; visible si aucune card sélectionnée) -->
+    <div class="row mb-4" id="mmSystemRow">
         <div class="col-md-8">
             <div class="memory-card h-100">
                 <div class="d-flex justify-content-between align-items-center mb-3">
@@ -565,6 +565,14 @@
     .model-item.mm-active .model-card {
         border-color: #0dcaf0 !important; box-shadow: 0 0 0 1px #0dcaf0;
     }
+    /* Monitoring déplacé dans le volet droit étroit → forcer l'empilement vertical */
+    #mmResourceSlot > .row, #mmSystemSlot > .row { margin: 0; }
+    #mmResourceSlot [class*="col-"], #mmSystemSlot [class*="col-"] {
+        flex: 0 0 100%; max-width: 100%; padding: 0; margin-bottom: .75rem;
+    }
+    #mmResourceSlot [class*="col-"]:last-child,
+    #mmSystemSlot [class*="col-"]:last-child { margin-bottom: 0; }
+    #mmResourceSlot .card, #mmSystemSlot .card { margin-bottom: 0; }
 </style>
 
 <!-- Loading Overlay -->
@@ -578,8 +586,15 @@
 </div>
 {% endblock %}
 
-{# ── Inspecteur dans le volet droit global (#wama-right-panel) ─────────────── #}
-{% block right_panel_settings_title %}Inspecteur du modèle{% endblock %}
+{# ── Volet droit global (#wama-right-panel) ───────────────────────────────── #}
+{# Section Médias → ressources système (toujours visible). mmResourceRow y est déplacé par JS. #}
+{% block right_panel_media_title %}Ressources système{% endblock %}
+{% block right_panel_media %}
+<div id="mmResourceSlot"></div>
+{% endblock %}
+
+{# Section Paramètres → inspecteur du modèle (si card sélectionnée), sinon outils système. #}
+{% block right_panel_settings_title %}Inspecteur / Système{% endblock %}
 {% block right_panel_settings %}
 <div id="inspectorBanner" class="d-none align-items-center gap-2 mb-2">
     <i class="fas fa-cube text-info"></i>
@@ -589,8 +604,10 @@
     </button>
 </div>
 <div id="inspectorActions">
-    <p class="text-muted small mb-0"><i class="fas fa-hand-pointer me-1"></i>Cliquez une carte de modèle pour l'inspecter.</p>
+    <p class="text-muted small mb-0"><i class="fas fa-hand-pointer me-1"></i>Cliquez une carte de modèle pour l'inspecter — sinon, gestion mémoire ci-dessous.</p>
 </div>
+{# mmSystemRow (cleaner + idle models) déplacé ici par JS ; masqué quand une card est sélectionnée. #}
+<div id="mmSystemSlot" class="mt-3"></div>
 {% endblock %}
 
 {% block right_panel_actions_title %}Actions du modèle{% endblock %}
@@ -826,7 +843,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // générique piloté par schéma déclaratif depuis AIModel.to_dict()).
     // =========================================================================
     let mmCurrentId = null;
-    const MM_HINT = '<p class="text-muted small mb-0"><i class="fas fa-hand-pointer me-1"></i>Cliquez une carte de modèle pour l\'inspecter.</p>';
+    const MM_HINT = '<p class="text-muted small mb-0"><i class="fas fa-hand-pointer me-1"></i>Cliquez une carte de modèle pour l\'inspecter — sinon, gestion mémoire ci-dessous.</p>';
 
     function mmReselect() {
         if (!mmCurrentId) return;
@@ -908,6 +925,12 @@ document.addEventListener('DOMContentLoaded', function() {
         finally { hideLoading(); }
     }
 
+    // Outils système (cleaner + idle) : visibles seulement quand AUCUNE card n'est sélectionnée.
+    function mmShowSystem(show) {
+        const sys = document.getElementById('mmSystemRow');
+        if (sys) sys.style.display = show ? '' : 'none';
+    }
+
     function renderModelInspector(host, card) {
         const id = card.dataset.id || card.dataset.modelId;
         mmCurrentId = id;
@@ -924,9 +947,19 @@ document.addEventListener('DOMContentLoaded', function() {
             btnHost.innerHTML = a.html;
             a.wire(btnHost);
         }
+        mmShowSystem(false);  // card sélectionnée → l'inspecteur prend la place des outils système
     }
 
     if (window.WamaInspector && window.WamaAutofill) {
+        // Déplacer le monitoring du corps de page → volet droit. appendChild MOVE les nœuds
+        // existants (préserve les écouteurs liés + le polling par id) sans recréer le DOM.
+        const resSlot = document.getElementById('mmResourceSlot');
+        const resRow = document.getElementById('mmResourceRow');
+        if (resSlot && resRow) resSlot.appendChild(resRow);
+        const sysSlot = document.getElementById('mmSystemSlot');
+        const sysRow = document.getElementById('mmSystemRow');
+        if (sysSlot && sysRow) sysSlot.appendChild(sysRow);
+
         WamaInspector.init({
             queueContainer: document.getElementById('models-grid'),
             cardSelector: '.model-item',
@@ -944,6 +977,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (host) host.innerHTML = MM_HINT;
             const btnHost = document.getElementById('inspectorActionButtons');
             if (btnHost) btnHost.innerHTML = '<span class="text-muted small">—</span>';
+            mmShowSystem(true);  // plus de sélection → réafficher les outils système
         });
     }
 
