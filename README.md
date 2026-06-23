@@ -13,6 +13,7 @@ WAMA is a Django-based web application developed at **Lescot** (Université Gust
 | **Anonymizer** | `/anonymizer/` | Automatic blurring of faces and licence plates in photos and videos. Supports YOLO detection + tracking, progressive blur, batch import. |
 | **Avatarizer** | `/avatarizer/` | Talking avatar generation: lip-sync a portrait photo or video to an audio track. Pipeline: MuseTalk (lip-sync) + CodeFormer (face enhancement). Supports TTS synthesis directly from text. |
 | **Composer** | `/composer/` | Music and sound effect generation from text prompts (Meta AudioCraft — MusicGen + AudioGen). |
+| **Converter** | `/converter/` | Format conversion across **images, video, audio, documents and archives** (Pillow + FFmpeg + Pandoc + py7zr/rarfile), with quality presets. Also the shared conversion layer: other apps import its output formats and reuse `apply_inline_conversion` to convert their results inline. |
 | **Describer** | `/describer/` | AI-powered description and summarisation of images, videos and audio. Uses multimodal LLMs (Ollama local or cloud). |
 | **Enhancer** | `/enhancer/` | Resolution upscaling for images/videos (Real-ESRGAN, HAT) and audio quality improvement (Resemble Enhance, DeepFilterNet). |
 | **Imager** | `/imager/` | Text-to-image, image-to-image, text-to-video and logo generation. Models: HunyuanImage 2.1, Qwen2.5-VL, SDXL, Mochi-1, LTX-Video, CogVideoX-5B, Flux LoRA logo. |
@@ -243,11 +244,18 @@ Full dependency list: `requirements.txt` (Windows) / `requirements_linux.txt` (W
 
 ---
 
-## Developer conventions
+## Developer conventions & documentation
 
-See [`WAMA_APP_CONVENTIONS.md`](WAMA_APP_CONVENTIONS.md) for the complete UI/architecture conventions, app creation checklist, action button order, queue component requirements, and per-app conformity table.
-
-See [`CLAUDE.md`](CLAUDE.md) for AI model integration rules and collaboration guidelines.
+| Document | Contenu |
+|----------|---------|
+| [`CLAUDE.md`](CLAUDE.md) | Règles d'intégration des modèles AI, centralisation `common/`, collaboration wama-dev-ai. |
+| [`WAMA_APP_CONVENTIONS.md`](WAMA_APP_CONVENTIONS.md) | Conventions UI/architecture, checklist de création d'app, ordre des boutons, composants de file, table de conformité. |
+| [`PROJECT_STATUS.md`](PROJECT_STATUS.md) | Point d'étape des chantiers en cours (✅/🔄/⏳) + ordre de reprise. |
+| [`ROADMAP.md`](ROADMAP.md) | Feuille de route détaillée (numérotée par section). |
+| [`COMMON_REFACTORING.md`](COMMON_REFACTORING.md) | Briques communes disponibles + app de référence (Transcriber) + recette d'adoption. |
+| [`PROMPT_PIPELINE.md`](PROMPT_PIPELINE.md) | Pipeline de prompts centralisée (traduction/enrichissement/fichiers de référence). |
+| [`CARD_CENTRIC_UI.md`](CARD_CENTRIC_UI.md) | Spécification UI card-centric (volet droit = inspecteur). |
+| [`BATCH_FORMAT.md`](BATCH_FORMAT.md) | Format des fichiers d'import batch. |
 
 ---
 
