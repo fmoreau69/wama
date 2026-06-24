@@ -63,9 +63,15 @@ Doc : [`PROMPT_PIPELINE.md`](PROMPT_PIPELINE.md).
 - ✅ **Charpente** : `common/services/nightly_tests.py` (registre déclaratif `Scenario` + runner
   **sérialisé VRAM-aware** avec téardown avant/après + rapport JSON + **user de test dédié**
   `wama_nightly_test`, jamais id=1) + commande `python manage.py run_nightly_tests [--app][--stage][--dry-run]`.
-  Étapes : `wired` (importable) | `model_loaded` | `output`. 2 scénarios smoke d'exemple OK.
-- ⏳ **À compléter** : vrais scénarios `model_loaded`/`output` par app (pilotés via tool_api),
-  timeout dur (Celery soft_time_limit), planification beat nocturne, page de résultats.
+  Étapes : `wired` | `model_loaded` | `output`. **Skip vs fail** (`SkipScenario` → ⊘, dépendance absente).
+- ✅ **Gabarits `model_loaded`** : `transcriber.asr_load` (VALIDÉ runtime, charge Whisper ~10 s) +
+  `enhancer.deepfilternet_load` (skippe si `df` absent). Pattern : `<app>/nightly_scenarios.py` +
+  `register_scenarios()` dans `apps.py::ready()`.
+- ✅ **Infra** : tâche Celery `common.run_nightly_tests` (queue gpu) + beat **gated** (03:00 si
+  `NIGHTLY_TESTS_ENABLED=1`, sinon pas d'auto-run).
+- ⏳ **À compléter** : scénarios autres apps (imager/synthesizer/anonymizer) ; vrais `output` sur
+  fixtures (assertions + nettoyage IDs) ; timeout dur (Celery soft_time_limit) ; page de résultats ;
+  activer le beat après validation WSL.
 
 ## 2bis. Inspecteur volet droit unifié (modèles + apps) — 🔄
 Un seul composant `WamaInspector`, deux catalogues, contenu généré depuis la métadonnée.
