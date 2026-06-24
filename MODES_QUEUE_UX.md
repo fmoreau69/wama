@@ -93,6 +93,38 @@ déclaratif + générateur d'UI `WamaModes`).
 **Prérequis transverse (tôt, P1-P2)** : **séparer le volet droit du filemanager** (roadmap) → l'inspecteur
 vit dans le volet droit GLOBAL, pas embarqué dans le filemanager.
 
+## 7. Horizon : une app = un MANIFESTE (auto-génération sur description)
+
+Culmination de toutes les briques métadonnée-driven : **déclarer une app = remplir des schémas**, la couche
+commune **génère** l'UI, la file, l'inspecteur, l'API outil, les tests.
+
+| Préoccupation | Déclaratif via | Génère |
+|---|---|---|
+| Domaines / modes / entrées | `app_modes.py` (P1) | onglets + switch + champs (WamaModes) |
+| Réglages par mode | `param_schema.py` (à brancher) | inspecteur + modale |
+| Inspecteur | `WamaAutofill` | volet droit |
+| Backend (cycle de vie + deps) | `BaseModelBackend` | load/unload + install libs |
+| Card / file | CARD_DESIGN → brique commune | queue + cards |
+| Exposition assistant | `tool_api` | outil chat |
+| Tests | charpente nocturne | scénarios |
+
+→ **Code app-spécifique restant = `process()` (l'inférence)** + (voir ci-dessous) les **pages d'édition
+dédiées**. L'assistant IA pourra **générer le manifeste depuis une description** (« app qui fait X »),
+la prospection trouve le modèle → l'app **se génère** (auto-génération sur description, sans hardcoding).
+
+### ⚠️ Garde-fou (Fabien) : les PAGES D'ÉDITION dédiées ne se réduisent PAS au manifeste
+Certaines apps ont une **surface de « deep work »** app-spécifique, qui s'ajoutera progressivement :
+- Transcriber : **correction manuelle assistée IA** (fait). Anonymizer/Imager : dessin de masque / inpaint.
+  Avatarizer : timeline lip-sync. 3D (futur) : visualiseur/éditeur.
+- **Mais bâties sur briques communes** (le transcriber a extrait `WamaInspector`, lecteur audio, onde,
+  garde clavier, timecode) → seule la **logique d'édition vraiment spécifique** est bespoke.
+- **Intégrées au manifeste comme CAPACITÉ** : `capabilities.edit_page = {route, label, icon}` → la couche
+  commune affiche un **bouton « Éditer » générique** (card/inspecteur) quand déclaré. Le manifeste déclare
+  l'EXISTENCE + le point d'entrée ; l'app fournit la page.
+
+→ **Modèle affiné** : *code app-spécifique = `process()` + pages d'édition dédiées (déclarées en capacité,
+sur briques communes)* ; tout le reste se génère.
+
 ## 5bis. Cartographie domaines → modes (toutes les apps généralistes)
 
 | App | Domaine(s) → onglets ? | Modes (dans le domaine) | Temps réel | Workflow → méta-app |
