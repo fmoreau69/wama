@@ -21,6 +21,7 @@ INPUT_TYPES = {
     'negative_prompt': {'label': 'Prompt négatif', 'kind': 'text', 'multi': False, 'port': None},
     'work_file':       {'label': 'Fichier de travail', 'kind': 'file', 'multi': True, 'port': 'travail'},
     'work_image':      {'label': 'Image de travail', 'kind': 'file', 'accept': 'image', 'multi': True, 'port': 'travail'},
+    'reference_image': {'label': 'Image de référence (style)', 'kind': 'file', 'accept': 'image', 'multi': False, 'port': 'reference'},
     'work_audio':      {'label': 'Audio de travail', 'kind': 'file', 'accept': 'audio', 'multi': True, 'port': 'travail'},
     'reference_file':  {'label': 'Fichier de référence', 'kind': 'file', 'multi': False, 'port': 'reference'},
     'reference_voice': {'label': 'Voix de référence', 'kind': 'file', 'accept': 'audio', 'multi': False, 'port': 'reference'},
@@ -39,9 +40,13 @@ APP_MODES = {
                 {'id': 'prompt', 'label': 'Texte → Image', 'icon': 'fa-font',
                  'inputs': ['prompt', 'negative_prompt'],
                  'settings': ['model', 'seed', 'steps', 'guidance', 'resolution']},
-                {'id': 'edit', 'label': 'Image → Image', 'icon': 'fa-wand-magic-sparkles',
+                {'id': 'edit', 'label': 'Édition (img2img / inpaint)', 'icon': 'fa-wand-magic-sparkles',
                  'inputs': ['work_image', 'prompt'],
                  'settings': ['model', 'strength', 'seed', 'steps']},
+                {'id': 'style', 'label': 'Transfert de style', 'icon': 'fa-palette',
+                 'inputs': ['reference_image', 'prompt'],
+                 'settings': ['model', 'style_weight', 'seed', 'steps']},
+                # futur : {'id': 'to_3d', 'label': 'Image → 3D', 'inputs': ['work_image'], 'settings': […]}
             ]},
             {'id': 'video', 'label': 'Vidéo', 'icon': 'fa-film', 'modes': [
                 {'id': 't2v', 'label': 'Texte → Vidéo', 'icon': 'fa-font',
