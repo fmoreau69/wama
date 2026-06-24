@@ -83,9 +83,20 @@ sur `model_manager.services.model_selector.select_model()` (sélection VRAM-awar
 1. ✅ Extraire `common/backends/base.py` (`BaseModelBackend` + `missing_packages`) — contrat seul. **FAIT** (e0ee649).
 2. ✅ **imager** : `ImageGenerationBackend(BaseModelBackend)` + `process()→generate()`. **FAIT** (26e137e) — backends concrets inchangés.
 3. ✅ **enhancer** : `DeepFilterNet`/`Resemble` → `BaseModelBackend`, `load/is_loaded/unload/process` publics + `REQUIRED_PACKAGES`. **FAIT** (1bcb55c). Scénario nocturne rebranché sur l'API publique. NB : Resemble est SANS état (load=réchauffe, unload=no-op).
-4. ⏳ **reader / anonymizer / composer / synthesizer** : donner un manager + conformer le cycle de vie.
-5. ⏳ **describer** en dernier (ou hors-contrat : client LLM).
-6. ⏳ **Tests** : remplacer les N scénarios `model_loaded` sur-mesure par **un générique** paramétré par app/modèle.
-7. ⏳ **Manager commun** + branchement `model_installer` sur `pip_install_spec()` (poser les libs manquantes).
+4. ✅ **reader** (bd8b53f) : OlmOCR + DocTR → contrat (GlmOcr = client distant Ollama, **hors-contrat**).
+   ✅ **composer** (9b52ad2) : AudioCraftBackend (sans état).
+   ⏳ **anonymizer** (pipeline `Anonymize`+YOLO, pas de classe backend unique → wrapper à introduire) ·
+   **synthesizer** (`tts_service` engine/function-driven → wrapper). À faire pendant leur passe UI.
+5. ⏳ **describer** : function-driven + client LLM/Ollama → **hors-contrat** (comme GlmOcr).
+6. ✅ **Hook installeur** (273a2e1) : `model_installer.pip_install_packages()` + `ensure_backend_deps(backend_cls)`
+   consomment `missing_packages()`/`pip_install_spec()` → posent les libs d'un nouveau modèle (sur
+   validation humaine). **Boucle prospection ↔ contrat backend fermée.**
+7. ⏳ **Manager commun** (`get_backend`/`get_available_backends`/`unload_all`, branché `select_model`) — capstone.
+8. ⏳ **Tests** : N scénarios `model_loaded` sur-mesure → **un générique** paramétré par app/modèle.
+
+**Bilan F** : contrat + 5 apps conformes (transcriber réf, imager, enhancer, reader, composer) couvrant
+backends ABC / stateful / stateless ; 2 hors-contrat assumés (GlmOcr, describer = clients distants) ;
+2 à wrapper pendant leur passe UI (anonymizer, synthesizer) ; hook install fait. Reste = manager commun
+(capstone) + bascule tests générique.
 
 Voir `COMMON_REFACTORING.md` (ordre des chantiers) et `memory/project_nightly_tests.md`.

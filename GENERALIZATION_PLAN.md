@@ -42,11 +42,13 @@ Légende : ✅ large · 🔄 en cours · ⚠️ extrait mais peu adopté · ❌ 
 3. **A/E** = acquis ; **G** au fil de l'eau.
 
 ## Où on en est (curseur)
-- **F en cours** (fondation backend) : `BaseModelBackend` + imager + enhancer faits ; reste reader/
-  anonymizer/composer/synthesizer (+ describer hors-contrat) + manager commun + branchement
-  `model_installer` sur `pip_install_spec()`.
-- **Prochaine bascule UI** : après F, prendre **enhancer** (déjà conforme côté F) comme 2ᵉ référence
-  full-stack pour prouver **B+C+D** hors transcriber.
+- **F quasi finie** (fondation backend) : `BaseModelBackend` + **5 apps conformes** (transcriber réf,
+  imager, enhancer, reader, composer) + **hook installeur** (`ensure_backend_deps`/`pip_install_packages`
+  = boucle prospection). Hors-contrat assumés : GlmOcr, describer (clients distants). À wrapper pendant
+  leur passe UI : anonymizer, synthesizer. **Reste F** : manager commun (capstone) + tests `model_loaded`
+  générique. Détail : `BACKEND_CARTOGRAPHY.md`.
+- **Prochaine bascule UI** : prendre **enhancer** (déjà conforme côté F) comme 2ᵉ référence full-stack
+  pour prouver **B+C+D** hors transcriber.
 
 ## Principe unificateur
 Tout converge vers **I (capacités d'app)** : une fois les capacités déclarées, l'UI (A/B/C), les tests
