@@ -12,14 +12,36 @@ import logging
 from pathlib import Path
 from typing import Callable, Optional
 
+from wama.common.backends.base import BaseModelBackend
+
 logger = logging.getLogger(__name__)
 
 
-class OlmOCRBackend:
+class OlmOCRBackend(BaseModelBackend):
+
+    REQUIRED_PACKAGES = ['transformers', 'torch']
+    recommended_vram_gb = 8.0
+    description = "olmOCR (Qwen2-VL) — OCR de documents."
 
     def __init__(self):
         self._model = None
         self._processor = None
+
+    @classmethod
+    def is_available(cls) -> bool:
+        try:
+            import transformers, torch  # noqa: F401
+            return True
+        except Exception:
+            return False
+
+    @property
+    def is_loaded(self) -> bool:
+        return self._model is not None
+
+    def process(self, **kwargs):
+        """Point d'entrée générique (contrat commun) → délègue à run()."""
+        return self.run(**kwargs)
 
     def _free_vram_before_load(self):
         """Libère la VRAM avant le chargement du modèle :
@@ -72,7 +94,7 @@ class OlmOCRBackend:
         except Exception:
             pass
 
-    def load(self):
+    def load(self, model: Optional[str] = None) -> bool:
         import os
         from wama.reader.utils.model_config import OLMOCR_DIR, READER_MODELS
 
@@ -115,6 +137,7 @@ class OlmOCRBackend:
         )
         self._model.eval()
         logger.info(f"[olmOCR] Modèle chargé sur {device}")
+        return self.is_loaded
 
     def unload(self):
         import gc

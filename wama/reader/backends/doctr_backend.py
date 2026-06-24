@@ -11,10 +11,41 @@ import logging
 from pathlib import Path
 from typing import Callable, Optional
 
+from wama.common.backends.base import BaseModelBackend
+
 logger = logging.getLogger(__name__)
 
 
-class DocTRBackend:
+class DocTRBackend(BaseModelBackend):
+    """OCR docTR — SANS état persistant (le prédicteur se charge par appel dans run())."""
+
+    REQUIRED_PACKAGES = ['doctr']
+    recommended_vram_gb = 2.0
+    description = "docTR — OCR de documents (détection + reconnaissance)."
+    _warm = False
+
+    @classmethod
+    def is_available(cls) -> bool:
+        try:
+            import doctr  # noqa: F401
+            return True
+        except Exception:
+            return False
+
+    def load(self, model: Optional[str] = None) -> bool:
+        # Sans état : on marque seulement « prêt » (le modèle se charge par appel).
+        self._warm = True
+        return True
+
+    @property
+    def is_loaded(self) -> bool:
+        return self._warm
+
+    def unload(self) -> None:
+        self._warm = False
+
+    def process(self, **kwargs):
+        return self.run(**kwargs)
 
     def run(
         self,
