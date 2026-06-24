@@ -71,3 +71,24 @@ déclaratif + générateur d'UI `WamaModes`).
 
 **Prérequis transverse (tôt, P1-P2)** : **séparer le volet droit du filemanager** (roadmap) → l'inspecteur
 vit dans le volet droit GLOBAL, pas embarqué dans le filemanager.
+
+## 6. Unification avec la MÉTA-APP (chaînage graphique) — anticiper dès maintenant
+
+> **Insight magique** : **la card est un composant universel ; la FILE = une méta-app à UNE app, rendue
+> en liste.** On construit la card (unitaire ↔ batch-empilé, concis↔étendu, feux tricolores, actions) +
+> la file **une fois** ; la méta-app **réutilise le même composant**, en ajoutant canvas + connecteurs +
+> nœuds-app. Les deux chantiers **convergent** → ne pas réinventer.
+
+- **File** = N cards d'entrée alimentant **UNE app implicite** (l'app courante), en liste. Référence =
+  param au niveau batch ou card (héritage §9.9, cf. CARD_DESIGN §3ter).
+- **Méta-app** = les **mêmes** cards sur un **canvas**, avec **connecteurs** (ports), alimentant des
+  **nœuds-app explicites**. Un nœud-app = un nœud card-like avec **ports d'entrée typés**
+  (travail / référence / prompt / url) + un port de sortie (→ nœud suivant).
+- **Typage par CONNEXION (on retire la notion de « type de card »)** : le rôle d'une card = le **port
+  auquel elle est connectée**. Card **batch** → port « travail » (multi) ; card **unitaire** → port
+  « référence » (mono). La référence s'applique batch-level ou card-level — **comme dans la file**.
+- **Le batch empilé se désempile au clic** dans le canvas aussi (même composant, Solution 1).
+
+**Stratégie de validation (Fabien)** : **aller au bout sur 1 app + lancer la méta-app AVANT de
+généraliser** → valide le **composant card** ET le **modèle de connecteurs** sur du réel (comme on a
+validé le contrat backend sur 1 app avant le rollout). Ensuite seulement, propager à toutes les apps.
