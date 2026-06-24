@@ -55,6 +55,12 @@ distinct.** Il y a **deux axes** à ne pas mélanger :
   Transcriber/Synthesizer `[normal, temps_réel]`.
 - **L'UI se génère depuis ces descriptions** (sélecteur de mode + champs d'entrée + sections de réglages),
   comme `WamaAutofill` génère l'inspecteur. **Zéro spécificité hardcodée** au-delà de la description.
+- **Sources d'une entrée fichier = upload OU MÉDIATHÈQUE (déjà en place, composé auto)** : brique commune
+  **`MediaPicker`** (`common/js/media-picker.js` + endpoint `media_library:api_list`) ouvre une modale
+  filtrée par `asset_type` et renvoie un **`File`** (drop-in de l'upload). Déjà consommée par imager/
+  synthesizer/composer/avatarizer. `WamaModes` ajoute **automatiquement** un bouton « médiathèque » sur
+  tout champ fichier (filtré par son `accept`). Zéro code par app. (3ᵉ source : `url`.) Ex. style
+  transfert : image de référence = upload **ou** médiathèque.
 - **Faire évoluer une app = décrire un mode** (ex. Imager 2D→3D) sans code UI neuf. (2D→3D : mode si la
   sortie 3D peut être décrite + un visualiseur 3D ; sinon nouvelle app — à trancher, cf. `MEDIA`/3D.)
 
