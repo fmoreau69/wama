@@ -11,14 +11,17 @@
 
     // ─── Helpers ─────────────────────────────────────────────────────────────
 
+    // Délégués à WamaApp (brique commune wama-app-base.js) ; repli local si non chargé.
     function csrfFetch(url, opts = {}) {
+        if (window.WamaApp) return WamaApp.csrfFetch(url, csrf, opts);
         opts.headers = Object.assign({ 'X-CSRFToken': csrf }, opts.headers || {});
         return fetch(url, opts);
     }
 
     function urlFor(key, id) {
         const base = urls[key] || '';
-        return id !== undefined ? base.replace('/0/', `/${id}/`) : base;
+        if (id === undefined) return base;
+        return window.WamaApp ? WamaApp.getUrl(base, id) : base.replace('/0/', `/${id}/`);
     }
 
     function formatDate(iso) {
@@ -231,7 +234,28 @@
 
     const pollingTimers = {};
 
+    // Polling délégué à WamaApp.Poller (résilient : retries) ; création paresseuse + repli local.
+    let _poller = null;
+    function _getPoller() {
+        if (!window.WamaApp) return null;
+        if (!_poller) {
+            _poller = new WamaApp.Poller({
+                urlTemplate: urls.progress,
+                onData: function (id, item) {
+                    upsertCard(item);
+                    if (item.status !== 'RUNNING' && item.status !== 'PENDING') {
+                        _poller.stop(id);
+                        if (window.WamaFM) WamaFM.processed();  // sortie créée → refresh filemanager
+                    }
+                },
+            });
+        }
+        return _poller;
+    }
+
     function startPolling(id) {
+        const p = _getPoller();
+        if (p) { p.start(id); return; }
         if (pollingTimers[id]) return;
         pollingTimers[id] = setInterval(async () => {
             try {
@@ -240,7 +264,7 @@
                 upsertCard(item);
                 if (item.status !== 'RUNNING' && item.status !== 'PENDING') {
                     stopPolling(id);
-                    if (window.WamaFM) WamaFM.processed();  // sortie créée → refresh filemanager
+                    if (window.WamaFM) WamaFM.processed();
                 }
             } catch (e) {
                 stopPolling(id);
@@ -249,6 +273,8 @@
     }
 
     function stopPolling(id) {
+        const p = _getPoller();
+        if (p) { p.stop(id); return; }
         if (pollingTimers[id]) {
             clearInterval(pollingTimers[id]);
             delete pollingTimers[id];
