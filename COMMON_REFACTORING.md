@@ -68,7 +68,28 @@ communes ci-dessous. Pour généraliser une app, s'en inspirer.
 - Adoption des briques **app par app** (converter, describer, enhancer, imager, reader, synthesizer,
   anonymizer, composer) en suivant la recette ci-dessus, sans casser les spécificités.
 
+### Contrat de backend commun (réf. Transcriber) — clé de voûte, lie tests + prospection
+> **Cartographie complète : [`BACKEND_CARTOGRAPHY.md`](BACKEND_CARTOGRAPHY.md)** (carte par app + contrat).
+> Décision (Fabien, 2026-06-24) : le contrat à généraliser = **celui du Transcriber** (ABC
+> `load/is_loaded/unload/is_available` + manager), PAS une nouvelle abstraction. Concevoir **non
+> bloquant pour de nouveaux modèles** (modèles + chargements hétérogènes).
+
+- ✅ **Étape 1 FAITE** : `wama/common/backends/base.py` = `BaseModelBackend` (contrat seul, aucune app
+  forcée). Le COMMUN = le **cycle de vie** ; le verbe métier (`transcribe/generate/enhance/…`) délègue
+  à `process(**kwargs)`. **Hook dépendances** : `REQUIRED_PACKAGES` + `missing_packages()` (find_spec)
+  + `is_available()` (override try-import si deps natives, ex. df→libdf) + `pip_install_spec()`.
+- **Jonction prospection/installation** : `missing_packages()`/`pip_install_spec()` permettent au
+  `model_installer` de **proposer/poser les libs** d'un nouveau modèle, et aux tests nocturnes de
+  **skipper** (⊘) si indispo. Un nouveau backend = sous-classe + déclaration de deps, zéro modif cœur.
+- ⏳ **Ordre de migration** : imager (dédupliquer son `base.py`) → enhancer (load/is_loaded publics +
+  manager) → reader/anonymizer/composer/synthesizer → describer en dernier (client LLM, paradigme
+  distinct). Extraire ensuite un **manager commun** (`get_backend`/`get_available_backends`/`unload_all`)
+  branché sur `model_manager.select_model()`.
+- ⏳ **Bascule tests** : une fois le cycle de vie commun adopté, les N scénarios `model_loaded`
+  sur-mesure → **un générique** paramétré par app/modèle (cf. [[project_nightly_tests]]).
+
 ## Voir aussi
+- [`BACKEND_CARTOGRAPHY.md`](BACKEND_CARTOGRAPHY.md) — carte des backends + contrat commun.
 - `WAMA_APP_CONVENTIONS.md` — conventions UI & checklist de création d'app.
 - `CARD_CENTRIC_UI.md` — volet droit = inspecteur.
 - `PROMPT_PIPELINE.md` — pipeline de prompts commune.
