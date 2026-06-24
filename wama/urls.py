@@ -12,6 +12,7 @@ urlpatterns = [
     path('api/v1/', include(('wama.api.v1.urls', 'api_v1'), namespace='api_v1')),
     path('', views.home, name='home'),
     path('presentation/', views.presentation, name='presentation'),
+    path('architecture/', views.architecture, name='architecture'),
     path('api/ai-chat/', views.ai_chat, name='ai_chat'),
     path('api/tts-kokoro/', views.kokoro_tts, name='kokoro_tts'),
     path('api/switch-ui-mode/', views.switch_ui_mode, name='switch_ui_mode'),

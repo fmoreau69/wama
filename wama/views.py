@@ -80,6 +80,11 @@ def presentation(request):
     return render(request, 'includes/wama_presentation.html')
 
 
+def architecture(request):
+    """WAMA technical/architectural presentation (accessible aux non-spécialistes)."""
+    return render(request, 'includes/wama_architecture.html')
+
+
 _OLLAMA_MODEL_MAP = {
     'dev':        'qwen3.5:35b-a3b',
     'coder':      'qwen3.5:35b-a3b',
