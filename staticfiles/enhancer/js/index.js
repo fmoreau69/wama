@@ -9,8 +9,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
   const pollers = new Map();
 
+  // Délégué à WamaApp (brique commune wama-app-base.js) ; repli local si non chargé.
   function getUrl(template, id) {
-    return template.replace('/0/', `/${id}/`);
+    return window.WamaApp ? WamaApp.getUrl(template, id) : template.replace('/0/', `/${id}/`);
   }
 
   function csrfHeaders(extra = {}) {
@@ -682,6 +683,7 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   function escapeHtml(str) {
+    if (window.WamaApp) return WamaApp.escapeHtml(str);
     return (str || '').replace(/[&<>"']/g, function (match) {
       const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
       return map[match];
