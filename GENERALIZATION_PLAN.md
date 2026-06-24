@@ -16,7 +16,7 @@
 | Axe | Brique de référence | État | Reste |
 |-----|---------------------|------|-------|
 | **A. Coque applicative** | `common/templates/common/app_modern_base.html` | ✅ 10/10 apps l'étendent | piloter specs par capacités d'app |
-| **B. File + batch** | briques `_card_progress/_card_state/_new_item_card/_queue_actions`, batch universel, `batch-import.js`, `queue_duplication` | ⚠️ fonctionnel partout mais **briques communes = transcriber seul** | **plus gros reste** : refondre les files sur les briques |
+| **B. File + batch** | briques `_card_*/_new_item_card/_queue_actions`, batch universel, `batch-import.js`, `queue_duplication` ; **formalisme de card = [`CARD_DESIGN.md`](CARD_DESIGN.md)** (réf = converter `_job_card.html`) | ⚠️ fonctionnel partout mais **briques communes = transcriber seul** ; formalisme card figé (converter=réf) | **plus gros reste** : refondre les files sur les briques + card commune server-rendered |
 | **C. Inspecteur volet droit** | `wama-inspector.js` (sélection item/batch/global) + form éditable (§10/§22) + `wama-inspector-autofill.js` | ⚠️ transcriber + catalogues (model_manager,/apps) | brancher l'inspecteur **éditable** par app |
 | **D. Plomberie JS** | `wama-app-base.js` (`WamaApp`: Poller, csrfFetch, escapeHtml…) | ❌ transcriber seul | substrat à diffuser |
 | **E. Progression + ETA** | `_global_progress.html` + `wama-eta.js` | ✅ 10/10 apps | RAS |
