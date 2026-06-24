@@ -52,7 +52,37 @@ DISTANT …/MEDIAS/  (mount WSL)     = ARCHIVE : sorties terminées / entrées a
 - **Serveur prod (Linux dédié, cf. [`memory/project_deployment_roadmap`])** : là, le stockage média sera
   sur les disques/NAS du serveur → ce tiering vise surtout **la machine de dev actuelle** (pression disque).
 
+## Réglages utilisateur (page profil) — 2 mécanismes à ajouter
+
+> Les deux se déclarent **par utilisateur** sur la **page profil** (`UserProfile` a déjà
+> `preferred_language`, `ui_mode` → y ajouter les champs). Étude/consignation — pas implémenté.
+
+### A. Durée de rétention des données (input/output)
+- **Champs** : `UserProfile.retention_days_input` + `retention_days_output` (séparés : on garde souvent
+  les sorties plus longtemps que les entrées). Valeurs UI : **7 / 30 / 90 jours / indéfiniment**.
+- **Défaut prudent : « indéfiniment »** (ne JAMAIS supprimer des données utilisateur par défaut — cf.
+  règle anti-destructif). La rétention courte est **opt-in**.
+- **Comportement** : un **Celery beat quotidien** parcourt, par user, les médias plus vieux que le seuil
+  et — **préférer ARCHIVER (vers `MEDIAS/` distant) plutôt que supprimer** (le tiering ci-dessus) → la
+  donnée n'est pas perdue, juste délocalisée. Suppression dure = uniquement si l'utilisateur choisit
+  explicitement « supprimer après X jours ».
+- **UI/UX** : sur le profil, 2 listes déroulantes (entrées / sorties) + un indicateur de **place occupée
+  par l'utilisateur** + une note « archivé ≠ supprimé, restaurable ». Avertir avant toute purge dure.
+
+### B. Notification email en fin de traitement
+- **N'existe pas encore** (pas de `EMAIL_BACKEND`/SMTP configuré) → à créer.
+- **Champ** : `UserProfile.notify_by_email` (bool, **défaut OFF** pour éviter le spam).
+- **Déclenchement** : à la **complétion d'une tâche Celery** (fin de job), si opt-in → email avec le
+  **lien vers le résultat**. Pour les batches/longues files : préférer un **digest** (1 email récapitulatif)
+  plutôt qu'un email par item.
+- **Prérequis infra** : configurer SMTP (serveur mail du labo) dans `settings.py` (`EMAIL_BACKEND`,
+  `EMAIL_HOST`…) + `WAMA_*` env. Sur la machine de dev, `console.EmailBackend` (log) en attendant.
+- **UI/UX** : sur le profil, un simple interrupteur « Me prévenir par email à la fin d'un traitement »
+  (+ option future : seuil « seulement si le traitement a duré > N min »).
+
 ## Décision
 - **Architecture validée** : buffer local + archive distante + tiering (PAS de MEDIA_ROOT sur le share).
+- **Réglages profil** : rétention (input/output, défaut indéfiniment, archive>suppression) + notification
+  email (défaut OFF, SMTP à configurer). Champs sur `UserProfile`, UI page profil.
 - **Priorité : basse** (disque pas saturé). À implémenter quand la place locale devient contraignante,
   en réutilisant `offload_file`/le montage WSL. Lié au chantier `remote_backup` modèles.
