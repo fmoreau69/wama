@@ -904,10 +904,13 @@ document.addEventListener('DOMContentLoaded', function () {
   document.addEventListener('click', function(e) {
     const dbtn = e.target.closest('.duplicate-btn');
     if (!dbtn || !dbtn.dataset.duplicateUrl) return;
+    if (dbtn.dataset.busy) return;            // garde anti double-soumission (double-clic / double-fire)
+    dbtn.dataset.busy = '1';
+    dbtn.disabled = true;
     fetch(dbtn.dataset.duplicateUrl, { method: 'POST', headers: { 'X-CSRFToken': csrfToken } })
       .then(r => r.json())
       .then(() => location.reload())
-      .catch(() => {});
+      .catch(() => { delete dbtn.dataset.busy; dbtn.disabled = false; });
   });
 
   // ── ⚙ Batch settings : réutilise la modale du 1er item en mode batch ────
