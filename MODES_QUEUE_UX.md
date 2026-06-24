@@ -27,6 +27,27 @@
 
 (À affiner : distinguer *config* de *running* par l'opacité/pulse plutôt qu'une 4ᵉ couleur → lisibilité.)
 
+## 2bis. DEUX niveaux : Domaine (onglet) → Mode (switch) — ne pas confondre les axes
+
+Question (Fabien) : faut-il un niveau au-DESSUS des modes, en **onglets** ? **Oui — mais c'est un axe
+distinct.** Il y a **deux axes** à ne pas mélanger :
+
+1. **Domaine média** (image / vidéo / audio / document) = type d'**entrée/sortie**. Change les formats,
+   la nature de sortie, les modèles, ET la file (items de natures ≠). → **vrai niveau utilisateur = ONGLET**.
+2. **Mode** = la façon de produire **dans** un domaine (texte→image, image→image, yolo/sam3). Vit **dans**
+   le domaine.
+
+→ Hiérarchie : **App → Domaine (onglet) → Mode (switch) → Entrées + Réglages (générés)**.
+
+- **Métadonnée-driven** : l'app déclare `domains=[…]`, chaque domaine a ses `modes`. Onglets générés depuis
+  `domains`, switch depuis `domain.modes`. Zéro code par app.
+- **Niveau domaine CONDITIONNEL** : onglets seulement si **>1 domaine**. Mono-domaine (transcriber,
+  synthesizer, reader, describer, composer) → pas d'onglet, directement les modes.
+- La **file est scopée par le domaine actif** (cf. enhancer : file image/vidéo + file audio déjà en onglets).
+- **⚠️ Piège avatarizer** : `pipeline / standalone` n'est **PAS un domaine** — c'est un axe **WORKFLOW** →
+  se résout par la **méta-app** (pipeline = chaînage ; standalone = mode normal). NE PAS le modéliser en
+  onglet-domaine. (Avatarizer = probablement mono-domaine vidéo, son pipeline partant en méta-app.)
+
 ## 3. Le MODE = norme applicative (LA couche d'abstraction ajoutée)
 - Chaque app **déclare ses modes** en métadonnée :
   `modes = [{id, label, icône, temps_réel?, entrées:[prompt|fichiers|références|url], sections_réglages:[…], capacités}]`.
@@ -71,6 +92,26 @@ déclaratif + générateur d'UI `WamaModes`).
 
 **Prérequis transverse (tôt, P1-P2)** : **séparer le volet droit du filemanager** (roadmap) → l'inspecteur
 vit dans le volet droit GLOBAL, pas embarqué dans le filemanager.
+
+## 5bis. Cartographie domaines → modes (toutes les apps généralistes)
+
+| App | Domaine(s) → onglets ? | Modes (dans le domaine) | Temps réel | Workflow → méta-app |
+|-----|------------------------|-------------------------|------------|---------------------|
+| **Imager** (RÉF) | image · vidéo → **2 onglets** | image:[prompt, edit/img2img] · vidéo:[t2v, i2v] · batch (fichier prompts) | non | — |
+| Enhancer | image-vidéo · audio → **2 onglets** | restore/upscale (par domaine) | non | — |
+| Anonymizer | image-vidéo (+audio/doc futurs) | **yolo, sam3** (prompt) | non | — |
+| Synthesizer | audio (mono) | normal, **temps réel** (Speak) + voix de référence | **oui** | pipeline-ready |
+| Transcriber | audio→texte (mono) | normal, **temps réel** (Speak) | **oui** | pipeline-ready |
+| Reader | document→texte (mono) | OCR (DocTR / GLM-OCR / OlmOCR) | non | — |
+| Describer | multi-entrée→texte | par type d'entrée | non | — |
+| Composer | audio/musique (mono) | prompt → musique / SFX | non | — |
+| Avatarizer | vidéo (mono) | normal, **temps réel** | **oui** | **pipeline = méta-app** ⚠️ |
+| Converter | tous formats (cas spécial) | conversion (in→out) | non | — |
+
+**Lecture** : axe **domaine (onglet)** = Imager/Enhancer/Anonymizer (multi-domaine) uniquement ; axe
+**temps réel** (mode) = Synthesizer/Transcriber/Avatarizer ; axe **pipeline/standalone** = transversal
+(via tool_api) = le **workflow méta-app**, à NE PAS modéliser en domaine. → valide les **3 axes distincts**
+(domaine / mode / workflow).
 
 ## 6. Unification avec la MÉTA-APP (chaînage graphique) — anticiper dès maintenant
 
