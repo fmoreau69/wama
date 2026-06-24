@@ -49,6 +49,9 @@
         this.onChange = cfg.onChange || function () {};
         this.domain = cfg.domain || null;
         this.mode = cfg.mode || null;
+        // renderInputs=false : rend SEULEMENT les onglets domaine + switch de mode (l'app garde ses
+        // propres champs d'entrée). Utile pour piloter une UI existante sans la dupliquer.
+        this.renderInputs = cfg.renderInputs !== false;
         this._render();
     }
 
@@ -86,17 +89,19 @@
             });
             html += '</div>';
         }
-        // ENTRÉES typées du mode
-        html += '<div class="wm-inputs">';
-        const types = this.schema.input_types || {};
-        (mode.inputs || []).forEach(key => {
-            const inp = Object.assign({ id: key, label: key, kind: 'text' }, types[key] || {});
-            inp.id = key;
-            html += renderInput(inp);
-        });
-        html += '</div>';
-        // Slot RÉGLAGES (l'app y injecte ses widgets pour ce mode)
-        html += '<div class="wm-settings" data-domain="' + esc(this.domain) + '" data-mode="' + esc(this.mode) + '"></div>';
+        // ENTRÉES typées du mode (sautées si renderInputs=false : l'app garde les siennes)
+        if (this.renderInputs) {
+            html += '<div class="wm-inputs">';
+            const types = this.schema.input_types || {};
+            (mode.inputs || []).forEach(key => {
+                const inp = Object.assign({ id: key, label: key, kind: 'text' }, types[key] || {});
+                inp.id = key;
+                html += renderInput(inp);
+            });
+            html += '</div>';
+            // Slot RÉGLAGES (l'app y injecte ses widgets pour ce mode)
+            html += '<div class="wm-settings" data-domain="' + esc(this.domain) + '" data-mode="' + esc(this.mode) + '"></div>';
+        }
 
         this.container.innerHTML = html;
         this._bind();

@@ -90,13 +90,21 @@ def index(request):
         available_backends = {}
 
     # Generation mode choices for UI - Images
-    image_modes = [
-        ('txt2img', 'Text to Image', 'fas fa-keyboard'),
-        ('file2img', 'File (Batch)', 'fas fa-file-alt'),
-        ('describe2img', 'Describe', 'fas fa-search-plus'),
-        ('style2img', 'Style Transfer', 'fas fa-palette'),
-        ('img2img', 'Img2Img', 'fas fa-exchange-alt'),
-    ]
+    # Modes sourcés depuis le schéma COMMUN (app_modes) = source unique de vérité (métadonnée-driven).
+    # Mêmes valeurs qu'avant (txt2img/img2img/style2img/file2img/describe2img) → radios + JS inchangés ;
+    # seuls libellés/ordre/icônes viennent du schéma. Repli sur l'ancienne liste si le schéma manque.
+    from wama.common.utils.app_modes import get_domain as _get_domain
+    _img_modes = _get_domain('imager', 'image').get('modes', [])
+    if _img_modes:
+        image_modes = [(m['id'], m['label'], 'fas ' + m.get('icon', 'fa-circle')) for m in _img_modes]
+    else:
+        image_modes = [
+            ('txt2img', 'Text to Image', 'fas fa-keyboard'),
+            ('file2img', 'File (Batch)', 'fas fa-file-alt'),
+            ('describe2img', 'Describe', 'fas fa-search-plus'),
+            ('style2img', 'Style Transfer', 'fas fa-palette'),
+            ('img2img', 'Img2Img', 'fas fa-exchange-alt'),
+        ]
 
     # Generation mode choices for UI - Videos
     video_modes = [

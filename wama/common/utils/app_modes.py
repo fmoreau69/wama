@@ -52,7 +52,10 @@ APP_MODES = {
                 {'id': 'file2img', 'label': 'Batch (fichier de prompts)', 'icon': 'fa-list',
                  'inputs': ['prompt_file'],
                  'settings': ['model', 'seed', 'steps', 'resolution']},
-                # describe2img = pipeline (décrire→générer) → à porter en MÉTA-APP (Describer→Imager).
+                {'id': 'describe2img', 'label': 'Décrire → Image', 'icon': 'fa-comment-dots',
+                 'inputs': ['work_image'],
+                 'settings': ['model', 'seed', 'steps'],
+                 'pipeline_hint': 'Describer→Imager'},  # mini-pipeline → candidat MÉTA-APP
                 # futur : {'id': 'to_3d', 'label': 'Image → 3D', 'inputs': ['work_image']}
             ]},
             {'id': 'video', 'label': 'Vidéo', 'icon': 'fa-film', 'modes': [
