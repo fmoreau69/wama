@@ -44,13 +44,30 @@ Problème observé (converter) : la barre n'apparaît qu'en `RUNNING`/`PENDING` 
 | **Terminé** (`DONE`) | vert « Terminé » | **barre PLEINE verte persistante** ou ligne « ✓ Terminé · durée · taille » — **jamais absente** |
 | Échec (`ERROR`) | rouge « Échec » | barre/ligne rouge + message |
 
-### 1ter. Aperçu de sortie ADAPTATIF (concision ↔ identification)
+### 1ter. Card à DEUX ÉTATS (concis ↔ étendu) — universel, mêmes règles partout
 
-Un **slot aperçu unique** dans la card, rendu selon le **type d'app** + la **densité** choisie :
-- **Apps visuelles** (imager, enhancer image/vidéo, avatarizer) : **miniature de sortie INLINE** (style
-  imager `image-preview-row`) — l'aperçu EST le contenu ; card plus haute, assumée.
-- **Non-visuel / mode concis** : card concise + **aperçu au clic** (développe la card ou volet droit).
-- Piloté par la **préférence de densité** (§4) : **compact** (concis, clic) vs **riche** (miniatures inline).
+**État CONCIS (défaut)** — card légère, scannable :
+- en-tête 1 ligne (identité + mini-aperçu entrée + badge statut + ETA + actions) ;
+- barre de progression pleine largeur (§1bis) ;
+- **aperçu de sortie SYSTÉMATIQUE** : 1 ligne (miniature/onde/extrait) + **infos sortie en-dessous**
+  (durée/taille/dimensions… selon l'app) — compact, n'épaissit pas trop (style Transcriber).
+
+**État ÉTENDU (au clic / Entrée)** — la card grandit et révèle les **sections chronologiques communes** :
+`Entrée (props complètes)` → `Réglages/options (résumé)` → `Sortie (props + aperçu agrandi)` →
+`État/process (avancement, durée, logs courts)` → Actions. **Mêmes sections pour toutes les apps** ;
+chaque app remplit ce que son média contient → **cartographier par app pour ne rien perdre**.
+
+### 1quater. Interaction — marche AVEC ou SANS le volet droit
+
+Un **clic** sur une card = 3 effets cohérents : (a) **étend** la card (concis→étendu), (b) la
+**sélectionne** (highlight), (c) si le **volet droit** est présent → met à jour l'**inspecteur**
+(réglages éditables, §22).
+- **Mode avancé** (volet ouvert) : card étendue (lire les infos) + inspecteur (éditer les réglages).
+- **Mode simplifié** (volet masqué) : la card étendue porte tout.
+
+**Navigation clavier** : `↑↓←→` déplacent la sélection (pile ET mosaïque), `Entrée/Espace` étend/replie,
+`Échap` replie. → exploration rapide du contenu sans souris (réutilise la garde clavier
+input/textarea/select déjà posée pour l'éditeur transcriber).
 
 ## 2. Boutons d'action — ordre + code couleur (schéma CONVERTER, adopté)
 
@@ -76,15 +93,16 @@ Ordre canonique (conventions UI) · style **sobre** : `btn btn-outline-X btn-sm 
 - **Délégation par `data-action`** (un seul handler `[data-action]` par file) plutôt que N handlers par
   classe → supprime la classe de bugs « double-fire ».
 
-## 4. Disposition + densité utilisateur (préférence, à venir)
+## 4. Disposition : mode d'affichage pile ↔ mosaïque (toggle, comme les apps média)
 
-- **`UserProfile.card_layout`** = `stack` (liste empilée, **défaut**) | `mosaic` (grille de tuiles).
-- **Densité** (liée) : **compact** (lignes concises, aperçu au clic) vs **riche** (miniatures de sortie
-  inline). Mapping naturel : **pile ≈ compact**, **mosaïque ≈ riche** (tuiles-miniatures). C'est
-  l'utilisateur qui **tranche concision vs identification** selon son besoin → meilleur des deux mondes.
-- La card fonctionne **dans les deux** : pleine largeur en `stack`, tuile à largeur fixe en `mosaic`
-  (barre pleine largeur + slot aperçu §1ter s'adaptent). Réglage UI sur la page profil (comme
-  `ui_mode`/`preferred_language`).
+- **`UserProfile.card_layout`** = `stack` (1 card fine **par ligne**, **défaut**) | `mosaic` (grille de
+  cards plus hautes, plusieurs par ligne).
+- **Géométrie, pas densité** : c'est l'**agencement** des cards sur la page qui change ; l'agencement
+  INTERNE de la card se **reformate** (en `mosaic`, les éléments de l'en-tête + l'aperçu s'empilent dans
+  la tuile ; en `stack`, ils s'étalent sur la ligne). **Même card, deux géométries** (responsive/reflow).
+- Toggle dans la barre de file (boutons « liste / mosaïque ») + réglage par défaut sur la page profil
+  (comme `ui_mode`/`preferred_language`).
+- Orthogonal aux 2 états §1ter (concis/étendu) : on peut étendre une card en pile comme en mosaïque.
 
 ## 5. Cartographie des cards existantes (conformité au formalisme)
 
