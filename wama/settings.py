@@ -392,6 +392,7 @@ if ENABLE_CELERY:
         'wama_lab.cam_analyzer.tasks.*': {'queue': 'gpu'},
         'wama.converter.tasks.*': {'queue': 'default'},
         'wama.model_manager.tasks.*': {'queue': 'default'},
+        'common.run_nightly_tests': {'queue': 'gpu'},  # charge des modèles → queue GPU
     }
     CELERY_TASK_DEFAULT_QUEUE = 'default'
 
@@ -407,6 +408,17 @@ if ENABLE_CELERY:
             'options': {'queue': 'default'},  # tâche CPU (scan disque), jamais sur la queue GPU
         },
     }
+
+    # Tests fonctionnels nocturnes : planifiés UNIQUEMENT si activés explicitement
+    # (env NIGHTLY_TESTS_ENABLED=1). La charpente est en place ; on n'auto-planifie pas
+    # tant qu'elle n'est pas validée. Lancement manuel : `manage.py run_nightly_tests`.
+    if os.environ.get('NIGHTLY_TESTS_ENABLED') == '1':
+        from celery.schedules import crontab
+        CELERY_BEAT_SCHEDULE['nightly-functional-tests'] = {
+            'task': 'common.run_nightly_tests',
+            'schedule': crontab(hour=3, minute=0),  # 03:00 (heure locale TZ)
+            'options': {'queue': 'gpu'},            # scénarios chargent des modèles
+        }
 
     # Logging : les loggers wama.* propagent vers le handler Celery (logfile)
     # worker_hijack_root_logger=True (défaut) → Celery prend en charge le root logger

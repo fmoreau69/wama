@@ -47,13 +47,16 @@ class Command(BaseCommand):
         s = report["summary"]
         style = self.style.SUCCESS if s["failed"] == 0 else self.style.ERROR
         self.stdout.write(style(
-            f"Tests nocturnes : {s['passed']}/{s['total']} OK, {s['failed']} échec(s)."
+            f"Tests nocturnes : {s['passed']}/{s['total']} OK, "
+            f"{s['failed']} échec(s), {s.get('skipped', 0)} skip(s)."
         ))
         for r in report["results"]:
-            mark = "✓" if r["ok"] else "✗"
+            mark = "⊘" if r["skipped"] else ("✓" if r["ok"] else "✗")
             line = f"  {mark} [{r['app']}] {r['scenario_id']} → {r['stage_reached']} ({r['duration_s']}s)"
             if r["error"]:
                 line += f" — {r['error']}"
+            elif r["skipped"] and r["detail"]:
+                line += f" — {r['detail']}"
             self.stdout.write(line)
         if report.get("report_path"):
             self.stdout.write(f"Rapport : {report['report_path']}")

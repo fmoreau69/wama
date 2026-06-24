@@ -44,6 +44,11 @@ TEST_USERNAME = "wama_nightly_test"
 STAGES = ("wired", "model_loaded", "output")
 
 
+class SkipScenario(Exception):
+    """Levée par un `run` quand une dépendance est absente (modèle/lib non installé) :
+    le scénario est SKIPPÉ (ni succès ni échec) — il ne pollue pas les compteurs d'échec."""
+
+
 @dataclass
 class Scenario:
     """Un test fonctionnel déclaratif. `run(ctx) -> (ok: bool, detail: str)` ; peut lever."""
@@ -63,10 +68,11 @@ class ScenarioResult:
     app: str
     ok: bool
     stage_target: str
-    stage_reached: str               # 'wired'/'model_loaded'/'output' si ok, sinon 'failed'/'error'
+    stage_reached: str               # ok→stage cible ; sinon 'skipped'/'failed'/'error'
     duration_s: float
     detail: str = ""
     error: Optional[str] = None
+    skipped: bool = False            # dépendance absente → ni passed ni failed
 
 
 # Registre global. Les apps appellent register(...) (idéalement depuis leur AppConfig.ready()).
@@ -126,6 +132,12 @@ def run_one(sc: Scenario, ctx: dict) -> ScenarioResult:
             stage_reached=sc.stage if ok else "failed",
             duration_s=round(time.time() - start, 2), detail=str(detail or ""),
         )
+    except SkipScenario as skip:
+        return ScenarioResult(
+            scenario_id=sc.id, app=sc.app, ok=False, skipped=True, stage_target=sc.stage,
+            stage_reached="skipped", duration_s=round(time.time() - start, 2),
+            detail=str(skip),
+        )
     except Exception as exc:
         logger.warning("[nightly] %s a levé: %s", sc.id, exc, exc_info=True)
         return ScenarioResult(
@@ -157,12 +169,14 @@ def run_all(scenarios: Optional[List[Scenario]] = None, write: bool = True) -> d
 
 def build_report(results: List[ScenarioResult]) -> dict:
     passed = sum(1 for r in results if r.ok)
+    skipped = sum(1 for r in results if r.skipped)
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "summary": {
             "total": len(results),
             "passed": passed,
-            "failed": len(results) - passed,
+            "skipped": skipped,
+            "failed": len(results) - passed - skipped,
         },
         "results": [asdict(r) for r in results],
     }

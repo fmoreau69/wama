@@ -8,7 +8,7 @@ autour ; ici on charge/décharge proprement. Voir wama/common/services/nightly_t
 Les imports lourds (backends/torch) sont faits DANS le callable `run`, pas au niveau module,
 pour ne rien charger au démarrage de Django (ready() ne fait qu'enregistrer).
 """
-from wama.common.services.nightly_tests import register
+from wama.common.services.nightly_tests import register, SkipScenario
 
 
 def _run_asr_load(ctx):
@@ -16,10 +16,11 @@ def _run_asr_load(ctx):
     from wama.transcriber.backends.manager import get_backend, get_available_backends
 
     available = get_available_backends()
-    if not available:
-        return False, "aucun backend ASR disponible"
+    names = list(available)  # robuste : list OU dict {name: dispo}
+    if not names:
+        raise SkipScenario("aucun backend ASR disponible")
 
-    name = "whisper" if "whisper" in available else available[0]
+    name = "whisper" if "whisper" in names else names[0]
     backend = get_backend(name)
     if backend is None:
         return False, f"backend '{name}' introuvable"

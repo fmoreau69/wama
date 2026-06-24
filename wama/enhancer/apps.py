@@ -33,6 +33,14 @@ class EnhancerConfig(AppConfig):
             duration_field='duration',
         )
 
+        # Enregistre les scénarios de test nocturne (AVANT le guard RUN_MAIN : doit aussi
+        # s'enregistrer pour les management commands comme run_nightly_tests).
+        try:
+            from .nightly_scenarios import register_scenarios
+            register_scenarios()
+        except Exception:
+            pass
+
         # Only run model download in main process (not in reloader or other subprocesses)
         import os
         if os.environ.get('RUN_MAIN') != 'true':
