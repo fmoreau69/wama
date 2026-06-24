@@ -266,9 +266,25 @@ document.addEventListener('DOMContentLoaded', function () {
     bindRowActions(modal);
   }
 
-  function startPolling(id) {
-    if (pollers.has(id)) return;
+  // Polling délégué à WamaApp.Poller (brique commune, résilient : retries maxFails).
+  // Création paresseuse (config.progressUrlTemplate prêt) ; repli local si WamaApp absent.
+  let _poller = null;
+  function _getPoller() {
+    if (!window.WamaApp) return null;
+    if (!_poller) {
+      _poller = new WamaApp.Poller({
+        urlTemplate: config.progressUrlTemplate,
+        onData: function (id, data) { updateRow(id, data); },
+        interval: 1500,
+      });
+    }
+    return _poller;
+  }
 
+  function startPolling(id) {
+    const p = _getPoller();
+    if (p) { p.start(id); return; }
+    if (pollers.has(id)) return;
     const interval = setInterval(() => {
       fetch(getUrl(config.progressUrlTemplate, id))
         .then((response) => response.json())
@@ -279,6 +295,8 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   function stopPolling(id) {
+    const p = _getPoller();
+    if (p) { p.stop(id); return; }
     const interval = pollers.get(id);
     if (interval) {
       clearInterval(interval);
