@@ -93,6 +93,25 @@ Ordre canonique (conventions UI) · style **sobre** : `btn btn-outline-X btn-sm 
 - **Délégation par `data-action`** (un seul handler `[data-action]` par file) plutôt que N handlers par
   classe → supprime la classe de bugs « double-fire ».
 
+## 3bis. Manipulation directe de la file : réorganiser, batcher, filtrer/trier
+
+> Expression la plus **intuitive du modèle batch unifié** (batch-of-1 ↔ batch-of-N) : glisser une card
+> sur une autre → forme un batch ; la sortir → redevient autonome. Briques **déjà existantes** → surtout
+> de l'UI + des endpoints fins.
+
+- **Réordonner** (drag) : **SortableJS** ; persiste `row_index` (champ déjà présent sur les items de batch).
+- **Glisser DANS un batch** = `consolidate_into_batch` ; **glisser HORS** = `_unwrap` (ops existantes).
+  Endpoints fins : `reorder`, `move_to_batch`, `remove_from_batch`.
+- **Filtrer / trier** : barre d'outils de file (statut / date / nom / type / durée), préférence persistée.
+- **Vigilance** :
+  - *Items en cours* : l'appartenance batch est **organisationnelle** (groupement pour démarrer/télécharger
+    en lot) → déplacer un item `RUNNING` n'affecte pas sa tâche ; encadrer (pas de réordre destructif).
+  - *Clavier / tactile* : le drag est souris-centré → **menu contextuel** + commandes clavier
+    (« déplacer vers batch X ») en lien avec la nav clavier (§1quater).
+  - *Persistance / concurrence* : ordre + appartenance en DB, **UI optimiste**, ne pas écraser un drag en
+    cours quand le polling re-render.
+- **Brique commune** (pas par app) : init SortableJS + endpoints + barre filtre/tri dans `common/`.
+
 ## 4. Disposition : mode d'affichage pile ↔ mosaïque (toggle, comme les apps média)
 
 - **`UserProfile.card_layout`** = `stack` (1 card fine **par ligne**, **défaut**) | `mosaic` (grille de
