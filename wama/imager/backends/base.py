@@ -4,11 +4,13 @@ WAMA Imager - Base Backend Interface
 Abstract base class for image generation backends.
 """
 
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from dataclasses import dataclass
 from typing import List, Optional, Callable
 from PIL import Image
 import logging
+
+from wama.common.backends.base import BaseModelBackend
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +49,7 @@ class GenerationResult:
             self.images = []
 
 
-class ImageGenerationBackend(ABC):
+class ImageGenerationBackend(BaseModelBackend):
     """
     Abstract base class for image generation backends.
 
@@ -112,6 +114,10 @@ class ImageGenerationBackend(ABC):
     def unload(self) -> None:
         """Unload the model from memory."""
         pass
+
+    def process(self, **kwargs):
+        """Point d'entrée métier générique (contrat commun BaseModelBackend) → délègue à generate()."""
+        return self.generate(**kwargs)
 
     def get_supported_models(self) -> dict:
         """
