@@ -80,11 +80,12 @@ sur `model_manager.services.model_selector.select_model()` (sélection VRAM-awar
 
 ## Ordre de migration recommandé (incrémental, non bloquant)
 
-1. Extraire `common/backends/base.py` (`BaseModelBackend` + `missing_packages`) — **contrat seul, aucune app forcée**.
-2. **imager** : dédupliquer son `base.py` sur le commun (faible risque, forme déjà alignée).
-3. **enhancer** : exposer `load()/is_loaded` publics (au-dessus de `_ensure_loaded/_model`) + manager → conforme.
-4. **reader / anonymizer / composer / synthesizer** : donner un manager + conformer le cycle de vie.
-5. **describer** en dernier (ou hors-contrat : client LLM).
-6. **Tests** : remplacer les N scénarios `model_loaded` sur-mesure par **un générique** paramétré par app/modèle.
+1. ✅ Extraire `common/backends/base.py` (`BaseModelBackend` + `missing_packages`) — contrat seul. **FAIT** (e0ee649).
+2. ✅ **imager** : `ImageGenerationBackend(BaseModelBackend)` + `process()→generate()`. **FAIT** (26e137e) — backends concrets inchangés.
+3. ✅ **enhancer** : `DeepFilterNet`/`Resemble` → `BaseModelBackend`, `load/is_loaded/unload/process` publics + `REQUIRED_PACKAGES`. **FAIT** (1bcb55c). Scénario nocturne rebranché sur l'API publique. NB : Resemble est SANS état (load=réchauffe, unload=no-op).
+4. ⏳ **reader / anonymizer / composer / synthesizer** : donner un manager + conformer le cycle de vie.
+5. ⏳ **describer** en dernier (ou hors-contrat : client LLM).
+6. ⏳ **Tests** : remplacer les N scénarios `model_loaded` sur-mesure par **un générique** paramétré par app/modèle.
+7. ⏳ **Manager commun** + branchement `model_installer` sur `pip_install_spec()` (poser les libs manquantes).
 
 Voir `COMMON_REFACTORING.md` (ordre des chantiers) et `memory/project_nightly_tests.md`.
