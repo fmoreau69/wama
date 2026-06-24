@@ -13,6 +13,13 @@ class TranscriberConfig(AppConfig):
         except Exception:
             pass
 
+        # Enregistre les scénarios de test nocturne de l'app (gabarit de référence).
+        try:
+            from .nightly_scenarios import register_scenarios
+            register_scenarios()
+        except Exception:
+            pass
+
         # Invalide le cache des infos backends (descriptions/disponibilité) à chaque
         # démarrage de process : un changement de code (description, libellé, nouveau
         # moteur) est ainsi répercuté au redémarrage sans vidage manuel. La vue
