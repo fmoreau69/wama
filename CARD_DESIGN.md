@@ -31,6 +31,27 @@
    (réglages item / batch / général — cf. `WAMA_APP_CONVENTIONS §22`). Un résumé lecture-seule des
    réglages-clés peut éventuellement s'afficher, mais le détail vit dans l'inspecteur.
 
+### 1bis. Cycle de vie état/progression — NON AMBIGU (la barre se transforme, ne disparaît pas)
+
+Problème observé (converter) : la barre n'apparaît qu'en `RUNNING`/`PENDING` → à « Terminé » elle
+**disparaît**, et « barre vide (en attente) » vs « barre absente (terminé) » se confond au coup d'œil.
+
+**Règle** : l'état est lisible **à la fois par le badge ET par la barre** (redondance volontaire) :
+| État | Badge | Barre / ligne |
+|------|-------|---------------|
+| En attente (`PENDING`) | gris « En attente » | barre 0 % atténuée (ou absente + badge) |
+| En cours (`RUNNING`) | jaune « En cours » | barre qui se remplit + **% + ETA** |
+| **Terminé** (`DONE`) | vert « Terminé » | **barre PLEINE verte persistante** ou ligne « ✓ Terminé · durée · taille » — **jamais absente** |
+| Échec (`ERROR`) | rouge « Échec » | barre/ligne rouge + message |
+
+### 1ter. Aperçu de sortie ADAPTATIF (concision ↔ identification)
+
+Un **slot aperçu unique** dans la card, rendu selon le **type d'app** + la **densité** choisie :
+- **Apps visuelles** (imager, enhancer image/vidéo, avatarizer) : **miniature de sortie INLINE** (style
+  imager `image-preview-row`) — l'aperçu EST le contenu ; card plus haute, assumée.
+- **Non-visuel / mode concis** : card concise + **aperçu au clic** (développe la card ou volet droit).
+- Piloté par la **préférence de densité** (§4) : **compact** (concis, clic) vs **riche** (miniatures inline).
+
 ## 2. Boutons d'action — ordre + code couleur (schéma CONVERTER, adopté)
 
 Ordre canonique (conventions UI) · style **sobre** : `btn btn-outline-X btn-sm py-0 px-2`, **icône seule + `title`**.
@@ -55,12 +76,15 @@ Ordre canonique (conventions UI) · style **sobre** : `btn btn-outline-X btn-sm 
 - **Délégation par `data-action`** (un seul handler `[data-action]` par file) plutôt que N handlers par
   classe → supprime la classe de bugs « double-fire ».
 
-## 4. Disposition utilisateur : pile vs mosaïque (préférence, à venir)
+## 4. Disposition + densité utilisateur (préférence, à venir)
 
 - **`UserProfile.card_layout`** = `stack` (liste empilée, **défaut**) | `mosaic` (grille de tuiles).
-- La card doit fonctionner **dans les deux** : pleine largeur en `stack`, tuile à largeur fixe en
-  `mosaic` (la barre pleine largeur + l'aperçu s'adaptent). Le formalisme est conçu pour les deux dès
-  maintenant (réglage UI sur la page profil, comme `ui_mode`/`preferred_language`).
+- **Densité** (liée) : **compact** (lignes concises, aperçu au clic) vs **riche** (miniatures de sortie
+  inline). Mapping naturel : **pile ≈ compact**, **mosaïque ≈ riche** (tuiles-miniatures). C'est
+  l'utilisateur qui **tranche concision vs identification** selon son besoin → meilleur des deux mondes.
+- La card fonctionne **dans les deux** : pleine largeur en `stack`, tuile à largeur fixe en `mosaic`
+  (barre pleine largeur + slot aperçu §1ter s'adaptent). Réglage UI sur la page profil (comme
+  `ui_mode`/`preferred_language`).
 
 ## 5. Cartographie des cards existantes (conformité au formalisme)
 
