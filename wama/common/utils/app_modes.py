@@ -36,17 +36,24 @@ APP_MODES = {
     # ── IMAGER (app de référence — le plus de modes) ─────────────────────────
     'imager': {
         'domains': [
+            # Modes ALIGNÉS sur l'existant Imager (JS currentMode : txt2img/img2img/style2img/file2img/
+            # describe2img). NB : domaine image/vidéo aujourd'hui dérivé du MODÈLE choisi (à migrer en
+            # onglet domaine). describe2img = mini-pipeline → candidat MÉTA-APP (Describer→Imager).
             {'id': 'image', 'label': 'Image', 'icon': 'fa-image', 'modes': [
-                {'id': 'prompt', 'label': 'Texte → Image', 'icon': 'fa-font',
+                {'id': 'txt2img', 'label': 'Texte → Image', 'icon': 'fa-font',
                  'inputs': ['prompt', 'negative_prompt'],
                  'settings': ['model', 'seed', 'steps', 'guidance', 'resolution']},
-                {'id': 'edit', 'label': 'Édition (img2img / inpaint)', 'icon': 'fa-wand-magic-sparkles',
+                {'id': 'img2img', 'label': 'Édition (img2img)', 'icon': 'fa-wand-magic-sparkles',
                  'inputs': ['work_image', 'prompt'],
                  'settings': ['model', 'strength', 'seed', 'steps']},
-                {'id': 'style', 'label': 'Transfert de style', 'icon': 'fa-palette',
+                {'id': 'style2img', 'label': 'Transfert de style', 'icon': 'fa-palette',
                  'inputs': ['reference_image', 'prompt'],
                  'settings': ['model', 'style_weight', 'seed', 'steps']},
-                # futur : {'id': 'to_3d', 'label': 'Image → 3D', 'inputs': ['work_image'], 'settings': […]}
+                {'id': 'file2img', 'label': 'Batch (fichier de prompts)', 'icon': 'fa-list',
+                 'inputs': ['prompt_file'],
+                 'settings': ['model', 'seed', 'steps', 'resolution']},
+                # describe2img = pipeline (décrire→générer) → à porter en MÉTA-APP (Describer→Imager).
+                # futur : {'id': 'to_3d', 'label': 'Image → 3D', 'inputs': ['work_image']}
             ]},
             {'id': 'video', 'label': 'Vidéo', 'icon': 'fa-film', 'modes': [
                 {'id': 't2v', 'label': 'Texte → Vidéo', 'icon': 'fa-font',
