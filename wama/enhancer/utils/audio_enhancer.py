@@ -15,6 +15,8 @@ import os
 from pathlib import Path
 from typing import Literal, Optional
 
+from wama.common.backends.base import BaseModelBackend
+
 logger = logging.getLogger(__name__)
 
 
@@ -181,7 +183,7 @@ def _get_deepfilternet_cache() -> Path:
 # Resemble Enhance backend
 # ---------------------------------------------------------------------------
 
-class ResembleEnhanceBackend:
+class ResembleEnhanceBackend(BaseModelBackend):
     """
     Resemble Enhance — dual-stage speech enhancement (MIT).
 
@@ -189,7 +191,14 @@ class ResembleEnhanceBackend:
     Stage 2 — Enhancer:  diffusion-based bandwidth extension (44.1 kHz output)
 
     VRAM: 4–6 GB  |  Speed: fast
+
+    NB : backend SANS état persistant — les poids se chargent par appel dans re_denoise/re_enhance.
+    `load()` ne fait que réchauffer (vérifier l'import) ; `unload()` est un no-op honnête.
     """
+
+    REQUIRED_PACKAGES = ['resemble_enhance']
+    recommended_vram_gb = 6.0
+    description = "Resemble Enhance — débruitage + extension de bande (diffusion), MIT."
 
     def __init__(self):
         self._cache_dir = _get_resemble_cache()
@@ -197,6 +206,7 @@ class ResembleEnhanceBackend:
         cache_str = str(self._cache_dir)
         os.environ['HF_HUB_CACHE'] = cache_str
         os.environ['HUGGINGFACE_HUB_CACHE'] = cache_str
+        self._warm = False
 
     @classmethod
     def is_available(cls) -> bool:
@@ -206,6 +216,26 @@ class ResembleEnhanceBackend:
             return True
         except (ImportError, Exception):
             return False
+
+    # ── Contrat BaseModelBackend ─────────────────────────────────────────────
+    def load(self, model: Optional[str] = None) -> bool:
+        """Réchauffe (vérifie l'import des fonctions). Le modèle réel se charge par appel."""
+        self._load_resemble()
+        self._warm = True
+        return True
+
+    @property
+    def is_loaded(self) -> bool:
+        return self._warm
+
+    def unload(self) -> None:
+        # Pas de modèle persistant à libérer (chargement par appel) ; on réinitialise l'état.
+        self._warm = False
+        gc.collect()
+
+    def process(self, **kwargs):
+        """Point d'entrée générique → délègue à enhance()."""
+        return self.enhance(**kwargs)
 
     def _get_device(self) -> str:
         try:
@@ -299,12 +329,17 @@ class ResembleEnhanceBackend:
 # DeepFilterNet 3 backend
 # ---------------------------------------------------------------------------
 
-class DeepFilterNetBackend:
+class DeepFilterNetBackend(BaseModelBackend):
     """
     DeepFilterNet 3 — real-time speech noise suppression (MIT).
 
     Ultra-fast, <1 GB VRAM, supports up to 48 kHz, streaming-capable.
+    Garde le modèle en mémoire (keep_loaded) ; singleton via get_deepfilternet_backend().
     """
+
+    REQUIRED_PACKAGES = ['df']
+    recommended_vram_gb = 1.0
+    description = "DeepFilterNet 3 — débruitage temps réel (discriminatif), MIT."
 
     def __init__(self):
         self._model = None
@@ -313,12 +348,27 @@ class DeepFilterNetBackend:
 
     @classmethod
     def is_available(cls) -> bool:
+        # Override try-import : 'df' peut être présent (find_spec) mais échouer sur sa lib native.
         try:
             import df  # noqa: F401
             return True
         except Exception as e:
             logger.warning("[DeepFilterNet] import df failed: %s", e)
             return False
+
+    # ── Contrat BaseModelBackend ─────────────────────────────────────────────
+    def load(self, model: Optional[str] = None) -> bool:
+        """Charge le modèle (idempotent) et retourne l'état de chargement."""
+        self._ensure_loaded()
+        return self.is_loaded
+
+    @property
+    def is_loaded(self) -> bool:
+        return self._model is not None
+
+    def process(self, **kwargs):
+        """Point d'entrée générique → délègue à enhance()."""
+        return self.enhance(**kwargs)
 
     def _ensure_loaded(self):
         if self._model is None:

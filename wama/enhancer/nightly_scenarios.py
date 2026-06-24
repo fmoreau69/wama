@@ -19,8 +19,7 @@ def _run_deepfilternet_load(ctx):
 
     backend = get_deepfilternet_backend()
     try:
-        backend._ensure_loaded()
-        loaded = backend._model is not None
+        loaded = backend.load()  # API publique du contrat commun (BaseModelBackend)
         return loaded, "DeepFilterNet chargé" if loaded else "échec du chargement"
     finally:
         try:
