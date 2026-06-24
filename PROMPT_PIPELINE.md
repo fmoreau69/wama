@@ -55,7 +55,22 @@ et la méta-app.
 - `WAMA_PROMPT_ENRICH` (env, défaut OFF) — interrupteur maître de l'enrichissement.
 - `WAMA_PROMPT_ENRICH_MODEL` (env, optionnel) — modèle d'enrichissement (défaut `llm_chat`).
 
+## RAG — anticipation de l'architecture (PAS encore implémenté, prochain gros chantier)
+
+> Décision (Fabien, 2026-06) : **différer l'implémentation** (l'harmonisation UI/modes/cards est la
+> priorité et fournit le socle), mais **anticiper l'archi** pour ne pas se peindre dans un coin.
+
+- **Point de branchement = l'étape `enrich` de CETTE pipeline.** Enrichir un prompt = récupérer du
+  contexte documentaire (ChromaDB, cf. Lescot) en plus de la passe LLM. Zéro nouvelle surface : le RAG
+  s'injecte dans l'enrichissement déjà déclaré par `PROMPT_TARGETS`.
+- **Niveaux (hiérarchie d'héritage)** : `université → labo/service → équipe → individuel`, **extensible
+  vers le haut** (national, global, général). Chaque niveau **hérite** des niveaux au-dessus — c'est le
+  **MÊME pattern d'héritage que batch→item (`WAMA_APP_CONVENTIONS §9.9`)**, réutilisable.
+- **Opt-in utilisateur** : base = RAG **individuel** ; l'utilisateur **choisit** d'activer les niveaux
+  supérieurs (équipe/labo/université) → cohérent RGPD (rien de partagé par défaut).
+- **Stockage** : ChromaDB (par niveau / collection). Glossaire do-not-translate Lescot (cf. roadmap Translator).
+
 ## Voir aussi
 - `ROADMAP.md §10.B` (traduction runtime) et `§16.6` (pipeline + vision méta).
-- `WAMA_APP_CONVENTIONS.md §2bis.4` (contrat prompt targets).
+- `WAMA_APP_CONVENTIONS.md §2bis.4` (contrat prompt targets), `§9.9` (héritage).
 - `COMMON_REFACTORING.md` (briques communes).
