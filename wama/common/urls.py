@@ -24,4 +24,7 @@ urlpatterns = [
     # App registry
     path('api/apps/', views.api_apps, name='api_apps'),
     path('apps/', views.apps_catalog_view, name='apps_catalog'),
+
+    # Schéma domaines→modes d'une app (clé de voûte UX, consommé par WamaModes JS)
+    path('api/app-modes/<str:app>/', views.api_app_modes, name='api_app_modes'),
 ]

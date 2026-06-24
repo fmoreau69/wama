@@ -30,6 +30,20 @@ def system_stats(request):
     return JsonResponse(stats)
 
 
+def api_app_modes(request, app):
+    """
+    Schéma déclaratif domaines→modes d'une app (clé de voûte UX, consommé par WamaModes JS).
+    Retourne {app, has_domain_tabs, domains:[…], input_types:{…}}.
+    """
+    from wama.common.utils import app_modes as M
+    return JsonResponse({
+        'app': app,
+        'has_domain_tabs': M.has_domain_tabs(app),
+        'domains': M.get_domains(app),
+        'input_types': M.INPUT_TYPES,
+    })
+
+
 @require_GET
 def system_stats_full(request):
     """
