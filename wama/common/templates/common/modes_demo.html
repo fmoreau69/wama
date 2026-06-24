@@ -1,0 +1,63 @@
+{% load static %}<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WamaModes — prévisualisation domaines→modes</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body { background:#1a1d20; color:#e9ecef; padding:2rem; }
+        .panel { max-width:680px; margin:0 auto; background:#212529; border:1px solid #495057; border-radius:8px; padding:1.5rem; }
+        .wm-settings { border-top:1px dashed #495057; margin-top:.75rem; padding-top:.75rem; color:#adb5bd; font-size:.85rem; }
+        pre { background:#16181b; color:#7fd8c0; padding:.75rem; border-radius:6px; font-size:.8rem; }
+        label.form-label { color:#ced4da; }
+    </style>
+</head>
+<body>
+    <div class="panel">
+        <h4 class="mb-3">🃏 WamaModes — prévisualisation <span class="text-muted small">(domaines → modes générés par le schéma)</span></h4>
+        <div class="mb-3">
+            <label class="form-label small">App</label>
+            <select id="appSelect" class="form-select form-select-sm">
+                <option value="imager">imager (2 domaines : image/vidéo)</option>
+                <option value="synthesizer">synthesizer (mono, temps réel)</option>
+                <option value="anonymizer">anonymizer (yolo / sam3)</option>
+            </select>
+        </div>
+        <hr>
+        <div id="modesContainer"><em class="text-muted">Chargement…</em></div>
+        <div class="wm-settings">↑ Slot réglages : l'app y injecterait ses widgets pour le mode sélectionné.</div>
+        <h6 class="mt-3 text-muted">État courant (getState) :</h6>
+        <pre id="stateOut">—</pre>
+    </div>
+
+    <script src="{% static 'common/js/wama-app-base.js' %}"></script>
+    <script src="{% static 'common/js/wama-modes.js' %}"></script>
+    <script>
+    (function () {
+        const sel = document.getElementById('appSelect');
+        const out = document.getElementById('stateOut');
+        let wm = null;
+        function load(app) {
+            WamaModes.fetch(app).then(function (schema) {
+                wm = WamaModes.create({
+                    container: '#modesContainer',
+                    schema: schema,
+                    onChange: function (s) {
+                        out.textContent = JSON.stringify({ domain: s.domain, mode: s.mode, realtime: s.realtime }, null, 2);
+                    },
+                });
+                document.getElementById('modesContainer').addEventListener('input', function () {
+                    if (wm) out.textContent = JSON.stringify(wm.getState(), function (k, v) {
+                        return (v instanceof FileList) ? `[${v.length} fichier(s)]` : v;
+                    }, 2);
+                });
+            });
+        }
+        sel.addEventListener('change', function () { load(this.value); });
+        load(sel.value);
+    })();
+    </script>
+</body>
+</html>

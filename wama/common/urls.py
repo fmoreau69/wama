@@ -27,4 +27,5 @@ urlpatterns = [
 
     # Schéma domaines→modes d'une app (clé de voûte UX, consommé par WamaModes JS)
     path('api/app-modes/<str:app>/', views.api_app_modes, name='api_app_modes'),
+    path('modes-demo/', views.modes_demo, name='modes_demo'),
 ]

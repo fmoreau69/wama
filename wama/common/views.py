@@ -44,6 +44,11 @@ def api_app_modes(request, app):
     })
 
 
+def modes_demo(request):
+    """Page de prévisualisation isolée du générateur WamaModes (outil de dev)."""
+    return render(request, 'common/modes_demo.html')
+
+
 @require_GET
 def system_stats_full(request):
     """
