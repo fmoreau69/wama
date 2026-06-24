@@ -20,7 +20,7 @@
 | **C. Inspecteur volet droit** | `wama-inspector.js` (sélection item/batch/global) + form éditable (§10/§22) + `wama-inspector-autofill.js` | ⚠️ transcriber + catalogues (model_manager,/apps) | brancher l'inspecteur **éditable** par app |
 | **D. Plomberie JS** | `wama-app-base.js` (`WamaApp`: Poller, csrfFetch, escapeHtml…) | ❌ transcriber seul | substrat à diffuser |
 | **E. Progression + ETA** | `_global_progress.html` + `wama-eta.js` | ✅ 10/10 apps | RAS |
-| **F. Chargement/déchargement modèles** | `common/backends/base.py::BaseModelBackend` + manager + `select_model` + deps | 🔄 transcriber(réf)/imager/enhancer migrés | reste apps + manager commun + boucle install |
+| **F. Chargement/déchargement modèles** | `common/backends/base.py::BaseModelBackend` + `manager.py::BackendManager` + `select_model` + deps | ✅ **fondation complète** (contrat + manager commun + hook install + 5 apps) | rollout : adoption par app + tests génériques |
 | **G. Pipeline de prompts** | `common/utils/app_metadata.py::PROMPT_TARGETS` | 🔄 partiel | étendre |
 | **H. Tests fonctionnels nocturnes** | `common/services/nightly_tests.py` | 🔄 charpente + 2 gabarits ; **dépend de F** | scénarios par app → 1 générique |
 | **I. Capacités d'app** | déclaration (`has_realtime`, `instant_preview`, `has_edit_page`, `batch_type`, types E/S…) dans `APP_CATALOG`/metadata | 🔄 amorcé | **le liant** : formaliser pour piloter A→H |
@@ -42,11 +42,12 @@ Légende : ✅ large · 🔄 en cours · ⚠️ extrait mais peu adopté · ❌ 
 3. **A/E** = acquis ; **G** au fil de l'eau.
 
 ## Où on en est (curseur)
-- **F quasi finie** (fondation backend) : `BaseModelBackend` + **5 apps conformes** (transcriber réf,
-  imager, enhancer, reader, composer) + **hook installeur** (`ensure_backend_deps`/`pip_install_packages`
-  = boucle prospection). Hors-contrat assumés : GlmOcr, describer (clients distants). À wrapper pendant
-  leur passe UI : anonymizer, synthesizer. **Reste F** : manager commun (capstone) + tests `model_loaded`
-  générique. Détail : `BACKEND_CARTOGRAPHY.md`.
+- **F = fondation COMPLÈTE** : `BaseModelBackend` + **manager commun** `BackendManager` + **hook installeur**
+  (`ensure_backend_deps`/`pip_install_packages` = boucle prospection) + **5 apps conformes** (transcriber
+  réf, imager, enhancer, reader, composer ; archétypes ABC/stateful/stateless). Hors-contrat assumés :
+  GlmOcr, describer. À wrapper pendant leur passe UI : anonymizer (⚠️ intouché — Cam Analyzer réutilise
+  ses modèles), synthesizer. **Reste F = rollout** (adoption manager par app + tests `model_loaded`
+  génériques), pas fondation. Détail : `BACKEND_CARTOGRAPHY.md`.
 - **Prochaine bascule UI** : prendre **enhancer** (déjà conforme côté F) comme 2ᵉ référence full-stack
   pour prouver **B+C+D** hors transcriber.
 

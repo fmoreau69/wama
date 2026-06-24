@@ -91,8 +91,16 @@ sur `model_manager.services.model_selector.select_model()` (sélection VRAM-awar
 6. ✅ **Hook installeur** (273a2e1) : `model_installer.pip_install_packages()` + `ensure_backend_deps(backend_cls)`
    consomment `missing_packages()`/`pip_install_spec()` → posent les libs d'un nouveau modèle (sur
    validation humaine). **Boucle prospection ↔ contrat backend fermée.**
-7. ⏳ **Manager commun** (`get_backend`/`get_available_backends`/`unload_all`, branché `select_model`) — capstone.
-8. ⏳ **Tests** : N scénarios `model_loaded` sur-mesure → **un générique** paramétré par app/modèle.
+7. ✅ **Manager commun** (330f4cf) : `common/backends/manager.py::BackendManager` (registre + keep_loaded
+   singleton + `available`/`info`/`get_backend`(auto-select priorité)/`unload`/`unload_all`). **ADDITIF** —
+   aucune app forcée (les managers transcriber/imager l'adopteront pendant leur passe ; Anonymizer
+   intouché car Cam Analyzer réutilise ses modèles).
+8. ⏳ **Adoption + tests** (rollout, pas fondation) : faire adopter le manager commun par app, puis
+   remplacer les N scénarios `model_loaded` sur-mesure par **un générique** (`get_manager(app).get_backend()`).
+
+> **Fondation F = COMPLÈTE** : contrat + manager commun + hook installeur + 5 apps conformes (archétypes
+> ABC/stateful/stateless). Reste = rollout incrémental (adoption par app + describer/GlmOcr hors-contrat +
+> anonymizer/synthesizer wrappés pendant leur passe UI).
 
 **Bilan F** : contrat + 5 apps conformes (transcriber réf, imager, enhancer, reader, composer) couvrant
 backends ABC / stateful / stateless ; 2 hors-contrat assumés (GlmOcr, describer = clients distants) ;
