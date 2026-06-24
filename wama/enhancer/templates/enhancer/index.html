@@ -243,28 +243,12 @@
 {% block app_right_panel_actions %}
 <!-- Image/Video actions -->
 <div id="imgActions" class="d-grid gap-2">
-    <button id="enhancer-process-btn" class="btn btn-success btn-sm">
-        <i class="fas fa-play"></i> Démarrer
-    </button>
-    <button id="enhancer-download-all-btn" class="btn btn-info btn-sm" disabled>
-        <i class="fas fa-download"></i> Télécharger tout
-    </button>
-    <button id="enhancer-clear-btn" class="btn btn-outline-danger btn-sm">
-        <i class="fas fa-trash"></i> Tout effacer
-    </button>
+    {% include 'common/_queue_actions.html' with start_id='enhancer-process-btn' start_label='Démarrer' download_id='enhancer-download-all-btn' clear_id='enhancer-clear-btn' show_download=True %}
 </div>
 
 <!-- Audio actions -->
 <div id="audioActions" class="d-grid gap-2 d-none">
-    <button id="audio-process-btn" class="btn btn-success btn-sm">
-        <i class="fas fa-play"></i> Démarrer
-    </button>
-    <button id="audio-download-all-btn" class="btn btn-info btn-sm" disabled>
-        <i class="fas fa-download"></i> Télécharger tout
-    </button>
-    <button id="audio-clear-btn" class="btn btn-outline-danger btn-sm">
-        <i class="fas fa-trash"></i> Tout effacer
-    </button>
+    {% include 'common/_queue_actions.html' with start_id='audio-process-btn' start_label='Démarrer' download_id='audio-download-all-btn' clear_id='audio-clear-btn' show_download=True %}
 </div>
 {% endblock %}
 
