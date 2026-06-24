@@ -92,3 +92,8 @@ vit dans le volet droit GLOBAL, pas embarqué dans le filemanager.
 **Stratégie de validation (Fabien)** : **aller au bout sur 1 app + lancer la méta-app AVANT de
 généraliser** → valide le **composant card** ET le **modèle de connecteurs** sur du réel (comme on a
 validé le contrat backend sur 1 app avant le rollout). Ensuite seulement, propager à toutes les apps.
+
+**App de référence = IMAGER** (Fabien) : le plus de **modes** (prompt/edit/style…, appelée à en gagner
+dont 2D→3D), et **point dur d'harmonisation** de longue date → si on la résout avec la méta-app + le
+**Synthesizer** (mode temps réel), on tient la méthode pour **finir l'harmonisation des apps généralistes**.
+Cible de fin d'harmonisation : **Imager (réf) + méta-app + Synthesizer (temps réel)**.

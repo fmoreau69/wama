@@ -119,6 +119,9 @@ Ordre canonique (conventions UI) · style **sobre** : `btn btn-outline-X btn-sm 
 - **Glisser DANS un batch** = `consolidate_into_batch` ; **glisser HORS** = `_unwrap` (ops existantes).
   Endpoints fins : `reorder`, `move_to_batch`, `remove_from_batch`.
 - **Filtrer / trier** : barre d'outils de file (statut / date / nom / type / durée), préférence persistée.
+- **Pourquoi c'est IMPORTANT (pas optionnel)** : laisse l'utilisateur **corriger une erreur d'import**
+  sans repartir de zéro (sortir une card d'un batch, la déplacer) et **isoler un élément** pour le
+  traiter séparément. Phasable si trop complexe, mais à garder en ligne de mire dès le départ.
 - **Vigilance** :
   - *Items en cours* : l'appartenance batch est **organisationnelle** (groupement pour démarrer/télécharger
     en lot) → déplacer un item `RUNNING` n'affecte pas sa tâche ; encadrer (pas de réordre destructif).
@@ -160,4 +163,11 @@ Ordre canonique (conventions UI) · style **sobre** : `btn btn-outline-X btn-sm 
 4. Brancher le ⚙ sur l'**inspecteur volet droit** (cf. §22).
 5. **Stack/mosaïque** : champ `UserProfile.card_layout` + CSS, quand le formalisme est stabilisé.
 
-Lié : `WAMA_APP_CONVENTIONS.md` (§boutons, §22 inspecteur), `GENERALIZATION_PLAN.md` (axe B), `COMMON_REFACTORING.md`.
+## 7. Langue de design : thème « jeu de cartes » 🃏 (ludique, cohérent)
+
+Fil rouge esthétique assumé : dans WAMA, **l'utilisateur « joue des cartes »**. Le batch empilé (style
+Solitaire §3ter), le **dé** comme symbole de lancement (déjà utilisé dans l'anonymizer), et de petits
+**clins d'œil ludiques** disséminés — **purement esthétiques**, jamais au détriment de la lisibilité ni
+de la fonction. Donne une identité fraîche et cohérente à l'UI.
+
+Lié : `WAMA_APP_CONVENTIONS.md` (§boutons, §22 inspecteur), `GENERALIZATION_PLAN.md` (axe B), `COMMON_REFACTORING.md`, `MODES_QUEUE_UX.md`.
