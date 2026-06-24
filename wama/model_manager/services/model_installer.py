@@ -103,3 +103,43 @@ def register_after_install():
     """
     from .model_sync import ModelSyncService
     return ModelSyncService().full_sync()
+
+
+def pip_install_packages(packages, timeout: int = 1800) -> dict:
+    """
+    Installe des paquets pip dans le venv courant — pour rendre un backend disponible quand un
+    nouveau modèle exige de nouvelles libs (jonction avec le contrat BaseModelBackend).
+
+    ⚠️ Installer des paquets arbitraires est une surface de risque → à déclencher sur VALIDATION
+    HUMAINE uniquement, jamais en auto. Retourne {ok, installed, error}.
+    """
+    import subprocess
+    import sys
+
+    pkgs = [p for p in (packages or []) if p]
+    if not pkgs:
+        return {'ok': True, 'installed': []}
+    try:
+        proc = subprocess.run(
+            [sys.executable, '-m', 'pip', 'install', *pkgs],
+            capture_output=True, text=True, timeout=timeout,
+        )
+        if proc.returncode == 0:
+            return {'ok': True, 'installed': pkgs}
+        return {'ok': False, 'installed': [], 'error': (proc.stderr or '')[-2000:]}
+    except Exception as e:
+        return {'ok': False, 'installed': [], 'error': f"{type(e).__name__}: {e}"}
+
+
+def ensure_backend_deps(backend_cls, timeout: int = 1800) -> dict:
+    """
+    Installe les paquets manquants d'un backend (classe `BaseModelBackend`) si nécessaire.
+    Lit `missing_packages()` (import) et `pip_install_spec()` (noms pip). No-op si déjà dispo.
+    À appeler sur validation humaine (cf. pip_install_packages). Retourne {ok, installed, already}.
+    """
+    missing = backend_cls.missing_packages()
+    if not missing:
+        return {'ok': True, 'installed': [], 'already': True}
+    res = pip_install_packages(backend_cls.pip_install_spec(), timeout=timeout)
+    res['already'] = False
+    return res
