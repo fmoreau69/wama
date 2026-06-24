@@ -549,9 +549,11 @@ def duplicate(request, pk: int):
         },
         clear_fields=['output_file'],
     )
-    # Dupliquer DANS le même batch que l'original (élément frère).
+    # Aligné sur le Synthesizer (référence) : un doublon va dans SON PROPRE batch-of-1.
+    # On ne rejoint le batch de l'original QUE si c'est un VRAI batch multi-éléments (>1).
+    # Sinon une carte seule (batch-of-1) deviendrait un batch en la dupliquant (bug).
     orig_item = BatchEnhancementItem.objects.filter(enhancement=enhancement).select_related('batch').first()
-    if orig_item:
+    if orig_item and orig_item.batch.items.count() > 1:
         from django.db.models import Max
         batch = orig_item.batch
         next_idx = (batch.items.aggregate(m=Max('row_index'))['m'] or 0) + 1
@@ -1216,6 +1218,12 @@ def audio_duplicate(request, pk: int):
         },
         clear_fields=['output_file'],
     )
+    # Aligné sur l'image/vidéo + le Synthesizer : doublon dans SON PROPRE batch-of-1.
+    # Sinon il reste orphelin et l'auto-wrap le groupe par nature → effet « batch » surprenant.
+    try:
+        _wrap_audio_in_batch(new_ae)
+    except Exception:
+        pass
     return JsonResponse({'duplicated': new_ae.id})
 
 
