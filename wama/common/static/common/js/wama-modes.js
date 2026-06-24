@@ -36,8 +36,15 @@
             const acc = inp.accept ? ` <span class="text-muted">(${esc(inp.accept)})</span>` : '';
             const multi = inp.multi ? ' multiple' : '';
             const hint = inp.multi ? ' <span class="text-muted small">— plusieurs possibles</span>' : '';
+            // Source double : upload OU médiathèque (MediaPicker, filtré par type) — si la brique est là.
+            const lib = (typeof window !== 'undefined' && window.MediaPicker && inp.accept)
+                ? `<button type="button" class="btn btn-sm btn-outline-secondary wm-lib" data-for="${id}" data-type="${esc(inp.accept)}" title="Depuis la médiathèque">
+                       <i class="fas fa-photo-film"></i></button>` : '';
             return `<div class="wm-field mb-2"><label class="form-label small mb-1" for="${id}">${label}${acc}${hint}</label>
-                <input id="${id}" type="file" class="form-control form-control-sm" data-input="${inp.id}"${multi}></div>`;
+                <div class="input-group input-group-sm">
+                    <input id="${id}" type="file" class="form-control form-control-sm" data-input="${inp.id}"${multi}>${lib}
+                </div>
+                <div class="wm-lib-picked small text-success mt-1" data-picked-for="${id}"></div></div>`;
         }
         return '';
     }
@@ -116,6 +123,20 @@
         this.container.querySelectorAll('.wm-mode').forEach(b => b.addEventListener('click', function () {
             self.mode = this.dataset.mode; self._render();
         }));
+        // Bouton « médiathèque » : ouvre MediaPicker (filtré par type), stocke le File choisi.
+        this.container.querySelectorAll('.wm-lib').forEach(b => b.addEventListener('click', function () {
+            if (!window.MediaPicker) return;
+            const target = self.container.querySelector('#' + CSS.escape(this.dataset.for));
+            MediaPicker.open({
+                type: this.dataset.type,
+                onSelect: function (file) {
+                    if (!target) return;
+                    target._wamaPicked = file;   // File renvoyé par MediaPicker → traité comme un upload
+                    const lbl = self.container.querySelector('[data-picked-for="' + target.id + '"]');
+                    if (lbl) lbl.textContent = '🗂 ' + (file && file.name ? file.name : 'média sélectionné');
+                },
+            });
+        }));
     };
 
     WamaModes.prototype.settingsSlot = function () {
@@ -125,7 +146,12 @@
     WamaModes.prototype.getState = function () {
         const inputs = {};
         this.container.querySelectorAll('[data-input]').forEach(el => {
-            inputs[el.dataset.input] = (el.type === 'file') ? el.files : el.value;
+            if (el.type === 'file') {
+                // Fichier choisi via médiathèque (MediaPicker) > sinon upload natif.
+                inputs[el.dataset.input] = el._wamaPicked ? [el._wamaPicked] : el.files;
+            } else {
+                inputs[el.dataset.input] = el.value;
+            }
         });
         return { domain: this.domain, mode: this.mode, inputs: inputs };
     };
