@@ -13,10 +13,12 @@ import os
 from pathlib import Path
 from typing import Callable, Optional
 
+from wama.common.backends.base import BaseModelBackend
+
 logger = logging.getLogger(__name__)
 
 
-class AudioCraftBackend:
+class AudioCraftBackend(BaseModelBackend):
     """
     Unified backend for MusicGen (music) and AudioGen (SFX).
 
@@ -24,7 +26,37 @@ class AudioCraftBackend:
     inference, unloads the model, and returns the output path.
     Models are NOT cached in memory between calls — the 4090 has 24GB
     but other apps share it; we load/unload like every other WAMA backend.
+
+    SANS état persistant (chargement par appel) → load() réchauffe, unload() no-op.
     """
+
+    REQUIRED_PACKAGES = ['audiocraft']
+    recommended_vram_gb = 8.0
+    description = "AudioCraft — MusicGen (musique) + AudioGen (bruitages)."
+    _warm = False
+
+    @classmethod
+    def is_available(cls) -> bool:
+        try:
+            import audiocraft  # noqa: F401
+            return True
+        except Exception:
+            return False
+
+    def load(self, model: Optional[str] = None) -> bool:
+        self._warm = True
+        return True
+
+    @property
+    def is_loaded(self) -> bool:
+        return self._warm
+
+    def unload(self) -> None:
+        self._warm = False
+
+    def process(self, **kwargs):
+        """Point d'entrée générique (contrat commun) → délègue à generate()."""
+        return self.generate(**kwargs)
 
     def generate(
         self,
