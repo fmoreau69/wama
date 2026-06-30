@@ -17,6 +17,18 @@ _STATS_CACHE_TTL = 8  # secondes — subprocess wmic/nvidia-smi trop lents pour 
 
 
 @require_GET
+def api_voices(request):
+    """
+    Options de voix COMMUNES (optgroups) pour l'utilisateur courant — source unique consommée par
+    WamaParams (options_source='voices'). Centralise les voix (cf. common/utils/voice_options.py).
+    """
+    from wama.common.utils.voice_options import get_voice_groups
+    from wama.accounts.views import get_or_create_anonymous_user
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    return JsonResponse({'groups': get_voice_groups(user)})
+
+
+@require_GET
 def system_stats(request):
     """
     Return current system resource usage for footer display.

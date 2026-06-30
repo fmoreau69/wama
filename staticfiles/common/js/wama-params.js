@@ -178,6 +178,43 @@
     container.innerHTML = rows;
     _bindConditional(container);
     _bindModelHelp(container, schema, ctx);
+    _bindOptionSources(container, schema, ctx);
+  }
+
+  // Sources d'options ASYNC centralisées (manifeste) : options_source → endpoint renvoyant {groups}.
+  // Ex. 'voices' → /common/api/voices/ (peuple les optgroups voix sans markup serveur par app).
+  // Surchageable via window.WAMA_OPTION_SOURCES. Si la clé n'est pas connue ici, l'app fournit un
+  // optionsResolver synchrone à la place (rétro-compatible).
+  var OPTION_SOURCES = global.WAMA_OPTION_SOURCES || { voices: '/common/api/voices/' };
+  var _optionSourceCache = {};
+  function _bindOptionSources(container, schema, ctx) {
+    (schema || []).forEach(function (p) {
+      if (p.type !== 'select' || !p.options_source) return;
+      if (p.contexts && p.contexts.indexOf(ctx) === -1) return;
+      var url = OPTION_SOURCES[p.options_source];
+      if (!url) return;   // pas d'endpoint connu → l'app gère via optionsResolver (rendu synchrone)
+      var sid = perCtx(p.dom_id, ctx) || ('wp-' + ctx + '-' + p.name);
+      var sel = document.getElementById(sid);
+      if (!sel) return;
+      var fill = function (groups) {
+        var cur = sel.value;
+        sel.innerHTML = (groups || []).map(function (g) {
+          var opts = (g.options || []).map(function (o) {
+            var v = Array.isArray(o) ? o[0] : (o.value !== undefined ? o.value : o[0]);
+            var l = Array.isArray(o) ? o[1] : (o.label !== undefined ? o.label : o[1]);
+            return '<option value="' + esc(v) + '">' + esc(l) + '</option>';
+          }).join('');
+          return g.group ? ('<optgroup label="' + esc(g.group) + '">' + opts + '</optgroup>') : opts;
+        }).join('');
+        if (cur) sel.value = cur;
+        sel.dispatchEvent(new Event('change', { bubbles: true }));   // re-déclenche WamaModelCaps/conditionnel
+      };
+      if (_optionSourceCache[url]) { fill(_optionSourceCache[url]); return; }
+      fetch(url, { credentials: 'same-origin' })
+        .then(function (r) { return r.json(); })
+        .then(function (d) { _optionSourceCache[url] = d.groups || []; fill(_optionSourceCache[url]); })
+        .catch(function () {});
+    });
   }
 
   // Aide MODÈLE : pour chaque select déclarant help_source, câble WamaModelHelp (desc courte + ⓘ longue
