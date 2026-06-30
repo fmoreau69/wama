@@ -10,6 +10,21 @@ document.addEventListener('DOMContentLoaded', function() {
     const URLS = window.WAMA_CONFIG.urls;
     const csrfToken = window.WAMA_CONFIG.csrfToken;
 
+    // Bouton de cycle commun ▶/⏹/↻ : clics délégués (start/restart→start, stop→stop). Les cards sont
+    // re-rendues depuis le partial serveur au poll → l'icône suit le statut (pas besoin d'autoSync ici).
+    if (window.WamaCycleButton) {
+        WamaCycleButton.wire(document, {
+            start: async (id) => {
+                try { await fetch(URLS.start + id + '/', { method: 'GET', headers: { 'X-CSRFToken': csrfToken } }); } catch (e) {}
+                window.location.reload();
+            },
+            stop: async (id) => {
+                try { await fetch(URLS.stop + id + '/', { method: 'POST', headers: { 'X-CSRFToken': csrfToken } }); } catch (e) {}
+                window.location.reload();
+            },
+        });
+    }
+
     // Range sliders
     const speedSlider = document.getElementById('speed');
     const pitchSlider = document.getElementById('pitch');

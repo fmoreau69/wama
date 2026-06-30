@@ -2,7 +2,7 @@
 {# Partial: renders one synthesis card. Expects 'synthesis' in context. #}
 {# card_label = nom de SORTIE (.wav) ; le libelle principal affiche le fichier d'ENTREE (ex. .docx) si present #}
 <div class="synthesis-card {% if synthesis.status == 'RUNNING' %}processing{% elif synthesis.status == 'SUCCESS' %}success{% elif synthesis.status == 'FAILURE' %}error{% endif %}"
-     data-id="{{ synthesis.id }}">
+     data-id="{{ synthesis.id }}" data-status="{{ synthesis.status }}">
     <div class="row align-items-center">
         <!-- Text File Info -->
         <div class="col-md-3">
@@ -60,12 +60,7 @@
         <!-- Actions -->
         <div class="col-md-3">
             <div class="btn-group-actions">
-                {% if synthesis.status != 'RUNNING' %}
-                <button class="btn btn-sm btn-primary start-btn"
-                        data-id="{{ synthesis.id }}"
-                        title="Démarrer">
-                    <i class="fas fa-play"></i>
-                </button>
+                {# ⚙ Paramètres puis bouton de cycle ▶/⏹/↻ (toujours visibles, même RUNNING). #}
                 <button class="btn btn-sm btn-secondary settings-btn"
                         data-id="{{ synthesis.id }}"
                         data-tts-model="{{ synthesis.tts_model }}"
@@ -76,7 +71,7 @@
                         title="Paramètres">
                     <i class="fas fa-cog"></i>
                 </button>
-                {% endif %}
+                {% include 'common/_cycle_button.html' with id=synthesis.id status=synthesis.status %}
 
                 {% if synthesis.audio_output %}
                 <a href="{% url 'synthesizer:download' synthesis.id %}"

@@ -507,6 +507,20 @@ def text_preview(request, pk: int):
         }, status=500)
 
 
+def stop(request, pk: int):
+    """
+    Stoppe la synthèse en cours (révoque la tâche Celery) → item relançable (bouton de cycle ↻).
+    Brique commune : wama.common.utils.process_control.stop_instance.
+    """
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    synthesis = get_object_or_404(VoiceSynthesis, pk=pk, user=user)
+    if synthesis.status not in ('RUNNING', 'PENDING'):
+        return JsonResponse({'id': synthesis.id, 'status': synthesis.status})
+    from wama.common.utils.process_control import stop_instance
+    new_status = stop_instance(synthesis, error_field='error_message')
+    return JsonResponse({'id': synthesis.id, 'status': new_status})
+
+
 def start(request, pk: int):
     """
     Démarre la synthèse vocale pour un fichier.
