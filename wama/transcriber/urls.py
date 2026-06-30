@@ -14,6 +14,7 @@ urlpatterns = [
     path('consolidate/', views.consolidate, name='consolidate'),
     path('upload_youtube/', views.upload_youtube, name='upload_youtube'),
     path('start/<int:pk>/', views.start, name='start'),
+    path('stop/<int:pk>/', views.stop, name='stop'),
     path('enrich/<int:pk>/', views.enrich, name='enrich'),
     path('progress/<int:pk>/', views.progress, name='progress'),
     path('download/<int:pk>/', views.download, name='download'),

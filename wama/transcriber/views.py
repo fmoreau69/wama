@@ -635,6 +635,22 @@ def start(request, pk: int):
     })
 
 
+def stop(request, pk: int):
+    """
+    Stoppe la transcription en cours (révoque la tâche Celery) et remet l'item dans un état relançable
+    (bouton de cycle ▶/⏹/↻). Brique commune : wama.common.utils.process_control.stop_instance.
+    """
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    t = get_object_or_404(Transcript, pk=pk, user=user)
+
+    if t.status not in ('RUNNING', 'PENDING'):
+        return JsonResponse({'id': t.id, 'status': t.status})  # rien à stopper
+
+    from wama.common.utils.process_control import stop_instance
+    new_status = stop_instance(t)   # → FAILURE (relançable), task_id vidé
+    return JsonResponse({'id': t.id, 'status': new_status})
+
+
 # ---------------------------------------------------------------------------
 # Staging (« à valider ») — DRAFT → file d'attente
 # ---------------------------------------------------------------------------
