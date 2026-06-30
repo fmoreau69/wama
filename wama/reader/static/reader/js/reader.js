@@ -114,17 +114,11 @@
                  <i class="fas fa-download"></i>
                </button>`;
 
-        const startBtn = (item.status === 'PENDING' || item.status === 'ERROR')
-            ? `<button class="btn btn-sm btn-outline-success" data-action="start" title="Lancer">
-                 <i class="fas fa-play"></i>
-               </button>`
-            : (item.status === 'RUNNING')
-            ? `<button class="btn btn-sm btn-outline-warning" disabled title="En cours">
-                 <i class="fas fa-spinner fa-spin"></i>
-               </button>`
-            : `<button class="btn btn-sm btn-outline-secondary" data-action="restart" title="Relancer">
-                 <i class="fas fa-redo"></i>
-               </button>`;
+        // Bouton de cycle commun ▶/⏹/↻ (toujours vert ; ⏹ Stop pendant RUNNING). Câblé via
+        // WamaCycleButton.wire + autoSync (cf. init). Repli legacy si la brique n'est pas chargée.
+        const startBtn = window.WamaCycleButton
+            ? WamaCycleButton.html(item.status, item.id)
+            : `<button class="btn btn-sm btn-outline-success" data-action="start" title="Lancer"><i class="fas fa-play"></i></button>`;
 
         return `
 <div class="card-body py-2">
@@ -283,12 +277,27 @@
 
     // ─── Item actions ─────────────────────────────────────────────────────────
 
+    // ⏹ Stop : arrête l'OCR (endpoint commun) → item relançable (↻ via autoSync sur data-status).
+    async function stopItem(id) {
+        const card = document.querySelector(`.reader-card[data-id="${id}"]`);
+        try {
+            const r = await csrfFetch(urlFor('stop', id), { method: 'POST' });
+            const data = await r.json().catch(() => ({}));
+            if (card && data.status) card.dataset.status = data.status;
+            stopPolling(id);
+        } catch (e) {
+            console.error('[Reader] stop error:', e);
+        }
+    }
+
     async function startItem(id) {
         const card = document.querySelector(`.reader-card[data-id="${id}"]`);
+        // Relance pendant le traitement : stopper d'abord (évite le 409 « déjà en cours »).
+        if (card && (card.dataset.status || '').toUpperCase() === 'RUNNING') {
+            await stopItem(id);
+        }
         if (card) {
             card.dataset.status = 'RUNNING';
-            card.querySelector('[data-action="start"],[data-action="restart"]')
-                ?.setAttribute('disabled', '');
         }
         try {
             await csrfFetch(urlFor('start', id), { method: 'POST' });
@@ -726,11 +735,21 @@
         });
     }
 
+    function initCycleButton() {
+        if (!window.WamaCycleButton) return;
+        const q = document.getElementById('queueContainer');
+        if (!q) return;
+        // Câblage délégué (start/restart→startItem, stop→stopItem) + auto-sync de l'icône sur data-status.
+        WamaCycleButton.wire(q, { start: (id) => startItem(id), stop: (id) => stopItem(id) });
+        WamaCycleButton.autoSync({ container: q, cardSelector: '.reader-card' });
+    }
+
     function init() {
         initDropZone();
         initGlobalButtons();
         initBatchSettingsModal();
         initInspector();
+        initCycleButton();
         bindBatchGroupActions();
         updateDownloadAllBtn();
         updateGlobalProgress();

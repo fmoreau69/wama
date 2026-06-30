@@ -7,6 +7,7 @@ urlpatterns = [
     path('',                        views.IndexView.as_view(), name='index'),
     path('upload/',                 views.upload,              name='upload'),
     path('start/<int:pk>/',         views.start,               name='start'),
+    path('stop/<int:pk>/',          views.stop,                name='stop'),
     path('analyze/<int:pk>/',       views.analyze,             name='analyze'),
     path('settings/<int:pk>/',      views.save_settings,       name='save_settings'),
     path('progress/<int:pk>/',      views.progress,            name='progress'),

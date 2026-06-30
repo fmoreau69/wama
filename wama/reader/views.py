@@ -214,6 +214,20 @@ def upload(request):
 
 
 @require_POST
+def stop(request, pk: int):
+    """
+    Stoppe l'OCR en cours (révoque la tâche Celery) → item relançable (bouton de cycle ↻).
+    Brique commune : wama.common.utils.process_control.stop_instance.
+    """
+    user = _get_user(request)
+    item = get_object_or_404(ReadingItem, pk=pk, user=user)
+    if item.status not in ('RUNNING', 'PENDING'):
+        return JsonResponse({'id': item.id, 'status': item.status})
+    from wama.common.utils.process_control import stop_instance
+    new_status = stop_instance(item, to_status='ERROR')   # ERROR = état terminal relançable côté Reader
+    return JsonResponse({'id': item.id, 'status': new_status})
+
+
 def start(request, pk: int):
     """Start OCR processing for a single item (anti-race-condition)."""
     user = _get_user(request)

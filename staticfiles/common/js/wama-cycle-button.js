@@ -15,10 +15,13 @@
  */
 (function (global) {
   // Statut applicatif → action effective + icône + libellé. Bouton toujours vert.
+  // Vocabulaires de statut variables selon les apps (SUCCESS/DONE/COMPLETED, FAILURE/ERROR/FAILED…).
+  var RUNNING_STATES = ['RUNNING', 'PROCESSING', 'STARTED'];
+  var DONE_STATES = ['SUCCESS', 'FAILURE', 'DONE', 'ERROR', 'COMPLETED', 'FAILED', 'CANCELLED', 'CANCELED'];
   function stateFor(status) {
     var s = (status || 'PENDING').toUpperCase();
-    if (s === 'RUNNING') return { action: 'stop', icon: 'fa-stop', title: 'Arrêter' };
-    if (s === 'SUCCESS' || s === 'FAILURE') return { action: 'restart', icon: 'fa-rotate-right', title: 'Relancer' };
+    if (RUNNING_STATES.indexOf(s) !== -1) return { action: 'stop', icon: 'fa-stop', title: 'Arrêter' };
+    if (DONE_STATES.indexOf(s) !== -1) return { action: 'restart', icon: 'fa-rotate-right', title: 'Relancer' };
     return { action: 'start', icon: 'fa-play', title: 'Démarrer' };  // PENDING / DRAFT / neuf
   }
 

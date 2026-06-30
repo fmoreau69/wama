@@ -6,11 +6,14 @@ Ensuite mis à jour automatiquement par WamaCycleButton.autoSync (sur data-statu
 Usage : {% include 'common/_cycle_button.html' with id=item.id status=item.status %}
 La card englobante doit porter data-status="{{ item.status }}" pour l'auto-sync.
 {% endcomment %}
+{% comment %}Vocabulaires de statut variables : RUNNING/PROCESSING/STARTED = en cours ;
+SUCCESS/DONE/COMPLETED/FAILURE/ERROR/FAILED/CANCELLED = terminé (→ ↻). Doit suivre stateFor() du JS.{% endcomment %}
 {% with s=status|upper %}
-<button type="button" class="btn btn-sm btn-outline-success wama-cycle-btn"
-        data-cycle-action="{% if s == 'RUNNING' %}stop{% elif s == 'SUCCESS' or s == 'FAILURE' %}restart{% else %}start{% endif %}"
-        data-id="{{ id }}"
-        title="{% if s == 'RUNNING' %}Arrêter{% elif s == 'SUCCESS' or s == 'FAILURE' %}Relancer{% else %}Démarrer{% endif %}">
-    <i class="fas {% if s == 'RUNNING' %}fa-stop{% elif s == 'SUCCESS' or s == 'FAILURE' %}fa-rotate-right{% else %}fa-play{% endif %}"></i>
-</button>
+{% if s == 'RUNNING' or s == 'PROCESSING' or s == 'STARTED' %}
+<button type="button" class="btn btn-sm btn-outline-success wama-cycle-btn" data-cycle-action="stop" data-id="{{ id }}" title="Arrêter"><i class="fas fa-stop"></i></button>
+{% elif s == 'SUCCESS' or s == 'DONE' or s == 'COMPLETED' or s == 'FAILURE' or s == 'ERROR' or s == 'FAILED' or s == 'CANCELLED' or s == 'CANCELED' %}
+<button type="button" class="btn btn-sm btn-outline-success wama-cycle-btn" data-cycle-action="restart" data-id="{{ id }}" title="Relancer"><i class="fas fa-rotate-right"></i></button>
+{% else %}
+<button type="button" class="btn btn-sm btn-outline-success wama-cycle-btn" data-cycle-action="start" data-id="{{ id }}" title="Démarrer"><i class="fas fa-play"></i></button>
+{% endif %}
 {% endwith %}
