@@ -16,7 +16,7 @@ from django.http import JsonResponse
 from django.shortcuts import render
 from django.views.decorators.http import require_POST
 
-from .models import UserAsset, SystemAsset, MediaProvider, UserProviderConfig, ASSET_TYPES, ALLOWED_EXTENSIONS
+from .models import UserAsset, SystemAsset, MediaProvider, UserProviderConfig, PromptKeyword, ASSET_TYPES, ALLOWED_EXTENSIONS
 from .providers.registry import get_provider
 from wama.accounts.views import get_or_create_anonymous_user
 
@@ -65,9 +65,15 @@ def _serialize_system_asset(a):
 
 def index(request):
     tab = request.GET.get('tab', 'voice')
+    # Compteur de mots-clés visibles (tronc commun partagé + perso de l'utilisateur).
+    kw_filter = Q(user__isnull=True)
+    if request.user.is_authenticated:
+        kw_filter |= Q(user=request.user)
+    keyword_count = PromptKeyword.objects.filter(kw_filter).count()
     context = {
-        'asset_types': ASSET_TYPES,
-        'active_tab':  tab,
+        'asset_types':   ASSET_TYPES,
+        'active_tab':    tab,
+        'keyword_count': keyword_count,
     }
     return render(request, 'media_library/index.html', context)
 
@@ -504,3 +510,51 @@ def api_provider_key_save(request, slug: str):
     cfg.save(update_fields=['api_key', 'is_active', 'updated_at'])
 
     return JsonResponse({'success': True, 'has_key': bool(api_key)})
+
+
+# ── Mots-clés de prompt (tronc commun partagé + perso) ───────────────────────
+
+@login_required
+def api_prompt_keywords(request):
+    """Liste les mots-clés (partagés + perso de l'utilisateur), groupés par catégorie."""
+    from wama.media_library.models import PromptKeyword
+    from django.db.models import Q
+    domain = request.GET.get('domain', '')
+    qs = PromptKeyword.objects.filter(Q(user__isnull=True) | Q(user=request.user))
+    if domain:
+        qs = qs.filter(Q(domain='') | Q(domain=domain))
+    cats = dict(PromptKeyword.CATEGORY_CHOICES)
+    # Pré-ordonner les catégories selon CATEGORY_CHOICES (ordre curé, pas alphabétique).
+    grouped = {}
+    for code, label in PromptKeyword.CATEGORY_CHOICES:
+        grouped[code] = {'label': label, 'items': []}
+    for kw in qs:
+        g = grouped.setdefault(kw.category, {'label': cats.get(kw.category, kw.category), 'items': []})
+        g['items'].append(kw.to_dict())
+    # Retirer les catégories vides (ex : filtre domaine).
+    grouped = {k: v for k, v in grouped.items() if v['items']}
+    return JsonResponse({'categories': grouped})
+
+
+@login_required
+@require_POST
+def api_prompt_keyword_add(request):
+    """Ajoute un mot-clé PERSO (user-custom)."""
+    from wama.media_library.models import PromptKeyword
+    text = (request.POST.get('text') or '').strip()
+    category = request.POST.get('category') or 'style'
+    if not text:
+        return JsonResponse({'success': False, 'error': 'Texte vide'}, status=400)
+    kw, _ = PromptKeyword.objects.get_or_create(
+        user=request.user, category=category, text=text[:120],
+    )
+    return JsonResponse({'success': True, 'keyword': kw.to_dict()})
+
+
+@login_required
+@require_POST
+def api_prompt_keyword_delete(request, pk):
+    """Supprime un mot-clé PERSO de l'utilisateur (jamais le tronc commun)."""
+    from wama.media_library.models import PromptKeyword
+    n, _ = PromptKeyword.objects.filter(pk=pk, user=request.user).delete()
+    return JsonResponse({'success': bool(n)})

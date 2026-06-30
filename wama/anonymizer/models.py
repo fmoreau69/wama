@@ -224,7 +224,10 @@ def create_user_profile(sender, instance, created, **kwargs):
         UserSettings.objects.get_or_create(user=instance)
 
 
-class BatchAnonymizer(models.Model):
+from wama.common.models import BatchMixin
+
+
+class BatchAnonymizer(BatchMixin, models.Model):
     """Groupe de médias créé depuis un fichier batch (liste d'URLs/chemins)."""
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='batch_anonymizers')
     created_at = models.DateTimeField(auto_now_add=True)

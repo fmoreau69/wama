@@ -365,20 +365,8 @@ def delete(request, pk):
 
     gen.delete()
 
-    # Clean up empty parent batch
-    if parent_batch:
-        try:
-            if not parent_batch.items.exists():
-                if parent_batch.batch_file:
-                    try:
-                        parent_batch.batch_file.delete(save=False)
-                    except Exception:
-                        pass
-                parent_batch.delete()
-        except Exception:
-            pass
-
-    return JsonResponse({'success': True})
+    # batch.total / suppression du batch vidé (+ fichier batch) : gérés par le signal batch_sync.
+    return JsonResponse({'success': True, 'batch_changed': parent_batch is not None})
 
 
 # ---------------------------------------------------------------------------

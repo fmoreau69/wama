@@ -150,6 +150,9 @@ def describe_content(self, description_id: int):
     user_id = description.user_id
     _console(user_id, f"Starting description for: {description.filename}")
 
+    import time as _time
+    _t0 = _time.time()  # chrono pour le seeding ETA (apprentissage des durées réelles)
+
     try:
         _set_progress(description, 5, force=True)
 
@@ -246,6 +249,24 @@ def describe_content(self, description_id: int):
         _set_progress(description, 100, force=True)
         _console(user_id, f"Description terminée: {description.filename}")
 
+        # ── Seeding ETA : enregistre la durée réelle pour affiner l'estimation ──
+        # Clé par type de contenu (driver de coût dominant) ; unité selon le média.
+        try:
+            from wama.model_manager.services.eta_estimator import record_run
+            from .eta import eta_size_unit
+            _size, _unit = eta_size_unit(content_type, description)
+            record_run(f'describer:{content_type}', size=_size, unit=_unit,
+                       process_seconds=_time.time() - _t0, load_seconds=None)
+        except Exception:
+            pass
+
+        try:
+            from wama.common.utils.notifications import notify_job
+            notify_job(getattr(description, 'user', None), 'Describer',
+                       getattr(description, 'filename', '') or f"description #{description.id}", True)
+        except Exception:
+            pass
+
         return {'ok': True, 'id': description.id}
 
     except Exception as e:
@@ -256,5 +277,11 @@ def describe_content(self, description_id: int):
         description.error_message = str(e)
         description.save()
         _set_progress(description, 0, force=True)
+        try:
+            from wama.common.utils.notifications import notify_job
+            notify_job(getattr(description, 'user', None), 'Describer',
+                       getattr(description, 'filename', '') or f"description #{description.id}", False, detail=str(e))
+        except Exception:
+            pass
 
         return {'ok': False, 'error': str(e)}

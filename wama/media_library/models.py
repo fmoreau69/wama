@@ -175,3 +175,47 @@ class UserProviderConfig(models.Model):
 
     def __str__(self):
         return f"{self.user.username} — {self.provider.name}"
+
+
+class PromptKeyword(models.Model):
+    """
+    Mot-clé réutilisable pour enrichir un prompt (chips cliquables).
+    Vit dans la médiathèque : `user=None` = TRONC COMMUN partagé (seedé) ; sinon = perso utilisateur.
+    Pas un asset fichier → modèle dédié (texte). Surfacé via la palette commune + l'UI médiathèque.
+    """
+    CATEGORY_CHOICES = [
+        ('quality', 'Qualité'),
+        ('style', 'Style'),
+        ('light', 'Lumière'),
+        ('mood', 'Ambiance'),
+        ('camera', 'Caméra / objectif'),
+        ('render', 'Rendu / époque'),
+        ('domain', 'Domaine'),
+    ]
+
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, null=True, blank=True, related_name='prompt_keywords',
+        help_text="null = tronc commun partagé (système) ; sinon = mot-clé perso de l'utilisateur",
+    )
+    category = models.CharField(max_length=20, choices=CATEGORY_CHOICES, default='style', db_index=True)
+    text = models.CharField(max_length=120, help_text="Le mot-clé inséré dans le prompt")
+    domain = models.CharField(
+        max_length=30, blank=True, default='',
+        help_text="Optionnel : domaine d'application (ex. 'image', 'video', 'transport')",
+    )
+    order = models.IntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Mot-clé de prompt'
+        verbose_name_plural = 'Mots-clés de prompt'
+        ordering = ['category', 'order', 'text']
+        unique_together = [['user', 'category', 'text']]
+
+    def __str__(self):
+        scope = 'commun' if self.user_id is None else self.user.username
+        return f"[{self.category}/{scope}] {self.text}"
+
+    def to_dict(self):
+        return {'id': self.id, 'category': self.category, 'text': self.text,
+                'domain': self.domain, 'shared': self.user_id is None}

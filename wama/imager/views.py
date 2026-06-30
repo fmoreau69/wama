@@ -793,6 +793,24 @@ def progress(request, generation_id):
         if generation.output_video:
             data['output_video_url'] = generation.output_video.url
 
+        # Seed ETA (chargement séparé → model_loaded=False inclut le coût à froid) :
+        # image = steps × nb images, vidéo = durée produite. Clé par domaine+modèle.
+        if generation.status in ('PENDING', 'RUNNING'):
+            try:
+                from wama.model_manager.services.eta_estimator import estimate
+                if generation.is_video_generation:
+                    data['estimated_seconds'] = estimate(
+                        f'imager:vid:{generation.model}',
+                        size=float(getattr(generation, 'video_duration', 0) or 0),
+                        unit='video_sec', model_loaded=False)
+                else:
+                    _steps = int(getattr(generation, 'steps', 0) or 0) * int(getattr(generation, 'num_images', 1) or 1)
+                    data['estimated_seconds'] = estimate(
+                        f'imager:img:{generation.model}', size=max(_steps, 1),
+                        unit='step', model_loaded=False)
+            except Exception:
+                pass
+
         return JsonResponse(data)
 
     except Exception as e:

@@ -128,88 +128,13 @@ document.addEventListener('DOMContentLoaded', function () {
       const id = await uploadFile(file);
       if (id) any = true;
     }
-    // Les éléments importés arrivent en zone de staging (DRAFT) : on recharge
-    // pour afficher la zone « À valider » (rendu serveur). La consolidation en
-    // batch se fait à la validation (stage_commit), pas à l'upload.
+    // Les fichiers importés deviennent des cards BROUILLON (DRAFT) dans la file : on recharge
+    // pour le rendu serveur (enveloppe en batch via _auto_wrap_orphans). Staging supprimé (2026-06-29).
     if (any) location.reload();
   }
 
-  // ======================================================================
-  // Staging (« à valider ») — DRAFT → file d'attente
-  // ======================================================================
-  function stagePost(url, extra) {
-    const body = new FormData();
-    for (const k in (extra || {})) body.append(k, extra[k]);
-    return fetch(url, { method: 'POST', headers: csrfHeaders(), body });
-  }
-
-  document.addEventListener('click', async function (e) {
-    // ── Ajouter / Lancer un élément en staging ──
-    const addBtn = e.target.closest('.stage-add-btn');
-    const startBtn = e.target.closest('.stage-start-btn');
-    if (addBtn || startBtn) {
-      e.preventDefault();
-      const id = (addBtn || startBtn).dataset.id;
-      const url = config.stageCommitUrlTemplate.replace('/0/', `/${id}/`);
-      try {
-        const r = await stagePost(url, { start: startBtn ? '1' : '0' });
-        if (r.ok) location.reload(); else showToast('Erreur lors de la validation', 'danger');
-      } catch (_) { showToast('Erreur réseau', 'danger'); }
-      return;
-    }
-    // ── Supprimer un élément en staging ──
-    const delBtn = e.target.closest('.stage-del-btn');
-    if (delBtn) {
-      e.preventDefault();
-      const id = delBtn.dataset.id;
-      const url = config.deleteUrlTemplate.replace('/0/', `/${id}/`);
-      try {
-        const r = await stagePost(url);
-        if (r.ok) {
-          const card = delBtn.closest('.staging-card');
-          if (card) card.remove();
-          if (window.WamaFM) WamaFM.deleted();
-          const remaining = document.querySelectorAll('#stagingItems .staging-card').length;
-          const cnt = document.getElementById('stagingCount');
-          if (cnt) cnt.textContent = remaining;
-          if (remaining === 0) { const z = document.getElementById('stagingZone'); if (z) z.style.display = 'none'; }
-        }
-      } catch (_) { showToast('Erreur réseau', 'danger'); }
-      return;
-    }
-    // ── Tout ajouter / Tout lancer ──
-    if (e.target.closest('#stagingAddAll') || e.target.closest('#stagingStartAll')) {
-      e.preventDefault();
-      const start = !!e.target.closest('#stagingStartAll');
-      try {
-        // Actions de lot : applique l'état COMPLET du volet droit à tous les
-        // éléments à valider au moment de l'ajout (WYSIWYG).
-        const r = await stagePost(config.stageCommitAllUrl,
-          Object.assign({ start: start ? '1' : '0' }, _panelParamsObj()));
-        if (r.ok) location.reload(); else showToast('Erreur lors de la validation', 'danger');
-      } catch (_) { showToast('Erreur réseau', 'danger'); }
-      return;
-    }
-    // ── Vider le staging ──
-    if (e.target.closest('#stagingClear')) {
-      e.preventDefault();
-      if (!confirm('Vider la zone « À valider » ? Les fichiers non validés seront supprimés.')) return;
-      try {
-        const r = await stagePost(config.stageClearUrl);
-        if (r.ok) { if (window.WamaFM) WamaFM.deleted(); location.reload(); }
-      } catch (_) { showToast('Erreur réseau', 'danger'); }
-      return;
-    }
-    // ── Appliquer les paramètres du volet droit à tous les éléments à valider ──
-    if (e.target.closest('#stagingSettingsAll')) {
-      e.preventDefault();
-      try {
-        const r = await stagePost(config.stageUpdateAllUrl, _panelParamsObj());
-        if (r.ok) location.reload(); else showToast('Erreur', 'danger');
-      } catch (_) { showToast('Erreur réseau', 'danger'); }
-      return;
-    }
-  });
+  // Staging (« à valider ») SUPPRIMÉ 2026-06-29 : les DRAFT sont des cards BROUILLON directement
+  // dans la file (config via inspecteur, lancement via Lancer). Plus de zone ni de handlers staging.
 
   // ── Batch delete ─────────────────────────────────────────────────────────
   document.addEventListener('click', function(e) {
@@ -229,6 +154,23 @@ document.addEventListener('DOMContentLoaded', function () {
       })
       .catch(() => showToast('Erreur lors de la suppression', 'danger'));
   });
+
+  // ── Batch start/restart (lancer tous les éléments du batch) ───────────────
+  document.addEventListener('click', function(e) {
+    const btn = e.target.closest('.batch-start-btn');
+    if (!btn) return;
+    const batchId = btn.dataset.batchId;
+    const url = config.batchStartUrlTemplate.replace('/0/', `/${batchId}/`);
+    fetch(url, {method: 'POST', headers: csrfHeaders()})
+      .then(r => r.json())
+      .then(() => location.reload())
+      .catch(() => showToast('Erreur lors du lancement du batch', 'danger'));
+  });
+
+  // NB : sortir/entrer une card d'un batch = DRAG souris façon Solitaire (PAS un bouton — déjà trop
+  // de boutons). Backend prêt : POST config.removeFromBatchUrlTemplate (sortie → batch-of-1 isolé) +
+  // consolidate (entrée). Le handler de drag (SortableJS) sera ajouté en session VISUELLE (avec P2),
+  // et posera sessionStorage['wama_focus_card'] sur l'id déplacé pour le repérer après reload.
 
   // ── Batch duplicate ───────────────────────────────────────────────────────
   document.addEventListener('click', function(e) {
@@ -361,10 +303,10 @@ document.addEventListener('DOMContentLoaded', function () {
         </div>
         <div class="col-md-3">
           <div class="btn-group-actions">
-            <button class="btn btn-sm btn-primary start-btn" data-id="${data.id}" title="Démarrer">
+            <button class="btn btn-sm btn-outline-success start-btn" data-id="${data.id}" title="Démarrer">
               <i class="fas fa-play"></i>
             </button>
-            <button class="btn btn-sm btn-secondary settings-btn" data-id="${data.id}"
+            <button class="btn btn-sm btn-outline-secondary settings-btn" data-id="${data.id}"
                     data-backend="${escapeHtml(data.backend || 'auto')}"
                     data-hotwords="${escapeHtml(data.hotwords || '')}"
                     data-preprocess="${data.preprocess_audio ? 'true' : 'false'}"
@@ -377,10 +319,10 @@ document.addEventListener('DOMContentLoaded', function () {
                     title="Paramètres">
               <i class="fas fa-cog"></i>
             </button>
-            <button class="btn btn-sm btn-outline-info duplicate-btn" data-id="${data.id}" title="Dupliquer (tester un autre modèle)">
+            <button class="btn btn-sm btn-outline-warning duplicate-btn" data-id="${data.id}" title="Dupliquer (tester un autre modèle)">
               <i class="fas fa-copy"></i>
             </button>
-            <button class="btn btn-sm btn-danger delete-btn" data-id="${data.id}" title="Supprimer">
+            <button class="btn btn-sm btn-outline-danger delete-btn" data-id="${data.id}" title="Supprimer">
               <i class="fas fa-trash"></i>
             </button>
           </div>
@@ -391,6 +333,8 @@ document.addEventListener('DOMContentLoaded', function () {
     bindCardActions(card);
     if (window.initMediaPreview) window.initMediaPreview();
     updateDownloadAllState();
+    // Mise au point de la card fraîchement ajoutée : scroll centré + halo (ne pas avoir à la chercher).
+    if (window.WamaQueue) WamaQueue.focusCard(card, { scroll: 'center', pulse: true });
   }
 
   function updateCard(id, data) {
@@ -410,7 +354,11 @@ document.addEventListener('DOMContentLoaded', function () {
     }
     if (progressText) progressText.textContent = `${progress}%`;
 
-    if (window.WamaEta) WamaEta.render(card.querySelector('.wama-eta'), WamaEta.update(id, { progress: progress, status: status }));
+    // seedSeconds = estimation a priori/apprise (eta_estimator) → ETA affichée dès le départ,
+    // avant que le débit observé ne prenne le relais (WamaEta fusionne seed + observé).
+    if (window.WamaEta) WamaEta.render(card.querySelector('.wama-eta'),
+      WamaEta.update(id, { progress: progress, status: status,
+                           seedSeconds: data.estimated_seconds, modelLoaded: false }));
 
     // Update status badge
     const badge = card.querySelector('.status-badge');
@@ -482,16 +430,20 @@ document.addEventListener('DOMContentLoaded', function () {
     let html = '';
 
     if (status !== 'RUNNING') {
-      // Ordre conventionnel : ⚙ Paramètres → ▶ Start (cf. WAMA_APP_CONVENTIONS §6)
-      html += `<button class="btn btn-sm btn-secondary settings-btn" data-id="${id}" title="Paramètres"><i class="fas fa-cog"></i></button>`;
-      html += `<button class="btn btn-sm btn-primary start-btn" data-id="${id}" title="Démarrer"><i class="fas fa-play"></i></button>`;
+      // Schéma boutons CARD_DESIGN (converter, adopté) : ⚙ secondary · ▶/↻ success.
+      const isRerun = (status === 'SUCCESS' || status === 'FAILURE');
+      const startIcon = isRerun ? 'fa-rotate-right' : 'fa-play';
+      const startTitle = isRerun ? 'Relancer' : 'Démarrer';
+      html += `<button class="btn btn-sm btn-outline-secondary settings-btn" data-id="${id}" title="Paramètres"><i class="fas fa-cog"></i></button>`;
+      html += `<button class="btn btn-sm btn-outline-success start-btn" data-id="${id}" title="${startTitle}"><i class="fas ${startIcon}"></i></button>`;
     }
 
     if (status === 'SUCCESS') {
       // Bouton œil retiré : la preview compacte (.wama-card-preview) + double-clic remplace.
-      // Bouton « Corriger » (éditeur) — cohérent avec le rendu serveur des cards.
+      // Bouton « Corriger » (éditeur) = SPÉCIFICITÉ Transcriber → couleur distincte (primary),
+      // hors schéma des 5 actions génériques (secondary/success/info/warning/danger).
       if (config.editUrlTemplate) {
-        html += `<a href="${getUrl(config.editUrlTemplate, id)}" class="btn btn-sm btn-outline-warning" title="Corriger (éditeur audio + texte)"><i class="fas fa-pen-to-square"></i></a>`;
+        html += `<a href="${getUrl(config.editUrlTemplate, id)}" class="btn btn-sm btn-outline-primary" title="Corriger (éditeur audio + texte)"><i class="fas fa-pen-to-square"></i></a>`;
       }
       const dlBase = getUrl(config.downloadUrlTemplate, id);
       html += `<div class="btn-group btn-group-sm">` +
@@ -507,8 +459,8 @@ document.addEventListener('DOMContentLoaded', function () {
       `</div>`;
     }
 
-    html += `<button class="btn btn-sm btn-outline-info duplicate-btn" data-id="${id}" title="Dupliquer (tester un autre modèle)"><i class="fas fa-copy"></i></button>`;
-    html += `<button class="btn btn-sm btn-danger delete-btn" data-id="${id}" title="Supprimer"><i class="fas fa-trash"></i></button>`;
+    html += `<button class="btn btn-sm btn-outline-warning duplicate-btn" data-id="${id}" title="Dupliquer (tester un autre modèle)"><i class="fas fa-copy"></i></button>`;
+    html += `<button class="btn btn-sm btn-outline-danger delete-btn" data-id="${id}" title="Supprimer"><i class="fas fa-trash"></i></button>`;
 
     actionsDiv.innerHTML = html;
 
@@ -609,6 +561,9 @@ document.addEventListener('DOMContentLoaded', function () {
       .then(r => r.json())
       .then(data => {
         if (!data.deleted) throw new Error('Suppression impossible');
+        // Élément issu d'un batch : le total/affichage du batch change (et un batch réduit à 1
+        // redevient une card simple) → recharger pour re-rendre proprement le groupe.
+        if (data.batch_changed) { if (window.WamaFM) WamaFM.deleted(); location.reload(); return; }
         const card = queueContainer.querySelector(`.synthesis-card[data-id="${id}"]`);
         if (card) card.remove();
         if (_inspector && String(id) === String(_inspector.state().itemId)) _inspector.deselect();  // évite des actions inspecteur orphelines
@@ -630,6 +585,9 @@ document.addEventListener('DOMContentLoaded', function () {
       .then(r => r.json())
       .then(data => {
         if (!data.duplicated) throw new Error('Duplication impossible');
+        // Focus la card dupliquée après rechargement (WamaQueue.focusFromSession) — la repérer
+        // facilement, surtout sortie/isolée d'un batch ou si elle n'atterrit pas en tête.
+        try { sessionStorage.setItem('wama_focus_card', '.synthesis-card[data-id="' + data.duplicated + '"]'); } catch (e) {}
         location.reload();
       })
       .catch(err => alert(err.message || 'Erreur lors de la duplication'));
@@ -671,33 +629,21 @@ document.addEventListener('DOMContentLoaded', function () {
     if (_t) _t.textContent = 'Paramètres de transcription';
 
     document.getElementById('settingsTranscriptId').value = btn.dataset.id;
-    document.getElementById('settingsBackend').value = btn.dataset.backend || 'auto';
-    document.getElementById('settingsHotwords').value = btn.dataset.hotwords || '';
-    document.getElementById('settingsPreprocess').checked = btn.dataset.preprocess === 'true';
-    document.getElementById('settingsDiarization').checked = btn.dataset.diarization !== 'false';
-
-    const temp = parseFloat(btn.dataset.temperature) || 0;
-    document.getElementById('settingsTemperature').value = temp;
-    document.getElementById('settingsTemperatureValue').textContent = temp;
-
-    document.getElementById('settingsMaxTokens').value = parseInt(btn.dataset.maxTokens) || 32768;
-
-    // New fields
-    const genSummary = btn.dataset.generateSummary === 'true';
-    const summaryType = btn.dataset.summaryType || 'structured';
-    const verifyCoherence = btn.dataset.verifyCoherence === 'true';
-
-    const genSumEl = document.getElementById('settingsGenerateSummary');
-    const summaryTypeGroup = document.getElementById('summaryTypeGroup');
-    if (genSumEl) {
-      genSumEl.checked = genSummary;
-      if (summaryTypeGroup) summaryTypeGroup.style.display = genSummary ? 'block' : 'none';
+    // Population via le schéma commun (WamaParams) : gère range (+ affichage) et show/hide
+    // conditionnel du bloc résumé. Mêmes IDs/noms qu'avant (dom_id scopé context 'item').
+    if (window.WamaParams) {
+      WamaParams.apply(document.getElementById('settingsParams'), {
+        backend: btn.dataset.backend || 'auto',
+        hotwords: btn.dataset.hotwords || '',
+        preprocess_audio: btn.dataset.preprocess === 'true',
+        enable_diarization: btn.dataset.diarization !== 'false',
+        temperature: parseFloat(btn.dataset.temperature) || 0,
+        max_tokens: parseInt(btn.dataset.maxTokens) || 32768,
+        generate_summary: btn.dataset.generateSummary === 'true',
+        summary_type: btn.dataset.summaryType || 'structured',
+        verify_coherence: btn.dataset.verifyCoherence === 'true',
+      });
     }
-    const stEl = document.querySelector(`input[name="summary_type"][value="${summaryType}"]`);
-    if (stEl) stEl.checked = true;
-
-    const vcEl = document.getElementById('settingsVerifyCoherence');
-    if (vcEl) vcEl.checked = verifyCoherence;
 
     const bsModal = new bootstrap.Modal(modal);
     bsModal.show();
@@ -726,8 +672,8 @@ document.addEventListener('DOMContentLoaded', function () {
       hotwords: document.getElementById('settingsHotwords').value,
       preprocess_audio: document.getElementById('settingsPreprocess').checked,
       enable_diarization: document.getElementById('settingsDiarization').checked,
-      temperature: parseFloat(document.getElementById('settingsTemperature').value) || 0,
-      max_tokens: parseInt(document.getElementById('settingsMaxTokens').value) || 32768,
+      temperature: 0,        // réglages retirés de l'UI (ASR = reproductibilité) → valeurs fixes
+      max_tokens: 32768,
       generate_summary: document.getElementById('settingsGenerateSummary')?.checked || false,
       summary_type: summaryTypeEl ? summaryTypeEl.value : 'structured',
       verify_coherence: document.getElementById('settingsVerifyCoherence')?.checked || false,
@@ -1129,11 +1075,10 @@ document.addEventListener('DOMContentLoaded', function () {
         const genSummaryEl = document.getElementById('globalGenerateSummary');
         if (genSummaryEl) {
           genSummaryEl.checked = false;
-          const group = document.getElementById('globalSummaryTypeGroup');
-          if (group) group.style.display = 'none';
+          genSummaryEl.dispatchEvent(new Event('change'));   // WamaParams masque le bloc résumé
         }
 
-        const summTypeEl = document.getElementById('globalSummaryTypeStructured');
+        const summTypeEl = document.querySelector('input[name="globalSummaryType"][value="structured"]');
         if (summTypeEl) summTypeEl.checked = true;
 
         const verifCoherEl = document.getElementById('globalVerifyCoherence');
@@ -1235,8 +1180,8 @@ document.addEventListener('DOMContentLoaded', function () {
     if (e('diarizationToggle')) e('diarizationToggle').checked = s.enable_diarization !== false;
     if (e('globalGenerateSummary')) {
       e('globalGenerateSummary').checked = !!s.generate_summary;
-      const g = e('globalSummaryTypeGroup');
-      if (g) g.style.display = s.generate_summary ? 'block' : 'none';
+      // WamaParams pilote le show/hide du bloc résumé via [data-show-if] : déclenche son listener.
+      e('globalGenerateSummary').dispatchEvent(new Event('change'));
     }
     const stEl = document.querySelector(`input[name="globalSummaryType"][value="${s.summary_type || 'structured'}"]`);
     if (stEl) stEl.checked = true;
@@ -1244,7 +1189,8 @@ document.addEventListener('DOMContentLoaded', function () {
     if (e('panelTemperature')) {
       const t = (s.temperature != null) ? s.temperature : 0;
       e('panelTemperature').value = t;
-      const tv = e('panelTemperatureValue'); if (tv) tv.textContent = t;
+      const _trow = e('panelTemperature') ? e('panelTemperature').closest('.wama-param') : null;
+      const tv = _trow ? _trow.querySelector('.wama-range-val') : null; if (tv) tv.textContent = t;
     }
     if (e('panelMaxTokens')) e('panelMaxTokens').value = s.max_tokens || 32768;
   }
@@ -1495,6 +1441,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
     async function startAll() {
       finalTranscript = ''; chunks = [];
+      // Révèle la zone de transcription live (masquée par défaut depuis sa fusion dans la card d'entrée)
+      var liveBox = document.getElementById('transcriberLive');
+      if (liveBox) { liveBox.style.display = ''; liveBox.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
       // Capture l'audio du micro (pour sauver la card). Sans micro → texte live seulement.
       if (canRecord) {
         try {
@@ -1548,28 +1497,8 @@ document.addEventListener('DOMContentLoaded', function () {
   // ======================================================================
   // Global progress
   // ======================================================================
-  function updateGlobalProgress() {
-    if (!config.globalProgressUrl) return;
-    fetch(config.globalProgressUrl)
-      .then(r => r.json())
-      .then(data => {
-        const bar = document.getElementById('globalProgressBar');
-        const stats = document.getElementById('globalProgressStats');
-        const pct = document.getElementById('globalProgressPct');
-        const globalStatus = document.getElementById('globalStatus');
-        const p = data.overall_progress || 0;
-        if (bar) bar.style.width = p + '%';
-        if (stats) stats.textContent = `${data.success}/${data.total} terminé · ${data.running} en cours`;
-        if (window.WamaEta) WamaEta.render(document.getElementById('globalEta'), WamaEta.aggregateAll());
-        if (pct) pct.textContent = p ? p + '%' : '';
-        if (globalStatus) {
-          const active = (data.total || 0) > 0;
-          globalStatus.style.opacity = active ? '1' : '0';
-          globalStatus.style.pointerEvents = active ? '' : 'none';
-        }
-      })
-      .catch(err => console.error('Error updating global progress:', err));
-  }
+  // (updateGlobalProgress retiré : la barre globale + l'ETA agrégée sont fournies par la
+  //  brique commune wama-global-progress.js. Voir _global_progress.html dans le template.)
 
   // ======================================================================
   // Init
@@ -1654,8 +1583,8 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   });
 
-  updateGlobalProgress();
-  setInterval(updateGlobalProgress, 2000);
+  // Progression globale + ETA agrégée : désormais pilotées par la brique commune
+  // wama-global-progress.js (auto-démarrée). On ne double pas le poller ici.
 });
 
 // Filemanager 'Envoyer vers...' — reload page to show imported item

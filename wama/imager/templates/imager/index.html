@@ -292,8 +292,10 @@
                 </h5>
 
                 <form id="generationForm" enctype="multipart/form-data">
-                    <!-- Generation Mode Selection -->
-                    <div class="mb-3">
+                    <!-- Sélecteur de mode généré par WamaModes (métadonnée-driven) ; pilote les radios ci-dessous -->
+                    <div id="wamaImageModes" class="mb-3"></div>
+                    <!-- Generation Mode Selection (radios natifs = source de vérité ; cachés si WamaModes rend) -->
+                    <div class="mb-3" id="imageModeRadios">
                         <label class="form-label text-light">Mode de génération</label>
                         <div class="btn-group w-100 flex-wrap" role="group" aria-label="Mode de génération">
                             {% for mode_value, mode_label, mode_icon in generation_modes %}
@@ -323,6 +325,8 @@
                             <small class="text-white-50">
                                 Soyez descriptif ! Exemple : "Un paysage de montagne majestueux au coucher du soleil, style peinture à l'huile, couleurs vibrantes"
                             </small>
+                            <!-- Palette de mots-clés (bibliothèque médiathèque : tronc commun + perso) -->
+                            <div id="promptChips" class="mt-2"></div>
                         </div>
 
                         <!-- Negative Prompt -->
@@ -473,16 +477,8 @@
 
 <hr class="border-secondary">
 
-<div id="globalStatus" style="opacity:0; pointer-events:none;">
-    <div class="d-flex justify-content-between align-items-baseline mb-1">
-        <small class="text-muted"><span id="globalProgressStats"></span><span class="wama-eta ms-2" id="globalEta"></span></small>
-        <small class="text-muted" id="globalProgressPct" style="font-variant-numeric: tabular-nums;"></small>
-    </div>
-    <div class="wama-progress-track">
-        <div class="wama-progress-fill active" id="globalProgressBar" style="width:0%"></div>
-    </div>
-    <div style="height:12px;"></div>
-</div>
+{# Barre globale + ETA agrégée — brique commune (balayage bleu/vert permanent, toujours visible). #}
+{% include 'common/_global_progress.html' %}
 
 <!-- Generations Queue -->
 <div class="row">
@@ -638,8 +634,10 @@
                 </h5>
 
                 <form id="videoGenerationForm" enctype="multipart/form-data">
-                    <!-- Video Generation Mode Selection -->
-                    <div class="mb-3">
+                    <!-- Sélecteur de mode vidéo généré par WamaModes ; pilote les radios ci-dessous -->
+                    <div id="wamaVideoModes" class="mb-3"></div>
+                    <!-- Video Generation Mode Selection (radios natifs = source de vérité) -->
+                    <div class="mb-3" id="videoModeRadios">
                         <label class="form-label text-light">Mode de génération</label>
                         <div class="btn-group" role="group" aria-label="Mode de génération vidéo">
                             <input type="radio" class="btn-check" name="video_generation_mode" id="video_mode_txt2vid"
@@ -672,6 +670,8 @@
                             <small class="text-white-50">
                                 Exemple : "Un paysage de montagne au lever du soleil, les nuages se déplacent lentement, rayons de lumière dorée"
                             </small>
+                            <!-- Palette de mots-clés (domaine vidéo) -->
+                            <div id="videoPromptChips" class="mt-2"></div>
                         </div>
 
                         <!-- Negative Prompt -->
@@ -1454,5 +1454,56 @@ function _mpInjectImage(file, inputId, previewId) {
     };
 </script>
 <script src="{% static 'common/js/wama-eta.js' %}"></script>
+<link rel="stylesheet" href="{% static 'common/css/wama-prompt-chips.css' %}">
+<script src="{% static 'common/js/wama-prompt-chips.js' %}"></script>
+<script src="{% static 'common/js/wama-modes.js' %}"></script>
+{# Fonction commune de barre globale, chargée AVANT index.js (qui appelle WamaGlobalProgress.init
+   2 fois : 1 barre par file, images et vidéos). Pas de WAMA_GLOBAL_PROGRESS_URL → pas d'auto-init. #}
+<script src="{% static 'common/js/wama-global-progress.js' %}"></script>
 <script src="{% static 'imager/js/index.js' %}"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        if (window.WamaPromptChips) {
+            WamaPromptChips.init({ container: '#promptChips', target: '#prompt', domain: 'image', collapsed: true });
+            WamaPromptChips.init({ container: '#videoPromptChips', target: '#video_prompt', domain: 'video', collapsed: true });
+        }
+
+        // WamaModes pilote les barres de mode (image + vidéo) depuis le schéma déclaratif.
+        // Les radios natifs restent la SOURCE DE VÉRITÉ : on les coche + dispatch 'change'
+        // (le handler index.js bascule les sections). Résilient : si le fetch échoue, les
+        // radios natifs restent visibles et fonctionnels.
+        if (window.WamaModes) {
+            // Pilote un groupe de radios natifs depuis le switch de mode généré.
+            function driveRadios(domainId, container, radioName, nativeGroupId, schema) {
+                var dom = (schema.domains || []).find(function (d) { return d.id === domainId; });
+                if (!dom) return;
+                // Sous-schéma mono-domaine → WamaModes rend SEULEMENT le switch de mode (pas d'onglet domaine).
+                var sub = { domains: [dom], input_types: schema.input_types };
+                var current = document.querySelector('input[name="' + radioName + '"]:checked');
+                WamaModes.create({
+                    container: container,
+                    schema: sub,
+                    mode: current ? current.value : null,
+                    renderInputs: false,
+                    block: true,   // btn-group pleine largeur (comme l'UI Imager d'origine)
+                    modesLabel: 'Mode de génération',
+                    onChange: function (s) {
+                        var radio = document.getElementById((domainId === 'image' ? 'mode_' : 'video_mode_') + s.mode);
+                        if (radio && !radio.checked) {
+                            radio.checked = true;
+                            radio.dispatchEvent(new Event('change', { bubbles: true }));
+                        }
+                    },
+                });
+                // Succès : masquer les radios natifs (gardés dans le DOM = source de vérité + soumission).
+                var native = document.getElementById(nativeGroupId);
+                if (native) native.classList.add('d-none');
+            }
+            WamaModes.fetch('imager').then(function (schema) {
+                driveRadios('image', '#wamaImageModes', 'generation_mode', 'imageModeRadios', schema);
+                driveRadios('video', '#wamaVideoModes', 'video_generation_mode', 'videoModeRadios', schema);
+            }).catch(function () { /* radios natifs conservés */ });
+        }
+    });
+</script>
 {% endblock %}

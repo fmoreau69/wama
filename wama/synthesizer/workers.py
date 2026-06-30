@@ -269,6 +269,8 @@ def synthesize_voice(self, synthesis_id: int):
         dict: Résultat de la synthèse
     """
     close_old_connections()
+    import time as _time
+    _t0 = _time.time()   # pour l'apprentissage ETA (durée de traitement réelle)
 
     try:
         synthesis = VoiceSynthesis.objects.get(pk=synthesis_id)
@@ -374,9 +376,27 @@ def synthesize_voice(self, synthesis_id: int):
         # Finalisation
         synthesis.status = 'SUCCESS'
         synthesis.save(update_fields=['status', 'audio_output'])
+
+        # Apprentissage ETA : durée réelle ∝ longueur du texte (unit='char'), par modèle TTS.
+        # Service-based (chargement non séparable) → total dans per_unit, load_seconds=None.
+        try:
+            from wama.model_manager.services.eta_estimator import record_run, make_key
+            _txt = synthesis.text_content or ''
+            if _txt:
+                record_run(make_key('synthesizer', synthesis.tts_model),
+                           size=len(_txt), unit='char',
+                           process_seconds=_time.time() - _t0, load_seconds=None)
+        except Exception:
+            pass
         _set_progress(synthesis, 100)
 
         _console(synthesis.user_id, f"Synthèse #{synthesis.id} terminée ✓")
+        try:
+            from wama.common.utils.notifications import notify_job
+            notify_job(getattr(synthesis, 'user', None), 'Synthesizer',
+                       getattr(synthesis, 'name', '') or f"synthèse #{synthesis.id}", True)
+        except Exception:
+            pass
 
         return {
             'ok': True,
@@ -412,6 +432,12 @@ def synthesize_voice(self, synthesis_id: int):
         synthesis.save(update_fields=['status', 'error_message'])
         _set_progress(synthesis, 0)
         _console(synthesis.user_id, f"Erreur synthèse #{synthesis.id}: {e}")
+        try:
+            from wama.common.utils.notifications import notify_job
+            notify_job(getattr(synthesis, 'user', None), 'Synthesizer',
+                       getattr(synthesis, 'name', '') or f"synthèse #{synthesis.id}", False, detail=str(e))
+        except Exception:
+            pass
 
         return {'ok': False, 'error': str(e)}
 

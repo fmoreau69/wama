@@ -216,6 +216,9 @@ class IndexView(TemplateView):
         context['queue_count'] = queue_count
         context['output_format_choices'] = Description.OUTPUT_FORMAT_CHOICES
         context['language_choices'] = Description.LANGUAGE_CHOICES
+        # Schéma de params (source unique modale+inspecteur, rendu par WamaParams). Voir describer/params.py.
+        from wama.describer.params import PARAMS_JSON
+        context['params_json'] = json.dumps(PARAMS_JSON)
         context['success_count'] = all_descs.filter(status='SUCCESS').count()
         context['descriptions'] = all_descs  # kept for global progress bar template ref
 
@@ -449,9 +452,12 @@ def get_file_properties(description):
     elif description.detected_type in ('video', 'audio'):
         try:
             import subprocess
+            from wama.common.utils.ffmpeg_utils import get_ffprobe_exe, adapt_path_for_ffmpeg
+            _fp = get_ffprobe_exe()
             result = subprocess.run(
-                ['ffprobe', '-v', 'error', '-show_entries', 'format=duration',
-                 '-of', 'default=noprint_wrappers=1:nokey=1', description.input_file.path],
+                [_fp, '-v', 'error', '-show_entries', 'format=duration',
+                 '-of', 'default=noprint_wrappers=1:nokey=1',
+                 adapt_path_for_ffmpeg(description.input_file.path, _fp)],
                 capture_output=True, text=True, timeout=10
             )
             if result.returncode == 0:
@@ -547,6 +553,18 @@ def progress(request, pk):
 
     if description.status == 'FAILURE':
         response['error'] = description.error_message
+
+    # Seed ETA (service-based : modèle chargé à la demande → model_loaded=True)
+    if description.status in ('PENDING', 'RUNNING'):
+        try:
+            from wama.model_manager.services.eta_estimator import estimate
+            from .eta import eta_size_unit
+            _ct = description.detected_type or description.content_type
+            _size, _unit = eta_size_unit(_ct, description)
+            response['estimated_seconds'] = estimate(
+                f'describer:{_ct}', size=_size, unit=_unit, model_loaded=True)
+        except Exception:
+            pass
 
     return JsonResponse(response)
 
@@ -645,6 +663,11 @@ def delete(request, pk):
     user = get_user(request)
     description = get_object_or_404(Description, pk=pk, user=user)
 
+    # Le membre était-il dans un batch ? (uniquement pour le flag UI ; total/cleanup = signal batch_sync)
+    from .models import BatchDescriptionItem
+    from wama.common.utils.batch_utils import find_member_batch
+    parent_batch = find_member_batch(BatchDescriptionItem, description=description)
+
     # Delete files
     if description.input_file and os.path.exists(description.input_file.path):
         try:
@@ -658,9 +681,9 @@ def delete(request, pk):
         except OSError:
             pass
 
-    description.delete()
+    description.delete()  # signal batch_sync : recale total / supprime le batch vidé
 
-    return JsonResponse({'deleted': True, 'id': pk})
+    return JsonResponse({'deleted': True, 'id': pk, 'batch_changed': parent_batch is not None})
 
 
 @require_GET

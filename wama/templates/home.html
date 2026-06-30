@@ -655,6 +655,7 @@
         </p>-->
         <div class="row g-3">
 
+          {% if 'anonymizer' in accessible_apps %}
           <!-- Anonymizer -->
           <div class="col-md-6 col-lg-4">
             <div class="card h-100" style="background: #212529; border: 1px solid #495057;">
@@ -672,6 +673,7 @@
             </div>
           </div>
 
+          {% endif %}{% if 'avatarizer' in accessible_apps %}
           <!-- Avatarizer -->
           <div class="col-md-6 col-lg-4">
             <div class="card h-100" style="background: #212529; border: 1px solid #495057;">
@@ -689,6 +691,7 @@
             </div>
           </div>
 
+          {% endif %}{% if 'composer' in accessible_apps %}
           <!-- Composer -->
           <div class="col-md-6 col-lg-4">
             <div class="card h-100" style="background: #212529; border: 1px solid #495057;">
@@ -706,6 +709,7 @@
             </div>
           </div>
 
+          {% endif %}{% if 'converter' in accessible_apps %}
           <!-- Converter -->
           <div class="col-md-6 col-lg-4">
             <div class="card h-100" style="background: #212529; border: 1px solid #495057;">
@@ -724,6 +728,7 @@
             </div>
           </div>
 
+          {% endif %}{% if 'describer' in accessible_apps %}
           <!-- Describer -->
           <div class="col-md-6 col-lg-4">
             <div class="card h-100" style="background: #212529; border: 1px solid #495057;">
@@ -741,6 +746,7 @@
             </div>
           </div>
 
+          {% endif %}{% if 'enhancer' in accessible_apps %}
           <!-- Enhancer -->
           <div class="col-md-6 col-lg-4">
             <div class="card h-100" style="background: #212529; border: 1px solid #495057;">
@@ -758,6 +764,7 @@
             </div>
           </div>
 
+          {% endif %}{% if 'imager' in accessible_apps %}
           <!-- Imager -->
           <div class="col-md-6 col-lg-4">
             <div class="card h-100" style="background: #212529; border: 1px solid #495057;">
@@ -775,6 +782,7 @@
             </div>
           </div>
 
+          {% endif %}{% if 'reader' in accessible_apps %}
           <!-- Reader -->
           <div class="col-md-6 col-lg-4">
             <div class="card h-100" style="background: #212529; border: 1px solid #495057;">
@@ -792,6 +800,7 @@
             </div>
           </div>
 
+          {% endif %}{% if 'synthesizer' in accessible_apps %}
           <!-- Synthesizer -->
           <div class="col-md-6 col-lg-4">
             <div class="card h-100" style="background: #212529; border: 1px solid #495057;">
@@ -809,6 +818,7 @@
             </div>
           </div>
 
+          {% endif %}{% if 'transcriber' in accessible_apps %}
           <!-- Transcriber -->
           <div class="col-md-6 col-lg-4">
             <div class="card h-100" style="background: #212529; border: 1px solid #495057;">
@@ -825,6 +835,7 @@
               </div>
             </div>
           </div>
+          {% endif %}
 
         </div>
       </div>
@@ -832,11 +843,41 @@
 
     <hr>
 
+    {% if 'studio' in accessible_apps %}
+    <!-- Studio (méta-app) -->
+    <div class="row mb-4">
+      <div class="col-12">
+        <h4 class="mb-3"><i class="fas fa-diagram-project"></i> Studio
+          <span class="badge bg-warning text-dark ms-2">Bêta</span>
+        </h4>
+        <div class="row g-3">
+          <div class="col-md-6 col-lg-4">
+            <div class="card h-100" style="background: #212529; border: 1px solid #495057;">
+              <div class="card-body d-flex flex-column">
+                <h5 class="card-title text-light">
+                  <i class="fas fa-diagram-project" style="color:#fb923c;"></i> Studio
+                </h5>
+                <p class="card-text text-light flex-grow-1">
+                  Orchestration de pipelines : reliez les apps sur un canvas (sorties → entrées) pour composer des chaînes de traitement.
+                </p>
+                <a href="{% url 'studio:index' %}" class="btn btn-outline-warning mt-auto">
+                  <i class="fas fa-arrow-right"></i> Ouvrir
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if 'face_analyzer' in accessible_apps or 'cam_analyzer' in accessible_apps %}
+    <hr class="border-secondary">
     <!-- Applications WAMA Lab -->
     <div class="row mb-4">
       <div class="col-12">
         <h4 class="mb-3">
-          <i class="fas fa-flask"></i> WAMA Lab 
+          <i class="fas fa-flask"></i> WAMA Lab
           <span class="badge bg-secondary ms-2">Research</span>
         </h4>
 <!--        <p class="mb-3" style="font-size: 0.9em;">
@@ -844,6 +885,7 @@
         </p>-->
         <div class="row g-3">
 
+          {% if 'face_analyzer' in accessible_apps %}
           <!-- Face Analyzer -->
           <div class="col-md-6 col-lg-4">
             <div class="card h-100" style="background: #212529; border: 1px solid #495057;">
@@ -861,6 +903,8 @@
             </div>
           </div>
 
+          {% endif %}
+          {% if 'cam_analyzer' in accessible_apps %}
           <!-- Cam Analyzer -->
           <div class="col-md-6 col-lg-4">
             <div class="card h-100" style="background: #212529; border: 1px solid #495057;">
@@ -877,10 +921,12 @@
               </div>
             </div>
           </div>
+          {% endif %}
 
         </div>
       </div>
     </div>
+    {% endif %}
 
     <hr>
 

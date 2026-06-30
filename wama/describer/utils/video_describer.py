@@ -125,9 +125,11 @@ def describe_video(description, set_progress, set_partial, console):
 def get_video_duration(file_path: str) -> float:
     """Get video duration in seconds."""
     try:
+        from wama.common.utils.ffmpeg_utils import get_ffprobe_exe, adapt_path_for_ffmpeg
+        _fp = get_ffprobe_exe()
         result = subprocess.run(
-            ['ffprobe', '-v', 'error', '-show_entries', 'format=duration',
-             '-of', 'default=noprint_wrappers=1:nokey=1', file_path],
+            [_fp, '-v', 'error', '-show_entries', 'format=duration',
+             '-of', 'default=noprint_wrappers=1:nokey=1', adapt_path_for_ffmpeg(file_path, _fp)],
             capture_output=True, text=True, timeout=30
         )
         if result.returncode == 0:
@@ -147,12 +149,14 @@ def extract_frames(file_path: str, interval: int, max_frames: int) -> list:
         # Use ffmpeg to extract frames
         output_pattern = os.path.join(temp_dir, "frame_%04d.jpg")
 
+        from wama.common.utils.ffmpeg_utils import get_ffmpeg_exe, adapt_path_for_ffmpeg
+        _ff = get_ffmpeg_exe()
         cmd = [
-            'ffmpeg', '-i', file_path,
+            _ff, '-i', adapt_path_for_ffmpeg(file_path, _ff),
             '-vf', f'fps=1/{interval}',
             '-frames:v', str(max_frames),
             '-q:v', '2',
-            output_pattern,
+            adapt_path_for_ffmpeg(output_pattern, _ff),
             '-y', '-hide_banner', '-loglevel', 'error'
         ]
 
@@ -222,9 +226,11 @@ def describe_frames(frames: list, set_progress, console, user_id: int) -> list:
 def has_audio(file_path: str) -> bool:
     """Check if video has audio track."""
     try:
+        from wama.common.utils.ffmpeg_utils import get_ffprobe_exe, adapt_path_for_ffmpeg
+        _fp = get_ffprobe_exe()
         result = subprocess.run(
-            ['ffprobe', '-v', 'error', '-select_streams', 'a',
-             '-show_entries', 'stream=codec_type', '-of', 'csv=p=0', file_path],
+            [_fp, '-v', 'error', '-select_streams', 'a',
+             '-show_entries', 'stream=codec_type', '-of', 'csv=p=0', adapt_path_for_ffmpeg(file_path, _fp)],
             capture_output=True, text=True, timeout=10
         )
         return 'audio' in result.stdout.lower()
@@ -245,11 +251,13 @@ def process_audio_track(
         # Extract audio to temp file
         temp_audio = tempfile.mktemp(suffix='.wav')
 
+        from wama.common.utils.ffmpeg_utils import get_ffmpeg_exe, adapt_path_for_ffmpeg
+        _ff = get_ffmpeg_exe()
         cmd = [
-            'ffmpeg', '-i', file_path,
+            _ff, '-i', adapt_path_for_ffmpeg(file_path, _ff),
             '-vn', '-acodec', 'pcm_s16le',
             '-ar', '16000', '-ac', '1',
-            temp_audio,
+            adapt_path_for_ffmpeg(temp_audio, _ff),
             '-y', '-hide_banner', '-loglevel', 'error'
         ]
 

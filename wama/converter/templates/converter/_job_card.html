@@ -3,7 +3,7 @@ Carte d'un ConversionJob — utilisée seule (batch-of-1) ou dans un groupe batc
 Le JS converter.js opère sur .job-card[data-job-id] (délégation sur #converterQueue),
 donc l'imbrication dans un groupe ne change rien à son fonctionnement.
 {% endcomment %}
-<div class="job-card" data-job-id="{{ job.id }}" data-status="{{ job.status }}">
+<div class="job-card" data-job-id="{{ job.id }}" data-id="{{ job.id }}" data-status="{{ job.status }}">
     <div class="d-flex align-items-center gap-2 flex-wrap">
 
         <!-- File icon -->

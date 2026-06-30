@@ -162,6 +162,8 @@ def generate_image_task(self, generation_id):
 
         # Load the model
         logger.info(f"[Imager] >>> Calling backend.load({generation.model})...")
+        import time as _time
+        _load_start = _time.time()
         if not backend.load(generation.model):
             error_msg = f"Failed to load model: {generation.model}"
             logger.error(error_msg)
@@ -172,6 +174,7 @@ def generate_image_task(self, generation_id):
             return {'error': error_msg}
 
         logger.info(f"[Imager] <<< backend.load() completed successfully")
+        _load_seconds = _time.time() - _load_start  # >2s ⇒ chargement à froid (seeding ETA)
         _console(user_id, f"[Imager] Model loaded on {backend.device}")
 
         generation.progress = 20
@@ -312,6 +315,17 @@ def generate_image_task(self, generation_id):
             return {'error': 'Generation was deleted during processing'}
 
         logger.info(f"Successfully generated {len(generated_paths)} image(s) for generation #{generation_id}")
+
+        # Seeding ETA : diffusion image → temps ∝ steps × nb images (clé par modèle) ;
+        # chargement séparé (singleton keep_loaded) enregistré seulement à froid (>2s).
+        try:
+            from wama.model_manager.services.eta_estimator import record_run
+            _steps = int(getattr(generation, 'steps', 0) or 0) * int(getattr(generation, 'num_images', 1) or 1)
+            record_run(f'imager:img:{generation.model}', size=max(_steps, 1), unit='step',
+                       process_seconds=gen_duration,
+                       load_seconds=(_load_seconds if _load_seconds and _load_seconds >= 2 else None))
+        except Exception:
+            pass
 
         return {
             'success': True,
@@ -827,6 +841,18 @@ def generate_video_task(self, generation_id):
             generation.save()
 
             cache.set(f"imager_progress_{generation_id}", 100, timeout=7200)
+
+            # Seeding ETA : génération vidéo → temps ∝ durée produite (clé par modèle) ;
+            # chargement séparé (model_load_time) enregistré seulement à froid (>2s).
+            try:
+                from wama.model_manager.services.eta_estimator import record_run
+                record_run(f'imager:vid:{generation.model}',
+                           size=float(getattr(generation, 'video_duration', 0) or 0),
+                           unit='video_sec',
+                           process_seconds=generation_time + export_time,
+                           load_seconds=(model_load_time if model_load_time and model_load_time >= 2 else None))
+            except Exception:
+                pass
 
             total_time = time.time() - task_start_time
             _console(user_id, f"[Imager Video] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")

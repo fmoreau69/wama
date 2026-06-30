@@ -320,7 +320,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const progressText = card.querySelector('.progress-text');
     if (progressText) progressText.textContent = `${progress}%`;
 
-    if (window.WamaEta) WamaEta.render(card.querySelector('.wama-eta'), WamaEta.update(id, { progress: progress, status: status }));
+    if (window.WamaEta) WamaEta.render(card.querySelector('.wama-eta'), WamaEta.update(id, { progress: progress, status: status, seedSeconds: data.estimated_seconds, modelLoaded: false }));
 
     // Status badge
     const statusBadge = card.querySelector('.status-badge');
@@ -496,6 +496,8 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!data.deleted) {
           throw new Error('Suppression impossible');
         }
+        // Élément issu d'un batch : total/affichage du batch changent → recharger
+        if (data.batch_changed) { if (window.WamaFM) WamaFM.deleted(); location.reload(); return; }
         const card = button.closest('.synthesis-card');
         if (card) {
           const id = card.dataset.id;
@@ -709,6 +711,7 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   function updateGlobalProgress() {
+    return; // Neutralisé : barre globale + ETA pilotées par la brique commune wama-global-progress.js.
     if (!config.globalProgressUrl) return;
 
     fetch(config.globalProgressUrl)

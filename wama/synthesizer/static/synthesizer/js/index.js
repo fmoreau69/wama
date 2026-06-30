@@ -349,6 +349,9 @@ document.addEventListener('DOMContentLoaded', function() {
             try {
                 const r = await fetch(URLS.delete + id + '/', { method: 'POST', headers: { 'X-CSRFToken': csrfToken } });
                 if (r.ok) {
+                    // Élément issu d'un batch : total/affichage du batch changent → recharger
+                    const data = await r.json().catch(() => ({}));
+                    if (data.batch_changed) { if (window.WamaFM) WamaFM.deleted(); location.reload(); return; }
                     const card = deleteBtn.closest('.synthesis-card');
                     if (card) card.remove();
                     if (window.WamaFM) WamaFM.deleted();  // fichier supprimé → refresh filemanager
@@ -457,7 +460,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     progressBar.classList.add('active');
                 }
                 if (progressText) progressText.textContent = data.progress + '%';
-                if (window.WamaEta) WamaEta.render(card.querySelector('.wama-eta'), WamaEta.update(card.dataset.id, { progress: data.progress, status: data.status }));
+                if (window.WamaEta) WamaEta.render(card.querySelector('.wama-eta'), WamaEta.update(card.dataset.id, { progress: data.progress, status: data.status, seedSeconds: data.estimated_seconds, modelLoaded: false }));
 
                 // Update card in-place on completion — no full page reload
                 // (a full reload interrupts audio preview and reloads the slow FileManager)
@@ -484,6 +487,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Auto-refresh global progress
     async function updateGlobalProgress() {
+        return; // Neutralisé : barre globale + ETA pilotées par la brique commune wama-global-progress.js.
         try {
             const response = await fetch(URLS.globalProgress);
             const data = await response.json();
@@ -572,6 +576,80 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+
+    // ── Card « Nouvelle synthèse » : accordéon + voix/vitesse inline synchronisés au volet droit ──
+    // Entrée progressive : le texte est l'entrée ; Entrée (ou saisie) déplie titre + voix + vitesse +
+    // aperçu + ajouter. Voix/vitesse inline = miroirs des contrôles canoniques du volet droit
+    // (#voice_preset / #speed) que le submit lit déjà → aucune modif du flux d'envoi.
+    (function initNewSynthAccordion() {
+        const textContent  = document.getElementById('textContent');
+        const body         = document.getElementById('newSynthBody');
+        const quickVoice   = document.getElementById('textVoiceQuick');
+        const quickSpeed   = document.getElementById('textSpeedQuick');
+        const quickSpeedVal = document.getElementById('textSpeedQuickVal');
+        const voicePreset  = document.getElementById('voice_preset');
+        const speed        = document.getElementById('speed');
+        if (!textContent || !body) return;
+
+        let expanded = false;
+        function expand() {
+            if (expanded) return;
+            expanded = true;
+            if (window.bootstrap && bootstrap.Collapse) {
+                bootstrap.Collapse.getOrCreateInstance(body, { toggle: false }).show();
+            } else {
+                body.classList.add('show');
+            }
+        }
+        function collapse() {
+            if (!expanded) return;
+            expanded = false;
+            if (window.bootstrap && bootstrap.Collapse) {
+                bootstrap.Collapse.getOrCreateInstance(body, { toggle: false }).hide();
+            } else {
+                body.classList.remove('show');
+            }
+        }
+        // Entrée (sans Maj) déplie ; Maj+Entrée = nouvelle ligne (défaut)
+        textContent.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                expand();
+                if (quickVoice) quickVoice.focus();
+            }
+        });
+        // Saisie déplie ; texte vidé → retour à l'état initial (champ texte seul)
+        textContent.addEventListener('input', () => { textContent.value.trim() ? expand() : collapse(); });
+
+        // Voix inline : cloner les options du volet droit (en retirant les id → pas de doublon)
+        function cloneVoiceOptions() {
+            if (!quickVoice || !voicePreset) return;
+            quickVoice.innerHTML = voicePreset.innerHTML;
+            quickVoice.querySelectorAll('[id]').forEach(el => el.removeAttribute('id'));
+            quickVoice.value = voicePreset.value;
+        }
+        if (quickVoice && voicePreset) {
+            cloneVoiceOptions();
+            quickVoice.addEventListener('change', () => {
+                voicePreset.value = quickVoice.value;
+                voicePreset.dispatchEvent(new Event('change', { bubbles: true }));
+            });
+            voicePreset.addEventListener('change', () => {
+                if (quickVoice.options.length !== voicePreset.options.length) cloneVoiceOptions();
+                else quickVoice.value = voicePreset.value;
+            });
+        }
+        // Vitesse inline ↔ volet droit
+        if (quickSpeed && speed) {
+            const setLabel = (v) => { if (quickSpeedVal) quickSpeedVal.textContent = parseFloat(v).toFixed(1); };
+            quickSpeed.value = speed.value; setLabel(speed.value);
+            quickSpeed.addEventListener('input', () => {
+                speed.value = quickSpeed.value; setLabel(quickSpeed.value);
+                speed.dispatchEvent(new Event('input', { bubbles: true }));
+            });
+            speed.addEventListener('input', () => { quickSpeed.value = speed.value; setLabel(speed.value); });
+        }
+    })();
 
     // Preview text button with streaming support
     const previewTextBtn = document.getElementById('previewTextBtn');

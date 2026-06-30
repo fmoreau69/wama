@@ -43,6 +43,25 @@ def _console(user_id: int, message: str, level: str = None) -> None:
         pass
 
 
+def enhancer_eta_key_size(enhancement) -> tuple[str, float, str]:
+    """(model_key, size, unit) pour le seeding ETA d'une Enhancement image/vidéo.
+    Image → mégapixels d'entrée ; vidéo → durée. Clé par modèle + facteur d'upscale.
+    Partagé entre `enhance_media` (record) et la vue progress (estimate)."""
+    mt = (getattr(enhancement, 'media_type', '') or '').lower()
+    model = getattr(enhancement, 'ai_model', '') or 'auto'
+    factor = getattr(enhancement, 'upscale_factor', '') or ''
+    if mt == 'video':
+        return f'enhancer:vid:{model}:x{factor}', float(getattr(enhancement, 'duration', 0) or 0), 'video_sec'
+    mp = (int(getattr(enhancement, 'width', 0) or 0) * int(getattr(enhancement, 'height', 0) or 0)) / 1e6
+    return f'enhancer:img:{model}:x{factor}', mp, 'megapixel'
+
+
+def audio_enhancer_eta_key_size(ae) -> tuple[str, float, str]:
+    """(model_key, size, unit) pour le seeding ETA d'une AudioEnhancement (durée audio)."""
+    engine = getattr(ae, 'engine', '') or 'auto'
+    return f'enhancer:audio:{engine}', float(getattr(ae, 'duration', 0) or 0), 'audio_sec'
+
+
 def _apply_enhancer_output_format(obj) -> None:
     """Convert the enhanced output to the user-chosen format (Phase 3).
 
@@ -128,6 +147,18 @@ def enhance_media(self, enhancement_id: int):
                 enhancement.save(update_fields=['status', 'progress', 'processing_time'])
                 cache.set(f"enhancer_progress_{enhancement_id}", 100, timeout=3600)
                 _console(user_id, f"Enhancement #{enhancement_id} completed ✓")
+                try:
+                    from wama.model_manager.services.eta_estimator import record_run
+                    _k, _s, _u = enhancer_eta_key_size(enhancement)
+                    record_run(_k, size=_s, unit=_u, process_seconds=processing_time, load_seconds=None)
+                except Exception:
+                    pass
+                try:
+                    from wama.common.utils.notifications import notify_job
+                    notify_job(getattr(enhancement, 'user', None), 'Enhancer',
+                               getattr(enhancement, 'name', '') or f"amélioration #{enhancement_id}", True)
+                except Exception:
+                    pass
             except Enhancement.DoesNotExist:
                 logger.warning(f"Enhancement {enhancement_id} was deleted during processing")
                 return {'ok': False, 'error': 'Enhancement was deleted'}
@@ -156,6 +187,12 @@ def enhance_media(self, enhancement_id: int):
             enhancement.save(update_fields=['status', 'progress', 'error_message'])
             cache.set(f"enhancer_progress_{enhancement_id}", 0, timeout=3600)
             _console(user_id, f"Enhancement #{enhancement_id} failed: {error_msg}")
+            try:
+                from wama.common.utils.notifications import notify_job
+                notify_job(getattr(enhancement, 'user', None), 'Enhancer',
+                           getattr(enhancement, 'name', '') or f"amélioration #{enhancement_id}", False, detail=error_msg)
+            except Exception:
+                pass
         except Enhancement.DoesNotExist:
             logger.warning(f"Enhancement {enhancement_id} was deleted during processing, cannot save error state")
 
@@ -238,9 +275,21 @@ def enhance_audio(self, audio_enhancement_id: int):
         ae.processing_time = processing_time
         ae.save(update_fields=['output_file', 'status', 'progress', 'processing_time'])
         cache.set(f"audio_enhancer_progress_{audio_enhancement_id}", 100, timeout=3600)
+        try:
+            from wama.model_manager.services.eta_estimator import record_run
+            _k, _s, _u = audio_enhancer_eta_key_size(ae)
+            record_run(_k, size=_s, unit=_u, process_seconds=processing_time, load_seconds=None)
+        except Exception:
+            pass
 
         _console(user_id, f"Audio enhancement #{audio_enhancement_id} terminé ✓ ({processing_time:.1f}s)")
         logger.info(f"WORKER: enhance_audio END (SUCCESS)  ID={audio_enhancement_id}")
+        try:
+            from wama.common.utils.notifications import notify_job
+            notify_job(getattr(ae, 'user', None), 'Enhancer (audio)',
+                       getattr(ae, 'name', '') or f"audio #{audio_enhancement_id}", True)
+        except Exception:
+            pass
         return {'ok': True}
 
     except Exception as e:
@@ -253,6 +302,12 @@ def enhance_audio(self, audio_enhancement_id: int):
             ae.save(update_fields=['status', 'error_message'])
             cache.set(f"audio_enhancer_progress_{audio_enhancement_id}", 0, timeout=3600)
             _console(user_id, f"Audio enhancement #{audio_enhancement_id} échoué: {error_msg}")
+            try:
+                from wama.common.utils.notifications import notify_job
+                notify_job(getattr(ae, 'user', None), 'Enhancer (audio)',
+                           getattr(ae, 'name', '') or f"audio #{audio_enhancement_id}", False, detail=error_msg)
+            except Exception:
+                pass
         except AudioEnhancement.DoesNotExist:
             pass
         return {'ok': False, 'error': error_msg}
@@ -450,12 +505,14 @@ def _enhance_video(enhancement: Enhancement, user_id: int) -> dict:
 
         frame_pattern = os.path.join(frames_dir, 'frame_%05d.png')
         logger.info(f"Extracting frames from {input_path} to {frame_pattern}")
+        from wama.common.utils.ffmpeg_utils import get_ffmpeg_exe, adapt_path_for_ffmpeg
+        _ff = get_ffmpeg_exe()
         extract_result = subprocess.run([
-            'ffmpeg',
+            _ff,
             '-y',  # Overwrite output files without asking
-            '-i', input_path,
+            '-i', adapt_path_for_ffmpeg(input_path, _ff),
             '-qscale:v', '1',
-            frame_pattern
+            adapt_path_for_ffmpeg(frame_pattern, _ff)
         ], capture_output=True, text=True)
 
         if extract_result.returncode != 0:
@@ -515,29 +572,33 @@ def _enhance_video(enhancement: Enhancement, user_id: int) -> dict:
         enhanced_pattern = os.path.join(enhanced_dir, 'frame_%05d.png')
 
         # Get original video FPS
+        from wama.common.utils.ffmpeg_utils import get_ffprobe_exe, adapt_path_for_ffmpeg
+        _fp = get_ffprobe_exe()
         probe_result = subprocess.run([
-            'ffprobe',
+            _fp,
             '-v', 'error',
             '-select_streams', 'v:0',
             '-show_entries', 'stream=r_frame_rate',
             '-of', 'default=noprint_wrappers=1:nokey=1',
-            input_path
+            adapt_path_for_ffmpeg(input_path, _fp)
         ], capture_output=True, text=True)
 
         fps = eval(probe_result.stdout.strip()) if probe_result.stdout.strip() else 30
 
         # Encode video
         logger.info(f"Running ffmpeg to encode video to: {output_path}")
+        from wama.common.utils.ffmpeg_utils import get_ffmpeg_exe
+        _ffe = get_ffmpeg_exe()
         encode_result = subprocess.run([
-            'ffmpeg',
+            _ffe,
             '-y',  # Overwrite output file without asking
             '-framerate', str(fps),
-            '-i', enhanced_pattern,
+            '-i', adapt_path_for_ffmpeg(enhanced_pattern, _ffe),
             '-c:v', 'libx264',
             '-preset', 'medium',
             '-crf', '18',
             '-pix_fmt', 'yuv420p',
-            output_path
+            adapt_path_for_ffmpeg(output_path, _ffe)
         ], capture_output=True, text=True)
 
         if encode_result.returncode != 0:

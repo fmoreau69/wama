@@ -42,6 +42,9 @@ def compose_task(self, generation_id: int):
     user_id = gen.user_id
     _console(user_id, f"[Composer] Démarrage : {gen.model} — {gen.prompt[:60]}…")
 
+    import time as _time
+    _t0 = _time.time()  # chrono pour le seeding ETA
+
     gen.status = 'RUNNING'
     gen.task_id = self.request.id
     gen.progress = 0
@@ -106,6 +109,21 @@ def compose_task(self, generation_id: int):
 
         _console(user_id, f"[Composer] ✓ Terminé : {output_filename}", level='info')
 
+        # Seeding ETA : génération audio → temps ∝ durée produite (clé par modèle)
+        try:
+            from wama.model_manager.services.eta_estimator import record_run
+            record_run(f'composer:{gen.model}', size=float(gen.duration or 0),
+                       unit='audio_sec', process_seconds=_time.time() - _t0, load_seconds=None)
+        except Exception:
+            pass
+
+        try:
+            from wama.common.utils.notifications import notify_job
+            notify_job(getattr(gen, 'user', None), 'Composer',
+                       getattr(gen, 'name', '') or output_filename, True)
+        except Exception:
+            pass
+
     except Exception as exc:
         logger.exception(f"[Composer] Erreur generation {generation_id}: {exc}")
         _set_progress(generation_id, 0)
@@ -117,3 +135,9 @@ def compose_task(self, generation_id: int):
         except Exception:
             pass
         _console(user_id, f"[Composer] ✗ Erreur : {exc}", level='error')
+        try:
+            from wama.common.utils.notifications import notify_job
+            notify_job(getattr(gen, 'user', None), 'Composer',
+                       getattr(gen, 'name', '') or f"composition #{getattr(gen, 'id', '')}", False, detail=str(exc))
+        except Exception:
+            pass

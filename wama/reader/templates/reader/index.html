@@ -45,50 +45,7 @@
 {# ── Right panel : paramètres ────────────────────────────────────────────── #}
 {% block app_right_panel_settings %}
 
-<!-- Moteur OCR -->
-<div class="mb-2">
-    <label class="form-label small fw-bold text-light mb-1">
-        <i class="fas fa-microchip"></i> Moteur OCR
-    </label>
-    <select id="backendSelect" class="form-select form-select-sm">
-        {% for val, label in backend_choices %}
-        <option value="{{ val }}">{{ label }}</option>
-        {% endfor %}
-    </select>
-</div>
-
-<!-- Mode -->
-<div class="mb-2">
-    <label class="form-label small fw-bold text-light mb-1">
-        <i class="fas fa-pen-nib"></i> Mode
-    </label>
-    <select id="modeSelect" class="form-select form-select-sm">
-        {% for val, label in mode_choices %}
-        <option value="{{ val }}">{{ label }}</option>
-        {% endfor %}
-    </select>
-</div>
-
-<!-- Langue (optionnel) -->
-<div class="mb-2">
-    <label class="form-label small fw-bold text-light mb-1">
-        <i class="fas fa-language"></i> Langue
-        <span class="text-muted small">(optionnel)</span>
-    </label>
-    <input type="text" id="languageInput" class="form-control form-control-sm"
-           placeholder="fr, en… (auto)" maxlength="16">
-</div>
-
-<hr class="border-secondary my-2">
-
-<!-- Info box -->
-<div class="alert alert-secondary py-2 small mb-0" role="alert">
-    <i class="fas fa-info-circle"></i>
-    <small>
-        <strong>olmOCR-2</strong> : manuscrit + tableaux (~14 Go VRAM)<br>
-        <strong>docTR</strong> : imprimé, CPU-friendly
-    </small>
-</div>
+<div id="readerPanelParams"></div>{# WamaParams context=panel (reader/params.py) ; ids legacy ; info box olmOCR retirée #}
 
 <hr class="border-secondary my-2">
 <button class="btn btn-outline-secondary btn-sm w-100" id="resetOptions">
@@ -132,36 +89,7 @@
                 </div>
                 <input type="hidden" id="batchSettingsBatchId">
 
-                <div class="mb-3">
-                    <label for="batchSettingsBackend" class="form-label">
-                        <i class="fas fa-microchip"></i> Moteur OCR
-                    </label>
-                    <select class="form-select bg-dark text-light border-secondary" id="batchSettingsBackend">
-                        {% for val, label in backend_choices %}
-                        <option value="{{ val }}">{{ label }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-
-                <div class="mb-3">
-                    <label for="batchSettingsMode" class="form-label">
-                        <i class="fas fa-pen-nib"></i> Mode
-                    </label>
-                    <select class="form-select bg-dark text-light border-secondary" id="batchSettingsMode">
-                        {% for val, label in mode_choices %}
-                        <option value="{{ val }}">{{ label }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-
-                <div class="mb-3">
-                    <label for="batchSettingsLanguage" class="form-label">
-                        <i class="fas fa-language"></i> Langue
-                        <span class="text-muted small">(optionnel)</span>
-                    </label>
-                    <input type="text" class="form-control bg-dark text-light border-secondary"
-                           id="batchSettingsLanguage" placeholder="fr, en… (auto)" maxlength="16">
-                </div>
+                    <div id="readerBatchParams"></div>{# WamaParams context=batch #}
             </div>
             <div class="modal-footer border-secondary">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
@@ -211,8 +139,34 @@ window.READER_APP = Object.assign({}, window.READER_APP || {}, {
 </script>
 <script src="{% static 'common/js/batch-import.js' %}"></script>
 <script src="{% static 'common/js/wama-eta.js' %}"></script>
+<link rel="stylesheet" href="{% static 'common/css/wama-inspector.css' %}">
 <script src="{% static 'common/js/wama-app-base.js' %}"></script>
+<script src="{% static 'common/js/wama-inspector.js' %}"></script>
+<link rel="stylesheet" href="{% static 'common/css/wama-params.css' %}">
+<script src="{% static 'common/js/wama-params.js' %}"></script>
+<script>
+window.WAMA_READER_SCHEMA = {{ params_json|safe }};  // exposé pour la modale ITEM construite en JS (reader.js)
+(function () {
+  if (!window.WamaParams) return;
+  var schema = window.WAMA_READER_SCHEMA;
+  var ph = document.getElementById('readerPanelParams');
+  if (ph) WamaParams.render(ph, schema, { context: 'panel', values: {} });
+  var bh = document.getElementById('readerBatchParams');
+  if (bh) WamaParams.render(bh, schema, { context: 'batch', values: {} });
+})();
+</script>
 <script src="{% static 'reader/js/reader.js' %}"></script>
+<!-- Barre globale commune (balayage permanent + ETA agrégée) : URL puis script auto-démarré. -->
+<script>window.WAMA_GLOBAL_PROGRESS_URL = "{% url 'reader:global_progress' %}";</script>
+<script src="{% static 'common/js/wama-global-progress.js' %}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    if (window.WamaInspector) {
+        var q = document.getElementById('queueContainer');
+        if (q) WamaInspector.init({ queueContainer: q, cardSelector: '.reader-card' });
+    }
+});
+</script>
 <script>
 window._batchImport = WamaBatchImport({
     batchPreviewUrl: window.READER_APP.urls.batchPreview,
@@ -237,16 +191,8 @@ window._batchImport = WamaBatchImport({
 <div class="container-fluid py-2" style="overflow-x: hidden;">
 
     <!-- Global progress bar -->
-    <div id="globalStatus" style="opacity:0; pointer-events:none;">
-        <div class="d-flex justify-content-between align-items-baseline mb-1">
-            <small class="text-muted"><span id="globalProgressStats"></span><span class="wama-eta ms-2" id="globalEta"></span></small>
-            <small class="text-muted" id="globalProgressPct" style="font-variant-numeric: tabular-nums;"></small>
-        </div>
-        <div class="wama-progress-track">
-            <div class="wama-progress-fill active" id="globalProgressBar" style="width:0%"></div>
-        </div>
-        <div style="height:12px;"></div>
-    </div>
+    {# Barre globale + ETA agrégée — brique commune (balayage bleu/vert permanent, toujours visible). #}
+    {% include 'common/_global_progress.html' %}
 
     <!-- Queue -->
     <div id="queueContainer">

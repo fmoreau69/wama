@@ -83,6 +83,12 @@ class SpeechToTextBackend(ABC):
     min_vram_gb: float = 0
     recommended_vram_gb: float = 0
 
+    # Durée audio MAX (secondes) que le moteur traite d'un seul tenant. None = illimité
+    # (ex. Whisper, fenêtré). Si un audio dépasse, la couche d'orchestration (workers) le
+    # DÉCOUPE automatiquement en morceaux ≤ cette limite et recolle les timestamps. Sert
+    # notamment aux moteurs génératifs (VibeVoice ≈ 60 min de budget tokens).
+    max_audio_seconds: Optional[float] = None
+
     def __init__(self):
         self._loaded = False
         self._current_model = None

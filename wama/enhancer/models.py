@@ -210,7 +210,10 @@ class UserSettings(models.Model):
         return f"Settings for {self.user.username}"
 
 
-class BatchEnhancement(models.Model):
+from wama.common.models import BatchMixin
+
+
+class BatchEnhancement(BatchMixin, models.Model):
     """Groupe d'améliorations créé depuis un fichier batch."""
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='batch_enhancements')
     created_at = models.DateTimeField(auto_now_add=True)
@@ -242,7 +245,7 @@ class BatchEnhancementItem(models.Model):
         ordering = ['row_index']
 
 
-class BatchAudioEnhancement(models.Model):
+class BatchAudioEnhancement(BatchMixin, models.Model):
     """Groupe d'améliorations audio créé depuis un fichier batch ou upload multiple."""
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='batch_audio_enhancements')
     created_at = models.DateTimeField(auto_now_add=True)

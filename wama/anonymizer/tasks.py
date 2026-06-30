@@ -399,6 +399,11 @@ def process_single_media(self, media_id, force_individual=False):
             media.save(update_fields=["processed"])
             set_media_progress(media.id, 100)
             _console(user.id, f"Finished media {media.id} ✔")
+            try:
+                from wama.common.utils.notifications import notify_job
+                notify_job(user, 'Anonymizer', os.path.basename(getattr(media.file, 'name', '') or '') or f"média #{media.id}", True)
+            except Exception:
+                pass
         except media.__class__.DoesNotExist:
             _console(user.id, f"Warning: Media {media.id} was deleted during processing")
             return {"error": "Media was deleted", "media_id": media_id}
@@ -418,6 +423,11 @@ def process_single_media(self, media_id, force_individual=False):
         # Release dedup locks on error
         cache.delete(f"anon_lock:media:{media_id}")
         cache.delete(f"anon_task_owner:media:{media_id}")
+        try:
+            from wama.common.utils.notifications import notify_job
+            notify_job(user, 'Anonymizer', f"média #{media_id}", False, detail=str(e))
+        except Exception:
+            pass
         return {"error": str(e), "media_id": media_id}
 
 

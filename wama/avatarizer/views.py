@@ -174,9 +174,23 @@ def progress(request, pk):
 
     avatar_name = job.avatar_gallery_name if job.avatar_source == 'gallery' else 'Photo importée'
 
+    estimated_seconds = 0.0
+    if job.status in ('PENDING', 'RUNNING'):
+        try:
+            from wama.model_manager.services.eta_estimator import estimate
+            # durée connue (run précédent) sinon ~ texte/15 (≈ débit parole) en mode pipeline
+            _size = float(job.duration_seconds or 0)
+            if not _size and job.mode == 'pipeline' and job.text_content:
+                _size = len(job.text_content) / 15.0
+            estimated_seconds = estimate(f'avatarizer:{job.quality_mode}',
+                                         size=_size, unit='video_sec', model_loaded=True)
+        except Exception:
+            pass
+
     return JsonResponse({
         'progress': prog,
         'status': job.status,
+        'estimated_seconds': estimated_seconds,
         'video_url': video_url,
         'error': job.error_message,
         'mode': job.mode,
@@ -271,6 +285,11 @@ def delete(request, pk):
     user = _get_user(request)
     job = get_object_or_404(AvatarJob, pk=pk, user=user)
 
+    # Le membre était-il dans un batch ? (flag UI ; total/cleanup = signal batch_sync)
+    from .models import BatchAvatarJobItem
+    from wama.common.utils.batch_utils import find_member_batch
+    parent_batch = find_member_batch(BatchAvatarJobItem, job=job)
+
     for field_name in ['audio_input', 'avatar_upload', 'output_video']:
         f = getattr(job, field_name)
         if f:
@@ -281,8 +300,8 @@ def delete(request, pk):
             except Exception:
                 pass
 
-    job.delete()
-    return JsonResponse({'status': 'deleted'})
+    job.delete()  # signal batch_sync : recale total / supprime le batch vidé
+    return JsonResponse({'status': 'deleted', 'batch_changed': parent_batch is not None})
 
 
 @require_POST

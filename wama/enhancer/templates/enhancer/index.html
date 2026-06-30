@@ -278,16 +278,8 @@
      ===================================================================== -->
 <div class="tab-pane fade show active" id="imgvideoTab" role="tabpanel" aria-labelledby="imgvideo-tab">
 
-<div id="globalStatus" style="opacity:0; pointer-events:none;">
-    <div class="d-flex justify-content-between align-items-baseline mb-1">
-        <small class="text-muted"><span id="globalProgressStats"></span><span class="wama-eta ms-2" id="globalEta"></span></small>
-        <small class="text-muted" id="globalProgressPct" style="font-variant-numeric: tabular-nums;"></small>
-    </div>
-    <div class="wama-progress-track">
-        <div class="wama-progress-fill active" id="globalProgressBar" style="width:0%"></div>
-    </div>
-    <div style="height:12px;"></div>
-</div>
+{# Barre globale + ETA agrégée — brique commune (balayage bleu/vert permanent, toujours visible). #}
+{% include 'common/_global_progress.html' %}
 
 <div class="row">
     <div class="col-12">
@@ -828,6 +820,9 @@
 <script src="{% static 'common/js/batch-import.js' %}"></script>
 <script src="{% static 'common/js/wama-app-base.js' %}"></script>
 <script src="{% static 'enhancer/js/index.js' %}"></script>
+<!-- Barre globale commune (balayage permanent + ETA agrégée) : URL puis script auto-démarré. -->
+<script>window.WAMA_GLOBAL_PROGRESS_URL = "{% url 'enhancer:global_progress' %}";</script>
+<script src="{% static 'common/js/wama-global-progress.js' %}"></script>
 <script src="{% static 'enhancer/js/audio-enhancer.js' %}"></script>
 <script>
 window._batchImport = WamaBatchImport({

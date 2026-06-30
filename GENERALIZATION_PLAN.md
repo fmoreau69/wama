@@ -54,4 +54,4 @@ Légende : ✅ large · 🔄 en cours · ⚠️ extrait mais peu adopté · ❌ 
 ## Principe unificateur
 Tout converge vers **I (capacités d'app)** : une fois les capacités déclarées, l'UI (A/B/C), les tests
 (H), l'inspecteur (C) et la sélection de modèle (F) se **génèrent** depuis les métadonnées — même logique
-que l'inspecteur passé de HTML-par-app à schéma `WamaAutofill`.
+que l'inspecteur passé de HTML-par-app à schéma `WamaDetails`.

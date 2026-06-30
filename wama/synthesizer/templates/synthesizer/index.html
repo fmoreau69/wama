@@ -240,60 +240,69 @@
 {% block synthesizer_content %}
 <div style="overflow-x:hidden;">
 
-<!-- Temps réel : preview / saisie directe — EN TÊTE (comme Transcriber). Tester les
-     paramètres avant d'ajouter à la file ou de lancer un batch. IDs inchangés → JS OK. -->
-<div class="card bg-dark border-secondary mb-3">
+<!-- Card « Nouvelle synthèse » — ACCORDÉON (entrée progressive). Replié : le texte = l'entrée
+     principale. Entrée (ou saisie) déplie : titre + voix + vitesse + aperçu + ajouter. Modèle /
+     langue / multi-locuteur restent dans le volet droit. IDs préservés → JS preview/submit OK.
+     #textVoiceQuick et #textSpeedQuick sont peuplés/synchronisés depuis le volet droit par JS. -->
+<div class="card bg-dark border-secondary mb-3" id="newSynthCard">
     <div class="card-body py-2">
-        <h6 class="text-light mb-2">
-            <i class="fas fa-play-circle text-info"></i> Aperçu rapide (preview)
-        </h6>
-        <small class="text-muted d-block mb-2">
-            <i class="fas fa-info-circle"></i> Les paramètres du volet de droite
-            (modèle, voix, langue, vitesse, pitch, format…) sont ceux appliqués à l'aperçu.
-        </small>
         <form id="textInputForm">
             {% csrf_token %}
-            <input type="text" class="form-control form-control-sm mb-2" id="textTitle" name="title"
-                   placeholder="Titre (optionnel)">
-            <textarea class="form-control form-control-sm mb-2" id="textContent" name="text_content" rows="3"
-                      placeholder="Texte à synthétiser…"></textarea>
-            <div class="d-flex gap-1">
-                <button type="button" class="btn btn-info btn-sm flex-fill" id="previewTextBtn">
-                    <i class="fas fa-play-circle"></i> Preview
-                </button>
-                <button type="submit" class="btn btn-success btn-sm flex-fill" id="submitTextBtn">
-                    <i class="fas fa-plus-circle"></i> Ajouter à la file
-                </button>
-            </div>
-            <div id="previewAudioContainer" class="mt-2" style="display:none;">
-                <audio id="previewAudioPlayer" controls class="w-100 mt-1">
-                    <source src="" type="audio/wav">
-                </audio>
-            </div>
-            <div id="previewLoader" class="mt-2" style="display:none;">
-                <div class="text-center">
-                    <div class="spinner-border spinner-border-sm text-info" role="status"></div>
-                    <small class="text-muted ms-1">Génération…</small>
+            <!-- En-tête toujours visible : le texte EST l'entrée -->
+            <textarea class="form-control form-control-sm" id="textContent" name="text_content" rows="2"
+                      placeholder="✍️ Écrivez le texte à synthétiser — Entrée pour déplier, Maj+Entrée = nouvelle ligne"></textarea>
+
+            <!-- Corps déplié (accordéon) -->
+            <div class="collapse mt-2" id="newSynthBody">
+                <input type="text" class="form-control form-control-sm mb-2" id="textTitle" name="title"
+                       placeholder="Titre (optionnel)">
+                <div class="row g-2 mb-1">
+                    <div class="col-7">
+                        <label for="textVoiceQuick" class="form-label small text-light mb-1">
+                            <i class="fas fa-microphone"></i> Voix
+                        </label>
+                        <select class="form-select form-select-sm bg-dark text-white border-secondary" id="textVoiceQuick"></select>
+                    </div>
+                    <div class="col-5">
+                        <label for="textSpeedQuick" class="form-label small text-light mb-1">
+                            <i class="fas fa-tachometer-alt"></i> Vitesse <span id="textSpeedQuickVal">1.0</span>x
+                        </label>
+                        <input type="range" class="form-range" id="textSpeedQuick" min="0.5" max="2.0" step="0.1" value="1.0">
+                    </div>
                 </div>
-                <div class="progress mt-1" style="height:6px;">
-                    <div id="previewProgress" class="progress-bar progress-bar-striped progress-bar-animated" style="width:0%"></div>
+                <small class="text-muted d-block mb-2">
+                    <i class="fas fa-info-circle"></i> Modèle, langue et options avancées dans le volet de droite.
+                </small>
+                <div class="d-flex gap-1">
+                    <button type="button" class="btn btn-info btn-sm flex-fill" id="previewTextBtn">
+                        <i class="fas fa-play-circle"></i> Aperçu
+                    </button>
+                    <button type="submit" class="btn btn-success btn-sm flex-fill" id="submitTextBtn">
+                        <i class="fas fa-plus-circle"></i> Ajouter à la file
+                    </button>
                 </div>
-                <small id="previewStatus" class="text-muted d-block text-center">Préparation…</small>
+                <div id="previewAudioContainer" class="mt-2" style="display:none;">
+                    <audio id="previewAudioPlayer" controls class="w-100 mt-1">
+                        <source src="" type="audio/wav">
+                    </audio>
+                </div>
+                <div id="previewLoader" class="mt-2" style="display:none;">
+                    <div class="text-center">
+                        <div class="spinner-border spinner-border-sm text-info" role="status"></div>
+                        <small class="text-muted ms-1">Génération…</small>
+                    </div>
+                    <div class="progress mt-1" style="height:6px;">
+                        <div id="previewProgress" class="progress-bar progress-bar-striped progress-bar-animated" style="width:0%"></div>
+                    </div>
+                    <small id="previewStatus" class="text-muted d-block text-center">Préparation…</small>
+                </div>
             </div>
         </form>
     </div>
 </div>
 
-<div id="globalStatus" style="opacity:0; pointer-events:none;">
-    <div class="d-flex justify-content-between align-items-baseline mb-1">
-        <small class="text-muted"><span id="globalProgressStats"></span><span class="wama-eta ms-2" id="globalEta"></span></small>
-        <small class="text-muted" id="globalProgressText" style="font-variant-numeric: tabular-nums;"></small>
-    </div>
-    <div class="wama-progress-track">
-        <div class="wama-progress-fill active" id="globalProgressBar" style="width:0%"></div>
-    </div>
-    <div style="height:12px;"></div>
-</div>
+{# Barre globale + ETA agrégée — brique commune (balayage bleu/vert permanent, toujours visible). #}
+{% include 'common/_global_progress.html' %}
 
 <!-- Syntheses Queue -->
 <div class="row">
@@ -763,9 +772,23 @@
         csrfToken: "{{ csrf_token }}"
     };
 </script>
+<link rel="stylesheet" href="{% static 'common/css/wama-inspector.css' %}">
 <script src="{% static 'common/js/wama-eta.js' %}"></script>
 <script src="{% static 'common/js/wama-model-caps.js' %}"></script>
+<script src="{% static 'common/js/wama-inspector.js' %}"></script>
 <script src="{% static 'synthesizer/js/index.js' %}"></script>
+<!-- Barre globale commune (balayage permanent + ETA agrégée) : URL puis script auto-démarré. -->
+<script>window.WAMA_GLOBAL_PROGRESS_URL = "{% url 'synthesizer:global_progress' %}";</script>
+<script src="{% static 'common/js/wama-global-progress.js' %}"></script>
+<script>
+// Sélection de card + navigation clavier (brique commune WamaInspector ; config minimale).
+document.addEventListener('DOMContentLoaded', function () {
+    if (window.WamaInspector) {
+        var q = document.getElementById('synthesisQueue');
+        if (q) WamaInspector.init({ queueContainer: q, cardSelector: '.synthesis-card' });
+    }
+});
+</script>
 <script>
 // Batch group actions: delete, settings modal
 document.addEventListener('DOMContentLoaded', function () {

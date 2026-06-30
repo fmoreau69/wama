@@ -67,9 +67,18 @@ class ComposerGeneration(models.Model):
 
     @property
     def estimated_seconds(self) -> int:
-        """Estimated generation time in seconds (warm GPU)."""
+        """Temps de génération estimé (s). Apprend des runs réels (ETA seeding) ;
+        l'heuristique statique sert de démarrage à froid (fallback) tant qu'aucun run
+        n'est enregistré pour ce modèle sur ce matériel."""
         from wama.composer.utils.model_config import estimate_seconds
-        return estimate_seconds(self.model, self.duration)
+        static = estimate_seconds(self.model, self.duration)
+        try:
+            from wama.model_manager.services.eta_estimator import estimate
+            return int(round(estimate(
+                f'composer:{self.model}', size=float(self.duration or 0),
+                unit='audio_sec', model_loaded=True, fallback_seconds=static)))
+        except Exception:
+            return static
 
     @property
     def estimated_display(self) -> str:
@@ -79,7 +88,10 @@ class ComposerGeneration(models.Model):
         return f"~{s // 60}min{s % 60:02d}s" if s % 60 else f"~{s // 60}min"
 
 
-class ComposerBatch(models.Model):
+from wama.common.models import BatchMixin
+
+
+class ComposerBatch(BatchMixin, models.Model):
     """Container grouping one or more ComposerGeneration jobs."""
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='composer_batches')

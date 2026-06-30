@@ -37,68 +37,7 @@
 
 {# ── Right panel : paramètres ────────────────────────────────────────────── #}
 {% block app_right_panel_settings %}
-<!-- Output Format -->
-<div class="mb-3">
-    <label for="output_format" class="form-label small fw-bold text-light">
-        <i class="fas fa-align-left"></i> Format de sortie
-    </label>
-    <select class="form-select form-select-sm bg-dark text-white border-secondary" id="output_format" name="output_format">
-        {% for value, label in output_format_choices %}
-        <option value="{{ value }}" {% if value == 'detailed' %}selected{% endif %}>{{ label }}</option>
-        {% endfor %}
-    </select>
-</div>
-
-<!-- Language -->
-<div class="mb-3">
-    <label for="output_language" class="form-label small fw-bold text-light">
-        <i class="fas fa-language"></i> Langue de sortie
-    </label>
-    <select class="form-select form-select-sm bg-dark text-white border-secondary" id="output_language" name="output_language">
-        {% for value, label in language_choices %}
-        <option value="{{ value }}" {% if value == 'fr' %}selected{% endif %}>{{ label }}</option>
-        {% endfor %}
-    </select>
-</div>
-
-<!-- Max Length -->
-<div class="mb-3">
-    <label for="max_length" class="form-label small fw-bold text-light">
-        <i class="fas fa-text-width"></i> Longueur max: <span id="max_length_value">500</span> mots
-    </label>
-    <input type="range" class="form-range" id="max_length" name="max_length" min="100" max="2000" step="50" value="500">
-</div>
-
-<!-- Summary -->
-<div class="mb-2">
-    <div class="form-check form-switch">
-        <input class="form-check-input" type="checkbox" id="globalGenerateSummary">
-        <label class="form-check-label small fw-bold text-light" for="globalGenerateSummary">
-            <i class="fas fa-file-lines"></i> Générer un résumé
-        </label>
-    </div>
-</div>
-
-<!-- Coherence -->
-<div class="mb-3">
-    <div class="form-check form-switch">
-        <input class="form-check-input" type="checkbox" id="globalVerifyCoherence">
-        <label class="form-check-label small fw-bold text-light" for="globalVerifyCoherence">
-            <i class="fas fa-spell-check"></i> Vérifier la cohérence
-        </label>
-    </div>
-</div>
-
-<!-- Info Box -->
-<div class="alert alert-info py-2 small" role="alert">
-    <i class="fas fa-info-circle"></i> <strong>Types supportes:</strong><br>
-    <small>
-        - Images: JPG, PNG, GIF, WebP<br>
-        - Videos: MP4, AVI, MOV, MKV<br>
-        - Audio: MP3, WAV, FLAC, OGG<br>
-        - Texte: PDF, DOCX, TXT, MD
-    </small>
-</div>
+<div id="describerPanelParams"></div>{# WamaParams context=panel (cf. describer/params.py) ; ids legacy préservés ; encart Types supportés retiré #}
 <!-- Reset Button -->
 <hr class="border-secondary my-2">
 <button class="btn btn-outline-secondary btn-sm w-100" id="resetOptions">
@@ -124,16 +63,8 @@
 <div style="overflow-x:hidden;">
 
 <!-- Global Progress Bar -->
-<div id="globalStatus" style="opacity:0; pointer-events:none;">
-    <div class="d-flex justify-content-between align-items-baseline mb-1">
-        <small class="text-muted"><span id="globalProgressStats"></span><span class="wama-eta ms-2" id="globalEta"></span></small>
-        <small class="text-muted" id="globalProgressPct" style="font-variant-numeric: tabular-nums;"></small>
-    </div>
-    <div class="wama-progress-track">
-        <div class="wama-progress-fill active" id="globalProgressBar" style="width:0%"></div>
-    </div>
-    <div style="height:12px;"></div>
-</div>
+{# Barre globale + ETA agrégée — brique commune (balayage bleu/vert permanent, toujours visible). #}
+{% include 'common/_global_progress.html' %}
 
 <!-- Descriptions Queue -->
 <div class="row">
@@ -524,60 +455,7 @@
                 <form id="settingsForm">
                     <input type="hidden" id="settingsDescriptionId" name="description_id">
 
-                    <!-- Output Format -->
-                    <div class="mb-3">
-                        <label for="settingsOutputFormat" class="form-label">
-                            <i class="fas fa-align-left"></i> Format de sortie
-                        </label>
-                        <select class="form-select" id="settingsOutputFormat" name="output_format">
-                            {% for value, label in output_format_choices %}
-                            <option value="{{ value }}">{{ label }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-
-                    <!-- Language -->
-                    <div class="mb-3">
-                        <label for="settingsOutputLanguage" class="form-label">
-                            <i class="fas fa-language"></i> Langue de sortie
-                        </label>
-                        <select class="form-select" id="settingsOutputLanguage" name="output_language">
-                            {% for value, label in language_choices %}
-                            <option value="{{ value }}">{{ label }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-
-                    <!-- Max Length -->
-                    <div class="mb-3">
-                        <label for="settingsMaxLength" class="form-label">
-                            <i class="fas fa-text-width"></i> Longueur max: <span id="settingsMaxLengthValue">500</span> mots
-                        </label>
-                        <input type="range" class="form-range" id="settingsMaxLength" name="max_length"
-                               min="100" max="2000" step="50" value="500">
-                    </div>
-
-                    <!-- Summary -->
-                    <div class="mb-2">
-                        <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" id="settingsGenerateSummary" name="generate_summary">
-                            <label class="form-check-label" for="settingsGenerateSummary">
-                                <i class="fas fa-file-lines"></i> Générer un résumé LLM
-                            </label>
-                        </div>
-                        <small class="text-muted ms-4">Non applicable si format = Compte-rendu de réunion</small>
-                    </div>
-
-                    <!-- Coherence verification -->
-                    <div class="mb-3">
-                        <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" id="settingsVerifyCoherence" name="verify_coherence">
-                            <label class="form-check-label" for="settingsVerifyCoherence">
-                                <i class="fas fa-spell-check"></i> Vérifier la cohérence
-                            </label>
-                        </div>
-                        <small class="text-muted ms-4">Score + correction proposée côte à côte</small>
-                    </div>
+                    <div id="describerModalParams"></div>{# WamaParams context=item #}
                 </form>
             </div>
             <div class="modal-footer">
@@ -627,9 +505,34 @@
         csrfToken: "{{ csrf_token }}"
     };
 </script>
+<link rel="stylesheet" href="{% static 'common/css/wama-inspector.css' %}">
 <script src="{% static 'common/js/wama-eta.js' %}"></script>
 <script src="{% static 'common/js/batch-import.js' %}"></script>
+<script src="{% static 'common/js/wama-inspector.js' %}"></script>
+<link rel="stylesheet" href="{% static 'common/css/wama-params.css' %}">
+<script src="{% static 'common/js/wama-params.js' %}"></script>
+<script>
+(function () {
+  if (!window.WamaParams) return;
+  var schema = {{ params_json|safe }};
+  var ph = document.getElementById('describerPanelParams');
+  if (ph) WamaParams.render(ph, schema, { context: 'panel', values: {} });
+  var mh = document.getElementById('describerModalParams');
+  if (mh) WamaParams.render(mh, schema, { context: 'item', values: {} });
+})();
+</script>
 <script src="{% static 'describer/js/index.js' %}"></script>
+<!-- Barre globale commune (balayage permanent + ETA agrégée) : URL puis script auto-démarré. -->
+<script>window.WAMA_GLOBAL_PROGRESS_URL = "{% url 'describer:global_progress' %}";</script>
+<script src="{% static 'common/js/wama-global-progress.js' %}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    if (window.WamaInspector) {
+        var q = document.getElementById('descriptionQueue');
+        if (q) WamaInspector.init({ queueContainer: q, cardSelector: '.synthesis-card' });
+    }
+});
+</script>
 <script>
 window._batchImport = WamaBatchImport({
     batchPreviewUrl: window.DESCRIBER_CONFIG.urls.batchPreview,

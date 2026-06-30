@@ -13,10 +13,12 @@ def user_role(request):
     # Preferred language + UI mode (defaults for unauthenticated users)
     preferred_language = 'fr'
     ui_mode = 'advanced'
+    card_layout = 'list'
     if user.is_authenticated:
         try:
             preferred_language = user.profile.preferred_language
             ui_mode = user.profile.ui_mode
+            card_layout = user.profile.card_layout
         except Exception:
             pass
 
@@ -46,12 +48,26 @@ def user_role(request):
     except Exception:
         converter_output_formats_json = '{}'
 
+    # Accès par profil/rôles (axe A tier + axe B rôles métier) — exposé pour filtrer la nav.
+    # Non bloquant ici : c'est la nav/les vues qui décideront d'utiliser `accessible_apps`.
+    try:
+        from wama.accounts.permissions import user_tier, user_roles as _roles, accessible, all_gated_apps
+        account_tier = user_tier(user)
+        roles_set = sorted(_roles(user))
+        accessible_apps = {a for a in all_gated_apps() if accessible(user, a)}
+    except Exception:
+        account_tier, roles_set, accessible_apps = 'utilisateur', [], set()
+
     return {
         'is_admin': is_admin(user),
         'is_dev': is_dev(user),
         'user_role': get_user_role(user),
         'preferred_language': preferred_language,
         'ui_mode': ui_mode,
+        'card_layout': card_layout,
         'app_catalog_json': app_catalog_json,
         'converter_output_formats_json': converter_output_formats_json,
+        'account_tier': account_tier,
+        'user_roles_set': roles_set,
+        'accessible_apps': accessible_apps,
     }

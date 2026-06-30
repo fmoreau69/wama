@@ -46,10 +46,12 @@ def get_video_codec(file_path: str, *, timeout: int = 10) -> Optional[str]:
     stream.
     """
     try:
+        from wama.common.utils.ffmpeg_utils import get_ffprobe_exe, adapt_path_for_ffmpeg
+        _fp = get_ffprobe_exe()
         result = subprocess.run(
-            ['ffprobe', '-v', 'error', '-select_streams', 'v:0',
+            [_fp, '-v', 'error', '-select_streams', 'v:0',
              '-show_entries', 'stream=codec_name',
-             '-of', 'csv=p=0', file_path],
+             '-of', 'csv=p=0', adapt_path_for_ffmpeg(file_path, _fp)],
             capture_output=True, text=True, timeout=timeout,
         )
     except FileNotFoundError:
@@ -104,12 +106,14 @@ def ensure_h264(file_path: str, *, timeout: int = 1800) -> Union[bool, str]:
 
     tmp_path = target_path + '.h264.tmp.mp4'
     try:
+        from wama.common.utils.ffmpeg_utils import get_ffmpeg_exe, adapt_path_for_ffmpeg
+        _ff = get_ffmpeg_exe()
         proc = subprocess.run(
-            ['ffmpeg', '-i', file_path,
+            [_ff, '-i', adapt_path_for_ffmpeg(file_path, _ff),
              '-c:v', 'libx264', '-preset', 'fast', '-crf', '18',
              '-pix_fmt', 'yuv420p', '-c:a', 'copy',
              '-movflags', '+faststart',
-             tmp_path, '-y'],
+             adapt_path_for_ffmpeg(tmp_path, _ff), '-y'],
             capture_output=True, text=True, timeout=timeout,
         )
     except FileNotFoundError:

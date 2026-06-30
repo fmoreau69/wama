@@ -19,6 +19,9 @@ urlpatterns = [
     path('download/<int:pk>/', views.download, name='download'),
     path('delete/<int:pk>/', views.delete, name='delete'),
     path('duplicate/<int:pk>/', views.duplicate, name='duplicate'),
+    path('remove-from-batch/<int:pk>/', views.remove_from_batch, name='remove_from_batch'),
+    path('reorder/', views.reorder, name='reorder'),
+    path('move-to-batch/<int:pk>/', views.move_to_batch, name='move_to_batch'),
 
     # Éditeur de correction manuelle
     path('edit/<int:pk>/', views.edit, name='edit'),
@@ -27,12 +30,6 @@ urlpatterns = [
     path('edit/<int:pk>/suggest-speakers/', views.suggest_speakers, name='suggest_speakers'),
     path('edit/<int:pk>/peaks/', views.waveform_peaks, name='waveform_peaks'),
     path('realtime/save/', views.save_realtime, name='save_realtime'),
-
-    # Staging (« à valider ») — DRAFT → file d'attente
-    path('stage/<int:pk>/commit/', views.stage_commit, name='stage_commit'),
-    path('stage/commit_all/', views.stage_commit_all, name='stage_commit_all'),
-    path('stage/clear/', views.stage_clear, name='stage_clear'),
-    path('stage/update_all/', views.stage_update_all, name='stage_update_all'),
 
     # Opérations groupées
     path('start_all/', views.start_all, name='start_all'),

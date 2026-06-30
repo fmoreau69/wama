@@ -18,7 +18,7 @@
 
 3. **Métadonnée-driven.** L'UI s'**auto-génère à partir des descriptions/métadonnées des éléments**
    (app, modèle, item…), pas de HTML écrit à la main par app. Exemples : volet droit auto-rempli
-   (`WamaAutofill` + `to_dict()`/`APP_CATALOG`), descriptif moteur (`wama-model-help.js`), pipeline de
+   (`WamaDetails` + `to_dict()`/`APP_CATALOG`), descriptif moteur (`wama-model-help.js`), pipeline de
    prompts (`PROMPT_TARGETS`). **Soigner les métadonnées à la source** est ce qui « remplit » l'UI.
 
 4. **Spécificités déclarées, pas codées en dur partout.** L'homogénéité ne doit PAS écraser les
@@ -75,6 +75,7 @@ apply_patch(
 | 3 | `tts_service.py` | In-repo (vérification seulement) |
 | 4 | `start_wama_prod.sh` | In-repo (vérification seulement) |
 | 5 | `xformers/ops/seqpar.py` | torch 2.9.x — `GroupName` supprimé |
+| 6 | `vibevoice/.../modeling_vibevoice_asr.py` | lm_head : overflow int32 du GEMM CUDA sur audio long → `cudaErrorUnknown` (logits sur dernier token seulement) |
 
 ---
 

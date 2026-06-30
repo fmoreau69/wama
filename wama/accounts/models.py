@@ -7,6 +7,7 @@ from django.dispatch import receiver
 from django import forms
 
 from wama.common.tts.constants import LANGUAGE_CHOICES
+from wama.accounts.permissions import TIER_CHOICES
 
 
 class UserProfile(models.Model):
@@ -27,9 +28,84 @@ class UserProfile(models.Model):
         default='advanced',
         verbose_name="Mode d'interface",
     )
+    # Géométrie d'affichage des files (ligne = 1/rangée ; mosaïque = grille de cards hautes).
+    card_layout = models.CharField(
+        max_length=8,
+        choices=[('list', 'Ligne'), ('grid', 'Mosaïque')],
+        default='list',
+        verbose_name="Disposition des cards",
+    )
+    # Axe A — profil de compte (tier). Les rôles métier (axe B) = Django Groups 'role:*'.
+    account_tier = models.CharField(
+        max_length=16,
+        choices=TIER_CHOICES,
+        default='utilisateur',
+        db_index=True,
+        verbose_name='Profil de compte',
+    )
+    # Notifications email (fin/échec des traitements longs).
+    notify_email = models.BooleanField(default=True, verbose_name='Notifications par email')
+    notify_on = models.CharField(
+        max_length=12,
+        choices=[('both', 'Fin et échec'), ('completion', 'Fin seulement'),
+                 ('failure', 'Échec seulement'), ('none', 'Aucune')],
+        default='both',
+        verbose_name='Quand notifier',
+    )
+
+    # Rétention des médias (purge automatique). 0 = illimité ; bornée par WAMA_MAX_RETENTION_DAYS.
+    media_retention_days = models.PositiveIntegerField(
+        default=0,
+        verbose_name='Conservation des médias (jours)',
+        help_text="0 = illimité. Au-delà, les sorties sont purgées automatiquement.",
+    )
+
+    def effective_retention_days(self):
+        """Rétention effective = min(choix user, plafond admin) ; 0 = illimité des deux côtés."""
+        from django.conf import settings
+        cap = int(getattr(settings, 'WAMA_MAX_RETENTION_DAYS', 0) or 0)
+        user = int(self.media_retention_days or 0)
+        if user and cap:
+            return min(user, cap)
+        return user or cap
+
+    def wants_notification(self, success):
+        """L'utilisateur veut-il être notifié pour cet événement (succès/échec) ?"""
+        if not self.notify_email or self.notify_on == 'none':
+            return False
+        if success:
+            return self.notify_on in ('both', 'completion')
+        return self.notify_on in ('both', 'failure')
 
     def __str__(self):
         return f"Profile({self.user.username})"
+
+
+class AppAccessPolicy(models.Model):
+    """
+    Politique d'accès d'une app (mapping app→rôles éditable dans l'interface utilisateurs).
+    Source de vérité runtime de `permissions.accessible()` ; seedée depuis DEFAULT_APP_ACCESS.
+    """
+    app_id = models.CharField(max_length=64, unique=True, verbose_name='Application')
+    roles = models.ManyToManyField(
+        'auth.Group', blank=True, related_name='app_policies',
+        verbose_name='Rôles métier autorisés',
+        help_text="Vide = app commune (tout compte authentifié).",
+    )
+    public = models.BooleanField(default=False, verbose_name='Visible aux anonymes (démo)')
+    min_tier = models.CharField(
+        max_length=16, blank=True, default='', choices=TIER_CHOICES,
+        verbose_name='Tier minimal requis',
+        help_text="Vide = aucun minimum (ex. model_manager → développeur).",
+    )
+
+    class Meta:
+        verbose_name = "Politique d'accès app"
+        verbose_name_plural = "Politiques d'accès apps"
+        ordering = ['app_id']
+
+    def __str__(self):
+        return f"AppAccessPolicy({self.app_id})"
 
 
 @receiver(post_save, sender=User)

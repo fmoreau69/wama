@@ -408,12 +408,20 @@ document.addEventListener('DOMContentLoaded', function() {
         const generateSummary = btn.dataset.generateSummary === 'true';
         const verifyCoherence = btn.dataset.verifyCoherence === 'true';
 
-        // Populate modal fields
-        document.getElementById('settingsDescriptionId').value = id;
-        document.getElementById('settingsOutputFormat').value = outputFormat;
-        document.getElementById('settingsOutputLanguage').value = outputLanguage;
-        document.getElementById('settingsMaxLength').value = maxLength;
-        document.getElementById('settingsMaxLengthValue').textContent = maxLength;
+        // Populate modal fields — NULL-SAFE : les champs sont générés par WamaParams (context item).
+        // On dispatch input+change pour que WamaParams mette à jour son affichage (ex. valeur du slider).
+        // settingsMaxLengthValue (ancien span d'affichage) n'existe plus : WamaParams gère l'affichage.
+        const _set = function (elId, val) {
+            const el = document.getElementById(elId);
+            if (!el) return;
+            el.value = val;
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+            el.dispatchEvent(new Event('change', { bubbles: true }));
+        };
+        _set('settingsDescriptionId', id);
+        _set('settingsOutputFormat', outputFormat);
+        _set('settingsOutputLanguage', outputLanguage);
+        _set('settingsMaxLength', maxLength);
 
         const genSumEl = document.getElementById('settingsGenerateSummary');
         if (genSumEl) genSumEl.checked = generateSummary;
@@ -598,7 +606,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     return;
                 }
 
-                updateCardStatus(card, data.status, data.progress);
+                updateCardStatus(card, data.status, data.progress, data);
 
                 // Update partial result if available
                 if (data.partial_text) {
@@ -636,7 +644,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    function updateCardStatus(card, status, progress) {
+    function updateCardStatus(card, status, progress, data) {
         // Always show 100% when done
         if (status === 'SUCCESS') progress = 100;
 
@@ -666,10 +674,14 @@ document.addEventListener('DOMContentLoaded', function() {
             progressText.textContent = progress + '%';
         }
 
-        // ETA (moteur commun)
+        // ETA (moteur commun) — seed depuis l'estimateur serveur (service-based → modèle chargé)
         if (window.WamaEta) {
             WamaEta.render(card.querySelector('.wama-eta'),
-                           WamaEta.update(card.dataset.id, { progress: progress, status: status }));
+                           WamaEta.update(card.dataset.id, {
+                               progress: progress, status: status,
+                               seedSeconds: data && data.estimated_seconds,
+                               modelLoaded: false,
+                           }));
         }
 
         // Update card class and hide start button once running
@@ -752,6 +764,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
             if (data.deleted) {
                 stopPolling(id);
+                // Élément issu d'un batch : total/affichage du batch changent → recharger
+                if (data.batch_changed) { if (window.WamaFM) WamaFM.deleted(); location.reload(); return; }
                 const card = document.querySelector(`.synthesis-card[data-id="${id}"]`);
                 if (card) card.remove();
                 updateQueueCount();
@@ -971,6 +985,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // === Global Progress ===
 
     async function updateGlobalProgress() {
+        return; // Neutralisé : barre globale + ETA pilotées par la brique commune wama-global-progress.js.
         try {
             const response = await fetch(config.urls.globalProgress, {
                 headers: {

@@ -188,7 +188,10 @@ class TranscriptSegment(models.Model):
         return f"{index}\n{start} --> {end}\n{speaker_prefix}{self.text}\n\n"
 
 
-class BatchTranscript(models.Model):
+from wama.common.models import BatchMixin
+
+
+class BatchTranscript(BatchMixin, models.Model):
     """Groupe de transcriptions créé depuis un fichier batch."""
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='batch_transcripts')
     created_at = models.DateTimeField(auto_now_add=True)

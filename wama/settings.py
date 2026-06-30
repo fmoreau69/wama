@@ -265,6 +265,7 @@ INSTALLED_APPS = [
     'wama.composer',       # Music & SFX generation (AudioCraft)
     'wama.reader',         # OCR Document — imprimé + manuscrit
     'wama.converter',      # Format Converter (image / video / audio)
+    'wama.studio',         # Studio - méta-app (orchestration de pipelines)
     # WAMA Lab - Experimental/Research applications
     'wama_lab.face_analyzer',
     'wama_lab.cam_analyzer',
@@ -296,9 +297,26 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    # Permissions d'app (défense en profondeur) — après auth/messages (request.user requis).
+    'wama.accounts.middleware.AppAccessMiddleware',
 ]
 
 ROOT_URLCONF = 'wama.urls'
+
+# ── Email (notifications utilisateur) ──────────────────────────────────────
+# Pilotable par variables d'env (SMTP UGE en prod). En DEBUG sans SMTP → console.
+import os as _os
+EMAIL_HOST = _os.environ.get('WAMA_EMAIL_HOST', '')
+EMAIL_PORT = int(_os.environ.get('WAMA_EMAIL_PORT', '587'))
+EMAIL_HOST_USER = _os.environ.get('WAMA_EMAIL_USER', '')
+EMAIL_HOST_PASSWORD = _os.environ.get('WAMA_EMAIL_PASSWORD', '')
+EMAIL_USE_TLS = _os.environ.get('WAMA_EMAIL_USE_TLS', '1') == '1'
+DEFAULT_FROM_EMAIL = _os.environ.get('WAMA_EMAIL_FROM', 'WAMA <no-reply@univ-eiffel.fr>')
+if EMAIL_HOST:
+    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+else:
+    # Pas de SMTP configuré → console (dev) pour ne jamais bloquer.
+    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 
 # Templates
 TEMPLATES = [
@@ -400,6 +418,7 @@ if ENABLE_CELERY:
     # garde la page de gestion des modèles fiable sans intervention manuelle.
     # Intervalle paramétrable (secondes) — modifiable ici ou via la variable d'env.
     MODEL_SYNC_INTERVAL_SECONDS = int(os.environ.get('MODEL_SYNC_INTERVAL_SECONDS', 2 * 3600))
+    from celery.schedules import crontab
     CELERY_BEAT_SCHEDULE = {
         'model-manager-reconcile': {
             'task': 'model_manager.sync_models',
@@ -407,7 +426,17 @@ if ENABLE_CELERY:
             'kwargs': {'clean': False},
             'options': {'queue': 'default'},  # tâche CPU (scan disque), jamais sur la queue GPU
         },
+        # Rétention : purge quotidienne des médias expirés (no-op si aucun user n'a de rétention).
+        'purge-expired-media': {
+            'task': 'common.purge_expired_media',
+            'schedule': crontab(hour=4, minute=0),
+            'options': {'queue': 'default'},  # I/O disque, pas de GPU
+        },
     }
+
+    # Rétention médias : plafond global (0 = pas de plafond) + pré-avis email (jours avant purge).
+    WAMA_MAX_RETENTION_DAYS = int(os.environ.get('WAMA_MAX_RETENTION_DAYS', '0') or 0)
+    WAMA_RETENTION_NOTICE_DAYS = int(os.environ.get('WAMA_RETENTION_NOTICE_DAYS', '3') or 0)
 
     # Tests fonctionnels nocturnes : planifiés UNIQUEMENT si activés explicitement
     # (env NIGHTLY_TESTS_ENABLED=1). La charpente est en place ; on n'auto-planifie pas

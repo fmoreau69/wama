@@ -16,6 +16,11 @@ urlpatterns = [
     # Assets système
     path('api/system/',                   views.api_system_list,      name='api_system_list'),
 
+    # Bibliothèque de mots-clés de prompt (tronc commun + perso)
+    path('api/keywords/',                 views.api_prompt_keywords,       name='api_prompt_keywords'),
+    path('api/keywords/add/',             views.api_prompt_keyword_add,    name='api_prompt_keyword_add'),
+    path('api/keywords/<int:pk>/delete/', views.api_prompt_keyword_delete, name='api_prompt_keyword_delete'),
+
     # Providers — Phase 3
     path('api/providers/',                views.api_providers_list,   name='api_providers_list'),
     path('api/providers/keys/',           views.api_provider_keys,    name='api_provider_keys'),

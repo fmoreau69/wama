@@ -32,6 +32,17 @@ def _set_progress(item_id: int, pct: int, msg: str = ''):
     cache.set(f'reader_progress_{item_id}', {'pct': pct, 'msg': msg}, PROGRESS_CACHE_TTL)
 
 
+def _record_reader_eta(backend: str, page_count: int, process_seconds: float) -> None:
+    """Seeding ETA : enregistre la durée réelle (clé par backend, taille = nb de pages).
+    Service-based (chargement non séparé → amorti dans per_unit). Défensif."""
+    try:
+        from wama.model_manager.services.eta_estimator import record_run
+        record_run(f'reader:{backend}', size=max(int(page_count or 0), 1), unit='page',
+                   process_seconds=process_seconds, load_seconds=None)
+    except Exception:
+        pass
+
+
 def _console(user_id: int, message: str, level: str = None) -> None:
     try:
         if level is None:
@@ -223,6 +234,9 @@ def read_document_task(self, item_id: int):
     _console(user_id, f"[Reader] Démarrage : {item.filename}")
     _set_progress(item_id, 2, "Démarrage…")
 
+    import time as _time
+    _t0 = _time.time()  # chrono pour le seeding ETA
+
     try:
         item.status = 'RUNNING'
         item.result_text = ''
@@ -250,6 +264,7 @@ def read_document_task(self, item_id: int):
                 item.save(update_fields=['result_text', 'raw_result', 'used_backend', 'status', 'progress'])
                 _set_progress(item_id, 100, "Terminé")
                 _console(user_id, f"[Reader] ✓ {item.filename} — {len(direct_text)} caractères (PDF natif)")
+                _record_reader_eta('fitz_direct', item.page_count, _time.time() - _t0)
                 return
 
         # Select backend
@@ -299,6 +314,13 @@ def read_document_task(self, item_id: int):
 
         _set_progress(item_id, 100, "Terminé")
         _console(user_id, f"[Reader] ✓ {item.filename} — {len(result_text)} caractères extraits")
+        _record_reader_eta(backend, item.page_count, _time.time() - _t0)
+        try:
+            from wama.common.utils.notifications import notify_job
+            notify_job(getattr(item, 'user', None), 'Reader',
+                       getattr(item, 'filename', '') or f"document #{item_id}", True)
+        except Exception:
+            pass
 
     except Exception as exc:
         logger.error(f"[Reader] Erreur item {item_id}: {exc}", exc_info=True)
@@ -307,6 +329,12 @@ def read_document_task(self, item_id: int):
         item.save(update_fields=['status', 'error_message'])
         _set_progress(item_id, 0, f"Erreur : {exc}")
         _console(user_id, f"[Reader] ✗ {item.filename} — {exc}")
+        try:
+            from wama.common.utils.notifications import notify_job
+            notify_job(getattr(item, 'user', None), 'Reader',
+                       getattr(item, 'filename', '') or f"document #{item_id}", False, detail=str(exc))
+        except Exception:
+            pass
 
 
 @shared_task(bind=True, name='wama.reader.tasks.analyze_document_task')

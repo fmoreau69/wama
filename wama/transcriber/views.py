@@ -128,6 +128,61 @@ def _wrap_transcript_in_batch(transcript):
 
 
 @require_POST
+def remove_from_batch(request, pk: int):
+    """Sort un transcript de son batch → l'isole dans son propre batch-of-1.
+
+    Cas d'usage : isoler une card (ex. une duplication) sans tout réimporter.
+    Le signal `batch_sync` recale le total de l'ancien batch (et le supprime s'il se vide).
+    """
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    t = get_object_or_404(Transcript, pk=pk, user=user)
+    item = getattr(t, 'batch_item', None)              # reverse OneToOne (None si hors batch)
+    if item is None:
+        return JsonResponse({'unwrapped': False, 'reason': 'pas dans un batch'}, status=400)
+    if item.batch.total <= 1:
+        return JsonResponse({'unwrapped': False, 'reason': 'déjà isolé'})
+    item.delete()                                       # retire du batch (signal → recalc / suppression si vide)
+    _wrap_transcript_in_batch(t)                        # nouveau batch-of-1 isolé
+    return JsonResponse({'unwrapped': True})
+
+
+@require_POST
+def reorder(request):
+    """Réordonne les éléments d'un batch (futur drag SortableJS).
+
+    POST : batch_id + order = liste d'ids de transcripts (CSV) dans le nouvel ordre.
+    Met à jour `row_index` de chaque BatchTranscriptItem.
+    """
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    batch = get_object_or_404(BatchTranscript, pk=request.POST.get('batch_id'), user=user)
+    order = [int(x) for x in (request.POST.get('order') or '').split(',') if x.strip().isdigit()]
+    for idx, tid in enumerate(order):
+        BatchTranscriptItem.objects.filter(batch=batch, transcript_id=tid).update(row_index=idx)
+    return JsonResponse({'reordered': True, 'count': len(order)})
+
+
+@require_POST
+def move_to_batch(request, pk: int):
+    """Déplace un transcript DANS un batch cible (futur drag d'une card sur un batch).
+
+    POST : batch_id = batch destination. Retire de l'ancien batch (signal recale / supprime si vide),
+    puis ajoute en fin du batch cible.
+    """
+    from django.db.models import Max
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    t = get_object_or_404(Transcript, pk=pk, user=user)
+    target = get_object_or_404(BatchTranscript, pk=request.POST.get('batch_id'), user=user)
+    item = getattr(t, 'batch_item', None)
+    if item is not None and item.batch_id == target.id:
+        return JsonResponse({'moved': False, 'reason': 'déjà dans ce batch'})
+    if item is not None:
+        item.delete()
+    next_idx = (target.items.aggregate(m=Max('row_index'))['m'] or -1) + 1
+    BatchTranscriptItem.objects.create(batch=target, transcript=t, row_index=next_idx)
+    return JsonResponse({'moved': True})
+
+
+@require_POST
 def consolidate(request):
     """Regroupe plusieurs transcripts importés ensemble en UN seul batch-of-N.
 
@@ -188,7 +243,8 @@ def _auto_wrap_orphans(user):
     orphans = list(
         Transcript.objects.filter(user=user)
         .exclude(id__in=existing_ids)
-        .exclude(status='DRAFT')  # les éléments en staging ne sont pas mis en file
+        # Staging supprimé (2026-06-29) : les DRAFT sont rendus dans la file comme cards BROUILLON
+        # (config via inspecteur, lancement via Lancer) — plus de zone « à valider » séparée.
         .order_by('id')
     )
     if not orphans:
@@ -227,22 +283,63 @@ class IndexView(View):
         batches_list = []
         for batch in batches_qs:
             items = list(batch.items.all())
-            success_count = sum(1 for i in items if i.transcript and i.transcript.status == 'SUCCESS')
+            transcripts = [i.transcript for i in items if i.transcript]
+            success_count = sum(1 for t in transcripts if t.status == 'SUCCESS')
+            running_count = sum(1 for t in transcripts if t.status == 'RUNNING')
+            failure_count = sum(1 for t in transcripts if t.status == 'FAILURE')
+            # Méta COMMUNES aux filles (affichées sur la card mère) : valeur si partagée, sinon None ("Mixte").
+            def _common(attr):
+                vals = {getattr(t, attr) for t in transcripts}
+                return vals.pop() if len(vals) == 1 else None
             batches_list.append({
                 'obj': batch,
                 'items': items,
                 'success_count': success_count,
+                'running_count': running_count,
+                'failure_count': failure_count,
                 'success_pct': int(success_count / batch.total * 100) if batch.total > 0 else 0,
                 'has_success': success_count > 0,
+                'common_backend': _common('backend'),
+                'common_language': _common('language'),
+                'common_diarization': _common('enable_diarization'),
             })
 
-        batches_list.sort(key=lambda b: 0 if b['obj'].total > 1 else 1)
         queue_count = sum(len(b['items']) for b in batches_list)
 
-        # Zone de staging (« à valider ») — éléments DRAFT pas encore en file
-        staging_list = list(
-            Transcript.objects.filter(user=user, status='DRAFT').order_by('id')
-        )
+        # ── Tri + filtrage de la file (fonctionnel, persisté en session) ──────────
+        # Défaut = CHRONOLOGIQUE récent (plus de « batchs d'abord » — décision 2026-06-29).
+        q_sort = request.GET.get('sort') or request.session.get('q_sort') or 'recent'
+        q_filter = request.GET.get('filter') or request.session.get('q_filter') or 'all'
+        request.session['q_sort'] = q_sort
+        request.session['q_filter'] = q_filter
+
+        def _matches(b, f):
+            if f == 'running': return b['running_count'] > 0
+            if f == 'failure': return b['failure_count'] > 0
+            if f == 'success': return b['success_count'] > 0
+            if f == 'draft':   return (b['success_count'] + b['running_count'] + b['failure_count']) < b['obj'].total
+            return True  # 'all'
+        if q_filter != 'all':
+            batches_list = [b for b in batches_list if _matches(b, q_filter)]
+
+        def _name(b):
+            if b['obj'].total == 1 and b['items'] and b['items'][0].transcript:
+                t = b['items'][0].transcript
+                return (t.filename or t.title or '').lower()
+            return f"batch {b['obj'].id:08d}"
+        _sorters = {
+            'recent': (lambda b: b['obj'].created_at, True),
+            'oldest': (lambda b: b['obj'].created_at, False),
+            'name':   (_name, False),
+            # Groupé : type d'abord (batch vs card unique), chronologie récente en 2nd ordre.
+            'batches_first': (lambda b: (0 if b['obj'].total > 1 else 1, -b['obj'].created_at.timestamp()), False),
+            'singles_first': (lambda b: (0 if b['obj'].total == 1 else 1, -b['obj'].created_at.timestamp()), False),
+        }
+        _key, _rev = _sorters.get(q_sort, _sorters['recent'])
+        batches_list.sort(key=_key, reverse=_rev)
+
+        # Staging supprimé (2026-06-29) : les DRAFT apparaissent dans la file (via _auto_wrap_orphans)
+        # comme cards BROUILLON — plus de zone « à valider » séparée.
 
         # Backfill duration for existing transcripts that were stored without it
         all_transcripts = Transcript.objects.filter(user=user)
@@ -261,12 +358,26 @@ class IndexView(View):
         global_summary_type = cache.get(f"user_{user.id}_transcriber_summary_type", 'structured')
         global_verify_coherence = cache.get(f"user_{user.id}_transcriber_verify_coherence", False)
 
+        # Schéma de réglages (volet droit généré par WamaParams) + valeurs courantes.
+        import json
+        from wama.transcriber.params import PARAMS_JSON
+        panel_values = {
+            'backend': selected_backend,
+            'hotwords': user_hotwords,
+            'enable_diarization': global_diarization,
+            'preprocess_audio': enable_preprocessing,
+            'generate_summary': global_generate_summary,
+            'summary_type': global_summary_type,
+            'verify_coherence': global_verify_coherence,
+        }
+
         # Backends are loaded asynchronously by JS (via /transcriber/backends/) to avoid
         # blocking the page render on heavy transformers imports (VibeVoice, Qwen3-ASR).
         return render(request, 'transcriber/index.html', {
             'batches_list': batches_list,
-            'staging_list': staging_list,
             'queue_count': queue_count,
+            'q_sort': q_sort,
+            'q_filter': q_filter,
             'transcripts': all_transcripts,  # kept for global progress bar
             'preprocessing_enabled': enable_preprocessing,
             'selected_backend': selected_backend,
@@ -275,6 +386,8 @@ class IndexView(View):
             'global_generate_summary': global_generate_summary,
             'global_summary_type': global_summary_type,
             'global_verify_coherence': global_verify_coherence,
+            'params_json': json.dumps(PARAMS_JSON),
+            'panel_values_json': json.dumps(panel_values),
         })
 
 
@@ -376,8 +489,8 @@ def upload(request):
         )
 
     _describe_audio(t)
-    # Pas de _wrap_transcript_in_batch ici : l'élément reste en staging (DRAFT)
-    # jusqu'à validation (stage_commit), où il sera enveloppé en batch par nature.
+    # L'élément reste DRAFT (brouillon) ; il est enveloppé en batch par `_auto_wrap_orphans`
+    # au rendu de la file (IndexView) et apparaît comme card BROUILLON. Staging supprimé (2026-06-29).
     return JsonResponse({
         'id': t.id,
         'audio_url': t.audio.url,
@@ -568,62 +681,8 @@ def _launch_transcript(t: Transcript) -> str:
     return task.id
 
 
-@require_POST
-def stage_commit(request, pk: int):
-    """Valide UN élément en staging : DRAFT → file d'attente (+ démarrage si ?start=1)."""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    t = get_object_or_404(Transcript, pk=pk, user=user, status='DRAFT')
-    start = str(request.POST.get('start', '')).lower() in ('1', 'true', 'on')
-
-    t.status = 'PENDING'
-    t.save(update_fields=['status'])
-    _wrap_transcript_in_batch(t)  # enveloppe par nature (mono-nature audio)
-    if start:
-        _launch_transcript(t)
-    return JsonResponse({'status': t.status, 'committed': True, 'started': start})
-
-
-@require_POST
-def stage_commit_all(request):
-    """Valide TOUS les éléments en staging en un seul batch-de-N (+ start optionnel)."""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    start = str(request.POST.get('start', '')).lower() in ('1', 'true', 'on')
-
-    draft_qs = Transcript.objects.filter(user=user, status='DRAFT')
-    # Actions de lot : applique l'état complet du volet droit à tous les éléments.
-    _apply_panel_settings(draft_qs, request.POST)
-
-    drafts = list(draft_qs.order_by('id'))
-    if not drafts:
-        return JsonResponse({'status': 'noop', 'count': 0})
-
-    Transcript.objects.filter(id__in=[t.id for t in drafts]).update(status='PENDING')
-    _auto_wrap_orphans(user)  # regroupe les nouveaux PENDING en UN batch-de-N
-    if start:
-        for t in drafts:
-            _launch_transcript(t)
-    return JsonResponse({'status': 'committed', 'count': len(drafts), 'started': start})
-
-
-@require_POST
-def stage_clear(request):
-    """Vide la zone de staging : supprime tous les éléments DRAFT et leurs fichiers."""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    drafts = list(Transcript.objects.filter(user=user, status='DRAFT'))
-    for t in drafts:
-        safe_delete_file(t, 'audio')
-        cache.delete(f"transcriber_progress_{t.id}")
-        t.delete()
-    return JsonResponse({'status': 'cleared', 'count': len(drafts)})
-
-
-@require_POST
-def stage_update_all(request):
-    """Applique TOUS les paramètres du volet droit fournis à tous les DRAFT."""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    drafts = Transcript.objects.filter(user=user, status='DRAFT')
-    fields = _apply_panel_settings(drafts, request.POST)
-    return JsonResponse({'status': 'updated', 'fields': fields, 'count': drafts.count()})
+# Staging (vues stage_commit/commit_all/clear/update_all) SUPPRIMÉ 2026-06-29 : les DRAFT sont des
+# cards BROUILLON dans la file (config via inspecteur, lancement via la vue `start` qui gère DRAFT).
 
 
 # ---------------------------------------------------------------------------
@@ -927,6 +986,21 @@ def progress(request, pk: int):
         'status_message': cache.get(f"transcriber_status_msg_{t.id}", ''),  # action en cours
     }
 
+    # Seed ETA : estimation a priori (puis apprise) du temps total, affichée DÈS le départ
+    # par WamaEta — utile surtout pendant le chargement du modèle (progression encore à 0).
+    if t.status in ('PENDING', 'RUNNING'):
+        try:
+            from wama.model_manager.services.eta_estimator import estimate, make_key
+            mdl = t.used_backend or (t.backend if t.backend and t.backend != 'auto' else None)
+            dur = float(t.duration_seconds or 0)
+            if mdl and dur > 0:
+                est = estimate(make_key('transcriber', mdl), size=dur,
+                               unit='audio_sec', model_loaded=False)
+                if est > 0:
+                    response_data['estimated_seconds'] = round(est, 1)
+        except Exception:
+            pass
+
     if t.status == 'SUCCESS':
         response_data['processing_seconds'] = t.processing_seconds or 0
         response_data['processing_display'] = t.processing_display
@@ -1118,13 +1192,16 @@ def enrich(request, pk: int):
 def delete(request, pk: int):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     t = get_object_or_404(Transcript, pk=pk, user=user)
+    # Le membre était-il dans un batch ? (uniquement pour signaler au front qu'il faut re-render)
+    from wama.common.utils.batch_utils import find_member_batch
+    parent_batch = find_member_batch(BatchTranscriptItem, transcript=t)
     # Output files are unique to this transcript — always delete
     _cleanup_output_files(t, user.id)
     # Audio file may be shared with a duplicate — only delete if no other row references it
     safe_delete_file(t, 'audio')
-    t.delete()
+    t.delete()  # signal post_delete (batch_sync) : recale total / supprime le batch vidé
     cache.delete(f"transcriber_progress_{pk}")
-    return JsonResponse({'deleted': pk})
+    return JsonResponse({'deleted': pk, 'batch_changed': parent_batch is not None})
 
 
 @require_POST
@@ -1605,6 +1682,9 @@ def global_progress(request):
             'running': running,
             'success': success,
             'failure': failure,
+            # Alias attendus par la brique commune wama-global-progress.js (contrat done/failed).
+            'done': success,
+            'failed': failure,
             'overall_progress': overall_progress
         })
     except Exception as e:

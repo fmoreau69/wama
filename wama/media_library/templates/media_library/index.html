@@ -219,6 +219,14 @@
                 </a>
             </li>
             {% endfor %}
+            <!-- Onglet Mots-clés de prompt (bibliothèque locale) -->
+            <li class="nav-item">
+                <a class="nav-link {% if active_tab == 'keywords' %}active{% endif %}"
+                   href="#" data-type="keywords">
+                    <i class="fas fa-tags"></i> Mots-clés
+                    <span class="ml-badge" id="badge-keywords">{{ keyword_count }}</span>
+                </a>
+            </li>
             <!-- Onglet Rechercher (providers externes) -->
             <li class="nav-item">
                 <a class="nav-link {% if active_tab == 'search' %}active{% endif %}"
@@ -289,6 +297,19 @@
                 </div>
             </div>
         </div>
+    </div>
+
+    <!-- ── Panneau Mots-clés de prompt (tronc commun + perso) ──── -->
+    <div id="keywordsPanel" style="display:none;">
+        <div class="d-flex align-items-center mb-2">
+            <i class="fas fa-tags me-2" style="color:#6ea8fe;"></i>
+            <div>
+                <div class="fw-semibold">Bibliothèque de mots-clés</div>
+                <small class="text-muted">Tronc commun partagé + vos mots-clés perso. Réutilisés dans les
+                    prompts (Imager, etc.). Cliquez « + » pour ajouter ; la croix supprime un mot-clé perso.</small>
+            </div>
+        </div>
+        <div id="keywordsManager"></div>
     </div>
 
     <!-- ── Panneau Rechercher (providers externes) ─────────────── -->
@@ -415,5 +436,7 @@ const ML_URLS = {
 };
 const CSRF_TOKEN = "{{ csrf_token }}";
 </script>
+<link rel="stylesheet" href="{% static 'common/css/wama-prompt-chips.css' %}">
+<script src="{% static 'common/js/wama-prompt-chips.js' %}"></script>
 <script src="{% static 'media_library/js/media-library.js' %}"></script>
 {% endblock %}

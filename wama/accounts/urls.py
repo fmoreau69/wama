@@ -18,6 +18,11 @@ urlpatterns = [
     # Profile
     path('profile/', views.profile_view, name='profile'),
     path('profile/language/', views.language_update, name='profile-language'),
+    path('profile/notifications/', views.notifications_update, name='profile-notifications'),
+    path('profile/retention/', views.retention_update, name='profile-retention'),
+    path('profile/layout/', views.layout_update, name='profile-layout'),
+    path('manage/app-access/', views.app_access_matrix, name='app-access-matrix'),
+    path('manage/app-access/toggle/', views.app_access_toggle, name='app-access-toggle'),
     path('profile/token/regenerate/', views.token_regenerate, name='token-regenerate'),
     path('profile/password/', views.change_password, name='change-password'),
 

@@ -77,7 +77,10 @@ class ReadingItem(models.Model):
         return ''
 
 
-class BatchReadingItem(models.Model):
+from wama.common.models import BatchMixin
+
+
+class BatchReadingItem(BatchMixin, models.Model):
     """Groupe de lectures OCR créé depuis un fichier batch."""
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='batch_readings')
     created_at = models.DateTimeField(auto_now_add=True)

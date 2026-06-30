@@ -80,6 +80,61 @@
                 </div>
             </div>
 
+            <!-- ── Notifications email ──────────────────────────────────── -->
+            <div class="card bg-dark border-secondary mb-4">
+                <div class="card-header border-secondary">
+                    <h5 class="mb-0"><i class="fas fa-envelope me-2"></i>Notifications email</h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted small mb-3">
+                        Recevez un email à la fin (ou en cas d'échec) de vos traitements longs.
+                    </p>
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" id="notifyEmail"
+                               {% if profile.notify_email %}checked{% endif %}>
+                        <label class="form-check-label" for="notifyEmail">Activer les notifications</label>
+                    </div>
+                    <div class="d-flex gap-2 align-items-center">
+                        <select id="notifyOn"
+                                class="form-select form-select-sm bg-dark text-white border-secondary"
+                                style="max-width: 220px;">
+                            <option value="both" {% if profile.notify_on == 'both' %}selected{% endif %}>Fin et échec</option>
+                            <option value="completion" {% if profile.notify_on == 'completion' %}selected{% endif %}>Fin seulement</option>
+                            <option value="failure" {% if profile.notify_on == 'failure' %}selected{% endif %}>Échec seulement</option>
+                            <option value="none" {% if profile.notify_on == 'none' %}selected{% endif %}>Aucune</option>
+                        </select>
+                        <button id="saveNotifyBtn" class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-save me-1"></i> Enregistrer
+                        </button>
+                    </div>
+                    <div id="notifyMsg" class="mt-2" style="display:none;"></div>
+                </div>
+            </div>
+
+            <!-- ── Conservation des médias ──────────────────────────────── -->
+            <div class="card bg-dark border-secondary mb-4">
+                <div class="card-header border-secondary">
+                    <h5 class="mb-0"><i class="fas fa-clock-rotate-left me-2"></i>Conservation des médias</h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted small mb-3">
+                        Vos médias sont conservés ce nombre de jours, puis supprimés automatiquement.
+                        <strong>0 = illimité.</strong>
+                    </p>
+                    <div class="d-flex gap-2 align-items-center">
+                        <input type="number" id="retentionDays" min="0" step="1"
+                               value="{{ profile.media_retention_days }}"
+                               class="form-control form-control-sm bg-dark text-white border-secondary"
+                               style="max-width: 120px;">
+                        <span class="text-muted small">jours</span>
+                        <button id="saveRetentionBtn" class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-save me-1"></i> Enregistrer
+                        </button>
+                    </div>
+                    <div id="retentionMsg" class="mt-2" style="display:none;"></div>
+                </div>
+            </div>
+
             <!-- ── Token API ────────────────────────────────────────────── -->
             <div class="card bg-dark border-secondary mb-4">
                 <div class="card-header border-secondary">
@@ -197,6 +252,8 @@
 {% block extra_js %}
 <script>
 const LANGUAGE_URL       = "{% url 'accounts:profile-language' %}";
+const NOTIFICATIONS_URL  = "{% url 'accounts:profile-notifications' %}";
+const RETENTION_URL      = "{% url 'accounts:profile-retention' %}";
 {% if not is_ldap %}
 const CHANGE_PWD_URL     = "{% url 'accounts:change-password' %}";
 {% endif %}
@@ -233,6 +290,35 @@ document.getElementById('saveLanguageBtn').addEventListener('click', async () =>
     } catch(e) {
         showMsg(msg, 'Erreur réseau', true);
     }
+});
+
+// ── Notifications email ───────────────────────────────────────────────────────
+document.getElementById('saveNotifyBtn').addEventListener('click', async () => {
+    const notify_email = document.getElementById('notifyEmail').checked;
+    const notify_on    = document.getElementById('notifyOn').value;
+    const msg          = document.getElementById('notifyMsg');
+    try {
+        const data = await postJson(NOTIFICATIONS_URL, { notify_email, notify_on });
+        if (data.success) showMsg(msg, '✓ Préférences enregistrées');
+        else showMsg(msg, data.error || 'Erreur', true);
+    } catch(e) {
+        showMsg(msg, 'Erreur réseau', true);
+    }
+});
+
+// ── Conservation des médias ───────────────────────────────────────────────────
+document.getElementById('saveRetentionBtn').addEventListener('click', async () => {
+    const media_retention_days = parseInt(document.getElementById('retentionDays').value || '0', 10);
+    const msg = document.getElementById('retentionMsg');
+    try {
+        const data = await postJson(RETENTION_URL, { media_retention_days });
+        if (data.success) {
+            let txt = '✓ Enregistré';
+            if (data.effective && data.effective !== media_retention_days)
+                txt += ` (appliqué : ${data.effective} j — plafond admin)`;
+            showMsg(msg, txt);
+        } else showMsg(msg, data.error || 'Erreur', true);
+    } catch(e) { showMsg(msg, 'Erreur réseau', true); }
 });
 
 // ── Token : afficher / masquer ───────────────────────────────────────────────

@@ -571,13 +571,24 @@ def progress(request, pk: int):
     synthesis = get_object_or_404(VoiceSynthesis, pk=pk, user=user)
     p = int(cache.get(f"synthesizer_progress_{synthesis.id}", synthesis.progress or 0))
 
-    return JsonResponse({
+    resp = {
         'progress': p,
         'status': synthesis.status,
         'audio_url': iri_to_uri(synthesis.audio_output.url) if synthesis.audio_output else None,
         'duration_display': synthesis.duration_display,
         'error': synthesis.error_message if synthesis.status == 'FAILURE' else None,
-    })
+    }
+    # Seed ETA : estimation a priori/apprise (∝ longueur du texte), affichée dès le départ.
+    if synthesis.status in ('PENDING', 'RUNNING') and synthesis.text_content:
+        try:
+            from wama.model_manager.services.eta_estimator import estimate, make_key
+            est = estimate(make_key('synthesizer', synthesis.tts_model),
+                           size=len(synthesis.text_content), unit='char', model_loaded=True)
+            if est > 0:
+                resp['estimated_seconds'] = round(est, 1)
+        except Exception:
+            pass
+    return JsonResponse(resp)
 
 
 def global_progress(request):
@@ -703,15 +714,8 @@ def delete(request, pk: int):
     synthesis.delete()
     cache.delete(f"synthesizer_progress_{pk}")
 
-    # Clean up empty parent batch (cascade deleted its BatchSynthesisItem above)
-    if parent_batch:
-        try:
-            if not parent_batch.items.exists():
-                parent_batch.delete()
-        except Exception:
-            pass
-
-    return JsonResponse({'deleted': pk})
+    # batch.total / suppression du batch vidé : gérés centralement par le signal batch_sync (post_delete).
+    return JsonResponse({'deleted': pk, 'batch_changed': parent_batch is not None})
 
 
 @require_POST

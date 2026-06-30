@@ -7,6 +7,14 @@ class AnonymizerConfig(AppConfig):
     def ready(self):
         import wama.anonymizer.signals
 
+        # Batch unifié : total auto-réparé + suppression des batches vidés (cf. BATCH_MODEL_AUDIT.md)
+        try:
+            from wama.common.utils.batch_sync import register_batch_sync
+            from .models import BatchAnonymizerItem
+            register_batch_sync(BatchAnonymizerItem)
+        except Exception:
+            pass
+
         # Register for unified preview
         from wama.common.utils.preview_registry import PreviewRegistry
         from wama.common.utils.preview_utils import anonymizer_preview_adapter

@@ -272,6 +272,64 @@ def language_update(request):
 
 @login_required
 @require_POST
+def notifications_update(request):
+    """AJAX: enregistre les préférences de notification email."""
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'JSON invalide'}, status=400)
+
+    valid_on = {'both', 'completion', 'failure', 'none'}
+    notify_on = data.get('notify_on', 'both')
+    if notify_on not in valid_on:
+        return JsonResponse({'error': f"Valeur invalide : '{notify_on}'"}, status=400)
+
+    profile, _ = UserProfile.objects.get_or_create(user=request.user)
+    profile.notify_email = bool(data.get('notify_email', True))
+    profile.notify_on = notify_on
+    profile.save(update_fields=['notify_email', 'notify_on'])
+    return JsonResponse({'success': True, 'notify_email': profile.notify_email, 'notify_on': profile.notify_on})
+
+
+@login_required
+@require_POST
+def layout_update(request):
+    """AJAX: enregistre la disposition des cards (list = ligne, grid = mosaïque)."""
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'JSON invalide'}, status=400)
+    layout = data.get('card_layout', 'list')
+    if layout not in ('list', 'grid'):
+        return JsonResponse({'error': f"Valeur invalide : '{layout}'"}, status=400)
+    profile, _ = UserProfile.objects.get_or_create(user=request.user)
+    profile.card_layout = layout
+    profile.save(update_fields=['card_layout'])
+    return JsonResponse({'success': True, 'card_layout': layout})
+
+
+@login_required
+@require_POST
+def retention_update(request):
+    """AJAX: enregistre la durée de conservation des médias (0 = illimité)."""
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'JSON invalide'}, status=400)
+    try:
+        days = max(0, int(data.get('media_retention_days', 0)))
+    except (TypeError, ValueError):
+        return JsonResponse({'error': 'Valeur invalide'}, status=400)
+
+    profile, _ = UserProfile.objects.get_or_create(user=request.user)
+    profile.media_retention_days = days
+    profile.save(update_fields=['media_retention_days'])
+    return JsonResponse({'success': True, 'media_retention_days': days,
+                         'effective': profile.effective_retention_days()})
+
+
+@login_required
+@require_POST
 def token_regenerate(request):
     """AJAX: delete existing DRF token and create a new one."""
     from rest_framework.authtoken.models import Token
@@ -342,6 +400,87 @@ def user_management(request):
         'available_roles': ['admin', 'dev', 'user'],
     }
     return render(request, 'accounts/user_management.html', context)
+
+
+@admin_required
+def app_access_matrix(request):
+    """Tableau d'accès app×rôle éditable (cases à cocher)."""
+    from wama.accounts.models import AppAccessPolicy
+    from wama.accounts.permissions import (ROLES, ROLE_DESCRIPTIONS, GROUP_PREFIX,
+                                           TIER_CHOICES, APP_DESCRIPTIONS_FALLBACK,
+                                           APP_GROUP_ORDER, app_group)
+    try:
+        from wama.common.app_registry import APP_CATALOG
+    except Exception:
+        APP_CATALOG = {}
+
+    # [(key, label, help)] pour les en-têtes de colonnes (tooltip).
+    role_keys = [(k, label, ROLE_DESCRIPTIONS.get(k, '')) for k, label in ROLES.items()]
+
+    def _app_desc(app_id):
+        meta = APP_CATALOG.get(app_id, {})
+        return meta.get('description') or APP_DESCRIPTIONS_FALLBACK.get(app_id, '')
+
+    by_group = {}
+    for pol in AppAccessPolicy.objects.prefetch_related('roles').order_by('app_id'):
+        active = {g.name[len(GROUP_PREFIX):] for g in pol.roles.all() if g.name.startswith(GROUP_PREFIX)}
+        by_group.setdefault(app_group(pol.app_id), []).append({
+            'app_id': pol.app_id,
+            'description': _app_desc(pol.app_id),
+            'public': pol.public,
+            'min_tier': pol.min_tier,
+            'cells': [{'role': k, 'active': (k in active)} for k, _ in ROLES.items()],
+        })
+    # Sections ordonnées (puis tout groupe non prévu).
+    ordered = APP_GROUP_ORDER + [g for g in by_group if g not in APP_GROUP_ORDER]
+    groups = [{'name': g, 'rows': by_group[g]} for g in ordered if by_group.get(g)]
+
+    context = {
+        'groups': groups,
+        'role_keys': role_keys,
+        'ncols': len(role_keys) + 3,  # nom + rôles + anonyme + tier
+        # 'anonymous' est le plancher → inutile comme tier MINIMAL (équivalent à « aucun »).
+        'tier_choices': [(v, l) for v, l in TIER_CHOICES if v != 'anonymous'],
+    }
+    return render(request, 'accounts/app_access_matrix.html', context)
+
+
+@admin_required
+@require_POST
+def app_access_toggle(request):
+    """AJAX: modifie une cellule du tableau d'accès (role/public/min_tier d'une app)."""
+    from wama.accounts.models import AppAccessPolicy
+    from wama.accounts.permissions import ROLES, GROUP_PREFIX
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'JSON invalide'}, status=400)
+
+    app_id = data.get('app_id')
+    if not app_id:
+        return JsonResponse({'error': 'app_id manquant'}, status=400)
+    pol, _ = AppAccessPolicy.objects.get_or_create(app_id=app_id)
+
+    field = data.get('field')
+    if field == 'role':
+        role = data.get('role')
+        if role not in ROLES:
+            return JsonResponse({'error': f"Rôle inconnu : {role}"}, status=400)
+        group, _ = Group.objects.get_or_create(name=GROUP_PREFIX + role)
+        if data.get('enabled'):
+            pol.roles.add(group)
+        else:
+            pol.roles.remove(group)
+    elif field == 'public':
+        pol.public = bool(data.get('enabled'))
+        pol.save(update_fields=['public'])
+    elif field == 'min_tier':
+        pol.min_tier = data.get('value', '') or ''
+        pol.save(update_fields=['min_tier'])
+    else:
+        return JsonResponse({'error': 'champ invalide'}, status=400)
+
+    return JsonResponse({'success': True})
 
 
 @admin_required

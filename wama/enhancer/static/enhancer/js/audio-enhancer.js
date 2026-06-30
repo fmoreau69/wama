@@ -325,6 +325,7 @@ document.addEventListener('DOMContentLoaded', function () {
             <div class="progress-fill" style="width: 0%"></div>
           </div>
           <small class="progress-text text-light">0%</small>
+          <small class="wama-eta text-white-50 ms-1"></small>
         </div>
         <div class="col-md-4">
           <div class="btn-group-actions">
@@ -427,6 +428,13 @@ document.addEventListener('DOMContentLoaded', function () {
       if (fill) fill.style.width = data.progress + '%';
       const progressText = card.querySelector('.progress-text');
       if (progressText) progressText.textContent = data.progress + '%';
+    }
+
+    // ETA (moteur commun) — seed depuis l'estimateur serveur (service-based)
+    if (window.WamaEta) {
+      WamaEta.render(card.querySelector('.wama-eta'),
+        WamaEta.update(id, { progress: data.progress || 0, status: (data.status || 'PENDING').toUpperCase(),
+                             seedSeconds: data.estimated_seconds, modelLoaded: false }));
     }
   }
 
@@ -643,10 +651,13 @@ document.addEventListener('DOMContentLoaded', function () {
   async function deleteAudio(id) {
     if (!confirm('Supprimer cet audio ?')) return;
     try {
-      await fetch(getUrl(cfg.audioDeleteUrlTemplate, id), {
+      const r = await fetch(getUrl(cfg.audioDeleteUrlTemplate, id), {
         method: 'POST',
         headers: csrfHeaders(),
       });
+      const data = await r.json().catch(() => ({}));
+      // Élément issu d'un batch : total/affichage du batch changent → recharger
+      if (data.batch_changed) { if (window.WamaFM) WamaFM.deleted(); location.reload(); return; }
       const container = document.getElementById('audio-enhancer-queue');
       const card = container ? container.querySelector(`[data-id="${id}"]`) : null;
       if (card) {
@@ -675,35 +686,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // ── Global progress ───────────────────────────────────────────────────────
 
-  async function updateAudioGlobalProgress() {
-    if (!cfg.audioGlobalProgressUrl) return;
-    try {
-      const resp = await fetch(cfg.audioGlobalProgressUrl);
-      const data = await resp.json();
-
-      const bar = document.getElementById('audioGlobalProgressBar');
-      const stats = document.getElementById('audioGlobalProgressStats');
-      const pct = document.getElementById('audioGlobalProgressPct');
-      const audioStatus = document.getElementById('audioGlobalStatus');
-      const progress = data.overall_progress || 0;
-      if (bar) bar.style.width = progress + '%';
-      if (stats) stats.textContent = `${data.success}/${data.total} terminé · ${data.running} en cours`;
-      if (pct) pct.textContent = progress ? progress + '%' : '';
-      if (audioStatus) {
-        const active = (data.total || 0) > 0;
-        audioStatus.style.opacity = active ? '1' : '0';
-        audioStatus.style.pointerEvents = active ? '' : 'none';
-      }
-
-      // Enable/disable download-all
-      const dlAllBtn = document.getElementById('audio-download-all-btn');
-      if (dlAllBtn) {
-        dlAllBtn.disabled = data.success === 0;
-      }
-    } catch (e) {
-      // ignore
-    }
-  }
+  // Barre globale AUDIO + bouton « tout télécharger » : désormais pilotés par la fonction
+  // commune WamaGlobalProgress (voir l'init en fin de fichier) — zéro duplication.
+  // Conservée en no-op car appelée impérativement après diverses actions ; le poll commun
+  // (1,5 s) rafraîchit la barre et le bouton automatiquement.
+  function updateAudioGlobalProgress() { /* no-op : cf. WamaGlobalProgress.init */ }
 
   // ── Button handlers ───────────────────────────────────────────────────────
 
@@ -845,5 +832,18 @@ document.addEventListener('DOMContentLoaded', function () {
   initAudioDragDrop();
   initButtons();
   initAudioBatchBar();
-  updateAudioGlobalProgress();
+
+  // Barre globale AUDIO : réutilise la fonction commune (zéro duplication), endpoint audio dédié.
+  // onData : (dés)active le bouton « tout télécharger » selon le nombre de succès.
+  if (window.WamaGlobalProgress && cfg.audioGlobalProgressUrl) {
+    WamaGlobalProgress.init({
+      url: cfg.audioGlobalProgressUrl,
+      bar: 'audioGlobalProgressBar', stats: 'audioGlobalProgressStats',
+      pct: 'audioGlobalProgressPct', status: 'audioGlobalStatus', eta: 'audioGlobalEta',
+      onData: function (d) {
+        var b = document.getElementById('audio-download-all-btn');
+        if (b) b.disabled = (d.success || 0) === 0;
+      },
+    });
+  }
 });

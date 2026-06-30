@@ -11,6 +11,15 @@ class EnhancerConfig(AppConfig):
 
     def ready(self):
         """Called when Django starts - check and download models if needed."""
+        # Batch unifié : total auto-réparé + suppression des batches vidés (cf. BATCH_MODEL_AUDIT.md)
+        try:
+            from wama.common.utils.batch_sync import register_batch_sync
+            from .models import BatchEnhancementItem, BatchAudioEnhancementItem
+            register_batch_sync(BatchEnhancementItem)
+            register_batch_sync(BatchAudioEnhancementItem)
+        except Exception:
+            pass
+
         # Register for unified preview
         from wama.common.utils.preview_utils import register_app_preview
         from .models import Enhancement

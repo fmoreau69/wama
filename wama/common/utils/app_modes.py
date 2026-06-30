@@ -39,7 +39,7 @@ APP_MODES = {
             # Modes ALIGNÉS sur l'existant Imager (JS currentMode : txt2img/img2img/style2img/file2img/
             # describe2img). NB : domaine image/vidéo aujourd'hui dérivé du MODÈLE choisi (à migrer en
             # onglet domaine). describe2img = mini-pipeline → candidat MÉTA-APP (Describer→Imager).
-            {'id': 'image', 'label': 'Image', 'icon': 'fa-image', 'modes': [
+            {'id': 'image', 'label': 'Image', 'icon': 'fa-image', 'variant': 'primary', 'modes': [
                 {'id': 'txt2img', 'label': 'Texte → Image', 'icon': 'fa-font',
                  'inputs': ['prompt', 'negative_prompt'],
                  'settings': ['model', 'seed', 'steps', 'guidance', 'resolution']},
@@ -58,11 +58,12 @@ APP_MODES = {
                  'pipeline_hint': 'Describer→Imager'},  # mini-pipeline → candidat MÉTA-APP
                 # futur : {'id': 'to_3d', 'label': 'Image → 3D', 'inputs': ['work_image']}
             ]},
-            {'id': 'video', 'label': 'Vidéo', 'icon': 'fa-film', 'modes': [
-                {'id': 't2v', 'label': 'Texte → Vidéo', 'icon': 'fa-font',
+            # Ids ALIGNÉS sur l'existant (template + JS currentVideoMode : txt2vid/img2vid).
+            {'id': 'video', 'label': 'Vidéo', 'icon': 'fa-film', 'variant': 'success', 'modes': [
+                {'id': 'txt2vid', 'label': 'Texte → Vidéo', 'icon': 'fa-font',
                  'inputs': ['prompt'],
                  'settings': ['video_model', 'frames', 'fps', 'resolution']},
-                {'id': 'i2v', 'label': 'Image → Vidéo', 'icon': 'fa-image',
+                {'id': 'img2vid', 'label': 'Image → Vidéo', 'icon': 'fa-image',
                  'inputs': ['work_image', 'prompt'],
                  'settings': ['video_model', 'frames', 'fps']},
             ]},
@@ -83,14 +84,29 @@ APP_MODES = {
         ],
     },
 
+    # ── TRANSCRIBER (mono-domaine ; le MODE temps réel = « Speak », normal = fichier) ──
+    'transcriber': {
+        'domains': [
+            {'id': 'audio', 'label': 'Transcription', 'icon': 'fa-microphone-lines', 'variant': 'info', 'modes': [
+                {'id': 'normal', 'label': 'Normal', 'icon': 'fa-file-audio',
+                 'inputs': ['work_file'],
+                 'settings': ['model', 'language', 'diarization', 'summary']},
+                {'id': 'realtime', 'label': 'Temps réel', 'icon': 'fa-microphone', 'realtime': True,
+                 'inputs': [],
+                 'settings': ['language']},
+            ]},
+        ],
+    },
+
     # ── ANONYMIZER (multi-domaine futur ; prouve le switch de MODE yolo/sam3) ──
     'anonymizer': {
         'domains': [
             {'id': 'image_video', 'label': 'Image / Vidéo', 'icon': 'fa-photo-film', 'modes': [
-                {'id': 'yolo', 'label': 'Détection (YOLO)', 'icon': 'fa-crosshairs',
+                # variant par mode (couleurs alignées sur l'UI existante : yolo=bleu, sam3=cyan).
+                {'id': 'yolo', 'label': 'Détection (YOLO)', 'icon': 'fa-crosshairs', 'variant': 'primary',
                  'inputs': ['work_file'],
                  'settings': ['model', 'classes', 'blur_ratio', 'detection_threshold']},
-                {'id': 'sam3', 'label': 'Prompt (SAM3)', 'icon': 'fa-wand-magic-sparkles',
+                {'id': 'sam3', 'label': 'Prompt (SAM3)', 'icon': 'fa-wand-magic-sparkles', 'variant': 'info',
                  'inputs': ['work_file', 'prompt'],
                  'settings': ['blur_ratio']},
             ]},

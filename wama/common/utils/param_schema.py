@@ -25,9 +25,16 @@ ALL_CONTEXTS = ("item", "batch", "panel")
 class Param:
     """Description d'UN paramètre, indépendante de la surface de rendu."""
     name: str
-    type: str                                   # toggle|select|radio|text|textarea|number
+    type: str                                   # toggle|select|radio|text|textarea|number|range
     label: str = ""
+    icon: str = ""                              # classe FontAwesome optionnelle (ex. "fa-microchip")
+    dom_id: Any = ""                            # pont de migration : ID DOM legacy (sinon wp-{ctx}-{name}).
+                                                # str = toutes surfaces ; dict {ctx: id} = scopé par contexte
+                                                # (ex. {"panel": "backendSelect", "item": "settingsBackend"}).
+    radio_name: Any = ""                        # nom du groupe radio (str ou dict par contexte, comme dom_id)
+    inline: bool = False                        # radios sur une seule ligne (form-check-inline)
     help: str = ""
+    help_html: str = ""                         # aide en HTML brut (ex. lien « En savoir plus ») — prime sur help
     default: Any = None
     choices: Optional[List[Tuple[str, str]]] = None   # [(value, label)]
     min: Optional[float] = None

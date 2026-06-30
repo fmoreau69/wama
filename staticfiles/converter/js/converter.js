@@ -343,7 +343,7 @@
 
         // ETA (moteur commun) — débit observé, sans seed côté converter
         if (window.WamaEta) {
-            const est = WamaEta.update(jobId, { progress: data.progress, status: data.status });
+            const est = WamaEta.update(jobId, { progress: data.progress, status: data.status, seedSeconds: data.estimated_seconds, modelLoaded: false });
             WamaEta.render(card.querySelector('[data-eta-card]'), est);
         }
 

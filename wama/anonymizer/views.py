@@ -1060,7 +1060,7 @@ def clear_media(request):
 
         Media.objects.filter(pk=media_id).update(MSValues_customised=0)
         safe_delete_file(media, 'file')
-        media.delete()
+        media.delete()  # signal batch_sync : recale total / supprime le batch vidé (le re-render reflète le bon total)
 
         has_media = Media.objects.filter(user=user).exists()
         UserSettings.objects.filter(user_id=user.id).update(media_added=int(has_media))

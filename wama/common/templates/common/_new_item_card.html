@@ -18,6 +18,14 @@ Variables :
   url_hint         — aide sous le champ (optionnel)
   url_icon         — classe d'icône (défaut: 'fas fa-link')
   url_icon_class   — classe couleur de l'icône (défaut: 'text-info')
+  show_live        — (bool) afficher l'affordance « en direct » (bouton Speak/live, modalité d'entrée)
+  live_btn_id      — id du bouton live (REQUIS si show_live ; ex: 'transcriber-speak-btn')
+  live_label       — libellé du bouton (défaut: 'Speak')
+  live_icon        — classe d'icône (défaut: 'fas fa-microphone')
+  live_hint        — aide sous le bouton (optionnel)
+  live_hint_id     — id de l'aide (préserver l'id attendu par le JS de l'app si besoin)
+  show_media_library — (bool) bouton « Médiathèque » (import depuis la médiathèque via MediaPicker)
+  media_library_type — type d'asset filtré ('audio'|'video'|'image'|'voice'|'all' ; défaut 'all')
 
 Usage (transcriber) :
   {% url 'transcriber:batch_template' as batch_tpl %}
@@ -45,6 +53,15 @@ Usage (transcriber) :
                     </small>
                     {% endif %}
                 </div>
+                {% if show_media_library %}
+                {# Import depuis la MÉDIATHÈQUE : MediaPicker → injecte le File dans le file input →
+                   déclenche le handler d'upload de l'app (générique, zéro code par app). #}
+                <button type="button" class="btn btn-sm btn-outline-info w-100 mt-1 py-0"
+                        title="Importer depuis la médiathèque"
+                        onclick="MediaPicker.open({type:'{{ media_library_type|default:'all' }}', onSelect:function(f){var i=document.getElementById('{{ file_input_id }}'); if(i&&f){try{var dt=new DataTransfer();dt.items.add(f);i.files=dt.files;}catch(e){} i.dispatchEvent(new Event('change',{bubbles:true}));}}});">
+                    <i class="fas fa-photo-film"></i> Médiathèque
+                </button>
+                {% endif %}
                 {% if show_batch_bar %}{% include 'common/batch_detect_bar.html' %}{% endif %}
             </div>
             {% if show_url %}
@@ -64,5 +81,14 @@ Usage (transcriber) :
             </div>
             {% endif %}
         </div>
+        {% if show_live %}
+        <div class="mt-2 pt-2 border-top border-secondary text-center">
+            <span class="small text-white-50 me-2"><i class="fas fa-bolt text-warning"></i> ou en direct</span>
+            <button id="{{ live_btn_id }}" class="btn btn-warning btn-sm" type="button">
+                <i class="{{ live_icon|default:'fas fa-microphone' }}"></i> {{ live_label|default:'Speak' }}
+            </button>
+            {% if live_hint %}<small id="{{ live_hint_id|default:'liveHint' }}" class="text-muted d-block mt-1">{{ live_hint }}</small>{% endif %}
+        </div>
+        {% endif %}
     </div>
 </div>

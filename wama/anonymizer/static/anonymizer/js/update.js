@@ -249,8 +249,8 @@ $(document).ready(function () {
                     progressBar.className = 'wama-progress-fill';
                     if (data.failure > 0) {
                         progressBar.classList.add('error');
-                    } else if (data.running > 0) {
-                        progressBar.classList.add('active');
+                    } else {
+                        progressBar.classList.add('active');  // balayage bleu/vert permanent (homogène avec les autres apps)
                     }
                 }
             },

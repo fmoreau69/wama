@@ -62,9 +62,13 @@ def decode_audio(path, target_sr: int = 16000, mono: bool = True):
         logger.debug(f"[audio_decode] faster-whisper decode failed: {e_fw}, trying ffmpeg")
 
     # 3) ffmpeg (binaire) — dernier recours, décode en PCM float32 mono @ target_sr.
+    #    Via le résolveur commun (ffmpeg WSL2 peu fiable → override FFMPEG_BINARY possible,
+    #    y compris un ffmpeg.exe Windows ; adapt_path adapte alors le chemin /mnt → C:\).
     try:
+        from wama.common.utils.ffmpeg_utils import get_ffmpeg_exe, adapt_path_for_ffmpeg
+        _ff = get_ffmpeg_exe()
         proc = subprocess.run(
-            ['ffmpeg', '-nostdin', '-threads', '0', '-i', str(path),
+            [_ff, '-nostdin', '-threads', '0', '-i', adapt_path_for_ffmpeg(str(path), _ff),
              '-f', 'f32le', '-ac', '1', '-ar', str(target_sr), '-'],
             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, check=True,
         )

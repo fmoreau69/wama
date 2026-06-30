@@ -71,7 +71,13 @@
 
     // NB : la prévisualisation passe par le composant commun
     // (window.showPreviewModalWithNav) — pas de modal local.
-    const editModal        = new bootstrap.Modal(document.getElementById('editModal'));
+    // Reparenter le modal directement sous <body> : évite qu'un ancêtre à contexte d'empilement
+    // (transform/filter/position du layout sombre) ne « grise » le modal sous son backdrop.
+    const _editModalEl = document.getElementById('editModal');
+    if (_editModalEl && _editModalEl.parentElement !== document.body) {
+        document.body.appendChild(_editModalEl);
+    }
+    const editModal        = new bootstrap.Modal(_editModalEl);
 
     // ── Toast ─────────────────────────────────────────────────────────────────
 
@@ -100,7 +106,9 @@
 
     const libraryPanel = document.getElementById('assetGrid').parentElement
         .querySelector('.ml-toolbar')?.parentElement;  // container
-    const searchPanel  = document.getElementById('searchPanel');
+    const searchPanel   = document.getElementById('searchPanel');
+    const keywordsPanel = document.getElementById('keywordsPanel');
+    let _kwBrick = null;
 
     function showLibraryMode() {
         document.querySelector('.ml-toolbar').style.display = '';
@@ -109,6 +117,7 @@
         document.getElementById('assetGrid').style.display = '';
         document.getElementById('loadMoreBtn').parentElement.style.display = '';
         searchPanel.style.display = 'none';
+        if (keywordsPanel) keywordsPanel.style.display = 'none';
     }
 
     function showSearchMode() {
@@ -117,7 +126,27 @@
         document.getElementById('assetGrid').style.display = 'none';
         document.getElementById('loadMoreBtn').parentElement.style.display = 'none';
         searchPanel.style.display = 'block';
+        if (keywordsPanel) keywordsPanel.style.display = 'none';
         loadProviderButtons();
+    }
+
+    function showKeywordsMode() {
+        document.querySelector('.ml-toolbar').style.display = 'none';
+        document.getElementById('uploadZoneWrap').style.display = 'none';
+        document.getElementById('assetGrid').style.display = 'none';
+        document.getElementById('loadMoreBtn').parentElement.style.display = 'none';
+        searchPanel.style.display = 'none';
+        if (keywordsPanel) keywordsPanel.style.display = 'block';
+        // Mode gestion : pas de prompt cible — seuls l'ajout/suppression de mots-clés perso comptent.
+        if (window.WamaPromptChips && !_kwBrick) {
+            _kwBrick = WamaPromptChips.init({
+                container: '#keywordsManager', manage: true,
+                onCount: function (n) {
+                    var b = document.getElementById('badge-keywords');
+                    if (b) b.textContent = n;
+                },
+            });
+        }
     }
 
     // ── Onglets ───────────────────────────────────────────────────────────────
@@ -132,6 +161,8 @@
 
             if (currentType === 'search') {
                 showSearchMode();
+            } else if (currentType === 'keywords') {
+                showKeywordsMode();
             } else {
                 showLibraryMode();
                 uploadHint.textContent = TYPE_HINTS[currentType] || '';
@@ -143,9 +174,11 @@
         });
     });
 
-    // Init : si l'onglet actif est 'search', afficher le panneau recherche
+    // Init : si l'onglet actif est 'search' / 'keywords', afficher le bon panneau
     if (currentType === 'search') {
         showSearchMode();
+    } else if (currentType === 'keywords') {
+        showKeywordsMode();
     }
 
     // ── Recherche (debounce 300ms) ────────────────────────────────────────────

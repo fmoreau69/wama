@@ -24,6 +24,92 @@
     display: inline-block; max-width: 100%; text-align: left; vertical-align: middle;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
+  /* ── Solitaire 🃏 : batch REPLIÉ = pile de cartes (deck) ; clic = désempile (fan out) ──
+     CSS pur via :has() (Chrome) ; fallback gracieux si non supporté. Décalage VERS LE BAS
+     (le wrapper est en overflow-x:hidden → on évite le clipping horizontal) + bords cyan
+     contrastés pour que les cartes empilées soient bien visibles sur le fond sombre. */
+  .batch-group:has(.collapse[data-wama-batch-key]:not(.show)) {
+    margin-bottom: 1.5rem !important;   /* place pour que la pile « dépasse » sous le header */
+  }
+  .batch-group:has(.collapse[data-wama-batch-key]:not(.show)) .batch-group-header {
+    cursor: pointer;
+    transition: transform .15s ease, box-shadow .15s ease;
+    box-shadow:
+      3px 6px 0 -1px #0d1a1a,  3px 6px 0 0 rgba(13,202,240,.55),
+      6px 12px 0 -1px #0d1a1a, 6px 12px 0 0 rgba(13,202,240,.32);
+  }
+  .batch-group:has(.collapse[data-wama-batch-key]:not(.show)) .batch-group-header:hover {
+    transform: translateY(-2px);
+    box-shadow:
+      4px 8px 0 -1px #0d1a1a,  4px 8px 0 0 rgba(13,202,240,.75),
+      8px 16px 0 -1px #0d1a1a, 8px 16px 0 0 rgba(13,202,240,.45);
+  }
+  /* Libellé « pile » : visible seulement au survol (évite la superposition avec l'empilement). */
+  .batch-group:has(.collapse[data-wama-batch-key]:not(.show)) .batch-group-header::after {
+    content: "🃏 cliquer pour désempiler";
+    position: absolute; right: 2.2rem; bottom: -1.05rem;
+    font-size: .62rem; color: #67e8f9; opacity: 0; transition: opacity .15s ease; pointer-events: none;
+  }
+  .batch-group:has(.collapse[data-wama-batch-key]:not(.show)) .batch-group-header:hover::after { opacity: .85; }
+  .batch-group-header { position: relative; }
+  /* Card mère = MÊME squelette .synthesis-card que les filles ; .is-batch = seul le style diffère. */
+  .synthesis-card.is-batch { background: #0d1a1a; border: 1px solid #0dcaf0; }
+  .synthesis-card.is-batch:hover { background: #0f2222; }
+  .batch-group:has(.collapse[data-wama-batch-key].show) .batch-group-header { box-shadow: none; }
+  /* Désempilage : les cartes « fan out » en cascade à l'ouverture de la pile. */
+  @keyframes wama-fan-in { from { opacity: 0; transform: translateY(-14px) scale(.97); } to { opacity: 1; transform: none; } }
+  /* Durée + stagger augmentés (2026-06-29) : .26s était trop rapide, on ne voyait pas le désempilage. */
+  .collapse[data-wama-batch-key].show .synthesis-card { animation: wama-fan-in .42s cubic-bezier(.22,.61,.36,1) both; }
+  .collapse[data-wama-batch-key].show .synthesis-card:nth-child(1) { animation-delay: .00s; }
+  .collapse[data-wama-batch-key].show .synthesis-card:nth-child(2) { animation-delay: .07s; }
+  .collapse[data-wama-batch-key].show .synthesis-card:nth-child(3) { animation-delay: .14s; }
+  .collapse[data-wama-batch-key].show .synthesis-card:nth-child(4) { animation-delay: .21s; }
+  .collapse[data-wama-batch-key].show .synthesis-card:nth-child(n+5) { animation-delay: .28s; }
+  @media (prefers-reduced-motion: reduce) {
+    .collapse[data-wama-batch-key].show .synthesis-card { animation: none; }
+  }
+  /* ── Affichage MOSAÏQUE (géométrie) : grille de cards hautes ; contenu reformaté en colonne ──
+     Ligne (défaut) = 1 card par rangée. Les batchs restent pleine largeur même en mosaïque. */
+  #transcriptQueue.wama-queue-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+    gap: .7rem;
+    align-items: start;
+  }
+  /* Mosaïque : batch REPLIÉ = cellule mosaïque (la card mère suit la forme des filles) ;
+     batch DÉPLIÉ = bande pleine largeur (pour la grille des filles). */
+  #transcriptQueue.wama-queue-grid > .batch-group:has(.collapse[data-wama-batch-key].show) { grid-column: 1 / -1; }
+  /* Hauteurs égales par ligne en mosaïque pour les cards INDIVIDUELLES (esthétique). La card batch
+     garde align-items:start (reste courte → plus facile à distinguer, choix Fabien 2026-06-29). */
+  #transcriptQueue.wama-queue-grid > .synthesis-card { margin-bottom: 0 !important; align-self: stretch; }
+  /* …mais leurs ITEMS se tuilent aussi en mosaïque (grille interne quand le batch est déplié). */
+  #transcriptQueue.wama-queue-grid .collapse[data-wama-batch-key].show {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: .6rem;
+  }
+  /* Reformatage interne (cards de 1er niveau ET cards dans un batch) : colonnes empilées. */
+  #transcriptQueue.wama-queue-grid .synthesis-card { margin-bottom: 0 !important; }
+  #transcriptQueue.wama-queue-grid .synthesis-card .row { flex-direction: column; gap: .35rem; }
+  #transcriptQueue.wama-queue-grid .synthesis-card .row > [class*="col-"] {
+    width: 100%; max-width: 100%; flex: 0 0 auto;
+  }
+  /* Boutons toggle : refléter l'état actif. */
+  .wama-layout-btn.active { background: rgba(255,255,255,.14); }
+  /* ── Card « NOUVEAU » persistante en tête de file (gris pointillés = état « nouveau ») ──
+     Import + config ; pleine largeur même en mosaïque ; se distingue des cards de travail. */
+  #transcriptQueue > #newItemCard.wama-new-card { grid-column: 1 / -1; margin-bottom: .4rem; }
+  #newItemCard.wama-new-card {
+    border: 2px dashed rgba(255,255,255,.22);
+    border-radius: .7rem;
+    background: rgba(255,255,255,.015);
+    padding: .25rem;
+    transition: border-color .15s ease, background .15s ease;
+  }
+  #newItemCard.wama-new-card:hover {
+    border-color: rgba(13,202,240,.45);
+    background: rgba(13,202,240,.04);
+  }
 </style>
 <!-- Inspecteur : reflète la card sélectionnée (sinon = valeurs par défaut) -->
 <div id="inspectorBanner" class="d-none align-items-center gap-2 p-2 mb-2 rounded small">
@@ -34,6 +120,11 @@
     </button>
 </div>
 
+<!-- ░ Volet de réglages GÉNÉRÉ depuis le schéma (params.py → WamaParams). Apparence en wama-params.css. ░ -->
+<div id="panelSettings" class="wama-params"></div>
+<small id="backendHelp" class="text-muted d-block mt-1"></small>
+
+{% comment %} === ANCIEN VOLET CODÉ EN DUR (backup ; remplacé par le rendu schéma-driven ci-dessus) ===
 <!-- Backend Selection -->
 <div class="mb-3">
     <label class="form-label small fw-bold text-light">
@@ -131,6 +222,7 @@
     </label>
     <input type="number" class="form-control form-control-sm" id="panelMaxTokens" min="1024" max="131072" value="32768">
 </div>
+=== fin backup ==={% endcomment %}
 
 <!-- Reset Button -->
 <hr class="border-secondary my-2">
@@ -158,6 +250,9 @@
       progressUrlTemplate: '{% url "transcriber:progress" 0 %}',
       deleteUrlTemplate: '{% url "transcriber:delete" 0 %}',
       duplicateUrlTemplate: '{% url "transcriber:duplicate" 0 %}',
+      removeFromBatchUrlTemplate: '{% url "transcriber:remove_from_batch" 0 %}',
+      reorderUrl: '{% url "transcriber:reorder" %}',
+      moveToBatchUrlTemplate: '{% url "transcriber:move_to_batch" 0 %}',
       downloadUrlTemplate: '{% url "transcriber:download" 0 %}',
       editUrlTemplate: '{% url "transcriber:edit" 0 %}',
       downloadSrtUrlTemplate: '{% url "transcriber:download_srt" 0 %}',
@@ -180,10 +275,6 @@
       batchDownloadUrlTemplate: '{% url "transcriber:batch_download" 0 %}',
       batchDeleteUrlTemplate: '{% url "transcriber:batch_delete" 0 %}',
       batchDuplicateUrlTemplate: '{% url "transcriber:batch_duplicate" 0 %}',
-      stageCommitUrlTemplate: '{% url "transcriber:stage_commit" 0 %}',
-      stageCommitAllUrl: '{% url "transcriber:stage_commit_all" %}',
-      stageClearUrl: '{% url "transcriber:stage_clear" %}',
-      stageUpdateAllUrl: '{% url "transcriber:stage_update_all" %}',
       saveRealtimeUrl: '{% url "transcriber:save_realtime" %}',
     });
 
@@ -194,7 +285,46 @@
 <script src="{% static 'common/js/wama-eta.js' %}"></script>
 <script src="{% static 'common/js/wama-inspector.js' %}"></script>
 <script src="{% static 'common/js/wama-model-help.js' %}"></script>
+<script src="{% static 'common/js/wama-modes.js' %}"></script>
+<link rel="stylesheet" href="{% static 'common/css/wama-params.css' %}">
+<script src="{% static 'common/js/wama-params.js' %}"></script>
+<script>
+// Rendu du volet de réglages DEPUIS LE SCHÉMA (avant index.js → les champs legacy existent pour son init).
+(function () {
+    if (!window.WamaParams) return;
+    var host = document.getElementById('panelSettings');
+    if (!host) return;
+    var schema = {{ params_json|safe }};
+    var values = {{ panel_values_json|safe }};
+    WamaParams.render(host, schema, { context: 'panel', values: values });
+
+    // Modale « Paramètres » (item/batch) rendue DEPUIS LE MÊME SCHÉMA (context 'item').
+    // dom_id scopés → IDs/noms d'origine (settingsBackend…) ; openSettingsModal peuple à l'ouverture.
+    var modalHost = document.getElementById('settingsParams');
+    if (modalHost) WamaParams.render(modalHost, schema, { context: 'item', values: {} });
+
+    var bs = document.getElementById('backendSelect');
+    // Descriptif moteur : repositionner #backendHelp DANS le champ moteur (juste sous le select).
+    var bh = document.getElementById('backendHelp');
+    if (bs && bh) { var row = bs.closest('.wama-param'); if (row) row.appendChild(bh); }
+    // Pont backend : loadBackendsAsync relit data-selected pour re-sélectionner après l'async.
+    if (bs && values.backend) bs.dataset.selected = values.backend;
+})();
+</script>
 <script src="{% static 'transcriber/js/index.js' %}"></script>
+<!-- Barre globale commune : URL d'abord, puis le script (auto-démarre au DOMContentLoaded). -->
+<script>window.WAMA_GLOBAL_PROGRESS_URL = "{% url 'transcriber:global_progress' %}";</script>
+<script src="{% static 'common/js/wama-global-progress.js' %}"></script>
+<script>
+// ── Card « Nouvel élément » persistante EN TÊTE de file (entrée UNIVERSELLE : fichier / URL / batch
+//    + Speak temps réel comme AFFORDANCE de la card). Plus de switch de mode. Déplacement DOM ; les
+//    IDs/handlers restent intacts (liés par getElementById). Toujours en 1ʳᵉ position. ──
+(function () {
+    var card = document.getElementById('newItemCard');
+    var q = document.getElementById('transcriptQueue');
+    if (card && q) { card.classList.add('wama-new-card'); q.prepend(card); }
+})();
+</script>
 <script>
 window._batchImport = WamaBatchImport({
     batchPreviewUrl: window.TRANSCRIBER_APP.batchPreviewUrl,
@@ -217,115 +347,33 @@ window._batchImport = WamaBatchImport({
 {% block transcriber_content %}
 <div style="overflow-x:hidden;">
 
-<!-- Live Transcription Section -->
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="row g-3 align-items-center justify-content-center">
-            <div class="col-lg-6 col-12 text-center">
-                <button id="transcriber-speak-btn" class="btn btn-warning btn-lg w-100 w-lg-auto">
-                    <i class="fas fa-microphone"></i> Speak
-                </button>
-                <p id="transcriber-speak-hint" class="text small mt-2 mb-0">
-                    Lancez une transcription vocale en direct (Chrome recommandé).
-                </p>
-            </div>
-        </div>
-
-        <div class="card bg-dark mt-4 shadow-sm">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <span class="text-light"><i class="fas fa-wave-square"></i> Live transcription</span>
-                <small class="text-white" id="live-transcription-status">En attente...</small>
-            </div>
-            <div class="card-body" style="min-height: 220px;">
-                <div id="live-transcription-output" class="text-white" style="text-align: center; font-size: 1.2rem;">
-                    Appuyez sur <strong>Speak</strong> puis commencez à parler pour voir le texte apparaître ici en temps réel.
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<hr class="border-secondary">
-
-<!-- Card « Nouvel élément » : import (fichier / URL / batch) — brique commune _new_item_card.
-     Mêmes IDs que les handlers JS du transcriber (upload/drag&drop/youtube) → inchangés. -->
+<!-- Card « Nouvel élément » : entrée UNIVERSELLE (fichier / URL / batch + Speak temps réel) — brique
+     commune _new_item_card. Le Speak est une AFFORDANCE de la card (show_live), plus un mode séparé.
+     Mêmes IDs que les handlers JS (upload/drag&drop/youtube/Speak) → inchangés. -->
 {% url 'transcriber:batch_template' as batch_tpl %}
-{% include 'common/_new_item_card.html' with drop_zone_id='dropZoneTranscriber' file_input_id='transcriber-file' file_accept='audio/*,video/*' formats_label='MP3, WAV, FLAC, MP4, MKV…' batch_template_url=batch_tpl show_batch_bar=True show_url=True url_input_id='youtubeUrl' url_submit_id='youtubeSubmitBtn' url_placeholder='https://youtube.com/watch?v=…' url_label='ou depuis une URL' url_hint='YouTube, ou lien direct vers un fichier audio/vidéo.' url_icon='fab fa-youtube' url_icon_class='text-danger' %}
+{% include 'common/_new_item_card.html' with drop_zone_id='dropZoneTranscriber' file_input_id='transcriber-file' file_accept='audio/*,video/*' formats_label='MP3, WAV, FLAC, MP4, MKV…' batch_template_url=batch_tpl show_batch_bar=True show_url=True url_input_id='youtubeUrl' url_submit_id='youtubeSubmitBtn' url_placeholder='https://youtube.com/watch?v=…' url_label='ou depuis une URL' url_hint='YouTube, ou lien direct vers un fichier audio/vidéo.' url_icon='fab fa-youtube' url_icon_class='text-danger' show_live=True live_btn_id='transcriber-speak-btn' live_label='Speak' live_icon='fas fa-microphone' live_hint='Transcription vocale en direct (Chrome recommandé).' live_hint_id='transcriber-speak-hint' show_media_library=True media_library_type='audio' %}
 
-<div id="globalStatus" style="opacity:0; pointer-events:none;">
-    <div class="d-flex justify-content-between align-items-baseline mb-1">
-        <small class="text-muted"><span id="globalProgressStats"></span><span class="wama-eta ms-2" id="globalEta"></span></small>
-        <small class="text-muted" id="globalProgressPct" style="font-variant-numeric: tabular-nums;"></small>
+<!-- Zone de transcription LIVE : masquée par défaut, révélée au clic Speak (startAll dans index.js).
+     IDs (#live-transcription-status / #live-transcription-output) préservés → JS Speak inchangé. -->
+<div id="transcriberLive" class="card bg-dark mt-3 shadow-sm" style="display:none;">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span class="text-light"><i class="fas fa-wave-square"></i> Transcription en direct</span>
+        <small class="text-white" id="live-transcription-status">En attente...</small>
     </div>
-    <div class="wama-progress-track">
-        <div class="wama-progress-fill active" id="globalProgressBar" style="width:0%"></div>
-    </div>
-    <div style="height:12px;"></div>
-</div>
-
-<!-- Staging zone (« à valider ») -->
-<div class="row mb-2" id="stagingZone" {% if not staging_list %}style="display:none;"{% endif %}>
-    <div class="col-12">
-        <div class="border rounded p-2" style="border-color:#ffc107 !important; background:#2a2410;">
-            <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
-                <i class="fas fa-inbox" style="color:#ffc107;"></i>
-                <strong class="text-light">À valider</strong>
-                <span class="badge bg-warning text-dark" id="stagingCount">{{ staging_list|length }}</span>
-                <small class="text-white-50 d-none d-md-inline">Réglez les paramètres, puis ajoutez à la file ou lancez.</small>
-                <div class="ms-auto d-flex gap-1 flex-wrap">
-                    <button class="btn btn-sm btn-outline-light" id="stagingSettingsAll" title="Appliquer les paramètres du volet droit à tous les éléments à valider">
-                        <i class="fas fa-cog"></i> Param. à tous
-                    </button>
-                    <button class="btn btn-sm btn-outline-info" id="stagingAddAll">
-                        <i class="fas fa-plus"></i> Tout ajouter
-                    </button>
-                    <button class="btn btn-sm btn-success" id="stagingStartAll">
-                        <i class="fas fa-play"></i> Tout lancer
-                    </button>
-                    <button class="btn btn-sm btn-outline-danger" id="stagingClear" title="Vider la zone à valider">
-                        <i class="fas fa-trash"></i>
-                    </button>
-                </div>
-            </div>
-            <div id="stagingItems">
-                {% for t in staging_list %}
-                <div class="synthesis-card staging-card mb-1" data-id="{{ t.id }}" data-stage="1">
-                    <div class="d-flex align-items-center gap-2">
-                        <i class="fas fa-file-audio text-warning"></i>
-                        <span class="text-light flex-grow-1 text-truncate">{{ t.filename|default:"(audio)" }}</span>
-                        <small class="text-white-50 d-none d-md-inline">{{ t.backend|default:"auto" }}{% if t.preprocess_audio %} · prétrait.{% endif %}</small>
-                        <div class="d-flex gap-1">
-                            <button class="btn btn-sm btn-secondary settings-btn"
-                                    data-id="{{ t.id }}"
-                                    data-backend="{{ t.backend }}"
-                                    data-hotwords="{{ t.hotwords }}"
-                                    data-preprocess="{{ t.preprocess_audio|yesno:'true,false' }}"
-                                    data-diarization="{{ t.enable_diarization|yesno:'true,false' }}"
-                                    data-temperature="{{ t.temperature }}"
-                                    data-max-tokens="{{ t.max_tokens }}"
-                                    data-generate-summary="{{ t.generate_summary|yesno:'true,false' }}"
-                                    data-summary-type="{{ t.summary_type }}"
-                                    data-verify-coherence="{{ t.verify_coherence|yesno:'true,false' }}"
-                                    title="Paramètres">
-                                <i class="fas fa-cog"></i>
-                            </button>
-                            <button class="btn btn-sm btn-outline-info stage-add-btn" data-id="{{ t.id }}" title="Ajouter à la file">
-                                <i class="fas fa-plus"></i>
-                            </button>
-                            <button class="btn btn-sm btn-success stage-start-btn" data-id="{{ t.id }}" title="Lancer">
-                                <i class="fas fa-play"></i>
-                            </button>
-                            <button class="btn btn-sm btn-outline-danger stage-del-btn" data-id="{{ t.id }}" title="Supprimer">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-                {% endfor %}
-            </div>
+    <div class="card-body" style="min-height: 180px;">
+        <div id="live-transcription-output" class="text-white" style="text-align: center; font-size: 1.2rem;">
+            Appuyez sur <strong>Speak</strong> puis commencez à parler pour voir le texte apparaître ici en temps réel.
         </div>
     </div>
 </div>
+
+<!-- Barre de progression globale + ETA agrégée — brique commune _global_progress.html.
+     Toujours visible ; texte « X/Y terminé · N en cours · N échoué » ; balayage coloré commun
+     (.wama-progress-fill.active, app_modern.css) hérité par toutes les apps qui l'incluent. -->
+{% include 'common/_global_progress.html' %}
+
+<!-- Staging (« à valider ») SUPPRIMÉ 2026-06-29 : doublon avec l'inspecteur. Les fichiers ajoutés
+     deviennent directement des cards BROUILLON dans la file (config via inspecteur, lancement via Lancer). -->
 
 <!-- Transcripts Queue -->
 <div class="row">
@@ -335,11 +383,35 @@ window._batchImport = WamaBatchImport({
                 <i class="fas fa-list"></i> File d'attente
                 <span class="badge bg-info" id="queueCount">{{ queue_count }}</span>
             </h4>
-            <!-- Actions globales de la file (brique commune ; dispo en mode simple ; IDs = handlers JS). -->
-            {% include 'common/_queue_actions.html' with start_id='transcriber-process-btn' download_id='transcriber-download-all-btn' clear_id='transcriber-clear-btn' show_download=True %}
+            <div class="d-flex align-items-center gap-2">
+                <!-- Tri + filtrage de la file (fonctionnel, persisté en session ; recharge la page). -->
+                <select class="form-select form-select-sm bg-dark text-white border-secondary" style="width:auto;"
+                        onchange="location.search='?sort='+this.value+'&filter={{ q_filter }}'" title="Trier la file">
+                    <option value="recent" {% if q_sort == 'recent' %}selected{% endif %}>↓ Plus récent</option>
+                    <option value="oldest" {% if q_sort == 'oldest' %}selected{% endif %}>↑ Plus ancien</option>
+                    <option value="name"   {% if q_sort == 'name' %}selected{% endif %}>Nom</option>
+                    <option value="batches_first" {% if q_sort == 'batches_first' %}selected{% endif %}>Batchs puis cards</option>
+                    <option value="singles_first" {% if q_sort == 'singles_first' %}selected{% endif %}>Cards puis batchs</option>
+                </select>
+                <select class="form-select form-select-sm bg-dark text-white border-secondary" style="width:auto;"
+                        onchange="location.search='?sort={{ q_sort }}&filter='+this.value" title="Filtrer par statut">
+                    <option value="all"     {% if q_filter == 'all' %}selected{% endif %}>Tous les statuts</option>
+                    <option value="draft"   {% if q_filter == 'draft' %}selected{% endif %}>Brouillon</option>
+                    <option value="running" {% if q_filter == 'running' %}selected{% endif %}>En cours</option>
+                    <option value="success" {% if q_filter == 'success' %}selected{% endif %}>Terminé</option>
+                    <option value="failure" {% if q_filter == 'failure' %}selected{% endif %}>Échec</option>
+                </select>
+                <!-- Toggle d'affichage : Ligne ↔ Mosaïque (géométrie ; persisté sur le profil). -->
+                <div class="btn-group btn-group-sm" role="group" aria-label="Disposition">
+                    <button type="button" class="btn btn-outline-secondary wama-layout-btn" data-layout="list" title="Affichage en ligne"><i class="fas fa-list"></i></button>
+                    <button type="button" class="btn btn-outline-secondary wama-layout-btn" data-layout="grid" title="Affichage en mosaïque"><i class="fas fa-table-cells-large"></i></button>
+                </div>
+                <!-- Actions globales de la file (brique commune ; dispo en mode simple ; IDs = handlers JS). -->
+                {% include 'common/_queue_actions.html' with start_id='transcriber-process-btn' download_id='transcriber-download-all-btn' clear_id='transcriber-clear-btn' show_download=True %}
+            </div>
         </div>
 
-        <div id="transcriptQueue">
+        <div id="transcriptQueue" class="wama-queue-{{ card_layout }}">
             {% for batch_info in batches_list %}
 
             {% if batch_info.obj.total == 1 %}
@@ -409,7 +481,7 @@ window._batchImport = WamaBatchImport({
                         <div class="btn-group-actions">
                             {% if t.status != 'RUNNING' %}
                             {# Ordre conventionnel : ⚙ Paramètres → ▶ Start (cf. WAMA_APP_CONVENTIONS §6) #}
-                            <button class="btn btn-sm btn-secondary settings-btn"
+                            <button class="btn btn-sm btn-outline-secondary settings-btn"
                                     data-id="{{ t.id }}"
                                     data-backend="{{ t.backend }}"
                                     data-hotwords="{{ t.hotwords }}"
@@ -423,17 +495,17 @@ window._batchImport = WamaBatchImport({
                                     title="Paramètres">
                                 <i class="fas fa-cog"></i>
                             </button>
-                            <button class="btn btn-sm btn-primary start-btn"
+                            <button class="btn btn-sm btn-outline-success start-btn"
                                     data-id="{{ t.id }}"
-                                    title="{% if t.is_realtime %}Re-transcrire via le pipeline complet (diarisation, résumé…){% else %}Démarrer{% endif %}">
-                                <i class="fas {% if t.is_realtime %}fa-rotate{% else %}fa-play{% endif %}"></i>
+                                    title="{% if t.is_realtime %}Re-transcrire via le pipeline complet (diarisation, résumé…){% elif t.status == 'SUCCESS' or t.status == 'FAILURE' %}Relancer{% else %}Démarrer{% endif %}">
+                                <i class="fas {% if t.is_realtime %}fa-rotate{% elif t.status == 'SUCCESS' or t.status == 'FAILURE' %}fa-rotate-right{% else %}fa-play{% endif %}"></i>
                             </button>
                             {% endif %}
 
                             {% if t.status == 'SUCCESS' %}
                             {# Bouton œil retiré : double-clic sur la preview en bas de card → overlay #}
                             <a href="{% url 'transcriber:edit' t.id %}"
-                               class="btn btn-sm btn-outline-warning" title="Corriger (éditeur audio + texte)">
+                               class="btn btn-sm btn-outline-primary" title="Corriger (éditeur audio + texte)">
                                 <i class="fas fa-pen-to-square"></i>{% if t.correction_status == 'draft' %} <span class="badge bg-warning text-dark" style="font-size:.55rem;">brouillon</span>{% elif t.correction_status == 'done' %} <span class="badge bg-success" style="font-size:.55rem;">corrigé</span>{% endif %}
                             </a>
                             <div class="btn-group btn-group-sm">
@@ -459,12 +531,12 @@ window._batchImport = WamaBatchImport({
                             </div>
                             {% endif %}
 
-                            <button class="btn btn-sm btn-outline-info duplicate-btn"
+                            <button class="btn btn-sm btn-outline-warning duplicate-btn"
                                     data-id="{{ t.id }}"
                                     title="Dupliquer (tester un autre modèle)">
                                 <i class="fas fa-copy"></i>
                             </button>
-                            <button class="btn btn-sm btn-danger delete-btn"
+                            <button class="btn btn-sm btn-outline-danger delete-btn"
                                     data-id="{{ t.id }}"
                                     title="Supprimer">
                                 <i class="fas fa-trash"></i>
@@ -492,58 +564,104 @@ window._batchImport = WamaBatchImport({
             {% else %}
             <!-- Multi-item batch: collapsible group -->
             <div class="batch-group mb-2" data-batch-id="{{ batch_info.obj.id }}">
-                <div class="batch-group-header d-flex align-items-center gap-2 p-2"
-                     style="background:#0d1a1a; border:1px solid #0dcaf0; border-radius:0.375rem;">
-                    <div class="d-flex align-items-center gap-2 flex-grow-1"
-                         style="cursor:pointer; user-select:none; min-width:0;"
-                         data-bs-toggle="collapse"
-                         data-bs-target="#batchItems{{ batch_info.obj.id }}"
-                         aria-expanded="false">
-                        <i class="fas fa-layer-group" style="color:#67e8f9;"></i>
-                        <strong class="text-light">Batch #{{ batch_info.obj.id }}</strong>
-                        <small class="text-muted">{{ batch_info.obj.created_at|date:"d/m H:i" }}</small>
-                        <span class="badge bg-secondary">{{ batch_info.success_count }}/{{ batch_info.obj.total }}</span>
-                        <span class="wama-eta" data-eta-ids="{% for item in batch_info.items %}{% if item.transcript %}{{ item.transcript.id }},{% endif %}{% endfor %}"></span>
-                        <div class="flex-grow-1">
-                            <div class="wama-progress-track">
-                                <div class="wama-progress-fill" style="width:{{ batch_info.success_pct }}%;"></div>
+                <!-- Card MÈRE : MÊME squelette .synthesis-card que les filles + modificateur .is-batch
+                     (couleur). Ne diffère que par les méta agrégées et ses actions batch. Toggle collapse
+                     sur la zone info (col-md-9) ; actions HORS toggle → handlers délégués préservés. -->
+                <div class="synthesis-card is-batch batch-group-header" data-status="batch">
+                    <div class="row align-items-center">
+                        <div class="col-md-9" data-bs-toggle="collapse"
+                             data-bs-target="#batchItems{{ batch_info.obj.id }}" aria-expanded="false"
+                             style="cursor:pointer; user-select:none;">
+                            <div class="row align-items-center">
+                                <!-- Identité (≈ colonne « fichier » des filles) -->
+                                <div class="col-md-4">
+                                    <small class="text-muted d-block" style="font-size:.65rem;">
+                                        <i class="fas fa-calendar-alt" title="Créé le"></i> {{ batch_info.obj.created_at|date:"d/m H:i" }}
+                                    </small>
+                                    <span class="filename text-light">
+                                        <i class="fas fa-layer-group" style="color:#67e8f9;"></i> Batch #{{ batch_info.obj.id }}
+                                    </span><br>
+                                    <small class="text-white-50 d-block">
+                                        <i class="fas fa-list"></i> {{ batch_info.obj.total }} élément{{ batch_info.obj.total|pluralize }}
+                                    </small>
+                                </div>
+                                <!-- Méta COMMUNES aux filles (≈ colonne « options ») -->
+                                <div class="col-md-3">
+                                    <small class="text-white-50 d-block" style="font-size:.72rem;" title="Modèle (commun aux éléments)">
+                                        <i class="fas fa-microchip text-info"></i> {{ batch_info.common_backend|default:"Mixte" }}
+                                    </small>
+                                    {% if batch_info.common_language %}
+                                    <small class="text-white-50 d-block" style="font-size:.72rem;">
+                                        <i class="fas fa-language"></i> {{ batch_info.common_language }}
+                                    </small>
+                                    {% endif %}
+                                    {% if batch_info.common_diarization %}
+                                    <small class="text-white-50 d-block" style="font-size:.72rem;">
+                                        <i class="fas fa-users"></i> Diarisation
+                                    </small>
+                                    {% endif %}
+                                </div>
+                                <!-- État agrégé (≈ colonne « état ») -->
+                                <div class="col-md-2">
+                                    <span class="badge" style="background:rgba(13,202,240,.15); color:#0dcaf0; border:1px solid rgba(13,202,240,.5);">
+                                        <i class="fas fa-layer-group"></i> Batch
+                                    </span>
+                                    <small class="d-block mt-1" style="font-size:.7rem;">
+                                        <span class="text-success" title="Terminés"><i class="fas fa-check"></i> {{ batch_info.success_count }}</span>
+                                        {% if batch_info.running_count %}<span class="text-warning ms-1" title="En cours"><i class="fas fa-spinner"></i> {{ batch_info.running_count }}</span>{% endif %}
+                                        {% if batch_info.failure_count %}<span class="text-danger ms-1" title="Échecs"><i class="fas fa-times"></i> {{ batch_info.failure_count }}</span>{% endif %}
+                                        <span class="text-white-50">/ {{ batch_info.obj.total }}</span>
+                                    </small>
+                                </div>
+                                <!-- Progression agrégée (≈ colonne « progression ») -->
+                                <div class="col-md-3">
+                                    <div class="wama-progress-track">
+                                        <div class="wama-progress-fill" style="width:{{ batch_info.success_pct }}%;"></div>
+                                    </div>
+                                    <span class="wama-eta" data-eta-ids="{% for item in batch_info.items %}{% if item.transcript %}{{ item.transcript.id }},{% endif %}{% endfor %}"></span>
+                                    <i class="fas fa-chevron-down text-muted ms-1" style="font-size:.7rem;"></i>
+                                </div>
                             </div>
                         </div>
-                        <i class="fas fa-chevron-down text-muted" style="font-size:.7rem;"></i>
-                    </div>
-                    <div class="d-flex gap-1 flex-shrink-0">
-                        <button class="btn btn-sm batch-settings-btn py-0 px-2"
-                                data-batch-id="{{ batch_info.obj.id }}"
-                                style="background:rgba(13,202,240,0.15); color:#0dcaf0; border:1px solid #0dcaf0; font-size:.75rem;"
-                                title="Paramètres du batch (appliqués à tous les éléments)">
-                            <i class="fas fa-cog"></i>
-                        </button>
-                        {% if batch_info.has_success %}
-                        <div class="dropdown d-inline-block">
-                            <button class="btn btn-sm btn-outline-info py-0 px-2 dropdown-toggle"
-                                    type="button" data-bs-toggle="dropdown" aria-expanded="false"
-                                    style="font-size:.75rem;" title="Télécharger toutes les sorties (ZIP)">
-                                <i class="fas fa-download"></i> ZIP
-                            </button>
-                            <ul class="dropdown-menu dropdown-menu-end">
-                                <li><a class="dropdown-item" href="{% url 'transcriber:batch_download' batch_info.obj.id %}?fmt=txt">Tout en TXT</a></li>
-                                <li><a class="dropdown-item" href="{% url 'transcriber:batch_download' batch_info.obj.id %}?fmt=srt">Tout en SRT</a></li>
-                                <li><a class="dropdown-item" href="{% url 'transcriber:batch_download' batch_info.obj.id %}?fmt=pdf">Tout en PDF</a></li>
-                                <li><a class="dropdown-item" href="{% url 'transcriber:batch_download' batch_info.obj.id %}?fmt=docx">Tout en DOCX</a></li>
-                            </ul>
+                        <!-- Actions batch : HORS du toggle (clics → handlers délégués sur document) -->
+                        <div class="col-md-3">
+                            <div class="btn-group-actions">
+                                <button class="btn btn-sm btn-outline-secondary batch-settings-btn py-0 px-2"
+                                        data-batch-id="{{ batch_info.obj.id }}"
+                                        title="Paramètres du batch (appliqués à tous les éléments)">
+                                    <i class="fas fa-cog"></i>
+                                </button>
+                                {# ▶ Lancer/Relancer (pos. 2, comme les cards individuelles — WAMA_APP_CONVENTIONS §6) #}
+                                <button class="btn btn-sm btn-outline-success batch-start-btn py-0 px-2"
+                                        data-batch-id="{{ batch_info.obj.id }}"
+                                        title="Lancer / relancer tous les éléments du batch">
+                                    <i class="fas {% if batch_info.has_success %}fa-rotate-right{% else %}fa-play{% endif %}"></i>
+                                </button>
+                                {% if batch_info.has_success %}
+                                <div class="dropdown d-inline-block">
+                                    <button class="btn btn-sm btn-outline-info py-0 px-2 dropdown-toggle"
+                                            type="button" data-bs-toggle="dropdown" aria-expanded="false"
+                                            title="Télécharger toutes les sorties (ZIP)">
+                                        <i class="fas fa-download"></i> ZIP
+                                    </button>
+                                    <ul class="dropdown-menu dropdown-menu-end">
+                                        <li><a class="dropdown-item" href="{% url 'transcriber:batch_download' batch_info.obj.id %}?fmt=txt">Tout en TXT</a></li>
+                                        <li><a class="dropdown-item" href="{% url 'transcriber:batch_download' batch_info.obj.id %}?fmt=srt">Tout en SRT</a></li>
+                                        <li><a class="dropdown-item" href="{% url 'transcriber:batch_download' batch_info.obj.id %}?fmt=pdf">Tout en PDF</a></li>
+                                        <li><a class="dropdown-item" href="{% url 'transcriber:batch_download' batch_info.obj.id %}?fmt=docx">Tout en DOCX</a></li>
+                                    </ul>
+                                </div>
+                                {% endif %}
+                                <button class="btn btn-sm btn-outline-warning batch-duplicate-btn py-0 px-2"
+                                        data-batch-id="{{ batch_info.obj.id }}" title="Dupliquer le batch">
+                                    <i class="fas fa-copy"></i>
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger batch-delete-btn py-0 px-2"
+                                        data-batch-id="{{ batch_info.obj.id }}" title="Supprimer le batch">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
                         </div>
-                        {% endif %}
-                        <button class="btn btn-sm batch-duplicate-btn py-0 px-2"
-                                data-batch-id="{{ batch_info.obj.id }}"
-                                style="background:rgba(13,202,240,0.15); color:#0dcaf0; border:1px solid #0dcaf0; font-size:.75rem;"
-                                title="Dupliquer le batch">
-                            <i class="fas fa-copy"></i>
-                        </button>
-                        <button class="btn btn-sm btn-outline-danger batch-delete-btn py-0 px-2"
-                                data-batch-id="{{ batch_info.obj.id }}"
-                                style="font-size:.75rem;" title="Supprimer le batch">
-                            <i class="fas fa-trash"></i>
-                        </button>
                     </div>
                 </div>
                 <div class="collapse" id="batchItems{{ batch_info.obj.id }}"
@@ -600,7 +718,7 @@ window._batchImport = WamaBatchImport({
                             <div class="col-md-3">
                                 <div class="btn-group-actions">
                                     {% if t.status != 'RUNNING' %}
-                                    <button class="btn btn-sm btn-secondary settings-btn"
+                                    <button class="btn btn-sm btn-outline-secondary settings-btn"
                                             data-id="{{ t.id }}"
                                             data-backend="{{ t.backend }}"
                                             data-hotwords="{{ t.hotwords }}"
@@ -614,14 +732,14 @@ window._batchImport = WamaBatchImport({
                                             title="Paramètres">
                                         <i class="fas fa-cog"></i>
                                     </button>
-                                    <button class="btn btn-sm btn-primary start-btn" data-id="{{ t.id }}" title="Démarrer">
-                                        <i class="fas fa-play"></i>
+                                    <button class="btn btn-sm btn-outline-success start-btn" data-id="{{ t.id }}" title="{% if t.status == 'SUCCESS' or t.status == 'FAILURE' %}Relancer{% else %}Démarrer{% endif %}">
+                                        <i class="fas {% if t.status == 'SUCCESS' or t.status == 'FAILURE' %}fa-rotate-right{% else %}fa-play{% endif %}"></i>
                                     </button>
                                     {% endif %}
                                     {% if t.status == 'SUCCESS' %}
                                     {# Bouton œil retiré : double-clic sur la preview en bas de card → overlay #}
                                     <a href="{% url 'transcriber:edit' t.id %}"
-                                       class="btn btn-sm btn-outline-warning" title="Corriger (éditeur audio + texte)">
+                                       class="btn btn-sm btn-outline-primary" title="Corriger (éditeur audio + texte)">
                                         <i class="fas fa-pen-to-square"></i>
                                     </a>
                                     <div class="btn-group btn-group-sm">
@@ -646,11 +764,11 @@ window._batchImport = WamaBatchImport({
                                         </ul>
                                     </div>
                                     {% endif %}
-                                    <button class="btn btn-sm btn-outline-info duplicate-btn" data-id="{{ t.id }}"
+                                    <button class="btn btn-sm btn-outline-warning duplicate-btn" data-id="{{ t.id }}"
                                             title="Dupliquer dans le batch (tester un autre modèle)">
                                         <i class="fas fa-copy"></i>
                                     </button>
-                                    <button class="btn btn-sm btn-danger delete-btn" data-id="{{ t.id }}" title="Supprimer">
+                                    <button class="btn btn-sm btn-outline-danger delete-btn" data-id="{{ t.id }}" title="Supprimer">
                                         <i class="fas fa-trash"></i>
                                     </button>
                                 </div>
@@ -704,98 +822,17 @@ window._batchImport = WamaBatchImport({
                 <form id="settingsForm">
                     <input type="hidden" id="settingsTranscriptId" name="transcript_id">
 
-                    <!-- Backend -->
-                    <div class="mb-3">
-                        <label for="settingsBackend" class="form-label">
-                            <i class="fas fa-microchip"></i> Moteur de transcription
-                        </label>
-                        <select class="form-select" id="settingsBackend" name="backend">
-                            <option value="auto">Auto (meilleur disponible)</option>
-                            {# options injected asynchronously by loadBackendsAsync() #}
-                        </select>
-                    </div>
+                    <!-- Réglages GÉNÉRÉS depuis le schéma unique (params.py / WamaParams), context 'item'.
+                         Les dom_id scopés reproduisent les IDs/noms d'origine (settingsBackend, settingsHotwords,
+                         name="summary_type"…) → saveSettings/openSettingsModal/loadBackendsAsync inchangés.
+                         Même schéma que le volet inspecteur (context 'panel') = fin de la divergence modale↔volet. -->
+                    <div id="settingsParams" class="wama-params"></div>
 
-                    <!-- Hotwords -->
-                    <div class="mb-3">
-                        <label for="settingsHotwords" class="form-label">
-                            <i class="fas fa-tags"></i> Mots-clés contextuels
-                        </label>
-                        <textarea class="form-control" id="settingsHotwords" name="hotwords"
-                                  rows="2" placeholder="Noms propres, termes techniques..."></textarea>
-                        <small class="text-muted">Séparés par des virgules</small>
-                    </div>
-
-                    <!-- Preprocessing Toggle -->
-                    <div class="mb-3">
-                        <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" id="settingsPreprocess" name="preprocess_audio">
-                            <label class="form-check-label" for="settingsPreprocess">
-                                <i class="fas fa-wand-magic-sparkles"></i> Prétraitement audio
-                            </label>
-                        </div>
-                        <small class="text-muted">Débruitage IA (DeepFilterNet) + 16 kHz mono</small>
-                    </div>
-
-                    <!-- Diarization Toggle (libellés alignés sur le volet inspecteur) -->
-                    <div class="mb-3">
-                        <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" id="settingsDiarization" name="enable_diarization">
-                            <label class="form-check-label" for="settingsDiarization">
-                                <i class="fas fa-users"></i> Identifier les locuteurs
-                            </label>
-                        </div>
-                        <small class="text-muted d-block mt-1">Séparation des locuteurs (pyannote)</small>
-                    </div>
-
-                    <!-- Summary -->
-                    <div class="mb-2">
-                        <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" id="settingsGenerateSummary" name="generate_summary">
-                            <label class="form-check-label" for="settingsGenerateSummary">
-                                <i class="fas fa-file-lines"></i> Générer un résumé
-                            </label>
-                        </div>
-                    </div>
-                    <div class="mb-3 ms-3" id="summaryTypeGroup" style="display: none;">
-                        <div class="form-check form-check-inline">
-                            <input class="form-check-input" type="radio" name="summary_type" id="summaryTypeStructured" value="structured" checked>
-                            <label class="form-check-label small" for="summaryTypeStructured">Structuré</label>
-                        </div>
-                        <div class="form-check form-check-inline">
-                            <input class="form-check-input" type="radio" name="summary_type" id="summaryTypeMeeting" value="meeting">
-                            <label class="form-check-label small" for="summaryTypeMeeting">Réunion</label>
-                        </div>
-                    </div>
-
-                    <!-- Coherence verification -->
-                    <div class="mb-3">
-                        <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" id="settingsVerifyCoherence" name="verify_coherence">
-                            <label class="form-check-label" for="settingsVerifyCoherence">
-                                <i class="fas fa-spell-check"></i> Vérifier la cohérence
-                            </label>
-                        </div>
-                        <small class="text-muted ms-4">Score + correction proposée côte à côte</small>
-                    </div>
-
-                    <!-- Temperature -->
-                    <div class="mb-3">
-                        <label for="settingsTemperature" class="form-label">
-                            <i class="fas fa-temperature-half"></i> Température : <span id="settingsTemperatureValue">0.0</span>
-                        </label>
-                        <input type="range" class="form-range" id="settingsTemperature" name="temperature"
-                               min="0" max="1" step="0.1" value="0"
-                               oninput="document.getElementById('settingsTemperatureValue').textContent = this.value">
-                    </div>
-
-                    <!-- Max Tokens -->
-                    <div class="mb-3">
-                        <label for="settingsMaxTokens" class="form-label">
-                            <i class="fas fa-text-width"></i> Max tokens
-                        </label>
-                        <input type="number" class="form-control" id="settingsMaxTokens" name="max_tokens"
-                               min="1024" max="131072" value="32768">
-                    </div>
+                    {% comment %} === ANCIENS CHAMPS CODÉS EN DUR (backup pour confrontation — retirer après validation) ===
+                    Backend / Hotwords / Preprocess / Diarization / Summary(+summaryTypeGroup) /
+                    Coherence / Temperature(+settingsTemperatureValue) / MaxTokens : tous repris à l'identique
+                    par le schéma `transcriber/params.py` (overrides item). Voir l'historique git si besoin de revert.
+                    === fin backup === {% endcomment %}
                 </form>
             </div>
             <div class="modal-footer">

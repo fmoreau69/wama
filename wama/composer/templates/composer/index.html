@@ -93,6 +93,8 @@
             {% endfor %}
         </optgroup>
     </select>
+    <!-- Descriptif du moteur sélectionné (brique commune WamaModelHelp ; additif) -->
+    <div id="modelHelp" class="small text-white-50 mt-1"></div>
 </div>
 
 <!-- Durée -->
@@ -194,7 +196,7 @@
         <small class="text-muted" id="gpPercent" style="font-variant-numeric: tabular-nums;"></small>
     </div>
     <div class="wama-progress-track" id="globalProgressTrack">
-        <div class="wama-progress-fill {% if queue_count > 0 %}active{% endif %}" id="globalProgressFill" style="width:0%"></div>
+        <div class="wama-progress-fill active" id="globalProgressFill" style="width:0%"></div>
     </div>
     <div style="height:12px;"></div>{# spacer #}
 </div>
@@ -348,5 +350,15 @@
     window.COMPOSER_QUEUE_COUNT = {{ queue_count }};
 </script>
 <script src="{% static 'common/js/wama-eta.js' %}"></script>
+<script src="{% static 'common/js/wama-model-help.js' %}"></script>
 <script src="{% static 'composer/js/index.js' %}"></script>
+<script>
+// Descriptif du moteur sous le select (brique commune ; meta = catalogue model_manager).
+(function () {
+    if (!window.WamaModelHelp) return;
+    WamaModelHelp.fetchCatalogMeta('composer', { keyBy: 'id' }).then(function (meta) {
+        WamaModelHelp.init({ selectId: 'modelSelect', helpId: 'modelHelp', meta: meta });
+    }).catch(function () {});
+})();
+</script>
 {% endblock %}

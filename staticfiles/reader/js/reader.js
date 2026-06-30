@@ -190,7 +190,7 @@
             const container = document.getElementById('queueContainer');
             container.prepend(card);
         }
-        if (window.WamaEta) WamaEta.render(card.querySelector('.wama-eta'), WamaEta.update(item.id, { progress: item.progress, status: item.status }));
+        if (window.WamaEta) WamaEta.render(card.querySelector('.wama-eta'), WamaEta.update(item.id, { progress: item.progress, status: item.status, seedSeconds: item.estimated_seconds, modelLoaded: false }));
         bindCardActions(card, item);
         updateDownloadAllBtn();
         return card;
@@ -301,7 +301,10 @@
     async function deleteItem(id) {
         stopPolling(id);
         try {
-            await csrfFetch(urlFor('delete', id), { method: 'POST' });
+            const r = await csrfFetch(urlFor('delete', id), { method: 'POST' });
+            const data = await r.json().catch(() => ({}));
+            // Élément issu d'un batch : total/affichage du batch changent → recharger
+            if (data.batch_changed) { if (window.WamaFM) WamaFM.deleted(); location.reload(); return; }
             removeCard(id);
             updateGlobalProgress();
             if (window.WamaFM) WamaFM.deleted();  // fichier supprimé → refresh filemanager
@@ -339,27 +342,8 @@
     </div>
     <div class="modal-body">
       <input type="hidden" id="rSettings_id">
-      <div class="mb-3">
-        <label class="form-label small text-muted">Moteur OCR</label>
-        <select id="rSettings_backend" class="form-select form-select-sm bg-dark text-white border-secondary">
-          <option value="auto">Auto (meilleur disponible)</option>
-          <option value="olmocr">olmOCR-2 7B</option>
-          <option value="doctr">docTR (CPU-friendly)</option>
-        </select>
-      </div>
-      <div class="mb-3">
-        <label class="form-label small text-muted">Mode de lecture</label>
-        <select id="rSettings_mode" class="form-select form-select-sm bg-dark text-white border-secondary">
-          <option value="auto">Auto</option>
-          <option value="printed">Imprimé / Typographié</option>
-          <option value="handwritten">Manuscrit</option>
-        </select>
-      </div>
-      <div class="mb-0">
-        <label class="form-label small text-muted">Langue <span class="text-muted">(vide = auto-détection)</span></label>
-        <input id="rSettings_language" type="text" class="form-control form-control-sm bg-dark text-white border-secondary"
-               placeholder="fr, en, de…" maxlength="16">
-      </div>
+      <div id="rSettingsParams"></div><!-- champs ITEM générés par WamaParams (context item, ids rSettings_*) -->
+
     </div>
     <div class="modal-footer border-secondary py-2">
       <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Annuler</button>
@@ -370,26 +354,39 @@
   </div>
 </div>`;
         document.body.appendChild(modal);
-
+        // Champs ITEM générés par WamaParams (schéma exposé par le template) — ids legacy rSettings_*.
+        if (window.WamaParams && window.WAMA_READER_SCHEMA) {
+            const host = modal.querySelector('#rSettingsParams');
+            if (host) WamaParams.render(host, window.WAMA_READER_SCHEMA, { context: 'item', values: {} });
+        }
         document.getElementById('rSettings_saveBtn').addEventListener('click', saveItemSettings);
         return modal;
     }
 
     function openItemSettings(btn) {
         const modal = getOrCreateSettingsModal();
-        document.getElementById('rSettings_id').value       = btn.dataset.id;
-        document.getElementById('rSettings_backend').value  = btn.dataset.backend || 'auto';
-        document.getElementById('rSettings_mode').value     = btn.dataset.mode || 'auto';
-        document.getElementById('rSettings_language').value = btn.dataset.language || '';
+        // NULL-SAFE : champs générés par WamaParams ; dispatch input+change pour ses affichages.
+        const _set = function (elId, val) {
+            const el = document.getElementById(elId);
+            if (!el) return;
+            el.value = val;
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+            el.dispatchEvent(new Event('change', { bubbles: true }));
+        };
+        _set('rSettings_id', btn.dataset.id);
+        _set('rSettings_backend', btn.dataset.backend || 'auto');
+        _set('rSettings_mode', btn.dataset.mode || 'auto');
+        _set('rSettings_language', btn.dataset.language || '');
         bootstrap.Modal.getOrCreateInstance(modal).show();
     }
 
     async function saveItemSettings() {
-        const id = document.getElementById('rSettings_id').value;
+        const _val = function (elId) { const el = document.getElementById(elId); return el ? el.value : ''; };
+        const id = _val('rSettings_id');
         const payload = {
-            backend:  document.getElementById('rSettings_backend').value,
-            mode:     document.getElementById('rSettings_mode').value,
-            language: document.getElementById('rSettings_language').value.trim(),
+            backend:  _val('rSettings_backend'),
+            mode:     _val('rSettings_mode'),
+            language: _val('rSettings_language').trim(),
         };
         try {
             const r = await csrfFetch(urlFor('saveSettings', id), {
@@ -543,6 +540,7 @@
     // ─── Global progress ──────────────────────────────────────────────────────
 
     function updateGlobalProgress() {
+        return; // Neutralisé : barre globale + ETA pilotées par la brique commune wama-global-progress.js.
         if (!urls.globalProgress) return;
         fetch(urls.globalProgress)
             .then(r => r.json())

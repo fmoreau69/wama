@@ -109,6 +109,11 @@ fi
 echo "=== Applying Django migrations ==="
 python manage.py migrate --settings=$DJANGO_SETTINGS_MODULE
 
+# Seeds idempotents (rôles + politiques d'accès, mots-clés de prompt). get_or_create → sûrs à chaque démarrage.
+echo "=== Seeding access policies + prompt keywords ==="
+python manage.py seed_access --settings=$DJANGO_SETTINGS_MODULE || true
+python manage.py seed_prompt_keywords --settings=$DJANGO_SETTINGS_MODULE || true
+
 # ------------------------------------------------------
 # STATIC FILES  (skipped in --fast mode)
 # ------------------------------------------------------
@@ -223,7 +228,18 @@ echo "File descriptor limit: $(ulimit -n)"
 export COQUI_TOS_AGREED=1
 export TTS_HOME=$PROJECT_DIR/AI-models/synthesizer/tts
 export CUDA_LAUNCH_BLOCKING=0
-export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+# WAMA est 100% PyTorch : on EMPÊCHE transformers d'importer TensorFlow/Flax. TF (installé mais inutile
+# ici) saisirait un contexte CUDA parallèle → "CUDA error: unknown error" (cudaErrorUnknown) en WSL2.
+export USE_TF=0
+export USE_FLAX=0
+# expandable_segments : mémoire virtuelle CUDA (cuMemMap), instable sous WSL2 → assert
+# "!handles_.at(i)" (CUDACachingAllocator) qui fait planter les grosses générations (VibeVoice ASR).
+# On le DÉSACTIVE en WSL, on le GARDE sur Linux natif (anti-fragmentation des gros modèles).
+if grep -qiE 'microsoft|wsl' /proc/version 2>/dev/null; then
+    export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:False
+else
+    export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+fi
 
 # Suppress noisy but harmless framework warnings
 export TF_CPP_MIN_LOG_LEVEL=2          # Suppress TensorFlow C++ INFO/WARNING messages

@@ -15,7 +15,7 @@ communes ci-dessous. Pour généraliser une app, s'en inspirer.
 |---------|------|
 | `wama-app-base.js` | Namespace `WamaApp` : `escapeHtml`/`getUrl`/`csrfFetch`/`wordCount`, `WamaApp.Poller` (boucle progression résiliente), `WamaApp.emptyState`. **À charger avant l'index.js de l'app.** |
 | `wama-inspector.js` | Volet droit (inspecteur) card/batch/file — sélection/clic/highlight/banner — `WamaInspector.init({...})`. |
-| `wama-inspector-autofill.js` | **Rendu générique** du volet droit depuis les métadonnées d'un élément + un **schéma déclaratif** — `WamaAutofill.renderSections(data, schema)` / `renderActions(data, actions)`. Couplé à `wama-inspector.js`. CSS : `common/css/wama-inspector-autofill.css`. Premier consommateur : **model_manager**. |
+| `wama-inspector-autofill.js` | **Rendu générique** du volet droit depuis les métadonnées d'un élément + un **schéma déclaratif** — `WamaDetails.renderSections(data, schema)` / `renderActions(data, actions)`. Couplé à `wama-inspector.js`. CSS : `common/css/wama-inspector-autofill.css`. Premier consommateur : **model_manager**. |
 | `wama-model-help.js` | Description du modèle choisi sous un `<select>` — `WamaModelHelp.init({selectId,helpId,meta,fallback})`. |
 | `wama-model-caps.js` | Capacités de modèles côté front. |
 | `wama-eta.js` | Moteur ETA `WamaEta` (débit observé, 3 niveaux de confiance). |

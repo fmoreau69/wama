@@ -257,7 +257,7 @@ def status(request, pk):
     """Return job status JSON."""
     job = get_object_or_404(ConversionJob, pk=pk, user=request.user)
     pct = cache.get(f"converter_progress_{job.id}", job.progress)
-    return JsonResponse({
+    payload = {
         'status':          job.status,
         'progress':        pct,
         'error_message':   job.error_message,
@@ -267,7 +267,18 @@ def status(request, pk):
         'media_type':      job.media_type,
         'output_format':   job.output_format,
         'options':         job.options or {},
-    })
+    }
+    # Seed ETA (ffmpeg sans modèle → service-based) : temps ∝ taille d'entrée (Mo)
+    if job.status in ('PENDING', 'RUNNING'):
+        try:
+            from wama.model_manager.services.eta_estimator import estimate
+            _mb = max((job.input_file.size or 0) / 1e6, 0.01)
+            payload['estimated_seconds'] = estimate(
+                f'converter:{job.media_type}:{job.output_format}', size=_mb,
+                unit='mb', model_loaded=True)
+        except Exception:
+            pass
+    return JsonResponse(payload)
 
 
 @login_required

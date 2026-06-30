@@ -1,0 +1,61 @@
+/* WamaPromptChips — palette de mots-clés compacte (pills + accordéon repliable). */
+
+/* En-tête de l'accordéon : ligne mince, discrète. */
+.wpc-head {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    gap: .4rem;
+    padding: .25rem .6rem;
+    font-size: .8rem;
+    color: #cdd3e0;
+    background: rgba(255, 255, 255, .04);
+    border: 1px solid rgba(255, 255, 255, .12);
+    border-radius: .5rem;
+    cursor: pointer;
+    transition: background .15s ease;
+}
+.wpc-head:hover { background: rgba(255, 255, 255, .08); }
+.wpc-count {
+    font-size: .7rem;
+    padding: 0 .4rem;
+    border-radius: 1rem;
+    background: rgba(110, 168, 254, .25);
+    color: #9ec5fe;
+}
+.wpc-caret { transition: transform .2s ease; font-size: .7rem; opacity: .7; }
+.wpc-collapsible.is-open .wpc-caret { transform: rotate(180deg); }
+
+/* Corps : un peu d'air sous l'en-tête. */
+.wpc-body { padding-top: .4rem; }
+
+/* Catégorie : label inline + chips sur la même rangée → compact. */
+.wpc-cat {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: .25rem .35rem;
+    margin-bottom: .3rem;
+}
+/* Label de catégorie : clair et lisible sur fond sombre (contraste — pas de gris sur gris). */
+.wpc-cat-label {
+    font-size: .68rem;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+    color: #e6e9f0;
+    min-width: 4.5rem;
+    flex: 0 0 auto;
+}
+.wpc-chips { display: inline-flex; flex-wrap: wrap; gap: .25rem; }
+
+/* Chip = bouton Bootstrap btn-outline-X (même esthétique que les actions des cards), version
+   compacte et bien arrondie. La couleur (contour/plein) est portée par les classes btn-* / btn-outline-*. */
+.wpc-chip.btn {
+    padding: .05rem .55rem;
+    font-size: .74rem;
+    line-height: 1.4;
+}
+
+/* Croix de suppression (mots-clés perso) — hérite de la couleur du chip (currentColor). */
+.wpc-del { opacity: .6; font-weight: 700; padding-left: .2rem; }
+.wpc-del:hover { opacity: 1; }

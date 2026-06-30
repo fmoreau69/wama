@@ -271,6 +271,96 @@ def _save_segments(transcript: Transcript, result: 'TranscriptionResult') -> int
     return len(segments_to_create)
 
 
+# ── Découpage des audios longs (chunking + recollage des timestamps) ─────────
+def _split_audio_chunks(audio_path: str, chunk_seconds: float, out_dir: str):
+    """Découpe l'audio en morceaux ≤ chunk_seconds. Retourne [(chunk_path, start_offset_s), …].
+    Lecture par tranches via soundfile (un morceau en mémoire à la fois)."""
+    import soundfile as sf
+    src = audio_path
+    try:
+        info = sf.info(src)
+    except Exception:
+        # Format non lisible par soundfile (ex. m4a) → transcode en wav via ffmpeg (résolveur
+        # commun ; ffmpeg WSL2 peu fiable → override FFMPEG_BINARY possible). Fallback demandé.
+        import subprocess
+        from wama.common.utils.ffmpeg_utils import get_ffmpeg_exe, adapt_path_for_ffmpeg
+        src = os.path.join(out_dir, "_decoded.wav")
+        _ff = get_ffmpeg_exe()
+        subprocess.run(
+            [_ff, '-nostdin', '-y', '-i', adapt_path_for_ffmpeg(audio_path, _ff),
+             '-ac', '1', '-ar', '16000', adapt_path_for_ffmpeg(src, _ff)],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True,
+        )
+        info = sf.info(src)
+    sr = info.samplerate
+    total = info.frames
+    step = max(int(chunk_seconds * sr), 1)
+    chunks, idx, start = [], 0, 0
+    while start < total:
+        stop = min(start + step, total)
+        data, _ = sf.read(src, start=start, stop=stop, dtype='float32')
+        cpath = os.path.join(out_dir, f"_chunk_{idx:03d}.wav")
+        sf.write(cpath, data, sr)
+        chunks.append((cpath, start / float(sr)))
+        start, idx = stop, idx + 1
+    return chunks
+
+
+def _offset_segments(segments, offset: float):
+    """Décale les timestamps (segment ET mots) de `offset` secondes — pour recoller un chunk."""
+    for seg in segments or []:
+        seg.start_time = (seg.start_time or 0) + offset
+        seg.end_time = (seg.end_time or 0) + offset
+        for w in (seg.words or []):
+            if isinstance(w, dict):
+                if w.get('start') is not None:
+                    w['start'] += offset
+                if w.get('end') is not None:
+                    w['end'] += offset
+    return segments or []
+
+
+def _transcribe_maybe_chunked(backend, audio_path: str, duration: float, kwargs: dict):
+    """
+    Transcrit l'audio. Si sa durée dépasse la capacité du moteur (`max_audio_seconds`,
+    ex. VibeVoice ~55 min), le DÉCOUPE en morceaux, transcrit chacun et RECOLLE les
+    timestamps (offset = début du morceau). Moteurs illimités (Whisper) → chemin direct.
+
+    Limite connue (v1) : coupes à intervalle fixe (sans recouvrement) → un mot à la
+    frontière peut être imparfait ; et la diarisation est indépendante par morceau
+    (les identifiants de locuteurs ne sont pas réconciliés d'un morceau à l'autre).
+    """
+    cap = getattr(backend, 'max_audio_seconds', None)
+    if not cap or not duration or duration <= cap:
+        return backend.transcribe(audio_path=audio_path, **kwargs)
+
+    import tempfile
+    import shutil
+    base_progress = kwargs.pop('progress_callback', None)
+    tmp = tempfile.mkdtemp(prefix='wama_chunk_')
+    try:
+        chunks = _split_audio_chunks(audio_path, cap, tmp)
+        n = len(chunks) or 1
+        merged, texts, lang = [], [], ''
+        for i, (cpath, offset) in enumerate(chunks):
+            if base_progress:
+                # Progression de CE morceau [0,1] → fenêtre globale [i/n, (i+1)/n].
+                kwargs['progress_callback'] = (
+                    lambda i: lambda r: base_progress((i + max(0.0, min(1.0, r))) / n)
+                )(i)
+            r = backend.transcribe(audio_path=cpath, **kwargs)
+            if not r.success:
+                return r
+            lang = lang or (r.language or '')
+            merged.extend(_offset_segments(r.segments, offset))
+            if r.text:
+                texts.append(r.text)
+        return TranscriptionResult(success=True, text='\n'.join(texts),
+                                   language=lang, segments=merged)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 @shared_task(bind=True)
 def transcribe(self, transcript_id: int):
     """
@@ -323,9 +413,12 @@ def transcribe(self, transcript_id: int):
         _set_status_message(t, f"Chargement du moteur {backend.display_name}…")
         _set_partial_text(t.id, f"📥 Chargement de {backend.display_name}...\n\n")
 
-        # Step 3: Load model
+        # Step 3: Load model (chronométré pour l'apprentissage du seed ETA : chargement à froid).
+        _t_load0 = time.time()
         if not backend.load():
             raise RuntimeError(f"Failed to load {backend.display_name}")
+        _load_seconds = time.time() - _t_load0
+        _t_proc0 = time.time()   # début du traitement réel (hors chargement)
 
         _console(t.user_id, f"{backend.display_name} chargé sur {DEVICE}")
         _set_progress(t, 30)
@@ -335,24 +428,23 @@ def transcribe(self, transcript_id: int):
         _set_status_message(t, "Transcription en cours…")
         _console(t.user_id, "Transcription en cours...")
 
-        # Build kwargs for transcription
+        # Build kwargs for transcription.
+        # NB : on NE passe PLUS temperature/max_tokens. En ASR on veut la REPRODUCTIBILITÉ
+        # (décodage déterministe par défaut des moteurs), pas l'échantillonnage ; et le câblage
+        # max_tokens était de toute façon inerte (clé attendue = max_new_tokens). Le découpage des
+        # audios longs se gère par chunking interne (cf. _maybe_chunk_transcribe), pas par un plafond.
         transcribe_kwargs = {}
         if t.hotwords:
             transcribe_kwargs['hotwords'] = t.hotwords
-        if t.temperature > 0:
-            transcribe_kwargs['temperature'] = t.temperature
-            transcribe_kwargs['do_sample'] = True
-        if t.max_tokens != 32768:
-            transcribe_kwargs['max_tokens'] = t.max_tokens
 
         # Progression intermédiaire pendant l'ASR (30 → 75 %) → l'ETA peut s'estimer.
         def _asr_progress(ratio: float) -> None:
             _set_progress(t, 30 + int(round(ratio * 45)))
         transcribe_kwargs['progress_callback'] = _asr_progress
 
-        result: TranscriptionResult = backend.transcribe(
-            audio_path=cleaned_path,
-            **transcribe_kwargs
+        # Découpe automatiquement si l'audio dépasse la capacité du moteur (recolle les timestamps).
+        result: TranscriptionResult = _transcribe_maybe_chunked(
+            backend, cleaned_path, float(t.duration_seconds or 0), transcribe_kwargs
         )
 
         if not result.success:
@@ -492,8 +584,31 @@ def transcribe(self, transcript_id: int):
         t.status = 'SUCCESS'
         t.save(update_fields=['status', 'processing_seconds', 'finished_at'])
         _set_status_message(t, '')                            # plus d'action en cours
+
+        # Apprentissage ETA (eta_estimator) : durées RÉELLES (chargement à froid + traitement)
+        # rapportées à la durée audio → affine le seed des prochains runs (par modèle × hardware).
+        try:
+            from wama.model_manager.services.eta_estimator import record_run, make_key
+            _dur = float(t.duration_seconds or 0)
+            if _dur > 0:
+                record_run(
+                    make_key('transcriber', backend.name),
+                    size=_dur, unit='audio_sec',
+                    process_seconds=time.time() - _t_proc0,
+                    load_seconds=(_load_seconds if _load_seconds >= 2.0 else None),  # cold load uniquement
+                )
+        except Exception:
+            pass
         _console(t.user_id, f"Transcription {t.id} terminée ({backend.display_name}) ✓ "
                             f"en {t.processing_display}")
+
+        # Notification email (respecte les préférences du profil ; fail-safe).
+        try:
+            from wama.common.utils.notifications import notify_job
+            notify_job(t.user, 'Transcriber', getattr(t, 'name', '') or f"transcription #{t.id}",
+                       True, detail=f"{num_segments} segment(s) · {t.processing_display}")
+        except Exception:
+            pass
 
         # Enveloppe de forme d'onde (peaks) — calcul asynchrone, non bloquant (éditeur /edit).
         try:
@@ -525,6 +640,14 @@ def transcribe(self, transcript_id: int):
         t.save(update_fields=['status'])
         _set_progress(t, 0, force=True)
         _set_partial_text(t.id, f"❌ Erreur lors de la transcription:\n\n{error_msg}")
+
+        # Notification email d'échec (respecte les préférences ; fail-safe).
+        try:
+            from wama.common.utils.notifications import notify_job
+            notify_job(t.user, 'Transcriber', getattr(t, 'name', '') or f"transcription #{t.id}",
+                       False, detail=error_msg)
+        except Exception:
+            pass
 
         return {'ok': False, 'error': error_msg}
 

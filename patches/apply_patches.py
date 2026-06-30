@@ -308,4 +308,38 @@ print("  [INFO] Primary fix: audiocraft_backend.py injects GroupName=str before 
 print("         Covers both seqpar.py and sequence_parallel_fused_ops.py in one shot.")
 print()
 
+print("=== 6. VibeVoice ASR: lm_head sur audio long (crash CUDA 'unknown error') ===")
+vibe_asr = site / "vibevoice/modular/modeling_vibevoice_asr.py"
+if not vibe_asr.exists():
+    print(f"  [SKIP] {vibe_asr} not found")
+else:
+    _content = vibe_asr.read_text(encoding="utf-8")
+    if "PATCH WAMA (crash CUDA" in _content:
+        print("  [OK — modeling_vibevoice_asr.py] patch lm_head déjà appliqué")
+    else:
+        apply_patch(
+            vibe_asr,
+            search=(
+                "        hidden_states = outputs[0] if not return_dict else outputs.last_hidden_state\n"
+                "        logits = self.lm_head(hidden_states)"
+            ),
+            replace=(
+                "        hidden_states = outputs[0] if not return_dict else outputs.last_hidden_state\n"
+                "        # PATCH WAMA (crash CUDA 'unknown error' sur audio long) : lm_head sur TOUTE la\n"
+                "        # sequence produit [seq, vocab] ; sur ~50K tokens le nb d'elements depasse\n"
+                "        # l'indexation int32 du kernel GEMM CUDA -> crash. En generation seul le\n"
+                "        # dernier token est necessaire (ou logits_to_keep si fourni).\n"
+                "        if labels is not None:\n"
+                "            logits = self.lm_head(hidden_states)\n"
+                "        else:\n"
+                "            _ltk = kwargs.get('logits_to_keep', kwargs.get('num_logits_to_keep', 0))\n"
+                "            if isinstance(_ltk, int) and _ltk > 0:\n"
+                "                logits = self.lm_head(hidden_states[:, -_ltk:, :])\n"
+                "            else:\n"
+                "                logits = self.lm_head(hidden_states[:, -1:, :])"
+            ),
+            description="6. vibevoice modeling_vibevoice_asr.py: logits seulement sur le dernier token en generation (evite l'overflow int32 du GEMM CUDA sur audio long)",
+        )
+print()
+
 print("Done.")

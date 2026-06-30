@@ -629,9 +629,10 @@
         if (fill)     fill.style.width = data.progress + '%';
         if (progText) progText.textContent = data.progress + '%';
 
-        // ETA (moteur commun) — débit observé
+        // ETA (moteur commun) — débit observé + seed serveur (apprentissage)
         if (window.WamaEta) {
-            const est = WamaEta.update(jobId, { progress: data.progress, status: data.status });
+            const est = WamaEta.update(jobId, { progress: data.progress, status: data.status,
+                                                seedSeconds: data.estimated_seconds, modelLoaded: false });
             WamaEta.render($('.wama-eta', card), est);
         }
 
@@ -855,6 +856,9 @@
                     if (resp.ok) {
                         clearInterval(activePollers[jid]);
                         delete activePollers[jid];
+                        // Élément issu d'un batch : total/affichage du batch changent → recharger
+                        const data = await resp.json().catch(() => ({}));
+                        if (data.batch_changed) { if (window.WamaFM) WamaFM.deleted(); location.reload(); return; }
                         card.remove();
                         updateJobsCount(-1);
                         if (window.WamaFM) WamaFM.deleted();  // fichier supprimé → refresh filemanager

@@ -13,6 +13,14 @@ class TranscriberConfig(AppConfig):
         except Exception:
             pass
 
+        # Batch unifié : total auto-réparé + suppression des batches vidés (cf. BATCH_MODEL_AUDIT.md)
+        try:
+            from wama.common.utils.batch_sync import register_batch_sync
+            from .models import BatchTranscriptItem
+            register_batch_sync(BatchTranscriptItem)
+        except Exception:
+            pass
+
         # Enregistre les scénarios de test nocturne de l'app (gabarit de référence).
         try:
             from .nightly_scenarios import register_scenarios

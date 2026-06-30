@@ -1,0 +1,32 @@
+/* WamaParams — look des champs de réglages GÉNÉRÉS depuis le schéma.
+   Le JS n'émet que la STRUCTURE (+ classes Bootstrap) ; tout le style est ici → on affine
+   l'esthétique sans toucher au JS, et ça s'applique automatiquement à toutes les apps. */
+
+.wama-param { margin-bottom: 1.05rem; }     /* respiration verticale (proche du volet d'origine) */
+.wama-param:last-child { margin-bottom: 0; }
+
+/* Labels lisibles sur fond sombre (cf. contraste). */
+.wama-param .form-label,
+.wama-param .form-check-label { color: #e6e9f0; font-weight: 600; margin-bottom: .35rem; }
+.wama-param .form-label i,
+.wama-param .form-check-label i { opacity: .85; }
+
+/* Aide / texte secondaire — un peu d'air sous le champ. */
+.wama-param small.text-muted { color: #8b93a7 !important; margin-top: .25rem; line-height: 1.3; }
+/* Switch : label aligné, un peu d'espace. */
+.wama-param .form-check.form-switch { padding-left: 2.6em; }
+.wama-param .form-check-input { cursor: pointer; }
+
+/* Slider (type range) : prend la largeur, valeur alignée à droite. */
+.wama-param .wama-range .form-range { flex: 1 1 auto; }
+.wama-param .wama-range-val {
+    min-width: 2.5ch; text-align: right; font-variant-numeric: tabular-nums; color: #cdd3e0;
+}
+
+/* Champs de formulaire sombres cohérents avec le thème. */
+.wama-param .form-select,
+.wama-param .form-control {
+    background-color: #0d0d1a; color: #e6e9f0; border-color: rgba(255, 255, 255, .15);
+}
+.wama-param .form-select:focus,
+.wama-param .form-control:focus { border-color: #0dcaf0; box-shadow: none; }

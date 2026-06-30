@@ -321,7 +321,10 @@ class CustomVoice(models.Model):
         return f"{self.name} ({self.user.username})"
 
 
-class BatchSynthesis(models.Model):
+from wama.common.models import BatchMixin
+
+
+class BatchSynthesis(BatchMixin, models.Model):
     """Groupe de synthèses vocales créé depuis un fichier batch."""
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='batch_syntheses')

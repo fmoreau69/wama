@@ -45,9 +45,9 @@ class VibeVoiceBackend(SpeechToTextBackend):
     description_long = (
         "VibeVoice ASR (Microsoft, 7B) : transcription, diarisation des locuteurs et "
         "timestamps produits nativement en un seul passage (pas de pyannote). Idéal pour "
-        "les réunions/entretiens multi-locuteurs. Chargement long (~10 min). Budget de "
-        "64K tokens ≈ 60 min de parole par passage : au-delà, la fin peut être tronquée "
-        "(pas de chunking pour l'instant). ~16–24 Go VRAM."
+        "les réunions/entretiens multi-locuteurs. Chargement long (~10 min). Les longs audios "
+        "sont automatiquement découpés en segments (~20 min) puis recollés (timestamps inclus) "
+        "pour rester stables sous le budget de contexte du modèle. ~16–24 Go VRAM."
     )
 
     supports_diarization = True   # native — no pyannote needed
@@ -57,6 +57,11 @@ class VibeVoiceBackend(SpeechToTextBackend):
 
     min_vram_gb         = 16
     recommended_vram_gb = 24
+    # Le crash sur audio long (cudaErrorUnknown) était un OVERFLOW int32 du GEMM CUDA dans lm_head —
+    # corrigé par patch (patches/apply_patches.py #6 : logits sur le dernier token en génération).
+    # Ce chunk n'est donc plus contre le crash mais un garde-fou MÉMOIRE (KV-cache) : 20 min tient
+    # large sur 24 Go. Augmentable maintenant que le crash est réglé. workers.py découpe + recolle.
+    max_audio_seconds   = 1200
 
     def __init__(self):
         super().__init__()
@@ -76,18 +81,18 @@ class VibeVoiceBackend(SpeechToTextBackend):
         The standard `pip install vibevoice` installs an unrelated TTS package.
         This backend requires: git clone + pip install -e .
         """
-        try:
-            from vibevoice.modular.modeling_vibevoice_asr import VibeVoiceASRForConditionalGeneration   # noqa: F401
-            from vibevoice.processor.vibevoice_asr_processor import VibeVoiceASRProcessor               # noqa: F401
-            return True
-        except ImportError:
+        # On vérifie l'EXISTENCE du fichier du modeling ASR SANS exécuter d'import : importer
+        # vibevoice lance son __init__ (TensorFlow + modeling) ≈ 140 s → ça ralentissait le 1er
+        # chargement de la liste des modèles (volet droit / modales) après chaque restart, et
+        # déclenchait la course d'imports accelerate. find_spec top-level n'exécute PAS __init__
+        # (~3 ms) ; la présence de modeling_vibevoice_asr.py distingue l'ASR du paquet TTS homonyme.
+        import importlib.util
+        import os
+        spec = importlib.util.find_spec('vibevoice')
+        if not spec or not spec.submodule_search_locations:
             return False
-        except Exception as e:
-            # Ex. course d'imports accelerate (« KeyError: 'accelerate' ») : le paquet
-            # est installé mais l'import a échoué pour une raison d'environnement.
-            # On le signale clairement plutôt que de masquer derrière ImportError.
-            logger.warning(f"[VibeVoice] is_available() non-import error: {e!r}")
-            return False
+        root = list(spec.submodule_search_locations)[0]
+        return os.path.isfile(os.path.join(root, 'modular', 'modeling_vibevoice_asr.py'))
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -339,8 +344,52 @@ class VibeVoiceBackend(SpeechToTextBackend):
         except Exception as e:
             logger.debug(f"[VibeVoice] post_process_transcription failed: {e}")
 
-        # 2) Regex fallback — handles both JSON and bracket formats
+        # 1bis) Extraction JSON robuste. Le modèle émet un tableau JSON souvent PRÉFIXÉ de texte ou
+        # de fences markdown → json.loads brut échoue ("Expecting value: line 1 column 1"). On isole
+        # le [...] et on mappe des clés flexibles (Start/End/Speaker/Content ou start_time/…).
+        json_segs = self._json_parse(generated_text)
+        if json_segs:
+            return json_segs
+
+        # 2) Regex fallback — handles bracket format
         return self._regex_parse(generated_text)
+
+    def _json_parse(self, raw: str) -> List[TranscriptionSegment]:
+        """Extrait et parse un tableau JSON de segments, même entouré de texte/markdown.
+        Clés tolérées : Start|start_time|start, End|end_time|end, Speaker|speaker_id|speaker,
+        Content|text|content. Timestamps en secondes (float). Renvoie [] si rien d'exploitable."""
+        import json
+        import re
+        s = raw.strip()
+        s = re.sub(r'^\s*```(?:json)?\s*', '', s)   # fence markdown ouvrante
+        s = re.sub(r'\s*```\s*$', '', s)            # fence fermante
+        i, j = s.find('['), s.rfind(']')
+        if i == -1 or j == -1 or j <= i:
+            return []
+        try:
+            data = json.loads(s[i:j + 1])
+        except Exception:
+            return []
+        if not isinstance(data, list):
+            return []
+        segments = []
+        for d in data:
+            if not isinstance(d, dict):
+                continue
+            text = str(d.get('Content', d.get('text', d.get('content', '')))).strip()
+            if not text:
+                continue
+            try:
+                start = float(d.get('Start', d.get('start_time', d.get('start', 0))) or 0)
+                end = float(d.get('End', d.get('end_time', d.get('end', 0))) or 0)
+            except (TypeError, ValueError):
+                start, end = 0.0, 0.0
+            spk = d.get('Speaker', d.get('speaker_id', d.get('speaker', '')))
+            segments.append(TranscriptionSegment(
+                speaker_id=str(spk), start_time=start, end_time=end,
+                text=text, confidence=None,
+            ))
+        return segments
 
     def _regex_parse(self, raw: str) -> List[TranscriptionSegment]:
         """

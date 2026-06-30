@@ -1,0 +1,128 @@
+/* WamaStudio — méta-app (squelette) : palette + canvas nœuds-app + connecteurs typés. */
+
+.studio {
+    display: flex;
+    gap: .75rem;
+    height: calc(100vh - 170px);
+    min-height: 420px;
+}
+
+/* ── Palette ─────────────────────────────────────────────────────────── */
+.studio-palette {
+    flex: 0 0 200px;
+    overflow-y: auto;
+    background: rgba(255, 255, 255, .03);
+    border: 1px solid rgba(255, 255, 255, .12);
+    border-radius: .6rem;
+    padding: .5rem;
+}
+.studio-palette-title {
+    font-size: .7rem;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: #e6e9f0;
+    margin-bottom: .4rem;
+}
+.studio-palette-list { display: flex; flex-direction: column; gap: .3rem; }
+.studio-pal-group {
+    font-size: .64rem;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: #8b93a7;
+    margin: .5rem 0 .1rem;
+}
+.studio-pal-group:first-child { margin-top: 0; }
+.studio-pal-item {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    padding: .3rem .5rem;
+    border-radius: .5rem;
+    border: 1px solid rgba(255, 255, 255, .12);
+    border-left: 3px solid var(--app-c, #6ea8fe);
+    color: #e6e9f0;
+    font-size: .8rem;
+    cursor: pointer;
+    background: rgba(255, 255, 255, .02);
+    transition: background .12s ease;
+}
+.studio-pal-item:hover { background: rgba(255, 255, 255, .08); }
+.studio-pal-item i { color: var(--app-c, #6ea8fe); width: 1.1rem; text-align: center; }
+
+/* Inspecteur : déplacé dans le VOLET DROIT global (base.html) — styles hérités de l'inspecteur commun.
+   Voir studio/index.html (blocks right_panel_*) + wama-inspector-autofill.css. */
+/* Nœud sélectionné : halo. */
+.studio-node.is-selected { outline: 2px solid #6ea8fe; outline-offset: 1px; }
+
+/* ── Canvas ──────────────────────────────────────────────────────────── */
+.studio-canvas {
+    position: relative;
+    flex: 1 1 auto;
+    overflow: hidden;
+    background:
+        radial-gradient(rgba(255, 255, 255, .06) 1px, transparent 1px) 0 0 / 22px 22px,
+        #0d0d1a;
+    border: 1px solid rgba(255, 255, 255, .12);
+    border-radius: .6rem;
+}
+.studio-links { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; }
+.studio-hint {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    color: #8b93a7; font-size: .85rem; pointer-events: none;
+}
+
+/* ── Nœud-app ────────────────────────────────────────────────────────── */
+.studio-node {
+    position: absolute;
+    z-index: 2;
+    width: 180px;
+    background: #161826;
+    border: 1px solid rgba(255, 255, 255, .15);
+    border-top: 3px solid var(--app-c, #6ea8fe);
+    border-radius: .5rem;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, .4);
+    user-select: none;
+}
+.studio-node-head {
+    display: flex; align-items: center; gap: .4rem;
+    padding: .35rem .5rem;
+    color: #f1f3f8; font-size: .82rem; font-weight: 600;
+    cursor: grab;
+}
+.studio-node-head i.app-ico { color: var(--app-c, #6ea8fe); }
+.studio-node-head .studio-node-del {
+    margin-left: auto; color: #8b93a7; cursor: pointer; font-weight: 700;
+}
+.studio-node-head .studio-node-del:hover { color: #ff6b6b; }
+
+.studio-ports { display: flex; justify-content: space-between; padding: .15rem .25rem .4rem; }
+.studio-port-col { display: flex; flex-direction: column; gap: .25rem; }
+.studio-port-col.out { align-items: flex-end; }
+
+.studio-port {
+    display: flex; align-items: center; gap: .3rem;
+    font-size: .68rem; color: #c8cedb;
+}
+.studio-port.out { flex-direction: row-reverse; }
+.studio-port .dot {
+    width: 11px; height: 11px; border-radius: 50%;
+    border: 2px solid #6ea8fe; background: #0d0d1a;
+    cursor: crosshair;
+}
+/* Couleur de port par GROUPE (travail/prompt/référence) + sortie. */
+.studio-port.out .dot                 { border-color: #6ea8fe; }   /* sortie = bleu */
+.dot[data-group="travail"]            { border-color: #6ee7a8; }   /* travail = vert */
+.dot[data-group="prompt"]             { border-color: #c4a7fb; }   /* prompt = violet */
+.dot[data-group="reference"]          { border-color: #fbbf24; }   /* référence = ambre */
+.studio-port .types { color: #aeb6c6; }
+.studio-port .dot:hover { transform: scale(1.25); }
+.studio-port .dot.is-armed { box-shadow: 0 0 0 3px rgba(110, 168, 254, .4); }
+.studio-port .dot.compatible { border-color: #6ee7a8; box-shadow: 0 0 0 3px rgba(110, 231, 168, .35); }
+.studio-port .dot.incompatible { opacity: .35; cursor: not-allowed; }
+.studio-port .types { color: #8b93a7; }
+
+/* Lien SVG */
+.studio-link { stroke: #6ea8fe; stroke-width: 2; fill: none; pointer-events: stroke; cursor: pointer; }
+.studio-link:hover { stroke: #ff6b6b; }
+.studio-link.pending { stroke-dasharray: 5 4; opacity: .8; }

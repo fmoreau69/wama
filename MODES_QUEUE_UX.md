@@ -54,7 +54,7 @@ distinct.** Il y a **deux axes** à ne pas mélanger :
 - Exemples : Anonymizer `[yolo, sam3]` · Imager `[prompt, edit, style, (2D→3D)]` ·
   Transcriber/Synthesizer `[normal, temps_réel]`.
 - **L'UI se génère depuis ces descriptions** (sélecteur de mode + champs d'entrée + sections de réglages),
-  comme `WamaAutofill` génère l'inspecteur. **Zéro spécificité hardcodée** au-delà de la description.
+  comme `WamaDetails` génère l'inspecteur. **Zéro spécificité hardcodée** au-delà de la description.
 - **Sources d'une entrée fichier = upload OU MÉDIATHÈQUE (déjà en place, composé auto)** : brique commune
   **`MediaPicker`** (`common/js/media-picker.js` + endpoint `media_library:api_list`) ouvre une modale
   filtrée par `asset_type` et renvoie un **`File`** (drop-in de l'upload). Déjà consommée par imager/
@@ -79,7 +79,7 @@ distinct.** Il y a **deux axes** à ne pas mélanger :
 - Synthesizer (prompt→réglages↔preview→file) · Transcriber (Speak→preview→file).
 
 ## Ce qu'on RÉUTILISE (on ne réinvente rien)
-Card formalism (`CARD_DESIGN.md`) · inspecteur **global** (§22) · `WamaAutofill` (description→UI) ·
+Card formalism (`CARD_DESIGN.md`) · inspecteur **global** (§22) · `WamaDetails` (description→UI) ·
 capacités d'app · **switches de mode existants** (anonymizer yolo/sam3, imager) · **temps réel existant**
 (Speak) · batch + manipulation directe · contrat backend. **Ajout unique = la couche MODE** (schéma
 déclaratif + générateur d'UI `WamaModes`).
@@ -88,8 +88,8 @@ déclaratif + générateur d'UI `WamaModes`).
 
 | Phase | Quoi | Ordre / pourquoi | Difficulté |
 |-------|------|------------------|------------|
-| **0** ✅ | Fondations (CARD_DESIGN, inspecteur global, WamaAutofill, capacités, contrat backend) | posées | — |
-| **P1 — clé de voûte** | Schéma `app_metadata.modes` + cartographie des modes existants + générateur commun `WamaModes` (étend WamaAutofill) | **débloque P2-P6** ; déclaratif | moyenne, risque faible |
+| **0** ✅ | Fondations (CARD_DESIGN, inspecteur global, WamaDetails, capacités, contrat backend) | posées | — |
+| **P1 — clé de voûte** | Schéma `app_metadata.modes` + cartographie des modes existants + générateur commun `WamaModes` (étend WamaDetails) | **débloque P2-P6** ; déclaratif | moyenne, risque faible |
 | **P2 — le + visible** | File unique + card « nouveau » persistante + code couleur + compteur sur l'onglet (1 app réf) | gain UX immédiat | moyenne |
 | **P3 — cœur** | Config générée par mode (modale ↔ inspecteur en sync, sections distinctes, simple/avancé) | file pilotée par description | moyenne-haute |
 | **P4** | Temps réel = mode (migrer Speak transcriber/synthesizer) | homogénéise, -1 surface | moyenne |
@@ -108,7 +108,7 @@ commune **génère** l'UI, la file, l'inspecteur, l'API outil, les tests.
 |---|---|---|
 | Domaines / modes / entrées | `app_modes.py` (P1) | onglets + switch + champs (WamaModes) |
 | Réglages par mode | `param_schema.py` (à brancher) | inspecteur + modale |
-| Inspecteur | `WamaAutofill` | volet droit |
+| Inspecteur | `WamaDetails` | volet droit |
 | Backend (cycle de vie + deps) | `BaseModelBackend` | load/unload + install libs |
 | Card / file | CARD_DESIGN → brique commune | queue + cards |
 | Exposition assistant | `tool_api` | outil chat |

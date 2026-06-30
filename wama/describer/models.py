@@ -175,7 +175,10 @@ class Description(models.Model):
         return icons.get(self.detected_type or self.content_type, 'fa-file')
 
 
-class BatchDescription(models.Model):
+from wama.common.models import BatchMixin
+
+
+class BatchDescription(BatchMixin, models.Model):
     """Groupe de descriptions créé depuis un fichier batch."""
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='batch_descriptions')
     created_at = models.DateTimeField(auto_now_add=True)

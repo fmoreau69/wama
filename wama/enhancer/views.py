@@ -470,11 +470,20 @@ def progress(request, pk: int):
     # Get progress from cache
     progress = int(cache.get(f"enhancer_progress_{pk}", enhancement.progress or 0))
 
-    return JsonResponse({
+    payload = {
         'progress': progress,
         'status': enhancement.status,
         'error_message': enhancement.error_message,
-    })
+    }
+    if enhancement.status in ('PENDING', 'RUNNING'):
+        try:
+            from wama.model_manager.services.eta_estimator import estimate
+            from .tasks import enhancer_eta_key_size
+            _k, _s, _u = enhancer_eta_key_size(enhancement)
+            payload['estimated_seconds'] = estimate(_k, size=_s, unit=_u, model_loaded=True)
+        except Exception:
+            pass
+    return JsonResponse(payload)
 
 
 def download(request, pk: int):
@@ -514,6 +523,11 @@ def delete(request, pk: int):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     enhancement = get_object_or_404(Enhancement, pk=pk, user=user)
 
+    # Le membre était-il dans un batch ? (flag UI ; total/cleanup = signal batch_sync)
+    from .models import BatchEnhancementItem
+    from wama.common.utils.batch_utils import find_member_batch
+    parent_batch = find_member_batch(BatchEnhancementItem, enhancement=enhancement)
+
     # Input file may be shared with a duplicate — only delete if no other row references it
     safe_delete_file(enhancement, 'input_file')
 
@@ -524,10 +538,10 @@ def delete(request, pk: int):
         except Exception:
             pass
 
-    enhancement.delete()
+    enhancement.delete()  # signal batch_sync : recale total / supprime le batch vidé
     cache.delete(f"enhancer_progress_{pk}")
 
-    return JsonResponse({'deleted': pk})
+    return JsonResponse({'deleted': pk, 'batch_changed': parent_batch is not None})
 
 
 @require_POST
@@ -1142,11 +1156,20 @@ def audio_progress(request, pk: int):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     ae = get_object_or_404(AudioEnhancement, pk=pk, user=user)
     progress = int(cache.get(f"audio_enhancer_progress_{pk}", ae.progress or 0))
-    return JsonResponse({
+    payload = {
         'progress': progress,
         'status': ae.status,
         'error_message': ae.error_message,
-    })
+    }
+    if ae.status in ('PENDING', 'RUNNING'):
+        try:
+            from wama.model_manager.services.eta_estimator import estimate
+            from .tasks import audio_enhancer_eta_key_size
+            _k, _s, _u = audio_enhancer_eta_key_size(ae)
+            payload['estimated_seconds'] = estimate(_k, size=_s, unit=_u, model_loaded=True)
+        except Exception:
+            pass
+    return JsonResponse(payload)
 
 
 def audio_download(request, pk: int):
@@ -1191,15 +1214,10 @@ def audio_delete(request, pk: int):
         except Exception:
             pass
 
-    ae.delete()
+    ae.delete()  # signal batch_sync : recale total / supprime le batch vidé (+ fichier batch)
     cache.delete(f"audio_enhancer_progress_{pk}")
 
-    # Clean up empty batch container (batch-of-1) after cascade
-    if parent_batch and parent_batch.items.count() == 0:
-        safe_delete_file(parent_batch, 'batch_file')
-        parent_batch.delete()
-
-    return JsonResponse({'deleted': pk})
+    return JsonResponse({'deleted': pk, 'batch_changed': parent_batch is not None})
 
 
 @require_POST

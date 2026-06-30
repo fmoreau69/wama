@@ -1,5 +1,6 @@
 /**
- * WAMA — Inspecteur de file commun (volet droit) : card / batch / file.
+ * WAMA — WamaInspector : le PANNEAU inspecteur commun (volet droit) : card / batch / file.
+ * Famille : WamaInspector (CE FICHIER, panneau) · WamaParams (réglages ÉDITABLES) · WamaDetails (affichage READ-ONLY).
  *
  * Le volet droit devient un inspecteur :
  *   - clic sur une card  → réglages + actions de la card,
@@ -144,6 +145,41 @@
     });
     const db = $(ids.deselect);
     if (db) db.addEventListener('click', deselect);
+
+    // ── Navigation clavier (générique) ──────────────────────────────────────
+    // ↑/↓ : déplace la sélection entre cards — UNIQUEMENT si une card est déjà sélectionnée
+    // (on n'usurpe pas le scroll de page tant que l'utilisateur n'est pas « entré » dans la file).
+    // Entrée/Espace : active la card (événement `wama:card-activate`). Échap : déselectionne.
+    function cardList() { return Array.prototype.slice.call(qc.querySelectorAll(CARD_SEL)); }
+    function moveSelection(dir) {
+      const list = cardList();
+      if (!list.length) return;
+      let idx = list.findIndex(function (c) { return c.dataset.id === String(itemId); });
+      let next = idx < 0 ? 0 : Math.min(list.length - 1, Math.max(0, idx + dir));
+      const card = list[next];
+      if (card && card.dataset.id) {
+        selectItem(card.dataset.id);
+        card.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
+    }
+    if (cfg.keyboardNav !== false) {
+      document.addEventListener('keydown', function (e) {
+        if (e.target.closest('input, textarea, select, [contenteditable="true"]')) return;
+        if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && itemId !== null) {
+          e.preventDefault();
+          moveSelection(e.key === 'ArrowDown' ? 1 : -1);
+        } else if (e.key === 'Escape' && (itemId !== null || batchId !== null)) {
+          e.preventDefault();
+          deselect();
+        } else if ((e.key === 'Enter' || e.key === ' ') && itemId !== null) {
+          const card = qc.querySelector(CARD_SEL + '[data-id="' + itemId + '"]');
+          if (card) {
+            e.preventDefault();
+            card.dispatchEvent(new CustomEvent('wama:card-activate', { bubbles: true, detail: { id: itemId } }));
+          }
+        }
+      });
+    }
 
     return {
       selectItem: selectItem,

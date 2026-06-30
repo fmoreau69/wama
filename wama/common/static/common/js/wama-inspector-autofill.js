@@ -1,17 +1,25 @@
 /*
- * WAMA — Inspector autofill
+ * WAMA — WamaDetails  (ex-WamaAutofill, renommé 2026-06-29 pour la lisibilité)
  * =========================================================================
- * Génère le contenu du volet droit (#wama-right-panel) à partir des
- * MÉTADONNÉES d'un élément (app, modèle, item de file…) et d'un SCHÉMA
- * déclaratif. Philosophie WAMA : le rendu est générique et homogène entre
- * toutes les apps ; seule la *spécificité* (quels champs, quelles actions)
- * est déclarée — a minima — par l'app.
+ * RÔLE : AFFICHAGE READ-ONLY de DONNÉES d'un élément dans le volet droit
+ * (badges, lignes clé/valeur, code) — des FAITS sur une card / un modèle / un nœud.
+ * ⚠️ NE PAS confondre avec WamaParams (= champs ÉDITABLES de réglages).
+ *
+ * Famille inspecteur (3 briques distinctes) :
+ *   • WamaInspector (wama-inspector.js)  = le PANNEAU (sélection card/batch/file → volet droit)
+ *   • WamaParams    (wama-params.js)     = champs ÉDITABLES (réglages) générés depuis un schéma
+ *   • WamaDetails   (CE FICHIER)         = AFFICHAGE READ-ONLY de données
+ *
+ * Génère le contenu depuis les MÉTADONNÉES d'un élément + un SCHÉMA d'affichage
+ * déclaratif ; seule la *spécificité* (quels champs, quelles actions) est déclarée
+ * — a minima — par l'app.
+ * (Nom de FICHIER laissé `wama-inspector-autofill.js` ; rename optionnel plus tard.)
  *
  * Couplé à wama-inspector.js (sélection/clic/highlight/banner) :
  *   WamaInspector.init({ ..., renderItemActions: function (host, card) {
  *       const data = lookup(card.dataset.id);
- *       host.innerHTML = WamaAutofill.renderSections(data, DETAIL_SCHEMA);
- *       const a = WamaAutofill.renderActions(data, ACTION_SCHEMA);
+ *       host.innerHTML = WamaDetails.renderSections(data, DETAIL_SCHEMA);
+ *       const a = WamaDetails.renderActions(data, ACTION_SCHEMA);
  *       actionsHost.innerHTML = a.html; a.wire(actionsHost);
  *   }});
  *
@@ -189,7 +197,7 @@
         return { html: html, wire: wire };
     }
 
-    global.WamaAutofill = {
+    global.WamaDetails = {
         renderSections: renderSections,
         renderActions: renderActions,
         esc: esc,

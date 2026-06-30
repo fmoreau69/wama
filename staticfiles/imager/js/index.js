@@ -1168,55 +1168,23 @@
      * Start polling for progress updates
      */
     function startProgressPolling() {
-        // Initial update (delayed to not block page load)
-        setTimeout(() => {
-            updateGlobalProgress();
-        }, 500);
-
-        // Poll every 3 seconds (reduced from 2s)
-        progressInterval = setInterval(() => {
-            updateGlobalProgress();
-            updateRunningGenerationsProgress();
-        }, 3000);
-    }
-
-    /**
-     * Update global progress bars (image + video separately)
-     */
-    function updateGlobalProgress() {
-        fetch(config.urls.globalProgress)
-            .then(response => response.json())
-            .then(data => {
-                applyProgressBar(
-                    document.getElementById('globalProgressBar'),
-                    document.getElementById('globalProgressStats'),
-                    data.image || data,
-                    document.getElementById('globalStatus'),
-                    document.getElementById('globalProgressPct')
-                );
-                applyProgressBar(
-                    document.getElementById('videoGlobalProgressBar'),
-                    document.getElementById('videoGlobalProgressStats'),
-                    data.video || {},
-                    document.getElementById('videoGlobalStatus'),
-                    document.getElementById('videoGlobalProgressPct')
-                );
-            })
-            .catch(error => console.error('Error updating global progress:', error));
-    }
-
-    function applyProgressBar(progressBar, statsText, stats, statusEl, pctEl) {
-        const progress = stats.overall_progress || 0;
-        const total = stats.total || 0;
-        if (progressBar) progressBar.style.width = progress + '%';
-        if (statsText) statsText.textContent = `${stats.success || 0}/${total} terminé · ${stats.running || 0} en cours`;
-        if (window.WamaEta) WamaEta.render(document.getElementById('globalEta'), WamaEta.aggregateAll());
-        if (pctEl) pctEl.textContent = progress ? progress + '%' : '';
-        if (statusEl) {
-            const active = total > 0;
-            statusEl.style.opacity = active ? '1' : '0';
-            statusEl.style.pointerEvents = active ? '' : 'none';
+        // DEUX barres globales SÉPARÉES — une par file : file IMAGES et file VIDÉOS.
+        // On réutilise la fonction commune WamaGlobalProgress (zéro duplication) ; `dataKey`
+        // isole le domaine dans l'endpoint imbriqué {image:{…}, video:{…}}. Chaque barre est
+        // indépendante (sa part de données, ses propres éléments DOM), chacune s'auto-poll.
+        if (window.WamaGlobalProgress) {
+            // File images → IDs par défaut (#globalProgressBar/Stats/Pct, partial commun).
+            WamaGlobalProgress.init({ url: config.urls.globalProgress, dataKey: 'image' });
+            // File vidéos → IDs dédiés de la barre vidéo.
+            WamaGlobalProgress.init({
+                url: config.urls.globalProgress, dataKey: 'video',
+                bar: 'videoGlobalProgressBar', stats: 'videoGlobalProgressStats',
+                pct: 'videoGlobalProgressPct', status: 'videoGlobalStatus', eta: 'videoGlobalEta',
+            });
         }
+
+        // Progression PAR-CARTE (cartes en cours) — propre à imager, inchangé.
+        progressInterval = setInterval(updateRunningGenerationsProgress, 3000);
     }
 
     /**
@@ -1292,7 +1260,7 @@
             else progressBar.classList.remove('active');
         }
         if (progressText) progressText.textContent = data.progress + '%';
-        if (window.WamaEta) WamaEta.render(card.querySelector('.wama-eta'), WamaEta.update(card.dataset.id, { progress: data.progress, status: data.status }));
+        if (window.WamaEta) WamaEta.render(card.querySelector('.wama-eta'), WamaEta.update(card.dataset.id, { progress: data.progress, status: data.status, seedSeconds: data.estimated_seconds, modelLoaded: false }));
 
         // Show/hide error message
         if (data.error_message && data.status === 'FAILURE') {

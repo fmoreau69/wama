@@ -68,12 +68,9 @@ class WhisperBackend(SpeechToTextBackend):
 
     @classmethod
     def is_available(cls) -> bool:
-        """Check whether faster_whisper is installed."""
-        try:
-            import faster_whisper  # noqa: F401
-            return True
-        except ImportError:
-            return False
+        """Check whether faster_whisper is installed (sans l'importer : find_spec ~ms vs import lourd)."""
+        import importlib.util
+        return importlib.util.find_spec('faster_whisper') is not None
 
     def _get_device_and_compute(self) -> tuple[str, str]:
         """Auto-select device and matching CTranslate2 compute type."""

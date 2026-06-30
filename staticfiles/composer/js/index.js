@@ -199,7 +199,7 @@
             globalStatus.style.opacity = '1';
             globalStatus.style.pointerEvents = '';
             globalFill.style.width = '100%';
-            globalFill.classList.remove('active');
+            globalFill.classList.add('active');  // balayage bleu/vert permanent (homogène avec les autres apps)
             if (gpPercent) gpPercent.textContent = '100%';
             if (gpEta) gpEta.textContent = '';
         } else if (active > 0) {
@@ -208,7 +208,7 @@
 
             const overallPct = totalWeight > 0 ? Math.round(weightedProgress / totalWeight) : 0;
             globalFill.style.width = overallPct + '%';
-            globalFill.classList.toggle('active', running > 0);
+            globalFill.classList.add('active');  // balayage bleu/vert permanent (homogène avec les autres apps)
 
             if (gpRunning) gpRunning.textContent = running;
             if (gpTotal) gpTotal.textContent = active;
@@ -402,7 +402,10 @@
             const id = deleteBtn.dataset.id;
             if (!confirm('Supprimer cette génération ?')) return;
             fetch(`/composer/delete/${id}/`, { method: 'POST', headers: { 'X-CSRFToken': CSRF } })
-                .then(() => {
+                .then(r => r.json().catch(() => ({})))
+                .then((data) => {
+                    // Élément issu d'un batch : total/affichage du batch changent → recharger
+                    if (data.batch_changed) { if (window.WamaFM) WamaFM.deleted(); location.reload(); return; }
                     const card = document.querySelector(`.generation-card[data-id="${id}"]`);
                     if (card) {
                         const batchGroup = card.closest('.batch-group');

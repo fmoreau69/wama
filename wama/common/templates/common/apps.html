@@ -285,7 +285,7 @@
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     const dataEl = document.getElementById('apps-data');
-    if (!dataEl || !window.WamaInspector || !window.WamaAutofill) return;
+    if (!dataEl || !window.WamaInspector || !window.WamaDetails) return;
 
     const APPS_HINT = '<p class="text-muted small mb-0"><i class="fas fa-hand-pointer me-1"></i>Cliquez une carte d\'application pour l\'inspecter.</p>';
 
@@ -333,9 +333,9 @@ document.addEventListener('DOMContentLoaded', function () {
             const a = byId[card.dataset.id];
             const btnHost = document.getElementById('inspectorActionButtons');
             if (!a) { host.innerHTML = '<p class="text-muted">Application inconnue.</p>'; if (btnHost) btnHost.innerHTML = ''; return; }
-            host.innerHTML = WamaAutofill.renderSections(a, APP_DETAIL_SCHEMA);
+            host.innerHTML = WamaDetails.renderSections(a, APP_DETAIL_SCHEMA);
             if (btnHost) {
-                const r = WamaAutofill.renderActions(a, APP_ACTIONS_SCHEMA);
+                const r = WamaDetails.renderActions(a, APP_ACTIONS_SCHEMA);
                 btnHost.innerHTML = r.html;
                 r.wire(btnHost);
             }

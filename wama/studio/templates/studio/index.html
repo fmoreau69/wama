@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Studio (méta-app) — WAMA{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'common/css/wama-inspector-autofill.css' %}">
+<link rel="stylesheet" href="{% static 'studio/css/wama-studio.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="studio-head d-flex align-items-center justify-content-between mb-2">
+    <div>
+        <h5 class="mb-0 text-light"><i class="fas fa-diagram-project me-2"></i>Studio <span class="badge bg-secondary">méta-app · squelette</span></h5>
+        <small class="text-white-50">Glissez des apps depuis la palette ; reliez une <b>sortie</b> à une <b>entrée compatible</b> (typage par connexion).</small>
+    </div>
+    <button id="studioClear" class="btn btn-sm btn-outline-light"><i class="fas fa-eraser me-1"></i>Vider le canvas</button>
+</div>
+
+<div class="studio">
+    <!-- Palette des apps (source = APP_CATALOG via /common/api/apps/) -->
+    <div class="studio-palette" id="studioPalette">
+        <div class="studio-palette-title">Apps</div>
+        <div id="studioPaletteList" class="studio-palette-list text-white-50 small">Chargement…</div>
+    </div>
+
+    <!-- Canvas : nœuds-app + connecteurs SVG -->
+    <div class="studio-canvas" id="studioCanvas">
+        <svg class="studio-links" id="studioLinks"></svg>
+        <div class="studio-hint" id="studioHint">Cliquez une app dans la palette pour l'ajouter au canvas.</div>
+    </div>
+
+</div>
+{% endblock %}
+
+{# Inspecteur déplacé dans le VOLET DROIT global (base.html). Mêmes IDs → le JS studio (updateInspector)
+   remplit le volet droit sans modification. Généré par WamaDetails au clic sur un nœud. #}
+{% block right_panel_settings_title %}<i class="fas fa-project-diagram me-1"></i> Inspecteur{% endblock %}
+{% block right_panel_settings %}
+<div id="studioInspectorBody" class="text-muted small">Sélectionnez un nœud pour voir ses détails.</div>
+{% endblock %}
+
+{% block right_panel_actions %}
+<div id="studioInspectorActions"></div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'common/js/wama-inspector-autofill.js' %}"></script>
+<script src="{% static 'studio/js/wama-studio.js' %}"></script>
+{% endblock %}

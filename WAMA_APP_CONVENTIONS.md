@@ -928,7 +928,13 @@ l'input + création de la tâche). Les anciens `if (id === 'dropZoneXxx')` codé
 en dur dans `getAppFromDropZone` sont **legacy** — `data-wama-app` est la voie
 homogène (fallback déjà en place).
 
-### 8.X Zone de staging (« À valider ») — import → réglage → file d'attente
+### 8.X Zone de staging (« À valider ») — ⛔ SUPPRIMÉE (2026-06-29)
+
+> ⛔ **OBSOLÈTE — ignorer tout ce qui suit dans cette section §8.X.** La zone de staging a été
+> **supprimée** : doublon avec l'inspecteur universel. Désormais un fichier ajouté devient
+> **directement une card BROUILLON dans la file** (config via inspecteur, lancement via ▶ Lancer).
+> Décision + détail : **`CARD_DESIGN.md §8.5`**. Conservé ci-dessous pour historique uniquement.
+
 
 > **Principe (décision projet 2026-06)** : un fichier importé **n'entre pas
 > directement en file d'attente**. Il arrive d'abord dans une **zone de staging**
@@ -1242,22 +1248,31 @@ function initBatchCollapse() {
 **Apps conformes :** Synthesizer ✅ | Reader ✅
 **Apps à porter :** Transcriber | Describer | Enhancer | Composer | Imager | Anonymizer
 
-### 9.8 Bouton ⚙ et modale dans l'en-tête du groupe batch
+### 9.8 Boutons d'action dans l'en-tête du groupe batch (card mère)
 
-**Règle :** Tout groupe batch dont les items ont des paramètres configurables **doit** exposer un
-bouton ⚙ en première position dans la zone d'actions de l'en-tête du groupe.
+**Règle (renforcée 2026-06-29) :** la card mère du batch **doit** exposer les **mêmes boutons d'action
+que les cards individuelles**, dans l'**ordre conventionnel §6.1** :
+**⚙ Paramètres → ▶ Lancer/Relancer → ⬇ Télécharger → ⧉ Dupliquer → 🗑 Supprimer**.
+En particulier le bouton **▶ Lancer/Relancer (pos. 2)** lance/relance **tous les éléments** du batch
+**directement sur la card** (vue `batch_start`, URL `batch/<pk>/start/`) — **sans passer par la modale**.
+(Avant cette date il manquait : on devait ouvrir la modale pour relancer.)
 
 ```html
-<!-- Bouton ⚙ — toujours en première position dans les actions du batch header -->
-<button class="btn btn-sm batch-settings-btn py-0 px-2"
-        data-batch-id="{{ batch_info.obj.id }}"
-        data-<param1>="{{ batch_info.first_<param1> }}"
-        data-<param2>="{{ batch_info.first_<param2> }}"
-        style="background:rgba(111,66,193,0.25); color:#a78bfa; border:1px solid #6f42c1; font-size:.75rem;"
-        title="Paramètres du batch">
+<!-- ⚙ Paramètres — pos. 1 -->
+<button class="btn btn-sm btn-outline-secondary batch-settings-btn py-0 px-2"
+        data-batch-id="{{ batch_info.obj.id }}" title="Paramètres du batch (appliqués à tous les éléments)">
     <i class="fas fa-cog"></i>
 </button>
+<!-- ▶ Lancer/Relancer — pos. 2 ; lance/relance TOUS les éléments du batch (pas via la modale) -->
+<button class="btn btn-sm btn-outline-success batch-start-btn py-0 px-2"
+        data-batch-id="{{ batch_info.obj.id }}" title="Lancer / relancer tous les éléments du batch">
+    <i class="fas {% if batch_info.has_success %}fa-rotate-right{% else %}fa-play{% endif %}"></i>
+</button>
+<!-- puis ⬇ (ZIP/dropdown) · ⧉ batch-duplicate-btn · 🗑 batch-delete-btn -->
 ```
+JS : handler **délégué** `.batch-start-btn` → POST `config.batchStartUrlTemplate` → reload (cf.
+`transcriber/js/index.js`). **Ne pas** mettre `event.stopPropagation()` sur les actions (casserait la
+délégation) ; scoper le toggle collapse sur la zone info, actions HORS toggle.
 
 **Modale** : `#batchSettingsModal`, dans le bloc `{% block extra_modals %}` du template.
 
@@ -2267,14 +2282,14 @@ Rappel du modèle de file **universel** (cf. mémoire « Synthesizer — Unified
 
 ### 22.1 Deux usages du volet — ne pas confondre
 
-- **Lecture seule (catalogues)** → `WamaAutofill` (ci-dessous). Ex. **model_manager**, **`/apps/`**.
+- **Lecture seule (catalogues)** → `WamaDetails` (ci-dessous). Ex. **model_manager**, **`/apps/`**.
   Affiche des métadonnées descriptives ; pas de formulaire.
 - **Éditable (files d'apps généralistes)** → formulaire de réglages à 3 niveaux (Volet=défauts /
   Item / Batch) via `panel.read`/`panel.apply` + `saveItem`/`saveBatch`/`saveGlobal` de `WamaInspector`
   (voir **§10**). C'est un **formulaire**, pas du rendu autofill.
 
 Les deux **coexistent** : un inspecteur d'app peut afficher un en-tête descriptif (autofill) **au-dessus**
-du formulaire de réglages. `WamaAutofill` ne remplace jamais le formulaire éditable.
+du formulaire de réglages. `WamaDetails` ne remplace jamais le formulaire éditable.
 
 ### ❌ Interdit
 
@@ -2285,7 +2300,7 @@ du formulaire de réglages. `WamaAutofill` ne remplace jamais le formulaire édi
 ### ✅ Pattern obligatoire
 
 1. **Sélection** : `wama-inspector.js` (`WamaInspector.init`) gère clic carte → highlight + banner.
-2. **Rendu** : `wama-inspector-autofill.js` (`WamaAutofill`) génère le contenu depuis un **schéma
+2. **Rendu** : `wama-inspector-autofill.js` (`WamaDetails`) génère le contenu depuis un **schéma
    déclaratif** + la source de données de l'élément (`to_dict()` du modèle, entrée `APP_CATALOG`, …).
 
 ```js
@@ -2306,8 +2321,8 @@ const ACTIONS = [
 WamaInspector.init({ cardSelector:'.model-item', highlightClass:'…',
   renderItemActions(host, card) {
     const data = lookup(card.dataset.id);
-    host.innerHTML = WamaAutofill.renderSections(data, DETAIL);
-    const a = WamaAutofill.renderActions(data, ACTIONS);
+    host.innerHTML = WamaDetails.renderSections(data, DETAIL);
+    const a = WamaDetails.renderActions(data, ACTIONS);
     actionsHost.innerHTML = a.html; a.wire(actionsHost);
   }});
 ```

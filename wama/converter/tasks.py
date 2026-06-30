@@ -62,6 +62,9 @@ def convert_media_task(self, job_id: int):
     _set_progress(job_id, 0)
     _console(user_id, f"Conversion démarrée : {job.input_filename} → .{job.output_format}")
 
+    import time as _time
+    _t0 = _time.time()  # chrono pour le seeding ETA
+
     # ── Resolve input path ────────────────────────────────────────────────────
     input_path  = job.input_file.path
 
@@ -183,6 +186,20 @@ def convert_media_task(self, job_id: int):
         _console(user_id, f"✓ Conversion terminée : {output_name}", level='info')
         logger.info(f"convert_media_task DONE | job_id={job_id} output={output_path}")
 
+        # Seeding ETA : temps ∝ taille d'entrée (Mo) ; clé par type de conversion (ffmpeg, pas de modèle)
+        try:
+            from wama.model_manager.services.eta_estimator import record_run
+            _mb = max(os.path.getsize(input_path) / 1e6, 0.01)
+            record_run(f'converter:{job.media_type}:{job.output_format}', size=_mb,
+                       unit='mb', process_seconds=_time.time() - _t0, load_seconds=None)
+        except Exception:
+            pass
+        try:
+            from wama.common.utils.notifications import notify_job
+            notify_job(getattr(job, 'user', None), 'Converter', output_name, True)
+        except Exception:
+            pass
+
     except Exception as exc:
         error_msg = str(exc)[:500]
         logger.exception(f"convert_media_task ERROR | job_id={job_id}: {exc}")
@@ -198,6 +215,13 @@ def convert_media_task(self, job_id: int):
             error_message=error_msg,
         )
         _console(user_id, f"✗ Erreur conversion : {error_msg}", level='error')
+        try:
+            from wama.common.utils.notifications import notify_job
+            from django.contrib.auth.models import User
+            _u = User.objects.filter(pk=user_id).first()
+            notify_job(_u, 'Converter', f"conversion #{job_id}", False, detail=error_msg)
+        except Exception:
+            pass
 
 
 def _build_output_name(input_filename: str, output_format: str) -> str:

@@ -59,6 +59,12 @@
         // renderInputs=false : rend SEULEMENT les onglets domaine + switch de mode (l'app garde ses
         // propres champs d'entrée). Utile pour piloter une UI existante sans la dupliquer.
         this.renderInputs = cfg.renderInputs !== false;
+        // Présentation du switch de mode : couleur Bootstrap (modeVariant ou schéma `domain.variant`,
+        // défaut 'secondary') + block (btn-group pleine largeur, comme l'UI Imager d'origine).
+        this.modeVariant = cfg.modeVariant || null;
+        this.block = !!cfg.block;
+        // Label optionnel au-dessus du switch de mode (ex : « Mode de génération »).
+        this.modesLabel = cfg.modesLabel || null;
         this._render();
     }
 
@@ -89,9 +95,17 @@
         }
         // Switch de MODE (si >1 mode dans le domaine)
         if (modes.length > 1) {
-            html += '<div class="wm-modes d-flex flex-wrap gap-1 mb-2" role="tablist">';
+            if (this.modesLabel) {
+                html += `<label class="form-label text-light">${esc(this.modesLabel)}</label>`;
+            }
+            // Couleur : priorité au mode (m.variant), sinon override create(), sinon domaine, sinon défaut.
+            const domVariant = this.modeVariant || dom.variant || 'secondary';
+            const wrapCls = this.block ? 'wm-modes btn-group w-100 flex-wrap mb-2' : 'wm-modes d-flex flex-wrap gap-1 mb-2';
+            html += `<div class="${wrapCls}" role="tablist">`;
             modes.forEach(m => {
-                html += `<button type="button" class="btn btn-sm ${m.id === this.mode ? 'btn-secondary' : 'btn-outline-secondary'} wm-mode" data-mode="${m.id}">
+                const variant = m.variant || domVariant;
+                const cls = m.id === this.mode ? `btn-${variant}` : `btn-outline-${variant}`;
+                html += `<button type="button" class="btn btn-sm ${cls} wm-mode" data-mode="${m.id}">
                     ${m.icon ? `<i class="fas ${esc(m.icon)} me-1"></i>` : ''}${esc(m.label)}${m.realtime ? ' <i class="fas fa-bolt fa-xs text-warning" title="Temps réel"></i>' : ''}</button>`;
             });
             html += '</div>';

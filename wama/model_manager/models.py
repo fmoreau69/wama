@@ -312,3 +312,42 @@ class ModelSyncLog(models.Model):
         if self.completed_at and self.started_at:
             return (self.completed_at - self.started_at).total_seconds()
         return None
+
+
+class ModelRuntimeStat(models.Model):
+    """
+    Durées de traitement APPRISES par modèle ET par hardware — base du *seeding* de l'ETA
+    (cf. common WamaEta). Couplé au registre via `model_key` ("{source}:{model_id}").
+
+    Modèle d'estimation :  ETA ≈ (chargement à froid) + per_unit × taille
+      - `load_ema_seconds`     : temps de chargement à froid (size-indépendant) ; None tant qu'inconnu.
+      - `per_unit_ema_seconds` : secondes de traitement par unité de `unit` (ex. s de calcul / s d'audio).
+      - `unit`                 : grandeur du domaine (audio_sec|video_sec|megapixel|step|token|item).
+
+    Bucketisé par **empreinte hardware** : un changement de GPU repart de l'a-priori et réapprend
+    (les stats de l'ancien matériel ne polluent pas le nouveau). L'a-priori (1ʳᵉ utilisation) vit
+    dans `AIModel.extra_info['eta']` ; ici on stocke ce qui est mesuré, via moyenne mobile (EMA).
+    """
+    model_key = models.CharField(max_length=255, db_index=True,
+                                 help_text='Identifiant registre : {source}:{model_id}')
+    hardware_fingerprint = models.CharField(max_length=128, db_index=True,
+                                            help_text='ex. "NVIDIA GeForce RTX 4090|24GB" ou "cpu"')
+    unit = models.CharField(max_length=32, default='item')
+
+    load_ema_seconds = models.FloatField(null=True, blank=True)
+    per_unit_ema_seconds = models.FloatField(default=0.0)
+    samples = models.PositiveIntegerField(default=0)
+
+    updated_at = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Model Runtime Stat"
+        verbose_name_plural = "Model Runtime Stats"
+        unique_together = ('model_key', 'hardware_fingerprint')
+        indexes = [
+            models.Index(fields=['model_key', 'hardware_fingerprint']),
+        ]
+
+    def __str__(self):
+        return f"{self.model_key} @ {self.hardware_fingerprint} (n={self.samples})"

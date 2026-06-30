@@ -11,3 +11,11 @@ class ComposerConfig(AppConfig):
             import wama.composer.tasks  # noqa: F401
         except Exception:
             pass
+
+        # Batch unifié : total auto-réparé + suppression des batches vidés (cf. BATCH_MODEL_AUDIT.md)
+        try:
+            from wama.common.utils.batch_sync import register_batch_sync
+            from .models import ComposerBatchItem
+            register_batch_sync(ComposerBatchItem)
+        except Exception:
+            pass

@@ -343,6 +343,9 @@ def generate_avatar(self, job_id: int):
     _set_progress(job, 5)
     _console(job.user_id, f"Démarrage génération avatar #{job_id}", 'info')
 
+    import time as _time
+    _t0 = _time.time()  # chrono pour le seeding ETA
+
     tmp_audio_path = None
     try:
         # ------------------------------------------------------------------
@@ -418,9 +421,37 @@ def generate_avatar(self, job_id: int):
         rel_path = os.path.relpath(final_video, settings.MEDIA_ROOT)
         job.output_video.name = rel_path
         job.status = 'SUCCESS'
-        job.save(update_fields=['output_video', 'status'])
+
+        # Durée du média (= durée audio) : métadonnée + taille pour le seeding ETA.
+        _dur = 0.0
+        try:
+            import soundfile as _sf
+            _info = _sf.info(audio_path)
+            _dur = float(_info.frames) / float(_info.samplerate) if _info.samplerate else 0.0
+        except Exception:
+            _dur = 0.0
+        if _dur > 0:
+            job.duration_seconds = _dur
+            job.save(update_fields=['output_video', 'status', 'duration_seconds'])
+        else:
+            job.save(update_fields=['output_video', 'status'])
+
         _set_progress(job, 100)
         _console(job.user_id, f"Vidéo générée : {os.path.basename(final_video)}", 'info')
+
+        # Seeding ETA : lip-sync → temps ∝ durée vidéo ; clé par qualité (CodeFormer ≫ rapide)
+        try:
+            from wama.model_manager.services.eta_estimator import record_run
+            record_run(f'avatarizer:{job.quality_mode}', size=_dur, unit='video_sec',
+                       process_seconds=_time.time() - _t0, load_seconds=None)
+        except Exception:
+            pass
+        try:
+            from wama.common.utils.notifications import notify_job
+            notify_job(getattr(job, 'user', None), 'Avatarizer',
+                       getattr(job, 'name', '') or f"avatar #{job_id}", True)
+        except Exception:
+            pass
 
     except Exception as e:
         logger.error(f"[avatarizer] Job #{job_id} échoué : {e}", exc_info=True)
@@ -430,6 +461,12 @@ def generate_avatar(self, job_id: int):
             error_message=str(e),
         )
         _set_progress(job, 0)
+        try:
+            from wama.common.utils.notifications import notify_job
+            notify_job(getattr(job, 'user', None), 'Avatarizer',
+                       getattr(job, 'name', '') or f"avatar #{job_id}", False, detail=str(e))
+        except Exception:
+            pass
     finally:
         if tmp_audio_path and os.path.exists(tmp_audio_path):
             try:

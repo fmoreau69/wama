@@ -122,6 +122,9 @@ Ordre canonique (conventions UI) · style **sobre** : `btn btn-outline-X btn-sm 
 - **Pourquoi c'est IMPORTANT (pas optionnel)** : laisse l'utilisateur **corriger une erreur d'import**
   sans repartir de zéro (sortir une card d'un batch, la déplacer) et **isoler un élément** pour le
   traiter séparément. Phasable si trop complexe, mais à garder en ligne de mire dès le départ.
+  - *Cas d'usage clé — duplication* : on **duplique** une card dans un batch → on peut la **relancer
+    telle quelle dans le batch**, OU la **sortir du batch** pour l'isoler/la repérer sans tout
+    réimporter. Le déplacement in/out est la réponse directe à ce besoin.
 - **Vigilance** :
   - *Items en cours* : l'appartenance batch est **organisationnelle** (groupement pour démarrer/télécharger
     en lot) → déplacer un item `RUNNING` n'affecte pas sa tâche ; encadrer (pas de réordre destructif).
@@ -171,3 +174,86 @@ Solitaire §3ter), le **dé** comme symbole de lancement (déjà utilisé dans l
 de la fonction. Donne une identité fraîche et cohérente à l'UI.
 
 Lié : `WAMA_APP_CONVENTIONS.md` (§boutons, §22 inspecteur), `GENERALIZATION_PLAN.md` (axe B), `COMMON_REFACTORING.md`, `MODES_QUEUE_UX.md`.
+
+---
+
+## 8. Chantier file Solitaire — focus, card mère, animation (décidé 2026-06-29)
+
+> Affinage de §3ter (pile Solitaire) + §3 (2 états). Objectif : naviguer/ajouter sans jamais
+> « chercher » une card, et rendre la card mère du batch **homogène** avec les filles.
+
+### 8.1 Focus à l'ajout et à la navigation — `WamaQueue.focusCard()`
+- **Un seul mécanisme** de mise au point, partagé par l'ajout ET la nav clavier ↑↓←→ :
+  `focusCard(id, { scroll:'center', select:true, pulse:true })` →
+  `scrollIntoView({ block:'center', behavior:'smooth' })` + halo **pulse** bref + **sélection**
+  (remplit l'inspecteur). Vaut pour une card unique **ou** la card mère d'un batch.
+- **Ne PAS ouvrir de modale bloquante à l'ajout** (intrusif, et un batch de N n'ouvre pas N modales).
+  La config se fait dans l'**inspecteur non bloquant** (surface universelle) ; la modale reste sur
+  clic explicite. (Option `UserProfile` si un utilisateur préfère la modale.)
+- **Tri par défaut = CHRONOLOGIQUE.** PAS « batchs d'abord » : ce tri existait **dans le reader**
+  (app-spécifique) et n'a plus lieu d'être maintenant que la card mère est **homogène** (cf. 8.2) ; il
+  devient une simple **option** de la barre de tri (§3bis), jamais le défaut.
+- **Bug « card en bas de pile » = app-spécifique** (PAS dans le commun, confirmé 2026-06-29). Remède :
+  **centraliser une insertion déterministe chronologique** dans la logique commune (en tête de file,
+  sous la card « Nouveau ») → les apps qui l'adoptent perdent le bug. Le scroll-center reste un filet,
+  pas le remède.
+- **Bug header collant** : `scroll-margin-top` = hauteur du header sur les cards + `block:'nearest'`
+  en nav → la card du haut n'est plus masquée.
+
+### 8.2 Card mère = squelette des filles (brique commune `_batch_card.html`)
+- La mère réutilise le **même squelette** que la card unitaire (briques `_card_progress.html` +
+  `_card_state.html`) → **même forme** ligne/mosaïque automatiquement. Elle ne diffère que par :
+  un **modificateur CSS `.is-batch`** (couleur), les **méta-infos du batch** et ses **actions propres**.
+- **Tue la duplication** : le rendu de la card mère est aujourd'hui copié dans chaque template d'app
+  → extraction unique dans `common/templates/common/_batch_card.html`.
+
+### 8.3 Dépliage Solitaire « éventail » + animation (phasé)
+- **P1** : mère `.is-batch` + dépliage propre (réutilise le collapse Solitaire existant de
+  `wama-queue.js`, une pile ouverte à la fois). Faible risque, gain immédiat.
+- **P2** : effet éventail — overlap `translateY` proportionnel à la **distance à la card sélectionnée**
+  (la sélectionnée la moins chevauchée), animation **étagée** (stagger).
+- **P3** : polish. **Durée de dépliage portée à ~0,35–0,45 s** avec easing (le collapse Bootstrap par
+  défaut est trop rapide → on ne voit pas l'animation) + stagger des filles = sensation « Solitaire ».
+
+### 8.5 PAS de card/zone de config-attente intermédiaire (« staging ») — décidé Q2, 2026-06-29
+> Décision validée puis perdue une fois (cf. [[feedback-consignment-exhaustive]]) → consignée ici en entier.
+
+- **Décision** : supprimer la card/zone de **config-attente intermédiaire** (le « staging » : un item ajouté
+  attend dans une zone « à valider » avant d'être committé à la file).
+- **Pourquoi** : doublon avec l'**inspecteur universel** (volet droit) + modale ; alourdit l'UI (la zone
+  « à valider » s'empile sous la card d'entrée) sans valeur réelle. La valeur de guidage est déjà portée
+  par l'inspecteur **métadonnée-driven** (WamaDetails) + des défauts sensés.
+- **Comportement cible** : un fichier déposé/ajouté (ou un lot) devient **directement une/des card(s) de
+  file en état BROUILLON (gris)** — pas de zone « à valider », pas d'étape « committer ».
+- **Config** : via inspecteur (volet droit) / modale, comme toute card (par item ou par batch).
+- **Lancement** : bouton **Lancer** de la card / **Démarrer tout** de la file. La fonction du staging
+  « configurer N puis lancer tout » est **reprise sans perte** par batch-settings + start-all + inspecteur.
+- **Feux tricolores** : gris=brouillon (configurable, bouton Lancer) · orange=en cours · vert=fini ·
+  rouge=échec. **Pas d'état « config/staging » distinct.**
+- **À l'ajout** : `focusCard` (scroll-center + pulse + sélection inspecteur), **PAS de modale bloquante**.
+- **Supersede** : la note antérieure « card nouveau → devient orange pour config » (plus besoin).
+- **Concrètement (Transcriber, ⏳)** : retirer le sous-système **staging** — vues `stage_commit`/
+  `stage_commit_all`/`stage_clear`/`stage_update_all` + URLs, `#stagingZone` + JS `stagePost`/`stageCommit`…,
+  le flag `staged` (l'upload crée directement un **brouillon en file**). Vérifier que start-all / batch-settings
+  / inspecteur couvrent l'usage « configurer N puis lancer ».
+
+### 8.6 Card d'import homogène (DIFFÉRÉ — passe visuelle / globalisation, décidé 2026-06-29)
+> Choix esthétique qui s'appliquera PARTOUT → à décider/implémenter **une seule fois** dans la brique
+> commune `_new_item_card`, **après** la globalisation. Visuel → nécessite l'œil de Fabien + itération.
+
+- **Problème** : la card d'import est aujourd'hui *différente* des autres cards ET *incorporée* dans la
+  file → incohérent. À résoudre.
+- **Décision (orientation)** : la rendre **card-like et la garder 1ʳᵉ card de la file** (pas au-dessus —
+  remonter = surface séparée, contre `MODES_QUEUE_UX` « une seule surface = la file »).
+- **Mécanique = accordéon (déjà prototypé Synthesizer)** : **replié** = card compacte « ＋ Nouvel
+  élément » + modalité primaire, suit ligne/mosaïque (homogène) ; **déplié à la demande** (bouton
+  d'élargissement) = toutes les modalités d'import (drop/URL/batch/Speak/texte) **avec de la place**.
+- **Critique clé** : NE PAS miniaturiser les vrais champs de saisie (forme-sur-fonction, nuit à
+  l'usage) → la clarté vit dans l'état **déplié** (divulgation progressive), pas dans le replié.
+- **Détail lié** : si la card d'import est toujours 1ʳᵉ card, retirer la **répétition « File d'attente »**
+  de l'en-tête (garder « File d'attente + nb » sur l'onglet). Polish.
+
+### 8.4 Lien Axe 3 (hors card, noté ici pour cohérence)
+Prospection LLM → router un modèle vers une app existante (capacités vs `APP_CATALOG`) ou faire
+**émerger** une app depuis un manifeste. Détail dans `PROJECT_STATUS.md §2`/`§18` et
+`GENERALIZATION_PLAN.md` (horizon manifeste). **Phase B gatée** sur la maturité du runtime manifeste.

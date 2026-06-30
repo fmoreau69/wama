@@ -917,7 +917,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // =========================================================================
     // Inspecteur dans le volet droit global (#wama-right-panel)
-    // Brique commune : WamaInspector (sélection/clic) + WamaAutofill (rendu
+    // Brique commune : WamaInspector (sélection/clic) + WamaDetails (rendu
     // générique piloté par schéma déclaratif depuis AIModel.to_dict()).
     // =========================================================================
     let mmCurrentId = null;
@@ -967,9 +967,9 @@ document.addEventListener('DOMContentLoaded', function() {
         { section: 'Format', rows: [
             { k: 'Actuel → préféré', get: function (m) { return m.format || '—'; },
               render: function (raw, m) {
-                  let s = WamaAutofill.esc(m.format || '—');
+                  let s = WamaDetails.esc(m.format || '—');
                   if (m.preferred_format && m.preferred_format !== m.format) {
-                      s += ' <i class="fas fa-arrow-right small text-muted"></i> ' + WamaAutofill.esc(m.preferred_format);
+                      s += ' <i class="fas fa-arrow-right small text-muted"></i> ' + WamaDetails.esc(m.preferred_format);
                   }
                   return s;
               } },
@@ -1064,16 +1064,16 @@ document.addEventListener('DOMContentLoaded', function() {
             if (btnHost) btnHost.innerHTML = '';
             return;
         }
-        host.innerHTML = WamaAutofill.renderSections(m, MODEL_DETAIL_SCHEMA);
+        host.innerHTML = WamaDetails.renderSections(m, MODEL_DETAIL_SCHEMA);
         if (btnHost) {
-            const a = WamaAutofill.renderActions(m, MODEL_ACTIONS_SCHEMA);
+            const a = WamaDetails.renderActions(m, MODEL_ACTIONS_SCHEMA);
             btnHost.innerHTML = a.html;
             a.wire(btnHost);
         }
         mmShowSystem(false);  // card sélectionnée → l'inspecteur prend la place des outils système
     }
 
-    if (window.WamaInspector && window.WamaAutofill) {
+    if (window.WamaInspector && window.WamaDetails) {
         // Déplacer le monitoring du corps de page → volet droit. appendChild MOVE les nœuds
         // existants (préserve les écouteurs liés + le polling par id) sans recréer le DOM.
         const resSlot = document.getElementById('mmResourceSlot');

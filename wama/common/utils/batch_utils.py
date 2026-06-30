@@ -15,6 +15,23 @@ support, extract the generic pattern by:
 from .queue_duplication import duplicate_instance
 
 
+def find_member_batch(batch_item_model, **member_filter):
+    """Batch parent d'un membre de file, via son BatchItem — à appeler AVANT de supprimer
+    le membre (le BatchItem est cascade-supprimé avec lui).
+
+    Convention WAMA : chaque app a un modèle de lien `BatchXItem` avec un champ vers le
+    membre + un champ `batch`. Exemple : ``find_member_batch(BatchSynthesisItem, synthesis=s)``.
+    Renvoie l'instance batch ou None si le membre n'appartient à aucun batch.
+    """
+    item = batch_item_model.objects.filter(**member_filter).select_related('batch').first()
+    return item.batch if item else None
+
+
+# NB : le recalcul de batch.total + la suppression des batches vidés sont CENTRALISÉS dans
+# wama/common/utils/batch_sync.py (signaux post_save/post_delete) — ne PAS recalculer à la main
+# dans les vues (cf. BATCH_MODEL_AUDIT.md).
+
+
 def duplicate_synthesizer_batch(batch):
     """
     Duplicate a BatchSynthesis with all its VoiceSynthesis items.

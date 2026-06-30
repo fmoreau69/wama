@@ -108,3 +108,7 @@ tmpclaude-*-cwd
 
 # Cloned third-party repos embedded in the project
 wama/avatarizer/musetalk/
+# Screenshots de travail (comparaison avant/après) — ne pas committer
+claude/
+# Artefact auto-généré par headroom (proxy de compression)
+recommendations.toml

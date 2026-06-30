@@ -44,6 +44,85 @@ ARCHIVE_EXTENSIONS = ('.zip', '.tar', '.gz', '.tgz', '.bz2', '.tbz2',
 
 
 # ---------------------------------------------------------------------------
+# Normalisation type → CATÉGORIE média (vocabulaire unifié pour la méta-app studio).
+# input_types/output_types d'APP_CATALOG sont hétérogènes (parfois catégories : 'image',
+# parfois extensions : 'wav'/'srt'). On ramène tout à un jeu fini de catégories pour que le
+# « typage par connexion » du studio soit cohérent (sortie ∩ entrée sur des catégories).
+# ---------------------------------------------------------------------------
+MEDIA_CATEGORIES = ('image', 'video', 'audio', 'document', 'archive', 'text')
+
+def _build_cat_of():
+    m = {}
+    for cat, exts in (('image', IMAGE_EXTENSIONS), ('video', VIDEO_EXTENSIONS),
+                      ('audio', AUDIO_EXTENSIONS), ('archive', ARCHIVE_EXTENSIONS),
+                      ('document', DOCUMENT_EXTENSIONS)):
+        for e in exts:
+            m.setdefault(e.lstrip('.').lower(), cat)
+    # Sous-titres / texte / données → 'text' (prime sur 'document' pour ces extensions).
+    for e in ('txt', 'srt', 'vtt', 'json', 'md', 'markdown', 'csv'):
+        m[e] = 'text'
+    return m
+
+_CAT_OF = _build_cat_of()
+
+def normalize_types(types):
+    """['wav','image','srt'] → ['audio','image','text'] (catégories média, dédupliquées, ordre stable)."""
+    out = []
+    for t in types or []:
+        t = str(t).lstrip('.').lower()
+        cat = t if t in MEDIA_CATEGORIES else _CAT_OF.get(t)
+        if cat and cat not in out:
+            out.append(cat)
+    return out
+
+
+def studio_node_ports(app_id):
+    """
+    Dérive les PORTS d'un nœud studio pour une app, métadonnée-driven :
+      - port « travail » média (entrée) : catégories de input_types (hors 'text'), multi.
+      - port « prompt » : si 'text' en entrée (imager/composer…).
+      - ports « référence » : depuis app_modes (reference_image→image, reference_voice→audio).
+      - sortie : catégories de output_types.
+    Retourne {'inputs': [...], 'output': {...}} ou None si app inconnue.
+    """
+    cat = APP_CATALOG.get(app_id)
+    if not cat:
+        return None
+    in_cats = normalize_types(cat.get('input_types', []))
+    out_cats = normalize_types(cat.get('output_types', []))
+    media_in = [c for c in in_cats if c != 'text']
+
+    inputs = []
+    if media_in:
+        inputs.append({'id': 'work', 'label': 'Entrée', 'group': 'travail',
+                       'types': media_in, 'multi': True})
+    if 'text' in in_cats:
+        inputs.append({'id': 'prompt', 'label': 'Prompt', 'group': 'prompt',
+                       'types': ['prompt'], 'multi': False})
+
+    # Ports de référence déclarés dans le schéma modes (si l'app y figure).
+    try:
+        from wama.common.utils.app_modes import APP_MODES, INPUT_TYPES
+    except Exception:
+        APP_MODES, INPUT_TYPES = {}, {}
+    schema = APP_MODES.get(app_id) or {}
+    seen = set()
+    for dom in schema.get('domains', []):
+        for mode in dom.get('modes', []):
+            for kind in mode.get('inputs', []):
+                spec = INPUT_TYPES.get(kind) or {}
+                if spec.get('port') != 'reference' or kind in seen:
+                    continue
+                seen.add(kind)
+                acc = spec.get('accept')
+                types = normalize_types([acc]) if acc else (media_in or ['image'])
+                inputs.append({'id': kind, 'label': spec.get('label', kind),
+                               'group': 'reference', 'types': types or ['image'], 'multi': bool(spec.get('multi'))})
+
+    return {'inputs': inputs, 'output': {'label': 'Sortie', 'types': out_cats}}
+
+
+# ---------------------------------------------------------------------------
 # Convention conformity flags
 # Meanings:
 #   True  = implemented and conformant
@@ -68,6 +147,10 @@ def _conv(
     recursive_import=False,        # §8.4 — import dossier récursif
     tool_api=False,                # §17 — fonctions exposées dans tool_api.py
     cross_app_options=None,        # post-traitement cross-app (upscale, audio enhance) — N/A par défaut
+    # Homogénéisation (chantier d'uniformisation 2026-06) — défauts False, override quand conforme.
+    inspector=False,               # volet droit CONTEXTUEL complet (card/batch/file) via WamaInspector
+    modes=False,                   # switch de MODE généré par WamaModes (+ schéma app_modes)
+    layout=False,                  # affichage Ligne / Mosaïque (toggle commun + card_layout)
 ):
     return {
         # Buttons & queue
@@ -92,6 +175,9 @@ def _conv(
         'recursive_import':       recursive_import,
         'tool_api':               tool_api,
         'cross_app_options':      cross_app_options,
+        'inspector':              inspector,
+        'modes':                  modes,
+        'layout':                 layout,
     }
 
 
@@ -250,6 +336,7 @@ APP_CATALOG = {
             batch=False,
             tool_api=True,
             eta_batch=None,    # N/A — pas de batch
+            modes=True,        # barres de mode image/vidéo générées (WamaModes)
         ),
     },
 
@@ -310,6 +397,10 @@ APP_CATALOG = {
             settings_modal_item=True,
             multi_format_download=True,
             tool_api=True,
+            inspector=True,   # référence : volet contextuel card/batch/file ET modale item/batch
+                              # GÉNÉRÉS depuis le schéma unique (transcriber/params.py + WamaParams)
+            modes=True,       # normal / temps réel (WamaModes)
+            layout=True,      # ligne / mosaïque
         ),
     },
 }

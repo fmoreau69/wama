@@ -76,13 +76,13 @@ class QwenASRBackend(SpeechToTextBackend):
 
         We only check for `transformers` and `soundfile` here; the actual
         model download is checked at `load()` time.
+
+        On utilise find_spec (sans importer) : importer transformers est lourd et inutile
+        juste pour peupler la liste des modèles (volet droit / modales) après un restart.
         """
-        try:
-            import transformers  # noqa: F401
-            import soundfile     # noqa: F401
-            return True
-        except ImportError:
-            return False
+        import importlib.util
+        return (importlib.util.find_spec('transformers') is not None
+                and importlib.util.find_spec('soundfile') is not None)
 
     # ------------------------------------------------------------------
     # Internal helpers

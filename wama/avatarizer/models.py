@@ -119,7 +119,10 @@ class AvatarJob(models.Model):
         return "N/A"
 
 
-class BatchAvatarJob(models.Model):
+from wama.common.models import BatchMixin
+
+
+class BatchAvatarJob(BatchMixin, models.Model):
     """Conteneur d'un lot de jobs d'avatar (import par fichier batch)."""
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='batch_avatar_jobs')

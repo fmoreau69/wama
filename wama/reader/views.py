@@ -72,7 +72,21 @@ def _item_to_dict(item: ReadingItem) -> dict:
         'error_message': item.error_message,
         'analysis': item.analysis,
         'created_at': item.created_at.isoformat(),
+        'estimated_seconds': _reader_eta_seed(item),
     }
+
+
+def _reader_eta_seed(item: ReadingItem) -> float:
+    """Seed ETA (s) tant que l'item n'est pas terminé ; 0 sinon. Défensif."""
+    if item.status not in ('PENDING', 'RUNNING'):
+        return 0.0
+    try:
+        from wama.model_manager.services.eta_estimator import estimate
+        bk = item.used_backend or item.backend  # 'auto' avant résolution → EMA propre à 'auto'
+        return estimate(f'reader:{bk}', size=max(int(item.page_count or 0), 1),
+                        unit='page', model_loaded=True)
+    except Exception:
+        return 0.0
 
 
 def _wrap_reading_in_batch(reading):
@@ -129,12 +143,15 @@ class IndexView(View):
 
         queue_count = sum(len(b['items']) for b in batches_list)
 
+        from wama.reader.params import PARAMS_JSON
         return render(request, 'reader/index.html', {
             'batches_list': batches_list,
             'queue_count': queue_count,
             'backend_choices': ReadingItem.Backend.choices,
             'mode_choices': ReadingItem.Mode.choices,
             'format_choices': ReadingItem.OutputFormat.choices,
+            # Schéma params (source unique inspecteur + modale batch). Voir reader/params.py.
+            'params_json': json.dumps(PARAMS_JSON),
         })
 
 
@@ -322,12 +339,8 @@ def delete(request, pk: int):
         pass
     safe_delete_file(item, 'input_file')
     cache.delete(f'reader_progress_{pk}')
-    item.delete()
-    # Clean up empty batch container (batch-of-1) after cascade
-    if parent_batch and parent_batch.items.count() == 0:
-        safe_delete_file(parent_batch, 'batch_file')
-        parent_batch.delete()
-    return JsonResponse({'deleted': pk})
+    item.delete()  # signal batch_sync : recale total / supprime le batch vidé (+ son fichier batch)
+    return JsonResponse({'deleted': pk, 'batch_changed': parent_batch is not None})
 
 
 @require_POST
