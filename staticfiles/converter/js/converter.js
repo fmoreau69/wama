@@ -271,6 +271,10 @@
 
     async function startJob(jobId) {
         const card = document.querySelector(`.job-card[data-job-id="${jobId}"]`);
+        // Relance pendant le traitement (modale) : annuler d'abord (évite un double run / 409).
+        if (card && (card.dataset.status || '').toUpperCase() === 'RUNNING') {
+            await cancelJob(jobId);
+        }
         if (card) card.dataset.status = 'RUNNING';
         try {
             const resp = await csrfPost(urlFor(APP.urls.start, jobId));
@@ -282,6 +286,18 @@
             }
         } catch (err) {
             alert('Erreur réseau : ' + err.message);
+        }
+    }
+
+    // ⏹ Stop : annule la conversion en cours (revoke + reset PENDING côté serveur) → relançable.
+    async function cancelJob(jobId) {
+        const card = document.querySelector(`.job-card[data-job-id="${jobId}"]`);
+        try {
+            await csrfPost(urlFor(APP.urls.cancel, jobId));
+            if (card) card.dataset.status = 'PENDING';   // cancel → PENDING (autoSync repasse en ▶)
+            stopPolling(jobId);
+        } catch (err) {
+            /* non-fatal */
         }
     }
 
@@ -432,8 +448,15 @@
 
     // ── Event delegation for queue buttons ────────────────────────────────────
 
+    // Bouton de cycle commun ▶/⏹/↻ : clics délégués (start/restart→startJob, stop→cancelJob) + auto-sync
+    // de l'icône sur data-status (posé par updateCard au poll). Remplace l'ancien .job-start-btn.
+    if (window.WamaCycleButton) {
+        WamaCycleButton.wire(queue, { start: (id) => startJob(id), stop: (id) => cancelJob(id) });
+        WamaCycleButton.autoSync({ container: queue, cardSelector: '.job-card' });
+    }
+
     queue.addEventListener('click', e => {
-        const startBtn = e.target.closest('.job-start-btn');
+        const startBtn = e.target.closest('.job-start-btn');   // legacy (plus rendu) — repli inerte
         if (startBtn) { startJob(startBtn.dataset.jobId); return; }
 
         const delBtn = e.target.closest('.job-delete-btn');

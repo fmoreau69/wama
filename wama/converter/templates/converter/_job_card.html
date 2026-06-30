@@ -44,12 +44,8 @@ donc l'imbrication dans un groupe ne change rien à son fonctionnement.
                     title="Paramètres" data-job-id="{{ job.id }}">
                 <i class="fas fa-cog"></i>
             </button>
-            <button class="btn btn-outline-success btn-sm py-0 px-2 job-start-btn"
-                    title="{% if job.status == 'DONE' %}Recommencer{% else %}Démarrer{% endif %}"
-                    data-job-id="{{ job.id }}"
-                    {% if job.status == 'RUNNING' %}disabled{% endif %}>
-                <i class="fas fa-{% if job.status == 'DONE' %}redo{% else %}play{% endif %}"></i>
-            </button>
+            {# Bouton de cycle commun ▶/⏹/↻ (toujours actif, ⏹ Stop pendant RUNNING) #}
+            {% include 'common/_cycle_button.html' with id=job.id status=job.status %}
             {% if job.status == 'DONE' and job.output_file %}
             <a href="{% url 'converter:download' job.id %}"
                class="btn btn-outline-info btn-sm py-0 px-2" title="Télécharger">
