@@ -140,6 +140,20 @@ def create(request):
     return JsonResponse({'job_id': job.id, 'status': 'created'})
 
 
+def stop(request, pk):
+    """
+    Stoppe la génération en cours (révoque la tâche Celery) → job relançable (bouton de cycle ↻).
+    Brique commune : wama.common.utils.process_control.stop_instance.
+    """
+    user = _get_user(request)
+    job = get_object_or_404(AvatarJob, pk=pk, user=user)
+    if job.status not in ('RUNNING', 'PENDING'):
+        return JsonResponse({'id': job.id, 'status': job.status})
+    from wama.common.utils.process_control import stop_instance
+    new_status = stop_instance(job, error_field='error_message')
+    return JsonResponse({'id': job.id, 'status': new_status})
+
+
 def start(request, pk):
     """GET : Lance la génération d'un AvatarJob via Celery (queue gpu)."""
     user = _get_user(request)

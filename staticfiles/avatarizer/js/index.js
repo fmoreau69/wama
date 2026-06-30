@@ -549,9 +549,6 @@
                 </div>
                 <div class="col-2">
                     <div class="btn-group-actions flex-wrap">
-                        <button class="btn btn-sm btn-outline-warning btn-start-job" data-job-id="${jobId}" title="Relancer" style="display:none;">
-                            <i class="fas fa-redo"></i>
-                        </button>
                         <button class="btn btn-sm btn-secondary btn-settings-job"
                                 data-job-id="${jobId}"
                                 data-mode="${mode}"
@@ -561,10 +558,10 @@
                                 data-quality-mode="${qualityMode ? qualityMode.value : 'fast'}"
                                 data-use-enhancer="${useEnhancer ? 'true' : 'false'}"
                                 data-bbox-shift="${bboxShiftVal}"
-                                title="Paramètres"
-                                style="display:none;">
+                                title="Paramètres">
                             <i class="fas fa-cog"></i>
                         </button>
+                        ${window.WamaCycleButton ? WamaCycleButton.html('PENDING', jobId) : ''}
                         <button class="btn btn-sm btn-danger btn-delete-job" data-job-id="${jobId}" title="Supprimer">
                             <i class="fas fa-trash"></i>
                         </button>
@@ -578,6 +575,35 @@
     }
 
     // -----------------------------------------------------------------------
+    // ⏹ Stop : arrête la génération (endpoint commun) → job relançable (↻ via autoSync sur data-status).
+    async function stopJob(jobId) {
+        const card = $(`.synthesis-card[data-job-id="${jobId}"]`);
+        try {
+            const r = await fetch(`${cfg.urls.stop}${jobId}/`, { method: 'POST', headers: { 'X-CSRFToken': csrf } });
+            const data = await r.json().catch(() => ({}));
+            if (card && data.status) card.dataset.status = data.status;
+        } catch (e) { /* non-fatal */ }
+        if (activePollers[jobId]) { clearInterval(activePollers[jobId]); delete activePollers[jobId]; }
+    }
+
+    // Bouton de cycle commun ▶/⏹/↻ : wire (start/restart→startJob+poll, stop→stopJob) + auto-sync.
+    function initCycleButton() {
+        const c = $('#jobs-container');
+        if (!window.WamaCycleButton || !c) return;
+        WamaCycleButton.wire(c, {
+            start: async (id) => {
+                const card = $(`.synthesis-card[data-job-id="${id}"]`);
+                if (card && (card.dataset.status || '').toUpperCase() === 'RUNNING') await stopJob(id);
+                try { await startJob(id); if (card) card.dataset.status = 'RUNNING'; startPolling(id); }
+                catch (e) { alert(e.message || 'Erreur'); }
+            },
+            stop: (id) => stopJob(id),
+        });
+        WamaCycleButton.autoSync({ container: c, cardSelector: '.synthesis-card' });
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initCycleButton);
+    else initCycleButton();
+
     // Poll job progress
     // -----------------------------------------------------------------------
     function startPolling(jobId) {
@@ -649,12 +675,10 @@
             }
         }
 
-        // Montrer/cacher les boutons start + settings selon statut
-        const startBtnEl    = $('.btn-start-job', card);
+        // Boutons TOUJOURS visibles (le bouton de cycle ▶/⏹/↻ gère start/stop/relance lui-même).
+        // ⚙ Paramètres reste accessible même pendant le traitement.
+        const startBtnEl    = $('.btn-start-job', card);   // legacy (plus rendu) — conservé null-safe
         const settingsBtnEl = $('.btn-settings-job', card);
-        const isActive = data.status === 'RUNNING' || data.status === 'PENDING';
-        if (startBtnEl)    startBtnEl.style.display    = isActive ? 'none' : '';
-        if (settingsBtnEl) settingsBtnEl.style.display = isActive ? 'none' : '';
 
         // SUCCESS : injecter download + prévisualisation vidéo
         if (data.status === 'SUCCESS' && data.video_url && actionsDiv) {
