@@ -429,10 +429,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
     let html = '';
 
-    // ⚙ Paramètres : seulement hors RUNNING (inchangé). Schéma CARD_DESIGN : ⚙ secondary.
-    if (status !== 'RUNNING') {
-      html += `<button class="btn btn-sm btn-outline-secondary settings-btn" data-id="${id}" title="Paramètres"><i class="fas fa-cog"></i></button>`;
-    }
+    // ⚙ Paramètres : TOUJOURS visible (même pendant RUNNING) → inspecter/modifier les params en cours.
+    // Schéma CARD_DESIGN : ⚙ secondary.
+    html += `<button class="btn btn-sm btn-outline-secondary settings-btn" data-id="${id}" title="Paramètres"><i class="fas fa-cog"></i></button>`;
     // Bouton de CYCLE commun ▶/⏹/↻ (TOUJOURS vert ; ⏹ Stop pendant RUNNING). Remplace l'ancien start-btn.
     if (window.WamaCycleButton) {
       html += WamaCycleButton.html(status, id);
@@ -537,8 +536,22 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   function handleStart(id) {
-    const url = getUrl(config.startUrlTemplate, id);
     const card = queueContainer.querySelector(`.synthesis-card[data-id="${id}"]`);
+    // Relance PENDANT le traitement (modale « Enregistrer & démarrer ») : on stoppe d'abord pour
+    // éviter le 409 « déjà en cours », puis on relance avec les params à jour.
+    if (card && (card.dataset.status || '').toUpperCase() === 'RUNNING') {
+      card.dataset.status = 'PENDING';   // évite la récursion + reflète l'arrêt imminent
+      fetch(getUrl(config.stopUrlTemplate, id), {
+        method: 'POST', headers: csrfHeaders({ 'Content-Type': 'application/json' }), body: '{}',
+      }).then(() => doStart(id, card)).catch(() => doStart(id, card));
+      return;
+    }
+    doStart(id, card);
+  }
+
+  function doStart(id, card) {
+    const url = getUrl(config.startUrlTemplate, id);
+    if (!card) card = queueContainer.querySelector(`.synthesis-card[data-id="${id}"]`);
 
     fetch(url, {
       method: 'POST',
@@ -562,11 +575,9 @@ document.addEventListener('DOMContentLoaded', function () {
           const pt = card.querySelector('.progress-text');
           if (pt) pt.textContent = '0%';
 
-          // Hide start+settings buttons during processing
-          const actions = card.querySelector('.btn-group-actions');
-          if (actions) {
-            actions.querySelectorAll('.start-btn, .settings-btn').forEach(b => b.style.display = 'none');
-          }
+          // Boutons VISIBLES + actifs pendant le traitement : on reconstruit les actions en RUNNING
+          // → le bouton de cycle passe en ⏹ Stop et ⚙ Paramètres reste (inspecter/modifier en cours).
+          rebuildActions(card, id, 'RUNNING');
         }
         startPolling(id);
       })
