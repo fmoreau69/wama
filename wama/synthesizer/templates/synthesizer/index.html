@@ -193,7 +193,9 @@
     <input type="range" class="form-range" id="pitch" name="pitch" min="0.5" max="2.0" step="0.1" value="1.0">
 </div>
 
-<!-- Output format + quality (Phase 3) -->
+<!-- Output format + quality (Phase 3) — COMPOSE-only : non per-item (update_options ne les gère pas),
+     donc cachés quand une card est sélectionnée (hideOnInspect) → cohérent avec la modale -->
+<div id="synthComposeOnly">
 <div class="mb-2">
     <label for="output_format" class="form-label small fw-bold text-light">
         <i class="fas fa-file-export"></i> Format de sortie
@@ -218,6 +220,7 @@
         <option value="max">Maximum</option>
     </select>
 </div>
+</div>{# /synthComposeOnly (format+qualité = compose, cachés à l'inspection d'une card) #}
 
 <!-- Reset Button -->
 <button class="btn btn-outline-secondary btn-sm w-100" id="resetOptions">
@@ -808,6 +811,8 @@ document.addEventListener('DOMContentLoaded', function () {
         cardSelector: '.synthesis-card',
         panelContainer: ph,
         schema: schema,
+        // format+qualité = compose-only → cachés quand une card est sélectionnée (cohérent avec la modale).
+        hideOnInspect: ['synthComposeOnly'],
         itemLabel: function (id) { return "l'élément #" + id; },
         // data-* sur le bouton ⚙ de la card (pas la racine) → cardSettings dédié.
         cardSettings: function (card) {
