@@ -12,6 +12,14 @@ document.addEventListener('DOMContentLoaded', function() {
     const queueContainer = document.getElementById('descriptionQueue');
     const queueCount = document.getElementById('queueCount');
 
+    // Bouton de cycle commun ▶/⏹/↻ : câblage délégué (start/restart→startDescription, stop→stopDescription)
+    // + auto-sync sur data-status (l'icône suit le statut, plug-and-play). startDescription/stopDescription
+    // sont des déclarations de fonction (hoistées) → référençables ici.
+    if (window.WamaCycleButton && queueContainer) {
+        WamaCycleButton.wire(queueContainer, { start: (id) => startDescription(id), stop: (id) => stopDescription(id) });
+        WamaCycleButton.autoSync({ container: queueContainer, cardSelector: '.synthesis-card' });
+    }
+
     // Global options
     const outputFormat = document.getElementById('output_format');
     const outputLanguage = document.getElementById('output_language');
@@ -226,6 +234,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const card = document.createElement('div');
         card.className = 'synthesis-card';
         card.dataset.id = data.id;
+        card.dataset.status = data.status || 'PENDING';   // pilote le bouton de cycle (WamaCycleButton.autoSync)
 
         const previewUrl = `/common/preview/describer/${data.id}/`;
 
@@ -267,9 +276,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 </div>
                 <div class="col-md-2">
                     <div class="btn-group-actions">
-                        <button class="btn btn-sm btn-primary start-btn" data-id="${data.id}" title="Demarrer">
-                            <i class="fas fa-play"></i>
-                        </button>
+                        ${window.WamaCycleButton ? WamaCycleButton.html(data.status || 'PENDING', data.id) : `<button class="btn btn-sm btn-outline-success start-btn" data-id="${data.id}" title="Demarrer"><i class="fas fa-play"></i></button>`}
                         <button class="btn btn-sm btn-secondary settings-btn"
                                 data-id="${data.id}"
                                 data-output-format="${data.output_format}"
@@ -552,9 +559,29 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // === Description Processing ===
 
+    // ⏹ Stop : arrête le traitement (endpoint commun) → item relançable (↻ via autoSync sur data-status).
+    async function stopDescription(id) {
+        const card = document.querySelector(`.synthesis-card[data-id="${id}"]`);
+        try {
+            const response = await fetch(config.urls.stop.replace('/0/', `/${id}/`), {
+                method: 'POST',
+                headers: { 'X-CSRFToken': config.csrfToken, 'Content-Type': 'application/json' },
+            });
+            const data = await response.json();
+            if (card && data && data.status) card.dataset.status = data.status;  // → autoSync repasse en ↻
+        } catch (e) { /* non-fatal */ }
+    }
+
     async function startDescription(id) {
         const card = document.querySelector(`.synthesis-card[data-id="${id}"]`);
         if (!card) return;
+
+        // Relance PENDANT le traitement (modale « Enregistrer & démarrer ») : stopper d'abord pour
+        // éviter le 409 « déjà en cours », puis relancer avec les params à jour.
+        if ((card.dataset.status || '').toUpperCase() === 'RUNNING') {
+            card.dataset.status = 'PENDING';
+            await stopDescription(id);
+        }
 
         // Disable start button immediately to prevent double-clicks
         const startBtn = card.querySelector('.start-btn');
@@ -684,12 +711,13 @@ document.addEventListener('DOMContentLoaded', function() {
                            }));
         }
 
-        // Update card class and hide start button once running
+        // Update card class + statut (data-status pilote le bouton de cycle via WamaCycleButton.autoSync).
+        card.dataset.status = status;
         card.classList.remove('processing', 'success', 'error');
         switch (status) {
             case 'RUNNING':
                 card.classList.add('processing');
-                card.querySelector('.start-btn')?.remove();
+                // (le bouton de cycle passe en ⏹ Stop via autoSync ; on ne retire plus aucun bouton)
                 break;
             case 'SUCCESS': card.classList.add('success'); break;
             case 'FAILURE': card.classList.add('error'); break;

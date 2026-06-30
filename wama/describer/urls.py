@@ -15,6 +15,7 @@ urlpatterns = [
     path('upload/', views.upload, name='upload'),
     path('consolidate/', views.consolidate, name='consolidate'),
     path('start/<int:pk>/', views.start, name='start'),
+    path('stop/<int:pk>/', views.stop, name='stop'),
     path('progress/<int:pk>/', views.progress, name='progress'),
     path('download/<int:pk>/', views.download, name='download'),
     path('delete/<int:pk>/', views.delete, name='delete'),

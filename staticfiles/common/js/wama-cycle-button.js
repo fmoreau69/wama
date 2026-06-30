@@ -48,5 +48,34 @@
     });
   }
 
-  global.WamaCycleButton = { stateFor: stateFor, html: html, wire: wire };
+  // Met à jour un bouton de cycle déjà présent dans une card selon card.dataset.status (icône+action+titre).
+  function refresh(card) {
+    if (!card) return;
+    var btn = card.querySelector('.wama-cycle-btn');
+    if (!btn) return;
+    var st = stateFor(card.dataset.status || card.getAttribute('data-status'));
+    btn.setAttribute('data-cycle-action', st.action);
+    btn.setAttribute('title', st.title);
+    var icon = btn.querySelector('i');
+    if (icon) icon.className = 'fas ' + st.icon;
+  }
+
+  // Déploiement PLUG-AND-PLAY : observe les changements de data-status des cards et rafraîchit leur
+  // bouton de cycle. L'app n'a plus qu'à (1) rendre le bouton une fois via html(), (2) mettre à jour
+  // card.dataset.status (ce que la plupart font déjà au poll) — l'icône ▶/⏹/↻ suit automatiquement.
+  function autoSync(opts) {
+    opts = opts || {};
+    var container = opts.container;
+    var cardSelector = opts.cardSelector || '.card[data-id], [data-id]';
+    if (!container || container._wamaCycleSync || !global.MutationObserver) return;
+    container._wamaCycleSync = true;
+    new MutationObserver(function (muts) {
+      muts.forEach(function (m) {
+        if (m.type === 'attributes' && m.attributeName === 'data-status') refresh(m.target);
+      });
+    }).observe(container, { attributes: true, attributeFilter: ['data-status'], subtree: true });
+    container.querySelectorAll(cardSelector).forEach(refresh);  // état initial
+  }
+
+  global.WamaCycleButton = { stateFor: stateFor, html: html, wire: wire, refresh: refresh, autoSync: autoSync };
 })(window);

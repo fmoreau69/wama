@@ -474,6 +474,23 @@ def get_file_properties(description):
 
 
 @require_POST
+def stop(request, pk):
+    """
+    Stoppe la description en cours (révoque la tâche Celery) → item relançable (bouton de cycle ↻).
+    Brique commune : wama.common.utils.process_control.stop_instance.
+    """
+    user = get_user(request)
+    try:
+        description = Description.objects.get(pk=pk, user=user)
+    except Description.DoesNotExist:
+        return JsonResponse({'error': 'Not found'}, status=404)
+    if description.status not in ('RUNNING', 'PENDING'):
+        return JsonResponse({'id': description.id, 'status': description.status})
+    from wama.common.utils.process_control import stop_instance
+    new_status = stop_instance(description, error_field='error_message')
+    return JsonResponse({'id': description.id, 'status': new_status})
+
+
 def start(request, pk):
     """Start processing a description."""
     from django.db import transaction
