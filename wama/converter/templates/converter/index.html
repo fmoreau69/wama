@@ -336,13 +336,15 @@ window.CONVERTER_APP = {
         batchCreate:   "{% url 'converter:batch_create' %}",
     },
     supportedFormats: {{ supported_formats_json|safe }},
+    schema: {{ params_json|safe }},   {# schéma modale per-job (WamaParams) #}
 };
 window.WAMA_GLOBAL_PROGRESS_URL = "{% url 'converter:global_progress' %}";
 </script>
 <script src="{% static 'common/js/wama-eta.js' %}"></script>
-<link rel="stylesheet" href="{% static 'common/css/wama-inspector.css' %}">
+{# wama-inspector.css chargé globalement (base.html) #}
 <script src="{% static 'common/js/batch-import.js' %}"></script>
 <script src="{% static 'common/js/wama-inspector.js' %}"></script>
+<script src="{% static 'common/js/wama-params.js' %}"></script>
 <script src="{% static 'converter/js/converter.js' %}"></script>
 <script src="{% static 'common/js/wama-global-progress.js' %}"></script>
 <script>

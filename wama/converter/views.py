@@ -145,12 +145,14 @@ class IndexView(View):
             for media_type, spec in SUPPORTED_CONVERSIONS.items()
         }
 
+        from wama.converter.params import PARAMS_JSON as CONVERTER_PARAMS_JSON
         return render(request, 'converter/index.html', {
             'jobs':                 jobs,
             'batches_list':         batches_list,
             'profiles':             profiles,
             'supported_formats':    SUPPORTED_CONVERSIONS,
             'supported_formats_json': json.dumps(formats_for_js),
+            'params_json':          json.dumps(CONVERTER_PARAMS_JSON),  # schéma modale per-job (WamaParams)
         })
 
 

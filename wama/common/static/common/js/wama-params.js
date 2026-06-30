@@ -88,6 +88,12 @@
       ? '<small class="text-muted d-block">' + p.help_html + '</small>'
       : (p.help ? '<small class="text-muted d-block">' + esc(p.help) + '</small>' : '');
 
+    if (p.type === 'hidden') {
+      // Champ porteur (ex. media_type d'un job) : invisible, mais lisible par read() et par les
+      // conditions show_if {field: '<ce nom>'}. Rendu sans wrapper visible (cf. render()).
+      return '<input type="hidden" id="' + id + '" ' + idA + ' value="' + esc(v != null ? v : '') + '">';
+    }
+
     if (p.type === 'toggle') {
       const checked = (v === true || v === 'true' || v === 1 || v === '1') ? 'checked' : '';
       const tic = p.icon ? '<i class="fas ' + esc(p.icon) + ' me-1"></i>' : '';
@@ -161,6 +167,8 @@
       return !p.contexts || p.contexts.indexOf(ctx) !== -1;
     }).map(function (p) {
       const value = (p.name in values) ? values[p.name] : undefined;
+      // hidden : input nu, sans wrapper visible (pas de marge/label).
+      if (p.type === 'hidden') return controlHtml(p, ctx, value, resolver);
       return '<div class="wama-param mb-2" data-param-row="' + esc(p.name) + '"' +
         (p.show_if ? ' data-show-if="' + esc(typeof p.show_if === 'string' ? p.show_if : JSON.stringify(p.show_if)) + '"' : '') +
         (p.advanced ? ' data-advanced="1"' : '') + '>' +

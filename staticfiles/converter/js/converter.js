@@ -719,6 +719,42 @@
         return { output_format: outputFormat, options };
     }
 
+    // Lecture de la modale SCHÉMA-DRIVEN (WamaParams) → même forme {output_format, options} que
+    // readModalForm : coercition nombres/toggles + filtre show_if pour ne garder que les options du
+    // media_type courant (WamaParams.read voit aussi les sections cachées).
+    function readModalViaSchema() {
+        const body = document.getElementById('jobSettingsBody');
+        const raw = WamaParams.read(body);
+        const byName = {};
+        (APP.schema || []).forEach(function (p) { byName[p.name] = p; });
+        const mt = currentModalMediaType;
+        function matches(p) {
+            const c = p.show_if;
+            if (!c || typeof c === 'string' || c.field !== 'media_type') return true;
+            if (c.in) return c.in.indexOf(mt) !== -1;
+            if ('equals' in c) return String(c.equals) === String(mt);
+            return true;
+        }
+        const options = {};
+        Object.keys(raw).forEach(function (k) {
+            if (k === 'output_format' || k === 'media_type') return;
+            const p = byName[k] || {};
+            if (!matches(p)) return;
+            const v = raw[k];
+            if (p.type === 'toggle') { if (v === true || v === 'true') options[k] = true; return; }
+            if (p.type === 'number' || p.type === 'range') {
+                if (v !== '' && v != null) {
+                    const isFloat = p.step && parseFloat(p.step) !== Math.floor(parseFloat(p.step));
+                    const n = isFloat ? parseFloat(v) : parseInt(v, 10);
+                    if (!isNaN(n)) options[k] = n;
+                }
+                return;
+            }
+            if (v !== '' && v != null) options[k] = v;
+        });
+        return { output_format: raw.output_format || '', options: options };
+    }
+
     let currentModalJobId = null;
     let currentModalMediaType = null;
 
@@ -739,7 +775,24 @@
             const data = await resp.json();
             currentModalMediaType = data.media_type;
             filenameSpan.textContent = data.input_filename || `Job #${jobId}`;
-            body.innerHTML = buildModalFormHTML(data.media_type, data.output_format, data.options);
+            // Modale schéma-driven : WamaParams rend les champs (show_if par media_type, format dynamique).
+            // Pont dom_id non requis ici car read/écriture passent aussi par WamaParams (readModalViaSchema).
+            if (window.WamaParams && APP.schema) {
+                const values = Object.assign(
+                    { media_type: data.media_type, output_format: data.output_format }, data.options || {});
+                WamaParams.render(body, APP.schema, {
+                    context: 'item',
+                    values: values,
+                    optionsResolver: function (p) {
+                        if (p.options_source !== 'formats') return null;
+                        return ((FORMATS[data.media_type] || {}).output || []).map(function (f) {
+                            return { value: f, label: '.' + f.toUpperCase() };
+                        });
+                    },
+                });
+            } else {
+                body.innerHTML = buildModalFormHTML(data.media_type, data.output_format, data.options);
+            }
 
             // Disable Apply/Start if job is RUNNING
             const isRunning = data.status === 'RUNNING';
@@ -767,7 +820,8 @@
      * POST update payload for the current modal job. Returns true on success.
      */
     async function applyCurrentModal() {
-        const { output_format, options } = readModalForm();
+        const { output_format, options } = (window.WamaParams && APP.schema)
+            ? readModalViaSchema() : readModalForm();
         if (!output_format) {
             alert('Format de sortie requis.');
             return false;
