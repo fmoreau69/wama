@@ -58,6 +58,7 @@
 
 {# ── Right panel : paramètres de conversion ──────────────────────────────── #}
 {% block app_right_panel_settings %}
+{% include 'common/_inspector_banner.html' %}{# bandeau « Réglages de l'élément #N » ; édition per-job via la modale ⚙ (schéma-driven) #}
 
 <!-- Type de média détecté (mis à jour par JS) -->
 <div class="mb-2">
@@ -350,10 +351,17 @@ window.WAMA_GLOBAL_PROGRESS_URL = "{% url 'converter:global_progress' %}";
 <script src="{% static 'common/js/wama-global-progress.js' %}"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-    if (window.WamaInspector) {
-        var q = document.getElementById('converterQueue');
-        if (q) WamaInspector.init({ queueContainer: q, cardSelector: '.job-card' });
-    }
+    if (!window.WamaInspector) return;
+    var q = document.getElementById('converterQueue');
+    if (!q) return;
+    // Sélection + bandeau « Réglages de l'élément #N ». Converter édite per-job via la MODALE schéma-driven
+    // (bouton ⚙ → jobSettingsModal) ; le volet reste la zone de composition (format/options par média).
+    WamaInspector.init({
+        queueContainer: q,
+        cardSelector: '.job-card',
+        itemLabel: function (id) { return "l'élément #" + id + " (⚙ pour éditer)"; },
+        batchLabel: function (id) { return "le batch #" + id; },
+    });
 });
 </script>
 {% endblock %}
