@@ -56,3 +56,33 @@ def output_format_params(domain: str, contexts=None, dom_id_format=None, dom_id_
                   dom_id=dom_id_quality or "output_quality")
         )
     return params
+
+
+def _domain_from_output_types(output_types) -> str | None:
+    """Déduit le domaine (audio/video/image/document) depuis les output_types d'APP_CATALOG."""
+    fmts = set(str(t).lower() for t in (output_types or []))
+    for domain in ("audio", "video", "image", "document"):
+        if fmts & set(v for v, _ in get_output_formats(domain)):
+            return domain
+    return None
+
+
+def output_format_params_for_app(app_name: str, contexts=None, dom_id_format=None,
+                                 dom_id_quality=None, include_quality: bool = True) -> list:
+    """
+    AUTO depuis APP_CATALOG : lit `multi_format_download` (early/late) + déduit le domaine des
+    `output_types`. Renvoie les Param output_format/output_quality si l'app est **early-binding**
+    (réglages avant génération), sinon [] (master-based → choix au téléchargement). L'app n'a plus qu'à
+    fournir les dom_id de ses surfaces.
+    """
+    try:
+        from wama.common.app_registry import APP_CATALOG
+        cat = APP_CATALOG.get(app_name, {}) or {}
+    except Exception:
+        cat = {}
+    if cat.get("multi_format_download"):      # late-binding → pas un param de schéma
+        return []
+    domain = _domain_from_output_types(cat.get("output_types", []))
+    if not domain:
+        return []
+    return output_format_params(domain, contexts, dom_id_format, dom_id_quality, include_quality)

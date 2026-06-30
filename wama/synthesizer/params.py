@@ -12,7 +12,7 @@ contextuel via `WamaInspector.initFromSchema` qui lit/écrit ces champs (file �
 batch=batchSettings*) → JS de voix/clone/submit inchangé. Gabarit : reader/describer params.py.
 """
 from wama.common.utils.param_schema import derive_from_model, schema_to_dicts
-from wama.common.utils.output_formats import output_format_params
+from wama.common.utils.output_formats import output_format_params_for_app
 from wama.synthesizer.models import VoiceSynthesis
 
 PARAMS = derive_from_model(
@@ -43,10 +43,10 @@ PARAMS = derive_from_model(
     },
 )
 
-# Format + qualité de FICHIER de sortie : BRIQUE COMMUNE (output_format_params), domaine audio.
-# early-binding (réglés avant génération) → contextes item+batch+panel ; dom_id = ids de chaque surface.
-PARAMS += output_format_params(
-    "audio",
+# Format + qualité de FICHIER de sortie : BRIQUE COMMUNE auto depuis APP_CATALOG (domaine audio +
+# early-binding déduits du catalogue). L'app ne fournit que les dom_id de ses surfaces.
+PARAMS += output_format_params_for_app(
+    "synthesizer",
     contexts=("item", "batch", "panel"),
     dom_id_format={"panel": "output_format", "item": "settingsOutputFormat"},
     dom_id_quality={"panel": "output_quality", "item": "settingsOutputQuality"},
