@@ -17,7 +17,9 @@ from django.views.decorators.http import require_POST
 from django.core.validators import FileExtensionValidator
 from django.core.exceptions import ValidationError
 
+import json
 from .models import AvatarJob, BatchAvatarJob, BatchAvatarJobItem
+from .params import PARAMS_JSON as _AVATAR_PARAMS_JSON
 from wama.synthesizer.models import CustomVoice
 from wama.accounts.views import get_or_create_anonymous_user
 from wama.common.utils.queue_duplication import duplicate_instance, safe_delete_file
@@ -72,6 +74,7 @@ class IndexView(View):
             'custom_voices': custom_voices,
             'quality_mode_choices': AvatarJob.QUALITY_MODE_CHOICES,
             'media_url': settings.MEDIA_URL,
+            'params_json': json.dumps(_AVATAR_PARAMS_JSON),
         }
         return render(request, 'avatarizer/index.html', context)
 

@@ -72,6 +72,8 @@
 {# RIGHT PANEL - Settings                                                 #}
 {# ===================================================================== #}
 {% block app_right_panel_settings %}
+{% include 'common/_inspector_banner.html' %}{# bandeau « Réglages de l'élément #N » (inspecteur contextuel) #}
+<div id="avatarPanelParams">
 
 <!-- Mode workflow -->
 <div class="mb-3">
@@ -178,6 +180,7 @@
         </label>
     </div>
 </div>
+</div>{# /avatarPanelParams (inspecteur contextuel) #}
 
 {% endblock %}
 
@@ -727,4 +730,45 @@ window.WAMA_GLOBAL_PROGRESS_URL = "{% url 'avatarizer:global_progress' %}";
 <script src="{% static 'common/js/wama-eta.js' %}"></script>
 <script src="{% static 'avatarizer/js/index.js' %}"></script>
 <script src="{% static 'common/js/wama-global-progress.js' %}"></script>
+<script src="{% static 'common/js/wama-inspector.js' %}"></script>
+<script>
+// Inspecteur CONTEXTUEL : la section params du volet (#avatarPanelParams) devient « Réglages de
+// l'élément #N » au clic sur une card (params lus depuis le bouton ⚙ de la card, sauvegarde routée).
+// On garde les champs compose existants ; média + boutons de file restent.
+document.addEventListener('DOMContentLoaded', function () {
+    var q = document.getElementById('jobs-container');
+    var ph = document.getElementById('avatarPanelParams');
+    if (!q || !ph || !window.WamaInspector || !WamaInspector.initFromSchema) return;
+    var schema = {{ params_json|safe }};
+    var csrf = (window.AVATARIZER_CONFIG && window.AVATARIZER_CONFIG.csrfToken) || '';
+    function saveItemReq(id) {
+        var fd = new FormData();
+        schema.forEach(function (p) {
+            var key = (p.dom_id && p.dom_id.panel) || p.name;
+            var radios = ph.querySelectorAll('input[type="radio"][name="' + key + '"]');
+            if (radios.length) { radios.forEach(function (r) { if (r.checked) fd.append(p.name, r.value); }); return; }
+            var el = document.getElementById(key) || ph.querySelector('[name="' + key + '"]');
+            if (el) fd.append(p.name, el.type === 'checkbox' ? (el.checked ? 'true' : 'false') : el.value);
+        });
+        return fetch('/avatarizer/update-options/' + id + '/', { method: 'POST', headers: { 'X-CSRFToken': csrf }, body: fd });
+    }
+    WamaInspector.initFromSchema({
+        queueContainer: q,
+        cardSelector: '.synthesis-card',
+        panelContainer: ph,
+        schema: schema,
+        itemLabel: function (id) { return "l'élément #" + id; },
+        cardSettings: function (card) {
+            var b = card.querySelector('.btn-settings-job');
+            if (!b) return {};
+            return {
+                mode: b.dataset.mode, tts_model: b.dataset.ttsModel, language: b.dataset.language,
+                voice_preset: b.dataset.voicePreset, quality_mode: b.dataset.qualityMode,
+                use_enhancer: b.dataset.useEnhancer, bbox_shift: b.dataset.bboxShift,
+            };
+        },
+        saveItem: function (id) { return saveItemReq(id).then(function () { window.location.reload(); }); },
+    });
+});
+</script>
 {% endblock %}
