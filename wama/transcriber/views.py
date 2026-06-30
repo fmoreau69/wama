@@ -648,6 +648,10 @@ def stop(request, pk: int):
 
     from wama.common.utils.process_control import stop_instance
     new_status = stop_instance(t)   # → FAILURE (relançable), task_id vidé
+    # Purge le cache de progression : sinon une valeur périmée (ex. 20 %) « colle » au prochain run/poll.
+    from django.core.cache import cache
+    cache.delete(f"transcriber_progress_{t.id}")
+    cache.delete(f"transcriber_status_msg_{t.id}")
     return JsonResponse({'id': t.id, 'status': new_status})
 
 
@@ -1000,6 +1004,8 @@ def progress(request, pk: int):
         'status': t.status,
         'partial_text': partial_text,
         'status_message': cache.get(f"transcriber_status_msg_{t.id}", ''),  # action en cours
+        'properties': t.properties,          # propriétés fichier (codec • kHz • canaux) → MAJ ligne card
+        'duration_display': t.duration_display,
     }
 
     # Seed ETA : estimation a priori (puis apprise) du temps total, affichée DÈS le départ

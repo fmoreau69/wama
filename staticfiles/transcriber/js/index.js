@@ -281,7 +281,7 @@ document.addEventListener('DOMContentLoaded', function () {
                   style="color: inherit;">
             <i class="fas fa-file-audio"></i> ${label}
           </button><br>
-          ${data.properties ? `<small class="text-white-50 d-block"><i class="fas fa-wave-square"></i> ${props}</small>` : ''}
+          <small class="card-properties text-white-50 d-block"${data.properties ? '' : ' style="display:none"'}><i class="fas fa-wave-square"></i> <span class="card-properties-text">${escapeHtml(data.properties || '')}</span></small>
           <small class="text-white-50 d-block">
             <i class="fas fa-clock"></i> ${duration}
             ${data.preprocess_audio ? '<span class="badge bg-warning text-dark ms-1">Prétraité</span>' : ''}
@@ -346,8 +346,11 @@ document.addEventListener('DOMContentLoaded', function () {
     const card = queueContainer ? queueContainer.querySelector(`.synthesis-card[data-id="${id}"]`) : null;
     if (!card) { stopPolling(id); return; }
 
-    const progress = Math.min(100, Math.max(0, data.progress || 0));
+    let progress = Math.min(100, Math.max(0, data.progress || 0));
     const status = (data.status || 'PENDING').toUpperCase();
+    // Succès = barre PLEINE : ignore un cache de progression périmé (ex. 20 % laissé par un stop/relance
+    // rapide) qui donnait une card SUCCESS avec une barre incohérente.
+    if (status === 'SUCCESS') progress = 100;
 
     // Update progress bar
     const bar = card.querySelector('.wama-progress-fill');
@@ -380,6 +383,16 @@ document.addEventListener('DOMContentLoaded', function () {
       RUNNING: ' processing', SUCCESS: ' success', FAILURE: ' error'
     }[status] || '');
     card.dataset.status = status;
+
+    // Propriétés fichier (codec • kHz • canaux) : la ligne n'est remplie qu'à la création de card et
+    // n'était jamais rafraîchie → certaines cards la perdaient (calcul différé après upload, ou rebuild).
+    // Ici on la (ré)affiche dès que le poll les renvoie → cohérent + persistant.
+    if (data.properties) {
+      const propText = card.querySelector('.card-properties-text');
+      const propEl = card.querySelector('.card-properties');
+      if (propText) propText.textContent = data.properties;
+      if (propEl) propEl.style.display = '';
+    }
 
     // État textuel de la card : pendant RUNNING, affiche l'action en cours (dernier message
     // de log) si dispo, sinon « Traitement… ». Évite aussi « En attente » figé.
