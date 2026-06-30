@@ -3,6 +3,11 @@ document.addEventListener('DOMContentLoaded', function () {
   const csrfToken = config.csrfToken;
   const fileInput = document.getElementById('transcriber-file');
   const queueContainer = document.getElementById('transcriptQueue');
+  // Bouton de cycle : mécanisme plug-and-play commun — l'icône ▶/⏹/↻ suit data-status des cards
+  // (cohérent avec les autres apps ; rebuildActions reste pour les autres boutons de la card).
+  if (window.WamaCycleButton && queueContainer) {
+    WamaCycleButton.autoSync({ container: queueContainer, cardSelector: '.synthesis-card' });
+  }
   const speakButton = document.getElementById('transcriber-speak-btn');
   const liveOutput = document.getElementById('live-transcription-output');
   const liveStatus = document.getElementById('live-transcription-status');

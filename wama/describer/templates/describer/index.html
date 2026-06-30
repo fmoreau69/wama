@@ -85,7 +85,7 @@
             {% for item in batch_info.items %}{% if item.description %}
             {% with desc=item.description %}
             <div class="synthesis-card {% if desc.status == 'RUNNING' %}processing{% elif desc.status == 'SUCCESS' %}success{% elif desc.status == 'FAILURE' %}error{% endif %}"
-                 data-id="{{ desc.id }}">
+                 data-id="{{ desc.id }}" data-status="{{ desc.status }}">
                 <div class="row align-items-center">
                     <div class="col-md-3">
                         <strong>
@@ -137,10 +137,7 @@
                     </div>
                     <div class="col-md-2">
                         <div class="btn-group-actions">
-                            {% if desc.status != 'RUNNING' %}
-                            <button class="btn btn-sm btn-primary start-btn" data-id="{{ desc.id }}" title="Demarrer">
-                                <i class="fas fa-play"></i>
-                            </button>
+                            {# Ordre conventionnel : ⚙ Paramètres puis bouton de cycle ▶/⏹/↻ (toujours visibles). #}
                             <button class="btn btn-sm btn-secondary settings-btn"
                                     data-id="{{ desc.id }}"
                                     data-output-format="{{ desc.output_format }}"
@@ -151,7 +148,7 @@
                                     title="Parametres">
                                 <i class="fas fa-cog"></i>
                             </button>
-                            {% endif %}
+                            {% include 'common/_cycle_button.html' with id=desc.id status=desc.status %}
                             {% if desc.status == 'SUCCESS' %}
                             <button class="btn btn-sm btn-success preview-btn" data-id="{{ desc.id }}" title="Voir le resultat">
                                 <i class="fas fa-eye"></i>
@@ -252,7 +249,7 @@
                     {% for item in batch_info.items %}{% if item.description %}
                     {% with desc=item.description %}
                     <div class="synthesis-card {% if desc.status == 'RUNNING' %}processing{% elif desc.status == 'SUCCESS' %}success{% elif desc.status == 'FAILURE' %}error{% endif %}"
-                         data-id="{{ desc.id }}">
+                         data-id="{{ desc.id }}" data-status="{{ desc.status }}">
                         <div class="row align-items-center">
                             <div class="col-md-3">
                                 <strong>
@@ -288,7 +285,7 @@
                             </div>
                             <div class="col-md-3">
                                 <div class="btn-group-actions">
-                                    {% if desc.status != 'RUNNING' %}
+                                    {# ⚙ Paramètres puis bouton de cycle ▶/⏹/↻ (toujours visibles, même RUNNING). #}
                                     <button class="btn btn-sm btn-secondary settings-btn"
                                             data-id="{{ desc.id }}"
                                             data-output-format="{{ desc.output_format }}"
@@ -299,10 +296,7 @@
                                             title="Paramètres">
                                         <i class="fas fa-cog"></i>
                                     </button>
-                                    <button class="btn btn-sm btn-primary start-btn" data-id="{{ desc.id }}" title="Démarrer">
-                                        <i class="fas fa-play"></i>
-                                    </button>
-                                    {% endif %}
+                                    {% include 'common/_cycle_button.html' with id=desc.id status=desc.status %}
                                     {% if desc.status == 'SUCCESS' %}
                                     <button class="btn btn-sm btn-success preview-btn" data-id="{{ desc.id }}" title="Voir">
                                         <i class="fas fa-eye"></i>

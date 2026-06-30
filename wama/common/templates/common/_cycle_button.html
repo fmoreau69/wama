@@ -1,0 +1,16 @@
+{% comment %}
+Bouton de cycle ▶/⏹/↻ — version SERVEUR (miroir de WamaCycleButton.html en JS). À inclure dans les
+cards rendues côté Django (page load + cards de batch). Toujours VERT ; l'icône suit le statut.
+Ensuite mis à jour automatiquement par WamaCycleButton.autoSync (sur data-status de la card).
+
+Usage : {% include 'common/_cycle_button.html' with id=item.id status=item.status %}
+La card englobante doit porter data-status="{{ item.status }}" pour l'auto-sync.
+{% endcomment %}
+{% with s=status|upper %}
+<button type="button" class="btn btn-sm btn-outline-success wama-cycle-btn"
+        data-cycle-action="{% if s == 'RUNNING' %}stop{% elif s == 'SUCCESS' or s == 'FAILURE' %}restart{% else %}start{% endif %}"
+        data-id="{{ id }}"
+        title="{% if s == 'RUNNING' %}Arrêter{% elif s == 'SUCCESS' or s == 'FAILURE' %}Relancer{% else %}Démarrer{% endif %}">
+    <i class="fas {% if s == 'RUNNING' %}fa-stop{% elif s == 'SUCCESS' or s == 'FAILURE' %}fa-rotate-right{% else %}fa-play{% endif %}"></i>
+</button>
+{% endwith %}
