@@ -88,12 +88,15 @@ class IndexView(View):
             if item.generation and item.generation.status in ('PENDING', 'RUNNING')
         )
 
+        import json
+        from .params import PARAMS_JSON as _COMPOSER_PARAMS_JSON
         return render(request, 'composer/index.html', {
             'batches_list': batches_list,
             'queue_count': queue_count,
             'music_models': MUSIC_MODELS,
             'sfx_models': SFX_MODELS,
             'all_models': COMPOSER_MODELS,
+            'params_json': json.dumps(_COMPOSER_PARAMS_JSON),
         })
 
 
@@ -317,6 +320,11 @@ def update_settings(request, pk):
     gen.model = model_id
     gen.duration = duration
     gen.generation_type = generation_type
+    # Format/qualité de sortie (early-binding, per-item) si fournis
+    if request.POST.get('output_format'):
+        gen.output_format = request.POST['output_format']
+    if request.POST.get('output_quality'):
+        gen.output_quality = request.POST['output_quality']
     gen.status = 'PENDING'
     gen.progress = 0
     gen.audio_output = None

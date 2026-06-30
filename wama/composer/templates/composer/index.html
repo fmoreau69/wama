@@ -50,6 +50,8 @@
 
 {# ── Right panel : paramètres ────────────────────────────────────────────── #}
 {% block app_right_panel_settings %}
+{% include 'common/_inspector_banner.html' %}{# bandeau « Réglages de l'élément #N » (inspecteur contextuel) #}
+<div id="composerPanelParams">
 <!-- Type de génération -->
 <div class="mb-3">
     <label class="form-label small fw-bold text-light">
@@ -160,6 +162,7 @@
 </div>
 
 <!-- Reset Button -->
+</div>{# /composerPanelParams (inspecteur contextuel) #}
 <hr class="border-secondary my-2">
 <button class="btn btn-outline-secondary btn-sm w-100" id="resetOptions">
     <i class="fas fa-undo"></i> Réinitialiser
@@ -352,6 +355,35 @@
 <script src="{% static 'common/js/wama-eta.js' %}"></script>
 <script src="{% static 'common/js/wama-model-help.js' %}"></script>
 <script src="{% static 'composer/js/index.js' %}"></script>
+<script src="{% static 'common/js/wama-inspector.js' %}"></script>
+<script>
+// Inspecteur CONTEXTUEL : la section params du volet (#composerPanelParams) devient « Réglages de
+// l'élément #N » au clic sur une card (model/durée/format/qualité depuis la card, sauvegarde routée).
+document.addEventListener('DOMContentLoaded', function () {
+    var q = document.getElementById('composerQueue');
+    var ph = document.getElementById('composerPanelParams');
+    if (!q || !ph || !window.WamaInspector || !WamaInspector.initFromSchema) return;
+    var schema = {{ params_json|safe }};
+    function getCsrf() { var m = document.cookie.match(/csrftoken=([^;]+)/); return m ? m[1] : ''; }
+    function saveItemReq(id) {
+        var fd = new FormData();
+        schema.forEach(function (p) {
+            var key = (p.dom_id && p.dom_id.panel) || p.name;
+            var el = document.getElementById(key) || ph.querySelector('[name="' + key + '"]');
+            if (el) fd.append(p.name, el.value);
+        });
+        return fetch('/composer/settings/' + id + '/', { method: 'POST', headers: { 'X-CSRFToken': getCsrf() }, body: fd });
+    }
+    WamaInspector.initFromSchema({
+        queueContainer: q,
+        cardSelector: '.generation-card',
+        panelContainer: ph,
+        schema: schema,
+        itemLabel: function (id) { return "l'élément #" + id; },
+        saveItem: function (id) { return saveItemReq(id).then(function () { window.location.reload(); }); },
+    });
+});
+</script>
 <script>
 // Descriptif du moteur sous le select (brique commune ; meta = catalogue model_manager).
 (function () {

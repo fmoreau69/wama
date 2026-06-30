@@ -762,6 +762,7 @@
         <div class="generation-card p-2 rounded border border-warning processing mb-1"
              data-id="${data.id}" data-status="RUNNING" data-estimated-seconds="${est}"
              data-model="${data.model}" data-duration="${data.duration}"
+             data-output-format="${data.output_format || 'original'}" data-output-quality="${data.output_quality || 'balanced'}"
              style="background:#1e2124;">
             <div class="row align-items-center g-2">
                 <div class="col-md-4">
