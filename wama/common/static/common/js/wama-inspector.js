@@ -242,9 +242,24 @@
           }
           const el = fieldEl(key);
           if (!el) return;
-          if (el.type === 'checkbox') el.checked = !!vals[p.name];
-          else el.value = vals[p.name];
+          const val = vals[p.name];
+          if (el.type === 'checkbox') {
+            // val vient d'un data-* (string) → "false"/"0" doivent décocher (!!"false" valait true).
+            el.checked = (val === true || val === 'true' || val === 1 || val === '1');
+          } else {
+            el.value = val;
+          }
+          // 'input' (sliders/affichages de valeur qui écoutent input) ET 'change' (WamaModelCaps, etc.).
+          el.dispatchEvent(new Event('input', { bubbles: true }));
           el.dispatchEvent(new Event('change', { bubbles: true }));
+          // Select à options ASYNC (ex. voix filtrées par WamaModelCaps après le change du modèle) :
+          // si la valeur n'a pas pris (option pas encore présente), re-essai au tick suivant.
+          if (el.tagName === 'SELECT' && val != null && String(el.value) !== String(val)) {
+            setTimeout(function () {
+              el.value = val;
+              if (String(el.value) === String(val)) el.dispatchEvent(new Event('change', { bubbles: true }));
+            }, 200);
+          }
         });
       },
     };
