@@ -251,14 +251,18 @@
 
     const cardSettings = cfg.cardSettings || function (card) {
       const out = {};
+      // Les data-* de params peuvent être sur la RACINE de card OU sur le bouton ⚙ (cas le plus courant :
+      // Describer/Synthesizer/… rendent les data-output-format/… sur le bouton settings).
+      const btn = card.querySelector('.settings-btn, [data-action="settings"], .btn-settings-job, .job-settings-btn');
+      const datasets = btn ? [card.dataset, btn.dataset] : [card.dataset];
       names.forEach(function (n) {
         const camel = n.replace(/_([a-z])/g, function (_, c) { return c.toUpperCase(); });
-        let v = card.dataset[n];
-        if (v === undefined) v = card.dataset[camel];
-        if (v === undefined) {
-          const a = card.getAttribute('data-' + n.replace(/_/g, '-'));
-          if (a !== null) v = a;
-        }
+        let v;
+        datasets.forEach(function (ds) {
+          if (v !== undefined) return;
+          if (ds[n] !== undefined) v = ds[n];
+          else if (ds[camel] !== undefined) v = ds[camel];
+        });
         if (v !== undefined) out[n] = v;
       });
       return out;
