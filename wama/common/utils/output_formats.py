@@ -1,0 +1,58 @@
+"""
+Source COMMUNE des formats + qualités de FICHIER de sortie — pendant de voice_options pour la sortie.
+
+`get_output_formats(domain)` : choix de format de fichier par domaine (audio/image/video/document),
+réutilise `CONVERTER_OUTPUT_FORMATS` (converter.format_router) = source unique déjà maintenue.
+`get_output_qualities(domain)` : presets de qualité (web/équilibré/max).
+`output_format_params(domain, …)` : fabrique les `Param` output_format + output_quality prêts à injecter
+dans le schéma d'une app **render-based** (export_binding=early : réglés AVANT génération, per-item).
+
+Pour les apps **master-based** (export_binding=late), le format est choisi AU TÉLÉCHARGEMENT (split-button
+multi_format_download) — pas un param de schéma. Le choix early/late est déclaré dans APP_CATALOG.
+"""
+from __future__ import annotations
+from typing import List, Tuple
+
+# Presets de qualité génériques (indépendants du domaine).
+OUTPUT_QUALITY_CHOICES: List[Tuple[str, str]] = [
+    ("web", "Web (léger)"),
+    ("balanced", "Équilibré"),
+    ("max", "Maximum"),
+]
+
+
+def get_output_formats(domain: str) -> List[Tuple[str, str]]:
+    """[(valeur, libellé)] des formats de fichier de sortie pour un domaine. 'original' = inchangé."""
+    try:
+        from wama.common.app_registry import CONVERTER_OUTPUT_FORMATS
+        fmts = CONVERTER_OUTPUT_FORMATS.get(domain) or []
+    except Exception:
+        fmts = []
+    return [("original", "Original (inchangé)")] + [(f, "." + f.upper()) for f in fmts]
+
+
+def get_output_qualities(domain: str | None = None) -> List[Tuple[str, str]]:
+    """Presets de qualité (web/équilibré/max). `domain` réservé pour d'éventuelles variantes futures."""
+    return list(OUTPUT_QUALITY_CHOICES)
+
+
+def output_format_params(domain: str, contexts=None, dom_id_format=None, dom_id_quality=None,
+                         include_quality: bool = True) -> list:
+    """
+    Fabrique les Param COMMUNS output_format (+ output_quality) pour un domaine, prêts à concaténer au
+    schéma d'une app early-binding. dom_id_* = ponts vers les IDs existants par surface (str ou dict).
+    """
+    from wama.common.utils.param_schema import Param, ALL_CONTEXTS
+    ctx = contexts or ALL_CONTEXTS
+    params = [
+        Param(name="output_format", type="select", label="Format de sortie", icon="fa-file-export",
+              choices=get_output_formats(domain), contexts=ctx,
+              dom_id=dom_id_format or "output_format"),
+    ]
+    if include_quality:
+        params.append(
+            Param(name="output_quality", type="select", label="Qualité", icon="fa-sliders",
+                  choices=get_output_qualities(domain), contexts=ctx,
+                  dom_id=dom_id_quality or "output_quality")
+        )
+    return params

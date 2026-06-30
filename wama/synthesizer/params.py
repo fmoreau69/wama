@@ -12,11 +12,12 @@ contextuel via `WamaInspector.initFromSchema` qui lit/écrit ces champs (file �
 batch=batchSettings*) → JS de voix/clone/submit inchangé. Gabarit : reader/describer params.py.
 """
 from wama.common.utils.param_schema import derive_from_model, schema_to_dicts
+from wama.common.utils.output_formats import output_format_params
 from wama.synthesizer.models import VoiceSynthesis
 
 PARAMS = derive_from_model(
     VoiceSynthesis,
-    include=["tts_model", "language", "voice_preset", "speed", "pitch", "output_format", "output_quality"],
+    include=["tts_model", "language", "voice_preset", "speed", "pitch"],
     overrides={
         "tts_model": dict(
             type="select", label="Modèle TTS", icon="fa-microchip",
@@ -39,16 +40,16 @@ PARAMS = derive_from_model(
             type="range", label="Hauteur", icon="fa-music", min=0.5, max=2.0, step=0.1, default=1.0,
             dom_id={"panel": "pitch", "item": "settingsPitch", "batch": "batchSettingsPitch"},
         ),
-        # Compose-only (pas dans les modales item/batch aujourd'hui) → contexte panel seul.
-        "output_format": dict(
-            type="select", label="Format de sortie", icon="fa-file-audio",
-            dom_id={"panel": "output_format"}, contexts=("panel",),
-        ),
-        "output_quality": dict(
-            type="select", label="Qualité", icon="fa-sliders",
-            dom_id={"panel": "output_quality"}, contexts=("panel",),
-        ),
     },
+)
+
+# Format + qualité de FICHIER de sortie : BRIQUE COMMUNE (output_format_params), domaine audio.
+# early-binding (réglés avant génération) → contextes item+batch+panel ; dom_id = ids de chaque surface.
+PARAMS += output_format_params(
+    "audio",
+    contexts=("item", "batch", "panel"),
+    dom_id_format={"panel": "output_format", "item": "settingsOutputFormat"},
+    dom_id_quality={"panel": "output_quality", "item": "settingsOutputQuality"},
 )
 
 PARAMS_JSON = schema_to_dicts(PARAMS)
