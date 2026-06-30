@@ -429,13 +429,16 @@ document.addEventListener('DOMContentLoaded', function () {
 
     let html = '';
 
+    // ⚙ Paramètres : seulement hors RUNNING (inchangé). Schéma CARD_DESIGN : ⚙ secondary.
     if (status !== 'RUNNING') {
-      // Schéma boutons CARD_DESIGN (converter, adopté) : ⚙ secondary · ▶/↻ success.
-      const isRerun = (status === 'SUCCESS' || status === 'FAILURE');
-      const startIcon = isRerun ? 'fa-rotate-right' : 'fa-play';
-      const startTitle = isRerun ? 'Relancer' : 'Démarrer';
       html += `<button class="btn btn-sm btn-outline-secondary settings-btn" data-id="${id}" title="Paramètres"><i class="fas fa-cog"></i></button>`;
-      html += `<button class="btn btn-sm btn-outline-success start-btn" data-id="${id}" title="${startTitle}"><i class="fas ${startIcon}"></i></button>`;
+    }
+    // Bouton de CYCLE commun ▶/⏹/↻ (TOUJOURS vert ; ⏹ Stop pendant RUNNING). Remplace l'ancien start-btn.
+    if (window.WamaCycleButton) {
+      html += WamaCycleButton.html(status, id);
+    } else if (status !== 'RUNNING') {
+      const isRerun = (status === 'SUCCESS' || status === 'FAILURE');
+      html += `<button class="btn btn-sm btn-outline-success start-btn" data-id="${id}" title="${isRerun ? 'Relancer' : 'Démarrer'}"><i class="fas ${isRerun ? 'fa-rotate-right' : 'fa-play'}"></i></button>`;
     }
 
     if (status === 'SUCCESS') {
@@ -487,6 +490,11 @@ document.addEventListener('DOMContentLoaded', function () {
   function bindCardActions(scope) {
     const root = scope || document;
 
+    // Bouton de cycle commun (délégué, lié une fois par card ; survit aux rebuilds d'actions).
+    if (window.WamaCycleButton) {
+      WamaCycleButton.wire(root, { start: (id) => handleStart(id), stop: (id) => handleStop(id) });
+    }
+    // Repli legacy si la brique n'est pas chargée.
     root.querySelectorAll('.start-btn').forEach(btn => {
       if (btn.dataset.bound === '1') return;
       btn.dataset.bound = '1';
@@ -510,6 +518,22 @@ document.addEventListener('DOMContentLoaded', function () {
       btn.dataset.bound = '1';
       btn.addEventListener('click', () => handleDuplicate(btn.dataset.id));
     });
+  }
+
+  // ⏹ Stop : arrête le traitement en cours (endpoint commun) → item relançable (↻). La card est
+  // rafraîchie par le flux normal (updateCard → rebuildActions) qui repassera le bouton en ↻.
+  function handleStop(id) {
+    const url = getUrl(config.stopUrlTemplate, id);
+    fetch(url, {
+      method: 'POST',
+      headers: csrfHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({}),
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (data && data.id) updateCard(id, data);   // statut → FAILURE : badge/barre/actions (↻)
+      })
+      .catch(() => {});
   }
 
   function handleStart(id) {
