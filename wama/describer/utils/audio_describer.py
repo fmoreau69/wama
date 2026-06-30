@@ -27,7 +27,7 @@ def describe_audio(description, set_progress, set_partial, console):
     """
     user_id = description.user_id
     file_path = description.input_file.path
-    output_format = description.output_format
+    output_style = description.output_style
     output_language = description.output_language
     max_length = description.max_length
 
@@ -53,7 +53,7 @@ def describe_audio(description, set_progress, set_partial, console):
         set_partial(description, transcript[:300] + "..." if len(transcript) > 300 else transcript)
 
         # Meeting compte-rendu: use heavy LLM directly
-        if output_format == 'meeting':
+        if output_style == 'meeting':
             console(user_id, "Génération du compte-rendu de réunion (Ollama)…")
             set_partial(description, "Rédaction du compte-rendu…")
             from wama.common.utils.llm_utils import generate_meeting_summary, get_describer_model
@@ -64,7 +64,7 @@ def describe_audio(description, set_progress, set_partial, console):
         # If short, just format the transcript
         if word_count <= max_length:
             console(user_id, "Transcript is short, using directly...")
-            result = format_audio_result(transcript, output_format, is_summary=False)
+            result = format_audio_result(transcript, output_style, is_summary=False)
             return result
 
         # Long transcript: summarize with Ollama (replaces legacy BART pipeline)
@@ -73,7 +73,7 @@ def describe_audio(description, set_progress, set_partial, console):
         set_progress(description, 70)
 
         from wama.common.utils.llm_utils import generate_structured_summary, get_describer_model
-        _model = get_describer_model('audio', output_format)
+        _model = get_describer_model('audio', output_style)
         console(user_id, f"Modèle LLM : {_model}")
 
         try:
@@ -84,14 +84,14 @@ def describe_audio(description, set_progress, set_partial, console):
             )
             set_progress(description, 85)
 
-            if output_format == 'bullet_points' and summary_data['key_points']:
+            if output_style == 'bullet_points' and summary_data['key_points']:
                 result = '\n'.join(f"- {p}" for p in summary_data['key_points'])
-            elif output_format == 'scientific':
+            elif output_style == 'scientific':
                 parts = [summary_data['summary']]
                 if summary_data['key_points']:
                     parts += ['', 'Key points:'] + [f"- {p}" for p in summary_data['key_points']]
                 result = '\n'.join(parts)
-            elif output_format == 'detailed':
+            elif output_style == 'detailed':
                 parts = [summary_data['summary']]
                 if summary_data['key_points']:
                     parts += ['', 'Points clés :'] + [f"- {p}" for p in summary_data['key_points']]
@@ -106,7 +106,7 @@ def describe_audio(description, set_progress, set_partial, console):
             result = ' '.join(words) + ('…' if len(transcript.split()) > max_length else '')
 
         if not result:
-            result = format_audio_result(transcript, output_format, is_summary=False)
+            result = format_audio_result(transcript, output_style, is_summary=False)
 
         set_progress(description, 90)
 
@@ -118,13 +118,13 @@ def describe_audio(description, set_progress, set_partial, console):
         raise
 
 
-def format_audio_result(text: str, output_format: str, is_summary: bool) -> str:
+def format_audio_result(text: str, output_style: str, is_summary: bool) -> str:
     """Format audio description result."""
     text = text.strip()
 
     prefix = "Summary of audio content:" if is_summary else "Audio transcript:"
 
-    if output_format == 'bullet_points':
+    if output_style == 'bullet_points':
         import re
         sentences = re.split(r'(?<=[.!?])\s+', text)
         bullets = []
@@ -136,11 +136,11 @@ def format_audio_result(text: str, output_format: str, is_summary: bool) -> str:
                 bullets.append(f"- {s}")
         return f"{prefix}\n\n" + '\n'.join(bullets)
 
-    elif output_format == 'scientific':
+    elif output_style == 'scientific':
         content_type = "summary" if is_summary else "transcript"
         return f"Audio Content Analysis:\n\n{text}\n\n---\nThis {content_type} was generated using automatic speech recognition."
 
-    elif output_format == 'summary':
+    elif output_style == 'summary':
         if len(text) > 500:
             text = text[:497] + '...'
         return text

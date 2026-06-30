@@ -30,7 +30,7 @@ class Description(models.Model):
         ('auto', 'Detection auto'),
     ]
 
-    OUTPUT_FORMAT_CHOICES = [
+    OUTPUT_STYLE_CHOICES = [
         ('summary', 'Resume court'),
         ('detailed', 'Description detaillee'),
         ('scientific', 'Synthese scientifique'),
@@ -78,9 +78,9 @@ class Description(models.Model):
     detected_type = models.CharField(max_length=20, blank=True)
 
     # Processing options
-    output_format = models.CharField(
+    output_style = models.CharField(
         max_length=20,
-        choices=OUTPUT_FORMAT_CHOICES,
+        choices=OUTPUT_STYLE_CHOICES,
         default='detailed'
     )
     output_language = models.CharField(

@@ -13,11 +13,11 @@ from wama.describer.models import Description
 
 PARAMS = derive_from_model(
     Description,
-    include=["output_format", "output_language", "max_length", "generate_summary", "verify_coherence"],
+    include=["output_style", "output_language", "max_length", "generate_summary", "verify_coherence"],
     overrides={
-        "output_format": dict(
+        "output_style": dict(
             type="select", label="Format de sortie", icon="fa-align-left",
-            dom_id={"panel": "output_format", "item": "settingsOutputFormat"},
+            dom_id={"panel": "output_style", "item": "settingsOutputFormat"},
             help="Niveau de détail de la description générée.",
         ),
         "output_language": dict(

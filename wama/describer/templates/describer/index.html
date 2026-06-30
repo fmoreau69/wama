@@ -104,7 +104,7 @@
                     </div>
                     <div class="col-md-2">
                         <small>
-                            <i class="fas fa-align-left"></i> {{ desc.get_output_format_display }}<br>
+                            <i class="fas fa-align-left"></i> {{ desc.get_output_style_display }}<br>
                             <i class="fas fa-language"></i> {{ desc.get_output_language_display }}<br>
                             <i class="fas fa-text-width"></i> {{ desc.max_length }} mots
                         </small>
@@ -140,7 +140,7 @@
                             {# Ordre conventionnel : ⚙ Paramètres puis bouton de cycle ▶/⏹/↻ (toujours visibles). #}
                             <button class="btn btn-sm btn-secondary settings-btn"
                                     data-id="{{ desc.id }}"
-                                    data-output-format="{{ desc.output_format }}"
+                                    data-output-style="{{ desc.output_style }}"
                                     data-output-language="{{ desc.output_language }}"
                                     data-max-length="{{ desc.max_length }}"
                                     data-generate-summary="{{ desc.generate_summary|yesno:'true,false' }}"
@@ -288,7 +288,7 @@
                                     {# ⚙ Paramètres puis bouton de cycle ▶/⏹/↻ (toujours visibles, même RUNNING). #}
                                     <button class="btn btn-sm btn-secondary settings-btn"
                                             data-id="{{ desc.id }}"
-                                            data-output-format="{{ desc.output_format }}"
+                                            data-output-style="{{ desc.output_style }}"
                                             data-output-language="{{ desc.output_language }}"
                                             data-max-length="{{ desc.max_length }}"
                                             data-generate-summary="{{ desc.generate_summary|yesno:'true,false' }}"
@@ -573,10 +573,10 @@ window._batchImport = WamaBatchImport({
     batchCreateUrl:  window.DESCRIBER_CONFIG.urls.batchCreate,
     csrfToken:       window.DESCRIBER_CONFIG.csrfToken,
     formDataBuilder: function(fd) {
-        var outputFormat   = document.getElementById('output_format');
+        var outputStyle   = document.getElementById('output_style');
         var outputLanguage = document.getElementById('output_language');
         var maxLength      = document.getElementById('max_length');
-        fd.append('output_format',   outputFormat   ? outputFormat.value   : 'detailed');
+        fd.append('output_style',   outputStyle   ? outputStyle.value   : 'detailed');
         fd.append('output_language', outputLanguage ? outputLanguage.value : 'fr');
         fd.append('max_length',      maxLength      ? maxLength.value      : '500');
     },

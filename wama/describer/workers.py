@@ -207,11 +207,11 @@ def describe_content(self, description_id: int):
         description.save()
 
         # Optional LLM summary via Ollama (skip if meeting format — already IS the summary)
-        if description.generate_summary and result and description.output_format != 'meeting':
+        if description.generate_summary and result and description.output_style != 'meeting':
             try:
                 _console(user_id, "Génération du résumé LLM (Ollama)…")
                 from wama.common.utils.llm_utils import generate_structured_summary, get_describer_model
-                _sum_model = get_describer_model(content_type, description.output_format)
+                _sum_model = get_describer_model(content_type, description.output_style)
                 _console(user_id, f"Modèle résumé : {_sum_model}")
                 summary_data = generate_structured_summary(
                     result,

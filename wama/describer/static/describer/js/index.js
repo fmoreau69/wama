@@ -21,7 +21,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Global options
-    const outputFormat = document.getElementById('output_format');
+    const outputStyle = document.getElementById('output_style');
     const outputLanguage = document.getElementById('output_language');
     const maxLength = document.getElementById('max_length');
     const maxLengthValue = document.getElementById('max_length_value');
@@ -108,7 +108,7 @@ document.addEventListener('DOMContentLoaded', function() {
             try {
                 const formData = new FormData();
                 formData.append('media_url', mediaUrl);
-                formData.append('output_format', outputFormat ? outputFormat.value : 'detailed');
+                formData.append('output_style', outputStyle ? outputStyle.value : 'detailed');
                 formData.append('output_language', outputLanguage ? outputLanguage.value : 'fr');
                 formData.append('max_length', maxLength ? maxLength.value : '500');
 
@@ -192,7 +192,7 @@ document.addEventListener('DOMContentLoaded', function() {
     async function uploadFile(file) {
         const formData = new FormData();
         formData.append('file', file);
-        formData.append('output_format', outputFormat ? outputFormat.value : 'detailed');
+        formData.append('output_style', outputStyle ? outputStyle.value : 'detailed');
         formData.append('output_language', outputLanguage ? outputLanguage.value : 'fr');
         formData.append('max_length', maxLength ? maxLength.value : '500');
 
@@ -257,7 +257,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 </div>
                 <div class="col-md-2">
                     <small>
-                        <i class="fas fa-align-left"></i> ${getFormatLabel(data.output_format)}<br>
+                        <i class="fas fa-align-left"></i> ${getFormatLabel(data.output_style)}<br>
                         <i class="fas fa-language"></i> ${getLanguageLabel(data.output_language)}<br>
                         <i class="fas fa-text-width"></i> ${data.max_length || 500} mots
                     </small>
@@ -279,7 +279,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         ${window.WamaCycleButton ? WamaCycleButton.html(data.status || 'PENDING', data.id) : `<button class="btn btn-sm btn-outline-success start-btn" data-id="${data.id}" title="Demarrer"><i class="fas fa-play"></i></button>`}
                         <button class="btn btn-sm btn-secondary settings-btn"
                                 data-id="${data.id}"
-                                data-output-format="${data.output_format}"
+                                data-output-style="${data.output_style}"
                                 data-output-language="${data.output_language}"
                                 data-max-length="${data.max_length || 500}"
                                 data-generate-summary="${document.getElementById('globalGenerateSummary')?.checked ? 'true' : 'false'}"
@@ -409,7 +409,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const _t = document.querySelector('#settingsModal .modal-title');
         if (_t) _t.textContent = 'Paramètres';
         const id = btn.dataset.id;
-        const outputFormat = btn.dataset.outputFormat;
+        const outputStyle = btn.dataset.outputStyle;
         const outputLanguage = btn.dataset.outputLanguage;
         const maxLength = btn.dataset.maxLength;
         const generateSummary = btn.dataset.generateSummary === 'true';
@@ -426,7 +426,7 @@ document.addEventListener('DOMContentLoaded', function() {
             el.dispatchEvent(new Event('change', { bubbles: true }));
         };
         _set('settingsDescriptionId', id);
-        _set('settingsOutputFormat', outputFormat);
+        _set('settingsOutputFormat', outputStyle);
         _set('settingsOutputLanguage', outputLanguage);
         _set('settingsMaxLength', maxLength);
 
@@ -444,14 +444,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
     async function saveSettings(startAfterSave = false) {
         const descriptionId = document.getElementById('settingsDescriptionId').value;
-        const outputFormat = document.getElementById('settingsOutputFormat').value;
+        const outputStyle = document.getElementById('settingsOutputFormat').value;
         const outputLanguage = document.getElementById('settingsOutputLanguage').value;
         const maxLength = document.getElementById('settingsMaxLength').value;
         const generateSummary = document.getElementById('settingsGenerateSummary')?.checked || false;
         const verifyCoherence = document.getElementById('settingsVerifyCoherence')?.checked || false;
 
         const payload = {
-            output_format: outputFormat,
+            output_style: outputStyle,
             output_language: outputLanguage,
             max_length: parseInt(maxLength),
             generate_summary: generateSummary,
@@ -487,7 +487,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    output_format: outputFormat,
+                    output_style: outputStyle,
                     output_language: outputLanguage,
                     max_length: parseInt(maxLength),
                     generate_summary: generateSummary,
@@ -504,7 +504,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Update card display
                 const card = document.querySelector(`.synthesis-card[data-id="${descriptionId}"]`);
                 if (card) {
-                    updateCardSettings(card, outputFormat, outputLanguage, maxLength, generateSummary, verifyCoherence);
+                    updateCardSettings(card, outputStyle, outputLanguage, maxLength, generateSummary, verifyCoherence);
                 }
 
                 if (startAfterSave) {
@@ -522,11 +522,11 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    function updateCardSettings(card, outputFormat, outputLanguage, maxLength, generateSummary, verifyCoherence) {
+    function updateCardSettings(card, outputStyle, outputLanguage, maxLength, generateSummary, verifyCoherence) {
         // Update the settings button data attributes
         const settingsBtn = card.querySelector('.settings-btn');
         if (settingsBtn) {
-            settingsBtn.dataset.outputFormat = outputFormat;
+            settingsBtn.dataset.outputStyle = outputStyle;
             settingsBtn.dataset.outputLanguage = outputLanguage;
             settingsBtn.dataset.maxLength = maxLength;
             settingsBtn.dataset.generateSummary = generateSummary ? 'true' : 'false';
@@ -537,7 +537,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const optionsCol = card.querySelector('.col-md-2 small');
         if (optionsCol && optionsCol.innerHTML.includes('fa-align-left')) {
             let html = `
-                <i class="fas fa-align-left"></i> ${getFormatLabel(outputFormat)}<br>
+                <i class="fas fa-align-left"></i> ${getFormatLabel(outputStyle)}<br>
                 <i class="fas fa-language"></i> ${getLanguageLabel(outputLanguage)}<br>
                 <i class="fas fa-text-width"></i> ${maxLength} mots`;
             if (generateSummary) html += `<br><i class="fas fa-file-lines"></i> Résumé`;
@@ -991,7 +991,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Reset settings
     document.getElementById('resetOptions')?.addEventListener('click', () => {
         const defaults = {
-            'output_format': 'detailed',
+            'output_style': 'detailed',
             'output_language': 'fr',
             'max_length': '500',
         };

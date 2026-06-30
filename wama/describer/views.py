@@ -214,7 +214,7 @@ class IndexView(TemplateView):
         all_descs = Description.objects.filter(user=user)
         context['batches_list'] = batches_list
         context['queue_count'] = queue_count
-        context['output_format_choices'] = Description.OUTPUT_FORMAT_CHOICES
+        context['output_style_choices'] = Description.OUTPUT_STYLE_CHOICES
         context['language_choices'] = Description.LANGUAGE_CHOICES
         # Schéma de params (source unique modale+inspecteur, rendu par WamaParams). Voir describer/params.py.
         from wama.describer.params import PARAMS_JSON
@@ -318,7 +318,7 @@ def upload(request):
             detected_type = detect_type_from_extension(ext)
 
             # Get options from request
-            output_format = request.POST.get('output_format', 'detailed')
+            output_style = request.POST.get('output_style', 'detailed')
             output_language = request.POST.get('output_language', 'fr')
             max_length = int(request.POST.get('max_length', 500))
 
@@ -333,7 +333,7 @@ def upload(request):
                     filename=filename,
                     file_size=file_size,
                     detected_type=detected_type,
-                    output_format=output_format,
+                    output_style=output_style,
                     output_language=output_language,
                     max_length=max_length,
                 )
@@ -360,7 +360,7 @@ def upload(request):
                 'file_size': description.format_file_size(),
                 'detected_type': description.detected_type,
                 'type_icon': description.get_type_icon(),
-                'output_format': description.output_format,
+                'output_style': description.output_style,
                 'output_language': description.output_language,
                 'max_length': description.max_length,
                 'status': description.status,
@@ -379,7 +379,7 @@ def upload(request):
     detected_type = detect_type_from_extension(ext)
 
     # Get options from request
-    output_format = request.POST.get('output_format', 'detailed')
+    output_style = request.POST.get('output_style', 'detailed')
     output_language = request.POST.get('output_language', 'fr')
     max_length = int(request.POST.get('max_length', 500))
 
@@ -390,7 +390,7 @@ def upload(request):
         filename=filename,
         file_size=uploaded_file.size,
         detected_type=detected_type,
-        output_format=output_format,
+        output_style=output_style,
         output_language=output_language,
         max_length=max_length,
     )
@@ -408,7 +408,7 @@ def upload(request):
         'file_size': description.format_file_size(),
         'detected_type': description.detected_type,
         'type_icon': description.get_type_icon(),
-        'output_format': description.output_format,
+        'output_style': description.output_style,
         'output_language': description.output_language,
         'max_length': description.max_length,
         'status': description.status,
@@ -820,7 +820,7 @@ def batch_import(request):
     from wama.common.utils.batch_parsers import parse_batch_file_from_request
 
     user = get_user(request)
-    output_format = request.POST.get('output_format', 'detailed')
+    output_style = request.POST.get('output_style', 'detailed')
     output_language = request.POST.get('output_language', 'fr')
     try:
         max_length = int(request.POST.get('max_length', 500))
@@ -847,7 +847,7 @@ def batch_import(request):
             source_url=url_or_path,
             filename=fname,
             detected_type=detected_type,
-            output_format=output_format,
+            output_style=output_style,
             output_language=output_language,
             max_length=max_length,
         )
@@ -857,7 +857,7 @@ def batch_import(request):
             'detected_type': desc.detected_type,
             'type_icon': desc.get_type_icon(),
             'source_url': url_or_path,
-            'output_format': desc.output_format,
+            'output_style': desc.output_style,
             'output_language': desc.output_language,
             'status': desc.status,
         })
@@ -874,7 +874,7 @@ def batch_create(request):
     from wama.common.utils.batch_parsers import parse_batch_file_from_request
 
     user = get_user(request)
-    output_format = request.POST.get('output_format', 'detailed')
+    output_style = request.POST.get('output_style', 'detailed')
     output_language = request.POST.get('output_language', 'fr')
     try:
         max_length = int(request.POST.get('max_length', 500))
@@ -909,7 +909,7 @@ def batch_create(request):
             source_url=url_or_path,
             filename=fname,
             detected_type=detected_type,
-            output_format=output_format,
+            output_style=output_style,
             output_language=output_language,
             max_length=max_length,
         )
@@ -1207,8 +1207,8 @@ def global_progress(request):
 
 def _apply_description_options(description, data):
     """Applique les options de la modale à une Description (sans save)."""
-    if 'output_format' in data:
-        description.output_format = data['output_format']
+    if 'output_style' in data:
+        description.output_style = data['output_style']
     if 'output_language' in data:
         description.output_language = data['output_language']
     if 'max_length' in data:
@@ -1261,7 +1261,7 @@ def update_options(request, pk):
 
     return JsonResponse({
         'id': description.id,
-        'output_format': description.output_format,
+        'output_style': description.output_style,
         'output_language': description.output_language,
         'max_length': description.max_length,
         'generate_summary': description.generate_summary,
