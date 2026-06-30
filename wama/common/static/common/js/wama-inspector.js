@@ -202,9 +202,51 @@
     const WP = global.WamaParams;
     const names = schema.map(function (p) { return p.name; });
 
+    // dom_id du contexte panel pour un param (objet {panel:…} ou string), repli sur le nom.
+    function panelKey(p) {
+      const d = p.dom_id;
+      return (d && typeof d === 'object') ? (d.panel || p.name) : (d || p.name);
+    }
+    // Élément d'un champ par dom_id : #id, sinon [name=]/[data-param=] dans le volet.
+    function fieldEl(key) {
+      return document.getElementById(key) ||
+        (ph && ph.querySelector('[name="' + key + '"],[data-param="' + key + '"]'));
+    }
+    // Panel read/apply ROBUSTE (id OU name OU radios OU checkbox) — marche que les champs soient
+    // rendus par WamaParams (id=dom_id) ou des champs maison (compose). Surchargable via cfg.panel.
     const panel = cfg.panel || {
-      read:  function () { return (WP && ph) ? WP.read(ph) : {}; },
-      apply: function (v) { if (WP && ph) WP.apply(ph, v || {}); },
+      read: function () {
+        const out = {};
+        schema.forEach(function (p) {
+          if (p.contexts && p.contexts.indexOf('panel') === -1) return;
+          const key = panelKey(p);
+          const radios = (ph || document).querySelectorAll('input[type="radio"][name="' + key + '"]');
+          if (radios.length) { radios.forEach(function (r) { if (r.checked) out[p.name] = r.value; }); return; }
+          const el = fieldEl(key);
+          if (el) out[p.name] = (el.type === 'checkbox') ? el.checked : el.value;
+        });
+        return out;
+      },
+      apply: function (vals) {
+        vals = vals || {};
+        schema.forEach(function (p) {
+          if (!(p.name in vals)) return;
+          const key = panelKey(p);
+          const radios = (ph || document).querySelectorAll('input[type="radio"][name="' + key + '"]');
+          if (radios.length) {
+            radios.forEach(function (r) {
+              r.checked = (String(r.value) === String(vals[p.name]));
+              if (r.checked) r.dispatchEvent(new Event('change', { bubbles: true }));
+            });
+            return;
+          }
+          const el = fieldEl(key);
+          if (!el) return;
+          if (el.type === 'checkbox') el.checked = !!vals[p.name];
+          else el.value = vals[p.name];
+          el.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+      },
     };
 
     const cardSettings = cfg.cardSettings || function (card) {
