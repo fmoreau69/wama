@@ -1050,6 +1050,11 @@ def update_options(request, pk: int):
         synthesis.multi_speaker = request.POST['multi_speaker'] == '1'
     if 'scene_description' in request.POST:
         synthesis.scene_description = request.POST['scene_description']
+    # Format/qualité de sortie (early-binding : réglés avant génération, per-item)
+    if 'output_format' in request.POST:
+        synthesis.output_format = request.POST['output_format']
+    if 'output_quality' in request.POST:
+        synthesis.output_quality = request.POST['output_quality']
 
     # Voice reference
     if 'voice_reference' in request.FILES:

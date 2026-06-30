@@ -193,9 +193,7 @@
     <input type="range" class="form-range" id="pitch" name="pitch" min="0.5" max="2.0" step="0.1" value="1.0">
 </div>
 
-<!-- Output format + quality (Phase 3) — COMPOSE-only : non per-item (update_options ne les gère pas),
-     donc cachés quand une card est sélectionnée (hideOnInspect) → cohérent avec la modale -->
-<div id="synthComposeOnly">
+<!-- Format + qualité de sortie (early-binding : réglés avant génération, per-item ; modale + inspecteur) -->
 <div class="mb-2">
     <label for="output_format" class="form-label small fw-bold text-light">
         <i class="fas fa-file-export"></i> Format de sortie
@@ -220,7 +218,6 @@
         <option value="max">Maximum</option>
     </select>
 </div>
-</div>{# /synthComposeOnly (format+qualité = compose, cachés à l'inspection d'une card) #}
 
 <!-- Reset Button -->
 <button class="btn btn-outline-secondary btn-sm w-100" id="resetOptions">
@@ -576,6 +573,26 @@
                                min="0.5" max="2.0" step="0.1" value="1.0"
                                oninput="document.getElementById('settingsPitchValue').textContent = this.value">
                     </div>
+                    <div class="mb-2">
+                        <label for="settingsOutputFormat" class="form-label small">Format de sortie</label>
+                        <select class="form-select form-select-sm" id="settingsOutputFormat" name="output_format">
+                            <option value="original">Original</option>
+                            <option value="mp3">MP3</option>
+                            <option value="m4a">M4A</option>
+                            <option value="ogg">OGG</option>
+                            <option value="flac">FLAC</option>
+                            <option value="aac">AAC</option>
+                            <option value="opus">OPUS</option>
+                        </select>
+                    </div>
+                    <div class="mb-2">
+                        <label for="settingsOutputQuality" class="form-label small">Qualité</label>
+                        <select class="form-select form-select-sm" id="settingsOutputQuality" name="output_quality">
+                            <option value="web">Web (léger)</option>
+                            <option value="balanced">Équilibré</option>
+                            <option value="max">Maximum</option>
+                        </select>
+                    </div>
                 </form>
             </div>
             <div class="modal-footer">
@@ -799,7 +816,8 @@ document.addEventListener('DOMContentLoaded', function () {
     var schema = {{ params_json|safe }};
     var cfg = window.WAMA_CONFIG || {};
     var U = cfg.urls || {}, csrf = cfg.csrfToken || '';
-    var keys = ['tts_model', 'language', 'voice_preset', 'speed', 'pitch'];   // params per-item
+    // Params per-item (incl. format/qualité = early-binding : réglés avant génération, sauvegardés).
+    var keys = ['tts_model', 'language', 'voice_preset', 'speed', 'pitch', 'output_format', 'output_quality'];
     function saveItemReq(id) {
         var fd = new FormData();
         keys.forEach(function (k) { var el = ph.querySelector('[name="' + k + '"]'); if (el) fd.append(k, el.value); });
@@ -811,8 +829,6 @@ document.addEventListener('DOMContentLoaded', function () {
         cardSelector: '.synthesis-card',
         panelContainer: ph,
         schema: schema,
-        // format+qualité = compose-only → cachés quand une card est sélectionnée (cohérent avec la modale).
-        hideOnInspect: ['synthComposeOnly'],
         itemLabel: function (id) { return "l'élément #" + id; },
         // data-* sur le bouton ⚙ de la card (pas la racine) → cardSettings dédié.
         cardSettings: function (card) {
@@ -821,6 +837,7 @@ document.addEventListener('DOMContentLoaded', function () {
             return {
                 tts_model: b.dataset.ttsModel, language: b.dataset.language,
                 voice_preset: b.dataset.voicePreset, speed: b.dataset.speed, pitch: b.dataset.pitch,
+                output_format: b.dataset.outputFormat, output_quality: b.dataset.outputQuality,
             };
         },
         saveItem: function (id) { return saveItemReq(id).then(function () { window.location.reload(); }); },

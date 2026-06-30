@@ -229,6 +229,10 @@ document.addEventListener('DOMContentLoaded', function() {
         formData.append('voice_preset', document.getElementById('settingsVoicePreset').value);
         formData.append('speed', document.getElementById('settingsSpeed').value);
         formData.append('pitch', document.getElementById('settingsPitch').value);
+        var _of = document.getElementById('settingsOutputFormat');
+        var _oq = document.getElementById('settingsOutputQuality');
+        if (_of) formData.append('output_format', _of.value);
+        if (_oq) formData.append('output_quality', _oq.value);
         appendHiggsFields(formData);
 
         try {
@@ -335,6 +339,10 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('settingsSpeedValue').textContent = speed;
             document.getElementById('settingsPitch').value = pitch;
             document.getElementById('settingsPitchValue').textContent = pitch;
+            var _ofEl = document.getElementById('settingsOutputFormat');
+            var _oqEl = document.getElementById('settingsOutputQuality');
+            if (_ofEl && settingsBtn.dataset.outputFormat) _ofEl.value = settingsBtn.dataset.outputFormat;
+            if (_oqEl && settingsBtn.dataset.outputQuality) _oqEl.value = settingsBtn.dataset.outputQuality;
             checkLangCompat(ttsModel, language, document.getElementById('settings-lang-compat-warning'));
             settingsModalInstance.show();
             return;
