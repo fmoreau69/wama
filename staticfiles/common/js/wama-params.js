@@ -38,6 +38,36 @@
     return (p.choices || []).map(function (c) { return { value: c[0], label: c[1] }; });
   }
 
+  // Contenu d'un <select> : gère le PLAT et les GROUPES (optgroup).
+  // Source des groupes : (1) resolver renvoyant [{group, options:[{value,label}]}] (dynamique,
+  // ex. voix par utilisateur), ou (2) p.option_groups statique [[libellé,[[v,l]]]].
+  function selectInnerHtml(p, v, resolver) {
+    function optEl(o) {
+      const sel = (String(o.value) === String(v)) ? ' selected' : '';
+      return '<option value="' + esc(o.value) + '"' + sel + '>' + esc(o.label) + '</option>';
+    }
+    let data = null;
+    if (p.options_source && typeof resolver === 'function') {
+      try { data = resolver(p); } catch (e) { data = null; }
+    }
+    if (data == null && p.option_groups) {
+      data = p.option_groups.map(function (g) {
+        return { group: g[0], options: (g[1] || []).map(function (c) { return { value: c[0], label: c[1] }; }) };
+      });
+    }
+    if (data == null) {
+      data = (p.choices || []).map(function (c) { return { value: c[0], label: c[1] }; });
+    }
+    const grouped = Array.isArray(data) && data.length && data[0] && data[0].options;
+    if (grouped) {
+      return data.map(function (g) {
+        return '<optgroup label="' + esc(g.group || '') + '">' +
+          (g.options || []).map(optEl).join('') + '</optgroup>';
+      }).join('');
+    }
+    return (data || []).map(optEl).join('');
+  }
+
   // dom_id / radio_name peuvent être une string (toutes surfaces) OU un objet { ctx: id }
   // pour scoper l'ID legacy PAR contexte (ex. panel='backendSelect', item='settingsBackend')
   // → on rend les DEUX surfaces depuis le même schéma sans collision d'ID dans la page.
@@ -69,11 +99,8 @@
 
     let inner;
     if (p.type === 'select') {
-      const opts = optionsFor(p, resolver).map(function (o) {
-        const sel = (String(o.value) === String(v)) ? 'selected' : '';
-        return '<option value="' + esc(o.value) + '" ' + sel + '>' + esc(o.label) + '</option>';
-      }).join('');
-      inner = '<select class="form-select form-select-sm" id="' + id + '" ' + idA + '>' + opts + '</select>';
+      inner = '<select class="form-select form-select-sm" id="' + id + '" ' + idA + '>' +
+        selectInnerHtml(p, v, resolver) + '</select>';
     } else if (p.type === 'radio') {
       // name = groupage des radios (obligatoire) ; radio_name = pont vers le nom legacy si fourni
       // (string ou objet par contexte, comme dom_id).
@@ -135,7 +162,7 @@
     }).map(function (p) {
       const value = (p.name in values) ? values[p.name] : undefined;
       return '<div class="wama-param mb-2" data-param-row="' + esc(p.name) + '"' +
-        (p.show_if ? ' data-show-if="' + esc(p.show_if) + '"' : '') +
+        (p.show_if ? ' data-show-if="' + esc(typeof p.show_if === 'string' ? p.show_if : JSON.stringify(p.show_if)) + '"' : '') +
         (p.advanced ? ' data-advanced="1"' : '') + '>' +
         controlHtml(p, ctx, value, resolver) + '</div>';
     }).join('');
@@ -167,19 +194,44 @@
 
   // Visibilité conditionnelle (show_if) : un toggle pilote l'affichage d'autres champs.
   function _bindConditional(container) {
-    const toggles = {};
-    container.querySelectorAll('[name],[data-param]').forEach(function (el) {
-      const n = el.getAttribute('name') || el.getAttribute('data-param');
-      if (el.type === 'checkbox') toggles[n] = el;
-    });
+    // Valeur courante d'un champ par nom (toggle/select/radio/text), DANS ce conteneur.
+    function valByName(name) {
+      let val;
+      container.querySelectorAll('[name],[data-param]').forEach(function (el) {
+        const n = el.getAttribute('name') || el.getAttribute('data-param');
+        if (n !== name) return;
+        if (el.type === 'checkbox') val = el.checked;
+        else if (el.type === 'radio') { if (el.checked) val = el.value; }
+        else val = el.value;
+      });
+      return val;
+    }
+    // show_if : string « <champ> » (truthy) OU JSON {field, in:[…] | equals:… }.
+    function parseCond(raw) {
+      if (!raw) return null;
+      try { const o = JSON.parse(raw); if (o && typeof o === 'object') return o; } catch (e) {}
+      return { field: raw };   // legacy : nom de champ, condition = truthy
+    }
+    function met(cond) {
+      const cur = valByName(cond.field);
+      if (cond.in) return cond.in.map(String).indexOf(String(cur)) !== -1;
+      if ('equals' in cond) return String(cur) === String(cond.equals);
+      return !!cur && cur !== 'false' && cur !== '0';   // défaut : truthy
+    }
     function apply() {
       container.querySelectorAll('[data-show-if]').forEach(function (row) {
-        const dep = toggles[row.getAttribute('data-show-if')];
-        row.style.display = (dep && dep.checked) ? '' : 'none';
+        const cond = parseCond(row.getAttribute('data-show-if'));
+        row.style.display = (cond && met(cond)) ? '' : 'none';
       });
     }
-    Object.values(toggles).forEach(function (t) { t.addEventListener('change', apply); });
     apply();
+    // Un seul écouteur délégué, lié UNE fois par conteneur (apply re-interroge le DOM vivant →
+    // reste correct après un re-render). Évite l'accumulation d'écouteurs au re-render.
+    if (!container._wpCondBound) {
+      container._wpCondBound = true;
+      container.addEventListener('change', function () { apply(); });
+      container.addEventListener('input', function () { apply(); });
+    }
   }
 
   function _fieldValue(el) {

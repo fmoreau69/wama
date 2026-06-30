@@ -37,12 +37,19 @@ class Param:
     help_html: str = ""                         # aide en HTML brut (ex. lien « En savoir plus ») — prime sur help
     default: Any = None
     choices: Optional[List[Tuple[str, str]]] = None   # [(value, label)]
+    option_groups: Optional[List[Tuple[str, List[Tuple[str, str]]]]] = None
+                                                # select GROUPÉ (optgroup) : [(libellé_groupe, [(value, label)])]
+                                                # ex. voix : [("Voix par défaut", [...]), ("Mes voix", [...])]
     min: Optional[float] = None
     max: Optional[float] = None
     step: Optional[float] = None
     contexts: Tuple[str, ...] = ALL_CONTEXTS
     options_source: Optional[str] = None        # clé d'options dynamiques (ex. "backends")
-    show_if: Optional[str] = None               # nom d'un toggle qui conditionne l'affichage
+    show_if: Any = None                         # visibilité conditionnelle. string = nom d'un champ
+                                                # (visible si « truthy » : toggle coché / valeur non vide).
+                                                # dict = condition par VALEUR : {"field": "media_type",
+                                                # "in": ["video","image"]} ou {"field": "use_sam3",
+                                                # "equals": True}. Réévalué au change de n'importe quel champ.
     advanced: bool = False                      # repliable sous « Avancé »
     help_source: Optional[str] = None           # select de MODÈLE : source catalogue (model_manager)
                                                  # → WamaParams affiche desc courte/longue + VRAM sous le select
