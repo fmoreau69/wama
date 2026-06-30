@@ -116,7 +116,11 @@
       : (p.type === 'radio'
           ? '<div class="form-label small mb-1">' + ic + esc(p.label) + '</div>'
           : '<label class="form-label small mb-1" for="' + id + '">' + ic + esc(p.label) + '</label>');
-    return label + inner + helpEl;
+    // Aide MODÈLE dynamique (desc courte + ⓘ longue + VRAM) : placeholder rempli par WamaModelHelp
+    // dans render() pour les selects qui déclarent help_source (catalogue model_manager).
+    const modelHelp = (p.type === 'select' && (p.help_source || p.help_fallback))
+      ? '<div class="wama-model-help small text-muted mt-1" id="' + id + '-help"></div>' : '';
+    return label + inner + helpEl + modelHelp;
   }
 
   function render(container, schema, opts) {
@@ -138,6 +142,27 @@
 
     container.innerHTML = rows;
     _bindConditional(container);
+    _bindModelHelp(container, schema, ctx);
+  }
+
+  // Aide MODÈLE : pour chaque select déclarant help_source, câble WamaModelHelp (desc courte + ⓘ longue
+  // + VRAM) depuis le catalogue model_manager (fetchCatalogMeta). Métadonnée-driven, zéro JS par app.
+  function _bindModelHelp(container, schema, ctx) {
+    if (!global.WamaModelHelp) return;
+    (schema || []).forEach(function (p) {
+      if (p.type !== 'select' || (!p.help_source && !p.help_fallback)) return;
+      if (p.contexts && p.contexts.indexOf(ctx) === -1) return;
+      const sid = perCtx(p.dom_id, ctx) || ('wp-' + ctx + '-' + p.name);
+      if (!document.getElementById(sid + '-help')) return;
+      const cfg = { selectId: sid, helpId: sid + '-help', fallback: p.help_fallback || {} };
+      if (p.help_source) {
+        Promise.resolve(global.WamaModelHelp.fetchCatalogMeta(p.help_source)).then(function (meta) {
+          cfg.meta = meta || {}; global.WamaModelHelp.init(cfg);
+        }).catch(function () { cfg.meta = {}; global.WamaModelHelp.init(cfg); });
+      } else {
+        cfg.meta = {}; global.WamaModelHelp.init(cfg);   // pas de catalogue → repli seul
+      }
+    });
   }
 
   // Visibilité conditionnelle (show_if) : un toggle pilote l'affichage d'autres champs.

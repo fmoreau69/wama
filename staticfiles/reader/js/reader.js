@@ -694,10 +694,43 @@
 
     // ─── Init ─────────────────────────────────────────────────────────────────
 
+    // Inspecteur contextuel commun : clic card/batch → bandeau « Réglages de l'élément #N » + valeurs
+    // de l'élément dans le volet + sauvegarde routée. Câblage générique dérivé du schéma WamaParams.
+    function initInspector() {
+        const q  = document.getElementById('queueContainer');
+        const ph = document.getElementById('readerPanelParams');
+        if (!q || !ph || !window.WamaInspector || !WamaInspector.initFromSchema) return;
+        const readPanel = () => (window.WamaParams ? WamaParams.read(ph) : {});
+        window._readerInspector = WamaInspector.initFromSchema({
+            queueContainer: q,
+            cardSelector:   '.reader-card',
+            batchSelector:  '.batch-group',
+            panelContainer: ph,
+            schema:         window.WAMA_READER_SCHEMA || [],
+            itemLabel:  (id) => "l'élément #" + id,
+            batchLabel: (id) => "le batch #" + id + " (tous les éléments)",
+            saveItem: async (id) => {
+                const r = await csrfFetch(urlFor('saveSettings', id), {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(readPanel()),
+                });
+                if (r && r.ok) upsertCard(await r.json());
+            },
+            saveBatch: async (bid) => {
+                const r = await csrfFetch(urlForBatch('batchUpdate', bid), {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(readPanel()),
+                });
+                if (r && r.ok) window.location.reload();
+            },
+        });
+    }
+
     function init() {
         initDropZone();
         initGlobalButtons();
         initBatchSettingsModal();
+        initInspector();
         bindBatchGroupActions();
         updateDownloadAllBtn();
         updateGlobalProgress();

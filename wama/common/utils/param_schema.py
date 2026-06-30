@@ -44,6 +44,10 @@ class Param:
     options_source: Optional[str] = None        # clé d'options dynamiques (ex. "backends")
     show_if: Optional[str] = None               # nom d'un toggle qui conditionne l'affichage
     advanced: bool = False                      # repliable sous « Avancé »
+    help_source: Optional[str] = None           # select de MODÈLE : source catalogue (model_manager)
+                                                 # → WamaParams affiche desc courte/longue + VRAM sous le select
+    help_fallback: Optional[dict] = None         # {valeur_option: texte} pour backends HORS catalogue
+                                                 # (ex. moteurs ASR/OCR maison) — repli si help_source absent/vide
 
     def to_dict(self) -> dict:
         return asdict(self)

@@ -1,0 +1,14 @@
+{% comment %}
+Bandeau d'inspecteur COMMUN (volet droit) : affiche « Réglages de <élément/batch> » quand une card
+ou un batch est sélectionné. Rempli/affiché par WamaInspector (#inspectorBanner/#inspectorLabel).
+À inclure EN TÊTE de la section réglages du volet, juste avant les champs (WamaParams context=panel).
+IDs fixes attendus par wama-inspector.js — ne pas renommer.
+{% endcomment %}
+<div id="inspectorBanner" class="d-none align-items-center gap-2 p-2 mb-2 rounded small">
+    <i class="fas fa-crosshairs" style="color:#0dcaf0;"></i>
+    <span class="text-light flex-grow-1">Réglages de <strong id="inspectorLabel">l'élément</strong></span>
+    <button type="button" id="inspectorDeselect" class="btn btn-sm btn-outline-light py-0 px-2"
+            title="Quitter l'inspecteur de cet élément (revenir aux réglages par défaut)">
+        <i class="fas fa-rotate-left"></i>
+    </button>
+</div>

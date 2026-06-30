@@ -190,5 +190,40 @@
     };
   }
 
-  global.WamaInspector = { init: init };
+  // ── Câblage CONTEXTUEL générique depuis un schéma WamaParams ──────────────────
+  // Évite à chaque app de réécrire panel.read/apply + cardSettings : on les DÉRIVE du schéma.
+  //   - panel.read/apply  → WamaParams.read/apply sur le conteneur du volet (data-param ↔ name)
+  //   - cardSettings(card) → { paramName: card.dataset[...] } pour chaque param du schéma
+  // L'app ne fournit plus que : queueContainer, panelContainer, schema, libellés, saveItem/saveBatch.
+  function initFromSchema(cfg) {
+    cfg = cfg || {};
+    const schema = cfg.schema || [];
+    const ph = cfg.panelContainer;                       // conteneur du volet (rendu WamaParams panel)
+    const WP = global.WamaParams;
+    const names = schema.map(function (p) { return p.name; });
+
+    const panel = cfg.panel || {
+      read:  function () { return (WP && ph) ? WP.read(ph) : {}; },
+      apply: function (v) { if (WP && ph) WP.apply(ph, v || {}); },
+    };
+
+    const cardSettings = cfg.cardSettings || function (card) {
+      const out = {};
+      names.forEach(function (n) {
+        const camel = n.replace(/_([a-z])/g, function (_, c) { return c.toUpperCase(); });
+        let v = card.dataset[n];
+        if (v === undefined) v = card.dataset[camel];
+        if (v === undefined) {
+          const a = card.getAttribute('data-' + n.replace(/_/g, '-'));
+          if (a !== null) v = a;
+        }
+        if (v !== undefined) out[n] = v;
+      });
+      return out;
+    };
+
+    return init(Object.assign({}, cfg, { panel: panel, cardSettings: cardSettings }));
+  }
+
+  global.WamaInspector = { init: init, initFromSchema: initFromSchema };
 })(window);

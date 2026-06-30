@@ -4,3 +4,10 @@
     outline-offset: 1px;
     border-radius: .4rem;
 }
+
+/* Bandeau « Réglages de l'élément #N » (common/_inspector_banner.html) — l'encadré était une
+   règle inline du Transcriber ; centralisée ici pour que TOUTES les apps aient le même rendu. */
+#inspectorBanner {
+    background: rgba(13, 202, 240, 0.12);
+    border: 1px solid #0dcaf0;
+}

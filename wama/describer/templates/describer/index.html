@@ -37,6 +37,7 @@
 
 {# ── Right panel : paramètres ────────────────────────────────────────────── #}
 {% block app_right_panel_settings %}
+{% include 'common/_inspector_banner.html' %}{# bandeau « Réglages de l'élément #N » (WamaInspector) #}
 <div id="describerPanelParams"></div>{# WamaParams context=panel (cf. describer/params.py) ; ids legacy préservés ; encart Types supportés retiré #}
 <!-- Reset Button -->
 <hr class="border-secondary my-2">
@@ -57,6 +58,8 @@
         <i class="fas fa-trash"></i> Tout effacer
     </button>
 </div>
+<hr class="border-secondary my-2">
+{% include 'common/_inspector_actions.html' %}{# actions de l'élément/batch sélectionné (WamaInspector) #}
 {% endblock %}
 
 {% block describer_content %}
@@ -505,16 +508,16 @@
         csrfToken: "{{ csrf_token }}"
     };
 </script>
-<link rel="stylesheet" href="{% static 'common/css/wama-inspector.css' %}">
+{# wama-inspector.css + wama-params.css chargés globalement (base.html) — plus de link local ici #}
 <script src="{% static 'common/js/wama-eta.js' %}"></script>
 <script src="{% static 'common/js/batch-import.js' %}"></script>
 <script src="{% static 'common/js/wama-inspector.js' %}"></script>
-<link rel="stylesheet" href="{% static 'common/css/wama-params.css' %}">
 <script src="{% static 'common/js/wama-params.js' %}"></script>
 <script>
 (function () {
   if (!window.WamaParams) return;
   var schema = {{ params_json|safe }};
+  window.WAMA_DESCRIBER_SCHEMA = schema;   // réutilisé par l'inspecteur contextuel ci-dessous
   var ph = document.getElementById('describerPanelParams');
   if (ph) WamaParams.render(ph, schema, { context: 'panel', values: {} });
   var mh = document.getElementById('describerModalParams');
@@ -526,11 +529,47 @@
 <script>window.WAMA_GLOBAL_PROGRESS_URL = "{% url 'describer:global_progress' %}";</script>
 <script src="{% static 'common/js/wama-global-progress.js' %}"></script>
 <script>
+// Inspecteur contextuel commun : clic card/batch → bandeau « Réglages de l'élément #N » + valeurs de
+// la card dans le volet + sauvegarde routée. Câblage générique dérivé du schéma (initFromSchema).
 document.addEventListener('DOMContentLoaded', function () {
-    if (window.WamaInspector) {
-        var q = document.getElementById('descriptionQueue');
-        if (q) WamaInspector.init({ queueContainer: q, cardSelector: '.synthesis-card' });
-    }
+    var q  = document.getElementById('descriptionQueue');
+    var ph = document.getElementById('describerPanelParams');
+    if (!q || !ph || !window.WamaInspector || !WamaInspector.initFromSchema || !window.WamaParams) return;
+    var U    = (window.DESCRIBER_CONFIG && window.DESCRIBER_CONFIG.urls) || {};
+    var csrf = (window.DESCRIBER_CONFIG && window.DESCRIBER_CONFIG.csrfToken) || '';
+    var readPanel = function () { return WamaParams.read(ph); };
+    var post = function (url, body) {
+        return fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
+            body: JSON.stringify(body),
+        });
+    };
+    // Reflète les valeurs sauvegardées dans les data-* de la card → cohérence au prochain clic.
+    var syncCard = function (id, vals) {
+        var card = q.querySelector('.synthesis-card[data-id="' + id + '"]');
+        if (!card) return;
+        Object.keys(vals).forEach(function (k) { card.setAttribute('data-' + k.replace(/_/g, '-'), vals[k]); });
+    };
+    window._describerInspector = WamaInspector.initFromSchema({
+        queueContainer: q,
+        cardSelector:   '.synthesis-card',
+        batchSelector:  '.batch-group',
+        panelContainer: ph,
+        schema:         window.WAMA_DESCRIBER_SCHEMA || [],
+        itemLabel:  function (id) { return "l'élément #" + id; },
+        batchLabel: function (id) { return "le batch #" + id + " (tous les éléments)"; },
+        saveItem: function (id) {
+            var vals = readPanel();
+            return post((U.updateOptions || '').replace('/0/', '/' + id + '/'), vals)
+                .then(function (r) { if (r && r.ok) syncCard(id, vals); });
+        },
+        saveBatch: function (bid) {
+            var vals = readPanel();
+            return post((U.batchUpdate || '').replace('/0/', '/' + bid + '/'), vals)
+                .then(function (r) { if (r && r.ok) window.location.reload(); });
+        },
+    });
 });
 </script>
 <script>

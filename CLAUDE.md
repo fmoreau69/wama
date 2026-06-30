@@ -39,6 +39,19 @@
 
 ---
 
+## 🔴 RÈGLE OBLIGATOIRE : JAMAIS de `cd` EN PRÉFIXE DE COMMANDE SHELL
+
+> Le répertoire de travail est **déjà** `D:\WAMA\web-app-for-media-automation`. Préfixer une
+> commande par `cd` (ex. `cd /d/WAMA/... && cmd`) **déclenche une validation de permission à chaque
+> appel** et **bloque la progression**. C'est inutile et coûteux.
+
+- ❌ `cd /d/WAMA/web-app-for-media-automation && cp a b`
+- ✅ `cp a b` (chemins relatifs au repo) ou chemins **absolus** si besoin d'un autre dossier.
+- Pour exécuter dans WSL2 : `wsl.exe -e bash -lc '... && python ...'` (le `cd` est alors **dans** la
+  chaîne WSL, pas un préfixe de la commande Bash hôte — c'est toléré).
+
+---
+
 ## 🔴 RÈGLE OBLIGATOIRE : PATCHES DE COMPATIBILITÉ VENV → `patches/apply_patches.py`
 
 > **Toute correction manuelle dans `venv_linux/` ou `venv_win/` DOIT être ajoutée à `patches/apply_patches.py`.**
