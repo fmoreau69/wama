@@ -248,6 +248,44 @@ def import_batch(request):
 # ---------------------------------------------------------------------------
 
 @require_POST
+def start(request, pk):
+    """Relance la génération d'une composition (bouton de cycle ▶/↻) sans changer les réglages."""
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    gen = get_object_or_404(ComposerGeneration, id=pk, user=user)
+    if gen.status == 'RUNNING':
+        return JsonResponse({'error': 'Déjà en cours'}, status=400)
+    if gen.task_id:
+        try:
+            from celery import current_app
+            current_app.control.revoke(gen.task_id, terminate=False)
+        except Exception:
+            pass
+    gen.status = 'PENDING'
+    gen.progress = 0
+    gen.audio_output = None
+    gen.error_message = None
+    gen.save(update_fields=['status', 'progress', 'audio_output', 'error_message'])
+    from .tasks import compose_task
+    task = compose_task.apply_async(args=(gen.id,))
+    gen.task_id = task.id
+    gen.save(update_fields=['task_id'])
+    return JsonResponse({'id': gen.id, 'status': 'RUNNING'})
+
+
+def stop(request, pk):
+    """
+    Stoppe la génération en cours (révoque la tâche Celery) → composition relançable (bouton ↻).
+    Brique commune : wama.common.utils.process_control.stop_instance.
+    """
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    gen = get_object_or_404(ComposerGeneration, id=pk, user=user)
+    if gen.status not in ('RUNNING', 'PENDING'):
+        return JsonResponse({'id': gen.id, 'status': gen.status})
+    from wama.common.utils.process_control import stop_instance
+    new_status = stop_instance(gen, error_field='error_message')
+    return JsonResponse({'id': gen.id, 'status': new_status})
+
+
 def update_settings(request, pk):
     """Update model and/or duration on an existing generation, then re-run."""
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()

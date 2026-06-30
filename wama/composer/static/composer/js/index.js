@@ -600,6 +600,7 @@
     function updateCardStatus(id, status, progress, data) {
         const card = document.querySelector(`.generation-card[data-id="${id}"]`);
         if (!card) return;
+        card.dataset.status = status;   // pilote le bouton de cycle (WamaCycleButton.autoSync)
 
         // Border
         ['border-warning', 'border-success', 'border-danger', 'border-secondary',
@@ -705,6 +706,34 @@
         }
     });
 
+    // Bouton de cycle commun ▶/⏹/↻ : wire (start/restart→/composer/start, stop→/composer/stop) + auto-sync.
+    (function initCycleButton() {
+        const q = document.getElementById('composerQueue');
+        if (!window.WamaCycleButton || !q) return;
+        WamaCycleButton.wire(q, {
+            start: async (id) => {
+                const card = q.querySelector(`.generation-card[data-id="${id}"]`);
+                if (card && (card.dataset.status || '').toUpperCase() === 'RUNNING') {
+                    try { await fetch(`/composer/stop/${id}/`, { method: 'POST', headers: { 'X-CSRFToken': CSRF } }); } catch (e) {}
+                }
+                try {
+                    await fetch(`/composer/start/${id}/`, { method: 'POST', headers: { 'X-CSRFToken': CSRF } });
+                    if (card) card.dataset.status = 'RUNNING';
+                    startPolling(parseInt(id));
+                } catch (e) {}
+            },
+            stop: async (id) => {
+                const card = q.querySelector(`.generation-card[data-id="${id}"]`);
+                try {
+                    const r = await fetch(`/composer/stop/${id}/`, { method: 'POST', headers: { 'X-CSRFToken': CSRF } });
+                    const data = await r.json().catch(() => ({}));
+                    if (card && data.status) card.dataset.status = data.status;
+                } catch (e) {}
+            },
+        });
+        WamaCycleButton.autoSync({ container: q, cardSelector: '.generation-card' });
+    })();
+
     // Initial global bar update
     if (window.COMPOSER_QUEUE_COUNT > 0) updateGlobalBar();
 
@@ -731,7 +760,7 @@
 
         const html = `
         <div class="generation-card p-2 rounded border border-warning processing mb-1"
-             data-id="${data.id}" data-estimated-seconds="${est}"
+             data-id="${data.id}" data-status="RUNNING" data-estimated-seconds="${est}"
              data-model="${data.model}" data-duration="${data.duration}"
              style="background:#1e2124;">
             <div class="row align-items-center g-2">
@@ -769,6 +798,7 @@
                 </div>
                 <div class="col-md-3">
                     <div class="d-flex flex-wrap gap-1">
+                        ${window.WamaCycleButton ? WamaCycleButton.html('RUNNING', data.id) : ''}
                         <button class="btn btn-sm btn-danger delete-btn" data-id="${data.id}" title="Supprimer">
                             <i class="fas fa-trash"></i></button>
                     </div>
