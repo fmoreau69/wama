@@ -76,6 +76,8 @@
 
 {# ── Right panel : paramètres ────────────────────────────────────────────── #}
 {% block app_right_panel_settings %}
+{% include 'common/_inspector_banner.html' %}{# bandeau « Réglages de l'élément #N » (inspecteur contextuel) #}
+<div id="synthPanelParams">
 <!-- TTS Model -->
 <div class="mb-3">
     <label for="tts_model" class="form-label small fw-bold text-light">
@@ -221,6 +223,7 @@
 <button class="btn btn-outline-secondary btn-sm w-100" id="resetOptions">
     <i class="fas fa-undo"></i> Réinitialiser
 </button>
+</div>{# /synthPanelParams (inspecteur contextuel) #}
 {% endblock %}
 
 {% block app_right_panel_actions %}
@@ -782,12 +785,41 @@
 <script>window.WAMA_GLOBAL_PROGRESS_URL = "{% url 'synthesizer:global_progress' %}";</script>
 <script src="{% static 'common/js/wama-global-progress.js' %}"></script>
 <script>
-// Sélection de card + navigation clavier (brique commune WamaInspector ; config minimale).
+// Inspecteur CONTEXTUEL (volet droit) : la section params (#synthPanelParams) devient « Réglages de
+// l'élément #N » selon la card sélectionnée, pilotée par le schéma (params.py). Média + boutons de
+// file restent en place. On GARDE les champs existants (voix server-rendered + warning langue) — on
+// câble juste l'inspecteur dessus (ne rien perdre).
 document.addEventListener('DOMContentLoaded', function () {
-    if (window.WamaInspector) {
-        var q = document.getElementById('synthesisQueue');
-        if (q) WamaInspector.init({ queueContainer: q, cardSelector: '.synthesis-card' });
+    var q = document.getElementById('synthesisQueue');
+    var ph = document.getElementById('synthPanelParams');
+    if (!q || !ph || !window.WamaInspector || !WamaInspector.initFromSchema) return;
+    var schema = {{ params_json|safe }};
+    var cfg = window.WAMA_CONFIG || {};
+    var U = cfg.urls || {}, csrf = cfg.csrfToken || '';
+    var keys = ['tts_model', 'language', 'voice_preset', 'speed', 'pitch'];   // params per-item
+    function saveItemReq(id) {
+        var fd = new FormData();
+        keys.forEach(function (k) { var el = ph.querySelector('[name="' + k + '"]'); if (el) fd.append(k, el.value); });
+        return fetch((U.updateOptions || '/synthesizer/update-options/') + id + '/',
+            { method: 'POST', headers: { 'X-CSRFToken': csrf }, body: fd });
     }
+    window._synthInspector = WamaInspector.initFromSchema({
+        queueContainer: q,
+        cardSelector: '.synthesis-card',
+        panelContainer: ph,
+        schema: schema,
+        itemLabel: function (id) { return "l'élément #" + id; },
+        // data-* sur le bouton ⚙ de la card (pas la racine) → cardSettings dédié.
+        cardSettings: function (card) {
+            var b = card.querySelector('.settings-btn');
+            if (!b) return {};
+            return {
+                tts_model: b.dataset.ttsModel, language: b.dataset.language,
+                voice_preset: b.dataset.voicePreset, speed: b.dataset.speed, pitch: b.dataset.pitch,
+            };
+        },
+        saveItem: function (id) { return saveItemReq(id).then(function () { window.location.reload(); }); },
+    });
 });
 </script>
 <script>

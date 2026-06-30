@@ -24,7 +24,9 @@ from django.core.files.base import ContentFile
 
 import requests as http_requests
 
+import json
 from .models import VoiceSynthesis, VoicePreset, CustomVoice, BatchSynthesis, BatchSynthesisItem
+from .params import PARAMS_JSON as _SYNTH_PARAMS_JSON
 from wama.common.utils.console_utils import get_console_lines
 from wama.accounts.views import get_or_create_anonymous_user
 from wama.common.utils.queue_duplication import safe_delete_file, duplicate_instance
@@ -187,6 +189,7 @@ class IndexView(View):
             'languages': VoiceSynthesis.LANGUAGE_CHOICES,
             'voice_presets_choices': VoiceSynthesis.VOICE_PRESET_CHOICES,
             'voice_refs_groups': voice_refs_groups,
+            'params_json': json.dumps(_SYNTH_PARAMS_JSON),
         }
         return render(request, 'synthesizer/index.html', context)
 
