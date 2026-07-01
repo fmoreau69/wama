@@ -175,10 +175,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     title="Paramètres">
               <i class="fas fa-cog"></i>
             </button>
-            <button class="btn btn-sm btn-primary js-restart-enhancement action-btn"
-                    data-id="${data.id}" title="Lancer">
-              <i class="fas fa-play"></i>
-            </button>
+            ${window.WamaCycleButton ? WamaCycleButton.html(data.status || 'PENDING', data.id) : `<button class="btn btn-sm btn-outline-success js-restart-enhancement action-btn" data-id="${data.id}" title="Lancer"><i class="fas fa-play"></i></button>`}
             <button class="btn btn-sm btn-danger js-delete-enhancement"
                     data-delete-url="${getUrl(config.deleteUrlTemplate, data.id)}"
                     title="Supprimer">
@@ -382,6 +379,25 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     updateDownloadAllState();
+  }
+
+  // ⏹ Stop : arrête l'amélioration image/vidéo → item relançable (↻ via autoSync sur data-status).
+  function handleStopEnhancement(id) {
+    if (!id) return;
+    fetch(`/enhancer/stop/${id}/`, { method: 'POST', headers: csrfHeaders() })
+      .then(r => r.json())
+      .then(data => {
+        const card = queueTable ? queueTable.querySelector(`[data-id="${id}"]`) : null;
+        if (card && data.status) card.dataset.status = data.status;
+        stopPolling(id);
+      })
+      .catch(() => {});
+  }
+
+  // Bouton de cycle commun ▶/⏹/↻ (image/vidéo) : wire délégué + auto-sync sur data-status.
+  if (window.WamaCycleButton && queueTable) {
+    WamaCycleButton.wire(queueTable, { start: (id) => handleRestartEnhancement(id), stop: (id) => handleStopEnhancement(id) });
+    WamaCycleButton.autoSync({ container: queueTable, cardSelector: '.synthesis-card' });
   }
 
   function handleRestartEnhancement(id) {

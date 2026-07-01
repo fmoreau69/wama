@@ -336,10 +336,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     title="Paramètres">
               <i class="fas fa-cog"></i>
             </button>
-            <button class="btn btn-sm btn-primary js-audio-start action-btn"
-                    data-id="${data.id}" title="Lancer">
-              <i class="fas fa-play"></i>
-            </button>
+            ${window.WamaCycleButton ? WamaCycleButton.html(data.status || 'PENDING', data.id) : `<button class="btn btn-sm btn-outline-success js-audio-start action-btn" data-id="${data.id}" title="Lancer"><i class="fas fa-play"></i></button>`}
             <button class="btn btn-sm btn-danger js-audio-delete action-delete"
                     data-id="${data.id}" title="Supprimer">
               <i class="fas fa-trash-alt"></i>
@@ -577,6 +574,26 @@ document.addEventListener('DOMContentLoaded', function () {
     const modal = createAudioSettingsModal(id, engine, mode, strength, quality);
     new bootstrap.Modal(modal).show();
   }
+
+  // ⏹ Stop : arrête le débruitage audio → item relançable (↻ via autoSync sur data-status).
+  async function handleStopAudio(id) {
+    if (!id) return;
+    try {
+      const r = await fetch(`/enhancer/audio/stop/${id}/`, { method: 'POST', headers: csrfHeaders() });
+      const data = await r.json().catch(() => ({}));
+      const card = document.querySelector(`#audio-enhancer-queue [data-id="${id}"]`);
+      if (card && data.status) card.dataset.status = data.status;
+    } catch (e) { /* non-fatal */ }
+  }
+
+  // Bouton de cycle commun ▶/⏹/↻ (audio) : wire délégué + auto-sync sur data-status.
+  (function initAudioCycle() {
+    if (!window.WamaCycleButton) return;
+    const q = document.getElementById('audio-enhancer-queue');
+    if (!q) return;
+    WamaCycleButton.wire(q, { start: (id) => startAudio(id), stop: (id) => handleStopAudio(id) });
+    WamaCycleButton.autoSync({ container: q, cardSelector: '.synthesis-card' });
+  })();
 
   // ── Start / polling (also called from modal "Save and Start") ────────────
 

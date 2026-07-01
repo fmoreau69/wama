@@ -403,6 +403,18 @@ def _analyze_media(enhancement: Enhancement):
 
 
 @require_POST
+def stop(request, pk: int):
+    """Stoppe l'amélioration image/vidéo en cours → item relançable (↻). Brique commune process_control."""
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    enhancement = get_object_or_404(Enhancement, pk=pk, user=user)
+    if enhancement.status not in ('RUNNING', 'PENDING'):
+        return JsonResponse({'id': enhancement.id, 'status': enhancement.status})
+    from wama.common.utils.process_control import stop_instance
+    new_status = stop_instance(enhancement, error_field='error_message')
+    return JsonResponse({'id': enhancement.id, 'status': new_status})
+
+
+@require_POST
 def start(request, pk: int):
     """Start enhancement processing."""
     logger.info(f"=== START ENHANCEMENT {pk} ===")
@@ -1118,6 +1130,18 @@ def audio_upload(request):
         'duration': ae.duration,
         'status': ae.status,
     })
+
+
+@require_POST
+def audio_stop(request, pk: int):
+    """Stoppe le débruitage audio en cours → item relançable (↻). Brique commune process_control."""
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    ae = get_object_or_404(AudioEnhancement, pk=pk, user=user)
+    if ae.status not in ('RUNNING', 'PENDING'):
+        return JsonResponse({'id': ae.id, 'status': ae.status})
+    from wama.common.utils.process_control import stop_instance
+    new_status = stop_instance(ae, error_field='error_message')
+    return JsonResponse({'id': ae.id, 'status': new_status})
 
 
 @require_POST
