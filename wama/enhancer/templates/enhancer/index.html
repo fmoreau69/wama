@@ -812,6 +812,14 @@
 <script src="{% static 'enhancer/js/audio-enhancer.js' %}"></script>
 <script src="{% static 'common/js/wama-modes.js' %}"></script>
 <script src="{% static 'common/js/wama-inspector.js' %}"></script>
+<link rel="stylesheet" href="{% static 'common/css/wama-params.css' %}">
+<script src="{% static 'common/js/wama-params.js' %}"></script>
+<script>
+// Schémas manifeste (params.py) exposés au JS → modales générées par WamaParams (context:'item'),
+// comme l'app de référence Transcriber. Une seule source pour volet + modale.
+window.ENHANCER_MEDIA_SCHEMA = {{ media_params_json|safe }};
+window.ENHANCER_AUDIO_SCHEMA = {{ audio_params_json|safe }};
+</script>
 <script>
 // Onglets de DOMAINE via WamaModes (brique commune). renderInputs=false : WamaModes rend juste les
 // onglets ; onChange bascule les panes du domaine (image/vidéo ↔ audio), qui contiennent dropzone/

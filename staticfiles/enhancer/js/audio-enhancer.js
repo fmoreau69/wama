@@ -455,38 +455,9 @@ document.addEventListener('DOMContentLoaded', function () {
             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
           </div>
           <div class="modal-body">
-            <div class="mb-3">
-              <label class="form-label small fw-bold text-light">Moteur</label>
-              <select class="form-select bg-dark text-white border-secondary modal-audio-engine">
-                <option value="resemble"     ${engine === 'resemble'     ? 'selected' : ''}>Resemble Enhance (Recommandé)</option>
-                <option value="deepfilternet" ${engine === 'deepfilternet' ? 'selected' : ''}>DeepFilterNet 3 (Rapide)</option>
-              </select>
-            </div>
-            <div class="modal-resemble-only" style="display:${resembleDisplay}">
-              <div class="mb-3">
-                <label class="form-label small fw-bold text-light">Mode</label>
-                <select class="form-select bg-dark text-white border-secondary modal-audio-mode">
-                  <option value="both"    ${mode === 'both'    ? 'selected' : ''}>Débruitage + Amélioration</option>
-                  <option value="denoise" ${mode === 'denoise' ? 'selected' : ''}>Débruitage seul (Rapide)</option>
-                  <option value="enhance" ${mode === 'enhance' ? 'selected' : ''}>Amélioration seule</option>
-                </select>
-              </div>
-              <div class="mb-3">
-                <label class="form-label small fw-bold text-light">
-                  Force débruitage: <span class="modal-strength-val">${parseFloat(strength).toFixed(1)}</span>
-                </label>
-                <input type="range" class="form-range modal-audio-strength"
-                       min="0" max="1" step="0.1" value="${strength}">
-              </div>
-              <div class="mb-3">
-                <label class="form-label small fw-bold text-light">Qualité (NFE)</label>
-                <select class="form-select bg-dark text-white border-secondary modal-audio-quality">
-                  <option value="32"  ${quality === '32'  ? 'selected' : ''}>Rapide (32 étapes)</option>
-                  <option value="64"  ${quality === '64'  ? 'selected' : ''}>Équilibré (64 étapes)</option>
-                  <option value="128" ${quality === '128' ? 'selected' : ''}>Meilleur (128 étapes)</option>
-                </select>
-              </div>
-            </div>
+            <!-- Champs GÉNÉRÉS par WamaParams depuis le schéma manifeste (params.py), context:'item'.
+                 show_if engine=resemble gère l'affichage conditionnel mode/force/qualité. -->
+            <div id="wamaAudioFields${id}"></div>
           </div>
           <div class="modal-footer border-secondary">
             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
@@ -503,27 +474,24 @@ document.addEventListener('DOMContentLoaded', function () {
 
     document.body.appendChild(modal);
 
-    // Engine toggle
-    const engineSel = modal.querySelector('.modal-audio-engine');
-    const resembleSection = modal.querySelector('.modal-resemble-only');
-    engineSel.addEventListener('change', () => {
-      resembleSection.style.display = engineSel.value === 'resemble' ? '' : 'none';
-    });
+    // Modale GÉNÉRÉE depuis le schéma manifeste (WamaParams, context:'item') — pattern Transcriber.
+    // show_if engine=resemble gère l'affichage conditionnel mode/force/qualité ; WamaParams gère aussi
+    // l'affichage de la valeur de la range (plus besoin de listeners manuels engine/strength).
+    if (window.WamaParams && window.ENHANCER_AUDIO_SCHEMA) {
+      WamaParams.render(modal.querySelector('#wamaAudioFields' + id),
+                        window.ENHANCER_AUDIO_SCHEMA,
+                        { context: 'item', values: { engine: engine, mode: mode, strength: strength, quality: quality } });
+    }
 
-    // Strength display
-    const strengthInput = modal.querySelector('.modal-audio-strength');
-    const strengthDisplay = modal.querySelector('.modal-strength-val');
-    strengthInput.addEventListener('input', () => {
-      strengthDisplay.textContent = parseFloat(strengthInput.value).toFixed(1);
-    });
-
-    // Save helpers
+    // Lecture par name (WamaParams rend name=engine/mode/strength/quality). Fallback null-safe :
+    // les champs Resemble peuvent être masqués (show_if) mais restent dans le DOM avec leur valeur.
     function readModalSettings() {
+      function v(n, d) { const el = modal.querySelector('[name="' + n + '"]'); return el ? el.value : d; }
       return {
-        engine:   modal.querySelector('.modal-audio-engine').value,
-        mode:     modal.querySelector('.modal-audio-mode').value,
-        strength: modal.querySelector('.modal-audio-strength').value,
-        quality:  modal.querySelector('.modal-audio-quality').value,
+        engine:   v('engine', engine),
+        mode:     v('mode', mode),
+        strength: v('strength', strength),
+        quality:  v('quality', quality),
       };
     }
 

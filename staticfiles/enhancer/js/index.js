@@ -226,22 +226,9 @@ document.addEventListener('DOMContentLoaded', function () {
           </div>
           <div class="modal-body">
             <form class="enhancement-settings-form" data-id="${data.id}">
-              <div class="mb-3">
-                <label class="form-label">Modèle AI</label>
-                <select class="form-select bg-dark text-white border-secondary" name="ai_model">
-                  ${modelOptions}
-                </select>
-              </div>
-              <div class="mb-3 form-check form-switch">
-                <input class="form-check-input" type="checkbox" name="denoise" ${data.denoise ? 'checked' : ''}>
-                <label class="form-check-label">Débruitage</label>
-              </div>
-              <div class="mb-3">
-                <label class="form-label">Blend Factor: <span class="blend-display">${data.blend_factor || 0}</span></label>
-                <input type="range" class="form-range" name="blend_factor"
-                       min="0" max="1" step="0.1" value="${data.blend_factor || 0}"
-                       oninput="this.previousElementSibling.querySelector('.blend-display').textContent = this.value">
-              </div>
+              <!-- Champs GÉNÉRÉS par WamaParams depuis le schéma manifeste (params.py), context:'item'.
+                   name=ai_model/denoise/blend_factor → le save-settings-btn les lit tel quel. -->
+              <div id="wamaSettingsFields${data.id}"></div>
             </form>
           </div>
           <div class="modal-footer border-secondary">
@@ -258,6 +245,13 @@ document.addEventListener('DOMContentLoaded', function () {
     `;
 
     document.body.appendChild(modal);
+
+    // Modale GÉNÉRÉE depuis le schéma manifeste (WamaParams, context:'item') — pattern Transcriber.
+    // name=ai_model/denoise/blend_factor → le save-settings-btn les lit inchangé.
+    if (window.WamaParams && window.ENHANCER_MEDIA_SCHEMA) {
+      WamaParams.render(document.getElementById('wamaSettingsFields' + data.id),
+                        window.ENHANCER_MEDIA_SCHEMA, { context: 'item', values: data });
+    }
 
     // Bind actions for this modal's buttons
     bindRowActions(modal);
