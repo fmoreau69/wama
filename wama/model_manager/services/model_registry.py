@@ -788,6 +788,42 @@ class ModelRegistry:
         except Exception as e:
             logger.debug(f"Could not discover Enhancer models: {e}")
 
+        # ── Moteurs de restauration AUDIO (backends pip, hors fichiers) : déclarés au catalogue avec
+        # leurs CAPACITÉS (params supportés) → l'UI s'adapte via WamaModelCaps, PAS de show_if hardcodé. ──
+        _audio_engines = {
+            'resemble': {
+                'name': 'Resemble Enhance',
+                'short': 'Restauration par diffusion — débruitage + extension de bande, meilleure qualité',
+                'long': ('Resemble Enhance : modèle génératif (diffusion) qui débruite ET restaure les '
+                         'hautes fréquences (super-résolution audio). Qualité supérieure mais plus lent ; '
+                         'les réglages Mode / Force / Qualité (NFE) s\'appliquent.'),
+                'vram': 4.0,
+                'params': ['mode', 'strength', 'quality'],
+            },
+            'deepfilternet': {
+                'name': 'DeepFilterNet 3',
+                'short': 'Débruitage temps réel — rapide, faible empreinte',
+                'long': ('DeepFilterNet 3 : débruitage discriminatif temps réel (48 kHz), très rapide et '
+                         'léger, sans extension de bande. Recommandé pour prétraiter avant transcription ; '
+                         'les réglages Mode / Force / Qualité ne s\'appliquent pas.'),
+                'vram': 1.0,
+                'params': [],
+            },
+        }
+        for _eng_id, _eng in _audio_engines.items():
+            self._models[f'enhancer:{_eng_id}'] = ModelInfo(
+                id=f'enhancer:{_eng_id}',
+                name=_eng['name'],
+                model_type=ModelType.SPEECH,
+                source=ModelSource.WAMA_ENHANCER,
+                description=_eng['long'],
+                description_short=_eng['short'],
+                vram_gb=_eng['vram'],
+                is_downloaded=True,
+                backend_ref='enhancer',
+                capabilities={'task': 'audio_enhance', 'modalities': ['audio'], 'params': _eng['params']},
+            )
+
     def _discover_composer_models(self):
         """Discover Composer app models (MusicGen + AudioGen)."""
         try:
