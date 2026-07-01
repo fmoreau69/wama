@@ -860,8 +860,10 @@ document.addEventListener('DOMContentLoaded', function () {
         cardSelector: '.synthesis-card',
         itemLabel: function (id) { return "l'élément #" + id + ' (⚙ pour éditer)'; },
         cardSettings: function (card) {
-            return { ai_model: card.dataset.aiModel, denoise: card.dataset.denoise,
-                     blend_factor: card.dataset.blendFactor };
+            // Les data-* image/vidéo sont sur le bouton ⚙ (.js-open-settings), pas sur la card racine.
+            var btn = card.querySelector('.js-open-settings, .settings-btn, [data-action="settings"]') || card;
+            var d = btn.dataset;
+            return { ai_model: d.aiModel, denoise: d.denoise, blend_factor: d.blendFactor };
         },
         saveItem: function (id, fd) { return postPanel('/enhancer/update_settings/' + id + '/', fd); },
     });
