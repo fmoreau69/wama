@@ -820,9 +820,14 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!host || !window.WamaModes) return;
     function switchDomain(domain) {
         var media = (domain === 'media');
+        // 1) Panes de file (image/vidéo ↔ audio).
         var p1 = document.getElementById('imgvideoTab'), p2 = document.getElementById('audioTab');
         if (p1) { p1.classList.toggle('show', media); p1.classList.toggle('active', media); }
         if (p2) { p2.classList.toggle('show', !media); p2.classList.toggle('active', !media); }
+        // 2) Réglages du VOLET DROIT (scopés au domaine) : image/vidéo ↔ audio.
+        var s1 = document.getElementById('imgSettings'), s2 = document.getElementById('audioSettings');
+        if (s1) s1.style.display = media ? '' : 'none';
+        if (s2) s2.style.display = media ? 'none' : '';
         try { localStorage.setItem('enhancerDomain', domain); } catch (e) {}
     }
     WamaModes.fetch('enhancer').then(function (schema) {
