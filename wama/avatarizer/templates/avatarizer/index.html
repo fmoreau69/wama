@@ -741,7 +741,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!q || !ph || !window.WamaInspector || !WamaInspector.initFromSchema) return;
     var schema = {{ params_json|safe }};
     var csrf = (window.AVATARIZER_CONFIG && window.AVATARIZER_CONFIG.csrfToken) || '';
-    function saveItemReq(id) {
+    function postPanel(url) {   // POST des valeurs du volet (dom_id-aware, radios/checkbox) vers url
         var fd = new FormData();
         schema.forEach(function (p) {
             var key = (p.dom_id && p.dom_id.panel) || p.name;
@@ -750,14 +750,17 @@ document.addEventListener('DOMContentLoaded', function () {
             var el = document.getElementById(key) || ph.querySelector('[name="' + key + '"]');
             if (el) fd.append(p.name, el.type === 'checkbox' ? (el.checked ? 'true' : 'false') : el.value);
         });
-        return fetch('/avatarizer/update-options/' + id + '/', { method: 'POST', headers: { 'X-CSRFToken': csrf }, body: fd });
+        return fetch(url, { method: 'POST', headers: { 'X-CSRFToken': csrf }, body: fd });
     }
     WamaInspector.initFromSchema({
         queueContainer: q,
         cardSelector: '.synthesis-card',
+        batchSelector: '.batch-group',
         panelContainer: ph,
         schema: schema,
         itemLabel: function (id) { return "l'élément #" + id; },
+        batchLabel: function (id) { return "le batch #" + id + " (tous les éléments)"; },
+        saveBatch: function (bid) { return postPanel('/avatarizer/batch/' + bid + '/update/').then(function () { window.location.reload(); }); },
         cardSettings: function (card) {
             var b = card.querySelector('.btn-settings-job');
             if (!b) return {};
@@ -767,7 +770,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 use_enhancer: b.dataset.useEnhancer, bbox_shift: b.dataset.bboxShift,
             };
         },
-        saveItem: function (id) { return saveItemReq(id).then(function () { window.location.reload(); }); },
+        saveItem: function (id) { return postPanel('/avatarizer/update-options/' + id + '/').then(function () { window.location.reload(); }); },
     });
 });
 </script>

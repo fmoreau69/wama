@@ -365,22 +365,26 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!q || !ph || !window.WamaInspector || !WamaInspector.initFromSchema) return;
     var schema = {{ params_json|safe }};
     function getCsrf() { var m = document.cookie.match(/csrftoken=([^;]+)/); return m ? m[1] : ''; }
-    function saveItemReq(id) {
+    function postPanel(url) {   // POST les valeurs du volet (dom_id-aware) vers l'endpoint donné
         var fd = new FormData();
         schema.forEach(function (p) {
             var key = (p.dom_id && p.dom_id.panel) || p.name;
             var el = document.getElementById(key) || ph.querySelector('[name="' + key + '"]');
             if (el) fd.append(p.name, el.value);
         });
-        return fetch('/composer/settings/' + id + '/', { method: 'POST', headers: { 'X-CSRFToken': getCsrf() }, body: fd });
+        return fetch(url, { method: 'POST', headers: { 'X-CSRFToken': getCsrf() }, body: fd })
+            .then(function () { window.location.reload(); });
     }
     WamaInspector.initFromSchema({
         queueContainer: q,
         cardSelector: '.generation-card',
+        batchSelector: '.batch-group',
         panelContainer: ph,
         schema: schema,
         itemLabel: function (id) { return "l'élément #" + id; },
-        saveItem: function (id) { return saveItemReq(id).then(function () { window.location.reload(); }); },
+        batchLabel: function (id) { return "le batch #" + id + " (tous les éléments)"; },
+        saveItem: function (id) { return postPanel('/composer/settings/' + id + '/'); },
+        saveBatch: function (bid) { return postPanel('/composer/batch/' + bid + '/update/'); },
     });
 });
 </script>

@@ -691,6 +691,34 @@ def consolidate(request):
 
 
 @require_POST
+def batch_update(request, pk):
+    """Applique les réglages du volet à TOUS les items du lot (édition batch, hors RUNNING)."""
+    user = _get_user(request)
+    batch = get_object_or_404(BatchAvatarJob, pk=pk, user=user)
+    fields = ['mode', 'tts_model', 'language', 'voice_preset', 'quality_mode', 'use_enhancer', 'bbox_shift']
+    updated = 0
+    for it in batch.items.select_related('job'):
+        job = it.job
+        if not job or job.status == 'RUNNING':
+            continue
+        for f in fields:
+            if f not in request.POST:
+                continue
+            val = request.POST[f]
+            if f == 'use_enhancer':
+                val = val in ('true', '1', 'on', 'True')
+            elif f == 'bbox_shift':
+                try:
+                    val = int(val)
+                except (ValueError, TypeError):
+                    continue
+            setattr(job, f, val)
+        job.save()
+        updated += 1
+    return JsonResponse({'success': True, 'updated': updated})
+
+
+@require_POST
 def batch_start(request, pk):
     """POST : Lance tous les jobs non terminés d'un lot."""
     user = _get_user(request)

@@ -537,6 +537,8 @@ def batch_update(request, pk):
     batch = get_object_or_404(ComposerBatch, id=pk, user=user)
     model = request.POST.get('model')
     duration = request.POST.get('duration')
+    output_format = request.POST.get('output_format')
+    output_quality = request.POST.get('output_quality')
     updated = 0
     for item in batch.items.select_related('generation'):
         g = item.generation
@@ -550,6 +552,10 @@ def batch_update(request, pk):
                 g.duration = max(10.0, min(600.0, float(duration)))
             except (ValueError, TypeError):
                 pass
+        if output_format:
+            g.output_format = output_format
+        if output_quality:
+            g.output_quality = output_quality
         g.save()
         updated += 1
     return JsonResponse({'success': True, 'updated': updated})
