@@ -70,6 +70,25 @@ APP_MODES = {
         ],
     },
 
+    # ── ENHANCER (MULTI-DOMAINE : image/vidéo + audio → 2 onglets domaine) ────
+    # Deux sous-modèles (Enhancement image/vidéo, AudioEnhancement) unifiés sous les onglets WamaModes ;
+    # l'onglet domaine scope la file + les réglages + la dropzone.
+    'enhancer': {
+        'domains': [
+            {'id': 'media', 'label': 'Image / Vidéo', 'icon': 'fa-photo-film', 'variant': 'primary', 'modes': [
+                {'id': 'enhance', 'label': 'Amélioration', 'icon': 'fa-wand-magic-sparkles',
+                 'inputs': ['work_file'],
+                 'settings': ['ai_model', 'upscale_factor', 'denoise', 'blend_factor', 'tile_size',
+                              'output_format', 'output_quality']},
+            ]},
+            {'id': 'audio', 'label': 'Audio', 'icon': 'fa-volume-high', 'variant': 'success', 'modes': [
+                {'id': 'enhance_audio', 'label': 'Débruitage / Restauration', 'icon': 'fa-wave-square',
+                 'inputs': ['work_audio'],
+                 'settings': ['engine', 'mode', 'denoising_strength', 'quality']},
+            ]},
+        ],
+    },
+
     # ── SYNTHESIZER (mono-domaine audio ; prouve le mode TEMPS RÉEL) ──────────
     'synthesizer': {
         'domains': [

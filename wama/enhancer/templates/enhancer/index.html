@@ -255,21 +255,9 @@
 {% block enhancer_content %}
 <div style="overflow-x:hidden;">
 
-<!-- Tab Navigation -->
-<ul class="nav nav-tabs mb-4" id="enhancerTabs" role="tablist">
-    <li class="nav-item" role="presentation">
-        <button class="nav-link active" id="imgvideo-tab" data-bs-toggle="tab" data-bs-target="#imgvideoTab"
-                type="button" role="tab" aria-controls="imgvideoTab" aria-selected="true">
-            <i class="fas fa-image"></i> Image / Vidéo
-        </button>
-    </li>
-    <li class="nav-item" role="presentation">
-        <button class="nav-link" id="audio-tab" data-bs-toggle="tab" data-bs-target="#audioTab"
-                type="button" role="tab" aria-controls="audioTab" aria-selected="false">
-            <i class="fas fa-microphone-alt"></i> Audio
-        </button>
-    </li>
-</ul>
+<!-- Onglets de DOMAINE : brique commune WamaModes (schéma app_modes ; conditionnel si >1 domaine).
+     Remplace les nav-tabs hand-written → multi-domaine géré uniformément (réutilisable Imager/Anonymizer). -->
+<div id="enhancerModes" class="mb-4"></div>
 
 <div class="tab-content" id="enhancerTabsContent">
 
@@ -824,6 +812,31 @@
 <script>window.WAMA_GLOBAL_PROGRESS_URL = "{% url 'enhancer:global_progress' %}";</script>
 <script src="{% static 'common/js/wama-global-progress.js' %}"></script>
 <script src="{% static 'enhancer/js/audio-enhancer.js' %}"></script>
+<script src="{% static 'common/js/wama-modes.js' %}"></script>
+<script>
+// Onglets de DOMAINE via WamaModes (brique commune). renderInputs=false : WamaModes rend juste les
+// onglets ; onChange bascule les panes du domaine (image/vidéo ↔ audio), qui contiennent dropzone/
+// réglages/file. Remplace le switch Bootstrap hand-written → multi-domaine uniforme.
+document.addEventListener('DOMContentLoaded', function () {
+    var host = document.getElementById('enhancerModes');
+    if (!host || !window.WamaModes) return;
+    function switchDomain(domain) {
+        var media = (domain === 'media');
+        var p1 = document.getElementById('imgvideoTab'), p2 = document.getElementById('audioTab');
+        if (p1) { p1.classList.toggle('show', media); p1.classList.toggle('active', media); }
+        if (p2) { p2.classList.toggle('show', !media); p2.classList.toggle('active', !media); }
+        try { localStorage.setItem('enhancerDomain', domain); } catch (e) {}
+    }
+    WamaModes.fetch('enhancer').then(function (schema) {
+        var doms = (schema && schema.domains) || [];
+        var initial = localStorage.getItem('enhancerDomain');
+        if (!doms.some(function (d) { return d.id === initial; })) initial = doms[0] && doms[0].id;
+        WamaModes.create({ container: host, schema: schema, renderInputs: false, domain: initial,
+                           onChange: function (s) { switchDomain(s.domain); } });
+        switchDomain(initial);
+    });
+});
+</script>
 <script>
 window._batchImport = WamaBatchImport({
     batchPreviewUrl: window.ENHANCER_APP.batchPreviewUrl,
