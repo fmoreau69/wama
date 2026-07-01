@@ -2288,6 +2288,17 @@ Rappel du modèle de file **universel** (cf. mémoire « Synthesizer — Unified
   Item / Batch) via `panel.read`/`panel.apply` + `saveItem`/`saveBatch`/`saveGlobal` de `WamaInspector`
   (voir **§10**). C'est un **formulaire**, pas du rendu autofill.
 
+> ⚠️ **Mécanismes concurrents à consolider — TÂCHE 1 (2026-07-01).** Deux voies de génération d'UI
+> coexistent aujourd'hui : la **référence Transcriber** génère **volet ET modale** via
+> `WamaParams.render` (context `panel`/`item`, source unique `params.py`) ; d'autres apps (synthesizer,
+> avatarizer, composer, enhancer) utilisent `WamaInspector.initFromSchema` pour le volet + une modale
+> **hand-built** (enhancer : modale portée sur `WamaParams` le 2026-07-01). Idem capacités→UI :
+> `WamaModelCaps` (synthesizer) vs `show_if` **hardcodé** (anti-pattern). **Avant d'uniformiser d'autres
+> apps**, produire l'inventaire de convergence `UI_MECHANISMS_CONSOLIDATION.md` (spec :
+> `memory/project_ui_mechanisms_consolidation.md`, suivi `PROJECT_STATUS.md §20`). Le registre de modèles,
+> lui, est **déjà unique** (`ModelRegistry`+`ModelInfo`+`capabilities`). Contraintes : route existante,
+> **zéro réinvention, zéro hardcoding**.
+
 Les deux **coexistent** : un inspecteur d'app peut afficher un en-tête descriptif (autofill) **au-dessus**
 du formulaire de réglages. `WamaDetails` ne remplace jamais le formulaire éditable.
 

@@ -94,6 +94,20 @@
 **Ordre** : A (schéma params, pilote Transcriber) → étendre `app_registry` (capacités) →
 composition par capacités. Voir aussi §10.B (Translator) et §5b (sélection/descriptions).
 
+**État 2026-07-01 + TÂCHE 1 (consolidation) :** A est **partiellement** déployé et les divergences
+prévues sont **réelles** → il faut les inventorier avant d'en porter d'autres :
+- Modale item : `WamaParams.render(item)` = **4/10** (transcriber, converter, reader, describer) ;
+  hand-built = synthesizer, avatarizer, composer ; **enhancer porté le 2026-07-01**.
+- Volet : `WamaParams.render(panel)` (référence) vs `WamaInspector.initFromSchema` (synthesizer,
+  avatarizer, composer, enhancer) — **à trancher**.
+- `params.py` : **8/10** (manquent anonymizer, imager).
+- Capacités→UI : `WamaModelCaps` (option-level) — **transcriber ne l'utilise pas**, enhancer a du
+  `show_if` **hardcodé** à supprimer. Manque le **niveau-champ**. Modèles déclarent leurs params via
+  `capabilities.params` (route existante ; moteurs audio enhancer enregistrés le 2026-07-01).
+- ⏳ **TÂCHE 1 avant tout portage** : produire `UI_MECHANISMS_CONSOLIDATION.md` (mécanisme|apps|
+  référence|à déprécier par axe + plan de convergence). Spec : `memory/project_ui_mechanisms_consolidation.md`,
+  suivi PROJECT_STATUS §20. Contraintes : route existante, zéro réinvention, zéro hardcoding.
+
 ---
 
 ## 3. Media Library

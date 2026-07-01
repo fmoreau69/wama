@@ -246,13 +246,34 @@ est fini** (P2 éventail, manipulation in/out, esthétique 2 états, nav clavier
   app-spécifique irréductible = `process()` + pages d'édition).
 - Méthode : passes read-only volumineuses délégables à **wama-dev-ai**, validées par Claude.
 
+## 20. Consolidation des mécanismes de génération d'UI (⏳ TÂCHE 1 avant tout travail UI par app) — 2026-07-01
+Spec précise : `memory/project_ui_mechanisms_consolidation.md`. **Le registre de modèles est UNIQUE**
+(`ModelRegistry` + `ModelInfo` + `capabilities`) — MAIS plusieurs **chemins concurrents de génération
+d'UI** coexistent : modale `WamaParams.render(item)` [transcriber/converter/reader/describer] vs
+hand-built [synthesizer/avatarizer/composer] ; volet `WamaParams.render(panel)` vs `initFromSchema` ;
+capacités→UI `WamaModelCaps` (synthesizer) vs rien (transcriber) vs `show_if` **hardcodé** (anti-pattern
+enhancer). Avant d'uniformiser d'autres apps → **inventorier** (`UI_MECHANISMS_CONSOLIDATION.md` à créer :
+tableau mécanisme|apps|**référence**|à **déprécier** par axe) + **plan de convergence**. Référence =
+Transcriber. Contraintes : route existante, **zéro réinvention, zéro hardcoding**. Idéalement en **session
+neuve** (contexte chargé = erreurs). Recoupe et précise §19.
+- ✅ **Enhancer uniformisé (2026-07-01)** : onglets domaine `WamaModes` + bouton de cycle sur les 2
+  domaines + inspecteur `initFromSchema` par domaine + **modales portées sur `WamaParams` (context:'item')**
+  + aide modèle courte/longue + **couche capacités pièce 1/3** (moteurs audio resemble/deepfilternet au
+  catalogue avec `capabilities.params`). **Reste enhancer** : pièce 2 (WamaModelCaps niveau-**champ**) +
+  pièce 3 (câblage capacités→visibilité + **retrait du `show_if` hardcodé**).
+
 ## Bugs / dettes connus
 - 🐞 Higgs Audio V2 : ~5 s d'audio dégradé malgré tous les patches — non résolu.
 - 🔧 Patches venv → toujours via `patches/apply_patches.py`.
 - 🌐 Headroom code-aware : `Mode: token` actuel → activer via terminal neuf + vérifier `headroom_stats`.
+- 🩹 **`show_if engine=resemble` hardcodé** (enhancer audio, `params.py`) = anti-pattern à remplacer par
+  capacités-driven (WamaModelCaps) — pièce 3 de la couche capacités (§20). Cf. `feedback_ui_from_model_capabilities`.
 
 ## Ordre de reprise recommandé
-1. Model Manager volet droit (débloque le test prospection — ROI immédiat).
-2. Cam Analyzer Phase 3 (calibration + vitesses).
-3. Fondation RAG (`wama/rag/`) — débloque hook PromptPipeline + Media Library.
-4. Refactoring common app par app (par petites sessions).
+1. **Consolidation des mécanismes de génération d'UI (§20)** — inventaire + plan de convergence AVANT tout
+   travail UI par app (sinon on aggrave la divergence). Idéalement session neuve. → puis uniformisation
+   des 10 apps → manifests → chaîne de génération (`project_manifest_generation_priority`).
+2. Model Manager volet droit (débloque le test prospection — ROI immédiat).
+3. Cam Analyzer Phase 3 (calibration + vitesses).
+4. Fondation RAG (`wama/rag/`) — débloque hook PromptPipeline + Media Library.
+5. Refactoring common app par app (par petites sessions).
