@@ -84,14 +84,16 @@
         const mode = modes.find(m => m.id === this.mode) || modes[0] || { inputs: [] };
 
         let html = '';
-        // Onglets DOMAINE (conditionnels : seulement si >1 domaine)
+        // Onglets DOMAINE = vrais ONGLETS (nav-tabs), conditionnels (seulement si >1 domaine).
+        // Le DOMAINE est un onglet (axe supérieur) ; le MODE reste un bouton/pill (dans le domaine).
         if (ds.length > 1) {
-            html += '<div class="wm-domains btn-group btn-group-sm mb-2" role="tablist">';
+            html += '<ul class="wm-domains nav nav-tabs mb-3" role="tablist">';
             ds.forEach(d => {
-                html += `<button type="button" class="btn ${d.id === this.domain ? 'btn-primary' : 'btn-outline-primary'} wm-domain" data-domain="${d.id}">
-                    ${d.icon ? `<i class="fas ${esc(d.icon)} me-1"></i>` : ''}${esc(d.label)}</button>`;
+                html += `<li class="nav-item" role="presentation">
+                    <button type="button" class="nav-link ${d.id === this.domain ? 'active' : ''} wm-domain" data-domain="${d.id}" role="tab">
+                        ${d.icon ? `<i class="fas ${esc(d.icon)} me-1"></i>` : ''}${esc(d.label)}</button></li>`;
             });
-            html += '</div>';
+            html += '</ul>';
         }
         // Switch de MODE (si >1 mode dans le domaine)
         if (modes.length > 1) {
