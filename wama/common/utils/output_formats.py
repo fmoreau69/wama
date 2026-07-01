@@ -59,10 +59,14 @@ def output_format_params(domain: str, contexts=None, dom_id_format=None, dom_id_
 
 
 def _domain_from_output_types(output_types) -> str | None:
-    """Déduit le domaine (audio/video/image/document) depuis les output_types d'APP_CATALOG."""
-    fmts = set(str(t).lower() for t in (output_types or []))
-    for domain in ("audio", "video", "image", "document"):
-        if fmts & set(v for v, _ in get_output_formats(domain)):
+    """Déduit le domaine depuis les output_types d'APP_CATALOG (soit un nom de domaine direct
+    ex. 'video', soit un format ex. 'mp3')."""
+    types = set(str(t).lower() for t in (output_types or []))
+    for domain in ("audio", "video", "image", "document"):   # 1) output_type == domaine ?
+        if domain in types:
+            return domain
+    for domain in ("audio", "video", "image", "document"):   # 2) sinon, via le format
+        if types & set(v for v, _ in get_output_formats(domain)):
             return domain
     return None
 
@@ -80,7 +84,10 @@ def output_format_params_for_app(app_name: str, contexts=None, dom_id_format=Non
         cat = APP_CATALOG.get(app_name, {}) or {}
     except Exception:
         cat = {}
-    if cat.get("multi_format_download"):      # late-binding → pas un param de schéma
+    conv = cat.get("conventions", {}) or {}
+    # late-binding (format choisi au téléchargement) → pas un param de schéma. export_binding fait foi ;
+    # multi_format_download reste un repli.
+    if conv.get("export_binding") == "late" or conv.get("multi_format_download"):
         return []
     domain = _domain_from_output_types(cat.get("output_types", []))
     if not domain:

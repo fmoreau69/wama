@@ -143,6 +143,8 @@ def _conv(
     eta_batch=False,               # §7.2 — ETA par batch
     eta_queue=False,               # §7.2 — ETA queue globale
     multi_format_download=False,   # §6.3 — split-button download multi-format
+    export_binding='early',        # §6.4 — 'early' (format réglé AVANT génération, render-based) |
+                                   #        'late' (format choisi AU TÉLÉCHARGEMENT, master-based)
     filemanager_import=False,      # §8.3 — "Envoyer vers app" + dispatch wama:fileimported
     recursive_import=False,        # §8.4 — import dossier récursif
     tool_api=False,                # §17 — fonctions exposées dans tool_api.py
@@ -171,6 +173,7 @@ def _conv(
         'eta_batch':              eta_batch,
         'eta_queue':              eta_queue,
         'multi_format_download':  multi_format_download,
+        'export_binding':         export_binding,
         'filemanager_import':     filemanager_import,
         'recursive_import':       recursive_import,
         'tool_api':               tool_api,
@@ -292,6 +295,7 @@ APP_CATALOG = {
         'conventions': _conv(
             settings_modal_item=True,
             multi_format_download=True,
+            export_binding='late',
             tool_api=True,
         ),
     },
@@ -356,6 +360,7 @@ APP_CATALOG = {
         'conventions': _conv(
             settings_modal_item=True,
             multi_format_download=True,
+            export_binding='late',
             tool_api=True,
         ),
     },
@@ -396,6 +401,7 @@ APP_CATALOG = {
         'conventions': _conv(
             settings_modal_item=True,
             multi_format_download=True,
+            export_binding='late',
             tool_api=True,
             inspector=True,   # référence : volet contextuel card/batch/file ET modale item/batch
                               # GÉNÉRÉS depuis le schéma unique (transcriber/params.py + WamaParams)
