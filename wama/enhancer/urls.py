@@ -39,6 +39,7 @@ urlpatterns = [
     path('audio/download/<int:pk>/', views.audio_download, name='audio_download'),
     path('audio/delete/<int:pk>/', views.audio_delete, name='audio_delete'),
     path('audio/duplicate/<int:pk>/', views.audio_duplicate, name='audio_duplicate'),
+    path('audio/update/<int:pk>/', views.audio_update, name='audio_update'),
     path('audio/start_all/', views.audio_start_all, name='audio_start_all'),
     path('audio/clear_all/', views.audio_clear_all, name='audio_clear_all'),
     path('audio/download_all/', views.audio_download_all, name='audio_download_all'),

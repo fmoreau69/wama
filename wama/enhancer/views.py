@@ -210,11 +210,16 @@ class IndexView(View):
         # Get or create user settings
         user_settings, _ = UserSettings.objects.get_or_create(user=user)
 
+        import json as _json
+        from wama.enhancer.params import MEDIA_PARAMS_JSON, AUDIO_PARAMS_JSON
         return render(request, 'enhancer/index.html', {
             'batches_list': batches_list,
             'audio_batches_list': audio_batches_list,
             'user_settings': user_settings,
             'ai_models': Enhancement.AI_MODEL_CHOICES,
+            # Schémas déclaratifs par domaine → inspecteur contextuel (WamaInspector.initFromSchema).
+            'media_params_json': _json.dumps(MEDIA_PARAMS_JSON),
+            'audio_params_json': _json.dumps(AUDIO_PARAMS_JSON),
         })
 
 
@@ -1142,6 +1147,33 @@ def audio_stop(request, pk: int):
     from wama.common.utils.process_control import stop_instance
     new_status = stop_instance(ae, error_field='error_message')
     return JsonResponse({'id': ae.id, 'status': new_status})
+
+
+@require_POST
+def audio_update(request, pk: int):
+    """Met à jour les réglages d'un item audio (inspecteur/modale). Miroir de update_settings."""
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    ae = get_object_or_404(AudioEnhancement, pk=pk, user=user)
+    if ae.status == 'RUNNING':
+        return JsonResponse({'error': 'Cannot update running enhancement'}, status=400)
+    P = request.POST
+    if P.get('engine'):
+        ae.engine = P['engine']
+    if P.get('mode'):
+        ae.mode = P['mode']
+    if P.get('strength') not in (None, ''):
+        try:
+            ae.denoising_strength = float(P['strength'])
+        except (TypeError, ValueError):
+            pass
+    if P.get('quality') not in (None, ''):
+        try:
+            ae.quality = int(P['quality'])
+        except (TypeError, ValueError):
+            pass
+    ae.save()
+    return JsonResponse({'id': ae.id, 'engine': ae.engine, 'mode': ae.mode,
+                         'denoising_strength': ae.denoising_strength, 'quality': ae.quality})
 
 
 @require_POST
