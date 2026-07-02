@@ -18,34 +18,13 @@
 
 {# ── Right panel : médias ─────────────────────────────────────────────────── #}
 {% block app_right_panel_media %}
-<div class="drop-zone drop-zone-sm mb-1" onclick="document.getElementById('batchFileInput').click()">
-    <i class="fas fa-file-import text-primary"></i>
-    <p class="mb-0 small text-light mt-1">Cliquez — fichier batch</p>
-    <small class="text-muted">TXT · MD · CSV · PDF · DOCX</small>
-    <input type="file" id="batchFileInput" accept=".txt,.md,.csv,.pdf,.docx" style="display:none">
-</div>
-<small class="text-muted d-block text-center" style="font-size:0.72rem;">Format : <code>fichier|prompt|modèle|durée</code></small>
-<!-- Batch detect bar (appears when batch file is selected) -->
-<div id="batchDetectBar" style="display:none; background:#1a1520; border:1px solid #0dcaf0;
-     border-radius:0.375rem; padding:0.5rem 0.75rem; margin-top:0.5rem;">
-    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-1">
-        <span class="small text-light">
-            <i class="fas fa-list text-info me-1"></i>
-            <span id="batchDetectedCount">0</span> piste(s) détectée(s)
-        </span>
-        <button class="btn btn-sm btn-outline-danger py-0 px-1" id="batchCancelBar" title="Annuler">
-            <i class="fas fa-times"></i>
-        </button>
-    </div>
-    <div class="d-flex gap-2 mt-2">
-        <button class="btn btn-success btn-sm flex-grow-1" id="batchCreateAndStartBtn">
-            <i class="fas fa-play"></i> Démarrer (<span id="batchCreateCount">0</span>)
-        </button>
-        <button class="btn btn-outline-primary btn-sm" id="batchCreateOnlyBtn">
-            <i class="fas fa-plus"></i> Ajouter
-        </button>
-    </div>
-</div>
+{% comment %}Dropzone + batch bar hand-built REMPLACÉES par la card commune « Nouvel élément »
+(_new_item_card, référence transcriber) en tête de file — vision « UNE surface = la file ».
+Les IDs (batchFileInput, batchDetectBar…) sont fournis par la brique → JS inchangé.{% endcomment %}
+<small class="text-muted d-block text-center" style="font-size:0.72rem;">
+    Import batch : card <i class="fas fa-plus-circle"></i> en tête de file ·
+    Format : <code>fichier|prompt|modèle|durée</code>
+</small>
 {% endblock %}
 
 {# ── Right panel : paramètres ────────────────────────────────────────────── #}
@@ -193,6 +172,10 @@ Un vrai MODE reviendra par APP_MODES si le comportement diverge un jour (cf. mel
 
 {# ── File d'attente ────────────────────────────────────────────────────── #}
 <div id="composerQueue">
+
+    {# Card « Nouvel élément » COMMUNE (_new_item_card, référence transcriber) : entrée batch. #}
+    {# IDs batchFileInput + barre batch communs → handlers WamaBatchImport existants inchangés. #}
+    {% include 'common/_new_item_card.html' with drop_zone_id='composerBatchDrop' file_input_id='batchFileInput' file_accept='.txt,.md,.csv,.pdf,.docx' formats_label='TXT · MD · CSV · PDF · DOCX — fichier|prompt|modèle|durée' show_batch_bar=True show_media_library=True media_library_type='document' %}
 
     {% for batch_info in batches_list %}
 

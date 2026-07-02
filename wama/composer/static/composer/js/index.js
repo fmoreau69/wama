@@ -330,6 +330,26 @@
             });
     }
 
+    // Card commune « Nouvel élément » : câblage clic + drag&drop de la zone vers batchFileInput
+    // (la brique _new_item_card fournit le markup ; l'app fournit les handlers — pattern transcriber).
+    const composerBatchDrop = document.getElementById('composerBatchDrop');
+    if (composerBatchDrop && batchFileInput) {
+        composerBatchDrop.addEventListener('click', () => batchFileInput.click());
+        composerBatchDrop.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            composerBatchDrop.classList.add('drop-zone-active');
+        });
+        composerBatchDrop.addEventListener('dragleave', () => composerBatchDrop.classList.remove('drop-zone-active'));
+        composerBatchDrop.addEventListener('drop', (e) => {
+            e.preventDefault();
+            composerBatchDrop.classList.remove('drop-zone-active');
+            if (e.dataTransfer.files.length) {
+                batchFileInput.files = e.dataTransfer.files;
+                batchFileInput.dispatchEvent(new Event('change'));
+            }
+        });
+    }
+
     // Batch file input: show detect bar when a file is selected
     if (batchFileInput) {
         batchFileInput.addEventListener('change', function () {
