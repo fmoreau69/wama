@@ -38,11 +38,16 @@ try:
 except ImportError:
     pass  # python-dotenv not installed — rely on environment variables
 
-# Bypass proxy for localhost
-os.environ['NO_PROXY'] = 'localhost,127.0.0.1,::1'
-os.environ['no_proxy'] = 'localhost,127.0.0.1,::1'
+# Hôte Ollama : surchargeable par env `OLLAMA_HOST` (défaut = localhost).
+# Nécessaire quand wama-dev-ai tourne dans WSL2 et qu'Ollama est sur l'HÔTE Windows : `127.0.0.1`
+# ne l'atteint pas, il faut l'IP de la gateway hôte (ex. http://172.29.240.1:11434).
+OLLAMA_HOST = os.environ.get('OLLAMA_HOST', "http://127.0.0.1:11434")
 
-OLLAMA_HOST = "http://127.0.0.1:11434"
+# Bypass proxy for localhost + l'hôte Ollama (sinon le Squid UGE intercepte).
+from urllib.parse import urlparse as _urlparse
+_ollama_host = _urlparse(OLLAMA_HOST).hostname or '127.0.0.1'
+os.environ['NO_PROXY'] = f'localhost,127.0.0.1,::1,{_ollama_host}'
+os.environ['no_proxy'] = os.environ['NO_PROXY']
 
 # ============================================================================
 # WAMA API Configuration (for VRAM clearing and Phase 2 health checks)
