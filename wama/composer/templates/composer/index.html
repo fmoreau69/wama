@@ -52,22 +52,9 @@
 {% block app_right_panel_settings %}
 {% include 'common/_inspector_banner.html' %}{# bandeau « Réglages de l'élément #N » (inspecteur contextuel) #}
 <div id="composerPanelParams">
-<!-- Type de génération -->
-<div class="mb-3">
-    <label class="form-label small fw-bold text-light">
-        <i class="fas fa-th-large"></i> Type
-    </label>
-    <div class="btn-group w-100" role="group">
-        <input type="radio" class="btn-check" name="gen_type" id="typeMusic" value="music" checked>
-        <label class="btn btn-outline-success btn-sm" for="typeMusic">
-            <i class="fas fa-music"></i> Musique
-        </label>
-        <input type="radio" class="btn-check" name="gen_type" id="typeSfx" value="sfx">
-        <label class="btn btn-outline-danger btn-sm" for="typeSfx">
-            <i class="fas fa-bolt"></i> Bruitages
-        </label>
-    </div>
-</div>
+{# Switch « Type » RETIRÉ (décision Fabien 2026-07-02) : il dupliquait le choix du modèle — le
+   type (music/sfx) est DÉRIVÉ du modèle (endpoint), la lisibilité vient des optgroups du select.
+   Un vrai MODE reviendra par APP_MODES si le comportement diverge un jour (cf. melody). #}
 
 <!-- Modèle -->
 <div class="mb-3">
@@ -306,17 +293,7 @@
             <div class="modal-body">
                 <input type="hidden" id="settingsGenId">
 
-                {# MODE (Musique / Bruitages) — miroir du switch du volet ; filtre la liste des modèles. #}
-                <div class="mb-3">
-                    <label class="form-label small mb-1"><i class="fas fa-layer-group me-1"></i>Type</label>
-                    <div class="btn-group w-100" role="group">
-                        <input type="radio" class="btn-check" name="settingsGenType" id="settingsTypeMusic" value="music">
-                        <label class="btn btn-sm btn-outline-success" for="settingsTypeMusic"><i class="fas fa-music me-1"></i>Musique</label>
-                        <input type="radio" class="btn-check" name="settingsGenType" id="settingsTypeSfx" value="sfx">
-                        <label class="btn btn-sm btn-outline-warning" for="settingsTypeSfx"><i class="fas fa-bolt me-1"></i>Bruitages</label>
-                    </div>
-                </div>
-
+                {# Switch « Type » RETIRÉ (décision Fabien) : type dérivé du modèle, optgroups = lisibilité. #}
                 {# Champs GÉNÉRÉS par WamaParams depuis le schéma manifeste (params.py, context 'item') — P1 #}
                 <div class="wama-params" id="composerSettingsFields"></div>
 
