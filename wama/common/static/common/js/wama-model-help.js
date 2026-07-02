@@ -89,8 +89,15 @@
       .then(function (data) {
         const meta = {};
         (data.models || []).forEach(function (m) {
-          const key = m[keyBy];
+          let key = m[keyBy];
           if (key == null) return;
+          // Clé d'option UI = id NU : les <select> des apps utilisent le model_key SANS le
+          // préfixe « source: » (cf. get_registry_models). Depuis l'alignement des model_key
+          // ({source}:{id}, REMOVAL_LEDGER F4), on retire donc le préfixe ici — sinon la meta
+          // ne matche plus les valeurs d'options (régression composer corrigée).
+          if (typeof key === 'string' && key.indexOf(source + ':') === 0) {
+            key = key.slice(source.length + 1);
+          }
           meta[key] = {
             description: m.description_short || m.description || '',
             description_long: m.description || '',

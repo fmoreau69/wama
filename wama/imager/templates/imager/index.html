@@ -1506,4 +1506,24 @@ function _mpInjectImage(file, inputId, previewId) {
         }
     });
 </script>
+
+<script>
+// Descriptifs modèle (courte + ⓘ longue) sous les 5 selects — brique COMMUNE WamaModelHelp,
+// meta = CATALOGUE model_manager (remplace le chemin maison data-description, courte seule,
+// retiré de index.js — cf. REMOVAL_LEDGER R15). Pattern identique à composer.
+(function () {
+    if (!window.WamaModelHelp) return;
+    WamaModelHelp.fetchCatalogMeta('imager', { keyBy: 'id' }).then(function (meta) {
+        [
+            ['model',                'model_description'],
+            ['panel_video_model',    'panel_video_model_description'],
+            ['video_model',          'video_model_description'],
+            ['settings_model',       'settings_model_description'],
+            ['video_settings_model', 'video_settings_model_description'],
+        ].forEach(function (pair) {
+            WamaModelHelp.init({ selectId: pair[0], helpId: pair[1], meta: meta });
+        });
+    }).catch(function () {});
+})();
+</script>
 {% endblock %}

@@ -21,7 +21,11 @@
         initializeVideoTab();
         initializeTabPersistence();
         initializeRightPanelSync();
-        initializeModelDescriptions();
+        // initializeModelDescriptions() RETIRÉ : descriptifs modèle (courte + ⓘ longue) rendus
+        // par le composant COMMUN WamaModelHelp, meta = CATALOGUE (fetchCatalogMeta('imager')
+        // dans index.html). L'ancien chemin data-description ne portait que la courte (pas
+        // d'overlay) et double-écrirait les mêmes éléments. Fonction conservée le temps de la
+        // transition (REMOVAL_LEDGER R15).
         initializeResolutionSelectors();
         startProgressPolling();
 
