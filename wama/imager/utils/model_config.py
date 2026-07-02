@@ -95,6 +95,9 @@ HUNYUAN_MODELS = {
         'mode': 't2i',
         'vram_gb': 16,
         'description': 'HunyuanImage 2.1 — qualité max, text rendering, 1K-4K',
+        'description_long': "HunyuanImage 2.1 (Tencent) : génération d'images haut de gamme, "
+                            "excellent rendu du texte dans l'image et résolutions 1K à 4K. "
+                            "Le choix qualité maximale quand le temps de génération importe peu.",
     },
 }
 
@@ -110,6 +113,9 @@ COGVIDEOX_MODELS = {
         'fps': 24,
         'resolution': '720x480',
         'description': 'CogVideoX 5B — Text-to-Video, 24 fps',
+        'description_long': "CogVideoX 5B (Zhipu/THUDM) : génération de vidéo depuis un prompt "
+                            "texte, clips fluides à 24 images/s. Bon équilibre qualité/mouvement "
+                            "pour des plans courts.",
     },
     'cogvideox-5b-i2v': {
         'model_id': 'cogvideox-5b-i2v',
@@ -121,6 +127,9 @@ COGVIDEOX_MODELS = {
         'fps': 24,
         'resolution': '720x480',
         'description': 'CogVideoX 5B — Image-to-Video, 24 fps',
+        'description_long': "CogVideoX 5B I2V (Zhipu/THUDM) : anime une image de référence en "
+                            "clip vidéo 24 images/s, guidé par le prompt. Idéal pour donner vie "
+                            "à une illustration ou une photo.",
     },
 }
 
@@ -139,6 +148,9 @@ LTX_MODELS = {
         'fps': 24,
         'resolution': '1216x704',
         'description': 'LTX-Video 13B Distilled — rapide, T2V + I2V',
+        'description_long': "LTX-Video 13B Distilled (Lightricks) : génération vidéo rapide, en "
+                            "texte-vers-vidéo comme en image-vers-vidéo. La distillation réduit "
+                            "fortement le nombre d'étapes — bon choix par défaut pour itérer vite.",
     },
     # ── 13B Distilled FP8 — meilleur ratio qualité/VRAM sur RTX 4090 ─────────
     'ltx-video-13b-0.9.8-distilled-fp8': {
@@ -152,6 +164,9 @@ LTX_MODELS = {
         'resolution': '1216x704',
         'quantization': 'fp8',
         'description': 'LTX-Video 13B Distilled FP8 — léger, T2V + I2V',
+        'description_long': "LTX-Video 13B Distilled en quantification FP8 : mêmes usages que la "
+                            "version distillée (T2V + I2V) avec une empreinte mémoire réduite, au "
+                            "prix d'une légère perte de qualité. Pour GPU plus modestes.",
     },
 }
 
@@ -167,6 +182,9 @@ MOCHI_MODELS = {
         'fps': 30,
         'resolution': '848x480',
         'description': 'Mochi-1 Preview — haute qualité, 30 fps',
+        'description_long': "Mochi-1 Preview (Genmo) : génération vidéo haute fidélité à 30 "
+                            "images/s, mouvements naturels et bonne adhérence au prompt. Le plus "
+                            "gourmand des modèles vidéo — à réserver aux rendus soignés.",
     },
 }
 
@@ -179,6 +197,9 @@ STABLE_DIFFUSION_MODELS = {
         'pipeline': 'sd',
         'vram_gb': 4,
         'description': 'Stable Diffusion 1.5 — classique (compatibilité LoRA)',
+        'description_long': "Stable Diffusion 1.5 (Runway/CompVis) : le classique historique de la "
+                            "génération d'images, porté par le plus vaste écosystème de LoRA et de "
+                            "fine-tunes. Qualité datée en natif, mais base de compatibilité inégalée.",
     },
     'stable-diffusion-xl': {
         'model_id': 'stable-diffusion-xl',
@@ -187,6 +208,9 @@ STABLE_DIFFUSION_MODELS = {
         'pipeline': 'sdxl',
         'vram_gb': 10,
         'description': 'Stable Diffusion XL — haute résolution (compatibilité LoRA)',
+        'description_long': "Stable Diffusion XL (Stability AI) : génération native en 1024 px, "
+                            "compositions et anatomies bien plus fiables que SD 1.5, large choix "
+                            "de LoRA. La valeur sûre polyvalente de la famille Stable Diffusion.",
     },
     'dreamlike-art-2': {
         'model_id': 'dreamlike-art-2',
@@ -195,6 +219,9 @@ STABLE_DIFFUSION_MODELS = {
         'pipeline': 'sd',
         'vram_gb': 4,
         'description': 'Dreamlike Art — style artistique',
+        'description_long': "Dreamlike Diffusion 2 : fine-tune de Stable Diffusion 1.5 au rendu "
+                            "pictural et onirique marqué. Pour des visuels d'ambiance artistique "
+                            "sans prompt engineering élaboré.",
     },
     'deliberate-v6': {
         'model_id': 'deliberate-v6',
@@ -204,6 +231,9 @@ STABLE_DIFFUSION_MODELS = {
         'pipeline': 'sd',
         'vram_gb': 4,
         'description': 'Deliberate v6 — réaliste/artistique',
+        'description_long': "Deliberate v6 : fine-tune SD 1.5 réputé pour son équilibre entre "
+                            "photoréalisme et rendu artistique, avec une bonne réponse aux prompts "
+                            "détaillés. Polyvalent portraits/scènes.",
     },
     # Alignés sur diffusers_backend.SUPPORTED_MODELS : étaient offerts par le dropdown mais
     # absents de la découverte → registre incomplet. Ajoutés pour aligner registre ↔ dropdown.
@@ -214,6 +244,9 @@ STABLE_DIFFUSION_MODELS = {
         'pipeline': 'sd',
         'vram_gb': 6,
         'description': 'Stable Diffusion 2.1 — meilleure cohérence',
+        'description_long': "Stable Diffusion 2.1 (Stability AI) : itération 768 px de SD, "
+                            "cohérence améliorée par rapport à 1.5 mais écosystème LoRA plus "
+                            "restreint. Intermédiaire entre SD 1.5 et SDXL.",
     },
     'dreamshaper-8': {
         'model_id': 'dreamshaper-8',
@@ -222,6 +255,9 @@ STABLE_DIFFUSION_MODELS = {
         'pipeline': 'sd',
         'vram_gb': 4,
         'description': 'DreamShaper 8 — polyvalent, bon rapport qualité/vitesse',
+        'description_long': "DreamShaper 8 : fine-tune SD 1.5 très polyvalent (réalisme, fantasy, "
+                            "illustration) avec un excellent rapport qualité/vitesse. Bon choix "
+                            "par défaut en famille SD 1.5.",
     },
     'anything-v5': {
         'model_id': 'anything-v5',
@@ -230,6 +266,9 @@ STABLE_DIFFUSION_MODELS = {
         'pipeline': 'sd',
         'vram_gb': 4,
         'description': 'Anything V5 — style anime/manga',
+        'description_long': "Anything V5 : fine-tune SD 1.5 spécialisé anime/manga, traits nets "
+                            "et aplats caractéristiques. La référence du style japonais en "
+                            "génération locale légère.",
     },
 }
 
@@ -248,6 +287,9 @@ QWEN_IMAGE_MODELS = {
         'disk_gb': 40,
         'resolution': 2048,
         'description': 'Qwen Image 2 (20B) — #1 open source, text rendering, 2K natif',
+        'description_long': "Qwen-Image 2 (Alibaba, 20B) : parmi les meilleurs modèles image "
+                            "open-source, rendu du texte dans l'image remarquable et 2K natif. "
+                            "Qualité proche des services propriétaires, au prix d'une VRAM élevée.",
         'license': 'apache-2.0',
     },
     'qwen-image-edit': {
@@ -260,6 +302,9 @@ QWEN_IMAGE_MODELS = {
         'disk_gb': 25,
         'resolution': 2048,
         'description': 'Qwen Image Edit — édition multi-image, 14 images, 2K',
+        'description_long': "Qwen-Image-Edit (Alibaba) : édition d'images guidée par instruction "
+                            "— retouche, fusion et composition jusqu'à 14 images de référence, "
+                            "sortie 2K. Pour modifier une image existante plutôt qu'en créer une.",
         'license': 'apache-2.0',
     },
 }
@@ -279,6 +324,9 @@ FLUX2_KLEIN_MODELS = {
         'disk_gb': 16,
         'resolution': 1024,
         'description': 'FLUX.2 Klein 4B — ultra-rapide (<1 s), Apache 2.0',
+        'description_long': "FLUX.2 Klein 4B (Black Forest Labs) : version distillée ultra-rapide "
+                            "de FLUX.2 — image en moins d'une seconde, licence Apache 2.0. Parfait "
+                            "pour itérer sur des idées avant un rendu final sur un modèle lourd.",
         'license': 'apache-2.0',
         'default_guidance_scale': 1.0,
         'default_steps': 4,
@@ -312,6 +360,9 @@ LOGO_MODELS = {
         'default_steps': 24,
         'license': 'flux-1-dev-non-commercial',
         'description': 'FLUX Logo Design LoRA — logos pro, open-source, max 768 px',
+        'description_long': "FLUX Logo Design (Shakker-Labs) : LoRA spécialisé création de logos "
+                            "professionnels sur base FLUX, réglages dédiés appliqués "
+                            "automatiquement. Référence open-source du domaine.",
         'prompt_tips': [
             'Dual Combination: "wablogo, Minimalist, Dual Combination: mountain and coffee cup"',
             'Font Combination: "wablogo, logo, Minimalist, Font Combination: rocket with letter S"',

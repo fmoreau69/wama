@@ -261,7 +261,10 @@ class ModelRegistry:
                     name=name,
                     model_type=ModelType.DIFFUSION,
                     source=ModelSource.WAMA_IMAGER,
-                    description=config.get('description', ''),
+                    # Deux champs SÉPARÉS (format transcriber) : court sous le select,
+                    # long autonome en overlay ⓘ (cf. model_config 'description_long').
+                    description=config.get('description_long') or config.get('description', ''),
+                    description_short=config.get('description', ''),
                     hf_id=hf_id,
                     vram_gb=vram_gb,
                     is_loaded=is_loaded,
