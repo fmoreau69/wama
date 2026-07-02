@@ -128,6 +128,28 @@
         });
     }
 
+    // Switch MODE de la modale (Musique/Bruitages, miroir du volet) : filtre les modèles et
+    // resélectionne le premier visible si le modèle courant n'appartient pas au mode choisi.
+    document.querySelectorAll('input[name="settingsGenType"]').forEach(radio => {
+        radio.addEventListener('change', () => {
+            _filterSettingsModels(radio.value);
+            if (settingsModel) {
+                const cur = settingsModel.selectedOptions[0];
+                if (!cur || cur.hidden) {
+                    const first = Array.from(settingsModel.options).find(o => !o.hidden);
+                    if (first) settingsModel.value = first.value;
+                }
+            }
+            updateSettingsEstimate();
+        });
+    });
+
+    // Coche le radio de mode correspondant au type d'un item (music par défaut).
+    function _setSettingsType(genType) {
+        const r = document.getElementById(genType === 'sfx' ? 'settingsTypeSfx' : 'settingsTypeMusic');
+        if (r) r.checked = true;
+    }
+
     if (settingsDuration) {
         settingsDuration.addEventListener('input', function () {
             settingsDurationVal.textContent = _fmtDur(this.value);
@@ -480,6 +502,7 @@
             window._composerBatchSettingsId = batchSettingsBtn.dataset.batchId;
             document.getElementById('settingsGenId').value = firstItemBtn ? firstItemBtn.dataset.id : '';
             _filterSettingsModels(firstItemBtn ? firstItemBtn.dataset.genType : null);
+            _setSettingsType(firstItemBtn ? firstItemBtn.dataset.genType : 'music');
             if (settingsModel) settingsModel.value = (firstItemBtn && firstItemBtn.dataset.model) || 'musicgen-small';
             if (settingsDuration) {
                 settingsDuration.value = (firstItemBtn && firstItemBtn.dataset.duration) || 10;
@@ -497,6 +520,7 @@
             document.getElementById('settingsGenId').value = id;
             // MODE : filtrer AVANT de poser la valeur (sinon option cachée ≠ sélectionnable).
             _filterSettingsModels(settingsBtn.dataset.genType);
+            _setSettingsType(settingsBtn.dataset.genType);
             if (settingsModel) settingsModel.value = settingsBtn.dataset.model || 'musicgen-small';
             if (settingsDuration) {
                 settingsDuration.value = settingsBtn.dataset.duration || 10;

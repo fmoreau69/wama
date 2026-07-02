@@ -133,10 +133,18 @@
       const rattrs = [p.min != null ? 'min="' + p.min + '"' : '',
                       p.max != null ? 'max="' + p.max + '"' : '',
                       p.step != null ? 'step="' + p.step + '"' : ''].join(' ');
-      inner = '<div class="wama-range d-flex align-items-center gap-2">' +
+      // Valeur courante à droite + bornes min/max SOUS le slider (lisibilité, cf. volet composer).
+      inner = '<div class="wama-range">' +
+        '<div class="d-flex align-items-center gap-2">' +
         '<input type="range" class="form-range" id="' + id + '" ' + idA + ' value="' + esc(v) + '" ' + rattrs +
         ' oninput="this.parentNode.querySelector(\'.wama-range-val\').textContent=this.value">' +
-        '<span class="wama-range-val small text-muted">' + esc(v) + '</span></div>';
+        '<span class="wama-range-val small text-muted">' + esc(v) + '</span></div>' +
+        ((p.min != null || p.max != null)
+          ? '<div class="d-flex justify-content-between small text-muted" style="margin-top:-4px;opacity:.7">' +
+            '<span>' + (p.min != null ? esc(p.min) : '') + '</span>' +
+            '<span>' + (p.max != null ? esc(p.max) : '') + '</span></div>'
+          : '') +
+        '</div>';
     } else {
       inner = '<input type="text" class="form-control form-control-sm" id="' + id + '" ' +
         idA + ' value="' + esc(v) + '">';

@@ -14,9 +14,7 @@ PANEL = ("panel",)
 PANEL_ITEM = ("panel", "item")
 
 PARAMS = [
-    # Prompt éditable par item (modale seulement : le volet a sa zone de composition dédiée).
-    Param(name="prompt", type="textarea", label="Prompt", icon="fa-pen",
-          dom_id={"item": "settingsPrompt"}, contexts=("item",)),
+    # Ordre = celui du VOLET (Type[switch statique] → Modèle → Durée → Prompt → Format → Qualité).
     # `option_groups` depuis COMPOSER_MODELS (même source que le <select> legacy), groupés par
     # MODE Musique/Bruitages — miroir des optgroups du volet ; le JS masque le groupe non
     # pertinent selon le generation_type de l'item. Volet : select serveur (#modelSelect,
@@ -31,6 +29,9 @@ PARAMS = [
           ]),
     Param(name="duration", type="range", label="Durée (s)", icon="fa-clock", min=10, max=600, step=5,
           dom_id={"panel": "durationSlider", "item": "settingsDuration"}, contexts=PANEL_ITEM),
+    # Prompt éditable par item (modale seulement : le volet a sa zone de composition dédiée).
+    Param(name="prompt", type="textarea", label="Prompt", icon="fa-pen",
+          dom_id={"item": "settingsPrompt"}, contexts=("item",)),
 ]
 
 # Format + qualité de sortie depuis la brique commune (audio, early-binding auto via le catalogue).

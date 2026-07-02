@@ -297,7 +297,7 @@
 {% block extra_modals %}
 {# ── Modal paramètres individuels ─────────────────────────────────────── #}
 <div class="modal fade" id="settingsModal" tabindex="-1">
-    <div class="modal-dialog modal-sm">
+    <div class="modal-dialog">
         <div class="modal-content bg-dark text-light border-secondary">
             <div class="modal-header border-secondary py-2">
                 <h6 class="modal-title"><i class="fas fa-cog me-2"></i>Paramètres de génération</h6>
@@ -306,27 +306,28 @@
             <div class="modal-body">
                 <input type="hidden" id="settingsGenId">
 
+                {# MODE (Musique / Bruitages) — miroir du switch du volet ; filtre la liste des modèles. #}
+                <div class="mb-3">
+                    <label class="form-label small mb-1"><i class="fas fa-layer-group me-1"></i>Type</label>
+                    <div class="btn-group w-100" role="group">
+                        <input type="radio" class="btn-check" name="settingsGenType" id="settingsTypeMusic" value="music">
+                        <label class="btn btn-sm btn-outline-success" for="settingsTypeMusic"><i class="fas fa-music me-1"></i>Musique</label>
+                        <input type="radio" class="btn-check" name="settingsGenType" id="settingsTypeSfx" value="sfx">
+                        <label class="btn btn-sm btn-outline-warning" for="settingsTypeSfx"><i class="fas fa-bolt me-1"></i>Bruitages</label>
+                    </div>
+                </div>
+
                 {# Champs GÉNÉRÉS par WamaParams depuis le schéma manifeste (params.py, context 'item') — P1 #}
-                {# IDs legacy préservés via dom_id (settingsModel/settingsDuration) → JS fill/save/ETA inchangé. #}
-                {# L'ancien select portait des data-gen-factor/overhead MORTS (l'ETA lit window.COMPOSER_MODELS). #}
                 <div class="wama-params" id="composerSettingsFields"></div>
 
-                {# Estimation de génération (widget app-spécifique, alimenté par estimateSeconds/COMPOSER_MODELS) #}
-                <div class="text-end small mb-1">
-                    <span class="text-info"><span id="settingsDurationVal">10s</span>
-                    <span class="text-muted ms-1 small" id="settingsEstimate">~20s</span></span>
+                {# Estimation (app-spécifique) : déplacée par script à côté de la valeur du slider Durée. #}
+                <div class="d-none">
+                    <span id="settingsDurationVal" class="d-none">10s</span>
+                    <span class="text-info small" id="settingsEstimate">~20s</span>
                 </div>
             </div>
-            {# Pied CONFORME (convention modale, cf. transcriber) : Annuler / Enregistrer / Enregistrer et relancer #}
-            <div class="modal-footer border-secondary py-2">
-                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Annuler</button>
-                <button type="button" class="btn btn-sm btn-primary" id="settingsSaveBtn">
-                    <i class="fas fa-save me-1"></i>Enregistrer
-                </button>
-                <button type="button" class="btn btn-sm btn-success" id="settingsSaveRestartBtn">
-                    <i class="fas fa-rotate-right me-1"></i>Enregistrer et relancer
-                </button>
-            </div>
+            {# Pied de modale COMMUN (convention MODAL_ACTIONS_AUDIT §3) #}
+            {% include 'common/_settings_modal_footer.html' with save_id='settingsSaveBtn' save_start_id='settingsSaveRestartBtn' save_start_label='Enregistrer et relancer' save_start_icon='fa-rotate-right' %}
         </div>
     </div>
 </div>
@@ -387,6 +388,13 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!window.WamaParams) { console.warn('[composer] WamaParams absent — modale non générée'); return; }
     var host = document.getElementById('composerSettingsFields');
     if (host) WamaParams.render(host, {{ params_json|safe }}, { context: 'item' });
+    // Estimation (~20s) : placée à côté de la valeur du slider Durée (comme le volet).
+    var dur = document.getElementById('settingsDuration');
+    var est = document.getElementById('settingsEstimate');
+    if (dur && est) {
+        var val = dur.closest('.wama-range') && dur.closest('.wama-range').querySelector('.wama-range-val');
+        if (val) val.insertAdjacentElement('afterend', est);
+    }
 })();
 </script>
 
