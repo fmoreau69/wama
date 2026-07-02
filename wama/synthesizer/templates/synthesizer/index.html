@@ -88,6 +88,8 @@
         <option value="{{ value }}" {% if value == 'xtts_v2' %}selected{% endif %}>{{ label }}</option>
         {% endfor %}
     </select>
+    {# Descriptif modèle (courte + ⓘ longue) lu du CATALOGUE (vue) via WamaModelHelp — cf. transcriber #}
+    <small id="ttsModelHelp" class="text-muted d-block mt-1"></small>
 </div>
 
 <!-- Higgs Audio options (hidden by default, shown when higgs_audio selected) -->
@@ -853,6 +855,16 @@ document.addEventListener('DOMContentLoaded', function () {
     // Filtrage dynamique voix/langues selon les capacités du modèle TTS (AIModel.capabilities).
     // Voix de clonage (« Mes voix » ua_/cv_) masquées si le modèle ne clone pas ; langues
     // restreintes à celles du modèle. Dégradation douce si le catalogue est indisponible.
+    // Descriptif modèle (courte + ⓘ longue) sous le select — meta lue du CATALOGUE (vue),
+    // rendue par le composant commun (chargé globalement dans base.html).
+    if (window.WamaModelHelp) {
+        WamaModelHelp.init({
+            selectId: 'tts_model',
+            helpId: 'ttsModelHelp',
+            meta: {{ tts_model_help_meta|safe }},
+        });
+    }
+
     if (window.WamaModelCaps) {
         WamaModelCaps.init({
             source: 'synthesizer',

@@ -190,8 +190,30 @@ class IndexView(View):
             'voice_presets_choices': VoiceSynthesis.VOICE_PRESET_CHOICES,
             'voice_refs_groups': voice_refs_groups,
             'params_json': json.dumps(_SYNTH_PARAMS_JSON),
+            'tts_model_help_meta': json.dumps(self._tts_model_help_meta()),
         }
         return render(request, 'synthesizer/index.html', context)
+
+    @staticmethod
+    def _tts_model_help_meta():
+        """Meta {valeur_option: {description, description_long, vram_gb}} pour WamaModelHelp,
+        lue depuis le CATALOGUE `AIModel` (source unique — les descriptions sont déclarées dans
+        `model_config.REGISTRY_MODEL_DESCRIPTIONS` et synchronisées au catalogue). Fail-safe :
+        {} si catalogue indisponible (l'aide reste simplement vide)."""
+        try:
+            from wama.model_manager.models import AIModel
+            from .utils.model_config import ENGINE_CATALOG_KEYS
+            keys = {f"synthesizer:{k}": engine for engine, k in ENGINE_CATALOG_KEYS.items()}
+            meta = {}
+            for m in AIModel.objects.filter(model_key__in=keys):
+                meta[keys[m.model_key]] = {
+                    'description': m.description_short or '',
+                    'description_long': m.description or '',
+                    'vram_gb': m.vram_gb,
+                }
+            return meta
+        except Exception:
+            return {}
 
 
 class AboutView(TemplateView):
