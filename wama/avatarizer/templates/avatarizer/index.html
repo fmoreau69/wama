@@ -649,8 +649,10 @@ window.WAMA_GLOBAL_PROGRESS_URL = "{% url 'avatarizer:global_progress' %}";
 // per-user injectés par la vue (brique commune get_voice_groups) via optionsResolver.
 (function () {
     if (!window.WamaParams) { console.warn('[avatarizer] WamaParams absent — modale non générée'); return; }
-    var schema = {{ params_json|safe }};
-    var voiceGroups = {{ voice_groups_json|safe }};
+    {# |default:"[]" : si la vue n'a pas (encore) fourni la variable (ex. serveur non redémarré), #}
+    {# on dégrade en select de voix vide au lieu de tuer TOUT le script par une erreur de syntaxe. #}
+    var schema = {{ params_json|default:"[]"|safe }};
+    var voiceGroups = {{ voice_groups_json|default:"[]"|safe }};
     var resolver = function (p) { return p.options_source === 'voices' ? voiceGroups : null; };
     var tts = ['tts_model', 'language', 'voice_preset'];
     var hostTts = document.getElementById('avatarizerTtsFields');
