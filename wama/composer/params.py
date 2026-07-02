@@ -14,12 +14,21 @@ PANEL = ("panel",)
 PANEL_ITEM = ("panel", "item")
 
 PARAMS = [
-    # `choices` depuis COMPOSER_MODELS (même source que le <select> legacy : label = description
-    # courte) → la MODALE est générée par WamaParams (context 'item', P1) ; le volet garde son
-    # select serveur (#modelSelect, initFromSchema lit/applique par dom_id sans re-rendre).
+    # Prompt éditable par item (modale seulement : le volet a sa zone de composition dédiée).
+    Param(name="prompt", type="textarea", label="Prompt", icon="fa-pen",
+          dom_id={"item": "settingsPrompt"}, contexts=("item",)),
+    # `option_groups` depuis COMPOSER_MODELS (même source que le <select> legacy), groupés par
+    # MODE Musique/Bruitages — miroir des optgroups du volet ; le JS masque le groupe non
+    # pertinent selon le generation_type de l'item. Volet : select serveur (#modelSelect,
+    # initFromSchema lit/applique par dom_id sans re-rendre) ; modale : rendue par WamaParams (P1).
     Param(name="model", type="select", label="Modèle", icon="fa-music",
           dom_id={"panel": "modelSelect", "item": "settingsModel"}, contexts=PANEL_ITEM,
-          choices=[(mid, cfg['description']) for mid, cfg in COMPOSER_MODELS.items()]),
+          option_groups=[
+              ("Musique", [(mid, cfg['description']) for mid, cfg in COMPOSER_MODELS.items()
+                           if cfg.get('type') == 'music']),
+              ("Bruitages", [(mid, cfg['description']) for mid, cfg in COMPOSER_MODELS.items()
+                             if cfg.get('type') != 'music']),
+          ]),
     Param(name="duration", type="range", label="Durée (s)", icon="fa-clock", min=10, max=600, step=5,
           dom_id={"panel": "durationSlider", "item": "settingsDuration"}, contexts=PANEL_ITEM),
 ]
@@ -27,9 +36,9 @@ PARAMS = [
 # Format + qualité de sortie depuis la brique commune (audio, early-binding auto via le catalogue).
 PARAMS += output_format_params_for_app(
     "composer",
-    contexts=PANEL,
-    dom_id_format={"panel": "output_format"},
-    dom_id_quality={"panel": "output_quality"},
+    contexts=PANEL_ITEM,
+    dom_id_format={"panel": "output_format", "item": "settingsOutputFormat"},
+    dom_id_quality={"panel": "output_quality", "item": "settingsOutputQuality"},
 )
 
 PARAMS_JSON = schema_to_dicts(PARAMS)

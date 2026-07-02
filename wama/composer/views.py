@@ -310,21 +310,32 @@ def update_settings(request, pk):
     # Update generation type based on new model
     generation_type = COMPOSER_MODELS[model_id]['type']
 
+    gen.model = model_id
+    gen.duration = duration
+    gen.generation_type = generation_type
+    # Prompt éditable (modale complète P1) — on ne l'écrase pas s'il est vide.
+    prompt = request.POST.get('prompt')
+    if prompt is not None and prompt.strip():
+        gen.prompt = prompt.strip()
+    # Format/qualité de sortie (early-binding, per-item) si fournis
+    if request.POST.get('output_format'):
+        gen.output_format = request.POST['output_format']
+    if request.POST.get('output_quality'):
+        gen.output_quality = request.POST['output_quality']
+
+    # Pied de modale CONFORME : « Enregistrer » (restart=0) sauve SANS purger la sortie ni
+    # relancer ; « Enregistrer et relancer » (restart=1, défaut historique) purge + re-run.
+    restart = request.POST.get('restart', '1') == '1'
+    if not restart:
+        gen.save()
+        return JsonResponse({'success': True, 'status': gen.status, 'restarted': False})
+
     # Clear previous output
     if gen.audio_output:
         try:
             gen.audio_output.delete(save=False)
         except Exception:
             pass
-
-    gen.model = model_id
-    gen.duration = duration
-    gen.generation_type = generation_type
-    # Format/qualité de sortie (early-binding, per-item) si fournis
-    if request.POST.get('output_format'):
-        gen.output_format = request.POST['output_format']
-    if request.POST.get('output_quality'):
-        gen.output_quality = request.POST['output_quality']
     gen.status = 'PENDING'
     gen.progress = 0
     gen.audio_output = None
@@ -338,7 +349,7 @@ def update_settings(request, pk):
     gen.task_id = task.id
     gen.save(update_fields=['task_id'])
 
-    return JsonResponse({'success': True, 'status': 'PENDING'})
+    return JsonResponse({'success': True, 'status': 'PENDING', 'restarted': True})
 
 
 # ---------------------------------------------------------------------------

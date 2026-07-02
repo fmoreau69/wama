@@ -114,6 +114,20 @@
         settingsEstimate.textContent = formatDuration(est);
     }
 
+    // MODE de l'item (Musique vs Bruitages) : ne proposer que les modèles pertinents.
+    // Source = window.COMPOSER_MODELS (type par modèle, même vérité que le volet).
+    // genType falsy → tout ré-afficher (repli batch hétérogène).
+    function _filterSettingsModels(genType) {
+        if (!settingsModel) return;
+        Array.from(settingsModel.options).forEach(opt => {
+            const m = (window.COMPOSER_MODELS || {})[opt.value];
+            opt.hidden = !!(genType && m && m.type && m.type !== genType);
+        });
+        Array.from(settingsModel.querySelectorAll('optgroup')).forEach(g => {
+            g.hidden = Array.from(g.querySelectorAll('option')).every(o => o.hidden);
+        });
+    }
+
     if (settingsDuration) {
         settingsDuration.addEventListener('input', function () {
             settingsDurationVal.textContent = _fmtDur(this.value);
@@ -465,6 +479,7 @@
             const firstItemBtn = group ? group.querySelector('.settings-btn') : null;
             window._composerBatchSettingsId = batchSettingsBtn.dataset.batchId;
             document.getElementById('settingsGenId').value = firstItemBtn ? firstItemBtn.dataset.id : '';
+            _filterSettingsModels(firstItemBtn ? firstItemBtn.dataset.genType : null);
             if (settingsModel) settingsModel.value = (firstItemBtn && firstItemBtn.dataset.model) || 'musicgen-small';
             if (settingsDuration) {
                 settingsDuration.value = (firstItemBtn && firstItemBtn.dataset.duration) || 10;
@@ -480,11 +495,20 @@
             window._composerBatchSettingsId = null;
             const id = settingsBtn.dataset.id;
             document.getElementById('settingsGenId').value = id;
+            // MODE : filtrer AVANT de poser la valeur (sinon option cachée ≠ sélectionnable).
+            _filterSettingsModels(settingsBtn.dataset.genType);
             if (settingsModel) settingsModel.value = settingsBtn.dataset.model || 'musicgen-small';
             if (settingsDuration) {
                 settingsDuration.value = settingsBtn.dataset.duration || 10;
                 settingsDurationVal.textContent = _fmtDur(settingsDuration.value);
             }
+            // Modale complète (P1) : prompt + format/qualité de sortie.
+            const sp = document.getElementById('settingsPrompt');
+            if (sp) sp.value = settingsBtn.dataset.prompt || '';
+            const sof = document.getElementById('settingsOutputFormat');
+            if (sof && settingsBtn.dataset.outputFormat) sof.value = settingsBtn.dataset.outputFormat;
+            const soq = document.getElementById('settingsOutputQuality');
+            if (soq && settingsBtn.dataset.outputQuality) soq.value = settingsBtn.dataset.outputQuality;
             updateSettingsEstimate();
             new bootstrap.Modal(document.getElementById('settingsModal')).show();
             return;
@@ -508,53 +532,63 @@
 
     });
 
-    // Settings save
-    const settingsSaveBtn = document.getElementById('settingsSaveBtn');
-    if (settingsSaveBtn) {
-        settingsSaveBtn.addEventListener('click', () => {
-            // Mode batch : applique modèle + durée à tous les items du batch.
-            if (window._composerBatchSettingsId) {
-                const bid = window._composerBatchSettingsId;
-                window._composerBatchSettingsId = null;
-                const fd = new FormData();
-                fd.append('csrfmiddlewaretoken', CSRF);
-                fd.append('model', settingsModel.value);
-                fd.append('duration', settingsDuration.value);
-                fetch(`/composer/batch/${bid}/update/`, { method: 'POST', body: fd })
-                    .then(r => r.json())
-                    .then(() => {
-                        bootstrap.Modal.getInstance(document.getElementById('settingsModal'))?.hide();
-                        location.reload();
-                    })
-                    .catch(() => {});
-                return;
-            }
-            const id = document.getElementById('settingsGenId').value;
-            const formData = new FormData();
-            formData.append('csrfmiddlewaretoken', CSRF);
-            formData.append('model', settingsModel.value);
-            formData.append('duration', settingsDuration.value);
-
-            fetch(`/composer/settings/${id}/`, { method: 'POST', body: formData })
+    // Settings save — pied CONFORME : « Enregistrer » (sans relance) / « Enregistrer et relancer ».
+    function _postSettings(restart) {
+        // Mode batch : applique modèle + durée à tous les items du batch (endpoint batch inchangé).
+        if (window._composerBatchSettingsId) {
+            const bid = window._composerBatchSettingsId;
+            window._composerBatchSettingsId = null;
+            const fd = new FormData();
+            fd.append('csrfmiddlewaretoken', CSRF);
+            fd.append('model', settingsModel.value);
+            fd.append('duration', settingsDuration.value);
+            fetch(`/composer/batch/${bid}/update/`, { method: 'POST', body: fd })
                 .then(r => r.json())
-                .then(d => {
-                    if (d.success) {
-                        bootstrap.Modal.getInstance(document.getElementById('settingsModal'))?.hide();
-                        // Update card meta with new estimate
-                        genMeta[id] = {
-                            estimatedSeconds: estimateSeconds(settingsModel.value, parseFloat(settingsDuration.value)),
-                            startedAt: Date.now(),
-                            lastProgress: 0,
-                        };
-                        updateCardStatus(id, 'PENDING', 0);
-                        startPolling(parseInt(id));
-                        updateGlobalBar();
-                    } else {
-                        alert('Erreur : ' + (d.error || 'inconnue'));
-                    }
-                });
-        });
+                .then(() => {
+                    bootstrap.Modal.getInstance(document.getElementById('settingsModal'))?.hide();
+                    location.reload();
+                })
+                .catch(() => {});
+            return;
+        }
+        const id = document.getElementById('settingsGenId').value;
+        const formData = new FormData();
+        formData.append('csrfmiddlewaretoken', CSRF);
+        formData.append('model', settingsModel.value);
+        formData.append('duration', settingsDuration.value);
+        // Modale complète (P1) : prompt + format/qualité de sortie.
+        const sp = document.getElementById('settingsPrompt');
+        if (sp) formData.append('prompt', sp.value);
+        const sof = document.getElementById('settingsOutputFormat');
+        if (sof) formData.append('output_format', sof.value);
+        const soq = document.getElementById('settingsOutputQuality');
+        if (soq) formData.append('output_quality', soq.value);
+        formData.append('restart', restart ? '1' : '0');
+
+        fetch(`/composer/settings/${id}/`, { method: 'POST', body: formData })
+            .then(r => r.json())
+            .then(d => {
+                if (d.success) {
+                    bootstrap.Modal.getInstance(document.getElementById('settingsModal'))?.hide();
+                    if (!d.restarted) return;   // Enregistrer simple : rien à relancer
+                    // Update card meta with new estimate
+                    genMeta[id] = {
+                        estimatedSeconds: estimateSeconds(settingsModel.value, parseFloat(settingsDuration.value)),
+                        startedAt: Date.now(),
+                        lastProgress: 0,
+                    };
+                    updateCardStatus(id, 'PENDING', 0);
+                    startPolling(parseInt(id));
+                    updateGlobalBar();
+                } else {
+                    alert('Erreur : ' + (d.error || 'inconnue'));
+                }
+            });
     }
+    const settingsSaveBtn = document.getElementById('settingsSaveBtn');
+    if (settingsSaveBtn) settingsSaveBtn.addEventListener('click', () => _postSettings(false));
+    const settingsSaveRestartBtn = document.getElementById('settingsSaveRestartBtn');
+    if (settingsSaveRestartBtn) settingsSaveRestartBtn.addEventListener('click', () => _postSettings(true));
 
     // ---------------------------------------------------------------------------
     // Polling

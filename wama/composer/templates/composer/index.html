@@ -317,10 +317,14 @@
                     <span class="text-muted ms-1 small" id="settingsEstimate">~20s</span></span>
                 </div>
             </div>
+            {# Pied CONFORME (convention modale, cf. transcriber) : Annuler / Enregistrer / Enregistrer et relancer #}
             <div class="modal-footer border-secondary py-2">
                 <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Annuler</button>
-                <button type="button" class="btn btn-sm btn-success" id="settingsSaveBtn">
-                    <i class="fas fa-play me-1"></i>Enregistrer &amp; re-générer
+                <button type="button" class="btn btn-sm btn-primary" id="settingsSaveBtn">
+                    <i class="fas fa-save me-1"></i>Enregistrer
+                </button>
+                <button type="button" class="btn btn-sm btn-success" id="settingsSaveRestartBtn">
+                    <i class="fas fa-rotate-right me-1"></i>Enregistrer et relancer
                 </button>
             </div>
         </div>
@@ -333,7 +337,7 @@
     /* Données modèles passées au JS */
     window.COMPOSER_MODELS = {
         {% for mid, mcfg in all_models.items %}
-        "{{ mid }}": { genFactor: {{ mcfg.gen_factor }}, overheadS: {{ mcfg.overhead_s }} }{% if not forloop.last %},{% endif %}
+        "{{ mid }}": { genFactor: {{ mcfg.gen_factor }}, overheadS: {{ mcfg.overhead_s }}, type: "{{ mcfg.type }}" }{% if not forloop.last %},{% endif %}
         {% endfor %}
     };
     window.COMPOSER_QUEUE_COUNT = {{ queue_count }};

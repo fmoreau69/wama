@@ -81,7 +81,11 @@
                         data-id="{{ gen.id }}"
                         data-model="{{ gen.model }}"
                         data-duration="{{ gen.duration }}"
-                        title="Modifier les paramètres et re-générer">
+                        data-prompt="{{ gen.prompt }}"
+                        data-gen-type="{{ gen.generation_type }}"
+                        data-output-format="{{ gen.output_format }}"
+                        data-output-quality="{{ gen.output_quality }}"
+                        title="Modifier les paramètres">
                     <i class="fas fa-cog"></i>
                 </button>
                 {% endif %}
