@@ -52,9 +52,9 @@
 {% block app_right_panel_settings %}
 {% include 'common/_inspector_banner.html' %}{# bandeau « Réglages de l'élément #N » (inspecteur contextuel) #}
 <div id="composerPanelParams">
-{# Switch « Type » RETIRÉ (décision Fabien 2026-07-02) : il dupliquait le choix du modèle — le
-   type (music/sfx) est DÉRIVÉ du modèle (endpoint), la lisibilité vient des optgroups du select.
-   Un vrai MODE reviendra par APP_MODES si le comportement diverge un jour (cf. melody). #}
+{% comment %}Switch « Type » RETIRÉ (décision Fabien 2026-07-02) : il dupliquait le choix du modèle —
+le type (music/sfx) est DÉRIVÉ du modèle (endpoint), la lisibilité vient des optgroups du select.
+Un vrai MODE reviendra par APP_MODES si le comportement diverge un jour (cf. melody).{% endcomment %}
 
 <!-- Modèle -->
 <div class="mb-3">
