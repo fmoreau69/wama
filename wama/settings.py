@@ -200,7 +200,11 @@ if ENABLE_LDAP:
     import ldap
     from django_auth_ldap.config import LDAPSearch
 
-    AUTH_LDAP_SERVER_URI = 'ldap://ldap-eiffel.ifsttar.fr'
+    # Serveur CANONIQUE Univ Gustave Eiffel (surchargeable par env). L'ancien
+    # ldap-eiffel.ifsttar.fr répond encore mais semble une réplique OBSOLÈTE (2026-07-02 :
+    # 6458 entrées vs 5618 sur le canonique ; comptes/mots de passe récents non synchronisés
+    # → « mauvais login » pour les nouveaux arrivants alors que le flux WAMA était sain).
+    AUTH_LDAP_SERVER_URI = os.environ.get('WAMA_LDAP_URI', 'ldap://ldap.univ-eiffel.fr')
     AUTH_LDAP_USER_SEARCH = LDAPSearch(
         'ou=people,dc=univ-eiffel,dc=fr',
         ldap.SCOPE_SUBTREE,
