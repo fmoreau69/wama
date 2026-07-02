@@ -153,6 +153,8 @@ def _conv(
     inspector=False,               # volet droit CONTEXTUEL complet (card/batch/file) via WamaInspector
     modes=False,                   # switch de MODE généré par WamaModes (+ schéma app_modes)
     layout=False,                  # affichage Ligne / Mosaïque (toggle commun + card_layout)
+    model_help=False,              # descriptif modèle sous le select (courte + ⓘ longue) via
+                                   # WamaModelHelp commun — audit 2026-07-02, cf. REMOVAL_LEDGER
 ):
     return {
         # Buttons & queue
@@ -181,6 +183,7 @@ def _conv(
         'inspector':              inspector,
         'modes':                  modes,
         'layout':                 layout,
+        'model_help':             model_help,
     }
 
 
@@ -230,6 +233,7 @@ APP_CATALOG = {
             download_all=False,
             batch=False,
             settings_modal_item=True,
+            inspector=True,      # volet contextuel via WamaInspector.initFromSchema (clic card → réglages #N)
             eta_batch=None,      # N/A — pas de batch
             eta_queue=None,      # N/A — pas de queue multi-item significative
         ),
@@ -251,6 +255,8 @@ APP_CATALOG = {
         'conventions': _conv(
             start=None,  # auto-start on generate, no per-item start button needed
             settings_modal_item=True,
+            inspector=True,      # volet contextuel via WamaInspector.initFromSchema
+            model_help=True,     # WamaModelHelp (descriptif sous le select modèle)
         ),
     },
 
@@ -276,6 +282,8 @@ APP_CATALOG = {
             filemanager_import=True, # quick-action + dispatch wama:fileimported (2026-05-16)
             tool_api=True,           # convert_file + get_converter_status (2026-06-02)
             cross_app_options=False, # Phase 2 à implémenter (upscale + audio enhance)
+            inspector=True,          # volet contextuel via WamaInspector.init (variante : sélection + bandeau, édition en modale)
+            model_help=None,         # N/A — pas de modèles IA (ffmpeg/pandoc/Pillow)
         ),
     },
 
@@ -297,6 +305,7 @@ APP_CATALOG = {
             multi_format_download=True,
             export_binding='late',
             tool_api=True,
+            inspector=True,      # volet contextuel via WamaInspector.initFromSchema
         ),
     },
 
@@ -316,6 +325,9 @@ APP_CATALOG = {
         'conventions': _conv(
             settings_modal_item=True,
             tool_api=True,
+            inspector=True,      # volet contextuel via WamaInspector.initFromSchema (image/vidéo/audio)
+            modes=True,          # onglets domaine image/vidéo/audio générés (WamaModes.fetch/create)
+            model_help=True,     # WamaModelHelp (help_fallback moteurs, cf. enhancer/params.py)
         ),
     },
 
@@ -339,8 +351,10 @@ APP_CATALOG = {
             drag_drop=False,
             batch=False,
             tool_api=True,
+            settings_modal_item=True,  # modales par-item #generationSettingsModal / #videoSettingsModal
             eta_batch=None,    # N/A — pas de batch
             modes=True,        # barres de mode image/vidéo générées (WamaModes)
+            model_help=True,   # WamaModelHelp (descriptif sous les selects modèle image/vidéo)
         ),
     },
 
@@ -362,6 +376,8 @@ APP_CATALOG = {
             multi_format_download=True,
             export_binding='late',
             tool_api=True,
+            inspector=True,      # volet contextuel via WamaInspector.initFromSchema
+            model_help=True,     # WamaModelHelp (help_fallback moteurs OCR, cf. reader/params.py)
         ),
     },
 
@@ -382,6 +398,7 @@ APP_CATALOG = {
             start=None,
             settings_modal_item=True,
             tool_api=True,
+            inspector=True,      # volet contextuel via WamaInspector.initFromSchema (volet = zone compose, à séparer)
         ),
     },
 
@@ -405,8 +422,12 @@ APP_CATALOG = {
             tool_api=True,
             inspector=True,   # référence : volet contextuel card/batch/file ET modale item/batch
                               # GÉNÉRÉS depuis le schéma unique (transcriber/params.py + WamaParams)
-            modes=True,       # normal / temps réel (WamaModes)
+            modes=None,       # N/A — Speak (temps réel) = AFFORDANCE de la card (show_live,
+                              # _new_item_card), PAS un switch WamaModes (design card-centric
+                              # intentionnel, cf. transcriber/index.html:321,352). À repasser à True
+                              # SI le temps réel devient un vrai mode WamaModes (vision « realtime=mode »).
             layout=True,      # ligne / mosaïque
+            model_help=True,  # WamaModelHelp (meta backends via get_backends_info, index.js:1580)
         ),
     },
 }
