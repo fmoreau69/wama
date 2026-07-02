@@ -90,8 +90,11 @@ Un seul composant `WamaInspector`, deux catalogues, contenu généré depuis la 
 - ⏳ **Lacunes catalogue** : `media_library` et apps **WAMA Lab** (cam_analyzer, face_analyzer) absents
   de `APP_CATALOG` (catalogue = apps génériques seulement) → décider de les inclure (flag `lab`/`hub`).
 - ⏳ **Grille §15** (WAMA_APP_CONVENTIONS) = photo manuelle (2026-05-16) dérivée du registre live →
-  remplacer par un pointeur vers `/apps/` (ou auto-sync). Scores live : converter/describer/reader/
-  transcriber=13 (top) ; **avatarizer, imager=6 (à travailler)**.
+  remplacer par un pointeur vers `/apps/` (`get_conformity_summary()`, seule source à jour ; NE PAS
+  recopier de scores figés ici, ils dérivent). Scores live **2026-07-02** (après correction F1 des flags
+  `inspector`/`modes`, cf. REMOVAL_LEDGER) : transcriber 76% (top) · describer/enhancer/reader 68% ·
+  converter 62% · synthesizer 61% · anonymizer 59% · composer 57% · **imager 42%, avatarizer 40%
+  (à travailler)**.
 
 ## 3. wama-dev-ai (agent Ollama local) — fiabilisé
 - ✅ Robustesse runner (troncature, retry EOF, read_file numéroté, fallback `gemma4:e4b`, `--force-model`, cp1252) — validé pour audit ciblé
