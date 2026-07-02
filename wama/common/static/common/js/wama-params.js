@@ -315,5 +315,78 @@
     _bindConditional(container);
   }
 
-  global.WamaParams = { render: render, read: read, apply: apply };
+  // ── Coquille de modale « Paramètres » GÉNÉRÉE (brique commune) ────────────────────────────
+  // Extrait du pattern DÉJÀ automatisé d'enhancer/reader (createSettingsModal) — cf.
+  // UI_MECHANISMS_CONSOLIDATION §5/§9 (P1) : coquille (wrapper/header/body/footer) + CHAMPS
+  // rendus par render() depuis le schéma params.py, en une seule source. Le câblage des
+  // boutons reste à l'appelant (délégation par classes/data-*, inchangée par app).
+  //
+  //   WamaParams.renderSettingsModal({
+  //     id,        // suffixe unique — modale par-item (enhancer) ou nom fixe (modale partagée)
+  //     title,     // texte du header (échappé ici)
+  //     titleIcon, // classe FA optionnelle (ex. 'fa-gear')
+  //     schema, values,      // → render(host, schema, {context:'item', values})
+  //     formClass, formData, // <form> : classe + data-* (délégation existante des apps)
+  //     buttons,   // [{label, className, icon?, data?}] — défaut : Annuler + Enregistrer
+  //   }) → { modal, host, form }   (remplace la modale existante de même id)
+  function renderSettingsModal(cfg) {
+    cfg = cfg || {};
+    const esc = function (s) {
+      return String(s == null ? '' : s).replace(/[&<>"']/g, function (m) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m];
+      });
+    };
+    const modalId = 'settingsModal' + (cfg.id != null ? cfg.id : '');
+    const old = document.getElementById(modalId);
+    if (old) old.remove();
+
+    const buttons = cfg.buttons || [
+      { label: 'Annuler', className: 'btn btn-secondary', data: { 'bs-dismiss': 'modal' } },
+      { label: 'Enregistrer', className: 'btn btn-primary save-settings-btn' },
+    ];
+    const btnHtml = buttons.map(function (b) {
+      const data = Object.keys(b.data || {}).map(function (k) {
+        return ' data-' + k + '="' + esc(b.data[k]) + '"';
+      }).join('');
+      const icon = b.icon ? '<i class="fas ' + esc(b.icon) + '"></i> ' : '';
+      return '<button type="button" class="' + esc(b.className || 'btn btn-secondary') + '"' +
+             data + '>' + icon + esc(b.label) + '</button>';
+    }).join('\n            ');
+
+    const modal = document.createElement('div');
+    modal.className = 'modal fade';
+    modal.id = modalId;
+    modal.setAttribute('tabindex', '-1');
+    modal.innerHTML =
+      '<div class="modal-dialog modal-dialog-centered">' +
+      '  <div class="modal-content bg-dark text-white border-secondary">' +
+      '    <div class="modal-header border-secondary">' +
+      '      <h5 class="modal-title">' +
+      (cfg.titleIcon ? '<i class="fas ' + esc(cfg.titleIcon) + ' me-2"></i>' : '') +
+      esc(cfg.title || 'Paramètres') + '</h5>' +
+      '      <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>' +
+      '    </div>' +
+      '    <div class="modal-body">' +
+      '      <form class="' + esc(cfg.formClass || '') + '">' +
+      '        <div class="wama-params wama-modal-fields"></div>' +
+      '      </form>' +
+      '    </div>' +
+      '    <div class="modal-footer border-secondary">' +
+      '      ' + btnHtml +
+      '    </div>' +
+      '  </div>' +
+      '</div>';
+    document.body.appendChild(modal);
+
+    const form = modal.querySelector('form');
+    Object.keys(cfg.formData || {}).forEach(function (k) {
+      form.setAttribute('data-' + k, cfg.formData[k]);
+    });
+    const host = modal.querySelector('.wama-modal-fields');
+    if (cfg.schema) render(host, cfg.schema, { context: 'item', values: cfg.values || {} });
+    return { modal: modal, host: host, form: form };
+  }
+
+  global.WamaParams = { render: render, read: read, apply: apply,
+                        renderSettingsModal: renderSettingsModal };
 })(window);
