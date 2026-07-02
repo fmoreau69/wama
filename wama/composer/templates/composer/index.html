@@ -340,6 +340,7 @@
 </script>
 <script src="{% static 'common/js/wama-eta.js' %}"></script>
 <script src="{% static 'common/js/wama-model-help.js' %}"></script>
+<script src="{% static 'common/js/wama-params.js' %}"></script>  {# rendu des champs modale (P1) — composer n'en avait pas besoin avant (initFromSchema lit sans rendre) #}
 <script src="{% static 'composer/js/index.js' %}"></script>
 <script src="{% static 'common/js/wama-inspector.js' %}"></script>
 <script>
@@ -379,7 +380,7 @@ document.addEventListener('DOMContentLoaded', function () {
 // Exécution immédiate (avant DOMContentLoaded) → les IDs legacy (settingsModel/settingsDuration)
 // existent quand index.js câble fill/save/estimation.
 (function () {
-    if (!window.WamaParams) return;
+    if (!window.WamaParams) { console.warn('[composer] WamaParams absent — modale non générée'); return; }
     var host = document.getElementById('composerSettingsFields');
     if (host) WamaParams.render(host, {{ params_json|safe }}, { context: 'item' });
 })();
