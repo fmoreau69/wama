@@ -383,7 +383,9 @@ class ModelRegistry:
                     name=config.get('model_id', model_id),
                     model_type=model_type,
                     source=ModelSource.WAMA_DESCRIBER,
-                    description=config.get('description', ''),
+                    # Court/long séparés (format transcriber), cf. model_config 'description_long'.
+                    description=config.get('description_long') or config.get('description', ''),
+                    description_short=config.get('description', ''),
                     hf_id=hf_id,
                     vram_gb=config.get('size_gb', 2),
                     is_loaded=is_loaded,
@@ -782,6 +784,8 @@ class ModelRegistry:
         """Discover Enhancer app models (ONNX upscalers)."""
         try:
             from django.conf import settings
+            # Descriptions = source unique dans le model_config de l'app (R9).
+            from wama.enhancer.utils.model_config import REGISTRY_MODEL_DESCRIPTIONS as _ENH_DESC
 
             # Get preferred format for upscaling models
             preferred = self._get_preferred_format(ModelType.UPSCALING)
@@ -809,7 +813,12 @@ class ModelRegistry:
                         name=model_name,
                         model_type=ModelType.UPSCALING,
                         source=ModelSource.WAMA_ENHANCER,
-                        description=f"ONNX upscaling model ({size_mb:.1f}MB)",
+                        # Descriptions déclarées dans enhancer/utils/model_config.py (R9,
+                        # court/long séparés) ; repli générique si fichier ONNX inconnu.
+                        description=_ENH_DESC.get(model_name, {}).get(
+                            'long', f"ONNX upscaling model ({size_mb:.1f}MB)"),
+                        description_short=_ENH_DESC.get(model_name, {}).get(
+                            'short', f"ONNX upscaling model ({size_mb:.1f}MB)"),
                         vram_gb=round(size_mb / 500, 1),  # Estimate
                         is_downloaded=True,
                         extra_info={'path': str(onnx_file), 'size_mb': size_mb},
@@ -873,7 +882,10 @@ class ModelRegistry:
                     name=config['description'],
                     model_type=ModelType.MUSIC,
                     source=ModelSource.WAMA_COMPOSER,
-                    description=config['description'],
+                    # Deux champs SÉPARÉS (format transcriber) : court sous le select,
+                    # long autonome en overlay ⓘ (cf. model_config 'description_long').
+                    description=config.get('description_long') or config['description'],
+                    description_short=config['description'],
                     hf_id=hf_id,
                     vram_gb=config['vram_gb'],
                     is_downloaded=is_downloaded,
@@ -926,7 +938,9 @@ class ModelRegistry:
                     name=config['description'],
                     model_type=ModelType.OCR,
                     source=ModelSource.WAMA_READER,
-                    description=config['description'],
+                    # Court/long séparés (format transcriber), cf. model_config 'description_long'.
+                    description=config.get('description_long') or config['description'],
+                    description_short=config['description'],
                     hf_id=hf_id or None,
                     vram_gb=config['vram_gb'],
                     is_downloaded=is_downloaded,

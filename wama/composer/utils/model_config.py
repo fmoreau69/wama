@@ -38,6 +38,10 @@ COMPOSER_MODELS = {
         'type': 'music',
         'vram_gb': 4,
         'description': 'MusicGen Small — génération rapide, 300M params',
+        'description_long': "MusicGen Small (Meta AudioCraft, 300M) : génération musicale depuis "
+                            "un prompt texte, version la plus légère et rapide de la famille. "
+                            "Qualité en retrait — idéal pour esquisser des idées avant un rendu "
+                            "sur Medium.",
         'max_duration': 30,
         'sample_rate': 32000,
         'cache_dir': MUSICGEN_DIR,
@@ -52,6 +56,10 @@ COMPOSER_MODELS = {
         'type': 'music',
         'vram_gb': 8,
         'description': 'MusicGen Medium — meilleure qualité, 1.5B params',
+        'description_long': "MusicGen Medium (Meta AudioCraft, 1.5B) : le meilleur équilibre "
+                            "qualité/ressources de la famille MusicGen. Pistes instrumentales "
+                            "cohérentes depuis un prompt texte (anglais — traduction automatique "
+                            "en amont). Le choix par défaut.",
         'max_duration': 30,
         'sample_rate': 32000,
         'cache_dir': MUSICGEN_DIR,
@@ -64,6 +72,10 @@ COMPOSER_MODELS = {
         'type': 'music',
         'vram_gb': 8,
         'description': 'MusicGen Melody — conditionné par mélodie de référence',
+        'description_long': "MusicGen Melody (Meta AudioCraft) : génération guidée par une "
+                            "MÉLODIE de référence (fichier audio) en plus du prompt — le modèle "
+                            "suit la ligne mélodique fournie en changeant style et "
+                            "instrumentation. Pour décliner un thème existant.",
         'max_duration': 30,
         'sample_rate': 32000,
         'cache_dir': MUSICGEN_DIR,
@@ -76,6 +88,10 @@ COMPOSER_MODELS = {
         'type': 'sfx',
         'vram_gb': 16,
         'description': 'AudioGen Medium — bruitages et sons d\'ambiance, 1.5B params',
+        'description_long': "AudioGen Medium (Meta AudioCraft, 1.5B) : génération de BRUITAGES et "
+                            "d'ambiances sonores (pas de musique) depuis un prompt texte — pas, "
+                            "pluie, foule, machines… Complémentaire de MusicGen pour le sound "
+                            "design.",
         'max_duration': 30,
         'sample_rate': 16000,
         'cache_dir': AUDIOGEN_DIR,

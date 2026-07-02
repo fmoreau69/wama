@@ -28,6 +28,58 @@ ONNX_MODELS_DIR = MODEL_PATHS.get('upscaling', {}).get('onnx',
 Path(ONNX_MODELS_DIR).mkdir(parents=True, exist_ok=True)
 
 # =============================================================================
+# DESCRIPTIONS (source unique par-app — le registre les LIT ; cf. REMOVAL_LEDGER R9).
+# DEUX champs SÉPARÉS (format transcriber) : 'short' = one-liner sous le select (SANS VRAM,
+# appendée par le JS depuis le catalogue) ; 'long' = paragraphe AUTONOME (overlay ⓘ).
+# Clés = nom de fichier ONNX sans extension (= model_key sans le préfixe enhancer:).
+# =============================================================================
+
+REGISTRY_MODEL_DESCRIPTIONS = {
+    'RealESRGANx4_fp16': {
+        'short': "Real-ESRGAN ×4 — super-résolution photo de référence.",
+        'long': "Real-ESRGAN ×4 (fp16, ONNX) : la référence de la super-résolution "
+                "photographique — agrandit ×4 en reconstruisant détails et textures. "
+                "Bon choix par défaut pour photos et captures réelles.",
+    },
+    'RealESR_Animex4_fp16': {
+        'short': "Real-ESRGAN Anime ×4 — dessins et illustrations.",
+        'long': "Real-ESRGAN Anime ×4 (fp16, ONNX) : variante spécialisée dessins, anime et "
+                "illustrations — préserve les aplats et les contours nets sans inventer de "
+                "texture photographique.",
+    },
+    'RealESR_Gx4_fp16': {
+        'short': "Real-ESR general ×4 — généraliste ultra-léger.",
+        'long': "Real-ESR general ×4 (fp16, ONNX) : version généraliste très compacte de "
+                "Real-ESRGAN. Rapide et sobre, qualité légèrement en retrait — pour les "
+                "traitements en volume ou les machines modestes.",
+    },
+    'BSRGANx4_fp16': {
+        'short': "BSRGAN ×4 — robuste aux dégradations réelles.",
+        'long': "BSRGAN ×4 (fp16, ONNX) : super-résolution entraînée sur des dégradations "
+                "réalistes (flou, bruit, compression JPEG). Robuste sur images de qualité "
+                "médiocre là où d'autres modèles amplifient les artefacts.",
+    },
+    'BSRGANx2_fp16': {
+        'short': "BSRGAN ×2 — agrandissement modéré, robuste.",
+        'long': "BSRGAN ×2 (fp16, ONNX) : même robustesse aux dégradations réelles que la "
+                "version ×4, avec un agrandissement modéré ×2 — utile quand la source est "
+                "déjà d'une taille correcte.",
+    },
+    'IRCNN_Lx1_fp16': {
+        'short': "IRCNN L ×1 — débruitage sans agrandissement.",
+        'long': "IRCNN variante L (fp16, ONNX) : débruitage pur (×1, aucune mise à l'échelle). "
+                "Nettoie le bruit et les artefacts avant un éventuel upscale — à combiner avec "
+                "un modèle ×2/×4.",
+    },
+    'IRCNN_Mx1_fp16': {
+        'short': "IRCNN M ×1 — débruitage sans agrandissement (variante M).",
+        'long': "IRCNN variante M (fp16, ONNX) : débruitage pur (×1), intensité de filtrage "
+                "différente de la variante L — essayer les deux selon le niveau de bruit de "
+                "la source.",
+    },
+}
+
+# =============================================================================
 # MODEL DEFINITIONS
 # =============================================================================
 

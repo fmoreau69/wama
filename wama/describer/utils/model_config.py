@@ -48,7 +48,11 @@ DESCRIBER_MODELS = {
         'type': 'vision-language',
         'task': 'image-to-text',
         'local_dir': BLIP_DIR,
-        'description': 'BLIP image captioning model for detailed image descriptions',
+        'description': "BLIP — légendage d'images (captioning)",
+        'description_long': "BLIP (Salesforce) : modèle de légendage d'images — produit une "
+                            "description textuelle du contenu visuel. Léger et rapide, utilisé "
+                            "comme repli local quand aucun modèle vision plus riche (Ollama) "
+                            "n'est disponible.",
         'size_gb': 1.8,
         'source': 'huggingface',
     },
@@ -59,7 +63,10 @@ DESCRIBER_MODELS = {
         'type': 'speech-to-text',
         'task': 'automatic-speech-recognition',
         'local_dir': WHISPER_DIR,
-        'description': 'OpenAI Whisper for audio transcription',
+        'description': "Whisper — transcription audio (description de contenus sonores)",
+        'description_long': "Whisper (OpenAI) : reconnaissance vocale multilingue utilisée par le "
+                            "Describer pour transcrire la piste audio d'un média avant d'en "
+                            "générer la description. Robuste au bruit et aux accents.",
         'size_gb': 0.3,
         'source': 'openai',  # Uses whisper library, not HF
         'variants': ['tiny', 'base', 'small', 'medium', 'large'],

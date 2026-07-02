@@ -34,6 +34,10 @@ READER_MODELS = {
         'type':        'ocr-vlm',
         'vram_gb':     14.0,
         'description': 'olmOCR-2 7B — Allen AI — imprimé + manuscrit + tableaux + formules',
+        'description_long': "olmOCR-2 7B (Allen AI) : OCR par modèle vision-langage — comprend la "
+                            "mise en page, restitue tableaux, formules et manuscrit avec une "
+                            "qualité de référence. Gourmand en VRAM ; à réserver aux documents "
+                            "complexes.",
     },
     'doctr': {
         'model_id':    'doctr',
@@ -41,6 +45,10 @@ READER_MODELS = {
         'type':        'ocr-pipeline',
         'vram_gb':     0.0,  # CPU
         'description': 'docTR (Mindee) — pipeline CPU, imprimé, bonne gestion des formulaires',
+        'description_long': "docTR (Mindee) : pipeline OCR classique en deux étapes (détection + "
+                            "reconnaissance), fonctionne sur CPU. Rapide et sobre pour documents "
+                            "imprimés simples et formulaires ; moins adapté au manuscrit et aux "
+                            "mises en page complexes.",
     },
 }
 
