@@ -209,6 +209,7 @@ APP_CATALOG = {
         'conventions': _conv(
             settings_modal_item=True,
             tool_api=True,
+            model_help=True,     # WamaModelHelp (select YOLO #user_setting_model_to_use, meta catalogue)
         ),
     },
 
@@ -236,6 +237,7 @@ APP_CATALOG = {
             inspector=True,      # volet contextuel via WamaInspector.initFromSchema (clic card → réglages #N)
             eta_batch=None,      # N/A — pas de batch
             eta_queue=None,      # N/A — pas de queue multi-item significative
+            model_help=None,     # N/A — MuseTalk fixe (v1.5), aucun select de modèle exposé
         ),
     },
 
@@ -306,6 +308,7 @@ APP_CATALOG = {
             export_binding='late',
             tool_api=True,
             inspector=True,      # volet contextuel via WamaInspector.initFromSchema
+            model_help=None,     # N/A — sélection de modèle INTERNE (auto par type de média), aucun select
         ),
     },
 
@@ -399,6 +402,7 @@ APP_CATALOG = {
             settings_modal_item=True,
             tool_api=True,
             inspector=True,      # volet contextuel via WamaInspector.initFromSchema (volet = zone compose, à séparer)
+            model_help=True,     # WamaModelHelp (select #tts_model, meta catalogue via _tts_model_help_meta)
         ),
     },
 

@@ -124,6 +124,8 @@
                 </optgroup>
             {% endfor %}
         </select>
+        {# Descriptif modèle (courte + ⓘ longue) lu du CATALOGUE (vue) via WamaModelHelp — cf. transcriber #}
+        <small id="modelToUseHelp" class="text-muted d-block mt-1"></small>
     </div>
 </div>
 
@@ -369,6 +371,17 @@ window._batchImport = WamaBatchImport({
         location.reload();
     },
 });
+
+// Descriptif modèle YOLO (courte + ⓘ longue) sous le select — meta lue du CATALOGUE (vue),
+// rendue par le composant commun WamaModelHelp (chargé globalement dans base.html).
+if (window.WamaModelHelp) {
+    WamaModelHelp.init({
+        selectId: 'user_setting_model_to_use',
+        helpId: 'modelToUseHelp',
+        meta: {{ model_help_meta|safe }},
+        fallback: { '': 'Choix automatique du modèle selon le niveau de précision.' },
+    });
+}
 </script>
 {% endblock %}
 

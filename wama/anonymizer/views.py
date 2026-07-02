@@ -814,7 +814,35 @@ def get_context(request):
         'range_widths_global': range_widths_global,
         'available_models': available_models,
         'models_by_type': models_by_type,
+        'model_help_meta': _model_help_meta(models_by_type),
     }
+
+
+def _model_help_meta(models_by_type):
+    """Meta JSON {valeur_option: {description, description_long, vram_gb}} pour WamaModelHelp
+    (descriptif sous le select #user_setting_model_to_use), lue depuis le CATALOGUE `AIModel`
+    (clés `anonymizer:yolo:<fichier>`). Les valeurs d'options du template sont `type/fichier`
+    (ou `fichier` seul) → on mappe par nom de fichier. Fail-safe : '{}' si catalogue indispo."""
+    import json as _json
+    try:
+        from wama.model_manager.models import AIModel
+        by_fname = {}
+        for m in AIModel.objects.filter(model_key__startswith='anonymizer:yolo:'):
+            by_fname[m.model_key.rsplit(':', 1)[-1]] = {
+                'description': m.description_short or '',
+                'description_long': m.description or '',
+                'vram_gb': m.vram_gb,
+            }
+        meta = {}
+        for mtype, names in (models_by_type or {}).items():
+            for name in names:
+                info = by_fname.get(name)
+                if info:
+                    meta[f"{mtype}/{name}"] = info
+                    meta.setdefault(name, info)
+        return _json.dumps(meta)
+    except Exception:
+        return '{}'
 
 
 def update_settings(request):
