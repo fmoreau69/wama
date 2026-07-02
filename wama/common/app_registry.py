@@ -259,6 +259,9 @@ APP_CATALOG = {
             settings_modal_item=True,
             inspector=True,      # volet contextuel via WamaInspector.initFromSchema
             model_help=True,     # WamaModelHelp (descriptif sous le select modèle)
+            tool_api=True,       # compose_music + get_composer_status (tool_api.py central, VÉRIFIÉ
+                                 # registre l.2002 — le flag False était PÉRIMÉ, audit 2026-07-03)
+            batch=True,          # batch unifié _wrap_generation_in_batch + _auto_wrap_orphans (vérifié)
         ),
     },
 

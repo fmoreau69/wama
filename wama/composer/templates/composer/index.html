@@ -35,35 +35,11 @@ Les IDs (batchFileInput, batchDetectBar…) sont fournis par la brique → JS in
 le type (music/sfx) est DÉRIVÉ du modèle (endpoint), la lisibilité vient des optgroups du select.
 Un vrai MODE reviendra par APP_MODES si le comportement diverge un jour (cf. melody).{% endcomment %}
 
-<!-- Modèle -->
-<div class="mb-3">
-    <label for="modelSelect" class="form-label small fw-bold text-light">
-        <i class="fas fa-robot"></i> Modèle
-    </label>
-    <select class="form-select form-select-sm bg-dark text-white border-secondary" id="modelSelect">
-        <optgroup label="🎵 Musique (MusicGen)" id="musicModelsGroup">
-            {% for mid, mcfg in music_models.items %}
-            <option value="{{ mid }}"
-                    data-gen-factor="{{ mcfg.gen_factor }}"
-                    data-overhead="{{ mcfg.overhead_s }}"
-                    {% if mid == 'musicgen-small' %}selected{% endif %}>
-                {{ mcfg.description }}
-            </option>
-            {% endfor %}
-        </optgroup>
-        <optgroup label="⚡ Bruitages (AudioGen)" id="sfxModelsGroup">
-            {% for mid, mcfg in sfx_models.items %}
-            <option value="{{ mid }}"
-                    data-gen-factor="{{ mcfg.gen_factor }}"
-                    data-overhead="{{ mcfg.overhead_s }}">
-                {{ mcfg.description }}
-            </option>
-            {% endfor %}
-        </optgroup>
-    </select>
-    <!-- Descriptif du moteur sélectionné (brique commune WamaModelHelp ; additif) -->
-    <div id="modelHelp" class="small text-white-50 mt-1"></div>
-</div>
+<!-- Modèle : champ GÉNÉRÉ (P2) depuis params.py — même source que la modale, id legacy préservé. -->
+{# L'ancien select portait des data-gen-factor/overhead MORTS (l'ETA lit window.COMPOSER_MODELS). #}
+<div class="wama-params" id="composerPanelModelHost"></div>
+<!-- Descriptif du moteur sélectionné (brique commune WamaModelHelp ; additif) -->
+<div id="modelHelp" class="small text-white-50 mt-1 mb-3"></div>
 
 <!-- Durée -->
 <div class="mb-3">
@@ -103,29 +79,8 @@ Un vrai MODE reviendra par APP_MODES si le comportement diverge un jour (cf. mel
     <small class="text-muted">Audio 5s–5min servant de ligne mélodique</small>
 </div>
 
-<!-- Output format + quality (Phase 3 élargie) -->
-<div class="mb-2">
-    <label for="output_format" class="form-label small fw-bold text-light">
-        <i class="fas fa-file-export"></i> Format de sortie
-    </label>
-    <select class="form-select form-select-sm bg-dark text-white border-secondary" id="output_format" name="output_format">
-        <option value="original" selected>Original (WAV)</option>
-        <option value="mp3">MP3</option>
-        <option value="ogg">OGG</option>
-        <option value="flac">FLAC</option>
-        <option value="m4a">M4A</option>
-    </select>
-</div>
-<div class="mb-2">
-    <label for="output_quality" class="form-label small fw-bold text-light">
-        <i class="fas fa-sliders-h"></i> Qualité
-    </label>
-    <select class="form-select form-select-sm bg-dark text-white border-secondary" id="output_quality" name="output_quality">
-        <option value="web">Web (léger)</option>
-        <option value="balanced" selected>Équilibré</option>
-        <option value="max">Maximum</option>
-    </select>
-</div>
+<!-- Format + Qualité : champs GÉNÉRÉS (P2) depuis la brique commune output_format_params_for_app. -->
+<div class="wama-params" id="composerPanelOutputHost"></div>
 
 <!-- Reset Button -->
 </div>{# /composerPanelParams (inspecteur contextuel) #}
@@ -345,9 +300,19 @@ document.addEventListener('DOMContentLoaded', function () {
 // Exécution immédiate (avant DOMContentLoaded) → les IDs legacy (settingsModel/settingsDuration)
 // existent quand index.js câble fill/save/estimation.
 (function () {
-    if (!window.WamaParams) { console.warn('[composer] WamaParams absent — modale non générée'); return; }
+    if (!window.WamaParams) { console.warn('[composer] WamaParams absent — surfaces non générées'); return; }
+    var schema = {{ params_json|safe }};
     var host = document.getElementById('composerSettingsFields');
-    if (host) WamaParams.render(host, {{ params_json|safe }}, { context: 'item' });
+    if (host) WamaParams.render(host, schema, { context: 'item' });
+    // P2 — VOLET : mêmes champs, même source (modèle + format/qualité ; durée/prompt/mélodie
+    // restent bespoke ce tour : widgets formatés/conditionnels, cf. REMOVAL_LEDGER P2-bis).
+    var hostModel = document.getElementById('composerPanelModelHost');
+    if (hostModel) WamaParams.render(hostModel,
+        schema.filter(function (p) { return p.name === 'model'; }), { context: 'panel' });
+    var hostOut = document.getElementById('composerPanelOutputHost');
+    if (hostOut) WamaParams.render(hostOut,
+        schema.filter(function (p) { return p.name === 'output_format' || p.name === 'output_quality'; }),
+        { context: 'panel' });
     // Estimation (~20s) : placée à côté de la valeur du slider Durée (comme le volet).
     var dur = document.getElementById('settingsDuration');
     var est = document.getElementById('settingsEstimate');

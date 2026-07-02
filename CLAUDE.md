@@ -267,10 +267,11 @@ Ajouter le nouveau modèle dans la fonction `_discover_*_models()` correspondant
 | Aperçu du résultat | Texte tronqué ou miniature, clic pour développer |
 | Drag & drop zone | Toutes les apps acceptant des fichiers |
 
-**❌ Non-conformités connues à corriger (voir table complète dans `WAMA_APP_CONVENTIONS.md §15`) :**
-- Composer : bouton Dupliquer manquant + Download All manquant
-- Toutes les apps : ETA non implémenté
+**❌ Non-conformités connues à corriger — SOURCE LIVE = `/apps/` (`get_conformity_summary()`),
+ne plus recopier de listes figées ici (elles dérivent — la ligne « Composer : Dupliquer/Download All
+manquants » était périmée, les deux existent, vérifié 2026-07-03) :**
 - Toutes les apps : import dossier récursif non implémenté
+- Checklist de fin d'app (18 points) : `TRANSCRIBER_REFERENCE_AUDIT.md §6`
 
 **✅ Vérifier systématiquement** à chaque création d'une nouvelle application.
 

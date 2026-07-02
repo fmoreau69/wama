@@ -22,10 +22,10 @@ PARAMS = [
     Param(name="model", type="select", label="Modèle", icon="fa-music",
           dom_id={"panel": "modelSelect", "item": "settingsModel"}, contexts=PANEL_ITEM,
           option_groups=[
-              ("Musique", [(mid, cfg['description']) for mid, cfg in COMPOSER_MODELS.items()
-                           if cfg.get('type') == 'music']),
-              ("Bruitages", [(mid, cfg['description']) for mid, cfg in COMPOSER_MODELS.items()
-                             if cfg.get('type') != 'music']),
+              ("🎵 Musique (MusicGen)", [(mid, cfg['description']) for mid, cfg in COMPOSER_MODELS.items()
+                                         if cfg.get('type') == 'music']),
+              ("⚡ Bruitages (AudioGen)", [(mid, cfg['description']) for mid, cfg in COMPOSER_MODELS.items()
+                                          if cfg.get('type') != 'music']),
           ]),
     Param(name="duration", type="range", label="Durée (s)", icon="fa-clock", min=10, max=600, step=5,
           dom_id={"panel": "durationSlider", "item": "settingsDuration"}, contexts=PANEL_ITEM),
