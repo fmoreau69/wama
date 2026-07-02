@@ -2,7 +2,8 @@
 Sélection intelligente de modèles — centralisée pour toutes les apps WAMA.
 
 S'appuie sur le catalogue `AIModel` (source de vérité : téléchargé ? chargé ? VRAM,
-capacités via `extra_info`) et la VRAM live (`memory_monitor`). Unifie les logiques
+capacités via `capabilities` — canonique ; `extra_info` = opérationnel/transition) et la
+VRAM live (`memory_monitor`). Unifie les logiques
 jusque-là dupliquées par app (anonymizer `ModelSelector`, transcriber `manager`, et le
 `backend_selector` VRAM-aware qui était planifié).
 
@@ -29,12 +30,19 @@ def get_free_vram_gb() -> Optional[float]:
 
 
 def _supports(model, requires, classes) -> bool:
-    """Filtre capacités via extra_info : `requires` = clés truthy ; `classes` ⊆ extra_info['classes']."""
+    """Filtre capacités via `capabilities` (source canonique) — `requires` = clés truthy ;
+    `classes` ⊆ capabilities['classes'].
+
+    Réconciliation C1 (REMOVAL_LEDGER F3) : `capabilities` est LA source (lue aussi par WamaModelCaps,
+    lang_routing, get_registry_models). `extra_info` = repli de TRANSITION (ancien emplacement, +
+    l'alias historique `class_list` des modèles YOLO) tant que la découverte n'a pas tout basculé.
+    """
+    caps = model.capabilities or {}
     ei = model.extra_info or {}
-    if requires and not all(ei.get(k) for k in requires):
+    if requires and not all(caps.get(k) or ei.get(k) for k in requires):
         return False
     if classes:
-        supported = set(ei.get('classes') or [])
+        supported = set(caps.get('classes') or ei.get('classes') or ei.get('class_list') or [])
         if not set(classes).issubset(supported):
             return False
     return True
@@ -75,8 +83,8 @@ def select_model(
     Args:
         source:          app/source ('transcriber', 'anonymizer', 'imager', …).
         model_type:      filtre ModelType ('speech', 'vision', …).
-        requires:        capacités requises (clés truthy de extra_info).
-        classes:         classes à couvrir (⊆ extra_info['classes'] — ex. anonymizer).
+        requires:        capacités requises (clés truthy de `capabilities` ; repli `extra_info`).
+        classes:         classes à couvrir (⊆ `capabilities['classes']` — ex. anonymizer).
         prefer_loaded:   si un candidat est déjà chargé (is_loaded), le renvoyer d'office
                          (règle keep_loaded — évite un rechargement coûteux en batch).
         downloaded_only: ne considérer que les modèles téléchargés.

@@ -109,7 +109,7 @@ COGVIDEOX_MODELS = {
         'disk_gb': 12,
         'fps': 24,
         'resolution': '720x480',
-        'description': 'CogVideoX 5B T2V (~21GB VRAM mesurée, 24fps)',
+        'description': 'CogVideoX 5B — Text-to-Video, 24 fps',
     },
     'cogvideox-5b-i2v': {
         'model_id': 'cogvideox-5b-i2v',
@@ -120,7 +120,7 @@ COGVIDEOX_MODELS = {
         'disk_gb': 12,
         'fps': 24,
         'resolution': '720x480',
-        'description': 'CogVideoX 5B I2V — Image-to-Video (~21GB VRAM mesurée)',
+        'description': 'CogVideoX 5B — Image-to-Video, 24 fps',
     },
 }
 
@@ -138,7 +138,7 @@ LTX_MODELS = {
         'disk_gb': 18,
         'fps': 24,
         'resolution': '1216x704',
-        'description': 'LTX-Video 13B Distilled — rapide, T2V + I2V (14GB VRAM)',
+        'description': 'LTX-Video 13B Distilled — rapide, T2V + I2V',
     },
     # ── 13B Distilled FP8 — meilleur ratio qualité/VRAM sur RTX 4090 ─────────
     'ltx-video-13b-0.9.8-distilled-fp8': {
@@ -151,7 +151,7 @@ LTX_MODELS = {
         'fps': 24,
         'resolution': '1216x704',
         'quantization': 'fp8',
-        'description': 'LTX-Video 13B Distilled FP8 — ~8GB VRAM, T2V + I2V',
+        'description': 'LTX-Video 13B Distilled FP8 — léger, T2V + I2V',
     },
 }
 
@@ -166,7 +166,7 @@ MOCHI_MODELS = {
         'disk_gb': 18,
         'fps': 30,
         'resolution': '848x480',
-        'description': 'Mochi-1 Preview — haute qualité 30fps (22GB VRAM)',
+        'description': 'Mochi-1 Preview — haute qualité, 30 fps',
     },
 }
 
@@ -278,7 +278,7 @@ FLUX2_KLEIN_MODELS = {
         'vram_gb': 13,
         'disk_gb': 16,
         'resolution': 1024,
-        'description': 'FLUX.2 Klein 4B — ultra-rapide (<1s), 13GB VRAM, Apache 2.0',
+        'description': 'FLUX.2 Klein 4B — ultra-rapide (<1 s), Apache 2.0',
         'license': 'apache-2.0',
         'default_guidance_scale': 1.0,
         'default_steps': 4,
@@ -311,7 +311,7 @@ LOGO_MODELS = {
         'default_guidance_scale': 3.5,
         'default_steps': 24,
         'license': 'flux-1-dev-non-commercial',
-        'description': 'FLUX Logo Design LoRA — #1 open-source, logos professionnels, max 768px (16GB VRAM)',
+        'description': 'FLUX Logo Design LoRA — logos pro, open-source, max 768 px',
         'prompt_tips': [
             'Dual Combination: "wablogo, Minimalist, Dual Combination: mountain and coffee cup"',
             'Font Combination: "wablogo, logo, Minimalist, Font Combination: rocket with letter S"',

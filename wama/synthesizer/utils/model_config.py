@@ -43,6 +43,52 @@ Path(HIGGS_DIR).mkdir(parents=True, exist_ok=True)
 Path(KOKORO_DIR).mkdir(parents=True, exist_ok=True)
 
 # =============================================================================
+# DESCRIPTIONS (source unique par-app — le registre les LIT, ne les hardcode plus ; cf. R9)
+# DEUX champs SÉPARÉS et INDÉPENDANTS (format de référence = transcriber/backends) :
+#   'short' → affiché directement sous le select (concis, 1-2 clauses). PAS de VRAM (le JS
+#             l'append depuis le catalogue vram_gb).
+#   'long'  → paragraphe AUTONOME affiché en overlay ⓘ (peut mentionner la VRAM en prose).
+# Clés = suffixe de model_key exposé par la découverte.
+# =============================================================================
+
+REGISTRY_MODEL_DESCRIPTIONS = {
+    'coqui-xtts': {
+        'short': "Coqui XTTS v2 — TTS multilingue avec clonage de voix.",
+        'long': "Coqui XTTS v2 : synthèse vocale multilingue (17 langues) avec clonage de voix "
+                "à partir d'un simple échantillon de référence de quelques secondes. Bon compromis "
+                "qualité/rapidité, référence polyvalente pour la plupart des usages.",
+    },
+    'bark': {
+        'short': "Bark — TTS expressif avec effets sonores.",
+        'long': "Bark (Suno) : synthèse vocale expressive capable de générer rires, soupirs, "
+                "hésitations et bruitages. Presets de locuteurs sur 13 langues ; ne fait pas de "
+                "clonage de voix libre. Idéal pour un rendu vivant et naturel.",
+    },
+    'higgs-audio': {
+        'short': "Higgs Audio v2 — multi-locuteurs avec clonage de voix.",
+        'long': "Higgs Audio v2 (Boson AI, 3B) : synthèse multi-locuteurs avec clonage de voix et "
+                "conditionnement de scène pour des dialogues à plusieurs voix. 9 langues. Le plus "
+                "détaillé mais le plus gourmand en ressources.",
+    },
+    'kokoro': {
+        'short': "Kokoro 82M — TTS multilingue ultra-léger.",
+        'long': "Kokoro 82M : modèle de synthèse vocale très léger (82M paramètres) couvrant "
+                "FR/EN/ES/IT/PT/JA/ZH avec des voix fixes par langue. Extrêmement rapide et peu "
+                "gourmand, adapté au temps réel et aux petites configurations.",
+    },
+}
+
+# Pont valeur d'option UI (select #tts_model, cf. TTS_MODEL_CHOICES) → clé catalogue
+# (`AIModel.model_key` sans le préfixe `synthesizer:`). Les moteurs Coqui légers
+# (vits/tacotron2/speedy_speech) n'ont pas d'entrée catalogue dédiée → pas d'aide affichée.
+ENGINE_CATALOG_KEYS = {
+    'xtts_v2': 'coqui-xtts',
+    'bark': 'bark',
+    'higgs_audio': 'higgs-audio',
+    'kokoro': 'kokoro',
+}
+
+# =============================================================================
 # MODEL DEFINITIONS
 # =============================================================================
 

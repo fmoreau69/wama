@@ -36,6 +36,11 @@ class ModelSource(models.TextChoices):
     WAMA_SYNTHESIZER = 'synthesizer', 'WAMA Synthesizer'
     WAMA_ENHANCER = 'enhancer', 'WAMA Enhancer'
     WAMA_AVATARIZER = 'avatarizer', 'WAMA Avatarizer'
+    # Alignées sur l'enum de découverte (services/model_registry.py) : la découverte écrit déjà
+    # 'composer'/'reader' dans le CharField `source` (4 + 2 modèles en base), mais ils manquaient ici
+    # (choices/admin). Converter n'a PAS de modèles IA (ffmpeg/pandoc) → pas de source dédiée.
+    WAMA_COMPOSER = 'composer', 'WAMA Composer'
+    WAMA_READER = 'reader', 'WAMA Reader'
     OLLAMA = 'ollama', 'Ollama'
     HUGGINGFACE = 'huggingface', 'HuggingFace'
     CUSTOM = 'custom', 'Custom'

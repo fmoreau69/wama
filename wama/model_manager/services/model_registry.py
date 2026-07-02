@@ -470,6 +470,8 @@ class ModelRegistry:
             # Add SAM3 if available
             try:
                 from wama.anonymizer.utils.sam3_manager import get_sam3_status
+                # Description = source unique dans le model_config de l'app (R9) — plus de hardcode.
+                from wama.anonymizer.utils.model_config import REGISTRY_MODEL_DESCRIPTIONS as _ANON_DESC
                 status = get_sam3_status()
 
                 # SAM3 uses safetensors/pt format
@@ -480,7 +482,8 @@ class ModelRegistry:
                     name="SAM3 (Segment Anything)",
                     model_type=ModelType.VISION,
                     source=ModelSource.WAMA_ANONYMIZER,
-                    description="Meta SAM3 - Text-prompted segmentation",
+                    description=_ANON_DESC.get('sam3', {}).get('long', ''),
+                    description_short=_ANON_DESC.get('sam3', {}).get('short', ''),
                     vram_gb=3.0,
                     is_downloaded=status.get('models_cached', False),
                     extra_info=status,
@@ -503,6 +506,15 @@ class ModelRegistry:
             from wama.transcriber.utils.model_config import (
                 TRANSCRIBER_MODELS, WHISPER_DIR, VIBEVOICE_DIR, QWEN_ASR_DIR,
             )
+            # Descriptions = SOURCE UNIQUE : les CLASSES backend (contrat BaseModelBackend,
+            # attributs `description`/`description_long` — c'est ce que l'app AFFICHE via
+            # get_backends_info/WamaModelHelp). Le catalogue en devient le MIROIR (R10).
+            # Modules backend LÉGERS (libs lourdes lazy dans load()) — import sûr au sync.
+            # NB : ne PAS instancier TranscriberBackendManager ici (registration paresseuse
+            # → 0 backend) ; on importe les classes directement.
+            from wama.transcriber.backends.whisper_backend import WhisperBackend
+            from wama.transcriber.backends.vibevoice_backend import VibeVoiceBackend
+            from wama.transcriber.backends.qwen_asr_backend import QwenASRBackend
 
             preferred = self._get_preferred_format(ModelType.SPEECH)
             whisper_dir = Path(WHISPER_DIR)
@@ -513,7 +525,18 @@ class ModelRegistry:
                 hf_id = config.get('hf_model_id', '')
                 size_gb = config.get('size_gb', 0.5)
                 vram_gb = config.get('vram_gb', size_gb)
-                description = config.get('description', model_id)
+
+                # Descriptions : COURT + LONG séparés, depuis la classe backend (= ce qui
+                # s'affiche). Qwen = 2 modèles pour UN moteur → le COURT par-modèle vient de
+                # la config (différencie 0.6B/1.7B), le LONG (paragraphe moteur) de la classe.
+                if model_id.startswith('vibevoice-'):
+                    _cls = VibeVoiceBackend
+                elif model_id.startswith('qwen3-asr-'):
+                    _cls = QwenASRBackend
+                else:
+                    _cls = WhisperBackend
+                description_short = config.get('description') or _cls.description
+                description_long = getattr(_cls, 'description_long', '') or description_short
 
                 if model_id.startswith('vibevoice-'):
                     # HuggingFace hub format in vibevoice/
@@ -562,22 +585,24 @@ class ModelRegistry:
                             else str(ct2_dir))
                     extra = {'hf_id': hf_id, 'path': path if is_downloaded else ''}
 
-                # Capacités ASR : multilingue + timestamps ; diarisation NATIVE (vibevoice)
-                # vs pyannote (whisper/qwen) ; hotwords / context biasing (vibevoice, qwen).
-                caps = {'multilingual': True, 'supports_timestamps': True}
+                # Capacités CANONIQUES (common/utils/model_capabilities.py), alignées sur les
+                # flags backend : diarisation NATIVE (vibevoice) vs pyannote (whisper/qwen) ;
+                # hotwords/context biasing (vibevoice, qwen). languages ['*'] = multilingue.
+                caps = {'languages': ['*'], 'supports_timestamps': True}
                 if model_id.startswith('vibevoice'):
-                    caps.update({'native_diarization': True, 'supports_hotwords': True})
+                    caps.update({'supports_diarization': True, 'supports_hotwords': True})
                 elif model_id.startswith('qwen3-asr'):
-                    caps.update({'native_diarization': False, 'supports_hotwords': True, 'languages_count': 52})
+                    caps.update({'supports_diarization': False, 'supports_hotwords': True})
                 else:  # whisper — diarisation via pyannote (post-traitement)
-                    caps.update({'native_diarization': False, 'supports_hotwords': False})
+                    caps.update({'supports_diarization': False, 'supports_hotwords': False})
 
                 self._models[f"transcriber:{model_id}"] = ModelInfo(
                     id=f"transcriber:{model_id}",
                     name=name,
                     model_type=ModelType.SPEECH,
                     source=ModelSource.WAMA_TRANSCRIBER,
-                    description=description,
+                    description=description_long,
+                    description_short=description_short,
                     vram_gb=vram_gb,
                     is_downloaded=is_downloaded,
                     backend_ref='transcriber',
@@ -596,6 +621,8 @@ class ModelRegistry:
         """Discover Synthesizer app models (Coqui, Bark, Higgs Audio, Kokoro)."""
         try:
             from django.conf import settings
+            # Descriptions = source unique dans le model_config de l'app (R9) — plus de hardcode ici.
+            from wama.synthesizer.utils.model_config import REGISTRY_MODEL_DESCRIPTIONS as _SYNTH_DESC
 
             # Get preferred format for speech models
             preferred = self._get_preferred_format(ModelType.SPEECH)
@@ -628,7 +655,8 @@ class ModelRegistry:
                 name="Coqui XTTS v2",
                 model_type=ModelType.SPEECH,
                 source=ModelSource.WAMA_SYNTHESIZER,
-                description="Multilingual TTS with voice cloning",
+                description=_SYNTH_DESC.get('coqui-xtts', {}).get('long', ''),
+                description_short=_SYNTH_DESC.get('coqui-xtts', {}).get('short', ''),
                 vram_gb=2.0,
                 ram_gb=4.0,
                 is_downloaded=coqui_downloaded,
@@ -666,7 +694,8 @@ class ModelRegistry:
                 name="Bark TTS",
                 model_type=ModelType.SPEECH,
                 source=ModelSource.WAMA_SYNTHESIZER,
-                description="Expressive TTS with sound effects",
+                description=_SYNTH_DESC.get('bark', {}).get('long', ''),
+                description_short=_SYNTH_DESC.get('bark', {}).get('short', ''),
                 vram_gb=4.0,
                 ram_gb=8.0,
                 is_downloaded=bark_downloaded,
@@ -693,7 +722,8 @@ class ModelRegistry:
                 name="Higgs Audio v2",
                 model_type=ModelType.SPEECH,
                 source=ModelSource.WAMA_SYNTHESIZER,
-                description="Multi-speaker TTS with voice cloning (9 langues, 24 Go VRAM)",
+                description=_SYNTH_DESC.get('higgs-audio', {}).get('long', ''),
+                description_short=_SYNTH_DESC.get('higgs-audio', {}).get('short', ''),
                 vram_gb=24.0,
                 ram_gb=8.0,
                 is_downloaded=higgs_downloaded,
@@ -719,7 +749,8 @@ class ModelRegistry:
                 name="Kokoro 82M",
                 model_type=ModelType.SPEECH,
                 source=ModelSource.WAMA_SYNTHESIZER,
-                description="Léger TTS multilingue FR/EN/ES/IT/PT/JA/ZH (82M params)",
+                description=_SYNTH_DESC.get('kokoro', {}).get('long', ''),
+                description_short=_SYNTH_DESC.get('kokoro', {}).get('short', ''),
                 vram_gb=0.5,
                 ram_gb=1.0,
                 is_downloaded=kokoro_downloaded,
@@ -848,8 +879,20 @@ class ModelRegistry:
                         'max_duration': config['max_duration'],
                         'sample_rate': config['sample_rate'],
                     },
+                    # Capacités CANONIQUES (tronc commun, cf. common/utils/model_capabilities.py) :
+                    #   modalities = sortie audio ; task dérivé du type (music vs sfx) ;
+                    #   languages=['en'] car l'encodeur texte AudioCraft (T5) est anglais → lang_routing
+                    #   traduit FR→EN en entrée (fait établi, pas une invention).
+                    capabilities={
+                        'modalities': ['audio'],
+                        'task': 'text-to-music' if config.get('type') == 'music' else 'text-to-audio',
+                        'languages': ['en'],
+                    },
                 )
-                self._models[model_id] = model_info
+                # Clé de registre = `{source}:{id}` (convention des 7 autres apps) → devient model_key
+                # en base. Sans le préfixe, `_resolve_model` (pilier traduction) ne retrouve pas les
+                # capacités et retombe en repli type ['en']. Cf. REMOVAL_LEDGER F4.
+                self._models[f"composer:{model_id}"] = model_info
 
         except Exception as e:
             logger.debug(f"Could not discover Composer models: {e}")
@@ -885,8 +928,15 @@ class ModelRegistry:
                     vram_gb=config['vram_gb'],
                     is_downloaded=is_downloaded,
                     extra_info={'type': config['type']},
+                    # Capacités CANONIQUES : OCR sur images/documents. Langues non déclarées
+                    # (olmOCR/docTR sont multi-écritures ; ne pas sur-affirmer un jeu de langues).
+                    capabilities={
+                        'modalities': ['image', 'document'],
+                        'task': 'ocr',
+                    },
                 )
-                self._models[model_id] = model_info
+                # Clé de registre = `{source}:{id}` (convention). Cf. REMOVAL_LEDGER F4.
+                self._models[f"reader:{model_id}"] = model_info
 
         except Exception as e:
             logger.debug(f"Could not discover Reader models: {e}")
@@ -1306,6 +1356,11 @@ class ModelRegistry:
                     extra_info={
                         'path': str(unet_path.parent),
                         'pipeline': 'musetalk',
+                    },
+                    # Capacités CANONIQUES : lip-sync = image (avatar) + audio (voix) → vidéo.
+                    capabilities={
+                        'modalities': ['image', 'audio', 'video'],
+                        'task': 'lip-sync',
                     },
                     backend_ref='avatarizer',
                     format='pth',

@@ -42,40 +42,18 @@ QWEN_ASR_DIR.mkdir(parents=True, exist_ok=True)
 # =============================================================================
 
 TRANSCRIBER_MODELS = {
-    'whisper-tiny': {
-        'model_id': 'tiny',
-        'hf_model_id': 'openai/whisper-tiny',
-        'type': 'speech-to-text',
-        'size_gb': 0.07,
-        'description': 'Fastest, lowest accuracy',
-    },
-    'whisper-base': {
-        'model_id': 'base',
-        'hf_model_id': 'openai/whisper-base',
-        'type': 'speech-to-text',
-        'size_gb': 0.14,
-        'description': 'Good balance for quick transcriptions',
-    },
-    'whisper-small': {
-        'model_id': 'small',
-        'hf_model_id': 'openai/whisper-small',
-        'type': 'speech-to-text',
-        'size_gb': 0.46,
-        'description': 'Better accuracy, reasonable speed',
-    },
-    'whisper-medium': {
-        'model_id': 'medium',
-        'hf_model_id': 'openai/whisper-medium',
-        'type': 'speech-to-text',
-        'size_gb': 1.42,
-        'description': 'High accuracy, slower',
-    },
-    'whisper-large': {
-        'model_id': 'large',
+    # UN SEUL moteur Whisper exposé par l'app (backend faster-whisper, modèle large-v3).
+    # Les 5 variantes de taille (tiny/base/small/medium/large) étaient des stubs anglais jamais
+    # affichés ni sélectionnables (aucun sélecteur de taille dans l'UI/params) — purgées, cf.
+    # REMOVAL_LEDGER R10. Clé 'whisper' = nom du moteur backend = clé des stats ETA existantes
+    # (`ModelRuntimeStat` : transcriber:whisper).
+    # Description ABSENTE ici : la découverte la tire de la CLASSE backend
+    # (`WhisperBackend.description`/`description_long`) — source unique = ce qui s'affiche.
+    'whisper': {
+        'model_id': 'large-v3',
         'hf_model_id': 'openai/whisper-large-v3',
         'type': 'speech-to-text',
         'size_gb': 2.87,
-        'description': 'Best accuracy, slowest',
     },
 }
 
@@ -87,7 +65,8 @@ VIBEVOICE_MODELS = {
         'type': 'speech-to-text',
         'size_gb': 18,
         'vram_gb': 16,
-        'description': 'VibeVoice ASR - Diarization + timestamps (16GB+ VRAM)',
+        # Description ABSENTE : tirée de la CLASSE backend (VibeVoiceBackend) par la découverte
+        # — source unique = ce qui s'affiche. (L'ancien stub dupliquait, avec VRAM-in-text.)
         'supports_diarization': True,
         'supports_timestamps': True,
         'supports_hotwords': True,
@@ -104,7 +83,9 @@ QWEN_ASR_MODELS = {
         'type': 'speech-to-text',
         'size_gb': 1.5,
         'vram_gb': 2,
-        'description': 'Qwen3-ASR 0.6B — rapide, context biasing, 52 langues (2 GB VRAM)',
+        # Description PAR-MODÈLE (2 tailles pour un même moteur) — la VRAM vient du catalogue
+        # (vram_gb), jamais du texte.
+        'description': 'Qwen3-ASR 0.6B — rapide, context biasing, 52 langues',
         'supports_hotwords': True,
         'supports_timestamps': True,
         'languages': '52',
@@ -115,7 +96,7 @@ QWEN_ASR_MODELS = {
         'type': 'speech-to-text',
         'size_gb': 3.5,
         'vram_gb': 4,
-        'description': 'Qwen3-ASR 1.7B — précis, context biasing, 52 langues (4 GB VRAM)',
+        'description': 'Qwen3-ASR 1.7B — précis, context biasing, 52 langues',
         'supports_hotwords': True,
         'supports_timestamps': True,
         'languages': '52',

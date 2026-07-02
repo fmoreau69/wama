@@ -13,6 +13,8 @@ from typing import Dict, List, Optional, Tuple, Set
 from django.db import transaction
 from django.utils import timezone
 
+from wama.common.utils.model_capabilities import normalize_capabilities
+
 logger = logging.getLogger(__name__)
 
 
@@ -165,7 +167,12 @@ class ModelSyncService:
             'can_convert_to': model_info.can_convert_to or [],
             'backend_ref': model_info.backend_ref or '',
             'extra_info': model_info.extra_info or {},
-            'capabilities': getattr(model_info, 'capabilities', None) or {},
+            # Canonicalisation CENTRALISÉE des capacités (vocabulaire unique) au point d'entrée du
+            # catalogue : dérive `languages`/`supports_*`, mappe les clés legacy (native_diarization→
+            # supports_diarization) et laisse les clés inconnues intactes. Ainsi le catalogue DB est
+            # canonique quel que soit ce qu'émet `_discover_*` (résidu source tracé dans REMOVAL_LEDGER
+            # R1/R2, à nettoyer en fin de parcours). Cf. common/utils/model_capabilities.py.
+            'capabilities': normalize_capabilities(getattr(model_info, 'capabilities', None) or {}),
             'last_synced_at': timezone.now(),
         }
 

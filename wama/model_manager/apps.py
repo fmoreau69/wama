@@ -32,6 +32,9 @@ class ModelManagerConfig(AppConfig):
         - Démarre le file watcher en dev (runserver) uniquement.
         La réconciliation périodique est planifiée via Celery Beat (CELERY_BEAT_SCHEDULE).
         """
+        # Enregistre le garde-fou anti-dérive des enums (registre ⊆ DB), cf. checks.py / F5.
+        from . import checks  # noqa: F401  (l'import déclenche @register)
+
         if any(cmd in sys.argv for cmd in self._SKIP_CMDS):
             return
 

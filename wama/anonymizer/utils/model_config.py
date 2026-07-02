@@ -28,6 +28,22 @@ from django.conf import settings
 logger = logging.getLogger(__name__)
 
 # =============================================================================
+# DESCRIPTIONS (source unique par-app — le registre les LIT, ne les hardcode plus ;
+# cf. REMOVAL_LEDGER R9). DEUX champs SÉPARÉS (format de référence = transcriber) :
+#   'short' → one-liner sous le select (SANS VRAM : le JS l'append depuis vram_gb catalogue)
+#   'long'  → paragraphe AUTONOME (overlay ⓘ), peut citer la VRAM en prose.
+# =============================================================================
+
+REGISTRY_MODEL_DESCRIPTIONS = {
+    'sam3': {
+        'short': "SAM3 (Meta) — segmentation par prompt texte.",
+        'long': "SAM3 (Meta, Segment Anything 3) : segmentation open-vocabulary pilotée par un "
+                "prompt texte libre (ex. « blur all faces and license plates ») au lieu de classes "
+                "YOLO fixes. ~3 Go VRAM. Nécessite un token HuggingFace configuré.",
+    },
+}
+
+# =============================================================================
 # MODEL PATHS CONFIGURATION
 # =============================================================================
 
