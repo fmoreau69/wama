@@ -75,8 +75,20 @@ class IndexView(View):
             'quality_mode_choices': AvatarJob.QUALITY_MODE_CHOICES,
             'media_url': settings.MEDIA_URL,
             'params_json': json.dumps(_AVATAR_PARAMS_JSON),
+            # Groupes de voix (brique commune, per-user) pour le select GÉNÉRÉ de la modale
+            # (options_source='voices') — remplace les optgroups hardcodés du template.
+            'voice_groups_json': json.dumps(_voice_groups_safe(user)),
         }
         return render(request, 'avatarizer/index.html', context)
+
+
+def _voice_groups_safe(user):
+    """[{group, options:[…]}] via la brique commune get_voice_groups — fail-safe []."""
+    try:
+        from wama.common.utils.voice_options import get_voice_groups
+        return get_voice_groups(user)
+    except Exception:
+        return []
 
 
 def create(request):

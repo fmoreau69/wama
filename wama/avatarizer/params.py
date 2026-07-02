@@ -11,20 +11,33 @@ from wama.common.utils.param_schema import derive_from_model, schema_to_dicts
 from wama.avatarizer.models import AvatarJob
 
 PANEL = ("panel",)
+PANEL_ITEM = ("panel", "item")   # P1 : la MODALE est générée par WamaParams (IDs legacy via dom_id)
 
 PARAMS = derive_from_model(
     AvatarJob,
     include=["mode", "tts_model", "language", "voice_preset", "quality_mode", "use_enhancer", "bbox_shift"],
     overrides={
+        # mode = panel-only : dans la modale, le workflow d'un job existant ne se change pas
+        # (la section TTS y est montrée/masquée par le JS selon le mode du job).
         "mode":         dict(type="radio", label="Mode", dom_id={"panel": "workflow_mode"}, contexts=PANEL),
-        "tts_model":    dict(type="select", label="Modèle TTS", icon="fa-microchip", dom_id={"panel": "tts_model"}, contexts=PANEL),
-        "language":     dict(type="select", label="Langue", icon="fa-language", dom_id={"panel": "language"}, contexts=PANEL),
-        "voice_preset": dict(type="select", label="Voix", icon="fa-user", dom_id={"panel": "voice_preset"},
-                             options_source="voices", contexts=PANEL),
-        "quality_mode": dict(type="radio", label="Qualité", dom_id={"panel": "quality_mode"}, contexts=PANEL),
-        "use_enhancer": dict(type="toggle", label="Enhancer IA", dom_id={"panel": "use_enhancer"}, contexts=PANEL),
-        "bbox_shift":   dict(type="range", label="Bbox shift", dom_id={"panel": "bbox_shift"},
-                             min=-9, max=9, step=1, contexts=PANEL),
+        "tts_model":    dict(type="select", label="Modèle TTS", icon="fa-microchip",
+                             dom_id={"panel": "tts_model", "item": "settingsTtsModel"}, contexts=PANEL_ITEM),
+        "language":     dict(type="select", label="Langue", icon="fa-language",
+                             dom_id={"panel": "language", "item": "settingsLanguage"}, contexts=PANEL_ITEM),
+        "voice_preset": dict(type="select", label="Voix", icon="fa-user",
+                             dom_id={"panel": "voice_preset", "item": "settingsVoicePreset"},
+                             options_source="voices", contexts=PANEL_ITEM),
+        "quality_mode": dict(type="radio", label="Qualité", inline=True,
+                             dom_id={"panel": "quality_mode"},
+                             radio_name={"panel": "quality_mode", "item": "settings_quality_mode"},
+                             contexts=PANEL_ITEM),
+        "use_enhancer": dict(type="toggle", label="Enhancer IA (CodeFormer)",
+                             dom_id={"panel": "use_enhancer", "item": "settingsUseEnhancer"},
+                             contexts=PANEL_ITEM),
+        "bbox_shift":   dict(type="range", label="Bbox shift", icon="fa-arrows-up-down",
+                             dom_id={"panel": "bbox_shift", "item": "settingsBboxShift"},
+                             min=-9, max=9, step=1, contexts=PANEL_ITEM,
+                             help="Décalage vertical de la zone bouche (px). 0 = auto."),
     },
 )
 

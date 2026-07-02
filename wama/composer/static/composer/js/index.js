@@ -507,6 +507,7 @@
             if (settingsDuration) {
                 settingsDuration.value = (firstItemBtn && firstItemBtn.dataset.duration) || 10;
                 settingsDurationVal.textContent = _fmtDur(settingsDuration.value);
+                settingsDuration.dispatchEvent(new Event("input"));   // sync .wama-range-val (champ généré)
             }
             updateSettingsEstimate();
             new bootstrap.Modal(document.getElementById('settingsModal')).show();
@@ -525,6 +526,7 @@
             if (settingsDuration) {
                 settingsDuration.value = settingsBtn.dataset.duration || 10;
                 settingsDurationVal.textContent = _fmtDur(settingsDuration.value);
+                settingsDuration.dispatchEvent(new Event("input"));   // sync .wama-range-val (champ généré)
             }
             // Modale complète (P1) : prompt + format/qualité de sortie.
             const sp = document.getElementById('settingsPrompt');

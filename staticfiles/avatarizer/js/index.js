@@ -763,7 +763,11 @@
         if (enhancerCb) enhancerCb.checked = enhancer;
 
         // Bbox
-        if (settingsBboxSlider) settingsBboxSlider.value = bboxShift;
+        if (settingsBboxSlider) {
+            settingsBboxSlider.value = bboxShift;
+            // Champ GÉNÉRÉ (WamaParams) : synchronise l affichage de valeur (.wama-range-val).
+            settingsBboxSlider.dispatchEvent(new Event("input"));
+        }
         if (settingsBboxVal)    settingsBboxVal.textContent = bboxShift;
 
         settingsModal.show();

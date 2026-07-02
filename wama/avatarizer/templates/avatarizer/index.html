@@ -576,107 +576,21 @@
             <div class="modal-body">
                 <input type="hidden" id="settingsJobId">
 
-                <!-- TTS (pipeline) -->
+                <!-- TTS (pipeline seulement — section montrée/masquée par le JS selon le mode du job) -->
                 <div id="settingsPipelineSection">
                     <h6 class="text-info mb-3"><i class="fas fa-stream me-1"></i>Paramètres TTS</h6>
-                    <div class="row g-3 mb-3">
-                        <div class="col-md-4">
-                            <label for="settingsTtsModel" class="form-label small fw-bold text-light">
-                                <i class="fas fa-robot"></i> Modèle TTS
-                            </label>
-                            <select class="form-select form-select-sm bg-dark text-white border-secondary" id="settingsTtsModel">
-                                {% for value, label in tts_models %}
-                                <option value="{{ value }}">{{ label }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <div class="col-md-4">
-                            <label for="settingsLanguage" class="form-label small fw-bold text-light">
-                                <i class="fas fa-language"></i> Langue
-                            </label>
-                            <select class="form-select form-select-sm bg-dark text-white border-secondary" id="settingsLanguage">
-                                {% for value, label in languages %}
-                                <option value="{{ value }}">{{ label }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <div class="col-md-4">
-                            <label for="settingsVoicePreset" class="form-label small fw-bold text-light">
-                                <i class="fas fa-microphone"></i> Voix
-                            </label>
-                            <select class="form-select form-select-sm bg-dark text-white border-secondary" id="settingsVoicePreset">
-                                <optgroup label="Voix intégrées">
-                                    <option value="default">Voix par défaut</option>
-                                    <option value="male_1">Voix masculine 1</option>
-                                    <option value="male_2">Voix masculine 2</option>
-                                    <option value="female_1">Voix féminine 1</option>
-                                    <option value="female_2">Voix féminine 2</option>
-                                </optgroup>
-                                <optgroup label="Voix personnalisées (clonage)">
-                                    {% for cv in custom_voices %}
-                                    <option value="cv_{{ cv.id }}">{{ cv.name }}</option>
-                                    {% endfor %}
-                                </optgroup>
-                                <optgroup label="Bark (presets)">
-                                    <option value="bark_v2_en_0">Bark EN Speaker 0</option>
-                                    <option value="bark_v2_en_1">Bark EN Speaker 1</option>
-                                    <option value="bark_v2_en_2">Bark EN Speaker 2</option>
-                                    <option value="bark_v2_en_3">Bark EN Speaker 3</option>
-                                    <option value="bark_v2_en_4">Bark EN Speaker 4</option>
-                                    <option value="bark_v2_en_5">Bark EN Speaker 5</option>
-                                    <option value="bark_v2_fr_0">Bark FR Speaker 0</option>
-                                    <option value="bark_v2_fr_1">Bark FR Speaker 1</option>
-                                    <option value="bark_v2_es_0">Bark ES Speaker 0</option>
-                                    <option value="bark_v2_de_0">Bark DE Speaker 0</option>
-                                </optgroup>
-                            </select>
-                        </div>
-                    </div>
+                    {# Champs GÉNÉRÉS par WamaParams (params.py, context 'item') — IDs legacy via dom_id. #}
+                    {# Voix : groupes depuis la brique commune get_voice_groups (remplace les optgroups hardcodés). #}
+                    <div class="wama-params" id="avatarizerTtsFields"></div>
                     <hr class="border-secondary">
                 </div>
 
                 <!-- MuseTalk params -->
                 <h6 class="text-info mb-3"><i class="fas fa-sliders-h me-1"></i>Paramètres MuseTalk</h6>
-                <div class="row g-3 mb-3">
-                    <div class="col-md-6">
-                        <label class="form-label small fw-bold text-light">Mode</label>
-                        <div class="btn-group w-100" role="group">
-                            <input type="radio" class="btn-check" name="settings_quality_mode" id="sqmode_fast" value="fast">
-                            <label class="btn btn-outline-secondary btn-sm" for="sqmode_fast">
-                                <i class="fas fa-bolt"></i> Rapide
-                            </label>
-                            <input type="radio" class="btn-check" name="settings_quality_mode" id="sqmode_quality" value="quality">
-                            <label class="btn btn-outline-info btn-sm" for="sqmode_quality">
-                                <i class="fas fa-star"></i> Qualité
-                            </label>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="form-check form-switch mt-4">
-                            <input class="form-check-input" type="checkbox" id="settingsUseEnhancer">
-                            <label class="form-check-label text-light small" for="settingsUseEnhancer">
-                                Amélioration CodeFormer
-                            </label>
-                        </div>
-                    </div>
-                </div>
-                <div class="mb-3">
-                    <label for="settingsBboxShift" class="form-label small fw-bold text-light">
-                        Décalage visage : <span id="settingsBboxShiftVal">0</span>
-                    </label>
-                    <input type="range" class="form-range" id="settingsBboxShift" min="-10" max="10" step="1" value="0">
-                    <small class="text-muted">Ajustez si la zone de la bouche est mal détectée (±1 à ±5)</small>
-                </div>
+                <div class="wama-params" id="avatarizerMtFields"></div>
             </div>
-            <div class="modal-footer border-secondary">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-                <button type="button" class="btn btn-primary" id="btnSettingsSave">
-                    <i class="fas fa-save me-1"></i> Enregistrer
-                </button>
-                <button type="button" class="btn btn-success" id="btnSettingsSaveStart">
-                    <i class="fas fa-play me-1"></i> Enregistrer &amp; démarrer
-                </button>
-            </div>
+            {# Pied de modale COMMUN (convention MODAL_ACTIONS_AUDIT §3) #}
+            {% include 'common/_settings_modal_footer.html' with save_id='btnSettingsSave' save_start_id='btnSettingsSaveStart' %}
         </div>
     </div>
 </div>
@@ -728,6 +642,25 @@ window.AVATARIZER_CONFIG = {
 window.WAMA_GLOBAL_PROGRESS_URL = "{% url 'avatarizer:global_progress' %}";
 </script>
 <script src="{% static 'common/js/wama-eta.js' %}"></script>
+<script src="{% static 'common/js/wama-params.js' %}"></script>  {# rendu des champs modale (P1) #}
+<script>
+// Modale « Paramètres » : champs GÉNÉRÉS par WamaParams (params.py, context 'item') — P1.
+// AVANT index.js (qui met en cache les éléments par id à l'exécution). Voix : groupes
+// per-user injectés par la vue (brique commune get_voice_groups) via optionsResolver.
+(function () {
+    if (!window.WamaParams) { console.warn('[avatarizer] WamaParams absent — modale non générée'); return; }
+    var schema = {{ params_json|safe }};
+    var voiceGroups = {{ voice_groups_json|safe }};
+    var resolver = function (p) { return p.options_source === 'voices' ? voiceGroups : null; };
+    var tts = ['tts_model', 'language', 'voice_preset'];
+    var hostTts = document.getElementById('avatarizerTtsFields');
+    var hostMt  = document.getElementById('avatarizerMtFields');
+    if (hostTts) WamaParams.render(hostTts, schema.filter(function (p) { return tts.indexOf(p.name) !== -1; }),
+                                   { context: 'item', optionsResolver: resolver });
+    if (hostMt)  WamaParams.render(hostMt,  schema.filter(function (p) { return tts.indexOf(p.name) === -1; }),
+                                   { context: 'item', optionsResolver: resolver });
+})();
+</script>
 <script src="{% static 'avatarizer/js/index.js' %}"></script>
 <script src="{% static 'common/js/wama-global-progress.js' %}"></script>
 <script src="{% static 'common/js/wama-inspector.js' %}"></script>
