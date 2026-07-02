@@ -8,6 +8,7 @@
     {% elif gen.status == 'FAILURE' %}border-danger error
     {% else %}border-secondary{% endif %}"
      data-id="{{ gen.id }}"
+     data-status="{{ gen.status }}"
      data-estimated-seconds="{{ gen.estimated_seconds }}"
      style="background:#1e2124;">
 
@@ -89,6 +90,8 @@
                     <i class="fas fa-cog"></i>
                 </button>
                 {% endif %}
+                {# Bouton de cycle ▶/⏹/↻ COMMUN (position 2, conventions) — icône auto-sync sur data-status. #}
+                {% include 'common/_cycle_button.html' with id=gen.id status=gen.status %}
 
                 {% if gen.audio_output %}
                 <a href="{% url 'composer:download' gen.id %}"

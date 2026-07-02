@@ -262,6 +262,12 @@ APP_CATALOG = {
             tool_api=True,       # compose_music + get_composer_status (tool_api.py central, VÉRIFIÉ
                                  # registre l.2002 — le flag False était PÉRIMÉ, audit 2026-07-03)
             batch=True,          # batch unifié _wrap_generation_in_batch + _auto_wrap_orphans (vérifié)
+            eta_individual=True,   # .wama-eta par card (_generation_card l.65) — flag périmé corrigé
+            eta_batch=True,        # data-eta-ids en-tête de batch (index l.154)
+            eta_queue=True,        # barre globale #gpEta (_global_progress, index l.118)
+            multi_format_download=None,  # N/A — EARLY binding (format/qualité réglés AVANT génération)
+            modes=None,          # N/A — plus de mode (switch retiré, type dérivé du modèle)
+            filemanager_import=None,     # N/A — app à entrée TEXTE (prompt), pas de médias à recevoir
         ),
     },
 
