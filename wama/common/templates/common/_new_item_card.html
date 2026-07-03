@@ -35,8 +35,18 @@ Usage (transcriber) :
     <div class="card-body py-2">
         <div class="d-flex align-items-center gap-2 mb-2 small text-white-50">
             <i class="fas fa-plus-circle text-info"></i> <strong>Nouvel élément</strong>
-            <span class="text-muted">— glissez un fichier{% if show_url %}, ou collez une URL{% endif %}</span>
+            <span class="text-muted">{% if show_prompt %}— décrivez, glissez ou collez{% else %}— glissez un fichier{% if show_url %}, ou collez une URL{% endif %}{% endif %}</span>
         </div>
+        {% if show_prompt %}
+        {# PROMPT = entrée primaire des apps génératives (INPUT_MODEL_MATCHING.md) — dans la CARD, #}
+        {# pas dans le volet : le volet/la modale n'en gardent que l'édition d'un item existant. #}
+        <div class="mb-2">
+            <textarea class="form-control form-control-sm bg-dark text-light border-secondary"
+                      id="{{ prompt_input_id|default:'promptInput' }}" rows="{{ prompt_rows|default:2 }}"
+                      placeholder="{{ prompt_placeholder|default:'Décrivez ce que vous voulez générer…' }}"></textarea>
+            {% if prompt_hint %}<small class="text-muted">{{ prompt_hint }}</small>{% endif %}
+        </div>
+        {% endif %}
         <div class="row g-2 align-items-start">
             <div class="{% if show_url %}col-md-6{% else %}col-12{% endif %}">
                 <div class="drop-zone drop-zone-sm mb-0" id="{{ drop_zone_id }}">
@@ -109,6 +119,15 @@ Usage (transcriber) :
             {% if reference_hint %}<small class="text-muted d-block mt-1">{{ reference_hint }}</small>{% endif %}
             {# Ligne d'état de l'appariement (causalité + réversibilité) — remplie par WamaInputMatch #}
             <small id="{{ match_status_id|default:'inputMatchStatus' }}" class="text-info d-block mt-1" style="display:none"></small>
+        </div>
+        {% endif %}
+
+        {% if primary_btn_id %}
+        {# Action primaire de la card (apps à création explicite, ex. Générer) — vert, conventions. #}
+        <div class="d-grid mt-2">
+            <button class="btn btn-success btn-sm" id="{{ primary_btn_id }}">
+                <i class="fas {{ primary_btn_icon|default:'fa-play' }} me-1"></i> {{ primary_btn_label|default:'Lancer' }}
+            </button>
         </div>
         {% endif %}
     </div>

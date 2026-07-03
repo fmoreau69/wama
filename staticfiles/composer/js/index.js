@@ -241,11 +241,9 @@
 
     if (generateBtn) {
         generateBtn.addEventListener('click', function () {
-            const prompt = promptInput?.value.trim();
-            if (!prompt) {
-                alert('Veuillez saisir un prompt.');
-                return;
-            }
+            // Prompt VIDE autorisé = génération ALÉATOIRE (le placeholder de la card l'annonce ;
+            // backend generate_unconditional / chroma-seule). Cf. INPUT_MODEL_MATCHING.md.
+            const prompt = promptInput?.value.trim() || '';
 
             const modelId = modelSelect?.value || 'musicgen-small';
             const duration = getSelectedDuration();

@@ -183,9 +183,15 @@ class AudioCraftBackend(BaseModelBackend):
             melody, sr = torchaudio.load(melody_path)
             # MusicGen expects (batch, channels, time) or None
             melody = melody.unsqueeze(0)  # (1, C, T)
-            wav = model.generate_with_chroma([prompt], melody, sr)
-        else:
+            # Prompt vide → description None : conditionnement par la SEULE mélodie
+            # (audiocraft accepte des entrées None dans descriptions).
+            wav = model.generate_with_chroma([prompt or None], melody, sr)
+        elif prompt:
             wav = model.generate([prompt])
+        else:
+            # Prompt VIDE = génération ALÉATOIRE (inconditionnelle) — annoncé dans l'UI
+            # (placeholder de la card d'entrée). Cf. INPUT_MODEL_MATCHING.md.
+            wav = model.generate_unconditional(1)
 
         if progress_callback:
             progress_callback(80)

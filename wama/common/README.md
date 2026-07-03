@@ -72,7 +72,8 @@ elle lit le **catalogue**.
 ### File / cards / entrées
 | Brique | Fichier | Rôle |
 |---|---|---|
-| `_new_item_card.html` | `templates/common/` | **card d'entrée générée** : drop, URL/YouTube, batch, médiathèque (`show_media_library`), temps réel (`show_live`). C'est la voie pour globaliser les **entrées conditionnelles** (ex. mélodie de référence de MusicGen Melody, aujourd'hui hardcodée dans le volet composer). |
+| `_new_item_card.html` | `templates/common/` | **card d'entrée générée** : drop, URL/YouTube, batch, médiathèque (`show_media_library`), temps réel (`show_live`), **fichier de référence** (`show_reference` : chip retirable ✕ + zone requis/suggéré + ligne d'état). |
+| `WamaInputMatch` | `static/common/js/wama-input-match.js` | **appariement entrées ⇄ modèles** (`INPUT_MODEL_MATCHING.md`) : entrée fournie → modèles incompatibles **grisés + raison** (jamais cachés), bascule auto, réversible par chip ; modèle choisi → slots requis (ambre, lancement gaté) / suggérés (info). Déclaratif : `capabilities.inputs_required/optional` (catalogue) + `INPUT_TYPES`. Pilote : composer (mélodie Melody). |
 | `wama-queue.js`, `_queue_actions.html`, `_card_progress.html`, `_card_state.html`, `_cycle_button.html` | | file (batch collapse), actions de file, barres de progression, **bouton cycle ▶/⏹/↻** (toujours VERT, seule l'icône change) |
 | `_global_progress.html` + `wama-eta.js` (+ `eta_estimator` serveur) | | barre globale + moteur ETA — **jamais d'ETA par app** |
 | `queue_duplication.py`, `batch_parsers.py`, `batch_import.js`, `media-picker.js` (chargé globalement) | `utils/`, `static/` | duplication/suppression sûres, imports batch, médiathèque |

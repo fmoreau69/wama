@@ -101,3 +101,4 @@
 | 16 | `tool_api.py` (assistant/méta-app) + `PROMPT_TARGETS` si prompts | A4/A5 |
 | 17 | Conformité `/apps/` mise à jour (flags = réalité) | app_registry |
 | 18 | Manipulation directe file (quand briquée) | §5 ci-dessus |
+| 19 | Appariement entrées⇄modèles (si entrées différenciantes : référence, etc.) | `WamaInputMatch` + `capabilities.inputs_*` + slot `show_reference` |

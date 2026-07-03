@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 def _wrap_generation_in_batch(generation: ComposerGeneration) -> ComposerBatch:
     """Wrap a standalone ComposerGeneration in a new ComposerBatch-of-1."""
-    stem = os.path.splitext(generation.prompt[:30].replace(' ', '_'))[0]
+    stem = os.path.splitext(generation.prompt[:30].replace(' ', '_'))[0] or 'generation_aleatoire'
     output_filename = f"{stem}_{generation.id}.wav"
     batch = ComposerBatch.objects.create(user=generation.user, total=1)
     ComposerBatchItem.objects.create(
@@ -112,9 +112,9 @@ class IndexView(View):
 def generate(request):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
 
+    # Prompt VIDE autorisé = génération ALÉATOIRE (inconditionnelle — le modèle improvise).
+    # L'UI l'annonce dans le placeholder de la card d'entrée (INPUT_MODEL_MATCHING.md).
     prompt = request.POST.get('prompt', '').strip()
-    if not prompt:
-        return JsonResponse({'error': 'Prompt requis'}, status=400)
 
     model_id = request.POST.get('model', 'musicgen-small')
     if model_id not in COMPOSER_MODELS:
