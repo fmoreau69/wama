@@ -898,10 +898,15 @@ class ModelRegistry:
                     #   modalities = sortie audio ; task dérivé du type (music vs sfx) ;
                     #   languages=['en'] car l'encodeur texte AudioCraft (T5) est anglais → lang_routing
                     #   traduit FR→EN en entrée (fait établi, pas une invention).
+                    #   inputs_optional : appariement card↔modèles (INPUT_MODEL_MATCHING.md) —
+                    #   seul musicgen-melody accepte une mélodie de référence (conditionnement
+                    #   OPTIONNEL : il improvise sans).
                     capabilities={
                         'modalities': ['audio'],
                         'task': 'text-to-music' if config.get('type') == 'music' else 'text-to-audio',
                         'languages': ['en'],
+                        **({'inputs_optional': ['reference_melody']}
+                           if model_id == 'musicgen-melody' else {}),
                     },
                 )
                 # Clé de registre = `{source}:{id}` (convention des 7 autres apps) → devient model_key

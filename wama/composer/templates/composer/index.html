@@ -69,15 +69,9 @@ Un vrai MODE reviendra par APP_MODES si le comportement diverge un jour (cf. mel
     <small class="text-muted">Anglais recommandé pour de meilleurs résultats</small>
 </div>
 
-<!-- Mélodie de référence (MusicGen Melody uniquement) -->
-<div class="mb-3" id="melodyGroup" style="display:none;">
-    <label class="form-label small fw-bold text-light">
-        <i class="fas fa-guitar"></i> Mélodie de référence
-    </label>
-    <input type="file" class="form-control form-control-sm bg-dark text-light border-secondary"
-           id="melodyInput" accept="audio/*">
-    <small class="text-muted">Audio 5s–5min servant de ligne mélodique</small>
-</div>
+{% comment %}Mélodie de référence : le champ hardcodé (show/hide par modèle) est REMPLACÉ par le
+slot déclaré de la card d'entrée (_new_item_card show_reference) + l'appariement WamaInputMatch —
+id melodyInput conservé (payload generate inchangé). Cf. INPUT_MODEL_MATCHING.md.{% endcomment %}
 
 <!-- Format + Qualité : champs GÉNÉRÉS (P2) depuis la brique commune output_format_params_for_app. -->
 <div class="wama-params" id="composerPanelOutputHost"></div>
@@ -130,7 +124,7 @@ Un vrai MODE reviendra par APP_MODES si le comportement diverge un jour (cf. mel
 
     {# Card « Nouvel élément » COMMUNE (_new_item_card, référence transcriber) : entrée batch. #}
     {# IDs batchFileInput + barre batch communs → handlers WamaBatchImport existants inchangés. #}
-    {% include 'common/_new_item_card.html' with drop_zone_id='composerBatchDrop' file_input_id='batchFileInput' file_accept='.txt,.md,.csv,.pdf,.docx' formats_label='TXT · MD · CSV · PDF · DOCX — fichier|prompt|modèle|durée' show_batch_bar=True show_media_library=True media_library_type='document' %}
+    {% include 'common/_new_item_card.html' with drop_zone_id='composerBatchDrop' file_input_id='batchFileInput' file_accept='.txt,.md,.csv,.pdf,.docx' formats_label='TXT · MD · CSV · PDF · DOCX — fichier|prompt|modèle|durée' show_batch_bar=True show_media_library=True media_library_type='document' show_reference=True reference_input_id='melodyInput' reference_chip_id='melodyChip' reference_zone_id='melodySlot' reference_label='Mélodie de référence' reference_accept='audio/*' reference_hint='Audio 5s–5min servant de ligne mélodique (modèle Melody)' %}
 
     {% for batch_info in batches_list %}
 
@@ -262,6 +256,7 @@ Un vrai MODE reviendra par APP_MODES si le comportement diverge un jour (cf. mel
 <script src="{% static 'common/js/wama-model-help.js' %}"></script>
 <script src="{% static 'common/js/wama-params.js' %}"></script>  {# rendu des champs modale (P1) — composer n'en avait pas besoin avant (initFromSchema lit sans rendre) #}
 <script src="{% static 'common/js/wama-cycle-button.js' %}"></script>  {# bouton cycle ▶/⏹/↻ — le JS composer était déjà câblé (wire/autoSync), le script manquait #}
+<script src="{% static 'common/js/wama-input-match.js' %}"></script>  {# appariement card d'entrée ↔ modèles (INPUT_MODEL_MATCHING.md) #}
 <script src="{% static 'composer/js/index.js' %}"></script>
 <script src="{% static 'common/js/wama-inspector.js' %}"></script>
 <script>
@@ -314,6 +309,17 @@ document.addEventListener('DOMContentLoaded', function () {
     if (hostOut) WamaParams.render(hostOut,
         schema.filter(function (p) { return p.name === 'output_format' || p.name === 'output_quality'; }),
         { context: 'panel' });
+    // Appariement entrées⇄modèles (brique commune) : meta du CATALOGUE ; le mapping input_id →
+    // ids DOM reflète la déclaration de l'include _new_item_card ci-dessus (slot mélodie).
+    if (window.WamaInputMatch) {
+        WamaInputMatch.init({
+            selectId: 'modelSelect',
+            meta: {{ input_match_meta|default:"{}"|safe }},
+            inputLabels: {{ input_labels|default:"{}"|safe }},
+            slots: { reference_melody: { inputId: 'melodyInput', chipId: 'melodyChip', zoneId: 'melodySlot' } },
+            statusId: 'inputMatchStatus',
+        });
+    }
     // Estimation (~20s) : placée à côté de la valeur du slider Durée (comme le volet).
     var dur = document.getElementById('settingsDuration');
     var est = document.getElementById('settingsEstimate');

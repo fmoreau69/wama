@@ -258,7 +258,9 @@
             formData.append('output_format', (document.getElementById('output_format') || {}).value || 'original');
             formData.append('output_quality', (document.getElementById('output_quality') || {}).value || 'balanced');
 
-            if (modelId === 'musicgen-melody' && melodyInput?.files[0]) {
+            // Référence fournie → jointe. Plus de test hardcodé par modèle : l'appariement
+            // WamaInputMatch garantit qu'un modèle incompatible n'est pas sélectionnable.
+            if (melodyInput?.files[0]) {
                 formData.append('melody_reference', melodyInput.files[0]);
             }
 

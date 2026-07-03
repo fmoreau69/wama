@@ -25,10 +25,18 @@ INPUT_TYPES = {
     'work_audio':      {'label': 'Audio de travail', 'kind': 'file', 'accept': 'audio', 'multi': True, 'port': 'travail'},
     'reference_file':  {'label': 'Fichier de référence', 'kind': 'file', 'multi': False, 'port': 'reference'},
     'reference_voice': {'label': 'Voix de référence', 'kind': 'file', 'accept': 'audio', 'multi': False, 'port': 'reference'},
+    'reference_melody': {'label': 'Mélodie de référence', 'kind': 'file', 'accept': 'audio', 'multi': False, 'port': 'reference'},
     'url':             {'label': 'URL', 'kind': 'url', 'multi': False, 'port': 'travail'},
     'prompt_file':     {'label': 'Fichier de prompts (batch)', 'kind': 'file', 'multi': False, 'port': 'travail'},
 }
 
+
+# RÈGLE D'APPARIEMENT (INPUT_MODEL_MATCHING.md) : les slots de la card d'entrée d'une app =
+# ses inputs déclarés ci-dessous (niveau APP : communs à tous les modèles, ex. prompt/prompt_file)
+# ∪ l'union des `inputs_required/optional` de ses MODÈLES (capabilities catalogue, ex.
+# reference_melody porté par musicgen-melody seul). La brique `wama-input-match.js` lie les deux :
+# entrée fournie → modèles incompatibles DÉSACTIVÉS avec raison (jamais cachés) ; modèle choisi →
+# slots attendus mis en évidence. Réversible par retrait de la chip.
 
 # ── Schéma par app : domaines → modes ────────────────────────────────────────
 # mode = {id, label, icon, realtime?, inputs:[input_type_id], settings:[setting_id]}

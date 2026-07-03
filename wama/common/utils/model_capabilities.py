@@ -46,6 +46,11 @@ CANONICAL_CAPABILITIES: Dict[str, str] = {
     "scale":               "int — facteur d'agrandissement (x2, x4)",
     # Indices d'UI (champs de réglage pertinents pour ce moteur) — cf. enhancer
     "params":              "list[str] — noms de paramètres UI pertinents pour ce moteur",
+    # Appariement card d'entrée ↔ modèles (INPUT_MODEL_MATCHING.md) : ids d'INPUT_TYPES
+    # (app_modes.py). L'union sur les modèles d'une app DÉRIVE les slots de sa card d'entrée ;
+    # une entrée fournie hors des inputs d'un modèle le DÉSACTIVE (avec raison, jamais caché).
+    "inputs_required":     "list[str] — entrées REQUISES par le modèle (lancement gaté sinon)",
+    "inputs_optional":     "list[str] — entrées ACCEPTÉES en option (ex. reference_melody)",
 }
 
 # Clés LEGACY → remplacement canonique (pour normaliser les dicts existants).

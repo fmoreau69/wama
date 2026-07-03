@@ -97,6 +97,10 @@ class IndexView(View):
             'sfx_models': SFX_MODELS,
             'all_models': COMPOSER_MODELS,
             'params_json': json.dumps(_COMPOSER_PARAMS_JSON),
+            # Appariement card↔modèles (WamaInputMatch) : besoins d'entrées par modèle depuis le
+            # CATALOGUE + libellés d'INPUT_TYPES. Cf. INPUT_MODEL_MATCHING.md.
+            'input_match_meta': json.dumps(_input_match_meta()),
+            'input_labels': json.dumps(_input_labels()),
         })
 
 
@@ -287,6 +291,31 @@ def stop(request, pk):
     from wama.common.utils.process_control import stop_instance
     new_status = stop_instance(gen, error_field='error_message')
     return JsonResponse({'id': gen.id, 'status': new_status})
+
+
+def _input_match_meta():
+    """{model_id: {inputs_required, inputs_optional}} depuis le CATALOGUE — fail-safe {}."""
+    try:
+        from wama.model_manager.models import AIModel
+        meta = {}
+        for m in AIModel.objects.filter(source='composer', is_proposed=False):
+            caps = m.capabilities or {}
+            meta[m.model_key.split(':', 1)[-1]] = {
+                'inputs_required': caps.get('inputs_required', []),
+                'inputs_optional': caps.get('inputs_optional', []),
+            }
+        return meta
+    except Exception:
+        return {}
+
+
+def _input_labels():
+    """{input_id: libellé} depuis INPUT_TYPES (source déclarée commune) — fail-safe {}."""
+    try:
+        from wama.common.utils.app_modes import INPUT_TYPES
+        return {k: v.get('label', k) for k, v in INPUT_TYPES.items()}
+    except Exception:
+        return {}
 
 
 def update_settings(request, pk):
