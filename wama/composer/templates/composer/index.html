@@ -229,6 +229,36 @@ id melodyInput conservé (payload generate inchangé). Cf. INPUT_MODEL_MATCHING.
 <script src="{% static 'common/js/wama-input-match.js' %}"></script>  {# appariement card d'entrée ↔ modèles (INPUT_MODEL_MATCHING.md) #}
 <script src="{% static 'common/js/wama-queue.js' %}"></script>  {# file commune : toggle Ligne/Mosaïque + collapse batch + focusCard #}
 <script src="{% static 'common/js/wama-new-item-card.js' %}"></script>  {# card d'entrée DÉPLIABLE (auto-init, mécanisme synthesizer globalisé) #}
+<script src="{% static 'common/js/batch-import.js' %}"></script>  {# import batch COMMUN : aperçu serveur + créer/lancer (audit B3-9) #}
+<script>
+// Import batch COMMUN (WamaBatchImport, pattern transcriber) : aperçu serveur dans la detect bar,
+// « Créer seulement » ≠ « Créer et lancer » (le lancement passe par composer:batch_start —
+// le serveur ne lance plus rien à la création).
+document.addEventListener('DOMContentLoaded', function () {
+    if (typeof WamaBatchImport === 'undefined') { console.warn('[Composer] batch-import.js manquant — import batch inactif'); return; }
+    window._batchImport = WamaBatchImport({
+        dropZoneId: 'composerBatchDrop',
+        fileInputId: 'batchFileInput',
+        batchExtensions: ['txt', 'md', 'csv', 'pdf', 'docx'],
+        batchPreviewUrl: '{% url "composer:batch_preview" %}',
+        batchCreateUrl: '{% url "composer:import_batch" %}',
+        csrfToken: '{{ csrf_token }}',
+        formDataBuilder: function (fd) {
+            fd.append('default_model', document.getElementById('modelSelect')?.value || 'musicgen-small');
+            fd.append('default_duration', document.getElementById('durationSlider')?.value || 10);
+        },
+        afterCreate: function (data, autoStart) {
+            if (autoStart && data.batch_id) {
+                fetch('{% url "composer:batch_start" 0 %}'.replace('/0/', '/' + data.batch_id + '/'),
+                      { method: 'POST', headers: { 'X-CSRFToken': '{{ csrf_token }}' } })
+                    .finally(function () { location.reload(); });
+            } else {
+                location.reload();
+            }
+        },
+    });
+});
+</script>
 <script src="{% static 'composer/js/index.js' %}"></script>
 <script src="{% static 'common/js/wama-inspector.js' %}"></script>
 <script>

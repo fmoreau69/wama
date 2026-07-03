@@ -286,96 +286,11 @@
     }
 
     // ---------------------------------------------------------------------------
-    // Import batch file
+    // Import batch : BRIQUE COMMUNE WamaBatchImport (auto-hooks dropzone + input + detect bar
+    // avec APERÇU serveur). Init dans le template (URLs via {% url %}) — cf. index.html.
+    // L'ancien flux hand-rolled (drop manuel, compteur figé à '?', lancement inconditionnel
+    // côté serveur) est remplacé — audit B3-9, 2026-07-03.
     // ---------------------------------------------------------------------------
-
-    function _doBatchImport(autoStart) {
-        const file = batchFileInput?.files[0];
-        if (!file) {
-            alert('Sélectionnez d\'abord un fichier batch.');
-            return;
-        }
-
-        const formData = new FormData();
-        formData.append('csrfmiddlewaretoken', CSRF);
-        formData.append('batch_file', file);
-        formData.append('default_model', modelSelect?.value || 'musicgen-small');
-        formData.append('default_duration', getSelectedDuration());
-
-        if (batchCreateAndStartBtn) batchCreateAndStartBtn.disabled = true;
-        if (batchCreateOnlyBtn) batchCreateOnlyBtn.disabled = true;
-
-        fetch('/composer/import/', { method: 'POST', body: formData })
-            .then(r => r.json())
-            .then(data => {
-                if (data.error) {
-                    alert('Erreur batch : ' + data.error);
-                } else {
-                    if (data.warnings?.length) console.warn('[Composer] Warnings:', data.warnings);
-                    if (autoStart && data.ids) {
-                        Promise.all(data.ids.map(id =>
-                            fetch(`/composer/start/${id}/`, { method: 'POST', headers: { 'X-CSRFToken': CSRF } })
-                        )).then(() => location.reload());
-                    } else {
-                        location.reload();
-                    }
-                }
-            })
-            .catch(err => alert('Erreur réseau : ' + err))
-            .finally(() => {
-                if (batchCreateAndStartBtn) batchCreateAndStartBtn.disabled = false;
-                if (batchCreateOnlyBtn) batchCreateOnlyBtn.disabled = false;
-                if (batchDetectBar) batchDetectBar.style.display = 'none';
-                if (batchFileInput) batchFileInput.value = '';
-            });
-    }
-
-    // Card commune « Nouvel élément » : câblage clic + drag&drop de la zone vers batchFileInput
-    // (la brique _new_item_card fournit le markup ; l'app fournit les handlers — pattern transcriber).
-    const composerBatchDrop = document.getElementById('composerBatchDrop');
-    if (composerBatchDrop && batchFileInput) {
-        composerBatchDrop.addEventListener('click', () => batchFileInput.click());
-        composerBatchDrop.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            composerBatchDrop.classList.add('drop-zone-active');
-        });
-        composerBatchDrop.addEventListener('dragleave', () => composerBatchDrop.classList.remove('drop-zone-active'));
-        composerBatchDrop.addEventListener('drop', (e) => {
-            e.preventDefault();
-            composerBatchDrop.classList.remove('drop-zone-active');
-            if (e.dataTransfer.files.length) {
-                batchFileInput.files = e.dataTransfer.files;
-                batchFileInput.dispatchEvent(new Event('change'));
-            }
-        });
-    }
-
-    // Batch file input: show detect bar when a file is selected
-    if (batchFileInput) {
-        batchFileInput.addEventListener('change', function () {
-            const file = batchFileInput.files[0];
-            if (!file) {
-                if (batchDetectBar) batchDetectBar.style.display = 'none';
-                return;
-            }
-            if (batchDetectedCount) batchDetectedCount.textContent = '?';
-            if (batchCreateCount) batchCreateCount.textContent = '?';
-            if (batchDetectBar) batchDetectBar.style.display = '';
-        });
-    }
-
-    if (batchCreateAndStartBtn) {
-        batchCreateAndStartBtn.addEventListener('click', () => _doBatchImport(true));
-    }
-    if (batchCreateOnlyBtn) {
-        batchCreateOnlyBtn.addEventListener('click', () => _doBatchImport(false));
-    }
-    if (batchCancelBar) {
-        batchCancelBar.addEventListener('click', () => {
-            if (batchDetectBar) batchDetectBar.style.display = 'none';
-            if (batchFileInput) batchFileInput.value = '';
-        });
-    }
 
     // Reset options handler
     document.getElementById('resetOptions')?.addEventListener('click', () => {

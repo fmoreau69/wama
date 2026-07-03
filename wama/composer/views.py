@@ -193,6 +193,58 @@ def generate(request):
 # ---------------------------------------------------------------------------
 
 @require_POST
+def batch_preview(request):
+    """Aperçu d'un fichier batch (contrat WamaBatchImport) : parse SANS créer.
+
+    Réponse : {'count', 'items': [{'filename', 'path'}], 'warnings'} — le tableau de la
+    detect bar affiche item.filename (title = item.path, ici le prompt)."""
+    if 'batch_file' not in request.FILES:
+        return JsonResponse({'error': 'Aucun fichier batch fourni'}, status=400)
+    batch_file = request.FILES['batch_file']
+
+    import tempfile
+    from .utils.batch_parser import parse_batch_file
+    suffix = os.path.splitext(batch_file.name)[1] or '.txt'
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+        for chunk in batch_file.chunks():
+            tmp.write(chunk)
+        tmp_path = tmp.name
+    try:
+        tasks, warnings = parse_batch_file(
+            tmp_path, 'musicgen-small', 10.0, source_name=batch_file.name)
+    except Exception as exc:
+        return JsonResponse({'error': str(exc)}, status=400)
+    finally:
+        try:
+            os.remove(tmp_path)
+        except OSError:
+            pass
+
+    items = [{'filename': t['output_filename'], 'path': t['prompt']} for t in tasks]
+    return JsonResponse({'count': len(items), 'items': items, 'warnings': warnings})
+
+
+@require_POST
+def batch_start(request, pk):
+    """Lance toutes les générations EN ATTENTE d'un batch (contrat WamaBatchImport :
+    créer ≠ démarrer ; appelé par afterCreate quand « Créer et lancer »)."""
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    batch = get_object_or_404(ComposerBatch, id=pk, user=user)
+
+    from .tasks import compose_task
+    started = []
+    for item in batch.items.select_related('generation').order_by('row_index'):
+        gen = item.generation
+        if not gen or gen.status != 'PENDING':
+            continue
+        celery_task = compose_task.apply_async(args=(gen.id,))
+        gen.task_id = celery_task.id
+        gen.save(update_fields=['task_id'])
+        started.append(gen.id)
+    return JsonResponse({'success': True, 'started': started, 'count': len(started)})
+
+
+@require_POST
 def import_batch(request):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
 
@@ -245,9 +297,10 @@ def import_batch(request):
     batch.batch_file = rel_path
     batch.save(update_fields=['batch_file'])
 
-    # Create generations and items
+    # Créer SANS lancer (contrat WamaBatchImport : créer ≠ démarrer ; l'auto-start passe par
+    # batch_start, appelé par afterCreate — avant, le serveur lançait tout inconditionnellement
+    # et « Créer seulement » était illusoire + double lancement avec l'auto-start client).
     created_ids = []
-    from .tasks import compose_task
     for task_data in tasks:
         gen = ComposerGeneration.objects.create(
             user=user,
@@ -262,9 +315,6 @@ def import_batch(request):
             output_filename=task_data['output_filename'],
             row_index=task_data['line_num'],
         )
-        celery_task = compose_task.apply_async(args=(gen.id,))
-        gen.task_id = celery_task.id
-        gen.save(update_fields=['task_id'])
         created_ids.append(gen.id)
 
     return JsonResponse({
@@ -577,9 +627,11 @@ def duplicate(request, pk):
         },
         clear_fields=['audio_output'],
     )
-    # Dupliquer DANS le même batch que l'original (élément frère).
+    # Fille d'un VRAI batch (total > 1) : dupliquer en frère DANS le batch.
+    # Card UNITAIRE (batch-de-1) : la copie devient une card indépendante (nouveau batch-de-1) —
+    # sinon la duplication transformait la card en batch de 2 (bug signalé 2026-07-03).
     orig_item = ComposerBatchItem.objects.filter(generation=gen).select_related('batch').first()
-    if orig_item:
+    if orig_item and orig_item.batch.total > 1:
         from django.db.models import Max
         batch = orig_item.batch
         next_idx = (batch.items.aggregate(m=Max('row_index'))['m'] or 0) + 1

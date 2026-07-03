@@ -16,9 +16,9 @@ Usage :
   {% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='...' clear_id='...' download_id='...' show_download=True %}
 {% endcomment %}
 <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap wama-queue-toolbar mb-2">
-    <!-- Pôle GAUCHE : actions globales (verbes fréquents, zone de lecture primaire). -->
-    {% include 'common/_queue_actions.html' %}
-    <!-- Pôle DROIT : organisation de l'affichage (tri, filtre, disposition) — convention explorateurs. -->
+    <!-- Pôle GAUCHE : organisation de l'affichage (tri, filtre, disposition) — facettes/contexte.
+         Pôle DROIT : actions globales — COHÉRENCE avec les cards (actions à droite de l'en-tête,
+         danger 🗑/Tout effacer à l'extrême droite). Décision Fabien 2026-07-03. -->
     <div class="d-flex align-items-center gap-2 flex-wrap">
         <!-- Tri + filtrage de la file (fonctionnel, persisté en session ; recharge la page). -->
         <select class="form-select form-select-sm bg-dark text-white border-secondary" style="width:auto;"
@@ -43,4 +43,5 @@ Usage :
             <button type="button" class="btn btn-outline-secondary wama-layout-btn" data-layout="grid" title="Affichage en mosaïque"><i class="fas fa-table-cells-large"></i></button>
         </div>
     </div>
+    {% include 'common/_queue_actions.html' %}
 </div>

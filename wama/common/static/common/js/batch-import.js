@@ -221,6 +221,8 @@ function WamaBatchImport(cfg) {
     const fi = cfg.fileInputId ? el(cfg.fileInputId) : null;
 
     if (dz) {
+      // Clic = ouvrir le sélecteur (la zone affiche « cliquez pour importer »).
+      if (fi) dz.addEventListener('click', () => fi.click());
       dz.addEventListener('dragover', e => e.preventDefault());
       dz.addEventListener('drop', async e => {
         e.preventDefault();

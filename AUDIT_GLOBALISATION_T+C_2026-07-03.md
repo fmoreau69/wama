@@ -114,8 +114,10 @@ composer index.html + _generation_card.html + views.py (intégral), js/index.js 
 8. **Header de batch violet minimal** — index.html (~116-148, `background:#2d1b69` inline), sans le
    squelette « card mère = card fille » (transcriber) : il manque ▶ Lancer le batch, compteurs
    ✓/✗/en-cours, barre agrégée. Cible : brique `_batch_card.html` commune (comme A2-6).
-9. **N'utilise PAS `common/js/batch-import.js`** — index.js:292-377 (drag&drop + detect bar manuels,
-   compteur figé à `'?'`), pas d'endpoint batch_preview. Cible : WamaBatchImport + preview.
+9. ~~N'utilise PAS `common/js/batch-import.js`~~ — **RÉGLÉ 2026-07-03** : WamaBatchImport branché
+   (init template avec `{% url %}`), endpoints `batch_preview` + `batch_start` créés,
+   `import_batch` ne lance PLUS rien (créer ≠ démarrer ; avant : lancement inconditionnel serveur
+   + double lancement client). Bonus brique : clic dropzone = ouvrir le sélecteur.
 
 ### B4. Plomberie JS (wama-app-base ABSENT)
 10. Conséquences : polling hand-rolled (605-640) au lieu de WamaApp.Poller ; CSRF par regex cookie
@@ -135,8 +137,8 @@ composer index.html + _generation_card.html + views.py (intégral), js/index.js 
 ### B5. Vue
 15. `_auto_wrap_orphans`/`_wrap_generation_in_batch` — views.py:28-53 (cf. A5-19).
 16. Compteurs de batch — views.py:71-78 (cf. A5-20) — *contrat queue_view posé le 2026-07-03*.
-17. **`import_batch` lance TOUT immédiatement** — views.py:261-263 (pas de « créer sans lancer ») ;
-    transcriber sépare batch_create/batch_start. À aligner via batch_common.
+17. ~~`import_batch` lance TOUT immédiatement~~ — **RÉGLÉ 2026-07-03** (cf. B3-9 : création
+    PENDING seule, `batch_start` séparé).
 18. **`update_settings` et `stop` sans `@require_POST`** — views.py:342, 303 (transcriber stop:617
     pareil) → mutation possible en GET. Décorateur/uniformisation.
 19. `clear_all` supprime audio_output à la main — views.py:745-757 (cf. A5-25).
