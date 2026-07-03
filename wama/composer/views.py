@@ -68,8 +68,15 @@ def _get_batches_list(user):
             it.generation and it.generation.status == 'SUCCESS' and it.generation.audio_output
             for it in items
         )
-        result.append({'obj': batch, 'items': items, 'has_success': has_success})
-    result.sort(key=lambda b: 0 if b['obj'].total > 1 else 1)
+        # Compteurs de statut : contrat de la brique commune tri/filtre (queue_view.py).
+        statuses = [it.generation.status for it in items if it.generation]
+        result.append({
+            'obj': batch, 'items': items, 'has_success': has_success,
+            'success_count': statuses.count('SUCCESS'),
+            'running_count': statuses.count('RUNNING'),
+            'failure_count': statuses.count('FAILURE'),
+        })
+    # Le tri (défaut chronologique récent) est appliqué par apply_queue_sort_filter (commun).
     return result
 
 
@@ -82,6 +89,18 @@ class IndexView(View):
         user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
 
         batches_list = _get_batches_list(user)
+
+        # Tri + filtrage de la file — brique COMMUNE (persistés en session).
+        from wama.common.utils.queue_view import apply_queue_sort_filter
+
+        def _name(b):
+            if b['obj'].total == 1 and b['items'] and b['items'][0].generation:
+                g = b['items'][0].generation
+                return (g.prompt or '').lower() or f"generation {g.id:08d}"
+            return f"batch {b['obj'].id:08d}"
+        batches_list, q_sort, q_filter = apply_queue_sort_filter(
+            request, batches_list, name_of=_name)
+
         queue_count = sum(
             1 for b in batches_list
             for item in b['items']
@@ -93,6 +112,8 @@ class IndexView(View):
         return render(request, 'composer/index.html', {
             'batches_list': batches_list,
             'queue_count': queue_count,
+            'q_sort': q_sort,
+            'q_filter': q_filter,
             'music_models': MUSIC_MODELS,
             'sfx_models': SFX_MODELS,
             'all_models': COMPOSER_MODELS,

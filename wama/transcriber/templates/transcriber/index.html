@@ -56,49 +56,11 @@
   .synthesis-card.is-batch { background: #0d1a1a; border: 1px solid #0dcaf0; }
   .synthesis-card.is-batch:hover { background: #0f2222; }
   .batch-group:has(.collapse[data-wama-batch-key].show) .batch-group-header { box-shadow: none; }
-  /* Désempilage : les cartes « fan out » en cascade à l'ouverture de la pile. */
-  @keyframes wama-fan-in { from { opacity: 0; transform: translateY(-14px) scale(.97); } to { opacity: 1; transform: none; } }
-  /* Durée + stagger augmentés (2026-06-29) : .26s était trop rapide, on ne voyait pas le désempilage. */
-  .collapse[data-wama-batch-key].show .synthesis-card { animation: wama-fan-in .42s cubic-bezier(.22,.61,.36,1) both; }
-  .collapse[data-wama-batch-key].show .synthesis-card:nth-child(1) { animation-delay: .00s; }
-  .collapse[data-wama-batch-key].show .synthesis-card:nth-child(2) { animation-delay: .07s; }
-  .collapse[data-wama-batch-key].show .synthesis-card:nth-child(3) { animation-delay: .14s; }
-  .collapse[data-wama-batch-key].show .synthesis-card:nth-child(4) { animation-delay: .21s; }
-  .collapse[data-wama-batch-key].show .synthesis-card:nth-child(n+5) { animation-delay: .28s; }
-  @media (prefers-reduced-motion: reduce) {
-    .collapse[data-wama-batch-key].show .synthesis-card { animation: none; }
-  }
-  /* ── Affichage MOSAÏQUE (géométrie) : grille de cards hautes ; contenu reformaté en colonne ──
-     Ligne (défaut) = 1 card par rangée. Les batchs restent pleine largeur même en mosaïque. */
-  #transcriptQueue.wama-queue-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
-    gap: .7rem;
-    align-items: start;
-  }
-  /* Mosaïque : batch REPLIÉ = cellule mosaïque (la card mère suit la forme des filles) ;
-     batch DÉPLIÉ = bande pleine largeur (pour la grille des filles). */
-  #transcriptQueue.wama-queue-grid > .batch-group:has(.collapse[data-wama-batch-key].show) { grid-column: 1 / -1; }
-  /* Hauteurs égales par ligne en mosaïque pour les cards INDIVIDUELLES (esthétique). La card batch
-     garde align-items:start (reste courte → plus facile à distinguer, choix Fabien 2026-06-29). */
-  #transcriptQueue.wama-queue-grid > .synthesis-card { margin-bottom: 0 !important; align-self: stretch; }
-  /* …mais leurs ITEMS se tuilent aussi en mosaïque (grille interne quand le batch est déplié). */
-  #transcriptQueue.wama-queue-grid .collapse[data-wama-batch-key].show {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-    gap: .6rem;
-  }
-  /* Reformatage interne (cards de 1er niveau ET cards dans un batch) : colonnes empilées. */
-  #transcriptQueue.wama-queue-grid .synthesis-card { margin-bottom: 0 !important; }
-  #transcriptQueue.wama-queue-grid .synthesis-card .row { flex-direction: column; gap: .35rem; }
-  #transcriptQueue.wama-queue-grid .synthesis-card .row > [class*="col-"] {
-    width: 100%; max-width: 100%; flex: 0 0 auto;
-  }
-  /* Boutons toggle : refléter l'état actif. */
-  .wama-layout-btn.active { background: rgba(255,255,255,.14); }
-  /* ── Card « NOUVEAU » persistante en tête de file (gris pointillés = état « nouveau ») ──
-     Import + config ; pleine largeur même en mosaïque ; se distingue des cards de travail. */
-  #transcriptQueue > #newItemCard.wama-new-card { grid-column: 1 / -1; margin-bottom: .4rem; }
+  /* Désempilage (fan-in) + géométrie MOSAÏQUE : GLOBALISÉS le 2026-07-03 dans
+     common/css/wama-inspector.css (contrat .wama-card / .batch-group / .collapse[data-wama-batch-key]).
+     Ici ne restent que les spécificités transcriber (couleurs .is-batch, card « nouveau »). */
+  /* Card « NOUVEAU » : marge sous la card en tête de file (pleine largeur = règle commune). */
+  #transcriptQueue > #newItemCard.wama-new-card { margin-bottom: .4rem; }
   #newItemCard.wama-new-card {
     border: 2px dashed rgba(255,255,255,.22);
     border-radius: .7rem;
@@ -384,32 +346,8 @@ window._batchImport = WamaBatchImport({
                 <i class="fas fa-list"></i> File d'attente
                 <span class="badge bg-info" id="queueCount">{{ queue_count }}</span>
             </h4>
-            <div class="d-flex align-items-center gap-2">
-                <!-- Tri + filtrage de la file (fonctionnel, persisté en session ; recharge la page). -->
-                <select class="form-select form-select-sm bg-dark text-white border-secondary" style="width:auto;"
-                        onchange="location.search='?sort='+this.value+'&filter={{ q_filter }}'" title="Trier la file">
-                    <option value="recent" {% if q_sort == 'recent' %}selected{% endif %}>↓ Plus récent</option>
-                    <option value="oldest" {% if q_sort == 'oldest' %}selected{% endif %}>↑ Plus ancien</option>
-                    <option value="name"   {% if q_sort == 'name' %}selected{% endif %}>Nom</option>
-                    <option value="batches_first" {% if q_sort == 'batches_first' %}selected{% endif %}>Batchs puis cards</option>
-                    <option value="singles_first" {% if q_sort == 'singles_first' %}selected{% endif %}>Cards puis batchs</option>
-                </select>
-                <select class="form-select form-select-sm bg-dark text-white border-secondary" style="width:auto;"
-                        onchange="location.search='?sort={{ q_sort }}&filter='+this.value" title="Filtrer par statut">
-                    <option value="all"     {% if q_filter == 'all' %}selected{% endif %}>Tous les statuts</option>
-                    <option value="draft"   {% if q_filter == 'draft' %}selected{% endif %}>Brouillon</option>
-                    <option value="running" {% if q_filter == 'running' %}selected{% endif %}>En cours</option>
-                    <option value="success" {% if q_filter == 'success' %}selected{% endif %}>Terminé</option>
-                    <option value="failure" {% if q_filter == 'failure' %}selected{% endif %}>Échec</option>
-                </select>
-                <!-- Toggle d'affichage : Ligne ↔ Mosaïque (géométrie ; persisté sur le profil). -->
-                <div class="btn-group btn-group-sm" role="group" aria-label="Disposition">
-                    <button type="button" class="btn btn-outline-secondary wama-layout-btn" data-layout="list" title="Affichage en ligne"><i class="fas fa-list"></i></button>
-                    <button type="button" class="btn btn-outline-secondary wama-layout-btn" data-layout="grid" title="Affichage en mosaïque"><i class="fas fa-table-cells-large"></i></button>
-                </div>
-                <!-- Actions globales de la file (brique commune ; dispo en mode simple ; IDs = handlers JS). -->
-                {% include 'common/_queue_actions.html' with start_id='transcriber-process-btn' download_id='transcriber-download-all-btn' clear_id='transcriber-clear-btn' show_download=True %}
-            </div>
+            <!-- Barre d'outils COMMUNE de la file : tri + filtre + toggle d'affichage + actions globales. -->
+            {% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='transcriber-process-btn' download_id='transcriber-download-all-btn' clear_id='transcriber-clear-btn' show_download=True %}
         </div>
 
         <div id="transcriptQueue" class="wama-queue-{{ card_layout }}">
@@ -419,7 +357,7 @@ window._batchImport = WamaBatchImport({
             <!-- Single-item batch: render as standalone card -->
             {% for item in batch_info.items %}{% if item.transcript %}
             {% with t=item.transcript %}
-            <div class="synthesis-card {% if t.status == 'RUNNING' %}processing{% elif t.status == 'SUCCESS' %}success{% elif t.status == 'FAILURE' %}error{% endif %}"
+            <div class="synthesis-card wama-card {% if t.status == 'RUNNING' %}processing{% elif t.status == 'SUCCESS' %}success{% elif t.status == 'FAILURE' %}error{% endif %}"
                  data-id="{{ t.id }}" data-status="{{ t.status }}">
                 <div class="row align-items-center">
                     <!-- File Info -->
@@ -568,7 +506,7 @@ window._batchImport = WamaBatchImport({
                 <!-- Card MÈRE : MÊME squelette .synthesis-card que les filles + modificateur .is-batch
                      (couleur). Ne diffère que par les méta agrégées et ses actions batch. Toggle collapse
                      sur la zone info (col-md-9) ; actions HORS toggle → handlers délégués préservés. -->
-                <div class="synthesis-card is-batch batch-group-header" data-status="batch">
+                <div class="synthesis-card wama-card is-batch batch-group-header" data-status="batch">
                     <div class="row align-items-center">
                         <div class="col-md-9" data-bs-toggle="collapse"
                              data-bs-target="#batchItems{{ batch_info.obj.id }}" aria-expanded="false"
@@ -670,7 +608,7 @@ window._batchImport = WamaBatchImport({
                      style="border-left:2px solid #0dcaf0; margin-left:0.75rem;">
                     {% for item in batch_info.items %}{% if item.transcript %}
                     {% with t=item.transcript %}
-                    <div class="synthesis-card {% if t.status == 'RUNNING' %}processing{% elif t.status == 'SUCCESS' %}success{% elif t.status == 'FAILURE' %}error{% endif %}"
+                    <div class="synthesis-card wama-card {% if t.status == 'RUNNING' %}processing{% elif t.status == 'SUCCESS' %}success{% elif t.status == 'FAILURE' %}error{% endif %}"
                          data-id="{{ t.id }}">
                         <div class="row align-items-center">
                             <!-- Fichier (preview cliquable) + propriétés + durée (identique aux cards individuelles) -->

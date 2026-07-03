@@ -2,7 +2,8 @@
 {# Partial: renders one generation card. Expects 'gen' in context. #}
 {# Optional 'card_label' overrides the displayed filename. #}
 
-<div class="generation-card p-2 rounded border
+{# .wama-card = contrat commun (mosaïque : sections empilées, fan-in batch — wama-inspector.css). #}
+<div class="generation-card wama-card mb-2 p-2 rounded border
     {% if gen.status == 'RUNNING' %}border-warning processing
     {% elif gen.status == 'SUCCESS' %}border-success success
     {% elif gen.status == 'FAILURE' %}border-danger error

@@ -306,37 +306,16 @@ class IndexView(View):
 
         queue_count = sum(len(b['items']) for b in batches_list)
 
-        # ── Tri + filtrage de la file (fonctionnel, persisté en session) ──────────
-        # Défaut = CHRONOLOGIQUE récent (plus de « batchs d'abord » — décision 2026-06-29).
-        q_sort = request.GET.get('sort') or request.session.get('q_sort') or 'recent'
-        q_filter = request.GET.get('filter') or request.session.get('q_filter') or 'all'
-        request.session['q_sort'] = q_sort
-        request.session['q_filter'] = q_filter
-
-        def _matches(b, f):
-            if f == 'running': return b['running_count'] > 0
-            if f == 'failure': return b['failure_count'] > 0
-            if f == 'success': return b['success_count'] > 0
-            if f == 'draft':   return (b['success_count'] + b['running_count'] + b['failure_count']) < b['obj'].total
-            return True  # 'all'
-        if q_filter != 'all':
-            batches_list = [b for b in batches_list if _matches(b, q_filter)]
+        # ── Tri + filtrage de la file — brique COMMUNE (extraite d'ici le 2026-07-03) ──
+        from wama.common.utils.queue_view import apply_queue_sort_filter
 
         def _name(b):
             if b['obj'].total == 1 and b['items'] and b['items'][0].transcript:
                 t = b['items'][0].transcript
                 return (t.filename or t.title or '').lower()
             return f"batch {b['obj'].id:08d}"
-        _sorters = {
-            'recent': (lambda b: b['obj'].created_at, True),
-            'oldest': (lambda b: b['obj'].created_at, False),
-            'name':   (_name, False),
-            # Groupé : type d'abord (batch vs card unique), chronologie récente en 2nd ordre.
-            'batches_first': (lambda b: (0 if b['obj'].total > 1 else 1, -b['obj'].created_at.timestamp()), False),
-            'singles_first': (lambda b: (0 if b['obj'].total == 1 else 1, -b['obj'].created_at.timestamp()), False),
-        }
-        _key, _rev = _sorters.get(q_sort, _sorters['recent'])
-        batches_list.sort(key=_key, reverse=_rev)
+        batches_list, q_sort, q_filter = apply_queue_sort_filter(
+            request, batches_list, name_of=_name)
 
         # Staging supprimé (2026-06-29) : les DRAFT apparaissent dans la file (via _auto_wrap_orphans)
         # comme cards BROUILLON — plus de zone « à valider » séparée.

@@ -7,6 +7,8 @@ Variables :
   clear_id     — id du bouton « Tout effacer » (REQUIS)
   download_id  — id du bouton « Télécharger tout » (si show_download)
   show_download — (bool) afficher le bouton de téléchargement global
+  download_url — (option) si fourni : rend un LIEN direct (ZIP serveur) au lieu
+                 d'un bouton désactivé piloté par le JS de l'app
   start_label, clear_label, download_label — libellés (défauts ci-dessous)
 
 Usage :
@@ -17,9 +19,15 @@ Usage :
         <i class="fas fa-play"></i> {{ start_label|default:'Démarrer tout' }}
     </button>
     {% if show_download %}
+    {% if download_url %}
+    <a id="{{ download_id }}" class="btn btn-info btn-sm" href="{{ download_url }}">
+        <i class="fas fa-download"></i> {{ download_label|default:'Télécharger tout' }}
+    </a>
+    {% else %}
     <button id="{{ download_id }}" class="btn btn-info btn-sm" disabled>
         <i class="fas fa-download"></i> {{ download_label|default:'Télécharger tout' }}
     </button>
+    {% endif %}
     {% endif %}
     <button id="{{ clear_id }}" class="btn btn-outline-danger btn-sm">
         <i class="fas fa-trash"></i> {{ clear_label|default:'Tout effacer' }}

@@ -1,0 +1,43 @@
+{% comment %}
+WAMA — Barre d'outils COMMUNE de la file : tri + filtre par statut + toggle
+d'affichage (ligne ↔ mosaïque) + actions globales (_queue_actions.html).
+
+Côté vue : appeler wama.common.utils.queue_view.apply_queue_sort_filter() et
+passer q_sort / q_filter au contexte. Le toggle d'affichage est câblé par
+wama-queue.js (commun, auto-init) et persiste sur UserProfile.card_layout.
+
+Variables :
+  q_sort, q_filter — valeurs courantes (REQUIS, viennent de apply_queue_sort_filter)
+  start_id, clear_id — ids des boutons globaux (REQUIS ; handlers JS de l'app)
+  download_id / show_download / download_url — cf. _queue_actions.html
+  start_label, clear_label, download_label — libellés (passthrough)
+
+Usage :
+  {% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='...' clear_id='...' download_id='...' show_download=True %}
+{% endcomment %}
+<div class="d-flex align-items-center gap-2 flex-wrap wama-queue-toolbar">
+    <!-- Tri + filtrage de la file (fonctionnel, persisté en session ; recharge la page). -->
+    <select class="form-select form-select-sm bg-dark text-white border-secondary" style="width:auto;"
+            onchange="location.search='?sort='+this.value+'&filter={{ q_filter }}'" title="Trier la file">
+        <option value="recent" {% if q_sort == 'recent' %}selected{% endif %}>↓ Plus récent</option>
+        <option value="oldest" {% if q_sort == 'oldest' %}selected{% endif %}>↑ Plus ancien</option>
+        <option value="name"   {% if q_sort == 'name' %}selected{% endif %}>Nom</option>
+        <option value="batches_first" {% if q_sort == 'batches_first' %}selected{% endif %}>Batchs puis cards</option>
+        <option value="singles_first" {% if q_sort == 'singles_first' %}selected{% endif %}>Cards puis batchs</option>
+    </select>
+    <select class="form-select form-select-sm bg-dark text-white border-secondary" style="width:auto;"
+            onchange="location.search='?sort={{ q_sort }}&filter='+this.value" title="Filtrer par statut">
+        <option value="all"     {% if q_filter == 'all' %}selected{% endif %}>Tous les statuts</option>
+        <option value="draft"   {% if q_filter == 'draft' %}selected{% endif %}>Brouillon</option>
+        <option value="running" {% if q_filter == 'running' %}selected{% endif %}>En cours</option>
+        <option value="success" {% if q_filter == 'success' %}selected{% endif %}>Terminé</option>
+        <option value="failure" {% if q_filter == 'failure' %}selected{% endif %}>Échec</option>
+    </select>
+    <!-- Toggle d'affichage : Ligne ↔ Mosaïque (géométrie ; persisté sur le profil). -->
+    <div class="btn-group btn-group-sm" role="group" aria-label="Disposition">
+        <button type="button" class="btn btn-outline-secondary wama-layout-btn" data-layout="list" title="Affichage en ligne"><i class="fas fa-list"></i></button>
+        <button type="button" class="btn btn-outline-secondary wama-layout-btn" data-layout="grid" title="Affichage en mosaïque"><i class="fas fa-table-cells-large"></i></button>
+    </div>
+    <!-- Actions globales de la file (brique commune ; IDs = handlers JS de l'app). -->
+    {% include 'common/_queue_actions.html' %}
+</div>

@@ -69,20 +69,7 @@ id melodyInput conservé (payload generate inchangé). Cf. INPUT_MODEL_MATCHING.
 </button>
 {% endblock %}
 
-{% block app_right_panel_actions %}
-<div class="d-grid gap-2">
-    {# « Générer » DÉPLACÉ dans la card d'entrée (action primaire de la création). #}
-    <button class="btn btn-success btn-sm" id="startAllBtn">
-        <i class="fas fa-play me-1"></i> Démarrer
-    </button>
-    <a href="{% url 'composer:download_all' %}" class="btn btn-info btn-sm" id="downloadAllBtn">
-        <i class="fas fa-download me-1"></i> Télécharger tout
-    </a>
-    <button class="btn btn-outline-danger btn-sm" id="clearAllBtn">
-        <i class="fas fa-trash me-1"></i> Tout effacer
-    </button>
-</div>
-{% endblock %}
+{# Actions globales DÉPLACÉES dans la barre d'outils commune de la file (_queue_toolbar.html), comme le Transcriber. #}
 
 {% block composer_content %}
 
@@ -102,12 +89,10 @@ id melodyInput conservé (payload generate inchangé). Cf. INPUT_MODEL_MATCHING.
 </div>
 
 {# ── File d'attente ────────────────────────────────────────────────────── #}
-{# Toggle Ligne/Mosaïque COMMUN (wama-queue.js : .wama-layout-btn + classe du conteneur + persistance profil) #}
+{# Barre d'outils COMMUNE : tri + filtre + toggle Ligne/Mosaïque + actions globales (héritée du pilote Transcriber). #}
+{% url 'composer:download_all' as download_all_url %}
 <div class="d-flex justify-content-end mb-1">
-    <div class="btn-group btn-group-sm" role="group" aria-label="Affichage">
-        <button type="button" class="btn btn-outline-secondary wama-layout-btn" data-layout="list" title="Ligne"><i class="fas fa-list"></i></button>
-        <button type="button" class="btn btn-outline-secondary wama-layout-btn" data-layout="grid" title="Mosaïque"><i class="fas fa-th-large"></i></button>
-    </div>
+    {% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='startAllBtn' clear_id='clearAllBtn' download_id='downloadAllBtn' show_download=True download_url=download_all_url %}
 </div>
 <div id="composerQueue" class="wama-queue-{{ card_layout|default:'list' }}">
 
@@ -158,13 +143,12 @@ id melodyInput conservé (payload generate inchangé). Cf. INPUT_MODEL_MATCHING.
                 </button>
             </div>
         </div>
-        <div class="collapse" id="batchItems_{{ batch_info.obj.id }}"
+        {# Contrat commun mosaïque/fan-in : cards FILLES enfants DIRECTS du .collapse (wama-inspector.css). #}
+        <div class="collapse p-2" id="batchItems_{{ batch_info.obj.id }}"
              data-wama-batch-key="composer_{{ batch_info.obj.id }}">
-            <div class="p-2 d-flex flex-column gap-2">
-                {% for item in batch_info.items %}{% if item.generation %}
-                {% include 'composer/_generation_card.html' with gen=item.generation card_label=item.output_filename %}
-                {% endif %}{% endfor %}
-            </div>
+            {% for item in batch_info.items %}{% if item.generation %}
+            {% include 'composer/_generation_card.html' with gen=item.generation card_label=item.output_filename %}
+            {% endif %}{% endfor %}
         </div>
     </div>
     {% endif %}

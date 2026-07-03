@@ -198,11 +198,15 @@ Doc : `CARD_DESIGN.md §8`. Affine §17 (file épurée) + §3ter (pile Solitaire
   bloquant à l'ajout (PAS de modale auto). `scroll-margin-top` = hauteur header (bug card du haut masquée).
   Le bug « card en bas de pile » est **app-spécifique** (PAS commun) → remède = **centraliser une
   insertion déterministe chronologique** ; les apps qui l'adoptent perdent le bug.
-- 🔄 **Tri/filtrage de la file** : **FAIT + validé sur Transcriber (2026-06-29)** — barre d'outils
-  (tri récent/ancien/nom + filtre statut tous/brouillon/en cours/terminé/échec), **côté serveur**,
-  persisté en **session** ; **remplace le tri « batchs d'abord »** par le **chronologique** (défaut récent).
-  **Reste** : le porter aux autres apps (le **reader** a encore son tri batch-first app-spécifique) ;
-  options sort type/durée ; envisager extraction commune. Tri par défaut chronologique = acté partout.
+- 🔄 **Tri/filtrage de la file** : **EXTRAIT EN COMMUN (2026-07-03)** — `common/utils/queue_view.py`
+  (`apply_queue_sort_filter`, persisté en session, clés partagées entre apps) + partial
+  `common/_queue_toolbar.html` (tri + filtre + toggle Ligne/Mosaïque + `_queue_actions`, option
+  `download_url`). **Consommé : Transcriber (pilote 2026-06-29, basculé sur la brique) + Composer
+  (hérite, 2026-07-03)**. Défaut chronologique récent = acté partout. **Reste** : porter aux 8 autres
+  apps (le **reader** a encore son tri batch-first app-spécifique) ; options sort type/durée.
+  **CSS mosaïque aussi globalisé** (contrat `.wama-card`, wama-inspector.css) : solitaire (batch
+  replié = cellule mosaïque, déplié = pleine largeur), empilement VERTICAL des sections en grille,
+  fan-in — corrige la régression solitaire Transcriber ET la compression horizontale Composer.
 - 🔄 **Manipulation directe (CARD_DESIGN §3bis)** : déplacer DANS/HORS d'un batch = **DRAG souris façon
   Solitaire, PAS un bouton** (spec d'origine Fabien ; déjà trop de boutons). **Backend prêt + validé**
   (2026-06-29) : vue/URL `remove_from_batch` (sortie → `_wrap_transcript_in_batch` = batch-of-1 isolé ;

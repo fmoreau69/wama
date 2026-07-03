@@ -20,8 +20,41 @@
 @keyframes wamaSlotPulse { 0%,100% { outline-color: #ffc107; } 50% { outline-color: #ffc10744; } }
 
 /* ── Affichage Ligne / Mosaïque COMMUN (wama-queue.js initLayoutToggle) ───────────────────
-   Cœur générique extrait du pilote transcriber : la file en grille ; les groupes de batch et
-   la card « Nouvel élément » restent pleine largeur (sûr par défaut, surchargeable par app). */
+   Version fine GLOBALISÉE du pilote Transcriber (2026-07-03) — contrat :
+     .wama-card  = racine de toute card de travail (individuelle, mère de batch, fille) ;
+     .batch-group / .collapse[data-wama-batch-key] = structure batch (cards ENFANTS DIRECTS
+     du .collapse) ; .wama-new-item-card / .wama-new-card = card « Nouvel élément ». */
 .wama-queue-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
                    gap: .7rem; align-items: start; }
-.wama-queue-grid > .batch-group, .wama-queue-grid > .wama-new-item-card { grid-column: 1 / -1; }
+/* Card « nouveau » : pleine largeur même en mosaïque. */
+.wama-queue-grid > .wama-new-item-card, .wama-queue-grid > .wama-new-card { grid-column: 1 / -1; }
+/* Mosaïque « solitaire » : batch REPLIÉ = cellule mosaïque (la card mère suit la forme des
+   filles) ; batch DÉPLIÉ = bande pleine largeur (pour la grille des filles). */
+.wama-queue-grid > .batch-group:has(.collapse[data-wama-batch-key].show) { grid-column: 1 / -1; }
+/* Hauteurs égales par ligne pour les cards INDIVIDUELLES (esthétique). La card mère de batch
+   garde align-items:start (reste courte → plus facile à distinguer, choix Fabien 2026-06-29). */
+.wama-queue-grid > .wama-card { margin-bottom: 0 !important; align-self: stretch; }
+/* Les items d'un batch DÉPLIÉ se tuilent aussi (grille interne). */
+.wama-queue-grid .collapse[data-wama-batch-key].show {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: .6rem;
+}
+/* Reformatage interne (cards de 1er niveau ET filles de batch) : les colonnes .row
+   s'EMPILENT verticalement — sinon les sections se compressent horizontalement. */
+.wama-queue-grid .wama-card { margin-bottom: 0 !important; }
+.wama-queue-grid .wama-card .row { flex-direction: column; gap: .35rem; }
+.wama-queue-grid .wama-card .row > [class*="col-"] { width: 100%; max-width: 100%; flex: 0 0 auto; }
+/* Boutons du toggle Ligne/Mosaïque : refléter l'état actif (classe posée par wama-queue.js). */
+.wama-layout-btn.active { background: rgba(255,255,255,.14); }
+
+/* ── Désempilage batch (solitaire) : les cartes « fan out » en cascade à l'ouverture. ───── */
+@keyframes wama-fan-in { from { opacity: 0; transform: translateY(-14px) scale(.97); } to { opacity: 1; transform: none; } }
+/* Durée + stagger augmentés (2026-06-29) : .26s était trop rapide, on ne voyait pas le désempilage. */
+.collapse[data-wama-batch-key].show .wama-card { animation: wama-fan-in .42s cubic-bezier(.22,.61,.36,1) both; }
+.collapse[data-wama-batch-key].show .wama-card:nth-child(1) { animation-delay: .00s; }
+.collapse[data-wama-batch-key].show .wama-card:nth-child(2) { animation-delay: .07s; }
+.collapse[data-wama-batch-key].show .wama-card:nth-child(3) { animation-delay: .14s; }
+.collapse[data-wama-batch-key].show .wama-card:nth-child(4) { animation-delay: .21s; }
+.collapse[data-wama-batch-key].show .wama-card:nth-child(n+5) { animation-delay: .28s; }
+@media (prefers-reduced-motion: reduce) {
+    .collapse[data-wama-batch-key].show .wama-card { animation: none; }
+}
