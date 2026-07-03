@@ -18,3 +18,10 @@
                       animation: wamaSlotPulse 1.6s ease-in-out infinite; }
 .wama-slot-suggested { outline: 1px dashed #0dcaf0; border-radius: .375rem; padding: .25rem .5rem; }
 @keyframes wamaSlotPulse { 0%,100% { outline-color: #ffc107; } 50% { outline-color: #ffc10744; } }
+
+/* ── Affichage Ligne / Mosaïque COMMUN (wama-queue.js initLayoutToggle) ───────────────────
+   Cœur générique extrait du pilote transcriber : la file en grille ; les groupes de batch et
+   la card « Nouvel élément » restent pleine largeur (sûr par défaut, surchargeable par app). */
+.wama-queue-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+                   gap: .7rem; align-items: start; }
+.wama-queue-grid > .batch-group, .wama-queue-grid > .wama-new-item-card { grid-column: 1 / -1; }

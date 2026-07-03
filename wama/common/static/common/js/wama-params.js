@@ -133,16 +133,19 @@
       const rattrs = [p.min != null ? 'min="' + p.min + '"' : '',
                       p.max != null ? 'max="' + p.max + '"' : '',
                       p.step != null ? 'step="' + p.step + '"' : ''].join(' ');
-      // Valeur courante à droite + bornes min/max SOUS le slider (lisibilité, cf. volet composer).
+      // Valeur courante (+ unité déclarée) à droite + bornes SOUS le slider — libellés FORMATÉS
+      // min_label/max_label prioritaires sur min/max bruts (P2-bis, cf. volet composer 10s/10min).
+      const unit = p.unit || '';
       inner = '<div class="wama-range">' +
         '<div class="d-flex align-items-center gap-2">' +
         '<input type="range" class="form-range" id="' + id + '" ' + idA + ' value="' + esc(v) + '" ' + rattrs +
-        ' oninput="this.parentNode.querySelector(\'.wama-range-val\').textContent=this.value">' +
-        '<span class="wama-range-val small text-muted">' + esc(v) + '</span></div>' +
-        ((p.min != null || p.max != null)
+        ' data-unit="' + esc(unit) + '"' +
+        ' oninput="this.parentNode.querySelector(\'.wama-range-val\').textContent=this.value+(this.dataset.unit||\'\')">' +
+        '<span class="wama-range-val small text-muted">' + esc(v) + esc(unit) + '</span></div>' +
+        ((p.min != null || p.max != null || p.min_label || p.max_label)
           ? '<div class="d-flex justify-content-between small text-muted" style="margin-top:-4px;opacity:.7">' +
-            '<span>' + (p.min != null ? esc(p.min) : '') + '</span>' +
-            '<span>' + (p.max != null ? esc(p.max) : '') + '</span></div>'
+            '<span>' + esc(p.min_label || (p.min != null ? String(p.min) + unit : '')) + '</span>' +
+            '<span>' + esc(p.max_label || (p.max != null ? String(p.max) + unit : '')) + '</span></div>'
           : '') +
         '</div>';
     } else {

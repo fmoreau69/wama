@@ -27,7 +27,8 @@ PARAMS = [
               ("⚡ Bruitages (AudioGen)", [(mid, cfg['description']) for mid, cfg in COMPOSER_MODELS.items()
                                           if cfg.get('type') != 'music']),
           ]),
-    Param(name="duration", type="range", label="Durée (s)", icon="fa-clock", min=10, max=600, step=5,
+    Param(name="duration", type="range", label="Durée", icon="fa-clock", min=10, max=600, step=5,
+          unit="s", min_label="10s", max_label="10min",
           dom_id={"panel": "durationSlider", "item": "settingsDuration"}, contexts=PANEL_ITEM),
     # Prompt éditable par item (modale seulement : le volet a sa zone de composition dédiée).
     Param(name="prompt", type="textarea", label="Prompt", icon="fa-pen",

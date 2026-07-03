@@ -268,6 +268,7 @@ APP_CATALOG = {
             multi_format_download=None,  # N/A — EARLY binding (format/qualité réglés AVANT génération)
             modes=None,          # N/A — plus de mode (switch retiré, type dérivé du modèle)
             filemanager_import=None,     # N/A — app à entrée TEXTE (prompt), pas de médias à recevoir
+            layout=True,         # Ligne/Mosaïque via wama-queue.js (toggle commun + card_layout profil)
         ),
     },
 

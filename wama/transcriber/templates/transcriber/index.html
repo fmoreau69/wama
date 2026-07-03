@@ -836,15 +836,8 @@ window._batchImport = WamaBatchImport({
                     === fin backup === {% endcomment %}
                 </form>
             </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-                <button type="button" class="btn btn-primary" id="saveSettingsBtn">
-                    <i class="fas fa-save"></i> Enregistrer
-                </button>
-                <button type="button" class="btn btn-success" id="saveAndStartBtn">
-                    <i class="fas fa-play"></i> Enregistrer et démarrer
-                </button>
-            </div>
+            {# Pied de modale COMMUN (convention MODAL_ACTIONS_AUDIT §3) — ids conservés (JS inchangé). #}
+            {% include 'common/_settings_modal_footer.html' with save_id='saveSettingsBtn' save_start_id='saveAndStartBtn' save_start_label='Enregistrer et démarrer' %}
         </div>
     </div>
 </div>

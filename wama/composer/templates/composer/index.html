@@ -41,21 +41,13 @@ Un vrai MODE reviendra par APP_MODES si le comportement diverge un jour (cf. mel
 <!-- Descriptif du moteur sélectionné (brique commune WamaModelHelp ; additif) -->
 <div id="modelHelp" class="small text-white-50 mt-1 mb-3"></div>
 
-<!-- Durée -->
-<div class="mb-3">
-    <label class="form-label small fw-bold text-light d-flex justify-content-between">
-        <span><i class="fas fa-clock"></i> Durée</span>
-        <span class="text-info">
-            <span id="durationDisplay">10s</span>
-            <span class="text-muted ms-2 small" id="estimateDisplay">~20s</span>
-        </span>
-    </label>
-    <input type="range" class="form-range" id="durationSlider"
-           min="10" max="600" step="5" value="10">
-    <div class="d-flex justify-content-between">
-        <small class="text-muted">10s</small>
-        <small class="text-muted">10min</small>
-    </div>
+<!-- Durée : champ GÉNÉRÉ (P2-bis) — unit/min_label/max_label déclarés au schéma (10s/10min). -->
+<div class="wama-params" id="composerPanelDurationHost"></div>
+{# Holder caché : durationDisplay reste écrit par le JS (non-gardé) ; estimateDisplay est #}
+{# RELOCALISÉ par script à côté de la valeur du slider généré (pattern modale). #}
+<div class="d-none">
+    <span id="durationDisplay" class="d-none">10s</span>
+    <span class="text-info small" id="estimateDisplay">~20s</span>
 </div>
 
 {% comment %}Prompt DÉPLACÉ dans la card d'entrée commune (_new_item_card show_prompt) : le prompt
@@ -110,7 +102,14 @@ id melodyInput conservé (payload generate inchangé). Cf. INPUT_MODEL_MATCHING.
 </div>
 
 {# ── File d'attente ────────────────────────────────────────────────────── #}
-<div id="composerQueue">
+{# Toggle Ligne/Mosaïque COMMUN (wama-queue.js : .wama-layout-btn + classe du conteneur + persistance profil) #}
+<div class="d-flex justify-content-end mb-1">
+    <div class="btn-group btn-group-sm" role="group" aria-label="Affichage">
+        <button type="button" class="btn btn-outline-secondary wama-layout-btn" data-layout="list" title="Ligne"><i class="fas fa-list"></i></button>
+        <button type="button" class="btn btn-outline-secondary wama-layout-btn" data-layout="grid" title="Mosaïque"><i class="fas fa-th-large"></i></button>
+    </div>
+</div>
+<div id="composerQueue" class="wama-queue-{{ card_layout|default:'list' }}">
 
     {# Card « Nouvel élément » COMMUNE (_new_item_card, référence transcriber) : entrée batch. #}
     {# IDs batchFileInput + barre batch communs → handlers WamaBatchImport existants inchangés. #}
@@ -247,6 +246,7 @@ id melodyInput conservé (payload generate inchangé). Cf. INPUT_MODEL_MATCHING.
 <script src="{% static 'common/js/wama-params.js' %}"></script>  {# rendu des champs modale (P1) — composer n'en avait pas besoin avant (initFromSchema lit sans rendre) #}
 <script src="{% static 'common/js/wama-cycle-button.js' %}"></script>  {# bouton cycle ▶/⏹/↻ — le JS composer était déjà câblé (wire/autoSync), le script manquait #}
 <script src="{% static 'common/js/wama-input-match.js' %}"></script>  {# appariement card d'entrée ↔ modèles (INPUT_MODEL_MATCHING.md) #}
+<script src="{% static 'common/js/wama-queue.js' %}"></script>  {# file commune : toggle Ligne/Mosaïque + collapse batch + focusCard #}
 <script src="{% static 'composer/js/index.js' %}"></script>
 <script src="{% static 'common/js/wama-inspector.js' %}"></script>
 <script>
@@ -295,6 +295,16 @@ document.addEventListener('DOMContentLoaded', function () {
     var hostModel = document.getElementById('composerPanelModelHost');
     if (hostModel) WamaParams.render(hostModel,
         schema.filter(function (p) { return p.name === 'model'; }), { context: 'panel' });
+    var hostDur = document.getElementById('composerPanelDurationHost');
+    if (hostDur) WamaParams.render(hostDur,
+        schema.filter(function (p) { return p.name === 'duration'; }), { context: 'panel' });
+    // Estimation (~20s) du volet : à côté de la valeur du slider généré (pattern modale).
+    var pDur = document.getElementById('durationSlider');
+    var pEst = document.getElementById('estimateDisplay');
+    if (pDur && pEst) {
+        var pVal = pDur.closest('.wama-range') && pDur.closest('.wama-range').querySelector('.wama-range-val');
+        if (pVal) pVal.insertAdjacentElement('afterend', pEst);
+    }
     var hostOut = document.getElementById('composerPanelOutputHost');
     if (hostOut) WamaParams.render(hostOut,
         schema.filter(function (p) { return p.name === 'output_format' || p.name === 'output_quality'; }),

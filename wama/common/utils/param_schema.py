@@ -43,6 +43,9 @@ class Param:
     min: Optional[float] = None
     max: Optional[float] = None
     step: Optional[float] = None
+    unit: str = ""                              # suffixe d'affichage de la valeur d'un range (ex. "s")
+    min_label: str = ""                         # libellés FORMATÉS des bornes du range (ex. "10s"/"10min")
+    max_label: str = ""                         #   — priment sur min/max bruts à l'affichage (P2-bis)
     contexts: Tuple[str, ...] = ALL_CONTEXTS
     options_source: Optional[str] = None        # clé d'options dynamiques (ex. "backends")
     show_if: Any = None                         # visibilité conditionnelle. string = nom d'un champ
