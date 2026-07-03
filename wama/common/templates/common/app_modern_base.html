@@ -119,6 +119,8 @@
         <li class="nav-item" role="presentation">
             <button class="nav-link active" id="queue-tab" data-bs-toggle="tab" data-bs-target="#queue-pane" type="button" role="tab">
                 <i class="fas fa-list me-2"></i>File d'attente
+                {# Compteur d'items SUR l'onglet (MODES_QUEUE_UX) — remplace le titre doublon dans l'onglet. #}
+                {% if queue_count or queue_count == 0 %}<span class="badge bg-info ms-1" id="queueCount">{{ queue_count }}</span>{% endif %}
             </button>
         </li>
         <li class="nav-item" role="presentation">

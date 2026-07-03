@@ -101,7 +101,10 @@ class IndexView(View):
         batches_list, q_sort, q_filter = apply_queue_sort_filter(
             request, batches_list, name_of=_name)
 
-        queue_count = sum(
+        # queue_count = TOTAL d'items (badge d'onglet commun, sémantique transcriber) ;
+        # active_count = en attente/en cours (amorçage de la barre globale côté JS).
+        queue_count = sum(len(b['items']) for b in batches_list)
+        active_count = sum(
             1 for b in batches_list
             for item in b['items']
             if item.generation and item.generation.status in ('PENDING', 'RUNNING')
@@ -112,6 +115,7 @@ class IndexView(View):
         return render(request, 'composer/index.html', {
             'batches_list': batches_list,
             'queue_count': queue_count,
+            'active_count': active_count,
             'q_sort': q_sort,
             'q_filter': q_filter,
             'music_models': MUSIC_MODELS,

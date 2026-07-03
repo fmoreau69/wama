@@ -3,6 +3,14 @@ WAMA — Card « Nouvel élément » : point d'entrée d'import (fichier / URL /
 Zone centrale → disponible en mode simple (sans volets). Chaque app fournit ses ids/handlers.
 
 Variables :
+  batch_format — (option) format des lignes d'un fichier batch (ex. 'fichier|prompt|modèle|durée'),
+                 rendu en <code> coloré à côté de formats_label.
+  collapsible  — (option) card DÉPLIABLE (mécanisme du synthesizer, globalisé 2026-07-03 ; 1ʳᵉ étape
+                 vers la card miniaturisée intégrée à la file — MODES_QUEUE_UX) : l'en-tête + le
+                 prompt + le bouton primaire restent visibles ; la zone médiane (dropzones, URL,
+                 médiathèque, batch, live, référence) se replie. Dépliage : clic en-tête, focus/saisie
+                 du prompt, survol drag. Requiert common/js/wama-new-item-card.js (auto-init).
+  deployed     — (option) avec collapsible : démarre DÉPLIÉE.
   card_id          — id de la card (défaut: newItemCard)
   drop_zone_id     — id de la drop zone (REQUIS — handlers drag&drop de l'app)
   file_input_id    — id de l'<input type=file> (REQUIS)
@@ -31,11 +39,13 @@ Usage (transcriber) :
   {% url 'transcriber:batch_template' as batch_tpl %}
   {% include 'common/_new_item_card.html' with drop_zone_id='dropZoneTranscriber' file_input_id='transcriber-file' file_accept='audio/*,video/*' formats_label='MP3, WAV, FLAC, MP4, MKV…' batch_template_url=batch_tpl show_batch_bar=True show_url=True url_input_id='youtubeUrl' url_submit_id='youtubeSubmitBtn' url_placeholder='https://youtube.com/watch?v=…' url_label='ou depuis une URL' url_hint='YouTube, ou lien direct vers un fichier audio/vidéo.' url_icon='fab fa-youtube' url_icon_class='text-danger' %}
 {% endcomment %}
-<div class="card bg-dark mb-3 shadow-sm wama-new-item-card" id="{{ card_id|default:'newItemCard' }}" style="border:1px dashed #495057;">
+{# Look « nouveau » (gris pointillés, hover cyan) : CSS commun .wama-new-item-card (wama-inspector.css). #}
+<div class="card mb-3 shadow-sm wama-new-item-card" id="{{ card_id|default:'newItemCard' }}"{% if collapsible %} data-wama-nic{% if show_prompt %} data-nic-primary="{{ prompt_input_id }}"{% endif %}{% endif %}>
     <div class="card-body py-2">
-        <div class="d-flex align-items-center gap-2 mb-2 small text-white-50">
+        <div class="d-flex align-items-center gap-2 mb-2 small text-white-50"{% if collapsible %} data-nic-toggle role="button" title="Déplier / replier les options d'import"{% endif %}>
             <i class="fas fa-plus-circle text-info"></i> <strong>Nouvel élément</strong>
             <span class="text-muted">{% if show_prompt %}— décrivez, glissez ou collez{% else %}— glissez un fichier{% if show_url %}, ou collez une URL{% endif %}{% endif %}</span>
+            {% if collapsible %}<i class="fas fa-chevron-down ms-auto wama-nic-chevron"></i>{% endif %}
         </div>
         {% if show_prompt %}
         {# PROMPT = entrée primaire des apps génératives (INPUT_MODEL_MATCHING.md) — dans la CARD, #}
@@ -47,12 +57,13 @@ Usage (transcriber) :
             {% if prompt_hint %}<small class="text-muted">{{ prompt_hint }}</small>{% endif %}
         </div>
         {% endif %}
+        {% if collapsible %}<div class="collapse{% if deployed %} show{% endif %}" id="{{ card_id|default:'newItemCard' }}Body">{% endif %}
         <div class="row g-2 align-items-start">
             <div class="{% if show_url %}col-md-6{% else %}col-12{% endif %}">
                 <div class="drop-zone drop-zone-sm mb-0" id="{{ drop_zone_id }}">
                     <i class="fas fa-cloud-upload-alt text-primary"></i>
                     <p class="mb-0 small text-light mt-1">Glissez ou cliquez pour importer</p>
-                    <small class="text-muted">{{ formats_label }}</small>
+                    <small class="text-muted">{{ formats_label }}{% if batch_format %} — <code style="font-size:0.75rem;">{{ batch_format }}</code>{% endif %}</small>
                     <input type="file" id="{{ file_input_id }}" multiple accept="{{ file_accept|default:'audio/*,video/*' }}" style="display:none">
                     {% if batch_template_url %}
                     <small class="text-muted d-block mt-1">
@@ -64,8 +75,7 @@ Usage (transcriber) :
                     {% endif %}
                 </div>
                 {% if show_media_library %}
-                {# Import depuis la MÉDIATHÈQUE : MediaPicker → injecte le File dans le file input →
-                   déclenche le handler d'upload de l'app (générique, zéro code par app). #}
+                {# Import MÉDIATHÈQUE : MediaPicker → injecte le File dans le file input → handler d'upload de l'app. #}
                 <button type="button" class="btn btn-sm btn-outline-info w-100 mt-1 py-0"
                         title="Importer depuis la médiathèque"
                         onclick="MediaPicker.open({type:'{{ media_library_type|default:'all' }}', onSelect:function(f){var i=document.getElementById('{{ file_input_id }}'); if(i&&f){try{var dt=new DataTransfer();dt.items.add(f);i.files=dt.files;}catch(e){} i.dispatchEvent(new Event('change',{bubbles:true}));}}});">
@@ -121,6 +131,8 @@ Usage (transcriber) :
             <small id="{{ match_status_id|default:'inputMatchStatus' }}" class="text-info d-block mt-1" style="display:none"></small>
         </div>
         {% endif %}
+
+        {% if collapsible %}</div>{# /collapse zone médiane #}{% endif %}
 
         {% if primary_btn_id %}
         {# Action primaire de la card (apps à création explicite, ex. Générer) — vert, conventions. #}

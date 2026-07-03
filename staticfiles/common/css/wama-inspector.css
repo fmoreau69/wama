@@ -46,6 +46,22 @@
 /* Boutons du toggle Ligne/Mosaïque : refléter l'état actif (classe posée par wama-queue.js). */
 .wama-layout-btn.active { background: rgba(255,255,255,.14); }
 
+/* ── Card « NOUVEAU » (brique _new_item_card) : gris pointillés = état « nouveau » ──────────
+   Look UNIVERSEL du point d'entrée (globalisé du pilote transcriber 2026-07-03). */
+.wama-new-item-card {
+    border: 2px dashed rgba(255,255,255,.22);
+    border-radius: .7rem;
+    background: rgba(255,255,255,.015);
+    transition: border-color .15s ease, background .15s ease;
+}
+.wama-new-item-card:hover {
+    border-color: rgba(13,202,240,.45);
+    background: rgba(13,202,240,.04);
+}
+/* Card dépliable (wama-new-item-card.js) : chevron qui pivote avec l'état. */
+.wama-new-item-card .wama-nic-chevron { transition: transform .2s ease; }
+.wama-new-item-card.is-deployed .wama-nic-chevron { transform: rotate(180deg); }
+
 /* ── Désempilage batch (solitaire) : les cartes « fan out » en cascade à l'ouverture. ───── */
 @keyframes wama-fan-in { from { opacity: 0; transform: translateY(-14px) scale(.97); } to { opacity: 1; transform: none; } }
 /* Durée + stagger augmentés (2026-06-29) : .26s était trop rapide, on ne voyait pas le désempilage. */

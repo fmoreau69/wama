@@ -59,19 +59,7 @@
   /* Désempilage (fan-in) + géométrie MOSAÏQUE : GLOBALISÉS le 2026-07-03 dans
      common/css/wama-inspector.css (contrat .wama-card / .batch-group / .collapse[data-wama-batch-key]).
      Ici ne restent que les spécificités transcriber (couleurs .is-batch, card « nouveau »). */
-  /* Card « NOUVEAU » : marge sous la card en tête de file (pleine largeur = règle commune). */
-  #transcriptQueue > #newItemCard.wama-new-card { margin-bottom: .4rem; }
-  #newItemCard.wama-new-card {
-    border: 2px dashed rgba(255,255,255,.22);
-    border-radius: .7rem;
-    background: rgba(255,255,255,.015);
-    padding: .25rem;
-    transition: border-color .15s ease, background .15s ease;
-  }
-  #newItemCard.wama-new-card:hover {
-    border-color: rgba(13,202,240,.45);
-    background: rgba(13,202,240,.04);
-  }
+  /* Card « NOUVEAU » : look pointillés GLOBALISÉ (CSS commun .wama-new-item-card, 2026-07-03). */
 </style>
 <!-- Inspecteur : reflète la card sélectionnée (sinon = valeurs par défaut) -->
 <div id="inspectorBanner" class="d-none align-items-center gap-2 p-2 mb-2 rounded small">
@@ -194,10 +182,9 @@
 {% endblock %}
 
 {% block app_right_panel_actions %}
-<!-- Volet = inspecteur : actions de l'élément/batch sélectionné (rempli par le JS).
+<!-- Volet = inspecteur : actions de l'élément/batch sélectionné (hôte commun, rempli par le JS).
      Les actions GLOBALES de la file vivent dans la zone centrale (barre d'outils de la file). -->
-<div id="inspectorActions"></div>
-<p class="small text-muted mb-0" id="inspectorActionsHint"><i class="fas fa-hand-pointer"></i> Sélectionnez une card ou un batch pour ses actions.</p>
+{% include 'common/_inspector_actions.html' %}
 {% endblock %}
 
 {% block javascript %}
@@ -278,16 +265,9 @@
 <!-- Barre globale commune : URL d'abord, puis le script (auto-démarre au DOMContentLoaded). -->
 <script>window.WAMA_GLOBAL_PROGRESS_URL = "{% url 'transcriber:global_progress' %}";</script>
 <script src="{% static 'common/js/wama-global-progress.js' %}"></script>
-<script>
-// ── Card « Nouvel élément » persistante EN TÊTE de file (entrée UNIVERSELLE : fichier / URL / batch
-//    + Speak temps réel comme AFFORDANCE de la card). Plus de switch de mode. Déplacement DOM ; les
-//    IDs/handlers restent intacts (liés par getElementById). Toujours en 1ʳᵉ position. ──
-(function () {
-    var card = document.getElementById('newItemCard');
-    var q = document.getElementById('transcriptQueue');
-    if (card && q) { card.classList.add('wama-new-card'); q.prepend(card); }
-})();
-</script>
+<!-- Card « Nouvel élément » : EN TÊTE D'ONGLET, au-dessus de la progression globale (décision
+     2026-07-03, comme Imager) — plus de déplacement DOM dans la file. Provisoire jusqu'à la card
+     intégrée-miniaturisée (MODES_QUEUE_UX). Look « nouveau » : CSS commun .wama-new-item-card. -->
 <script>
 window._batchImport = WamaBatchImport({
     batchPreviewUrl: window.TRANSCRIBER_APP.batchPreviewUrl,
@@ -341,14 +321,9 @@ window._batchImport = WamaBatchImport({
 <!-- Transcripts Queue -->
 <div class="row">
     <div class="col-12">
-        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
-            <h4 class="mb-0">
-                <i class="fas fa-list"></i> File d'attente
-                <span class="badge bg-info" id="queueCount">{{ queue_count }}</span>
-            </h4>
-            <!-- Barre d'outils COMMUNE de la file : tri + filtre + toggle d'affichage + actions globales. -->
-            {% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='transcriber-process-btn' download_id='transcriber-download-all-btn' clear_id='transcriber-clear-btn' show_download=True %}
-        </div>
+        <!-- Titre « File d'attente » RETIRÉ (doublon) : nom + compteur portés par l'ONGLET (base commune). -->
+        <!-- Barre d'outils COMMUNE de la file : actions globales à gauche · tri + filtre + disposition à droite. -->
+        {% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='transcriber-process-btn' download_id='transcriber-download-all-btn' clear_id='transcriber-clear-btn' show_download=True %}
 
         <div id="transcriptQueue" class="wama-queue-{{ card_layout }}">
             {% for batch_info in batches_list %}

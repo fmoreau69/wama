@@ -18,13 +18,8 @@
 
 {# ── Right panel : médias ─────────────────────────────────────────────────── #}
 {% block app_right_panel_media %}
-{% comment %}Dropzone + batch bar hand-built REMPLACÉES par la card commune « Nouvel élément »
-(_new_item_card, référence transcriber) en tête de file — vision « UNE surface = la file ».
-Les IDs (batchFileInput, batchDetectBar…) sont fournis par la brique → JS inchangé.{% endcomment %}
-<small class="text-muted d-block text-center" style="font-size:0.72rem;">
-    Import batch : card <i class="fas fa-plus-circle"></i> en tête de file ·
-    Format : <code>fichier|prompt|modèle|durée</code>
-</small>
+{% comment %}Import = card commune « Nouvel élément » en tête d'onglet (« UNE surface = la file ») ;
+le format batch coloré est affiché DANS la card (batch_format). Section vide, comme transcriber.{% endcomment %}
 {% endblock %}
 
 {# ── Right panel : paramètres ────────────────────────────────────────────── #}
@@ -69,9 +64,17 @@ id melodyInput conservé (payload generate inchangé). Cf. INPUT_MODEL_MATCHING.
 </button>
 {% endblock %}
 
-{# Actions globales DÉPLACÉES dans la barre d'outils commune de la file (_queue_toolbar.html), comme le Transcriber. #}
+{# Actions GLOBALES déplacées dans la barre d'outils commune de la file (_queue_toolbar.html). #}
+{% block app_right_panel_actions %}
+{% include 'common/_inspector_actions.html' %}
+{% endblock %}
 
 {% block composer_content %}
+
+{# ── Card « Nouvel élément » COMMUNE, EN TÊTE d'onglet (au-dessus de la progression globale, #}
+{# comme Imager) — provisoire jusqu'à la card intégrée-miniaturisée dans la file (MODES_QUEUE_UX). #}
+{# IDs batchFileInput + barre batch communs → handlers WamaBatchImport existants inchangés. #}
+{% include 'common/_new_item_card.html' with drop_zone_id='composerBatchDrop' file_input_id='batchFileInput' file_accept='.txt,.md,.csv,.pdf,.docx' formats_label='TXT · MD · CSV · PDF · DOCX' batch_format='fichier|prompt|modèle|durée' show_batch_bar=True show_media_library=True media_library_type='document' show_reference=True reference_input_id='melodyInput' reference_chip_id='melodyChip' reference_zone_id='melodySlot' reference_label='Mélodie de référence' reference_accept='audio/*' reference_hint='Audio 5s–5min servant de ligne mélodique (modèle Melody)' show_prompt=True prompt_input_id='promptInput' prompt_rows=3 prompt_placeholder='Ex : upbeat jazz piano with soft drums… — VIDE = génération aléatoire (le modèle improvise)' prompt_hint='Anglais recommandé (traduction automatique sinon)' primary_btn_id='generateBtn' primary_btn_label='Générer' primary_btn_icon='fa-magic' collapsible=True %}
 
 {# ── Barre de progression globale (TOUJOURS visible) ──────────────────── #}
 <div id="globalStatus">
@@ -89,16 +92,10 @@ id melodyInput conservé (payload generate inchangé). Cf. INPUT_MODEL_MATCHING.
 </div>
 
 {# ── File d'attente ────────────────────────────────────────────────────── #}
-{# Barre d'outils COMMUNE : tri + filtre + toggle Ligne/Mosaïque + actions globales (héritée du pilote Transcriber). #}
+{# Barre d'outils COMMUNE : actions globales à gauche · tri + filtre + disposition à droite. #}
 {% url 'composer:download_all' as download_all_url %}
-<div class="d-flex justify-content-end mb-1">
-    {% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='startAllBtn' clear_id='clearAllBtn' download_id='downloadAllBtn' show_download=True download_url=download_all_url %}
-</div>
+{% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='startAllBtn' clear_id='clearAllBtn' download_id='downloadAllBtn' show_download=True download_url=download_all_url %}
 <div id="composerQueue" class="wama-queue-{{ card_layout|default:'list' }}">
-
-    {# Card « Nouvel élément » COMMUNE (_new_item_card, référence transcriber) : entrée batch. #}
-    {# IDs batchFileInput + barre batch communs → handlers WamaBatchImport existants inchangés. #}
-    {% include 'common/_new_item_card.html' with drop_zone_id='composerBatchDrop' file_input_id='batchFileInput' file_accept='.txt,.md,.csv,.pdf,.docx' formats_label='TXT · MD · CSV · PDF · DOCX — fichier|prompt|modèle|durée' show_batch_bar=True show_media_library=True media_library_type='document' show_reference=True reference_input_id='melodyInput' reference_chip_id='melodyChip' reference_zone_id='melodySlot' reference_label='Mélodie de référence' reference_accept='audio/*' reference_hint='Audio 5s–5min servant de ligne mélodique (modèle Melody)' show_prompt=True prompt_input_id='promptInput' prompt_rows=3 prompt_placeholder='Ex : upbeat jazz piano with soft drums… — VIDE = génération aléatoire (le modèle improvise)' prompt_hint='Anglais recommandé (traduction automatique sinon)' primary_btn_id='generateBtn' primary_btn_label='Générer' primary_btn_icon='fa-magic' %}
 
     {% for batch_info in batches_list %}
 
@@ -223,7 +220,7 @@ id melodyInput conservé (payload generate inchangé). Cf. INPUT_MODEL_MATCHING.
         "{{ mid }}": { genFactor: {{ mcfg.gen_factor }}, overheadS: {{ mcfg.overhead_s }}, type: "{{ mcfg.type }}" }{% if not forloop.last %},{% endif %}
         {% endfor %}
     };
-    window.COMPOSER_QUEUE_COUNT = {{ queue_count }};
+    window.COMPOSER_QUEUE_COUNT = {{ active_count }};{# items actifs (amorçage barre globale) #}
 </script>
 <script src="{% static 'common/js/wama-eta.js' %}"></script>
 <script src="{% static 'common/js/wama-model-help.js' %}"></script>
@@ -231,6 +228,7 @@ id melodyInput conservé (payload generate inchangé). Cf. INPUT_MODEL_MATCHING.
 <script src="{% static 'common/js/wama-cycle-button.js' %}"></script>  {# bouton cycle ▶/⏹/↻ — le JS composer était déjà câblé (wire/autoSync), le script manquait #}
 <script src="{% static 'common/js/wama-input-match.js' %}"></script>  {# appariement card d'entrée ↔ modèles (INPUT_MODEL_MATCHING.md) #}
 <script src="{% static 'common/js/wama-queue.js' %}"></script>  {# file commune : toggle Ligne/Mosaïque + collapse batch + focusCard #}
+<script src="{% static 'common/js/wama-new-item-card.js' %}"></script>  {# card d'entrée DÉPLIABLE (auto-init, mécanisme synthesizer globalisé) #}
 <script src="{% static 'composer/js/index.js' %}"></script>
 <script src="{% static 'common/js/wama-inspector.js' %}"></script>
 <script>
