@@ -247,7 +247,7 @@ document.addEventListener('DOMContentLoaded', function () {
 </script>
 <script src="{% static 'common/js/wama-app-base.js' %}"></script>  {# plomberie commune : getUrl / csrfFetch / Poller / emptyState #}
 <script>
-// Config d'app (pattern transcriber) : URLs via {% url %} → PLUS d'URL en dur dans le JS (audit B4-10).
+// Config d'app (pattern transcriber) : URLs résolues par la balise url de Django → PLUS d'URL en dur dans le JS (audit B4-10).
 window.COMPOSER_APP = {
     csrfToken: '{{ csrf_token }}',
     generateUrl: '{% url "composer:generate" %}',
