@@ -26,8 +26,9 @@
      du .collapse) ; .wama-new-item-card / .wama-new-card = card « Nouvel élément ». */
 .wama-queue-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
                    gap: .7rem; align-items: start; }
-/* Card « nouveau » : pleine largeur même en mosaïque. */
-.wama-queue-grid > .wama-new-item-card, .wama-queue-grid > .wama-new-card { grid-column: 1 / -1; }
+/* Card « nouveau » + état vide : pleine largeur même en mosaïque. */
+.wama-queue-grid > .wama-new-item-card, .wama-queue-grid > .wama-new-card,
+.wama-queue-grid > .empty-hint { grid-column: 1 / -1; }
 /* Mosaïque « solitaire » : batch REPLIÉ = cellule mosaïque (la card mère suit la forme des
    filles) ; batch DÉPLIÉ = bande pleine largeur (pour la grille des filles). */
 .wama-queue-grid > .batch-group:has(.collapse[data-wama-batch-key].show) { grid-column: 1 / -1; }

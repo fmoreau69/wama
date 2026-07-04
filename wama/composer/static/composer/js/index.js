@@ -6,6 +6,8 @@
     'use strict';
 
     const CSRF = document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
+    // URLs via {% url %} (config posee par le template) - plus d'URL en dur (audit B4-10).
+    const APP = window.COMPOSER_APP || {};
 
     // ---------------------------------------------------------------------------
     // Estimation helpers (mirrors model_config.py logic)
@@ -43,7 +45,6 @@
     const durationDisplay  = document.getElementById('durationDisplay');
     const estimateDisplay  = document.getElementById('estimateDisplay');
     const promptInput    = document.getElementById('promptInput');
-    const melodyGroup    = document.getElementById('melodyGroup');
     const melodyInput    = document.getElementById('melodyInput');
     const batchFileInput       = document.getElementById('batchFileInput');
     const generateBtn          = document.getElementById('generateBtn');
@@ -86,18 +87,14 @@
             const first = opts.find(o => o.value.startsWith('audiogen'));
             if (first) modelSelect.value = first.value;
         }
-        checkMelodyVisibility();
         updateEstimate();
     }
 
-    function checkMelodyVisibility() {
-        if (!melodyGroup || !modelSelect) return;
-        melodyGroup.style.display = modelSelect.value === 'musicgen-melody' ? '' : 'none';
-    }
+    // checkMelodyVisibility PURGEE (R17) : le slot melodie est pilote par WamaInputMatch
+    // (capacites du catalogue), plus par un test d'id de modele en dur.
 
     if (modelSelect) {
         modelSelect.addEventListener('change', () => {
-            checkMelodyVisibility();
             updateEstimate();
         });
     }
@@ -134,12 +131,7 @@
     // Global progress bar
     // ---------------------------------------------------------------------------
 
-    const globalStatus = document.getElementById('globalStatus');
-    const globalFill   = document.getElementById('globalProgressFill');
-    const gpRunning    = document.getElementById('gpRunning');
-    const gpTotal      = document.getElementById('gpTotal');
-    const gpEta        = document.getElementById('gpEta');
-    const gpPercent    = document.getElementById('gpPercent');
+    // Barre globale : refs DOM retirées avec updateGlobalBar (brique commune wama-global-progress.js).
 
     // Track per-id estimated seconds and start time
     const genMeta = {};  // id → { estimatedSeconds, startedAt, lastProgress }
@@ -156,84 +148,10 @@
         }
     });
 
-    function updateGlobalBar() {
-        const cards = document.querySelectorAll('.generation-card');
-        let running = 0, pending = 0, done = 0, failed = 0, total = cards.length;
-        let weightedProgress = 0, totalWeight = 0;
-
-        cards.forEach(card => {
-            const id = parseInt(card.dataset.id);
-            const badge = card.querySelector('.badge');
-            const status = badge?.textContent.trim();
-            const bar = card.querySelector('.wama-progress-fill') || card.querySelector('.progress-bar');
-            const pct = bar ? parseFloat(bar.style.width) || 0 : 0;
-            const meta = genMeta[id] || { estimatedSeconds: 30 };
-
-            if (status === 'En cours') running++;
-            if (status === 'En attente') pending++;
-            if (status === 'Succès') done++;
-            if (status === 'Échec') failed++;
-
-            const w = meta.estimatedSeconds || 30;
-            weightedProgress += pct * w;
-            totalWeight += w;
-
-            // ETA via moteur commun (seed = estimation a priori du modèle composer)
-            if (window.WamaEta) {
-                const estStatus = status === 'En cours' ? 'RUNNING'
-                                : status === 'En attente' ? 'PENDING' : 'DONE';
-                const est = WamaEta.update(id, {
-                    progress: pct, status: estStatus, seedSeconds: meta.estimatedSeconds, modelLoaded: true,
-                });
-                WamaEta.render(card.querySelector('.wama-eta'), est);
-            }
-        });
-
-        const active = running + pending;
-
-        const globalStats = document.getElementById('globalProgressStats');
-        if (globalStats) globalStats.textContent =
-            `${done}/${total} terminé · ${running} en cours · ${failed} échoué`;
-
-        if (!globalStatus) return;
-
-        if (active === 0 && total > 0) {
-            // All done — keep bar visible at 100%
-            globalStatus.style.opacity = '1';
-            globalStatus.style.pointerEvents = '';
-            globalFill.style.width = '100%';
-            globalFill.classList.add('active');  // balayage bleu/vert permanent (homogène avec les autres apps)
-            if (gpPercent) gpPercent.textContent = '100%';
-            if (gpEta) gpEta.textContent = '';
-        } else if (active > 0) {
-            globalStatus.style.opacity = '1';
-            globalStatus.style.pointerEvents = '';
-
-            const overallPct = totalWeight > 0 ? Math.round(weightedProgress / totalWeight) : 0;
-            globalFill.style.width = overallPct + '%';
-            globalFill.classList.add('active');  // balayage bleu/vert permanent (homogène avec les autres apps)
-
-            if (gpRunning) gpRunning.textContent = running;
-            if (gpTotal) gpTotal.textContent = active;
-            if (gpPercent) gpPercent.textContent = overallPct ? overallPct + '%' : '';
-            if (gpEta) {
-                const agg = window.WamaEta ? WamaEta.aggregateAll() : null;
-                const txt = agg ? WamaEta.format(agg.seconds, agg.confidence) : null;
-                gpEta.textContent = txt || 'Estimation…';
-            }
-        } else if (total === 0) {
-            // Aucune tâche — barre TOUJOURS visible, remise à zéro
-            globalStatus.style.opacity = '1';
-            globalStatus.style.pointerEvents = '';
-            globalFill.style.width = '0%';
-            globalFill.classList.remove('active');
-            if (gpPercent) gpPercent.textContent = '';
-            if (gpEta)     gpEta.textContent = '';
-        }
-    }
+    // Barre globale : BRIQUE COMMUNE (wama-global-progress.js, auto-poll) — l'ancienne
+    // updateGlobalBar hand-made (scan DOM + moyenne ponderee) a ete supprimee (audit B1-2).
 
     // Affiche l'état correct dès le chargement (barre toujours visible).
-    updateGlobalBar();
 
     // ---------------------------------------------------------------------------
     // Generate single item
@@ -265,16 +183,18 @@
             generateBtn.disabled = true;
             generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Envoi…';
 
-            fetch('/composer/generate/', { method: 'POST', body: formData })
+            fetch(APP.generateUrl, { method: 'POST', body: formData })
                 .then(r => r.json())
                 .then(data => {
                     if (data.error) {
                         alert('Erreur : ' + data.error);
                     } else {
                         promptInput.value = '';
-                        appendGenerationCard(data);
+                        insertRenderedCard(data.id, {
+                            estimatedSeconds: estimateSeconds(data.model, data.duration),
+                            startedAt: Date.now(), lastProgress: 0,
+                        });
                         startPolling(data.id);
-                        updateGlobalBar();
                     }
                 })
                 .catch(err => alert('Erreur réseau : ' + err))
@@ -297,7 +217,6 @@
         if (modelSelect) {
             const firstMusic = Array.from(modelSelect.options).find(o => o.value.startsWith('musicgen'));
             if (firstMusic) modelSelect.value = firstMusic.value;
-            checkMelodyVisibility();
             updateEstimate();
         }
         if (durationSlider) {
@@ -315,7 +234,7 @@
 
     if (startAllBtn) {
         startAllBtn.addEventListener('click', () => {
-            fetch('/composer/start_all/', { method: 'POST', headers: { 'X-CSRFToken': CSRF } })
+            fetch(APP.startAllUrl, { method: 'POST', headers: { 'X-CSRFToken': CSRF } })
                 .then(r => r.json())
                 .then(d => { if (d.launched > 0) { showToast(`${d.launched} génération(s) relancée(s)`, 'info'); location.reload(); } });
         });
@@ -324,7 +243,7 @@
     if (clearAllBtn) {
         clearAllBtn.addEventListener('click', () => {
             if (!confirm('Supprimer toutes les générations (sauf celles en cours) ?')) return;
-            fetch('/composer/clear_all/', { method: 'POST', headers: { 'X-CSRFToken': CSRF } })
+            fetch(APP.clearAllUrl, { method: 'POST', headers: { 'X-CSRFToken': CSRF } })
                 .then(() => location.reload());
         });
     }
@@ -339,7 +258,7 @@
         if (deleteBtn) {
             const id = deleteBtn.dataset.id;
             if (!confirm('Supprimer cette génération ?')) return;
-            fetch(`/composer/delete/${id}/`, { method: 'POST', headers: { 'X-CSRFToken': CSRF } })
+            fetch(WamaApp.getUrl(APP.deleteUrlTemplate, id), { method: 'POST', headers: { 'X-CSRFToken': CSRF } })
                 .then(r => r.json().catch(() => ({})))
                 .then((data) => {
                     // Élément issu d'un batch : total/affichage du batch changent → recharger
@@ -353,7 +272,6 @@
                         }
                     }
                     delete genMeta[id];
-                    updateGlobalBar();
                     checkEmptyState();
                     if (window.WamaFM) WamaFM.deleted();  // fichier supprimé → refresh filemanager
                 });
@@ -364,14 +282,13 @@
         if (batchDeleteBtn) {
             const bid = batchDeleteBtn.dataset.batchId;
             if (!confirm('Supprimer ce batch et toutes ses générations ?')) return;
-            fetch(`/composer/batch/${bid}/delete/`, { method: 'POST', headers: { 'X-CSRFToken': CSRF } })
+            fetch(WamaApp.getUrl(APP.batchDeleteUrlTemplate, bid), { method: 'POST', headers: { 'X-CSRFToken': CSRF } })
                 .then(() => {
                     const group = document.querySelector(`.batch-group[data-batch-id="${bid}"]`);
                     if (group) {
                         group.querySelectorAll('.generation-card').forEach(c => delete genMeta[c.dataset.id]);
                         group.remove();
                     }
-                    updateGlobalBar();
                     checkEmptyState();
                     if (window.WamaFM) WamaFM.deleted();  // fichiers supprimés → refresh filemanager
                 });
@@ -381,7 +298,7 @@
         const duplicateBtn = e.target.closest('.duplicate-btn');
         if (duplicateBtn) {
             const id = duplicateBtn.dataset.id;
-            fetch(`/composer/duplicate/${id}/`, { method: 'POST', headers: { 'X-CSRFToken': CSRF } })
+            fetch(WamaApp.getUrl(APP.duplicateUrlTemplate, id), { method: 'POST', headers: { 'X-CSRFToken': CSRF } })
                 .then(r => r.json())
                 .then(d => { if (d.success) location.reload(); });
             return;
@@ -390,7 +307,7 @@
         const batchDuplicateBtn = e.target.closest('.batch-duplicate-btn');
         if (batchDuplicateBtn) {
             const bid = batchDuplicateBtn.dataset.batchId;
-            fetch(`/composer/batch/${bid}/duplicate/`, { method: 'POST', headers: { 'X-CSRFToken': CSRF } })
+            fetch(WamaApp.getUrl(APP.batchDuplicateUrlTemplate, bid), { method: 'POST', headers: { 'X-CSRFToken': CSRF } })
                 .then(r => r.json())
                 .then(d => { if (d.success) location.reload(); });
             return;
@@ -440,7 +357,7 @@
         const exportBtn = e.target.closest('.export-btn');
         if (exportBtn) {
             const id = exportBtn.dataset.id;
-            fetch(`/composer/export/${id}/`, { method: 'POST', headers: { 'X-CSRFToken': CSRF } })
+            fetch(WamaApp.getUrl(APP.exportUrlTemplate, id), { method: 'POST', headers: { 'X-CSRFToken': CSRF } })
                 .then(r => r.json())
                 .then(d => {
                     if (d.success) {
@@ -465,7 +382,7 @@
             fd.append('csrfmiddlewaretoken', CSRF);
             fd.append('model', settingsModel.value);
             fd.append('duration', settingsDuration.value);
-            fetch(`/composer/batch/${bid}/update/`, { method: 'POST', body: fd })
+            fetch(WamaApp.getUrl(APP.batchUpdateUrlTemplate, bid), { method: 'POST', body: fd })
                 .then(r => r.json())
                 .then(() => {
                     bootstrap.Modal.getInstance(document.getElementById('settingsModal'))?.hide();
@@ -488,7 +405,7 @@
         if (soq) formData.append('output_quality', soq.value);
         formData.append('restart', restart ? '1' : '0');
 
-        fetch(`/composer/settings/${id}/`, { method: 'POST', body: formData })
+        fetch(WamaApp.getUrl(APP.settingsUrlTemplate, id), { method: 'POST', body: formData })
             .then(r => r.json())
             .then(d => {
                 if (d.success) {
@@ -502,7 +419,6 @@
                     };
                     updateCardStatus(id, 'PENDING', 0);
                     startPolling(parseInt(id));
-                    updateGlobalBar();
                 } else {
                     alert('Erreur : ' + (d.error || 'inconnue'));
                 }
@@ -535,15 +451,16 @@
     }
 
     function pollProgress(genId) {
-        fetch(`/composer/progress/${genId}/`)
+        fetch(WamaApp.getUrl(APP.progressUrlTemplate, genId))
             .then(r => r.json())
             .then(data => {
                 updateCardStatus(genId, data.status, data.progress, data);
-                updateGlobalBar();
 
                 if (data.status === 'SUCCESS' || data.status === 'FAILURE') {
                     stopPolling(genId);
                     if (window.WamaFM) WamaFM.processed();  // sortie créée → refresh filemanager
+                    // Card FINALE rendue serveur (waveform + boutons complets) — plus d'injection JS.
+                    insertRenderedCard(genId);
                     if (data.status === 'SUCCESS') {
                         showToast('Génération terminée !', 'success');
                     } else {
@@ -622,34 +539,8 @@
             existingErr.remove();
         }
 
-        // Si succès : injecter waveform + boutons download/export
-        if (status === 'SUCCESS' && data?.audio_url) {
-            // Waveform player (si pas encore injecté)
-            if (!document.getElementById(`audioPlayer_${id}`) && window.WamaAudioPlayer) {
-                WamaAudioPlayer.inject(data.audio_url, id, card);
-            }
-            // Boutons download + export (si pas encore injectés)
-            if (data.download_url && !card.querySelector('a[title="Télécharger"]')) {
-                const actionsDiv = card.querySelector('.d-flex.flex-wrap');
-                if (!actionsDiv?.querySelector('.settings-btn')) {
-                    const model = card.dataset.model || '';
-                    const dur   = card.dataset.duration || '10';
-                    actionsDiv?.insertAdjacentHTML('afterbegin',
-                        `<button class="btn btn-sm btn-secondary settings-btn"
-                            data-id="${id}" data-model="${model}" data-duration="${dur}"
-                            title="Modifier les paramètres et re-générer">
-                            <i class="fas fa-cog"></i></button>`);
-                }
-                const settingsBtn = actionsDiv?.querySelector('.settings-btn');
-                const btns = `<a href="${data.download_url}" class="btn btn-sm btn-info" title="Télécharger">
-                        <i class="fas fa-download"></i></a>
-                    <button class="btn btn-sm export-btn" data-id="${id}"
-                        title="Exporter" style="color:#a78bfa;border:1px solid #a78bfa;background:transparent;">
-                        <i class="fas fa-photo-film"></i></button>`;
-                if (settingsBtn) settingsBtn.insertAdjacentHTML('afterend', btns);
-                else actionsDiv?.insertAdjacentHTML('afterbegin', btns);
-            }
-        }
+        // Fin de tâche : la card COMPLÈTE (waveform + boutons) est re-rendue par le serveur
+        // (insertRenderedCard dans pollProgress) — l'injection de chaines HTML est supprimée (B2-5).
     }
 
     // Auto-start polling for active items on page load
@@ -671,10 +562,10 @@
             start: async (id) => {
                 const card = q.querySelector(`.generation-card[data-id="${id}"]`);
                 if (card && (card.dataset.status || '').toUpperCase() === 'RUNNING') {
-                    try { await fetch(`/composer/stop/${id}/`, { method: 'POST', headers: { 'X-CSRFToken': CSRF } }); } catch (e) {}
+                    try { await fetch(WamaApp.getUrl(APP.stopUrlTemplate, id), { method: 'POST', headers: { 'X-CSRFToken': CSRF } }); } catch (e) {}
                 }
                 try {
-                    await fetch(`/composer/start/${id}/`, { method: 'POST', headers: { 'X-CSRFToken': CSRF } });
+                    await fetch(WamaApp.getUrl(APP.startUrlTemplate, id), { method: 'POST', headers: { 'X-CSRFToken': CSRF } });
                     if (card) card.dataset.status = 'RUNNING';
                     startPolling(parseInt(id));
                 } catch (e) {}
@@ -682,7 +573,7 @@
             stop: async (id) => {
                 const card = q.querySelector(`.generation-card[data-id="${id}"]`);
                 try {
-                    const r = await fetch(`/composer/stop/${id}/`, { method: 'POST', headers: { 'X-CSRFToken': CSRF } });
+                    const r = await fetch(WamaApp.getUrl(APP.stopUrlTemplate, id), { method: 'POST', headers: { 'X-CSRFToken': CSRF } });
                     const data = await r.json().catch(() => ({}));
                     if (card && data.status) card.dataset.status = data.status;
                 } catch (e) {}
@@ -692,105 +583,36 @@
     })();
 
     // Initial global bar update
-    if (window.COMPOSER_QUEUE_COUNT > 0) updateGlobalBar();
 
     // ---------------------------------------------------------------------------
     // Helpers
     // ---------------------------------------------------------------------------
 
-    function appendGenerationCard(data) {
-        const queue = document.getElementById('composerQueue');
-        if (!queue) return;
-
-        const emptyHint = document.getElementById('emptyHint');
-        if (emptyHint) emptyHint.remove();
-
-        const typeIcon = data.generation_type === 'music'
-            ? '<i class="fas fa-music text-success flex-shrink-0"></i>'
-            : '<i class="fas fa-bolt text-danger flex-shrink-0"></i>';
-
-        const est = estimateSeconds(data.model, data.duration);
-        const estDisplay = formatDuration(est);
-
-        // Register meta before appending
-        genMeta[data.id] = { estimatedSeconds: est, startedAt: Date.now(), lastProgress: 0 };
-
-        const html = `
-        <div class="generation-card p-2 rounded border border-warning processing mb-1"
-             data-id="${data.id}" data-status="RUNNING" data-estimated-seconds="${est}"
-             data-model="${data.model}" data-duration="${data.duration}"
-             data-output-format="${data.output_format || 'original'}" data-output-quality="${data.output_quality || 'balanced'}"
-             style="background:#1e2124;">
-            <div class="row align-items-center g-2">
-                <div class="col-md-4">
-                    <div class="d-flex align-items-center gap-2">
-                        ${typeIcon}
-                        <div class="overflow-hidden">
-                            <div class="small text-light fw-bold text-truncate">
-                                ${data.prompt.substring(0, 35)}${data.prompt.length > 35 ? '…' : ''}</div>
-                            <div class="d-flex align-items-center gap-2">
-                                <small class="text-muted">${data.model}</small>
-                                <small class="text-white-50">${Math.round(data.duration)}s</small>
-                                <small class="text-muted">
-                                    <i class="fas fa-hourglass-half fa-xs opacity-50"></i>
-                                    <span class="estimated-time">${estDisplay}</span>
-                                </small>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-3 d-none d-md-block">
-                    <small class="text-white-50">${data.prompt.substring(0, 60)}</small>
-                </div>
-                <div class="col-md-2">
-                    <div class="d-flex align-items-center gap-2">
-                        <span class="badge flex-shrink-0 bg-warning">En cours</span>
-                    </div>
-                    <div class="progress mt-1" style="height:3px;">
-                        <div class="progress-bar bg-warning progress-bar-striped progress-bar-animated" style="width:0%"></div>
-                    </div>
-                    <small class="text-muted progress-text" style="font-variant-numeric:tabular-nums;">
-                        0%
-                        <span class="remaining-time ms-1 text-info">${estDisplay}</span>
-                    </small>
-                </div>
-                <div class="col-md-3">
-                    <div class="d-flex flex-wrap gap-1">
-                        ${window.WamaCycleButton ? WamaCycleButton.html('RUNNING', data.id) : ''}
-                        <button class="btn btn-sm btn-danger delete-btn" data-id="${data.id}" title="Supprimer">
-                            <i class="fas fa-trash"></i></button>
-                    </div>
-                    <div class="audio-preview mt-1" id="preview_${data.id}" style="display:none;"></div>
-                </div>
-            </div>
-        </div>`;
-
-        queue.insertAdjacentHTML('afterbegin', html);
-        updateGlobalBar();
+    // Card RENDUE SERVEUR — SOURCE UNIQUE du markup (partial _generation_card.html via
+    // composer:card_html ; CARD_DESIGN « partial server-side + update JS en place »).
+    // Remplace la reconstruction JS qui divergeait déjà du serveur (barre Bootstrap vs
+    // .wama-progress-fill → jamais mise à jour, boutons ⚙/dupliquer absents) — audit B2-4.
+    function insertRenderedCard(id, meta) {
+        if (meta) genMeta[id] = meta;
+        fetch(WamaApp.getUrl(APP.cardHtmlUrlTemplate, id))
+            .then(r => { if (!r.ok) throw new Error(r.status); return r.text(); })
+            .then(html => {
+                const queue = document.getElementById('composerQueue');
+                if (!queue) return;
+                const existing = queue.querySelector(`.generation-card[data-id="${id}"]`);
+                if (existing) existing.outerHTML = html;
+                else queue.insertAdjacentHTML('afterbegin', html);
+                checkEmptyState();
+            })
+            .catch(() => location.reload());
     }
 
+    // Etat vide : bascule du hint RENDU SERVEUR (source unique dans index.html) — audit B4-11.
     function checkEmptyState() {
         const queue = document.getElementById('composerQueue');
-        if (!queue) return;
-        const cards = queue.querySelectorAll('.generation-card');
-        if (cards.length === 0 && !document.getElementById('emptyHint')) {
-            queue.innerHTML = `
-            <div class="empty-hint d-flex flex-column align-items-center justify-content-center py-5 text-center"
-                 id="emptyHint" style="min-height:280px;">
-                <div style="font-size:3rem; opacity:0.15; margin-bottom:1rem;"><i class="fas fa-music"></i></div>
-                <p class="text-muted mb-1" style="font-size:1rem;">Aucune génération pour l'instant</p>
-                <p class="text-muted small mb-3" style="max-width:280px; line-height:1.6;">
-                    Saisissez un <strong class="text-light">prompt</strong>,
-                    choisissez un <strong class="text-light">modèle</strong>
-                    et cliquez sur <strong class="text-success">Générer</strong> dans le panneau de droite.
-                </p>
-                <div class="mt-2" style="color:#6c757d; font-size:0.8rem;">
-                    <span style="animation: arrowPulse 1.8s ease-in-out infinite; display:inline-block;">→</span>
-                    Panneau de paramètres
-                    <span style="animation: arrowPulse 1.8s ease-in-out infinite .2s; display:inline-block;">→</span>
-                </div>
-            </div>`;
-        }
+        const hint = document.getElementById('emptyHint');
+        if (!queue || !hint) return;
+        hint.classList.toggle('d-none', queue.querySelectorAll('.generation-card').length > 0);
     }
 
     function showToast(message, type) {

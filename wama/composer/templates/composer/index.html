@@ -76,20 +76,9 @@ id melodyInput conservé (payload generate inchangé). Cf. INPUT_MODEL_MATCHING.
 {# IDs batchFileInput + barre batch communs → handlers WamaBatchImport existants inchangés. #}
 {% include 'common/_new_item_card.html' with drop_zone_id='composerBatchDrop' file_input_id='batchFileInput' file_accept='.txt,.md,.csv,.pdf,.docx' formats_label='TXT · MD · CSV · PDF · DOCX' batch_format='fichier|prompt|modèle|durée' show_batch_bar=True show_media_library=True media_library_type='document' show_reference=True reference_input_id='melodyInput' reference_chip_id='melodyChip' reference_zone_id='melodySlot' reference_label='Mélodie de référence' reference_accept='audio/*' reference_hint='Audio 5s–5min servant de ligne mélodique (modèle Melody)' show_prompt=True prompt_input_id='promptInput' prompt_rows=3 prompt_placeholder='Ex : upbeat jazz piano with soft drums… — VIDE = génération aléatoire (le modèle improvise)' prompt_hint='Anglais recommandé (traduction automatique sinon)' primary_btn_id='generateBtn' primary_btn_label='Générer' primary_btn_icon='fa-magic' collapsible=True %}
 
-{# ── Barre de progression globale (TOUJOURS visible) ──────────────────── #}
-<div id="globalStatus">
-    <div class="d-flex justify-content-between align-items-baseline mb-1">
-        <small class="text-muted">{# mis à jour par JS #}
-            <span id="globalProgressStats">0/0 terminé · 0 en cours · 0 échoué</span>
-            <span class="wama-eta ms-2" id="gpEta"></span>
-        </small>
-        <small class="text-muted" id="gpPercent" style="font-variant-numeric: tabular-nums;"></small>
-    </div>
-    <div class="wama-progress-track" id="globalProgressTrack">
-        <div class="wama-progress-fill active" id="globalProgressFill" style="width:0%"></div>
-    </div>
-    <div style="height:12px;"></div>{# spacer #}
-</div>
+{# ── Barre de progression globale : brique COMMUNE (_global_progress + wama-global-progress.js #}
+{# + endpoint composer:global_progress au contrat {total,done,running,failed,overall_progress}). #}
+{% include 'common/_global_progress.html' %}
 
 {# ── File d'attente ────────────────────────────────────────────────────── #}
 {# Barre d'outils COMMUNE : actions globales à gauche · tri + filtre + disposition à droite. #}
@@ -150,34 +139,29 @@ id melodyInput conservé (payload generate inchangé). Cf. INPUT_MODEL_MATCHING.
     </div>
     {% endif %}
 
-    {% empty %}
-    {# ── Hint zone vide ──────────────────────────────────────────────── #}
-    <div class="empty-hint d-flex flex-column align-items-center justify-content-center py-5 text-center"
+    {% endfor %}
+
+    {# Hint zone vide : TOUJOURS rendu (source UNIQUE du markup — audit B4-11), basculé en d-none #}
+    {# par checkEmptyState() côté JS. Le « Générer » vit dans la card « Nouvel élément » ci-dessus. #}
+    <div class="empty-hint d-flex flex-column align-items-center justify-content-center py-5 text-center{% if batches_list %} d-none{% endif %}"
          id="emptyHint" style="min-height:280px;">
         <div style="font-size:3rem; opacity:0.15; margin-bottom:1rem;">
-            {% comment %}icône selon tab actif{% endcomment %}
             <i class="fas fa-music"></i>
         </div>
         <p class="text-muted mb-1" style="font-size:1rem;">
             Aucune génération pour l'instant
         </p>
-        <p class="text-muted small mb-3" style="max-width:280px; line-height:1.6;">
-            Saisissez un <strong class="text-light">prompt</strong>,
-            choisissez un <strong class="text-light">modèle</strong>
+        <p class="text-muted small mb-3" style="max-width:300px; line-height:1.6;">
+            Décrivez ce que vous voulez dans la card
+            <strong class="text-light">« Nouvel élément »</strong> ci-dessus
             et cliquez sur <strong class="text-success">Générer</strong>
-            dans le panneau de droite.
+            — prompt vide = le modèle improvise.
         </p>
         <p class="text-muted small opacity-50">
             Ou importez un fichier batch
             <code style="font-size:0.75rem;">fichier|prompt|modèle|durée</code>
         </p>
-        <div class="mt-3" style="color:#6c757d; font-size:0.8rem;">
-            <span class="empty-hint-arrow">→</span>
-            Panneau de paramètres
-            <span class="empty-hint-arrow" style="animation-delay:.2s">→</span>
-        </div>
     </div>
-    {% endfor %}
 
 </div>
 
@@ -222,6 +206,8 @@ id melodyInput conservé (payload generate inchangé). Cf. INPUT_MODEL_MATCHING.
     };
     window.COMPOSER_QUEUE_COUNT = {{ active_count }};{# items actifs (amorçage barre globale) #}
 </script>
+<script>window.WAMA_GLOBAL_PROGRESS_URL = "{% url 'composer:global_progress' %}";</script>
+<script src="{% static 'common/js/wama-global-progress.js' %}"></script>  {# barre globale COMMUNE (l'endpoint dort depuis sa création — branché, audit B1) #}
 <script src="{% static 'common/js/wama-eta.js' %}"></script>
 <script src="{% static 'common/js/wama-model-help.js' %}"></script>
 <script src="{% static 'common/js/wama-params.js' %}"></script>  {# rendu des champs modale (P1) — composer n'en avait pas besoin avant (initFromSchema lit sans rendre) #}
@@ -258,6 +244,27 @@ document.addEventListener('DOMContentLoaded', function () {
         },
     });
 });
+</script>
+<script src="{% static 'common/js/wama-app-base.js' %}"></script>  {# plomberie commune : getUrl / csrfFetch / Poller / emptyState #}
+<script>
+// Config d'app (pattern transcriber) : URLs via {% url %} → PLUS d'URL en dur dans le JS (audit B4-10).
+window.COMPOSER_APP = {
+    csrfToken: '{{ csrf_token }}',
+    generateUrl: '{% url "composer:generate" %}',
+    startAllUrl: '{% url "composer:start_all" %}',
+    clearAllUrl: '{% url "composer:clear_all" %}',
+    deleteUrlTemplate: '{% url "composer:delete" 0 %}',
+    duplicateUrlTemplate: '{% url "composer:duplicate" 0 %}',
+    exportUrlTemplate: '{% url "composer:export_to_library" 0 %}',
+    settingsUrlTemplate: '{% url "composer:update_settings" 0 %}',
+    progressUrlTemplate: '{% url "composer:progress" 0 %}',
+    cardHtmlUrlTemplate: '{% url "composer:card_html" 0 %}',
+    startUrlTemplate: '{% url "composer:start" 0 %}',
+    stopUrlTemplate: '{% url "composer:stop" 0 %}',
+    batchDeleteUrlTemplate: '{% url "composer:batch_delete" 0 %}',
+    batchDuplicateUrlTemplate: '{% url "composer:batch_duplicate" 0 %}',
+    batchUpdateUrlTemplate: '{% url "composer:batch_update" 0 %}',
+};
 </script>
 <script src="{% static 'composer/js/index.js' %}"></script>
 <script src="{% static 'common/js/wama-inspector.js' %}"></script>

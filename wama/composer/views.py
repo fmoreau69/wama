@@ -354,6 +354,7 @@ def start(request, pk):
     return JsonResponse({'id': gen.id, 'status': 'RUNNING'})
 
 
+@require_POST
 def stop(request, pk):
     """
     Stoppe la génération en cours (révoque la tâche Celery) → composition relançable (bouton ↻).
@@ -393,6 +394,7 @@ def _input_labels():
         return {}
 
 
+@require_POST
 def update_settings(request, pk):
     """Update model and/or duration on an existing generation, then re-run."""
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
@@ -823,14 +825,49 @@ def console_content(request):
     return JsonResponse({'lines': lines})
 
 
-def global_progress(request):
+def card_html(request, pk):
+    """Card RENDUE serveur — SOURCE UNIQUE du markup de card (partial _generation_card.html ;
+    CARD_DESIGN : « partial server-side + update JS en place, PAS de rebuild »). Consommée par
+    le JS à la création (insertion) et en fin de tâche (remplacement in-place : waveform +
+    boutons complets sans injection de chaînes HTML — audit B2-4/5)."""
+    from django.http import HttpResponse
+    from django.template.loader import render_to_string
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    gens = ComposerGeneration.objects.filter(user=user, status__in=('PENDING', 'RUNNING'))
+    gen = get_object_or_404(ComposerGeneration, id=pk, user=user)
+    try:
+        label = gen.batch_item.output_filename
+    except ComposerBatchItem.DoesNotExist:
+        label = ''
+    html = render_to_string('composer/_generation_card.html',
+                            {'gen': gen, 'card_label': label}, request=request)
+    return HttpResponse(html)
 
-    items = []
-    for gen in gens:
-        cached = cache.get(f'composer_progress_{gen.id}')
-        pct = cached if cached is not None else gen.progress
-        items.append({'id': gen.id, 'status': gen.status, 'progress': pct})
 
-    return JsonResponse({'items': items})
+def global_progress(request):
+    """Agrégat pour la barre globale COMMUNE (contrat wama-global-progress.js) :
+    {total, done, running, failed, overall_progress}. Remplace l'ancienne forme
+    {'items': [...]} que plus aucun JS n'appelait (endpoint mort, audit B1-3)."""
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    gens = ComposerGeneration.objects.filter(user=user)
+
+    total = gens.count()
+    done = gens.filter(status='SUCCESS').count()
+    failed = gens.filter(status='FAILURE').count()
+    active = list(gens.filter(status__in=('PENDING', 'RUNNING')))
+
+    if total:
+        acc = (done + failed) * 100.0
+        for gen in active:
+            cached = cache.get(f'composer_progress_{gen.id}')
+            acc += cached if cached is not None else (gen.progress or 0)
+        overall = int(acc / total)
+    else:
+        overall = 0
+
+    return JsonResponse({
+        'total': total,
+        'done': done,
+        'running': len(active),
+        'failed': failed,
+        'overall_progress': overall,
+    })

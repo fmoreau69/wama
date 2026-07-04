@@ -91,12 +91,11 @@ composer index.html + _generation_card.html + views.py (intégral), js/index.js 
 ## B. COMPOSER — hardcodes restants à globaliser
 
 ### B1. Barre de progression globale (écart majeur)
-1. Markup hand-made — index.html (`#globalStatus`, IDs `gpEta`/`gpPercent` ≠ contrat commun) au
-   lieu de `common/_global_progress.html`.
-2. Logique client hand-made — index.js:137-236 (`updateGlobalBar` scan DOM) au lieu de
-   `wama-global-progress.js`.
-3. **Endpoint serveur MORT** — views.py:770-779 + urls.py:26 (`global_progress`) : aucun JS ne
-   l'appelle. Migration à moitié faite → brancher brique + `WAMA_GLOBAL_PROGRESS_URL`.
+1. ~~Markup hand-made~~ — **RÉGLÉ 2026-07-04** : include `_global_progress.html`.
+2. ~~Logique client hand-made~~ — **RÉGLÉ 2026-07-04** : `updateGlobalBar` + 8 appels supprimés,
+   `wama-global-progress.js` branché.
+3. ~~Endpoint serveur MORT~~ — **RÉGLÉ 2026-07-04** : réécrit au contrat
+   {total, done, running, failed, overall_progress} + `WAMA_GLOBAL_PROGRESS_URL` posé.
 
 ### B2. Cards
 4. **`appendGenerationCard()` JS divergente du partial** — index.js:786-855 : `.progress` Bootstrap
