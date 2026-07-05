@@ -9,85 +9,23 @@
                     <span>Applications</span>
                 </button>
                 <ul class="dropdown-menu dropdown-menu-dark" aria-labelledby="appsDropdown">
-                    {% if 'anonymizer' in accessible_apps %}<li>
-                        <a class="dropdown-item d-flex align-items-center {% if 'anonymizer' in request.path %}active{% endif %}" href="{% url 'anonymizer:index' %}">
-                            <i class="fas fa-user-secret text-danger me-2"></i> Anonymizer
+                    {# Menu GÉNÉRÉ du catalogue (APP_CATEGORIES + APP_CATALOG, cf. app_registry) — #}
+                    {# groupé par catégorie, filtré par accessible_apps. Plus d'app codée à la main #}
+                    {# ici : ajouter une app = l'ajouter au catalogue (décision 2026-07-05). #}
+                    {% for group in nav_apps_grouped %}
+                    {% if not forloop.first %}<li><hr class="dropdown-divider"></li>{% endif %}
+                    <li class="dropdown-header small">{{ group.meta.icon }} {{ group.meta.label }}</li>
+                    {% for a in group.apps %}<li>
+                        <a class="dropdown-item d-flex align-items-center {% if a.name in request.path %}active{% endif %}" href="{{ a.url }}">
+                            <i class="{{ a.icon }} me-2"{% if a.color %} style="color:{{ a.color }};"{% endif %}></i> {{ a.label }}
                         </a>
-                    </li>{% endif %}
-                    {% if 'avatarizer' in accessible_apps %}<li>
-                        <a class="dropdown-item d-flex align-items-center {% if 'avatarizer' in request.path %}active{% endif %}" href="{% url 'avatarizer:index' %}">
-                            <i class="fas fa-user-circle text-info me-2"></i> Avatarizer
+                    </li>{% endfor %}
+                    {% for l in group.links %}<li>
+                        <a class="dropdown-item d-flex align-items-center {% if l.url in request.path %}active{% endif %}" href="{{ l.url }}">
+                            <i class="fas {{ l.icon }} me-2"{% if l.color %} style="color:{{ l.color }};"{% endif %}></i> {{ l.label }}
                         </a>
-                    </li>{% endif %}
-                    {% if 'composer' in accessible_apps %}<li>
-                        <a class="dropdown-item d-flex align-items-center {% if 'composer' in request.path %}active{% endif %}" href="{% url 'composer:index' %}">
-                            <i class="fas fa-music text-success me-2"></i> Composer
-                        </a>
-                    </li>{% endif %}
-                    {% if 'converter' in accessible_apps %}<li>
-                        <a class="dropdown-item d-flex align-items-center {% if 'converter' in request.path %}active{% endif %}" href="{% url 'converter:index' %}">
-                            <i class="fas fa-exchange-alt me-2" style="color:#20c997;"></i> Converter
-                        </a>
-                    </li>{% endif %}
-                    {% if 'describer' in accessible_apps %}<li>
-                        <a class="dropdown-item d-flex align-items-center {% if 'describer' in request.path %}active{% endif %}" href="{% url 'describer:index' %}">
-                            <i class="fas fa-search-plus text-info me-2"></i> Describer
-                        </a>
-                    </li>{% endif %}
-                    {% if 'enhancer' in accessible_apps %}<li>
-                        <a class="dropdown-item d-flex align-items-center {% if 'enhancer' in request.path %}active{% endif %}" href="{% url 'enhancer:index' %}">
-                            <i class="fas fa-magic text-info me-2"></i> Enhancer
-                        </a>
-                    </li>{% endif %}
-                    {% if 'imager' in accessible_apps %}<li>
-                        <a class="dropdown-item d-flex align-items-center {% if 'imager' in request.path %}active{% endif %}" href="{% url 'imager:index' %}">
-                            <i class="fas fa-image text-success me-2"></i> Imager
-                        </a>
-                    </li>{% endif %}
-                    {% if 'reader' in accessible_apps %}<li>
-                        <a class="dropdown-item d-flex align-items-center {% if 'reader' in request.path %}active{% endif %}" href="{% url 'reader:index' %}">
-                            <i class="fas fa-book-open text-info me-2"></i> Reader
-                        </a>
-                    </li>{% endif %}
-                    {% if 'synthesizer' in accessible_apps %}<li>
-                        <a class="dropdown-item d-flex align-items-center {% if 'synthesizer' in request.path %}active{% endif %}" href="{% url 'synthesizer:index' %}">
-                            <i class="fas fa-microphone text-primary me-2"></i> Synthesizer
-                        </a>
-                    </li>{% endif %}
-                    {% if 'transcriber' in accessible_apps %}<li>
-                        <a class="dropdown-item d-flex align-items-center {% if 'transcriber' in request.path %}active{% endif %}" href="{% url 'transcriber:index' %}">
-                            <i class="fas fa-file-alt text-warning me-2"></i> Transcriber
-                        </a>
-                    </li>{% endif %}
-                    <!-- Studio (méta-app) + Médiathèque -->
-                    <li><hr class="dropdown-divider"></li>
-                    {% if 'studio' in accessible_apps %}<li>
-                        <a class="dropdown-item d-flex align-items-center {% if 'studio' in request.path %}active{% endif %}" href="{% url 'studio:index' %}">
-                            <i class="fas fa-diagram-project me-2" style="color:#fb923c;"></i> Studio
-                        </a>
-                    </li>{% endif %}
-                    {% if 'media_library' in accessible_apps %}<li>
-                        <a class="dropdown-item d-flex align-items-center {% if 'media-library' in request.path %}active{% endif %}" href="{% url 'media_library:index' %}">
-                            <i class="fas fa-photo-film text-purple me-2" style="color:#a78bfa;"></i> Médiathèque
-                        </a>
-                    </li>{% endif %}
-                    <!-- WAMA Lab - Experimental/Research -->
-                    {% if 'face_analyzer' in accessible_apps or 'cam_analyzer' in accessible_apps %}
-                    <li><hr class="dropdown-divider"></li>
-                    <li class="dropdown-header text-warning">
-                        <i class="fas fa-flask me-1"></i> WAMA Lab
-                    </li>
-                    {% if 'face_analyzer' in accessible_apps %}<li>
-                        <a class="dropdown-item d-flex align-items-center {% if 'face-analyzer' in request.path %}active{% endif %}" href="{% url 'wama_lab:face_analyzer:index' %}">
-                            <i class="fas fa-smile text-info me-2"></i> Face Analyzer
-                        </a>
-                    </li>{% endif %}
-                    {% if 'cam_analyzer' in accessible_apps %}<li>
-                        <a class="dropdown-item d-flex align-items-center {% if 'cam-analyzer' in request.path %}active{% endif %}" href="{% url 'wama_lab:cam_analyzer:index' %}">
-                            <i class="fas fa-video text-warning me-2"></i> Cam Analyzer
-                        </a>
-                    </li>{% endif %}
-                    {% endif %}
+                    </li>{% endfor %}
+                    {% endfor %}
                 </ul>
             </div>
         </div>

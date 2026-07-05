@@ -60,6 +60,39 @@ def user_role(request):
     except Exception:
         account_tier, roles_set, accessible_apps = 'utilisateur', [], set()
 
+    # Menu « Applications » GROUPÉ par catégorie (APP_CATEGORIES) — GÉNÉRÉ du catalogue,
+    # filtré par accessible_apps ; les extra_links portent gate/nav_hide (décision 2026-07-05).
+    try:
+        from django.urls import reverse as _reverse
+        from wama.common.app_registry import get_apps_by_category
+        nav_apps_grouped = []
+        for _cid, _meta, _apps in get_apps_by_category():
+            _entries = []
+            for _name, _spec in _apps:
+                if _name not in accessible_apps:
+                    continue
+                try:
+                    _entries.append({'name': _name, 'label': _spec['label'], 'icon': _spec['icon'],
+                                     'color': _spec.get('color', ''), 'url': _reverse(_spec['url_name']),
+                                     'description': _spec.get('description', '')})
+                except Exception:
+                    continue
+            _links = []
+            for _link in _meta.get('extra_links', []):
+                if _link.get('nav_hide'):
+                    continue
+                _gate = _link.get('gate')
+                if _gate and _gate not in accessible_apps:
+                    continue
+                try:
+                    _links.append({**_link, 'url': _reverse(_link['url_name'])})
+                except Exception:
+                    continue
+            if _entries or _links:
+                nav_apps_grouped.append({'id': _cid, 'meta': _meta, 'apps': _entries, 'links': _links})
+    except Exception:
+        nav_apps_grouped = []
+
     return {
         'is_admin': is_admin(user),
         'is_dev': is_dev(user),
@@ -68,6 +101,7 @@ def user_role(request):
         'ui_mode': ui_mode,
         'card_layout': card_layout,
         'app_catalog_json': app_catalog_json,
+        'nav_apps_grouped': nav_apps_grouped,
         'converter_output_formats_json': converter_output_formats_json,
         'account_tier': account_tier,
         'user_roles_set': roles_set,

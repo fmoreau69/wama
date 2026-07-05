@@ -646,202 +646,38 @@
     <!-- ══ Mode Avancé ══════════════════════════════════════════════════ -->
     <div id="homeAdvanced">
 
-    <!-- Applications génériques -->
+    <!-- Applications génériques : GÉNÉRÉES du catalogue, groupées par catégorie
+         (APP_CATEGORIES — Comprendre / Créer / Transformer ; décision 2026-07-05).
+         Ajouter une app = l'ajouter au catalogue ; plus de card codée à la main ici.
+         Les descriptions viennent du catalogue (source unique, FR). -->
+    {% for group in nav_apps_grouped %}
+    {% if group.apps %}
     <div class="row mb-4">
       <div class="col-12">
-        <h4 class="mb-3"><i class="fas fa-tools"></i> WAMA App</h4>
-<!--        <p class="mb-2" style="font-size: 0.9em;">
-          Applications génériques
-        </p>-->
+        <h4 class="mb-1">{{ group.meta.icon }} {{ group.meta.label }}</h4>
+        <p class="text-muted mb-3" style="font-size:0.85em;">{{ group.meta.tagline }}</p>
         <div class="row g-3">
-
-          {% if 'anonymizer' in accessible_apps %}
-          <!-- Anonymizer -->
+          {% for a in group.apps %}
           <div class="col-md-6 col-lg-4">
             <div class="card h-100" style="background: #212529; border: 1px solid #495057;">
               <div class="card-body d-flex flex-column">
                 <h5 class="card-title text-light">
-                  <i class="fas fa-user-secret text-danger"></i> Anonymizer
+                  <i class="{{ a.icon }}"{% if a.color %} style="color:{{ a.color }};"{% endif %}></i> {{ a.label }}
                 </h5>
-                <p class="card-text text-light flex-grow-1">
-                  Automatic blurring of objects in photos/videos
-                </p>
-                <a href="{% url 'anonymizer:index' %}" class="btn btn-danger mt-auto">
-                  <i class="fas fa-arrow-right"></i> Open
+                <p class="card-text text-light flex-grow-1">{{ a.description }}</p>
+                <a href="{{ a.url }}" class="btn mt-auto"
+                   style="border:1px solid {{ a.color|default:'#6c757d' }}; color:{{ a.color|default:'#e6e9f0' }};">
+                  <i class="fas fa-arrow-right"></i> Ouvrir
                 </a>
               </div>
             </div>
           </div>
-
-          {% endif %}{% if 'avatarizer' in accessible_apps %}
-          <!-- Avatarizer -->
-          <div class="col-md-6 col-lg-4">
-            <div class="card h-100" style="background: #212529; border: 1px solid #495057;">
-              <div class="card-body d-flex flex-column">
-                <h5 class="card-title text-light">
-                  <i class="fas fa-user-circle text-info"></i> Avatarizer
-                </h5>
-                <p class="card-text text-light flex-grow-1">
-                  Generate animated talking avatar videos synchronized with TTS audio
-                </p>
-                <a href="{% url 'avatarizer:index' %}" class="btn btn-info mt-auto">
-                  <i class="fas fa-arrow-right"></i> Open
-                </a>
-              </div>
-            </div>
-          </div>
-
-          {% endif %}{% if 'composer' in accessible_apps %}
-          <!-- Composer -->
-          <div class="col-md-6 col-lg-4">
-            <div class="card h-100" style="background: #212529; border: 1px solid #495057;">
-              <div class="card-body d-flex flex-column">
-                <h5 class="card-title text-light">
-                  <i class="fas fa-music text-success"></i> Composer
-                </h5>
-                <p class="card-text text-light flex-grow-1">
-                  AI music and sound effects generation (MusicGen + AudioGen)
-                </p>
-                <a href="{% url 'composer:index' %}" class="btn btn-success mt-auto">
-                  <i class="fas fa-arrow-right"></i> Open
-                </a>
-              </div>
-            </div>
-          </div>
-
-          {% endif %}{% if 'converter' in accessible_apps %}
-          <!-- Converter -->
-          <div class="col-md-6 col-lg-4">
-            <div class="card h-100" style="background: #212529; border: 1px solid #495057;">
-              <div class="card-body d-flex flex-column">
-                <h5 class="card-title text-light">
-                  <i class="fas fa-exchange-alt me-1" style="color:#20c997;"></i> Converter
-                </h5>
-                <p class="card-text text-light flex-grow-1">
-                  Universal file format conversion: image, video, audio (FFmpeg + Pillow)
-                </p>
-                <a href="{% url 'converter:index' %}" class="btn mt-auto"
-                   style="background-color:#20c997; border-color:#20c997; color:#000;">
-                  <i class="fas fa-arrow-right"></i> Open
-                </a>
-              </div>
-            </div>
-          </div>
-
-          {% endif %}{% if 'describer' in accessible_apps %}
-          <!-- Describer -->
-          <div class="col-md-6 col-lg-4">
-            <div class="card h-100" style="background: #212529; border: 1px solid #495057;">
-              <div class="card-body d-flex flex-column">
-                <h5 class="card-title text-light">
-                  <i class="fas fa-search-plus text-info"></i> Describer
-                </h5>
-                <p class="card-text text-light flex-grow-1">
-                  AI-powered content description and summarization
-                </p>
-                <a href="{% url 'describer:index' %}" class="btn btn-info mt-auto">
-                  <i class="fas fa-arrow-right"></i> Open
-                </a>
-              </div>
-            </div>
-          </div>
-
-          {% endif %}{% if 'enhancer' in accessible_apps %}
-          <!-- Enhancer -->
-          <div class="col-md-6 col-lg-4">
-            <div class="card h-100" style="background: #212529; border: 1px solid #495057;">
-              <div class="card-body d-flex flex-column">
-                <h5 class="card-title text-light">
-                  <i class="fas fa-magic text-info"></i> Enhancer
-                </h5>
-                <p class="card-text text-light flex-grow-1">
-                  AI-powered image/video upscaling and quality enhancement
-                </p>
-                <a href="{% url 'enhancer:index' %}" class="btn btn-info mt-auto">
-                  <i class="fas fa-arrow-right"></i> Open
-                </a>
-              </div>
-            </div>
-          </div>
-
-          {% endif %}{% if 'imager' in accessible_apps %}
-          <!-- Imager -->
-          <div class="col-md-6 col-lg-4">
-            <div class="card h-100" style="background: #212529; border: 1px solid #495057;">
-              <div class="card-body d-flex flex-column">
-                <h5 class="card-title text-light">
-                  <i class="fas fa-image text-success"></i> Imager
-                </h5>
-                <p class="card-text text-light flex-grow-1">
-                  AI-powered image generation from text descriptions
-                </p>
-                <a href="{% url 'imager:index' %}" class="btn btn-success mt-auto">
-                  <i class="fas fa-arrow-right"></i> Open
-                </a>
-              </div>
-            </div>
-          </div>
-
-          {% endif %}{% if 'reader' in accessible_apps %}
-          <!-- Reader -->
-          <div class="col-md-6 col-lg-4">
-            <div class="card h-100" style="background: #212529; border: 1px solid #495057;">
-              <div class="card-body d-flex flex-column">
-                <h5 class="card-title text-light">
-                  <i class="fas fa-book-open text-info"></i> Reader
-                </h5>
-                <p class="card-text text-light flex-grow-1">
-                  AI-powered document and image text extraction (OCR)
-                </p>
-                <a href="{% url 'reader:index' %}" class="btn btn-info mt-auto">
-                  <i class="fas fa-arrow-right"></i> Open
-                </a>
-              </div>
-            </div>
-          </div>
-
-          {% endif %}{% if 'synthesizer' in accessible_apps %}
-          <!-- Synthesizer -->
-          <div class="col-md-6 col-lg-4">
-            <div class="card h-100" style="background: #212529; border: 1px solid #495057;">
-              <div class="card-body d-flex flex-column">
-                <h5 class="card-title text-light">
-                  <i class="fas fa-microphone text-primary"></i> Synthesizer
-                </h5>
-                <p class="card-text text-light flex-grow-1">
-                  Automatic voice synthesis from text files
-                </p>
-                <a href="{% url 'synthesizer:index' %}" class="btn btn-primary mt-auto">
-                  <i class="fas fa-arrow-right"></i> Open
-                </a>
-              </div>
-            </div>
-          </div>
-
-          {% endif %}{% if 'transcriber' in accessible_apps %}
-          <!-- Transcriber -->
-          <div class="col-md-6 col-lg-4">
-            <div class="card h-100" style="background: #212529; border: 1px solid #495057;">
-              <div class="card-body d-flex flex-column">
-                <h5 class="card-title text-light">
-                  <i class="fas fa-file-alt text-warning"></i> Transcriber
-                </h5>
-                <p class="card-text text-light flex-grow-1">
-                  Automatic transcription of audio files into text
-                </p>
-                <a href="{% url 'transcriber:index' %}" class="btn btn-warning mt-auto">
-                  <i class="fas fa-arrow-right"></i> Open
-                </a>
-              </div>
-            </div>
-          </div>
-          {% endif %}
-
+          {% endfor %}
         </div>
       </div>
     </div>
-
-    <hr>
+    {% endif %}
+    {% endfor %}
 
     {% if 'studio' in accessible_apps %}
     <!-- Studio (méta-app) -->

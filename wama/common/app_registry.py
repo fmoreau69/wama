@@ -219,17 +219,21 @@ APP_CATEGORIES = {
         'label': 'WAMA Lab', 'icon': '🔬', 'order': 5,
         'tagline': 'Applications métier recherche',
         'extra_links': [
-            {'label': 'Face Analyzer', 'url_name': 'face_analyzer:index', 'icon': 'fa-face-smile'},
-            {'label': 'Cam Analyzer', 'url_name': 'cam_analyzer:index', 'icon': 'fa-video'},
+            # Routes namespacées wama_lab (le premier jet 'face_analyzer:index' était silencieusement
+            # omis par le garde NoReverseMatch). gate = clé accessible_apps pour le menu nav.
+            {'label': 'Face Analyzer', 'url_name': 'wama_lab:face_analyzer:index', 'icon': 'fa-face-smile', 'color': '#0dcaf0', 'gate': 'face_analyzer'},
+            {'label': 'Cam Analyzer', 'url_name': 'wama_lab:cam_analyzer:index', 'icon': 'fa-video', 'color': '#ffc107', 'gate': 'cam_analyzer'},
         ],
     },
     'platform': {
         'label': 'Transversal', 'icon': '🧩', 'order': 6,
         'tagline': 'Briques de la plateforme, au service de toutes les apps',
         'extra_links': [
-            {'label': 'Médiathèque', 'url_name': 'media_library:index', 'icon': 'fa-photo-film'},
-            {'label': 'Studio (pipelines)', 'url_name': 'studio:index', 'icon': 'fa-diagram-project'},
-            {'label': 'Gestion des modèles', 'url_name': 'model_manager:index', 'icon': 'fa-microchip'},
+            # nav_hide = présent au catalogue (/apps/) mais pas au menu Applications
+            # (le model_manager a déjà son entrée dans la section Administration du header).
+            {'label': 'Studio', 'url_name': 'studio:index', 'icon': 'fa-diagram-project', 'color': '#fb923c', 'gate': 'studio'},
+            {'label': 'Médiathèque', 'url_name': 'media_library:index', 'icon': 'fa-photo-film', 'color': '#a78bfa', 'gate': 'media_library'},
+            {'label': 'Gestion des modèles', 'url_name': 'model_manager:index', 'icon': 'fa-microchip', 'nav_hide': True},
         ],
     },
 }
