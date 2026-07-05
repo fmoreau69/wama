@@ -226,82 +226,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // === Queue Management ===
 
+    // addQueueItem : la reconstruction JS (~85 l. — sans .wama-card ni Dupliquer,
+    // appendChild en FIN de file) est supprimee ; la card arrive rendue du serveur.
     function addQueueItem(data) {
-        // Remove empty queue message
-        const emptyQueue = queueContainer.querySelector('.empty-queue');
-        if (emptyQueue) emptyQueue.remove();
-
-        const card = document.createElement('div');
-        card.className = 'synthesis-card';
-        card.dataset.id = data.id;
-        card.dataset.status = data.status || 'PENDING';   // pilote le bouton de cycle (WamaCycleButton.autoSync)
-
-        const previewUrl = `/common/preview/describer/${data.id}/`;
-
-        card.innerHTML = `
-            <div class="row align-items-center">
-                <div class="col-md-3">
-                    <strong>
-                        <i class="fas ${data.type_icon || 'fa-file'}"></i>
-                        <button type="button" class="btn btn-link p-0 text-decoration-none preview-media-link filename"
-                                data-preview-url="${previewUrl}"
-                                style="color: inherit;">
-                            ${data.filename}
-                        </button>
-                    </strong>
-                    <br>
-                    <small class="text-white-50">
-                        <span class="badge bg-secondary">${(data.detected_type || 'auto').toUpperCase()}</span>
-                        ${data.file_size}
-                    </small>
-                </div>
-                <div class="col-md-2">
-                    <small>
-                        <i class="fas fa-align-left"></i> ${getFormatLabel(data.output_style)}<br>
-                        <i class="fas fa-language"></i> ${getLanguageLabel(data.output_language)}<br>
-                        <i class="fas fa-text-width"></i> ${data.max_length || 500} mots
-                    </small>
-                </div>
-                <div class="col-md-3">
-                    <small class="text-white-50 result-preview">
-                        ${data.properties || 'En attente de traitement'}
-                    </small>
-                </div>
-                <div class="col-md-2">
-                    <span class="badge bg-secondary status-badge">PENDING</span>
-                    <div class="wama-progress-track mt-2">
-                        <div class="wama-progress-fill" style="width: 0%"></div>
-                    </div>
-                    <small class="text-light progress-text">0%</small>
-                </div>
-                <div class="col-md-2">
-                    <div class="btn-group-actions">
-                        ${window.WamaCycleButton ? WamaCycleButton.html(data.status || 'PENDING', data.id) : `<button class="btn btn-sm btn-outline-success start-btn" data-id="${data.id}" title="Demarrer"><i class="fas fa-play"></i></button>`}
-                        <button class="btn btn-sm btn-secondary settings-btn"
-                                data-id="${data.id}"
-                                data-output-style="${data.output_style}"
-                                data-output-language="${data.output_language}"
-                                data-max-length="${data.max_length || 500}"
-                                data-generate-summary="${document.getElementById('globalGenerateSummary')?.checked ? 'true' : 'false'}"
-                                data-verify-coherence="${document.getElementById('globalVerifyCoherence')?.checked ? 'true' : 'false'}"
-                                title="Parametres">
-                            <i class="fas fa-cog"></i>
-                        </button>
-                        <button class="btn btn-sm btn-danger delete-btn" data-id="${data.id}" title="Supprimer">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    </div>
-                </div>
-            </div>
-        `;
-
-        queueContainer.appendChild(card);
-        bindCardEvents(card);
-
-        // Initialize preview for new item
-        if (typeof initMediaPreview === 'function') {
-            initMediaPreview();
-        }
+        refreshCard(data.id);
     }
 
     function getFormatLabel(format) {
@@ -727,12 +655,24 @@ document.addEventListener('DOMContentLoaded', function() {
     // Card RENDUE SERVEUR — source unique : partial _description_card.html via
     // describer:card_html (recette T+C). Remplace updateCardWithResult (~60 lignes
     // d'injection de boutons/preview qui divergeaient du serveur) — 2026-07-05.
+    // Card RENDUE SERVEUR — source unique : partial _description_card.html via
+    // describer:card_html. Remplace la card si presente, sinon INSERE en tete de file
+    // (upload). Re-bind obligatoire : les events sont attaches PAR card (pas de
+    // delegation) — le refresh v1 les perdait (corrige 2026-07-05).
     function refreshCard(id) {
         fetch(config.urls.cardHtml.replace('/0/', '/' + id + '/'))
             .then(r => { if (!r.ok) throw new Error(r.status); return r.text(); })
             .then(html => {
-                const card = document.querySelector(`.synthesis-card[data-id="${id}"]`);
-                if (card) card.outerHTML = html;
+                const queue = document.getElementById('descriptionQueue');
+                if (!queue) return;
+                const existing = queue.querySelector(`.synthesis-card[data-id="${id}"]`);
+                if (existing) existing.outerHTML = html;
+                else {
+                    queue.querySelector('.empty-queue')?.remove();
+                    queue.insertAdjacentHTML('afterbegin', html);
+                }
+                const fresh = queue.querySelector(`.synthesis-card[data-id="${id}"]`);
+                if (fresh) bindCardEvents(fresh);
             })
             .catch(() => {});
     }

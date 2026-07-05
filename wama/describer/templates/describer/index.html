@@ -7,32 +7,8 @@
 
 {# ── Right panel : médias ─────────────────────────────────────────────────── #}
 {% block app_right_panel_media %}
-<div class="drop-zone drop-zone-sm mb-2" id="dropZone">
-    <i class="fas fa-cloud-upload-alt text-info"></i>
-    <p class="mb-0 small text-light mt-1">Glissez ou cliquez pour importer</p>
-    <small class="text-muted">Images · Vidéos · PDF · DOCX…</small>
-    <input type="file" id="fileInput" multiple
-           accept="image/*,video/*,audio/*,.pdf,.docx,.txt,.md,.csv"
-           style="display:none">
-    <small class="text-muted d-block mt-1">
-        Batch ?
-        <a href="{% url 'describer:batch_template' %}" class="text-muted" id="batchTemplateLink" download>
-            <i class="fas fa-download"></i> Template
-        </a>
-    </small>
-</div>
-{% include 'common/batch_detect_bar.html' %}
-<div class="text-center text-muted my-2" style="font-size:0.72rem;">— ou depuis une URL —</div>
-<form id="media-url-form" method="post" action="{% url 'describer:upload' %}">
-    {% csrf_token %}
-    <div class="input-group input-group-sm">
-        <input type="text" class="form-control bg-dark text-white border-secondary"
-               id="media_url" name="media_url" placeholder="https://… ou YouTube">
-        <button class="btn btn-primary" type="submit" title="Télécharger">
-            <i class="fas fa-download"></i>
-        </button>
-    </div>
-</form>
+{% comment %}Import = card commune « Nouvel élément » en tête d'onglet (« UNE surface = la file »,
+migré 2026-07-05) ; IDs dropZone/fileInput/media_url conservés → handlers JS inchangés.{% endcomment %}
 {% endblock %}
 
 {# ── Right panel : paramètres ────────────────────────────────────────────── #}
@@ -56,6 +32,10 @@
 
 <!-- Global Progress Bar -->
 {# Barre globale + ETA agrégée — brique commune (balayage bleu/vert permanent, toujours visible). #}
+{# Card « Nouvel élément » COMMUNE, EN TÊTE d'onglet (ordre canonique : card → progression → toolbar → file). #}
+{% url 'describer:batch_template' as describer_batch_template_url %}
+{% include 'common/_new_item_card.html' with drop_zone_id='dropZone' file_input_id='fileInput' file_accept='image/*,video/*,audio/*,.pdf,.docx,.txt,.md,.csv' formats_label='Images · Vidéos · Audio · PDF · DOCX…' batch_template_url=describer_batch_template_url show_batch_bar=True show_media_library=True show_url=True url_input_id='media_url' url_submit_id='mediaUrlSubmit' url_placeholder='https://… ou YouTube' %}
+
 {% include 'common/_global_progress.html' %}
 
 <!-- Descriptions Queue -->
@@ -79,8 +59,9 @@
             {% else %}
             <!-- Multi-item batch: collapsible group -->
             <div class="batch-group mb-2" data-batch-id="{{ batch_info.obj.id }}">
-                <div class="batch-group-header d-flex align-items-center gap-2 p-2"
-                     style="background:#0d1a2a; border:1px solid #0dcaf0; border-radius:0.375rem;">
+                {# Card MÈRE = squelette solitaire commun (.wama-card.is-batch, CSS wama-inspector) — 2026-07-05. #}
+                <div class="synthesis-card wama-card is-batch batch-group-header d-flex align-items-center gap-2 p-2"
+                     data-status="batch">
                     <div class="d-flex align-items-center gap-2 flex-grow-1"
                          style="cursor:pointer; user-select:none; min-width:0;"
                          data-bs-toggle="collapse"
@@ -322,6 +303,29 @@
 <script src="{% static 'describer/js/index.js' %}"></script>
 <!-- Barre globale commune (balayage permanent + ETA agrégée) : URL puis script auto-démarré. -->
 <script>window.WAMA_GLOBAL_PROGRESS_URL = "{% url 'describer:global_progress' %}";</script>
+<script>
+// Import URL depuis la card d'entrée commune (remplace l'ancien form natif du volet MÉDIAS,
+// migré 2026-07-05) : même POST que le form, puis reload.
+document.addEventListener('DOMContentLoaded', function () {
+    var btn = document.getElementById('mediaUrlSubmit');
+    var inp = document.getElementById('media_url');
+    if (!btn || !inp) return;
+    function submitUrl() {
+        var v = inp.value.trim();
+        if (!v) return;
+        btn.disabled = true;
+        var fd = new FormData();
+        fd.append('media_url', v);
+        fd.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+        fetch("{% url 'describer:upload' %}", { method: 'POST', body: fd })
+            .finally(function () { location.reload(); });
+    }
+    btn.addEventListener('click', submitUrl);
+    inp.addEventListener('keypress', function (e) {
+        if (e.key === 'Enter') { e.preventDefault(); submitUrl(); }
+    });
+});
+</script>
 <script src="{% static 'common/js/wama-global-progress.js' %}"></script>
 <script src="{% static 'common/js/wama-queue.js' %}"></script>  {# file commune : toggle Ligne/Mosaïque + collapse batch + focusCard #}
 <script>
