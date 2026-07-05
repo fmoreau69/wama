@@ -8,6 +8,7 @@ urlpatterns = [
     path('generate/', views.generate, name='generate'),
     path('import/', views.import_batch, name='import_batch'),
     path('batch/preview/', views.batch_preview, name='batch_preview'),
+    path('batch/template/', views.batch_template, name='batch_template'),
     path('batch/<int:pk>/start/', views.batch_start, name='batch_start'),
     path('progress/<int:pk>/', views.progress, name='progress'),
     path('card/<int:pk>/html/', views.card_html, name='card_html'),

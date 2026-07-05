@@ -3,8 +3,9 @@ WAMA — Card « Nouvel élément » : point d'entrée d'import (fichier / URL /
 Zone centrale → disponible en mode simple (sans volets). Chaque app fournit ses ids/handlers.
 
 Variables :
-  batch_format — (option) format des lignes d'un fichier batch (ex. 'fichier|prompt|modèle|durée'),
+  batch_format — (option) format des lignes d'un fichier batch (ex. 'sortie|prompt|modèle|durée'),
                  rendu en <code> coloré à côté de formats_label.
+  batch_hint   — (option) ligne d'aide sous le format (ex. « en-têtes ou balises acceptés »).
   collapsible  — (option) card DÉPLIABLE (mécanisme du synthesizer, globalisé 2026-07-03 ; 1ʳᵉ étape
                  vers la card miniaturisée intégrée à la file — MODES_QUEUE_UX) : l'en-tête + le
                  prompt + le bouton primaire restent visibles ; la zone médiane (dropzones, URL,
@@ -64,6 +65,7 @@ Usage (transcriber) :
                     <i class="fas fa-cloud-upload-alt text-primary"></i>
                     <p class="mb-0 small text-light mt-1">Glissez ou cliquez pour importer</p>
                     <small class="text-muted">{{ formats_label }}{% if batch_format %} — <code style="font-size:0.75rem;">{{ batch_format }}</code>{% endif %}</small>
+                    {% if batch_hint %}<small class="text-muted d-block" style="font-size:0.68rem; opacity:.75;">{{ batch_hint }}</small>{% endif %}
                     <input type="file" id="{{ file_input_id }}" multiple accept="{{ file_accept|default:'audio/*,video/*' }}" style="display:none">
                     {% if batch_template_url %}
                     <small class="text-muted d-block mt-1">

@@ -634,15 +634,49 @@ def _normalize_header(h: str) -> str:
                    if unicodedata.category(c) != 'Mn')
 
 
+#: Alias FR→canonique des noms d'OPTIONS (colonnes non-cœur du mode en-têtes). Sans eux,
+#: « modele » / « duree » étaient silencieusement perdus alors que --model/--duration (balises)
+#: marchaient — découvert au test du sniffer (2026-07-05).
+_OPTION_HEADER_ALIASES = {
+    'modele': 'model',
+    'duree': 'duration',
+    'voix': 'voice',
+    'vitesse': 'speed',
+    'langue': 'language',
+    'format': 'output_format',
+    'qualite': 'output_quality',
+}
+
+#: Délimiteurs acceptés par le mode « en-têtes » (tableur). Le pipe permet la variante
+#: « fichier|prompt|modèle|durée » AVEC ligne d'en-tête (idée Fabien 2026-07-05) : l'ordre
+#: des colonnes devient libre, pour TOUTES les apps, sans nouveau format.
+_CSV_DELIMITERS = [',', ';', '|', '\t']
+
+
+def _sniff_csv_delimiter(header_line: str) -> str:
+    """Délimiteur qui découpe le PLUS de colonnes sur la ligne d'en-tête."""
+    import csv
+    best, best_n = ',', 1
+    for d in _CSV_DELIMITERS:
+        try:
+            n = len(next(csv.reader([header_line], delimiter=d)))
+        except Exception:
+            continue
+        if n > best_n:
+            best, best_n = d, n
+    return best
+
+
 def is_csv_header_batch(text: str) -> bool:
-    """True si la 1ʳᵉ ligne utile est un en-tête CSV avec ≥1 colonne reconnue."""
+    """True si la 1ʳᵉ ligne utile est un en-tête tableur (délimiteur , ; | ou tab)
+    avec ≥1 colonne reconnue."""
     import csv
     for line in text.splitlines():
         s = line.strip()
         if not s or s.startswith('#'):
             continue
         try:
-            row = next(csv.reader([s]))
+            row = next(csv.reader([s], delimiter=_sniff_csv_delimiter(s)))
         except Exception:
             return False
         if len(row) < 2:
@@ -653,7 +687,7 @@ def is_csv_header_batch(text: str) -> bool:
 
 
 def parse_csv_header_batch(text: str) -> Tuple[List[Dict], List[str]]:
-    """Parse un CSV à en-têtes → items normalisés (mêmes clés que les balises)."""
+    """Parse un tableur à en-têtes (délimiteur sniffé) → items normalisés (clés des balises)."""
     import csv
     import io
     items: List[Dict] = []
@@ -661,7 +695,8 @@ def parse_csv_header_batch(text: str) -> Tuple[List[Dict], List[str]]:
 
     # On retire les lignes de commentaire AVANT l'en-tête / entre les lignes.
     kept = [l for l in text.splitlines() if not l.strip().startswith('#')]
-    reader = csv.DictReader(io.StringIO('\n'.join(kept)))
+    delim = _sniff_csv_delimiter(kept[0]) if kept else ','
+    reader = csv.DictReader(io.StringIO('\n'.join(kept)), delimiter=delim)
 
     # En-tête → ligne 1 ; les données commencent en ligne 2.
     for idx, row in enumerate(reader, start=2):
@@ -677,7 +712,8 @@ def parse_csv_header_batch(text: str) -> Tuple[List[Dict], List[str]]:
             if canon:
                 item[canon] = val
             else:
-                item['options'][_normalize_header(header)] = val
+                key = _normalize_header(header)
+                item['options'][_OPTION_HEADER_ALIASES.get(key, key)] = val
         if not any([item['input'], item['prompt'], item['reference']]):
             warnings.append(f"Ligne {idx} : aucune colonne utile (input/prompt/reference), ignorée")
             continue
@@ -691,6 +727,24 @@ def parse_csv_header_batch(text: str) -> Tuple[List[Dict], List[str]]:
 def is_structured_batch_text(text: str) -> bool:
     """True si le texte est un batch structuré (CSV à en-têtes OU balises)."""
     return is_csv_header_batch(text) or is_unified_batch_text(text)
+
+
+def build_batch_template(fields, example, *, app_label=''):
+    """Génère le TEMPLATE batch d'une app depuis sa DÉCLARATION de champs (A5-23).
+
+    Une seule source pour le fichier téléchargeable : documente les 3 syntaxes
+    auto-détectées et fournit la ligne d'en-têtes + une ligne d'exemple.
+    `fields` = noms de colonnes (alias FR acceptés), `example` = {champ: valeur}."""
+    lines = [
+        f"# Template batch {app_label} — 3 syntaxes acceptées (détection automatique) :",
+        "#  1) TABLEUR à ligne d'en-têtes — délimiteur , ; | ou tabulation ; ordre des colonnes LIBRE",
+        "#  2) BALISES style CLI : -i entrée · -p \"prompt\" · -r référence · -o sortie · --option valeur",
+        "#  3) POSITIONNEL hérité : valeurs séparées par | dans l'ordre ci-dessous, SANS en-tête",
+        "# Les lignes commençant par # sont des commentaires.",
+        '|'.join(fields),
+        '|'.join(str(example.get(f, '')) for f in fields),
+    ]
+    return '\n'.join(lines) + '\n'
 
 
 def apply_indexed_output_names(tasks, source_name, default_ext, *, key='output_filename'):

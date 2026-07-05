@@ -192,6 +192,23 @@ def generate(request):
 # Import batch file
 # ---------------------------------------------------------------------------
 
+def batch_template(request):
+    """Template batch téléchargeable, GÉNÉRÉ depuis la déclaration des champs (brique
+    commune build_batch_template — plus de contenu en dur, A5-23). NB : la colonne de
+    nom de fichier est « sortie » (l'alias « fichier » désigne l'ENTRÉE dans le
+    vocabulaire commun ; l'ordre positionnel hérité reste sortie|prompt|modèle|durée)."""
+    from django.http import HttpResponse
+    from wama.common.utils.batch_parsers import build_batch_template
+    text = build_batch_template(
+        ['sortie', 'prompt', 'modele', 'duree'],
+        {'sortie': 'piano.wav', 'prompt': 'upbeat jazz piano with soft drums',
+         'modele': 'musicgen-small', 'duree': 30},
+        app_label='Composer (musique / bruitages)')
+    resp = HttpResponse(text, content_type='text/plain; charset=utf-8')
+    resp['Content-Disposition'] = 'attachment; filename="composer_batch_template.txt"'
+    return resp
+
+
 @require_POST
 def batch_preview(request):
     """Aperçu d'un fichier batch (contrat WamaBatchImport) : parse SANS créer.
