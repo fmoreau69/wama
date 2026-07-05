@@ -257,3 +257,38 @@ Lié : `WAMA_APP_CONVENTIONS.md` (§boutons, §22 inspecteur), `GENERALIZATION_P
 Prospection LLM → router un modèle vers une app existante (capacités vs `APP_CATALOG`) ou faire
 **émerger** une app depuis un manifeste. Détail dans `PROJECT_STATUS.md §2`/`§18` et
 `GENERALIZATION_PLAN.md` (horizon manifeste). **Phase B gatée** sur la maturité du runtime manifeste.
+
+## 9. Couleurs par CATÉGORIE + homogénéisation des tuiles (consigné 2026-07-05 — À DISCUTER, rien d'implémenté)
+
+> Proposition Fabien : code couleur par catégorie d'apps (APP_CATEGORIES) avec **dégradé/variation
+> par app** dans la catégorie, appliqué aux icônes (menu, dossiers du filemanager, cards…).
+> Décision : **on consigne d'abord, on discute avant d'implémenter**.
+
+### 9.1 Cadre proposé (position Claude)
+- **Identité ≠ état.** Le tricolore des cards (gris nouveau · orange en cours · vert fini · rouge
+  échec) et les couleurs FONCTIONNELLES des boutons (▶ vert · ⧉ jaune · 🗑 rouge, §2) sont des codes
+  d'ÉTAT/ACTION : la couleur d'identité (app/catégorie) ne doit JAMAIS entrer en concurrence avec
+  eux. Zones sûres pour l'identité : icônes, liserés discrets (border-left de card), en-têtes de
+  section, dossiers du filemanager. Zones interdites : barres de progression, badges de statut,
+  boutons d'action.
+- **Déclaratif et dérivé, pas 10 hex à la main** : déclarer UNE teinte de base par catégorie dans
+  `APP_CATEGORIES` (`hue`), et DÉRIVER la couleur de chaque app par variation automatique
+  (HSL : lightness/saturation étagées selon l'index dans la catégorie). `APP_CATALOG.color`
+  devient alors un override optionnel. Zéro hardcode, évolutif (une 11ᵉ app hérite sa nuance).
+- **Accessibilité/thème sombre** : variations sur la LUMINOSITÉ plutôt que la teinte pour rester
+  distinguables (daltonisme) ; contraste ≥ 3:1 sur #212529 (feedback_text_contrast).
+- Teintes candidates : Comprendre=cyan/bleu (analyse), Créer=violet/magenta (génération),
+  Transformer=vert/teal (traitement), Données=ambre, Lab=orange, Transversal=gris-bleu.
+
+### 9.2 Surfaces d'application (ordre suggéré si validé)
+1. Icônes du menu Applications + page d'accueil + /apps/ (déjà générés du catalogue → 1 seul point).
+2. Dossiers d'apps du filemanager (tri par catégorie + icône teintée — PAS de changement disque,
+   décision 2026-07-05 : l'arborescence physique est un contrat, la catégorie est de la présentation).
+3. Liseré gauche des cards de travail (identité discrète, compatible tricolore d'état).
+
+### 9.3 Homogénéisation des « tuiles » (cards accueil / app manager / model manager / cards de travail)
+Consigné : unifier l'apparence de TOUTES les surfaces en carte (fond, bordure, radius, hover,
+densité) via des **tokens CSS communs** (`.wama-tile` ou variables `--wama-card-*` dans un CSS
+global) — chaque surface les adopte sans se faire imposer sa structure interne. À traiter dans la
+continuité de la brique card commune (le formalisme de CE document) ; **différé** tant que le
+schéma-driven des apps n'est pas fini (priorité Fabien : fonctionnel d'abord, passe UI ensuite).

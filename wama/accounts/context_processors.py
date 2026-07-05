@@ -87,6 +87,12 @@ def user_role(request):
                 try:
                     _links.append({**_link, 'url': _reverse(_link['url_name'])})
                 except Exception:
+                    # JAMAIS d'omission silencieuse (leçon WAMA Lab disparu, 2026-07-05) :
+                    # un lien déclaré qui ne résout pas = un warning visible dans les logs.
+                    import logging
+                    logging.getLogger('wama.nav').warning(
+                        "Menu : lien '%s' (%s) omis — URL irrésolvable",
+                        _link.get('label'), _link.get('url_name'))
                     continue
             if _entries or _links:
                 nav_apps_grouped.append({'id': _cid, 'meta': _meta, 'apps': _entries, 'links': _links})
