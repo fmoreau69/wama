@@ -47,18 +47,7 @@
 {% endblock %}
 
 {% block app_right_panel_actions %}
-<div class="d-grid gap-2">
-    <button class="btn btn-success btn-sm" id="startAllBtn">
-        <i class="fas fa-play"></i> Démarrer
-    </button>
-    <button class="btn btn-info btn-sm" id="downloadAllBtn">
-        <i class="fas fa-download"></i> Télécharger tout
-    </button>
-    <button class="btn btn-outline-danger btn-sm" id="clearAllBtn">
-        <i class="fas fa-trash"></i> Tout effacer
-    </button>
-</div>
-<hr class="border-secondary my-2">
+{# Actions GLOBALES déplacées dans la barre d'outils commune de la file (_queue_toolbar.html). #}
 {% include 'common/_inspector_actions.html' %}{# actions de l'élément/batch sélectionné (WamaInspector) #}
 {% endblock %}
 
@@ -72,19 +61,18 @@
 <!-- Descriptions Queue -->
 <div class="row">
     <div class="col-12">
-        <h4 class="mb-3">
-            <i class="fas fa-list"></i> File d'attente
-            <span class="badge bg-info" id="queueCount">{{ queue_count }}</span>
-        </h4>
+        <!-- Titre « File d'attente » RETIRÉ (doublon) : nom + compteur portés par l'ONGLET (base commune). -->
+        <!-- Barre d'outils COMMUNE : tri + filtre + toggle Ligne/Mosaïque + actions globales. -->
+        {% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='startAllBtn' clear_id='clearAllBtn' download_id='downloadAllBtn' show_download=True %}
 
-        <div id="descriptionQueue">
+        <div id="descriptionQueue" class="wama-queue-{{ card_layout|default:'list' }}">
             {% for batch_info in batches_list %}
 
             {% if batch_info.obj.total == 1 %}
             <!-- Single-item batch: render as standalone card -->
             {% for item in batch_info.items %}{% if item.description %}
             {% with desc=item.description %}
-            <div class="synthesis-card {% if desc.status == 'RUNNING' %}processing{% elif desc.status == 'SUCCESS' %}success{% elif desc.status == 'FAILURE' %}error{% endif %}"
+            <div class="synthesis-card wama-card {% if desc.status == 'RUNNING' %}processing{% elif desc.status == 'SUCCESS' %}success{% elif desc.status == 'FAILURE' %}error{% endif %}"
                  data-id="{{ desc.id }}" data-status="{{ desc.status }}">
                 <div class="row align-items-center">
                     <div class="col-md-3">
@@ -248,7 +236,7 @@
                      style="border-left:2px solid #0dcaf0; margin-left:0.75rem;">
                     {% for item in batch_info.items %}{% if item.description %}
                     {% with desc=item.description %}
-                    <div class="synthesis-card {% if desc.status == 'RUNNING' %}processing{% elif desc.status == 'SUCCESS' %}success{% elif desc.status == 'FAILURE' %}error{% endif %}"
+                    <div class="synthesis-card wama-card {% if desc.status == 'RUNNING' %}processing{% elif desc.status == 'SUCCESS' %}success{% elif desc.status == 'FAILURE' %}error{% endif %}"
                          data-id="{{ desc.id }}" data-status="{{ desc.status }}">
                         <div class="row align-items-center">
                             <div class="col-md-3">
@@ -523,6 +511,7 @@
 <!-- Barre globale commune (balayage permanent + ETA agrégée) : URL puis script auto-démarré. -->
 <script>window.WAMA_GLOBAL_PROGRESS_URL = "{% url 'describer:global_progress' %}";</script>
 <script src="{% static 'common/js/wama-global-progress.js' %}"></script>
+<script src="{% static 'common/js/wama-queue.js' %}"></script>  {# file commune : toggle Ligne/Mosaïque + collapse batch + focusCard #}
 <script>
 // Inspecteur contextuel commun : clic card/batch → bandeau « Réglages de l'élément #N » + valeurs de
 // la card dans le volet + sauvegarde routée. Câblage générique dérivé du schéma (initFromSchema).

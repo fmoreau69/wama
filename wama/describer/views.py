@@ -198,16 +198,31 @@ class IndexView(TemplateView):
         batches_list = []
         for batch in batches_qs:
             items = list(batch.items.all())
-            success_count = sum(1 for i in items if i.description and i.description.status == 'SUCCESS')
+            statuses = [i.description.status for i in items if i.description]
+            success_count = statuses.count('SUCCESS')
             batches_list.append({
                 'obj': batch,
                 'items': items,
+                # Compteurs de statut : contrat de la brique commune tri/filtre (queue_view.py).
                 'success_count': success_count,
+                'running_count': statuses.count('RUNNING'),
+                'failure_count': statuses.count('FAILURE'),
                 'success_pct': int(success_count / batch.total * 100) if batch.total > 0 else 0,
                 'has_success': success_count > 0,
             })
 
-        batches_list.sort(key=lambda b: 0 if b['obj'].total > 1 else 1)
+        # Tri + filtrage de la file — brique COMMUNE (remplace le « batchs d'abord » codé en dur).
+        from wama.common.utils.queue_view import apply_queue_sort_filter
+
+        def _name(b):
+            if b['obj'].total == 1 and b['items'] and b['items'][0].description:
+                return (b['items'][0].description.filename or '').lower()
+            return f"batch {b['obj'].id:08d}"
+        batches_list, q_sort, q_filter = apply_queue_sort_filter(
+            self.request, batches_list, name_of=_name)
+        context['q_sort'] = q_sort
+        context['q_filter'] = q_filter
+
         queue_count = sum(len(b['items']) for b in batches_list)
 
         # Also provide total counts for global progress bar
