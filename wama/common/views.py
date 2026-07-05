@@ -181,4 +181,22 @@ def apps_catalog_view(request):
             'url':        url,
         })
 
-    return render(request, 'common/apps.html', {'apps_list': apps_list})
+    # ── Groupage par CATÉGORIE (APP_CATEGORIES, déclaratif + dérivable — décision 2026-07-05).
+    # apps_list reste passé tel quel pour la table de conformité (ordre alphabétique).
+    from .app_registry import APP_CATEGORIES, derive_category
+    by_name = {a['name']: a for a in apps_list}
+    apps_grouped = []
+    for cid, meta in sorted(APP_CATEGORIES.items(), key=lambda kv: kv[1].get('order', 99)):
+        items = [by_name[n] for n, s in APP_CATALOG.items()
+                 if (s.get('category') or derive_category(s)) == cid]
+        links = []
+        for link in meta.get('extra_links', []):
+            try:
+                links.append({**link, 'url': reverse(link['url_name'])})
+            except NoReverseMatch:
+                continue  # surface pas encore installée → lien omis, pas d'erreur
+        if items or links:
+            apps_grouped.append({'id': cid, 'meta': meta, 'apps': items, 'links': links})
+
+    return render(request, 'common/apps.html',
+                  {'apps_list': apps_list, 'apps_grouped': apps_grouped})

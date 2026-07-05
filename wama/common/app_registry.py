@@ -191,10 +191,87 @@ def _conv(
 # App Catalog
 # ---------------------------------------------------------------------------
 
+
+# ─── CATÉGORIES d'applications (déclaratif, ÉVOLUTIF — décision Fabien 2026-07-05) ────────────
+# Axe de classement = NATURE de l'opération (le domaine média est un ATTRIBUT de l'app, pas un
+# groupe — piège de l'Enhancer coupé en deux). Les 3 premières catégories sont DÉRIVABLES des
+# types déclarés (derive_category) ; les suivantes accueillent les surfaces hors-catalogue via
+# extra_links en attendant leur entrée au catalogue (Data = apps à venir : LSL, segmentation…).
+APP_CATEGORIES = {
+    'understand': {
+        'label': 'Comprendre', 'icon': '🧠', 'order': 1,
+        'tagline': 'Média → texte : transcrire, décrire, océriser',
+    },
+    'create': {
+        'label': 'Créer', 'icon': '✨', 'order': 2,
+        'tagline': 'Texte → média : images & vidéos, musique/SFX, voix, avatars',
+    },
+    'transform': {
+        'label': 'Transformer', 'icon': '🔧', 'order': 3,
+        'tagline': 'Média → média : anonymiser, améliorer, convertir',
+    },
+    'data': {
+        'label': 'Données', 'icon': '📊', 'order': 4,
+        'tagline': 'Acquisition (LSL), segmentation, visualisation, traitement — à venir',
+        'extra_links': [],
+    },
+    'lab': {
+        'label': 'WAMA Lab', 'icon': '🔬', 'order': 5,
+        'tagline': 'Applications métier recherche',
+        'extra_links': [
+            {'label': 'Face Analyzer', 'url_name': 'face_analyzer:index', 'icon': 'fa-face-smile'},
+            {'label': 'Cam Analyzer', 'url_name': 'cam_analyzer:index', 'icon': 'fa-video'},
+        ],
+    },
+    'platform': {
+        'label': 'Transversal', 'icon': '🧩', 'order': 6,
+        'tagline': 'Briques de la plateforme, au service de toutes les apps',
+        'extra_links': [
+            {'label': 'Médiathèque', 'url_name': 'media_library:index', 'icon': 'fa-photo-film'},
+            {'label': 'Studio (pipelines)', 'url_name': 'studio:index', 'icon': 'fa-diagram-project'},
+            {'label': 'Gestion des modèles', 'url_name': 'model_manager:index', 'icon': 'fa-microchip'},
+        ],
+    },
+}
+
+#: Sorties « texte » (pour la dérivation de catégorie).
+_TEXT_OUTPUTS = {'txt', 'text', 'markdown', 'md', 'srt', 'vtt', 'json', 'docx', 'pdf'}
+
+
+def derive_category(entry) -> str:
+    """Catégorie DÉRIVÉE des types déclarés — la déclaration explicite prime, la dérivation
+    sert de défaut ET de garde-fou manifeste (une app qui sort du texte = Comprendre ;
+    qui prend du texte en entrée = Créer ; média→média = Transformer)."""
+    outs = {str(t).lower() for t in (entry.get('output_types') or ())}
+    ins = {str(t).lower() for t in (entry.get('input_types') or ())}
+    if outs and outs <= _TEXT_OUTPUTS:
+        return 'understand'
+    if 'text' in ins:
+        return 'create'
+    return 'transform'
+
+
+def get_apps_by_category():
+    """Catalogue groupé, ordonné par APP_CATEGORIES[order] — source des surfaces groupées
+    (/apps/, nav, assistant). Renvoie [(cat_id, cat_meta, [(app_name, entry), …]), …] ;
+    les catégories sans app mais avec extra_links sont incluses (Data/Lab/Transversal)."""
+    groups = {cid: [] for cid in APP_CATEGORIES}
+    for name, entry in APP_CATALOG.items():
+        cid = entry.get('category') or derive_category(entry)
+        groups.setdefault(cid, []).append((name, entry))
+    out = []
+    for cid, meta in sorted(APP_CATEGORIES.items(), key=lambda kv: kv[1].get('order', 99)):
+        apps = groups.get(cid, [])
+        if apps or meta.get('extra_links'):
+            out.append((cid, meta, apps))
+    return out
+
+
 APP_CATALOG = {
 
     'anonymizer': {
         'label':       'Anonymizer',
+        'category': 'transform',  # cf. APP_CATEGORIES (dérivable de input/output_types)
         'icon':        'fas fa-user-secret',
         'color':       '#dc3545',
         'url_name':    'anonymizer:index',
@@ -215,6 +292,7 @@ APP_CATALOG = {
 
     'avatarizer': {
         'label':       'Avatarizer',
+        'category': 'create',  # cf. APP_CATEGORIES (dérivable de input/output_types)
         'icon':        'fas fa-user-circle',
         'color':       '#0dcaf0',
         'url_name':    'avatarizer:index',
@@ -243,6 +321,7 @@ APP_CATALOG = {
 
     'composer': {
         'label':       'Composer',
+        'category': 'create',  # cf. APP_CATEGORIES (dérivable de input/output_types)
         'icon':        'fas fa-music',
         'color':       '#198754',
         'url_name':    'composer:index',
@@ -274,6 +353,7 @@ APP_CATALOG = {
 
     'converter': {
         'label':       'Converter',
+        'category': 'transform',  # cf. APP_CATEGORIES (dérivable de input/output_types)
         'icon':        'fas fa-exchange-alt',
         'color':       '#20c997',
         'url_name':    'converter:index',
@@ -301,6 +381,7 @@ APP_CATALOG = {
 
     'describer': {
         'label':       'Describer',
+        'category': 'understand',  # cf. APP_CATEGORIES (dérivable de input/output_types)
         'icon':        'fas fa-search-plus',
         'color':       '#0dcaf0',
         'url_name':    'describer:index',
@@ -324,6 +405,7 @@ APP_CATALOG = {
 
     'enhancer': {
         'label':       'Enhancer',
+        'category': 'transform',  # cf. APP_CATEGORIES (dérivable de input/output_types)
         'icon':        'fas fa-magic',
         'color':       '#6f42c1',
         'url_name':    'enhancer:index',
@@ -346,6 +428,7 @@ APP_CATALOG = {
 
     'imager': {
         'label':       'Imager',
+        'category': 'create',  # cf. APP_CATEGORIES (dérivable de input/output_types)
         'icon':        'fas fa-image',
         'color':       '#fd7e14',
         'url_name':    'imager:index',
@@ -373,6 +456,7 @@ APP_CATALOG = {
 
     'reader': {
         'label':       'Reader (OCR)',
+        'category': 'understand',  # cf. APP_CATEGORIES (dérivable de input/output_types)
         'icon':        'fas fa-book-open',
         'color':       '#0dcaf0',
         'url_name':    'reader:index',
@@ -396,6 +480,7 @@ APP_CATALOG = {
 
     'synthesizer': {
         'label':       'Synthesizer',
+        'category': 'create',  # cf. APP_CATEGORIES (dérivable de input/output_types)
         'icon':        'fas fa-microphone',
         'color':       '#0d6efd',
         'url_name':    'synthesizer:index',
@@ -418,6 +503,7 @@ APP_CATALOG = {
 
     'transcriber': {
         'label':       'Transcriber',
+        'category': 'understand',  # cf. APP_CATEGORIES (dérivable de input/output_types)
         'icon':        'fas fa-file-alt',
         'color':       '#ffc107',
         'url_name':    'transcriber:index',

@@ -35,6 +35,8 @@ def user_role(request):
                 'input_extensions': _ext[name],
                 'has_batch':      spec['has_batch'],
                 'has_url_import': spec['has_url_import'],
+                # Catégorie (APP_CATEGORIES) : la nav / le studio peuvent grouper (2026-07-05).
+                'category':       spec.get('category', ''),
             }
             for name, spec in APP_CATALOG.items()
         }

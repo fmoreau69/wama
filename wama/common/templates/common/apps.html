@@ -96,9 +96,15 @@
     <h1><i class="fas fa-cubes me-2 text-primary"></i>Catalogue des applications WAMA</h1>
     <p class="subtitle">Vue d'ensemble de toutes les applications — extensions, capacités et état de conformité aux conventions UI.</p>
 
-    <!-- ── Cards grid ── -->
-    <div class="row g-3 mb-5">
-        {% for item in apps_list %}
+    <!-- ── Cards GROUPÉES par catégorie (APP_CATEGORIES : nature de l'opération — 2026-07-05).
+         Le domaine média est un attribut de l'app (badges d'extensions), pas un groupe. -->
+    {% for group in apps_grouped %}
+    <div class="d-flex align-items-baseline gap-2 mt-4 mb-2">
+        <h2 class="h5 mb-0 text-light">{{ group.meta.icon }} {{ group.meta.label }}</h2>
+        <small class="text-muted">{{ group.meta.tagline }}</small>
+    </div>
+    <div class="row g-3 mb-4">
+        {% for item in group.apps %}
         {% with spec=item.spec conf=item.conformity %}
         <div class="col-12 col-md-6 col-xl-4 app-item" data-id="{{ item.name }}">
             <div class="app-card">
@@ -188,7 +194,16 @@
         </div>
         {% endwith %}
         {% endfor %}
+        {% for link in group.links %}
+        <div class="col-12 col-md-6 col-xl-4 app-item">
+            <a href="{{ link.url }}" class="app-card d-flex align-items-center gap-3 text-decoration-none">
+                <div class="app-icon" style="background:#6c757d22;color:#9aa5b4;"><i class="fas {{ link.icon }}"></i></div>
+                <h3 class="mb-0">{{ link.label }}</h3>
+            </a>
+        </div>
+        {% endfor %}
     </div>
+    {% endfor %}
 
     <!-- ── Summary table ── -->
     <h2 class="h5 text-white mb-3"><i class="fas fa-table me-2 text-secondary"></i>Grille de conformité</h2>
