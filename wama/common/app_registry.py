@@ -277,7 +277,6 @@ APP_CATALOG = {
         'label':       'Anonymizer',
         'category': 'transform',  # cf. APP_CATEGORIES (dérivable de input/output_types)
         'icon':        'fas fa-user-secret',
-        'color':       '#dc3545',
         'url_name':    'anonymizer:index',
         'description': 'Floutage automatique de visages et plaques sur images et vidéos.',
         'input_extensions': IMAGE_EXTENSIONS + VIDEO_EXTENSIONS,
@@ -298,7 +297,6 @@ APP_CATALOG = {
         'label':       'Avatarizer',
         'category': 'create',  # cf. APP_CATEGORIES (dérivable de input/output_types)
         'icon':        'fas fa-user-circle',
-        'color':       '#0dcaf0',
         'url_name':    'avatarizer:index',
         'description': 'Génération de vidéos d\'avatars lip-sync animés par IA (MuseTalk + CodeFormer).',
         'input_extensions': AUDIO_EXTENSIONS + IMAGE_EXTENSIONS,  # audio (standalone) + image (avatar)
@@ -327,7 +325,6 @@ APP_CATALOG = {
         'label':       'Composer',
         'category': 'create',  # cf. APP_CATEGORIES (dérivable de input/output_types)
         'icon':        'fas fa-music',
-        'color':       '#198754',
         'url_name':    'composer:index',
         'description': 'Génération de musique et effets sonores par IA.',
         'input_extensions': TEXT_EXTENSIONS,
@@ -359,7 +356,6 @@ APP_CATALOG = {
         'label':       'Converter',
         'category': 'transform',  # cf. APP_CATEGORIES (dérivable de input/output_types)
         'icon':        'fas fa-exchange-alt',
-        'color':       '#20c997',
         'url_name':    'converter:index',
         'description': 'Conversion de formats : image, vidéo, audio, documents, archives (Pillow + FFmpeg + Pandoc).',
         'input_extensions': (IMAGE_EXTENSIONS + VIDEO_EXTENSIONS + AUDIO_EXTENSIONS
@@ -387,7 +383,6 @@ APP_CATALOG = {
         'label':       'Describer',
         'category': 'understand',  # cf. APP_CATEGORIES (dérivable de input/output_types)
         'icon':        'fas fa-search-plus',
-        'color':       '#0dcaf0',
         'url_name':    'describer:index',
         'description': 'Description automatique d\'images, vidéos, fichiers audio et documents par LLM.',
         'input_extensions': IMAGE_EXTENSIONS + VIDEO_EXTENSIONS + AUDIO_EXTENSIONS + TEXT_EXTENSIONS,
@@ -411,7 +406,6 @@ APP_CATALOG = {
         'label':       'Enhancer',
         'category': 'transform',  # cf. APP_CATEGORIES (dérivable de input/output_types)
         'icon':        'fas fa-magic',
-        'color':       '#6f42c1',
         'url_name':    'enhancer:index',
         'description': 'Upscaling IA d\'images/vidéos et amélioration audio (Resemble, DeepFilterNet).',
         'input_extensions': IMAGE_EXTENSIONS + VIDEO_EXTENSIONS + AUDIO_EXTENSIONS,
@@ -434,7 +428,6 @@ APP_CATALOG = {
         'label':       'Imager',
         'category': 'create',  # cf. APP_CATEGORIES (dérivable de input/output_types)
         'icon':        'fas fa-image',
-        'color':       '#fd7e14',
         'url_name':    'imager:index',
         'description': 'Génération d\'images et vidéos par IA (Stable Diffusion, Hunyuan, Mochi…).',
         'input_extensions': TEXT_EXTENSIONS + IMAGE_EXTENSIONS,  # text prompt + image reference
@@ -462,7 +455,6 @@ APP_CATALOG = {
         'label':       'Reader (OCR)',
         'category': 'understand',  # cf. APP_CATEGORIES (dérivable de input/output_types)
         'icon':        'fas fa-book-open',
-        'color':       '#0dcaf0',
         'url_name':    'reader:index',
         'description': 'Extraction de texte par OCR (Tesseract, PaddleOCR, EasyOCR).',
         'input_extensions': OCR_INPUT_EXTENSIONS,
@@ -486,7 +478,6 @@ APP_CATALOG = {
         'label':       'Synthesizer',
         'category': 'create',  # cf. APP_CATEGORIES (dérivable de input/output_types)
         'icon':        'fas fa-microphone',
-        'color':       '#0d6efd',
         'url_name':    'synthesizer:index',
         'description': 'Synthèse vocale TTS (XTTS, Higgs Audio, Kokoro…).',
         'input_extensions': TEXT_EXTENSIONS,
@@ -509,7 +500,6 @@ APP_CATALOG = {
         'label':       'Transcriber',
         'category': 'understand',  # cf. APP_CATEGORIES (dérivable de input/output_types)
         'icon':        'fas fa-file-alt',
-        'color':       '#ffc107',
         'url_name':    'transcriber:index',
         'description': 'Transcription audio/vidéo en texte (Whisper).',
         'input_extensions': AUDIO_EXTENSIONS + VIDEO_EXTENSIONS,
@@ -559,6 +549,51 @@ def get_app_extensions_for_filemanager() -> dict:
         app_name: sorted({ext.lstrip('.') for ext in spec['input_extensions']})
         for app_name, spec in APP_CATALOG.items()
     }
+
+
+
+# ─── Couleurs d'IDENTITÉ dérivées par catégorie (CARD_DESIGN §9 — validé 2026-07-05) ─────────
+# UNE teinte (hue HSL) par catégorie ; la nuance de chaque app est DÉRIVÉE de son rang
+# alphabétique dans la catégorie (luminosité étagée 46→66 % : distinguable, daltonisme-friendly,
+# contraste OK sur #212529). Identité ≠ état : ces couleurs ne vont JAMAIS sur les barres de
+# progression, badges de statut ou boutons d'action. Override : poser 'color' sur l'entrée.
+_CATEGORY_HUES = {
+    'understand': 200,  # cyan-bleu (analyse)
+    'create': 282,      # violet (génération)
+    'transform': 160,   # vert-teal (traitement)
+    'data': 40,         # ambre
+    'lab': 25,          # orange
+    'platform': 215,    # gris-bleu
+}
+
+
+def _hsl_hex(h, s, l):
+    import colorsys
+    r, g, b = colorsys.hls_to_rgb((h % 360) / 360.0, l / 100.0, s / 100.0)
+    return '#%02x%02x%02x' % (round(r * 255), round(g * 255), round(b * 255))
+
+
+def category_color(cid: str) -> str:
+    """Couleur de RÉFÉRENCE d'une catégorie (en-têtes de section, dossiers…)."""
+    return _hsl_hex(_CATEGORY_HUES.get(cid, 215), 70, 55)
+
+
+def _assign_derived_colors():
+    groups = {}
+    for _name, _spec in APP_CATALOG.items():
+        _cid = _spec.get('category') or derive_category(_spec)
+        groups.setdefault(_cid, []).append(_name)
+    for _cid, _names in groups.items():
+        hue = _CATEGORY_HUES.get(_cid, 215)
+        n = len(_names)
+        for i, _name in enumerate(sorted(_names)):
+            if 'color' in APP_CATALOG[_name]:
+                continue  # override déclaré : on respecte
+            light = 46 + (20.0 * i / max(n - 1, 1))
+            APP_CATALOG[_name]['color'] = _hsl_hex(hue, 65, light)
+
+
+_assign_derived_colors()
 
 
 def get_conformity_summary() -> dict:

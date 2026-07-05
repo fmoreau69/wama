@@ -35,8 +35,10 @@ def user_role(request):
                 'input_extensions': _ext[name],
                 'has_batch':      spec['has_batch'],
                 'has_url_import': spec['has_url_import'],
-                # Catégorie (APP_CATEGORIES) : la nav / le studio peuvent grouper (2026-07-05).
+                # Catégorie + couleur d'identité dérivée (APP_CATEGORIES / CARD_DESIGN §9) :
+                # la nav, le studio et le filemanager peuvent grouper/teinter (2026-07-05).
                 'category':       spec.get('category', ''),
+                'color':          spec.get('color', ''),
             }
             for name, spec in APP_CATALOG.items()
         }
@@ -99,6 +101,17 @@ def user_role(request):
     except Exception:
         nav_apps_grouped = []
 
+    # Couleur d'IDENTITÉ de l'app courante (liseré des cards — CARD_DESIGN §9) : dérivée du
+    # 1er segment du path si c'est une app du catalogue. Identité ≠ état (jamais sur les barres).
+    current_app_color = ''
+    try:
+        from wama.common.app_registry import APP_CATALOG as _AC
+        _seg = (request.path.split('/') + [''])[1]
+        if _seg in _AC:
+            current_app_color = _AC[_seg].get('color', '')
+    except Exception:
+        pass
+
     return {
         'is_admin': is_admin(user),
         'is_dev': is_dev(user),
@@ -108,6 +121,7 @@ def user_role(request):
         'card_layout': card_layout,
         'app_catalog_json': app_catalog_json,
         'nav_apps_grouped': nav_apps_grouped,
+        'current_app_color': current_app_color,
         'converter_output_formats_json': converter_output_formats_json,
         'account_tier': account_tier,
         'user_roles_set': roles_set,

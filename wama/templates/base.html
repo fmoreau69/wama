@@ -247,6 +247,10 @@
     <script src="{% static 'vendors/jstree-3.3.16/jstree.min.js' %}"></script>
     <!-- WAMA App Catalog (injected server-side — used by FileManager JS) -->
     <script>window.WAMA_APP_CATALOG = {{ app_catalog_json|safe }};</script>
+    {% if current_app_color %}
+    <!-- Couleur d'IDENTITÉ de l'app courante (liseré des cards — CARD_DESIGN §9, dérivée du catalogue) -->
+    <style>:root { --wama-app-color: {{ current_app_color }}; }</style>
+    {% endif %}
     <!-- WAMA FileManager notify (API commune media:uploaded/processed/deleted) -->
     <script src="{% static 'common/js/wama-fm-notify.js' %}"></script>
     <!-- FileManager JS -->

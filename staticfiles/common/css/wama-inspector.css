@@ -97,6 +97,11 @@
 .wama-card.is-batch { background: #0d1a1a; border: 1px solid #0dcaf0; }
 .wama-card.is-batch:hover { background: #0f2222; }
 
+/* ── Liseré d'IDENTITÉ d'app (CARD_DESIGN §9) : teinte de catégorie dérivée, posée par la
+   variable --wama-app-color (base.html, via le catalogue). Identité ≠ état : le liseré est à
+   GAUCHE et discret ; le tricolore d'état garde bordure/badge/barre. ─────────────────────── */
+.wama-card { border-left: 3px solid var(--wama-app-color, rgba(255,255,255,.10)); }
+
 /* ── Désempilage batch (solitaire) : les cartes « fan out » en cascade à l'ouverture. ───── */
 @keyframes wama-fan-in { from { opacity: 0; transform: translateY(-14px) scale(.97); } to { opacity: 1; transform: none; } }
 /* Durée + stagger augmentés (2026-06-29) : .26s était trop rapide, on ne voyait pas le désempilage. */

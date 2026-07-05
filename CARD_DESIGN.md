@@ -258,7 +258,7 @@ Prospection LLM → router un modèle vers une app existante (capacités vs `APP
 **émerger** une app depuis un manifeste. Détail dans `PROJECT_STATUS.md §2`/`§18` et
 `GENERALIZATION_PLAN.md` (horizon manifeste). **Phase B gatée** sur la maturité du runtime manifeste.
 
-## 9. Couleurs par CATÉGORIE + homogénéisation des tuiles (consigné 2026-07-05 — À DISCUTER, rien d'implémenté)
+## 9. Couleurs par CATÉGORIE + homogénéisation des tuiles (consigné 2026-07-05 — §9.1 + surfaces 1 et 3 IMPLÉMENTÉS le jour même ; filemanager (§9.2-2) et tuiles (§9.3) différés)
 
 > Proposition Fabien : code couleur par catégorie d'apps (APP_CATEGORIES) avec **dégradé/variation
 > par app** dans la catégorie, appliqué aux icônes (menu, dossiers du filemanager, cards…).
@@ -281,10 +281,10 @@ Prospection LLM → router un modèle vers une app existante (capacités vs `APP
   Transformer=vert/teal (traitement), Données=ambre, Lab=orange, Transversal=gris-bleu.
 
 ### 9.2 Surfaces d'application (ordre suggéré si validé)
-1. Icônes du menu Applications + page d'accueil + /apps/ (déjà générés du catalogue → 1 seul point).
+1. ✅ Icônes du menu Applications + page d'accueil + /apps/ — via la dérivation au chargement du registre (`_assign_derived_colors`), tous les consommateurs de `spec.color` héritent sans changement.
 2. Dossiers d'apps du filemanager (tri par catégorie + icône teintée — PAS de changement disque,
    décision 2026-07-05 : l'arborescence physique est un contrat, la catégorie est de la présentation).
-3. Liseré gauche des cards de travail (identité discrète, compatible tricolore d'état).
+3. ✅ Liseré gauche des cards de travail — `--wama-app-color` posée par base.html (app courante via le catalogue), règle `.wama-card` dans wama-inspector.css.
 
 ### 9.3 Homogénéisation des « tuiles » (cards accueil / app manager / model manager / cards de travail)
 Consigné : unifier l'apparence de TOUTES les surfaces en carte (fond, bordure, radius, hover,
