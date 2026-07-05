@@ -17,6 +17,7 @@ urlpatterns = [
     path('stop/<int:pk>/', views.stop, name='stop'),
     path('enrich/<int:pk>/', views.enrich, name='enrich'),
     path('progress/<int:pk>/', views.progress, name='progress'),
+    path('card/<int:pk>/html/', views.card_html, name='card_html'),
     path('download/<int:pk>/', views.download, name='download'),
     path('delete/<int:pk>/', views.delete, name='delete'),
     path('duplicate/<int:pk>/', views.duplicate, name='duplicate'),

@@ -970,6 +970,20 @@ def save_correction(request, pk: int):
     return JsonResponse({'status': 'saved', 'correction_status': t.correction_status})
 
 
+def card_html(request, pk: int):
+    """Card RENDUE serveur — source UNIQUE du markup (partial _transcript_card.html ;
+    CARD_DESIGN « partial server-side + update JS en place, PAS de rebuild », audit A2-9/10).
+    Consommée par refreshCard() côté JS aux transitions d'état (start/échec)."""
+    from django.http import HttpResponse
+    from django.template.loader import render_to_string
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    t = get_object_or_404(Transcript, pk=pk, user=user)
+    in_batch = BatchTranscriptItem.objects.filter(transcript=t, batch__total__gt=1).exists()
+    html = render_to_string('transcriber/_transcript_card.html',
+                            {'t': t, 'in_batch': in_batch}, request=request)
+    return HttpResponse(html)
+
+
 def progress(request, pk: int):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     t = get_object_or_404(Transcript, pk=pk, user=user)

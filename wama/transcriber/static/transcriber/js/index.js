@@ -4,7 +4,7 @@ document.addEventListener('DOMContentLoaded', function () {
   const fileInput = document.getElementById('transcriber-file');
   const queueContainer = document.getElementById('transcriptQueue');
   // Bouton de cycle : mécanisme plug-and-play commun — l'icône ▶/⏹/↻ suit data-status des cards
-  // (cohérent avec les autres apps ; rebuildActions reste pour les autres boutons de la card).
+  // (cohérent avec les autres apps ; refreshCard re-rend la card entière depuis le serveur).
   if (window.WamaCycleButton && queueContainer) {
     WamaCycleButton.autoSync({ container: queueContainer, cardSelector: '.synthesis-card' });
   }
@@ -256,91 +256,8 @@ document.addEventListener('DOMContentLoaded', function () {
   // ======================================================================
   // Card rendering
   // ======================================================================
-  function appendCard(data) {
-    if (!queueContainer) return;
-    removeEmptyState();
-
-    const card = document.createElement('div');
-    card.className = 'synthesis-card';
-    card.dataset.id = data.id;
-    card.dataset.status = (data.status || 'PENDING').toUpperCase();
-
-    const label = escapeHtml(data.audio_label || data.audio_name || 'Audio');
-    const duration = escapeHtml(data.duration_display || '--:--');
-    const props = escapeHtml(data.properties || 'En attente');
-    const backend = escapeHtml(data.backend || 'auto');
-
-    const previewUrl = config.previewUrlTemplate ? getUrl(config.previewUrlTemplate, data.id) : '';
-
-    card.innerHTML = `
-      <div class="row align-items-center">
-        <div class="col-md-3">
-          <small class="text-muted d-block" style="font-size:.65rem;">#${data.id} · <i class="fas fa-calendar-alt" title="Ajouté le"></i> ${(()=>{const n=new Date();const p=x=>String(x).padStart(2,'0');return `${p(n.getDate())}/${p(n.getMonth()+1)} ${p(n.getHours())}:${p(n.getMinutes())}`;})()}</small>
-          <button type="button" class="btn btn-link p-0 text-decoration-none preview-media-link filename"
-                  data-preview-url="${escapeHtml(previewUrl)}"
-                  style="color: inherit;">
-            <i class="fas fa-file-audio"></i> ${label}
-          </button><br>
-          <small class="card-properties text-white-50 d-block"${data.properties ? '' : ' style="display:none"'}><i class="fas fa-wave-square"></i> <span class="card-properties-text">${escapeHtml(data.properties || '')}</span></small>
-          <small class="text-white-50 d-block">
-            <i class="fas fa-clock"></i> ${duration}
-            ${data.preprocess_audio ? '<span class="badge bg-warning text-dark ms-1">Prétraité</span>' : ''}
-          </small>
-        </div>
-        <div class="col-md-2">
-          <small>
-            <i class="fas fa-microchip"></i> ${backend}<br>
-            ${(data.hotwords || '') ? `<i class="fas fa-tags"></i> ${escapeHtml((data.hotwords || '').substring(0, 20))}<br>` : ''}
-            ${document.getElementById('diarizationToggle')?.checked !== false ? '<i class="fas fa-users"></i> Diarisation<br>' : ''}
-            ${document.getElementById('globalGenerateSummary')?.checked ? '<i class="fas fa-file-lines"></i> Résumé<br>' : ''}
-            ${document.getElementById('globalVerifyCoherence')?.checked ? '<i class="fas fa-spell-check"></i> Cohérence' : ''}
-          </small>
-        </div>
-        <div class="col-md-2">
-          <small class="card-state text-white-50">En attente</small>
-        </div>
-        <div class="col-md-2">
-          <span class="badge status-badge bg-secondary">PENDING</span>
-          <div class="wama-progress-track mt-2">
-            <div class="wama-progress-fill" style="width: 0%"></div>
-          </div>
-          <small class="text-light progress-text">0%</small>
-        </div>
-        <div class="col-md-3">
-          <div class="btn-group-actions">
-            <button class="btn btn-sm btn-outline-success start-btn" data-id="${data.id}" title="Démarrer">
-              <i class="fas fa-play"></i>
-            </button>
-            <button class="btn btn-sm btn-outline-secondary settings-btn" data-id="${data.id}"
-                    data-backend="${escapeHtml(data.backend || 'auto')}"
-                    data-hotwords="${escapeHtml(data.hotwords || '')}"
-                    data-preprocess="${data.preprocess_audio ? 'true' : 'false'}"
-                    data-diarization="${document.getElementById('diarizationToggle')?.checked !== false ? 'true' : 'false'}"
-                    data-temperature="0"
-                    data-max-tokens="32768"
-                    data-generate-summary="${document.getElementById('globalGenerateSummary')?.checked ? 'true' : 'false'}"
-                    data-summary-type="${document.querySelector('input[name=\'globalSummaryType\']:checked')?.value || 'structured'}"
-                    data-verify-coherence="${document.getElementById('globalVerifyCoherence')?.checked ? 'true' : 'false'}"
-                    title="Paramètres">
-              <i class="fas fa-cog"></i>
-            </button>
-            <button class="btn btn-sm btn-outline-warning duplicate-btn" data-id="${data.id}" title="Dupliquer (tester un autre modèle)">
-              <i class="fas fa-copy"></i>
-            </button>
-            <button class="btn btn-sm btn-outline-danger delete-btn" data-id="${data.id}" title="Supprimer">
-              <i class="fas fa-trash"></i>
-            </button>
-          </div>
-        </div>
-      </div>`;
-
-    queueContainer.prepend(card);
-    bindCardActions(card);
-    if (window.initMediaPreview) window.initMediaPreview();
-    updateDownloadAllState();
-    // Mise au point de la card fraîchement ajoutée : scroll centré + halo (ne pas avoir à la chercher).
-    if (window.WamaQueue) WamaQueue.focusCard(card, { scroll: 'center', pulse: true });
-  }
+  // appendCard SUPPRIMEE (code mort — aucun appelant ; ~85 lignes de markup
+  // qui divergeaient deja du serveur). Source unique = _transcript_card.html (A2-9).
 
   function updateCard(id, data) {
     const card = queueContainer ? queueContainer.querySelector(`.synthesis-card[data-id="${id}"]`) : null;
@@ -421,84 +338,24 @@ document.addEventListener('DOMContentLoaded', function () {
       setTimeout(() => location.reload(), 300);
     } else if (status === 'FAILURE') {
       stopPolling(id);
-      rebuildActions(card, id, status);
+      refreshCard(id);
     }
 
     updateDownloadAllState();
   }
 
-  function rebuildActions(card, id, status) {
-    const actionsDiv = card.querySelector('.btn-group-actions');
-    if (!actionsDiv) return;
-
-    // Capture ALL data-attributes from the existing settings-btn BEFORE destroying it
-    const oldBtn = actionsDiv.querySelector('.settings-btn');
-    const sd = oldBtn ? {
-      backend:         oldBtn.dataset.backend         || 'auto',
-      hotwords:        oldBtn.dataset.hotwords        || '',
-      preprocess:      oldBtn.dataset.preprocess      || 'false',
-      diarization:     oldBtn.dataset.diarization     || 'true',
-      temperature:     oldBtn.dataset.temperature     || '0',
-      maxTokens:       oldBtn.dataset.maxTokens       || '32768',
-      generateSummary: oldBtn.dataset.generateSummary || 'false',
-      summaryType:     oldBtn.dataset.summaryType     || 'structured',
-      verifyCoherence: oldBtn.dataset.verifyCoherence || 'false',
-    } : null;
-
-    let html = '';
-
-    // ⚙ Paramètres : TOUJOURS visible (même pendant RUNNING) → inspecter/modifier les params en cours.
-    // Schéma CARD_DESIGN : ⚙ secondary.
-    html += `<button class="btn btn-sm btn-outline-secondary settings-btn" data-id="${id}" title="Paramètres"><i class="fas fa-cog"></i></button>`;
-    // Bouton de CYCLE commun ▶/⏹/↻ (TOUJOURS vert ; ⏹ Stop pendant RUNNING). Remplace l'ancien start-btn.
-    if (window.WamaCycleButton) {
-      html += WamaCycleButton.html(status, id);
-    } else if (status !== 'RUNNING') {
-      const isRerun = (status === 'SUCCESS' || status === 'FAILURE');
-      html += `<button class="btn btn-sm btn-outline-success start-btn" data-id="${id}" title="${isRerun ? 'Relancer' : 'Démarrer'}"><i class="fas ${isRerun ? 'fa-rotate-right' : 'fa-play'}"></i></button>`;
-    }
-
-    if (status === 'SUCCESS') {
-      // Bouton œil retiré : la preview compacte (.wama-card-preview) + double-clic remplace.
-      // Bouton « Corriger » (éditeur) = SPÉCIFICITÉ Transcriber → couleur distincte (primary),
-      // hors schéma des 5 actions génériques (secondary/success/info/warning/danger).
-      if (config.editUrlTemplate) {
-        html += `<a href="${getUrl(config.editUrlTemplate, id)}" class="btn btn-sm btn-outline-primary" title="Corriger (éditeur audio + texte)"><i class="fas fa-pen-to-square"></i></a>`;
-      }
-      const dlBase = getUrl(config.downloadUrlTemplate, id);
-      html += `<div class="btn-group btn-group-sm">` +
-        `<a href="${dlBase}?format=txt" class="btn btn-outline-info download-txt-btn" title="Télécharger TXT"><i class="fas fa-download"></i></a>` +
-        `<button type="button" class="btn btn-outline-info dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false"><span class="visually-hidden">Autres formats</span></button>` +
-        `<ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end">` +
-          `<li><a class="dropdown-item" href="${dlBase}?format=txt"><i class="fas fa-file-alt me-2"></i>TXT</a></li>` +
-          `<li><a class="dropdown-item" href="${dlBase}?format=srt"><i class="fas fa-closed-captioning me-2"></i>SRT</a></li>` +
-          `<li><hr class="dropdown-divider"></li>` +
-          `<li><a class="dropdown-item" href="${dlBase}?format=pdf"><i class="fas fa-file-pdf me-2 text-danger"></i>PDF</a></li>` +
-          `<li><a class="dropdown-item" href="${dlBase}?format=docx"><i class="fas fa-file-word me-2 text-primary"></i>DOCX</a></li>` +
-        `</ul>` +
-      `</div>`;
-    }
-
-    html += `<button class="btn btn-sm btn-outline-warning duplicate-btn" data-id="${id}" title="Dupliquer (tester un autre modèle)"><i class="fas fa-copy"></i></button>`;
-    html += `<button class="btn btn-sm btn-outline-danger delete-btn" data-id="${id}" title="Supprimer"><i class="fas fa-trash"></i></button>`;
-
-    actionsDiv.innerHTML = html;
-
-    // Restore saved data-attributes onto the new settings-btn
-    const newBtn = actionsDiv.querySelector('.settings-btn');
-    if (newBtn && sd) {
-      newBtn.dataset.backend         = sd.backend;
-      newBtn.dataset.hotwords        = sd.hotwords;
-      newBtn.dataset.preprocess      = sd.preprocess;
-      newBtn.dataset.diarization     = sd.diarization;
-      newBtn.dataset.temperature     = sd.temperature;
-      newBtn.dataset.maxTokens       = sd.maxTokens;
-      newBtn.dataset.generateSummary = sd.generateSummary;
-      newBtn.dataset.summaryType     = sd.summaryType;
-      newBtn.dataset.verifyCoherence = sd.verifyCoherence;
-    }
-
-    bindCardActions(card);
+  // Card RENDUE SERVEUR — source unique : partial _transcript_card.html via
+  // transcriber:card_html. Remplace rebuildActions (3e copie du markup d'actions +
+  // save/restore manuel de 9 data-attributes) — audit A2-10.
+  function refreshCard(id) {
+    fetch(WamaApp.getUrl(window.TRANSCRIBER_APP.cardHtmlUrlTemplate, id))
+      .then(r => { if (!r.ok) throw new Error(r.status); return r.text(); })
+      .then(html => {
+        const card = document.querySelector(`.synthesis-card[data-id="${id}"]`);
+        if (card) card.outerHTML = html;
+        else document.getElementById('transcriptQueue')?.insertAdjacentHTML('afterbegin', html);
+      })
+      .catch(() => {});
   }
 
   // ======================================================================
@@ -538,7 +395,7 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   // ⏹ Stop : arrête le traitement en cours (endpoint commun) → item relançable (↻). La card est
-  // rafraîchie par le flux normal (updateCard → rebuildActions) qui repassera le bouton en ↻.
+  // rafraîchie par le flux normal (updateCard → refreshCard) qui repassera le bouton en ↻.
   function handleStop(id) {
     const url = getUrl(config.stopUrlTemplate, id);
     fetch(url, {
@@ -595,7 +452,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
           // Boutons VISIBLES + actifs pendant le traitement : on reconstruit les actions en RUNNING
           // → le bouton de cycle passe en ⏹ Stop et ⚙ Paramètres reste (inspecter/modifier en cours).
-          rebuildActions(card, id, 'RUNNING');
+          refreshCard(id);
         }
         startPolling(id);
       })
