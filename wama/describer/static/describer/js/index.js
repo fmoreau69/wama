@@ -649,7 +649,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (window.WamaFM) WamaFM.processed();  // sortie créée → refresh filemanager
 
                     if (data.status === 'SUCCESS') {
-                        updateCardWithResult(card, data);
+                        refreshCard(card.dataset.id);
                     }
 
                     updateGlobalProgress();
@@ -724,57 +724,17 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    function updateCardWithResult(card, data) {
-        // Update result preview
-        if (data.result_text) {
-            const preview = card.querySelector('.result-preview');
-            if (preview) {
-                preview.textContent = data.result_text.substring(0, 150) + '...';
-                preview.classList.remove('text-white-50');
-                preview.classList.add('text-light');
-            }
-        }
-
-        // Update action buttons
-        const actions = card.querySelector('.btn-group-actions');
-        if (actions) {
-            const id = card.dataset.id;
-
-            // Remove start button if present (it was shown before processing)
-            actions.querySelector('.start-btn')?.remove();
-
-            // Remove existing preview/download buttons to avoid duplication on re-run
-            actions.querySelector('.preview-btn')?.remove();
-            actions.querySelector('.download-split-group')?.remove();
-
-            // Insert preview + split-button download before duplicate-btn (or delete-btn as fallback)
-            const anchor = actions.querySelector('.duplicate-btn') || actions.querySelector('.delete-btn');
-            if (anchor) {
-                const dlBase = config.urls.download.replace('/0/', `/${id}/`);
-
-                // Build split-button dropdown
-                const splitGroup = document.createElement('div');
-                splitGroup.className = 'btn-group btn-group-sm download-split-group';
-                splitGroup.innerHTML =
-                    `<a href="${dlBase}?format=txt" class="btn btn-outline-info download-btn" title="Télécharger TXT"><i class="fas fa-download"></i></a>` +
-                    `<button type="button" class="btn btn-outline-info dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false"><span class="visually-hidden">Autres formats</span></button>` +
-                    `<ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end">` +
-                        `<li><a class="dropdown-item" href="${dlBase}?format=txt"><i class="fas fa-file-alt me-2"></i>TXT</a></li>` +
-                        `<li><a class="dropdown-item" href="${dlBase}?format=pdf"><i class="fas fa-file-pdf me-2 text-danger"></i>PDF</a></li>` +
-                        `<li><a class="dropdown-item" href="${dlBase}?format=docx"><i class="fas fa-file-word me-2 text-primary"></i>DOCX</a></li>` +
-                    `</ul>`;
-
-                const previewBtn = document.createElement('button');
-                previewBtn.className = 'btn btn-sm btn-success preview-btn';
-                previewBtn.dataset.id = id;
-                previewBtn.title = 'Voir le resultat';
-                previewBtn.innerHTML = '<i class="fas fa-eye"></i>';
-                previewBtn.addEventListener('click', () => showPreview(id));
-
-                actions.insertBefore(splitGroup, anchor);
-                actions.insertBefore(previewBtn, splitGroup);
-            }
-        }
+    // Card RENDUE SERVEUR — source unique : partial _description_card.html via
+    // describer:card_html (recette T+C). Remplace updateCardWithResult (~60 lignes
+    // d'injection de boutons/preview qui divergeaient du serveur) — 2026-07-05.
+    function refreshCard(id) {
+        fetch(config.urls.cardHtml.replace('/0/', '/' + id + '/'))
+            .then(r => { if (!r.ok) throw new Error(r.status); return r.text(); })
+            .then(html => {
+                const card = document.querySelector(`.synthesis-card[data-id="${id}"]`);
+                if (card) card.outerHTML = html;
+            })
+            .catch(() => {});
     }
 
     async function deleteDescription(id) {

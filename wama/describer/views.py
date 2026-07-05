@@ -554,6 +554,19 @@ def start(request, pk):
 
 
 @require_GET
+def card_html(request, pk):
+    """Card RENDUE serveur — source UNIQUE du markup (partial _description_card.html ;
+    CARD_DESIGN « partial server-side + update JS en place », recette T+C 2026-07-05)."""
+    from django.http import HttpResponse
+    from django.template.loader import render_to_string
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    desc = get_object_or_404(Description, pk=pk, user=user)
+    in_batch = BatchDescriptionItem.objects.filter(description=desc, batch__total__gt=1).exists()
+    html = render_to_string('describer/_description_card.html',
+                            {'desc': desc, 'in_batch': in_batch}, request=request)
+    return HttpResponse(html)
+
+
 def progress(request, pk):
     """Get processing progress."""
     user = get_user(request)

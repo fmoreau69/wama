@@ -72,106 +72,7 @@
             <!-- Single-item batch: render as standalone card -->
             {% for item in batch_info.items %}{% if item.description %}
             {% with desc=item.description %}
-            <div class="synthesis-card wama-card {% if desc.status == 'RUNNING' %}processing{% elif desc.status == 'SUCCESS' %}success{% elif desc.status == 'FAILURE' %}error{% endif %}"
-                 data-id="{{ desc.id }}" data-status="{{ desc.status }}">
-                <div class="row align-items-center">
-                    <div class="col-md-3">
-                        <strong>
-                            <i class="fas {{ desc.get_type_icon }}"></i>
-                            <button type="button" class="btn btn-link p-0 text-decoration-none preview-media-link filename"
-                                    data-preview-url="{% url 'common:unified_preview' 'describer' desc.id %}"
-                                    style="color: inherit;">
-                                {{ desc.filename }}
-                            </button>
-                        </strong>
-                        <br>
-                        <small class="text-white-50">
-                            <span class="badge bg-secondary">{{ desc.detected_type|upper }}</span>
-                            {{ desc.format_file_size }}
-                        </small>
-                    </div>
-                    <div class="col-md-2">
-                        <small>
-                            <i class="fas fa-align-left"></i> {{ desc.get_output_style_display }}<br>
-                            <i class="fas fa-language"></i> {{ desc.get_output_language_display }}<br>
-                            <i class="fas fa-text-width"></i> {{ desc.max_length }} mots
-                        </small>
-                    </div>
-                    <div class="col-md-3">
-                        {% if desc.result_text %}
-                        <small class="text-light result-preview" style="max-height: 60px; overflow: hidden; display: block;">
-                            {{ desc.result_text|truncatechars:150 }}
-                        </small>
-                        {% else %}
-                        <small class="text-white-50 result-preview">
-                            {{ desc.properties|default:"En attente de traitement" }}
-                        </small>
-                        {% endif %}
-                    </div>
-                    <div class="col-md-2">
-                        <span class="badge status-badge
-                            {% if desc.status == 'PENDING' %}bg-secondary
-                            {% elif desc.status == 'RUNNING' %}bg-warning
-                            {% elif desc.status == 'SUCCESS' %}bg-success
-                            {% elif desc.status == 'FAILURE' %}bg-danger
-                            {% endif %}">
-                            {{ desc.get_status_display }}
-                        </span>
-                        <div class="wama-progress-track mt-2">
-                            <div class="wama-progress-fill {% if desc.status == 'RUNNING' %}active{% endif %}" style="width: {{ desc.progress }}%"></div>
-                        </div>
-                        <small class="text-light progress-text">{{ desc.progress }}%</small>
-                        <span class="wama-eta d-block"></span>
-                    </div>
-                    <div class="col-md-2">
-                        <div class="btn-group-actions">
-                            {# Ordre conventionnel : ⚙ Paramètres puis bouton de cycle ▶/⏹/↻ (toujours visibles). #}
-                            <button class="btn btn-sm btn-secondary settings-btn"
-                                    data-id="{{ desc.id }}"
-                                    data-output-style="{{ desc.output_style }}"
-                                    data-output-language="{{ desc.output_language }}"
-                                    data-max-length="{{ desc.max_length }}"
-                                    data-generate-summary="{{ desc.generate_summary|yesno:'true,false' }}"
-                                    data-verify-coherence="{{ desc.verify_coherence|yesno:'true,false' }}"
-                                    title="Parametres">
-                                <i class="fas fa-cog"></i>
-                            </button>
-                            {% include 'common/_cycle_button.html' with id=desc.id status=desc.status %}
-                            {% if desc.status == 'SUCCESS' %}
-                            <button class="btn btn-sm btn-success preview-btn" data-id="{{ desc.id }}" title="Voir le resultat">
-                                <i class="fas fa-eye"></i>
-                            </button>
-                            <div class="btn-group btn-group-sm">
-                                <a href="{% url 'describer:download' desc.id %}?format=txt"
-                                   class="btn btn-outline-info download-btn" title="Télécharger TXT">
-                                    <i class="fas fa-download"></i>
-                                </a>
-                                <button type="button" class="btn btn-outline-info dropdown-toggle dropdown-toggle-split"
-                                        data-bs-toggle="dropdown" aria-expanded="false">
-                                    <span class="visually-hidden">Autres formats</span>
-                                </button>
-                                <ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end">
-                                    <li><a class="dropdown-item" href="{% url 'describer:download' desc.id %}?format=txt">
-                                        <i class="fas fa-file-alt me-2"></i>TXT</a></li>
-                                    <li><a class="dropdown-item" href="{% url 'describer:download' desc.id %}?format=pdf">
-                                        <i class="fas fa-file-pdf me-2 text-danger"></i>PDF</a></li>
-                                    <li><a class="dropdown-item" href="{% url 'describer:download' desc.id %}?format=docx">
-                                        <i class="fas fa-file-word me-2 text-primary"></i>DOCX</a></li>
-                                </ul>
-                            </div>
-                            {% endif %}
-                            <button class="btn btn-sm btn-outline-info duplicate-btn"
-                                    data-duplicate-url="{% url 'describer:duplicate' desc.id %}"
-                                    title="Dupliquer">
-                                <i class="fas fa-copy"></i>
-                            </button>
-                            <button class="btn btn-sm btn-danger delete-btn" data-id="{{ desc.id }}" title="Supprimer">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
+            {% include 'describer/_description_card.html' %}
             {% endwith %}
             {% endif %}{% endfor %}
 
@@ -236,90 +137,7 @@
                      style="border-left:2px solid #0dcaf0; margin-left:0.75rem;">
                     {% for item in batch_info.items %}{% if item.description %}
                     {% with desc=item.description %}
-                    <div class="synthesis-card wama-card {% if desc.status == 'RUNNING' %}processing{% elif desc.status == 'SUCCESS' %}success{% elif desc.status == 'FAILURE' %}error{% endif %}"
-                         data-id="{{ desc.id }}" data-status="{{ desc.status }}">
-                        <div class="row align-items-center">
-                            <div class="col-md-3">
-                                <strong>
-                                    <i class="fas {{ desc.get_type_icon }}"></i>
-                                    <span class="filename">{{ desc.filename }}</span>
-                                </strong>
-                                <br>
-                                <small class="text-white-50">
-                                    <span class="badge bg-secondary">{{ desc.detected_type|upper }}</span>
-                                </small>
-                            </div>
-                            <div class="col-md-3">
-                                {% if desc.result_text %}
-                                <small class="text-light result-preview" style="max-height:40px; overflow:hidden; display:block;">
-                                    {{ desc.result_text|truncatechars:100 }}
-                                </small>
-                                {% else %}
-                                <small class="text-white-50 result-preview">En attente…</small>
-                                {% endif %}
-                            </div>
-                            <div class="col-md-3">
-                                <span class="badge status-badge
-                                    {% if desc.status == 'PENDING' %}bg-secondary
-                                    {% elif desc.status == 'RUNNING' %}bg-warning
-                                    {% elif desc.status == 'SUCCESS' %}bg-success
-                                    {% elif desc.status == 'FAILURE' %}bg-danger
-                                    {% endif %}">
-                                    {{ desc.get_status_display }}
-                                </span>
-                                <div class="wama-progress-track mt-1">
-                                    <div class="wama-progress-fill {% if desc.status == 'RUNNING' %}active{% endif %}" style="width: {{ desc.progress }}%"></div>
-                                </div>
-                            </div>
-                            <div class="col-md-3">
-                                <div class="btn-group-actions">
-                                    {# ⚙ Paramètres puis bouton de cycle ▶/⏹/↻ (toujours visibles, même RUNNING). #}
-                                    <button class="btn btn-sm btn-secondary settings-btn"
-                                            data-id="{{ desc.id }}"
-                                            data-output-style="{{ desc.output_style }}"
-                                            data-output-language="{{ desc.output_language }}"
-                                            data-max-length="{{ desc.max_length }}"
-                                            data-generate-summary="{{ desc.generate_summary|yesno:'true,false' }}"
-                                            data-verify-coherence="{{ desc.verify_coherence|yesno:'true,false' }}"
-                                            title="Paramètres">
-                                        <i class="fas fa-cog"></i>
-                                    </button>
-                                    {% include 'common/_cycle_button.html' with id=desc.id status=desc.status %}
-                                    {% if desc.status == 'SUCCESS' %}
-                                    <button class="btn btn-sm btn-success preview-btn" data-id="{{ desc.id }}" title="Voir">
-                                        <i class="fas fa-eye"></i>
-                                    </button>
-                                    <div class="btn-group btn-group-sm">
-                                        <a href="{% url 'describer:download' desc.id %}?format=txt"
-                                           class="btn btn-outline-info" title="Télécharger TXT">
-                                            <i class="fas fa-download"></i>
-                                        </a>
-                                        <button type="button" class="btn btn-outline-info dropdown-toggle dropdown-toggle-split"
-                                                data-bs-toggle="dropdown" aria-expanded="false">
-                                            <span class="visually-hidden">Autres formats</span>
-                                        </button>
-                                        <ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end">
-                                            <li><a class="dropdown-item" href="{% url 'describer:download' desc.id %}?format=txt">
-                                                <i class="fas fa-file-alt me-2"></i>TXT</a></li>
-                                            <li><a class="dropdown-item" href="{% url 'describer:download' desc.id %}?format=pdf">
-                                                <i class="fas fa-file-pdf me-2 text-danger"></i>PDF</a></li>
-                                            <li><a class="dropdown-item" href="{% url 'describer:download' desc.id %}?format=docx">
-                                                <i class="fas fa-file-word me-2 text-primary"></i>DOCX</a></li>
-                                        </ul>
-                                    </div>
-                                    {% endif %}
-                                    <button class="btn btn-sm btn-outline-info duplicate-btn"
-                                            data-duplicate-url="{% url 'describer:duplicate' desc.id %}"
-                                            title="Dupliquer dans le batch">
-                                        <i class="fas fa-copy"></i>
-                                    </button>
-                                    <button class="btn btn-sm btn-danger delete-btn" data-id="{{ desc.id }}" title="Supprimer">
-                                        <i class="fas fa-trash"></i>
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                    {% include 'describer/_description_card.html' with in_batch=True %}
                     {% endwith %}
                     {% endif %}{% endfor %}
                 </div>
@@ -443,15 +261,8 @@
                     <div id="describerModalParams"></div>{# WamaParams context=item #}
                 </form>
             </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-                <button type="button" class="btn btn-primary" id="saveSettingsBtn">
-                    <i class="fas fa-save"></i> Enregistrer
-                </button>
-                <button type="button" class="btn btn-success" id="saveAndStartBtn">
-                    <i class="fas fa-play"></i> Enregistrer et demarrer
-                </button>
-            </div>
+            {# Pied COMMUN (convention MODAL_ACTIONS_AUDIT §3) — mêmes IDs, handlers JS inchangés. #}
+            {% include 'common/_settings_modal_footer.html' with save_id='saveSettingsBtn' save_start_id='saveAndStartBtn' save_start_label='Enregistrer et démarrer' %}
         </div>
     </div>
 </div>
@@ -468,6 +279,7 @@
             start: "{% url 'describer:start' pk=0 %}",
             stop: "{% url 'describer:stop' pk=0 %}",
             progress: "{% url 'describer:progress' pk=0 %}",
+            cardHtml: "{% url 'describer:card_html' pk=0 %}",
             globalProgress: "{% url 'describer:global_progress' %}",
             delete: "{% url 'describer:delete' pk=0 %}",
             download: "{% url 'describer:download' pk=0 %}",
