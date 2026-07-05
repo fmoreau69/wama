@@ -2,7 +2,11 @@
 
 > Audit read-only (agent) demandé par Fabien : « Transcriber est-il intégralement globalisé ?
 > Puis comparer avec Composer pour vérifier son uniformisation. » Vérifié par Claude.
-> Ce fichier est la CONSIGNE de référence des restes à globaliser sur les 2 apps « à finir à 100 % ».
+> Ce fichier est la CONSIGNE de référence des restes à globaliser.
+> **MAJ 2026-07-05** : la plupart des points sont RÉGLÉS (barrés) — Composer 100 % de sa surface
+> propre ; Transcriber quasi (restent : A2-6 card mère → `_batch_card.html` commune, A3-12/13 sync
+> inspecteur, A4-15/16 styles modales, A5-18..25 extractions de vue, A6-26/27/28 JS communs).
+> **Describer porté aussi** (3ᵉ app, même recette).
 > Complète `TRANSCRIBER_REFERENCE_AUDIT.md` (checklist 19 points) — ne le remplace pas.
 
 **Couverture** : transcriber index.html (intégral), views.py (~95 %), js/index.js (~85 %) ;
@@ -18,30 +22,30 @@ composer index.html + _generation_card.html + views.py (intégral), js/index.js 
    (`.wama-new-item-card`, wama-inspector.css).
 2. ~~CSS card « nouveau » local (index.html:62-74)~~ — **RÉGLÉ 2026-07-03** (CSS commun ; l'ancien
    local était en partie du CSS mort, battu par le style inline de la brique).
-3. **CSS « pile Solitaire » du batch replié** — index.html:27-58 (`:has(.collapse...:not(.show))`,
+3. ~~CSS « pile Solitaire »~~ — **RÉGLÉ 2026-07-05** (globalisé wama-inspector.css, contrat `.wama-card.is-batch` ; describer l'a adopté). — index.html:27-58 (`:has(.collapse...:not(.show))`,
    box-shadows empilées, `::after "🃏 cliquer pour désempiler"`). Cible les sélecteurs du CONTRAT
    commun → à déplacer dans wama-inspector.css (seules les couleurs `.is-batch` restent app).
 4. **Câblage WamaBatchImport + afterCreate** — index.html:290-306 : boilerplate identique par app.
    Cible : défaut `afterCreate` dans batch-import.js (option `autoStartUrlTemplate`).
 
 ### A2. Cards (LE plus gros gisement)
-5. **Card individuelle écrite à la main ×2 dans le même template** — index.html:359-498 (card
+5. ~~Card individuelle ×2~~ — **RÉGLÉ 2026-07-05** (`_transcript_card.html`, flag in_batch ; la copie batch avait dérivé). *(ex :* index.html:359-498 (card
    autonome) et 610-727 (fille de batch) : deux copies quasi identiques. Cible : partial
    `transcriber/_transcript_card.html` (pattern converter/composer).
-6. **Card mère de batch hand-made** — index.html:504-604 (`.synthesis-card.is-batch` + méta +
+6. **Card mère de batch hand-made** (transcriber garde la sienne — describer est passé au squelette commun ; brique `_batch_card.html` toujours à créer) — index.html:504-604 (`.synthesis-card.is-batch` + méta +
    actions). Cible : brique commune `_batch_card.html` (déjà identifiée CARD_DESIGN §8).
 7. **Dropdown formats de téléchargement dupliqué ×4** — index.html:449-469 + 683-703,
    index.js:469-479 + 1288-1294. Cible : partial `_download_formats_dropdown.html` + liste de
    formats déclarée (format_policy.py existe côté Python).
-8. **Preview compacte dupliquée ×2** — index.html:486-497 et 715-726 → absorbée par le partial (5).
-9. **`appendCard()` : card reconstruite en JS (~80 l.) qui DIVERGE du serveur** — index.js:259-343.
+8. ~~Preview ×2~~ — **RÉGLÉ 2026-07-05** (absorbée par le partial). — index.html:486-497 et 715-726 → absorbée par le partial (5).
+9. ~~appendCard()~~ — **RÉGLÉ 2026-07-05** (code MORT — aucun appelant — supprimé). *(ex index.js:259-343)*
    Violation CARD_DESIGN (« partial server-side + update JS en place, PAS de rebuild »).
    Cible : endpoint « card rendue » (partial) ou reload.
-10. **`rebuildActions()`** — index.js:430-502 : 3ᵉ copie du markup d'actions + save/restore manuel
+10. ~~rebuildActions()~~ — **RÉGLÉ 2026-07-05** (→ refreshCard(id) : card re-rendue serveur via transcriber:card_html). — index.js:430-502 : 3ᵉ copie du markup d'actions + save/restore manuel
     de 9 data-attributes. Absorbée par (5)+(9).
 
 ### A3. Inspecteur
-11. **Bandeau inspecteur hand-codé** — index.html:77-83 alors que `common/_inspector_banner.html`
+11. ~~Bandeau inspecteur~~ — **RÉGLÉ 2026-07-05** (include `_inspector_banner.html` ; duplication à l'identique). — index.html:77-83 alors que `common/_inspector_banner.html`
     existe (composer l'utilise). Cible : include.
 12. **`_renderBatchActions` en chaînes JS** — index.js:1282-1307 (le commentaire reconnaît le
     pis-aller). Cible : brique.
@@ -59,7 +63,7 @@ composer index.html + _generation_card.html + views.py (intégral), js/index.js 
     mini-rendu markdown→HTML (index.js:878-886) générique → candidat helper commun.
 
 ### A5. Vue (views.py)
-17. **`_get_ffprobe_path()` réimplémente ffmpeg_utils** — views.py:39-64 au lieu de
+17. ~~_get_ffprobe_path()~~ — **RÉGLÉ 2026-07-05** (→ ffmpeg_utils.get_ffprobe_exe). — views.py:39-64 au lieu de
     `get_ffprobe_exe()` (common/utils/ffmpeg_utils.py:91). Cible : import direct.
 18. **`_describe_audio()`** — views.py:67-120 : sonde ffprobe générique (durée/codec/kHz/canaux).
     Cible : `common/utils/media_probe.py` (+ `_format_duration` views.py:31-36).
@@ -73,7 +77,7 @@ composer index.html + _generation_card.html + views.py (intégral), js/index.js 
 22. **Prefs utilisateur via clés cache artisanales** — views.py:332-338, 398-403, 1609-1650
     (`user_{id}_transcriber_*`, 3 vues préprocessing dont doublons). Cible : util commun de
     user-settings par app (schéma-driven).
-23. **`batch_template()`** — views.py:1343-1356 : contenu en dur ; besoin de toutes les apps batch.
+23. **`batch_template()`** — brique `build_batch_template` CRÉÉE 2026-07-05 (composer consommateur) ; transcriber (views.py:1343) à basculer dessus.
     Cible : générateur commun dans batch_parsers.py (format déclaré).
 24. **SRT généré 3× en interne** — download `_srt_ts` local 1095-1109 vs `_build_transcript_bytes`
     1034-1053 vs download_srt 1774-1818. Nettoyage + candidat document_export.
@@ -98,13 +102,13 @@ composer index.html + _generation_card.html + views.py (intégral), js/index.js 
    {total, done, running, failed, overall_progress} + `WAMA_GLOBAL_PROGRESS_URL` posé.
 
 ### B2. Cards
-4. **`appendGenerationCard()` JS divergente du partial** — index.js:786-855 : `.progress` Bootstrap
+4. ~~appendGenerationCard()~~ — **RÉGLÉ 2026-07-04** (→ insertRenderedCard via composer:card_html ; bug barre-jamais-mise-à-jour corrigé). *(ex :* `.progress` Bootstrap
    vs `.wama-progress-track` serveur ; il manque wama-card, ⚙, dupliquer. Le poll cherche
    `.wama-progress-fill` (655) → **barre des cards fraîchement ajoutées JAMAIS mise à jour** (bug).
    Cible : endpoint « card rendue ».
-5. **Injection JS de boutons au SUCCESS** — index.js:711-737 (2ᵉ copie du markup, styles inline
+5. ~~Injection JS au SUCCESS~~ — **RÉGLÉ 2026-07-04** (card finale re-rendue serveur). — index.js:711-737 (2ᵉ copie du markup, styles inline
    `#a78bfa` dupliqués). Même cible.
-6. **Détection d'état par TEXTE de badge** — index.js:152-157, 164-175, 743-748
+6. ~~Détection par texte de badge~~ — **RÉGLÉ 2026-07-04/05** (data-status partout). — index.js:152-157, 164-175, 743-748
    (`badge.textContent === 'En cours'`) au lieu de `card.dataset.status` (présent). Fragile.
 7. **Styles inline card** — _generation_card.html:14 (`background:#1e2124`) + bouton export (106,
    répété index.js:732) → classes CSS communes.
@@ -123,13 +127,13 @@ composer index.html + _generation_card.html + views.py (intégral), js/index.js 
     (8 + inline) ; **URLs en dur** partout (generate/start_all/clear_all/delete/batch/*/export/
     settings/progress/stop|start + inline). Transcriber passe par `{% url %}` → config JS.
     Cible : `window.COMPOSER_APP` + WamaApp.getUrl.
-11. **État vide dupliqué template↔JS** — index.html empty-hint ET index.js:857-879 (HTML voisin
+11. ~~État vide dupliqué~~ — **RÉGLÉ 2026-07-04** (hint serveur unique, d-none togglée). — index.html empty-hint ET index.js:857-879 (HTML voisin
     mais pas identique). Cible : WamaApp.emptyState.
 12. showToast bespoke CSS inline (881-890) → brique commune (cf. A6-26).
 13. **Estimation durée côté client** — index.js:16-34 + `window.COMPOSER_MODELS` : miroir de
     model_config.py + « remaining-time » maison concurrent de WamaEta. Cible : `eta_estimator`
     serveur (comme transcriber views.py:992-1003) + WamaEta seuls.
-14. **`updateModelOptions`/`checkMelodyVisibility` par préfixe d'id de modèle** — index.js:78-96 +
+14. ~~checkMelodyVisibility~~ — **PURGÉE 2026-07-05** (R17 ; WamaInputMatch pilote le slot). — index.js:78-96 +
     383 : capacité en dur alors que WamaInputMatch est branché. Reliquat contraire à
     feedback_ui_from_model_capabilities (R17 du ledger).
 
@@ -138,9 +142,9 @@ composer index.html + _generation_card.html + views.py (intégral), js/index.js 
 16. Compteurs de batch — views.py:71-78 (cf. A5-20) — *contrat queue_view posé le 2026-07-03*.
 17. ~~`import_batch` lance TOUT immédiatement~~ — **RÉGLÉ 2026-07-03** (cf. B3-9 : création
     PENDING seule, `batch_start` séparé).
-18. **`update_settings` et `stop` sans `@require_POST`** — views.py:342, 303 (transcriber stop:617
+18. ~~update_settings/stop sans @require_POST~~ — **RÉGLÉ 2026-07-05 côté composer** (transcriber stop:617
     pareil) → mutation possible en GET. Décorateur/uniformisation.
-19. `clear_all` supprime audio_output à la main — views.py:745-757 (cf. A5-25).
+19. ~~clear_all~~ — **CLOS 2026-07-05** : conforme à la convention (sorties supprimées inconditionnellement à la suppression).
 20. **`export_to_library`** — views.py:512-550 : « exporter vers la médiathèque » = capacité
     générique → brique côté media_library dès la 2ᵉ app consommatrice.
 

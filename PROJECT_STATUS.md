@@ -284,3 +284,37 @@ neuve** (contexte chargé = erreurs). Recoupe et précise §19.
 3. Cam Analyzer Phase 3 (calibration + vitesses).
 4. Fondation RAG (`wama/rag/`) — débloque hook PromptPipeline + Media Library.
 5. Refactoring common app par app (par petites sessions).
+
+---
+
+## 20. Portage schéma-driven — KICKOFF prochaine session (état au 2026-07-05, session close)
+
+**3 apps AU MÊME NIVEAU : Transcriber · Composer · Describer** — elles partagent : tri/filtre +
+toolbar commune (`queue_view.py` + `_queue_toolbar`), badge d'onglet, mosaïque/solitaire
+(contrat `.wama-card`/`.is-batch`), card d'entrée `_new_item_card` en tête d'onglet (ordre
+canonique card → progression → toolbar → file), modale générée + pied commun, **card = partial
+serveur unique + endpoint `card_html` + `refreshCard`** (⚠ re-bind si events par card — leçon
+describer), ETA commune (eta_estimator + WamaEta), batch import unifié (balises/en-têtes
+multi-délimiteurs/positionnel + template généré), catégories d'apps + couleurs d'identité
+dérivées (menu/accueil//apps/ générés du catalogue).
+
+**Restent à porter (7)** — ordre recommandé :
+1. **Reader** (jumeau de describer, + retirer son tri batch-first app-spécifique) ;
+2. **Converter** (sa card `_job_card.html` est déjà LA référence → surtout file/toolbar/entrée) ;
+3. **Enhancer**, **Anonymizer** (généralistes classiques) ;
+4. **Synthesizer** (PRÉREQUIS : séparer le volet droit = surface de composition ; son accordéon
+   est déjà globalisé en `collapsible`, sa `_synthesis_card.html` existe) ;
+5. **Imager** (le + de modes — app de référence du build complet, à faire en dernier des
+   généralistes) ; **Avatarizer** (standalone-only après studio, cf. R16).
+
+**Briques inter-apps à créer au fil des ports** : `_batch_card.html` (card mère commune — les
+headers transcriber/composer sont chacun faux à leur façon ; describer a déjà adopté le squelette
+`.is-batch`) ; `batch_common.py` (`_wrap_*_in_batch`/auto-wrap ×3 apps) ; `build_batches_list()`
+commun ; toast commun ; maps badge/couleur ; helper modale-batch ; `restart_instance()`.
+
+**Validations navigateur EN ATTENTE (à faire en début de session)** : Composer (ETA cards,
+batch 3 syntaxes + aperçu, template téléchargeable, card dépliable) ; Transcriber (cards ×2
+contextes, contrat de sortie sur brouillons, échec → card re-rendue) ; Describer (upload/URL
+depuis la card d'entrée, solitaire batch, **boutons actifs après re-rendu** = re-bind) ; menu +
+accueil + /apps/ groupés + couleurs + liseré. Migration `describer 0008` appliquée (la page
+était cassée avant — colonne manquante).
