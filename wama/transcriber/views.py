@@ -36,36 +36,11 @@ def _format_duration(seconds: float) -> str:
     return f"{minutes}:{secs:02d}"
 
 
-def _get_ffprobe_path() -> str | None:
-    ffprobe = shutil.which("ffprobe")
-    if ffprobe:
-        return ffprobe
-
-    candidates = [
-        r"C:\ffmpeg\bin\ffprobe.exe",
-        r"C:\Program Files\ffmpeg\bin\ffprobe.exe",
-        r"C:\Program Files (x86)\ffmpeg\bin\ffprobe.exe",
-        "/usr/bin/ffprobe",
-        "/usr/local/bin/ffprobe",
-        "/opt/homebrew/bin/ffprobe",
-    ]
-
-    if platform.system().lower().startswith('linux'):
-        wsl_candidates = [
-            "/mnt/c/ffmpeg/bin/ffprobe.exe",
-            "/mnt/c/Program Files/ffmpeg/bin/ffprobe.exe",
-            "/mnt/c/Program Files (x86)/ffprobe/bin/ffprobe.exe",
-        ]
-        candidates.extend(wsl_candidates)
-
-    for candidate in candidates:
-        if os.path.exists(candidate):
-            return candidate
-    return None
-
-
 def _describe_audio(transcript: Transcript) -> None:
-    ffprobe = _get_ffprobe_path()
+    # ffprobe : brique commune ffmpeg_utils (chemins candidats + escape hatch FFMPEG_BINARY) —
+    # la liste de chemins locale réimplémentait la brique (audit A5-17, purgée 2026-07-05).
+    from wama.common.utils.ffmpeg_utils import get_ffprobe_exe
+    ffprobe = get_ffprobe_exe()
     if not ffprobe:
         return
 

@@ -24,155 +24,21 @@
     display: inline-block; max-width: 100%; text-align: left; vertical-align: middle;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
-  /* ── Solitaire 🃏 : batch REPLIÉ = pile de cartes (deck) ; clic = désempile (fan out) ──
-     CSS pur via :has() (Chrome) ; fallback gracieux si non supporté. Décalage VERS LE BAS
-     (le wrapper est en overflow-x:hidden → on évite le clipping horizontal) + bords cyan
-     contrastés pour que les cartes empilées soient bien visibles sur le fond sombre. */
-  .batch-group:has(.collapse[data-wama-batch-key]:not(.show)) {
-    margin-bottom: 1.5rem !important;   /* place pour que la pile « dépasse » sous le header */
-  }
-  .batch-group:has(.collapse[data-wama-batch-key]:not(.show)) .batch-group-header {
-    cursor: pointer;
-    transition: transform .15s ease, box-shadow .15s ease;
-    box-shadow:
-      3px 6px 0 -1px #0d1a1a,  3px 6px 0 0 rgba(13,202,240,.55),
-      6px 12px 0 -1px #0d1a1a, 6px 12px 0 0 rgba(13,202,240,.32);
-  }
-  .batch-group:has(.collapse[data-wama-batch-key]:not(.show)) .batch-group-header:hover {
-    transform: translateY(-2px);
-    box-shadow:
-      4px 8px 0 -1px #0d1a1a,  4px 8px 0 0 rgba(13,202,240,.75),
-      8px 16px 0 -1px #0d1a1a, 8px 16px 0 0 rgba(13,202,240,.45);
-  }
-  /* Libellé « pile » : visible seulement au survol (évite la superposition avec l'empilement). */
-  .batch-group:has(.collapse[data-wama-batch-key]:not(.show)) .batch-group-header::after {
-    content: "🃏 cliquer pour désempiler";
-    position: absolute; right: 2.2rem; bottom: -1.05rem;
-    font-size: .62rem; color: #67e8f9; opacity: 0; transition: opacity .15s ease; pointer-events: none;
-  }
-  .batch-group:has(.collapse[data-wama-batch-key]:not(.show)) .batch-group-header:hover::after { opacity: .85; }
-  .batch-group-header { position: relative; }
-  /* Card mère = MÊME squelette .synthesis-card que les filles ; .is-batch = seul le style diffère. */
-  .synthesis-card.is-batch { background: #0d1a1a; border: 1px solid #0dcaf0; }
-  .synthesis-card.is-batch:hover { background: #0f2222; }
-  .batch-group:has(.collapse[data-wama-batch-key].show) .batch-group-header { box-shadow: none; }
+  /* Solitaire 🃏 (pile deck + .is-batch) : GLOBALISÉ le 2026-07-05 dans wama-inspector.css
+     (contrat .wama-card.is-batch / .batch-group / .collapse[data-wama-batch-key], audit A1-3). */
   /* Désempilage (fan-in) + géométrie MOSAÏQUE : GLOBALISÉS le 2026-07-03 dans
      common/css/wama-inspector.css (contrat .wama-card / .batch-group / .collapse[data-wama-batch-key]).
      Ici ne restent que les spécificités transcriber (couleurs .is-batch, card « nouveau »). */
   /* Card « NOUVEAU » : look pointillés GLOBALISÉ (CSS commun .wama-new-item-card, 2026-07-03). */
 </style>
-<!-- Inspecteur : reflète la card sélectionnée (sinon = valeurs par défaut) -->
-<div id="inspectorBanner" class="d-none align-items-center gap-2 p-2 mb-2 rounded small">
-    <i class="fas fa-crosshairs" style="color:#0dcaf0;"></i>
-    <span class="text-light flex-grow-1">Réglages de <strong id="inspectorLabel">l'élément</strong></span>
-    <button type="button" id="inspectorDeselect" class="btn btn-sm btn-outline-light py-0 px-2" title="Quitter l'inspecteur de cet élément (revenir aux réglages par défaut)">
-        <i class="fas fa-rotate-left"></i>
-    </button>
-</div>
+<!-- Bandeau inspecteur : brique COMMUNE (le markup inline dupliquait _inspector_banner à l'identique). -->
+{% include 'common/_inspector_banner.html' %}
 
 <!-- ░ Volet de réglages GÉNÉRÉ depuis le schéma (params.py → WamaParams). Apparence en wama-params.css. ░ -->
 <div id="panelSettings" class="wama-params"></div>
 <small id="backendHelp" class="text-muted d-block mt-1"></small>
 
-{% comment %} === ANCIEN VOLET CODÉ EN DUR (backup ; remplacé par le rendu schéma-driven ci-dessus) ===
-<!-- Backend Selection -->
-<div class="mb-3">
-    <label class="form-label small fw-bold text-light">
-        <i class="fas fa-microchip"></i> Moteur de transcription
-    </label>
-    <select id="backendSelect" class="form-select form-select-sm" data-selected="{{ selected_backend }}">
-        <option value="auto" {% if selected_backend == 'auto' %}selected{% endif %}>Auto (meilleur disponible)</option>
-        {# options injected asynchronously by loadBackendsAsync() #}
-    </select>
-    {# Descriptif dynamique du moteur sélectionné (mis à jour par updateBackendHelp) #}
-    <small id="backendHelp" class="text-muted d-block mt-1"></small>
-</div>
-
-<!-- Hotwords Input -->
-<div class="mb-3">
-    <label class="form-label small fw-bold text-light">
-        <i class="fas fa-tags"></i> Mots-clés contextuels
-    </label>
-    <textarea id="hotwordsInput" class="form-control form-control-sm"
-              rows="2" placeholder="Noms propres, termes techniques...">{{ user_hotwords }}</textarea>
-    <small class="text-muted">Séparés par des virgules</small>
-</div>
-
-<!-- Preprocessing Toggle -->
-<div class="mb-3">
-    <div class="form-check form-switch">
-        <input class="form-check-input" type="checkbox" id="preprocessingToggle"
-               data-preprocess-url="{% url 'transcriber:set_preprocessing' %}"
-               {% if preprocessing_enabled %}checked{% endif %}>
-        <label class="form-check-label small fw-bold text-light" for="preprocessingToggle">
-            <i class="fas fa-wand-magic-sparkles"></i> Prétraitement audio
-        </label>
-    </div>
-    <small class="d-block mt-1">
-        Débruitage IA (DeepFilterNet) + 16 kHz mono
-        <a href="#" class="ms-1 text-info text-decoration-none" data-bs-toggle="modal" data-bs-target="#preprocessingModal"><i class="fas fa-circle-question"></i> En savoir plus</a>
-    </small>
-</div>
-
-<!-- Diarization Toggle -->
-<div class="mb-3" id="diarizationOption">
-    <div class="form-check form-switch">
-        <input class="form-check-input" type="checkbox" id="diarizationToggle" {% if global_diarization %}checked{% endif %}>
-        <label class="form-check-label small fw-bold text-light" for="diarizationToggle">
-            <i class="fas fa-users"></i> Identifier les locuteurs
-        </label>
-    </div>
-    <small class="d-block mt-1">Séparation des locuteurs (pyannote)</small>
-</div>
-
-<!-- Summary -->
-<div class="mb-2">
-    <div class="form-check form-switch">
-        <input class="form-check-input" type="checkbox" id="globalGenerateSummary" {% if global_generate_summary %}checked{% endif %}>
-        <label class="form-check-label small fw-bold text-light" for="globalGenerateSummary">
-            <i class="fas fa-file-lines"></i> Générer un résumé
-        </label>
-    </div>
-</div>
-<div class="mb-3 ms-3" id="globalSummaryTypeGroup" style="display: {% if global_generate_summary %}block{% else %}none{% endif %};">
-    <div class="form-check form-check-inline">
-        <input class="form-check-input" type="radio" name="globalSummaryType" id="globalSummaryTypeStructured" value="structured" {% if global_summary_type != 'meeting' %}checked{% endif %}>
-        <label class="form-check-label small text-light" for="globalSummaryTypeStructured">Structuré</label>
-    </div>
-    <div class="form-check form-check-inline">
-        <input class="form-check-input" type="radio" name="globalSummaryType" id="globalSummaryTypeMeeting" value="meeting" {% if global_summary_type == 'meeting' %}checked{% endif %}>
-        <label class="form-check-label small text-light" for="globalSummaryTypeMeeting">Réunion</label>
-    </div>
-</div>
-
-<!-- Coherence -->
-<div class="mb-3">
-    <div class="form-check form-switch">
-        <input class="form-check-input" type="checkbox" id="globalVerifyCoherence" {% if global_verify_coherence %}checked{% endif %}>
-        <label class="form-check-label small fw-bold text-light" for="globalVerifyCoherence">
-            <i class="fas fa-spell-check"></i> Vérifier la cohérence
-        </label>
-    </div>
-    <small class="d-block mt-1">Score + correction proposée côte à côte</small>
-</div>
-
-<!-- Temperature (mêmes paramètres que la modale, pour que l'inspecteur reflète la card) -->
-<div class="mb-3">
-    <label for="panelTemperature" class="form-label small fw-bold text-light">
-        <i class="fas fa-temperature-half"></i> Température : <span id="panelTemperatureValue">0.0</span>
-    </label>
-    <input type="range" class="form-range" id="panelTemperature" min="0" max="1" step="0.1" value="0"
-           oninput="document.getElementById('panelTemperatureValue').textContent = this.value">
-</div>
-
-<!-- Max tokens -->
-<div class="mb-3">
-    <label for="panelMaxTokens" class="form-label small fw-bold text-light">
-        <i class="fas fa-text-width"></i> Max tokens
-    </label>
-    <input type="number" class="form-control form-control-sm" id="panelMaxTokens" min="1024" max="131072" value="32768">
-</div>
-=== fin backup ==={% endcomment %}
+{# Backup « ancien volet codé en dur » PURGÉ (2026-07-05, audit A4-14) — le volet est schéma-driven. #}
 
 <!-- Reset Button -->
 <hr class="border-secondary my-2">
@@ -487,11 +353,6 @@ window._batchImport = WamaBatchImport({
                          Même schéma que le volet inspecteur (context 'panel') = fin de la divergence modale↔volet. -->
                     <div id="settingsParams" class="wama-params"></div>
 
-                    {% comment %} === ANCIENS CHAMPS CODÉS EN DUR (backup pour confrontation — retirer après validation) ===
-                    Backend / Hotwords / Preprocess / Diarization / Summary(+summaryTypeGroup) /
-                    Coherence / Temperature(+settingsTemperatureValue) / MaxTokens : tous repris à l'identique
-                    par le schéma `transcriber/params.py` (overrides item). Voir l'historique git si besoin de revert.
-                    === fin backup === {% endcomment %}
                 </form>
             </div>
             {# Pied de modale COMMUN (convention MODAL_ACTIONS_AUDIT §3) — ids conservés (JS inchangé). #}
