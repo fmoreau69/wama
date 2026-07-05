@@ -63,11 +63,11 @@
                 <div class="wama-progress-fill {% if gen.status == 'RUNNING' %}active{% endif %}"
                      style="width:{{ gen.progress }}%"></div>
             </div>
+            {# ETA commune WamaEta (seed eta_estimator serveur) — remaining-time client supprimé (B4-13). #}
             <span class="wama-eta d-block mt-1"></span>
             {% if gen.status == 'RUNNING' %}
             <small class="text-muted progress-text" style="font-variant-numeric:tabular-nums;">
                 {{ gen.progress }}%
-                <span class="remaining-time ms-1 text-info"></span>
             </small>
             {% elif gen.status != 'SUCCESS' %}
             <small class="text-muted progress-text">{{ gen.progress }}%</small>

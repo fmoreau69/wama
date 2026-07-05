@@ -474,6 +474,24 @@ def progress(request, pk):
         'progress': pct,
         'error': gen.error_message,
     }
+
+    # Seed ETA (audit B4-13) : estimation a priori puis APPRISE — record_run tourne déjà en fin
+    # de tâche (clé 'composer:<modèle>'), mais personne ne LISAIT les stats. Affichée par WamaEta.
+    if gen.status in ('PENDING', 'RUNNING'):
+        try:
+            from wama.model_manager.services.eta_estimator import estimate
+            cfg = COMPOSER_MODELS.get(gen.model) or {}
+            dur = float(gen.duration or 0)
+            est = estimate(f'composer:{gen.model}', size=dur, unit='audio_sec',
+                           model_loaded=False)
+            if not est:
+                # Repli a-priori déclaré au catalogue (temps ≈ durée × gen_factor + overhead).
+                est = dur * cfg.get('gen_factor', 1.5) + cfg.get('overhead_s', 15)
+            if est > 0:
+                data['estimated_seconds'] = round(est, 1)
+        except Exception:
+            pass
+
     if gen.status == 'SUCCESS' and gen.audio_output:
         from django.urls import reverse
         data['download_url'] = reverse('composer:download', args=[gen.id])

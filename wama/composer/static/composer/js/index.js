@@ -134,19 +134,8 @@
     // Barre globale : refs DOM retirées avec updateGlobalBar (brique commune wama-global-progress.js).
 
     // Track per-id estimated seconds and start time
-    const genMeta = {};  // id → { estimatedSeconds, startedAt, lastProgress }
 
-    document.querySelectorAll('.generation-card').forEach(card => {
-        const id = parseInt(card.dataset.id);
-        const est = parseInt(card.dataset.estimatedSeconds) || 30;
-        genMeta[id] = { estimatedSeconds: est, startedAt: null, lastProgress: 0 };
-
-        const badge = card.querySelector('.badge');
-        const status = badge?.textContent.trim();
-        if (status === 'En cours' || status === 'En attente') {
-            genMeta[id].startedAt = Date.now();
-        }
-    });
+    // (Seed d'estimation client supprimé — l'ETA vient du serveur via WamaEta, B4-13.)
 
     // Barre globale : BRIQUE COMMUNE (wama-global-progress.js, auto-poll) — l'ancienne
     // updateGlobalBar hand-made (scan DOM + moyenne ponderee) a ete supprimee (audit B1-2).
@@ -190,10 +179,7 @@
                         alert('Erreur : ' + data.error);
                     } else {
                         promptInput.value = '';
-                        insertRenderedCard(data.id, {
-                            estimatedSeconds: estimateSeconds(data.model, data.duration),
-                            startedAt: Date.now(), lastProgress: 0,
-                        });
+                        insertRenderedCard(data.id);
                         startPolling(data.id);
                     }
                 })
@@ -271,7 +257,7 @@
                             batchGroup.remove();
                         }
                     }
-                    delete genMeta[id];
+                    if (window.WamaEta) WamaEta.reset(id);
                     checkEmptyState();
                     if (window.WamaFM) WamaFM.deleted();  // fichier supprimé → refresh filemanager
                 });
@@ -286,7 +272,7 @@
                 .then(() => {
                     const group = document.querySelector(`.batch-group[data-batch-id="${bid}"]`);
                     if (group) {
-                        group.querySelectorAll('.generation-card').forEach(c => delete genMeta[c.dataset.id]);
+                        if (window.WamaEta) group.querySelectorAll('.generation-card').forEach(c => WamaEta.reset(c.dataset.id));
                         group.remove();
                     }
                     checkEmptyState();
@@ -411,12 +397,7 @@
                 if (d.success) {
                     bootstrap.Modal.getInstance(document.getElementById('settingsModal'))?.hide();
                     if (!d.restarted) return;   // Enregistrer simple : rien à relancer
-                    // Update card meta with new estimate
-                    genMeta[id] = {
-                        estimatedSeconds: estimateSeconds(settingsModel.value, parseFloat(settingsDuration.value)),
-                        startedAt: Date.now(),
-                        lastProgress: 0,
-                    };
+                    if (window.WamaEta) WamaEta.reset(id);   // l'ETA se re-seede via progress
                     updateCardStatus(id, 'PENDING', 0);
                     startPolling(parseInt(id));
                 } else {
@@ -437,11 +418,6 @@
 
     function startPolling(genId) {
         if (pollingMap[genId]) return;
-        if (!genMeta[genId]) {
-            genMeta[genId] = { estimatedSeconds: 30, startedAt: Date.now(), lastProgress: 0 };
-        } else {
-            genMeta[genId].startedAt = Date.now();
-        }
         pollingMap[genId] = setInterval(() => pollProgress(genId), 2000);
     }
 
@@ -510,18 +486,15 @@
             badge.textContent = labels[status] || status;
         }
 
-        // Remaining time on running items
-        if (status === 'RUNNING' && genMeta[id]) {
-            const elapsed = (Date.now() - (genMeta[id].startedAt || Date.now())) / 1000;
-            const est = genMeta[id].estimatedSeconds;
-            const remaining = Math.max(0, est - elapsed);
-            const remSpan = card.querySelector('.remaining-time');
-            if (remSpan) {
-                remSpan.textContent = remaining > 3 ? formatDuration(remaining) : '';
-            }
+        // ETA COMMUNE (WamaEta) : seedSeconds = estimation a priori/apprise renvoyée par
+        // progress (eta_estimator serveur) — remplace le remaining-time client maison (B4-13).
+        const etaEl = card.querySelector('.wama-eta');
+        if (etaEl && window.WamaEta) {
+            WamaEta.render(etaEl, WamaEta.update(id, {
+                progress: progress, status: status,
+                seedSeconds: data?.estimated_seconds, modelLoaded: false,
+            }));
         }
-
-        if (genMeta[id]) genMeta[id].lastProgress = progress;
 
         // Clear or set error message  (view returns field as 'error', not 'error_message')
         const actionsCol = card.querySelector('.col-md-3');
@@ -543,14 +516,11 @@
         // (insertRenderedCard dans pollProgress) — l'injection de chaines HTML est supprimée (B2-5).
     }
 
-    // Auto-start polling for active items on page load
+    // Auto-start du polling des items actifs au chargement — état lu sur data-status
+    // (plus de détection par TEXTE de badge, fragile/i18n — audit B2-6).
     document.querySelectorAll('.generation-card').forEach(card => {
-        const id = parseInt(card.dataset.id);
-        const badge = card.querySelector('.badge');
-        if (badge && (badge.textContent.trim() === 'En cours' || badge.textContent.trim() === 'En attente')) {
-            const est = parseInt(card.dataset.estimatedSeconds) || 30;
-            genMeta[id] = { estimatedSeconds: est, startedAt: Date.now(), lastProgress: 0 };
-            startPolling(id);
+        if (card.dataset.status === 'RUNNING' || card.dataset.status === 'PENDING') {
+            startPolling(parseInt(card.dataset.id));
         }
     });
 
@@ -592,8 +562,7 @@
     // composer:card_html ; CARD_DESIGN « partial server-side + update JS en place »).
     // Remplace la reconstruction JS qui divergeait déjà du serveur (barre Bootstrap vs
     // .wama-progress-fill → jamais mise à jour, boutons ⚙/dupliquer absents) — audit B2-4.
-    function insertRenderedCard(id, meta) {
-        if (meta) genMeta[id] = meta;
+    function insertRenderedCard(id) {
         fetch(WamaApp.getUrl(APP.cardHtmlUrlTemplate, id))
             .then(r => { if (!r.ok) throw new Error(r.status); return r.text(); })
             .then(html => {
