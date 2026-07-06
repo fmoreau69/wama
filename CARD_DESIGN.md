@@ -292,3 +292,97 @@ densité) via des **tokens CSS communs** (`.wama-tile` ou variables `--wama-card
 global) — chaque surface les adopte sans se faire imposer sa structure interne. À traiter dans la
 continuité de la brique card commune (le formalisme de CE document) ; **différé** tant que le
 schéma-driven des apps n'est pas fini (priorité Fabien : fonctionnel d'abord, passe UI ensuite).
+
+---
+
+## 10. Card UNIVERSELLE v2 « synthétique » — chips + barre pleine largeur (proposé 2026-07-06, pilote = READER)
+
+> Demande Fabien : les cards des apps non portées (reader, converter, anonymizer) ont un style
+> plus ÉPURÉ (tags/chips, barre individuelle pleine largeur) qui sera PERDU à l'uniformisation si
+> on ne le consigne pas ; proposer LA meilleure version en s'inspirant aussi des meilleures UI/UX
+> équivalentes ; **tester dans Reader avant de porter dans la brique commune** ; garantir
+> l'universalité (inspecter les capacités de toutes les apps). Non prioritaire sur le portage —
+> on avance les deux ensemble (Reader = pilote port + design).
+
+### 10.1 CONSIGNATION — les « petites différences » à CONSERVER (relevé du 2026-07-06)
+
+| Différence | Où | Pourquoi la garder |
+|---|---|---|
+| **Chips/tags méta inline** (`.job-chip` : statut, moteur, mode, « X pages », préréglage) | converter `_job_card.html`, reader `_item_card.html` | 5 infos scannables en 1 ligne là où la grille T/D/C consomme 2 colonnes de petites lignes ; la couleur/bordure du chip porte du sens |
+| **Chip « format cible → .mp3 »** | converter | déclare la SORTIE ATTENDUE avant traitement — info-forte qui manque aux cards portées (le « vers quoi » du flux entrée→sortie) |
+| **Barre de progression PLEINE LARGEUR sous la ligne d'en-tête** | converter, reader | déjà la DOCTRINE (§1 !) — jamais appliquée aux ports T/D/C qui l'ont confinée dans une colonne `col-md-2` ; pleine largeur = lisibilité + geste visuel du flux |
+| **Ligne unique flex** (icône + nom + chips + état + actions), PAS de grille `col-md-*` | converter, reader | densité : ~48 px de haut en concis vs ~90 px pour la grille ; c'est la géométrie « pile » du §4 |
+| **Erreur inline compacte** (1 ligne rouge repliée sous la card) | reader | vs alert pleine boîte ; cohérent avec « la barre se transforme » |
+| **Miniature du média en tête de ligne** (vignette cliquable) | anonymizer (JS legacy), converter (icône type) | pour les apps à sortie visuelle (imager/enhancer/anonymizer/avatarizer), la vignette EST l'aperçu concis |
+
+### 10.2 Inspirations externes retenues (apps équivalentes, patterns éprouvés)
+
+- **Vercel/Netlify (deployments)** : ligne unique, POINT de statut coloré + libellé court, durée
+  relative (« il y a 2 min »), actions révélées au survol → notre tricolore existe déjà, on adopte
+  le point coloré compact en concis (le badge plein reste en étendu).
+- **GitHub Actions (runs)** : icône de statut animée pendant RUN, titre + chips contexte, durée à
+  droite, ligne EXTENSIBLE → conforte nos 2 états concis/étendu (§1) et la nav clavier.
+- **Linear (issues)** : chips à icône, densité, sélection = bordure discrète (pas de fond criard)
+  → guide le style des chips et de l'état sélectionné (sync inspecteur).
+- **Transmission/downloads managers** : barre pleine largeur fine SOUS le titre, % + débit + ETA
+  dans la même ligne fine → notre WamaEta s'y insère tel quel.
+
+### 10.3 SPEC card v2 (état CONCIS) — universelle, métadonnée-driven
+
+```
+┌───────────────────────────────────────────────────────────────────────────┐
+│ [vignette|icône] Nom-ou-extrait-prompt      ⌄chips⌄        ● état  ⚙▶⬇⧉🗑 │  ligne 1 (flex, ~44px)
+│    #id · il y a 12 min   [moteur][langue][option…][→ format]  ~2 min      │  chips + ETA (même ligne si place)
+│ ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░░░░░░░░░░░░░ 62 %                                     │  ligne 2 : barre PLEINE LARGEUR (se transforme, jamais absente)
+│ « Aperçu de la sortie sur une ligne… »                        [♪ player]  │  ligne 3 : aperçu sortie SYSTÉMATIQUE (polymorphe)
+└───────────────────────────────────────────────────────────────────────────┘
+```
+
+1. **Ligne 1 — identité + chips + état + actions** (flex, une seule ligne, wrap toléré en étroit) :
+   - *Identité* : vignette (sortie/entrée visuelle) OU icône type média OU 💬 extrait de prompt
+     (apps à entrée texte : composer/imager/synthesizer) ; sous-ligne `#id · date relative`.
+   - *Chips méta* : **GÉNÉRÉS depuis params.py/PARAMS_JSON + capabilities — jamais écrits à la
+     main par app** (règle metadata-driven). Un champ marqué `chip=True` dans le schéma produit
+     son chip (valeur courte, icône du schéma). Chip spécial « → {format cible} » si
+     export_binding='early'. Max ~4 chips en concis + chip « +N » qui déplie.
+   - *État* : POINT coloré (tricolore §8/9 : gris/orange pulsé/vert/rouge) + libellé court ;
+     ETA `wama-eta` à côté pendant RUN ; durée totale une fois fini.
+   - *Actions* : ordre conventionnel ⚙ ▶(cycle) ⬇ ⧉ 🗑 inchangé (§2), compactes.
+2. **Ligne 2 — barre PLEINE LARGEUR** (`wama-progress-track/fill` existants) : enfin conforme à la
+   doctrine §1. Se TRANSFORME : pleine verte persistante en SUCCESS, rouge en FAILURE.
+3. **Ligne 3 — aperçu sortie systématique, POLYMORPHE selon output_types** (universalité) :
+   - texte (transcriber/describer/reader) : 1 ligne tronquée, clic = étendu ;
+   - audio (composer/synthesizer) : mini-player waveform (brique existante) ;
+   - image/vidéo (imager/enhancer/anonymizer/avatarizer/converter) : vignette (déjà en tête de
+     ligne → la ligne 3 peut alors porter le nom de fichier de sortie/poids) ;
+   - fichier (converter) : nom + poids + format.
+4. **État ÉTENDU** (clic/Entrée) : inchangé — sections chronologiques Entrée→Réglages→Sortie→État
+   →Actions (§1) ; les chips se déplient en liste complète des réglages.
+5. **Invariants conservés** : partial serveur + card_html + update en place (§3), data-status +
+   data-action, 2 états, tricolore, mosaïque = géométrie (§4), Solitaire batchs (§3ter), couleurs
+   de catégorie + liseré d'app (§9), nav clavier. **AUCUNE information supprimée** : tout ce que
+   la grille montrait passe en chips (concis) ou en étendu.
+
+### 10.4 Universalité — mapping par app (vérifié sur les capacités)
+
+| App | Identité ligne 1 | Chips typiques | Aperçu ligne 3 |
+|---|---|---|---|
+| transcriber | icône audio/vidéo + nom | moteur, langue, diarisation, résumé | texte + badge correction |
+| describer | icône type détecté + nom/URL | style, langue, longueur | texte |
+| reader (PILOTE) | vignette page/PDF + nom | moteur OCR, langue, « X pages » | texte |
+| composer | 💬 extrait prompt | modèle, durée, → wav/mp3 | player waveform |
+| synthesizer | 💬 extrait texte | moteur, voix, langue | player |
+| converter | icône type + nom | → format cible, préréglage | fichier (nom+poids) |
+| enhancer | vignette avant | modèle, ×upscale, domaine | vignette après (slider A/B à venir) |
+| anonymizer | vignette | modèles détection, classes, flou | vignette floutée |
+| imager | 💬 extrait prompt | modèle, résolution, seed, mode | vignette image/vidéo |
+| avatarizer | vignette visage | pipeline, qualité | vignette vidéo |
+
+### 10.5 Plan (Reader = pilote)
+
+1. Port Reader sur les briques (recette T/D/C) **avec la card v2 directement** (`reader/_item_card.html`
+   réécrit au format v2 ; brique CSS `.wama-chip` + helper chips-depuis-schéma dans common dès le
+   pilote, consommés par reader seul d'abord).
+2. Validation navigateur Fabien sur Reader (esthétique = SA décision, cf. « apparence non figée »).
+3. Si validé : remonter le layout v2 dans le formalisme (adapter `_batch_card.html` au même style,
+   puis migrer T/D/C — mécanique, les données sont déjà serveur+schéma).
