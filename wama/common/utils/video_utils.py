@@ -19,50 +19,17 @@ from wama.anonymizer.utils.media_utils import get_unique_filename
 logger = logging.getLogger(__name__)
 
 
-def _get_ffmpeg_path() -> Optional[str]:
-    """Trouve le chemin vers ffmpeg."""
-    ffmpeg = shutil.which("ffmpeg")
-    if ffmpeg:
-        return ffmpeg
-
-    candidates = [
-        r"C:\ffmpeg\bin\ffmpeg.exe",
-        r"C:\Program Files\ffmpeg\bin\ffmpeg.exe",
-        r"C:\Program Files (x86)\ffmpeg\bin\ffmpeg.exe",
-        "/usr/bin/ffmpeg",
-        "/usr/local/bin/ffmpeg",
-        "/opt/homebrew/bin/ffmpeg",
-        "/mnt/c/ffmpeg/bin/ffmpeg.exe",
-        "/mnt/c/Program Files/ffmpeg/bin/ffmpeg.exe",
-    ]
-
-    for candidate in candidates:
-        if os.path.exists(candidate):
-            return candidate
-    return None
+def _get_ffmpeg_path():
+    """DÉLÈGUE à la brique ffmpeg_utils (audit 2026-07-06 : cette copie locale n'avait
+    ni test fonctionnel WSL2, ni fallback imageio, ni escape hatch FFMPEG_BINARY)."""
+    from wama.common.utils.ffmpeg_utils import get_ffmpeg_exe
+    return get_ffmpeg_exe()
 
 
-def get_ffprobe_path() -> Optional[str]:
-    """Trouve le chemin vers ffprobe."""
-    ffprobe = shutil.which("ffprobe")
-    if ffprobe:
-        return ffprobe
-
-    candidates = [
-        r"C:\ffmpeg\bin\ffprobe.exe",
-        r"C:\Program Files\ffmpeg\bin\ffprobe.exe",
-        r"C:\Program Files (x86)\ffmpeg\bin\ffprobe.exe",
-        "/usr/bin/ffprobe",
-        "/usr/local/bin/ffprobe",
-        "/opt/homebrew/bin/ffprobe",
-        "/mnt/c/ffmpeg/bin/ffprobe.exe",
-        "/mnt/c/Program Files/ffmpeg/bin/ffprobe.exe",
-    ]
-
-    for candidate in candidates:
-        if os.path.exists(candidate):
-            return candidate
-    return None
+def get_ffprobe_path():
+    """DÉLÈGUE à la brique ffmpeg_utils (cf. _get_ffmpeg_path)."""
+    from wama.common.utils.ffmpeg_utils import get_ffprobe_exe
+    return get_ffprobe_exe()
 
 
 def get_media_info(file_path: str) -> dict:

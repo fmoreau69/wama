@@ -383,3 +383,13 @@ bouton cycle transcriber (états ▶/⏹/↻ + temps réel ↻ fa-rotate), toast
 A4-15/16 (styles modales transcriber), A5-24 (SRT ×3), A6-28 (fusion modale-batch JS),
 A1-4 (afterCreate batch-import), B4-10 résiduel (URLs composer), B4-13 (ETA client→serveur),
 B5-20 (export médiathèque). Restart process WSL2 requis pour le Python.
+
+**AUDIT ROUTE COMMUNE (même jour, après commit du port)** →
+**[`AUDIT_ROUTE_COMMUNE_2026-07-06.md`](AUDIT_ROUTE_COMMUNE_2026-07-06.md)** : (1) common SAIN,
+1 doublon critique ffmpeg/ffprobe **corrigé** (video_utils + waveform + converter probe → délèguent
+à ffmpeg_utils, la sélection WSL2-vs-Windows redevient unique) ; describer basculé sur
+`begin_processing` (son inline promu brique) ; (2) les 7 généralistes : wrappers batch locaux ×7,
+0 manipulation directe, anti-race inline reader/converter seulement + features à remonter (profils
+converter, TTS synthesizer, A/B enhancer, presets anonymizer, seeds/galerie imager) ; (3) route
+manifeste→app ~70-80 % déclarative, chantiers ordonnés (ports → contrat URLs → enum statuts →
+check_app_conformity exécutable → introspection Django→schéma → scaffold EN DERNIER).

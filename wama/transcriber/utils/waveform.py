@@ -21,26 +21,10 @@ DECODE_SR = 8000               # Hz, mono — l'enveloppe n'a pas besoin de la p
 
 
 def _get_ffmpeg_path():
-    """Résout le binaire ffmpeg (mirroir de _get_ffprobe_path de views.py)."""
-    ff = shutil.which("ffmpeg")
-    if ff:
-        return ff
-    candidates = [
-        r"C:\ffmpeg\bin\ffmpeg.exe",
-        r"C:\Program Files\ffmpeg\bin\ffmpeg.exe",
-        "/usr/bin/ffmpeg",
-        "/usr/local/bin/ffmpeg",
-        "/opt/homebrew/bin/ffmpeg",
-    ]
-    if platform.system().lower().startswith('linux'):
-        candidates += [
-            "/mnt/c/ffmpeg/bin/ffmpeg.exe",
-            "/mnt/c/Program Files/ffmpeg/bin/ffmpeg.exe",
-        ]
-    for c in candidates:
-        if os.path.exists(c):
-            return c
-    return None
+    """DÉLÈGUE à la brique ffmpeg_utils (audit 2026-07-06 : la copie locale n'avait ni test
+    fonctionnel WSL2, ni fallback imageio, ni escape hatch FFMPEG_BINARY)."""
+    from wama.common.utils.ffmpeg_utils import get_ffmpeg_exe
+    return get_ffmpeg_exe()
 
 
 def peaks_path(transcript):

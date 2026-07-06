@@ -125,18 +125,7 @@ def _run_ffmpeg_audio(cmd: list, input_path: str,
 
 
 def _probe_audio_duration(input_path: str) -> Optional[float]:
-    """Get audio duration in seconds via ffprobe."""
-    import shutil, json
-    ffprobe = shutil.which('ffprobe')
-    if not ffprobe:
-        return None
-    try:
-        result = subprocess.run(
-            [ffprobe, '-v', 'quiet', '-print_format', 'json',
-             '-show_format', input_path],
-            capture_output=True, text=True, timeout=15,
-        )
-        data = json.loads(result.stdout)
-        return float(data.get('format', {}).get('duration', 0)) or None
-    except Exception:
-        return None
+    """Durée audio (s) — brique commune media_probe (audit 2026-07-06 : la copie locale
+    passait par shutil.which seul, sans la sélection WSL2-vs-Windows de ffmpeg_utils)."""
+    from wama.common.utils.media_probe import probe_audio
+    return probe_audio(input_path).get('duration') or None

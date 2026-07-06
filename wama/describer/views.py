@@ -529,41 +529,29 @@ def stop(request, pk):
     return JsonResponse({'id': description.id, 'status': new_status})
 
 
+def _reset_for_relaunch(description):
+    """Remise à zéro avant (re)lancement — appliquée SOUS le verrou anti-race."""
+    description.progress = 0
+    description.error_message = ''
+    description.result_text = ''
+    description.summary = ''
+    description.coherence_score = None
+    description.coherence_notes = ''
+    description.coherence_suggestion = ''
+
+
 def start(request, pk):
-    """Start processing a description."""
-    from django.db import transaction
+    """Start processing a description — anti-race via la brique commune (2026-07-06 :
+    l'implémentation inline d'origine a été PROMUE en process_control.begin_processing)."""
     from .workers import describe_content
+    from wama.common.utils.process_control import begin_processing
 
     user = get_user(request)
-
-    # Atomic check-and-set: prevents race condition when user clicks Start multiple times
-    with transaction.atomic():
-        try:
-            description = Description.objects.select_for_update().get(pk=pk, user=user)
-        except Description.DoesNotExist:
-            return JsonResponse({'error': 'Not found'}, status=404)
-
-        if description.status == 'RUNNING':
-            return JsonResponse({'error': 'Already running'}, status=400)
-
-        # Revoke any previous queued task so it won't start after this new one
-        if description.task_id:
-            try:
-                from celery import current_app
-                current_app.control.revoke(description.task_id, terminate=False)
-            except Exception:
-                pass
-
-        description.status = 'RUNNING'
-        description.progress = 0
-        description.error_message = ''
-        description.result_text = ''
-        description.summary = ''
-        description.coherence_score = None
-        description.coherence_notes = ''
-        description.coherence_suggestion = ''
-        description.task_id = ''
-        description.save()
+    description, err = begin_processing(Description, pk, user=user, reset=_reset_for_relaunch)
+    if err == 'not_found':
+        return JsonResponse({'error': 'Not found'}, status=404)
+    if err == 'already_running':
+        return JsonResponse({'error': 'Already running'}, status=400)
 
     task = describe_content.delay(description.id)
     description.task_id = task.id
