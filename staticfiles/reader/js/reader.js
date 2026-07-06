@@ -610,6 +610,54 @@
 
     // Inspecteur contextuel commun : clic card/batch → bandeau « Réglages de l'élément #N » + valeurs
     // de l'élément dans le volet + sauvegarde routée. Câblage générique dérivé du schéma WamaParams.
+    // Actions de l'ÉLÉMENT sélectionné dans l'inspecteur (miroir des actions de la card).
+    // Boutons frais reliés aux fonctions existantes (pas de clone → pas de souci de délégation).
+    function _renderItemActions(host, card) {
+        const id = parseInt(card.dataset.id, 10);
+        const set = card.querySelector('[data-action="settings"]');
+        const running = card.dataset.status === 'RUNNING';
+        const hasResult = !!card.querySelector('.reader-preview');
+        const dl = fmt => urlFor('download', id) + '?format=' + fmt;
+        host.innerHTML =
+            '<div class="small text-white-50 mb-1"><i class="fas fa-crosshairs text-info"></i> Actions — élément #' + id + '</div>' +
+            '<div class="d-flex flex-wrap gap-1">' +
+              '<button class="btn btn-sm btn-outline-secondary" data-a="settings" title="Paramètres"><i class="fas fa-cog"></i></button>' +
+              '<button class="btn btn-sm btn-outline-success" data-a="cycle" title="' + (running ? 'Arrêter' : 'Lancer / relancer') + '"><i class="fas ' + (running ? 'fa-stop' : 'fa-play') + '"></i></button>' +
+              (hasResult ? ('<div class="dropdown d-inline-block"><button class="btn btn-sm btn-outline-info dropdown-toggle" data-bs-toggle="dropdown" title="Télécharger"><i class="fas fa-download"></i></button>' +
+                '<ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end">' +
+                '<li><a class="dropdown-item" href="' + dl('txt') + '">TXT</a></li>' +
+                '<li><a class="dropdown-item" href="' + dl('md') + '">Markdown</a></li>' +
+                '<li><a class="dropdown-item" href="' + dl('pdf') + '">PDF</a></li>' +
+                '<li><a class="dropdown-item" href="' + dl('docx') + '">DOCX</a></li>' +
+                '</ul></div>') : '') +
+              '<button class="btn btn-sm btn-outline-warning" data-a="dup" title="Dupliquer"><i class="fas fa-copy"></i></button>' +
+              '<button class="btn btn-sm btn-outline-danger" data-a="del" title="Supprimer"><i class="fas fa-trash"></i></button>' +
+            '</div><hr class="border-secondary my-2">';
+        const on = (a, fn) => { const b = host.querySelector('[data-a="' + a + '"]'); if (b) b.addEventListener('click', fn); };
+        on('settings', () => { if (set) openItemSettings(set); });
+        on('cycle', () => (running ? stopItem(id) : startItem(id)));
+        on('dup', () => duplicateItem(id));
+        on('del', () => deleteItem(id));
+    }
+
+    // Actions du BATCH sélectionné dans l'inspecteur (miroir de la card mère commune).
+    function _renderBatchActions(host, batchId) {
+        host.innerHTML =
+            '<div class="small text-white-50 mb-1"><i class="fas fa-layer-group text-info"></i> Actions — batch #' + batchId + '</div>' +
+            '<div class="d-flex flex-wrap gap-1">' +
+              '<button class="btn btn-sm btn-outline-secondary" data-a="settings" title="Paramètres du batch"><i class="fas fa-cog"></i></button>' +
+              '<button class="btn btn-sm btn-outline-success" data-a="start" title="Lancer le batch"><i class="fas fa-play"></i></button>' +
+              '<a class="btn btn-sm btn-outline-info" href="' + urlForBatch('batchDownload', batchId) + '" title="Télécharger tout (ZIP)"><i class="fas fa-download"></i></a>' +
+              '<button class="btn btn-sm btn-outline-warning" data-a="dup" title="Dupliquer le batch"><i class="fas fa-copy"></i></button>' +
+              '<button class="btn btn-sm btn-outline-danger" data-a="del" title="Supprimer le batch"><i class="fas fa-trash"></i></button>' +
+            '</div><hr class="border-secondary my-2">';
+        const on = (a, fn) => { const b = host.querySelector('[data-a="' + a + '"]'); if (b) b.addEventListener('click', fn); };
+        on('settings', () => openBatchSettingsModal({ dataset: { batchId: String(batchId) } }));
+        on('start', () => startBatch(batchId));
+        on('dup', () => duplicateBatch(batchId));
+        on('del', () => deleteBatch(batchId));
+    }
+
     function initInspector() {
         const q  = document.getElementById('queueContainer');
         const ph = document.getElementById('readerPanelParams');
@@ -637,6 +685,8 @@
                 });
                 if (r && r.ok) window.location.reload();
             },
+            renderItemActions: _renderItemActions,
+            renderBatchActions: _renderBatchActions,
         });
     }
 
