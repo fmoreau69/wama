@@ -152,8 +152,14 @@ class IndexView(View):
         batches_list = build_batches_list(user, batch_model=BatchReadingItem,
                                           work_attr='reading', order_by='-id', extra=_extra)
 
-        # Multi-item batches first, then single-item batches
-        batches_list.sort(key=lambda b: 0 if b['obj'].total > 1 else 1)
+        # Tri + filtrage de la file — brique COMMUNE (toolbar _queue_toolbar).
+        from wama.common.utils.queue_view import apply_queue_sort_filter
+
+        def _name(b):
+            r = b['items'][0].reading if b['obj'].total == 1 and b['items'] and b['items'][0].reading else None
+            return (r.filename or '').lower() if r else ''
+
+        batches_list, q_sort, q_filter = apply_queue_sort_filter(request, batches_list, name_of=_name)
 
         queue_count = sum(len(b['items']) for b in batches_list)
 
@@ -161,6 +167,8 @@ class IndexView(View):
         return render(request, 'reader/index.html', {
             'batches_list': batches_list,
             'queue_count': queue_count,
+            'q_sort': q_sort,
+            'q_filter': q_filter,
             'backend_choices': ReadingItem.Backend.choices,
             'mode_choices': ReadingItem.Mode.choices,
             'format_choices': ReadingItem.OutputFormat.choices,

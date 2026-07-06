@@ -57,18 +57,8 @@
 
 {# ── Right panel : actions ───────────────────────────────────────────────── #}
 {% block app_right_panel_actions %}
-<div class="d-grid gap-2">
-    <button id="reader-process-btn" class="btn btn-success btn-sm">
-        <i class="fas fa-play"></i> Démarrer
-    </button>
-    <button id="reader-download-all-btn" class="btn btn-info btn-sm" disabled>
-        <i class="fas fa-download"></i> Télécharger tout
-    </button>
-    <button id="reader-clear-btn" class="btn btn-outline-danger btn-sm">
-        <i class="fas fa-trash"></i> Tout effacer
-    </button>
-</div>
-<hr class="border-secondary my-2">
+{# Actions GLOBALES (Démarrer/Télécharger/Tout effacer) déplacées dans la barre d'outils commune
+   de la file (_queue_toolbar.html) — cohérence T/D/C, 2026-07-07. Reste : actions de sélection. #}
 {% include 'common/_inspector_actions.html' %}{# actions de l'élément/batch sélectionné (WamaInspector) #}
 {% endblock %}
 
@@ -191,8 +181,11 @@ window._batchImport = WamaBatchImport({
     {# Barre globale + ETA agrégée — brique commune (balayage bleu/vert permanent, toujours visible). #}
     {% include 'common/_global_progress.html' %}
 
+    {# Barre d'outils commune : tri + filtre + disposition + actions globales (IDs = handlers reader.js) #}
+    {% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='reader-process-btn' clear_id='reader-clear-btn' download_id='reader-download-all-btn' show_download=True %}
+
     <!-- Queue -->
-    <div id="queueContainer">
+    <div id="queueContainer" class="wama-queue-{{ card_layout|default:'list' }}">
         {% for batch_info in batches_list %}
 
         {% if batch_info.obj.total == 1 %}
