@@ -16,9 +16,9 @@
 | Axe | Brique de référence | État | Reste |
 |-----|---------------------|------|-------|
 | **A. Coque applicative** | `common/templates/common/app_modern_base.html` | ✅ 10/10 apps l'étendent | piloter specs par capacités d'app |
-| **B. File + batch** | briques `_card_*/_new_item_card/_queue_actions`, batch universel, `batch-import.js`, `queue_duplication` ; **formalisme de card = [`CARD_DESIGN.md`](CARD_DESIGN.md)** (réf = converter `_job_card.html`) | ⚠️ fonctionnel partout mais **briques communes = transcriber seul** ; formalisme card figé (converter=réf) | **plus gros reste** : refondre les files sur les briques + card commune server-rendered |
-| **C. Inspecteur volet droit** | `wama-inspector.js` (sélection item/batch/global) + form éditable (§10/§22) + `wama-inspector-autofill.js` | ⚠️ transcriber + catalogues (model_manager,/apps) | brancher l'inspecteur **éditable** par app |
-| **D. Plomberie JS** | `wama-app-base.js` (`WamaApp`: Poller, csrfFetch, escapeHtml…) | ❌ transcriber seul | substrat à diffuser |
+| **B. File + batch** | briques `_card_*/_new_item_card/_queue_actions`, batch universel, `batch-import.js`, `queue_duplication` ; **formalisme de card = [`CARD_DESIGN.md`](CARD_DESIGN.md)** (réf = converter `_job_card.html`) | 🔄 fonctionnel partout ; briques communes = **transcriber + composer + describer** (MAJ 2026-07-06) | **plus gros reste** : refondre les files sur les briques + card commune server-rendered |
+| **C. Inspecteur volet droit** | `wama-inspector.js` (sélection item/batch/global) + form éditable (§10/§22) + `wama-inspector-autofill.js` | 🔄 transcriber + composer + describer + catalogues (model_manager,/apps) | brancher l'inspecteur **éditable** par app |
+| **D. Plomberie JS** | `wama-app-base.js` (`WamaApp`: Poller, csrfFetch, escapeHtml…) | 🔄 transcriber + composer + reader chargent `wama-app-base.js` (describer À BRANCHER — MAJ 2026-07-06) | substrat à diffuser |
 | **E. Progression + ETA** | `_global_progress.html` + `wama-eta.js` | ✅ 10/10 apps | RAS |
 | **F. Chargement/déchargement modèles** | `common/backends/base.py::BaseModelBackend` + `manager.py::BackendManager` + `select_model` + deps | ✅ **fondation complète** (contrat + manager commun + hook install + 5 apps) | rollout : adoption par app + tests génériques |
 | **G. Pipeline de prompts** | `common/utils/app_metadata.py::PROMPT_TARGETS` | 🔄 partiel | étendre |
@@ -48,8 +48,11 @@ Légende : ✅ large · 🔄 en cours · ⚠️ extrait mais peu adopté · ❌ 
   GlmOcr, describer. À wrapper pendant leur passe UI : anonymizer (⚠️ intouché — Cam Analyzer réutilise
   ses modèles), synthesizer. **Reste F = rollout** (adoption manager par app + tests `model_loaded`
   génériques), pas fondation. Détail : `BACKEND_CARTOGRAPHY.md`.
-- **Prochaine bascule UI** : prendre **enhancer** (déjà conforme côté F) comme 2ᵉ référence full-stack
-  pour prouver **B+C+D** hors transcriber.
+- **Bascule UI (MAJ 2026-07-06)** : B+C+D prouvés hors transcriber sur **Composer + Describer**
+  (recette + restes chiffrés : `PROJECT_STATUS.md §20bis`) ; enhancer partiellement porté (modales
+  WamaParams + onglets WamaModes, 2026-07-01). **Prochaine app : Reader** (jumeau de describer,
+  charge déjà wama-app-base.js), puis Converter → Enhancer/Anonymizer → Synthesizer → Imager →
+  Avatarizer.
 
 ## Principe unificateur
 Tout converge vers **I (capacités d'app)** : une fois les capacités déclarées, l'UI (A/B/C), les tests

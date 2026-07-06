@@ -95,20 +95,15 @@ document.addEventListener('DOMContentLoaded', function () {
       if (window.WamaFM) WamaFM.uploaded();  // fichier de travail ajouté → refresh filemanager
       return data.id;
     } catch (error) {
-      alert(`Erreur pour ${file.name}: ${error.message}`);
+      showToast(`Erreur pour ${file.name}: ${error.message}`, 'danger');
       return null;
     }
   }
 
-  // ── Toast utility (simple bootstrap toast or fallback) ───────────────
+  // ── Toast : brique commune (wama-app-base.js) — plus d'alert() bloquant ──
   function showToast(message, type) {
-    // Try to use a Bootstrap toast if available, else alert for errors
-    if (type === 'danger' || type === 'error') {
-      alert(message);
-    } else {
-      // For non-error messages, use console + optional visual cue
-      console.info('[Transcriber]', message);
-    }
+    if (window.WamaApp && WamaApp.toast) WamaApp.toast(message, type);
+    else console.info('[Transcriber]', message);
   }
 
   function updateQueueCount() {
@@ -226,7 +221,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     youtubeBtn.addEventListener('click', async () => {
       const url = youtubeUrl.value.trim();
-      if (!url) { alert('Veuillez entrer une URL YouTube'); return; }
+      if (!url) { showToast('Veuillez entrer une URL YouTube', 'warning'); return; }
 
       youtubeBtn.disabled = true;
       youtubeBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Téléchargement...';
@@ -243,7 +238,7 @@ document.addEventListener('DOMContentLoaded', function () {
         // L'élément arrive en zone de staging (DRAFT) → recharge (rendu serveur).
         location.reload();
       } catch (error) {
-        alert(`Erreur YouTube: ${error.message}`);
+        showToast(`Erreur YouTube: ${error.message}`, 'danger');
       } finally {
         youtubeBtn.disabled = false;
         youtubeBtn.innerHTML = '<i class="fas fa-download"></i> Télécharger & Transcrire';
@@ -436,7 +431,7 @@ document.addEventListener('DOMContentLoaded', function () {
       .then(r => r.json())
       .then(data => {
         if (data.error) {
-          alert(data.error);
+          showToast(data.error, 'danger');
           return;
         }
         // Update card to RUNNING state
@@ -456,7 +451,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }
         startPolling(id);
       })
-      .catch(err => alert(err.message || 'Erreur'));
+      .catch(err => showToast(err.message || 'Erreur', 'danger'));
   }
 
   function handleDelete(id) {
@@ -482,7 +477,7 @@ document.addEventListener('DOMContentLoaded', function () {
         updateDownloadAllState();
         if (window.WamaFM) WamaFM.deleted();  // fichier supprimé → refresh filemanager
       })
-      .catch(err => alert(err.message || 'Erreur lors de la suppression'));
+      .catch(err => showToast(err.message || 'Erreur lors de la suppression', 'danger'));
   }
 
   function handleDuplicate(id) {
@@ -500,7 +495,7 @@ document.addEventListener('DOMContentLoaded', function () {
         try { sessionStorage.setItem('wama_focus_card', '.synthesis-card[data-id="' + data.duplicated + '"]'); } catch (e) {}
         location.reload();
       })
-      .catch(err => alert(err.message || 'Erreur lors de la duplication'));
+      .catch(err => showToast(err.message || 'Erreur lors de la duplication', 'danger'));
   }
 
   // ======================================================================
@@ -666,7 +661,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         if (andStart) handleStart(id);
       })
-      .catch(err => alert(err.message || 'Erreur lors de la sauvegarde'));
+      .catch(err => showToast(err.message || 'Erreur lors de la sauvegarde', 'danger'));
   }
 
   // ======================================================================
@@ -1010,12 +1005,12 @@ document.addEventListener('DOMContentLoaded', function () {
       .then(r => r.json())
       .then(data => {
         const started = data.started_ids || [];
-        if (!started.length) { alert('Aucune transcription à démarrer.'); return; }
+        if (!started.length) { showToast('Aucune transcription à démarrer.', 'info'); return; }
         started.forEach(id => startPolling(id));
         // Reload to get fresh card states
         window.location.reload();
       })
-      .catch(err => alert(err.message || 'Erreur'))
+      .catch(err => showToast(err.message || 'Erreur', 'danger'))
       .finally(() => { startProcessBtn.disabled = false; });
   }
 
@@ -1039,7 +1034,7 @@ document.addEventListener('DOMContentLoaded', function () {
         updateDownloadAllState();
         if (window.WamaFM) WamaFM.deleted();  // fichiers supprimés → refresh filemanager
       })
-      .catch(err => alert(err.message || 'Erreur'))
+      .catch(err => showToast(err.message || 'Erreur', 'danger'))
       .finally(() => { clearAllBtn.disabled = false; });
   }
 

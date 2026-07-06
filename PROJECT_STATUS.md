@@ -287,7 +287,7 @@ neuve** (contexte chargé = erreurs). Recoupe et précise §19.
 
 ---
 
-## 20. Portage schéma-driven — KICKOFF prochaine session (état au 2026-07-05, session close)
+## 20bis. Portage schéma-driven — KICKOFF (état 2026-07-05, MAJ empirique 2026-07-06)
 
 **3 apps AU MÊME NIVEAU : Transcriber · Composer · Describer** — elles partagent : tri/filtre +
 toolbar commune (`queue_view.py` + `_queue_toolbar`), badge d'onglet, mosaïque/solitaire
@@ -318,3 +318,68 @@ contextes, contrat de sortie sur brouillons, échec → card re-rendue) ; Descri
 depuis la card d'entrée, solitaire batch, **boutons actifs après re-rendu** = re-bind) ; menu +
 accueil + /apps/ groupés + couleurs + liseré. Migration `describer 0008` appliquée (la page
 était cassée avant — colonne manquante).
+
+---
+
+### AUDIT EMPIRIQUE 2026-07-06 (3 agents + contre-vérifications) — restes pour 100 %
+
+| App | Score | Restes bloquants |
+|---|---|---|
+| **Transcriber** | ~90 % | ① start/start_all/batch_start SANS anti-race `select_for_update` (pattern CLAUDE.md — vérifié : 0 occurrence ; **describer seul l'a**, views.py:519) ; ② `stop()` sans `@require_POST` ; ③ bouton cycle inline `_transcript_card.html:87-91` au lieu de `_cycle_button.html` ; ④ card mère batch hand-made (A2-6) ; ⑤ sync card↔inspecteur manuelle 9 data-* + `_renderBatchActions` en chaînes JS (A3-12/13, vérifié index.js:1139) ; ⑥ `showToast`=alert (A6-26, vérifié index.js:104) ; ⑦ dropdown formats dupliqué partial+JS (A2-7 résiduel) ; ⑧ extractions de vue A5 : `_describe_audio`→media_probe, `_wrap_transcript_in_batch`/`_auto_wrap_orphans`→batch_common, agrégats→`build_batches_list`, prefs cache artisanales, SRT ×3, `clear_all` `.delete()` direct sans `safe_delete_file` ; ⑨ styles modales info/résultat (A4-15/16) |
+| **Describer** | ~90 % | ① classe `.synthesis-card` (11× JS + 3× HTML) au lieu du contrat `.wama-card` ; ② **`wama-app-base.js` NON chargé** (seul des 3 — polling/CSRF locaux) ; ③ manipulation directe partielle : `consolidate` seul (pas de reorder/move_to_batch/remove_from_batch) ; ④ réglages user non persistés. Le reste est au niveau (card_html+refreshCard avec re-bind, anti-race, ETA seedée, exports late TXT/PDF/DOCX, toolbar) |
+| **Composer** | ~75 % | ① manipulation directe ABSENTE (0/4 endpoints, brique `consolidate_into_batch` non consommée) ; ② anti-race absent ; ③ descriptions modèles hardcodées `COMPOSER_MODELS` (model_config.py:34-101) au lieu du catalogue `AIModel` (points 9/10 checklist) ; ④ card mère batch = bandeau violet minimal sans ▶/compteurs/barre agrégée (B3-8) ; ⑤ styles inline `_generation_card.html` (B2-7) ; ⑥ 2 impls modale-batch à fusionner (A6-28) ; ⑦ réglages user via localStorage seul |
+
+**Transverses (débloquent les 3 à la fois — à créer PENDANT le port de Reader)** :
+`_batch_card.html` commune (toujours absente — vérifié) · wrappers `_wrap_*_in_batch`/
+`_auto_wrap_orphans` → `batch_common.py` (existe déjà : `consolidate_into_batch`,
+`group_into_batches_by_nature`) · `build_batches_list()` · `WamaApp.toast` (rien dans
+wama-app-base.js — vérifié) · maps badge/couleur · `restart_instance()` anti-race ·
+helper modale-batch · partial `_download_formats_dropdown.html`.
+
+**Corrections de doc actées 2026-07-06** : le point 16 de la checklist (`tool_api.py`) se vérifie
+dans le REGISTRE CENTRAL `wama/tool_api.py` (TOOL_REGISTRY — transcriber/composer/describer y sont
+tous trois), PAS par fichier d'app ; backups `{% comment %}` transcriber purgés (A4-14 clos) ;
+`wama-app-base.js` adopté par composer et reader (B4-10 partiellement résorbé — URLs en dur à
+re-vérifier au prochain passage).
+
+**PROCHAINE APP : READER** (décision 2026-07-06, confirme l'ordre du 07-05 ; remplace le
+« prochaine bascule = enhancer » périmé de GENERALIZATION_PLAN) — jumeau de describer, charge déjà
+`wama-app-base.js`, recette éprouvée 3× → port le moins cher ; créer les briques transverses
+ci-dessus pendant ce port (4 consommateurs immédiats).
+
+---
+
+### PORT À 100 % EFFECTUÉ — session 2026-07-06 soir (Fabien : « terminer les 3 apps, puis Reader »)
+
+**Briques CRÉÉES (common/)** : `utils/media_probe.py` (sonde ffprobe + format_duration) ·
+`utils/user_settings.py` (réglages user par app, clés `user_{id}_{app}_{clé}`, TTL 30 j) ·
+`utils/queue_manipulation.py` (FABRIQUE des 4 vues manipulation directe) ·
+`templates/common/_batch_card.html` (card MÈRE de batch, slots meta/download_menu/download_url/
+eta_ids/show_start, boutons canoniques `.batch-*-btn`) · dans `batch_common.py` :
+`wrap_in_batch`/`auto_wrap_orphans`/`build_batches_list` · dans `process_control.py` :
+`begin_processing` (anti-race CLAUDE.md) · dans `wama-app-base.js` : `WamaApp.toast` +
+`STATUS_BADGE/LABEL` (monté GLOBAL dans base.html) · `_cycle_button.html` : overrides
+`restart_title`/`restart_icon` + `data-cycle-restart-*` lus par wama-cycle-button.js.
+
+**Consommation** — Transcriber : anti-race ×3 + reset unifié, stop POST, cycle→brique (spécificité
+temps réel déclarée sur la card), toast (11 alert() purgés), clear_all sûr, media_probe,
+user_settings (2 routes mortes supprimées, défaut préprocessing unifié OFF), batch_template brique,
+manipulation directe DÉLÉGUÉE à la fabrique, card mère → brique (+ slots `_batch_meta.html`,
+`_batch_download_menu.html`). Describer : `.wama-card` (JS ×11), manipulation directe 3 vues
+câblées (consolidate par nature conservé), réglages persistés (`_read_creation_options`, 4 lectures
+POST unifiées), card mère → brique (**gagne ▶ batch** + handler JS), agrégats → brique, toast.
+Composer : anti-race ×4, wrappers+agrégats → brique, manipulation directe 4/4 câblée (routes),
+card mère → brique (**gagne ▶ batch + compteurs + barre agrégée** ; id collapse aligné
+`batchItems<id>`), styles inline → index.css, toast → brique, `batchStartUrlTemplate` posé.
+Vérifié AU PASSAGE : descriptions modèles composer = déjà catalogue (wama-model-help →
+`/model-manager/api/models/db/`) — le ⚠ points 9/10 de l'audit matin était trop sévère ;
+`COMPOSER_MODELS` résiduel = facteurs slider (légitime §D, cible eta_estimator).
+
+**Validations faites** : `manage.py check` OK (WSL venv) · imports views/urls ×3 OK ·
+10 templates compilés OK · équilibre délimiteurs JS ×5 OK · staticfiles copiés (6 fichiers).
+**⚠ RESTE À VALIDER NAVIGATEUR** (je ne peux pas) : cards mères ×3 (rendu + dépliage + ▶/ZIP/⧉/🗑),
+bouton cycle transcriber (états ▶/⏹/↻ + temps réel ↻ fa-rotate), toasts, manipulation directe.
+**Restes consignés (non bloquants checklist)** : A3-12/13 (chaînes JS inspecteur → TÂCHE 1),
+A4-15/16 (styles modales transcriber), A5-24 (SRT ×3), A6-28 (fusion modale-batch JS),
+A1-4 (afterCreate batch-import), B4-10 résiduel (URLs composer), B4-13 (ETA client→serveur),
+B5-20 (export médiathèque). Restart process WSL2 requis pour le Python.

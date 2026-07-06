@@ -8,7 +8,8 @@ La copie batch historique avait dérivé (pas de data-status, ni badge temps ré
 ni badges brouillon/corrigé) — l'unification lui redonne tout.
 {% endcomment %}
             <div class="synthesis-card wama-card {% if t.status == 'RUNNING' %}processing{% elif t.status == 'SUCCESS' %}success{% elif t.status == 'FAILURE' %}error{% endif %}"
-                 data-id="{{ t.id }}" data-status="{{ t.status }}">
+                 data-id="{{ t.id }}" data-status="{{ t.status }}"
+                 {% if t.is_realtime %}data-cycle-restart-title="Re-transcrire via le pipeline complet (diarisation, résumé…)" data-cycle-restart-icon="fa-rotate"{% endif %}>
                 <div class="row align-items-center">
                     <!-- File Info -->
                     <div class="col-md-3">
@@ -84,11 +85,12 @@ ni badges brouillon/corrigé) — l'unification lui redonne tout.
                                     title="Paramètres">
                                 <i class="fas fa-cog"></i>
                             </button>
-                            <button class="btn btn-sm btn-outline-success start-btn"
-                                    data-id="{{ t.id }}"
-                                    title="{% if t.is_realtime %}Re-transcrire via le pipeline complet (diarisation, résumé…){% elif t.status == 'SUCCESS' or t.status == 'FAILURE' %}Relancer{% else %}Démarrer{% endif %}">
-                                <i class="fas {% if t.is_realtime %}fa-rotate{% elif t.status == 'SUCCESS' or t.status == 'FAILURE' %}fa-rotate-right{% else %}fa-play{% endif %}"></i>
-                            </button>
+                            {% endif %}
+                            {# Bouton de cycle ▶/⏹/↻ — brique commune (toujours visible, ⏹ pendant RUNNING) #}
+                            {% if t.is_realtime %}
+                            {% include 'common/_cycle_button.html' with id=t.id status=t.status restart_title='Re-transcrire via le pipeline complet (diarisation, résumé…)' restart_icon='fa-rotate' %}
+                            {% else %}
+                            {% include 'common/_cycle_button.html' with id=t.id status=t.status %}
                             {% endif %}
 
                             {% if t.status == 'SUCCESS' %}

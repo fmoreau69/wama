@@ -17,7 +17,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // sont des déclarations de fonction (hoistées) → référençables ici.
     if (window.WamaCycleButton && queueContainer) {
         WamaCycleButton.wire(queueContainer, { start: (id) => startDescription(id), stop: (id) => stopDescription(id) });
-        WamaCycleButton.autoSync({ container: queueContainer, cardSelector: '.synthesis-card' });
+        WamaCycleButton.autoSync({ container: queueContainer, cardSelector: '.wama-card' });
     }
 
     // Global options
@@ -279,10 +279,10 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Bind events for existing cards
-    document.querySelectorAll('.synthesis-card').forEach(bindCardEvents);
+    document.querySelectorAll('.wama-card').forEach(bindCardEvents);
 
     // Resume polling for cards already in RUNNING state (e.g. after page reload)
-    document.querySelectorAll('.synthesis-card.processing').forEach(card => {
+    document.querySelectorAll('.wama-card.processing').forEach(card => {
         startPolling(card.dataset.id);
     });
 
@@ -430,7 +430,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
 
                 // Update card display
-                const card = document.querySelector(`.synthesis-card[data-id="${descriptionId}"]`);
+                const card = document.querySelector(`.wama-card[data-id="${descriptionId}"]`);
                 if (card) {
                     updateCardSettings(card, outputStyle, outputLanguage, maxLength, generateSummary, verifyCoherence);
                 }
@@ -489,7 +489,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // ⏹ Stop : arrête le traitement (endpoint commun) → item relançable (↻ via autoSync sur data-status).
     async function stopDescription(id) {
-        const card = document.querySelector(`.synthesis-card[data-id="${id}"]`);
+        const card = document.querySelector(`.wama-card[data-id="${id}"]`);
         try {
             const response = await fetch(config.urls.stop.replace('/0/', `/${id}/`), {
                 method: 'POST',
@@ -501,7 +501,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     async function startDescription(id) {
-        const card = document.querySelector(`.synthesis-card[data-id="${id}"]`);
+        const card = document.querySelector(`.wama-card[data-id="${id}"]`);
         if (!card) return;
 
         // Relance PENDANT le traitement (modale « Enregistrer & démarrer ») : stopper d'abord pour
@@ -554,7 +554,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
 
                 const data = await response.json();
-                const card = document.querySelector(`.synthesis-card[data-id="${id}"]`);
+                const card = document.querySelector(`.wama-card[data-id="${id}"]`);
 
                 if (!card) {
                     stopPolling(id);
@@ -665,13 +665,13 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(html => {
                 const queue = document.getElementById('descriptionQueue');
                 if (!queue) return;
-                const existing = queue.querySelector(`.synthesis-card[data-id="${id}"]`);
+                const existing = queue.querySelector(`.wama-card[data-id="${id}"]`);
                 if (existing) existing.outerHTML = html;
                 else {
                     queue.querySelector('.empty-queue')?.remove();
                     queue.insertAdjacentHTML('afterbegin', html);
                 }
-                const fresh = queue.querySelector(`.synthesis-card[data-id="${id}"]`);
+                const fresh = queue.querySelector(`.wama-card[data-id="${id}"]`);
                 if (fresh) bindCardEvents(fresh);
             })
             .catch(() => {});
@@ -694,7 +694,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 stopPolling(id);
                 // Élément issu d'un batch : total/affichage du batch changent → recharger
                 if (data.batch_changed) { if (window.WamaFM) WamaFM.deleted(); location.reload(); return; }
-                const card = document.querySelector(`.synthesis-card[data-id="${id}"]`);
+                const card = document.querySelector(`.wama-card[data-id="${id}"]`);
                 if (card) card.remove();
                 updateQueueCount();
                 if (window.WamaFM) WamaFM.deleted();  // fichier supprimé → refresh filemanager
@@ -945,7 +945,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function updateQueueCount() {
-        const cards = document.querySelectorAll('.synthesis-card');
+        const cards = document.querySelectorAll('.wama-card');
         if (queueCount) {
             queueCount.textContent = cards.length;
         }
@@ -954,14 +954,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // === Utilities ===
 
     function showToast(message, type = 'info') {
-        // Use FileManager toast if available
-        if (window.FileManager && window.FileManager.showToast) {
-            window.FileManager.showToast(message, type);
-            return;
-        }
-
-        // Fallback to alert
-        alert(message);
+        // Brique commune (wama-app-base.js) — plus d'alert() bloquant
+        if (window.WamaApp && WamaApp.toast) WamaApp.toast(message, type);
+        else console.info('[Describer]', message);
     }
 
     // Initial global progress update
@@ -989,6 +984,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 updateQueueCount();
             })
             .catch(() => showToast('Erreur lors de la suppression', 'danger'));
+    });
+
+    // ── Batch start (▶ de la card mère commune _batch_card.html, 2026-07-06) ──
+    document.addEventListener('click', function(e) {
+        const btn = e.target.closest('.batch-start-btn');
+        if (!btn) return;
+        const url = config.urls.batchStart.replace('/0/', `/${btn.dataset.batchId}/`);
+        fetch(url, {method: 'POST', headers: {'X-CSRFToken': config.csrfToken}})
+            .then(r => r.json())
+            .then(data => { (data.started || []).forEach(id => { refreshCard(id); startPolling(id); }); })
+            .catch(() => showToast('Erreur lors du lancement du batch', 'danger'));
     });
 
     // ── Batch duplicate ────────────────────────────────────────────────────

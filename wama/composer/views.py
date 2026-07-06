@@ -25,59 +25,66 @@ logger = logging.getLogger(__name__)
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _wrap_generation_in_batch(generation: ComposerGeneration) -> ComposerBatch:
-    """Wrap a standalone ComposerGeneration in a new ComposerBatch-of-1."""
+def _batch_item_extra(generation: ComposerGeneration) -> dict:
+    """Champs supplémentaires du lien batch↔génération (nom de sortie dérivé du prompt)."""
     stem = os.path.splitext(generation.prompt[:30].replace(' ', '_'))[0] or 'generation_aleatoire'
-    output_filename = f"{stem}_{generation.id}.wav"
-    batch = ComposerBatch.objects.create(user=generation.user, total=1)
-    ComposerBatchItem.objects.create(
-        batch=batch,
-        generation=generation,
-        output_filename=output_filename,
-        row_index=0,
-    )
-    return batch
+    return {'output_filename': f"{stem}_{generation.id}.wav"}
+
+
+def _wrap_generation_in_batch(generation: ComposerGeneration) -> ComposerBatch:
+    """Wrap a standalone ComposerGeneration in a new ComposerBatch-of-1 (brique commune)."""
+    from wama.common.utils.batch_common import wrap_in_batch
+    return wrap_in_batch(generation, batch_model=ComposerBatch, item_model=ComposerBatchItem,
+                         fk_name='generation', item_extra=_batch_item_extra)
 
 
 def _auto_wrap_orphans(user):
-    """Lazily wrap any ComposerGeneration not yet in a batch on page load."""
-    existing_ids = set(
-        ComposerBatchItem.objects.filter(batch__user=user)
-        .values_list('generation_id', flat=True)
-    )
-    orphans = ComposerGeneration.objects.filter(user=user).exclude(id__in=existing_ids)
-    for orphan in orphans:
+    """Lazily wrap any ComposerGeneration not yet in a batch on page load (brique commune)."""
+    from wama.common.utils.batch_common import auto_wrap_orphans
+    auto_wrap_orphans(user, work_model=ComposerGeneration, batch_model=ComposerBatch,
+                      item_model=ComposerBatchItem, fk_name='generation',
+                      item_extra=_batch_item_extra)
+
+
+def _reset_for_relaunch(gen):
+    """Remise à zéro avant (re)lancement — appliquée SOUS le verrou anti-race (begin_processing)."""
+    if gen.audio_output:
         try:
-            _wrap_generation_in_batch(orphan)
+            gen.audio_output.delete(save=False)
         except Exception:
             pass
+    gen.progress = 0
+    gen.audio_output = None
+    gen.error_message = None
+    gen.exported_to_library = False
 
 
 def _get_batches_list(user):
-    """Return list of dicts with batch info for the template."""
+    """Agrégats de file pour le template — brique commune (contrat toolbar queue_view.py)."""
+    from wama.common.utils.batch_common import build_batches_list
     _auto_wrap_orphans(user)
+    return build_batches_list(user, batch_model=ComposerBatch, work_attr='generation',
+                              order_by='-created_at',
+                              has_output=lambda g: bool(g.audio_output),
+                              # ETA agrégée de la card mère (brique _batch_card.html)
+                              extra=lambda b, items, gens: {
+                                  'eta_ids': ','.join(str(g.id) for g in gens)})
 
-    batches = ComposerBatch.objects.filter(user=user).prefetch_related(
-        'items__generation'
-    ).order_by('-created_at')
 
-    result = []
-    for batch in batches:
-        items = list(batch.items.select_related('generation').order_by('row_index'))
-        has_success = any(
-            it.generation and it.generation.status == 'SUCCESS' and it.generation.audio_output
-            for it in items
-        )
-        # Compteurs de statut : contrat de la brique commune tri/filtre (queue_view.py).
-        statuses = [it.generation.status for it in items if it.generation]
-        result.append({
-            'obj': batch, 'items': items, 'has_success': has_success,
-            'success_count': statuses.count('SUCCESS'),
-            'running_count': statuses.count('RUNNING'),
-            'failure_count': statuses.count('FAILURE'),
-        })
-    # Le tri (défaut chronologique récent) est appliqué par apply_queue_sort_filter (commun).
-    return result
+# Manipulation directe de la file (CARD_DESIGN §3bis) — vues GÉNÉRÉES par la brique
+# commune queue_manipulation (composer n'en avait AUCUNE, audit 2026-07-06).
+from wama.common.utils.queue_manipulation import make_queue_manipulation_views
+
+_qm = make_queue_manipulation_views(
+    work_model=ComposerGeneration, batch_model=ComposerBatch,
+    item_model=ComposerBatchItem, fk_name='generation',
+    get_user=lambda r: r.user if r.user.is_authenticated else get_or_create_anonymous_user(),
+    item_extra=_batch_item_extra,
+)
+remove_from_batch = _qm['remove_from_batch']
+reorder = _qm['reorder']
+move_to_batch = _qm['move_to_batch']
+consolidate = _qm['consolidate']
 
 
 # ---------------------------------------------------------------------------
@@ -249,10 +256,16 @@ def batch_start(request, pk):
     batch = get_object_or_404(ComposerBatch, id=pk, user=user)
 
     from .tasks import compose_task
+    from wama.common.utils.process_control import begin_processing
     started = []
     for item in batch.items.select_related('generation').order_by('row_index'):
         gen = item.generation
         if not gen or gen.status != 'PENDING':
+            continue
+        # Anti-race par item (brique commune) : un double-clic ne double-lance plus.
+        gen, err = begin_processing(ComposerGeneration, gen.pk, user=user,
+                                    reset=_reset_for_relaunch)
+        if err:
             continue
         celery_task = compose_task.apply_async(args=(gen.id,))
         gen.task_id = celery_task.id
@@ -350,20 +363,13 @@ def import_batch(request):
 def start(request, pk):
     """Relance la génération d'une composition (bouton de cycle ▶/↻) sans changer les réglages."""
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    gen = get_object_or_404(ComposerGeneration, id=pk, user=user)
-    if gen.status == 'RUNNING':
+    # Anti-race (pattern CLAUDE.md) : select_for_update + revoke — brique commune.
+    from wama.common.utils.process_control import begin_processing
+    gen, err = begin_processing(ComposerGeneration, pk, user=user, reset=_reset_for_relaunch)
+    if err == 'not_found':
+        return JsonResponse({'error': 'Not found'}, status=404)
+    if err == 'already_running':
         return JsonResponse({'error': 'Déjà en cours'}, status=400)
-    if gen.task_id:
-        try:
-            from celery import current_app
-            current_app.control.revoke(gen.task_id, terminate=False)
-        except Exception:
-            pass
-    gen.status = 'PENDING'
-    gen.progress = 0
-    gen.audio_output = None
-    gen.error_message = None
-    gen.save(update_fields=['status', 'progress', 'audio_output', 'error_message'])
     from .tasks import compose_task
     task = compose_task.apply_async(args=(gen.id,))
     gen.task_id = task.id
@@ -453,26 +459,19 @@ def update_settings(request, pk):
         gen.save()
         return JsonResponse({'success': True, 'status': gen.status, 'restarted': False})
 
-    # Clear previous output
-    if gen.audio_output:
-        try:
-            gen.audio_output.delete(save=False)
-        except Exception:
-            pass
-    gen.status = 'PENDING'
-    gen.progress = 0
-    gen.audio_output = None
-    gen.error_message = None
-    gen.exported_to_library = False
+    # Sauvegarde des réglages PUIS relance ANTI-RACE (brique commune : verrou + revoke + reset)
     gen.save()
+    from wama.common.utils.process_control import begin_processing
+    gen, err = begin_processing(ComposerGeneration, gen.pk, user=user, reset=_reset_for_relaunch)
+    if err:
+        return JsonResponse({'success': True, 'status': 'RUNNING', 'restarted': False})
 
-    # Re-launch task
     from .tasks import compose_task
     task = compose_task.apply_async(args=(gen.id,))
     gen.task_id = task.id
     gen.save(update_fields=['task_id'])
 
-    return JsonResponse({'success': True, 'status': 'PENDING', 'restarted': True})
+    return JsonResponse({'success': True, 'status': 'RUNNING', 'restarted': True})
 
 
 # ---------------------------------------------------------------------------
@@ -817,12 +816,15 @@ def start_all(request):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     from .tasks import compose_task
 
+    from wama.common.utils.process_control import begin_processing
     gens = ComposerGeneration.objects.filter(user=user, status__in=('PENDING', 'FAILURE'))
     count = 0
     for gen in gens:
-        gen.status = 'PENDING'
-        gen.progress = 0
-        gen.save(update_fields=['status', 'progress'])
+        # Anti-race par item (brique commune) : skip si déjà lancé entre-temps.
+        gen, err = begin_processing(ComposerGeneration, gen.pk, user=user,
+                                    reset=_reset_for_relaunch)
+        if err:
+            continue
         task = compose_task.apply_async(args=(gen.id,))
         gen.task_id = task.id
         gen.save(update_fields=['task_id'])

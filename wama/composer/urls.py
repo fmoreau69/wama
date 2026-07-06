@@ -24,6 +24,11 @@ urlpatterns = [
     path('batch/<int:pk>/delete/', views.batch_delete, name='batch_delete'),
     path('batch/<int:pk>/duplicate/', views.batch_duplicate, name='batch_duplicate'),
     path('batch/<int:pk>/download/', views.batch_download, name='batch_download'),
+    # Manipulation directe (brique commune queue_manipulation, 2026-07-06)
+    path('reorder/', views.reorder, name='reorder'),
+    path('move-to-batch/<int:pk>/', views.move_to_batch, name='move_to_batch'),
+    path('remove-from-batch/<int:pk>/', views.remove_from_batch, name='remove_from_batch'),
+    path('consolidate/', views.consolidate, name='consolidate'),
     path('start_all/', views.start_all, name='start_all'),
     path('clear_all/', views.clear_all, name='clear_all'),
     path('console/', views.console_content, name='console'),

@@ -1,6 +1,13 @@
 /* Composer — Generation card */
 .generation-card {
     transition: border-color 0.3s ease;
+    background: #1e2124;  /* ex-style inline du partial (B2-7) */
+}
+/* Bouton « Exporter vers médiathèque » (violet identité composer — ex-styles inline ×2) */
+.export-btn {
+    color: #a78bfa;
+    border: 1px solid #a78bfa;
+    background: transparent;
 }
 .generation-card.processing {
     animation: pulse-border 2s infinite;

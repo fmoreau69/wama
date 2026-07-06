@@ -98,7 +98,7 @@
 | 13 | Export multi-format (late si master, early sinon) | `output_format_params_for_app` |
 | 14 | Réglages user persistés (get/save) + profils si déclaré | pattern settings |
 | 15 | Console + aide/à-propos | `console.js`, HelpView |
-| 16 | `tool_api.py` (assistant/méta-app) + `PROMPT_TARGETS` si prompts | A4/A5 |
+| 16 | Connexion assistant/méta-app dans le registre CENTRAL `wama/tool_api.py` (TOOL_REGISTRY — pas de fichier par app) + `PROMPT_TARGETS` si prompts | A4/A5 |
 | 17 | Conformité `/apps/` mise à jour (flags = réalité) | app_registry |
 | 18 | Manipulation directe file (quand briquée) | §5 ci-dessus |
 | 19 | Appariement entrées⇄modèles (si entrées différenciantes : référence, etc.) | `WamaInputMatch` + `capabilities.inputs_*` + slot `show_reference` |

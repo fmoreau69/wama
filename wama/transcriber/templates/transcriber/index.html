@@ -97,7 +97,6 @@
 
     // Diarization is now always visible (uses pyannote, backend-agnostic)
 </script>
-<script src="{% static 'common/js/wama-app-base.js' %}"></script>
 <script src="{% static 'common/js/batch-import.js' %}"></script>
 <script src="{% static 'common/js/wama-eta.js' %}"></script>
 <script src="{% static 'common/js/wama-inspector.js' %}"></script>
@@ -209,103 +208,8 @@ window._batchImport = WamaBatchImport({
                 <!-- Card MÈRE : MÊME squelette .synthesis-card que les filles + modificateur .is-batch
                      (couleur). Ne diffère que par les méta agrégées et ses actions batch. Toggle collapse
                      sur la zone info (col-md-9) ; actions HORS toggle → handlers délégués préservés. -->
-                <div class="synthesis-card wama-card is-batch batch-group-header" data-status="batch">
-                    <div class="row align-items-center">
-                        <div class="col-md-9" data-bs-toggle="collapse"
-                             data-bs-target="#batchItems{{ batch_info.obj.id }}" aria-expanded="false"
-                             style="cursor:pointer; user-select:none;">
-                            <div class="row align-items-center">
-                                <!-- Identité (≈ colonne « fichier » des filles) -->
-                                <div class="col-md-4">
-                                    <small class="text-muted d-block" style="font-size:.65rem;">
-                                        <i class="fas fa-calendar-alt" title="Créé le"></i> {{ batch_info.obj.created_at|date:"d/m H:i" }}
-                                    </small>
-                                    <span class="filename text-light">
-                                        <i class="fas fa-layer-group" style="color:#67e8f9;"></i> Batch #{{ batch_info.obj.id }}
-                                    </span><br>
-                                    <small class="text-white-50 d-block">
-                                        <i class="fas fa-list"></i> {{ batch_info.obj.total }} élément{{ batch_info.obj.total|pluralize }}
-                                    </small>
-                                </div>
-                                <!-- Méta COMMUNES aux filles (≈ colonne « options ») -->
-                                <div class="col-md-3">
-                                    <small class="text-white-50 d-block" style="font-size:.72rem;" title="Modèle (commun aux éléments)">
-                                        <i class="fas fa-microchip text-info"></i> {{ batch_info.common_backend|default:"Mixte" }}
-                                    </small>
-                                    {% if batch_info.common_language %}
-                                    <small class="text-white-50 d-block" style="font-size:.72rem;">
-                                        <i class="fas fa-language"></i> {{ batch_info.common_language }}
-                                    </small>
-                                    {% endif %}
-                                    {% if batch_info.common_diarization %}
-                                    <small class="text-white-50 d-block" style="font-size:.72rem;">
-                                        <i class="fas fa-users"></i> Diarisation
-                                    </small>
-                                    {% endif %}
-                                </div>
-                                <!-- État agrégé (≈ colonne « état ») -->
-                                <div class="col-md-2">
-                                    <span class="badge" style="background:rgba(13,202,240,.15); color:#0dcaf0; border:1px solid rgba(13,202,240,.5);">
-                                        <i class="fas fa-layer-group"></i> Batch
-                                    </span>
-                                    <small class="d-block mt-1" style="font-size:.7rem;">
-                                        <span class="text-success" title="Terminés"><i class="fas fa-check"></i> {{ batch_info.success_count }}</span>
-                                        {% if batch_info.running_count %}<span class="text-warning ms-1" title="En cours"><i class="fas fa-spinner"></i> {{ batch_info.running_count }}</span>{% endif %}
-                                        {% if batch_info.failure_count %}<span class="text-danger ms-1" title="Échecs"><i class="fas fa-times"></i> {{ batch_info.failure_count }}</span>{% endif %}
-                                        <span class="text-white-50">/ {{ batch_info.obj.total }}</span>
-                                    </small>
-                                </div>
-                                <!-- Progression agrégée (≈ colonne « progression ») -->
-                                <div class="col-md-3">
-                                    <div class="wama-progress-track">
-                                        <div class="wama-progress-fill" style="width:{{ batch_info.success_pct }}%;"></div>
-                                    </div>
-                                    <span class="wama-eta" data-eta-ids="{% for item in batch_info.items %}{% if item.transcript %}{{ item.transcript.id }},{% endif %}{% endfor %}"></span>
-                                    <i class="fas fa-chevron-down text-muted ms-1" style="font-size:.7rem;"></i>
-                                </div>
-                            </div>
-                        </div>
-                        <!-- Actions batch : HORS du toggle (clics → handlers délégués sur document) -->
-                        <div class="col-md-3">
-                            <div class="btn-group-actions">
-                                <button class="btn btn-sm btn-outline-secondary batch-settings-btn py-0 px-2"
-                                        data-batch-id="{{ batch_info.obj.id }}"
-                                        title="Paramètres du batch (appliqués à tous les éléments)">
-                                    <i class="fas fa-cog"></i>
-                                </button>
-                                {# ▶ Lancer/Relancer (pos. 2, comme les cards individuelles — WAMA_APP_CONVENTIONS §6) #}
-                                <button class="btn btn-sm btn-outline-success batch-start-btn py-0 px-2"
-                                        data-batch-id="{{ batch_info.obj.id }}"
-                                        title="Lancer / relancer tous les éléments du batch">
-                                    <i class="fas {% if batch_info.has_success %}fa-rotate-right{% else %}fa-play{% endif %}"></i>
-                                </button>
-                                {% if batch_info.has_success %}
-                                <div class="dropdown d-inline-block">
-                                    <button class="btn btn-sm btn-outline-info py-0 px-2 dropdown-toggle"
-                                            type="button" data-bs-toggle="dropdown" aria-expanded="false"
-                                            title="Télécharger toutes les sorties (ZIP)">
-                                        <i class="fas fa-download"></i> ZIP
-                                    </button>
-                                    <ul class="dropdown-menu dropdown-menu-end">
-                                        <li><a class="dropdown-item" href="{% url 'transcriber:batch_download' batch_info.obj.id %}?fmt=txt">Tout en TXT</a></li>
-                                        <li><a class="dropdown-item" href="{% url 'transcriber:batch_download' batch_info.obj.id %}?fmt=srt">Tout en SRT</a></li>
-                                        <li><a class="dropdown-item" href="{% url 'transcriber:batch_download' batch_info.obj.id %}?fmt=pdf">Tout en PDF</a></li>
-                                        <li><a class="dropdown-item" href="{% url 'transcriber:batch_download' batch_info.obj.id %}?fmt=docx">Tout en DOCX</a></li>
-                                    </ul>
-                                </div>
-                                {% endif %}
-                                <button class="btn btn-sm btn-outline-warning batch-duplicate-btn py-0 px-2"
-                                        data-batch-id="{{ batch_info.obj.id }}" title="Dupliquer le batch">
-                                    <i class="fas fa-copy"></i>
-                                </button>
-                                <button class="btn btn-sm btn-outline-danger batch-delete-btn py-0 px-2"
-                                        data-batch-id="{{ batch_info.obj.id }}" title="Supprimer le batch">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                {# Card MÈRE : brique COMMUNE _batch_card.html (généralisée depuis transcriber, 2026-07-06) #}
+                {% include 'common/_batch_card.html' with card_class='synthesis-card' meta_template='transcriber/_batch_meta.html' download_menu_template='transcriber/_batch_download_menu.html' eta_ids=batch_info.eta_ids %}
                 <div class="collapse" id="batchItems{{ batch_info.obj.id }}"
                      data-wama-batch-key="transcriber_{{ batch_info.obj.id }}"
                      style="border-left:2px solid #0dcaf0; margin-left:0.75rem;">

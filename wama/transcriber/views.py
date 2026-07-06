@@ -6,7 +6,6 @@ import logging
 import zipfile
 import shutil
 import platform
-import subprocess
 from django.shortcuts import render, get_object_or_404, redirect
 from django.views import View
 from django.views.generic import TemplateView
@@ -28,179 +27,55 @@ from wama.common.utils.queue_duplication import safe_delete_file, duplicate_inst
 logger = logging.getLogger(__name__)
 
 
-def _format_duration(seconds: float) -> str:
-    if not seconds or seconds <= 0:
-        return ''
-    minutes = int(seconds // 60)
-    secs = int(seconds % 60)
-    return f"{minutes}:{secs:02d}"
+# Sonde média + formatage durée : brique commune (extraction A5-18, 2026-07-06).
+from wama.common.utils.media_probe import format_duration as _format_duration
 
 
 def _describe_audio(transcript: Transcript) -> None:
-    # ffprobe : brique commune ffmpeg_utils (chemins candidats + escape hatch FFMPEG_BINARY) —
-    # la liste de chemins locale réimplémentait la brique (audit A5-17, purgée 2026-07-05).
-    from wama.common.utils.ffmpeg_utils import get_ffprobe_exe
-    ffprobe = get_ffprobe_exe()
-    if not ffprobe:
+    """Renseigne durée/propriétés du média sur le Transcript (sonde commune media_probe)."""
+    from wama.common.utils.media_probe import probe_audio
+    info = probe_audio(transcript.audio.path)
+    if not info:
         return
+    transcript.duration_seconds = info['duration']
+    transcript.duration_display = info['duration_display']
+    transcript.properties = info['properties']
+    transcript.save(update_fields=['duration_seconds', 'duration_display', 'properties'])
 
-    try:
-        result = subprocess.run(
-            [
-                ffprobe,
-                "-v", "error",
-                "-select_streams", "a:0",
-                "-show_entries", "stream=duration,codec_name,sample_rate,channels:format=duration",
-                "-of", "json",
-                transcript.audio.path,
-            ],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-        data = json.loads(result.stdout or "{}")
-        stream = (data.get("streams") or [{}])[0]
-        duration = float(stream.get("duration") or 0)
-        if not duration:
-            fmt_duration = (data.get("format") or {}).get("duration")
-            if fmt_duration:
-                duration = float(fmt_duration)
-        sample_rate = stream.get("sample_rate")
-        codec = stream.get("codec_name")
-        channels = int(stream.get("channels") or 0)
 
-        channel_label = ""
-        if channels == 1:
-            channel_label = "mono"
-        elif channels == 2:
-            channel_label = "stéréo"
-        elif channels:
-            channel_label = f"{channels} canaux"
-
-        sr_label = ""
-        if sample_rate:
-            try:
-                sr_hz = int(sample_rate)
-                sr_label = f"{sr_hz / 1000:.1f} kHz"
-            except (TypeError, ValueError):
-                sr_label = f"{sample_rate} Hz"
-
-        props = " • ".join(filter(None, [codec, sr_label, channel_label]))
-
-        transcript.duration_seconds = duration
-        transcript.duration_display = _format_duration(duration)
-        transcript.properties = props
-        transcript.save(update_fields=['duration_seconds', 'duration_display', 'properties'])
-    except Exception:
-        return
+def _reset_for_relaunch(t):
+    """Remise à zéro avant (re)lancement — appliquée SOUS le verrou anti-race
+    (begin_processing). Reset UNIQUE pour start / start_all / batch_start
+    (avant 2026-07-06 : 3 copies divergentes, batch_start ne purgeait rien)."""
+    from .models import TranscriptSegment
+    TranscriptSegment.objects.filter(transcript=t).delete()
+    t.progress = 0
+    t.text = ''
+    t.segments_json = None
+    t.language = ''
+    t.used_backend = ''
 
 
 def _wrap_transcript_in_batch(transcript):
-    """Wrap a standalone Transcript in a new BatchTranscript-of-1."""
-    batch = BatchTranscript.objects.create(user=transcript.user, total=1)
-    BatchTranscriptItem.objects.create(batch=batch, transcript=transcript, row_index=0)
-    return batch
+    """Wrap a standalone Transcript in a new BatchTranscript-of-1 (brique commune)."""
+    from wama.common.utils.batch_common import wrap_in_batch
+    return wrap_in_batch(transcript, batch_model=BatchTranscript,
+                         item_model=BatchTranscriptItem, fk_name='transcript')
 
 
-@require_POST
-def remove_from_batch(request, pk: int):
-    """Sort un transcript de son batch → l'isole dans son propre batch-of-1.
+# Manipulation directe de la file (CARD_DESIGN §3bis) — vues GÉNÉRÉES par la brique
+# commune queue_manipulation (extraction 2026-07-06 ; transcriber était la seule impl).
+from wama.common.utils.queue_manipulation import make_queue_manipulation_views
 
-    Cas d'usage : isoler une card (ex. une duplication) sans tout réimporter.
-    Le signal `batch_sync` recale le total de l'ancien batch (et le supprime s'il se vide).
-    """
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    t = get_object_or_404(Transcript, pk=pk, user=user)
-    item = getattr(t, 'batch_item', None)              # reverse OneToOne (None si hors batch)
-    if item is None:
-        return JsonResponse({'unwrapped': False, 'reason': 'pas dans un batch'}, status=400)
-    if item.batch.total <= 1:
-        return JsonResponse({'unwrapped': False, 'reason': 'déjà isolé'})
-    item.delete()                                       # retire du batch (signal → recalc / suppression si vide)
-    _wrap_transcript_in_batch(t)                        # nouveau batch-of-1 isolé
-    return JsonResponse({'unwrapped': True})
-
-
-@require_POST
-def reorder(request):
-    """Réordonne les éléments d'un batch (futur drag SortableJS).
-
-    POST : batch_id + order = liste d'ids de transcripts (CSV) dans le nouvel ordre.
-    Met à jour `row_index` de chaque BatchTranscriptItem.
-    """
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    batch = get_object_or_404(BatchTranscript, pk=request.POST.get('batch_id'), user=user)
-    order = [int(x) for x in (request.POST.get('order') or '').split(',') if x.strip().isdigit()]
-    for idx, tid in enumerate(order):
-        BatchTranscriptItem.objects.filter(batch=batch, transcript_id=tid).update(row_index=idx)
-    return JsonResponse({'reordered': True, 'count': len(order)})
-
-
-@require_POST
-def move_to_batch(request, pk: int):
-    """Déplace un transcript DANS un batch cible (futur drag d'une card sur un batch).
-
-    POST : batch_id = batch destination. Retire de l'ancien batch (signal recale / supprime si vide),
-    puis ajoute en fin du batch cible.
-    """
-    from django.db.models import Max
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    t = get_object_or_404(Transcript, pk=pk, user=user)
-    target = get_object_or_404(BatchTranscript, pk=request.POST.get('batch_id'), user=user)
-    item = getattr(t, 'batch_item', None)
-    if item is not None and item.batch_id == target.id:
-        return JsonResponse({'moved': False, 'reason': 'déjà dans ce batch'})
-    if item is not None:
-        item.delete()
-    next_idx = (target.items.aggregate(m=Max('row_index'))['m'] or -1) + 1
-    BatchTranscriptItem.objects.create(batch=target, transcript=t, row_index=next_idx)
-    return JsonResponse({'moved': True})
-
-
-@require_POST
-def consolidate(request):
-    """Regroupe plusieurs transcripts importés ensemble en UN seul batch-of-N.
-
-    Appelé après un import multi-fichiers (drag&drop, explorateur, « Envoyer
-    vers »). Reprend la généralisation common : on défait les batch-of-1 créés
-    à l'upload puis on crée le batch-of-N. Si < 2 ids, ne fait rien.
-    """
-    import json as _json
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-
-    try:
-        ids = _json.loads(request.body or '{}').get('ids', [])
-    except (ValueError, TypeError):
-        ids = request.POST.getlist('ids[]') or request.POST.getlist('ids')
-    ids = [int(i) for i in ids if str(i).isdigit()]
-
-    # Conserve l'ordre d'import
-    transcripts = list(Transcript.objects.filter(id__in=ids, user=user))
-    order = {tid: pos for pos, tid in enumerate(ids)}
-    transcripts.sort(key=lambda t: order.get(t.id, 0))
-
-    if len(transcripts) < 2:
-        return JsonResponse({'consolidated': False})
-
-    from wama.common.utils.batch_common import consolidate_into_batch
-
-    def _create(total):
-        return BatchTranscript.objects.create(user=user, total=total)
-
-    def _link(batch, transcript, idx):
-        BatchTranscriptItem.objects.create(batch=batch, transcript=transcript, row_index=idx)
-
-    def _unwrap(item_ids):
-        # Supprime les batch-of-1 créés à l'upload (cascade sur leurs items ;
-        # les Transcript eux-mêmes ne sont pas supprimés).
-        BatchTranscript.objects.filter(
-            user=user, total=1, items__transcript_id__in=item_ids
-        ).distinct().delete()
-
-    batch = consolidate_into_batch(
-        transcripts, create_batch=_create, link_item=_link, unwrap_singletons=_unwrap,
-    )
-    return JsonResponse({'consolidated': True, 'batch_id': batch.id, 'count': len(transcripts)})
+_qm = make_queue_manipulation_views(
+    work_model=Transcript, batch_model=BatchTranscript,
+    item_model=BatchTranscriptItem, fk_name='transcript',
+    get_user=lambda r: r.user if r.user.is_authenticated else get_or_create_anonymous_user(),
+)
+remove_from_batch = _qm['remove_from_batch']
+reorder = _qm['reorder']
+move_to_batch = _qm['move_to_batch']
+consolidate = _qm['consolidate']
 
 
 def _auto_wrap_orphans(user):
@@ -211,36 +86,35 @@ def _auto_wrap_orphans(user):
     orphelin → batch-of-1 ; plusieurs orphelins (import multi-fichiers) → UN
     seul batch-of-N, comme attendu pour le fonctionnement batch généralisé.
     """
-    existing_ids = set(
-        BatchTranscriptItem.objects.filter(batch__user=user)
-        .values_list('transcript_id', flat=True)
-    )
-    orphans = list(
-        Transcript.objects.filter(user=user)
-        .exclude(id__in=existing_ids)
-        # Staging supprimé (2026-06-29) : les DRAFT sont rendus dans la file comme cards BROUILLON
-        # (config via inspecteur, lancement via Lancer) — plus de zone « à valider » séparée.
-        .order_by('id')
-    )
-    if not orphans:
-        return
-    if len(orphans) == 1:
-        try:
-            _wrap_transcript_in_batch(orphans[0])
-        except Exception:
-            pass
-        return
-    try:
-        batch = BatchTranscript.objects.create(user=user, total=len(orphans))
-        for idx, orphan in enumerate(orphans):
-            BatchTranscriptItem.objects.create(batch=batch, transcript=orphan, row_index=idx)
-    except Exception:
-        # Repli : au pire, batch-of-1 individuels
-        for orphan in orphans:
+    from wama.common.utils.batch_common import auto_wrap_orphans
+
+    def _wrap_group(orphans):
+        # Stratégie transcriber : 1 orphelin → batch-of-1 ; N → UN batch-of-N.
+        if len(orphans) == 1:
             try:
-                _wrap_transcript_in_batch(orphan)
+                return [_wrap_transcript_in_batch(orphans[0])]
             except Exception:
-                pass
+                return []
+        try:
+            batch = BatchTranscript.objects.create(user=user, total=len(orphans))
+            for idx, orphan in enumerate(orphans):
+                BatchTranscriptItem.objects.create(batch=batch, transcript=orphan, row_index=idx)
+            return [batch]
+        except Exception:
+            # Repli : au pire, batch-of-1 individuels
+            batches = []
+            for orphan in orphans:
+                try:
+                    batches.append(_wrap_transcript_in_batch(orphan))
+                except Exception:
+                    pass
+            return batches
+
+    # Staging supprimé (2026-06-29) : les DRAFT sont rendus dans la file comme cards BROUILLON
+    # (config via inspecteur, lancement via Lancer) — plus de zone « à valider » séparée.
+    auto_wrap_orphans(user, work_model=Transcript, batch_model=BatchTranscript,
+                      item_model=BatchTranscriptItem, fk_name='transcript',
+                      wrap_group=_wrap_group)
 
 
 class IndexView(View):
@@ -250,34 +124,27 @@ class IndexView(View):
         # Lazily wrap any orphan transcripts into a batch-of-1
         _auto_wrap_orphans(user)
 
-        # All batches with prefetched items+transcript
-        batches_qs = BatchTranscript.objects.filter(user=user).prefetch_related(
-            'items__transcript'
-        ).order_by('-id')
+        # Agrégats de file — brique COMMUNE (contrat toolbar) + enrichissements transcriber.
+        from wama.common.utils.batch_common import build_batches_list
 
-        batches_list = []
-        for batch in batches_qs:
-            items = list(batch.items.all())
-            transcripts = [i.transcript for i in items if i.transcript]
-            success_count = sum(1 for t in transcripts if t.status == 'SUCCESS')
-            running_count = sum(1 for t in transcripts if t.status == 'RUNNING')
-            failure_count = sum(1 for t in transcripts if t.status == 'FAILURE')
+        def _extra(batch, items, transcripts):
             # Méta COMMUNES aux filles (affichées sur la card mère) : valeur si partagée, sinon None ("Mixte").
             def _common(attr):
                 vals = {getattr(t, attr) for t in transcripts}
                 return vals.pop() if len(vals) == 1 else None
-            batches_list.append({
-                'obj': batch,
-                'items': items,
-                'success_count': success_count,
-                'running_count': running_count,
-                'failure_count': failure_count,
+            success_count = sum(1 for t in transcripts if t.status == 'SUCCESS')
+            return {
                 'success_pct': int(success_count / batch.total * 100) if batch.total > 0 else 0,
-                'has_success': success_count > 0,
                 'common_backend': _common('backend'),
                 'common_language': _common('language'),
                 'common_diarization': _common('enable_diarization'),
-            })
+                # ETA agrégée de la card mère (brique _batch_card.html)
+                'eta_ids': ','.join(str(t.id) for t in transcripts),
+            }
+
+        batches_list = build_batches_list(user, batch_model=BatchTranscript,
+                                          work_attr='transcript', order_by='-id',
+                                          extra=_extra)
 
         queue_count = sum(len(b['items']) for b in batches_list)
 
@@ -304,13 +171,16 @@ class IndexView(View):
         # Récupérer les préférences utilisateur
         # Défaut OFF : Whisper est robuste au bruit ; le débruitage IA est opt-in
         # (à activer pour de l'audio vraiment dégradé seulement).
-        enable_preprocessing = cache.get(f"user_{user.id}_preprocessing_enabled", False)
-        selected_backend = cache.get(f"user_{user.id}_transcriber_backend", 'auto')
-        user_hotwords = cache.get(f"user_{user.id}_transcriber_hotwords", '')
-        global_diarization = cache.get(f"user_{user.id}_transcriber_diarization", True)
-        global_generate_summary = cache.get(f"user_{user.id}_transcriber_generate_summary", False)
-        global_summary_type = cache.get(f"user_{user.id}_transcriber_summary_type", 'structured')
-        global_verify_coherence = cache.get(f"user_{user.id}_transcriber_verify_coherence", False)
+        # Réglages user — brique commune (A5-22) : clés + défauts uniques (USER_SETTINGS_DEFAULTS)
+        from wama.common.utils.user_settings import get_user_app_settings
+        _us = get_user_app_settings(user, 'transcriber', USER_SETTINGS_DEFAULTS)
+        enable_preprocessing = _us['preprocessing_enabled']
+        selected_backend = _us['backend']
+        user_hotwords = _us['hotwords']
+        global_diarization = _us['diarization']
+        global_generate_summary = _us['generate_summary']
+        global_summary_type = _us['summary_type']
+        global_verify_coherence = _us['verify_coherence']
 
         # Schéma de réglages (volet droit généré par WamaParams) + valeurs courantes.
         import json
@@ -368,14 +238,15 @@ def upload(request):
     summary_type_requested = request.POST.get('summary_type', 'structured')
     verify_coherence_requested = str(request.POST.get('verify_coherence', '')).lower() in ('1', 'true', 'on')
 
-    # Persist preferences for future uploads
+    # Persist preferences for future uploads — brique commune user_settings (A5-22)
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    cache_timeout = 30 * 24 * 3600
-    cache.set(f"user_{user.id}_preprocessing_enabled", preprocess_requested, timeout=cache_timeout)
+    from wama.common.utils.user_settings import save_user_app_settings
+    _prefs = {'preprocessing_enabled': preprocess_requested}
     if backend_requested:
-        cache.set(f"user_{user.id}_transcriber_backend", backend_requested, timeout=cache_timeout)
+        _prefs['backend'] = backend_requested
     if hotwords_requested:
-        cache.set(f"user_{user.id}_transcriber_hotwords", hotwords_requested, timeout=cache_timeout)
+        _prefs['hotwords'] = hotwords_requested
+    save_user_app_settings(user, 'transcriber', _prefs)
 
     from ..common.utils.video_utils import is_video_file, extract_audio_from_video
 
@@ -486,7 +357,8 @@ def upload_youtube(request):
     backend_requested = request.POST.get('backend', 'auto')
     hotwords_requested = request.POST.get('hotwords', '')
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    cache.set(f"user_{user.id}_preprocessing_enabled", preprocess_requested, timeout=30 * 24 * 3600)
+    from wama.common.utils.user_settings import save_user_app_settings
+    save_user_app_settings(user, 'transcriber', {'preprocessing_enabled': preprocess_requested})
 
     try:
         from ..common.utils.video_utils import download_youtube_audio
@@ -556,20 +428,15 @@ def start(request, pk: int):
     Utilise les paramètres individuels du transcript (backend, preprocess_audio, etc.).
     """
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    t = get_object_or_404(Transcript, pk=pk, user=user)
 
-    if t.status == 'RUNNING':
+    # Anti-race (pattern CLAUDE.md) : select_for_update + revoke — brique commune.
+    from wama.common.utils.process_control import begin_processing
+    t, err = begin_processing(Transcript, pk, user=user, reset=_reset_for_relaunch)
+    if err == 'not_found':
+        return JsonResponse({'error': 'Not found'}, status=404)
+    if err == 'already_running':
         return JsonResponse({'error': 'Transcription déjà en cours'}, status=409)
 
-    # Reset for relaunch
-    from .models import TranscriptSegment
-    TranscriptSegment.objects.filter(transcript=t).delete()
-    t.status = 'PENDING'
-    t.progress = 0
-    t.text = ''
-    t.segments_json = None
-    t.language = ''
-    t.used_backend = ''
     cache.set(f"transcriber_progress_{t.id}", 0, timeout=3600)
 
     # Use the transcript's own preprocess_audio setting
@@ -580,8 +447,7 @@ def start(request, pk: int):
         task = transcribe_without_preprocessing.delay(t.id)
 
     t.task_id = task.id
-    t.status = 'RUNNING'
-    t.save()
+    t.save(update_fields=['task_id'])
 
     return JsonResponse({
         'task_id': task.id,
@@ -589,6 +455,7 @@ def start(request, pk: int):
     })
 
 
+@require_POST
 def stop(request, pk: int):
     """
     Stoppe la transcription en cours (révoque la tâche Celery) et remet l'item dans un état relançable
@@ -641,18 +508,8 @@ def _apply_panel_settings(drafts, post):
     return list(updates.keys())
 
 
-def _launch_transcript(t: Transcript) -> str:
-    """Démarre la transcription d'un élément (respecte preprocess_audio)."""
-    from .workers import transcribe, transcribe_without_preprocessing
-    if t.preprocess_audio:
-        task = transcribe.delay(t.id)
-    else:
-        task = transcribe_without_preprocessing.delay(t.id)
-    t.task_id = task.id
-    t.status = 'RUNNING'
-    t.save(update_fields=['task_id', 'status'])
-    cache.set(f"transcriber_progress_{t.id}", 0, timeout=3600)
-    return task.id
+# _launch_transcript SUPPRIMÉ 2026-07-06 : code mort (aucun appelant) qui dupliquait le
+# lancement sans anti-race — start/start_all/batch_start passent par begin_processing (commun).
 
 
 # Staging (vues stage_commit/commit_all/clear/update_all) SUPPRIMÉ 2026-06-29 : les DRAFT sont des
@@ -1245,22 +1102,16 @@ def start_all(request):
     Respecte les paramètres individuels de chaque transcript.
     """
     from .workers import transcribe, transcribe_without_preprocessing
-    from .models import TranscriptSegment
+    from wama.common.utils.process_control import begin_processing
 
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     qs = Transcript.objects.filter(user=user).exclude(status='SUCCESS')
     started = []
     for t in qs:
-        if t.status == 'RUNNING':
+        # Anti-race par item (brique commune) : skip si déjà RUNNING/supprimé entre-temps.
+        t, err = begin_processing(Transcript, t.pk, user=user, reset=_reset_for_relaunch)
+        if err:
             continue
-
-        # Reset for relaunch
-        TranscriptSegment.objects.filter(transcript=t).delete()
-        t.progress = 0
-        t.text = ''
-        t.segments_json = None
-        t.language = ''
-        t.used_backend = ''
         cache.set(f"transcriber_progress_{t.id}", 0, timeout=3600)
 
         # Use transcript's own preprocess setting
@@ -1270,8 +1121,7 @@ def start_all(request):
             task = transcribe_without_preprocessing.delay(t.id)
 
         t.task_id = task.id
-        t.status = 'RUNNING'
-        t.save()
+        t.save(update_fields=['task_id'])
         started.append(t.id)
 
     return JsonResponse({
@@ -1287,16 +1137,12 @@ def clear_all(request):
     cleared = []
     for transcript in transcripts:
         cleared.append(transcript.id)
-        audio_path = transcript.audio.path
         _cleanup_output_files(transcript, user.id)
-        transcript.audio.delete(save=False)
-        if os.path.exists(audio_path):
-            try:
-                os.remove(audio_path)
-            except OSError:
-                pass
+        # L'audio peut être PARTAGÉ (dupliqué / import filemanager) : même règle que delete()
+        # (avant 2026-07-06 : unlink inconditionnel → cassait les doublons restants).
+        safe_delete_file(transcript, 'audio')
         cache.delete(f"transcriber_progress_{transcript.id}")
-    transcripts.delete()
+        transcript.delete()  # signal post_delete (batch_sync) : recale total / purge le batch vidé
     return JsonResponse({'cleared_ids': cleared, 'count': len(cleared)})
 
 
@@ -1330,17 +1176,15 @@ def download_all(request):
 # =============================================================================
 
 def batch_template(request):
-    """Download a batch file template (.txt)."""
+    """Template batch téléchargeable, GÉNÉRÉ depuis la déclaration des champs
+    (brique commune build_batch_template — plus de contenu en dur, A5-23)."""
     from django.http import HttpResponse
-    content = (
-        "# WAMA Transcriber - Batch Import\n"
-        "# Format : une URL ou chemin de fichier audio/vidéo par ligne\n"
-        "# Les lignes commençant par # sont des commentaires.\n\n"
-        "https://example.com/audio.mp3\n"
-        "https://example.com/video.mp4\n"
-        "/media/uploads/recording.wav\n"
-    )
-    response = HttpResponse(content, content_type='text/plain; charset=utf-8')
+    from wama.common.utils.batch_parsers import build_batch_template
+    text = build_batch_template(
+        ['fichier'],
+        {'fichier': 'https://example.com/audio.mp3'},
+        app_label='Transcriber (une URL ou chemin audio/vidéo par ligne)')
+    response = HttpResponse(text, content_type='text/plain; charset=utf-8')
     response['Content-Disposition'] = 'attachment; filename="batch_transcriber_template.txt"'
     return response
 
@@ -1446,15 +1290,18 @@ def batch_start(request, pk):
     batch = get_object_or_404(BatchTranscript, pk=pk, user=user)
 
     from .workers import transcribe, transcribe_without_preprocessing
+    from wama.common.utils.process_control import begin_processing
 
     started = []
     for item in batch.items.select_related('transcript').all():
         t = item.transcript
-        if not t or t.status == 'RUNNING':
+        if not t:
             continue
-        t.status = 'RUNNING'
-        t.progress = 0
-        t.save(update_fields=['status', 'progress'])
+        # Anti-race par item + reset UNIFIÉ (avant 2026-07-06, batch_start ne purgeait
+        # ni texte ni segments → relance avec restes de l'ancienne transcription).
+        t, err = begin_processing(Transcript, t.pk, user=user, reset=_reset_for_relaunch)
+        if err:
+            continue
         cache.set(f"transcriber_progress_{t.id}", 0, timeout=3600)
 
         if t.preprocess_audio:
@@ -1463,8 +1310,7 @@ def batch_start(request, pk):
             task = transcribe_without_preprocessing.delay(t.id)
 
         t.task_id = task.id
-        t.status = 'RUNNING'
-        t.save(update_fields=['task_id', 'status'])
+        t.save(update_fields=['task_id'])
         started.append(t.id)
 
     return JsonResponse({'started': started, 'count': len(started)})
@@ -1609,34 +1455,14 @@ def set_preprocessing_preference(request):
     else:
         enabled = bool(enabled)
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    cache.set(f"user_{user.id}_preprocessing_enabled", enabled, timeout=30 * 24 * 3600)
+    from wama.common.utils.user_settings import save_user_app_settings
+    save_user_app_settings(user, 'transcriber', {'preprocessing_enabled': enabled})
     return JsonResponse({'enabled': enabled})
 
 
-@require_POST
-def toggle_preprocessing(request):
-    """
-    Nouvelle vue pour activer/désactiver le prétraitement audio.
-    """
-    enable = request.POST.get('enable', 'true').lower() == 'true'
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    cache.set(f"user_{user.id}_preprocessing_enabled", enable, timeout=None)
-
-    return JsonResponse({
-        'preprocessing_enabled': enable,
-        'message': 'Prétraitement activé' if enable else 'Prétraitement désactivé',
-    })
-
-
-def preprocessing_status(request):
-    """
-    Retourne le statut actuel du prétraitement pour l'utilisateur.
-    """
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    enabled = cache.get(f"user_{user.id}_preprocessing_enabled", True)
-    return JsonResponse({
-        'preprocessing_enabled': enabled,
-    })
+# toggle_preprocessing / preprocessing_status SUPPRIMÉES 2026-07-06 (A5-22) : routes mortes
+# (seul set_preprocessing est câblé, index.html:81) aux défauts DIVERGENTS (timeout=None,
+# défaut True vs décision projet OFF). Réglage servi par get_user_transcriber_settings.
 
 
 def global_progress(request):
@@ -1899,16 +1725,10 @@ def save_settings(request, pk: int):
 
 @require_POST
 def save_user_transcriber_settings(request):
-    """
-    Save user-level transcriber settings (cached).
+    """Réglages user (brique commune user_settings — clés ``user_{id}_transcriber_*``).
 
-    Expected JSON body:
-    {
-        "backend": "whisper" | "vibevoice" | "auto",
-        "hotwords": "default hotwords",
-        "enable_diarization": true,
-        "preprocessing_enabled": true
-    }
+    JSON accepté : backend, hotwords, enable_diarization, preprocessing_enabled,
+    generate_summary, summary_type, verify_coherence (clés absentes = inchangées).
     """
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
 
@@ -1917,47 +1737,50 @@ def save_user_transcriber_settings(request):
     except (json.JSONDecodeError, UnicodeDecodeError):
         data = {}
 
-    # Cache settings
-    cache_timeout = 30 * 24 * 3600  # 30 days
+    from wama.common.utils.user_settings import save_user_app_settings
+    values = {}
+    for json_name in USER_SETTINGS_JSON_NAMES:
+        if json_name in data:
+            values[_JSON_TO_SETTING.get(json_name, json_name)] = data[json_name]
+    if values:
+        save_user_app_settings(user, 'transcriber', values)
 
-    if 'backend' in data:
-        cache.set(f"user_{user.id}_transcriber_backend", data['backend'], timeout=cache_timeout)
-    if 'hotwords' in data:
-        cache.set(f"user_{user.id}_transcriber_hotwords", data['hotwords'], timeout=cache_timeout)
-    if 'enable_diarization' in data:
-        cache.set(f"user_{user.id}_transcriber_diarization", data['enable_diarization'], timeout=cache_timeout)
-    if 'preprocessing_enabled' in data:
-        cache.set(f"user_{user.id}_preprocessing_enabled", data['preprocessing_enabled'], timeout=cache_timeout)
-    if 'generate_summary' in data:
-        cache.set(f"user_{user.id}_transcriber_generate_summary", data['generate_summary'], timeout=cache_timeout)
-    if 'summary_type' in data:
-        cache.set(f"user_{user.id}_transcriber_summary_type", data['summary_type'], timeout=cache_timeout)
-    if 'verify_coherence' in data:
-        cache.set(f"user_{user.id}_transcriber_verify_coherence", data['verify_coherence'], timeout=cache_timeout)
+    return JsonResponse(_user_settings_payload(user))
 
-    return JsonResponse({
-        'backend': cache.get(f"user_{user.id}_transcriber_backend", 'auto'),
-        'hotwords': cache.get(f"user_{user.id}_transcriber_hotwords", ''),
-        'enable_diarization': cache.get(f"user_{user.id}_transcriber_diarization", True),
-        'preprocessing_enabled': cache.get(f"user_{user.id}_preprocessing_enabled", True),
-        'generate_summary': cache.get(f"user_{user.id}_transcriber_generate_summary", False),
-        'summary_type': cache.get(f"user_{user.id}_transcriber_summary_type", 'structured'),
-        'verify_coherence': cache.get(f"user_{user.id}_transcriber_verify_coherence", False),
-    })
+
+# Réglages user — brique commune user_settings (clés user_{id}_transcriber_*, A5-22).
+# NB : preprocessing_enabled était stocké SANS préfixe d'app (user_{id}_preprocessing_enabled) ;
+# la clé est normalisée 2026-07-06 (ancienne valeur perdue → défaut True, sans gravité).
+USER_SETTINGS_DEFAULTS = {
+    'backend': 'auto',
+    'hotwords': '',
+    'diarization': True,
+    # DeepFilterNet : défaut OFF (décision projet) — les anciens sites divergeaient (False/True).
+    'preprocessing_enabled': False,
+    'generate_summary': False,
+    'summary_type': 'structured',
+    'verify_coherence': False,
+}
+USER_SETTINGS_JSON_NAMES = ('backend', 'hotwords', 'enable_diarization', 'preprocessing_enabled',
+                            'generate_summary', 'summary_type', 'verify_coherence')
+_JSON_TO_SETTING = {'enable_diarization': 'diarization'}
+
+
+def _user_settings_payload(user):
+    from wama.common.utils.user_settings import get_user_app_settings
+    s = get_user_app_settings(user, 'transcriber', USER_SETTINGS_DEFAULTS)
+    return {
+        'backend': s['backend'],
+        'hotwords': s['hotwords'],
+        'enable_diarization': s['diarization'],
+        'preprocessing_enabled': s['preprocessing_enabled'],
+        'generate_summary': s['generate_summary'],
+        'summary_type': s['summary_type'],
+        'verify_coherence': s['verify_coherence'],
+    }
 
 
 def get_user_transcriber_settings(request):
-    """
-    Get user-level transcriber settings.
-    """
+    """Réglages user (lecture) — brique commune user_settings."""
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-
-    return JsonResponse({
-        'backend': cache.get(f"user_{user.id}_transcriber_backend", 'auto'),
-        'hotwords': cache.get(f"user_{user.id}_transcriber_hotwords", ''),
-        'enable_diarization': cache.get(f"user_{user.id}_transcriber_diarization", True),
-        'preprocessing_enabled': cache.get(f"user_{user.id}_preprocessing_enabled", True),
-        'generate_summary': cache.get(f"user_{user.id}_transcriber_generate_summary", False),
-        'summary_type': cache.get(f"user_{user.id}_transcriber_summary_type", 'structured'),
-        'verify_coherence': cache.get(f"user_{user.id}_transcriber_verify_coherence", False),
-    })
+    return JsonResponse(_user_settings_payload(user))

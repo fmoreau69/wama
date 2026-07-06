@@ -7,6 +7,34 @@
 > propre ; Transcriber quasi (restent : A2-6 card mère → `_batch_card.html` commune, A3-12/13 sync
 > inspecteur, A4-15/16 styles modales, A5-18..25 extractions de vue, A6-26/27/28 JS communs).
 > **Describer porté aussi** (3ᵉ app, même recette).
+> **MAJ 2026-07-06 (contre-vérif empirique, 3 agents + greps)** : A4-14 backups `{% comment %}`
+> PURGÉS (clos) ; A5-21 anti-race CONFIRMÉ ouvert (0 `select_for_update` transcriber ET composer —
+> describer SEUL l'a, views.py:519) ; A6-26 confirmé (toast=alert, pas de brique dans
+> wama-app-base) ; B4-10 partiellement résorbé (`wama-app-base.js` chargé par composer ; URLs en
+> dur à re-vérifier). Describer NE charge PAS wama-app-base.js. Synthèse chiffrée + restes par
+> app : `PROJECT_STATUS.md §20bis`.
+> **MAJ 2026-07-06 SOIR — PORT À 100 % EFFECTUÉ (session « terminer les 3 apps »)** :
+> RÉGLÉS : A2-6 + B3-8 (brique `_batch_card.html` CRÉÉE, adoptée ×3 — slots meta/download,
+> composer gagne ▶ batch + compteurs + barre agrégée) ; A5-18 (→ `media_probe.py` créée) ;
+> A5-19 + B5-15 (wrappers → `batch_common.wrap_in_batch`/`auto_wrap_orphans`) ; A5-20 + B5-16
+> (agrégats → `batch_common.build_batches_list`) ; A5-21 (anti-race → `process_control.
+> begin_processing` CRÉÉE, consommée T×3 + C×4 ; reset unifié `_reset_for_relaunch`) ; A5-22
+> (→ `user_settings.py` CRÉÉE ; routes mortes toggle/status preprocessing SUPPRIMÉES ; défaut
+> preprocessing unifié OFF) ; A5-23 (transcriber basculé sur `build_batch_template`) ; A5-25
+> (clear_all → `safe_delete_file` + delete par ligne) ; A6-26 (`WamaApp.toast` CRÉÉ, consommé ×3,
+> plus aucun alert() transcriber) ; A6-27 (maps → `WamaApp.STATUS_BADGE/LABEL`) ; stop transcriber
+> `@require_POST` ; cycle transcriber → `_cycle_button.html` (overrides temps réel déclarés
+> `data-cycle-restart-*` sur la card) ; manipulation directe → brique `queue_manipulation.py`
+> CRÉÉE (T délègue, D+C câblés — D garde son consolidate par nature) ; `.synthesis-card`→
+> `.wama-card` (JS describer) ; B2-7 (styles inline → index.css) ; wama-app-base MONTÉ GLOBAL
+> (base.html) ; `_launch_transcript` mort supprimé ; describer : ▶ batch + réglages user persistés
+> (`_read_creation_options`, 4 lectures POST unifiées).
+> RESTENT (consignés, non bloquants checklist) : A3-12/13 (actions batch inspecteur en chaînes JS
+> + sync data-* → TÂCHE 1 UI_MECHANISMS) ; A4-15/16 (styles modales info/résultat) ; A5-24
+> (SRT ×3 interne) ; A6-28 (fusion 2 impls modale-batch) ; A1-4 (défaut afterCreate batch-import) ;
+> B4-10 résiduel (URLs en dur composer à re-vérifier) ; B4-13 (facteurs ETA client → eta_estimator) ;
+> B5-20 (export médiathèque → brique à la 2ᵉ app). ⚠ VALIDATION NAVIGATEUR À FAIRE (cards mères ×3,
+> cycle transcriber, toasts) + restart process WSL2 requis.
 > Complète `TRANSCRIBER_REFERENCE_AUDIT.md` (checklist 19 points) — ne le remplace pas.
 
 **Couverture** : transcriber index.html (intégral), views.py (~95 %), js/index.js (~85 %) ;
@@ -54,8 +82,8 @@ composer index.html + _generation_card.html + views.py (intégral), js/index.js 
     UI_MECHANISMS_CONSOLIDATION : l'état d'item doit avoir UNE représentation (schéma).
 
 ### A4. Modale
-14. Modale paramètres schéma-driven ✅ (WamaParams + pied commun). Restes : **backups
-    `{% comment %}`** à purger — index.html:89-187 (ancien volet) et 769-773 (poids mort → dérive).
+14. Modale paramètres schéma-driven ✅ (WamaParams + pied commun). ~~Restes : backups
+    `{% comment %}` à purger~~ — **RÉGLÉ (constaté 2026-07-06)** : plus aucun `{% comment %}` dans index.html.
 15. **Modale « Info prétraitement »** — index.html:872-898 : styles inline fond blanc/texte noir à
     contre-courant du thème (feedback_text_contrast). Contenu légitime ; enveloppe + style à
     passer en classe commune.
@@ -73,7 +101,8 @@ composer index.html + _generation_card.html + views.py (intégral), js/index.js 
     Cible : `build_batches_list()` commun (contrat queue_view.py).
 21. **Reset-avant-relance dupliqué ×3** — start 589-598, start_all 1268-1275, batch_start
     1461-1478 ; aucun n'utilise le pattern anti-race `select_for_update` de CLAUDE.md.
-    Cible : `process_control.restart_instance()`.
+    Cible : `process_control.restart_instance()`. **Confirmé 2026-07-06** (grep : 0 occurrence
+    transcriber/composer ; describer views.py:519 = le modèle à répliquer).
 22. **Prefs utilisateur via clés cache artisanales** — views.py:332-338, 398-403, 1609-1650
     (`user_{id}_transcriber_*`, 3 vues préprocessing dont doublons). Cible : util commun de
     user-settings par app (schéma-driven).

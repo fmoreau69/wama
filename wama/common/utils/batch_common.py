@@ -111,3 +111,107 @@ def group_into_batches_by_nature(items,
             link_item(batch, it, idx)
         batches.append(batch)
     return batches
+
+
+# ---------------------------------------------------------------------------
+# Batch UNIFIÉ — « tout est batch » (le batch-of-1 est rendu comme card simple).
+# Généralise les helpers jusqu'ici dupliqués transcriber/composer/describer
+# (audit empirique PROJECT_STATUS §20bis, 2026-07-06).
+# ---------------------------------------------------------------------------
+
+def wrap_in_batch(item, *, batch_model, item_model, fk_name, item_extra=None):
+    """Enveloppe UN item métier dans un batch-of-1 (règle « tout est batch »).
+
+    Args:
+        item        : objet métier (Transcript, ComposerGeneration, Description…) ; porte ``.user``.
+        batch_model : modèle batch de l'app (ex. BatchTranscript).
+        item_model  : modèle de liaison (ex. BatchTranscriptItem).
+        fk_name     : nom de la FK métier sur le modèle de liaison (ex. 'transcript').
+        item_extra  : dict OU callable(item)->dict de champs supplémentaires du lien
+                      (ex. composer : output_filename).
+    """
+    batch = batch_model.objects.create(user=item.user, total=1)
+    kwargs = {'batch': batch, 'row_index': 0, fk_name: item}
+    if item_extra:
+        kwargs.update(item_extra(item) if callable(item_extra) else dict(item_extra))
+    item_model.objects.create(**kwargs)
+    return batch
+
+
+def auto_wrap_orphans(user, *, work_model, batch_model, item_model, fk_name,
+                      item_extra=None, wrap_group=None, order_by='id'):
+    """Rattache paresseusement (au chargement de page) les items hors batch.
+
+    Les orphelins proviennent des imports serveur (« Envoyer vers » du filemanager…) —
+    l'upload JS, lui, enveloppe déjà à la création.
+
+    Stratégie de regroupement :
+      - défaut : chaque orphelin → SON batch-of-1 (composer) ;
+      - ``wrap_group(orphans)`` : stratégie d'app qui crée les batchs elle-même —
+        transcriber (1 → of-1, N → UN of-N), describer (un batch par nature).
+
+    Silencieux par item (un orphelin cassé ne bloque pas la page — comportement historique).
+    Returns: liste des batchs créés (vide si aucun orphelin).
+    """
+    existing_ids = set(
+        item_model.objects.filter(batch__user=user).values_list(f'{fk_name}_id', flat=True)
+    )
+    orphans = list(
+        work_model.objects.filter(user=user).exclude(id__in=existing_ids).order_by(order_by)
+    )
+    if not orphans:
+        return []
+    if wrap_group is not None:
+        return wrap_group(orphans) or []
+    wrapped = []
+    for orphan in orphans:
+        try:
+            wrapped.append(wrap_in_batch(orphan, batch_model=batch_model,
+                                         item_model=item_model, fk_name=fk_name,
+                                         item_extra=item_extra))
+        except Exception:
+            pass
+    return wrapped
+
+
+def build_batches_list(user, *, batch_model, work_attr, items_related='items',
+                       order_by='-id', has_output=None, extra=None):
+    """Agrégats de file pour le template — contrat de la toolbar commune (``queue_view.py``).
+
+    Returns:
+        [{'obj', 'items', 'success_count', 'running_count', 'failure_count',
+          'has_success' [, **extra(batch, items, works)]}, …]
+
+    Args:
+        work_attr  : nom de la FK métier sur le modèle de liaison ('transcript', 'generation'…).
+        has_output : callable(work)->bool optionnel — 'has_success' exige alors au moins un
+                     SUCCESS avec sortie exploitable (ex. composer : audio_output non vide) ;
+                     sinon 'has_success' = success_count > 0.
+        extra      : callable(batch, items, works)->dict — enrichissements d'app
+                     (ex. transcriber : success_pct + méta communes aux filles).
+    """
+    batches = (batch_model.objects.filter(user=user)
+               .prefetch_related(f'{items_related}__{work_attr}')
+               .order_by(order_by))
+    result = []
+    for batch in batches:
+        # sorted() sur le cache prefetch (pas de .order_by() ici : re-requêterait par batch)
+        items = sorted(getattr(batch, items_related).all(),
+                       key=lambda it: getattr(it, 'row_index', 0) or 0)
+        works = [w for w in (getattr(it, work_attr) for it in items) if w]
+        statuses = [w.status for w in works]
+        row = {
+            'obj': batch,
+            'items': items,
+            'success_count': statuses.count('SUCCESS'),
+            'running_count': statuses.count('RUNNING'),
+            'failure_count': statuses.count('FAILURE'),
+        }
+        if has_output is not None:
+            row['has_success'] = any(w.status == 'SUCCESS' and has_output(w) for w in works)
+        else:
+            row['has_success'] = row['success_count'] > 0
+        if extra is not None:
+            row.update(extra(batch, items, works) or {})
+        result.append(row)
+    return result

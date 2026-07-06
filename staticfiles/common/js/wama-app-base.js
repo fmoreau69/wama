@@ -113,6 +113,32 @@
     };
   }
 
+  // ── Toast non bloquant (généralise le toast composer ; remplace les alert()) ──
+  // type ∈ {success, error|danger, info, warning} — mêmes couleurs que les badges Bootstrap.
+  function toast(message, type) {
+    const colors = { success: '#198754', error: '#dc3545', danger: '#dc3545',
+                     info: '#0dcaf0', warning: '#ffc107' };
+    const el = document.createElement('div');
+    el.className = 'wama-toast';
+    el.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:9999;' +
+      'background:' + (colors[type] || '#333') + ';color:#fff;padding:10px 16px;' +
+      'border-radius:6px;font-size:.9rem;box-shadow:0 4px 12px rgba(0,0,0,.4);max-width:300px;';
+    el.textContent = message;
+    document.body.appendChild(el);
+    setTimeout(function () { el.remove(); }, 3500);
+  }
+
+  // ── Maps statut → apparence (source UNIQUE ; recopiées par app avant 2026-07-06) ──
+  // Alignées sur le tricolore CARD_DESIGN : gris=brouillon · orange=en cours · vert=fini · rouge=échec.
+  const STATUS_BADGE = {
+    DRAFT: 'bg-secondary', PENDING: 'bg-secondary', RUNNING: 'bg-warning text-dark',
+    SUCCESS: 'bg-success', FAILURE: 'bg-danger',
+  };
+  const STATUS_LABEL = {
+    DRAFT: 'Brouillon', PENDING: 'En attente', RUNNING: 'En cours',
+    SUCCESS: 'Terminé', FAILURE: 'Échec',
+  };
+
   global.WamaApp = {
     escapeHtml: escapeHtml,
     getUrl: getUrl,
@@ -121,5 +147,8 @@
     wordCount: wordCount,
     Poller: Poller,
     emptyState: emptyState,
+    toast: toast,
+    STATUS_BADGE: STATUS_BADGE,
+    STATUS_LABEL: STATUS_LABEL,
   };
 })(window);

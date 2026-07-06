@@ -89,6 +89,25 @@ def _fetch_html_as_text(url: str, temp_dir: str) -> str:
 logger = logging.getLogger(__name__)
 
 
+def _read_creation_options(request, user):
+    """Options de création (style/langue/longueur) : POST prioritaire, sinon DERNIERS réglages
+    persistés de l'utilisateur (brique commune user_settings — point 14 checklist, 2026-07-06).
+    Persiste ce qui est posté (les prochains éléments héritent des derniers choix).
+    Remplace 4 lectures POST dupliquées (défauts recopiés à l'identique)."""
+    from wama.common.utils.user_settings import get_user_app_settings, save_user_app_settings
+    stored = get_user_app_settings(user, 'describer', {
+        'output_style': 'detailed', 'output_language': 'fr', 'max_length': 500})
+    output_style = request.POST.get('output_style') or stored['output_style']
+    output_language = request.POST.get('output_language') or stored['output_language']
+    try:
+        max_length = int(request.POST.get('max_length') or stored['max_length'])
+    except (TypeError, ValueError):
+        max_length = 500
+    save_user_app_settings(user, 'describer', {
+        'output_style': output_style, 'output_language': output_language, 'max_length': max_length})
+    return output_style, output_language, max_length
+
+
 def get_user(request):
     """Get authenticated user or anonymous user."""
     if request.user.is_authenticated:
@@ -179,6 +198,20 @@ def consolidate(request):
     return JsonResponse({'consolidated': True, 'count': len(items)})
 
 
+# Manipulation directe de la file (CARD_DESIGN §3bis) — vues GÉNÉRÉES par la brique commune
+# (describer garde SON consolidate ci-dessus : regroupement par NATURE de contenu).
+from wama.common.utils.queue_manipulation import make_queue_manipulation_views
+
+_qm = make_queue_manipulation_views(
+    work_model=Description, batch_model=BatchDescription,
+    item_model=BatchDescriptionItem, fk_name='description',
+    get_user=get_user,
+)
+remove_from_batch = _qm['remove_from_batch']
+reorder = _qm['reorder']
+move_to_batch = _qm['move_to_batch']
+
+
 class IndexView(TemplateView):
     """Main page with file queue."""
     template_name = 'describer/index.html'
@@ -190,26 +223,20 @@ class IndexView(TemplateView):
         # Lazily wrap any orphan descriptions into a batch-of-1
         _auto_wrap_orphans(user)
 
-        # All batches with prefetched items+description
-        batches_qs = BatchDescription.objects.filter(user=user).prefetch_related(
-            'items__description'
-        ).order_by('-id')
+        # Agrégats de file — brique COMMUNE (contrat toolbar) + enrichissements describer.
+        from wama.common.utils.batch_common import build_batches_list
 
-        batches_list = []
-        for batch in batches_qs:
-            items = list(batch.items.all())
-            statuses = [i.description.status for i in items if i.description]
-            success_count = statuses.count('SUCCESS')
-            batches_list.append({
-                'obj': batch,
-                'items': items,
-                # Compteurs de statut : contrat de la brique commune tri/filtre (queue_view.py).
-                'success_count': success_count,
-                'running_count': statuses.count('RUNNING'),
-                'failure_count': statuses.count('FAILURE'),
+        def _extra(batch, items, descs):
+            success_count = sum(1 for d in descs if d.status == 'SUCCESS')
+            return {
                 'success_pct': int(success_count / batch.total * 100) if batch.total > 0 else 0,
-                'has_success': success_count > 0,
-            })
+                # ETA agrégée de la card mère (brique _batch_card.html)
+                'eta_ids': ','.join(str(d.id) for d in descs),
+            }
+
+        batches_list = build_batches_list(user, batch_model=BatchDescription,
+                                          work_attr='description', order_by='-id',
+                                          extra=_extra)
 
         # Tri + filtrage de la file — brique COMMUNE (remplace le « batchs d'abord » codé en dur).
         from wama.common.utils.queue_view import apply_queue_sort_filter
@@ -333,9 +360,7 @@ def upload(request):
             detected_type = detect_type_from_extension(ext)
 
             # Get options from request
-            output_style = request.POST.get('output_style', 'detailed')
-            output_language = request.POST.get('output_language', 'fr')
-            max_length = int(request.POST.get('max_length', 500))
+            output_style, output_language, max_length = _read_creation_options(request, user)
 
             # Create description with the downloaded file
             with open(downloaded_path, 'rb') as f:
@@ -394,9 +419,7 @@ def upload(request):
     detected_type = detect_type_from_extension(ext)
 
     # Get options from request
-    output_style = request.POST.get('output_style', 'detailed')
-    output_language = request.POST.get('output_language', 'fr')
-    max_length = int(request.POST.get('max_length', 500))
+    output_style, output_language, max_length = _read_creation_options(request, user)
 
     # Create description record
     description = Description.objects.create(
@@ -848,12 +871,7 @@ def batch_import(request):
     from wama.common.utils.batch_parsers import parse_batch_file_from_request
 
     user = get_user(request)
-    output_style = request.POST.get('output_style', 'detailed')
-    output_language = request.POST.get('output_language', 'fr')
-    try:
-        max_length = int(request.POST.get('max_length', 500))
-    except (ValueError, TypeError):
-        max_length = 500
+    output_style, output_language, max_length = _read_creation_options(request, user)
 
     try:
         items, warnings = parse_batch_file_from_request(request)
@@ -902,12 +920,7 @@ def batch_create(request):
     from wama.common.utils.batch_parsers import parse_batch_file_from_request
 
     user = get_user(request)
-    output_style = request.POST.get('output_style', 'detailed')
-    output_language = request.POST.get('output_language', 'fr')
-    try:
-        max_length = int(request.POST.get('max_length', 500))
-    except (ValueError, TypeError):
-        max_length = 500
+    output_style, output_language, max_length = _read_creation_options(request, user)
 
     try:
         items, warnings = parse_batch_file_from_request(request)

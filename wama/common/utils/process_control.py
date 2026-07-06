@@ -16,6 +16,61 @@ grâce + progression observée. Voir `reconcile_if_stuck` (signature posée, NON
 from __future__ import annotations
 
 
+def begin_processing(model, pk, *, user=None, reset=None,
+                     status_field: str = "status", task_field: str = "task_id",
+                     running_value: str = "RUNNING"):
+    """
+    Démarrage ANTI-RACE d'un item (pattern obligatoire CLAUDE.md — généralise describer
+    ``start()``, seule implémentation conforme à l'audit 2026-07-06) : transaction +
+    ``select_for_update`` (refuse le double-clic Start), révocation de l'éventuelle tâche
+    Celery encore en file, resets d'app, passage à RUNNING.
+
+    L'appelant complète le pattern APRÈS la transaction (lancement + persistance task_id) :
+
+        obj, err = begin_processing(Transcript, pk, user=user,
+                                    reset={'progress': 0, 'error_message': ''})
+        if err:
+            return JsonResponse({'error': err}, status=404 if err == 'not_found' else 400)
+        task = my_task.delay(obj.id)
+        obj.task_id = task.id
+        obj.save(update_fields=[task_field])
+
+    Args:
+        user  : si fourni, ``get(pk=pk, user=user)`` (isolation par utilisateur).
+        reset : dict champ→valeur OU callable(instance) — remise à zéro spécifique d'app,
+                appliquée SOUS le verrou.
+
+    Returns:
+        (instance, None) si OK ; (None, 'not_found') ; (None, 'already_running').
+    """
+    from django.db import transaction
+    with transaction.atomic():
+        try:
+            qs = model.objects.select_for_update()
+            instance = qs.get(pk=pk, user=user) if user is not None else qs.get(pk=pk)
+        except model.DoesNotExist:
+            return None, 'not_found'
+        if getattr(instance, status_field, None) == running_value:
+            return None, 'already_running'
+        old_task = getattr(instance, task_field, "") or ""
+        if old_task:
+            try:
+                from celery import current_app
+                # terminate=False : on empêche seulement une tâche EN FILE de démarrer après coup.
+                current_app.control.revoke(old_task, terminate=False)
+            except Exception:
+                pass
+        setattr(instance, status_field, running_value)
+        setattr(instance, task_field, "")
+        if callable(reset):
+            reset(instance)
+        elif reset:
+            for field, value in reset.items():
+                setattr(instance, field, value)
+        instance.save()
+    return instance, None
+
+
 def stop_instance(instance, *, status_field: str = "status", task_field: str = "task_id",
                   to_status: str = "FAILURE", error_field: str | None = None,
                   error_message: str = "Interrompu par l'utilisateur") -> str:

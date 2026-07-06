@@ -1,0 +1,112 @@
+{% comment %}
+WAMA Common — CARD MÈRE de batch (brique commune, CARD_DESIGN §8 / audit A2-6 & B3-8).
+
+MÊME squelette que les cards filles (.wama-card) + modificateur .is-batch (couleur d'app via CSS).
+Ne diffère des filles que par les méta agrégées et les actions batch. Toggle collapse sur la zone
+info (col-md-9) ; actions HORS toggle → handlers délégués préservés (.batch-*-btn canoniques,
+déjà utilisés par transcriber/composer/describer).
+
+Contexte requis :
+  batch_info : contrat build_batches_list (batch_common.py) — obj, items, success_count,
+               running_count, failure_count, has_success.
+Slots/options (tous optionnels) :
+  card_class             : classe squelette d'app en plus de .wama-card (ex. 'synthesis-card',
+                           'generation-card') — garde le style existant de l'app.
+  meta_template          : partial d'app pour la colonne « méta communes aux filles »
+                           (reçoit batch_info ; ex. transcriber : modèle/langue/diarisation).
+  download_menu_template : partial d'app pour les items du menu « ⬇ ZIP » (rendu si has_success).
+  eta_ids                : ids des éléments (CSV) pour l'ETA agrégée (sinon pas d'ETA).
+  show_start             : défaut True — bouton ▶ Lancer/relancer le batch (pos. 2, conventions §6).
+L'app garde autour : le wrapper .batch-group + le conteneur .collapse des filles
+(#batchItems{{ batch_info.obj.id }}, data-wama-batch-key='<app>_<id>').
+{% endcomment %}
+<div class="{{ card_class|default:'' }} wama-card is-batch batch-group-header" data-status="batch">
+    <div class="row align-items-center">
+        <div class="col-md-9" data-bs-toggle="collapse"
+             data-bs-target="#batchItems{{ batch_info.obj.id }}" aria-expanded="false"
+             style="cursor:pointer; user-select:none;">
+            <div class="row align-items-center">
+                {# Identité (≈ colonne « fichier » des filles) #}
+                <div class="col-md-4">
+                    <small class="text-muted d-block" style="font-size:.65rem;">
+                        <i class="fas fa-calendar-alt" title="Créé le"></i> {{ batch_info.obj.created_at|date:"d/m H:i" }}
+                    </small>
+                    <span class="filename text-light">
+                        <i class="fas fa-layer-group" style="color:#67e8f9;"></i> Batch #{{ batch_info.obj.id }}
+                    </span><br>
+                    <small class="text-white-50 d-block">
+                        <i class="fas fa-list"></i> {{ batch_info.obj.total }} élément{{ batch_info.obj.total|pluralize }}
+                    </small>
+                </div>
+                {# Méta COMMUNES aux filles (≈ colonne « options ») — slot d'app #}
+                <div class="col-md-3">
+                    {% if meta_template %}{% include meta_template %}{% endif %}
+                </div>
+                {# État agrégé (≈ colonne « état ») #}
+                <div class="col-md-2">
+                    <span class="badge" style="background:rgba(13,202,240,.15); color:#0dcaf0; border:1px solid rgba(13,202,240,.5);">
+                        <i class="fas fa-layer-group"></i> Batch
+                    </span>
+                    <small class="d-block mt-1" style="font-size:.7rem;">
+                        <span class="text-success" title="Terminés"><i class="fas fa-check"></i> {{ batch_info.success_count }}</span>
+                        {% if batch_info.running_count %}<span class="text-warning ms-1" title="En cours"><i class="fas fa-spinner"></i> {{ batch_info.running_count }}</span>{% endif %}
+                        {% if batch_info.failure_count %}<span class="text-danger ms-1" title="Échecs"><i class="fas fa-times"></i> {{ batch_info.failure_count }}</span>{% endif %}
+                        <span class="text-white-50">/ {{ batch_info.obj.total }}</span>
+                    </small>
+                </div>
+                {# Progression agrégée (≈ colonne « progression ») #}
+                <div class="col-md-3">
+                    <div class="wama-progress-track">
+                        <div class="wama-progress-fill" style="width:{% widthratio batch_info.success_count batch_info.obj.total 100 %}%;"></div>
+                    </div>
+                    {% if eta_ids %}<span class="wama-eta" data-eta-ids="{{ eta_ids }}"></span>{% endif %}
+                    <i class="fas fa-chevron-down text-muted ms-1" style="font-size:.7rem;"></i>
+                </div>
+            </div>
+        </div>
+        {# Actions batch : HORS du toggle (clics → handlers délégués .batch-*-btn) #}
+        <div class="col-md-3">
+            <div class="btn-group-actions">
+                <button class="btn btn-sm btn-outline-secondary batch-settings-btn py-0 px-2"
+                        data-batch-id="{{ batch_info.obj.id }}"
+                        title="Paramètres du batch (appliqués à tous les éléments)">
+                    <i class="fas fa-cog"></i>
+                </button>
+                {% if show_start|default:True %}
+                {# ▶ Lancer/Relancer (pos. 2, comme les cards individuelles — conventions §6) #}
+                <button class="btn btn-sm btn-outline-success batch-start-btn py-0 px-2"
+                        data-batch-id="{{ batch_info.obj.id }}"
+                        title="Lancer / relancer tous les éléments du batch">
+                    <i class="fas {% if batch_info.has_success %}fa-rotate-right{% else %}fa-play{% endif %}"></i>
+                </button>
+                {% endif %}
+                {% if batch_info.has_success and download_menu_template %}
+                <div class="dropdown d-inline-block">
+                    <button class="btn btn-sm btn-outline-info py-0 px-2 dropdown-toggle"
+                            type="button" data-bs-toggle="dropdown" aria-expanded="false"
+                            title="Télécharger toutes les sorties (ZIP)">
+                        <i class="fas fa-download"></i> ZIP
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        {% include download_menu_template %}
+                    </ul>
+                </div>
+                {% elif batch_info.has_success and download_url %}
+                {# Variante mono-format (ex. composer : ZIP de WAV) — lien direct, pas de menu #}
+                <a class="btn btn-sm btn-outline-info py-0 px-2" href="{{ download_url }}"
+                   title="Télécharger toutes les sorties (ZIP)">
+                    <i class="fas fa-download"></i> ZIP
+                </a>
+                {% endif %}
+                <button class="btn btn-sm btn-outline-warning batch-duplicate-btn py-0 px-2"
+                        data-batch-id="{{ batch_info.obj.id }}" title="Dupliquer le batch">
+                    <i class="fas fa-copy"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-danger batch-delete-btn py-0 px-2"
+                        data-batch-id="{{ batch_info.obj.id }}" title="Supprimer le batch">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>

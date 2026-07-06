@@ -10,8 +10,7 @@
     {% else %}border-secondary{% endif %}"
      data-id="{{ gen.id }}"
      data-status="{{ gen.status }}"
-     data-estimated-seconds="{{ gen.estimated_seconds }}"
-     style="background:#1e2124;">
+     data-estimated-seconds="{{ gen.estimated_seconds }}">
 
     <div class="row align-items-center g-2">
 
@@ -102,8 +101,7 @@
                 {% if not gen.exported_to_library %}
                 <button class="btn btn-sm export-btn"
                         data-id="{{ gen.id }}"
-                        title="Exporter vers médiathèque"
-                        style="color:#a78bfa; border:1px solid #a78bfa; background:transparent;">
+                        title="Exporter vers médiathèque">
                     <i class="fas fa-photo-film"></i>
                 </button>
                 {% else %}

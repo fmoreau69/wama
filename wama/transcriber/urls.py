@@ -42,9 +42,7 @@ urlpatterns = [
     path('console/', views.console_content, name='console'),
     path('global_progress/', views.global_progress, name='global_progress'),
 
-    # Preprocessing
-    path('preprocessing/toggle/', views.toggle_preprocessing, name='toggle_preprocessing'),
-    path('preprocessing/status/', views.preprocessing_status, name='preprocessing_status'),
+    # Preprocessing (toggle/status supprimées 2026-07-06 : routes mortes, cf. views A5-22)
     path('preprocessing/set/', views.set_preprocessing_preference, name='set_preprocessing'),
 
     # VibeVoice-related endpoints

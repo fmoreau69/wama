@@ -1,0 +1,15 @@
+{% comment %}Slot « méta communes aux filles » de la card mère (_batch_card.html commune).
+Valeur si partagée par toutes les filles, sinon « Mixte » (calcul : build_batches_list extra).{% endcomment %}
+<small class="text-white-50 d-block" style="font-size:.72rem;" title="Modèle (commun aux éléments)">
+    <i class="fas fa-microchip text-info"></i> {{ batch_info.common_backend|default:"Mixte" }}
+</small>
+{% if batch_info.common_language %}
+<small class="text-white-50 d-block" style="font-size:.72rem;">
+    <i class="fas fa-language"></i> {{ batch_info.common_language }}
+</small>
+{% endif %}
+{% if batch_info.common_diarization %}
+<small class="text-white-50 d-block" style="font-size:.72rem;">
+    <i class="fas fa-users"></i> Diarisation
+</small>
+{% endif %}

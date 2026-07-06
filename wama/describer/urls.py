@@ -14,6 +14,10 @@ urlpatterns = [
     # File operations
     path('upload/', views.upload, name='upload'),
     path('consolidate/', views.consolidate, name='consolidate'),
+    # Manipulation directe (brique commune queue_manipulation, 2026-07-06)
+    path('reorder/', views.reorder, name='reorder'),
+    path('move-to-batch/<int:pk>/', views.move_to_batch, name='move_to_batch'),
+    path('remove-from-batch/<int:pk>/', views.remove_from_batch, name='remove_from_batch'),
     path('start/<int:pk>/', views.start, name='start'),
     path('stop/<int:pk>/', views.stop, name='stop'),
     path('progress/<int:pk>/', views.progress, name='progress'),

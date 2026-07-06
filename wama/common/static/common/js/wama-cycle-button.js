@@ -57,6 +57,15 @@
     var btn = card.querySelector('.wama-cycle-btn');
     if (!btn) return;
     var st = stateFor(card.dataset.status || card.getAttribute('data-status'));
+    // Overrides DÉCLARÉS par la card (spécificité d'app métadonnée-driven — ex. transcriber
+    // temps réel : ↻ = « Re-transcrire via le pipeline complet » + fa-rotate).
+    if (st.action === 'restart') {
+      st = {
+        action: 'restart',
+        icon: card.getAttribute('data-cycle-restart-icon') || st.icon,
+        title: card.getAttribute('data-cycle-restart-title') || st.title,
+      };
+    }
     btn.setAttribute('data-cycle-action', st.action);
     btn.setAttribute('title', st.title);
     var icon = btn.querySelector('i');

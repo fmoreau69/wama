@@ -1,0 +1,4 @@
+{% comment %}Items du menu « ⬇ ZIP » de la card mère (slot de _batch_card.html commune).{% endcomment %}
+<li><a class="dropdown-item" href="{% url 'describer:batch_download' batch_info.obj.id %}?fmt=txt">Tout en TXT</a></li>
+<li><a class="dropdown-item" href="{% url 'describer:batch_download' batch_info.obj.id %}?fmt=pdf">Tout en PDF</a></li>
+<li><a class="dropdown-item" href="{% url 'describer:batch_download' batch_info.obj.id %}?fmt=docx">Tout en DOCX</a></li>

@@ -290,6 +290,17 @@
             return;
         }
 
+        // ▶ batch (card mère commune _batch_card.html, 2026-07-06) : lance les PENDING du batch.
+        const batchStartBtn = e.target.closest('.batch-start-btn');
+        if (batchStartBtn) {
+            const bid = batchStartBtn.dataset.batchId;
+            fetch(WamaApp.getUrl(APP.batchStartUrlTemplate, bid), { method: 'POST', headers: { 'X-CSRFToken': CSRF } })
+                .then(r => r.json())
+                .then(d => { (d.started || []).forEach(id => { insertRenderedCard(id); startPolling(id); }); })
+                .catch(() => showToast('Erreur lors du lancement du batch', 'danger'));
+            return;
+        }
+
         const batchDuplicateBtn = e.target.closest('.batch-duplicate-btn');
         if (batchDuplicateBtn) {
             const bid = batchDuplicateBtn.dataset.batchId;
@@ -584,15 +595,11 @@
         hint.classList.toggle('d-none', queue.querySelectorAll('.generation-card').length > 0);
     }
 
+    // Toast : brique commune (wama-app-base.js) — l'implémentation locale a été PROMUE brique
+    // (WamaApp.toast, 2026-07-06) puis supprimée ici.
     function showToast(message, type) {
-        const colors = { success: '#198754', error: '#dc3545', info: '#0dcaf0', warning: '#ffc107' };
-        const toast = document.createElement('div');
-        toast.style.cssText = `position:fixed;bottom:20px;right:20px;z-index:9999;
-            background:${colors[type]||'#333'};color:#fff;padding:10px 16px;border-radius:6px;
-            font-size:.9rem;box-shadow:0 4px 12px rgba(0,0,0,.4);max-width:300px;`;
-        toast.textContent = message;
-        document.body.appendChild(toast);
-        setTimeout(() => toast.remove(), 3500);
+        if (window.WamaApp && WamaApp.toast) WamaApp.toast(message, type);
+        else console.info('[Composer]', message);
     }
 
 })();
