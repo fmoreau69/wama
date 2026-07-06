@@ -1,67 +1,48 @@
 {% load i18n reader_tags %}
 {% comment %}
-  Partial server-side card body for ReadingItem.
-  Mirrors the JS buildCard() function for initial page render.
-  item : ReadingItem instance
+WAMA Reader — CARD v2 « synthétique » (PILOTE du formalisme CARD_DESIGN §10, 2026-07-06).
+Source UNIQUE du markup (racine incluse) : rendue au chargement (index.html, autonome ET fille
+de batch via in_batch=True) et par l'endpoint reader:card_html (update JS en place, PAS de rebuild).
+
+Anatomie (spec §10.3) :
+  ligne 1  identité (icône+nom+sous-ligne #id·date) · CHIPS générés depuis params.py (chip=True,
+           brique card_chips — item.chips posé par la vue) · point d'état tricolore + ETA · actions
+  ligne 2  barre de progression PLEINE LARGEUR qui SE TRANSFORME (jamais absente après lancement)
+  ligne 3  aperçu sortie systématique (texte 1 bloc tronqué) · erreur inline compacte
+Contexte : item = ReadingItem (avec .chips) ; in_batch = fille de batch.
 {% endcomment %}
 
 {% with item.filename as fname %}
+<div class="reader-card card bg-dark border-secondary wama-card {% if in_batch %}mb-1{% else %}mb-2{% endif %} {% if item.status == 'RUNNING' %}processing{% elif item.status == 'DONE' %}success{% elif item.status == 'ERROR' %}error{% endif %}"
+     {% if in_batch %}style="border-radius:0 0.375rem 0.375rem 0;"{% endif %}
+     data-id="{{ item.id }}" data-status="{{ item.status }}">
 <div class="card-body py-2">
-  <div class="d-flex justify-content-between align-items-start">
 
-    {# ── Left : filename + badges ───────────────────────────────── #}
-    <div class="d-flex align-items-center flex-wrap gap-1 me-2 overflow-hidden">
+  {# ── Ligne 1 : identité + chips + état + actions ──────────────────────────── #}
+  <div class="d-flex justify-content-between align-items-center gap-2">
+
+    <div class="d-flex align-items-center flex-wrap gap-1 me-auto overflow-hidden">
       <span role="button" class="source-preview-btn d-flex align-items-center gap-1"
             data-id="{{ item.id }}" data-filename="{{ fname }}" title="Aperçu du fichier source">
         <i class="fas fa-file-alt text-info me-1"></i>
         <span class="fw-semibold text-light text-truncate" style="max-width:240px;">{{ fname }}</span>
       </span>
-
-      {% if item.page_count == 1 %}
-        <span class="badge bg-secondary ms-1">1 page</span>
-      {% elif item.page_count > 1 %}
-        <span class="badge bg-secondary ms-1">{{ item.page_count }} pages</span>
-      {% endif %}
-
-      {% if item.status == 'PENDING' %}
-        <span class="badge bg-secondary">En attente</span>
-      {% elif item.status == 'RUNNING' %}
-        <span class="badge bg-warning text-dark"><i class="fas fa-spinner fa-spin me-1"></i>En cours</span>
-      {% elif item.status == 'DONE' %}
-        <span class="badge bg-success">Terminé</span>
-      {% elif item.status == 'ERROR' %}
-        <span class="badge bg-danger">Erreur</span>
-      {% else %}
-        <span class="badge bg-secondary">{{ item.status }}</span>
-      {% endif %}
-
-      {% if item.used_backend %}
-        <span class="badge bg-info text-dark ms-1 small">
-          {% if item.used_backend == 'olmocr' %}olmOCR-2
-          {% elif item.used_backend == 'doctr' %}docTR
-          {% else %}{{ item.used_backend }}{% endif %}
-        </span>
-      {% else %}
-        <span class="badge bg-secondary ms-1 small">
-          {% if item.backend == 'auto' %}Auto
-          {% elif item.backend == 'olmocr' %}olmOCR-2
-          {% elif item.backend == 'doctr' %}docTR
-          {% else %}{{ item.backend }}{% endif %}
-        </span>
-      {% endif %}
-
-      <small class="text-muted ms-1">
-        {% if item.mode == 'auto' %}Auto
-        {% elif item.mode == 'printed' %}Imprimé
-        {% elif item.mode == 'handwritten' %}Manuscrit
-        {% else %}{{ item.mode }}{% endif %}
-      </small>
+      <small class="text-muted ms-1" style="font-size:.65rem;">#{{ item.id }} · {{ item.created_at|date:"d/m H:i" }}</small>
+      {# Chips méta — GÉNÉRÉS (brique commune ; moteur/mode/langue + « X pages » en extra) #}
+      {% include 'common/_card_chips.html' with chips=item.chips %}
     </div>
 
-    {# ── Right : action buttons ─────────────────────────────────── #}
-    <div class="d-flex gap-1 flex-shrink-0">
+    {# État compact : point tricolore + libellé court + ETA (WamaEta) #}
+    <span class="d-inline-flex align-items-center gap-1 flex-shrink-0 small">
+      <span class="wama-status-dot" data-s="{{ item.status }}"></span>
+      <span class="text-white-50" style="font-size:.72rem;">
+        {% if item.status == 'PENDING' %}En attente{% elif item.status == 'RUNNING' %}En cours{% elif item.status == 'DONE' %}Terminé{% elif item.status == 'ERROR' %}Échec{% else %}{{ item.status }}{% endif %}
+      </span>
+      {% if item.status == 'RUNNING' %}<span class="wama-eta" data-eta-ids="{{ item.id }}"></span>{% endif %}
+    </span>
 
-      {# Settings button #}
+    {# Actions — ordre conventionnel ⚙ ▶(cycle) ⬇ ⧉ 🗑 (conventions §6) #}
+    <div class="d-flex gap-1 flex-shrink-0">
       <button class="btn btn-sm btn-outline-secondary" data-action="settings" title="Paramètres"
               data-id="{{ item.id }}"
               data-backend="{{ item.backend }}"
@@ -69,11 +50,7 @@
               data-language="{{ item.language }}">
         <i class="fas fa-cog"></i>
       </button>
-
-      {# Bouton de cycle commun ▶/⏹/↻ (toujours visible, ⏹ Stop pendant RUNNING) #}
       {% include 'common/_cycle_button.html' with id=item.id status=item.status %}
-
-      {# Download button — split dropdown for multi-format #}
       {% if item.result_text %}
         <div class="btn-group">
           <a href="{% url 'reader:download' item.id %}?format=txt" class="btn btn-sm btn-outline-info" title="Télécharger TXT">
@@ -105,8 +82,7 @@
           <i class="fas fa-download"></i>
         </button>
       {% endif %}
-
-      <button class="btn btn-sm btn-outline-secondary" data-action="duplicate" title="Dupliquer">
+      <button class="btn btn-sm btn-outline-warning" data-action="duplicate" title="Dupliquer">
         <i class="fas fa-copy"></i>
       </button>
       <button class="btn btn-sm btn-outline-danger" data-action="delete" title="Supprimer">
@@ -115,7 +91,7 @@
     </div>
   </div>
 
-  {# Progress bar (RUNNING → animée, DONE → 100% fixe) #}
+  {# ── Ligne 2 : barre PLEINE LARGEUR qui se transforme (§10.3-2 : jamais absente) ── #}
   {% if item.status == 'RUNNING' %}
   <div class="wama-progress-track mt-2">
     <div class="wama-progress-fill active" style="width:{{ item.progress }}%"></div>
@@ -125,9 +101,13 @@
   <div class="wama-progress-track mt-2">
     <div class="wama-progress-fill" style="width:100%"></div>
   </div>
+  {% elif item.status == 'ERROR' %}
+  <div class="wama-progress-track mt-2">
+    <div class="wama-progress-fill" style="width:100%; background:#dc3545;"></div>
+  </div>
   {% endif %}
 
-  {# Result preview #}
+  {# ── Ligne 3 : aperçu sortie (clic = développer) · erreur inline compacte ──── #}
   {% if item.result_text %}
   <div class="reader-preview mt-2 p-2 rounded bg-black bg-opacity-50 small text-light"
        style="max-height:80px;overflow:hidden;cursor:pointer;word-break:break-word;"
@@ -136,11 +116,12 @@
     {% if item.result_text|length > 100 %}<span class="text-muted"> …</span>{% endif %}
   </div>
   {% endif %}
-
-  {# Error #}
   {% if item.error_message %}
-  <div class="alert alert-danger py-1 mt-2 small mb-0">{{ item.error_message|escape }}</div>
+  <small class="d-block mt-1 text-danger text-truncate" title="{{ item.error_message|escape }}">
+    <i class="fas fa-triangle-exclamation"></i> {{ item.error_message|escape }}
+  </small>
   {% endif %}
 
+</div>
 </div>
 {% endwith %}

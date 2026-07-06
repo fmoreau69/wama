@@ -1,0 +1,3 @@
+{% comment %}Chips méta d'une card (CARD_DESIGN §10.3) — GÉNÉRÉS par card_chips.chips_for
+(champs chip=True du schéma params + extras d'app). Var : chips = [{'label','icon','title','variant'}].{% endcomment %}
+{% for chip in chips %}<span class="wama-chip{% if chip.variant %} wama-chip--{{ chip.variant }}{% endif %}" title="{{ chip.title }}">{% if chip.icon %}<i class="fas {{ chip.icon }}"></i>{% endif %}{{ chip.label }}</span>{% endfor %}

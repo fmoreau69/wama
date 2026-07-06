@@ -199,7 +199,11 @@ def build_batches_list(user, *, batch_model, work_attr, items_related='items',
         items = sorted(getattr(batch, items_related).all(),
                        key=lambda it: getattr(it, 'row_index', 0) or 0)
         works = [w for w in (getattr(it, work_attr) for it in items) if w]
-        statuses = [w.status for w in works]
+        # Vocabulaires de statut variables selon les apps (reader : DONE/ERROR…) —
+        # même tolérance que _cycle_button.html / wama-cycle-button.js stateFor().
+        _ALIAS = {'DONE': 'SUCCESS', 'COMPLETED': 'SUCCESS', 'ERROR': 'FAILURE',
+                  'FAILED': 'FAILURE', 'PROCESSING': 'RUNNING', 'STARTED': 'RUNNING'}
+        statuses = [_ALIAS.get((w.status or '').upper(), (w.status or '').upper()) for w in works]
         row = {
             'obj': batch,
             'items': items,
@@ -208,7 +212,8 @@ def build_batches_list(user, *, batch_model, work_attr, items_related='items',
             'failure_count': statuses.count('FAILURE'),
         }
         if has_output is not None:
-            row['has_success'] = any(w.status == 'SUCCESS' and has_output(w) for w in works)
+            row['has_success'] = any(s == 'SUCCESS' and has_output(w)
+                                     for s, w in zip(statuses, works))
         else:
             row['has_success'] = row['success_count'] > 0
         if extra is not None:

@@ -53,111 +53,8 @@
 
     // ─── Card rendering ───────────────────────────────────────────────────────
 
-    function buildCard(item) {
-        const pagesBadge = item.page_count > 1
-            ? `<span class="badge bg-secondary ms-1">${item.page_count} pages</span>`
-            : (item.page_count === 1 ? `<span class="badge bg-secondary ms-1">1 page</span>` : '');
-
-        const usedBackend = item.used_backend
-            ? `<span class="badge bg-info text-dark ms-1 small">${backendLabel(item.used_backend)}</span>`
-            : `<span class="badge bg-secondary ms-1 small">${backendLabel(item.backend)}</span>`;
-
-        const progressHtml = (item.status === 'RUNNING')
-            ? `<div class="wama-progress-track mt-2">
-                 <div class="wama-progress-fill active" style="width:${item.progress}%"></div>
-               </div>
-               <small class="text-warning">${item.progress_msg || 'En cours…'}</small>
-               <span class="wama-eta d-block"></span>`
-            : (item.status === 'DONE')
-            ? `<div class="wama-progress-track mt-2">
-                 <div class="wama-progress-fill" style="width:100%"></div>
-               </div>`
-            : '';
-
-        const previewHtml = item.result_preview
-            ? `<div class="reader-preview mt-2 p-2 rounded bg-black bg-opacity-50 small text-light"
-                    style="max-height:80px;overflow:hidden;cursor:pointer;word-break:break-word;"
-                    data-action="expand" title="Clic : développer · Double-clic : texte complet">
-                 <span class="preview-text">${escapeHtml(item.result_preview)}</span>
-                 ${item.has_result ? '<span class="text-muted"> …</span>' : ''}
-               </div>`
-            : '';
-
-        const errorHtml = item.error_message
-            ? `<div class="alert alert-danger py-1 mt-2 small mb-0">${escapeHtml(item.error_message)}</div>`
-            : '';
-
-        const dlBase = urlFor('download', item.id);
-        const jsonItem = item.has_raw_result
-            ? `<li><hr class="dropdown-divider"></li>
-                   <li><a class="dropdown-item" href="${dlBase}?format=json"><i class="fas fa-code me-2 text-warning"></i>JSON brut</a></li>`
-            : '';
-        const downloadBtn = item.has_result
-            ? `<div class="btn-group">
-                 <a href="${dlBase}?format=txt" class="btn btn-sm btn-outline-info" title="Télécharger TXT">
-                   <i class="fas fa-download"></i>
-                 </a>
-                 <button type="button" class="btn btn-sm btn-outline-info dropdown-toggle dropdown-toggle-split"
-                         data-bs-toggle="dropdown" aria-expanded="false">
-                   <span class="visually-hidden">Autres formats</span>
-                 </button>
-                 <ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end">
-                   <li><a class="dropdown-item" href="${dlBase}?format=txt"><i class="fas fa-file-alt me-2"></i>TXT</a></li>
-                   <li><a class="dropdown-item" href="${dlBase}?format=md"><i class="fab fa-markdown me-2"></i>Markdown</a></li>
-                   <li><hr class="dropdown-divider"></li>
-                   <li><a class="dropdown-item" href="${dlBase}?format=pdf"><i class="fas fa-file-pdf me-2 text-danger"></i>PDF</a></li>
-                   <li><a class="dropdown-item" href="${dlBase}?format=docx"><i class="fas fa-file-word me-2 text-primary"></i>DOCX</a></li>
-                   ${jsonItem}
-                 </ul>
-               </div>`
-            : `<button class="btn btn-sm btn-outline-info" disabled title="Pas encore de résultat">
-                 <i class="fas fa-download"></i>
-               </button>`;
-
-        // Bouton de cycle commun ▶/⏹/↻ (toujours vert ; ⏹ Stop pendant RUNNING). Câblé via
-        // WamaCycleButton.wire + autoSync (cf. init). Repli legacy si la brique n'est pas chargée.
-        const startBtn = window.WamaCycleButton
-            ? WamaCycleButton.html(item.status, item.id)
-            : `<button class="btn btn-sm btn-outline-success" data-action="start" title="Lancer"><i class="fas fa-play"></i></button>`;
-
-        return `
-<div class="card-body py-2">
-  <div class="d-flex justify-content-between align-items-start">
-    <div class="d-flex align-items-center flex-wrap gap-1 me-2 overflow-hidden">
-      <span role="button" class="source-preview-btn d-flex align-items-center gap-1"
-            data-id="${item.id}" data-filename="${escapeHtml(item.filename)}" title="Aperçu du fichier source">
-        <i class="fas fa-file-alt text-info me-1"></i>
-        <span class="fw-semibold text-light text-truncate" style="max-width:240px;">${escapeHtml(item.filename)}</span>
-      </span>
-      ${pagesBadge}
-      ${statusBadge(item.status)}
-      ${usedBackend}
-      <small class="text-muted ms-1">${modeLabel(item.mode)}</small>
-    </div>
-    <div class="d-flex gap-1 flex-shrink-0">
-      <button class="btn btn-sm btn-outline-secondary" data-action="settings" title="Paramètres"
-              data-id="${item.id}"
-              data-backend="${item.backend}"
-              data-mode="${item.mode}"
-              data-output-format="${item.output_format}"
-              data-language="${escapeHtml(item.language || '')}">
-        <i class="fas fa-cog"></i>
-      </button>
-      ${startBtn}
-      ${downloadBtn}
-      <button class="btn btn-sm btn-outline-secondary" data-action="duplicate" title="Dupliquer">
-        <i class="fas fa-copy"></i>
-      </button>
-      <button class="btn btn-sm btn-outline-danger" data-action="delete" title="Supprimer">
-        <i class="fas fa-trash"></i>
-      </button>
-    </div>
-  </div>
-  ${progressHtml}
-  ${previewHtml}
-  ${errorHtml}
-</div>`;
-    }
+    // buildCard() SUPPRIMÉE 2026-07-06 : le markup vient du SERVEUR (reader:card_html)
+    // — la copie JS aurait divergé de la card v2 (chips/point d'état). CARD_DESIGN §3.
 
     function escapeHtml(str) {
         return String(str)
@@ -165,25 +62,29 @@
             .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     }
 
-    function upsertCard(item) {
+    async function upsertCard(item) {
+        // Card v2 : re-rendue SERVEUR (reader:card_html) puis remplacée EN PLACE —
+        // le JS ne reconstruit plus le markup (CARD_DESIGN §3 ; l'ex-buildCard() était
+        // une 2ᵉ source qui aurait divergé des chips/du point d'état serveur).
         let card = document.querySelector(`.reader-card[data-id="${item.id}"]`);
-        if (card) {
-            card.dataset.status = item.status;
-            card.innerHTML = buildCard(item);
-        } else {
-            // Prepend new card
-            const empty = document.getElementById('emptyState');
-            if (empty) empty.remove();
-
-            card = document.createElement('div');
-            card.className = 'reader-card card bg-dark border-secondary mb-2';
-            card.dataset.id = item.id;
-            card.dataset.status = item.status;
-            card.innerHTML = buildCard(item);
-
-            const container = document.getElementById('queueContainer');
-            container.prepend(card);
-        }
+        try {
+            const r = await fetch(urlFor('cardHtml', item.id));
+            if (r.ok) {
+                const tpl = document.createElement('template');
+                tpl.innerHTML = (await r.text()).trim();
+                const fresh = tpl.content.firstElementChild;
+                if (fresh) {
+                    if (card) card.replaceWith(fresh);
+                    else {
+                        const empty = document.getElementById('emptyState');
+                        if (empty) empty.remove();
+                        document.getElementById('queueContainer').prepend(fresh);
+                    }
+                    card = fresh;
+                }
+            }
+        } catch (e) { /* réseau : on garde la card existante, le poll réessaiera */ }
+        if (!card) return null;
         if (window.WamaEta) WamaEta.render(card.querySelector('.wama-eta'), WamaEta.update(item.id, { progress: item.progress, status: item.status, seedSeconds: item.estimated_seconds, modelLoaded: false }));
         bindCardActions(card, item);
         updateDownloadAllBtn();
@@ -653,12 +554,16 @@
         const id = btn.dataset.batchId;
         document.getElementById('batchSettingsBatchLabel').textContent = '#' + id;
         document.getElementById('batchSettingsBatchId').value = id;
+        // Presets = réglages de la 1re fille (la card mère commune _batch_card.html ne porte
+        // plus de data-backend/mode/language — ils vivent sur les cards, source serveur unique).
+        const firstCfg = document.querySelector(`#batchItems${id} [data-action="settings"]`);
+        const cfg = (firstCfg && firstCfg.dataset) || btn.dataset || {};
         const selEl = document.getElementById('batchSettingsBackend');
-        if (selEl) selEl.value = btn.dataset.backend || '';
+        if (selEl) selEl.value = cfg.backend || '';
         const modeEl = document.getElementById('batchSettingsMode');
-        if (modeEl) modeEl.value = btn.dataset.mode || '';
+        if (modeEl) modeEl.value = cfg.mode || '';
         const langEl = document.getElementById('batchSettingsLanguage');
-        if (langEl) langEl.value = btn.dataset.language || '';
+        if (langEl) langEl.value = cfg.language || '';
         _batchSettingsModal.show();
     }
 

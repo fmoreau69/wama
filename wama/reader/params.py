@@ -14,7 +14,7 @@ PARAMS = derive_from_model(
     include=["backend", "mode", "language"],
     overrides={
         "backend": dict(
-            type="select", label="Moteur OCR", icon="fa-microchip",
+            type="select", label="Moteur OCR", icon="fa-microchip", chip=True,
             dom_id={"panel": "backendSelect", "batch": "batchSettingsBackend", "item": "rSettings_backend"},
             # Descriptif du moteur sous le select (systématique via WamaParams/WamaModelHelp).
             # Moteurs OCR maison → pas dans le catalogue model_manager : repli statique par valeur.
@@ -26,11 +26,11 @@ PARAMS = derive_from_model(
             },
         ),
         "mode": dict(
-            type="select", label="Mode de lecture", icon="fa-pen-nib",
+            type="select", label="Mode de lecture", icon="fa-pen-nib", chip=True,
             dom_id={"panel": "modeSelect", "batch": "batchSettingsMode", "item": "rSettings_mode"},
         ),
         "language": dict(
-            type="text", label="Langue", icon="fa-language",
+            type="text", label="Langue", icon="fa-language", chip=True,
             dom_id={"panel": "languageInput", "batch": "batchSettingsLanguage", "item": "rSettings_language"},
             help="Optionnel (ex. fr, en). Auto-détection si vide.",
         ),

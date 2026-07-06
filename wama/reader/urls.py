@@ -11,6 +11,7 @@ urlpatterns = [
     path('analyze/<int:pk>/',       views.analyze,             name='analyze'),
     path('settings/<int:pk>/',      views.save_settings,       name='save_settings'),
     path('progress/<int:pk>/',      views.progress,            name='progress'),
+    path('card/<int:pk>/html/',     views.card_html,           name='card_html'),
     path('text/<int:pk>/',          views.text_view,           name='text'),
     path('download/<int:pk>/',      views.download,            name='download'),
     path('delete/<int:pk>/',        views.delete,              name='delete'),
@@ -31,4 +32,9 @@ urlpatterns = [
     path('batch/<int:pk>/delete/',              views.batch_delete,     name='batch_delete'),
     path('batch/<int:pk>/duplicate/',           views.batch_duplicate,  name='batch_duplicate'),
     path('batch/<int:pk>/update/',              views.batch_update,     name='batch_update'),
+    # Manipulation directe (brique commune queue_manipulation, 2026-07-06)
+    path('reorder/',                            views.reorder,             name='reorder'),
+    path('move-to-batch/<int:pk>/',             views.move_to_batch,       name='move_to_batch'),
+    path('remove-from-batch/<int:pk>/',         views.remove_from_batch,   name='remove_from_batch'),
+    path('consolidate/',                        views.consolidate,         name='consolidate'),
 ]

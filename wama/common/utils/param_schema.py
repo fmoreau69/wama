@@ -58,6 +58,9 @@ class Param:
                                                  # → WamaParams affiche desc courte/longue + VRAM sous le select
     help_fallback: Optional[dict] = None         # {valeur_option: texte} pour backends HORS catalogue
                                                  # (ex. moteurs ASR/OCR maison) — repli si help_source absent/vide
+    chip: bool = False                          # CARD_DESIGN §10.3 : le champ produit un CHIP méta sur la
+                                                # card (état concis) — valeur courte (label d'option si
+                                                # select), icône du schéma. Rendu : common/utils/card_chips.py.
 
     def to_dict(self) -> dict:
         return asdict(self)

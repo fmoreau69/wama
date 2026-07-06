@@ -90,24 +90,39 @@ def _reader_eta_seed(item: ReadingItem) -> float:
 
 
 def _wrap_reading_in_batch(reading):
-    """Wrap a standalone ReadingItem in a new BatchReadingItem-of-1."""
-    batch = BatchReadingItem.objects.create(user=reading.user, total=1)
-    BatchReadingItemLink.objects.create(batch=batch, reading=reading, row_index=0)
-    return batch
+    """Wrap a standalone ReadingItem in a new BatchReadingItem-of-1 (brique commune)."""
+    from wama.common.utils.batch_common import wrap_in_batch
+    return wrap_in_batch(reading, batch_model=BatchReadingItem,
+                         item_model=BatchReadingItemLink, fk_name='reading')
 
 
 def _auto_wrap_orphans(user):
-    """Wrap any ReadingItem not yet in a batch into a batch-of-1 (called on page load)."""
-    existing_ids = set(
-        BatchReadingItemLink.objects.filter(batch__user=user)
-        .values_list('reading_id', flat=True)
-    )
-    orphans = ReadingItem.objects.filter(user=user).exclude(id__in=existing_ids)
-    for orphan in orphans:
-        try:
-            _wrap_reading_in_batch(orphan)
-        except Exception:
-            pass
+    """Wrap any ReadingItem not yet in a batch into a batch-of-1 (brique commune)."""
+    from wama.common.utils.batch_common import auto_wrap_orphans
+    auto_wrap_orphans(user, work_model=ReadingItem, batch_model=BatchReadingItem,
+                      item_model=BatchReadingItemLink, fk_name='reading')
+
+
+def _chips(reading):
+    """Chips méta de la card v2 (brique card_chips, CARD_DESIGN §10) : moteur EFFECTIF
+    (used_backend) prioritaire sur le réglage + « X pages » en extra (différence consignée §10.1)."""
+    from wama.common.utils.card_chips import chips_for
+    from wama.reader.params import PARAMS_JSON
+
+    class _View:
+        # proxy lecture seule : une fois le run fait, le chip moteur montre used_backend
+        def __init__(self, o): self._o = o
+        def __getattr__(self, k):
+            if k == 'backend':
+                return self._o.used_backend or self._o.backend
+            return getattr(self._o, k)
+
+    extra = []
+    pages = getattr(reading, 'page_count', 0) or 0
+    if pages:
+        extra.append({'label': f"{pages} page" + ('s' if pages > 1 else ''),
+                      'icon': 'fa-file-lines', 'title': 'Pages', 'variant': ''})
+    return chips_for(_View(reading), PARAMS_JSON, extra=extra)
 
 
 class IndexView(View):
@@ -117,26 +132,25 @@ class IndexView(View):
         # Lazily wrap any orphan readings into a batch-of-1
         _auto_wrap_orphans(user)
 
-        # All batches with prefetched items+reading
-        batches_qs = BatchReadingItem.objects.filter(user=user).prefetch_related(
-            'items__reading'
-        ).order_by('-id')
+        # Agrégats de file — brique COMMUNE (contrat toolbar/_batch_card) + enrichissements reader.
+        from wama.common.utils.batch_common import build_batches_list
 
-        batches_list = []
-        for batch in batches_qs:
-            items = list(batch.items.all())
-            success_count = sum(1 for i in items if i.reading and i.reading.status == 'DONE')
-            first_reading = next((i.reading for i in items if i.reading), None)
-            batches_list.append({
-                'obj': batch,
-                'items': items,
-                'success_count': success_count,
+        def _extra(batch, items, readings):
+            success_count = sum(1 for r in readings if r.status == 'DONE')
+            first = readings[0] if readings else None
+            for r in readings:
+                r.chips = _chips(r)   # chips card v2 (générés, CARD_DESIGN §10)
+            return {
                 'success_pct': int(success_count / batch.total * 100) if batch.total > 0 else 0,
-                'has_success': success_count > 0,
-                'first_backend': first_reading.backend if first_reading else '',
-                'first_mode': first_reading.mode if first_reading else '',
-                'first_language': first_reading.language if first_reading else '',
-            })
+                'first_backend': first.backend if first else '',
+                'first_mode': first.mode if first else '',
+                'first_language': first.language if first else '',
+                # ETA agrégée de la card mère (brique _batch_card.html)
+                'eta_ids': ','.join(str(r.id) for r in readings),
+            }
+
+        batches_list = build_batches_list(user, batch_model=BatchReadingItem,
+                                          work_attr='reading', order_by='-id', extra=_extra)
 
         # Multi-item batches first, then single-item batches
         batches_list.sort(key=lambda b: 0 if b['obj'].total > 1 else 1)
@@ -228,38 +242,38 @@ def stop(request, pk: int):
     return JsonResponse({'id': item.id, 'status': new_status})
 
 
+def _reset_for_relaunch(item):
+    """Remise à zéro avant (re)lancement — appliquée SOUS le verrou anti-race."""
+    item.result_text = ''
+    item.raw_result = ''
+    item.error_message = ''
+    item.progress = 0
+
+
 def start(request, pk: int):
-    """Start OCR processing for a single item (anti-race-condition)."""
+    """Start OCR processing for a single item — anti-race via la brique commune."""
     user = _get_user(request)
-
-    with transaction.atomic():
-        item = get_object_or_404(
-            ReadingItem.objects.select_for_update(), pk=pk, user=user
-        )
-        if item.status == 'RUNNING':
-            return JsonResponse({'error': 'Déjà en cours'}, status=409)
-
-        # Revoke any stale task
-        if item.task_id:
-            try:
-                from celery import current_app
-                current_app.control.revoke(item.task_id, terminate=False)
-            except Exception:
-                pass
-
-        item.status = 'RUNNING'
-        item.task_id = ''
-        item.result_text = ''
-        item.raw_result = ''
-        item.error_message = ''
-        item.progress = 0
-        item.save()
+    from wama.common.utils.process_control import begin_processing
+    item, err = begin_processing(ReadingItem, pk, user=user, reset=_reset_for_relaunch)
+    if err == 'not_found':
+        return JsonResponse({'error': 'Not found'}, status=404)
+    if err == 'already_running':
+        return JsonResponse({'error': 'Déjà en cours'}, status=409)
 
     task = read_document_task.delay(item.id)
     item.task_id = task.id
     item.save(update_fields=['task_id'])
-
     return JsonResponse({'ok': True, 'task_id': task.id})
+
+
+def card_html(request, pk: int):
+    """Card RENDUE serveur — source UNIQUE du markup v2 (partial _item_card.html ;
+    CARD_DESIGN §3, update JS en place). Le flag in_batch est déduit du batch parent."""
+    item = get_object_or_404(ReadingItem, pk=pk, user=_get_user(request))
+    item.chips = _chips(item)
+    link = BatchReadingItemLink.objects.filter(reading=item).select_related('batch').first()
+    in_batch = bool(link and link.batch.total > 1)
+    return render(request, 'reader/_item_card.html', {'item': item, 'in_batch': in_batch})
 
 
 def progress(request, pk: int):
@@ -379,17 +393,17 @@ def duplicate(request, pk: int):
 def start_all(request):
     """Start all PENDING items for the current user."""
     user = _get_user(request)
+    from wama.common.utils.process_control import begin_processing
     items = ReadingItem.objects.filter(user=user, status='PENDING').order_by('-created_at')
     count = 0
     for item in items:
-        try:
-            task = read_document_task.delay(item.id)
-            item.task_id = task.id
-            item.status = 'RUNNING'
-            item.save(update_fields=['task_id', 'status'])
-            count += 1
-        except Exception as e:
-            logger.error(f"[Reader] start_all error on {item.id}: {e}")
+        item, err = begin_processing(ReadingItem, item.pk, user=user, reset=_reset_for_relaunch)
+        if err:
+            continue
+        task = read_document_task.delay(item.id)
+        item.task_id = task.id
+        item.save(update_fields=['task_id'])
+        count += 1
     return JsonResponse({'started': count})
 
 
@@ -589,24 +603,34 @@ def batch_start(request, pk):
     user = _get_user(request)
     batch = get_object_or_404(BatchReadingItem, pk=pk, user=user)
 
+    from wama.common.utils.process_control import begin_processing
     started = []
     for item in batch.items.select_related('reading').all():
         r = item.reading
-        if not r or r.status == 'RUNNING':
+        if not r:
             continue
-        r.status = 'RUNNING'
-        r.progress = 0
-        r.result_text = ''
-        r.raw_result = ''
-        r.error_message = ''
-        r.save(update_fields=['status', 'progress', 'result_text', 'raw_result', 'error_message'])
-
+        r, err = begin_processing(ReadingItem, r.pk, user=user, reset=_reset_for_relaunch)
+        if err:
+            continue
         task = read_document_task.delay(r.id)
         r.task_id = task.id
         r.save(update_fields=['task_id'])
         started.append(r.id)
 
     return JsonResponse({'started': started, 'count': len(started)})
+
+
+# Manipulation directe de la file (CARD_DESIGN §3bis) — vues GÉNÉRÉES par la brique commune.
+from wama.common.utils.queue_manipulation import make_queue_manipulation_views
+
+_qm = make_queue_manipulation_views(
+    work_model=ReadingItem, batch_model=BatchReadingItem,
+    item_model=BatchReadingItemLink, fk_name='reading', get_user=_get_user,
+)
+remove_from_batch = _qm['remove_from_batch']
+reorder = _qm['reorder']
+move_to_batch = _qm['move_to_batch']
+consolidate = _qm['consolidate']
 
 
 def batch_status(request, pk):

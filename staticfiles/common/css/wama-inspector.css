@@ -114,3 +114,30 @@
 @media (prefers-reduced-motion: reduce) {
     .collapse[data-wama-batch-key].show .wama-card { animation: none; }
 }
+
+/* ── Card v2 « synthétique » (CARD_DESIGN §10, pilote Reader 2026-07-06) ─────────────── */
+/* Chips méta — générés depuis PARAMS_JSON (chip=True), jamais écrits à la main par app. */
+.wama-chip {
+  display: inline-flex; align-items: center; gap: .3rem;
+  padding: .05rem .5rem; border-radius: 999px;
+  font-size: .68rem; line-height: 1.5;
+  color: #9ec5d4; background: rgba(13, 202, 240, .08);
+  border: 1px solid rgba(13, 202, 240, .25);
+  white-space: nowrap;
+}
+.wama-chip i { font-size: .6rem; opacity: .8; }
+/* Variante « format cible → » (converter/composer : la SORTIE attendue) */
+.wama-chip--target {
+  color: #ffd479; background: rgba(255, 193, 7, .08); border-color: rgba(255, 193, 7, .3);
+}
+/* Point d'état tricolore compact (concis) — le badge plein reste pour l'étendu/batch. */
+.wama-status-dot {
+  display: inline-block; width: .55rem; height: .55rem; border-radius: 50%;
+  background: #6c757d; vertical-align: middle;
+}
+.wama-status-dot[data-s="RUNNING"], .wama-status-dot[data-s="PROCESSING"] {
+  background: #ffc107; animation: wamaDotPulse 1.2s ease-in-out infinite;
+}
+.wama-status-dot[data-s="SUCCESS"], .wama-status-dot[data-s="DONE"] { background: #198754; }
+.wama-status-dot[data-s="FAILURE"], .wama-status-dot[data-s="ERROR"] { background: #dc3545; }
+@keyframes wamaDotPulse { 50% { opacity: .35; } }
