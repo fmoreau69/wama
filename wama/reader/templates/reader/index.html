@@ -57,8 +57,8 @@
 
 {# ── Right panel : actions ───────────────────────────────────────────────── #}
 {% block app_right_panel_actions %}
-{# Actions GLOBALES (Démarrer/Télécharger/Tout effacer) déplacées dans la barre d'outils commune
-   de la file (_queue_toolbar.html) — cohérence T/D/C, 2026-07-07. Reste : actions de sélection. #}
+{% comment %}Actions GLOBALES (Démarrer/Télécharger/Tout effacer) déplacées dans la barre d'outils
+commune de la file (_queue_toolbar.html) — cohérence T/D/C, 2026-07-07. Reste : actions de sélection.{% endcomment %}
 {% include 'common/_inspector_actions.html' %}{# actions de l'élément/batch sélectionné (WamaInspector) #}
 {% endblock %}
 
@@ -152,8 +152,8 @@ window.WAMA_READER_SCHEMA = {{ params_json|safe }};  // exposé pour la modale I
 <!-- Barre globale commune (balayage permanent + ETA agrégée) : URL puis script auto-démarré. -->
 <script>window.WAMA_GLOBAL_PROGRESS_URL = "{% url 'reader:global_progress' %}";</script>
 <script src="{% static 'common/js/wama-global-progress.js' %}"></script>
-{# Inspecteur contextuel : câblé dans reader.js (initInspector → WamaInspector.initFromSchema), où
-   csrfFetch/upsertCard/urlFor sont accessibles. Plus d'init minimal ici (évite le double-init). #}
+{% comment %}Inspecteur contextuel : câblé dans reader.js (initInspector → WamaInspector.initFromSchema),
+où csrfFetch/upsertCard/urlFor sont accessibles. Plus d'init minimal ici (évite le double-init).{% endcomment %}
 <script>
 window._batchImport = WamaBatchImport({
     batchPreviewUrl: window.READER_APP.urls.batchPreview,

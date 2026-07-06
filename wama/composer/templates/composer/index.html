@@ -98,8 +98,8 @@ id melodyInput conservé (payload generate inchangé). Cf. INPUT_MODEL_MATCHING.
     {% else %}
     {# Groupe batch #}
     <div class="batch-group mb-2 border border-secondary rounded" data-batch-id="{{ batch_info.obj.id }}">
-        {# Card MÈRE : brique COMMUNE _batch_card.html (2026-07-06 — remplace le bandeau violet
-           minimal, audit B3-8 : apporte ▶ batch, compteurs ✓/✗/en-cours, barre agrégée). #}
+        {% comment %}Card MÈRE : brique COMMUNE _batch_card.html (2026-07-06 — remplace le bandeau
+        violet minimal, audit B3-8 : apporte ▶ batch, compteurs ✓/✗/en-cours, barre agrégée).{% endcomment %}
         {% url 'composer:batch_download' batch_info.obj.id as batch_download_url %}
         {% include 'common/_batch_card.html' with card_class='generation-card' download_url=batch_download_url eta_ids=batch_info.eta_ids %}
         {# Contrat commun mosaïque/fan-in : cards FILLES enfants DIRECTS du .collapse (wama-inspector.css). #}
