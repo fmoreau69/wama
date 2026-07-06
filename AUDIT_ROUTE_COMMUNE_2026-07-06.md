@@ -71,11 +71,11 @@ T/D/C — l'agent avait mis ✅*) ; reader/converter ont déjà l'anti-race **in
 |---|---|---|---|
 | **Profils/presets nommés** (save/load/delete de jeux de réglages) | converter `ConversionProfile` | synthesizer, enhancer, imager, anonymizer — rejoint `supports_profiles` du MANIFESTE (project_process_button_lifecycle) | MOYEN |
 | **Voice cloning + presets TTS** | synthesizer (`voice_reference`) | avatarizer (même moteur !), reader (lecture audio) ; `common/tts/constants.py` existe déjà — finir la centralisation | MOYEN |
-| **Comparaison A/B avant/après** (blend) | enhancer | anonymizer (preview flou), imager, converter | BAS |
+| **Comparaison A/B avant/après** (blend) | enhancer | anonymizer (preview flou), imager, converter. **Précision Fabien 2026-07-06** : le calcul (blend_factor) existe peut-être, mais PAS l'UI de **preview comparative avec SLIDER sur l'image** — c'est CETTE UI qui est la brique à prévoir | BAS |
 | **Presets détection** (YOLO classes + SAM3) | anonymizer | avatarizer (visages), imager | BAS |
 | **Seeds reproductibilité** | imager | composer, synthesizer | BAS |
 | **Galerie de sélection** (source avatar) | imager/avatarizer | synthesizer (voix), reader (templates) | MOYEN |
-| **Pipeline multi-étapes** (TTS→MuseTalk→CodeFormer) | avatarizer | = cas d'école MÉTA-APP/studio, PAS une brique d'app | — |
+| **Pipeline multi-étapes** (TTS→MuseTalk→CodeFormer) | avatarizer | = cas d'école MÉTA-APP/studio, PAS une brique d'app. **DÉCISION Fabien 2026-07-06** : le mode pipeline d'avatarizer reste EN L'ÉTAT pour le moment ; à terme le studio chaîne **Synthesizer → Avatarizer** (on ne multiplie PAS les modes dans les apps — cohérent avec les 3 axes de MODES_QUEUE_UX : workflow = méta-app) | — |
 | **Export vers médiathèque** | composer (`export_to_library`) | dès la 2ᵉ app consommatrice (B5-20) | BAS |
 
 ### 2d. Ordre de portage — divergence à trancher
@@ -129,6 +129,24 @@ de conception) ; les écarts sont des apps pas encore migrées + des conventions
    « app = manifeste » (LLM local génère une app, cf. project_manifest_generation_priority).
 
 ---
+
+## 3bis. INCIDENT POST-AUDIT (2026-07-06 soir) + GARDE-FOU PÉRENNE
+
+**Symptôme** : plus aucune app dans le menu déroulant/accueil, 500 sur `/common/apps/` —
+`SyntaxError: keyword argument repeated: layout (app_registry.py:352)`.
+**Cause** : kwarg `layout=True` dupliqué dans le bloc composer d'APP_CATALOG, introduit par le
+commit de clôture de la session PRÉCÉDENTE (13cb60b, « flags layout »). Invisible jusque-là car
+(1) `manage.py check` n'importe JAMAIS app_registry (seul le rendu d'une page le fait, via le
+context processor) et (2) le serveur déjà lancé gardait l'ancien module en mémoire — le restart
+WSL2 a fait éclater l'erreur. **Corrigé** (doublon retiré + balayage AST : plus aucun kwarg
+dupliqué dans le fichier).
+**Garde-fou créé** : `wama/common/tests.py` — tests de FUMÉE qui importent APP_CATALOG et rendent
+RÉELLEMENT accueil + /apps/ + l'index de CHAQUE app du catalogue (`manage.py test wama.common`,
+5/5 OK). À lancer après toute modification de app_registry/context processors/templates de base.
+**Bonus** : le smoke test a déterré un bug latent PRÉEXISTANT — la data migration
+`media_library/0002_migrate_custom_voices` référençait `synthesizer.CustomVoice` sans dépendre de
+`synthesizer/0007_customvoice` → toute base FRAÎCHE (test, réinstallation) explosait en
+LookupError. Dépendance ajoutée.
 
 ## 4. ERREURS D'AGENTS DÉTECTÉES (leçon : toujours contre-vérifier)
 
