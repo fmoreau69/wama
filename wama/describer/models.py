@@ -4,6 +4,7 @@ AI-powered content description and summarization
 """
 
 from django.db import models
+from wama.common.models import ProcessingTimeMixin
 from django.contrib.auth import get_user_model
 from django.core.validators import FileExtensionValidator
 from wama.common.utils.media_paths import upload_to_user_input, upload_to_user_output
@@ -11,7 +12,7 @@ from wama.common.utils.media_paths import upload_to_user_input, upload_to_user_o
 User = get_user_model()
 
 
-class Description(models.Model):
+class Description(ProcessingTimeMixin, models.Model):
     """Model for a description/summarization task."""
 
     STATUS_CHOICES = [

@@ -1,10 +1,11 @@
 from django.db import models
+from wama.common.models import ProcessingTimeMixin
 from django.contrib.auth.models import User
 
 from wama.common.utils.media_paths import upload_to_user_input, upload_to_user_output
 
 
-class ComposerGeneration(models.Model):
+class ComposerGeneration(ProcessingTimeMixin, models.Model):
     """Single music/SFX generation job."""
 
     GENERATION_TYPE_CHOICES = [

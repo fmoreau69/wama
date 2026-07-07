@@ -1,9 +1,10 @@
 from django.db import models
+from wama.common.models import ProcessingTimeMixin
 from django.contrib.auth.models import User
 from wama.common.utils.media_paths import upload_to_user_input
 
 
-class ReadingItem(models.Model):
+class ReadingItem(ProcessingTimeMixin, models.Model):
 
     class Status(models.TextChoices):
         PENDING = 'PENDING', 'En attente'

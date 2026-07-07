@@ -261,10 +261,11 @@ def read_document_task(self, item_id: int):
                 item.used_backend = 'fitz_direct'
                 item.status = 'DONE'
                 item.progress = 100
-                item.save(update_fields=['result_text', 'raw_result', 'used_backend', 'status', 'progress'])
+                item.processing_seconds = _time.time() - _t0  # persiste le temps réel (déjà mesuré pour l'ETA)
+                item.save(update_fields=['result_text', 'raw_result', 'used_backend', 'status', 'progress', 'processing_seconds'])
                 _set_progress(item_id, 100, "Terminé")
                 _console(user_id, f"[Reader] ✓ {item.filename} — {len(direct_text)} caractères (PDF natif)")
-                _record_reader_eta('fitz_direct', item.page_count, _time.time() - _t0)
+                _record_reader_eta('fitz_direct', item.page_count, item.processing_seconds)
                 return
 
         # Select backend
@@ -310,11 +311,12 @@ def read_document_task(self, item_id: int):
         item.used_backend = backend
         item.status = 'DONE'
         item.progress = 100
-        item.save(update_fields=['result_text', 'raw_result', 'used_backend', 'status', 'progress'])
+        item.processing_seconds = _time.time() - _t0  # persiste le temps réel (déjà mesuré pour l'ETA)
+        item.save(update_fields=['result_text', 'raw_result', 'used_backend', 'status', 'progress', 'processing_seconds'])
 
         _set_progress(item_id, 100, "Terminé")
         _console(user_id, f"[Reader] ✓ {item.filename} — {len(result_text)} caractères extraits")
-        _record_reader_eta(backend, item.page_count, _time.time() - _t0)
+        _record_reader_eta(backend, item.page_count, item.processing_seconds)
         try:
             from wama.common.utils.notifications import notify_job
             notify_job(getattr(item, 'user', None), 'Reader',

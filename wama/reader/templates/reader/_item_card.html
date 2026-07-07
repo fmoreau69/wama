@@ -39,6 +39,7 @@ Contexte : item = ReadingItem (avec .chips) ; in_batch = fille de batch.
         {% if item.status == 'PENDING' %}En attente{% elif item.status == 'RUNNING' %}En cours{% elif item.status == 'DONE' %}Terminé{% elif item.status == 'ERROR' %}Échec{% else %}{{ item.status }}{% endif %}
       </span>
       {% if item.status == 'RUNNING' %}<span class="wama-eta" data-eta-ids="{{ item.id }}"></span>{% endif %}
+      {% if item.status == 'DONE' %}{% include 'common/_processing_time.html' with elapsed=item.processing_display %}{% endif %}
     </span>
 
     {# Actions — ordre conventionnel ⚙ ▶(cycle) ⬇ ⧉ 🗑 (conventions §6) #}

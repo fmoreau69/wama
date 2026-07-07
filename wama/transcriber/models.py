@@ -1,9 +1,10 @@
 from django.db import models
 from django.contrib.auth.models import User
 from wama.common.utils.media_paths import upload_to_user_input
+from wama.common.models import ProcessingTimeMixin
 
 
-class Transcript(models.Model):
+class Transcript(ProcessingTimeMixin, models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='transcripts')
     audio = models.FileField(upload_to=upload_to_user_input('transcriber'))
     created_at = models.DateTimeField(auto_now_add=True)
@@ -79,7 +80,6 @@ class Transcript(models.Model):
     waveform_status = models.CharField(max_length=16, default='none')
 
     # Durée réelle du traitement (s) — affichée à la place de l'ETA une fois terminé.
-    processing_seconds = models.FloatField(default=0)
     # Horodatage de fin de traitement (affiché sur la card une fois terminé).
     finished_at = models.DateTimeField(null=True, blank=True)
 
@@ -99,15 +99,6 @@ class Transcript(models.Model):
     def has_segments(self) -> bool:
         """Check if transcript has segments with diarization."""
         return self.segments.exists()
-
-    @property
-    def processing_display(self) -> str:
-        """Durée de traitement formatée (ex. '12 min 30 s' / '45 s')."""
-        s = int(self.processing_seconds or 0)
-        if s <= 0:
-            return ''
-        m, sec = divmod(s, 60)
-        return (f"{m} min {sec:02d} s" if m else f"{sec} s")
 
     @property
     def speaker_count(self) -> int:

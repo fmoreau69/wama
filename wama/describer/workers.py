@@ -246,6 +246,10 @@ def describe_content(self, description_id: int):
             except Exception as coh_err:
                 _console(user_id, f"Avertissement: vérification cohérence échouée ({coh_err})")
 
+        # Persiste le temps réel (déjà mesuré pour l'ETA) — total incluant résumé/cohérence.
+        description.processing_seconds = _time.time() - _t0
+        description.save(update_fields=['processing_seconds'])
+
         _set_progress(description, 100, force=True)
         _console(user_id, f"Description terminée: {description.filename}")
 
@@ -256,7 +260,7 @@ def describe_content(self, description_id: int):
             from .eta import eta_size_unit
             _size, _unit = eta_size_unit(content_type, description)
             record_run(f'describer:{content_type}', size=_size, unit=_unit,
-                       process_seconds=_time.time() - _t0, load_seconds=None)
+                       process_seconds=description.processing_seconds, load_seconds=None)
         except Exception:
             pass
 

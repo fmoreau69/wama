@@ -64,6 +64,7 @@
             </div>
             {# ETA commune WamaEta (seed eta_estimator serveur) — remaining-time client supprimé (B4-13). #}
             <span class="wama-eta d-block mt-1"></span>
+            {% if gen.status == 'SUCCESS' %}{% include 'common/_processing_time.html' with elapsed=gen.processing_display %}{% endif %}
             {% if gen.status == 'RUNNING' %}
             <small class="text-muted progress-text" style="font-variant-numeric:tabular-nums;">
                 {{ gen.progress }}%

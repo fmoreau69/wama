@@ -1,0 +1,4 @@
+{% comment %}Temps de traitement RÉEL (mesuré par le worker, persisté via ProcessingTimeMixin) —
+affiché sur la card terminée, en regard de la prédiction ETA (CARD_DESIGN §10.6). Rendu SERVEUR
+donc durable au rechargement. Var : elapsed = obj.processing_display ('' → rien).{% endcomment %}
+{% if elapsed %}<span class="wama-proc-time text-white-50" title="Temps de traitement réel"><i class="fas fa-stopwatch"></i> {{ elapsed }}</span>{% endif %}

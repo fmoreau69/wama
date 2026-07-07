@@ -105,7 +105,8 @@ def compose_task(self, generation_id: int):
                 _console(user_id, f"[Composer] conversion format échouée: {_conv_err}", level='warning')
         gen.status = 'SUCCESS'
         gen.progress = 100
-        gen.save(update_fields=['audio_output', 'status', 'progress'])
+        gen.processing_seconds = _time.time() - _t0  # persiste le temps réel (déjà mesuré pour l'ETA)
+        gen.save(update_fields=['audio_output', 'status', 'progress', 'processing_seconds'])
 
         _console(user_id, f"[Composer] ✓ Terminé : {output_filename}", level='info')
 
@@ -113,7 +114,7 @@ def compose_task(self, generation_id: int):
         try:
             from wama.model_manager.services.eta_estimator import record_run
             record_run(f'composer:{gen.model}', size=float(gen.duration or 0),
-                       unit='audio_sec', process_seconds=_time.time() - _t0, load_seconds=None)
+                       unit='audio_sec', process_seconds=gen.processing_seconds, load_seconds=None)
         except Exception:
             pass
 

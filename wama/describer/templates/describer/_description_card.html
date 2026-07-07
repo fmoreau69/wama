@@ -53,6 +53,7 @@ Rendue au chargement (cards autonomes ET filles) et par describer:card_html (ref
                         </div>
                         <small class="text-light progress-text">{{ desc.progress }}%</small>
                         <span class="wama-eta d-block"></span>
+                        {% if desc.status == 'SUCCESS' %}{% include 'common/_processing_time.html' with elapsed=desc.processing_display %}{% endif %}
                     </div>
                     <div class="col-md-2">
                         <div class="btn-group-actions">
