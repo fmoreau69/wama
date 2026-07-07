@@ -132,9 +132,11 @@
     output_quality: { label: 'Qualité', icon: 'fa-sliders' },
     processing_time_display: { label: 'Temps de traitement', icon: 'fa-stopwatch' },
   };
-  var DETAIL_ORDER = ['created_at', 'source_duration_display', 'engine', 'engine_effective', 'output_format', 'output_quality', 'processing_time_display'];
+  var DETAIL_ORDER = ['source_duration_display', 'engine', 'engine_effective', 'output_format', 'output_quality', 'processing_time_display'];
   function _detailChip(icon, value, label) {
-    return '<span class="wama-chip" title="' + escapeHtml(label || '') + '"><i class="fas ' + icon + '"></i> ' + escapeHtml(value) + '</span>';
+    // Inspecteur = vue détaillée : le LABEL est VISIBLE (contrairement aux chips de card, denses).
+    var lbl = label ? '<span class="opacity-75">' + escapeHtml(label) + '</span> ' : '';
+    return '<span class="wama-chip" title="' + escapeHtml(label || '') + '"><i class="fas ' + icon + '"></i> ' + lbl + escapeHtml(value) + '</span>';
   }
   function renderDetailChips(d) {
     var st = (d.status || '').toUpperCase();
@@ -144,6 +146,7 @@
     if (d.id != null) head += '<strong class="text-light">#' + escapeHtml(d.id) + '</strong>';
     if (st) head += '<span class="badge bg-' + stCls + '">' + escapeHtml(stLbl) + '</span>';
     if (d.created_at) head += '<small class="text-white-50"><i class="fas fa-calendar-alt"></i> ' + escapeHtml(d.created_at) + '</small>';
+    head += '<button type="button" class="btn btn-sm btn-link text-white-50 p-0 ms-auto wama-info-deselect" title="Fermer la sélection"><i class="fas fa-xmark"></i></button>';
     head += '</div>';
     var srcLine = '';
     if (d.source_file) {
@@ -244,6 +247,11 @@
         if (!d || d.error) { hideDetail(); return; }
         infoHost.innerHTML = renderDetailChips(d);
         if (infoSection) infoSection.style.display = '';
+        // Identité + désélection remontées ici → le bandeau Paramètres (#N redondant) est masqué.
+        var banner = $(ids.banner);
+        if (banner) banner.style.display = 'none';
+        var db = infoHost.querySelector('.wama-info-deselect');
+        if (db) db.addEventListener('click', function () { var od = $(ids.deselect); if (od) od.click(); });
       }).catch(hideDetail);
     }
     function restorePreview() {
