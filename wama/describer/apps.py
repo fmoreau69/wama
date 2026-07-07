@@ -26,3 +26,18 @@ class DescriberConfig(AppConfig):
             user_field='user',
             properties_field='properties'
         )
+
+        # Détail inspecteur (schéma canonique INSPECTOR_DETAIL_FIELDS.md).
+        from wama.common.utils.detail_registry import register_app_detail, build_detail
+
+        def _describer_detail(item):
+            extra = {
+                'Format de sortie': item.output_style or None,
+                'Langue de sortie': item.output_language or None,
+                'Longueur max': item.max_length or None,
+            }
+            return build_detail(item, source_file=item.input_file,
+                                source_type=(item.detected_type or item.content_type),
+                                engine=None, result_file=item.result_file, extra=extra)
+
+        register_app_detail('describer', Description, _describer_detail)

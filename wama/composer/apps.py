@@ -30,5 +30,19 @@ class ComposerConfig(AppConfig):
                 file_field='audio_output',
                 user_field='user',
             )
+
+            # Détail inspecteur (schéma canonique INSPECTOR_DETAIL_FIELDS.md).
+            from wama.common.utils.detail_registry import register_app_detail, build_detail
+
+            def _composer_detail(item):
+                p = item.prompt or ''
+                extra = {
+                    'Type': item.get_generation_type_display() if item.generation_type else None,
+                    'Prompt': (p[:60] + '…') if len(p) > 60 else (p or None),
+                }
+                return build_detail(item, source_file=None, source_type=None,
+                                    engine=item.model, result_file=item.audio_output, extra=extra)
+
+            register_app_detail('composer', ComposerGeneration, _composer_detail)
         except Exception:
             pass

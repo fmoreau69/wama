@@ -50,3 +50,19 @@ class TranscriberConfig(AppConfig):
             file_field='audio',
             user_field='user'
         )
+
+        # Détail inspecteur (schéma canonique INSPECTOR_DETAIL_FIELDS.md).
+        from wama.common.utils.detail_registry import register_app_detail, build_detail
+
+        def _transcriber_detail(item):
+            extra = {
+                'Diarisation': 'Oui' if item.enable_diarization else None,
+                'Résumé': 'Oui' if item.generate_summary else None,
+                'Mots-clés': item.hotwords or None,
+                'Cohérence': 'Oui' if item.verify_coherence else None,
+            }
+            return build_detail(item, source_file=item.audio, source_type='audio',
+                                engine=item.backend, engine_effective=item.used_backend,
+                                result_file=None, extra=extra)
+
+        register_app_detail('transcriber', Transcript, _transcriber_detail)
