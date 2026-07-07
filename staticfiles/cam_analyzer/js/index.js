@@ -1595,7 +1595,23 @@ document.addEventListener('DOMContentLoaded', function () {
             low--;
         }
 
-        return frames[low];
+        const closest = frames[low];
+
+        // Reject frames outside the analysis zone: only frames are stored for
+        // analyzed windows, so when playback is between/outside windows the
+        // nearest analyzed frame can be seconds away — drawing it freezes a
+        // stale, incoherent overlay on screen. Guard with a tolerance derived
+        // from the LOCAL sampling interval (robust to frame subsampling): if
+        // the requested time is farther than ~1.5× the neighbour spacing, we
+        // are in a gap → no overlay here. Callers treat null as "clear canvas".
+        let localGap = Infinity;
+        if (low > 0)                 localGap = Math.min(localGap, closest.timestamp - frames[low - 1].timestamp);
+        if (low < frames.length - 1) localGap = Math.min(localGap, frames[low + 1].timestamp - closest.timestamp);
+        if (!isFinite(localGap)) localGap = 0;              // single-frame dataset
+        const tol = Math.max(localGap * 1.5, 0.04);         // floor absorbs fps jitter
+        if (Math.abs(closest.timestamp - time) > tol) return null;
+
+        return closest;
     }
 
     function drawDetections(position, detections, srcWidth, srcHeight) {

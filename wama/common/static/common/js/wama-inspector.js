@@ -54,6 +54,54 @@
     });
   }
 
+  function escapeHtml(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  // Rendu INLINE compact d'un aperçu média dans le volet (≠ modale plein écran de media-preview.js).
+  // Données = JSON de common:unified_preview {name, url, mime_type, …}. autoplay gated par le profil
+  // (jamais de génération : on n'affiche que l'existant — CARD_DESIGN §10.6 / décision Fabien).
+  function renderInlinePreview(host, data, autoplay) {
+    if (!host) return;
+    const mime = (data.mime_type || '').toLowerCase();
+    const url = data.url || '';
+    const name = escapeHtml(data.name || '');
+    let media = '';
+    if (mime.indexOf('image/') === 0) {
+      media = '<img src="' + url + '" alt="" class="wama-inspector-preview-media" style="max-width:100%;max-height:220px;border-radius:6px;">';
+    } else if (mime.indexOf('video/') === 0) {
+      media = '<video src="' + url + '" controls ' + (autoplay ? 'autoplay muted ' : '') +
+        'class="wama-inspector-preview-media" style="max-width:100%;max-height:220px;border-radius:6px;"></video>';
+    } else if (mime.indexOf('audio/') === 0) {
+      if (global.WamaAudioPlayer && WamaAudioPlayer.create) {
+        host.innerHTML = '';
+        try { host.appendChild(WamaAudioPlayer.create(url, 'insp', { autoplay: !!autoplay })); }
+        catch (e) { host.innerHTML = '<audio src="' + url + '" controls ' + (autoplay ? 'autoplay ' : '') + 'style="width:100%;"></audio>'; }
+        _previewCaption(host, name);
+        return;
+      }
+      media = '<audio src="' + url + '" controls ' + (autoplay ? 'autoplay ' : '') + 'style="width:100%;"></audio>';
+    } else if (mime === 'application/pdf') {
+      media = '<embed src="' + url + '" type="application/pdf" style="width:100%;height:220px;border-radius:6px;">';
+    } else {
+      media = '<a href="' + url + '" target="_blank" rel="noopener" class="btn btn-sm btn-outline-info">' +
+        '<i class="fas fa-external-link-alt"></i> Ouvrir</a>';
+    }
+    host.innerHTML = '<div class="wama-inspector-preview text-center">' + media + '</div>';
+    _previewCaption(host, name);
+  }
+
+  function _previewCaption(host, name) {
+    if (name) {
+      const cap = document.createElement('small');
+      cap.className = 'text-white-50 d-block text-truncate mt-1';
+      cap.title = name; cap.textContent = name;
+      host.appendChild(cap);
+    }
+  }
+
   function init(cfg) {
     cfg = cfg || {};
     const qc = cfg.queueContainer;
@@ -117,6 +165,27 @@
       if (renderFn) renderFn(host, arg);
     }
 
+    // --- Aperçu inline dans le volet (section media/#preview-container) ---
+    var previewHost = cfg.previewHost ? $(cfg.previewHost) : document.getElementById('preview-container');
+    var previewTitleEl = cfg.previewTitleSel ? $(cfg.previewTitleSel) : document.getElementById('rightPanelMediaTitle');
+    var previewPlaceholder = previewHost ? previewHost.innerHTML : '';
+    var previewTitleDefault = previewTitleEl ? previewTitleEl.textContent : '';
+    function restorePreview() {
+      if (previewHost) previewHost.innerHTML = previewPlaceholder;
+      if (previewTitleEl) previewTitleEl.textContent = previewTitleDefault;
+    }
+    function fillPreview(card, title) {
+      if (!previewHost || !card) return;
+      var link = (card.matches && card.matches('[data-preview-url]')) ? card : card.querySelector('[data-preview-url]');
+      var url = link && link.getAttribute('data-preview-url');
+      if (!url) { restorePreview(); return; }
+      fetch(url).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
+        if (!d || !d.url) { restorePreview(); return; }
+        renderInlinePreview(previewHost, d, !!cfg.autoplay);
+        if (previewTitleEl && title) previewTitleEl.textContent = title;
+      }).catch(restorePreview);
+    }
+
     function selectItem(id) {
       const card = qc.querySelector(CARD_SEL + '[data-id="' + id + '"]');
       if (!card) return;
@@ -125,6 +194,7 @@
       clearHighlight(); card.classList.add(HL);
       if (panel.apply && cfg.cardSettings) panel.apply(cfg.cardSettings(card));
       fillActions(cfg.renderItemActions, card);
+      fillPreview(card, 'Aperçu');
       toggleSections(true);
       showBanner(itemLabel(id));
     }
@@ -138,6 +208,7 @@
       const first = group.querySelector(CARD_SEL);   // réglages = ceux du 1er item
       if (first && panel.apply && cfg.cardSettings) panel.apply(cfg.cardSettings(first));
       fillActions(cfg.renderBatchActions, bid);
+      fillPreview(first, 'Aperçu');
       toggleSections(true);
       showBanner(batchLabel(bid));
     }
@@ -150,6 +221,7 @@
       if (host) host.innerHTML = '';
       toggleSections(false);
       hideBanner();
+      restorePreview();
     }
 
     function save() {
