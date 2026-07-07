@@ -220,8 +220,16 @@
 {# Footer: utilise le footer de base.html avec les system stats #}
 
 {% block right_panel_media %}
-{% block app_right_panel_media %}
-{% endblock %}
+{% comment %}Conteneur d'aperçu de l'inspecteur (WamaInspector remplit #preview-container au clic ;
+sans lui, la section Médias reste vide — bug 2026-07-07). Le contenu app éventuel (ex. drop-zone
+anonymizer) vit à l'intérieur et sert d'état par défaut (restauré au désélect).{% endcomment %}
+<div class="right-panel-preview" id="preview-container">
+    <div class="right-panel-preview-placeholder" id="preview-placeholder">
+        <i class="fas fa-photo-video"></i>
+        <p>Sélectionnez une card<br>pour l'aperçu</p>
+    </div>
+    {% block app_right_panel_media %}{% endblock %}
+</div>
 {% endblock %}
 
 {% block right_panel_settings %}
