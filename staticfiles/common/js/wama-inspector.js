@@ -69,24 +69,39 @@
     const url = data.url || '';
     const name = escapeHtml(data.name || '');
     let media = '';
+    var u = escapeHtml(url);  // sécurise l'attribut src/href (guillemets, noms spéciaux)
     if (mime.indexOf('image/') === 0) {
-      media = '<img src="' + url + '" alt="" class="wama-inspector-preview-media" style="max-width:100%;max-height:220px;border-radius:6px;">';
+      media = '<img src="' + u + '" alt="" class="wama-inspector-preview-media" style="max-width:100%;max-height:220px;border-radius:6px;">';
     } else if (mime.indexOf('video/') === 0) {
-      media = '<video src="' + url + '" controls ' + (autoplay ? 'autoplay muted ' : '') +
+      media = '<video src="' + u + '" controls ' + (autoplay ? 'autoplay muted ' : '') +
         'class="wama-inspector-preview-media" style="max-width:100%;max-height:220px;border-radius:6px;"></video>';
     } else if (mime.indexOf('audio/') === 0) {
       if (global.WamaAudioPlayer && WamaAudioPlayer.create) {
         host.innerHTML = '';
         try { host.appendChild(WamaAudioPlayer.create(url, 'insp', { autoplay: !!autoplay })); }
-        catch (e) { host.innerHTML = '<audio src="' + url + '" controls ' + (autoplay ? 'autoplay ' : '') + 'style="width:100%;"></audio>'; }
+        catch (e) { host.innerHTML = '<audio src="' + u + '" controls ' + (autoplay ? 'autoplay ' : '') + 'style="width:100%;"></audio>'; }
         _previewCaption(host, name);
         return;
       }
-      media = '<audio src="' + url + '" controls ' + (autoplay ? 'autoplay ' : '') + 'style="width:100%;"></audio>';
+      media = '<audio src="' + u + '" controls ' + (autoplay ? 'autoplay ' : '') + 'style="width:100%;"></audio>';
     } else if (mime === 'application/pdf') {
-      media = '<embed src="' + url + '" type="application/pdf" style="width:100%;height:220px;border-radius:6px;">';
+      media = '<embed src="' + u + '" type="application/pdf" style="width:100%;height:220px;border-radius:6px;">';
+    } else if (mime === 'text/html') {
+      // HTML : iframe SANDBOXÉE (pas de script, pas de navigation) — aperçu sûr.
+      media = '<iframe src="' + u + '" sandbox class="wama-inspector-preview-media" ' +
+        'style="width:100%;height:220px;border:0;background:#fff;border-radius:6px;"></iframe>';
+    } else if (mime.indexOf('text/') === 0) {
+      // Texte (plain/markdown/csv…) : contenu inline tronqué, chargé en async.
+      host.innerHTML = '<div class="wama-inspector-preview"><pre class="small text-white-50 text-start mb-1" ' +
+        'style="max-height:200px;overflow:auto;white-space:pre-wrap;word-break:break-word;">…</pre></div>';
+      var pre = host.querySelector('pre');
+      fetch(url).then(function (r) { return r.ok ? r.text() : ''; }).then(function (t) {
+        if (pre) pre.textContent = t.length > 3000 ? t.slice(0, 3000) + '\n…' : (t || '(vide)');
+      }).catch(function () { if (pre) pre.textContent = '(aperçu indisponible)'; });
+      _previewCaption(host, name, data);
+      return;
     } else {
-      media = '<a href="' + url + '" target="_blank" rel="noopener" class="btn btn-sm btn-outline-info">' +
+      media = '<a href="' + u + '" target="_blank" rel="noopener" class="btn btn-sm btn-outline-info">' +
         '<i class="fas fa-external-link-alt"></i> Ouvrir</a>';
     }
     host.innerHTML = '<div class="wama-inspector-preview text-center">' + media + '</div>';
