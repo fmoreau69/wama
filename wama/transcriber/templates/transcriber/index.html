@@ -16,8 +16,8 @@
   .synthesis-card.inspector-selected,
   .batch-group.inspector-selected { outline: 2px solid #0dcaf0; outline-offset: 1px; }
   {# #inspectorBanner : encadré centralisé dans common/css/wama-inspector.css (chargé globalement) #}
-  /* Section Médias du volet masquée : l'import vit dans la card « Nouvel élément » (zone centrale). */
-  #media-section { display: none; }
+  /* Section Médias plus masquée : elle porte l'aperçu de l'inspecteur (#preview-container),
+     universel 2026-07-07. L'import reste dans la card « Nouvel élément » (zone centrale). */
   /* Nom de fichier : icône à gauche alignée, sur une seule ligne tronquée (évite l'icône centrée
      au-dessus du nom dans les colonnes étroites — cards batch notamment). Single + batch identiques. */
   .synthesis-card button.filename {
