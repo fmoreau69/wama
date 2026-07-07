@@ -393,3 +393,77 @@ B5-20 (export médiathèque). Restart process WSL2 requis pour le Python.
 converter, TTS synthesizer, A/B enhancer, presets anonymizer, seeds/galerie imager) ; (3) route
 manifeste→app ~70-80 % déclarative, chantiers ordonnés (ports → contrat URLs → enum statuts →
 check_app_conformity exécutable → introspection Django→schéma → scaffold EN DERNIER).
+
+---
+
+## 21. Inspecteur contextuel + état des 4 apps portées (2026-07-08) — CLÔTURE DE SESSION
+
+> Session dédiée à l'**inspecteur contextuel** (mode avancé) + audit des 4 apps portées.
+> Reprise = **porter Converter** puis **combler les trous** listés ci-dessous. Ordre fixé Fabien :
+> **inspecteur d'abord, amincir les cards ENSUITE** (l'inspecteur porte le détail → justifie de
+> maigrir les cards). Docs de référence figés : [`INSPECTOR_DETAIL_FIELDS.md`](INSPECTOR_DETAIL_FIELDS.md),
+> [`COMMON_REFACTORING.md`](COMMON_REFACTORING.md) (registre briques + **discipline anti-réinvention**),
+> `CARD_DESIGN §10` (card v2), mémoire `project_inspector_contextual_vision.md`.
+
+### 21.1 Ce qui a été construit (commun, porté aux 4 apps)
+
+- **Aperçu inline** dans le volet (`WamaInspector` → `#preview-container`) : image / vidéo / audio
+  (WamaAudioPlayer) / PDF / **HTML (iframe sandboxée)** / **texte (contenu inline)** — tout sauf zip.
+  Source = `unified_preview` + `preview_registry`. **Autoplay = préférence profil** (`UserProfile.
+  inspector_autoplay`, défaut OFF, toggle page profil, global `WAMA_INSPECTOR_AUTOPLAY`). Jamais de
+  génération : on affiche l'existant. Section « Médias » **masquée hors ITEM**.
+- **Section Infos = CHIPS** (pas la liste KV de WamaDetails, écartée) : identité (#id + badge statut +
+  date + ✕ désélection) + fichier source + chips étiquetées (durée, moteur, format, propriétés à
+  **icône adaptative** par type, réglages `extra` tirés de `params.py`). Source = **`unified_detail`
+  + `detail_registry` + `build_detail`** (schéma canonique figé `INSPECTOR_DETAIL_FIELDS.md`). Statut
+  normalisé à l'affichage (DONE→SUCCESS).
+- **Agrégats file / batch** dans l'inspecteur, **LUS des sources serveur** (pas de recompte client) :
+  file ← `window.WamaQueueStats` (posé par `wama-global-progress.js`, refresh live sur
+  `media:processed`) ; batch ← `data-batch-*` de `_batch_card.html` (depuis `build_batches_list`).
+- **Temps de traitement réel persisté** : `common/models.py::ProcessingTimeMixin` (les 4 modèles
+  héritent), workers persistent `processing_seconds` (déjà mesuré pour l'ETA), affiché via
+  `_processing_time.html` (foyer unique, inclus par `_card_progress`).
+- **Card v2 synthétique** (chips depuis `params.py chip=True`, point d'état tricolore, barre pleine
+  largeur) : **PILOTE Reader uniquement**.
+
+### 21.2 Table de conformité (✅ / 🔶 / ❌)
+
+| Axe | Transcriber | Describer | Composer | Reader |
+|---|---|---|---|---|
+| Preview (registry + data-preview-url) | ✅ | ✅ | ✅ | ✅ |
+| Detail (registry + adapter build_detail) | ✅ | ✅ | ✅ | ✅ |
+| cardSelector spécifique | ✅ `.synthesis-card` | 🔶 `.wama-card` (trop générique) | ✅ `.generation-card` | ✅ `.reader-card` |
+| Inspecteur `initFromSchema` | 🔶 `.init()` (legacy) | ✅ | ✅ | ✅ |
+| `cloneActions` | ✅ | ✅ | ✅ | ✅ |
+| Card v2 (chips) | ❌ | ❌ | ❌ | ✅ (pilote) |
+| `_batch_card.html` commun | ✅ | ✅ | ✅ | ✅ |
+| Briques communes (batch/process/queue/user_settings) | ✅ | ✅ | ✅ | ✅ |
+| `ProcessingTimeMixin` + persistance | ✅ | ✅ | ✅ | ✅ |
+| Affichage temps | ✅ `_card_progress` | ✅ `_processing_time` | ✅ `_processing_time` | ✅ `_processing_time` |
+| Statuts SUCCESS/FAILURE | ✅ | ✅ | ✅ | 🔶 DONE/ERROR (normalisé à l'affichage) |
+| Page d'édition dédiée (spécifique légitime) | ✅ correction manuelle | — | — | — |
+
+### 21.3 Trous de portage à combler (reprise) — priorisés
+
+1. 🔴 **Describer `cardSelector: '.wama-card'`** (`describer/static/describer/js/index.js`) → trop
+   générique (matche new-item-card, card mère, etc.). Aligner sur une classe spécifique. Impact
+   surtout `selectItem` (le comptage file/batch vient désormais des sources serveur, moins exposé).
+2. 🔶 **Reader statuts DONE/ERROR** vs SUCCESS/FAILURE des 3 autres. Normalisé à l'affichage
+   (`detail_registry` + `build_batches_list`), mais à aligner en base pour l'homogénéité.
+3. 🟠 **Transcriber `WamaInspector.init()`** (legacy) → migrer vers `initFromSchema` comme les 3 autres.
+4. 🟠 **Transcriber `_card_progress.html`** vs `_processing_time.html` custom des 3 autres → une seule
+   approche d'affichage de progression/temps.
+5. 🟡 **Propager la card v2 (chips)** aux 3 autres apps : `chip=True` sur leurs params + `.chips`
+   property (modèle reader) + include `_card_chips.html`. (Après validation navigateur du pilote.)
+6. 🟡 **Mini-card « Réglages de l'élément #N »** du volet Paramètres : à **retirer à terme** (validé
+   Fabien) — l'identité est déjà dans la section Infos. Masquée quand Infos présente ; suppression
+   propre à faire.
+7. 🟡 **`probe_media`** : généraliser `media_probe.probe_audio` → propriétés riches TOUS types (image
+   L×H, vidéo fps/durée, PDF pages, archive) pour que `source_properties` soit rempli partout.
+
+### 21.4 Non commencé (au-delà des 4 apps)
+- **6 apps non portées** : converter (PROCHAIN), enhancer, anonymizer, synthesizer, imager, avatarizer.
+  Chacune : ajouter adapter `register_app_preview` + `register_app_detail` à son port (Converter/
+  Avatarizer ont déjà un `WamaInspector.init`/`initFromSchema` partiel). Converter + Describer =
+  bancs d'essai « tous types de fichiers ».
+- **Amincissement des cards** (le but du report d'infos vers l'inspecteur) : APRÈS l'inspecteur.
