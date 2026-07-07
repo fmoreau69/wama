@@ -22,6 +22,4 @@ Usage :
 </div>
 <small class="text-light progress-text">{{ progress|default:0 }}%</small>
 <span class="wama-eta d-block"></span>
-{% if status == 'SUCCESS' and elapsed %}
-<small class="text-white-50 d-block proc-elapsed" title="Durée du traitement"><i class="fas fa-stopwatch"></i> {{ elapsed }}</small>
-{% endif %}
+{% if status == 'SUCCESS' %}<span class="d-block">{% include 'common/_processing_time.html' with elapsed=elapsed %}</span>{% endif %}
