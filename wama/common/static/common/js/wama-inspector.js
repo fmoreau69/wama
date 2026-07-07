@@ -286,6 +286,48 @@
       }).catch(restorePreview);
     }
 
+    // Agrégats (file / batch) affichés dans la section Infos quand rien / un batch est sélectionné.
+    function _countCards(scope) {
+      var c = { total: 0, success: 0, running: 0, failure: 0, pending: 0 };
+      (scope ? scope.querySelectorAll(CARD_SEL + '[data-id]') : []).forEach(function (card) {
+        var st = (card.dataset.status || '').toUpperCase();
+        if (st === 'SUCCESS' || st === 'DONE') c.success++;
+        else if (st === 'FAILURE' || st === 'ERROR') c.failure++;
+        else if (st === 'RUNNING' || st === 'PROCESSING') c.running++;
+        else c.pending++;
+        c.total++;
+      });
+      return c;
+    }
+    function _renderAggInfo(label, c) {
+      var chip = function (icon, n) { return '<span class="wama-chip"><i class="fas ' + icon + '"></i> ' + n + '</span>'; };
+      var chips = chip('fa-layer-group', 'Total ' + c.total)
+        + (c.success ? '<span class="wama-chip"><i class="fas fa-check text-success"></i> ' + c.success + '</span>' : '')
+        + (c.running ? '<span class="wama-chip"><i class="fas fa-spinner text-warning"></i> ' + c.running + '</span>' : '')
+        + (c.pending ? '<span class="wama-chip"><i class="fas fa-clock text-white-50"></i> ' + c.pending + '</span>' : '')
+        + (c.failure ? '<span class="wama-chip"><i class="fas fa-xmark text-danger"></i> ' + c.failure + '</span>' : '');
+      return '<div class="small text-white-50 mb-1">' + label + '</div><div class="d-flex flex-wrap gap-1">' + chips + '</div>';
+    }
+    function showQueueInfo() {
+      if (!infoHost) return;
+      var c = _countCards(qc);
+      if (!c.total) { hideDetail(); return; }
+      infoHost.innerHTML = _renderAggInfo('<i class="fas fa-list text-info"></i> File · ' + c.total + ' élément' + (c.total > 1 ? 's' : ''), c);
+      if (infoSection) infoSection.style.display = '';
+      var banner = $(ids.banner); if (banner) banner.style.display = '';
+    }
+    function showBatchInfo(bid, group) {
+      if (!infoHost) return;
+      var c = _countCards(group);
+      infoHost.innerHTML = '<div class="d-flex align-items-center gap-2 mb-1"><strong class="text-light">Batch #' + escapeHtml(bid) + '</strong>'
+        + '<button type="button" class="btn btn-sm btn-link text-white-50 p-0 ms-auto wama-info-deselect" title="Fermer la sélection"><i class="fas fa-xmark"></i></button></div>'
+        + _renderAggInfo('<i class="fas fa-layer-group text-info"></i> ' + c.total + ' élément' + (c.total > 1 ? 's' : ''), c);
+      if (infoSection) infoSection.style.display = '';
+      var banner = $(ids.banner); if (banner) banner.style.display = 'none';
+      var db = infoHost.querySelector('.wama-info-deselect');
+      if (db) db.addEventListener('click', function () { var od = $(ids.deselect); if (od) od.click(); });
+    }
+
     function selectItem(id) {
       const card = qc.querySelector(CARD_SEL + '[data-id="' + id + '"]');
       if (!card) return;
@@ -310,7 +352,7 @@
       if (first && panel.apply && cfg.cardSettings) panel.apply(cfg.cardSettings(first));
       fillActions(cfg.renderBatchActions, bid);
       fillPreview(first, 'Aperçu');
-      fillDetail(first);
+      showBatchInfo(bid, group);
       toggleSections(true);
       showBanner(batchLabel(bid));
     }
@@ -324,7 +366,7 @@
       toggleSections(false);
       hideBanner();
       restorePreview();
-      hideDetail();
+      showQueueInfo();
     }
 
     function save() {
@@ -379,6 +421,8 @@
         }
       });
     }
+
+    try { showQueueInfo(); } catch (e) {}
 
     return {
       selectItem: selectItem,
