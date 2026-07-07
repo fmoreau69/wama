@@ -122,17 +122,43 @@
     });
   }
 
-  // Schéma canonique des sections d'infos (INSPECTOR_DETAIL_FIELDS.md) — labels figés une fois.
-  // sec.rows = épine dorsale (auto-masqués si vide) ; sec.kv = réglages spécifiques (data.extra).
-  var DETAIL_SCHEMA = [
-    { section: 'Identité', rows: [{ k: 'ID', field: 'id' }, { k: 'Créé le', field: 'created_at' }] },
-    { section: 'Entrée', rows: [{ k: 'Fichier source', field: 'source_file' }, { k: 'Durée', field: 'source_duration_display' }, { k: 'Propriétés', field: 'source_properties' }] },
-    { section: 'Moteur', rows: [{ k: 'Moteur / Modèle', field: 'engine' }, { k: 'Moteur effectif', field: 'engine_effective' }] },
-    { section: 'Réglages', kv: 'extra' },
-    { section: 'Sortie', rows: [{ k: 'Résultat', field: 'result_file' }, { k: 'Format', field: 'output_format' }, { k: 'Qualité', field: 'output_quality' }] },
-    { section: 'État', rows: [{ k: 'Statut', field: 'status' }, { k: 'Erreur', field: 'error_message' }] },
-    { section: 'Temps', rows: [{ k: 'Temps de traitement', field: 'processing_time_display' }] },
-  ];
+  // Rendu COMPACT des infos d'item = chips (cohérent avec les cards ; INSPECTOR_DETAIL_FIELDS.md).
+  var DETAIL_META = {
+    created_at: { label: 'Créé le', icon: 'fa-calendar-alt' },
+    source_duration_display: { label: 'Durée', icon: 'fa-clock' },
+    engine: { label: 'Moteur / Modèle', icon: 'fa-microchip' },
+    engine_effective: { label: 'Moteur effectif', icon: 'fa-shield-alt' },
+    output_format: { label: 'Format', icon: 'fa-file-export' },
+    output_quality: { label: 'Qualité', icon: 'fa-sliders' },
+    processing_time_display: { label: 'Temps de traitement', icon: 'fa-stopwatch' },
+  };
+  var DETAIL_ORDER = ['created_at', 'source_duration_display', 'engine', 'engine_effective', 'output_format', 'output_quality', 'processing_time_display'];
+  function _detailChip(icon, value, label) {
+    return '<span class="wama-chip" title="' + escapeHtml(label || '') + '"><i class="fas ' + icon + '"></i> ' + escapeHtml(value) + '</span>';
+  }
+  function renderDetailChips(d) {
+    var st = (d.status || '').toUpperCase();
+    var stCls = st === 'SUCCESS' ? 'success' : st === 'FAILURE' ? 'danger' : st === 'RUNNING' ? 'warning text-dark' : 'secondary';
+    var stLbl = (global.WamaApp && WamaApp.STATUS_LABEL && WamaApp.STATUS_LABEL[st]) || st;
+    var head = '<div class="d-flex align-items-center gap-2 flex-wrap mb-1">';
+    if (d.id != null) head += '<strong class="text-light">#' + escapeHtml(d.id) + '</strong>';
+    if (st) head += '<span class="badge bg-' + stCls + '">' + escapeHtml(stLbl) + '</span>';
+    if (d.created_at) head += '<small class="text-white-50"><i class="fas fa-calendar-alt"></i> ' + escapeHtml(d.created_at) + '</small>';
+    head += '</div>';
+    var srcLine = '';
+    if (d.source_file) {
+      var fn = String(d.source_file).split('/').pop();
+      srcLine = '<div class="small text-truncate mb-1" title="' + escapeHtml(d.source_file) + '"><i class="fas fa-file text-info"></i> ' + escapeHtml(fn) + '</div>';
+    }
+    var chips = [];
+    DETAIL_ORDER.forEach(function (k) { if (d[k]) { var m = DETAIL_META[k]; chips.push(_detailChip(m.icon, d[k], m.label)); } });
+    if (d.source_properties) chips.push(_detailChip(d.source_properties_icon || 'fa-circle-info', d.source_properties, 'Propriétés'));
+    if (d.extra) Object.keys(d.extra).forEach(function (lbl) { chips.push(_detailChip('fa-sliders', d.extra[lbl], lbl)); });
+    if (d.result_file) { var rf = String(d.result_file).split('/').pop(); chips.push('<a class="wama-chip" href="' + d.result_file + '" title="Résultat"><i class="fas fa-download"></i> ' + escapeHtml(rf) + '</a>'); }
+    var chipsHtml = chips.length ? '<div class="d-flex flex-wrap gap-1">' + chips.join('') + '</div>' : '';
+    var errHtml = d.error_message ? '<div class="small text-danger mt-1"><i class="fas fa-triangle-exclamation"></i> ' + escapeHtml(d.error_message) + '</div>' : '';
+    return head + srcLine + chipsHtml + errHtml;
+  }
 
   function init(cfg) {
     cfg = cfg || {};
@@ -209,14 +235,14 @@
       if (infoSection) infoSection.style.display = 'none';
     }
     function fillDetail(card) {
-      if (!infoHost || !card || !global.WamaDetails) { hideDetail(); return; }
+      if (!infoHost || !card) { hideDetail(); return; }
       var link = (card.matches && card.matches('[data-preview-url]')) ? card : card.querySelector('[data-preview-url]');
       var purl = link && link.getAttribute('data-preview-url');
       if (!purl) { hideDetail(); return; }
       var durl = purl.replace('/preview/', '/detail/');
       fetch(durl).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
         if (!d || d.error) { hideDetail(); return; }
-        infoHost.innerHTML = global.WamaDetails.renderSections(d, DETAIL_SCHEMA);
+        infoHost.innerHTML = renderDetailChips(d);
         if (infoSection) infoSection.style.display = '';
       }).catch(hideDetail);
     }
