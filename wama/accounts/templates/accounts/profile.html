@@ -82,8 +82,10 @@
 
             <!-- ── Aperçu inspecteur ──────────────────────────────────── -->
             <div class="card bg-dark border-secondary mb-4">
-                <div class="card-body">
-                    <h5 class="card-title"><i class="fas fa-eye me-2"></i>Aperçu dans l'inspecteur</h5>
+                <div class="card-header border-secondary">
+                    <h5 class="mb-0 text-light"><i class="fas fa-eye me-2"></i>Aperçu dans l'inspecteur</h5>
+                </div>
+                <div class="card-body text-light">
                     <div class="form-check form-switch mb-2">
                         <input class="form-check-input" type="checkbox" id="inspectorAutoplay"
                                {% if profile.inspector_autoplay %}checked{% endif %}>
