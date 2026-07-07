@@ -299,31 +299,16 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!card) return;
         Object.keys(vals).forEach(function (k) { card.setAttribute('data-' + k.replace(/_/g, '-'), vals[k]); });
     };
-    // Actions de l'ÉLÉMENT sélectionné : on CLONE les boutons de la card dans le volet et on
-    // PROXIE chaque clic vers le vrai bouton (déjà câblé) — 0 dépendance aux fonctions privées
-    // d'index.js. Le menu ⬇ (Bootstrap data-bs-toggle) + liens <a href> marchent nativement.
-    function _proxyBtn(host, card, sel) {
-        var real = card.querySelector(sel), clone = host.querySelector(sel);
-        if (real && clone) clone.addEventListener('click', function (e) { e.preventDefault(); real.click(); });
-    }
+    // Actions inspecteur = CLONE + PROXY vers les vrais boutons (brique WamaInspector.cloneActions).
+    // Approche UNIQUE inter-apps (CARD_DESIGN §10).
     function _renderItemActions(host, card) {
-        var actions = card.querySelector('.btn-group-actions');
-        if (!actions) { host.innerHTML = ''; return; }
-        host.innerHTML =
-            '<div class="small text-white-50 mb-1"><i class="fas fa-crosshairs text-info"></i> Actions — élément #' + card.dataset.id + '</div>' +
-            '<div class="btn-group-actions flex-wrap gap-1">' + actions.innerHTML + '</div>' +
-            '<hr class="border-secondary my-2">';
-        ['.settings-btn', '.wama-cycle-btn', '.duplicate-btn', '.delete-btn', '.preview-btn']
-            .forEach(function (sel) { _proxyBtn(host, card, sel); });
+        WamaInspector.cloneActions(host, card.querySelector('.btn-group-actions'),
+            '<i class="fas fa-crosshairs text-info"></i> Actions — élément #' + card.dataset.id);
     }
-    // Actions du BATCH : les boutons .batch-*-btn sont délégués au document (index.js) → les
-    // boutons clonés (mêmes classes + data-batch-id) fonctionnent tels quels, sans re-bind.
     function _renderBatchActions(host, batchId) {
         var grp = document.querySelector('.batch-group[data-batch-id="' + batchId + '"] .btn-group-actions');
-        host.innerHTML =
-            '<div class="small text-white-50 mb-1"><i class="fas fa-layer-group text-info"></i> Actions — batch #' + batchId + '</div>' +
-            '<div class="btn-group-actions flex-wrap gap-1">' + (grp ? grp.innerHTML : '') + '</div>' +
-            '<hr class="border-secondary my-2">';
+        WamaInspector.cloneActions(host, grp,
+            '<i class="fas fa-layer-group text-info"></i> Actions — batch #' + batchId);
     }
     window._describerInspector = WamaInspector.initFromSchema({
         queueContainer: q,

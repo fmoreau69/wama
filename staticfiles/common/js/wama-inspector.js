@@ -30,6 +30,30 @@
 (function (global) {
   'use strict';
 
+  // Actions de l'inspecteur = CLONE des boutons de la card/batch source + PROXY du clic vers
+  // le vrai bouton (déjà câblé). APPROCHE UNIQUE pour toutes les apps (CARD_DESIGN §10) : aucune
+  // hypothèse sur les fonctions/IDs de l'app. Les dropdowns (data-bs-toggle) et liens <a href>
+  // fonctionnent nativement sur le clone. sourceEl = conteneur d'actions de la card/batch source.
+  function cloneActions(host, sourceEl, label) {
+    if (!host) return;
+    if (!sourceEl) { host.innerHTML = ''; return; }
+    host.innerHTML =
+      '<div class="small text-white-50 mb-1">' + (label || '') + '</div>' +
+      '<div class="btn-group-actions flex-wrap gap-1">' + sourceEl.innerHTML + '</div>' +
+      '<hr class="border-secondary my-2">';
+    const real = sourceEl.querySelectorAll('button');
+    const clones = host.querySelectorAll('button');
+    clones.forEach(function (clone, i) {
+      const r = real[i];
+      if (!r) return;
+      if (clone.getAttribute('data-bs-toggle') === 'dropdown') return;  // Bootstrap gère le clone
+      // stopPropagation : le clone peut porter une classe déléguée au document (.batch-*-btn) →
+      // sans ça, clic = délégation directe du clone + proxy = DOUBLE déclenchement. On coupe la
+      // remontée du clone ; seul r.click() (le vrai bouton) déclenche l'action, une seule fois.
+      clone.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); r.click(); });
+    });
+  }
+
   function init(cfg) {
     cfg = cfg || {};
     const qc = cfg.queueContainer;
@@ -286,5 +310,5 @@
     return init(Object.assign({}, cfg, { panel: panel, cardSettings: cardSettings }));
   }
 
-  global.WamaInspector = { init: init, initFromSchema: initFromSchema };
+  global.WamaInspector = { init: init, initFromSchema: initFromSchema, cloneActions: cloneActions };
 })(window);

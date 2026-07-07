@@ -1118,44 +1118,14 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // Actions de la card inspectée (callback WamaInspector) : clone des boutons de la card + rebind.
   function _renderItemActions(host, card) {
-    const ga = card.querySelector('.btn-group-actions');
-    const id = card.dataset.id;
-    host.innerHTML =
-      '<div class="small text-white-50 mb-1"><i class="fas fa-crosshairs text-info"></i> Actions — élément #' + id + '</div>' +
-      '<div class="btn-group-actions d-flex flex-wrap gap-1">' + (ga ? ga.innerHTML : '') + '</div>' +
-      '<hr class="border-secondary my-2">';
-    // Les boutons clonés héritent de data-bound="1" → on le retire pour réautoriser le binding.
-    host.querySelectorAll('[data-bound]').forEach(function (b) { delete b.dataset.bound; });
-    bindCardActions(host);
+    WamaInspector.cloneActions(host, card.querySelector('.btn-group-actions'),
+      '<i class="fas fa-crosshairs text-info"></i> Actions — élément #' + card.dataset.id);
   }
 
-  // Actions batch autonomes (callback WamaInspector) — pas de clone : les handlers batch
-  // existants dépendent de l'arborescence DOM, on (re)construit donc des boutons dédiés.
   function _renderBatchActions(host, batchId) {
-    const dl = (fmt) => getUrl(config.batchDownloadUrlTemplate, batchId) + '?fmt=' + fmt;
-    host.innerHTML =
-      '<div class="small text-white-50 mb-1"><i class="fas fa-layer-group text-info"></i> Actions — batch #' + batchId + '</div>' +
-      '<div class="d-flex flex-wrap gap-1">' +
-        '<button class="btn btn-sm btn-success" id="inspBatchStart" title="Démarrer tout le batch"><i class="fas fa-play"></i></button>' +
-        '<div class="dropdown d-inline-block"><button class="btn btn-sm btn-outline-info dropdown-toggle" data-bs-toggle="dropdown" title="Télécharger (ZIP)"><i class="fas fa-download"></i></button>' +
-          '<ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end">' +
-            '<li><a class="dropdown-item" href="' + dl('txt') + '">Tout en TXT</a></li>' +
-            '<li><a class="dropdown-item" href="' + dl('srt') + '">Tout en SRT</a></li>' +
-            '<li><a class="dropdown-item" href="' + dl('pdf') + '">Tout en PDF</a></li>' +
-            '<li><a class="dropdown-item" href="' + dl('docx') + '">Tout en DOCX</a></li>' +
-          '</ul></div>' +
-        '<button class="btn btn-sm btn-outline-info" id="inspBatchDup" title="Dupliquer le batch"><i class="fas fa-copy"></i></button>' +
-        '<button class="btn btn-sm btn-outline-danger" id="inspBatchDel" title="Supprimer le batch"><i class="fas fa-trash"></i></button>' +
-      '</div><hr class="border-secondary my-2">';
-    const post = (tpl) => fetch(getUrl(tpl, batchId), { method: 'POST', headers: csrfHeaders() });
-    const s = document.getElementById('inspBatchStart');
-    if (s) s.addEventListener('click', () => post(config.batchStartUrlTemplate).then(() => location.reload()).catch(() => {}));
-    const d = document.getElementById('inspBatchDup');
-    if (d) d.addEventListener('click', () => post(config.batchDuplicateUrlTemplate).then(() => location.reload()).catch(() => {}));
-    const x = document.getElementById('inspBatchDel');
-    if (x) x.addEventListener('click', () => {
-      if (confirm('Supprimer ce batch et toutes ses transcriptions ?')) post(config.batchDeleteUrlTemplate).then(() => location.reload()).catch(() => {});
-    });
+    const grp = document.querySelector('.batch-group[data-batch-id="' + batchId + '"] .btn-group-actions');
+    WamaInspector.cloneActions(host, grp,
+      '<i class="fas fa-layer-group text-info"></i> Actions — batch #' + batchId);
   }
 
   // Sauvegarde des réglages de l'élément inspecté (callback WamaInspector).
