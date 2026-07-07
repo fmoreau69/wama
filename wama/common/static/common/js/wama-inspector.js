@@ -90,16 +90,36 @@
         '<i class="fas fa-external-link-alt"></i> Ouvrir</a>';
     }
     host.innerHTML = '<div class="wama-inspector-preview text-center">' + media + '</div>';
-    _previewCaption(host, name);
+    _previewCaption(host, name, data);
   }
 
-  function _previewCaption(host, name) {
+  // Légende : nom + métadonnées DÉJÀ présentes dans la réponse unified_preview
+  // (durée/résolution/propriétés) — 1re brique d'infos dans l'inspecteur, sans nouvel endpoint.
+  function _previewMeta(data) {
+    const bits = [];
+    if (data.duration) {
+      const d = Math.round(data.duration), m = Math.floor(d / 60), s = d % 60;
+      bits.push(m ? (m + ' min ' + (s < 10 ? '0' : '') + s + ' s') : (s + ' s'));
+    }
+    if (data.resolution) bits.push(String(data.resolution));
+    if (data.properties) bits.push(String(data.properties));
+    return bits;
+  }
+
+  function _previewCaption(host, name, data) {
     if (name) {
       const cap = document.createElement('small');
       cap.className = 'text-white-50 d-block text-truncate mt-1';
       cap.title = name; cap.textContent = name;
       host.appendChild(cap);
     }
+    (data ? _previewMeta(data) : []).forEach(function (t) {
+      const el = document.createElement('small');
+      el.className = 'text-muted d-block text-truncate';
+      el.style.fontSize = '.7rem';
+      el.title = t; el.textContent = t;
+      host.appendChild(el);
+    });
   }
 
   function init(cfg) {
