@@ -71,6 +71,8 @@ communes ci-dessous. Pour généraliser une app, s'en inspirer.
 | `user_settings.py` | Réglages user par app (`get/save_user_app_settings`, clés `user_{id}_{app}_{clé}`). |
 | `media_probe.py` | Sonde ffprobe (`probe_audio` : durée/codec/kHz/canaux) + `format_duration`. |
 | `card_chips.py` | `chips_for(instance, params_json, extra)` → chips de card depuis le schéma. |
+| `preview_registry.py` / `preview_utils.py` | **`unified_preview(app,pk)`** + `register_app_preview` (aperçu média du volet). |
+| `detail_registry.py` | **`unified_detail(app,pk)`** + `register_app_detail` + `build_detail` (infos item, schéma canonique `INSPECTOR_DETAIL_FIELDS.md` → `WamaDetails`). |
 | `ffmpeg_utils.py` | **`get_ffmpeg_exe/get_ffprobe_exe`** (sélection WSL2-vs-Windows + `FFMPEG_BINARY`) — voie UNIQUE. |
 | `console_utils.py` | Logs Redis structurés. |
 | `media_paths.py` | `upload_to_user_input/output`. |
