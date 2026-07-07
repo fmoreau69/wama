@@ -248,6 +248,7 @@
     var previewTitleDefault = previewTitleEl ? previewTitleEl.textContent : '';
     var infoHost = document.getElementById('inspectorInfo');
     var infoSection = document.getElementById('info-section');
+    var mediaSection = document.getElementById('media-section');  // section Médias/aperçu (n'a de sens que pour un ITEM)
     function hideDetail() {
       if (infoHost) infoHost.innerHTML = '';
       if (infoSection) infoSection.style.display = 'none';
@@ -309,6 +310,7 @@
       return '<div class="small text-white-50 mb-1">' + label + '</div><div class="d-flex flex-wrap gap-1">' + chips + '</div>';
     }
     function showQueueInfo() {
+      if (mediaSection) mediaSection.style.display = 'none';
       if (!infoHost) return;
       var c = _countCards(qc);
       if (!c.total) { hideDetail(); return; }
@@ -317,6 +319,7 @@
       var banner = $(ids.banner); if (banner) banner.style.display = '';
     }
     function showBatchInfo(bid, group) {
+      if (mediaSection) mediaSection.style.display = 'none';
       if (!infoHost) return;
       var c = _countCards(group);
       infoHost.innerHTML = '<div class="d-flex align-items-center gap-2 mb-1"><strong class="text-light">Batch #' + escapeHtml(bid) + '</strong>'
@@ -337,6 +340,7 @@
       if (panel.apply && cfg.cardSettings) panel.apply(cfg.cardSettings(card));
       fillActions(cfg.renderItemActions, card);
       fillPreview(card, 'Aperçu');
+      if (mediaSection) mediaSection.style.display = '';
       fillDetail(card);
       toggleSections(true);
       showBanner(itemLabel(id));
@@ -351,7 +355,6 @@
       const first = group.querySelector(CARD_SEL);   // réglages = ceux du 1er item
       if (first && panel.apply && cfg.cardSettings) panel.apply(cfg.cardSettings(first));
       fillActions(cfg.renderBatchActions, bid);
-      fillPreview(first, 'Aperçu');
       showBatchInfo(bid, group);
       toggleSections(true);
       showBanner(batchLabel(bid));
