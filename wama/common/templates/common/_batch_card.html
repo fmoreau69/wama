@@ -20,7 +20,9 @@ Slots/options (tous optionnels) :
 L'app garde autour : le wrapper .batch-group + le conteneur .collapse des filles
 (#batchItems{{ batch_info.obj.id }}, data-wama-batch-key='<app>_<id>').
 {% endcomment %}
-<div class="{{ card_class|default:'' }} wama-card is-batch batch-group-header" data-status="batch">
+<div class="{{ card_class|default:'' }} wama-card is-batch batch-group-header" data-status="batch"
+     data-batch-total="{{ batch_info.obj.total }}" data-batch-success="{{ batch_info.success_count }}"
+     data-batch-running="{{ batch_info.running_count }}" data-batch-failure="{{ batch_info.failure_count }}">
     <div class="row align-items-center">
         <div class="col-md-9" data-bs-toggle="collapse"
              data-bs-target="#batchItems{{ batch_info.obj.id }}" aria-expanded="false"

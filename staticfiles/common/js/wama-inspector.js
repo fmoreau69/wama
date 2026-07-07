@@ -288,17 +288,21 @@
     }
 
     // Agrégats (file / batch) affichés dans la section Infos quand rien / un batch est sélectionné.
-    function _countCards(scope) {
-      var c = { total: 0, success: 0, running: 0, failure: 0, pending: 0 };
-      (scope ? scope.querySelectorAll(CARD_SEL + '[data-id]') : []).forEach(function (card) {
-        var st = (card.dataset.status || '').toUpperCase();
-        if (st === 'SUCCESS' || st === 'DONE') c.success++;
-        else if (st === 'FAILURE' || st === 'ERROR') c.failure++;
-        else if (st === 'RUNNING' || st === 'PROCESSING') c.running++;
-        else c.pending++;
-        c.total++;
-      });
-      return c;
+    // Compteurs NON recomptes : on LIT les sources serveur uniques.
+    // File -> window.WamaQueueStats (wama-global-progress.js). Batch -> data-* de la card mere
+    // (_batch_card.html, depuis build_batches_list). Une source, plusieurs vues.
+    function _fileCounts() {
+      var s = global.WamaQueueStats;
+      if (!s) return null;
+      var t = s.total || 0, d = s.done || 0, r = s.running || 0, f = s.failed || 0;
+      return { total: t, success: d, running: r, failure: f, pending: Math.max(0, t - d - r - f) };
+    }
+    function _batchCounts(group) {
+      var h = group && group.querySelector('[data-batch-total]');
+      if (!h) return { total: 0, success: 0, running: 0, failure: 0, pending: 0 };
+      var n = function (a) { return parseInt(h.getAttribute(a) || '0', 10) || 0; };
+      var t = n('data-batch-total'), su = n('data-batch-success'), ru = n('data-batch-running'), fa = n('data-batch-failure');
+      return { total: t, success: su, running: ru, failure: fa, pending: Math.max(0, t - su - ru - fa) };
     }
     function _renderAggInfo(label, c) {
       var chip = function (icon, n) { return '<span class="wama-chip"><i class="fas ' + icon + '"></i> ' + n + '</span>'; };
@@ -312,8 +316,8 @@
     function showQueueInfo() {
       if (mediaSection) mediaSection.style.display = 'none';
       if (!infoHost) return;
-      var c = _countCards(qc);
-      if (!c.total) { hideDetail(); return; }
+      var c = _fileCounts();
+      if (!c || !c.total) { hideDetail(); return; }
       infoHost.innerHTML = _renderAggInfo('<i class="fas fa-list text-info"></i> File · ' + c.total + ' élément' + (c.total > 1 ? 's' : ''), c);
       if (infoSection) infoSection.style.display = '';
       var banner = $(ids.banner); if (banner) banner.style.display = '';
@@ -321,7 +325,7 @@
     function showBatchInfo(bid, group) {
       if (mediaSection) mediaSection.style.display = 'none';
       if (!infoHost) return;
-      var c = _countCards(group);
+      var c = _batchCounts(group);
       infoHost.innerHTML = '<div class="d-flex align-items-center gap-2 mb-1"><strong class="text-light">Batch #' + escapeHtml(bid) + '</strong>'
         + '<button type="button" class="btn btn-sm btn-link text-white-50 p-0 ms-auto wama-info-deselect" title="Fermer la sélection"><i class="fas fa-xmark"></i></button></div>'
         + _renderAggInfo('<i class="fas fa-layer-group text-info"></i> ' + c.total + ' élément' + (c.total > 1 ? 's' : ''), c);
@@ -426,6 +430,9 @@
     }
 
     try { showQueueInfo(); } catch (e) {}
+    document.addEventListener('media:processed', function () {
+      if (itemId == null && batchId == null) { try { showQueueInfo(); } catch (e) {} }
+    });
 
     return {
       selectItem: selectItem,

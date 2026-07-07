@@ -72,6 +72,9 @@
                     }
                     if (pct) pct.textContent = total ? p + '%' : '';
 
+                    // Source UNIQUE des compteurs de file (l'inspecteur les LIT, ne recompte pas).
+                    window.WamaQueueStats = { total: total, done: done, running: running, failed: failed };
+
                     if (window.WamaEta) {
                         var etaEl = document.getElementById(etaId);
                         if (etaEl) window.WamaEta.render(etaEl, window.WamaEta.aggregateAll());
