@@ -386,3 +386,22 @@ schéma-driven des apps n'est pas fini (priorité Fabien : fonctionnel d'abord, 
 2. Validation navigateur Fabien sur Reader (esthétique = SA décision, cf. « apparence non figée »).
 3. Si validé : remonter le layout v2 dans le formalisme (adapter `_batch_card.html` au même style,
    puis migrer T/D/C — mécanique, les données sont déjà serveur+schéma).
+
+### 10.6 Divergences relevées pendant le pilote (à trancher à la passe UI unique)
+
+Ces points sont **de l'apparence** (question UI 2) → NE PAS les régler app par app, ils se
+tranchent une fois sur les briques communes et se propagent. Consignés au fil du pilote Reader :
+
+- **Fond de card = décision COMMUNE, pas par app.** Aujourd'hui chaque app pose son fond dans son
+  propre CSS (`composer/index.css:.generation-card{background:#1e2124}`, transcriber/describer/reader
+  ailleurs) → rendus incohérents, dont un **fond quasi transparent** (contour seul) qui rend la file
+  peu lisible et les **boutons discrets (hover à peine visible)**. Cible : porter le fond sur la
+  classe commune `.wama-card` (wama-inspector.css) avec une **opacité choisie pour le contraste des
+  boutons** ; retirer les fonds par app. (Signalé Fabien 2026-07-07.)
+- **Temps de traitement affiché seulement par transcriber (écart FONCTIONNEL, pas UI).** La card doit
+  transformer l'ETA en **durée de traitement** à la fin (SUCCESS). Seul transcriber le fait
+  (`_card_progress.html` + `Transcript.processing_display` + `processing_seconds` posé par le worker).
+  describer / composer / reader n'ont NI le champ, NI l'affichage. **Fix universel** (hors passe UI) :
+  mixin commun `ProcessingTimeMixin` (`processing_seconds` + propriété `processing_display`),
+  workers qui enregistrent `fin - début`, cards qui affichent la durée sur SUCCESS. Migrations ×3
+  → à valider avant de générer. (Signalé Fabien 2026-07-07, tâche ouverte.)
