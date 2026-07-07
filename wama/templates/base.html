@@ -247,6 +247,7 @@
     <script src="{% static 'vendors/jstree-3.3.16/jstree.min.js' %}"></script>
     <!-- WAMA App Catalog (injected server-side — used by FileManager JS) -->
     <script>window.WAMA_APP_CATALOG = {{ app_catalog_json|safe }};</script>
+    <script>window.WAMA_INSPECTOR_AUTOPLAY = {{ inspector_autoplay|yesno:'true,false' }};  // pref profil (aperçu inspecteur)</script>
     {% if current_app_color %}
     <!-- Couleur d'IDENTITÉ de l'app courante (liseré des cards — CARD_DESIGN §9, dérivée du catalogue) -->
     <style>:root { --wama-app-color: {{ current_app_color }}; }</style>

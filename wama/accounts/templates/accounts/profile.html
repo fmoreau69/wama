@@ -80,6 +80,22 @@
                 </div>
             </div>
 
+            <!-- ── Aperçu inspecteur ──────────────────────────────────── -->
+            <div class="card bg-dark border-secondary mb-4">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="fas fa-eye me-2"></i>Aperçu dans l'inspecteur</h5>
+                    <div class="form-check form-switch mb-2">
+                        <input class="form-check-input" type="checkbox" id="inspectorAutoplay"
+                               {% if profile.inspector_autoplay %}checked{% endif %}>
+                        <label class="form-check-label" for="inspectorAutoplay">
+                            Lecture automatique de l'aperçu (audio/vidéo) au clic d'une card
+                        </label>
+                    </div>
+                    <small class="text-muted">Si désactivé, l'aperçu s'affiche mais ne démarre pas tout seul.</small>
+                    <div id="inspectorAutoplayMsg" class="mt-2" style="display:none;"></div>
+                </div>
+            </div>
+
             <!-- ── Notifications email ──────────────────────────────────── -->
             <div class="card bg-dark border-secondary mb-4">
                 <div class="card-header border-secondary">
@@ -254,6 +270,7 @@
 const LANGUAGE_URL       = "{% url 'accounts:profile-language' %}";
 const NOTIFICATIONS_URL  = "{% url 'accounts:profile-notifications' %}";
 const RETENTION_URL      = "{% url 'accounts:profile-retention' %}";
+    const AUTOPLAY_URL       = "{% url 'accounts:profile-inspector-autoplay' %}";
 {% if not is_ldap %}
 const CHANGE_PWD_URL     = "{% url 'accounts:change-password' %}";
 {% endif %}
@@ -291,6 +308,17 @@ document.getElementById('saveLanguageBtn').addEventListener('click', async () =>
         showMsg(msg, 'Erreur réseau', true);
     }
 });
+
+// ── Aperçu inspecteur : lecture auto ──────────────────────────────────────────
+const _autoplayToggle = document.getElementById('inspectorAutoplay');
+if (_autoplayToggle) {
+    _autoplayToggle.addEventListener('change', async () => {
+        const data = await postJson(AUTOPLAY_URL, { inspector_autoplay: _autoplayToggle.checked });
+        const msg = document.getElementById('inspectorAutoplayMsg');
+        if (data && data.success) showMsg(msg, '✓ Préférence enregistrée');
+        else showMsg(msg, (data && data.error) || 'Erreur', true);
+    });
+}
 
 // ── Notifications email ───────────────────────────────────────────────────────
 document.getElementById('saveNotifyBtn').addEventListener('click', async () => {

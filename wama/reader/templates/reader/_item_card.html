@@ -15,7 +15,8 @@ Contexte : item = ReadingItem (avec .chips) ; in_batch = fille de batch.
 {% with item.filename as fname %}
 <div class="reader-card card bg-dark border-secondary wama-card {% if in_batch %}mb-1{% else %}mb-2{% endif %} {% if item.status == 'RUNNING' %}processing{% elif item.status == 'DONE' %}success{% elif item.status == 'ERROR' %}error{% endif %}"
      {% if in_batch %}style="border-radius:0 0.375rem 0.375rem 0;"{% endif %}
-     data-id="{{ item.id }}" data-status="{{ item.status }}">
+     data-id="{{ item.id }}" data-status="{{ item.status }}"
+     data-preview-url="{% url 'common:unified_preview' 'reader' item.id %}">
 <div class="card-body py-2">
 
   {# ── Ligne 1 : identité + chips + état + actions ──────────────────────────── #}

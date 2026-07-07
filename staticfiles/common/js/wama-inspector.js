@@ -181,7 +181,8 @@
       if (!url) { restorePreview(); return; }
       fetch(url).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
         if (!d || !d.url) { restorePreview(); return; }
-        renderInlinePreview(previewHost, d, !!cfg.autoplay);
+        var autoplay = (cfg.autoplay != null) ? cfg.autoplay : global.WAMA_INSPECTOR_AUTOPLAY;
+        renderInlinePreview(previewHost, d, !!autoplay);
         if (previewTitleEl && title) previewTitleEl.textContent = title;
       }).catch(restorePreview);
     }

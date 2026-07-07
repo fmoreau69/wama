@@ -19,3 +19,16 @@ class ComposerConfig(AppConfig):
             register_batch_sync(ComposerBatchItem)
         except Exception:
             pass
+
+        # Aperçu (volet inspecteur) : composer = text-to-music → l'aperçu est la SORTIE audio.
+        try:
+            from wama.common.utils.preview_utils import register_app_preview
+            from .models import ComposerGeneration
+            register_app_preview(
+                app_name='composer',
+                model_class=ComposerGeneration,
+                file_field='audio_output',
+                user_field='user',
+            )
+        except Exception:
+            pass

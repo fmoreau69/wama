@@ -10,7 +10,8 @@
     {% else %}border-secondary{% endif %}"
      data-id="{{ gen.id }}"
      data-status="{{ gen.status }}"
-     data-estimated-seconds="{{ gen.estimated_seconds }}">
+     data-estimated-seconds="{{ gen.estimated_seconds }}"
+     data-preview-url="{% url 'common:unified_preview' 'composer' gen.id %}">
 
     <div class="row align-items-center g-2">
 
