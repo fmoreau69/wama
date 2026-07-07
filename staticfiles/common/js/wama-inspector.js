@@ -122,6 +122,18 @@
     });
   }
 
+  // Schéma canonique des sections d'infos (INSPECTOR_DETAIL_FIELDS.md) — labels figés une fois.
+  // sec.rows = épine dorsale (auto-masqués si vide) ; sec.kv = réglages spécifiques (data.extra).
+  var DETAIL_SCHEMA = [
+    { section: 'Identité', rows: [{ k: 'ID', field: 'id' }, { k: 'Créé le', field: 'created_at' }] },
+    { section: 'Entrée', rows: [{ k: 'Fichier source', field: 'source_file' }, { k: 'Durée', field: 'source_duration_display' }, { k: 'Propriétés', field: 'source_properties' }] },
+    { section: 'Moteur', rows: [{ k: 'Moteur / Modèle', field: 'engine' }, { k: 'Moteur effectif', field: 'engine_effective' }] },
+    { section: 'Réglages', kv: 'extra' },
+    { section: 'Sortie', rows: [{ k: 'Résultat', field: 'result_file' }, { k: 'Format', field: 'output_format' }, { k: 'Qualité', field: 'output_quality' }] },
+    { section: 'État', rows: [{ k: 'Statut', field: 'status' }, { k: 'Erreur', field: 'error_message' }] },
+    { section: 'Temps', rows: [{ k: 'Temps de traitement', field: 'processing_time_display' }] },
+  ];
+
   function init(cfg) {
     cfg = cfg || {};
     const qc = cfg.queueContainer;
@@ -190,6 +202,24 @@
     var previewTitleEl = cfg.previewTitleSel ? $(cfg.previewTitleSel) : document.getElementById('rightPanelMediaTitle');
     var previewPlaceholder = previewHost ? previewHost.innerHTML : '';
     var previewTitleDefault = previewTitleEl ? previewTitleEl.textContent : '';
+    var infoHost = document.getElementById('inspectorInfo');
+    var infoSection = document.getElementById('info-section');
+    function hideDetail() {
+      if (infoHost) infoHost.innerHTML = '';
+      if (infoSection) infoSection.style.display = 'none';
+    }
+    function fillDetail(card) {
+      if (!infoHost || !card || !global.WamaDetails) { hideDetail(); return; }
+      var link = (card.matches && card.matches('[data-preview-url]')) ? card : card.querySelector('[data-preview-url]');
+      var purl = link && link.getAttribute('data-preview-url');
+      if (!purl) { hideDetail(); return; }
+      var durl = purl.replace('/preview/', '/detail/');
+      fetch(durl).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
+        if (!d || d.error) { hideDetail(); return; }
+        infoHost.innerHTML = global.WamaDetails.renderSections(d, DETAIL_SCHEMA);
+        if (infoSection) infoSection.style.display = '';
+      }).catch(hideDetail);
+    }
     function restorePreview() {
       if (previewHost) previewHost.innerHTML = previewPlaceholder;
       if (previewTitleEl) previewTitleEl.textContent = previewTitleDefault;
@@ -216,6 +246,7 @@
       if (panel.apply && cfg.cardSettings) panel.apply(cfg.cardSettings(card));
       fillActions(cfg.renderItemActions, card);
       fillPreview(card, 'Aperçu');
+      fillDetail(card);
       toggleSections(true);
       showBanner(itemLabel(id));
     }
@@ -230,6 +261,7 @@
       if (first && panel.apply && cfg.cardSettings) panel.apply(cfg.cardSettings(first));
       fillActions(cfg.renderBatchActions, bid);
       fillPreview(first, 'Aperçu');
+      fillDetail(first);
       toggleSections(true);
       showBanner(batchLabel(bid));
     }
@@ -243,6 +275,7 @@
       toggleSections(false);
       hideBanner();
       restorePreview();
+      hideDetail();
     }
 
     function save() {
