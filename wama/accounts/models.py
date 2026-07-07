@@ -35,6 +35,12 @@ class UserProfile(models.Model):
         default='list',
         verbose_name="Disposition des cards",
     )
+    # Lecture auto de l'aperçu (audio/vidéo) dans l'inspecteur au clic d'une card.
+    # Défaut OFF (opt-in) le temps de valider l'absence de lag ; à basculer ON ensuite.
+    inspector_autoplay = models.BooleanField(
+        default=False,
+        verbose_name="Lecture auto de l'aperçu dans l'inspecteur",
+    )
     # Axe A — profil de compte (tier). Les rôles métier (axe B) = Django Groups 'role:*'.
     account_tier = models.CharField(
         max_length=16,

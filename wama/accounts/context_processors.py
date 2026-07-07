@@ -14,11 +14,13 @@ def user_role(request):
     preferred_language = 'fr'
     ui_mode = 'advanced'
     card_layout = 'list'
+    inspector_autoplay = False
     if user.is_authenticated:
         try:
             preferred_language = user.profile.preferred_language
             ui_mode = user.profile.ui_mode
             card_layout = user.profile.card_layout
+            inspector_autoplay = user.profile.inspector_autoplay
         except Exception:
             pass
 
@@ -119,6 +121,7 @@ def user_role(request):
         'preferred_language': preferred_language,
         'ui_mode': ui_mode,
         'card_layout': card_layout,
+        'inspector_autoplay': inspector_autoplay,
         'app_catalog_json': app_catalog_json,
         'nav_apps_grouped': nav_apps_grouped,
         'current_app_color': current_app_color,

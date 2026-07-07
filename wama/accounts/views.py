@@ -310,6 +310,21 @@ def layout_update(request):
 
 @login_required
 @require_POST
+def inspector_autoplay_update(request):
+    """AJAX: enregistre la préférence de lecture auto de l'aperçu dans l'inspecteur."""
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'JSON invalide'}, status=400)
+    enabled = bool(data.get('inspector_autoplay', False))
+    profile, _ = UserProfile.objects.get_or_create(user=request.user)
+    profile.inspector_autoplay = enabled
+    profile.save(update_fields=['inspector_autoplay'])
+    return JsonResponse({'success': True, 'inspector_autoplay': enabled})
+
+
+@login_required
+@require_POST
 def retention_update(request):
     """AJAX: enregistre la durée de conservation des médias (0 = illimité)."""
     try:
