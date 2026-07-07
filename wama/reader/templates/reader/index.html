@@ -26,20 +26,8 @@
 
 {# ── Right panel : médias ─────────────────────────────────────────────────── #}
 {% block app_right_panel_media %}
-<div id="dropZone" class="reader-drop-zone">
-    <i class="fas fa-file-arrow-up fa-lg text-secondary mb-1"></i>
-    <p class="mb-0 small text-secondary">Glissez ici ou cliquez</p>
-    <small class="text-muted">PDF · JPG · PNG · TIFF · WebP</small>
-    <input type="file" id="fileInput" multiple
-           accept=".pdf,.jpg,.jpeg,.png,.tiff,.tif,.webp,.bmp" style="display:none">
-    <small class="text-muted d-block mt-1">
-        Batch ?
-        <a href="{% url 'reader:batch_template' %}" class="text-muted" download>
-            <i class="fas fa-download"></i> Template
-        </a>
-    </small>
-</div>
-{% include 'common/batch_detect_bar.html' %}
+{% comment %}Card d'entrée déplacée du volet vers la TÊTE DE FILE (brique _new_item_card.html,
+alignement T/D/C, 2026-07-07). Volet media vide pour Reader.{% endcomment %}
 {% endblock %}
 
 {# ── Right panel : paramètres ────────────────────────────────────────────── #}
@@ -176,6 +164,11 @@ window._batchImport = WamaBatchImport({
 {# ── Main content : queue only ───────────────────────────────────────────── #}
 {% block reader_content %}
 <div class="container-fluid py-2" style="overflow-x: hidden;">
+
+    {# Card d'entrée COMMUNE en tête de file (upload + batch) — alignement T/D/C, 2026-07-07.
+       Mêmes IDs dropZone/fileInput → handlers reader.js inchangés ; show_batch_bar inclut la barre. #}
+    {% url 'reader:batch_template' as reader_batch_template_url %}
+    {% include 'common/_new_item_card.html' with drop_zone_id='dropZone' file_input_id='fileInput' file_accept='.pdf,.jpg,.jpeg,.png,.tiff,.tif,.webp,.bmp' formats_label='PDF · JPG · PNG · TIFF · WebP · BMP' batch_template_url=reader_batch_template_url show_batch_bar=True %}
 
     <!-- Global progress bar -->
     {# Barre globale + ETA agrégée — brique commune (balayage bleu/vert permanent, toujours visible). #}
