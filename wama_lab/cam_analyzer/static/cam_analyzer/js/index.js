@@ -24,6 +24,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // Classes visibles en overlay : usagers de la route dès le départ (filtre actif
     // avant même le chargement du rapport). La légende du camembert l'ajuste ensuite.
     let overlayVisibleClasses = new Set(ROAD_USER_CLASSES);
+    let overlayMinConf = 0;          // filtre de confiance à l'AFFICHAGE (sans ré-analyse)
     let cameras = {};          // { position: { id, videoUrl, duration, fps, width, height, ... } }
     let isPlaying = false;
     let maxDuration = 0;
@@ -1880,6 +1881,11 @@ document.addEventListener('DOMContentLoaded', function () {
             // marquages SAM3 en sont exemptés (gérés séparément).
             if (overlayVisibleClasses && det.type !== 'sam3_marking' && det.class_name &&
                 !overlayVisibleClasses.has(det.class_name.toLowerCase())) return;
+
+            // Filtre overlay par CONFIANCE (à l'affichage, sans ré-analyse) — exempte
+            // road_mask/sam3 (rendus en polygone plus haut, pas ici).
+            if (overlayMinConf > 0 && det.type !== 'sam3_marking' && det.type !== 'road_mask'
+                && typeof det.confidence === 'number' && det.confidence < overlayMinConf) return;
 
             const [x1, y1, x2, y2] = det.bbox;
             const sx = x1 * scaleX + offsetX;
@@ -3870,6 +3876,14 @@ document.addEventListener('DOMContentLoaded', function () {
         wire('sam3TestBtn', () => runSam3Test(false));
         wire('sam3CalibBtn', () => runSam3Test(true));
         wire('copyDebugBtn', copyDebugInfo);
+        // Filtre de confiance à l'affichage (sans ré-analyse).
+        const _cf = document.getElementById('overlayConfSlider');
+        if (_cf) _cf.oninput = () => {
+            overlayMinConf = parseFloat(_cf.value) || 0;
+            const _lbl = document.getElementById('overlayConfVal');
+            if (_lbl) _lbl.textContent = Math.round(overlayMinConf * 100) + '%';
+            if (typeof currentTime === 'number') updateDetectionOverlay(currentTime);
+        };
         // Offset GPS↔vidéo : ajustement en direct (re-aligne la navette/objets) + save.
         const _goInput = document.getElementById('gpsOffsetInput');
         const _goSlider = document.getElementById('gpsOffsetSlider');
