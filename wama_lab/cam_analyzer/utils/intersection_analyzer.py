@@ -54,6 +54,15 @@ T2_STABLE_FRAMES = 3
 # Movement threshold below which a vehicle is considered "stabilized" (for t2)
 T2_STABLE_PX = 4.0
 
+# t2 (« pleinement inséré » même-sens) : au-delà de la stabilisation de position,
+# on exige que le RATIO D'ASPECT bbox (largeur/hauteur) soit redescendu près de sa
+# valeur « alignée » (vue arrière/de face). Le ratio d'aspect est INVARIANT à la
+# distance (largeur et hauteur varient toutes deux en 1/distance) : pendant le
+# braquage d'insertion on voit le flanc → aspect élevé ; une fois aligné → aspect
+# minimal. Tolérance au-dessus de la valeur alignée (25e centile) pour valider t2.
+# Voir CAM_ANALYZER_DISTANCE_DESIGN.md §2.9. Repli position-seule si bbox absente.
+T2_ASPECT_TOL = 0.25
+
 # Max bbox trajectory points to store (trim to keep metadata compact)
 MAX_TRAJ_POINTS = 200
 
@@ -750,12 +759,31 @@ class IntersectionAnalyzer:
 
     # ── t2 detection ──────────────────────────────────────────────────────
 
+    @staticmethod
+    def _bbox_aspect(p) -> Optional[float]:
+        """Ratio d'aspect largeur/hauteur de la bbox d'un point (x1,y1,x2,y2 = p[5:9]).
+
+        Invariant à la distance. None si la bbox n'est pas disponible dans le point.
+        """
+        if len(p) >= 9:
+            w = p[7] - p[5]
+            h = p[8] - p[6]
+            if h > 1e-6 and w > 0:
+                return w / h
+        return None
+
     def _find_t2(self, points: list, move_start_idx: int, frame_width: int) -> Optional[float]:
         """
-        Find t2: the timestamp when the inserted vehicle stabilizes inside the
-        shuttle lane, i.e. consecutive frames where:
-        1. x_center is within the CENTER_ZONE
-        2. displacement per frame is below T2_STABLE_PX
+        Find t2: the timestamp when the inserted vehicle is fully settled in the
+        shuttle lane — SAME-SENSE insertion. Consecutive frames where:
+        1. x_center is within the CENTER_ZONE (position en voie),
+        2. displacement per frame is below T2_STABLE_PX (immobilité relative),
+        3. the bbox ASPECT RATIO has dropped near its "aligned" value (vue
+           arrière/de face, plus de biais de braquage) — signal INVARIANT à la
+           distance. Repli sur (1)+(2) seuls si la bbox n'est pas disponible.
+
+        NB : le t2 « sens opposé » (= franchissement de la ligne centrale) sera
+        défini en coordonnées sol via l'homographie (3c) — pas ici.
 
         Returns the timestamp of the first such stable frame, or the last
         known timestamp if the vehicle never fully stabilizes (still an insertion).
@@ -768,6 +796,12 @@ class IntersectionAnalyzer:
             # Not enough frames after movement — return last known timestamp
             return points[-1][0] if points else None
 
+        # Valeur d'aspect « alignée » = ~25e centile des aspects post-mouvement
+        # (robuste à un outlier bbox isolé). None si pas assez de bbox valides.
+        aspects = [self._bbox_aspect(p) for p in post_move]
+        valid = sorted(a for a in aspects if a is not None)
+        aspect_ref = valid[max(0, int(0.25 * len(valid)) - 1)] if len(valid) >= T2_STABLE_FRAMES else None
+
         consecutive_stable = 0
         for i in range(1, len(post_move)):
             prev = post_move[i - 1]
@@ -776,8 +810,13 @@ class IntersectionAnalyzer:
             dy = curr[2] - prev[2]
             displacement = math.sqrt(dx * dx + dy * dy)
             in_lane = abs(curr[1] - center_x) <= center_zone_half
+            # Aligné = ratio d'aspect proche de la valeur alignée (non biaisé).
+            # Vrai par défaut si l'aspect n'est pas mesurable (repli position-seule).
+            aligned = True
+            if aspect_ref is not None and aspects[i] is not None:
+                aligned = aspects[i] <= aspect_ref * (1.0 + T2_ASPECT_TOL)
 
-            if displacement <= T2_STABLE_PX and in_lane:
+            if displacement <= T2_STABLE_PX and in_lane and aligned:
                 consecutive_stable += 1
                 if consecutive_stable >= T2_STABLE_FRAMES:
                     # Return the start of this stable run

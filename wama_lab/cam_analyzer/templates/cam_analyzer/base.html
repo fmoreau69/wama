@@ -1,5 +1,6 @@
 {% extends 'common/app_modern_base.html' %}
 {% load static %}
+{% load wama_static %}
 
 {% block app_icon %}<i class="fas fa-video text-warning"></i>{% endblock %}
 {% block app_title %}Cam Analyzer{% endblock %}
@@ -10,7 +11,7 @@
 
 {% block extra_css %}
 {{ block.super }}
-<link rel="stylesheet" href="{% static 'cam_analyzer/css/cam_analyzer.css' %}">
+<link rel="stylesheet" href="{% static_v 'cam_analyzer/css/cam_analyzer.css' %}">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
 {% endblock %}
 
@@ -23,11 +24,51 @@
 {% block right_panel_media_title %}<i class="fas fa-map-marked-alt me-1 text-info"></i> Carte & passages{% endblock %}
 
 {% block right_panel_media %}
-<div id="camAnalyzerMiniMap"
-     style="height: 320px; width: 100%; border-radius: 6px; border: 1px solid #495057; background: #1a1d20;"></div>
+{# Barre d'outils ACTIONS — hors carte pour libérer le champ de vision (vue de dessus) #}
+<div class="d-flex flex-wrap gap-1 mb-1" id="camAnalyzerMapToolbar">
+    <button type="button" id="calibToggleBtn" class="btn btn-sm btn-outline-info"
+            title="Calibrer le sol : cliquer les 4 coins d'un passage piéton">
+        <i class="fas fa-ruler-combined me-1"></i>Calibrer
+    </button>
+    <button type="button" id="sam3CalibBtn" class="btn btn-sm btn-outline-info"
+            title="Détecter le passage sur la frame courante et calibrer la vue de dessus">
+        <i class="fas fa-crosshairs me-1"></i>Calib. SAM3
+    </button>
+    <button type="button" id="sam3TestBtn" class="btn btn-sm btn-outline-light"
+            title="Tester SAM3 sur la frame courante (masks + scores)">
+        <i class="fas fa-flask"></i>
+    </button>
+    <button type="button" id="copyDebugBtn" class="btn btn-sm btn-outline-secondary"
+            title="Copier les infos de synchro de cet instant (temps vidéo, GPS, détections) pour debug">
+        <i class="fas fa-clipboard"></i>
+    </button>
+    <span class="d-inline-flex align-items-center gap-1 ms-1 px-2 py-1 rounded"
+          style="background:rgba(255,193,7,.12);border:1px solid rgba(255,193,7,.3);"
+          title="Recalage synchro GPS↔vidéo (secondes) : glisse jusqu'à ce que la navette colle à la vidéo, puis 💾">
+        <span class="small fw-semibold text-warning"><i class="fas fa-sync-alt me-1"></i>Synchro GPS Δ</span>
+        <input type="range" id="gpsOffsetSlider" min="-30" max="30" step="0.05" value="0" style="width:130px;">
+        <input type="number" id="gpsOffsetInput" step="0.05" value="0"
+               class="form-control form-control-sm" style="width:64px;">
+        <span class="small text-secondary">s</span>
+        <button type="button" id="gpsOffsetSaveBtn" class="btn btn-sm btn-outline-success"
+                title="Enregistrer l'offset pour cette session">💾</button>
+    </span>
+</div>
+<div id="camAnalyzerMapWrap" class="position-relative">
+    <div id="camAnalyzerMiniMap"
+         style="height: 320px; width: 100%; border-radius: 6px; border: 1px solid #495057; background: #1a1d20;"></div>
+</div>
 <div class="small text-secondary mt-1" style="font-size: 0.7rem;">
     <i class="fas fa-mouse-pointer me-1"></i>Cliquer sur le parcours pour aller au passage le plus proche
 </div>
+<style>
+    #camAnalyzerMapWrap:fullscreen,
+    #camAnalyzerMapWrap:-webkit-full-screen { background: #1a1d20; padding: 0; }
+    #camAnalyzerMapWrap:fullscreen #camAnalyzerMiniMap,
+    #camAnalyzerMapWrap:-webkit-full-screen #camAnalyzerMiniMap {
+        height: 100vh !important; border: none; border-radius: 0;
+    }
+</style>
 
 <div id="camAnalyzerPassInfo" class="mt-3 p-2 rounded" style="background: #1a1d20; border: 1px solid #343a40; display: none;">
     <div class="small fw-semibold text-warning mb-1">
@@ -743,5 +784,6 @@ Upload vidéos / .rec + CSV
 {% block app_scripts %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-<script src="{% static 'cam_analyzer/js/index.js' %}"></script>
+<script src="{% static_v 'common/js/wama-shuttle.js' %}"></script>
+<script src="{% static_v 'cam_analyzer/js/index.js' %}"></script>
 {% endblock %}

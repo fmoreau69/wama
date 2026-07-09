@@ -20,8 +20,11 @@ def get_unique_filename(directory: str, filename: str) -> str:
 
 
 def _default_analyzed_positions():
-    """Default cameras analysed by YOLO when a profile doesn't specify."""
-    return ['front', 'rear']
+    """Caméras analysées par YOLO (détection d'objets) par défaut. Les 4 vues sont
+    traitées → fondation du tracking 360° (trajectoires continues d'une vue à
+    l'autre). NB : yolopv2/road_segmenter/SAM3 restent front-only (calibration =
+    Phase C ; côtés à calibrer via marquages de voie, cf. Roadmap)."""
+    return ['front', 'rear', 'left', 'right']
 
 
 def cam_upload_path(instance, filename):
@@ -96,6 +99,63 @@ class AnalysisProfile(models.Model):
         blank=True,
         help_text='Camera positions to run YOLO on (default: front+rear). Others are extracted as MP4 for visualisation only.',
     )
+    # ── Géométrie & calibration (Phase 3b — distance homographique) ──────────
+    # Voir CAM_ANALYZER_DISTANCE_DESIGN.md. Toutes les valeurs sont des a priori
+    # surchargeables par l'utilisateur (idéalement mesurées, sinon normes FR /
+    # constructeur). L'homographie estimée depuis les lignes absorbe intrinsèques
+    # + extrinsèques : ces champs servent d'a priori, de bornes et de fallback.
+    geometry_enabled = models.BooleanField(
+        default=False,
+        help_text="Projeter les objets sur le plan-sol via homographie (distance/vitesse "
+                  "géométriques). Off ou homographie non calculable → fallback pinhole (historique).",
+    )
+    yolopv2_all_views = models.BooleanField(
+        default=False,
+        help_text="Faire tourner yolopv2 (voies/route) sur les 4 vues (pour la calibration "
+                  "360° des côtés) plutôt que sur la vue avant seule. OFF par défaut = analyse "
+                  "plus légère/stable (yolopv2 front-only) ; ON = ~4× plus de segmentation.",
+    )
+    camera_calibration = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Calibration par position (tous champs optionnels) : {front:{lens_type,"
+                  "fx_px,fy_px,cx_px,cy_px,distortion:[...],fov_h_deg,fov_v_deg,height_m,"
+                  "pitch_deg,yaw_deg,roll_deg,mount_x_m,mount_y_m,homography:[[...]]}, ...}. "
+                  "Manquants → estimés en ligne depuis les lignes, sinon pinhole.",
+    )
+    # Références sol métriques (normes FR par défaut)
+    lane_width_m = models.FloatField(
+        default=3.5,
+        help_text="Largeur de voie (m) : échelle latérale de l'homographie ET corridor de "
+                  "filtrage des véhicules stationnés.",
+    )
+    dash_mark_length_m = models.FloatField(
+        default=3.0, help_text="Longueur d'un trait de ligne discontinue (m, T1 FR = 3).",
+    )
+    dash_gap_length_m = models.FloatField(
+        default=9.0, help_text="Longueur d'un interstice de ligne discontinue (m, T1 FR = 9).",
+    )
+    crossing_band_width_m = models.FloatField(
+        default=0.5, help_text="Largeur d'une bande de passage piéton (m, FR ≈ 0.5).",
+    )
+    crossing_gap_width_m = models.FloatField(
+        default=0.5, help_text="Largeur entre bandes de passage piéton (m, FR ≈ 0.5).",
+    )
+    # Dimensions de la navette ego (placement en vue de dessus) — Navya Autonom par défaut
+    ego_length_m = models.FloatField(default=4.75, help_text="Longueur navette ego (m).")
+    ego_width_m = models.FloatField(default=2.11, help_text="Largeur navette ego (m).")
+    ego_height_m = models.FloatField(default=2.65, help_text="Hauteur navette ego (m).")
+    ego_cam_to_bumper_m = models.FloatField(
+        null=True, blank=True,
+        help_text="Distance approx. entre le bas du champ vidéo et le pare-choc (m), pour "
+                  "caler l'origine des distances en vue de dessus. Approximation tolérée.",
+    )
+    # Fusion inertielle (accéléromètre RTMaps) pour l'ego-pose
+    use_imu = models.BooleanField(
+        default=True,
+        help_text="Fusionner l'accélérométrie (si dispo) avec le GPS pour lisser trajectoire "
+                  "et vitesse propre. Pas de cap (aucun gyroscope dans le flux).",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -146,6 +206,18 @@ class AnalysisSession(models.Model):
         blank=True,
         help_text='GPS telemetry: [{ts, lat, lon, speed_kmh, heading}, ...]',
     )
+    gps_time_offset = models.FloatField(
+        default=0.0,
+        help_text="Décalage (secondes) à ajouter au temps VIDÉO pour retrouver le ts GPS "
+                  "correspondant. Recalage manuel de la synchro GPS↔vidéo (appliqué à "
+                  "l'affichage, sans ré-analyse). >0 = le GPS est en avance sur la vidéo.",
+    )
+    imu_track = models.JSONField(
+        default=list,
+        blank=True,
+        help_text='Accéléromètre navette (RTMaps) : [{ts, ax, ay, az}, ...] en g. '
+                  'Aucun gyroscope disponible dans le flux.',
+    )
     intersection_windows = models.JSONField(
         default=list,
         blank=True,
@@ -191,6 +263,11 @@ class CameraView(models.Model):
     width = models.IntegerField(null=True, blank=True)
     height = models.IntegerField(null=True, blank=True)
     time_offset = models.FloatField(default=0.0)
+    # Calibration sol PAR CAMÉRA (donc par session : les CameraView sont créées par
+    # session). Remplace `AnalysisProfile.camera_calibration` (profil réutilisé entre
+    # sessions → la calibration fuyait et devenait fausse au moindre décrochage caméra).
+    # Format = entrée calib : {homography, source, rms_error_m, crossing:{width_m,length_m}}.
+    ground_homography = models.JSONField(null=True, blank=True, default=None)
 
     class Meta:
         ordering = ['position']

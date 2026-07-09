@@ -277,12 +277,14 @@ def get_session(request, session_id):
     if len(gps_full) > 3000:
         step = max(1, len(gps_full) // 3000)
         gps_sampled = [
-            {'ts': p.get('ts'), 'lat': p.get('lat'), 'lon': p.get('lon')}
+            {'ts': p.get('ts'), 'lat': p.get('lat'), 'lon': p.get('lon'),
+             'heading': p.get('heading'), 'speed_kmh': p.get('speed_kmh')}
             for p in gps_full[::step]
         ]
     else:
         gps_sampled = [
-            {'ts': p.get('ts'), 'lat': p.get('lat'), 'lon': p.get('lon')}
+            {'ts': p.get('ts'), 'lat': p.get('lat'), 'lon': p.get('lon'),
+             'heading': p.get('heading'), 'speed_kmh': p.get('speed_kmh')}
             for p in gps_full
         ]
 
@@ -297,9 +299,25 @@ def get_session(request, session_id):
         'results_summary': session.results_summary,
         'intersection_windows': session.intersection_windows,
         'gps_track': gps_sampled,
+        'gps_time_offset': getattr(session, 'gps_time_offset', 0.0) or 0.0,
         'created_at': session.created_at.isoformat(),
         'error_message': session.error_message,
     })
+
+
+@login_required
+@require_http_methods(["POST"])
+def set_gps_offset(request, session_id):
+    """Enregistre l'offset de synchro GPS↔vidéo (secondes) — recalage manuel, appliqué
+    à l'affichage, sans ré-analyse. Réutilisable à tout moment en cas de désync."""
+    session = get_object_or_404(AnalysisSession, id=session_id, user=request.user)
+    try:
+        offset = float(json.loads(request.body or '{}').get('gps_time_offset', 0.0))
+    except (ValueError, TypeError):
+        return JsonResponse({'error': 'offset invalide'}, status=400)
+    session.gps_time_offset = offset
+    session.save(update_fields=['gps_time_offset'])
+    return JsonResponse({'success': True, 'gps_time_offset': offset})
 
 
 @login_required
@@ -330,11 +348,19 @@ def delete_session(request, session_id):
     session = get_object_or_404(AnalysisSession, id=session_id, user=request.user)
     user_id = request.user.id
 
-    # Delete camera video files
+    # Delete camera video files — mais SEULEMENT si aucune AUTRE session ne référence
+    # le même fichier (une session dupliquée partage les vidéos source) : sinon on
+    # abîmerait la copie/l'original. Réf-aware (cf. safe_delete_file de common/).
     for camera in session.cameras.all():
         if camera.video_file:
             try:
-                camera.video_file.delete()
+                fname = camera.video_file.name
+                shared = CameraView.objects.filter(video_file=fname).exclude(
+                    session_id=session.id).exists()
+                if shared:
+                    logger.info(f"Fichier vidéo conservé (partagé) : {fname}")
+                else:
+                    camera.video_file.delete(save=False)
             except Exception as e:
                 logger.warning(f"Failed to delete camera file: {e}")
 
@@ -342,6 +368,191 @@ def delete_session(request, session_id):
     _console(user_id, f"Session supprimée : {session.name}")
 
     return JsonResponse({'success': True})
+
+
+@login_required
+@require_http_methods(["POST"])
+def duplicate_session(request, session_id):
+    """
+    Duplique une session À L'IDENTIQUE (données extraites + détections + passes +
+    événements + calibration par caméra), en **partageant les fichiers vidéo source**
+    (suppression réf-aware côté delete_session) → tester/debug sur une copie sans
+    risquer la session d'origine (indispensable en WAMA Lab). Ne relance aucune analyse.
+    """
+    import uuid
+    from django.db import transaction
+    from .models import AnalysisPass, LaneEvent, ConflictEvent
+    src = get_object_or_404(AnalysisSession, id=session_id, user=request.user)
+    with transaction.atomic():
+        # 1) Session (nouveau pk UUID).
+        new = AnalysisSession.objects.get(pk=src.pk)
+        new._state.adding = True
+        new.id = uuid.uuid4()
+        new.name = f"{src.name} (copie)"
+        new.task_id = ''
+        new.save(force_insert=True)
+
+        # 2) Caméras — fichiers vidéo PARTAGÉS (même chemin), ground_homography copiée.
+        cam_map = {}
+        for c in CameraView.objects.filter(session=src):
+            old_id = c.pk
+            c.pk = None
+            c._state.adding = True
+            c.session = new
+            c.save(force_insert=True)
+            cam_map[old_id] = c
+
+        # 3) DetectionFrame (volumineux → bulk batché, streaming).
+        BATCH = 2000
+        buf = []
+
+        def _flush(model, rows):
+            if rows:
+                model.objects.bulk_create(rows, batch_size=BATCH)
+
+        for df in DetectionFrame.objects.filter(camera__session=src).iterator(chunk_size=BATCH):
+            nc = cam_map.get(df.camera_id)
+            if not nc:
+                continue
+            df.pk = None
+            df._state.adding = True
+            df.camera = nc
+            buf.append(df)
+            if len(buf) >= BATCH:
+                _flush(DetectionFrame, buf)
+                buf = []
+        _flush(DetectionFrame, buf)
+
+        # 4) LaneEvent (lié caméra).
+        buf = []
+        for ev in LaneEvent.objects.filter(camera__session=src).iterator():
+            nc = cam_map.get(ev.camera_id)
+            if not nc:
+                continue
+            ev.pk = None
+            ev._state.adding = True
+            ev.camera = nc
+            buf.append(ev)
+        _flush(LaneEvent, buf)
+
+        # 5) Événements liés session (+ camera éventuelle, None pour les passes session-level).
+        for Model in (AnalysisPass, ConflictEvent, TemporalSegment):
+            buf = []
+            for ev in Model.objects.filter(session=src).iterator():
+                ev.pk = None
+                ev._state.adding = True
+                ev.session = new
+                cid = getattr(ev, 'camera_id', None)
+                if cid:
+                    ev.camera = cam_map.get(cid)
+                buf.append(ev)
+            _flush(Model, buf)
+
+    _console(request.user.id, f"Session dupliquée : {new.name}")
+    return JsonResponse({'success': True, 'id': str(new.id), 'name': new.name})
+
+
+@login_required
+@require_http_methods(["POST"])
+def calibrate_homography(request, session_id):
+    """
+    Calibration de l'homographie sol par 4 coins d'un objet-sol normé (passage
+    piéton). Reçoit les 4 coins cliqués (repère pixel de la caméra) + les
+    dimensions réelles du passage → calcule les coords sol (repère navette) →
+    homographie par DLT → l'enregistre dans camera.ground_homography (par session)
+    + profile.geometry_enabled.
+
+    Conçu pour être RÉUTILISÉ tel quel par une future auto-détection SAM3 : seule
+    la source des 4 coins changerait (clics → détection), tout l'aval est partagé.
+    """
+    session = get_object_or_404(AnalysisSession, id=session_id, user=request.user)
+    profile = session.profile
+    if not profile:
+        return JsonResponse({'error': "La session n'a pas de profil"}, status=400)
+    try:
+        data = json.loads(request.body or '{}')
+        position = data['position']
+        image_points = [[float(u), float(v)] for u, v in data['image_points']]
+        crossing_width_m = float(data['crossing_width_m'])   # en travers (axe X)
+        crossing_length_m = float(data['crossing_length_m'])  # le long (axe Y, proche→loin)
+        near_distance_m = float(data.get('near_distance_m', 0.0))
+        lateral_offset_m = float(data.get('lateral_offset_m', 0.0))
+    except (KeyError, ValueError, TypeError) as e:
+        return JsonResponse({'error': f'Paramètres invalides : {e}'}, status=400)
+    if len(image_points) != 4:
+        return JsonResponse(
+            {'error': 'Il faut exactement 4 coins : proche-G, proche-D, loin-D, loin-G'},
+            status=400)
+
+    # Cœur partagé auto/manuel : coins ordonnés (clics dans l'ordre) → DLT + validation.
+    import numpy as np
+    from .utils.calibration import homography_from_quad
+    res = homography_from_quad(
+        image_points, crossing_width_m, crossing_length_m,
+        near_distance_m=near_distance_m, lateral_offset_m=lateral_offset_m,
+        reorder=False,   # les 4 clics sont déjà dans l'ordre proche-G/D, loin-D/G
+    )
+    if res is None:
+        return JsonResponse(
+            {'error': 'Homographie non résoluble (coins alignés / dégénérés)'}, status=400)
+    H = np.asarray(res['H'])
+
+    # Sanity : distance projetée du bas-centre de l'image (point sol le plus proche).
+    cam = session.cameras.filter(position=position).first()
+    if not cam:
+        return JsonResponse({'error': f'Caméra « {position} » introuvable'}, status=400)
+    sample = None
+    if cam.width and cam.height:
+        p = H @ np.array([cam.width / 2.0, cam.height - 1.0, 1.0])
+        if abs(p[2]) > 1e-9:
+            sample = {'pixel': [cam.width / 2.0, cam.height - 1.0],
+                      'ground_xy': [round(float(p[0] / p[2]), 2), round(float(p[1] / p[2]), 2)]}
+
+    # Stockage PAR CAMÉRA (par session) — plus sur le profil partagé (Phase 0).
+    cam.ground_homography = {
+        'homography': res['H'],
+        'source': 'crossing_dlt',
+        'rms_error_m': res['rms_error_m'],
+        'crossing': {'width_m': crossing_width_m, 'length_m': crossing_length_m,
+                     'near_distance_m': near_distance_m, 'lateral_offset_m': lateral_offset_m},
+    }
+    cam.save(update_fields=['ground_homography'])
+    if not profile.geometry_enabled:
+        profile.geometry_enabled = True
+        profile.save(update_fields=['geometry_enabled'])
+    _console(request.user.id,
+             f"Calibration homographie « {position} » enregistrée (RMS {res['rms_error_m']} m)")
+    return JsonResponse({'success': True, 'position': position, 'sample': sample,
+                         'rms_error_m': res['rms_error_m']})
+
+
+@login_required
+@require_http_methods(["POST"])
+def sam3_test_frame(request, session_id):
+    """Lance un test SAM3 sur UNE frame (tâche gpu). Le front interroge sam3_test_result."""
+    session = get_object_or_404(AnalysisSession, id=session_id, user=request.user)
+    try:
+        data = json.loads(request.body or '{}')
+        position = data['position']
+        frame_number = int(data['frame_number'])
+        min_conf = float(data.get('min_confidence', 0.0))
+        calibrate = bool(data.get('calibrate', False))
+    except (KeyError, ValueError, TypeError) as e:
+        return JsonResponse({'error': f'Paramètres invalides : {e}'}, status=400)
+    from django.core.cache import cache
+    cache.set(f"sam3_test_{session_id}", {'status': 'running'}, 600)
+    from .tasks import sam3_test_frame_task
+    sam3_test_frame_task.delay(str(session_id), position, frame_number, min_conf, calibrate)
+    return JsonResponse({'success': True, 'status': 'running'})
+
+
+@login_required
+@require_http_methods(["GET"])
+def sam3_test_result(request, session_id):
+    """Résultat du dernier test SAM3 (cache) : {status: running|done|error|idle, ...}."""
+    get_object_or_404(AnalysisSession, id=session_id, user=request.user)
+    from django.core.cache import cache
+    return JsonResponse(cache.get(f"sam3_test_{session_id}") or {'status': 'idle'})
 
 
 # =============================================================================
@@ -621,11 +832,21 @@ def run_passes(request, session_id):
     heavy_needed = needs_run & {'yolo_detect', 'yolopv2_lanes'}
     if heavy_needed:
         from .tasks import process_session_task
+        # N'enchaîner SAM3 (post-pass GPU lourd) QUE s'il a été explicitement demandé.
+        # Sinon lancer « ▶ yolopv2 » relançait SAM3 à tort (→ charge GPU / crash).
+        _chain_sam3 = 'sam3_markings' in needs_run
+        # Une relance EXPLICITE de yolo/yolopv2 = l'utilisateur veut la RE-exécuter →
+        # forcer. Sinon le STALE la considère « déjà faite » (des frames existent) et la
+        # skip, exécutant seulement les étapes aval (« segments temporels ») — la relance
+        # semblait sans effet. Ré-exécute toute la détection (yolo+yolopv2, toutes vues).
+        _explicit_heavy = bool(heavy_needed & set(requested))
+        _force_detection = force or _explicit_heavy
         cache.delete(f"stop_cam_analyzer_{request.user.id}")
         session.status = AnalysisSession.Status.PENDING
         session.progress = 0
         session.save(update_fields=['status', 'progress'])
-        task = process_session_task.delay(str(session.id), force_rerun=force)
+        task = process_session_task.delay(str(session.id), force_rerun=_force_detection,
+                                          chain_sam3=_chain_sam3)
         cache.set(f"cam_analyzer_task_{session.id}", task.id, timeout=86400)
         launched.append('process_session_task')
         # process_session_task takes care of these downstream passes
@@ -846,6 +1067,7 @@ def save_profile(request):
         if not sam3_markings_enabled:
             sam3_as_road_fallback = False
         restrict_to_intersection_windows = bool(data.get('restrict_to_intersection_windows', True))
+        yolopv2_all_views = bool(data.get('yolopv2_all_views', False))
         # Validate analyzed_positions against allowed positions; fall back to
         # front+rear if the payload is missing or empty.
         valid_positions = ['front', 'rear', 'left', 'right']
@@ -888,6 +1110,7 @@ def save_profile(request):
             profile.sam3_markings_prompts = sam3_markings_prompts
             profile.sam3_as_road_fallback = sam3_as_road_fallback
             profile.restrict_to_intersection_windows = restrict_to_intersection_windows
+            profile.yolopv2_all_views = yolopv2_all_views
             profile.analyzed_positions = analyzed_positions
             profile.model_path = model_path
             profile.task_type = task_type
@@ -907,6 +1130,7 @@ def save_profile(request):
                 sam3_markings_prompts=sam3_markings_prompts,
                 sam3_as_road_fallback=sam3_as_road_fallback,
                 restrict_to_intersection_windows=restrict_to_intersection_windows,
+                yolopv2_all_views=yolopv2_all_views,
                 analyzed_positions=analyzed_positions,
                 model_path=model_path,
                 task_type=task_type,

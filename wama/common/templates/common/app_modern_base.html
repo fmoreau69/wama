@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% load static %}
+{% load wama_static %}
 
 {% block extra_css %}
 <!-- Les styles spécifiques aux apps sont déjà dans app_modern.css chargé par base.html -->
@@ -246,7 +247,7 @@ anonymizer) vit à l'intérieur et sert d'état par défaut (restauré au désé
 {% block javascript %}
 {{ block.super }}
 <!-- Console auto-refresh script -->
-<script src="{% static 'common/js/console.js' %}"></script>
+<script src="{% static_v 'common/js/console.js' %}"></script>
 
 <!-- App specific scripts -->
 {% block app_scripts %}{% endblock %}

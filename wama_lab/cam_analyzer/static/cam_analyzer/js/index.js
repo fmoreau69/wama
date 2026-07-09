@@ -17,6 +17,13 @@ document.addEventListener('DOMContentLoaded', function () {
     // =========================================================================
 
     let currentSessionId = null;
+    let showAllSegments = false;   // false = masquer les segments of_interest=false (non pertinents)
+    // Usagers de la route : seule cette famille est affichée (répartition) et
+    // dessinée en overlay par défaut ; le reste (faux positifs COCO, masques) est écarté.
+    const ROAD_USER_CLASSES = new Set(['person', 'bicycle', 'car', 'motorcycle', 'bus', 'truck']);
+    // Classes visibles en overlay : usagers de la route dès le départ (filtre actif
+    // avant même le chargement du rapport). La légende du camembert l'ajuste ensuite.
+    let overlayVisibleClasses = new Set(ROAD_USER_CLASSES);
     let cameras = {};          // { position: { id, videoUrl, duration, fps, width, height, ... } }
     let isPlaying = false;
     let maxDuration = 0;
@@ -38,6 +45,10 @@ document.addEventListener('DOMContentLoaded', function () {
     // Phase 2 state
     let pollingInterval = null;
     let detectionData = {};    // { position: { fps, width, height, frames: [{frame_number, timestamp, detections}] } }
+    let lastSam3TestOverlay = null;  // { time, res } — overlay du dernier 🔬 Test SAM3 (persistant)
+    let lastRoadMask = {};           // position → derniers road_mask connus (overlay route persistant)
+    let gpsTimeOffset = 0;           // recalage manuel GPS↔vidéo (s) : ajouté au temps vidéo
+    let _lastTimeSave = 0;           // throttle de la persistance de position timeline
     let proximityByTime = [];  // [{time, proximity}] for timeline
 
     // Phase 3 state
@@ -213,6 +224,12 @@ document.addEventListener('DOMContentLoaded', function () {
                                         <button class="btn btn-outline-info load-session-btn" data-id="${s.id}" title="Charger">
                                             <i class="fas fa-folder-open"></i>
                                         </button>
+                                        <button class="btn btn-outline-secondary rename-session-btn" data-id="${s.id}" data-name="${escapeHtml(s.name).replace(/"/g, '&quot;')}" title="Renommer">
+                                            <i class="fas fa-pen"></i>
+                                        </button>
+                                        <button class="btn btn-outline-warning duplicate-session-btn" data-id="${s.id}" title="Dupliquer (copie de test — vidéos partagées, aucune ré-analyse)">
+                                            <i class="fas fa-copy"></i>
+                                        </button>
                                         <button class="btn btn-outline-danger delete-session-btn" data-id="${s.id}" title="Supprimer">
                                             <i class="fas fa-trash"></i>
                                         </button>
@@ -231,6 +248,55 @@ document.addEventListener('DOMContentLoaded', function () {
         sessionsContainer.querySelectorAll('.delete-session-btn').forEach(btn => {
             btn.addEventListener('click', () => deleteSession(btn.dataset.id));
         });
+        sessionsContainer.querySelectorAll('.rename-session-btn').forEach(btn => {
+            btn.addEventListener('click', () => renameSession(btn.dataset.id, btn.dataset.name));
+        });
+        sessionsContainer.querySelectorAll('.duplicate-session-btn').forEach(btn => {
+            btn.addEventListener('click', () => duplicateSession(btn.dataset.id));
+        });
+    }
+
+    async function duplicateSession(sessionId) {
+        if (!confirm('Dupliquer cette session à l\'identique ?\n\nLa copie partage les vidéos source (aucune ré-analyse) — idéale pour tester/debug sans risquer l\'original.')) return;
+        try {
+            const resp = await fetch(`${config.urls.deleteSession}${sessionId}/duplicate/`, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': config.csrfToken },
+            });
+            const d = await resp.json();
+            if (d.success) {
+                loadSessions();
+                alert(`Session dupliquée : « ${d.name} ».`);
+            } else {
+                alert('Échec de la duplication : ' + (d.error || '?'));
+            }
+        } catch (e) {
+            alert('Échec de la duplication : ' + e.message);
+        }
+    }
+
+    async function renameSession(sessionId, currentName) {
+        const name = prompt('Nouveau nom de la session :', currentName || '');
+        if (name === null) return;                 // annulé
+        const trimmed = name.trim();
+        if (!trimmed || trimmed === currentName) return;
+        try {
+            const form = new FormData();
+            form.append('name', trimmed);
+            const resp = await fetch(`${config.urls.updateSession}${sessionId}/update/`, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': config.csrfToken },
+                body: form,
+            });
+            const data = await resp.json();
+            if (data.success) {
+                loadSessions();   // rafraîchit le tableau ET le menu déroulant
+            } else {
+                alert('Échec du renommage : ' + (data.error || 'inconnu'));
+            }
+        } catch (e) {
+            alert('Échec du renommage : ' + e.message);
+        }
     }
 
     async function createSession() {
@@ -289,50 +355,70 @@ document.addEventListener('DOMContentLoaded', function () {
             // Clear and restore cameras
             clearCameraGrid();
             cameras = {};
+            lastRoadMask = {};   // reset overlay route persistant (nouvelle session)
+
+            // Chaque étape non-critique est isolée : son échec ne doit JAMAIS empêcher
+            // l'affichage du rapport (le vrai objectif). `_safe` avale + logue.
+            const _safe = (label, fn) => { try { fn(); } catch (e) { console.error('[loadSession] ' + label, e); } };
 
             if (data.cameras) {
                 data.cameras.forEach(cam => {
                     cameras[cam.position] = cam;
-                    showCameraVideo(cam.position, cam.video_url, cam);
+                    _safe('showCameraVideo:' + cam.position, () => showCameraVideo(cam.position, cam.video_url, cam));
                 });
             }
 
+            // Offset de synchro GPS↔vidéo (recalage manuel par session).
+            gpsTimeOffset = data.gps_time_offset || 0;
+            const _goi = document.getElementById('gpsOffsetInput');
+            if (_goi) _goi.value = gpsTimeOffset;
+            const _gos = document.getElementById('gpsOffsetSlider');
+            if (_gos) _gos.value = gpsTimeOffset;
+
             // Set profile + update report type badge + active-profile context
-            if (data.profile_id) {
-                profileSelect.value = data.profile_id;
-                const selectedOpt = profileSelect.options[profileSelect.selectedIndex];
-                setReportTypeBadge(selectedOpt ? selectedOpt.dataset.reportType : null);
-                loadActiveProfile(data.profile_id);
-            } else {
-                setReportTypeBadge(null);
-                loadActiveProfile(null);
-            }
+            _safe('profile', () => {
+                if (data.profile_id) {
+                    profileSelect.value = data.profile_id;
+                    const selectedOpt = profileSelect.options[profileSelect.selectedIndex];
+                    setReportTypeBadge(selectedOpt ? selectedOpt.dataset.reportType : null);
+                    loadActiveProfile(data.profile_id);
+                } else {
+                    setReportTypeBadge(null);
+                    loadActiveProfile(null);
+                }
+            });
 
             // Right-panel exports enabled only when analysis has finished
-            setRightPanelExportsEnabled(data.status === 'completed');
+            _safe('exports', () => setRightPanelExportsEnabled(data.status === 'completed'));
+            // Pipeline des passes (analyse incrémentale) : le montrer aussi au chargement.
+            _safe('pipeline', () => loadPipelinePanel());
+            _safe('playback', () => updatePlaybackControls());
+            _safe('windows', () => renderIntersectionWindows(data.intersection_windows || []));
+            // Mini-carte : trajectoire + intersections + navette (Leaflet, peut throw).
+            _safe('minimap', () => renderMiniMap(data.gps_track || [], data.intersection_windows || []));
 
-            updatePlaybackControls();
-
-            // Pre-computed intersection windows (if any)
-            renderIntersectionWindows(data.intersection_windows || []);
-
-            // Right-panel mini-map: trajectory + intersections + shuttle position
-            renderMiniMap(data.gps_track || [], data.intersection_windows || []);
-
-            // Check session status and react
+            // Check session status and react — s'exécute TOUJOURS (rapport garanti).
             if (data.status === 'processing' || data.status === 'pending') {
                 setAnalysisUI(true);
+                showResults(data.results_summary);  // dernier rapport généré, consultable pendant l'analyse
                 startStatusPolling(sessionId);
-            } else if (data.status === 'completed' && data.results_summary) {
-                showResults(data.results_summary);
-                loadAllDetections(sessionId);
-                setRightPanelExportsEnabled(true);
             } else if (data.status === 'failed' && data.error_message) {
                 showResults(null);
                 alert('Dernière analyse échouée: ' + data.error_message);
+            } else {
+                // completed / paused / cancelled (+ completed sans résumé) : afficher
+                // le rapport PARTIEL + détections depuis la BDD (données conservées).
+                // showResults charge l'analytics même sans results_summary.
+                showResults(data.results_summary);
+                loadAllDetections(sessionId);
+                setRightPanelExportsEnabled(data.status === 'completed' || data.status === 'paused');
             }
         } catch (e) {
+            // Ne plus avaler silencieusement : un throw ici laissait l'UI en état
+            // partiel (tuiles au placeholder « import ») + pas de rapport.
             console.error('Error loading session:', e);
+            alert('Erreur au chargement de la session : ' + (e && e.message ? e.message : e)
+                + '\n(détails dans la console F12)');
         }
     }
 
@@ -995,6 +1081,13 @@ document.addEventListener('DOMContentLoaded', function () {
         syncSeekBar.max = maxDuration || 100;
         updateTimeDisplay(0);
 
+        // Restaurer la position timeline sauvegardée (persistance entre rafraîchissements).
+        try {
+            const _sv = currentSessionId && localStorage.getItem('cam_analyzer_time_' + currentSessionId);
+            const _t = _sv ? parseFloat(_sv) : 0;
+            if (_t > 0 && _t < (maxDuration || 1e9)) syncSeek(_t);
+        } catch (e) { /* noop */ }
+
         // Re-render intersection markers now that maxDuration is known
         renderIntersectionWindows(intersectionWindows);
     }
@@ -1028,6 +1121,8 @@ document.addEventListener('DOMContentLoaded', function () {
             syncSeekBar.value = refTime;
             updateTimeDisplay(refTime);
             updateTimelineCursor(refTime);
+            // Persister la position en lecture (throttle ~2s) pour la restaurer au refresh.
+            if (Math.abs(refTime - _lastTimeSave) >= 2) { _lastTimeSave = refTime; saveTime(); }
         }
 
         // Per-camera: drift correction + overlay
@@ -1092,6 +1187,13 @@ document.addEventListener('DOMContentLoaded', function () {
         startRafLoop();
     }
 
+    // Persiste la position timeline courante (restaurée au rafraîchissement / retour session).
+    function saveTime() {
+        if (!currentSessionId) return;
+        try { localStorage.setItem('cam_analyzer_time_' + currentSessionId, String(parseFloat(syncSeekBar.value) || 0)); }
+        catch (e) { /* noop */ }
+    }
+
     function syncPause() {
         isPlaying = false;
         playPauseIcon.className = 'fas fa-play';
@@ -1101,6 +1203,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const video = document.getElementById(`video-${pos}`);
             if (video && video.src) video.pause();
         });
+        saveTime();
     }
 
     function syncStop() {
@@ -1122,6 +1225,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // Update overlays immediately at new position (works paused or playing)
         updateDetectionOverlay(time);
+        saveTime();
     }
 
     function updateTimeDisplay(currentTime) {
@@ -1223,6 +1327,25 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Keyboard shortcuts — work everywhere, including fullscreen. Skip when the
     // user is typing in a field/modal.
+    // Shuttle J/K/L via la brique COMMUNE WamaShuttle (mutualisée avec le Transcriber).
+    if (window.WamaShuttle) {
+        const camShuttle = WamaShuttle.create({
+            levels: [-4, -2, -1, 0, 0.5, 1, 1.5, 2, 4],
+            enabled: () => playbackControls && playbackControls.style.display !== 'none',
+            apply: (speed) => {
+                if (speed === 0) { stopReverse(); syncPause(); return; }
+                if (speed < 0) { syncPause(); startReverse(); return; }
+                stopReverse();
+                if (!isPlaying) syncPlay();
+                ['front', 'rear', 'left', 'right'].forEach(p => {
+                    const v = document.getElementById('video-' + p);
+                    if (v) v.playbackRate = speed;
+                });
+            },
+        });
+        camShuttle.bindKeys();
+    }
+
     document.addEventListener('keydown', (e) => {
         const target = e.target;
         if (target && (target.matches('input, textarea, select')
@@ -1244,6 +1367,7 @@ document.addEventListener('DOMContentLoaded', function () {
             e.preventDefault();
             toggleReverse();
         }
+        // j/k/l gérés par WamaShuttle (brique commune) ci-dessus.
     });
 
     // While dragging: seek all videos + update overlay without restarting play
@@ -1396,6 +1520,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 // viewable ; the user can resume or just inspect what's done.
                 stopStatusPolling();
                 hideProgress();
+                showResults(data.results_summary);  // rapport partiel (données conservées)
                 loadAllDetections(sessionId);
                 loadSessions();
                 setRightPanelExportsEnabled(true);
@@ -1406,6 +1531,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 alert('Analyse échouée: ' + (data.error_message || 'Erreur inconnue'));
                 loadSessions();
             }
+            // En cours (processing/pending) : on ne touche PAS au rapport — le dernier
+            // rapport généré (results_summary du run précédent) reste affiché tel quel.
         } catch (e) {
             console.error('Error polling status:', e);
         }
@@ -1417,7 +1544,15 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function showResults(summary) {
         if (!summary || !summary.detections_total) {
-            resultsPanel.style.display = 'none';
+            // Résumé vide/absent (ex. analyse interrompue → detections_total=0) : NE PAS
+            // masquer resultsPanel — analyticsSection est DEDANS. On montre le conteneur,
+            // on vide juste le résumé, et on charge le rapport analytics (depuis la BDD).
+            resultsPanel.style.display = '';
+            const _rc = document.getElementById('resultsContent');
+            if (_rc) _rc.innerHTML = '<div class="text-secondary small">'
+                + '<i class="fas fa-info-circle me-1"></i>Résumé indisponible (analyse interrompue) — '
+                + 'rapport détaillé ci-dessous.</div>';
+            if (currentSessionId) loadAnalytics(currentSessionId);
             return;
         }
 
@@ -1426,10 +1561,21 @@ document.addEventListener('DOMContentLoaded', function () {
         let classHtml = '';
         if (summary.by_class) {
             const entries = Object.entries(summary.by_class).sort((a, b) => b[1] - a[1]);
-            classHtml = entries.map(([cls, count]) => {
+            // Usagers de la route = badges colorés ; le reste (faux positifs COCO,
+            // masques) est replié dans une note discrète plutôt qu'affiché en vrac.
+            const road = entries.filter(([cls]) => ROAD_USER_CLASSES.has(cls.toLowerCase()));
+            const other = entries.filter(([cls]) => !ROAD_USER_CLASSES.has(cls.toLowerCase()));
+            classHtml = road.map(([cls, count]) => {
                 const color = classColors[cls] || defaultColor;
                 return `<span class="badge me-1 mb-1" style="background:${color};color:#000">${cls}: ${count}</span>`;
             }).join('');
+            if (other.length) {
+                const otherTotal = other.reduce((s, [, n]) => s + n, 0);
+                const names = other.map(([cls]) => cls).slice(0, 8).join(', ')
+                    + (other.length > 8 ? '…' : '');
+                classHtml += `<span class="badge me-1 mb-1 bg-dark border border-secondary text-secondary"
+                    title="${names}">+${otherTotal} hors-scope (${other.length} classes)</span>`;
+            }
         }
 
         let cameraHtml = '';
@@ -1577,6 +1723,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
             drawDetections(pos, targetFrame.detections, data.width, data.height);
         });
+        // Ré-afficher l'overlay du test SAM3 s'il correspond à la frame courante
+        // (drawDetections vient d'effacer le canvas front).
+        if (lastSam3TestOverlay && Math.abs(currentTime - lastSam3TestOverlay.time) < 0.35) {
+            drawSam3TestMarkings(lastSam3TestOverlay.res);
+        }
     }
 
     function findClosestFrame(frames, time) {
@@ -1654,12 +1805,49 @@ document.addEventListener('DOMContentLoaded', function () {
         const scaleX = drawW / srcWidth;
         const scaleY = drawH / srcHeight;
 
+        // Persistance de l'aire roulable : si la frame courante a un road_mask, on
+        // mémorise ; sinon on redessine le dernier connu (atténué, pointillés) → pas de
+        // clignotement (l'aire change lentement ; road_mask parfois épars/disjoint SAM3).
+        const _roadHere = (detections || []).filter(d =>
+            d && d.type === 'road_mask' && Array.isArray(d.polygon) && d.polygon.length >= 3);
+        const _lr = lastRoadMask[position];
+        // Timing basé sur le VRAI élément vidéo (fiable), pas la variable de sync.
+        const _vidEl = document.getElementById('video-' + position);
+        const _now = _vidEl ? _vidEl.currentTime : 0;
+        if (_roadHere.length) {
+            lastRoadMask[position] = { polys: _roadHere, t: _now };
+        } else if (_lr && Math.abs(_now - _lr.t) < 0.5) {
+            // Persister sur un gap COURT (<0.5 s) → lisse les trous à l'intérieur des
+            // fenêtres d'analyse (road_mask dense, gap 1-2 frames) sans dériver ; au-delà
+            // (ex. entre 2 fenêtres) on n'affiche rien (pas de donnée = pas d'overlay faux).
+            _lr.polys.forEach(d => {
+                ctx.beginPath();
+                d.polygon.forEach(([px, py], i) => {
+                    const x = px * scaleX + offsetX, y = py * scaleY + offsetY;
+                    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+                });
+                ctx.closePath();
+                ctx.fillStyle = 'rgba(255, 64, 192, 0.10)';
+                ctx.fill();
+                ctx.setLineDash([6, 4]);
+                ctx.strokeStyle = 'rgba(255, 64, 192, 0.5)';
+                ctx.lineWidth = 1.2;
+                ctx.stroke();
+                ctx.setLineDash([]);
+            });
+        }
+
         detections.forEach(det => {
-            // road_mask entries from SAM3 fallback / RoadSegmenter carry a
-            // polygon (drivable area) instead of a bbox — render as a
-            // semi-transparent magenta outline rather than crashing on the
-            // missing bbox destructure.
-            if (Array.isArray(det.polygon) && det.polygon.length >= 3 && !Array.isArray(det.bbox)) {
+            // Segmentation en POLYGONE : road_mask (aire roulable) ET marquages SAM3
+            // (qui ont aussi un bbox, mais on préfère afficher la FORME segmentée que
+            // SAM3 a produite plutôt qu'une boîte). Couleur : road=magenta,
+            // passage=cyan, ligne d'arrêt/autre=jaune.
+            const _hasPoly = Array.isArray(det.polygon) && det.polygon.length >= 3;
+            const _isRoad = det.type === 'road_mask';
+            const _isSam3 = det.type === 'sam3_marking';
+            if (_hasPoly && (_isRoad || _isSam3 || !Array.isArray(det.bbox))) {
+                let rgb = '255, 64, 192';   // road_mask = magenta
+                if (_isSam3) rgb = /cross/i.test(det.label || det.class_name || '') ? '0, 229, 255' : '255, 213, 0';
                 ctx.beginPath();
                 det.polygon.forEach(([px, py], i) => {
                     const x = px * scaleX + offsetX;
@@ -1667,14 +1855,31 @@ document.addEventListener('DOMContentLoaded', function () {
                     if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
                 });
                 ctx.closePath();
-                ctx.fillStyle = 'rgba(255, 64, 192, 0.15)';
+                ctx.fillStyle = `rgba(${rgb}, 0.18)`;
                 ctx.fill();
-                ctx.strokeStyle = 'rgba(255, 64, 192, 0.9)';
+                ctx.strokeStyle = `rgba(${rgb}, 0.9)`;
                 ctx.lineWidth = 1.5;
                 ctx.stroke();
+                // Étiquette du marquage SAM3 (au 1er sommet du polygone).
+                if (_isSam3 && det.polygon[0]) {
+                    const lx = det.polygon[0][0] * scaleX + offsetX;
+                    const ly = det.polygon[0][1] * scaleY + offsetY;
+                    const txt = `${det.label || 'marquage'} ${Math.round((det.confidence || 0) * 100)}%`;
+                    ctx.font = '11px sans-serif';
+                    const tw = ctx.measureText(txt).width + 6;
+                    ctx.fillStyle = `rgba(${rgb}, 0.95)`;
+                    ctx.fillRect(lx, ly - 14, tw, 14);
+                    ctx.fillStyle = '#000';
+                    ctx.fillText(txt, lx + 3, ly - 3);
+                }
                 return;
             }
             if (!Array.isArray(det.bbox) || det.bbox.length < 4) return;
+
+            // Filtre overlay par classe (défaut = usagers de la route). Les
+            // marquages SAM3 en sont exemptés (gérés séparément).
+            if (overlayVisibleClasses && det.type !== 'sam3_marking' && det.class_name &&
+                !overlayVisibleClasses.has(det.class_name.toLowerCase())) return;
 
             const [x1, y1, x2, y2] = det.bbox;
             const sx = x1 * scaleX + offsetX;
@@ -1805,6 +2010,19 @@ document.addEventListener('DOMContentLoaded', function () {
     let miniMapHighlightedPassIdx = -1; // last rendered pass — avoids 60Hz polyline rebuilds
     let cachedGpsTrack = [];           // [{ts, lat, lon}, ...] downsampled
 
+    // ── Vue de dessus (couche objets sur la carte, zoom sémantique) ─────────
+    let miniMapObjectLayer = null;     // marqueurs objets (X,Y → lat/lon)
+    let miniMapTrailLayer = null;      // traces récentes (opacité décroissante)
+    let miniMapHeadingLine = null;     // flèche de cap navette
+    let miniMapEgoRect = null;         // rectangle navette à l'échelle (zoom tactique)
+    const topDownTrails = new Map();   // track_id -> [[lat,lon], ...] récent
+    let topDownLastTime = -999;        // détection de saut (reset traces)
+    let topDownLastRender = -999;      // throttle ~10 Hz
+    let topDownAutoFollow = true;      // recentrage auto en lecture (zoom tactique)
+    const TOPDOWN_ZOOM_MIN = 17;       // seuil d'apparition des objets
+    const TRAIL_LEN = 25;              // longueur de trace (frames)
+    const EGO_LENGTH_M = 4.75, EGO_WIDTH_M = 2.11;   // Navya Autonom (défaut)
+
     function initMiniMap() {
         const container = document.getElementById('camAnalyzerMiniMap');
         if (!container || miniMap) return;
@@ -1813,22 +2031,54 @@ document.addEventListener('DOMContentLoaded', function () {
             return;
         }
 
-        miniMap = L.map(container, { zoomControl: true, attributionControl: false })
+        miniMap = L.map(container, { zoomControl: true, attributionControl: false, maxZoom: 24 })
                    .setView([46.5, 2.3], 6);
         // CartoDB dark tiles — no Referer-based blocking (unlike tile.openstreetmap.org)
         // and matches the WAMA dark theme. Same provider as the profile editor map.
+        // maxNativeZoom 19 = zoom réel des tuiles ; maxZoom 24 = overzoom (tuiles étirées,
+        // un peu floues) pour ÉTALER les objets de la vue de dessus (sinon empilés à z19).
         L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
             attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
             subdomains: 'abcd',
-            maxZoom: 19,
+            maxNativeZoom: 19,
+            maxZoom: 24,
         }).addTo(miniMap);
 
+        // Barre d'échelle (mètres) — pour estimer les distances (ex. l'offset GPS/vidéo).
+        L.control.scale({ metric: true, imperial: false, position: 'bottomright' }).addTo(miniMap);
+
+        // Indicateur de niveau de zoom : dit si on a atteint le seuil de la vue de
+        // dessus (≥ TOPDOWN_ZOOM_MIN). Répond à « le zoom atteint-il jamais 17 ? ».
+        const zoomInfo = L.control({ position: 'bottomleft' });
+        zoomInfo.onAdd = function () {
+            const div = L.DomUtil.create('div', '');
+            div.style.cssText = 'background:rgba(20,22,28,.85);color:#ddd;padding:2px 7px;'
+                + 'border-radius:4px;font-size:.72rem;font-family:monospace;';
+            const upd = () => {
+                const z = miniMap.getZoom();
+                const on = z >= TOPDOWN_ZOOM_MIN;
+                div.innerHTML = 'zoom ' + z + (on ? ' · vue de dessus ✓' : ' (≥' + TOPDOWN_ZOOM_MIN + ' pour la vue de dessus)');
+                div.style.color = on ? '#00e5ff' : '#ddd';
+            };
+            upd();
+            miniMap.on('zoomend', upd);
+            return div;
+        };
+        zoomInfo.addTo(miniMap);
+
         miniMap.on('click', (e) => handleMiniMapClick(e.latlng.lat, e.latlng.lng));
+        // Semantic zoom : re-render la vue de dessus quand on zoome/dézoome, sinon la
+        // couche objets (qui n'apparaît qu'au zoom ≥ TOPDOWN_ZOOM_MIN) ne se met à jour
+        // qu'au prochain seek/lecture — l'utilisateur zoome et « rien ne se passe ».
+        miniMap.on('zoomend', () => {
+            if (typeof currentTime === 'number') { topDownLastRender = -999; updateMiniMapShuttle(currentTime); }
+        });
     }
 
     function renderMiniMap(gpsTrack, intersectionWindows) {
         initMiniMap();
         if (!miniMap) return;
+        addMapControls();   // boutons Calibrer/Suivi sur la carte (pas sur le viewport)
 
         cachedGpsTrack = Array.isArray(gpsTrack) ? gpsTrack.filter(p => p.lat && p.lon) : [];
 
@@ -1889,20 +2139,139 @@ document.addEventListener('DOMContentLoaded', function () {
     // Find the GPS point whose timestamp is closest to a given time
     function findGpsAtTime(t) {
         if (!cachedGpsTrack.length) return null;
+        t = t + gpsTimeOffset;   // recalage manuel GPS↔vidéo (par session)
         let lo = 0, hi = cachedGpsTrack.length - 1;
         while (lo < hi - 1) {
             const mid = (lo + hi) >> 1;
             if (cachedGpsTrack[mid].ts <= t) lo = mid; else hi = mid;
         }
-        return Math.abs(cachedGpsTrack[lo].ts - t) <= Math.abs(cachedGpsTrack[hi].ts - t)
-            ? cachedGpsTrack[lo] : cachedGpsTrack[hi];
+        const a = cachedGpsTrack[lo], b = cachedGpsTrack[hi];
+        // Interpolation linéaire entre les 2 fixes encadrants : le GPS est à ~1 Hz,
+        // renvoyer le fixe le plus proche fait « sauter » le marqueur de ±0,5 s.
+        // On interpole lat/lon pour un déplacement fluide et calé sur le temps.
+        if (a === b || b.ts <= a.ts || t <= a.ts) return a;
+        if (t >= b.ts) return b;
+        const f = (t - a.ts) / (b.ts - a.ts);
+        return { ...a, ts: t, lat: a.lat + (b.lat - a.lat) * f, lon: a.lon + (b.lon - a.lon) * f };
     }
 
     function updateMiniMapShuttle(currentTime) {
         if (!miniMap || !miniMapShuttleMarker || !cachedGpsTrack.length) return;
         const p = findGpsAtTime(currentTime);
-        if (p) miniMapShuttleMarker.setLatLng([p.lat, p.lon]);
+        if (p) {
+            miniMapShuttleMarker.setLatLng([p.lat, p.lon]);
+            // Suivi : recentrer la navette à TOUT zoom (avant, le panTo était dans
+            // updateTopDown, APRÈS le return early zoom<17 → pas de suivi dézoomé).
+            if (topDownAutoFollow) miniMap.panTo([p.lat, p.lon], { animate: false });
+        }
         updateMiniMapPassHighlight(currentTime);
+        updateTopDown(currentTime);
+    }
+
+    // ── Vue de dessus : objets (X,Y) égo → lat/lon sur la carte ──────────────
+    // Position d'un objet dans le monde depuis sa position égo (X latéral droite+,
+    // Y longitudinal avant+) et la pose navette (lat/lon + cap depuis le Nord, CW).
+    function egoToLatLon(lat, lon, headingDeg, X, Y) {
+        const h = headingDeg * Math.PI / 180;
+        const east = Y * Math.sin(h) + X * Math.cos(h);     // avant·sin + droite·cos
+        const north = Y * Math.cos(h) - X * Math.sin(h);
+        const dLat = north / 111320;
+        const dLon = east / (111320 * Math.cos(lat * Math.PI / 180));
+        return [lat + dLat, lon + dLon];
+    }
+
+    // Couleur en paliers selon TTC (sinon distance) : vert/orange/rouge.
+    function ttcColor(det) {
+        const ttc = det.ttc_s;
+        if (ttc != null && ttc >= 0) return ttc < 2 ? '#dc3545' : (ttc < 4 ? '#fd7e14' : '#28a745');
+        const d = det.dist_euclid_m;
+        if (d != null) return d < 5 ? '#dc3545' : (d < 12 ? '#fd7e14' : '#28a745');
+        return '#0dcaf0';
+    }
+
+    // Cap navette : flèche (tous zooms) + rectangle à l'échelle (zoom tactique).
+    function updateEgoShape(pose) {
+        if (miniMapHeadingLine) { miniMap.removeLayer(miniMapHeadingLine); miniMapHeadingLine = null; }
+        if (miniMapEgoRect) { miniMap.removeLayer(miniMapEgoRect); miniMapEgoRect = null; }
+        if (!pose || pose.heading == null) return;
+        const tip = egoToLatLon(pose.lat, pose.lon, pose.heading, 0, 6);
+        miniMapHeadingLine = L.polyline([[pose.lat, pose.lon], tip],
+            { color: '#ffd400', weight: 3, opacity: 0.9 }).addTo(miniMap);
+        if (miniMap.getZoom() >= TOPDOWN_ZOOM_MIN) {
+            const hw = EGO_WIDTH_M / 2, half = EGO_LENGTH_M / 2;
+            const corners = [[-hw, -half], [hw, -half], [hw, half], [-hw, half]]
+                .map(([x, y]) => egoToLatLon(pose.lat, pose.lon, pose.heading, x, y));
+            miniMapEgoRect = L.polygon(corners,
+                { color: '#ffd400', weight: 1.5, fillOpacity: 0.15 }).addTo(miniMap);
+        }
+    }
+
+    function updateTopDown(currentTime) {
+        if (!miniMap || typeof L === 'undefined') return;
+        // Throttle ~10 Hz (le marqueur navette reste fluide à 60 Hz au-dessus).
+        if (Math.abs(currentTime - topDownLastRender) < 0.09) return;
+        topDownLastRender = currentTime;
+        if (!miniMapObjectLayer) miniMapObjectLayer = L.layerGroup().addTo(miniMap);
+        if (!miniMapTrailLayer) miniMapTrailLayer = L.layerGroup().addTo(miniMap);
+        // Reset des traces sur saut temporel (seek).
+        if (Math.abs(currentTime - topDownLastTime) > 1.0) topDownTrails.clear();
+        topDownLastTime = currentTime;
+
+        miniMapObjectLayer.clearLayers();
+        miniMapTrailLayer.clearLayers();
+
+        const pose = findGpsAtTime(currentTime);
+        updateEgoShape(pose);
+        // Objets seulement en zoom tactique + pose+cap disponibles + détections front.
+        const _zoomOk = miniMap.getZoom() >= TOPDOWN_ZOOM_MIN;
+        if (!pose || pose.heading == null || !_zoomOk) {
+            if (_zoomOk) console.warn('[topdown] rien : pose/heading GPS manquant à t=' + currentTime.toFixed(1),
+                pose ? ('heading=' + pose.heading) : 'pas de fix GPS');
+            return;
+        }
+        const dd = detectionData['front'];
+        if (!dd || !dd.frames || !dd.frames.length) {
+            console.warn('[topdown] rien : detectionData[front] vide (détections pas chargées).');
+            return;
+        }
+        const camOff = (cameras['front'] && cameras['front'].time_offset) || 0;
+        const frame = findClosestFrame(dd.frames, currentTime + camOff);
+        if (!frame || !frame.detections) {
+            console.warn('[topdown] rien : pas de frame front proche de t=' + currentTime.toFixed(1));
+            return;
+        }
+        const _gxy = frame.detections.filter(d => Array.isArray(d.ground_xy) && d.ground_xy.length >= 2).length;
+        console.debug('[topdown] frame#' + frame.frame_number + ' : ' + frame.detections.length
+            + ' détections, ' + _gxy + ' avec ground_xy, zoom=' + miniMap.getZoom());
+
+        const seen = new Set();
+        frame.detections.forEach(det => {
+            if (det.type === 'road_mask' || det.type === 'sam3_marking') return;
+            const g = det.ground_xy;
+            if (!Array.isArray(g) || g.length < 2) return;
+            const ll = egoToLatLon(pose.lat, pose.lon, pose.heading, g[0], g[1]);
+            const color = ttcColor(det);
+            if (det.track_id != null) {
+                seen.add(det.track_id);
+                const tr = topDownTrails.get(det.track_id) || [];
+                tr.push(ll);
+                if (tr.length > TRAIL_LEN) tr.shift();
+                topDownTrails.set(det.track_id, tr);
+                for (let i = 1; i < tr.length; i++) {   // opacité croissante vers l'objet
+                    L.polyline([tr[i - 1], tr[i]],
+                        { color, weight: 2, opacity: 0.1 + 0.7 * (i / tr.length) })
+                        .addTo(miniMapTrailLayer);
+                }
+            }
+            const label = `${det.class_name || 'objet'}${det.dist_euclid_m != null ? ' · ' + det.dist_euclid_m + ' m' : ''}`
+                + `${det.ttc_s != null ? ' · TTC ' + det.ttc_s + ' s' : ''}`;
+            L.circleMarker(ll, { radius: 4, color: '#000', weight: 1, fillColor: color, fillOpacity: 0.9 })
+                .bindTooltip(label, { direction: 'top' })
+                .addTo(miniMapObjectLayer);
+        });
+        // Purge des traces d'objets non vus cette frame (borne la mémoire).
+        for (const k of topDownTrails.keys()) if (!seen.has(k)) topDownTrails.delete(k);
+        // (Recentrage auto déplacé dans updateMiniMapShuttle → suivi à tout zoom.)
     }
 
     // Highlight the GPS segment corresponding to the pass that contains
@@ -2301,8 +2670,22 @@ document.addEventListener('DOMContentLoaded', function () {
         const canvas = document.getElementById('classChart');
         if (!canvas) return;
 
-        const labels = Object.keys(classData);
-        const values = Object.values(classData);
+        // Ne garder que les usagers de la route (les faux positifs COCO et les
+        // masques route `lane`/`drivable area` sont écartés de la répartition).
+        const roadEntries = Object.entries(classData)
+            .filter(([cls]) => ROAD_USER_CLASSES.has(cls.toLowerCase()))
+            .sort((a, b) => b[1] - a[1]);
+        const hiddenCount = Object.entries(classData)
+            .filter(([cls]) => !ROAD_USER_CLASSES.has(cls.toLowerCase()))
+            .reduce((s, [, n]) => s + n, 0);
+
+        // Init des classes visibles en overlay = usagers présents (1re fois).
+        if (overlayVisibleClasses === null) {
+            overlayVisibleClasses = new Set(roadEntries.map(([cls]) => cls.toLowerCase()));
+        }
+
+        const labels = roadEntries.map(([cls]) => cls);
+        const values = roadEntries.map(([, n]) => n);
         const colors = labels.map(cls => classColors[cls] || defaultColor);
 
         classChart = new Chart(canvas, {
@@ -2322,7 +2705,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 plugins: {
                     title: {
                         display: true,
-                        text: 'Répartition par classe',
+                        text: 'Usagers de la route' + (hiddenCount ? `  (+${hiddenCount} hors-scope masqués)` : ''),
                         color: '#ccc',
                         font: { size: 13 },
                     },
@@ -2333,6 +2716,18 @@ document.addEventListener('DOMContentLoaded', function () {
                             boxWidth: 10,
                             font: { size: 10 },
                             padding: 8,
+                        },
+                        // La légende EST le filtre overlay : cliquer une classe la
+                        // masque à la fois dans le camembert ET dans l'overlay vidéo.
+                        onClick: (e, legendItem, legend) => {
+                            const ci = legend.chart;
+                            ci.toggleDataVisibility(legendItem.index);
+                            ci.update();
+                            const cls = (legendItem.text || '').toLowerCase();
+                            if (overlayVisibleClasses.has(cls)) overlayVisibleClasses.delete(cls);
+                            else overlayVisibleClasses.add(cls);
+                            const t = parseFloat(syncSeekBar.value) || 0;
+                            updateDetectionOverlay(t);
                         },
                     },
                 },
@@ -2354,8 +2749,34 @@ document.addEventListener('DOMContentLoaded', function () {
                 return;
             }
 
-            segmentsList.innerHTML = segments.map(seg => {
+            // Pertinence : par défaut, on masque les segments explicitement
+            // tagués of_interest=false (véhicules 'turn'/non-usagers aux
+            // intersections). Les autres types (proximité, dépassement…) n'ont
+            // pas ce tag et restent visibles.
+            const isNoise = seg => (seg.metadata || {}).of_interest === false;
+            const hiddenCount = segments.filter(isNoise).length;
+            const visible = showAllSegments ? segments : segments.filter(s => !isNoise(s));
+
+            // Barre d'en-tête : compteur + bascule "tout afficher"
+            const header = `
+                <div class="d-flex align-items-center gap-2 mb-2 pb-1 border-bottom border-secondary">
+                    <span class="small text-light">${visible.length} véhicule(s) d'intérêt</span>
+                    ${hiddenCount ? `
+                    <label class="small text-secondary ms-auto mb-0" style="cursor:pointer;">
+                        <input type="checkbox" id="toggleAllSegments" ${showAllSegments ? 'checked' : ''}>
+                        Afficher tout (+${hiddenCount} masqué·s)
+                    </label>` : ''}
+                </div>`;
+
+            // Chips t0/t1/t2 cliquables (repositionnent la timeline)
+            const timeChip = (label, t, title) => (t == null) ? '' :
+                `<span class="segment-tmark badge bg-dark border border-secondary me-1"
+                       data-seek="${t}" title="${title}" style="cursor:pointer;">
+                    ${label} ${formatTime(t)}</span>`;
+
+            const rows = visible.map(seg => {
                 const meta = seg.metadata || {};
+                const isIntersection = (seg.type === 'insertion_front' || seg.type === 'intersection_stop');
                 let details = '';
                 if (seg.type === 'close_following') {
                     details = `Proximité max: ${((meta.max_proximity || 0) * 100).toFixed(0)}%`;
@@ -2365,9 +2786,21 @@ document.addEventListener('DOMContentLoaded', function () {
                     if (meta.class_name) details += ` | ${meta.class_name}`;
                 } else if (seg.type === 'crossing') {
                     if (meta.class_name) details = `Classe: ${meta.class_name}`;
+                } else if (isIntersection) {
+                    const bits = [];
+                    if (meta.vehicle_class) bits.push(meta.vehicle_class);
+                    if (meta.event_type) bits.push(meta.event_type === 'insertion' ? 'insertion' : 'attente');
+                    if (meta.intersection_name) bits.push(meta.intersection_name);
+                    details = bits.join(' | ');
                 }
 
                 const camLabel = seg.camera_position ? getPositionLabel(seg.camera_position) : '';
+                const tmarks = isIntersection ? `
+                    <div class="mt-1">
+                        ${timeChip('t0', meta.t0, "Entrée dans la zone")}
+                        ${timeChip('t1', meta.t1, "Début de mouvement / insertion")}
+                        ${timeChip('t2', meta.t2, "Insertion complète")}
+                    </div>` : '';
 
                 return `
                     <div class="segment-item" data-start="${seg.start_time}">
@@ -2380,10 +2813,27 @@ document.addEventListener('DOMContentLoaded', function () {
                             </span>
                         </div>
                         ${details ? `<div class="small text-secondary mt-1">${details}</div>` : ''}
+                        ${tmarks}
                     </div>`;
             }).join('');
 
-            // Click to seek
+            segmentsList.innerHTML = header + rows;
+
+            // Bascule "tout afficher"
+            const toggle = document.getElementById('toggleAllSegments');
+            if (toggle) toggle.addEventListener('change', () => {
+                showAllSegments = toggle.checked;
+                loadSegments(sessionId);
+            });
+
+            // Clic ligne → seek au début ; clic chip t0/t1/t2 → seek au repère
+            segmentsList.querySelectorAll('.segment-tmark').forEach(chip => {
+                chip.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const t = parseFloat(chip.dataset.seek);
+                    if (!isNaN(t)) syncSeek(t);
+                });
+            });
             segmentsList.querySelectorAll('.segment-item').forEach(item => {
                 item.addEventListener('click', () => {
                     const startTime = parseFloat(item.dataset.start);
@@ -2952,6 +3402,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     sam3_markings_prompts: sam3Prompts,
                     sam3_as_road_fallback: document.getElementById('sam3AsRoadFallback').checked,
                     restrict_to_intersection_windows: document.getElementById('restrictToIntersectionWindows').checked,
+                    yolopv2_all_views: document.getElementById('yolopv2AllViews')?.checked || false,
                     analyzed_positions: ['front', 'rear', 'left', 'right'].filter(p =>
                         document.getElementById('analyze-' + p)?.checked
                     ),
@@ -3124,6 +3575,8 @@ document.addEventListener('DOMContentLoaded', function () {
                     // Restrict analysis to intersection windows (default true)
                     document.getElementById('restrictToIntersectionWindows').checked =
                         profile.restrict_to_intersection_windows !== false;
+                    const _yav = document.getElementById('yolopv2AllViews');
+                    if (_yav) _yav.checked = !!profile.yolopv2_all_views;
 
                     // Analysed positions (default front + rear)
                     const analyzed = Array.isArray(profile.analyzed_positions) && profile.analyzed_positions.length
@@ -3163,6 +3616,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
             // Restrict to intersection windows — default ON
             document.getElementById('restrictToIntersectionWindows').checked = true;
+            const _yavD = document.getElementById('yolopv2AllViews');
+            if (_yavD) _yavD.checked = false;
 
             // Analysed positions — default front + rear
             ['front', 'rear', 'left', 'right'].forEach(p => {
@@ -3233,10 +3688,394 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function formatTime(seconds) {
-        if (!seconds || isNaN(seconds)) return '0:00';
-        const m = Math.floor(seconds / 60);
+        if (!seconds || isNaN(seconds)) return '0:00:00';
+        const h = Math.floor(seconds / 3600);
+        const m = Math.floor((seconds % 3600) / 60);
         const s = Math.floor(seconds % 60);
-        return `${m}:${s.toString().padStart(2, '0')}`;
+        return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    }
+
+    // ===== Calibration homographie sol (4 coins d'un passage piéton) =========
+    // Clique 4 coins d'un passage piéton sur la caméra avant → endpoint calibrate/
+    // (DLT). Architecture prête pour SAM3 : seule la SOURCE des coins changerait.
+    let calibMode = false;
+    let calibPoints = [];   // [[frameX, frameY], ...] repère pixel caméra
+    const CALIB_ORDER = ['proche-gauche', 'proche-droite', 'loin-droite', 'loin-gauche'];
+
+    // Écran → pixel-caméra : inverse exact du letterbox « contain » de drawDetections.
+    function screenToFrame(position, clientX, clientY) {
+        const canvas = document.getElementById(`canvas-${position}`);
+        const cam = cameras[position];
+        if (!canvas || !cam) return null;
+        // MÊME espace pixel que drawDetections/les bbox/l'homographie : on prend en
+        // priorité detectionData[pos].width (l'espace où YOLO a tourné), sinon la caméra.
+        const dd = (typeof detectionData !== 'undefined') ? detectionData[position] : null;
+        const srcW = (dd && dd.width) || cam.width;
+        const srcH = (dd && dd.height) || cam.height;
+        if (!srcW || !srcH) return null;
+        const rect = canvas.getBoundingClientRect();
+        const cw = rect.width, ch = rect.height;
+        const videoAR = srcW / srcH, containerAR = cw / ch;
+        let drawW, drawH, offsetX, offsetY;
+        if (videoAR > containerAR) { drawW = cw; drawH = cw / videoAR; offsetX = 0; offsetY = (ch - drawH) / 2; }
+        else { drawH = ch; drawW = ch * videoAR; offsetX = (cw - drawW) / 2; offsetY = 0; }
+        const fx = (clientX - rect.left - offsetX) / (drawW / srcW);
+        const fy = (clientY - rect.top - offsetY) / (drawH / srcH);
+        if (fx < 0 || fy < 0 || fx > srcW || fy > srcH) return null;   // clic dans la bande noire
+        return [Math.round(fx * 10) / 10, Math.round(fy * 10) / 10];
+    }
+
+    function calibMarkerLayer() {
+        const video = document.getElementById('video-front');
+        if (!video || !video.parentElement) return null;
+        const host = video.parentElement;
+        if (getComputedStyle(host).position === 'static') host.style.position = 'relative';
+        let layer = document.getElementById('calibMarkerLayer');
+        if (!layer) {
+            layer = document.createElement('div');
+            layer.id = 'calibMarkerLayer';
+            layer.style.cssText = 'position:absolute;inset:0;pointer-events:none;z-index:30;';
+            host.appendChild(layer);
+        }
+        return layer;
+    }
+
+    function addCalibMarker(clientX, clientY, n) {
+        const layer = calibMarkerLayer();
+        if (!layer) return;
+        const hostRect = layer.parentElement.getBoundingClientRect();
+        const m = document.createElement('div');
+        m.textContent = String(n);
+        m.style.cssText = `position:absolute;left:${clientX - hostRect.left}px;top:${clientY - hostRect.top}px;`
+            + 'transform:translate(-50%,-50%);width:18px;height:18px;border-radius:50%;background:#ffd400;'
+            + 'color:#000;font:bold 11px sans-serif;display:flex;align-items:center;justify-content:center;'
+            + 'border:1px solid #000;';
+        layer.appendChild(m);
+    }
+
+    function clearCalibMarkers() {
+        const layer = document.getElementById('calibMarkerLayer');
+        if (layer) layer.innerHTML = '';
+    }
+
+    function onCalibClick(e) {
+        if (!calibMode || calibPoints.length >= 4) return;
+        e.preventDefault(); e.stopPropagation();
+        const fp = screenToFrame('front', e.clientX, e.clientY);
+        if (!fp) return;
+        calibPoints.push(fp);
+        addCalibMarker(e.clientX, e.clientY, calibPoints.length);
+        updateCalibPanel();
+    }
+
+    function updateCalibPanel() {
+        const step = document.getElementById('calibStep');
+        if (step) step.textContent = calibPoints.length < 4
+            ? `Clique le coin : ${CALIB_ORDER[calibPoints.length]} (${calibPoints.length}/4)`
+            : '4 coins placés — saisis les dimensions puis Valider.';
+        const btn = document.getElementById('calibSubmit');
+        if (btn) btn.disabled = calibPoints.length !== 4;
+    }
+
+    function startCalibration() {
+        if (!currentSessionId) { alert('Charge une session d\'abord.'); return; }
+        if (!cameras['front']) { alert('Pas de caméra « front » dans cette session.'); return; }
+        calibMode = true; calibPoints = [];
+        Object.keys(cameras).forEach(p => { const v = document.getElementById(`video-${p}`); if (v) v.pause(); });
+        clearCalibMarkers();
+        ['canvas-front', 'video-front'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) { el.style.cursor = 'crosshair'; el.addEventListener('click', onCalibClick, true); }
+        });
+        showCalibPanel();
+        updateCalibPanel();
+        const b = document.getElementById('calibToggleBtn'); if (b) b.innerHTML = '<i class="fas fa-times me-1"></i>Fermer';
+    }
+
+    function stopCalibration() {
+        calibMode = false; calibPoints = [];
+        clearCalibMarkers();
+        ['canvas-front', 'video-front'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) { el.style.cursor = ''; el.removeEventListener('click', onCalibClick, true); }
+        });
+        const panel = document.getElementById('calibPanel'); if (panel) panel.remove();
+        const b = document.getElementById('calibToggleBtn'); if (b) b.innerHTML = '<i class="fas fa-ruler-combined me-1"></i>Calibrer';
+    }
+
+    function showCalibPanel() {
+        const old = document.getElementById('calibPanel'); if (old) old.remove();
+        const panel = document.createElement('div');
+        panel.id = 'calibPanel';
+        panel.style.cssText = 'position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:3000;'
+            + 'background:#1e1e24;color:#eee;border:1px solid #444;border-radius:8px;padding:12px 14px;'
+            + 'font-size:13px;box-shadow:0 4px 16px rgba(0,0,0,.5);max-width:560px;';
+        panel.innerHTML =
+            '<div style="font-weight:600;margin-bottom:6px;">📐 Calibration sol — caméra avant</div>'
+            + '<div id="calibStep" style="margin-bottom:8px;color:#ffd400;"></div>'
+            + '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end;">'
+            + '<label>Largeur passage (m)<br><input id="calibW" type="number" step="0.1" value="4" style="width:80px"></label>'
+            + '<label>Longueur (m)<br><input id="calibL" type="number" step="0.1" value="2.5" style="width:80px"></label>'
+            + '<label>Dist. bord proche (m)<br><input id="calibY0" type="number" step="0.5" value="8" style="width:80px"></label>'
+            + '</div>'
+            + '<div style="margin-top:10px;display:flex;gap:8px;justify-content:flex-end;">'
+            + '<button id="calibReset" class="btn btn-sm btn-outline-secondary">Recommencer</button>'
+            + '<button id="calibCancel" class="btn btn-sm btn-outline-danger">Annuler</button>'
+            + '<button id="calibSubmit" class="btn btn-sm btn-success" disabled>Valider</button>'
+            + '</div>';
+        document.body.appendChild(panel);
+        document.getElementById('calibReset').onclick = () => { calibPoints = []; clearCalibMarkers(); updateCalibPanel(); };
+        document.getElementById('calibCancel').onclick = stopCalibration;
+        document.getElementById('calibSubmit').onclick = submitCalibration;
+    }
+
+    async function submitCalibration() {
+        if (calibPoints.length !== 4) return;
+        const body = {
+            position: 'front',
+            image_points: calibPoints,
+            crossing_width_m: parseFloat(document.getElementById('calibW').value),
+            crossing_length_m: parseFloat(document.getElementById('calibL').value),
+            near_distance_m: parseFloat(document.getElementById('calibY0').value),
+        };
+        try {
+            const resp = await fetch(`${config.urls.updateSession}${currentSessionId}/calibrate/`, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': config.csrfToken, 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+            });
+            const data = await resp.json();
+            if (data.success) {
+                const s = data.sample ? ` (bas d'image ≈ ${data.sample.ground_xy[1]} m devant)` : '';
+                const rms = (data.rms_error_m != null) ? ` — erreur reprojection ${data.rms_error_m} m` : '';
+                alert(`Calibration enregistrée${s}${rms}.\nRelance l'analyse pour peupler les distances géométriques.`);
+                stopCalibration();
+            } else {
+                alert('Échec : ' + (data.error || 'inconnu'));
+            }
+        } catch (e) {
+            alert('Échec : ' + e.message);
+        }
+    }
+
+    // Boutons calibration + suivi = contrôle Leaflet SUR la mini-carte (dans le
+    // corps du cam analyzer, PAS position:fixed sur le viewport — sinon ils
+    // chevauchent en-tête/pied/volets de WAMA).
+    function addMapControls() {
+        if (!miniMap || typeof L === 'undefined') return;
+        // Boutons d'ACTION (calibration, test SAM3, debug) = barre d'outils du volet
+        // droit (statiques dans le template, HORS carte) → juste le câblage ici.
+        const wire = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = fn; };
+        wire('calibToggleBtn', () => calibMode ? stopCalibration() : startCalibration());
+        wire('sam3TestBtn', () => runSam3Test(false));
+        wire('sam3CalibBtn', () => runSam3Test(true));
+        wire('copyDebugBtn', copyDebugInfo);
+        // Offset GPS↔vidéo : ajustement en direct (re-aligne la navette/objets) + save.
+        const _goInput = document.getElementById('gpsOffsetInput');
+        const _goSlider = document.getElementById('gpsOffsetSlider');
+        const _applyOffset = (v) => {
+            gpsTimeOffset = parseFloat(v) || 0;
+            if (_goInput) _goInput.value = gpsTimeOffset;
+            if (_goSlider) _goSlider.value = gpsTimeOffset;
+            // Forcer le re-render (le throttle de la vue de dessus skippe sinon car le
+            // temps vidéo ne bouge pas pendant le drag) → recalage navette + objets live.
+            topDownLastRender = -999;
+            if (currentSessionId && typeof currentTime === 'number') updateMiniMapShuttle(currentTime);
+        };
+        if (_goInput) _goInput.oninput = () => _applyOffset(_goInput.value);
+        if (_goSlider) _goSlider.oninput = () => _applyOffset(_goSlider.value);
+        const _goSave = document.getElementById('gpsOffsetSaveBtn');
+        if (_goSave) _goSave.onclick = async () => {
+            if (!currentSessionId) return;
+            try {
+                const r = await fetch(`${config.urls.deleteSession}${currentSessionId}/gps-offset/`, {
+                    method: 'POST', headers: { 'X-CSRFToken': config.csrfToken, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ gps_time_offset: gpsTimeOffset }),
+                });
+                const d = await r.json();
+                if (d.success) { _goSave.textContent = '✓'; setTimeout(() => { _goSave.textContent = '💾'; }, 1200); }
+                else alert('Échec sauvegarde offset : ' + (d.error || '?'));
+            } catch (e) { alert('Échec : ' + e.message); }
+        };
+
+        // Contrôles de VUE minimalistes superposés (icônes seules) : plein écran + suivi.
+        if (document.getElementById('mapFullscreenBtn')) return;   // overlay ajouté 1×
+        const ctrl = L.control({ position: 'topright' });
+        ctrl.onAdd = function () {
+            const div = L.DomUtil.create('div', 'leaflet-bar');
+            div.style.cssText = 'background:#1e1e24;padding:3px;display:flex;flex-direction:column;gap:3px;';
+            div.innerHTML =
+                '<button id="mapFullscreenBtn" class="btn btn-sm btn-outline-light" style="padding:1px 7px;" title="Plein écran de la carte">⛶</button>'
+                + '<button id="followToggleBtn" class="btn btn-sm btn-outline-warning" style="padding:1px 7px;" title="Recentrage auto en lecture">🎯</button>';
+            L.DomEvent.disableClickPropagation(div);   // clic bouton ≠ déplacement carte
+            return div;
+        };
+        ctrl.addTo(miniMap);
+        wire('mapFullscreenBtn', toggleMapFullscreen);
+        const fb = document.getElementById('followToggleBtn');
+        if (fb) {
+            fb.style.opacity = topDownAutoFollow ? '1' : '0.45';
+            fb.onclick = () => {
+                topDownAutoFollow = !topDownAutoFollow;
+                fb.style.opacity = topDownAutoFollow ? '1' : '0.45';
+                fb.title = `Recentrage auto : ${topDownAutoFollow ? 'ON' : 'OFF'}`;
+            };
+        }
+        // Recaler la carte Leaflet à chaque entrée/sortie de plein écran.
+        document.addEventListener('fullscreenchange', () => {
+            if (miniMap) setTimeout(() => miniMap.invalidateSize(), 60);
+        });
+    }
+
+    // Plein écran de la carte (comme les tuiles vidéo) — sur le wrapper pour que
+    // les contrôles superposés suivent ; invalidateSize géré par le listener ci-dessus.
+    function toggleMapFullscreen() {
+        const wrap = document.getElementById('camAnalyzerMapWrap');
+        if (!wrap) return;
+        const fsEl = document.fullscreenElement || document.webkitFullscreenElement;
+        if (fsEl) {
+            (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+        } else {
+            (wrap.requestFullscreen || wrap.webkitRequestFullscreen).call(wrap);
+        }
+    }
+
+    // Test SAM3 sur la frame front courante : lance la tâche gpu, poll le résultat,
+    // affiche masks + scores et les dessine sur la vidéo front. Si calibrate=true,
+    // calibre la vue de dessus depuis le meilleur passage détecté (chaîne 1 frame).
+    async function runSam3Test(calibrate = false) {
+        if (!currentSessionId || !cameras['front']) { alert('Charge une session avec caméra front.'); return; }
+        const conf = parseFloat(prompt('Seuil de confiance min (0 = tout afficher) :', '0') || '0') || 0;
+        const t = parseFloat(syncSeekBar.value) || 0;
+        const fps = cameras['front'].fps || 12;
+        const frameNumber = Math.round(t * fps);
+        const btnId = calibrate ? 'sam3CalibBtn' : 'sam3TestBtn';
+        const label = calibrate ? '📐 Calib. SAM3' : '🔬 Test SAM3';
+        const btn = document.getElementById(btnId);
+        if (btn) { btn.disabled = true; btn.textContent = calibrate ? '📐 …' : '🔬 …'; }
+        try {
+            const r = await fetch(`${config.urls.updateSession}${currentSessionId}/sam3-test/`, {
+                method: 'POST', headers: { 'X-CSRFToken': config.csrfToken, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ position: 'front', frame_number: frameNumber, min_confidence: conf, calibrate }),
+            });
+            const d = await r.json();
+            if (!d.success) { alert('Échec : ' + (d.error || '?')); return; }
+            for (let i = 0; i < 60; i++) {
+                await new Promise(res => setTimeout(res, 2000));
+                const rr = await fetch(`${config.urls.updateSession}${currentSessionId}/sam3-test-result/`);
+                const res = await rr.json();
+                if (res.status === 'done') {
+                    const scores = (res.markings || []).map(m => `${m.label}:${m.confidence}`).join(', ') || '(aucun mask)';
+                    let msg = `SAM3 frame ${res.frame_number} : ${res.count} mask(s)\n${scores}\nPrompts: ${(res.prompts || []).join(' | ')}`;
+                    const c = res.calibration;
+                    if (c) {
+                        msg += c.ok
+                            ? `\n\n✅ Calibration [${c.position}] OK — RMS ${c.rms_error_m} m. Vue de dessus mise à jour.`
+                            : `\n\n❌ Calibration : ${c.error || 'échec'}`;
+                    }
+                    alert(msg);
+                    lastSam3TestOverlay = { time: t, res };
+                    drawSam3TestMarkings(res);
+                    // Calibration réussie → recharger la session (distances sol + vue de dessus).
+                    if (c && c.ok) loadSession(currentSessionId);
+                    return;
+                }
+                if (res.status === 'error') { alert('SAM3 : ' + (res.error || '?')); return; }
+            }
+            alert('Test SAM3 : délai dépassé (le modèle charge ~30 s, réessaie).');
+        } catch (e) { alert('Échec : ' + e.message); }
+        finally { if (btn) { btn.disabled = false; btn.textContent = label; } }
+    }
+
+    // Copie un instantané de synchro de l'instant courant (temps vidéo, frames &
+    // offsets par caméra, fix GPS interpolé, détections front) dans le presse-papier
+    // → l'utilisateur le colle pour un debug contextualisé (comparé à la BDD).
+    function copyDebugInfo() {
+        const t = parseFloat(syncSeekBar && syncSeekBar.value) || 0;
+        const L = [];
+        L.push('=== WAMA cam_analyzer debug ===');
+        L.push('session: ' + currentSessionId);
+        L.push('sync_time_s: ' + t.toFixed(3));
+        let frontFrame = null;
+        ['front', 'rear', 'left', 'right'].forEach(pos => {
+            const c = cameras[pos];
+            if (!c) return;
+            const off = c.time_offset || 0;
+            const fps = c.fps || 0;
+            const vt = t + off;
+            const fn = fps ? Math.round(vt * fps) : '?';
+            let ndet = '?';
+            const dd = detectionData[pos];
+            if (dd && dd.frames && dd.frames.length) {
+                let best = null, bd = Infinity;
+                for (const fr of dd.frames) {
+                    const ts = (fr.timestamp != null) ? fr.timestamp : (fps ? fr.frame_number / fps : 0);
+                    const dv = Math.abs(ts - vt);
+                    if (dv < bd) { bd = dv; best = fr; }
+                }
+                ndet = best ? (best.detections || []).length : 0;
+                if (pos === 'front') frontFrame = best;
+            }
+            L.push(`cam ${pos}: video_time=${vt.toFixed(3)}s frame=${fn} fps=${fps} offset=${off} dets=${ndet}`);
+        });
+        const g = findGpsAtTime(t);
+        if (g) {
+            const f = (v, n) => (typeof v === 'number' ? v.toFixed(n) : '?');
+            L.push(`gps@t: ts=${f(g.ts, 3)}s lat=${f(g.lat, 7)} lon=${f(g.lon, 7)} heading=${f(g.heading, 1)}deg speed=${f(g.speed, 2)}`);
+        } else {
+            L.push('gps@t: (aucun fix)');
+        }
+        if (cachedGpsTrack && cachedGpsTrack.length) {
+            const a = cachedGpsTrack[0], b = cachedGpsTrack[cachedGpsTrack.length - 1];
+            L.push(`gps_track: ${cachedGpsTrack.length} fixes span [${a.ts.toFixed(2)}..${b.ts.toFixed(2)}]s`);
+        }
+        if (frontFrame) {
+            L.push(`front_frame: number=${frontFrame.frame_number} ts=${(frontFrame.timestamp != null ? frontFrame.timestamp : 0).toFixed(3)}s`);
+            (frontFrame.detections || []).slice(0, 12).forEach(d => {
+                L.push(`  - ${d.class_name || d.type || '?'} id=${d.track_id != null ? d.track_id : ''} conf=${d.confidence != null ? Number(d.confidence).toFixed(2) : ''}`
+                    + ` bbox=${JSON.stringify(d.bbox || [])} dist_long=${d.dist_longitudinal_m != null ? d.dist_longitudinal_m : ''}`
+                    + ` ground_xy=${d.ground_xy ? JSON.stringify(d.ground_xy) : ''}`);
+            });
+        }
+        const txt = L.join('\n');
+        const done = () => alert('Debug copié dans le presse-papier ✔\nColle-le dans le chat.');
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(txt).then(done, () => prompt('Copie manuelle :', txt));
+        } else {
+            prompt('Copie manuelle :', txt);
+        }
+    }
+
+    function drawSam3TestMarkings(res) {
+        const canvas = document.getElementById('canvas-front');
+        const video = document.getElementById('video-front');
+        if (!canvas || !video) return;
+        const srcW = res.width || (cameras['front'] && cameras['front'].width);
+        const srcH = res.height || (cameras['front'] && cameras['front'].height);
+        if (!srcW || !srcH) return;
+        // Synchro identique à drawDetections : recaler la taille interne du canvas
+        // sur la vidéo affichée AVANT le letterbox (sinon overlay décalé).
+        const rect = video.getBoundingClientRect();
+        if (Math.round(rect.width) !== canvas.width || Math.round(rect.height) !== canvas.height) {
+            canvas.width = Math.round(rect.width);
+            canvas.height = Math.round(rect.height);
+        }
+        const ctx = canvas.getContext('2d');
+        const cw = canvas.width, ch = canvas.height;
+        const videoAR = srcW / srcH, containerAR = cw / ch;
+        let drawW, drawH, ox, oy;
+        if (videoAR > containerAR) { drawW = cw; drawH = cw / videoAR; ox = 0; oy = (ch - drawH) / 2; }
+        else { drawH = ch; drawW = ch * videoAR; ox = (cw - drawW) / 2; oy = 0; }
+        const sx = drawW / srcW, sy = drawH / srcH;
+        (res.markings || []).forEach(m => {
+            const poly = m.polygon;
+            if (!Array.isArray(poly) || poly.length < 3) return;
+            ctx.beginPath();
+            poly.forEach(([px, py], i) => { const x = ox + px * sx, y = oy + py * sy; i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
+            ctx.closePath();
+            ctx.strokeStyle = '#00ff88'; ctx.lineWidth = 2; ctx.stroke();
+            ctx.fillStyle = 'rgba(0,255,136,0.2)'; ctx.fill();
+        });
     }
 
     function escapeHtml(str) {

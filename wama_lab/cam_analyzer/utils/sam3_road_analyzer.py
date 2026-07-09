@@ -35,6 +35,12 @@ DEFAULT_ROAD_PROMPT = 'drivable road surface area in front of the vehicle'
 
 CONFIDENCE_THRESHOLD = 0.30
 
+
+def _as_seq(x):
+    """[] si None, sinon x tel quel (liste OU Tensor). Évite `x or []` qui lève
+    « Boolean value of Tensor is ambiguous » quand x est un Tensor SAM3."""
+    return [] if x is None else x
+
 # Polygon simplification: epsilon = ratio × perimeter
 POLY_EPSILON_RATIO = 0.005
 
@@ -143,9 +149,12 @@ class SAM3RoadAnalyzer:
 
     # ── Inference ─────────────────────────────────────────────────────────────
 
-    def analyze_frame(self, frame_bgr: np.ndarray) -> list:
+    def analyze_frame(self, frame_bgr: np.ndarray, min_confidence: float = None) -> list:
         """
         Run SAM3 on a single BGR frame (numpy array).
+
+        min_confidence : seuil de rejet (défaut = CONFIDENCE_THRESHOLD) ; passer 0.0
+        pour tout retourner (outil de diagnostic « test SAM3 sur une image »).
 
         Returns a list of detection dicts ready to append to DetectionFrame.detections.
         Each dict is one of:
@@ -165,6 +174,7 @@ class SAM3RoadAnalyzer:
 
         from PIL import Image
 
+        thr = CONFIDENCE_THRESHOLD if min_confidence is None else float(min_confidence)
         frame_rgb  = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
         pil_frame  = Image.fromarray(frame_rgb)
         h, w       = frame_bgr.shape[:2]
@@ -183,20 +193,30 @@ class SAM3RoadAnalyzer:
                 logger.debug(f"[SAM3RoadAnalyzer] prompt '{label}' failed: {e}")
                 continue
 
-            masks  = output.get('masks', []) or []
-            scores = output.get('scores', []) or []
+            masks  = _as_seq(output.get('masks'))
+            scores = _as_seq(output.get('scores'))
+
+            # Diagnostic : voir ce que SAM3 renvoie RÉELLEMENT (avant seuil). Permet
+            # de distinguer « rien détecté » (0 mask) de « détecté mais score faible »
+            # (masks présents mais < seuil) → ajuster CONFIDENCE_THRESHOLD si besoin.
+            if len(masks):
+                logger.info("[SAM3] '%s' : %d mask(s), scores=%s (seuil %.2f)",
+                            label, len(masks),
+                            [round(float(s), 3) for s in scores[:6]], CONFIDENCE_THRESHOLD)
 
             for i, mask in enumerate(masks):
                 score = float(scores[i]) if i < len(scores) else 1.0
-                if score < CONFIDENCE_THRESHOLD:
+                if score < thr:
                     continue
                 mask_np = _to_numpy(mask, (h, w))
                 bbox    = _mask_to_bbox(mask_np)
+                polygon = _mask_to_polygon(mask_np)   # nécessaire à l'auto-calibration (coins passage)
                 results.append({
                     'type':       'sam3_marking',
                     'label':      label,
                     'prompt':     prompt,
                     'bbox':       bbox,
+                    'polygon':    polygon,
                     'confidence': round(score, 3),
                     # Required fields for the main detections loop in tasks.py
                     'class_name': label,
@@ -211,11 +231,11 @@ class SAM3RoadAnalyzer:
                 output = self._processor.set_text_prompt(
                     state=state, prompt=DEFAULT_ROAD_PROMPT
                 )
-                masks  = output.get('masks', []) or []
-                scores = output.get('scores', []) or []
+                masks  = _as_seq(output.get('masks'))
+                scores = _as_seq(output.get('scores'))
                 for i, mask in enumerate(masks):
                     score = float(scores[i]) if i < len(scores) else 1.0
-                    if score < CONFIDENCE_THRESHOLD:
+                    if score < thr:
                         continue
                     mask_np = _to_numpy(mask, (h, w))
                     polygon = _mask_to_polygon(mask_np)

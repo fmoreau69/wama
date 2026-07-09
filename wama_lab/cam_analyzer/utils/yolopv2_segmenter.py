@@ -60,6 +60,26 @@ def _mask_to_polygons(mask: np.ndarray, min_area: int = 500) -> list[list[list[f
     return polygons
 
 
+# keep_loaded : le modèle TorchScript est coûteux à charger (jit.load + warmup) et
+# identique pour toutes les caméras/analyses → on le met en cache module (chargé 1×,
+# réutilisé) au lieu de le recharger par caméra (×4 depuis la Phase C → lenteur + VRAM).
+_MODEL_CACHE = {}
+
+
+def clear_model_cache():
+    """Libère le(s) modèle(s) yolopv2 gardé(s) en cache (keep_loaded) et rend la VRAM.
+    À appeler avant une tâche VRAM-critique (SAM3) — le cleaner du model_manager ne
+    connaît pas ce cache (chargé hors model_manager)."""
+    global _MODEL_CACHE
+    _MODEL_CACHE.clear()
+    gc.collect()
+    try:
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    except Exception:
+        pass
+
+
 class YOLOPv2RoadSegmenter:
     """
     Drop-in replacement for RoadSegmenter when the user's road_model_path
@@ -79,6 +99,13 @@ class YOLOPv2RoadSegmenter:
         if self.device == 'cuda' and not torch.cuda.is_available():
             logger.warning("[YOLOPv2] CUDA unavailable — falling back to CPU")
             self.device = 'cpu'
+        # keep_loaded : réutiliser le modèle en cache module s'il est déjà chargé
+        # (même chemin/device) → pas de re-jit.load ni de warmup par caméra.
+        _key = (self.model_path, self.device)
+        cached = _MODEL_CACHE.get(_key)
+        if cached is not None:
+            self._model = cached
+            return
         self._model = torch.jit.load(self.model_path, map_location=self.device)
         self._model.eval()
         # Warmup so first real inference doesn't pay the JIT specialization cost
@@ -88,15 +115,14 @@ class YOLOPv2RoadSegmenter:
                 self._model(dummy)
             except Exception as exc:
                 logger.warning(f"[YOLOPv2] warmup failed (non-fatal): {exc}")
-        logger.info(f"[YOLOPv2] Loaded: {self.model_path} on {self.device}")
+        _MODEL_CACHE[_key] = self._model
+        logger.info(f"[YOLOPv2] Loaded (cached): {self.model_path} on {self.device}")
 
     def unload(self):
-        if self._model is not None:
-            del self._model
-            self._model = None
-            gc.collect()
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
+        # keep_loaded : on NE libère PAS le modèle en cache (réutilisé sur les autres
+        # vues + les analyses suivantes) — on détache seulement la référence locale.
+        # Évite le brassage VRAM alloc/free répété (×4 vues) qui favorise les crashes.
+        self._model = None
 
     # ─── Inference ────────────────────────────────────────────────────────────
 

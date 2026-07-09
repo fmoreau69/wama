@@ -187,6 +187,14 @@ def get_passes_status(session) -> list[dict]:
     by_key = {(p.pass_type, p.camera.position if p.camera_id else None): p for p in passes}
 
     cameras = list(session.cameras.all().order_by('position'))
+    # Positions réellement traitées par le pipeline (les autres sont ignorées).
+    analyzed = list(getattr(getattr(session, 'profile', None), 'analyzed_positions', []) or [])
+    if not analyzed:
+        analyzed = ['front', 'rear']
+    # yolo_detect = toutes les vues. yolopv2_lanes = front-only par défaut, 4 vues si
+    # profile.yolopv2_all_views (Phase C 360°). SAM3 = front-only (tâche mono-caméra).
+    _SAM3_POSITIONS = {'front'}
+    _yolopv2_all = bool(getattr(getattr(session, 'profile', None), 'yolopv2_all_views', False))
     out = []
     order = [
         AnalysisPass.PassType.EXTRACTION,
@@ -202,8 +210,22 @@ def get_passes_status(session) -> list[dict]:
     label_map = dict(AnalysisPass.PassType.choices)
     for pt in order:
         if pt.value in _PER_CAMERA_PASSES:
-            for cam in cameras:
+            if pt.value == 'sam3_markings':
+                relevant = [c for c in cameras if c.position in _SAM3_POSITIONS]
+            elif pt.value == 'yolopv2_lanes' and not _yolopv2_all:
+                # yolopv2 front-only par défaut (toggle OFF).
+                relevant = [c for c in cameras if c.position == 'front']
+            else:
+                # yolo_detect (toutes vues) + yolopv2 si all_views activé — ligne
+                # « non faite » (+ bouton lancer) conservée pour left/right.
+                relevant = cameras
+            for cam in relevant:
                 p = by_key.get((pt.value, cam.position))
+                # Repli sur la passe de NIVEAU SESSION (camera=None) UNIQUEMENT pour les
+                # caméras réellement traitées (analyzed_positions) — compat des analyses
+                # enregistrées avant le suivi par caméra, sans cocher left/right à tort.
+                if p is None and cam.position in analyzed:
+                    p = by_key.get((pt.value, None))
                 if p is None:
                     out.append({
                         'pass_type': pt.value,

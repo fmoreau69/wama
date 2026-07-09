@@ -21,6 +21,12 @@ from wama.common.utils.console_utils import push_console_line
 
 logger = logging.getLogger(__name__)
 
+# Classes COCO pouvant réellement interagir avec la navette à une intersection
+# (s'insérer / attendre). Sert à écarter les faux positifs COCO (airplane,
+# bird, boat…) du périmètre « véhicules d'intérêt ». Voir
+# CAM_ANALYZER_DISTANCE_DESIGN.md §2.9.
+ROAD_USER_CLASSES = {'person', 'bicycle', 'car', 'motorcycle', 'bus', 'truck'}
+
 
 # =============================================================================
 # Helpers
@@ -47,12 +53,24 @@ def set_session_progress(session_id: str, percent: float, status_message: str = 
 
 def stop_cam_analyzer(user_id: int) -> None:
     """Set cancellation flag for a user's running analysis."""
-    cache.set(f"stop_cam_analyzer_{user_id}", True, timeout=600)
+    # TTL long (= visibility_timeout Redis) : le flag doit SURVIVRE à la fenêtre de
+    # re-livraison d'une tâche crashée, sinon une tâche SAM3 re-livrée après annulation
+    # ne le verrait plus expiré et se relancerait. Toute vraie relance vide le flag
+    # (run_passes/start_sam3), donc il ne bloque jamais un lancement légitime.
+    cache.set(f"stop_cam_analyzer_{user_id}", True, timeout=21600)
 
 
 def _is_cancelled(user_id: int) -> bool:
-    """Check if cancellation was requested."""
-    return bool(cache.get(f"stop_cam_analyzer_{user_id}", False))
+    """Check if cancellation was requested.
+
+    Résiste à une panne Redis transitoire (ex. redémarrage du serveur pendant
+    une tâche longue) : un blip ne doit pas tuer la tâche → on suppose « non
+    annulé » plutôt que de propager la ConnectionError.
+    """
+    try:
+        return bool(cache.get(f"stop_cam_analyzer_{user_id}", False))
+    except Exception:
+        return False
 
 
 def _extract_detections(prediction, frame_height: int) -> list:
@@ -386,16 +404,32 @@ def _detect_intersection_insertion(session, camera, frames):
 
         results = analyzer.analyze_window(window, window_frames)
         for r in results:
+            # ── Pertinence : véhicule d'intérêt aux intersections ────────
+            # Ne sont « d'intérêt » que les usagers de la route qui INTERAGISSENT
+            # avec la navette (s'insèrent devant / attendent son passage). Les
+            # 'turn' (traversée/virage sans interaction) et les faux positifs
+            # COCO (airplane/bird…) sont tagués of_interest=False → masqués par
+            # défaut dans le rapport (source du « trop de lignes »). Tag non
+            # destructif : rien n'est supprimé, le frontend peut tout afficher.
+            meta = dict(r.get('metadata') or {})
+            event_type = meta.get('event_type')
+            vclass = (meta.get('vehicle_class') or '').lower()
+            meta['of_interest'] = bool(
+                event_type in ('insertion', 'wait')
+                and vclass in ROAD_USER_CLASSES
+            )
             segments.append(TemporalSegment(
                 session=session,
                 camera=camera,
                 segment_type=r['type'],    # 'insertion_front' | 'intersection_stop'
                 start_time=r['start'],
                 end_time=r['end'],
-                metadata=r['metadata'],
+                metadata=meta,
             ))
 
-    logger.info(f"[intersection] {len(segments)} segments detected across {len(windows)} windows")
+    _n_interest = sum(1 for s in segments if s.metadata.get('of_interest'))
+    logger.info(f"[intersection] {len(segments)} segments detected across {len(windows)} windows "
+                f"({_n_interest} of interest)")
     return segments
 
 
@@ -633,7 +667,8 @@ def detect_temporal_segments(session):
 # =============================================================================
 
 @shared_task(bind=True)
-def process_session_task(self, session_id: str, force_rerun: bool = False):
+def process_session_task(self, session_id: str, force_rerun: bool = False,
+                         chain_sam3: bool = True, positions: list = None):
     """
     Process a cam analyzer session:
     - Load YOLO model from profile
@@ -760,6 +795,10 @@ def process_session_task(self, session_id: str, force_rerun: bool = False):
         analyzed_positions = list(getattr(profile, 'analyzed_positions', []) or [])
         if not analyzed_positions:
             analyzed_positions = ['front', 'rear']
+        # Restriction optionnelle : relance CIBLÉE (ex. yolopv2 sur front seule) → ne
+        # traiter qu'un sous-ensemble, sans relancer les autres vues (left/right…).
+        if positions:
+            analyzed_positions = [p for p in analyzed_positions if p in positions]
 
         all_cameras = list(session.cameras.all().order_by('position'))
         cameras = [c for c in all_cameras if c.position in analyzed_positions]
@@ -856,7 +895,7 @@ def process_session_task(self, session_id: str, force_rerun: bool = False):
             # registered against this specific camera so the UI can show
             # "front: ✅ / rear: ⏵ in progress".
             mark_started(session, 'yolo_detect', profile, camera=camera)
-            if _has_yolopv2 and position == 'front':
+            if _has_yolopv2:
                 mark_started(session, 'yolopv2_lanes', profile, camera=camera)
 
             set_session_progress(session_id, cam_progress_start,
@@ -868,8 +907,12 @@ def process_session_task(self, session_id: str, force_rerun: bool = False):
             # road_mask is being produced.
             road_segmenter = None
             _road_path_raw = getattr(profile, 'road_model_path', '') or ''
-            if position != 'front':
-                pass  # silent, lateral views never get road_segmenter by design
+            # (b) Portée yolopv2 : vue avant seule par défaut (léger/stable) ; les 4 vues
+            # seulement si profile.yolopv2_all_views (Phase C 360° : voies latérales pour
+            # calibrer les côtés). L'aval (événements de voie/insertion) reste front-only.
+            _yolopv2_here = (position == 'front') or getattr(profile, 'yolopv2_all_views', False)
+            if not _yolopv2_here:
+                pass  # yolopv2 désactivé sur cette vue (front-only)
             elif profile.report_type != 'intersection_insertion':
                 _console(user_id, "  road_segmenter ignoré (report_type != intersection_insertion)")
             elif not _road_path_raw:
@@ -1146,6 +1189,25 @@ def process_session_task(self, session_id: str, force_rerun: bool = False):
             from .utils.distance_speed import TrackKinematics
             _kinematics = TrackKinematics()
 
+            # Projecteur sol (homographie) — actif UNIQUEMENT si CETTE caméra a une
+            # calibration (camera.ground_homography, par session) ET
+            # profile.geometry_enabled. Sinon None → seules les distances pinhole
+            # (distance_m) sont conservées (fallback non destructif).
+            # Voir CAM_ANALYZER_DISTANCE_DESIGN.md §3 + Roadmap Phase 0.
+            _ground_projector = None
+            try:
+                _profile = session.profile
+                if _profile and getattr(_profile, 'geometry_enabled', False):
+                    from .utils.ground_projection import GroundProjector
+                    _cal = getattr(camera, 'ground_homography', None)
+                    if _cal and camera.width and camera.height:
+                        _gpj = GroundProjector(_cal, (camera.width, camera.height))
+                        _ground_projector = _gpj if _gpj.available else None
+                        if _ground_projector:
+                            _console(user_id, f"  [{position}] homographie sol active")
+            except Exception:
+                logger.debug('ground projector init failed (non-blocking)', exc_info=True)
+
             for frame_idx, pred in _yield_predictions():
                 # Cancellation check every 100 processed frames
                 if _processed_frames % 100 == 0 and _is_cancelled(user_id):
@@ -1232,6 +1294,21 @@ def process_session_task(self, session_id: str, force_rerun: bool = False):
                     detections, height, fov_v, timestamp, _kinematics
                 )
 
+                # Distances GÉOMÉTRIQUES par homographie (si disponible) : point-sol
+                # de la bbox → (X, Y) au sol → dist_longitudinal/lateral/euclid +
+                # ground_xy + distance_source='homography'. Complète (ne remplace pas)
+                # les champs pinhole ; les masques et marquages sont exclus.
+                if _ground_projector is not None:
+                    for det in detections:
+                        if det.get('type') in ('road_mask', 'sam3_marking'):
+                            continue
+                        bbox = det.get('bbox')
+                        if not (isinstance(bbox, (list, tuple)) and len(bbox) >= 4):
+                            continue
+                        g = _ground_projector.distances_for_bbox(bbox)
+                        if g:
+                            det.update(g)
+
                 # Track max proximity — skip non-vehicle entries (road_mask, sam3_marking…)
                 for det in detections:
                     prox = det.get('proximity', 0.0)
@@ -1300,7 +1377,7 @@ def process_session_task(self, session_id: str, force_rerun: bool = False):
                     'max_proximity': round(cam_max_proximity, 3),
                     'storage_conf': _STORAGE_CONF,
                 })
-                if _has_yolopv2 and position == 'front':
+                if _has_yolopv2:
                     mark_completed(session, 'yolopv2_lanes', camera=camera, output_summary={
                         'model_path': profile.road_model_path,
                     })
@@ -1429,7 +1506,7 @@ def process_session_task(self, session_id: str, force_rerun: bool = False):
         _unload_model(model)
         model = None
 
-        if _sam3_enabled:
+        if _sam3_enabled and chain_sam3:
             # Keep the session in PROCESSING so the frontend polling stays
             # alive and reflects the SAM3 phase. analyze_sam3_only_task will
             # flip status to COMPLETED at the end.
@@ -1441,7 +1518,15 @@ def process_session_task(self, session_id: str, force_rerun: bool = False):
                      f"{summary['detections_total']} détections. "
                      f"Lancement SAM3 en post-pass (VRAM fraîche).")
             from .tasks import analyze_sam3_only_task
-            analyze_sam3_only_task.delay(str(session.id))
+            _sam3_task = analyze_sam3_only_task.delay(str(session.id))
+            # Tracker l'ID de la tâche SAM3 CHAÎNÉE (nouveau task_id) pour que
+            # cancel_analysis puisse la révoquer — sinon le cache pointait sur
+            # process_session_task et l'annulation ne touchait jamais SAM3.
+            try:
+                from django.core.cache import cache as _cache
+                _cache.set(f"cam_analyzer_task_{session_id}", _sam3_task.id, timeout=None)
+            except Exception:
+                pass
             return {'processed': session_id, 'sam3_queued': True}
 
         # No SAM3 — close the session right here.
@@ -1617,6 +1702,251 @@ def compute_conflict_events_task(self, session_id: str):
         return {'error': str(e), 'session_id': session_id}
 
 
+# Dimensions par défaut d'un passage piéton (m) si le profil n'en fournit pas.
+# Normes FR indicatives ; surchargeables par une calibration manuelle précise.
+CROSSING_DEFAULT_WIDTH_M = 4.0    # largeur en travers de la route (axe X)
+CROSSING_DEFAULT_LENGTH_M = 2.5   # profondeur le long de la route (axe Y)
+
+# Cadence d'inférence SAM3 dans les fenêtres. Un marquage est STATIQUE → inutile
+# d'analyser à 12 fps : ~2 fps suffit largement pour détecter/calibrer, et divise
+# la charge GPU (durée + risque de crash système) d'un ordre de grandeur.
+SAM3_TARGET_FPS = 2.0
+
+
+def _polygon_area(poly) -> float:
+    """Aire d'un polygone image (shoelace) — sert à préférer le passage le mieux segmenté."""
+    n = len(poly)
+    a = 0.0
+    for i in range(n):
+        x1, y1 = poly[i]
+        x2, y2 = poly[(i + 1) % n]
+        a += x1 * y2 - x2 * y1
+    return abs(a) / 2.0
+
+
+def _calibrate_from_crossing_polygons(session, camera, polygons, user_id,
+                                      source='sam3_crossing_auto'):
+    """
+    Cœur PARTAGÉ (auto-scan DB + test 1-image) : depuis une liste de polygones de
+    passage piéton (coords image), choisit le **mieux segmenté** (aire max) parmi
+    ceux valides + à distance-échantillon plausible, enregistre l'homographie sol
+    au profil (+ `geometry_enabled`) et retourne le meilleur `res` (ou None).
+
+    N'effectue PAS la ré-annotation des distances : c'est au caller de le faire
+    (l'auto-scan la fait déjà en aval). Voir CAM_ANALYZER_DISTANCE_DESIGN.md §3c.
+    """
+    profile = session.profile
+    if not profile or not camera.width or not camera.height:
+        return None
+    import numpy as np
+    from .utils.calibration import quad_from_polygon, homography_from_quad
+    W = getattr(profile, 'crossing_total_width_m', None) or CROSSING_DEFAULT_WIDTH_M
+    L = getattr(profile, 'crossing_total_length_m', None) or CROSSING_DEFAULT_LENGTH_M
+    best, best_area = None, -1.0
+    for poly in polygons:
+        if not poly or len(poly) < 4:
+            continue
+        quad = quad_from_polygon(poly)
+        if not quad:
+            continue
+        # 1) H dans le repère « passage à l'origine » (Y0=0).
+        res0 = homography_from_quad(quad, W, L)
+        if not res0:
+            continue
+        # 2) La distance du passage à la navette est INDÉTERMINÉE depuis l'image
+        #    seule. Or décaler Y0 est une PURE translation du repère sol (T_k∘H).
+        #    On ancre donc le repère pour que le bas-centre de l'image (sol le
+        #    plus proche devant) tombe à ~`near_ground` (offset bas-de-vue→sol).
+        H0 = np.asarray(res0['H'])
+        pb = H0 @ np.array([camera.width / 2.0, camera.height - 1.0, 1.0])
+        if abs(pb[2]) < 1e-9:
+            continue
+        yb0 = pb[1] / pb[2]
+        near_ground = getattr(profile, 'ego_cam_to_bumper_m', None) or 2.0
+        res = homography_from_quad(quad, W, L, near_distance_m=near_ground - yb0)
+        if not res or not res.get('valid'):
+            continue
+        # Sanity finale : bas-centre plausible (devant, < 60 m).
+        H = np.asarray(res['H'])
+        p = H @ np.array([camera.width / 2.0, camera.height - 1.0, 1.0])
+        if abs(p[2]) < 1e-9 or not (0.1 < p[1] / p[2] < 60.0):
+            continue
+        area = _polygon_area(poly)
+        if area > best_area:
+            best, best_area = res, area
+    if best is None:
+        return None
+    # Stockage PAR CAMÉRA (par session) — plus sur le profil partagé (fin de la fuite).
+    camera.ground_homography = {
+        'homography': best['H'], 'source': source,
+        'rms_error_m': best['rms_error_m'],
+        'crossing': {'width_m': W, 'length_m': L},
+    }
+    camera.save(update_fields=['ground_homography'])
+    if not profile.geometry_enabled:
+        profile.geometry_enabled = True
+        profile.save(update_fields=['geometry_enabled'])
+    _console(user_id, f"Calibration [{camera.position}] depuis passage piéton "
+                      f"(aire {int(best_area)} px², RMS {best['rms_error_m']} m, {source})")
+    return best
+
+
+def _auto_calibrate_from_crossings(session, camera, user_id):
+    """
+    Auto-calibration de l'homographie sol depuis les passages piétons SAM3 déjà
+    enregistrés en base (scan complet). Collecte les polygones `sam3_marking`
+    'crossing' de la caméra → cœur partagé `_calibrate_from_crossing_polygons`.
+    """
+    from .models import DetectionFrame
+    polys = []
+    qs = DetectionFrame.objects.filter(camera=camera).only('detections')
+    for df in qs.iterator():
+        for d in (df.detections or []):
+            if d.get('type') == 'sam3_marking' and 'cross' in (d.get('label') or '').lower():
+                poly = d.get('polygon')
+                if poly and len(poly) >= 4:
+                    polys.append(poly)
+    return _calibrate_from_crossing_polygons(session, camera, polys, user_id)
+
+
+def _reannotate_ground_distances(camera, calib_entry):
+    """
+    Ré-annote les distances géométriques (dist_long/lat/euclid + ground_xy) sur les
+    détections déjà stockées d'une caméra, via l'homographie calibrée — SANS relancer
+    YOLO. Retourne le nombre de frames modifiées.
+    """
+    from .models import DetectionFrame
+    from .utils.ground_projection import GroundProjector
+    proj = GroundProjector(calib_entry, (camera.width, camera.height))
+    if not proj.available:
+        return 0
+    n = 0
+    for df in DetectionFrame.objects.filter(camera=camera).only('detections').iterator():
+        dets = df.detections or []
+        changed = False
+        for det in dets:
+            if det.get('type') in ('road_mask', 'sam3_marking'):
+                continue
+            bbox = det.get('bbox')
+            if not (isinstance(bbox, (list, tuple)) and len(bbox) >= 4):
+                continue
+            g = proj.distances_for_bbox(bbox)
+            if g:
+                det.update(g)
+                changed = True
+        if changed:
+            df.detections = dets
+            df.save(update_fields=['detections'])
+            n += 1
+    return n
+
+
+def _free_memory_before_sam3(user_id=None):
+    """Nettoyage VRAM/RAM avant SAM3 (gros modèle, sujet aux crashes GPU) : décharge le
+    modèle yolopv2 gardé en cache (keep_loaded, hors model_manager) + cleanup agressif du
+    model_manager (modèles idle, GPU cache, GC ×3). Non bloquant."""
+    try:
+        from .utils.yolopv2_segmenter import clear_model_cache
+        clear_model_cache()
+    except Exception:
+        logger.debug('clear yolopv2 cache failed', exc_info=True)
+    try:
+        from wama.model_manager.services import get_memory_cleaner
+        get_memory_cleaner().aggressive_cleanup()
+    except Exception:
+        logger.debug('aggressive_cleanup failed', exc_info=True)
+    try:
+        import gc
+        import torch
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    except Exception:
+        pass
+    if user_id:
+        try:
+            _console(user_id, "VRAM/RAM nettoyées avant SAM3 (modèles déchargés)")
+        except Exception:
+            pass
+
+
+@shared_task(bind=True)
+def sam3_test_frame_task(self, session_id: str, position: str, frame_number: int,
+                         min_confidence: float = 0.0, calibrate: bool = False):
+    """
+    Diagnostic : lance SAM3 sur UNE frame choisie et met en cache TOUS les masks
+    (polygones + scores, seuil `min_confidence`, 0 = tout) → permet de vérifier si
+    SAM3 accroche un passage clairement visible et de régler le seuil, SANS lancer
+    un scan complet (charge GPU minime). Résultat en cache `sam3_test_<session>`.
+
+    Si `calibrate=True` : utilise en plus le meilleur passage détecté sur cette
+    frame pour calibrer l'homographie sol (cœur partagé avec l'auto-scan) puis
+    ré-annote les distances sol — la chaîne « une frame → vue de dessus ».
+    """
+    import cv2
+    from django.core.cache import cache
+    from .models import AnalysisSession
+    key = f"sam3_test_{session_id}"
+    sam3 = None
+    try:
+        session = AnalysisSession.objects.select_related('profile').get(pk=session_id)
+        cam = session.cameras.filter(position=position).first()
+        if not cam or not getattr(cam, 'video_file', None):
+            cache.set(key, {'status': 'error', 'error': 'Caméra/vidéo introuvable'}, 600)
+            return
+        capd = cv2.VideoCapture(cam.video_file.path)
+        capd.set(cv2.CAP_PROP_POS_FRAMES, int(frame_number))
+        ok, frame = capd.read()
+        capd.release()
+        if not ok:
+            cache.set(key, {'status': 'error', 'error': 'Frame introuvable'}, 600)
+            return
+        prompts = list(getattr(session.profile, 'sam3_markings_prompts', []) or [])
+        from .utils.sam3_road_analyzer import SAM3RoadAnalyzer
+        _free_memory_before_sam3(session.user_id)   # libérer la VRAM avant SAM3
+        sam3 = SAM3RoadAnalyzer(marking_prompts=prompts or None)
+        sam3.load()
+        markings = sam3.analyze_frame(frame, min_confidence=float(min_confidence))
+        out = [{'label': m.get('label'), 'confidence': m.get('confidence'),
+                'polygon': m.get('polygon'), 'bbox': m.get('bbox')}
+               for m in markings if m.get('type') == 'sam3_marking']
+
+        calib_info = None
+        if calibrate:
+            cross_polys = [m['polygon'] for m in out
+                           if m.get('polygon') and 'cross' in (m.get('label') or '').lower()]
+            if not cross_polys:
+                calib_info = {'ok': False, 'error': 'Aucun passage piéton détecté sur cette frame'}
+            else:
+                best = _calibrate_from_crossing_polygons(
+                    session, cam, cross_polys, session.user_id, source='sam3_crossing_test')
+                if best:
+                    try:
+                        _reannotate_ground_distances(cam, cam.ground_homography)
+                    except Exception:
+                        logger.debug('reannotate after test calib failed', exc_info=True)
+                    calib_info = {'ok': True, 'position': cam.position,
+                                  'rms_error_m': best['rms_error_m']}
+                else:
+                    calib_info = {'ok': False,
+                                  'error': 'Passage détecté mais non exploitable (géométrie invalide)'}
+
+        cache.set(key, {'status': 'done', 'frame_number': int(frame_number),
+                        'width': cam.width, 'height': cam.height,
+                        'prompts': [p.get('prompt') for p in prompts],
+                        'markings': out, 'count': len(out),
+                        'calibration': calib_info}, 600)
+    except Exception as e:
+        logger.error(f"sam3_test_frame failed: {e}", exc_info=True)
+        cache.set(key, {'status': 'error', 'error': str(e)}, 600)
+    finally:
+        if sam3 is not None:
+            try:
+                sam3.unload()
+            except Exception:
+                pass
+
+
 @shared_task(bind=True)
 def analyze_sam3_only_task(self, session_id: str):
     """
@@ -1648,6 +1978,15 @@ def analyze_sam3_only_task(self, session_id: str):
         user_id = session.user_id
         profile = session.profile
 
+        # Garde d'idempotence : si l'analyse a été ANNULÉE (flag persistant), sortir
+        # AVANT de charger SAM3. Sinon une tâche RE-LIVRÉE par Redis (crash worker →
+        # visibility_timeout 6h) relançait SAM3 en boucle après annulation/redémarrage
+        # — d'où « SAM3 se relance à chaque redémarrage » et « cancel sans effet ».
+        # (La relance vide le flag via run_passes, donc une vraie relance repart bien.)
+        if _is_cancelled(user_id):
+            _console(user_id, "SAM3 : annulation détectée au démarrage — tâche ignorée (pas de relance).")
+            return {'status': 'cancelled', 'reason': 'cancel_flag'}
+
         if not profile or not getattr(profile, 'sam3_markings_enabled', False):
             raise ValueError("SAM3 désactivé sur le profil")
 
@@ -1662,6 +2001,27 @@ def analyze_sam3_only_task(self, session_id: str):
 
         windows = session.intersection_windows or []
         raw_prompts = list(getattr(profile, 'sam3_markings_prompts', []) or [])
+
+        # Enrichissement par le PIPELINE COMMUN (skill `cam_analyzer-transport`) :
+        # traduit + met en forme « concept » anglophone attendu par SAM3, au lieu
+        # de passer le prompt brut (fin de la particularité cam_analyzer). Fallback
+        # = prompt d'origine si le LLM local est injoignable. Voir PROMPT_PIPELINE.md.
+        try:
+            from wama.common.utils.prompt_enrichment import enrich_on_demand
+            _enriched = []
+            for _pd in raw_prompts:
+                _base = (_pd.get('prompt') or '').strip()
+                if not _base:
+                    continue
+                try:
+                    _concept = enrich_on_demand(_base, app='cam_analyzer', domain='transport')
+                except Exception:
+                    _concept = _base   # LLM injoignable → on garde le prompt tel quel
+                _enriched.append({**_pd, 'prompt': _concept})
+            if _enriched:
+                raw_prompts = _enriched
+        except Exception:
+            logger.debug('SAM3 prompt enrichment skipped (non-blocking)', exc_info=True)
         # The "road fallback" is meant to make SAM3 generate the drivable area
         # mask when no other road segmenter is wired in. When the profile has
         # a road_model_path (YOLOPv2 or equivalent), that backend already
@@ -1692,11 +2052,19 @@ def analyze_sam3_only_task(self, session_id: str):
         set_session_progress(session_id, 1, "Chargement SAM3...")
 
         from .utils.sam3_road_analyzer import SAM3RoadAnalyzer
+        _free_memory_before_sam3(user_id)   # libérer la VRAM avant SAM3 (anti-crash)
         sam3 = SAM3RoadAnalyzer(
             marking_prompts=raw_prompts or None,
             road_fallback=use_fallback,
         )
         sam3.load()
+        # Log des prompts RÉELLEMENT utilisés (vérifier langue/forme : SAM3 attend
+        # des descriptions nominales EN, ex. "pedestrian crossing zebra stripes").
+        _prompts_str = " | ".join(
+            f"{p.get('label', '?')}=«{p.get('prompt', '')}»" for p in raw_prompts
+        ) or "(aucun)"
+        _console(user_id, f"Prompts SAM3 : {_prompts_str}")
+        logger.info("[SAM3] prompts utilisés : %s", [p.get('prompt') for p in raw_prompts])
         if use_fallback:
             scope_label = (
                 f"  SAM3 chargé — {len(raw_prompts)} prompt(s) marquages "
@@ -1737,22 +2105,31 @@ def analyze_sam3_only_task(self, session_id: str):
         scanned = 0
         last_progress_frame = 0
 
+        # Sous-échantillonnage : 1 frame sur `sam3_stride` (≈ SAM3_TARGET_FPS).
+        sam3_stride = max(1, int(round(fps / SAM3_TARGET_FPS)))
+        _console(user_id, f"SAM3 ~{SAM3_TARGET_FPS:g} fps (1 frame/{sam3_stride}) dans les fenêtres")
+
         frame_idx = -1
         while True:
-            ok, frame_bgr = cap.read()
+            ok = cap.grab()          # avance SANS décoder → skip peu coûteux hors zone
             if not ok:
                 break
             frame_idx += 1
             timestamp = frame_idx / fps
 
-            if frame_idx % 100 == 0 and _is_cancelled(user_id):
+            if frame_idx % 200 == 0 and _is_cancelled(user_id):
                 cap.release()
                 raise InterruptedError("Annulé par l'utilisateur")
 
-            in_window = any(
+            in_window = use_fallback or any(
                 w['t_enter'] <= timestamp <= w['t_exit'] for w in windows
             )
-            if not (in_window or use_fallback):
+            # Hors fenêtre OU entre deux échantillons → ni décodage ni SAM3.
+            if not in_window or (frame_idx % sam3_stride) != 0:
+                continue
+
+            ok2, frame_bgr = cap.retrieve()   # décodage UNIQUEMENT ici
+            if not ok2:
                 continue
 
             scanned += 1
@@ -1764,9 +2141,14 @@ def analyze_sam3_only_task(self, session_id: str):
 
             df = existing.get(frame_idx)
             if df is not None:
+                # On ne remplace `road_mask` (segmentation YOLOPv2) QUE si SAM3 sert
+                # de fallback route ; sinon on préserve la route et on ne remplace
+                # que les anciens marquages SAM3. (Bug : SAM3 écrasait la route même
+                # sans rien trouver → segmentation routière qui disparaissait.)
+                drop_types = ('sam3_marking', 'road_mask') if use_fallback else ('sam3_marking',)
                 kept = [
                     d for d in (df.detections or [])
-                    if d.get('type') not in ('sam3_marking', 'road_mask')
+                    if d.get('type') not in drop_types
                 ]
                 df.detections = kept + markings
                 df.save(update_fields=['detections'])
@@ -1782,6 +2164,17 @@ def analyze_sam3_only_task(self, session_id: str):
                 if len(new_frames) >= 500:
                     DetectionFrame.objects.bulk_create(new_frames)
                     new_frames = []
+
+            # Libère périodiquement la VRAM (évite l'accumulation → crash) +
+            # log de progression dans celery-gpu.log (aucun log intermédiaire avant).
+            if scanned % 50 == 0:
+                try:
+                    import torch
+                    torch.cuda.empty_cache()
+                except Exception:
+                    pass
+                logger.info(f"[SAM3] {frame_idx}/{total_frames} balayées, "
+                            f"{scanned} analysées ({updated} maj, {created} créées)")
 
             if frame_idx - last_progress_frame >= 50 and total_frames > 0:
                 pct = 1 + (frame_idx / total_frames) * 98
@@ -1806,6 +2199,18 @@ def analyze_sam3_only_task(self, session_id: str):
             'fallback': bool(getattr(profile, 'sam3_as_road_fallback', False)),
         })
 
+        # ── Auto-calibration homographie depuis les passages piétons détectés ──
+        # Si un passage exploitable est trouvé : calibre H (cœur partagé) puis
+        # ré-annote les distances géométriques SANS relancer YOLO. Best-effort,
+        # non bloquant (le fallback pinhole reste si ça échoue).
+        try:
+            cal = _auto_calibrate_from_crossings(session, front, user_id)
+            if cal:
+                n = _reannotate_ground_distances(front, {'homography': cal['H']})
+                _console(user_id, f"Distances géométriques ré-annotées sur {n} frame(s) [{front.position}]")
+        except Exception:
+            logger.debug('auto-calibration from SAM3 failed (non-blocking)', exc_info=True)
+
         set_session_progress(session_id, 100, "SAM3 terminé")
         _console(user_id,
                  f"SAM3 terminé — {scanned} frame(s) analysée(s), "
@@ -1828,6 +2233,10 @@ def analyze_sam3_only_task(self, session_id: str):
                 session.status = _previous_status
                 session.save(update_fields=['status'])
             cache.delete(f"stop_cam_analyzer_{session.user_id}")
+            # Ne pas laisser la passe SAM3 bloquée en 'running' après annulation.
+            from .models import AnalysisPass
+            AnalysisPass.objects.filter(session=session, pass_type='sam3_markings',
+                                        status='running').update(status='failed')
             _console(session.user_id, "SAM3 annulé")
         except Exception:
             pass
@@ -1840,6 +2249,10 @@ def analyze_sam3_only_task(self, session_id: str):
             if _previous_status is not None:
                 session.status = _previous_status
                 session.save(update_fields=['status'])
+            # Ne pas laisser la passe SAM3 bloquée en 'running' après un crash.
+            from .models import AnalysisPass
+            AnalysisPass.objects.filter(session=session, pass_type='sam3_markings',
+                                        status='running').update(status='failed')
             _console(session.user_id, f"ERREUR SAM3: {e}")
         except Exception:
             pass
@@ -2044,13 +2457,37 @@ def extract_rtmaps_task(self, session_id: str, rec_path: str = None, csv_path: s
             cam.save()
             _console(user_id, f"Caméra {pos} : {meta.get('frame_count', 0)} frames, {meta.get('duration', 0):.1f}s")
 
-        # ── 6. Save GPS track + source type + reset status ──────────────
+        # ── 6. Parse IMU (accéléromètre) depuis les CSV par canal ────────
+        # Les fichiers Accel_Sensor_{X,Y,Z}_axis.csv sont dans le même dossier
+        # RecFile_Data que le .rec / la CSV API. Best-effort : l'absence d'IMU
+        # ne bloque pas l'extraction (ego-pose retombe sur le GPS seul).
+        imu_track = []
+        try:
+            from .utils.ego_pose import parse_accel
+            _rec_dir = os.path.dirname(rec_path or csv_path or '')
+            if _rec_dir and os.path.isdir(_rec_dir):
+                imu_track = parse_accel(_rec_dir)
+                if imu_track:
+                    _console(user_id, f"IMU : {len(imu_track)} échantillons accéléromètre")
+        except Exception:
+            logger.debug('IMU parsing failed (non-blocking)', exc_info=True)
+
+        # ── 7. Save GPS + IMU tracks + source type + reset status ────────
+        # Annoter cap + vitesse depuis les positions (sinon heading/speed restent à 0
+        # dans le track stocké → vue de dessus mal orientée). C'est la même fonction
+        # que celle utilisée par EgoPose, mais appliquée AU TRACK PERSISTÉ.
+        try:
+            from .utils.ego_pose import annotate_gps_heading_speed
+            gps_track = annotate_gps_heading_speed(gps_track)
+        except Exception:
+            logger.debug('annotate GPS heading/speed failed (non-blocking)', exc_info=True)
         session.gps_track = gps_track
+        session.imu_track = imu_track
         session.source_type = 'rtmaps'
         # Reset to DRAFT so user can review videos before launching analysis manually
         session.status = AnalysisSession.Status.DRAFT
         session.progress = 0.0
-        session.save(update_fields=['gps_track', 'source_type', 'status', 'progress'])
+        session.save(update_fields=['gps_track', 'imu_track', 'source_type', 'status', 'progress'])
 
         _set_progress(100, "Extraction terminée — prêt pour analyse")
         try:

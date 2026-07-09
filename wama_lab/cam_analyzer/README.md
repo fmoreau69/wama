@@ -66,8 +66,11 @@ de la route (détection d'objets, segmentation de voie, proximité, conflits aux
 | `road_segmenter.py`, `road_model_downloader.py` | Segmentation route (BDD100K-seg) + téléchargement modèle. |
 | `sam3_road_analyzer.py` | Marquages au sol (SAM3 prompté). |
 | `lane_partition.py` | Attribution de voie par franchissements de lignes ; voie navette. |
-| `intersection_analyzer.py` | Moteur intersections : fenêtres GPS, phase d'arrêt, classification d'insertion, t0/t1/t2, densité. |
-| `distance_speed.py` | Distance/vitesse par triangulation pinhole (⚠️ voir Limites). |
+| `intersection_analyzer.py` | Moteur intersections : fenêtres GPS, phase d'arrêt, classification d'insertion, t0/t1/t2 (t2 raffiné par ratio d'aspect), densité. |
+| `distance_speed.py` | Distance pinhole (fallback) + **vitesse/TTC filtrés** (EMA + régression fenêtrée + clamp). |
+| `ground_projection.py` | **Projection sol par homographie** : point-sol bbox → `(X,Y)` repère navette → distances longitudinale/latérale/euclidienne. |
+| `calibration.py` | **Calibration homographie** : `solve_homography_dlt` (4 coins d'un objet-sol normé) + solveur pitch 1-point + intrinsèques depuis FoV. |
+| `ego_pose.py` | **Ego-pose GPS + accéléromètre** (parse CSV RecFile_Data ; cap = course GPS tenue à l'arrêt ; priorité API navette si dispo). |
 | `pass_tracking.py`, `window_recompute.py` | Passes incrémentales (STALE + cascade) et recalcul ciblé. |
 
 ### Tâches Celery (`tasks.py`, queue `gpu`)
@@ -91,6 +94,8 @@ de la route (détection d'objets, segmentation de voie, proximité, conflits aux
 - **Caméras** : `<id>/cameras/upload/`, `cameras/<cid>/delete/`, `.../update-position/`, `.../stream/`.
 - **Analyse** : `<id>/start/`, `<id>/status/`, `<id>/cancel/`, `<id>/recompute-windows/`,
   `<id>/start-sam3/`, `<id>/passes/` + `passes/run/`, `<id>/cameras/<cid>/detections/`.
+- **Calibration** : `<id>/calibrate/` (POST : 4 coins d'un passage piéton + dimensions → homographie sol
+  par DLT, enregistrée dans le profil + `geometry_enabled`).
 - **Export & analytics** : `<id>/export/{detections,json,segments,conflicts}/`, `<id>/segments/`,
   `<id>/analytics/`.
 - **Profils** : `api/profiles/`, `profiles/save/`, `profiles/<pid>/delete/`.
@@ -106,12 +111,14 @@ FileManager (WAMA Lab → Cam Analyzer).
 
 ## Limites connues
 
-- **Vitesses irréalistes** : `distance_speed.py` estime la distance par triangulation pinhole à partir
-  de la **hauteur de bbox** + FoV/hauteurs de classe **supposés** (non calibrés), puis dérive la vitesse
-  frame-à-frame **sans lissage** → bruit amplifié. Correctifs prévus : **calibration caméra**, échelle
-  par **références sol normalisées** (largeur de voie 3 m, pointillés 3 m/9 m) ou **homographie sol**,
-  et **filtrage** (Kalman/EMA) avant dérivation. Détail : [`CONTEXT.md`](CONTEXT.md) §7bis.
-- **Mesures absolues** : les **informations de calibration des caméras** ne sont pas encore intégrées.
+- **Vitesses irréalistes** : ✅ **corrigé** — `distance_speed.py` filtre désormais vitesse/TTC (lissage
+  EMA de la distance + régression sur fenêtre courte + clamp/rejet des valeurs implausibles) au lieu
+  d'une dérivée frame-à-frame brute. Voir [`CAM_ANALYZER_DISTANCE_DESIGN.md`](CAM_ANALYZER_DISTANCE_DESIGN.md) §3a.
+- **Distances absolues** : 🔄 **homographie sol câblée** (`ground_projection.py`), activée par caméra
+  quand le profil fournit une calibration (`geometry_enabled` + `camera_calibration[position]`). La
+  calibration s'obtient sans mesure terrain via l'endpoint `calibrate/` (4 coins d'un passage piéton
+  → DLT). Priorité méthode : DLT 4-points > solveur pitch 1-point > H analytique (priors FoV/hauteur)
+  > fallback pinhole. **Reste** : la mini-UI de clic des coins (dernier maillon).
 - **Attribution de voie** : heuristique par franchissements de lignes ; renvoie `-1` quand les pointillés
   sont trop fragmentés (intersections).
 - **Sur-fragmentation des segments** : détection per-frame → doublons ; consolidée par `LaneEvent` /
@@ -123,6 +130,17 @@ Menu *Applications → WAMA Lab → Cam Analyzer*, carte sur la page d'accueil, 
 tâches sur la queue Celery `gpu`. App enregistrée dans `wama/settings.py` (INSTALLED_APPS + routes) et
 `wama_lab/urls.py` (`cam-analyzer/`).
 
+## Rapport & UI (améliorations récentes)
+- **Pertinence** : chaque véhicule d'intersection est tagué `of_interest` (`event_type ∈ {insertion,
+  wait}` + classe usager de la route) ; les `turn` et faux positifs COCO sont masqués par défaut
+  (bascule « Afficher tout »). 1 ligne/véhicule avec **chips t0/t1/t2 cliquables** (seek + resync).
+- **Filtre de classes** : répartition, résumé et **overlay vidéo** limités aux usagers de la route ;
+  la légende du camembert sert de filtre overlay interactif.
+- **Divers** : renommage de session (🖉), durées en `hh:mm:ss`, panneau pipeline affiché au chargement,
+  marqueur GPS **interpolé** (fluide). Vue de dessus des objets = à venir (tracé des `(X,Y)` sur la carte).
+
 ## Voir aussi
+- [`CAM_ANALYZER_DISTANCE_DESIGN.md`](CAM_ANALYZER_DISTANCE_DESIGN.md) — **conception distances/vitesses/TTC
+  + homographie + calibration + ego-pose + vue de dessus** (décisions, preuves empiriques, phasage).
 - [`CONTEXT.md`](CONTEXT.md) — handoff de reprise (état réel vérifié, faisabilité, algorithmes, priorités).
 - **ROADMAP.md §9** — phases détaillées et règles d'événements.
