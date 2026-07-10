@@ -375,6 +375,15 @@ document.addEventListener('DOMContentLoaded', function () {
             // Offset de synchro GPS↔vidéo (recalage manuel par session).
             gpsTimeOffset = data.gps_time_offset || 0;
             gpsTimeScale = data.gps_time_scale || 1;
+            // Largeur de voie : override manuel (par session) > auto-estimée > défaut 3,5m.
+            let _lwManual = null;
+            try { _lwManual = localStorage.getItem('cam_analyzer_lane_width_' + sessionId); } catch (e) { /* noop */ }
+            laneWidthM = _lwManual ? (parseFloat(_lwManual) || 3.5)
+                : (data.lane_width_m && data.lane_width_m > 0 ? data.lane_width_m : 3.5);
+            const _lws = document.getElementById('laneWidthSlider');
+            if (_lws) _lws.value = laneWidthM;
+            const _lwv = document.getElementById('laneWidthVal');
+            if (_lwv) _lwv.textContent = laneWidthM.toFixed(1) + 'm';
             const _goi = document.getElementById('gpsOffsetInput');
             if (_goi) _goi.value = gpsTimeOffset;
             const _gos = document.getElementById('gpsOffsetSlider');
@@ -3913,13 +3922,11 @@ document.addEventListener('DOMContentLoaded', function () {
         // Largeur de voie (gabarit vue de dessus) : slider + persistance + re-render live.
         const _lw = document.getElementById('laneWidthSlider');
         if (_lw) {
-            try { const sv = localStorage.getItem('cam_analyzer_lane_width'); if (sv) laneWidthM = parseFloat(sv) || 3.5; } catch (e) { /* noop */ }
-            _lw.value = laneWidthM;
-            const _lwl0 = document.getElementById('laneWidthVal'); if (_lwl0) _lwl0.textContent = laneWidthM.toFixed(1) + 'm';
             _lw.oninput = () => {
                 laneWidthM = parseFloat(_lw.value) || 3.5;
                 const _lwl = document.getElementById('laneWidthVal'); if (_lwl) _lwl.textContent = laneWidthM.toFixed(1) + 'm';
-                try { localStorage.setItem('cam_analyzer_lane_width', String(laneWidthM)); } catch (e) { /* noop */ }
+                // Override manuel PAR SESSION (gagne sur l'auto au rechargement).
+                try { if (currentSessionId) localStorage.setItem('cam_analyzer_lane_width_' + currentSessionId, String(laneWidthM)); } catch (e) { /* noop */ }
                 if (typeof currentTime === 'number') { topDownLastRender = -999; updateMiniMapShuttle(currentTime); }
             };
         }

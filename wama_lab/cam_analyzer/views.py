@@ -301,6 +301,7 @@ def get_session(request, session_id):
         'gps_track': gps_sampled,
         'gps_time_offset': getattr(session, 'gps_time_offset', 0.0) or 0.0,
         'gps_time_scale': getattr(session, 'gps_time_scale', 1.0) or 1.0,
+        'lane_width_m': getattr(session, 'lane_width_m', 0.0) or 0.0,
         'created_at': session.created_at.isoformat(),
         'error_message': session.error_message,
     })

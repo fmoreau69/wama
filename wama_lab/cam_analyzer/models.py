@@ -219,6 +219,12 @@ class AnalysisSession(models.Model):
                   "12,5fps → scale≈0,96) → sinon la désync GRANDIT avec le temps. Calculé "
                   "auto depuis le .rec (video_timestamps).",
     )
+    lane_width_m = models.FloatField(
+        default=0.0,
+        help_text="Largeur de voie (m) estimée AUTO depuis les marquages yolopv2 projetés "
+                  "au sol (médiane de l'écartement latéral). 0 = non estimée (défaut UI 3,5m). "
+                  "Sert de 1ère passe pour le gabarit de la vue de dessus ; slider = affinage.",
+    )
     imu_track = models.JSONField(
         default=list,
         blank=True,
