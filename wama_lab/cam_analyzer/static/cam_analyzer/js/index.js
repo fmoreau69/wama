@@ -50,6 +50,8 @@ document.addEventListener('DOMContentLoaded', function () {
     let lastRoadMask = {};           // position → derniers road_mask connus (overlay route persistant)
     let gpsTimeOffset = 0;           // recalage GPS↔vidéo (s) : ts_gps = t*scale + offset
     let gpsTimeScale = 1;            // échelle temps vidéo→réel (corrige fps AVI erroné)
+    let laneWidthM = 3.5;            // largeur de voie (m) pour le gabarit vue de dessus
+    let miniMapLaneLayer = null;     // calque du gabarit de voie
     let _lastTimeSave = 0;           // throttle de la persistance de position timeline
     let proximityByTime = [];  // [{time, proximity}] for timeline
 
@@ -2238,12 +2240,14 @@ document.addEventListener('DOMContentLoaded', function () {
         topDownLastRender = currentTime;
         if (!miniMapObjectLayer) miniMapObjectLayer = L.layerGroup().addTo(miniMap);
         if (!miniMapTrailLayer) miniMapTrailLayer = L.layerGroup().addTo(miniMap);
+        if (!miniMapLaneLayer) miniMapLaneLayer = L.layerGroup().addTo(miniMap);
         // Reset des traces sur saut temporel (seek).
         if (Math.abs(currentTime - topDownLastTime) > 1.0) topDownTrails.clear();
         topDownLastTime = currentTime;
 
         miniMapObjectLayer.clearLayers();
         miniMapTrailLayer.clearLayers();
+        miniMapLaneLayer.clearLayers();
 
         const pose = findGpsAtTime(currentTime);
         updateEgoShape(pose);
@@ -2254,6 +2258,17 @@ document.addEventListener('DOMContentLoaded', function () {
                 pose ? ('heading=' + pose.heading) : 'pas de fix GPS');
             return;
         }
+        // Gabarit de voie (repère navette, le long du cap). France : la navette roule à
+        // droite dans SA voie → ligne centrale à gauche (pointillés jaunes), bords de route
+        // pleins. Largeur = laneWidthM (défaut 3,5m, ajustable/auto). Aligné à la circulation.
+        const _half = laneWidthM / 2;
+        [{ x: _half, c: '#e0e0e0', d: null }, { x: -_half, c: '#ffd54f', d: '6,6' },
+         { x: -_half * 3, c: '#e0e0e0', d: null }].forEach(e => {
+            const pts = [];
+            for (let y = -50; y <= 50; y += 5) pts.push(egoToLatLon(pose.lat, pose.lon, pose.heading, e.x, y));
+            L.polyline(pts, { color: e.c, weight: 1.5, opacity: 0.85, dashArray: e.d }).addTo(miniMapLaneLayer);
+        });
+
         const dd = detectionData['front'];
         if (!dd || !dd.frames || !dd.frames.length) {
             console.warn('[topdown] rien : detectionData[front] vide (détections pas chargées).');
@@ -3895,6 +3910,19 @@ document.addEventListener('DOMContentLoaded', function () {
         wire('sam3TestBtn', () => runSam3Test(false));
         wire('sam3CalibBtn', () => runSam3Test(true));
         wire('copyDebugBtn', copyDebugInfo);
+        // Largeur de voie (gabarit vue de dessus) : slider + persistance + re-render live.
+        const _lw = document.getElementById('laneWidthSlider');
+        if (_lw) {
+            try { const sv = localStorage.getItem('cam_analyzer_lane_width'); if (sv) laneWidthM = parseFloat(sv) || 3.5; } catch (e) { /* noop */ }
+            _lw.value = laneWidthM;
+            const _lwl0 = document.getElementById('laneWidthVal'); if (_lwl0) _lwl0.textContent = laneWidthM.toFixed(1) + 'm';
+            _lw.oninput = () => {
+                laneWidthM = parseFloat(_lw.value) || 3.5;
+                const _lwl = document.getElementById('laneWidthVal'); if (_lwl) _lwl.textContent = laneWidthM.toFixed(1) + 'm';
+                try { localStorage.setItem('cam_analyzer_lane_width', String(laneWidthM)); } catch (e) { /* noop */ }
+                if (typeof currentTime === 'number') { topDownLastRender = -999; updateMiniMapShuttle(currentTime); }
+            };
+        }
         // Filtre de confiance à l'affichage (sans ré-analyse) + persistance de la valeur.
         const _cf = document.getElementById('overlayConfSlider');
         if (_cf) {
