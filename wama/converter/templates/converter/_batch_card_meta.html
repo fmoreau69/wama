@@ -1,0 +1,5 @@
+{% comment %}Slot « méta communes aux filles » de la card mère batch (_batch_card.html) —
+converter : nature du lot (les réglages format/qualité sont communs par construction).{% endcomment %}
+{% if batch_info.media_label %}
+<small class="text-white-50 d-block"><i class="fas fa-photo-film"></i> {{ batch_info.media_label }}</small>
+{% endif %}

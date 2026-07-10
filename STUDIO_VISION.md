@@ -7,7 +7,8 @@
 > Le mixage/mastering est explicitement un **PoC** (aucun outil équivalent n'existe à ce jour).
 >
 > S'appuie sur le squelette existant : voir `memory/project_meta_app_studio.md`, `MODES_QUEUE_UX.md`
-> (§ méta-app), `CARD_DESIGN.md`. Route actuelle : `/common/studio/`.
+> (§ méta-app), `CARD_DESIGN.md`. Route actuelle : `/studio/` (app Django dédiée `wama/studio`,
+> migrée de `common` — corrigé 2026-07-09, l'app studio existe et est montée à la racine des URLs).
 
 ## Idée maîtresse
 Le **studio** (canvas méta-app : nœuds-app + connecteurs typés) n'est pas qu'un orchestrateur de

@@ -13,7 +13,7 @@ Contexte : item = ReadingItem (avec .chips) ; in_batch = fille de batch.
 {% endcomment %}
 
 {% with item.filename as fname %}
-<div class="reader-card card bg-dark border-secondary wama-card {% if in_batch %}mb-1{% else %}mb-2{% endif %} {% if item.status == 'RUNNING' %}processing{% elif item.status == 'DONE' %}success{% elif item.status == 'ERROR' %}error{% endif %}"
+<div class="reader-card card bg-dark border-secondary wama-card {% if in_batch %}mb-1{% else %}mb-2{% endif %} {% if item.status == 'RUNNING' %}processing{% elif item.status == 'SUCCESS' %}success{% elif item.status == 'FAILURE' %}error{% endif %}"
      {% if in_batch %}style="border-radius:0 0.375rem 0.375rem 0;"{% endif %}
      data-id="{{ item.id }}" data-status="{{ item.status }}"
      data-preview-url="{% url 'common:unified_preview' 'reader' item.id %}">
@@ -37,10 +37,10 @@ Contexte : item = ReadingItem (avec .chips) ; in_batch = fille de batch.
     <span class="d-inline-flex align-items-center gap-1 flex-shrink-0 small">
       <span class="wama-status-dot" data-s="{{ item.status }}"></span>
       <span class="text-white-50" style="font-size:.72rem;">
-        {% if item.status == 'PENDING' %}En attente{% elif item.status == 'RUNNING' %}En cours{% elif item.status == 'DONE' %}Terminé{% elif item.status == 'ERROR' %}Échec{% else %}{{ item.status }}{% endif %}
+        {% if item.status == 'PENDING' %}En attente{% elif item.status == 'RUNNING' %}En cours{% elif item.status == 'SUCCESS' %}Terminé{% elif item.status == 'FAILURE' %}Échec{% else %}{{ item.status }}{% endif %}
       </span>
       {% if item.status == 'RUNNING' %}<span class="wama-eta" data-eta-ids="{{ item.id }}"></span>{% endif %}
-      {% if item.status == 'DONE' %}{% include 'common/_processing_time.html' with elapsed=item.processing_display %}{% endif %}
+      {% if item.status == 'SUCCESS' %}{% include 'common/_processing_time.html' with elapsed=item.processing_display %}{% endif %}
     </span>
 
     {# Actions — ordre conventionnel ⚙ ▶(cycle) ⬇ ⧉ 🗑 (conventions §6) #}
@@ -99,11 +99,11 @@ Contexte : item = ReadingItem (avec .chips) ; in_batch = fille de batch.
     <div class="wama-progress-fill active" style="width:{{ item.progress }}%"></div>
   </div>
   <small class="progress-text text-warning">{{ item.progress }}% — En cours…</small>
-  {% elif item.status == 'DONE' %}
+  {% elif item.status == 'SUCCESS' %}
   <div class="wama-progress-track mt-2">
     <div class="wama-progress-fill" style="width:100%"></div>
   </div>
-  {% elif item.status == 'ERROR' %}
+  {% elif item.status == 'FAILURE' %}
   <div class="wama-progress-track mt-2">
     <div class="wama-progress-fill" style="width:100%; background:#dc3545;"></div>
   </div>

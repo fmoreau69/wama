@@ -1087,32 +1087,6 @@ def about(request):
     return render(request, 'imager/about.html')
 
 
-@require_http_methods(["POST"])
-def enhance_prompt(request):
-    """Enhance a prompt via Ollama (Gemma 3 or configured model)."""
-    import json as _json
-    from wama.imager.utils.prompt_enhancer import enhance_prompt as _enhance, ENHANCE_MODEL
-
-    try:
-        body = _json.loads(request.body)
-        prompt = (body.get('prompt') or '').strip()
-        mode = body.get('mode', 'image')  # 'image' | 'video'
-    except Exception:
-        return JsonResponse({'error': 'Invalid JSON'}, status=400)
-
-    if not prompt:
-        return JsonResponse({'error': 'Prompt vide'}, status=400)
-    if len(prompt) > 2000:
-        return JsonResponse({'error': 'Prompt trop long (max 2000 chars)'}, status=400)
-
-    try:
-        enhanced = _enhance(prompt, mode=mode)
-        return JsonResponse({'original': prompt, 'enhanced': enhanced, 'model': ENHANCE_MODEL})
-    except RuntimeError as e:
-        logger.warning(f"[EnhancePrompt] Ollama error: {e}")
-        return JsonResponse({'error': str(e)})
-
-
 def help_page(request):
     """Help page"""
     return render(request, 'imager/help.html')

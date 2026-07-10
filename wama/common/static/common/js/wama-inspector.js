@@ -264,10 +264,12 @@
         infoHost.innerHTML = renderDetailChips(d);
         if (infoSection) infoSection.style.display = '';
         // Identité + désélection remontées ici → le bandeau Paramètres (#N redondant) est masqué.
+        // (Apps portées au détail : le bandeau est RETIRÉ du template — §21.3.6 ; on ne proxifie
+        // donc plus par son bouton, le ✕ des Infos appelle la désélection directement.)
         var banner = $(ids.banner);
         if (banner) banner.style.display = 'none';
         var db = infoHost.querySelector('.wama-info-deselect');
-        if (db) db.addEventListener('click', function () { var od = $(ids.deselect); if (od) od.click(); });
+        if (db) db.addEventListener('click', deselect);
       }).catch(hideDetail);
     }
     function restorePreview() {
@@ -460,6 +462,14 @@
       const d = p.dom_id;
       return (d && typeof d === 'object') ? (d.panel || p.name) : (d || p.name);
     }
+    // name= du groupe radio (radio_name legacy, même sémantique par contexte que dom_id),
+    // repli sur panelKey — sans ça les radios à nom legacy (ex. transcriber globalSummaryType)
+    // échappent au read/apply dérivés.
+    function radioKey(p) {
+      const r = p.radio_name;
+      const k = (r && typeof r === 'object') ? (r.panel || '') : (r || '');
+      return k || panelKey(p);
+    }
     // Élément d'un champ par dom_id : #id, sinon [name=]/[data-param=] dans le volet.
     function fieldEl(key) {
       return document.getElementById(key) ||
@@ -473,7 +483,7 @@
         schema.forEach(function (p) {
           if (p.contexts && p.contexts.indexOf('panel') === -1) return;
           const key = panelKey(p);
-          const radios = (ph || document).querySelectorAll('input[type="radio"][name="' + key + '"]');
+          const radios = (ph || document).querySelectorAll('input[type="radio"][name="' + radioKey(p) + '"]');
           if (radios.length) { radios.forEach(function (r) { if (r.checked) out[p.name] = r.value; }); return; }
           const el = fieldEl(key);
           if (el) out[p.name] = (el.type === 'checkbox') ? el.checked : el.value;
@@ -485,7 +495,7 @@
         schema.forEach(function (p) {
           if (!(p.name in vals)) return;
           const key = panelKey(p);
-          const radios = (ph || document).querySelectorAll('input[type="radio"][name="' + key + '"]');
+          const radios = (ph || document).querySelectorAll('input[type="radio"][name="' + radioKey(p) + '"]');
           if (radios.length) {
             radios.forEach(function (r) {
               r.checked = (String(r.value) === String(vals[p.name]));

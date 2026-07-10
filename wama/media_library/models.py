@@ -33,6 +33,34 @@ ALLOWED_EXTENSIONS = {
 # Union de toutes les extensions pour le FileExtensionValidator
 _ALL_EXTENSIONS = sorted({ext for exts in ALLOWED_EXTENSIONS.values() for ext in exts})
 
+# Rattachement des ASSET_TYPES (fins, propres à Media Library) au vocabulaire de catégories
+# UNIQUE de WAMA (`app_registry.MEDIA_CATEGORIES` — déjà utilisé par le typage des ports studio
+# et par `media_probe.probe_media`). Media Library ne réinvente PAS ses propres noms de
+# catégories : elle mappe ses types fins dessus (plusieurs ASSET_TYPES → une même catégorie).
+from wama.common.app_registry import MEDIA_CATEGORIES
+
+ASSET_TYPE_CATEGORY = {
+    'voice': 'audio', 'audio_music': 'audio', 'audio_sfx': 'audio',
+    'image': 'image', 'avatar': 'image',
+    'video': 'video',
+    'document': 'document',
+}
+
+# Alias logiques → liste de vraies valeurs ASSET_TYPES (bug 2026-07-09 : le picker/les modes d'app
+# passent des types « larges » — 'all' (défaut `_new_item_card.html`), 'audio' (transcriber +
+# `app_modes.py` accept='audio') — qui ne correspondent à AUCUNE valeur ASSET_TYPES exacte. Un
+# `.filter(asset_type=asset_type)` littéral sur ces alias ne matchait donc JAMAIS rien (recherche
+# toujours vide, quel que soit le texte tapé). Résolu ici, en un seul endroit, consommé par
+# `views.py::api_list` — toute app appelant `MediaPicker.open({type: 'audio'|'image'|'all'|…})`
+# en profite sans rien changer côté app. Clés = catégories de MEDIA_CATEGORIES (pas un 2e
+# vocabulaire local) ; 'all' reste le seul alias propre à Media Library (pas de filtre).
+TYPE_GROUPS = {'all': None}
+for _cat in MEDIA_CATEGORIES:
+    _members = [t for t, c in ASSET_TYPE_CATEGORY.items() if c == _cat]
+    if _members:
+        TYPE_GROUPS[_cat] = _members
+del _cat, _members
+
 
 class UserAsset(models.Model):
     """Asset personnel d'un utilisateur, réutilisable dans toutes les apps."""

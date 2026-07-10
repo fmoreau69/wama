@@ -309,7 +309,7 @@
             fetch(config.urls.enhancePrompt, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json', 'X-CSRFToken': config.csrfToken},
-                body: JSON.stringify({prompt: textarea.value, mode: mode})
+                body: JSON.stringify({prompt: textarea.value, app: 'imager', domain: mode})
             })
             .then(r => r.json())
             .then(data => {

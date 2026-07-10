@@ -35,8 +35,9 @@
         document:    'fa-file-alt',
         avatar:      'fa-user-circle',
     };
-    // Types qui utilisent un player audio
-    const AUDIO_TYPES = ['voice', 'audio_music', 'audio_sfx'];
+    // Types qui utilisent un player audio — AUDIO_TYPES vient du script global de la page
+    // (TYPE_GROUPS['audio'] côté serveur, media_library/models.py — source unique, plus de
+    // liste dupliquée ici depuis 2026-07-09).
 
     // ── State ─────────────────────────────────────────────────────────────────
 

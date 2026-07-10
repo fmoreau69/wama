@@ -145,6 +145,22 @@ Edit `config.py` to customize:
 - Code file extensions
 - Console theme colors
 
+## Prompt skills WAMA (source partagée)
+
+Les **skills de prompt par application** (consignes d'enrichissement : `imager-image`,
+`imager-video`, `composer-music`, …) vivent dans `wama/common/prompt_skills/` — source UNIQUE
+partagée entre la pipeline Django, l'enrichissement à la demande (bouton ✨ des apps) et les
+agents. Le module de résolution est **importable sans Django** :
+
+```python
+from wama.common.utils.prompt_skills import resolve_skill, skills_catalog
+name, text = resolve_skill(app="imager", domain="video")  # -> ("imager-video", <system prompt>)
+```
+
+Règle : si une tâche d'agent touche une app (enrichir/composer un prompt pour elle), charger le
+skill de l'app et l'utiliser comme system prompt — ne PAS ré-écrire de consignes locales.
+Chemin exposé dans `config.py` (`PROMPT_SKILLS_DIR`). Contrat : `wama/common/prompt_skills/README.md`.
+
 ## Tips
 
 1. **Be specific**: "Fix the null pointer in transcriber/views.py line 42" works better than "fix bugs"

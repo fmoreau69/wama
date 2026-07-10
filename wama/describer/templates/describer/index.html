@@ -1,5 +1,6 @@
 {% extends 'describer/base.html' %}
 {% load static %}
+{% load wama_static %}
 
 {% block title %}Describer - Content Description{% endblock %}
 
@@ -13,7 +14,6 @@ migré 2026-07-05) ; IDs dropZone/fileInput/media_url conservés → handlers JS
 
 {# ── Right panel : paramètres ────────────────────────────────────────────── #}
 {% block app_right_panel_settings %}
-{% include 'common/_inspector_banner.html' %}{# bandeau « Réglages de l'élément #N » (WamaInspector) #}
 <div id="describerPanelParams"></div>{# WamaParams context=panel (cf. describer/params.py) ; ids legacy préservés ; encart Types supportés retiré #}
 <!-- Reset Button -->
 <hr class="border-secondary my-2">
@@ -233,10 +233,10 @@ migré 2026-07-05) ; IDs dropZone/fileInput/media_url conservés → handlers JS
     };
 </script>
 {# wama-inspector.css + wama-params.css chargés globalement (base.html) — plus de link local ici #}
-<script src="{% static 'common/js/wama-eta.js' %}"></script>
-<script src="{% static 'common/js/batch-import.js' %}"></script>
-<script src="{% static 'common/js/wama-inspector.js' %}"></script>
-<script src="{% static 'common/js/wama-params.js' %}"></script>
+<script src="{% static_v 'common/js/wama-eta.js' %}"></script>
+<script src="{% static_v 'common/js/batch-import.js' %}"></script>
+<script src="{% static_v 'common/js/wama-inspector.js' %}"></script>
+<script src="{% static_v 'common/js/wama-params.js' %}"></script>
 <script>
 (function () {
   if (!window.WamaParams) return;
@@ -248,7 +248,7 @@ migré 2026-07-05) ; IDs dropZone/fileInput/media_url conservés → handlers JS
   if (mh) WamaParams.render(mh, schema, { context: 'item', values: {} });
 })();
 </script>
-<script src="{% static 'describer/js/index.js' %}"></script>
+<script src="{% static_v 'describer/js/index.js' %}"></script>
 <!-- Barre globale commune (balayage permanent + ETA agrégée) : URL puis script auto-démarré. -->
 <script>window.WAMA_GLOBAL_PROGRESS_URL = "{% url 'describer:global_progress' %}";</script>
 <script>
@@ -274,8 +274,8 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 });
 </script>
-<script src="{% static 'common/js/wama-global-progress.js' %}"></script>
-<script src="{% static 'common/js/wama-queue.js' %}"></script>  {# file commune : toggle Ligne/Mosaïque + collapse batch + focusCard #}
+<script src="{% static_v 'common/js/wama-global-progress.js' %}"></script>
+<script src="{% static_v 'common/js/wama-queue.js' %}"></script>  {# file commune : toggle Ligne/Mosaïque + collapse batch + focusCard #}
 <script>
 // Inspecteur contextuel commun : clic card/batch → bandeau « Réglages de l'élément #N » + valeurs de
 // la card dans le volet + sauvegarde routée. Câblage générique dérivé du schéma (initFromSchema).

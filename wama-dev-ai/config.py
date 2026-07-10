@@ -16,6 +16,9 @@ import os
 BASE_DIR = Path(__file__).parent.parent  # WAMA root
 WAMA_DEV_AI_DIR = Path(__file__).parent
 PROMPTS_DIR = WAMA_DEV_AI_DIR / "prompts"
+# Skills de prompt par app WAMA (source UNIQUE, partagée avec la pipeline Django et
+# l'enrichissement à la demande) — voir wama/common/prompt_skills/README.md.
+PROMPT_SKILLS_DIR = BASE_DIR / "wama" / "common" / "prompt_skills"
 OUTPUT_DIR = WAMA_DEV_AI_DIR / "outputs"
 CACHE_DIR = WAMA_DEV_AI_DIR / ".cache"
 EMBEDDINGS_DIR = CACHE_DIR / "embeddings"

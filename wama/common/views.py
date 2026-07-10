@@ -7,7 +7,7 @@ Common views for system utilities.
 from django.core.cache import cache
 from django.http import JsonResponse
 from django.shortcuts import render
-from django.views.decorators.http import require_GET
+from django.views.decorators.http import require_GET, require_POST
 
 from .services.system_monitor import SystemMonitor
 from .utils.console_utils import get_console_lines
@@ -26,6 +26,39 @@ def api_voices(request):
     from wama.accounts.views import get_or_create_anonymous_user
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     return JsonResponse({'groups': get_voice_groups(user)})
+
+
+@require_POST
+def api_enrich_prompt(request):
+    """Enrichissement de prompt À LA DEMANDE (bouton ✨ des apps, éditeur de nœud du studio) —
+    endpoint GÉNÉRIQUE : {prompt, app, domain} → skill d'app ([[prompt_skills]]) + LLM local.
+    `domain` explicite car avant exécution il n'y a pas d'instance (pas de domain_field) ;
+    l'appelant (app ou nœud studio) connaît son app/mode par construction. Émission dans la
+    langue de l'utilisateur (il doit pouvoir relire/éditer) — la traduction reste l'affaire de
+    la pipeline au lancement de la tâche."""
+    import json
+    from .utils.prompt_enrichment import enrich_on_demand
+
+    try:
+        body = json.loads(request.body)
+        prompt = (body.get('prompt') or '').strip()
+        app = (body.get('app') or '').strip() or None
+        # `mode` accepté en alias (vocabulaire des switch de mode côté apps)
+        domain = (body.get('domain') or body.get('mode') or '').strip() or None
+    except Exception:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    if not prompt:
+        return JsonResponse({'error': 'Prompt vide'}, status=400)
+    if len(prompt) > 2000:
+        return JsonResponse({'error': 'Prompt trop long (max 2000 caractères)'}, status=400)
+
+    lang = (getattr(getattr(request.user, 'profile', None), 'preferred_language', None) or 'en')
+    try:
+        enhanced = enrich_on_demand(prompt, app=app, domain=domain, language=lang)
+        return JsonResponse({'original': prompt, 'enhanced': enhanced})
+    except RuntimeError as e:
+        return JsonResponse({'error': str(e)})
 
 
 @require_GET

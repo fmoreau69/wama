@@ -406,6 +406,16 @@ def generate_video_task(self, generation_id):
         _console(user_id, f"[Imager Video] Prompt: {generation.prompt[:80]}{'...' if len(generation.prompt) > 80 else ''}")
         logger.info(f"Starting video generation #{generation_id} ({mode_label})")
 
+        # Pipeline de prompt commune (§16.6) — manquait côté vidéo (comblé 2026-07-08 avec les
+        # skills). Variables LOCALES comme côté image : les generation.save() plus bas ne
+        # doivent pas persister le prompt traité (la base garde l'original de l'utilisateur).
+        from wama.common.utils.app_metadata import process_prompt_for
+        _cons = lambda m: _console(user_id, f"[Imager Video] {m}")
+        _prompt = process_prompt_for('imager', 'prompt', generation.prompt,
+                                     instance=generation, user=generation.user, console=_cons)
+        _negative = process_prompt_for('imager', 'negative_prompt', generation.negative_prompt,
+                                       instance=generation, user=generation.user, console=_cons)
+
         # Detect which backend to use based on model name
         model_name = generation.model
         backend_type = None
@@ -636,8 +646,8 @@ def generate_video_task(self, generation_id):
         if backend_type == 'hunyuan':
             export_fps = generation.video_fps
             params = params_class(
-                prompt=generation.prompt,
-                negative_prompt=generation.negative_prompt,
+                prompt=_prompt,
+                negative_prompt=_negative,
                 model=generation.model,
                 width=width,
                 height=height,
@@ -658,8 +668,8 @@ def generate_video_task(self, generation_id):
             cogvideox_frames = 4 * k + 1  # e.g. 5s→41f, 6s→49f, 8s→65f
             _console(user_id, f"[Imager Video] CogVideoX: {cogvideox_frames} frames à {COGVIDEOX_FPS}fps = {cogvideox_frames / COGVIDEOX_FPS:.1f}s")
             params = params_class(
-                prompt=generation.prompt,
-                negative_prompt=generation.negative_prompt,
+                prompt=_prompt,
+                negative_prompt=_negative,
                 model=generation.model,
                 width=720,  # CogVideoX fixed resolution
                 height=480,
@@ -703,8 +713,8 @@ def generate_video_task(self, generation_id):
 
             _console(user_id, f"[Imager Video] LTX-Video: {ltx_frames} frames à {LTX_FPS}fps = {ltx_frames / LTX_FPS:.1f}s")
             params = params_class(
-                prompt=generation.prompt,
-                negative_prompt=generation.negative_prompt or "worst quality, inconsistent motion, blurry, jittery, distorted",
+                prompt=_prompt,
+                negative_prompt=_negative or "worst quality, inconsistent motion, blurry, jittery, distorted",
                 model=generation.model,
                 width=ltx_width,
                 height=ltx_height,
@@ -724,8 +734,8 @@ def generate_video_task(self, generation_id):
             mochi_frames = max(1, mochi_frames)
             _console(user_id, f"[Imager Video] Mochi: {mochi_frames} frames à {MOCHI_FPS}fps = {mochi_frames / MOCHI_FPS:.1f}s")
             params = params_class(
-                prompt=generation.prompt,
-                negative_prompt=generation.negative_prompt,
+                prompt=_prompt,
+                negative_prompt=_negative,
                 model=generation.model,
                 width=848,  # Mochi default resolution
                 height=480,
@@ -739,8 +749,8 @@ def generate_video_task(self, generation_id):
             # Wan backend
             export_fps = generation.video_fps
             params = params_class(
-                prompt=generation.prompt,
-                negative_prompt=generation.negative_prompt,
+                prompt=_prompt,
+                negative_prompt=_negative,
                 model=generation.model,
                 width=width,
                 height=height,

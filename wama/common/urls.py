@@ -17,6 +17,9 @@ urlpatterns = [
     # Unified detail (infos inspecteur) : /common/detail/<app_name>/<pk>/
     path('detail/<str:app_name>/<int:pk>/', detail_registry.unified_detail, name='unified_detail'),
 
+    # Enrichissement de prompt à la demande (✨) — générique {prompt, app, domain}, cf. PROMPT_PIPELINE.md §Skills
+    path('api/enrich-prompt/', views.api_enrich_prompt, name='enrich_prompt'),
+
     # System stats endpoints
     path('api/system-stats/', views.system_stats, name='system_stats'),
     path('api/system-stats/full/', views.system_stats_full, name='system_stats_full'),

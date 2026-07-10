@@ -241,6 +241,11 @@
 
     // ── Drag & Drop ───────────────────────────────────────────────────────────
 
+    // Clic pour parcourir : l'ancien markup avait un onclick inline sur la div, retiré au
+    // passage à la card commune _new_item_card.html (2026-07-10, tête de file — cf. reader.js
+    // initDropZone). Sans ce listener, cliquer la zone n'ouvrait plus le sélecteur de fichiers.
+    dropZone.addEventListener('click', () => fileInput.click());
+
     dropZone.addEventListener('dragover', e => {
         e.preventDefault();
         dropZone.classList.add('dragover');
@@ -411,7 +416,10 @@
                 info.className = 'text-success small mt-1 job-info-line';
                 card.appendChild(info);
             }
-            info.innerHTML = `<i class="fas fa-check-circle"></i> ${data.output_filename || 'Converti'}`;
+            info.innerHTML = `<i class="fas fa-check-circle"></i> ${data.output_filename || 'Converti'}` +
+                (data.processing_display
+                    ? ` <span class="wama-proc-time text-white-50" title="Temps de traitement réel"><i class="fas fa-stopwatch"></i> ${data.processing_display}</span>`
+                    : '');
 
             const dlBtn = card.querySelector('.btn-outline-info');
             if (dlBtn) {
@@ -470,7 +478,14 @@
 
         // ── Actions de groupe batch (stopPropagation → ne pas toggler le collapse) ──
         const bSet = e.target.closest('.batch-settings-btn');
-        if (bSet) { e.stopPropagation(); openBatchSettingsModal(bSet.dataset.batchId, bSet.dataset.mediaType); return; }
+        if (bSet) {
+            e.stopPropagation();
+            // Nature du lot : sur le wrapper .batch-group (la card mère commune _batch_card.html
+            // ne porte pas de data-media-type sur son bouton ⚙).
+            const mt = bSet.dataset.mediaType || bSet.closest('.batch-group')?.dataset.mediaType;
+            openBatchSettingsModal(bSet.dataset.batchId, mt);
+            return;
+        }
 
         const bStart = e.target.closest('.batch-start-btn');
         if (bStart) { e.stopPropagation(); startBatch(bStart.dataset.batchId); return; }

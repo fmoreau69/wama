@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import User
+from wama.common.models import ProcessingTimeMixin
 from wama.common.utils.media_paths import UploadToUserPath
 
 
@@ -41,7 +42,7 @@ class ConversionBatch(models.Model):
         return f"ConversionBatch #{self.id} — {self.media_type} ({self.total})"
 
 
-class ConversionJob(models.Model):
+class ConversionJob(ProcessingTimeMixin, models.Model):
     STATUS_CHOICES = [
         ('PENDING',  'En attente'),
         ('RUNNING',  'En cours'),

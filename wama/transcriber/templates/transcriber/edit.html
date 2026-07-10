@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% load static %}
+{% load wama_static %}
 
 {% block title %}Correction — {{ transcript.filename }}{% endblock %}
 
@@ -305,6 +306,6 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="{% static 'common/js/wama-audio-player.js' %}"></script>
-<script src="{% static 'transcriber/js/edit.js' %}"></script>
+<script src="{% static_v 'common/js/wama-audio-player.js' %}"></script>
+<script src="{% static_v 'transcriber/js/edit.js' %}"></script>
 {% endblock %}

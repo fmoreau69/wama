@@ -94,6 +94,26 @@ def build_detail(instance, *, source_file=None, source_type=None, engine=None,
     if props:
         d['source_properties'] = props
 
+    # Fallback UNIVERSEL (chantier lié INSPECTOR_DETAIL_FIELDS.md) : si l'app ne fournit ni
+    # propriétés ni durée, sonde commune probe_media (image L×H / vidéo fps / audio kHz /
+    # PDF pages / archive entrées), cachée par (chemin, mtime) — une sonde par fichier.
+    if (source_file and not isinstance(source_file, str)
+            and (not d.get('source_properties') or not d.get('source_duration_display'))):
+        try:
+            fpath = source_file.path if getattr(source_file, 'name', None) else None
+        except Exception:
+            fpath = None
+        if fpath:
+            from .media_probe import probe_media_cached
+            info = probe_media_cached(fpath)
+            if info.get('properties') and not d.get('source_properties'):
+                d['source_properties'] = info['properties']
+            if info.get('duration_display') and not d.get('source_duration_display'):
+                d['source_duration_display'] = info['duration_display']
+            if info.get('media_type') and not source_type:
+                d['source_type'] = info['media_type']
+                d['source_properties_icon'] = props_icon_for(info['media_type'])
+
     if engine:
         d['engine'] = engine
     if engine_effective and engine_effective != engine:

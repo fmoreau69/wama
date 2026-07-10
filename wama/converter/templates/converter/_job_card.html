@@ -3,7 +3,8 @@ Carte d'un ConversionJob — utilisée seule (batch-of-1) ou dans un groupe batc
 Le JS converter.js opère sur .job-card[data-job-id] (délégation sur #converterQueue),
 donc l'imbrication dans un groupe ne change rien à son fonctionnement.
 {% endcomment %}
-<div class="job-card" data-job-id="{{ job.id }}" data-id="{{ job.id }}" data-status="{{ job.status }}">
+<div class="job-card" data-job-id="{{ job.id }}" data-id="{{ job.id }}" data-status="{{ job.status }}"
+     data-preview-url="{% url 'common:unified_preview' 'converter' job.id %}">
     <div class="d-flex align-items-center gap-2 flex-wrap">
 
         <!-- File icon -->
@@ -38,8 +39,8 @@ donc l'imbrication dans un groupe ne change rien à son fonctionnement.
             {{ job.get_status_display }}
         </span>
 
-        <!-- Action buttons (WAMA convention order) -->
-        <div class="d-flex gap-1 ms-auto">
+        <!-- Action buttons (WAMA convention order) — .btn-group-actions = cible du clonage inspecteur -->
+        <div class="d-flex gap-1 ms-auto btn-group-actions">
             <button class="btn btn-outline-secondary btn-sm py-0 px-2 job-settings-btn"
                     title="Paramètres" data-job-id="{{ job.id }}">
                 <i class="fas fa-cog"></i>
@@ -81,6 +82,7 @@ donc l'imbrication dans un groupe ne change rien à son fonctionnement.
     <div class="text-success small mt-1">
         <i class="fas fa-check-circle"></i>
         {{ job.output_filename }}
+        {% include 'common/_processing_time.html' with elapsed=job.processing_display %}
     </div>
     {% endif %}
 </div>

@@ -122,19 +122,35 @@ class IndexView(View):
         for job in jobs:
             key = job.batch_id or f'loose-{job.id}'
             grouped.setdefault(key, []).append(job)
+        from wama.common.utils.detail_registry import normalize_status
         batches_list = []
         for items in grouped.values():
             items_sorted = sorted(items, key=lambda j: j.batch_row_index)
             batch = items[0].batch
             total = batch.total if batch else len(items_sorted)
-            done = sum(1 for j in items_sorted if j.status == 'DONE')
+            # Contrat de _batch_card.html (même forme que build_batches_list — converter groupe
+            # en mémoire car FK directe job→batch, pas de modèle de liaison).
+            statuses = [normalize_status(j.status) for j in items_sorted]
             batches_list.append({
                 'obj': batch,
                 'items': items_sorted,
                 'is_group': bool(batch) and total > 1,
                 'media_label': _nature_labels.get(batch.media_type if batch else '', ''),
-                'done_count': done,
+                'success_count': statuses.count('SUCCESS'),
+                'running_count': statuses.count('RUNNING'),
+                'failure_count': statuses.count('FAILURE'),
+                'has_success': 'SUCCESS' in statuses,
+                'eta_ids': ','.join(str(j.id) for j in items_sorted),
             })
+
+        # Tri + filtrage de la file — brique COMMUNE (toolbar _queue_toolbar), alignée sur
+        # reader/composer/transcriber/describer (2026-07-10, Converter n'avait ni l'un ni l'autre).
+        from wama.common.utils.queue_view import apply_queue_sort_filter
+
+        def _name(b):
+            return b['items'][0].input_filename if b['items'] else ''
+
+        batches_list, q_sort, q_filter = apply_queue_sort_filter(request, batches_list, name_of=_name)
 
         # Build JS-safe dict: { image: { input: ['.jpg',…], output: ['jpg',…] }, … }
         formats_for_js = {
@@ -153,6 +169,8 @@ class IndexView(View):
             'supported_formats':    SUPPORTED_CONVERSIONS,
             'supported_formats_json': json.dumps(formats_for_js),
             'params_json':          json.dumps(CONVERTER_PARAMS_JSON),  # schéma modale per-job (WamaParams)
+            'q_sort':               q_sort,
+            'q_filter':             q_filter,
         })
 
 
@@ -269,6 +287,8 @@ def status(request, pk):
         'media_type':      job.media_type,
         'output_format':   job.output_format,
         'options':         job.options or {},
+        # Temps réel persisté (ProcessingTimeMixin) — affiché sur la card terminée sans reload.
+        'processing_display': job.processing_display,
     }
     # Seed ETA (ffmpeg sans modèle → service-based) : temps ∝ taille d'entrée (Mo)
     if job.status in ('PENDING', 'RUNNING'):

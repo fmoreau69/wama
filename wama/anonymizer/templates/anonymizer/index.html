@@ -1,6 +1,7 @@
 {% extends 'anonymizer/base.html' %}
 
 {% load static %}
+{% load wama_static %}
 
 {% block title %}Anonymizer - Objects Blurring{% endblock %}
 
@@ -349,19 +350,19 @@
 {% block javascript %}
 {{ block.super }}
 {# JQUERY FILE UPLOAD SCRIPTS #}
-<script src="{% static 'js/jquery-file-upload/vendor/jquery.ui.widget.js' %}"></script>
-<script src="{% static 'js/jquery-file-upload/jquery.iframe-transport.js' %}"></script>
-<script src="{% static 'js/jquery-file-upload/jquery.fileupload.js' %}"></script>
+<script src="{% static_v 'js/jquery-file-upload/vendor/jquery.ui.widget.js' %}"></script>
+<script src="{% static_v 'js/jquery-file-upload/jquery.iframe-transport.js' %}"></script>
+<script src="{% static_v 'js/jquery-file-upload/jquery.fileupload.js' %}"></script>
 
 {# MEDIAS PAGE SCRIPTS #}
-<script src="{% static 'common/js/console.js' %}"></script>
-<script src="{% static 'common/js/wama-eta.js' %}"></script>
-<script src="{% static 'anonymizer/js/process.js' %}"></script>
-<script src="{% static 'anonymizer/js/update.js' %}"></script>
-<script src="{% static 'anonymizer/js/upload.js' %}"></script>
-<script src="{% static 'anonymizer/js/settings_modal.js' %}"></script>
-<script src="{% static 'anonymizer/js/right_panel.js' %}"></script>
-<script src="{% static 'common/js/batch-import.js' %}"></script>
+<script src="{% static_v 'common/js/console.js' %}"></script>
+<script src="{% static_v 'common/js/wama-eta.js' %}"></script>
+<script src="{% static_v 'anonymizer/js/process.js' %}"></script>
+<script src="{% static_v 'anonymizer/js/update.js' %}"></script>
+<script src="{% static_v 'anonymizer/js/upload.js' %}"></script>
+<script src="{% static_v 'anonymizer/js/settings_modal.js' %}"></script>
+<script src="{% static_v 'anonymizer/js/right_panel.js' %}"></script>
+<script src="{% static_v 'common/js/batch-import.js' %}"></script>
 <script>
 window._batchImport = WamaBatchImport({
     batchPreviewUrl: '{% url "anonymizer:batch_preview" %}',

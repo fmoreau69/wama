@@ -1,5 +1,6 @@
 {% extends 'enhancer/base.html' %}
 {% load static %}
+{% load wama_static %}
 
 {% block title %}Enhancer - AI Image/Video & Audio Enhancement{% endblock %}
 
@@ -802,17 +803,17 @@
       }
     });
 </script>
-<script src="{% static 'common/js/wama-eta.js' %}"></script>
-<script src="{% static 'common/js/batch-import.js' %}"></script>
-<script src="{% static 'enhancer/js/index.js' %}"></script>
+<script src="{% static_v 'common/js/wama-eta.js' %}"></script>
+<script src="{% static_v 'common/js/batch-import.js' %}"></script>
+<script src="{% static_v 'enhancer/js/index.js' %}"></script>
 <!-- Barre globale commune (balayage permanent + ETA agrégée) : URL puis script auto-démarré. -->
 <script>window.WAMA_GLOBAL_PROGRESS_URL = "{% url 'enhancer:global_progress' %}";</script>
-<script src="{% static 'common/js/wama-global-progress.js' %}"></script>
-<script src="{% static 'enhancer/js/audio-enhancer.js' %}"></script>
-<script src="{% static 'common/js/wama-modes.js' %}"></script>
-<script src="{% static 'common/js/wama-inspector.js' %}"></script>
-<link rel="stylesheet" href="{% static 'common/css/wama-params.css' %}">
-<script src="{% static 'common/js/wama-params.js' %}"></script>
+<script src="{% static_v 'common/js/wama-global-progress.js' %}"></script>
+<script src="{% static_v 'enhancer/js/audio-enhancer.js' %}"></script>
+<script src="{% static_v 'common/js/wama-modes.js' %}"></script>
+<script src="{% static_v 'common/js/wama-inspector.js' %}"></script>
+<link rel="stylesheet" href="{% static_v 'common/css/wama-params.css' %}">
+<script src="{% static_v 'common/js/wama-params.js' %}"></script>
 <script>
 // Schémas manifeste (params.py) exposés au JS → modales générées par WamaParams (context:'item'),
 // comme l'app de référence Transcriber. Une seule source pour volet + modale.

@@ -16,7 +16,8 @@ from django.http import JsonResponse
 from django.shortcuts import render
 from django.views.decorators.http import require_POST
 
-from .models import UserAsset, SystemAsset, MediaProvider, UserProviderConfig, PromptKeyword, ASSET_TYPES, ALLOWED_EXTENSIONS
+from .models import (UserAsset, SystemAsset, MediaProvider, UserProviderConfig, PromptKeyword,
+                     ASSET_TYPES, ALLOWED_EXTENSIONS, TYPE_GROUPS)
 from .providers.registry import get_provider
 from wama.accounts.views import get_or_create_anonymous_user
 
@@ -74,6 +75,11 @@ def index(request):
         'asset_types':   ASSET_TYPES,
         'active_tab':    tab,
         'keyword_count': keyword_count,
+        # Source unique du regroupement « audio » (voice/audio_music/audio_sfx) — consommée ici
+        # par le JS de la page (affichage lecteur audio) ET par le picker (`TYPE_GROUPS` dans
+        # `models.py`, filtrage serveur). Avant 2026-07-09 : dupliqué en dur (`AUDIO_TYPES` codé
+        # dans media-library.js) — retiré, ne reste que cette source.
+        'audio_types_json': json.dumps(TYPE_GROUPS['audio']),
     }
     return render(request, 'media_library/index.html', context)
 
@@ -116,7 +122,12 @@ def api_list(request):
 
     qs = UserAsset.objects.filter(user=user)
     if asset_type:
-        qs = qs.filter(asset_type=asset_type)
+        if asset_type in TYPE_GROUPS:
+            group = TYPE_GROUPS[asset_type]      # None ('all') → pas de filtre
+            if group is not None:
+                qs = qs.filter(asset_type__in=group)
+        else:
+            qs = qs.filter(asset_type=asset_type)  # valeur exacte (ex. 'voice') passée directement
     if q:
         qs = qs.filter(Q(name__icontains=q) | Q(tags__icontains=q) | Q(description__icontains=q))
 

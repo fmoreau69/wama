@@ -1,21 +1,16 @@
 {% extends 'converter/base.html' %}
 {% load static %}
+{% load wama_static %}
 
 {% block title %}Converter — WAMA{% endblock %}
 
 {% block extra_css %}
 {{ block.super }}
 <style>
-    .converter-drop-zone {
-        border: 2px dashed #495057;
-        border-radius: 8px;
-        padding: 1rem;
-        text-align: center;
-        cursor: pointer;
-        transition: border-color .2s, background .2s, transform .15s;
-        background: rgba(255,255,255,.02);
-    }
-    .converter-drop-zone.dragover {
+    /* Dragover de la card « Nouvel élément » commune (_new_item_card.html, tête de file —
+       2026-07-10, alignement reader/composer/transcriber/describer) : classe générique
+       .drop-zone.dragover (le JS ajoute juste 'dragover', converter garde son propre visuel). */
+    .drop-zone.dragover {
         border-color: #20c997;
         background: rgba(32,201,151,.06);
         transform: scale(1.02);
@@ -42,23 +37,13 @@
 
 {# ── Right panel : zone de dépôt ─────────────────────────────────────────── #}
 {% block app_right_panel_media %}
-<div id="converterDropZone" class="converter-drop-zone drop-zone" data-wama-app="converter"
-     onclick="document.getElementById('converterFileInput').click()">
-    <i class="fas fa-file-import fa-lg mb-1" style="color:#20c997;"></i>
-    <p class="mb-0 small text-secondary">Glissez ici ou cliquez</p>
-    <small class="text-muted">Images · Vidéos · Audio · Documents</small>
-    <input type="file" id="converterFileInput" multiple
-           accept=".jpg,.jpeg,.png,.webp,.bmp,.tiff,.tif,.gif,.heic,.heif,.avif,
-                   .mp4,.avi,.mov,.mkv,.webm,.flv,.mpg,.mpeg,.3gp,.wmv,.ts,.m4v,
-                   .mp3,.wav,.flac,.ogg,.m4a,.aac,.opus,.wma,.aiff,.aif,
-                   .pdf,.docx,.md,.markdown,.html,.htm,.txt,.rtf,.odt,.epub,.tex,.latex"
-           style="display:none">
-</div>
+{% comment %}Card d'entrée déplacée du volet vers la TÊTE DE FILE (brique _new_item_card.html,
+alignement reader/composer/transcriber/describer, 2026-07-10 — bug remonté : en mode simplifié
+(volets masqués) Converter n'avait AUCUN moyen d'ajouter un fichier). Volet media vide.{% endcomment %}
 {% endblock %}
 
 {# ── Right panel : paramètres de conversion ──────────────────────────────── #}
 {% block app_right_panel_settings %}
-{% include 'common/_inspector_banner.html' %}{# bandeau « Réglages de l'élément #N » ; édition per-job via la modale ⚙ (schéma-driven) #}
 
 <!-- Type de média détecté (mis à jour par JS) -->
 <div class="mb-2">
@@ -196,16 +181,14 @@
 </button>
 {% endblock %}
 
-{# ── Right panel : actions globales ─────────────────────────────────────── #}
+{# ── Right panel : actions ───────────────────────────────────────────────── #}
 {% block app_right_panel_actions %}
-<div class="d-grid gap-2">
-    <button id="converterStartAllBtn" class="btn btn-success btn-sm">
-        <i class="fas fa-play"></i> Démarrer tout
-    </button>
-    <button id="converterClearAllBtn" class="btn btn-outline-danger btn-sm">
-        <i class="fas fa-trash"></i> Tout effacer
-    </button>
-</div>
+{% comment %}Volet = inspecteur : actions de l'élément/batch sélectionné (hôte commun, rempli par
+le JS). Les actions GLOBALES (Démarrer tout/Tout effacer) ont migré dans _queue_toolbar.html en
+tête de file (2026-07-10, alignement reader/composer/transcriber/describer). Avant ce include,
+`#inspectorActions` n'existait pas → cloneActions(null, ...) no-opait silencieusement : la section
+Actions de l'inspecteur ne s'affichait jamais pour converter (aucune erreur console).{% endcomment %}
+{% include 'common/_inspector_actions.html' %}
 {% endblock %}
 
 {# ── Modals ──────────────────────────────────────────────────────────────── #}
@@ -342,25 +325,39 @@ window.CONVERTER_APP = {
 };
 window.WAMA_GLOBAL_PROGRESS_URL = "{% url 'converter:global_progress' %}";
 </script>
-<script src="{% static 'common/js/wama-eta.js' %}"></script>
+<script src="{% static_v 'common/js/wama-eta.js' %}"></script>
 {# wama-inspector.css chargé globalement (base.html) #}
-<script src="{% static 'common/js/batch-import.js' %}"></script>
-<script src="{% static 'common/js/wama-inspector.js' %}"></script>
-<script src="{% static 'common/js/wama-params.js' %}"></script>
-<script src="{% static 'converter/js/converter.js' %}"></script>
-<script src="{% static 'common/js/wama-global-progress.js' %}"></script>
+<script src="{% static_v 'common/js/batch-import.js' %}"></script>
+<script src="{% static_v 'common/js/wama-inspector.js' %}"></script>
+<script src="{% static_v 'common/js/wama-params.js' %}"></script>
+<script src="{% static_v 'converter/js/converter.js' %}"></script>
+<script src="{% static_v 'common/js/wama-global-progress.js' %}"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-    if (!window.WamaInspector) return;
+    if (!window.WamaInspector || !WamaInspector.initFromSchema) return;
     var q = document.getElementById('converterQueue');
     if (!q) return;
-    // Sélection + bandeau « Réglages de l'élément #N ». Converter édite per-job via la MODALE schéma-driven
-    // (bouton ⚙ → jobSettingsModal) ; le volet reste la zone de composition (format/options par média).
-    WamaInspector.init({
+    // Inspecteur contextuel commun : sélection card/batch → aperçu inline (unified_preview) +
+    // section Infos en chips (unified_detail) + actions CLONÉES de la card (cloneActions).
+    // Converter édite per-job via la MODALE schéma-driven (bouton ⚙ → jobSettingsModal) ;
+    // le volet reste la zone de composition (format/options par média) — aucun param en contexte
+    // 'panel' dans le schéma, la synchro volet dérivée est donc neutre.
+    WamaInspector.initFromSchema({
         queueContainer: q,
         cardSelector: '.job-card',
+        batchSelector: '.batch-group',
+        schema: (window.CONVERTER_APP && CONVERTER_APP.schema) || [],
         itemLabel: function (id) { return "l'élément #" + id + " (⚙ pour éditer)"; },
         batchLabel: function (id) { return "le batch #" + id; },
+        renderItemActions: function (host, card) {
+            WamaInspector.cloneActions(host, card.querySelector('.btn-group-actions'),
+                '<i class="fas fa-clone text-info"></i> Actions — élément #' + card.dataset.id);
+        },
+        renderBatchActions: function (host, batchId) {
+            var grp = q.querySelector('.batch-group[data-batch-id="' + batchId + '"] .btn-group-actions');
+            WamaInspector.cloneActions(host, grp,
+                '<i class="fas fa-layer-group text-info"></i> Actions — batch #' + batchId);
+        },
     });
 });
 </script>
@@ -370,54 +367,28 @@ document.addEventListener('DOMContentLoaded', function () {
 {% block converter_content %}
 <div class="container-fluid py-2" style="overflow-x:hidden;">
 
-    {% include 'common/batch_detect_bar.html' %}
-
     {# Barre de progression globale (toujours visible) — composant commun #}
     {% include 'common/_global_progress.html' %}
 
-    <div id="converterQueue">
+    {% comment %}Card d'entrée commune, en TÊTE DE FILE (2026-07-10 — alignement reader/composer/
+    transcriber/describer ; batch_detect_bar déplacé dedans via show_batch_bar).{% endcomment %}
+    {% include 'common/_new_item_card.html' with drop_zone_id='converterDropZone' file_input_id='converterFileInput' file_accept='.jpg,.jpeg,.png,.webp,.bmp,.tiff,.tif,.gif,.heic,.heif,.avif,.mp4,.avi,.mov,.mkv,.webm,.flv,.mpg,.mpeg,.3gp,.wmv,.ts,.m4v,.mp3,.wav,.flac,.ogg,.m4a,.aac,.opus,.wma,.aiff,.aif,.pdf,.docx,.md,.markdown,.html,.htm,.txt,.rtf,.odt,.epub,.tex,.latex' formats_label='Images · Vidéos · Audio · Documents' show_batch_bar=True %}
+
+    {% comment %}Barre d'outils commune (tri/filtre/disposition Ligne-Mosaïque/actions globales),
+    alignement reader/composer/transcriber/describer (2026-07-10, absente jusqu'ici).{% endcomment %}
+    {% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='converterStartAllBtn' clear_id='converterClearAllBtn' %}
+
+    <div id="converterQueue" class="wama-queue-{{ card_layout|default:'list' }}">
         {% for b in batches_list %}
         {% if b.is_group %}
-        {# ── Groupe batch (multi-fichiers même nature) ── #}
-        <div class="batch-group mb-2" data-batch-id="{{ b.obj.id }}">
-            <div class="batch-group-header d-flex align-items-center gap-2 px-2 py-1"
-                 style="background:rgba(32,201,151,0.12); border:1px solid #20c997; border-radius:6px; cursor:pointer;"
-                 data-bs-toggle="collapse" data-bs-target="#batchBody{{ b.obj.id }}">
-                <i class="fas fa-layer-group" style="color:#20c997;"></i>
-                <span class="small fw-bold text-light">
-                    Batch {{ b.media_label }} — {{ b.obj.total }} fichier{{ b.obj.total|pluralize }}
-                </span>
-                <span class="badge bg-secondary badge-media ms-1">{{ b.done_count }}/{{ b.obj.total }} ✓</span>
-                <span class="wama-eta ms-1" data-eta-ids="{% for job in b.items %}{{ job.id }}{% if not forloop.last %},{% endif %}{% endfor %}"></span>
-                <!-- Actions batch (stopPropagation côté JS pour ne pas toggler le collapse) -->
-                <div class="d-flex gap-1 ms-auto">
-                    <button class="btn btn-outline-secondary btn-sm py-0 px-2 batch-settings-btn"
-                            title="Réglages du batch" data-batch-id="{{ b.obj.id }}"
-                            data-media-type="{{ b.obj.media_type }}">
-                        <i class="fas fa-cog"></i>
-                    </button>
-                    <button class="btn btn-outline-success btn-sm py-0 px-2 batch-start-btn"
-                            title="Démarrer le batch" data-batch-id="{{ b.obj.id }}">
-                        <i class="fas fa-play"></i>
-                    </button>
-                    {% if b.done_count %}
-                    <a class="btn btn-outline-info btn-sm py-0 px-2"
-                       href="{% url 'converter:batch_download' b.obj.id %}" title="Télécharger le batch (ZIP)">
-                        <i class="fas fa-download"></i>
-                    </a>
-                    {% endif %}
-                    <button class="btn btn-outline-secondary btn-sm py-0 px-2 batch-duplicate-btn"
-                            title="Dupliquer le batch" data-batch-id="{{ b.obj.id }}">
-                        <i class="fas fa-copy"></i>
-                    </button>
-                    <button class="btn btn-outline-danger btn-sm py-0 px-2 batch-delete-btn"
-                            title="Supprimer le batch" data-batch-id="{{ b.obj.id }}">
-                        <i class="fas fa-trash"></i>
-                    </button>
-                </div>
-                <i class="fas fa-chevron-down text-muted small"></i>
-            </div>
-            <div class="collapse show ps-2 pt-1" id="batchBody{{ b.obj.id }}">
+        {# ── Groupe batch (multi-fichiers même nature) — card mère COMMUNE (_batch_card.html) #}
+        <div class="batch-group mb-2" data-batch-id="{{ b.obj.id }}" data-media-type="{{ b.obj.media_type }}">
+            {% url 'converter:batch_download' b.obj.id as batch_dl_url %}
+            {% include 'common/_batch_card.html' with batch_info=b card_class='job-card' meta_template='converter/_batch_card_meta.html' eta_ids=b.eta_ids download_url=batch_dl_url %}
+            {% comment %}Repliée par défaut (Solitaire, wama-queue.js) — 'show' hardcodé retiré
+            2026-07-10 : convention commune = collapsed + état persisté en localStorage, comme
+            reader/composer/transcriber/describer.{% endcomment %}
+            <div class="collapse ps-2 pt-1" id="batchItems{{ b.obj.id }}" data-wama-batch-key="converter_{{ b.obj.id }}">
                 {% for job in b.items %}{% include 'converter/_job_card.html' %}{% endfor %}
             </div>
         </div>

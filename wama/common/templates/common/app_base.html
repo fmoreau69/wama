@@ -1,12 +1,13 @@
 {% extends 'base.html' %}
 {% load static %}
+{% load wama_static %}
 
 {% block javascript %}
 {# JQUERY FILE UPLOAD SCRIPTS - Optionnel, peut être surchargé #}
 {% block extra_scripts %}
-<script src="{% static 'js/jquery-file-upload/vendor/jquery.ui.widget.js' %}"></script>
-<script src="{% static 'js/jquery-file-upload/jquery.iframe-transport.js' %}"></script>
-<script src="{% static 'js/jquery-file-upload/jquery.fileupload.js' %}"></script>
+<script src="{% static_v 'js/jquery-file-upload/vendor/jquery.ui.widget.js' %}"></script>
+<script src="{% static_v 'js/jquery-file-upload/jquery.iframe-transport.js' %}"></script>
+<script src="{% static_v 'js/jquery-file-upload/jquery.fileupload.js' %}"></script>
 {% endblock %}
 
 {# APP SPECIFIC SCRIPTS - Fourni par l'app qui hérite #}
@@ -15,7 +16,7 @@
 {% endblock %}
 
 {# CONSOLE SCRIPT - Commun à toutes les apps #}
-<script src="{% static 'common/js/console.js' %}"></script>
+<script src="{% static_v 'common/js/console.js' %}"></script>
 
 {% endblock %}
 

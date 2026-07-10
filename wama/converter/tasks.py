@@ -180,6 +180,8 @@ def convert_media_task(self, job_id: int):
             output_file=rel_path,
             status='DONE',
             progress=100,
+            # Temps réel persisté (ProcessingTimeMixin) — même mesure que le seeding ETA ci-dessous.
+            processing_seconds=_time.time() - _t0,
         )
         job.refresh_from_db()
         _set_progress(job_id, 100)

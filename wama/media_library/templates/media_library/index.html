@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% load static %}
+{% load wama_static %}
 
 {% block title %}Médiathèque — WAMA{% endblock %}
 
@@ -435,8 +436,11 @@ const ML_URLS = {
     providerDownload:"{% url 'media_library:api_provider_download' %}",
 };
 const CSRF_TOKEN = "{{ csrf_token }}";
+// Regroupement « audio » (voice/audio_music/audio_sfx) — source unique = TYPE_GROUPS
+// (media_library/models.py), plus de liste dupliquée en dur dans media-library.js.
+const AUDIO_TYPES = {{ audio_types_json|safe }};
 </script>
-<link rel="stylesheet" href="{% static 'common/css/wama-prompt-chips.css' %}">
-<script src="{% static 'common/js/wama-prompt-chips.js' %}"></script>
-<script src="{% static 'media_library/js/media-library.js' %}"></script>
+<link rel="stylesheet" href="{% static_v 'common/css/wama-prompt-chips.css' %}">
+<script src="{% static_v 'common/js/wama-prompt-chips.js' %}"></script>
+<script src="{% static_v 'media_library/js/media-library.js' %}"></script>
 {% endblock %}

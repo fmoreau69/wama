@@ -259,7 +259,7 @@ def read_document_task(self, item_id: int):
                 item.result_text = direct_text
                 item.raw_result = direct_text
                 item.used_backend = 'fitz_direct'
-                item.status = 'DONE'
+                item.status = 'SUCCESS'
                 item.progress = 100
                 item.processing_seconds = _time.time() - _t0  # persiste le temps réel (déjà mesuré pour l'ETA)
                 item.save(update_fields=['result_text', 'raw_result', 'used_backend', 'status', 'progress', 'processing_seconds'])
@@ -309,7 +309,7 @@ def read_document_task(self, item_id: int):
         item.result_text = result_text
         item.raw_result = raw_text
         item.used_backend = backend
-        item.status = 'DONE'
+        item.status = 'SUCCESS'
         item.progress = 100
         item.processing_seconds = _time.time() - _t0  # persiste le temps réel (déjà mesuré pour l'ETA)
         item.save(update_fields=['result_text', 'raw_result', 'used_backend', 'status', 'progress', 'processing_seconds'])
@@ -326,7 +326,7 @@ def read_document_task(self, item_id: int):
 
     except Exception as exc:
         logger.error(f"[Reader] Erreur item {item_id}: {exc}", exc_info=True)
-        item.status = 'ERROR'
+        item.status = 'FAILURE'
         item.error_message = str(exc)
         item.save(update_fields=['status', 'error_message'])
         _set_progress(item_id, 0, f"Erreur : {exc}")

@@ -30,6 +30,11 @@
                                     <th>Email</th>
                                     <th>Nom</th>
                                     <th>Rôle</th>
+                                    <th>
+                                        Métiers
+                                        <i class="fas fa-circle-info text-muted ms-1" style="font-size:.7rem;"
+                                           title="Rôles métier CUMULATIFS (indépendants du rôle ci-contre) — définissent l'accès aux applications WAMA. Pour un accès complet (test), préférer le rôle Développeur ci-contre plutôt que cocher tous les métiers (certaines apps techniques exigent aussi ce tier)."></i>
+                                    </th>
                                     <th>Statut</th>
                                     <th>Date d'inscription</th>
                                     <th>Actions</th>
@@ -68,6 +73,36 @@
                                         </select>
                                     </td>
                                     <td>
+                                        {% if item.user.username != 'anonymous' %}
+                                        <div class="d-flex flex-wrap gap-2 align-items-center metier-cells"
+                                             data-user-id="{{ item.user.id }}">
+                                            {% for cell in item.metier_cells %}
+                                            <div class="form-check form-check-inline m-0" title="{{ cell.label }}">
+                                                <input class="form-check-input metier-toggle" type="checkbox"
+                                                       role="switch"
+                                                       id="metier-{{ item.user.id }}-{{ cell.key }}"
+                                                       data-user-id="{{ item.user.id }}"
+                                                       data-role="{{ cell.key }}"
+                                                       {% if cell.active %}checked{% endif %}>
+                                                <label class="form-check-label small text-white-50"
+                                                       for="metier-{{ item.user.id }}-{{ cell.key }}">
+                                                    {{ cell.label }}
+                                                </label>
+                                            </div>
+                                            {% endfor %}
+                                            <button type="button"
+                                                    class="btn btn-outline-secondary btn-sm py-0 px-1 metier-check-all-btn"
+                                                    data-user-id="{{ item.user.id }}"
+                                                    title="Cocher tous les métiers (pour un accès complet, préférer plutôt le rôle Développeur)"
+                                                    style="font-size:.65rem;">
+                                                Tout cocher
+                                            </button>
+                                        </div>
+                                        {% else %}
+                                        <span class="text-muted small">—</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
                                         {% if item.user.username == 'anonymous' %}
                                         <span class="badge bg-secondary">Système</span>
                                         {% elif item.user.is_active %}
@@ -101,7 +136,7 @@
                                 </tr>
                                 {% empty %}
                                 <tr>
-                                    <td colspan="7" class="text-center">Aucun utilisateur trouvé</td>
+                                    <td colspan="8" class="text-center">Aucun utilisateur trouvé</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
@@ -262,6 +297,46 @@ document.addEventListener('DOMContentLoaded', function() {
             .catch(error => {
                 console.error('Error:', error);
                 location.reload();
+            });
+        });
+    });
+
+    // Métiers (rôles cumulatifs, axe B indépendant du tier) — toggle individuel, même contrat
+    // que app_access_toggle côté matrice d'app (body JSON {role, enabled}).
+    document.querySelectorAll('.metier-toggle').forEach(cb => {
+        cb.addEventListener('change', function() {
+            const userId = this.dataset.userId;
+            const role = this.dataset.role;
+            const enabled = this.checked;
+            fetch(`/accounts/users/${userId}/metier-role/`, {
+                method: 'POST',
+                headers: {'X-CSRFToken': csrfToken, 'Content-Type': 'application/json'},
+                body: JSON.stringify({role: role, enabled: enabled}),
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (!data.success) {
+                    alert('Erreur: ' + data.error);
+                    this.checked = !enabled; // revert
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                this.checked = !enabled; // revert
+            });
+        });
+    });
+
+    // Bouton "Tout cocher" : coche tous les métiers de la ligne (déclenche le change de chacun,
+    // donc réutilise le handler ci-dessus — pas de logique dupliquée).
+    document.querySelectorAll('.metier-check-all-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const userId = this.dataset.userId;
+            document.querySelectorAll(`.metier-toggle[data-user-id="${userId}"]`).forEach(cb => {
+                if (!cb.checked) {
+                    cb.checked = true;
+                    cb.dispatchEvent(new Event('change'));
+                }
             });
         });
     });

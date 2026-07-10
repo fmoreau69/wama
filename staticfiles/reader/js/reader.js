@@ -35,8 +35,10 @@
         const m = {
             PENDING: '<span class="badge bg-secondary">En attente</span>',
             RUNNING: '<span class="badge bg-warning text-dark"><i class="fas fa-spinner fa-spin me-1"></i>En cours</span>',
-            DONE:    '<span class="badge bg-success">Terminé</span>',
-            ERROR:   '<span class="badge bg-danger">Erreur</span>',
+            SUCCESS: '<span class="badge bg-success">Terminé</span>',
+            FAILURE: '<span class="badge bg-danger">Échec</span>',
+            DONE:    '<span class="badge bg-success">Terminé</span>',   // tolérance ancien vocabulaire
+            ERROR:   '<span class="badge bg-danger">Échec</span>',
         };
         return m[status] || `<span class="badge bg-secondary">${status}</span>`;
     }
@@ -382,7 +384,7 @@
     function updateDownloadAllBtn() {
         const btn = document.getElementById('reader-download-all-btn');
         if (!btn) return;
-        const hasSuccess = document.querySelector('.reader-card[data-status="DONE"]') !== null;
+        const hasSuccess = document.querySelector('.reader-card[data-status="SUCCESS"], .reader-card[data-status="DONE"]') !== null;
         btn.disabled = !hasSuccess;
     }
 

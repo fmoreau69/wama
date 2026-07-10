@@ -44,7 +44,6 @@ urlpatterns = [
     path('batch/<int:parent_id>/start/', views.start_batch, name='start_batch'),
 
     # Prompt enhancement (Ollama)
-    path('enhance-prompt/', views.enhance_prompt, name='enhance_prompt'),
 
     # API endpoints for model configuration
     path('api/model-resolutions/', views.api_model_resolutions, name='api_model_resolutions'),

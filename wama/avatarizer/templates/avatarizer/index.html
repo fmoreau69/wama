@@ -1,5 +1,6 @@
 {% extends 'common/app_modern_base.html' %}
 {% load static %}
+{% load wama_static %}
 
 {% block title %}Avatarizer - Avatar animé{% endblock %}
 
@@ -601,7 +602,7 @@
 {# ===================================================================== #}
 {% block app_scripts %}
 <script>const ML_LIST_URL = "{% url 'media_library:api_list' %}";</script>
-<script src="{% static 'common/js/media-picker.js' %}"></script>
+<script src="{% static_v 'common/js/media-picker.js' %}"></script>
 <script>
 // Injecte l'image sélectionnée dans la zone d'upload avatar
 function _mpInjectAvatar(file, asset) {
@@ -641,8 +642,8 @@ window.AVATARIZER_CONFIG = {
 };
 window.WAMA_GLOBAL_PROGRESS_URL = "{% url 'avatarizer:global_progress' %}";
 </script>
-<script src="{% static 'common/js/wama-eta.js' %}"></script>
-<script src="{% static 'common/js/wama-params.js' %}"></script>  {# rendu des champs modale (P1) #}
+<script src="{% static_v 'common/js/wama-eta.js' %}"></script>
+<script src="{% static_v 'common/js/wama-params.js' %}"></script>  {# rendu des champs modale (P1) #}
 <script>
 // Modale « Paramètres » : champs GÉNÉRÉS par WamaParams (params.py, context 'item') — P1.
 // AVANT index.js (qui met en cache les éléments par id à l'exécution). Voix : groupes
@@ -663,9 +664,9 @@ window.WAMA_GLOBAL_PROGRESS_URL = "{% url 'avatarizer:global_progress' %}";
                                    { context: 'item', optionsResolver: resolver });
 })();
 </script>
-<script src="{% static 'avatarizer/js/index.js' %}"></script>
-<script src="{% static 'common/js/wama-global-progress.js' %}"></script>
-<script src="{% static 'common/js/wama-inspector.js' %}"></script>
+<script src="{% static_v 'avatarizer/js/index.js' %}"></script>
+<script src="{% static_v 'common/js/wama-global-progress.js' %}"></script>
+<script src="{% static_v 'common/js/wama-inspector.js' %}"></script>
 <script>
 // Inspecteur CONTEXTUEL : la section params du volet (#avatarPanelParams) devient « Réglages de
 // l'élément #N » au clic sur une card (params lus depuis le bouton ⚙ de la card, sauvegarde routée).

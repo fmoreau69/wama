@@ -44,10 +44,13 @@ Alias : `DONE→SUCCESS`, `ERROR→FAILURE` (uniquement pour le libellé/couleur
 2. `result_file` NON distingué par type (audio/vidéo/image/fichier) — un seul concept.
 3. Champs techniques exclus (task_id, user, flags UI internes).
 
-## Chantier lié (à faire pour des propriétés riches partout)
-Généraliser `common/utils/media_probe.py::probe_audio` en **`probe_media(path)`** couvrant
-image (L×H) / vidéo (L×H·fps·durée) / audio (codec·kHz·canaux) / PDF (N pages) / archive (N entrées),
-pour que `source_properties` soit rempli uniformément, pas seulement là où l'app le calcule.
+## Chantier lié — ✅ FAIT 2026-07-09
+`common/utils/media_probe.py::probe_media(path)` couvre image (format • L×H) / vidéo
+(codec • L×H • fps + durée) / audio (codec • kHz • canaux + durée) / PDF (N pages) /
+archive (N entrées). **Branché en fallback UNIVERSEL dans `build_detail`** (`detail_registry`) :
+si l'app ne fournit ni `properties` ni durée, la sonde remplit `source_properties` /
+`source_duration_display` / `source_type` (icône) — via `probe_media_cached` (cache Django
+par chemin+mtime : une sonde par fichier, pas par clic). Zéro travail par app.
 
 ## Mécanisme
 - `common/utils/detail_registry.py` : registre `register_app_detail(app, model, adapter)` (miroir de

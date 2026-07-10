@@ -125,7 +125,10 @@ Docs : `wama_lab/cam_analyzer/CONTEXT.md` + `README.md` + ROADMAP §9.
 
 ## 9. Media Library
 - ✅ Phase 1 (UserAsset/SystemAsset, voix migrées)
-- ⏳ Phase 2 (filtrage UI) · Phase 3 (connecteurs + clés API) · Phase 4 (Wikimedia, Pixabay, Freesound). Lié à l'indexation RAG.
+- ✅ 2026-07-09 **Phases 2-4 en fait FAITES** (doc périmé corrigé — vérifié empiriquement lors de
+  l'audit doc §23) : filtrage UI présent (`index.html`), `MediaProvider`/`UserProviderConfig`
+  (migration `0004`) + connecteurs Wikimedia/Pixabay/Freesound/Jamendo/Pexels/Openverse (migration
+  `..._add_providers_phase5`). Reste lié à l'indexation RAG (§6, non démarré).
 
 ## 10. Progression globale + ETA
 - ✅ **Barre globale + balayage coloré** : tronc commun (`_global_progress.html` + `wama-global-progress.js`), card « Nouveau » en 1ʳᵉ position, déployé partout (apps mono- et multi-domaine, barres séparées par file).
@@ -445,25 +448,490 @@ check_app_conformity exécutable → introspection Django→schéma → scaffold
 
 ### 21.3 Trous de portage à combler (reprise) — priorisés
 
-1. 🔴 **Describer `cardSelector: '.wama-card'`** (`describer/static/describer/js/index.js`) → trop
-   générique (matche new-item-card, card mère, etc.). Aligner sur une classe spécifique. Impact
-   surtout `selectItem` (le comptage file/batch vient désormais des sources serveur, moins exposé).
-2. 🔶 **Reader statuts DONE/ERROR** vs SUCCESS/FAILURE des 3 autres. Normalisé à l'affichage
-   (`detail_registry` + `build_batches_list`), mais à aligner en base pour l'homogénéité.
-3. 🟠 **Transcriber `WamaInspector.init()`** (legacy) → migrer vers `initFromSchema` comme les 3 autres.
+1. ✅ 2026-07-08 **Describer `cardSelector`** — vérifié empiriquement DÉJÀ à `.synthesis-card`
+   (`describer/index.html:315`) ; l'entrée était en retard sur le code. Le `.wama-card` restant
+   (`index.js:20`) est le `autoSync` du cycle-button, sans effet de bord (header batch sans bouton).
+2. ✅ 2026-07-08 **Reader statuts alignés en BASE** : `DONE/ERROR` → `SUCCESS/FAILURE`
+   (migration `reader.0008` choices + data, sweep models/views/tasks/JS/template — les clés JSON
+   `done/error` de `global_progress` inchangées, brique commune tolérante). Converter garde
+   DONE/ERROR (normalisé affichage) — à aligner à son tour si souhaité.
+3. ✅ 2026-07-08 **Transcriber migré `initFromSchema`** : `_panelApplyValues`/`_cardSettings`
+   supprimés (dérivés du schéma) ; `_panelReadValues` CONSERVÉ (payloads serveur typés).
+   Prérequis posés : `window.WAMA_TRANSCRIBER_SCHEMA` (template), support **`radio_name`** ajouté
+   aux read/apply dérivés de `wama-inspector.js` (radios legacy ex. `globalSummaryType`), `data-*`
+   des cards alignés sur les noms du schéma (`data-preprocess-audio`, `data-enable-diarization`).
 4. 🟠 **Transcriber `_card_progress.html`** vs `_processing_time.html` custom des 3 autres → une seule
-   approche d'affichage de progression/temps.
+   approche d'affichage de progression/temps. (À traiter AVEC le rollout card v2, point 5.)
 5. 🟡 **Propager la card v2 (chips)** aux 3 autres apps : `chip=True` sur leurs params + `.chips`
    property (modèle reader) + include `_card_chips.html`. (Après validation navigateur du pilote.)
-6. 🟡 **Mini-card « Réglages de l'élément #N »** du volet Paramètres : à **retirer à terme** (validé
-   Fabien) — l'identité est déjà dans la section Infos. Masquée quand Infos présente ; suppression
-   propre à faire.
-7. 🟡 **`probe_media`** : généraliser `media_probe.probe_audio` → propriétés riches TOUS types (image
-   L×H, vidéo fps/durée, PDF pages, archive) pour que `source_properties` soit rempli partout.
+6. ✅ 2026-07-08 **Mini-card « Réglages de l'élément #N » RETIRÉE** des 5 apps portées au détail
+   (transcriber/describer/composer/reader/converter) ; le ✕ des Infos appelle `deselect` en direct
+   (plus de proxy par le bouton du bandeau). `_inspector_banner.html` reste pour les non-portées
+   (synthesizer, avatarizer).
+7. ✅ 2026-07-09 **`probe_media`** généralisé (`media_probe.py` : image/vidéo/audio/PDF/archive)
+   + **fallback UNIVERSEL dans `build_detail`** (`probe_media_cached`, cache par chemin+mtime) →
+   `source_properties`/durée/icône remplis partout sans travail par app. Testé sur fichiers réels
+   + `unified_detail` converter (vidéo : `mjpeg • 384×288 • 15.0 img/s`, durée 0:27).
 
-### 21.4 Non commencé (au-delà des 4 apps)
-- **6 apps non portées** : converter (PROCHAIN), enhancer, anonymizer, synthesizer, imager, avatarizer.
-  Chacune : ajouter adapter `register_app_preview` + `register_app_detail` à son port (Converter/
-  Avatarizer ont déjà un `WamaInspector.init`/`initFromSchema` partiel). Converter + Describer =
-  bancs d'essai « tous types de fichiers ».
+### 21.4 Au-delà — état 2026-07-08
+
+- ✅ **CONVERTER PORTÉ (5e app)** : adapters preview+detail (`apps.py`, extra ← labels `params.py`,
+  `output_quality`←`quality_preset`), `ProcessingTimeMixin` + persistance worker + affichage
+  (`_processing_time.html` + live via `status` JSON), `data-preview-url` racine card,
+  `initFromSchema` (schéma modale ; volet = zone de composition, aucun param contexte 'panel' →
+  synchro dérivée neutre), `cloneActions` item+batch, **card mère commune `_batch_card.html`**
+  (contrat calculé dans la vue — FK directe, pas de modèle de liaison ; `data-media-type` sur le
+  wrapper `.batch-group`, conteneur `#batchItems<id>` + `data-wama-batch-key`). Smoke réel : page
+  200 + endpoints unifiés OK (données de test nettoyées).
+- ⚠️ **Migrations en retard découvertes et appliquées** (2026-07-08) : `describer.0009` /
+  `composer.0005` / `reader.0007` (`processing_seconds`) n'avaient JAMAIS été appliquées à la base
+  partagée → `manage.py migrate` global fait (incl. accounts.0009, model_manager.0008,
+  cam_analyzer.0013). Toujours vérifier `migrate` après un palier.
+- **5 apps non portées** : enhancer, anonymizer, synthesizer, imager, avatarizer. Chacune : adapter
+  `register_app_preview` + `register_app_detail` + câblage inspecteur.
 - **Amincissement des cards** (le but du report d'infos vers l'inspecteur) : APRÈS l'inspecteur.
+- Validation NAVIGATEUR par Fabien toujours attendue : pilote card v2 Reader + inspecteur des 5
+  apps portées (smoke serveur fait, pas de clic réel).
+
+## 22. Skills de prompt par application (2026-07-08) — FAIT, validé Fabien
+
+> Doc de référence : **`PROMPT_PIPELINE.md` §Skills** + `wama/common/prompt_skills/README.md`.
+> Mémoire : `project_prompt_skills.md`.
+
+- ✅ Brique `common/utils/prompt_skills.py` (résolution `<app>-<domain>` → `<app>` →
+  `default-<kind>`, importable SANS Django) + fichiers `common/prompt_skills/` (imager-image,
+  imager-video, composer-music, default-generative).
+- ✅ Pipeline : `PROMPT_TARGETS` gagne `domain`/`domain_field` (imager `output_type`) ;
+  hook A passe le skill au LLM. Composer `enrich=True` (blocage « consignes visuelles » levé).
+- ✅ À la demande : `enrich_on_demand()` (pas gaté par WAMA_PROMPT_ENRICH, émission dans la
+  langue de l'utilisateur) ; endpoint imager ✨ branché dessus ; `imager/utils/prompt_enhancer.py`
+  (consignes dupliquées) SUPPRIMÉ.
+- ✅ Trou comblé : `generate_video_task` imager n'appelait pas la pipeline (locals, base=original).
+- ✅ Agents : assistant couvert by design (tools→tâches Celery→pipeline) ; wama-dev-ai importe le
+  même module (`PROMPT_SKILLS_DIR` en config + README).
+- Testé bout en bout : résolution ✓, Ollama réel (imager-image, émission FR, sujet préservé) ✓,
+  passthrough pipeline (interrupteur OFF) ✓, imports ✓.
+- ✅ 2026-07-09 **Endpoint commun `/common/api/enrich-prompt/`** (`{prompt, app, domain}`,
+  `mode` accepté en alias) — prêt pour le STUDIO (nœud-app : app connue par construction, domain
+  passé explicitement car pas d'instance avant exécution) et tout bouton ✨. Imager débranché de
+  sa route spécifique (`imager:enhance_prompt` + vue supprimées, JS/template → endpoint commun).
+  Invariant studio : l'EXÉCUTION des nœuds doit passer par « instance + tâche Celery » → skills
+  hérités by design, aucun câblage par card.
+- ⏳ Suites possibles : skills pour anonymizer (kind concept ?), enhancer ; UI pour éditer les
+  skills (niveau labo/utilisateur → jonction RAG).
+
+## 23. Audit + nettoyage documentation racine (2026-07-09)
+
+> Demandé par Fabien : « la jungle des .md ». 26 fichiers `.md` à la racine, audit exhaustif via
+> 8 agents en parallèle (lecture intégrale + vérification empirique de 2-4 affirmations par
+> fichier contre le code réel), synthèse + corrections ci-dessous. **Graphe de référencement**
+> (`grep` croisé des 26 basenames) : **8 fichiers ne sont référencés par AUCUN autre doc racine**
+> (orphelins) — signal fort de contenu absorbé ailleurs ou jamais raccroché au réseau vivant :
+> `AUDIT_GLOBALISATION_T+C_2026-07-03.md`, `BATCH_MODEL_AUDIT.md`, `INFRA_WSL_VS_WINDOWS.md`,
+> `INPUT_MODEL_MATCHING.md`, `MEDIA_STORAGE_TIERING.md`, `MODAL_ACTIONS_AUDIT.md`,
+> `MODEL_META_UNIFICATION_KICKOFF.md`, `NEXT_SESSION_KICKOFF.md`.
+
+### 23.1 Verdict par fichier
+
+| Fichier | Lignes | Nature | Verdict |
+|---|---|---|---|
+| ~~AUDIT_GLOBALISATION_T+C_2026-07-03.md~~ | 221 | audit ponctuel clos | 🗄️ **ARCHIVÉ** → `docs/archive/` (2026-07-09, `git mv`, historique préservé) |
+| AUDIT_ROUTE_COMMUNE_2026-07-06.md | 159 | audit ponctuel | 🔧 §2b reader périmé (a migré `begin_processing` le lendemain) → corriger puis archiver une fois §3 repris |
+| BACKEND_CARTOGRAPHY.md | 110 | référence vivante | ✅ sain, à jour |
+| BATCH_FORMAT.md | 149 | référence vivante | ✅ sain, à jour |
+| ~~BATCH_MODEL_AUDIT.md~~ | 87 | audit ponctuel clos | 🗄️ **ARCHIVÉ** → `docs/archive/` (2026-07-09) |
+| CARD_CENTRIC_UI.md | 162 | décision d'archi (le « pourquoi ») | 🔧 §7 mentionne encore le staging (supprimé 2026-06-29) — à purger |
+| CARD_DESIGN.md | 408 | **doc pivot**, le plus à jour | ✅ sain (léger résidu §8.5 déjà coché ci-dessous) |
+| COMMON_REFACTORING.md | 132 | référence vivante, hub | ✅ sain, exemplaire |
+| GENERALIZATION_PLAN.md | 60 | chapeau vivant | 🔧 curseur "prochaine app = Reader" dépassé (Reader porté depuis) |
+| INFRA_WSL_VS_WINDOWS.md | 68 | référence active | ✅ sain (se périmera seul à la bascule full-Linux) |
+| INPUT_MODEL_MATCHING.md | 72 | décision + plan | 🔧 étapes 1-4/6 déjà exécutées (`wama-input-match.js` existe), non cochées |
+| INSPECTOR_DETAIL_FIELDS.md | 65 | référence vivante | ✅ sain |
+| MEDIA_STORAGE_TIERING.md | 88 | décision d'archi (pas implémenté) | 🔧 §B périmé : `EMAIL_BACKEND` déjà configuré (2026-07-02) |
+| MODAL_ACTIONS_AUDIT.md | 89 | audit + cible | 🔧 cible `_settings_modal_footer.html` existe et est adoptée par 5/11 apps — non mentionné |
+| ~~MODEL_META_UNIFICATION_KICKOFF.md~~ | 192 | kickoff de session | 🗄️ **ARCHIVÉ** → `docs/archive/` (2026-07-09 ; R10 confirmé fait dans REMOVAL_LEDGER.md, suivi résiduel = REMOVAL_LEDGER) |
+| MODES_QUEUE_UX.md | 178 | boussole produit vivante | ✅ **corrigé ce jour** : P1 marqué fait (était en retard sur le code) |
+| ~~NEXT_SESSION_KICKOFF.md~~ | 55 | brief de session | 🗄️ **ARCHIVÉ** → `docs/archive/` (2026-07-09 ; livrable produit = `UI_MECHANISMS_CONSOLIDATION.md`) |
+| PROFILES_PERMISSIONS.md | 166 | référence vivante | ✅ sain, vérifié |
+| PROMPT_PIPELINE.md | 98 | référence vivante | ✅ **exemplaire** — le plus frais (skills du jour même) |
+| README.md | 269 | point d'entrée | 🔧 table doc ne référence que 8/26 fichiers — désynchronisée |
+| REMOVAL_LEDGER.md | 105 | registre actif | 🔧 table §1 désync de son propre journal (R1/R2 dits soldés, table dit encore ⛔) |
+| ROADMAP.md | 1219 | **hétérogène** | 🔨 RESTRUCTURER — ~55-60% de doublon avec PROJECT_STATUS (voir 23.2) |
+| STUDIO_VISION.md | 100 | vision (non stabilisée) | ✅ **corrigé ce jour** : route `/studio/` (était `/common/studio/`) |
+| TRANSCRIBER_REFERENCE_AUDIT.md | 105 | checklist vivante | ✅ sain — ajouter un renvoi croisé vers UI_MECHANISMS_CONSOLIDATION §0 (nuance "référence") |
+| UI_MECHANISMS_CONSOLIDATION.md | 412 | pilotage de chantier vivant | 🔧 §7/§9 contredisent son propre résumé exécutif (P0 params.py dit fait puis refait) |
+| WAMA_APP_CONVENTIONS.md | 2398 | **référence normative** | 🔨 §15.1 (table conformité) périmée sur plusieurs lignes + double numérotation §15 + §5 dupliqué avec CARD_DESIGN |
+| PROJECT_STATUS.md (ce fichier) | — | tableau de bord vivant | 🔧 **corrigé ce jour** : §9 Media Library disait Phases 2-4 ⏳, en fait faites |
+
+### 23.2 Recouvrements identifiés (pas de vrai doublon strict trouvé)
+
+- **CARD_CENTRIC_UI.md vs CARD_DESIGN.md** : PAS un doublon — l'un est la décision d'architecture
+  (le « pourquoi », figé), l'autre le formalisme visuel vivant (mis à jour en continu). À
+  **synchroniser** (fait ce jour pour le point staging), pas à fusionner.
+- **ROADMAP.md vs PROJECT_STATUS.md** : le plus gros chevauchement du lot (~55-60 %). ROADMAP
+  mélange vision long terme, décisions historiques ET détails d'implémentation déjà livrés
+  (Media Library, Ollama, cam_analyzer §9.1/9.2 — tout 2026-04/05, 100% ✅). Les deux docs
+  **divergent silencieusement** (ROADMAP avait raison sur Media Library, PROJECT_STATUS avait
+  tort — corrigé ce jour ; l'inverse est possible ailleurs). **Recommandation non exécutée
+  (chantier dédié à prévoir)** : restructurer ROADMAP pour ne garder que specs/décisions/backlog
+  intemporels (§12/§13/§14/§15/§16), archiver les sections 100 % actées (§3/§4/§9.1-9.2/§8d
+  Phase 1) au profit d'un renvoi vers PROJECT_STATUS.
+- **WAMA_APP_CONVENTIONS.md §5 vs CARD_DESIGN.md** : redondance de contenu (structure de card,
+  ordre des zones) — CARD_DESIGN.md est la référence la plus récente et se déclare déjà comme
+  telle. **Recommandation non exécutée** : réduire §5 à un renvoi vers CARD_DESIGN.md.
+- **AUDIT_GLOBALISATION_T+C_2026-07-03.md → AUDIT_ROUTE_COMMUNE_2026-07-06.md → COMMON_REFACTORING.md** :
+  chaîne d'audits successifs sur le même chantier (port Transcriber/Composer/Describer), chacun
+  prolongeant/absorbant le précédent. Le premier est mort, le second vivra jusqu'à ce que ses
+  chantiers §3 soient repris ailleurs, le troisième est le hub stable.
+- **NEXT_SESSION_KICKOFF.md → UI_MECHANISMS_CONSOLIDATION.md** : le premier commande le second
+  comme livrable ; mission accomplie, le brief n'a plus de raison d'être consulté.
+
+### 23.3 Corrections empiriques appliquées ce jour (factuel, périmé → à jour)
+
+- `PROJECT_STATUS.md` §9 : Media Library Phases 2-4 étaient marquées ⏳, **vérifié faites**
+  (`MediaProvider`/`UserProviderConfig` + 6 connecteurs + filtrage UI).
+- `MODES_QUEUE_UX.md` : phase **P1 marquée ✅** (`app_modes.py` + `wama-modes.js` existent et sont
+  câblés dans imager/composer/studio — le doc se croyait encore au stade projet).
+- `STUDIO_VISION.md` : route corrigée `/common/studio/` → `/studio/` (l'app a été migrée en app
+  Django dédiée, le doc n'avait pas suivi).
+
+### 23.4 Reste à faire (backlog de nettoyage — non exécuté ce jour, décisions ouvertes)
+
+**Petites corrections factuelles restantes** (chacune = quelques lignes, faisable en 10-15 min) :
+1. `AUDIT_ROUTE_COMMUNE_2026-07-06.md` §2b : ligne reader (a migré `begin_processing`).
+2. `GENERALIZATION_PLAN.md` : curseur "prochaine app" (Reader déjà porté).
+3. `INPUT_MODEL_MATCHING.md` : cocher étapes 1-4/6 déjà exécutées.
+4. `MEDIA_STORAGE_TIERING.md` §B : `EMAIL_BACKEND` déjà configuré, ne reste que `notify_by_email`.
+5. `MODAL_ACTIONS_AUDIT.md` : note "rollout 5/11 apps sur `_settings_modal_footer.html`".
+6. `REMOVAL_LEDGER.md` : resynchroniser la table §1 avec le journal (R1/R2 → ✅).
+7. `README.md` : étoffer la table de doc (8/26 référencés seulement).
+8. `WAMA_APP_CONVENTIONS.md` §15.1 : ETA et bouton Dupliquer Avatarizer marqués ❌ alors que faits.
+9. `TRANSCRIBER_REFERENCE_AUDIT.md` : renvoi croisé vers `UI_MECHANISMS_CONSOLIDATION.md §0` pour
+   éviter la contradiction implicite (transcriber = référence sémantique, pas cible technique).
+10. `UI_MECHANISMS_CONSOLIDATION.md` §7/§9 : purger la contradiction interne P0 params.py.
+
+**Décisions structurelles tranchées (Fabien, 2026-07-09)** :
+- **Archivage → `docs/archive/`** (git mv, historique préservé, pas de suppression). **Exécuté** pour
+  les 4 candidats fermes : `AUDIT_GLOBALISATION_T+C_2026-07-03.md`, `BATCH_MODEL_AUDIT.md`,
+  `NEXT_SESSION_KICKOFF.md`, `MODEL_META_UNIFICATION_KICKOFF.md` (R10 confirmé clos dans
+  REMOVAL_LEDGER.md avant archivage). Aucun lien markdown cassé (vérifié par grep). **Reste en
+  attente** : `AUDIT_ROUTE_COMMUNE_2026-07-06.md` — PAS archivé, son §3 (chantiers ordonnés) n'est
+  pas encore repris ailleurs ; à ré-évaluer une fois ces chantiers absorbés dans ce fichier.
+
+**Décisions structurelles encore ouvertes** — chantiers de plus grande ampleur, non exécutés ce jour :
+- **Restructuration ROADMAP.md** (1219 lignes, ~55-60 % doublon) — chantier de taille, à faire en
+  session dédiée (comme le pratique déjà ce repo pour les gros chantiers de convergence) :
+  garder §12/13/14/15/16, archiver le reste au profit de renvois vers PROJECT_STATUS.
+- **Fusion WAMA_APP_CONVENTIONS.md §5 → renvoi CARD_DESIGN.md** (évite la double maintenance déjà
+  visible sur le retrait staging).
+- **Règle anti-jungle pour la suite** : avant de créer un nouveau `.md` racine, vérifier s'il ne
+  s'agit pas d'un simple ajout à un doc existant (chapeau `PROJECT_STATUS.md` pour l'avancement,
+  doc de référence thématique sinon) — les audits ponctuels (`*_AUDIT.md`, `*_KICKOFF.md`) ont
+  vocation à être **absorbés puis archivés** une fois leur chantier clos, pas à s'accumuler.
+
+## 24. Bugs corrigés + duplication de vocabulaire média découverte et consolidée (2026-07-09)
+
+- ✅ **Bug médiathèque (recherche toujours vide)** : `MediaPicker.open({type:...})` passait des
+  valeurs (`'audio'`, `'all'`) qui ne correspondaient à AUCUNE valeur exacte de
+  `media_library.ASSET_TYPES` → `.filter(asset_type=asset_type)` ne matchait jamais rien, quel que
+  soit le texte cherché (repro : "voix_fab" introuvable). Fix : `TYPE_GROUPS` (nouveau,
+  `media_library/models.py`) traduit les alias larges en listes de vraies valeurs avant filtre
+  (`asset_type__in=...`) ; valeur exacte toujours acceptée en repli. Testé bout en bout (asset
+  synthétique, 5 cas dont un cas négatif).
+- ✅ **Bug rôles/permissions** : `user_update_role` (tier admin/dev/user) faisait `groups.clear()`,
+  effaçant silencieusement les rôles MÉTIER (`role:*`, axe B de `accounts/permissions.py`) à chaque
+  changement de tier — ET ne synchronisait jamais `UserProfile.account_tier` (l'axe réellement
+  consulté par `permissions.accessible()` pour gater les apps WAMA), si bien que choisir
+  « Développeur » ne débloquait aucune app (seul « Admin »/`is_superuser` fonctionnait). D'où le
+  symptôme remonté par Fabien : « je dois le rendre admin pour tout autoriser ». Fix : ne retire
+  que les groupes de tier legacy (pas les `role:*`), synchronise `account_tier` en parallèle.
+  **Ajout** : colonne « Métiers » dans `accounts/user_management.html` — checkboxes multi-select
+  par utilisateur (communication/recherche/ingénierie/administratif, cumulatifs), nouvel endpoint
+  `user_toggle_metier_role` (miroir de `app_access_toggle`, mêmes Groups `role:*`), bouton "Tout
+  cocher" par ligne. **Clarification consciente** : le tier `developpeur` (bypass total,
+  `BYPASS_TIERS`) reste le bon levier pour "faire tester toutes les apps à quelqu'un" — cocher les
+  4 métiers ne suffit PAS pour les apps à `min_tier` (ex. model_manager), vérifié empiriquement.
+  Testé bout en bout (5 scénarios : tier→bypass, persistance métier au changement de tier, rejet
+  clé invalide, gating min_tier).
+- 🔍 **Duplication de vocabulaire « type de média » découverte (Fabien, en creusant le fix
+  médiathèque)** : le même concept « catégorie de média » (image/vidéo/audio/document/archive)
+  existait déjà en 3 endroits distincts, écrits indépendamment :
+  1. `common/app_registry.py::MEDIA_CATEGORIES` + `normalize_types()` — la vraie source, bâtie
+     pour le typage des ports studio, mais **quasi sans consommateur** avant ce jour (seulement
+     `studio_node_ports()` dans le même fichier).
+  2. `common/utils/media_probe.py` (créé 2026-07-08) — listes d'extensions privées dupliquées.
+  3. `media_library/static/media_library/js/media-library.js::AUDIO_TYPES` (JS, préexistant) +
+     `media_library/models.py::TYPE_GROUPS` (créé ce jour) — même regroupement recréé une 3e fois.
+  **Consolidé** : (1) reste la source unique ; extensions manquantes ajoutées (`.heif`/`.avif`,
+  `.wmv`/`.ts`/`.m4v`/`.mpeg`, `.aiff`/`.aif`) pour ne rien perdre par rapport aux doublons
+  retirés ; (2) dispatch réécrit sur `normalize_types()` (PDF reste un cas particulier littéral,
+  page-count) ; (3) `TYPE_GROUPS` dérivé de `MEDIA_CATEGORIES` via un mapping
+  `ASSET_TYPE_CATEGORY` (les ASSET_TYPES de Media Library restent plus fins — voice/audio_music/
+  audio_sfx — mais se RATTACHENT au vocabulaire commun au lieu d'en inventer un 2e), le JS local
+  supprimé au profit d'une variable globale rendue depuis cette même source (`audio_types_json`
+  dans le contexte de la vue `index`). Testé : `probe_media` (5 fichiers réels, sortie identique
+  avant/après), `normalize_types` sur les extensions ajoutées, pages media-library/converter/
+  reader (200), scénario recherche médiathèque (5 cas, inchangé).
+- ⏳ **Question ouverte (Fabien)** : `media_library` n'est **PAS enregistrée dans `APP_CATALOG`**
+  (confirmé — seules les 10 apps généralistes y figurent). Elle a été construite hors du scope de
+  standardisation/auto-génération (pas d'`input_types`/`output_types`, pas de score de conformité,
+  pas de port studio). L'intégrer pleinement à `APP_CATALOG` est une décision d'architecture plus
+  large (impact nav/permissions/conformité/studio), **pas tranchée, pas exécutée** — à instruire
+  si Fabien veut aligner Media Library sur le reste de l'écosystème métadonnée-driven.
+- **Leçon retenue** : avant d'écrire une nouvelle petite table de correspondance (extensions,
+  catégories, alias), grep `wama/common/app_registry.py` et `wama/common/utils/app_modes.py`
+  d'abord — ce sont les deux hubs de vocabulaire partagé les plus susceptibles de déjà couvrir le
+  besoin.
+
+## 25. 2 bugs inspecteur commun (transverses, PAS liés au portage) — corrigés 2026-07-10
+
+> Remontés par Fabien en observant Converter, mais les deux vivent dans `wama-inspector.js`
+> (commun) → affectaient TOUTES les apps consommant l'inspecteur, pas Converter spécifiquement.
+
+- ✅ **Navigation clavier bloquée sur un batch sélectionné** : `moveSelection()` (↓/↑) exigeait
+  `itemId !== null` — or `selectBatch()` met `itemId = null`. Résultat : après un clic sur l'
+  en-tête d'un batch, ↓/↑ ne faisaient plus rien (« pas systématique » = seulement après avoir
+  sélectionné un batch, pas à chaque card). Fix : `moveSelection` ancre désormais la position sur
+  la première/dernière card enfant du batch selon le sens du parcours quand `itemId` est null
+  mais `batchId` est défini ; garde du keydown étendue à `itemId !== null || batchId !== null`.
+- ✅ **Inspecteur qui « se désactualise » juste après un clic** : `fillDetail()`/`fillPreview()`
+  n'avaient AUCUNE protection contre les réponses réseau désordonnées — un clic rapide carte A→B
+  lance 2 fetch, sans garantie que celui de A ne résolve pas APRÈS celui de B ; sa callback
+  repeignait alors le volet avec le contenu de A alors que B était la sélection courante. Fix :
+  jeton anti-course (`_detailReqId`/`_previewReqId`, incrémenté à chaque fetch + à chaque
+  `selectBatch`/`deselect`) — seule la callback du DERNIER fetch lancé est autorisée à peindre.
+  Bug transverse pré-existant, pas introduit par le portage Converter du jour.
+- Testé : sanity JS (accolades/parenthèses équilibrées, occurrences des jetons), smoke des 5
+  pages consommant l'inspecteur (200). Pas de test navigateur réel (comportement client pur) —
+  **validation visuelle par Fabien recommandée**.
+
+### 25bis. RETIRÉS (2026-07-10) — diagnostic invalidé par le test navigateur
+
+Les 2 fixes ci-dessus ont été **retirés de `wama-inspector.js`** (revert complet, fichier
+redéployé dans `staticfiles/`) : Fabien a testé en navigateur après application, **aucune erreur
+JS console**, et les deux symptômes (navigation clavier bloquée, inspecteur qui se désactualise)
+**persistaient dans Converter** — la preuve que mon diagnostic « bug transverse commun » était
+faux ou en tout cas incomplet. Fabien confirme que **reader/composer/transcriber/describer
+fonctionnent correctement** avec ce même `wama-inspector.js` : le problème est **isolé à
+Converter**, pas au commun. Règle appliquée : *modification incertaine + non prouvée nécessaire
+→ retrait plutôt que code potentiellement inutile qui complique l'uniformisation*. Piste réelle
+trouvée mais non confirmée comme cause : Converter est le SEUL des 5 apps portées dont le JS
+(`converter.js`) n'a **aucun wrapper `DOMContentLoaded`** — ses listeners (dont un click délégué
+sur `#converterQueue`, en concurrence avec celui de l'inspecteur) s'exécutent immédiatement au
+parsing du script, alors que reader.js séquence TOUT (inspecteur d'abord, puis cycle-button) dans
+un unique `init()` appelé au `DOMContentLoaded`. Aucun `stopImmediatePropagation` trouvé nulle
+part donc ce n'est pas une preuve, juste une piste **pour le prochain passage sur Converter**.
+**Prochaine étape demandée par Fabien** : porter Converter à 100% en s'appuyant sur Transcriber/
+Describer/Composer/Reader (apps les plus avancées) comme référence de construction — card
+d'entrée (✅ fait §27.1), tri/filtrage/disposition de file, boutons d'actions de file, bug +
+mise en conformité de l'inspecteur inclus dans ce passage complet plutôt que traités isolément.
+
+## 26. Vérification pipeline prompts composer/imager (2026-07-10)
+
+- ✅ **Câblage confirmé** : `composer/tasks.py` (1 site) et `imager/tasks.py` (2 sites : image +
+  vidéo, cf. §22) appellent bien `process_prompt_for()` → traduction/enrichissement selon modèle
+  pour les deux apps. RAG non concerné (pas implémenté, cf. §RAG anticipation).
+- ⚠️ **Point non tranché, à revérifier depuis WSL2** : `AIModel.model_key` pour composer semble
+  SANS le préfixe `composer:` côté base Windows consultée (`musicgen-medium` au lieu de
+  `composer:musicgen-medium`) → `_resolve_model()` ne matcherait jamais, capacités jamais lues,
+  repli silencieux sur `default_model_type='music'`. **MAIS** : le code documente déjà ce piège
+  exact (commentaire `model_registry.py:912`, renvoie à `REMOVAL_LEDGER.md` F4, marqué ✅ FAIT
+  2026-07-01 avec re-sync). Vu que Fabien a confirmé que la base Windows n'est pas à jour
+  (session du jour), **cette lecture n'est probablement qu'un artefact de DB obsolète**, pas un
+  bug réel côté WSL2 — à reconfirmer directement depuis WSL2 avant toute action. Sans conséquence
+  observable actuelle de toute façon (tous les modèles composer sont `music`, capacités vides).
+
+## 27. Converter : card d'entrée manquante + Grille de conformité périmée (2026-07-10)
+
+### 27.1 Bug converter : aucun moyen d'ajouter un fichier hors filemanager — corrigé
+
+Converter n'avait **jamais adopté** la brique commune `_new_item_card.html` (contrairement à
+reader/composer/transcriber/describer) : son seul point d'import vivait dans le **volet droit**
+(`app_right_panel_media`), invisible en **mode simplifié** (volets masqués) → aucun moyen d'ajouter
+un fichier sans passer par le filemanager dans ce mode. Fix : card commune ajoutée en **tête de
+file** (même pattern que reader, commentaire "Card d'entrée déplacée du volet vers la TÊTE DE
+FILE"), volet droit vidé. Détails techniques :
+- IDs préservés (`converterDropZone`/`converterFileInput`) → JS inchangé sauf 1 ajout nécessaire :
+  `_new_item_card.html` ne fournit PAS de handler clic-pour-parcourir (chaque app le câble elle-même,
+  comme reader) — l'ancien markup avait un `onclick` inline retiré au passage à la brique commune ;
+  ajouté `dropZone.addEventListener('click', () => fileInput.click())` dans `converter.js`.
+  **Sans cet ajout, cliquer la zone n'ouvrait plus le sélecteur de fichiers** (régression silencieuse
+  évitée en vérifiant le JS avant de conclure).
+- `batch_detect_bar.html` : ancien include autonome doublé → retiré, réutilisé via le slot
+  `show_batch_bar=True` de la card commune (1 seule instance désormais).
+- CSS `.converter-drop-zone.dragover` (bespoke) → généralisé en `.drop-zone.dragover` (classe
+  générique posée par `_new_item_card.html`), sinon le retour visuel dragover aurait disparu.
+- Testé : page 200, 1 seule occurrence de chaque ID (pas de doublon), label attendu présent.
+
+### 27.2 Grille de conformité (`APP_CATALOG.conventions`, `get_conformity_summary()`) : périmée, pas automatique
+
+**Diagnostic confirmé** : le score n'est PAS calculé par introspection du code — c'est une simple
+moyenne sur des **booléens saisis à la main** par app (`_conv(...)` dans `app_registry.py`), jamais
+revérifiés après coup. Composer (94%) n'est pas "gonflé" : c'est le SEUL à avoir été correctement
+ré-audité récemment (commentaires datés, lignes citées) ; les autres dérivent silencieusement au
+fil des chantiers (portage, ETA, boutons ajoutés) sans que quiconque ne remette à jour leurs flags.
+
+**Scores AVANT correction** (composer 94% en tête, plusieurs apps sous-évaluées) :
+transcriber 77%, describer 72%, enhancer/reader 69%, synthesizer 63%, converter 62%,
+anonymizer 60%, imager 45%, avatarizer 40%.
+
+**Corrections appliquées ce jour (chaque flag vérifié par grep/lecture directe du code avant
+modification — pas de supposition)** :
+- **reader** : `eta_individual`/`eta_batch`/`eta_queue` False→True (wama-eta câblé partout,
+  vérifié `_item_card.html`/`_batch_card.html`/`_global_progress.html`) → **69%→82%**.
+- **converter** : commentaire `inspector` périmé (décrivait l'ancien `.init`, pas
+  `initFromSchema` du portage d'aujourd'hui) + `eta_individual`/`eta_batch`/`eta_queue` False→True
+  (mêmes briques que reader, câblées lors du portage) → **62%→75%**.
+- **avatarizer** : `duplicate`/`batch`/`clear_all` False→True (boutons + `BatchAvatarJob(BatchMixin)`
+  vérifiés présents), `eta_batch` None→True (wama-eta sur les batchs confirmé) → **40%→57%**.
+- **transcriber** : `eta_individual`/`eta_queue` False→True (`WamaEta.render` + `_global_progress.html`
+  confirmés) ; `eta_batch` laissé False (aucune trace de `eta_ids` batch en JS, cohérent avec la
+  mémoire "ETA batch : reste transcriber") → **77%→86%**, redevient cohérent avec son statut de
+  référence.
+- **imager** : `settings`/`duplicate`/`start_all`/`drag_drop` False→True (boutons + drop-zones
+  vérifiés présents dans le template) → **45%→63%**. `batch` volontairement PAS touché : `has_batch`/
+  `batch_type=None` portent une annotation "to be redesigned" qui semble une nuance délibérée
+  (parent_generation existe mais n'est peut-être pas jugé un "vrai" batch unifié) — **à trancher par
+  Fabien**, pas réinterprété unilatéralement.
+
+**Colonnes potentiellement incomplètes (repéré, PAS ajouté)** : aucun flag ne couvre (a) la card
+« Nouvel élément » en tête de file (le bug §27.1 aurait été visible dans la grille si ce flag
+existait), (b) la section Infos/détail de l'inspecteur (`register_app_detail`/chips, distincte du
+flag `inspector` générique existant), (c) `ProcessingTimeMixin`/temps de traitement affiché. Ajouter
+ces colonnes nécessiterait de ré-auditer les 10 apps dessus — pas fait, pour ne pas empiler des
+flags non vérifiés sous pression de temps.
+
+**PAS fait (limite assumée)** : describer/enhancer/synthesizer/anonymizer n'ont PAS été
+ré-audités — leurs scores (72%/69%/63%/60%) sont encore susceptibles d'être sous-évalués comme
+imager/converter/reader/avatarizer l'étaient. **Recommandation** : un audit complet et systématique
+(idéalement en agents parallèles, comme l'audit des .md du §23) serait nécessaire pour fiabiliser
+la grille sur les 10 apps plutôt que de continuer à la corriger au fil des sessions.
+
+Scores APRÈS correction (ordre) : transcriber 86%, reader 82%, converter 75%, composer 94% (inchangé,
+toujours en tête), describer 72%, enhancer 69%, avatarizer 57%, synthesizer 63%, anonymizer 60%,
+imager 63%. Testé : syntaxe `app_registry.py` OK, `/common/apps/` → 200, pages imager/avatarizer/
+transcriber → 200.
+
+## 28. Retrait des 2 fixes wama-inspector.js + suite du portage Converter (2026-07-10)
+
+### 28.1 Fixes communs retirés — diagnostic invalidé par test navigateur réel
+
+Fabien a testé en navigateur après application des 2 fixes §25 : **aucune erreur JS console**,
+et les deux symptômes **persistaient** dans Converter. Preuve directe que le diagnostic « bug
+transverse dans le commun » était faux — reader/composer/transcriber/describer utilisent le même
+`wama-inspector.js` et fonctionnent. Règle appliquée (demandée explicitement par Fabien) :
+*modification incertaine + non prouvée nécessaire → retrait, pas de code potentiellement inutile
+qui complique l'uniformisation*. **Les 2 fixes ont été intégralement retirés** de
+`wama-inspector.js` (revert exact, fichier redéployé) : `moveSelection` batch-anchor + garde
+keydown étendue + jetons anti-course `_detailReqId`/`_previewReqId`. Fichier revenu à l'identique
+d'avant le §25 (vérifié : 0 occurrence des marqueurs, accolades/parenthèses équilibrées, smoke
+5 apps → 200).
+
+### 28.2 Piège commentaire Django multi-lignes — 4e récidive, scan complet du dépôt
+
+Fabien a repéré un `{# ... #}` multi-ligne que je venais d'écrire dans `converter/index.html` —
+le piège documenté dans `reference_django_multiline_comment.md`, déjà récidivé 3× avant ce jour.
+Corrigé (`{% comment %}...{% endcomment %}`) + **scan mécanique de tout le dépôt** (`glob` +
+regex, pas une relecture visuelle) : 2 AUTRES occurrences pré-existantes trouvées et corrigées,
+jamais détectées avant (`imager/index.html` entre deux `<script>`, `studio/index.html`). 0 restante
+sur tout `wama/**/*.html` après correction. Mémoire renforcée : compter sur la mémoire seule a
+échoué 3 fois → la procédure documentée est désormais un scan mécanique après toute édition de
+commentaire, pas une simple règle à se rappeler.
+
+### 28.3 Suite du portage Converter — comparé point par point à reader/composer/transcriber/describer
+
+Fabien : *« évite de toucher au commun qui fonctionne très bien »* + s'appuyer sur les 4 apps les
+plus avancées comme référence. Comparaison systématique (grep direct, pas de supposition) →
+3 gaps réels et vérifiés, **tous corrigés dans converter uniquement** (aucune ligne de commun
+touchée) :
+
+1. **`_queue_toolbar.html` jamais adopté** (tri + filtre + toggle Ligne/Mosaïque + actions
+   globales, bundle commun utilisé par composer/describer/reader/transcriber — PAS
+   `_queue_actions.html`, qui n'est en fait utilisé que par enhancer, contrairement à ce que
+   suggérait une mémoire périmée). Ajouté en tête de file avec les IDs EXISTANTS de converter
+   (`converterStartAllBtn`/`converterClearAllBtn`) → zéro changement JS requis pour ces boutons.
+   Vue : `apply_queue_sort_filter()` branché (même brique que reader), `_name` défini sur
+   `input_filename` du 1er item. Toggle Ligne/Mosaïque (`.wama-layout-btn`, mécanisme
+   `wama-queue.js::initLayoutToggle`, chargé globalement dans `base.html`) vient bundlé — geste
+   auparavant construit mais jamais câblé à un bouton nulle part dans le dépôt (vérifié par grep
+   sur les 4 apps de référence + `app_modern_base.html`).
+2. **`#converterQueue` sans classe `wama-queue-{{ card_layout }}`** → ajoutée (`card_layout`
+   déjà exposé globalement par le context processor accounts, zéro changement de vue requis).
+3. **Batch collapse forcé `show`** (toujours déplié) → contrevient à la convention Solitaire
+   commune (replié par défaut + persistance localStorage + un seul déplié à la fois,
+   `wama-queue.js::initBatchCollapse`/`initOnePileOpen`, chargé globalement). Retiré, converter
+   suit maintenant la même convention que reader.
+4. **`_inspector_actions.html` jamais inclus** — gap le PLUS probablement responsable du
+   comportement « inspecteur qui ne se comporte pas correctement » signalé par Fabien : l'hôte
+   `#inspectorActions` (où `cloneActions()` écrit les actions clonées de l'item/batch sélectionné)
+   **n'existait pas du tout** dans le DOM de converter → `cloneActions(null, ...)` no-opait
+   silencieusement (`if (!host) return;`, confirmé en lisant `wama-inspector.js`) — aucune erreur
+   console, la section Actions restait simplement vide/jamais mise à jour. Ajouté dans
+   `app_right_panel_actions`, exactement comme reader.
+
+Testé : page 200, tous les IDs/classes présents exactement une fois (`converterStartAllBtn`,
+`converterClearAllBtn`, `inspectorActions`, `wama-layout-btn`, `wama-queue-list`), 5 combinaisons
+sort/filter → 200 sans crash, filtre `running` confirmé sur données réelles (créées puis
+nettoyées). Smoke global 7 pages → 200.
+
+**Reste à faire sur Converter (hors scope de ce palier)** : la piste DOMContentLoaded (§25bis —
+converter.js n'a aucun wrapper, contrairement à reader.js qui séquence tout dans un `init()`
+unique) n'a pas été retenue comme correction (pas de preuve causale, et le point 4 ci-dessus est
+un candidat plus solide pour expliquer le comportement de l'inspecteur) — **à réévaluer une fois
+le point 4 validé en navigateur par Fabien** ; si le problème persiste malgré `_inspector_actions.html`,
+la piste DOMContentLoaded redevient la prochaine à creuser, toujours côté converter.js/template
+uniquement.
+
+## 29. Bug preview inspecteur : webp invisible — doublon MIME filemanager/commun (2026-07-10)
+
+**Symptôme** : les .webp ne s'affichaient pas dans la preview de l'inspecteur (toutes apps),
+alors que la preview du filemanager les lit correctement. Fabien : *« la preview est globale et
+commune... pas de réécriture, on utilise le formalisme en place »* — a demandé de VÉRIFIER s'il y
+avait un doublon plutôt que de deviner un correctif.
+
+**Root cause confirmée empiriquement** : `mimetypes.guess_type('test.webp')` → `(None, None)` sur
+cette machine (base mime.types locale incomplète, connu sous Windows). `preview_registry.py::
+create_simple_adapter` (l'adaptateur COMMUN consommé par TOUTES les apps portées à l'inspecteur)
+appelait `mimetypes.guess_type()` nu → `mime_type=None` → repli `'application/octet-stream'` →
+le JS (`renderInlinePreview`, `mime.indexOf('image/') === 0`) ne reconnaît pas l'image, rien ne
+s'affiche. **`filemanager/views.py::api_preview` avait DÉJÀ ce correctif** (commentaire explicite
+*"Robust MIME detection: mimetypes.guess_type can fail on Windows"* + dict `_EXT_MIME` local,
+2026-0X) — jamais reporté vers l'adaptateur commun de l'inspecteur. Doublon confirmé exactement
+comme suspecté par Fabien : 2 chemins de détection MIME divergents pour le même besoin.
+
+**Fix (centralisation, pas de réécriture du formalisme preview)** : nouveau
+`common/utils/mime_utils.py::guess_mime_type()` — SOURCE UNIQUE (stdlib + repli extension→MIME,
+contenu du dict extrait de filemanager). Consommé par :
+- `preview_registry.create_simple_adapter` (bug réel, corrigé).
+- `filemanager/views.py::api_preview` (refactoré pour utiliser la même fonction — le dict local
+  `_EXT_MIME` supprimé, plus de 2e copie qui pourrait diverger).
+
+Testé : `guess_mime_type('test.webp')` → `image/webp` ✓. Bout en bout sur un vrai fichier webp
+(`media/anonymizer/1/input/objects_01.webp`) via `unified_preview()` réel (job converter créé/
+nettoyé) → `mime_type: image/webp` (était `application/octet-stream` avant fix). Filemanager
+`api/preview/` sur le même fichier → toujours `image/webp` (comportement inchangé après
+refactor). Smoke 5 apps consommant l'inspecteur → 200.
+
+## 30. Card d'entrée Enhancer — investigué, PAS implémenté (gap plus profond que prévu)
+
+Demandé par Fabien (avec permission explicite de ne pas implémenter si le fit n'est pas net) :
+ajouter la card commune `_new_item_card.html` en tête de file d'Enhancer, comme les 5 apps déjà
+portées — Enhancer a 2 domaines (image/vidéo · audio) avec onglets, la card devrait s'adapter.
+
+**Investigation réelle faite avant de décider** (pas une estimation a priori) : Enhancer est
+**significativement moins porté** que je ne le pensais — chacun de ses 2 onglets a sa PROPRE
+structure, et aucun des deux n'utilise le formalisme commun établi ailleurs :
+- `#imgvideoTab` : queue `#enhancer-queue` avec des cards **codées en dur** dans le template
+  (`.synthesis-card` + classes de statut manuelles), PAS `_job_card.html`/`_batch_card.html`.
+  Utilise `_global_progress.html` (commun) pour la barre globale, au moins ça.
+- `#audioTab` : queue séparée, ET sa PROPRE barre de progression globale codée à la main
+  (`audioGlobalStatus`/`audioGlobalProgressBar`) au lieu de `_global_progress.html` — même dans
+  la même app, les 2 domaines ne sont pas au même niveau d'adoption du commun.
+- Import : 2 drop-zones distinctes déjà présentes (`dropZoneEnhancer`/`dropZoneAudio`, toggle
+  `d-none` via `switchDomain()`) — mais dans le volet droit, pas en tête de file.
+
+**Décision** : ajouter SEULEMENT la card d'entrée serait un patch cosmétique déconnecté du reste
+(elle suppose le contrat batch-import/formalisme card des apps déjà portées, qu'Enhancer n'a pas).
+**PAS implémenté** — Enhancer a besoin d'un vrai chantier de portage (cards communes sur les 2
+onglets, unifier la barre audio sur `_global_progress.html`, PUIS la card d'entrée par domaine),
+pas d'un ajout isolé. À traiter comme un palier à part entière, pas glissé dans cette session.

@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 {% load static %}
+{% load wama_static %}
 <html lang="fr">
   <head>
     <meta charset="utf-8">
@@ -8,29 +9,29 @@
     <title>{% block title %}WAMA{% endblock %}</title>
 
     <!-- Bootstrap 5 CSS -->
-    <link href="{% static 'vendors/bootstrap-5.3.0/css/bootstrap.min.css' %}" rel="stylesheet">
+    <link href="{% static_v 'vendors/bootstrap-5.3.0/css/bootstrap.min.css' %}" rel="stylesheet">
 
     <!-- Font Awesome -->
-    <link rel="stylesheet" href="{% static 'vendors/font-awesome-6.4.0/css/all.min.css' %}">
+    <link rel="stylesheet" href="{% static_v 'vendors/font-awesome-6.4.0/css/all.min.css' %}">
 
     <!-- Custom CSS -->
-    <link href="{% static 'css/general_index.css' %}" rel="stylesheet">
+    <link href="{% static_v 'css/general_index.css' %}" rel="stylesheet">
     <style>
       /* Simple mode: hide sidebar + right panel site-wide */
       body.wama-simple #filemanager-sidebar { display: none !important; }
       body.wama-simple #wama-right-panel    { display: none !important; }
     </style>
-    <link href="{% static 'common/css/app_modern.css' %}" rel="stylesheet">
-    <link href="{% static 'common/css/media-preview.css' %}" rel="stylesheet">
+    <link href="{% static_v 'common/css/app_modern.css' %}" rel="stylesheet">
+    <link href="{% static_v 'common/css/media-preview.css' %}" rel="stylesheet">
     {# Briques inspecteur/params COMMUNES chargées globalement : encadré du bandeau + champs schéma #}
-    <link href="{% static 'common/css/wama-inspector.css' %}" rel="stylesheet">
-    <link href="{% static 'common/css/wama-params.css' %}" rel="stylesheet">
+    <link href="{% static_v 'common/css/wama-inspector.css' %}" rel="stylesheet">
+    <link href="{% static_v 'common/css/wama-params.css' %}" rel="stylesheet">
     <link rel="shortcut icon" type="image/png" href="{% static 'images/favicon.png' %}" >
 
     <!-- jstree CSS -->
-    <link href="{% static 'vendors/jstree-3.3.16/themes/default-dark/style.min.css' %}" rel="stylesheet">
+    <link href="{% static_v 'vendors/jstree-3.3.16/themes/default-dark/style.min.css' %}" rel="stylesheet">
     <!-- FileManager CSS -->
-    <link href="{% static 'filemanager/css/filemanager.css' %}" rel="stylesheet">
+    <link href="{% static_v 'filemanager/css/filemanager.css' %}" rel="stylesheet">
 
     {% block extra_css %}{% endblock %}
     <!-- Shims IE<9 (html5shiv/respond) retirés 2026-06-29 : obsolètes + c'étaient des liens CDN. -->
@@ -246,13 +247,13 @@
     {% endblock %}
 
     <!-- jQuery (pour compatibilité avec le code existant) -->
-    <script src="{% static 'js/jquery-3.1.1.min.js' %}"></script>
+    <script src="{% static_v 'js/jquery-3.1.1.min.js' %}"></script>
 
     <!-- Bootstrap 5 JS -->
-    <script src="{% static 'vendors/bootstrap-5.3.0/js/bootstrap.bundle.min.js' %}"></script>
+    <script src="{% static_v 'vendors/bootstrap-5.3.0/js/bootstrap.bundle.min.js' %}"></script>
 
     <!-- jstree JS -->
-    <script src="{% static 'vendors/jstree-3.3.16/jstree.min.js' %}"></script>
+    <script src="{% static_v 'vendors/jstree-3.3.16/jstree.min.js' %}"></script>
     <!-- WAMA App Catalog (injected server-side — used by FileManager JS) -->
     <script>window.WAMA_APP_CATALOG = {{ app_catalog_json|safe }};</script>
     <script>window.WAMA_INSPECTOR_AUTOPLAY = {{ inspector_autoplay|yesno:'true,false' }};  // pref profil (aperçu inspecteur)</script>
@@ -261,26 +262,26 @@
     <style>:root { --wama-app-color: {{ current_app_color }}; }</style>
     {% endif %}
     <!-- WAMA FileManager notify (API commune media:uploaded/processed/deleted) -->
-    <script src="{% static 'common/js/wama-fm-notify.js' %}"></script>
+    <script src="{% static_v 'common/js/wama-fm-notify.js' %}"></script>
     <!-- FileManager JS -->
-    <script src="{% static 'filemanager/js/filemanager.js' %}"></script>
+    <script src="{% static_v 'filemanager/js/filemanager.js' %}"></script>
     <!-- Unified media preview (modal + fullscreen — common à toutes les apps) -->
-    <script src="{% static 'common/js/media-preview.js' %}"></script>
-    <script src="{% static 'common/js/media-picker.js' %}"></script>  {# MediaPicker global : import depuis la médiathèque dispo partout (brique commune) #}
-    <script src="{% static 'common/js/wama-model-help.js' %}"></script>  {# WamaModelHelp global : desc modèle (court/long+VRAM) sous les selects help_source (WamaParams) #}
-    <script src="{% static 'common/js/wama-app-base.js' %}"></script>  {# WamaApp global : csrfFetch/getUrl/Poller/toast/maps statut (plomberie JS commune des apps) #}
-    <script src="{% static 'common/js/wama-cycle-button.js' %}"></script>  {# WamaCycleButton global : bouton de cycle ▶/⏹/↻ (toujours vert, icône selon statut) #}
+    <script src="{% static_v 'common/js/media-preview.js' %}"></script>
+    <script src="{% static_v 'common/js/media-picker.js' %}"></script>  {# MediaPicker global : import depuis la médiathèque dispo partout (brique commune) #}
+    <script src="{% static_v 'common/js/wama-model-help.js' %}"></script>  {# WamaModelHelp global : desc modèle (court/long+VRAM) sous les selects help_source (WamaParams) #}
+    <script src="{% static_v 'common/js/wama-app-base.js' %}"></script>  {# WamaApp global : csrfFetch/getUrl/Poller/toast/maps statut (plomberie JS commune des apps) #}
+    <script src="{% static_v 'common/js/wama-cycle-button.js' %}"></script>  {# WamaCycleButton global : bouton de cycle ▶/⏹/↻ (toujours vert, icône selon statut) #}
     <!-- WAMA Audio Waveform Player (Canvas + Web Audio — aucun CDN) -->
-    <script src="{% static 'common/js/wama-audio-player.js' %}"></script>
+    <script src="{% static_v 'common/js/wama-audio-player.js' %}"></script>
     <!-- WAMA Queue — comportements communs aux files d'attente (batch collapse…) -->
-    <script src="{% static 'common/js/wama-queue.js' %}"></script>
+    <script src="{% static_v 'common/js/wama-queue.js' %}"></script>
     <!-- System stats monitor -->
-    <script src="{% static 'common/js/system-stats.js' %}"></script>
+    <script src="{% static_v 'common/js/system-stats.js' %}"></script>
     <!-- Queue actions (duplication générique) -->
-    <script src="{% static 'common/js/queue-actions.js' %}"></script>
+    <script src="{% static_v 'common/js/queue-actions.js' %}"></script>
 
     {% block javascript %}
-      <script src="{% static 'vendors/bootstrap-wysiwyg/js/bootstrap-wysiwyg.min.js' %}"></script>
+      <script src="{% static_v 'vendors/bootstrap-wysiwyg/js/bootstrap-wysiwyg.min.js' %}"></script>
     {% endblock %}
 
     {# ── Global UI-mode switch helpers ───────────────────────────────── #}

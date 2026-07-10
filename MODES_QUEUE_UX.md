@@ -89,7 +89,7 @@ déclaratif + générateur d'UI `WamaModes`).
 | Phase | Quoi | Ordre / pourquoi | Difficulté |
 |-------|------|------------------|------------|
 | **0** ✅ | Fondations (CARD_DESIGN, inspecteur global, WamaDetails, capacités, contrat backend) | posées | — |
-| **P1 — clé de voûte** | Schéma `app_metadata.modes` + cartographie des modes existants + générateur commun `WamaModes` (étend WamaDetails) | **débloque P2-P6** ; déclaratif | moyenne, risque faible |
+| **P1** ✅ | Schéma `app_metadata.modes` (`common/utils/app_modes.py`) + générateur commun `WamaModes` (`wama-modes.js`, étend WamaDetails) — **fait et câblé** (imager, composer, studio, endpoint `/common/api/app-modes/<app>/`) ; vérifié 2026-07-09, corrige le retard de ce doc sur le code | **débloque P2-P6** ; déclaratif | moyenne, risque faible |
 | **P2 — le + visible** | File unique + card « nouveau » persistante + code couleur + compteur sur l'onglet (1 app réf) | gain UX immédiat | moyenne |
 | **P3 — cœur** | Config générée par mode (modale ↔ inspecteur en sync, sections distinctes, simple/avancé) | file pilotée par description | moyenne-haute |
 | **P4** | Temps réel = mode (migrer Speak transcriber/synthesizer) | homogénéise, -1 surface | moyenne |

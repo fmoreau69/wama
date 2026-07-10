@@ -46,6 +46,28 @@ et la méta-app.
 - **Fichiers de référence** : data-gated (rien si pas de fichier).
 - **Transparence** : messages console user-facing (🌐 traduit / ✨ enrichi / 📎 référence) ; **silence si direct**.
 
+## Skills de prompt par application (2026-07-08)
+
+Les **consignes d'enrichissement** ne sont plus codées en dur : chaque app les DÉCLARE dans
+`wama/common/prompt_skills/<app>-<domain>.md` (résolution `<app>-<domain>` → `<app>` →
+`default-<kind>`, module `common/utils/prompt_skills.py`, **importable sans Django**).
+Le domaine vient de `PROMPT_TARGETS` (`domain` statique ou `domain_field` lu sur l'instance,
+ex. imager `output_type` image|video), repli sur le `model_type` du modèle cible.
+
+**Toutes les sources d'appel convergent** (décision Fabien 2026-07-08) :
+- pipeline au lancement de tâche (hook A, gaté `WAMA_PROMPT_ENRICH`) ;
+- **à la demande** (bouton ✨) : `prompt_enrichment.enrich_on_demand(prompt, app=, domain=)` —
+  PAS gaté par l'interrupteur maître (le clic vaut demande), même cache. Imager consommateur
+  (son `utils/prompt_enhancer.py` dupliqué a été SUPPRIMÉ) ;
+- assistant IA : ses tools dispatchent les tâches Celery → skills appliqués by design ;
+- wama-dev-ai : importe le même module (`PROMPT_SKILLS_DIR` dans son `config.py`).
+
+Règles DANS LE CODE (mécanisme, pas skills) : clause de langue d'émission + préservation
+verbatim des mots-clés forcés (`glossary`). Contrat : `wama/common/prompt_skills/README.md`.
+Comblé au passage : `generate_video_task` (imager) n'appelait PAS la pipeline (variables
+locales `_prompt`/`_negative`, la base garde l'original) ; composer `enrich=True` (le blocage
+« consignes visuelles » est levé par `composer-music.md`).
+
 ## Hooks à venir
 - **RAG** (`apply_rag`, commenté dans `prompt_pipeline`) : récupération depuis store **ChromaDB** +
   embeddings **bge-m3**. No-op tant que la fondation `wama/rag/` + l'indexation (§8c) n'existent pas.

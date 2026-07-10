@@ -9,8 +9,8 @@ class ReadingItem(ProcessingTimeMixin, models.Model):
     class Status(models.TextChoices):
         PENDING = 'PENDING', 'En attente'
         RUNNING = 'RUNNING', 'En cours'
-        DONE    = 'DONE',    'Terminé'
-        ERROR   = 'ERROR',   'Erreur'
+        SUCCESS = 'SUCCESS', 'Terminé'
+        FAILURE = 'FAILURE', 'Échec'
 
     class Backend(models.TextChoices):
         AUTO    = 'auto',    'Auto (meilleur disponible)'

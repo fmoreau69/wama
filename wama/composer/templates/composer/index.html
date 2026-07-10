@@ -1,5 +1,6 @@
 {% extends 'composer/base.html' %}
 {% load static %}
+{% load wama_static %}
 
 {% block app_styles %}
 /* Hint zone vide */
@@ -24,7 +25,6 @@ le format batch coloré est affiché DANS la card (batch_format). Section vide, 
 
 {# ── Right panel : paramètres ────────────────────────────────────────────── #}
 {% block app_right_panel_settings %}
-{% include 'common/_inspector_banner.html' %}{# bandeau « Réglages de l'élément #N » (inspecteur contextuel) #}
 <div id="composerPanelParams">
 {% comment %}Switch « Type » RETIRÉ (décision Fabien 2026-07-02) : il dupliquait le choix du modèle —
 le type (music/sfx) est DÉRIVÉ du modèle (endpoint), la lisibilité vient des optgroups du select.
@@ -180,15 +180,15 @@ id melodyInput conservé (payload generate inchangé). Cf. INPUT_MODEL_MATCHING.
     window.COMPOSER_QUEUE_COUNT = {{ active_count }};{# items actifs (amorçage barre globale) #}
 </script>
 <script>window.WAMA_GLOBAL_PROGRESS_URL = "{% url 'composer:global_progress' %}";</script>
-<script src="{% static 'common/js/wama-global-progress.js' %}"></script>  {# barre globale COMMUNE (l'endpoint dort depuis sa création — branché, audit B1) #}
-<script src="{% static 'common/js/wama-eta.js' %}"></script>
-<script src="{% static 'common/js/wama-model-help.js' %}"></script>
-<script src="{% static 'common/js/wama-params.js' %}"></script>  {# rendu des champs modale (P1) — composer n'en avait pas besoin avant (initFromSchema lit sans rendre) #}
-<script src="{% static 'common/js/wama-cycle-button.js' %}"></script>  {# bouton cycle ▶/⏹/↻ — le JS composer était déjà câblé (wire/autoSync), le script manquait #}
-<script src="{% static 'common/js/wama-input-match.js' %}"></script>  {# appariement card d'entrée ↔ modèles (INPUT_MODEL_MATCHING.md) #}
-<script src="{% static 'common/js/wama-queue.js' %}"></script>  {# file commune : toggle Ligne/Mosaïque + collapse batch + focusCard #}
-<script src="{% static 'common/js/wama-new-item-card.js' %}"></script>  {# card d'entrée DÉPLIABLE (auto-init, mécanisme synthesizer globalisé) #}
-<script src="{% static 'common/js/batch-import.js' %}"></script>  {# import batch COMMUN : aperçu serveur + créer/lancer (audit B3-9) #}
+<script src="{% static_v 'common/js/wama-global-progress.js' %}"></script>  {# barre globale COMMUNE (l'endpoint dort depuis sa création — branché, audit B1) #}
+<script src="{% static_v 'common/js/wama-eta.js' %}"></script>
+<script src="{% static_v 'common/js/wama-model-help.js' %}"></script>
+<script src="{% static_v 'common/js/wama-params.js' %}"></script>  {# rendu des champs modale (P1) — composer n'en avait pas besoin avant (initFromSchema lit sans rendre) #}
+<script src="{% static_v 'common/js/wama-cycle-button.js' %}"></script>  {# bouton cycle ▶/⏹/↻ — le JS composer était déjà câblé (wire/autoSync), le script manquait #}
+<script src="{% static_v 'common/js/wama-input-match.js' %}"></script>  {# appariement card d'entrée ↔ modèles (INPUT_MODEL_MATCHING.md) #}
+<script src="{% static_v 'common/js/wama-queue.js' %}"></script>  {# file commune : toggle Ligne/Mosaïque + collapse batch + focusCard #}
+<script src="{% static_v 'common/js/wama-new-item-card.js' %}"></script>  {# card d'entrée DÉPLIABLE (auto-init, mécanisme synthesizer globalisé) #}
+<script src="{% static_v 'common/js/batch-import.js' %}"></script>  {# import batch COMMUN : aperçu serveur + créer/lancer (audit B3-9) #}
 <script>
 // Import batch COMMUN (WamaBatchImport, pattern transcriber) : aperçu serveur dans la detect bar,
 // « Créer seulement » ≠ « Créer et lancer » (le lancement passe par composer:batch_start —
@@ -239,8 +239,8 @@ window.COMPOSER_APP = {
     batchStartUrlTemplate: '{% url "composer:batch_start" 0 %}',
 };
 </script>
-<script src="{% static 'composer/js/index.js' %}"></script>
-<script src="{% static 'common/js/wama-inspector.js' %}"></script>
+<script src="{% static_v 'composer/js/index.js' %}"></script>
+<script src="{% static_v 'common/js/wama-inspector.js' %}"></script>
 <script>
 // Inspecteur CONTEXTUEL : la section params du volet (#composerPanelParams) devient « Réglages de
 // l'élément #N » au clic sur une card (model/durée/format/qualité depuis la card, sauvegarde routée).

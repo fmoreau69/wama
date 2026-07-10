@@ -6,13 +6,16 @@ Consommée par : la PromptPipeline (traitement), l'assistant IA et la méta-app 
 structure de prompt d'une app sans lire son code). Au lieu de coder `kind=...` dans chaque tâche,
 le KIND est déclaré ICI, en un seul endroit.
 
-Chaque target : {field, kind, [model_field, source, default_model_type, when]}.
+Chaque target : {field, kind, [model_field, source, default_model_type, when, domain, domain_field]}.
 - field             : nom du champ prompt sur l'instance.
 - kind              : 'generative' | 'concept' | 'intent' | 'text' (cf. prompt_pipeline).
 - model_field       : attribut de l'instance donnant l'id du modèle cible (pour ses capacités langue).
 - source            : source du modèle dans le catalogue AIModel (défaut = nom de l'app).
 - default_model_type: type de repli si le modèle est introuvable (ex. 'diffusion').
 - when              : attribut booléen de l'instance qui conditionne le traitement (ex. 'use_sam3').
+- domain / domain_field : domaine média pour la sélection du SKILL d'enrichissement
+  ([[prompt_skills]] : `<app>-<domain>.md`) — statique (`domain='music'`) ou lu sur l'instance
+  (`domain_field='output_type'`, ex. imager image|video). Repli = model_type du modèle cible.
 """
 from __future__ import annotations
 
@@ -26,20 +29,32 @@ PROMPT_TARGETS = {
         # (settings.WAMA_PROMPT_ENRICH, OFF par défaut). PAS le négatif (liste de choses à éviter,
         # l'étoffer n'aurait pas de sens).
         {'field': 'prompt',          'kind': 'generative', 'model_field': 'model',
-         'source': 'imager', 'default_model_type': 'diffusion', 'enrich': True},
+         'source': 'imager', 'default_model_type': 'diffusion', 'enrich': True,
+         'domain_field': 'output_type'},   # image|video → skill imager-image / imager-video
         {'field': 'negative_prompt', 'kind': 'generative', 'model_field': 'model',
          'source': 'imager', 'default_model_type': 'diffusion'},
     ],
     'anonymizer': [
         {'field': 'sam3_prompt', 'kind': 'concept', 'when': 'use_sam3'},
     ],
+    'cam_analyzer': [
+        # Prompts de marquages SAM3 : LISTE de {label, prompt}. Enrichis en « concept »
+        # anglophone (skill cam_analyzer-transport) — l'itération sur la liste est faite
+        # dans la tâche (`analyze_sam3_only_task`) via enrich_on_demand ; `list_item_field`
+        # documente la structure pour un futur hook générique.
+        {'field': 'sam3_markings_prompts', 'kind': 'concept', 'when': 'use_sam3',
+         'domain': 'transport', 'list_item_field': 'prompt'},
+    ],
     'composer': [
         # MusicGen / AudioCraft : prompt texte décrivant la musique/SFX à générer, entraîné en
         # anglais → un prompt FR doit être traduit. default_model_type='music' mappe sur ['en']
         # ([[lang_routing]]) tant que les modèles composer ne sont pas catalogués avec leurs langues.
-        # PAS d'enrich pour l'instant (l'enrichissement « visuel » ne convient pas à l'audio).
+        # enrich activé 2026-07-08 : le blocage était les consignes visuelles uniques — levé par
+        # le skill dédié `composer-music.md` ([[prompt_skills]]). Reste gaté par l'interrupteur
+        # maître WAMA_PROMPT_ENRICH (OFF par défaut).
         {'field': 'prompt', 'kind': 'generative', 'model_field': 'model',
-         'source': 'composer', 'default_model_type': 'music'},
+         'source': 'composer', 'default_model_type': 'music', 'enrich': True,
+         'domain': 'music'},
     ],
     'assistant': [
         # Le message chat = intention pour un LLM. Modèle résolu dynamiquement (pas un champ
@@ -106,11 +121,14 @@ def process_prompt_for(app: str, field: str, value, instance=None, user=None, co
         return value
     from .prompt_pipeline import process_prompt
     caps, mtype = _resolve_model(app, instance, tgt, model_id=model_id)
+    domain = tgt.get('domain') or (getattr(instance, tgt['domain_field'], None)
+                                   if tgt.get('domain_field') and instance is not None else None)
     return process_prompt(value, kind=tgt.get('kind', 'text'),
                           model_capabilities=caps, model_type=mtype,
                           enrich=tgt.get('enrich', False),
                           reference_files=_resolve_reference_files(instance, tgt),
-                          user=user, console=console)['prompt']
+                          user=user, console=console,
+                          app=app, domain=domain)['prompt']
 
 
 def _resolve_reference_files(instance, tgt):

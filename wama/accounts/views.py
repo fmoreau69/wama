@@ -397,24 +397,59 @@ def get_or_create_anonymous_user():
 @admin_required
 def user_management(request):
     """Display the user management page."""
+    from wama.accounts.permissions import ROLES, ROLE_DESCRIPTIONS, GROUP_PREFIX
+
     users = User.objects.all().order_by('username')
     groups = Group.objects.all().order_by('name')
 
     # Add role info to each user
     users_with_roles = []
     for user in users:
+        # Rôles MÉTIER actifs (axe B, cumulatifs, Groups 'role:*') — indépendants du tier ci-dessus.
+        active_metier = {g.name[len(GROUP_PREFIX):] for g in user.groups.all()
+                         if g.name.startswith(GROUP_PREFIX)}
         users_with_roles.append({
             'user': user,
             'role': get_user_role(user),
             'groups': list(user.groups.values_list('name', flat=True)),
+            'metier_cells': [{'key': k, 'label': label, 'active': k in active_metier}
+                             for k, label in ROLES.items()],
         })
 
     context = {
         'users': users_with_roles,
         'groups': groups,
         'available_roles': ['admin', 'dev', 'user'],
+        # Catalogue des métiers pour l'en-tête de colonnes (tooltip = description).
+        'metier_roles': [(k, label, ROLE_DESCRIPTIONS.get(k, '')) for k, label in ROLES.items()],
     }
     return render(request, 'accounts/user_management.html', context)
+
+
+@admin_required
+@require_POST
+def user_toggle_metier_role(request, user_id):
+    """AJAX : bascule UN rôle métier (axe B, cumulatif, indépendant du tier) pour un utilisateur.
+    Miroir de `app_access_toggle` (mêmes Groups 'role:*', même contrat request/response) mais côté
+    utilisateur plutôt que côté politique d'app — permet d'affecter PLUSIEURS métiers à une personne
+    (imager+communication, transcriber+recherche, etc.), ce que le rôle de tier seul ne permet pas."""
+    from wama.accounts.permissions import ROLES, GROUP_PREFIX
+    user = get_object_or_404(User, id=user_id)
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'JSON invalide'}, status=400)
+
+    role = data.get('role')
+    if role not in ROLES:
+        return JsonResponse({'success': False, 'error': f"Métier inconnu : {role}"}, status=400)
+
+    group, _ = Group.objects.get_or_create(name=GROUP_PREFIX + role)
+    if data.get('enabled'):
+        user.groups.add(group)
+    else:
+        user.groups.remove(group)
+    return JsonResponse({'success': True})
 
 
 @admin_required
@@ -543,6 +578,15 @@ def user_add(request):
                     user.is_superuser = True
                     user.save()
 
+            # Synchronise l'axe A réel (UserProfile.account_tier, consommé par
+            # permissions.py::accessible()) — sans ça 'dev' ne débloque aucune app WAMA (seul
+            # 'admin'/is_superuser fonctionnait, cf. user_update_role ci-dessous).
+            from wama.accounts.models import UserProfile
+            tier_map = {'admin': 'admin', 'dev': 'developpeur', 'user': 'utilisateur'}
+            profile, _ = UserProfile.objects.get_or_create(user=user)
+            profile.account_tier = tier_map.get(role, 'utilisateur')
+            profile.save(update_fields=['account_tier'])
+
             # Create UserSettings
             UserSettings.objects.get_or_create(user=user)
 
@@ -603,8 +647,11 @@ def user_update_role(request, user_id):
             if user == request.user and new_role != 'admin':
                 return JsonResponse({'success': False, 'error': 'Vous ne pouvez pas retirer votre propre rôle admin'})
 
-            # Clear existing groups
-            user.groups.clear()
+            # Ne retirer QUE les groupes de TIER legacy (admin/dev/user) — surtout PAS
+            # `user.groups.clear()`, qui effaçait aussi silencieusement les rôles MÉTIER
+            # ('role:*', axe B indépendant, cf. permissions.py) à chaque changement de tier
+            # (bug corrigé 2026-07-09, remonté par Fabien).
+            user.groups.remove(*user.groups.filter(name__in=['admin', 'dev', 'user']))
 
             # Assign new role
             if new_role in ['admin', 'dev', 'user']:
@@ -620,6 +667,17 @@ def user_update_role(request, user_id):
                 user.is_superuser = False
 
             user.save()
+
+            # Synchronise l'axe A réel (UserProfile.account_tier) — c'est LUI que
+            # `permissions.py::accessible()` consulte pour gater les apps WAMA (nav/vues/studio),
+            # pas ce Group legacy. Sans cette synchro, choisir « Développeur » ici ne donnait accès
+            # à AUCUNE app (seul « Admin » fonctionnait via is_superuser) → l'utilisateur devait
+            # être rendu admin pour tout débloquer, même juste pour tester.
+            from wama.accounts.models import UserProfile
+            tier_map = {'admin': 'admin', 'dev': 'developpeur', 'user': 'utilisateur'}
+            profile, _ = UserProfile.objects.get_or_create(user=user)
+            profile.account_tier = tier_map.get(new_role, 'utilisateur')
+            profile.save(update_fields=['account_tier'])
 
             return JsonResponse({
                 'success': True,

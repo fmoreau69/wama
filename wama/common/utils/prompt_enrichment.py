@@ -15,6 +15,15 @@ Garde-fous RESSOURCES (préoccupation récurrente de l'utilisateur — pas de ca
 
 S'applique UNIQUEMENT au KIND 'generative' (cf. prompt_pipeline). On n'enrichit jamais un
 concept de segmentation (SAM3) ni une intention d'assistant : ce serait du bruit / hallucination.
+
+**Skills (2026-07-08)** : les consignes (system prompt) viennent des SKILLS déclarés par app
+([[prompt_skills]], fichiers `common/prompt_skills/<app>-<domain>.md`) — `_SYSTEM` ci-dessous
+n'est plus que l'ultime fallback si aucun fichier n'existe. Deux règles restent DANS LE CODE
+(mécanisme, pas skill) : la clause de langue d'émission et la préservation verbatim des
+mots-clés forcés par l'utilisateur (`glossary`).
+
+`enrich_on_demand()` : variante EXPLICITE (bouton ✨ des apps) — ne dépend PAS de
+l'interrupteur maître `WAMA_PROMPT_ENRICH` (le clic EST la demande), mêmes skills, même cache.
 """
 from __future__ import annotations
 
@@ -52,15 +61,18 @@ def enrichment_enabled() -> bool:
 
 def enrich_generative(prompt: str, *, language: str = 'en', model: str = None,
                       provider: str = 'ollama', glossary=None, console=None,
-                      timeout: int = 60) -> str:
+                      timeout: int = 60, skill_name: str = None, skill_text: str = None,
+                      max_input_chars: int = _MAX_INPUT_CHARS) -> str:
     """
     Étoffe un prompt génératif. Retourne l'enrichi, ou `prompt` inchangé si rien à faire / erreur.
 
     `language` : langue dans laquelle émettre l'enrichi (= langue du prompt après routing —
-    pivot si traduit, sinon langue d'entrée). `glossary` : termes à préserver tels quels.
+    pivot si traduit, sinon langue d'entrée). `glossary` : termes à préserver tels quels
+    (mots-clés forcés par l'utilisateur). `skill_name`/`skill_text` : consignes du skill d'app
+    ([[prompt_skills]]) — repli sur `_SYSTEM` générique si absents.
     """
     text = (prompt or '').strip()
-    if not text or len(text) > _MAX_INPUT_CHARS:
+    if not text or len(text) > max_input_chars:
         return prompt  # vide ou déjà détaillé → pas d'appel LLM
 
     if model is None:
@@ -71,7 +83,7 @@ def enrich_generative(prompt: str, *, language: str = 'en', model: str = None,
             model = None
 
     gloss = list(glossary or [])
-    ckey = _cache_key(text, language, gloss, model or 'default')
+    ckey = _cache_key(text, language, gloss, f"{model or 'default'}|{skill_name or 'builtin'}")
     cached = _cache_get(ckey)
     if cached is not None:
         if console:
@@ -79,7 +91,11 @@ def enrich_generative(prompt: str, *, language: str = 'en', model: str = None,
         return cached
 
     lang_clause = f" in {language}" if language and language != 'en' else ""
-    system = _SYSTEM.format(lang_clause=lang_clause)
+    if skill_text:
+        # Skill d'app = system prompt ; la clause de langue est une règle du MÉCANISME (ajoutée ici).
+        system = skill_text + (f"\n- Emit the enriched prompt{lang_clause}." if lang_clause else "")
+    else:
+        system = _SYSTEM.format(lang_clause=lang_clause)
     user = text
     if gloss:
         user += ("\n\n(Keep these terms verbatim, do not alter: " + ", ".join(gloss) + ".)")
@@ -105,6 +121,25 @@ def enrich_generative(prompt: str, *, language: str = 'en', model: str = None,
     _cache_set(ckey, enriched)
     if console:
         console(f"✨ Prompt enrichi ({len(text)}→{len(enriched)} caractères) pour une meilleure génération.")
+    return enriched
+
+
+def enrich_on_demand(prompt: str, *, app: str = None, domain: str = None,
+                     language: str = 'en', model: str = None, glossary=None,
+                     timeout: int = 60) -> str:
+    """
+    Enrichissement EXPLICITE (bouton ✨) : le clic vaut demande → pas d'interrupteur maître.
+    Résout le skill de l'app ([[prompt_skills]]) puis passe par le même chemin (cache compris).
+    Plafond d'entrée relevé (l'utilisateur peut vouloir étoffer un prompt déjà long).
+    Lève RuntimeError si l'enrichissement n'a rien produit (l'appelant informe l'utilisateur).
+    """
+    from .prompt_skills import resolve_skill
+    name, text = resolve_skill(app=app, domain=domain, kind='generative')
+    enriched = enrich_generative(prompt, language=language, model=model, glossary=glossary,
+                                 timeout=timeout, skill_name=name, skill_text=text,
+                                 max_input_chars=2000)
+    if not enriched or enriched == (prompt or '').strip() or enriched == prompt:
+        raise RuntimeError("Enrichissement indisponible (LLM local injoignable ou réponse vide)")
     return enriched
 
 

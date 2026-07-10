@@ -30,13 +30,17 @@ def _user_lang(user):
 
 def process_prompt(prompt, *, kind='generative', model_capabilities=None, model_type=None,
                    user=None, input_lang=None, glossary=None, enrich=False,
-                   reference_files=None, console=None, timeout=120):
+                   reference_files=None, console=None, timeout=120,
+                   app=None, domain=None):
     """
     Traite un prompt selon les métadonnées (KIND + capacités du modèle cible).
 
     `enrich` : si True ET kind='generative', tente l'enrichissement (« upsampling »). Reste
     sans effet tant que `settings.WAMA_PROMPT_ENRICH` est faux (interrupteur maître, OFF par
     défaut → coût ressources nul) — cf. [[prompt_enrichment]].
+
+    `app`/`domain` : sélection du SKILL de consignes d'enrichissement ([[prompt_skills]],
+    résolution `<app>-<domain>` → `<app>` → défaut). `domain` replie sur `model_type`.
 
     `reference_files` : chemin(s) de fichier(s) de référence fournis par l'utilisateur. S'ils
     existent, ils sont compris (image/doc/texte) et repliés dans le prompt comme contexte de
@@ -86,9 +90,12 @@ def process_prompt(prompt, *, kind='generative', model_capabilities=None, model_
         if kind == 'generative' and enrich:
             from .prompt_enrichment import enrich_generative, enrichment_enabled
             if enrichment_enabled():
+                from .prompt_skills import resolve_skill
+                sk_name, sk_text = resolve_skill(app=app, domain=domain or model_type, kind=kind)
                 enr_lang = routing.get('input_pivot') if result['translated'] else lang
                 enriched = enrich_generative(result['prompt'], language=enr_lang or 'en',
-                                             glossary=glossary, console=console, timeout=timeout)
+                                             glossary=glossary, console=console, timeout=timeout,
+                                             skill_name=sk_name, skill_text=sk_text)
                 if enriched and enriched != result['prompt']:
                     result['prompt'] = enriched
                     result['enriched'] = True

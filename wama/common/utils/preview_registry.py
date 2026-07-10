@@ -159,7 +159,8 @@ def create_simple_adapter(file_field: str = 'input_file',
         # Get file path safely
         try:
             file_path = file.path
-            mime_type, _ = mimetypes.guess_type(file_path)
+            from .mime_utils import guess_mime_type
+            mime_type = guess_mime_type(file_path)
         except Exception:
             file_path = None
             mime_type = 'application/octet-stream'

@@ -136,7 +136,7 @@ class IndexView(View):
         from wama.common.utils.batch_common import build_batches_list
 
         def _extra(batch, items, readings):
-            success_count = sum(1 for r in readings if r.status == 'DONE')
+            success_count = sum(1 for r in readings if r.status == 'SUCCESS')
             first = readings[0] if readings else None
             for r in readings:
                 r.chips = _chips(r)   # chips card v2 (générés, CARD_DESIGN §10)
@@ -246,7 +246,7 @@ def stop(request, pk: int):
     if item.status not in ('RUNNING', 'PENDING'):
         return JsonResponse({'id': item.id, 'status': item.status})
     from wama.common.utils.process_control import stop_instance
-    new_status = stop_instance(item, to_status='ERROR')   # ERROR = état terminal relançable côté Reader
+    new_status = stop_instance(item, to_status='FAILURE')   # FAILURE = état terminal relançable côté Reader
     return JsonResponse({'id': item.id, 'status': new_status})
 
 
@@ -420,7 +420,7 @@ def download_all(request):
     """Download a ZIP of all completed OCR results for the current user."""
     from io import BytesIO
     user = _get_user(request)
-    items = ReadingItem.objects.filter(user=user, status='DONE')
+    items = ReadingItem.objects.filter(user=user, status='SUCCESS')
     if not items.exists():
         return JsonResponse({'error': 'Aucun résultat disponible'}, status=400)
 
@@ -578,19 +578,19 @@ def batch_list(request):
 
     data = []
     for batch in batches:
-        counts = {'done': 0, 'running': 0, 'pending': 0, 'error': 0}
+        counts = {'success': 0, 'running': 0, 'pending': 0, 'failure': 0}
         for item in batch.items.all():
             if item.reading:
                 k = item.reading.status.lower()
                 counts[k] = counts.get(k, 0) + 1
 
         total = batch.total
-        if total > 0 and counts['done'] == total:
-            status = 'DONE'
+        if total > 0 and counts['success'] == total:
+            status = 'SUCCESS'
         elif counts['running'] > 0:
             status = 'RUNNING'
-        elif counts['pending'] == 0 and counts['running'] == 0 and counts['error'] > 0:
-            status = 'ERROR'
+        elif counts['pending'] == 0 and counts['running'] == 0 and counts['failure'] > 0:
+            status = 'FAILURE'
         else:
             status = 'PENDING'
 
@@ -646,7 +646,7 @@ def batch_status(request, pk):
     user = _get_user(request)
     batch = get_object_or_404(BatchReadingItem, pk=pk, user=user)
 
-    counts = {'done': 0, 'running': 0, 'pending': 0, 'error': 0}
+    counts = {'success': 0, 'running': 0, 'pending': 0, 'failure': 0}
     items_data = []
 
     for item in batch.items.select_related('reading').all():
@@ -662,16 +662,16 @@ def batch_status(request, pk):
             'filename': r.filename,
             'status': r.status,
             'progress': p,
-            'error': r.error_message if r.status == 'ERROR' else None,
+            'error': r.error_message if r.status == 'FAILURE' else None,
         })
 
     total = batch.total
-    if total > 0 and counts['done'] == total:
-        status_str = 'DONE'
+    if total > 0 and counts['success'] == total:
+        status_str = 'SUCCESS'
     elif counts['running'] > 0:
         status_str = 'RUNNING'
-    elif counts['pending'] == 0 and counts['running'] == 0 and counts['error'] > 0:
-        status_str = 'ERROR'
+    elif counts['pending'] == 0 and counts['running'] == 0 and counts['failure'] > 0:
+        status_str = 'FAILURE'
     else:
         status_str = 'PENDING'
 
@@ -730,7 +730,7 @@ def batch_download(request, pk):
     with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as archive:
         for item in batch.items.select_related('reading').order_by('row_index'):
             r = item.reading
-            if r and r.status == 'DONE':
+            if r and r.status == 'SUCCESS':
                 stem = os.path.splitext(r.filename)[0] if r.filename else f'item_{r.id}'
                 built = _build_reading_bytes(r, fmt)
                 if built:
@@ -834,10 +834,10 @@ def global_progress(request):
     if total == 0:
         return JsonResponse({'total': 0, 'done': 0, 'running': 0, 'pending': 0,
                              'error': 0, 'overall_progress': 0})
-    done    = items.filter(status='DONE').count()
+    done    = items.filter(status='SUCCESS').count()
     running = items.filter(status='RUNNING').count()
     pending = items.filter(status='PENDING').count()
-    error   = items.filter(status='ERROR').count()
+    error   = items.filter(status='FAILURE').count()
     if done == total:
         overall_progress = 100
     else:

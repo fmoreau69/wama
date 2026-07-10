@@ -1,11 +1,12 @@
 {% extends 'base.html' %}
 {% load static %}
+{% load wama_static %}
 
 {% block title %}Studio (méta-app) — WAMA{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'common/css/wama-inspector-autofill.css' %}">
-<link rel="stylesheet" href="{% static 'studio/css/wama-studio.css' %}">
+<link rel="stylesheet" href="{% static_v 'common/css/wama-inspector-autofill.css' %}">
+<link rel="stylesheet" href="{% static_v 'studio/css/wama-studio.css' %}">
 {% endblock %}
 
 {% block content %}
@@ -33,8 +34,9 @@
 </div>
 {% endblock %}
 
-{# Inspecteur déplacé dans le VOLET DROIT global (base.html). Mêmes IDs → le JS studio (updateInspector)
-   remplit le volet droit sans modification. Généré par WamaDetails au clic sur un nœud. #}
+{% comment %}Inspecteur déplacé dans le VOLET DROIT global (base.html). Mêmes IDs → le JS studio
+(updateInspector) remplit le volet droit sans modification. Généré par WamaDetails au clic sur un
+nœud.{% endcomment %}
 {% block right_panel_settings_title %}<i class="fas fa-project-diagram me-1"></i> Inspecteur{% endblock %}
 {% block right_panel_settings %}
 <div id="studioInspectorBody" class="text-muted small">Sélectionnez un nœud pour voir ses détails.</div>
@@ -45,6 +47,6 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="{% static 'common/js/wama-inspector-autofill.js' %}"></script>
-<script src="{% static 'studio/js/wama-studio.js' %}"></script>
+<script src="{% static_v 'common/js/wama-inspector-autofill.js' %}"></script>
+<script src="{% static_v 'studio/js/wama-studio.js' %}"></script>
 {% endblock %}

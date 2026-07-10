@@ -1,12 +1,13 @@
 {% extends 'base.html' %}
 {% load static %}
+{% load wama_static %}
 
 {% block title %}Model Manager - WAMA{% endblock %}
 
 {% block console_app_name %}model_manager{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'common/css/wama-inspector-autofill.css' %}">
+<link rel="stylesheet" href="{% static_v 'common/css/wama-inspector-autofill.css' %}">
 <style>
     .model-card {
         background: #2b3035;
@@ -633,8 +634,8 @@
 
 {% block javascript %}
 {{ block.super }}
-<script src="{% static 'common/js/wama-inspector.js' %}"></script>
-<script src="{% static 'common/js/wama-inspector-autofill.js' %}"></script>
+<script src="{% static_v 'common/js/wama-inspector.js' %}"></script>
+<script src="{% static_v 'common/js/wama-inspector-autofill.js' %}"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const csrfToken = '{{ csrf_token }}';

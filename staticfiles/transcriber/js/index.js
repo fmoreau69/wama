@@ -540,8 +540,8 @@ document.addEventListener('DOMContentLoaded', function () {
       WamaParams.apply(document.getElementById('settingsParams'), {
         backend: btn.dataset.backend || 'auto',
         hotwords: btn.dataset.hotwords || '',
-        preprocess_audio: btn.dataset.preprocess === 'true',
-        enable_diarization: btn.dataset.diarization !== 'false',
+        preprocess_audio: btn.dataset.preprocessAudio === 'true',
+        enable_diarization: btn.dataset.enableDiarization !== 'false',
         temperature: parseFloat(btn.dataset.temperature) || 0,
         max_tokens: parseInt(btn.dataset.maxTokens) || 32768,
         generate_summary: btn.dataset.generateSummary === 'true',
@@ -625,8 +625,8 @@ document.addEventListener('DOMContentLoaded', function () {
         if (card) {
           card.dataset.backend = payload.backend;
           card.dataset.hotwords = payload.hotwords;
-          card.dataset.preprocess = payload.preprocess_audio ? 'true' : 'false';
-          card.dataset.diarization = payload.enable_diarization ? 'true' : 'false';
+          card.dataset.preprocessAudio = payload.preprocess_audio ? 'true' : 'false';
+          card.dataset.enableDiarization = payload.enable_diarization ? 'true' : 'false';
           card.dataset.temperature = payload.temperature;
           card.dataset.maxTokens = payload.max_tokens;
           card.dataset.generateSummary = payload.generate_summary ? 'true' : 'false';
@@ -637,8 +637,8 @@ document.addEventListener('DOMContentLoaded', function () {
           if (settingsBtn) {
             settingsBtn.dataset.backend = payload.backend;
             settingsBtn.dataset.hotwords = payload.hotwords;
-            settingsBtn.dataset.preprocess = payload.preprocess_audio ? 'true' : 'false';
-            settingsBtn.dataset.diarization = payload.enable_diarization ? 'true' : 'false';
+            settingsBtn.dataset.preprocessAudio = payload.preprocess_audio ? 'true' : 'false';
+            settingsBtn.dataset.enableDiarization = payload.enable_diarization ? 'true' : 'false';
             settingsBtn.dataset.temperature = payload.temperature;
             settingsBtn.dataset.maxTokens = payload.max_tokens;
             settingsBtn.dataset.generateSummary = payload.generate_summary ? 'true' : 'false';
@@ -1077,46 +1077,7 @@ document.addEventListener('DOMContentLoaded', function () {
     };
   }
 
-  function _panelApplyValues(s) {
-    const e = id => document.getElementById(id);
-    if (e('backendSelect') && s.backend) e('backendSelect').value = s.backend;
-    if (e('hotwordsInput')) e('hotwordsInput').value = s.hotwords || '';
-    if (e('preprocessingToggle')) { e('preprocessingToggle').checked = !!s.preprocess_audio; preprocessEnabled = !!s.preprocess_audio; }
-    if (e('diarizationToggle')) e('diarizationToggle').checked = s.enable_diarization !== false;
-    if (e('globalGenerateSummary')) {
-      e('globalGenerateSummary').checked = !!s.generate_summary;
-      // WamaParams pilote le show/hide du bloc résumé via [data-show-if] : déclenche son listener.
-      e('globalGenerateSummary').dispatchEvent(new Event('change'));
-    }
-    const stEl = document.querySelector(`input[name="globalSummaryType"][value="${s.summary_type || 'structured'}"]`);
-    if (stEl) stEl.checked = true;
-    if (e('globalVerifyCoherence')) e('globalVerifyCoherence').checked = !!s.verify_coherence;
-    if (e('panelTemperature')) {
-      const t = (s.temperature != null) ? s.temperature : 0;
-      e('panelTemperature').value = t;
-      const _trow = e('panelTemperature') ? e('panelTemperature').closest('.wama-param') : null;
-      const tv = _trow ? _trow.querySelector('.wama-range-val') : null; if (tv) tv.textContent = t;
-    }
-    if (e('panelMaxTokens')) e('panelMaxTokens').value = s.max_tokens || 32768;
-  }
-
-  function _cardSettings(card) {
-    const b = card.querySelector('.settings-btn');
-    const d = b ? b.dataset : card.dataset;
-    return {
-      backend: d.backend || 'auto',
-      hotwords: d.hotwords || '',
-      preprocess_audio: d.preprocess === 'true',
-      enable_diarization: d.diarization !== 'false',
-      generate_summary: d.generateSummary === 'true',
-      summary_type: d.summaryType || 'structured',
-      verify_coherence: d.verifyCoherence === 'true',
-      temperature: parseFloat(d.temperature) || 0,
-      max_tokens: parseInt(d.maxTokens) || 32768,
-    };
-  }
-
-  // Actions de la card inspectée (callback WamaInspector) : clone des boutons de la card + rebind.
+    // Actions de la card inspectée (callback WamaInspector) : clone des boutons de la card + rebind.
   function _renderItemActions(host, card) {
     WamaInspector.cloneActions(host, card.querySelector('.btn-group-actions'),
       '<i class="fas fa-crosshairs text-info"></i> Actions — élément #' + card.dataset.id);
@@ -1147,8 +1108,8 @@ document.addEventListener('DOMContentLoaded', function () {
           if (b) {
             b.dataset.backend = payload.backend;
             b.dataset.hotwords = payload.hotwords;
-            b.dataset.preprocess = payload.preprocess_audio ? 'true' : 'false';
-            b.dataset.diarization = payload.enable_diarization ? 'true' : 'false';
+            b.dataset.preprocessAudio = payload.preprocess_audio ? 'true' : 'false';
+            b.dataset.enableDiarization = payload.enable_diarization ? 'true' : 'false';
             b.dataset.generateSummary = payload.generate_summary ? 'true' : 'false';
             b.dataset.summaryType = payload.summary_type;
             b.dataset.verifyCoherence = payload.verify_coherence ? 'true' : 'false';
@@ -1200,14 +1161,17 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // Crée l'inspecteur commun (WamaInspector) câblé aux spécificités du transcriber.
   function initInspector() {
-    if (!queueContainer || !window.WamaInspector) return;
-    _inspector = WamaInspector.init({
+    if (!queueContainer || !window.WamaInspector || !WamaInspector.initFromSchema) return;
+    // initFromSchema : panel.read/apply et cardSettings DÉRIVÉS du schéma (params.py,
+    // dom_id/radio_name legacy scopés par contexte) — plus de lecteurs/applicateurs à la main.
+    _inspector = WamaInspector.initFromSchema({
       queueContainer: queueContainer,
+      panelContainer: document.getElementById('panelSettings'),
+      schema: window.WAMA_TRANSCRIBER_SCHEMA || [],
+      cardSelector: '.synthesis-card',
       hideOnInspect: ['resetOptions'],
       settingsTitleSelector: '#settings-section .right-panel-section-title',
       settingsTitleInspect: '<i class="fas fa-cog me-1"></i> Paramètres de l\'élément',
-      panel: { read: _panelReadValues, apply: _panelApplyValues },
-      cardSettings: _cardSettings,
       renderItemActions: _renderItemActions,
       renderBatchActions: _renderBatchActions,
       saveItem: saveInspectorItem,

@@ -1,10 +1,11 @@
 {% extends 'base.html' %}
 {% load static %}
+{% load wama_static %}
 
 {% block title %}WAMA — Catalogue des applications{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'common/css/wama-inspector-autofill.css' %}">
+<link rel="stylesheet" href="{% static_v 'common/css/wama-inspector-autofill.css' %}">
 <style>
     .apps-page { padding: 2rem 0; }
     .app-item { cursor: pointer; }
@@ -295,8 +296,8 @@
 
 {% block javascript %}
 {{ block.super }}
-<script src="{% static 'common/js/wama-inspector.js' %}"></script>
-<script src="{% static 'common/js/wama-inspector-autofill.js' %}"></script>
+<script src="{% static_v 'common/js/wama-inspector.js' %}"></script>
+<script src="{% static_v 'common/js/wama-inspector-autofill.js' %}"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     const dataEl = document.getElementById('apps-data');

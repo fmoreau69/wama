@@ -21,11 +21,14 @@ Usage:
 # Centralized extension constants
 # ---------------------------------------------------------------------------
 
-AUDIO_EXTENSIONS = ('.mp3', '.wav', '.flac', '.ogg', '.m4a', '.aac', '.opus', '.wma')
+AUDIO_EXTENSIONS = ('.mp3', '.wav', '.flac', '.ogg', '.m4a', '.aac', '.opus', '.wma',
+                    '.aiff', '.aif')
 
-IMAGE_EXTENSIONS = ('.jpg', '.jpeg', '.png', '.webp', '.bmp', '.tif', '.tiff', '.heic', '.gif')
+IMAGE_EXTENSIONS = ('.jpg', '.jpeg', '.png', '.webp', '.bmp', '.tif', '.tiff', '.heic', '.gif',
+                    '.heif', '.avif')
 
-VIDEO_EXTENSIONS = ('.mp4', '.webm', '.mkv', '.avi', '.mov', '.flv', '.mpg', '.qt', '.3gp')
+VIDEO_EXTENSIONS = ('.mp4', '.webm', '.mkv', '.avi', '.mov', '.flv', '.mpg', '.mpeg', '.qt',
+                    '.3gp', '.wmv', '.ts', '.m4v')
 
 # OCR-readable inputs (PDF + scanned images) — used by Reader.
 OCR_INPUT_EXTENSIONS = ('.pdf', '.jpg', '.jpeg', '.png', '.tiff', '.tif', '.webp', '.bmp')
@@ -308,14 +311,16 @@ APP_CATALOG = {
         'output_types': ('video',),
         'conventions': _conv(
             settings=True,
-            duplicate=False,
-            start_all=False,
-            clear_all=False,
-            download_all=False,
-            batch=False,
+            # Corrigé 2026-07-10 (grille périmée) : duplicate/batch/clear_all vérifiés présents
+            # (btn-duplicate-job, BatchAvatarJob(BatchMixin), btn-clear-all — index.html:337/442/217).
+            duplicate=True,
+            start_all=False,     # pas de bouton « Démarrer tout » global (vérifié absent)
+            clear_all=True,
+            download_all=False,  # pas de bouton « Télécharger tout » global (vérifié absent)
+            batch=True,
             settings_modal_item=True,
             inspector=True,      # volet contextuel via WamaInspector.initFromSchema (clic card → réglages #N)
-            eta_batch=None,      # N/A — pas de batch
+            eta_batch=True,      # wama-eta câblé sur les batchs (index.html:332)
             eta_queue=None,      # N/A — pas de queue multi-item significative
             model_help=None,     # N/A — MuseTalk fixe (v1.5), aucun select de modèle exposé
         ),
@@ -368,13 +373,20 @@ APP_CATALOG = {
         'output_types': ('image', 'video', 'audio', 'document', 'archive'),
         'conventions': _conv(
             batch=True,              # ConversionBatch (multi-fichiers groupé par nature + fichier d'URLs) — 2026-06
-            download_all=False,      # P2
+            download_all=False,      # P2 — pas de bouton « Télécharger tout » global (vérifié absent)
             settings_modal_item=True, # Phase 0 (2026-05-16)
             save_profile=True,       # Phase 1 (2026-05-16)
             filemanager_import=True, # quick-action + dispatch wama:fileimported (2026-05-16)
             tool_api=True,           # convert_file + get_converter_status (2026-06-02)
             cross_app_options=False, # Phase 2 à implémenter (upscale + audio enhance)
-            inspector=True,          # volet contextuel via WamaInspector.init (variante : sélection + bandeau, édition en modale)
+            # Porté 2026-07-10 (grille périmée, corrigée) : inspecteur via initFromSchema
+            # (détail/chips build_detail, cloneActions item+batch), card « Nouvel élément » en
+            # tête de file (import sans passer par le filemanager), ETA individuel/batch/queue
+            # câblés (_job_card.html wama-eta, _batch_card.html eta_ids, _global_progress.html).
+            inspector=True,
+            eta_individual=True,
+            eta_batch=True,
+            eta_queue=True,
             model_help=None,         # N/A — pas de modèles IA (ffmpeg/pandoc/Pillow)
         ),
     },
@@ -439,10 +451,16 @@ APP_CATALOG = {
         'has_youtube': False,
         'output_types': ('image', 'video'),
         'conventions': _conv(
-            settings=False,
-            duplicate=False,
-            start_all=False,
-            drag_drop=False,
+            # Corrigé 2026-07-10 (grille périmée, snapshot manifestement très ancien) : settings/
+            # duplicate/start_all/drag_drop vérifiés présents (index.html:532 settings-btn,
+            # :562 duplicate-btn, startAllBtn, plusieurs .drop-zone). `batch` LAISSÉ tel quel
+            # (False) malgré `parent_generation` (self-FK) : `has_batch=False`/`batch_type=None
+            # « to be redesigned » ci-dessus suggèrent une nuance volontaire (pas un vrai batch
+            # unifié à la ConversionBatch) — à trancher par Fabien, pas réinterprété ici.
+            settings=True,
+            duplicate=True,
+            start_all=True,
+            drag_drop=True,
             batch=False,
             tool_api=True,
             settings_modal_item=True,  # modales par-item #generationSettingsModal / #videoSettingsModal
@@ -472,6 +490,12 @@ APP_CATALOG = {
             tool_api=True,
             inspector=True,      # volet contextuel via WamaInspector.initFromSchema
             model_help=True,     # WamaModelHelp (help_fallback moteurs OCR, cf. reader/params.py)
+            # ETA vérifié 2026-07-10 (grille de conformité périmée, corrigée) : individuel
+            # (_item_card.html wama-eta), batch (_batch_card.html eta_ids) et queue
+            # (_global_progress.html) tous câblés.
+            eta_individual=True,
+            eta_batch=True,
+            eta_queue=True,
         ),
     },
 
@@ -523,6 +547,11 @@ APP_CATALOG = {
                               # SI le temps réel devient un vrai mode WamaModes (vision « realtime=mode »).
             layout=True,      # ligne / mosaïque
             model_help=True,  # WamaModelHelp (meta backends via get_backends_info, index.js:1580)
+            # Corrigé 2026-07-10 (grille périmée) : individuel + queue vérifiés câblés
+            # (wama-eta.js chargé, WamaEta.render sur la card index.js:279, _global_progress.html
+            # inclus). eta_batch=False confirmé encore non fait (pas de eta_ids batch en JS).
+            eta_individual=True,
+            eta_queue=True,
         ),
     },
 }

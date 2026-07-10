@@ -1103,20 +1103,11 @@ def api_preview(request):
 
     ext = full_path.suffix.lower()
 
-    # Robust MIME detection: mimetypes.guess_type can fail on Windows for common types
-    _EXT_MIME = {
-        '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
-        '.gif': 'image/gif',  '.webp': 'image/webp', '.bmp': 'image/bmp',
-        '.tiff': 'image/tiff', '.tif': 'image/tiff', '.ico': 'image/x-icon',
-        '.svg': 'image/svg+xml',
-        '.mp4': 'video/mp4',   '.webm': 'video/webm', '.mov': 'video/quicktime',
-        '.avi': 'video/x-msvideo', '.mkv': 'video/x-matroska', '.flv': 'video/x-flv',
-        '.wmv': 'video/x-ms-wmv', '.m4v': 'video/mp4',
-        '.mp3': 'audio/mpeg',  '.wav': 'audio/wav',   '.ogg': 'audio/ogg',
-        '.flac': 'audio/flac', '.aac': 'audio/aac',   '.m4a': 'audio/mp4',
-        '.opus': 'audio/opus', '.weba': 'audio/webm',
-    }
-    mime_type = mimetypes.guess_type(full_path.name)[0] or _EXT_MIME.get(ext, '')
+    # Détection MIME robuste — brique COMMUNE (common/utils/mime_utils.py), plus de dict local :
+    # ce correctif (mimetypes.guess_type échoue sur .webp etc. sous Windows) est désormais aussi
+    # consommé par l'inspecteur commun (preview_registry.create_simple_adapter, 2026-07-10).
+    from wama.common.utils.mime_utils import guess_mime_type
+    mime_type = guess_mime_type(full_path.name)
 
     # Images, videos, audio — direct URL, browser renders natively
     if mime_type.startswith(('image/', 'video/', 'audio/')):
