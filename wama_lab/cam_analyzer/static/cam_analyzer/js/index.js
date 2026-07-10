@@ -48,7 +48,8 @@ document.addEventListener('DOMContentLoaded', function () {
     let detectionData = {};    // { position: { fps, width, height, frames: [{frame_number, timestamp, detections}] } }
     let lastSam3TestOverlay = null;  // { time, res } — overlay du dernier 🔬 Test SAM3 (persistant)
     let lastRoadMask = {};           // position → derniers road_mask connus (overlay route persistant)
-    let gpsTimeOffset = 0;           // recalage manuel GPS↔vidéo (s) : ajouté au temps vidéo
+    let gpsTimeOffset = 0;           // recalage GPS↔vidéo (s) : ts_gps = t*scale + offset
+    let gpsTimeScale = 1;            // échelle temps vidéo→réel (corrige fps AVI erroné)
     let _lastTimeSave = 0;           // throttle de la persistance de position timeline
     let proximityByTime = [];  // [{time, proximity}] for timeline
 
@@ -371,6 +372,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
             // Offset de synchro GPS↔vidéo (recalage manuel par session).
             gpsTimeOffset = data.gps_time_offset || 0;
+            gpsTimeScale = data.gps_time_scale || 1;
             const _goi = document.getElementById('gpsOffsetInput');
             if (_goi) _goi.value = gpsTimeOffset;
             const _gos = document.getElementById('gpsOffsetSlider');
@@ -2160,7 +2162,9 @@ document.addEventListener('DOMContentLoaded', function () {
     // Find the GPS point whose timestamp is closest to a given time
     function findGpsAtTime(t) {
         if (!cachedGpsTrack.length) return null;
-        t = t + gpsTimeOffset;   // recalage manuel GPS↔vidéo (par session)
+        // ts_gps = temps_vidéo * scale + offset (scale corrige un fps AVI erroné → la
+        // désync ne grandit plus ; offset = recalage constant). Voir gps_time_scale.
+        t = t * gpsTimeScale + gpsTimeOffset;
         let lo = 0, hi = cachedGpsTrack.length - 1;
         while (lo < hi - 1) {
             const mid = (lo + hi) >> 1;

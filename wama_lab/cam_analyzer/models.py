@@ -212,6 +212,13 @@ class AnalysisSession(models.Model):
                   "correspondant. Recalage manuel de la synchro GPS↔vidéo (appliqué à "
                   "l'affichage, sans ré-analyse). >0 = le GPS est en avance sur la vidéo.",
     )
+    gps_time_scale = models.FloatField(
+        default=1.0,
+        help_text="Facteur d'échelle temps VIDÉO→temps réel : ts_gps = temps_vidéo*scale "
+                  "+ offset. Corrige un fps AVI erroné (ex. AVI à 12fps mais capture réelle "
+                  "12,5fps → scale≈0,96) → sinon la désync GRANDIT avec le temps. Calculé "
+                  "auto depuis le .rec (video_timestamps).",
+    )
     imu_track = models.JSONField(
         default=list,
         blank=True,
