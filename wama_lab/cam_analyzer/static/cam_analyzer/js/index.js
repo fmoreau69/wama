@@ -2298,6 +2298,10 @@ document.addEventListener('DOMContentLoaded', function () {
             if (det.type === 'road_mask' || det.type === 'sam3_marking') return;
             const g = det.ground_xy;
             if (!Array.isArray(g) || g.length < 2) return;
+            // Fiabilité : la projection sol (homographie) devient imprécise au loin → borner
+            // à la zone proche (sinon les objets "sautent" à distance) et rejeter les
+            // aberrations (derrière la navette, ou trop décalés latéralement).
+            if (g[1] <= 0 || g[1] > 45 || Math.abs(g[0]) > 20) return;
             const ll = egoToLatLon(pose.lat, pose.lon, pose.heading, g[0], g[1]);
             const color = ttcColor(det);
             if (det.track_id != null) {
@@ -3919,6 +3923,25 @@ document.addEventListener('DOMContentLoaded', function () {
         wire('sam3TestBtn', () => runSam3Test(false));
         wire('sam3CalibBtn', () => runSam3Test(true));
         wire('copyDebugBtn', copyDebugInfo);
+        // Synchro auto depuis le .rec (scale+offset GPS + largeur de voie).
+        const _srb = document.getElementById('syncRecBtn');
+        if (_srb) _srb.onclick = async () => {
+            if (!currentSessionId) return;
+            const _t0 = _srb.innerHTML; _srb.disabled = true; _srb.innerHTML = '⏳';
+            try {
+                const r = await fetch(`${config.urls.deleteSession}${currentSessionId}/sync-rec/`, {
+                    method: 'POST', headers: { 'X-CSRFToken': config.csrfToken },
+                });
+                const d = await r.json();
+                if (d.success) {
+                    try { localStorage.removeItem('cam_analyzer_lane_width_' + currentSessionId); } catch (e) { /* noop */ }
+                    alert('Synchro .rec OK :\nscale=' + d.gps_time_scale + '  offset=' + d.gps_time_offset + 's'
+                          + (d.lane_width_m ? '\nlargeur voie=' + d.lane_width_m + 'm' : '') + '\n(' + d.rec + ')');
+                    loadSession(currentSessionId);
+                } else { alert('Sync .rec : ' + (d.error || '?')); }
+            } catch (e) { alert('Sync .rec échec : ' + e.message); }
+            finally { _srb.disabled = false; _srb.innerHTML = _t0; }
+        };
         // Largeur de voie (gabarit vue de dessus) : slider + persistance + re-render live.
         const _lw = document.getElementById('laneWidthSlider');
         if (_lw) {

@@ -324,6 +324,44 @@ def set_gps_offset(request, session_id):
 
 @login_required
 @require_http_methods(["POST"])
+def sync_from_rec(request, session_id):
+    """Recalcule la synchro GPS↔vidéo (scale+offset) depuis le .rec RTMaps + la largeur
+    de voie. Cherche un .rec dans le dossier input de l'utilisateur (best-effort)."""
+    import glob
+    from django.conf import settings
+    from wama.common.rtmaps.rec_parser import parse_rec
+    session = get_object_or_404(AnalysisSession, id=session_id, user=request.user)
+    base = os.path.join(settings.MEDIA_ROOT, 'cam_analyzer', str(request.user.id), 'input')
+    recs = [r for r in glob.glob(os.path.join(base, '**', '*.rec'), recursive=True)
+            if 'LogConsole' not in os.path.basename(r)]
+    if not recs:
+        return JsonResponse({'error': 'Aucun .rec trouvé dans le dossier input.'}, status=404)
+    p = parse_rec(recs[0])
+    vt = p.get('video_timestamps') or []
+    gp = p.get('gps') or []
+    if len(vt) < 100 or len(gp) < 10:
+        return JsonResponse({'error': 'Parsing .rec insuffisant (vidéo/GPS).'}, status=422)
+    front = session.cameras.filter(position='front').first()
+    fps = getattr(front, 'fps', None) or 12.0
+    session.gps_time_scale = round(fps * (vt[-1] - vt[0]) / (len(vt) - 1), 5)
+    session.gps_time_offset = round(vt[0] - gp[0]['ts'], 4)
+    lane = None
+    try:
+        from .utils.lane_estimator import estimate_lane_width
+        if front and getattr(front, 'ground_homography', None):
+            lane = estimate_lane_width(front)
+            if lane:
+                session.lane_width_m = lane
+    except Exception:
+        pass
+    session.save(update_fields=['gps_time_scale', 'gps_time_offset', 'lane_width_m'])
+    return JsonResponse({'success': True, 'gps_time_scale': session.gps_time_scale,
+                         'gps_time_offset': session.gps_time_offset, 'lane_width_m': lane,
+                         'rec': os.path.basename(recs[0])})
+
+
+@login_required
+@require_http_methods(["POST"])
 def update_session(request, session_id):
     """Update session name or profile."""
     session = get_object_or_404(AnalysisSession, id=session_id, user=request.user)
