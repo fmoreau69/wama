@@ -2294,6 +2294,8 @@ document.addEventListener('DOMContentLoaded', function () {
             + ' détections, ' + _gxy + ' avec ground_xy, zoom=' + miniMap.getZoom());
 
         const seen = new Set();
+        const _fv = document.getElementById('video-front');
+        const _iw = (_fv && _fv.videoWidth) || 384;
         frame.detections.forEach(det => {
             if (det.type === 'road_mask' || det.type === 'sam3_marking') return;
             const g = det.ground_xy;
@@ -2302,6 +2304,10 @@ document.addEventListener('DOMContentLoaded', function () {
             // à la zone proche (sinon les objets "sautent" à distance) et rejeter les
             // aberrations (derrière la navette, ou trop décalés latéralement).
             if (g[1] <= 0 || g[1] > 45 || Math.abs(g[0]) > 20) return;
+            // Objet coupé au bord gauche/droit = partiel → point de contact au sol hors
+            // champ → projection fausse (ex. voiture voie opposée "collée" à la navette).
+            const _bb = det.bbox;
+            if (Array.isArray(_bb) && (_bb[0] <= 3 || _bb[2] >= _iw - 3)) return;
             const ll = egoToLatLon(pose.lat, pose.lon, pose.heading, g[0], g[1]);
             const color = ttcColor(det);
             if (det.track_id != null) {
@@ -2318,7 +2324,16 @@ document.addEventListener('DOMContentLoaded', function () {
             }
             const label = `${det.class_name || 'objet'}${det.dist_euclid_m != null ? ' · ' + det.dist_euclid_m + ' m' : ''}`
                 + `${det.ttc_s != null ? ' · TTC ' + det.ttc_s + ' s' : ''}`;
-            L.circleMarker(ll, { radius: 4, color: '#000', weight: 1, fillColor: color, fillOpacity: 0.9 })
+            // Empreinte au sol orientée le long de la route (dimensions réelles par classe)
+            // → vue de dessus réaliste plutôt qu'un simple point.
+            const _sz = ({ car: [4.5, 1.8], truck: [8, 2.5], bus: [10, 2.8], person: [0.6, 0.6],
+                          bicycle: [1.8, 0.6], motorcycle: [2, 0.8] })[(det.class_name || '').toLowerCase()]
+                        || [1.5, 1.5];
+            const _hl = _sz[0] / 2, _hw = _sz[1] / 2;
+            const _corners = [[g[0] - _hw, g[1] - _hl], [g[0] + _hw, g[1] - _hl],
+                              [g[0] + _hw, g[1] + _hl], [g[0] - _hw, g[1] + _hl]]
+                .map(c => egoToLatLon(pose.lat, pose.lon, pose.heading, c[0], c[1]));
+            L.polygon(_corners, { color: '#000', weight: 1, fillColor: color, fillOpacity: 0.75 })
                 .bindTooltip(label, { direction: 'top' })
                 .addTo(miniMapObjectLayer);
         });
