@@ -616,6 +616,17 @@ document.addEventListener('DOMContentLoaded', function () {
         zone.classList.add('has-video');
         if (info) info.style.display = 'flex';
         updateAnalyzedBadge(position);
+        // Restaurer la position timeline QUAND la vidéo front est réellement seekable
+        // (le restore dans setup s'exécutait trop tôt → la timeline repartait à 0).
+        if (position === 'front') {
+            video.addEventListener('loadeddata', () => {
+                try {
+                    const sv = currentSessionId && localStorage.getItem('cam_analyzer_time_' + currentSessionId);
+                    const t = sv ? parseFloat(sv) : 0;
+                    if (t > 0) syncSeek(t);
+                } catch (e) { /* noop */ }
+            }, { once: true });
+        }
     }
 
     // Active profile context — set by loadSession after fetching profile details.
@@ -832,6 +843,15 @@ document.addEventListener('DOMContentLoaded', function () {
         const intersectionsCount = (p.intersections || []).length;
         const modelName = (p.model_path || '').split(/[\\/]/).pop() || '—';
         const classes = (p.target_classes || []).join(', ') || '—';
+        // Le filtre d'AFFICHAGE suit les classes cibles du profil (ID COCO → nom) : si
+        // seul « car » est coché, l'overlay ne montre que les voitures — sans ré-analyse.
+        if (Array.isArray(p.target_classes) && p.target_classes.length) {
+            overlayVisibleClasses = new Set(p.target_classes.map(c => {
+                const nm = (config.cocoClasses && config.cocoClasses[c]) || String(c);
+                return String(nm).toLowerCase();
+            }).filter(Boolean));
+            if (typeof currentTime === 'number') updateDetectionOverlay(currentTime);
+        }
         const isIntersection = p.report_type === 'intersection_insertion';
         const sam3Enabled = !!p.sam3_markings_enabled;
         summary.innerHTML = `
@@ -1081,13 +1101,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
         syncSeekBar.max = maxDuration || 100;
         updateTimeDisplay(0);
-
-        // Restaurer la position timeline sauvegardée (persistance entre rafraîchissements).
-        try {
-            const _sv = currentSessionId && localStorage.getItem('cam_analyzer_time_' + currentSessionId);
-            const _t = _sv ? parseFloat(_sv) : 0;
-            if (_t > 0 && _t < (maxDuration || 1e9)) syncSeek(_t);
-        } catch (e) { /* noop */ }
+        // (Restauration de la position déplacée sur l'event 'loadeddata' de la vidéo
+        // front — voir showCameraVideo — car ici la vidéo n'est pas encore seekable.)
 
         // Re-render intersection markers now that maxDuration is known
         renderIntersectionWindows(intersectionWindows);
