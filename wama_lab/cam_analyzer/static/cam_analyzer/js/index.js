@@ -3895,14 +3895,24 @@ document.addEventListener('DOMContentLoaded', function () {
         wire('sam3TestBtn', () => runSam3Test(false));
         wire('sam3CalibBtn', () => runSam3Test(true));
         wire('copyDebugBtn', copyDebugInfo);
-        // Filtre de confiance à l'affichage (sans ré-analyse).
+        // Filtre de confiance à l'affichage (sans ré-analyse) + persistance de la valeur.
         const _cf = document.getElementById('overlayConfSlider');
-        if (_cf) _cf.oninput = () => {
-            overlayMinConf = parseFloat(_cf.value) || 0;
-            const _lbl = document.getElementById('overlayConfVal');
-            if (_lbl) _lbl.textContent = Math.round(overlayMinConf * 100) + '%';
-            if (typeof currentTime === 'number') updateDetectionOverlay(currentTime);
-        };
+        if (_cf) {
+            try {
+                const _sv = localStorage.getItem('cam_analyzer_min_conf');
+                if (_sv !== null) overlayMinConf = parseFloat(_sv) || 0;
+            } catch (e) { /* noop */ }
+            _cf.value = overlayMinConf;
+            const _lbl0 = document.getElementById('overlayConfVal');
+            if (_lbl0) _lbl0.textContent = Math.round(overlayMinConf * 100) + '%';
+            _cf.oninput = () => {
+                overlayMinConf = parseFloat(_cf.value) || 0;
+                const _lbl = document.getElementById('overlayConfVal');
+                if (_lbl) _lbl.textContent = Math.round(overlayMinConf * 100) + '%';
+                try { localStorage.setItem('cam_analyzer_min_conf', String(overlayMinConf)); } catch (e) { /* noop */ }
+                if (typeof currentTime === 'number') updateDetectionOverlay(currentTime);
+            };
+        }
         // Offset GPS↔vidéo : ajustement en direct (re-aligne la navette/objets) + save.
         const _goInput = document.getElementById('gpsOffsetInput');
         const _goSlider = document.getElementById('gpsOffsetSlider');
