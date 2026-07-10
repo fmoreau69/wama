@@ -1497,6 +1497,20 @@ def process_session_task(self, session_id: str, force_rerun: bool = False,
         summary['max_proximity'] = round(summary['max_proximity'], 3)
 
         session.results_summary = summary
+
+        # Largeur de voie AUTO (marquages yolopv2 projetés au sol) → défaut du gabarit
+        # de la vue de dessus. Nécessite la calibration (homographie) faite pendant
+        # l'analyse. Best-effort (n'impacte pas le résultat si absente).
+        try:
+            from .utils.lane_estimator import estimate_lane_width
+            _front_cam = session.cameras.filter(position='front').first()
+            if _front_cam and getattr(_front_cam, 'ground_homography', None):
+                _lw = estimate_lane_width(_front_cam)
+                if _lw:
+                    session.lane_width_m = _lw
+        except Exception:
+            logger.debug('lane width estimation failed (non-blocking)', exc_info=True)
+
         # Per-camera passes were marked COMPLETED inside the camera loop
         # (Proposition A). Nothing else to mark here for YOLO/YOLOPv2.
         # SAM3 (if enabled) is delegated to the chained analyze_sam3_only_task.
@@ -2488,6 +2502,30 @@ def extract_rtmaps_task(self, session_id: str, rec_path: str = None, csv_path: s
         session.status = AnalysisSession.Status.DRAFT
         session.progress = 0.0
         session.save(update_fields=['gps_track', 'imu_track', 'source_type', 'status', 'progress'])
+
+        # Synchro GPS↔vidéo AUTO depuis le .rec (parser commun) : scale corrige un fps AVI
+        # erroné (désync qui grandit) + offset = décalage de départ. Best-effort.
+        try:
+            import glob as _glob
+            _sync_rec = rec_path if (rec_path and os.path.exists(rec_path)) else None
+            if not _sync_rec:
+                _cands = [r for r in _glob.glob(os.path.join(os.path.dirname(csv_path or ''), '*.rec'))
+                          if 'LogConsole' not in os.path.basename(r)]
+                _sync_rec = _cands[0] if _cands else None
+            if _sync_rec:
+                from wama.common.rtmaps.rec_parser import parse_rec
+                _p = parse_rec(_sync_rec)
+                _vt = _p.get('video_timestamps') or []
+                _gp = _p.get('gps') or []
+                _fps = getattr(session.cameras.first(), 'fps', None) or 12.0
+                if len(_vt) >= 100 and len(_gp) >= 10:
+                    session.gps_time_scale = round(_fps * (_vt[-1] - _vt[0]) / (len(_vt) - 1), 5)
+                    session.gps_time_offset = round(_vt[0] - _gp[0]['ts'], 4)
+                    session.save(update_fields=['gps_time_scale', 'gps_time_offset'])
+                    _console(user_id, f"Synchro GPS auto (.rec) : scale={session.gps_time_scale} "
+                                      f"offset={session.gps_time_offset}s")
+        except Exception:
+            logger.debug('GPS sync from .rec failed (non-blocking)', exc_info=True)
 
         _set_progress(100, "Extraction terminée — prêt pour analyse")
         try:
