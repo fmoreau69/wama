@@ -52,6 +52,10 @@ document.addEventListener('DOMContentLoaded', function () {
     let gpsTimeScale = 1;            // échelle temps vidéo→réel (corrige fps AVI erroné)
     let laneWidthM = 3.5;            // largeur de voie (m) pour le gabarit vue de dessus
     let miniMapLaneLayer = null;     // calque du gabarit de voie
+    let topDown360 = false;          // fusion multi-caméra dans le repère véhicule (toggle)
+    // Orientation de montage de chaque caméra (deg, sens horaire depuis l'avant véhicule).
+    // Rig 360° ~90° ; ajustable ensuite (les caméras ne sont pas exactement à 90°).
+    const CAMERA_YAW = { front: 0, right: 90, rear: 180, left: -90 };
     let _lastTimeSave = 0;           // throttle de la persistance de position timeline
     let proximityByTime = [];  // [{time, proximity}] for timeline
 
@@ -2278,65 +2282,59 @@ document.addEventListener('DOMContentLoaded', function () {
             L.polyline(pts, { color: e.c, weight: 1.5, opacity: 0.85, dashArray: e.d }).addTo(miniMapLaneLayer);
         });
 
-        const dd = detectionData['front'];
-        if (!dd || !dd.frames || !dd.frames.length) {
-            console.warn('[topdown] rien : detectionData[front] vide (détections pas chargées).');
-            return;
-        }
-        const camOff = (cameras['front'] && cameras['front'].time_offset) || 0;
-        const frame = findClosestFrame(dd.frames, currentTime + camOff);
-        if (!frame || !frame.detections) {
-            console.warn('[topdown] rien : pas de frame front proche de t=' + currentTime.toFixed(1));
-            return;
-        }
-        const _gxy = frame.detections.filter(d => Array.isArray(d.ground_xy) && d.ground_xy.length >= 2).length;
-        console.debug('[topdown] frame#' + frame.frame_number + ' : ' + frame.detections.length
-            + ' détections, ' + _gxy + ' avec ground_xy, zoom=' + miniMap.getZoom());
-
+        // Objets : mode "avant seul" (existant) OU "fusion 360°" (toutes les caméras
+        // ramenées dans le repère VÉHICULE via l'orientation de chaque caméra). Togglable
+        // (topDown360) à tout moment — le mode existant reste intact.
         const seen = new Set();
-        const _fv = document.getElementById('video-front');
-        const _iw = (_fv && _fv.videoWidth) || 384;
-        frame.detections.forEach(det => {
-            if (det.type === 'road_mask' || det.type === 'sam3_marking') return;
-            const g = det.ground_xy;
-            if (!Array.isArray(g) || g.length < 2) return;
-            // Fiabilité : la projection sol (homographie) devient imprécise au loin → borner
-            // à la zone proche (sinon les objets "sautent" à distance) et rejeter les
-            // aberrations (derrière la navette, ou trop décalés latéralement).
-            if (g[1] <= 0 || g[1] > 45 || Math.abs(g[0]) > 20) return;
-            // Objet coupé au bord gauche/droit = partiel → point de contact au sol hors
-            // champ → projection fausse (ex. voiture voie opposée "collée" à la navette).
-            const _bb = det.bbox;
-            if (Array.isArray(_bb) && (_bb[0] <= 3 || _bb[2] >= _iw - 3)) return;
-            const ll = egoToLatLon(pose.lat, pose.lon, pose.heading, g[0], g[1]);
-            const color = ttcColor(det);
-            if (det.track_id != null) {
-                seen.add(det.track_id);
-                const tr = topDownTrails.get(det.track_id) || [];
-                tr.push(ll);
-                if (tr.length > TRAIL_LEN) tr.shift();
-                topDownTrails.set(det.track_id, tr);
-                for (let i = 1; i < tr.length; i++) {   // opacité croissante vers l'objet
-                    L.polyline([tr[i - 1], tr[i]],
-                        { color, weight: 2, opacity: 0.1 + 0.7 * (i / tr.length) })
-                        .addTo(miniMapTrailLayer);
+        const _camToVeh = (cx, cy, yawDeg) => {   // cam(latéral droite, avant) → véhicule(droite, avant)
+            const t = yawDeg * Math.PI / 180, s = Math.sin(t), c = Math.cos(t);
+            return [cy * s + cx * c, cy * c - cx * s];
+        };
+        const _drawCam = (camPos, yawDeg) => {
+            const dd = detectionData[camPos];
+            if (!dd || !dd.frames || !dd.frames.length) return;
+            const camOff = (cameras[camPos] && cameras[camPos].time_offset) || 0;
+            const fr = findClosestFrame(dd.frames, currentTime + camOff);
+            if (!fr || !fr.detections) return;
+            const vid = document.getElementById('video-' + camPos);
+            const iw = (vid && vid.videoWidth) || 384;
+            fr.detections.forEach(det => {
+                if (det.type === 'road_mask' || det.type === 'sam3_marking') return;
+                const g = det.ground_xy;
+                if (!Array.isArray(g) || g.length < 2) return;
+                if (g[1] <= 0 || g[1] > 45 || Math.abs(g[0]) > 20) return;          // zone proche fiable
+                const bb = det.bbox;
+                if (Array.isArray(bb) && (bb[0] <= 3 || bb[2] >= iw - 3)) return;   // coupé au bord
+                const v = _camToVeh(g[0], g[1], yawDeg);          // → repère véhicule commun
+                const ll = egoToLatLon(pose.lat, pose.lon, pose.heading, v[0], v[1]);
+                const color = ttcColor(det);
+                const tkey = camPos + ':' + det.track_id;
+                if (det.track_id != null) {
+                    seen.add(tkey);
+                    const tr = topDownTrails.get(tkey) || [];
+                    tr.push(ll);
+                    if (tr.length > TRAIL_LEN) tr.shift();
+                    topDownTrails.set(tkey, tr);
+                    for (let i = 1; i < tr.length; i++)
+                        L.polyline([tr[i - 1], tr[i]],
+                            { color, weight: 2, opacity: 0.1 + 0.7 * (i / tr.length) }).addTo(miniMapTrailLayer);
                 }
-            }
-            const label = `${det.class_name || 'objet'}${det.dist_euclid_m != null ? ' · ' + det.dist_euclid_m + ' m' : ''}`
-                + `${det.ttc_s != null ? ' · TTC ' + det.ttc_s + ' s' : ''}`;
-            // Empreinte au sol orientée le long de la route (dimensions réelles par classe)
-            // → vue de dessus réaliste plutôt qu'un simple point.
-            const _sz = ({ car: [4.5, 1.8], truck: [8, 2.5], bus: [10, 2.8], person: [0.6, 0.6],
-                          bicycle: [1.8, 0.6], motorcycle: [2, 0.8] })[(det.class_name || '').toLowerCase()]
-                        || [1.5, 1.5];
-            const _hl = _sz[0] / 2, _hw = _sz[1] / 2;
-            const _corners = [[g[0] - _hw, g[1] - _hl], [g[0] + _hw, g[1] - _hl],
-                              [g[0] + _hw, g[1] + _hl], [g[0] - _hw, g[1] + _hl]]
-                .map(c => egoToLatLon(pose.lat, pose.lon, pose.heading, c[0], c[1]));
-            L.polygon(_corners, { color: '#000', weight: 1, fillColor: color, fillOpacity: 0.75 })
-                .bindTooltip(label, { direction: 'top' })
-                .addTo(miniMapObjectLayer);
-        });
+                const label = `${det.class_name || 'objet'} [${camPos}]`
+                    + `${det.dist_euclid_m != null ? ' · ' + det.dist_euclid_m + ' m' : ''}`
+                    + `${det.ttc_s != null ? ' · TTC ' + det.ttc_s + ' s' : ''}`;
+                const sz = ({ car: [4.5, 1.8], truck: [8, 2.5], bus: [10, 2.8], person: [0.6, 0.6],
+                             bicycle: [1.8, 0.6], motorcycle: [2, 0.8] })[(det.class_name || '').toLowerCase()]
+                           || [1.5, 1.5];
+                const hl = sz[0] / 2, hw = sz[1] / 2;
+                const corners = [[v[0] - hw, v[1] - hl], [v[0] + hw, v[1] - hl],
+                                 [v[0] + hw, v[1] + hl], [v[0] - hw, v[1] + hl]]
+                    .map(c => egoToLatLon(pose.lat, pose.lon, pose.heading, c[0], c[1]));
+                L.polygon(corners, { color: '#000', weight: 1, fillColor: color, fillOpacity: 0.75 })
+                    .bindTooltip(label, { direction: 'top' }).addTo(miniMapObjectLayer);
+            });
+        };
+        if (topDown360) Object.keys(CAMERA_YAW).forEach(cp => _drawCam(cp, CAMERA_YAW[cp]));
+        else _drawCam('front', 0);
         // Purge des traces d'objets non vus cette frame (borne la mémoire).
         for (const k of topDownTrails.keys()) if (!seen.has(k)) topDownTrails.delete(k);
         // (Recentrage auto déplacé dans updateMiniMapShuttle → suivi à tout zoom.)
@@ -3938,6 +3936,16 @@ document.addEventListener('DOMContentLoaded', function () {
         wire('sam3TestBtn', () => runSam3Test(false));
         wire('sam3CalibBtn', () => runSam3Test(true));
         wire('copyDebugBtn', copyDebugInfo);
+        // Bascule fusion multi-caméra 360° (repère véhicule) ↔ avant seul.
+        const _tdb = document.getElementById('topDown360Btn');
+        if (_tdb) _tdb.onclick = () => {
+            topDown360 = !topDown360;
+            _tdb.classList.toggle('active', topDown360);
+            _tdb.classList.toggle('btn-warning', topDown360);
+            _tdb.classList.toggle('btn-outline-warning', !topDown360);
+            topDownTrails.clear();
+            if (typeof currentTime === 'number') { topDownLastRender = -999; updateMiniMapShuttle(currentTime); }
+        };
         // Synchro auto depuis le .rec (scale+offset GPS + largeur de voie).
         const _srb = document.getElementById('syncRecBtn');
         if (_srb) _srb.onclick = async () => {
