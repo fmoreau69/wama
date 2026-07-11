@@ -160,7 +160,10 @@ Docs : `STUDIO_VISION.md`, `memory/project_meta_app_studio.md`, `memory/project_
 - ✅ **Studio = app Django dédiée `wama/studio`** (migrée de `common`) : `/studio/` + `/studio/api/nodes/`. Nœuds-app dérivés `APP_CATALOG`+`app_modes`, **ports typés** travail/prompt/référence, **catégories unifiées**, **typage par connexion**, nœuds-source (Batch de prompts, Médias importés), **inspecteur volet droit** (WamaDetails). Vraie app : nav + card accueil (Bêta), gatée par accès.
 - ✅ **Vision AV consignée** : studio = pipeline montage vidéo + mixage/mastering assistés IA. Prior art `MusicVideoGenerator`. Monteur/Mastering = **roadmap only** (retirés des nœuds concrets).
 - ✅ **Décision archi** : montage & mixage = **apps dédiées** ; Monteur = 1 app à modes + `edit_page` par mode ; Mixage/Mastering plus tard.
-- ⏳ Suites : **persistance + exécution** d'un 1er pipeline (→ dossier filemanager studio), ports multi-entrées, specs Fabien (montage/mixage).
+- ✅ **Persistance + exécution V1** (2026-07-11, §37) : StudioPipeline/StudioRun, moteur
+  Celery topo (runners synthesizer→avatarizer via tool_api), toolbar Save/Load/Run,
+  coloration des nœuds. ⏳ Suites : plus de runners (imager, converter…), sorties → dossier
+  filemanager studio, ports multi-entrées, specs Fabien (montage/mixage).
 
 ## 16. Profils / permissions / notifications / rétention — palier 2026-06-25
 Doc : `PROFILES_PERMISSIONS.md` + `memory/project_profiles_permissions.md`.
@@ -1266,3 +1269,53 @@ Demande Fabien : « la card d'entrée en en-tête de file comme pour les applica
 Rendu 200 ; 0 résidu `pipelineSettings`/`text_content`/`text-dropzone` ; réglages MuseTalk
 (quality_mode/bbox_shift/enhancer) intacts ; `manage.py check` 0 issue ; garde-fou avant
 purge du bloc mort : grep de chaque symbole → 0 usage externe.
+
+---
+
+## 37. Studio — persistance + EXÉCUTION réelle de pipelines (2026-07-11)
+
+Les deux ⏳ du §15 sont livrés. Cas phare : **synthesizer → avatarizer** (concrétise la
+décision §36 : le pipeline texte→TTS→avatar EST une composition studio).
+
+### 37.1 Architecture
+- **`studio/models.py`** : `StudioPipeline` (graphe nommé JSON, unique par user+nom) ;
+  `StudioRun` (graphe figé, statut, `node_states` par nœud, ProcessingTimeMixin).
+  Migration 0001 appliquée WSL2 + Windows.
+- **`studio/services/runners.py`** : adapters d'exécution par app — triade canonique
+  `create(user, inputs, params) → item_id` / `start` / `poll → {status, progress, output}`,
+  branchée sur **`wama/tool_api.py`** (philosophie : chaque app expose son API à la
+  méta-app ; le traitement tourne dans le Celery de l'APP, le studio orchestre).
+  `params_spec` déclaratif par app → l'UI des params de nœud est GÉNÉRÉE (métadonnée-driven).
+  Ajouter une app exécutable = ajouter une entrée RUNNERS, zéro logique d'orchestration.
+- **`studio/tasks.py`** : `run_pipeline_task` — ordre TOPOLOGIQUE (refus des cycles),
+  chaînage des sorties par type de port (audio→audio…), timeout 30 min/nœud, états par
+  nœud persistés à chaque étape, console `app='studio'`, notification fin de run.
+- **Vues/URLs** : `/studio/api/pipelines/` (GET liste, POST upsert), `/pipelines/<id>/`
+  (GET graphe, DELETE), `/run-options/` (params_specs + galerie d'avatars), `/run/`
+  (validations AVANT dispatch : cycle, apps non exécutables), `/run/<id>/` (polling).
+
+### 37.2 UI (wama-studio.js + index.html)
+- Toolbar : nom + 💾 Sauvegarder + select Charger + ▶ Exécuter + statut de run.
+- Sérialisation/restauration du graphe (positions, params, liens par groupe de port).
+- Params d'exécution du nœud sélectionné rendus dans l'inspecteur depuis `params_spec`
+  (texte/langue/voix du synthesizer ; avatar (liste réelle de la galerie)/mode avatarizer).
+- Pendant le run : polling 2,5 s → liseré JAUNE (running) / VERT (success) / ROUGE
+  (failure) sur chaque nœud ; toast + durée à la fin.
+
+### 37.3 Validations empiriques
+- Endpoints testés (client Django) : save/load/list/delete 200, run→400 sur graphe
+  cyclique et sur app non exécutable (messages clairs), run-options renvoie la vraie
+  galerie (avatar_1.jpg…).
+- **Moteur testé à blanc** (runners simulés, sans GPU) : ordre topo respecté, la sortie
+  `synthesizer/out.wav` arrive sur l'entrée `audio` du nœud avatarizer, node_states
+  corrects, run SUCCESS + processing_seconds + notification.
+- ⚠ Exécution RÉELLE à valider en usage (requiert redémarrage WSL2 : nouveau module
+  studio/tasks.py à découvrir par Celery + modèles TTS/MuseTalk chargés).
+
+### 37.4 Limites V1 (assumées, consignées)
+- Runners : synthesizer + avatarizer seulement (l'erreur guide : « V1 : synthesizer,
+  avatarizer »). Les nœuds-source builtin (prompt_batch, media_import) ne sont pas
+  exécutables — les entrées initiales viennent des params de nœud.
+- Chaîne = graphe acyclique quelconque mais UNE valeur par type de port en entrée ;
+  pas de fan-out parallèle (exécution séquentielle).
+- Les sorties restent dans les files des apps (pas encore de dossier studio dédié).

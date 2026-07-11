@@ -80,12 +80,17 @@
     }
 
     // ── Nœud ─────────────────────────────────────────────────────────────
-    function addNode(appId) {
+    function addNode(appId, opts) {
+        opts = opts || {};
         var a = apps[appId] || BUILTINS[appId];
-        if (!a) return;
+        if (!a) return null;
         if (hint) hint.style.display = 'none';
-        var id = 'n' + (++seq);
-        var node = { id: id, app: appId, x: 40 + (nodes.length % 5) * 30, y: 40 + (nodes.length % 5) * 30 };
+        var id = opts.id || ('n' + (++seq));
+        var m = /^n(\d+)$/.exec(id);
+        if (m) seq = Math.max(seq, parseInt(m[1], 10));
+        var node = { id: id, app: appId, params: opts.params || {},
+                     x: (opts.x != null) ? opts.x : 40 + (nodes.length % 5) * 30,
+                     y: (opts.y != null) ? opts.y : 40 + (nodes.length % 5) * 30 };
 
         var box = el('div', 'studio-node' + (a.planned ? ' is-planned' : ''));
         box.style.left = node.x + 'px';
@@ -122,6 +127,7 @@
         });
         makeDraggable(node, head);
         selectNode(id);   // sélectionne le nœud fraîchement ajouté
+        return node;
     }
 
     function portEl(side, types, label, group) {
@@ -286,6 +292,7 @@
         ];
         try {
             body.innerHTML = WamaDetails.renderSections(data, schema);
+            renderNodeParams(body, node);
             var acts = WamaDetails.renderActions(data, [
                 { label: 'Supprimer le nœud', icon: 'fas fa-trash', cls: 'btn btn-sm btn-outline-danger w-100',
                   onClick: function () { removeNode(node.id); } },
@@ -295,6 +302,192 @@
             body.innerHTML = '<span class="text-warning small">Inspecteur indisponible.</span>';
             if (actionsHost) actionsHost.innerHTML = '';
         }
+    }
+
+    // ── Params d'exécution du nœud (métadonnée-driven : params_spec des runners) ──
+    var paramsSpecs = {};   // app -> spec[], servi par /studio/api/run-options/
+    var runOptions = {};    // listes dynamiques (ex. avatar_gallery)
+
+    function renderNodeParams(body, node) {
+        var spec = paramsSpecs[node.app];
+        if (!spec || !spec.length) return;
+        node.params = node.params || {};
+        var wrap = el('div', 'studio-node-params mt-2 pt-2 border-top border-secondary');
+        wrap.appendChild(el('div', 'small text-white-50 mb-1',
+            '<i class="fas fa-sliders-h me-1"></i>Paramètres d’exécution'));
+        spec.forEach(function (p) {
+            var field = el('div', 'mb-2');
+            field.appendChild(el('label', 'form-label small text-white-50 mb-0', p.label));
+            var input;
+            if (p.type === 'textarea') {
+                input = el('textarea', 'form-control form-control-sm bg-dark text-light border-secondary');
+                input.rows = 3;
+                input.placeholder = p.placeholder || '';
+            } else if (p.type === 'select') {
+                input = el('select', 'form-select form-select-sm bg-dark text-light border-secondary');
+                var opts = p.options || runOptions[p.options_source] || [];
+                opts.forEach(function (o) {
+                    var op = el('option'); op.value = o; op.textContent = o;
+                    input.appendChild(op);
+                });
+            } else {
+                input = el('input', 'form-control form-control-sm bg-dark text-light border-secondary');
+            }
+            input.value = node.params[p.name] != null ? node.params[p.name] : (p['default'] || '');
+            if (input.value && !node.params[p.name]) node.params[p.name] = input.value;
+            input.addEventListener('input', function () { node.params[p.name] = input.value; });
+            input.addEventListener('change', function () { node.params[p.name] = input.value; });
+            field.appendChild(input);
+            wrap.appendChild(field);
+        });
+        body.appendChild(wrap);
+    }
+
+    // ── Sérialisation / restauration du graphe ─────────────────────────────
+    function serializeGraph() {
+        return {
+            nodes: nodes.map(function (n) {
+                return { id: n.id, app: n.app, x: n.x, y: n.y, params: n.params || {} };
+            }),
+            links: links.map(function (l) {
+                return { from: nodeOf(l.from.dot), to: nodeOf(l.to.dot),
+                         to_port: l.to.dot.dataset.group || '' };
+            }),
+        };
+    }
+
+    function clearCanvas() {
+        links.slice().forEach(function (l) { removeLink(l.id); });
+        nodes.slice().forEach(function (n) { removeNode(n.id); });
+    }
+
+    function loadGraph(graph) {
+        clearCanvas();
+        var byId = {};
+        (graph.nodes || []).forEach(function (sn) {
+            var n = addNode(sn.app, sn);
+            if (n) byId[sn.id] = n;
+        });
+        (graph.links || []).forEach(function (sl) {
+            var from = byId[sl.from], to = byId[sl.to];
+            if (!from || !to) return;
+            var outDot = from.el.querySelector('.studio-port-col.out .dot');
+            var inDot = sl.to_port
+                ? to.el.querySelector('.studio-port-col.in .dot[data-group="' + sl.to_port + '"]')
+                : null;
+            if (!inDot) inDot = to.el.querySelector('.studio-port-col.in .dot');
+            if (outDot && inDot) createLink(outDot, inDot);
+        });
+        updateLinks();
+    }
+
+    // ── Persistance (StudioPipeline) ───────────────────────────────────────
+    function api(url, opts) {
+        opts = opts || {};
+        opts.headers = Object.assign({ 'Content-Type': 'application/json' },
+            (window.WamaApp && WamaApp.csrfHeaders) ? WamaApp.csrfHeaders() : {}, opts.headers || {});
+        return fetch(url, opts).then(function (r) {
+            return r.json().then(function (d) {
+                if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status));
+                return d;
+            });
+        });
+    }
+    function toast(msg, kind) {
+        if (window.WamaApp && WamaApp.toast) WamaApp.toast(msg, kind || 'info');
+    }
+
+    function refreshPipelineList() {
+        var sel = document.getElementById('studioLoadSelect');
+        if (!sel) return;
+        api('/studio/api/pipelines/').then(function (d) {
+            sel.innerHTML = '<option value="">Charger un pipeline…</option>';
+            d.pipelines.forEach(function (p) {
+                var o = el('option');
+                o.value = p.id;
+                o.textContent = p.name + ' (' + p.nodes + ' nœuds · ' + p.updated_at + ')';
+                sel.appendChild(o);
+            });
+        })['catch'](function () {});
+    }
+
+    function savePipeline() {
+        var nameEl = document.getElementById('studioPipelineName');
+        var name = nameEl ? nameEl.value.trim() : '';
+        if (!name) { toast('Donnez un nom au pipeline avant de sauvegarder.', 'warning'); return; }
+        api('/studio/api/pipelines/', { method: 'POST',
+            body: JSON.stringify({ name: name, graph: serializeGraph() }) })
+            .then(function (d) {
+                toast('Pipeline « ' + d.name + ' » sauvegardé.', 'success');
+                refreshPipelineList();
+            })['catch'](function (e) { toast(e.message, 'error'); });
+    }
+
+    function loadSelectedPipeline() {
+        var sel = document.getElementById('studioLoadSelect');
+        if (!sel || !sel.value) return;
+        api('/studio/api/pipelines/' + sel.value + '/').then(function (d) {
+            loadGraph(d.graph);
+            var nameEl = document.getElementById('studioPipelineName');
+            if (nameEl) nameEl.value = d.name;
+            toast('Pipeline « ' + d.name + ' » chargé.', 'success');
+        })['catch'](function (e) { toast(e.message, 'error'); });
+    }
+
+    // ── Exécution (StudioRun) : POST puis polling + coloration des nœuds ──
+    var runPoll = null;
+
+    function setNodeRunState(nodeId, status) {
+        var n = nodes.filter(function (x) { return x.id === nodeId; })[0];
+        if (!n || !n.el) return;
+        n.el.classList.remove('run-running', 'run-success', 'run-failure');
+        if (status === 'RUNNING') n.el.classList.add('run-running');
+        else if (status === 'SUCCESS') n.el.classList.add('run-success');
+        else if (status === 'FAILURE') n.el.classList.add('run-failure');
+    }
+    function clearRunStates() {
+        nodes.forEach(function (n) {
+            if (n.el) n.el.classList.remove('run-running', 'run-success', 'run-failure');
+        });
+    }
+    function setRunStatus(text, cls) {
+        var s = document.getElementById('studioRunStatus');
+        if (!s) return;
+        s.textContent = text || '';
+        s.className = 'small ms-2 ' + (cls || 'text-white-50');
+    }
+
+    function runPipeline() {
+        if (runPoll) { toast('Une exécution est déjà en cours.', 'warning'); return; }
+        if (!nodes.length) { toast('Le canvas est vide.', 'warning'); return; }
+        clearRunStates();
+        var btn = document.getElementById('studioRunBtn');
+        api('/studio/api/run/', { method: 'POST',
+            body: JSON.stringify({ graph: serializeGraph() }) })
+            .then(function (d) {
+                if (btn) btn.disabled = true;
+                setRunStatus('Exécution #' + d.run_id + ' en cours…', 'text-warning');
+                runPoll = setInterval(function () { pollRun(d.run_id, btn); }, 2500);
+            })['catch'](function (e) { toast(e.message, 'error'); });
+    }
+
+    function pollRun(runId, btn) {
+        api('/studio/api/run/' + runId + '/').then(function (d) {
+            Object.keys(d.node_states || {}).forEach(function (nid) {
+                setNodeRunState(nid, d.node_states[nid].status);
+            });
+            if (d.status === 'SUCCESS' || d.status === 'FAILURE') {
+                clearInterval(runPoll); runPoll = null;
+                if (btn) btn.disabled = false;
+                if (d.status === 'SUCCESS') {
+                    setRunStatus('Terminé ✔ (' + (d.processing_display || '') + ')', 'text-success');
+                    toast('Pipeline terminé — sorties dans les files des apps.', 'success');
+                } else {
+                    setRunStatus('Échec : ' + (d.error || ''), 'text-danger');
+                    toast('Pipeline en échec : ' + (d.error || ''), 'error');
+                }
+            }
+        })['catch'](function () {});
     }
 
     // ── Drag d'un nœud ─────────────────────────────────────────────────────
@@ -358,6 +551,19 @@
             .then(function (r) { return r.json(); })
             .then(function (d) { apps = d.nodes || {}; renderPalette(); })
             .catch(function () { paletteList.innerHTML = '<span class="text-danger">Catalogue indisponible.</span>'; });
+
+        // Persistance + exécution (2026-07-11)
+        api('/studio/api/run-options/').then(function (d) {
+            paramsSpecs = d.params_specs || {};
+            runOptions = d.options || {};
+        })['catch'](function () {});
+        refreshPipelineList();
+        var saveBtn = document.getElementById('studioSaveBtn');
+        if (saveBtn) saveBtn.addEventListener('click', savePipeline);
+        var loadSel = document.getElementById('studioLoadSelect');
+        if (loadSel) loadSel.addEventListener('change', loadSelectedPipeline);
+        var runBtn = document.getElementById('studioRunBtn');
+        if (runBtn) runBtn.addEventListener('click', runPipeline);
     }
 
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);

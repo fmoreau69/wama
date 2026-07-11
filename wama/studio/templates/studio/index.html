@@ -10,12 +10,22 @@
 {% endblock %}
 
 {% block content %}
-<div class="studio-head d-flex align-items-center justify-content-between mb-2">
+<div class="studio-head d-flex align-items-center justify-content-between mb-2 flex-wrap gap-2">
     <div>
-        <h5 class="mb-0 text-light"><i class="fas fa-diagram-project me-2"></i>Studio <span class="badge bg-secondary">méta-app · squelette</span></h5>
-        <small class="text-white-50">Glissez des apps depuis la palette ; reliez une <b>sortie</b> à une <b>entrée compatible</b> (typage par connexion).</small>
+        <h5 class="mb-0 text-light"><i class="fas fa-diagram-project me-2"></i>Studio <span class="badge bg-secondary">méta-app</span></h5>
+        <small class="text-white-50">Reliez une <b>sortie</b> à une <b>entrée compatible</b>, puis <b>Exécuter</b> — chaque nœud tourne dans son app (V1 : synthesizer → avatarizer).</small>
     </div>
-    <button id="studioClear" class="btn btn-sm btn-outline-light"><i class="fas fa-eraser me-1"></i>Vider le canvas</button>
+    {# Toolbar persistance + exécution (2026-07-11 — PROJECT_STATUS §15) #}
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+        <input type="text" id="studioPipelineName" class="form-control form-control-sm bg-dark text-light border-secondary" style="width:170px" placeholder="Nom du pipeline…">
+        <button id="studioSaveBtn" class="btn btn-sm btn-outline-info" title="Sauvegarder le pipeline"><i class="fas fa-save"></i></button>
+        <select id="studioLoadSelect" class="form-select form-select-sm bg-dark text-light border-secondary" style="width:230px">
+            <option value="">Charger un pipeline…</option>
+        </select>
+        <button id="studioRunBtn" class="btn btn-sm btn-success" title="Exécuter le pipeline"><i class="fas fa-play me-1"></i>Exécuter</button>
+        <span id="studioRunStatus" class="small ms-2 text-white-50"></span>
+        <button id="studioClear" class="btn btn-sm btn-outline-light" title="Vider le canvas"><i class="fas fa-eraser"></i></button>
+    </div>
 </div>
 
 <div class="studio">
