@@ -149,6 +149,12 @@
     // -----------------------------------------------------------------------
     const audioDropzone = $('#audio-dropzone');
     const audioInput    = $('#audio_input');
+    // Zones rendues par la card commune _new_item_card : data-wama-app posé ici (le partial ne
+    // le rend pas) — requis par le quick-drop filemanager (getAppFromDropZone → dataset.wamaApp).
+    ['text-dropzone', 'audio-dropzone'].forEach(id => {
+        const z = document.getElementById(id);
+        if (z && !z.dataset.wamaApp) z.dataset.wamaApp = 'avatarizer';
+    });
     const audioInfo     = $('#audio-info');
     const audioFilename = $('#audio-filename');
     const btnRemoveAudio = $('#btn-remove-audio');
@@ -187,9 +193,13 @@
                 const blob = await resp.blob();
                 const file = new File([blob], name || 'audio', { type: blob.type || mime || 'audio/mpeg' });
                 handleAudioFile(file);
-                // S'assurer que l'onglet Standalone est actif
-                const standaloneTab = $('#tab-standalone');
-                if (standaloneTab) standaloneTab.click();
+                // Bascule le workflow en standalone via le RADIO du volet droit (les onglets
+                // ont disparu avec la card commune — le radio reste la source du mode)
+                const standaloneRadio = $('input[name="workflow_mode"][value="standalone"]');
+                if (standaloneRadio && !standaloneRadio.checked) {
+                    standaloneRadio.checked = true;
+                    standaloneRadio.dispatchEvent(new Event('change'));
+                }
             } catch (err) {
                 WamaApp.toast('Erreur lors du chargement du fichier depuis le Filemanager : ' + err.message, 'error');
             }
@@ -306,34 +316,17 @@
     }
 
     // -----------------------------------------------------------------------
-    // Mode radio sync (right panel ↔ left panel tabs)
+    // Mode radio (volet droit) — source unique du workflow. Les onglets
+    // Pipeline/Standalone de l'ancienne colonne de saisie ont été remplacés par
+    // la card commune _new_item_card (2026-07-11) : prompt + dropzone coexistent,
+    // le radio choisit ce qui est consommé au Générer.
     // -----------------------------------------------------------------------
     $$('input[name="workflow_mode"]').forEach(radio => {
         radio.addEventListener('change', () => {
-            const mode = radio.value;
-            const pipelineTab = $('#tab-pipeline');
-            const standaloneTab = $('#tab-standalone');
             const pipelineSettings = $('#pipelineSettings');
-
-            if (mode === 'pipeline') {
-                pipelineTab && pipelineTab.click();
-                pipelineSettings && (pipelineSettings.style.display = '');
-            } else {
-                standaloneTab && standaloneTab.click();
-                pipelineSettings && (pipelineSettings.style.display = 'none');
-            }
+            pipelineSettings && (pipelineSettings.style.display =
+                radio.value === 'pipeline' ? '' : 'none');
             updateGenerateButton();
-        });
-    });
-
-    $$('#inputTabs .nav-link').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const mode = btn.id === 'tab-pipeline' ? 'pipeline' : 'standalone';
-            const radio = $(`input[name="workflow_mode"][value="${mode}"]`);
-            if (radio) {
-                radio.checked = true;
-                radio.dispatchEvent(new Event('change'));
-            }
         });
     });
 

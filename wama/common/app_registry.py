@@ -375,9 +375,14 @@ APP_CATALOG = {
             anti_race=True,      # begin_processing sur start + start_all (verrou + revoke)
             toast=True,          # 21 alert() → WamaApp.toast typés ; ordre boutons card corrigé
                                  # (⚙ avant ↻) + couleurs outline (template + buildCard JS)
-            # KO restants : _new_item_card/_batch_card mère (inline)/_queue_toolbar/_cycle_button/
-            # layout/ProcessingTimeMixin absents ; absent d'APP_MODES ; filemanager_import partiel
-            # (data-wama-app sans listener wama:fileimported).
+            new_item_card=True,  # _new_item_card COMMUNE en tête de file (2026-07-11) : prompt=
+                                 # consigne pipeline, dropzone=audio standalone, galerie avatars via
+                                 # slot déclaré extra_zone_template, ids historiques conservés →
+                                 # handlers JS intacts ; onglets Pipeline/Standalone remplacés par
+                                 # le radio workflow_mode (source unique du mode)
+            # KO restants : _batch_card mère (inline)/_queue_toolbar/_cycle_button/layout/
+            # ProcessingTimeMixin absents ; absent d'APP_MODES ; filemanager_import partiel
+            # (quick-drop filemanager:filedrop OK, listener wama:fileimported absent).
         ),
     },
 

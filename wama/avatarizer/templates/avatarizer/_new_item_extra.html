@@ -1,0 +1,32 @@
+{% comment %}Zone d'extension de la card « Nouvel élément » avatarizer (slot extra_zone_template
+de common/_new_item_card.html) : badge du fichier audio retenu + sélection de l'AVATAR (galerie
+partagée). Les ids/classes sont ceux du markup historique — les handlers JS (index.js :
+.avatar-card, #audio-info, #btn-remove-audio) fonctionnent sans modification.{% endcomment %}
+<div id="audio-info" class="d-none mt-2">
+    <span class="badge bg-secondary" id="audio-filename"></span>
+    <button type="button" class="btn btn-sm btn-outline-danger ms-2" id="btn-remove-audio">
+        <i class="fas fa-times"></i>
+    </button>
+</div>
+
+<div class="mt-2 pt-2 border-top border-secondary">
+    <label class="form-label small fw-bold text-light mb-1">
+        <i class="fas fa-user-circle"></i> Avatar
+    </label>
+    {% if gallery_images %}
+    <div class="avatar-gallery-grid mb-2" id="gallery-grid">
+        {% for img_name in gallery_images %}
+        <div class="avatar-card" data-avatar-source="gallery" data-avatar-name="{{ img_name }}">
+            <img src="{{ media_url }}avatarizer/gallery/{{ img_name }}"
+                 alt="{{ img_name }}" title="{{ img_name }}">
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-muted small mb-2">
+        <i class="fas fa-info-circle"></i>
+        Aucun avatar dans la galerie. Ajoutez des images dans
+        <code>media/avatarizer/gallery/</code>.
+    </p>
+    {% endif %}
+</div>

@@ -189,9 +189,8 @@
 {# RIGHT PANEL - Actions                                                  #}
 {# ===================================================================== #}
 {% block app_right_panel_actions %}
-<button id="btn-generate" class="btn btn-info w-100 mb-2" disabled>
-    <i class="fas fa-play-circle me-1"></i> Générer la vidéo
-</button>
+{% comment %}Bouton Générer déplacé dans la card « Nouvel élément » en tête de file (2026-07-11 —
+action primaire de la card, conventions CARD_DESIGN §2 ; id #btn-generate inchangé){% endcomment %}
 
 {# ── Import par fichier batch (format à balises) ── #}
 <div class="mb-2">
@@ -233,90 +232,8 @@
 {% block queue_content %}
 <div class="row g-3">
 
-    <!-- COLONNE GAUCHE : Saisie -->
-    <div class="col-md-5">
-
-        <!-- Tabs Pipeline / Standalone -->
-        <ul class="nav nav-tabs nav-tabs-sm mb-3" id="inputTabs" role="tablist">
-            <li class="nav-item" role="presentation">
-                <button class="nav-link active" id="tab-pipeline" data-bs-toggle="tab"
-                        data-bs-target="#pane-pipeline" type="button" role="tab">
-                    <i class="fas fa-stream me-1"></i>Pipeline
-                </button>
-            </li>
-            <li class="nav-item" role="presentation">
-                <button class="nav-link" id="tab-standalone" data-bs-toggle="tab"
-                        data-bs-target="#pane-standalone" type="button" role="tab">
-                    <i class="fas fa-upload me-1"></i>Standalone
-                </button>
-            </li>
-        </ul>
-
-        <div class="tab-content" id="inputTabsContent">
-
-            <!-- Onglet Pipeline -->
-            <div class="tab-pane fade show active" id="pane-pipeline" role="tabpanel">
-                <div id="text-dropzone" class="drop-zone" data-wama-app="avatarizer">
-                    <label for="text_content" class="form-label small fw-bold text-light mb-1">
-                        <i class="fas fa-align-left"></i> Texte de la consigne
-                        <span class="text-muted ms-2" style="font-weight:normal;font-size:0.75rem;">
-                            <i class="fas fa-file-alt"></i> Glissez un .txt .pdf .docx ici
-                        </span>
-                    </label>
-                    <textarea class="form-control bg-dark text-light border-secondary"
-                              id="text_content" rows="6"
-                              placeholder="Entrez ici le texte de la consigne expérimentale…"></textarea>
-                    <small class="text-muted"><span id="word-count">0</span> mots</small>
-                </div>
-            </div>
-
-            <!-- Onglet Standalone -->
-            <div class="tab-pane fade" id="pane-standalone" role="tabpanel">
-                <div id="audio-dropzone" class="drop-zone mb-2" data-wama-app="avatarizer">
-                    <i class="fas fa-file-audio fa-2x text-muted mb-2"></i>
-                    <p class="text-muted mb-1">Glissez un fichier audio ici ou depuis le Filemanager</p>
-                    <small class="text-muted">WAV, MP3, OGG, FLAC</small>
-                    <input type="file" id="audio_input" accept=".wav,.mp3,.ogg,.flac" class="d-none">
-                </div>
-                <div id="audio-info" class="d-none">
-                    <span class="badge bg-secondary" id="audio-filename"></span>
-                    <button type="button" class="btn btn-sm btn-outline-danger ms-2" id="btn-remove-audio">
-                        <i class="fas fa-times"></i>
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Sélection de l'avatar -->
-        <div class="mt-3">
-            <label class="form-label small fw-bold text-light">
-                <i class="fas fa-user-circle"></i> Avatar
-            </label>
-
-            <!-- Galerie partagée -->
-            {% if gallery_images %}
-            <div class="avatar-gallery-grid mb-2" id="gallery-grid">
-                {% for img_name in gallery_images %}
-                <div class="avatar-card" data-avatar-source="gallery" data-avatar-name="{{ img_name }}">
-                    <img src="{{ media_url }}avatarizer/gallery/{{ img_name }}"
-                         alt="{{ img_name }}" title="{{ img_name }}">
-                </div>
-                {% endfor %}
-            </div>
-            {% else %}
-            <p class="text-muted small mb-2">
-                <i class="fas fa-info-circle"></i>
-                Aucun avatar dans la galerie. Ajoutez des images dans
-                <code>media/avatarizer/gallery/</code>.
-            </p>
-            {% endif %}
-
-        </div>
-
-    </div><!-- /col-md-5 -->
-
     <!-- COLONNE DROITE : File d'attente -->
-    <div class="col-md-7">
+    <div class="col-12">
         <h6 class="text-light mb-2">
             <i class="fas fa-film me-1"></i> Vidéos générées
             <span class="badge bg-secondary ms-1" id="jobs-count">{{ jobs|length }}</span>
@@ -324,6 +241,13 @@
 
         {# Barre de progression globale (toujours visible) — composant commun #}
         {% include 'common/_global_progress.html' %}
+
+        {% comment %}Card « Nouvel élément » COMMUNE en tête de file (2026-07-11, alignement apps
+        portées). Prompt = texte de la consigne (mode pipeline) ; dropzone = audio prêt (mode
+        standalone) ; galerie d'avatars + badge audio via le slot déclaré extra_zone_template ;
+        ids historiques conservés (#text_content, #text-dropzone, #audio-dropzone, #audio_input,
+        #btn-generate) → tous les handlers de index.js fonctionnent sans réécriture.{% endcomment %}
+        {% include 'common/_new_item_card.html' with card_id='avatarizerNewCard' show_prompt=True prompt_input_id='text_content' prompt_zone_id='text-dropzone' prompt_rows=4 prompt_placeholder='Entrez ici le texte de la consigne expérimentale…' prompt_hint='Ou glissez un .txt .pdf .docx sur la zone de texte (mode pipeline : texte → TTS → avatar).' prompt_counter_id='word-count' drop_zone_id='audio-dropzone' file_input_id='audio_input' file_accept='.wav,.mp3,.ogg,.flac' formats_label='WAV, MP3, OGG, FLAC — audio prêt (mode standalone)' show_media_library=True media_library_type='audio' extra_zone_template='avatarizer/_new_item_extra.html' primary_btn_id='btn-generate' primary_btn_label='Générer la vidéo' primary_btn_icon='fa-play-circle' %}
 
         <div id="jobs-container">
             {% if batches_list %}

@@ -35,6 +35,11 @@ Variables :
   live_hint_id     — id de l'aide (préserver l'id attendu par le JS de l'app si besoin)
   show_media_library — (bool) bouton « Médiathèque » (import depuis la médiathèque via MediaPicker)
   media_library_type — type d'asset filtré ('audio'|'video'|'image'|'voice'|'all' ; défaut 'all')
+  prompt_zone_id     — (option) id posé sur le CONTENEUR du prompt (permet à l'app d'y brancher
+                       ses handlers de drop de fichier texte — 1er consommateur : avatarizer)
+  prompt_counter_id  — (option) id d'un <span> compteur de mots sous le prompt (l'app le remplit)
+  extra_zone_template — (option) chemin d'un template d'app inclus EN FIN de zone médiane
+                       (spécificité déclarée, ex. galerie d'avatars avatarizer) ; hérite du contexte
 
 Usage (transcriber) :
   {% url 'transcriber:batch_template' as batch_tpl %}
@@ -51,11 +56,12 @@ Usage (transcriber) :
         {% if show_prompt %}
         {# PROMPT = entrée primaire des apps génératives (INPUT_MODEL_MATCHING.md) — dans la CARD, #}
         {# pas dans le volet : le volet/la modale n'en gardent que l'édition d'un item existant. #}
-        <div class="mb-2">
+        <div class="mb-2"{% if prompt_zone_id %} id="{{ prompt_zone_id }}"{% endif %}>
             <textarea class="form-control form-control-sm bg-dark text-light border-secondary"
                       id="{{ prompt_input_id|default:'promptInput' }}" rows="{{ prompt_rows|default:2 }}"
                       placeholder="{{ prompt_placeholder|default:'Décrivez ce que vous voulez générer…' }}"></textarea>
             {% if prompt_hint %}<small class="text-muted">{{ prompt_hint }}</small>{% endif %}
+            {% if prompt_counter_id %}<small class="text-muted d-block"><span id="{{ prompt_counter_id }}">0</span> mots</small>{% endif %}
         </div>
         {% endif %}
         {% if collapsible %}<div class="collapse{% if deployed %} show{% endif %}" id="{{ card_id|default:'newItemCard' }}Body">{% endif %}
@@ -133,6 +139,8 @@ Usage (transcriber) :
             <small id="{{ match_status_id|default:'inputMatchStatus' }}" class="text-info d-block mt-1" style="display:none"></small>
         </div>
         {% endif %}
+
+        {% if extra_zone_template %}{% include extra_zone_template %}{% endif %}
 
         {% if collapsible %}</div>{# /collapse zone médiane #}{% endif %}
 

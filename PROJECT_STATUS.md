@@ -1197,3 +1197,42 @@ additifs vérifiés. **imager 60 → 66 %**, **avatarizer 55 → 68 %**.
 Prochaines marches (dans l'ordre de rendement) : port complet de la file enhancer/synthesizer
 (brief §30/§32.5) ; inspecteur imager (preview multi-images = décision design) ; anonymizer
 initFromSchema + modale WamaParams ; avatarizer briques de file.
+
+---
+
+## 35. Avatarizer — card d'entrée commune en tête de file (2026-07-11)
+
+Demande Fabien : « la card d'entrée en en-tête de file comme pour les applications portées ».
+**Avatarizer 68 → 72 %.**
+
+### 35.1 Ce qui a bougé
+- La COLONNE GAUCHE de saisie (onglets Pipeline/Standalone + textarea + dropzone audio +
+  galerie d'avatars) est SUPPRIMÉE ; la file passe en pleine largeur (col-12).
+- `common/_new_item_card.html` incluse en tête de file (avant `#jobs-container`) :
+  - prompt = texte de la consigne (`#text_content`, compteur de mots conservé) ;
+  - dropzone = audio prêt (`#audio-dropzone`/`#audio_input`) + bouton Médiathèque (audio) ;
+  - bouton primaire = `#btn-generate` « Générer la vidéo » (déplacé du volet droit — action
+    primaire de la card, CARD_DESIGN §2 ; passe de bleu à vert conventionnel) ;
+  - galerie d'avatars + badge audio retenu via le NOUVEAU slot `extra_zone_template`
+    (`avatarizer/_new_item_extra.html`).
+- **Tous les ids historiques conservés** → les handlers de index.js (drop texte/audio,
+  word count, sélection avatar, remove audio, generate) fonctionnent sans réécriture.
+- Onglets Pipeline/Standalone supprimés : le radio `workflow_mode` du volet droit était DÉJÀ
+  la source unique du mode (`getMode()`) — les onglets n'étaient qu'une vue synchronisée.
+  Le sync mort a été nettoyé ; l'import audio depuis le filemanager bascule maintenant le
+  radio directement (avant : il cliquait l'onglet).
+- `data-wama-app="avatarizer"` posé à l'init JS sur les 2 zones (le partial ne le rend pas ;
+  requis par le quick-drop filemanager `getAppFromDropZone` → dataset).
+
+### 35.2 Extension DÉCLARÉE du partial commun (3 slots opt-in, documentés dans son en-tête)
+1. `prompt_zone_id` — id posé sur le conteneur du prompt (permet aux apps d'y brancher un
+   drop de fichier texte). 2. `prompt_counter_id` — span compteur de mots sous le prompt.
+3. `extra_zone_template` — template d'app inclus en fin de zone médiane (spécificité
+   déclarée, hérite du contexte). Aucun impact sur les consommateurs existants (ifs gardés).
+
+### 35.3 Vérifications
+- Rendu : 200 ; card présente ; ids uniques ×1 (0 doublon `#btn-generate`) ; 13 avatars de
+  la galerie rendus DANS la card ; card avant la file ; onglets et col-md-5 absents.
+- ⚠ Récidive n°5 du piège commentaire Django `{# #}` multi-lignes (dans MES ajouts) —
+  détectée et corrigée en `{% comment %}` + re-scan du fichier (0 restant). Le réflexe
+  d'écriture reste le point faible : TOUJOURS `{% comment %}` pour tout commentaire ≥ 2 lignes.
