@@ -59,6 +59,8 @@ document.addEventListener('DOMContentLoaded', function () {
     let TOPDOWN_FOV_V_DEG = 60;      // FOV vertical caméra (deg) pour le cap pinhole (ajustable)
     let _lastTimeSave = 0;           // throttle de la persistance de position timeline
     let _restoreTargetTime = 0;      // position timeline à restaurer (capturée avant reset)
+    let _savedMinimapZoom = null;    // zoom mini-carte sauvegardé (persistance)
+    let _zoomRestored = false;       // zoom déjà restauré (une seule fois)
     let proximityByTime = [];  // [{time, proximity}] for timeline
 
     // Phase 3 state
@@ -2116,8 +2118,14 @@ document.addEventListener('DOMContentLoaded', function () {
         // couche objets (qui n'apparaît qu'au zoom ≥ TOPDOWN_ZOOM_MIN) ne se met à jour
         // qu'au prochain seek/lecture — l'utilisateur zoome et « rien ne se passe ».
         miniMap.on('zoomend', () => {
+            try { localStorage.setItem('cam_analyzer_minimap_zoom', String(miniMap.getZoom())); } catch (e) { /* noop */ }
             if (typeof currentTime === 'number') { topDownLastRender = -999; updateMiniMapShuttle(currentTime); }
         });
+        // Zoom sauvegardé (capturé une fois, appliqué après le fitBounds initial).
+        try {
+            const _z = parseFloat(localStorage.getItem('cam_analyzer_minimap_zoom'));
+            if (!isNaN(_z)) _savedMinimapZoom = _z;
+        } catch (e) { /* noop */ }
     }
 
     function renderMiniMap(gpsTrack, intersectionWindows) {
@@ -2175,6 +2183,11 @@ document.addEventListener('DOMContentLoaded', function () {
         } else if (miniMapIntersectionLayers.length > 0) {
             const grp = L.featureGroup(miniMapIntersectionLayers);
             miniMap.fitBounds(grp.getBounds(), { padding: [12, 12] });
+        }
+        // Restaurer le niveau de zoom sauvegardé (une seule fois, après le fitBounds).
+        if (_savedMinimapZoom != null && !_zoomRestored) {
+            _zoomRestored = true;
+            try { miniMap.setZoom(_savedMinimapZoom); } catch (e) { /* noop */ }
         }
 
         // Force redraw (Leaflet sometimes mis-sizes when its container was hidden)
