@@ -50,9 +50,9 @@ convergence = pattern describer/reader** (transcriber reste la référence *sém
 |---|---|---|---|---|---|
 | A1 | **`APP_CATALOG`** | `common/app_registry.py` | label/icône/couleur, `input_extensions`, `input_types`, `output_types`, `batch_type`, `has_batch/url/youtube`, **matrice `conventions`**, `description_long` | nav, upload-validation, FileManager, `studio_node_ports` (méta-app), inspecteur `/apps/`, `get_conformity_summary()` | ⚠️ **`conventions` PÉRIMÉE** (voir §0ter) |
 | A2 | **`APP_MODES` + `INPUT_TYPES`** | `common/utils/app_modes.py` | domaines→modes→inputs (+ ports de référence) | `WamaModes` (onglets/switch/champs), `studio_node_ports` | Déclaré : imager, enhancer, synthesizer, transcriber, anonymizer (5/10) |
-| A3 | **`params.py`** | `<app>/params.py` | schéma `Param` (item/panel/batch), `dom_id`, `show_if`, `options_source`, `help_source/fallback` | `WamaParams.render`, `WamaInspector.initFromSchema` | **10/10** (P0 fait) |
+| A3 | **`params.py`** | `<app>/params.py` | schéma `Param` (item/panel/batch), `dom_id`, `show_if`, `options_source`, `help_source/fallback` | `WamaParams.render`, `WamaInspector.initFromSchema` | **10/10 EXISTENT** (P0 fait — vérifié empiriquement 2026-07-11) MAIS imager+anonymizer ORPHELINS (aucun consommateur WamaParams) et synthesizer ne ponte que les `dom_id` |
 | A4 | **`PROMPT_TARGETS`** | `common/utils/app_metadata.py` | champs-prompt + `kind` + modèle source | PromptPipeline, assistant, méta-app | imager, anonymizer, composer, assistant ; synthesizer=∅ (volontaire) ; describer=interne |
-| A5 | **`tool_api.py`** | `<app>/tool_api.py` | fonctions exposées à l'assistant/méta-app | AI-Assistant, méta-app | conventions `tool_api` : True partout **sauf composer=False** |
+| A5 | **`tool_api.py`** | registre CENTRAL `wama/tool_api.py` (PAS de fichier par app) | fonctions exposées à l'assistant/méta-app | AI-Assistant, méta-app | TOOL_REGISTRY couvre les **10 apps** (avatarizer inclus — vérifié 2026-07-11 ; « sauf composer=False » était périmé) |
 
 ### B. Catalogue MODEL-LEVEL (une entrée par modèle) — « le registre »
 
@@ -347,9 +347,11 @@ possibles. → imager & anonymizer sont la **priorité 0**.
 
 Chaque étape = route existante, brique commune, **aucun** nouveau mécanisme.
 
-**P0 — Socle manquant (débloque tout le reste)**
-1. `imager/params.py` + `anonymizer/params.py` (dérivés du modèle Django via `derive_from_model`,
-   `overrides` pour `contexts`/`show_if`/`options_source`).
+**P0 — Socle manquant (débloque tout le reste)** ✅ FICHIERS FAITS / ⚠ CONSOMMATION À FAIRE
+1. ~~`imager/params.py` + `anonymizer/params.py`~~ — les 2 fichiers EXISTENT (dérivés via
+   `derive_from_model`, vérifié empiriquement 2026-07-11) mais restent ORPHELINS : aucun
+   `WamaParams.render` ne les consomme (modales toujours hand-built). Le vrai reste-à-faire
+   P0→P1 = brancher la consommation, pas écrire les fichiers.
 
 **P1 — Modales schéma-driven (le BLOCKER manifeste)**
 1bis. **D'ABORD extraire le builder commun** `WamaParams.renderSettingsModal({id, title, schema,
@@ -372,8 +374,10 @@ Chaque étape = route existante, brique commune, **aucun** nouveau mécanisme.
 `WamaParams.render(context:'panel')` :
 6. enhancer, avatarizer, composer. (converter & synthesizer restent variantes déclarées — cf. 6a.)
 
-**P3 — Uniformiser le câblage** vers `initFromSchema` :
-7. transcriber + converter : `.init` → `initFromSchema` (supprime read/apply sur-mesure).
+**P3 — Uniformiser le câblage** vers `initFromSchema` : ✅ **FAIT** (2026-07-08/10)
+7. ~~transcriber + converter : `.init` → `initFromSchema`~~ — migrés (PROJECT_STATUS §21.3 pt 3
+   et §21.4) ; plus AUCUNE app sur `.init` legacy (audit 2026-07-11 : 8/10 en initFromSchema,
+   imager+anonymizer pas encore câblés du tout).
 
 **P4 — Capacités : normaliser puis piloter l'UI** :
 8. Vocabulaire `capabilities` unifié dans `_discover_*` (axe A).
@@ -383,7 +387,7 @@ Chaque étape = route existante, brique commune, **aucun** nouveau mécanisme.
     déclaré (axe B) ; compléter le catalogue au passage.
 
 **P5 — Domaines/modes** :
-11. imager + anonymizer : brancher `WamaModes` (onglets/switch) sur `APP_MODES` déjà déclaré.
+11. anonymizer (+ synthesizer, déclaré mais inerte) : brancher `WamaModes` sur `APP_MODES` déjà déclaré. (imager ✅ câblé — vérifié 2026-07-09/11 ; enhancer ✅.)
 
 **Invariant de sortie** : chaque app = `params.py` (source unique) → modale + volet générés par
 `WamaParams` → câblés par `initFromSchema` → capacités normalisées pilotant la visibilité → modes via

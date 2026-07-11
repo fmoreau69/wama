@@ -79,8 +79,7 @@
         <div class="col-md-3">
             <div class="d-flex flex-wrap gap-1">
 
-                {% if gen.status != 'RUNNING' %}
-                <button class="btn btn-sm btn-secondary settings-btn"
+                <button class="btn btn-sm btn-outline-secondary settings-btn"
                         data-id="{{ gen.id }}"
                         data-model="{{ gen.model }}"
                         data-duration="{{ gen.duration }}"
@@ -91,13 +90,12 @@
                         title="Modifier les paramètres">
                     <i class="fas fa-cog"></i>
                 </button>
-                {% endif %}
                 {# Bouton de cycle ▶/⏹/↻ COMMUN (position 2, conventions) — icône auto-sync sur data-status. #}
                 {% include 'common/_cycle_button.html' with id=gen.id status=gen.status %}
 
                 {% if gen.audio_output %}
                 <a href="{% url 'composer:download' gen.id %}"
-                   class="btn btn-sm btn-info" title="Télécharger">
+                   class="btn btn-sm btn-outline-info" title="Télécharger">
                     <i class="fas fa-download"></i>
                 </a>
                 {% if not gen.exported_to_library %}
@@ -118,7 +116,7 @@
                     <i class="fas fa-copy"></i>
                 </button>
 
-                <button class="btn btn-sm btn-danger delete-btn"
+                <button class="btn btn-sm btn-outline-danger delete-btn"
                         data-id="{{ gen.id }}" title="Supprimer">
                     <i class="fas fa-trash"></i>
                 </button>

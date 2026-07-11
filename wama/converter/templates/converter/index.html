@@ -301,6 +301,7 @@ window.CONVERTER_APP = {
     urls: {
         upload:        "{% url 'converter:upload' %}",
         startAll:      "{% url 'converter:start_all' %}",
+        downloadAll:   "{% url 'converter:download_all' %}",
         clearAll:      "{% url 'converter:clear_all' %}",
         start:         "{% url 'converter:start' 0 %}",
         cancel:        "{% url 'converter:cancel' 0 %}",
@@ -376,7 +377,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     {% comment %}Barre d'outils commune (tri/filtre/disposition Ligne-Mosaïque/actions globales),
     alignement reader/composer/transcriber/describer (2026-07-10, absente jusqu'ici).{% endcomment %}
-    {% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='converterStartAllBtn' clear_id='converterClearAllBtn' %}
+    {% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='converterStartAllBtn' clear_id='converterClearAllBtn' download_id='converterDownloadAllBtn' show_download=True %}
 
     <div id="converterQueue" class="wama-queue-{{ card_layout|default:'list' }}">
         {% for b in batches_list %}

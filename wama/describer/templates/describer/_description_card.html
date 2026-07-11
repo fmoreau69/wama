@@ -58,7 +58,7 @@ Rendue au chargement (cards autonomes ET filles) et par describer:card_html (ref
                     <div class="col-md-2">
                         <div class="btn-group-actions">
                             {# Ordre conventionnel : ⚙ Paramètres puis bouton de cycle ▶/⏹/↻ (toujours visibles). #}
-                            <button class="btn btn-sm btn-secondary settings-btn"
+                            <button class="btn btn-sm btn-outline-secondary settings-btn"
                                     data-id="{{ desc.id }}"
                                     data-output-style="{{ desc.output_style }}"
                                     data-output-language="{{ desc.output_language }}"
@@ -70,7 +70,7 @@ Rendue au chargement (cards autonomes ET filles) et par describer:card_html (ref
                             </button>
                             {% include 'common/_cycle_button.html' with id=desc.id status=desc.status %}
                             {% if desc.status == 'SUCCESS' %}
-                            <button class="btn btn-sm btn-success preview-btn" data-id="{{ desc.id }}" title="Voir le resultat">
+                            <button class="btn btn-sm btn-outline-success preview-btn" data-id="{{ desc.id }}" title="Voir le resultat">
                                 <i class="fas fa-eye"></i>
                             </button>
                             <div class="btn-group btn-group-sm">
@@ -92,12 +92,12 @@ Rendue au chargement (cards autonomes ET filles) et par describer:card_html (ref
                                 </ul>
                             </div>
                             {% endif %}
-                            <button class="btn btn-sm btn-outline-info duplicate-btn"
+                            <button class="btn btn-sm btn-outline-warning duplicate-btn"
                                     data-duplicate-url="{% url 'describer:duplicate' desc.id %}"
                                     title="Dupliquer{% if in_batch %} dans le batch{% endif %}">
                                 <i class="fas fa-copy"></i>
                             </button>
-                            <button class="btn btn-sm btn-danger delete-btn" data-id="{{ desc.id }}" title="Supprimer">
+                            <button class="btn btn-sm btn-outline-danger delete-btn" data-id="{{ desc.id }}" title="Supprimer">
                                 <i class="fas fa-trash"></i>
                             </button>
                         </div>

@@ -158,6 +158,15 @@ def _conv(
     layout=False,                  # affichage Ligne / Mosaïque (toggle commun + card_layout)
     model_help=False,              # descriptif modèle sous le select (courte + ⓘ longue) via
                                    # WamaModelHelp commun — audit 2026-07-02, cf. REMOVAL_LEDGER
+    # Briques d'uniformisation (audit empirique 2026-07-10) — défauts False, override quand adopté.
+    new_item_card=False,           # card « Nouvel élément » commune (_new_item_card.html) en TÊTE de file
+    queue_toolbar=False,           # tri/filtre/disposition (_queue_toolbar.html + apply_queue_sort_filter)
+    queue_manipulation=False,      # fabrique make_queue_manipulation_views (reorder/move/remove/consolidate)
+    anti_race=False,               # démarrage verrouillé (begin_processing OU atomic+select_for_update+revoke)
+    cycle_button=False,            # bouton cycle ▶/⏳/↻ commun (_cycle_button.html)
+    processing_time=False,         # ProcessingTimeMixin + affichage du temps de traitement sur la card
+    status_vocab=False,            # vocabulaire de statut SUCCESS/FAILURE en base (pas DONE/ERROR)
+    toast=False,                   # notifications WamaApp.toast — zéro alert() bloquant restant
 ):
     return {
         # Buttons & queue
@@ -187,6 +196,15 @@ def _conv(
         'modes':                  modes,
         'layout':                 layout,
         'model_help':             model_help,
+        # Briques d'uniformisation (audit 2026-07-10)
+        'new_item_card':          new_item_card,
+        'queue_toolbar':          queue_toolbar,
+        'queue_manipulation':     queue_manipulation,
+        'anti_race':              anti_race,
+        'cycle_button':           cycle_button,
+        'processing_time':        processing_time,
+        'status_vocab':           status_vocab,
+        'toast':                  toast,
     }
 
 
@@ -290,9 +308,23 @@ APP_CATALOG = {
         'has_youtube': True,
         'output_types': ('image', 'video'),
         'conventions': _conv(
-            settings_modal_item=True,
+            settings_modal_item=True,  # ⚠ modale hand-built (settings_modal.js innerHTML l.287) ;
+                                       # params.py existe mais ORPHELIN (aucun consommateur WamaParams)
             tool_api=True,
             model_help=True,     # WamaModelHelp (select YOLO #user_setting_model_to_use, meta catalogue)
+            # Audit empirique 2026-07-10 :
+            eta_individual=True,       # .wama-eta card (_media_card.html:107) + WamaEta.update (process.js:49)
+            eta_batch=True,            # data-eta-ids (media_table.html:21)
+            eta_queue=True,            # _global_progress.html (content.html:10)
+            filemanager_import=True,   # wama:fileimported écouté (right_panel.js:581)
+            cross_app_options=True,    # select output_format + apply_inline_conversion (tasks.py:81)
+            multi_format_download=None,  # N/A — format réglé en amont (early binding via output_format)
+            # KO audit 2026-07-10 : status_vocab=False — PAS de champ status (booléen `processed`,
+            # models.py:37) = prérequis bloquant pour cycle/progress conformes ; inspector=False
+            # (preview enregistrée apps.py:23 mais detail + initFromSchema + _inspector_actions
+            # absents) ; modes déclaré APP_MODES:129 mais non câblé ; anti_race partiel (lock cache
+            # restart seulement) ; _new_item_card/_batch_card/_queue_toolbar/_cycle_button/layout/
+            # ProcessingTimeMixin absents ; 23 alert().
         ),
     },
 
@@ -320,9 +352,21 @@ APP_CATALOG = {
             batch=True,
             settings_modal_item=True,
             inspector=True,      # volet contextuel via WamaInspector.initFromSchema (clic card → réglages #N)
+                                 # ⚠ incomplet (audit 2026-07-10) : register_app_detail/preview
+                                 # + _inspector_actions tous absents (volet non auto-rempli)
             eta_batch=True,      # wama-eta câblé sur les batchs (index.html:332)
-            eta_queue=None,      # N/A — pas de queue multi-item significative
+            eta_individual=True, # .wama-eta sur la card (index.html:413) + eta_estimator (views.py:206)
+            eta_queue=True,      # _global_progress.html inclus (index.html:319) — N/A périmé (audit 2026-07-10)
+            tool_api=True,       # add_to/start/get_status au registre CENTRAL wama/tool_api.py
+                                 # (flag False périmé, audit 2026-07-10)
+            status_vocab=True,   # SUCCESS/FAILURE (models.py:19)
+            multi_format_download=None,  # N/A — sortie vidéo MP4 unique (conversion = rôle converter)
             model_help=None,     # N/A — MuseTalk fixe (v1.5), aucun select de modèle exposé
+            # KO audit 2026-07-10 : start_all/download_all sans vue serveur, clear_all simulé côté
+            # client (boucle DELETE, index.js:946) ; anti_race ABSENT (start views.py:172 sans
+            # verrou ni revoke) ; ordre/couleurs boutons card KO (↻ avant ⚙, index.html:417) ;
+            # _new_item_card/_batch_card/_queue_toolbar/_cycle_button/layout/ProcessingTimeMixin
+            # absents ; 21 alert() ; absent d'APP_MODES.
         ),
     },
 
@@ -354,6 +398,17 @@ APP_CATALOG = {
             multi_format_download=None,  # N/A — EARLY binding (format/qualité réglés AVANT génération)
             modes=None,          # N/A — plus de mode (switch retiré, type dérivé du modèle)
             filemanager_import=None,     # N/A — app à entrée TEXTE (prompt), pas de médias à recevoir
+            # Audit empirique 2026-07-10 :
+            cross_app_options=True,    # format/qualité converter inline (output_format_params_for_app, params.py:39)
+            new_item_card=True,        # _new_item_card.html en tête de file (index.html:78)
+            queue_toolbar=True,        # _queue_toolbar + apply_queue_sort_filter (views.py:101)
+            queue_manipulation=True,   # make_queue_manipulation_views (views.py:76)
+            anti_race=True,            # begin_processing ×4 (views.py:259/367/464/819)
+            cycle_button=True,         # _cycle_button.html (_generation_card.html:96)
+            processing_time=True,      # ProcessingTimeMixin + _processing_time.html (card:68)
+            status_vocab=True,         # SUCCESS/FAILURE (models.py:18)
+            toast=True,                # 4 alert() → WamaApp.toast (2026-07-11) ; couleurs boutons card
+                                       # alignées outline + ⚙ visible pendant RUNNING (_generation_card)
         ),
     },
 
@@ -373,7 +428,7 @@ APP_CATALOG = {
         'output_types': ('image', 'video', 'audio', 'document', 'archive'),
         'conventions': _conv(
             batch=True,              # ConversionBatch (multi-fichiers groupé par nature + fichier d'URLs) — 2026-06
-            download_all=False,      # P2 — pas de bouton « Télécharger tout » global (vérifié absent)
+            download_all=True,       # vue download_all (ZIP global) + slot toolbar (2026-07-11, §31.5)
             settings_modal_item=True, # Phase 0 (2026-05-16)
             save_profile=True,       # Phase 1 (2026-05-16)
             filemanager_import=True, # quick-action + dispatch wama:fileimported (2026-05-16)
@@ -388,6 +443,20 @@ APP_CATALOG = {
             eta_batch=True,
             eta_queue=True,
             model_help=None,         # N/A — pas de modèles IA (ffmpeg/pandoc/Pillow)
+            # Audit empirique 2026-07-10 :
+            multi_format_download=None,  # N/A — le format de sortie EST le paramètre central du job
+            layout=True,               # wama-queue-{{ card_layout }} (index.html:381)
+            new_item_card=True,        # _new_item_card.html en tête de file (index.html:375)
+            queue_toolbar=True,        # _queue_toolbar + apply_queue_sort_filter (views.py:148)
+            anti_race=True,            # pattern local atomic+select_for_update (views.py:242/496/667)
+            cycle_button=True,         # _cycle_button.html (_job_card.html:49)
+            processing_time=True,      # ProcessingTimeMixin + _processing_time.html (_job_card.html:85)
+            status_vocab=True,         # migré SUCCESS/FAILURE (migration 0005, 2026-07-11 — pattern reader.0008)
+            toast=True,                # 21 alert() → WamaApp.toast (2026-07-11)
+            # queue_manipulation=False : consolidate artisanal (urls.py:22) — la fabrique commune
+            # exige l'architecture batch unifiée (liaison + BatchMixin) que ConversionBatch n'a pas ;
+            # batch léger = choix documenté (note d'intention CONV §15), à trancher AVANT d'adopter.
+            # Non déclaré dans APP_MODES malgré 4 domaines (audit 2026-07-10).
         ),
     },
 
@@ -412,6 +481,22 @@ APP_CATALOG = {
             inspector=True,      # volet contextuel via WamaInspector.initFromSchema
             model_help=None,     # N/A — sélection de modèle INTERNE (auto par type de média), aucun select
             layout=True,         # Ligne/Mosaïque commun (toolbar + wama-card, 2026-07-05)
+            # Audit empirique 2026-07-10 : ETA 3 niveaux câblés (index.js:633 WamaEta.render ;
+            # eta_ids batch views.py:233 ; _global_progress index.html:39) — flags False périmés.
+            eta_individual=True,
+            eta_batch=True,
+            eta_queue=True,
+            filemanager_import=True,   # wama:fileimported écouté (index.js:1019)
+            new_item_card=True,        # _new_item_card.html en tête de file (index.html:37)
+            queue_toolbar=True,        # _queue_toolbar + apply_queue_sort_filter (views.py:242)
+            queue_manipulation=True,   # make_queue_manipulation_views (views.py:203)
+            anti_race=True,            # begin_processing (views.py:547)
+            cycle_button=True,         # _cycle_button.html (_description_card.html:71)
+            processing_time=True,      # ProcessingTimeMixin + _processing_time.html (card:56)
+            status_vocab=True,         # SUCCESS/FAILURE (models.py:19)
+            toast=True,                # WamaApp.toast, 0 alert() réel (index.js:957)
+            # Reste audité KO 2026-07-10 : couleurs boutons card (⚙ plein, ⧉ info, 🗑 plein —
+            # _description_card.html:61/95/100) ; card v2 chips non propagée.
         ),
     },
 
@@ -432,8 +517,21 @@ APP_CATALOG = {
             settings_modal_item=True,
             tool_api=True,
             inspector=True,      # volet contextuel via WamaInspector.initFromSchema (image/vidéo/audio)
+                                 # ⚠ incomplet (audit 2026-07-10) : register_app_detail + _inspector_actions absents
             modes=True,          # onglets domaine image/vidéo/audio générés (WamaModes.fetch/create)
             model_help=True,     # WamaModelHelp (help_fallback moteurs, cf. enhancer/params.py)
+            # Audit empirique 2026-07-10 :
+            eta_individual=True,       # WamaEta.render sur card (index.js:314)
+            eta_batch=True,            # data-eta-ids entête batch (index.html:379/602)
+            eta_queue=True,            # _global_progress.html (index.html:271)
+            filemanager_import=True,   # wama:fileimported écouté (index.js:958)
+            cross_app_options=True,    # select output_format converter inline (index.html:205)
+            multi_format_download=None,  # N/A — format réglé en amont (early binding output_format)
+            status_vocab=True,         # SUCCESS/FAILURE (models.py:15/123)
+            # KO audit 2026-07-10 : anti_race ABSENT (start views.py:423 sans verrou — seul risque
+            # fonctionnel réel) ; briques de file non adoptées (_new_item_card, _batch_card mère
+            # hand-built index.html:367, _queue_toolbar, _cycle_button, layout) ; ProcessingTimeMixin
+            # absent des 2 modèles ; 13 alert() ; couleurs boutons card non conformes.
         ),
     },
 
@@ -464,9 +562,22 @@ APP_CATALOG = {
             batch=False,
             tool_api=True,
             settings_modal_item=True,  # modales par-item #generationSettingsModal / #videoSettingsModal
+                                       # ⚠ hand-built (index.html:996) ; params.py existe mais ORPHELIN
             eta_batch=None,    # N/A — pas de batch
             modes=True,        # barres de mode image/vidéo générées (WamaModes)
             model_help=True,   # WamaModelHelp (descriptif sous les selects modèle image/vidéo)
+            # Audit empirique 2026-07-10 :
+            eta_individual=True,       # .wama-eta (index.html:526/889) + WamaEta.render (index.js:1267)
+            eta_queue=True,            # _global_progress.html (index.html:482)
+            cross_app_options=True,    # output_format/quality (models.py:307) + apply_inline_conversion (tasks.py:284)
+            multi_format_download=None,  # N/A — format choisi à la GÉNÉRATION (early binding)
+            status_vocab=True,         # PENDING/RUNNING/SUCCESS/FAILURE (models.py:165)
+            # KO audit 2026-07-10 : inspector=False — 0/4 sous-éléments (ni detail, ni preview, ni
+            # initFromSchema, ni _inspector_actions) = plus gros écart vs apps portées ; anti_race
+            # ABSENT (start_generation views.py:626 sans verrou ni revoke) ; filemanager_import
+            # partiel (data-wama-app présent, listener wama:fileimported absent) ; double markup
+            # card image/vidéo (index.html:533 vs 896) ; _new_item_card/_queue_toolbar/
+            # _cycle_button/layout/ProcessingTimeMixin absents ; showNotification custom + 2 alert().
         ),
     },
 
@@ -496,6 +607,18 @@ APP_CATALOG = {
             eta_individual=True,
             eta_batch=True,
             eta_queue=True,
+            # Audit empirique 2026-07-10 :
+            layout=True,               # wama-queue-{{ card_layout }} (index.html:181) — flag False périmé
+            filemanager_import=True,   # wama:fileimported écouté (reader.js:764)
+            new_item_card=True,        # _new_item_card.html en tête de file (index.html:171)
+            queue_toolbar=True,        # _queue_toolbar + apply_queue_sort_filter (views.py:156)
+            queue_manipulation=True,   # make_queue_manipulation_views (views.py:632)
+            anti_race=True,            # begin_processing + stop_instance (views.py:264/248)
+            cycle_button=True,         # _cycle_button.html (_item_card.html:55)
+            processing_time=True,      # ProcessingTimeMixin + _processing_time.html (card:43)
+            status_vocab=True,         # SUCCESS/FAILURE (models.py:12, migration 0008)
+            # PILOTE card v2 : _card_chips.html + chips_for() (_item_card.html:33, views.py:125).
+            toast=True,                # 2 alert() → WamaApp.toast (2026-07-11)
         ),
     },
 
@@ -514,10 +637,25 @@ APP_CATALOG = {
         'output_types': ('mp3', 'wav'),
         'conventions': _conv(
             start=None,
-            settings_modal_item=True,
+            settings_modal_item=True,  # ⚠ modale = HTML hand-built (index.html:472), params.py existe
+                                       # mais ponte seulement les dom_id — à migrer vers WamaParams.render
             tool_api=True,
             inspector=True,      # volet contextuel via WamaInspector.initFromSchema (volet = zone compose, à séparer)
+                                 # ⚠ incomplet (audit 2026-07-10) : register_app_detail + _inspector_actions absents
             model_help=True,     # WamaModelHelp (select #tts_model, meta catalogue via _tts_model_help_meta)
+            # Audit empirique 2026-07-10 :
+            eta_individual=True,       # .wama-eta card (_synthesis_card.html:57) + eta_estimator (views.py:623)
+            eta_batch=True,            # data-eta-ids entête batch (index.html:346)
+            eta_queue=True,            # _global_progress.html (index.html:311)
+            filemanager_import=True,   # wama:fileimported écouté (index.js:1401)
+            cross_app_options=True,    # output_format_params_for_app (params.py:48)
+            multi_format_download=None,  # N/A — early binding per-item (output_format/output_quality)
+            cycle_button=True,         # _cycle_button.html (_synthesis_card.html:76)
+            status_vocab=True,         # SUCCESS/FAILURE (models.py:20/150)
+            modes=False,               # déclaré APP_MODES (normal/realtime) mais WamaModes non câblé côté UI
+            # KO audit 2026-07-10 : anti_race ABSENT (start views.py:549 sans verrou ni revoke) ;
+            # _new_item_card/_batch_card/_queue_toolbar/layout/ProcessingTimeMixin absents ;
+            # 42 alert() (JS+template) ; couleurs boutons card non conformes.
         ),
     },
 
@@ -547,11 +685,20 @@ APP_CATALOG = {
                               # SI le temps réel devient un vrai mode WamaModes (vision « realtime=mode »).
             layout=True,      # ligne / mosaïque
             model_help=True,  # WamaModelHelp (meta backends via get_backends_info, index.js:1580)
-            # Corrigé 2026-07-10 (grille périmée) : individuel + queue vérifiés câblés
-            # (wama-eta.js chargé, WamaEta.render sur la card index.js:279, _global_progress.html
-            # inclus). eta_batch=False confirmé encore non fait (pas de eta_ids batch en JS).
+            # Audit empirique 2026-07-10 : ETA 3 niveaux câblés (WamaEta.render index.js:279 ;
+            # eta_ids batch views.py:141 → _batch_card data-eta-ids ; _global_progress.html:183).
             eta_individual=True,
+            eta_batch=True,
             eta_queue=True,
+            filemanager_import=True,   # wama:fileimported écouté (index.js:1430)
+            new_item_card=True,        # _new_item_card.html en tête de file (index.html:164)
+            queue_toolbar=True,        # _queue_toolbar + apply_queue_sort_filter (views.py:152)
+            queue_manipulation=True,   # make_queue_manipulation_views (views.py:68)
+            anti_race=True,            # begin_processing (views.py:433, start_all, batch)
+            cycle_button=True,         # _cycle_button.html (_transcript_card.html:91)
+            processing_time=True,      # ProcessingTimeMixin + _card_progress elapsed (card:66)
+            status_vocab=True,         # SUCCESS/FAILURE (models.py:28)
+            toast=True,                # 0 alert() (edit.js purgé 2026-07-11 ; confirm() conservé = décision user)
         ),
     },
 }

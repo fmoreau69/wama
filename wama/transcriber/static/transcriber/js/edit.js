@@ -672,7 +672,7 @@
     loadLatestBtn.addEventListener('click', function () {
       let latest = [];
       try { latest = JSON.parse(document.getElementById('latestData').textContent) || []; } catch (_) {}
-      if (!latest.length) { alert('Aucune nouvelle transcription disponible.'); return; }
+      if (!latest.length) { WamaApp.toast('Aucune nouvelle transcription disponible.', 'info'); return; }
       if (!confirm('Charger la dernière transcription générée ?\nVotre correction actuelle sera remplacée (annulable avec Ctrl+Z).')) return;
       pushHistory();
       segments.length = 0; Array.prototype.push.apply(segments, latest);

@@ -10,6 +10,7 @@ urlpatterns = [
     path('<int:pk>/dismiss/',           views.dismiss,              name='dismiss'),
     path('<int:pk>/cancel/',            views.cancel,               name='cancel'),
     path('start-all/',                  views.start_all,            name='start_all'),
+    path('download-all/',               views.download_all,         name='download_all'),
     path('clear-all/',                  views.clear_all,            name='clear_all'),
     path('<int:pk>/start/',             views.start,                name='start'),
     path('<int:pk>/status/',            views.status,               name='status'),

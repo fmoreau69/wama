@@ -1245,8 +1245,10 @@ function initBatchCollapse() {
 .batch-group-header [aria-expanded="true"] .fa-chevron-down { transform: rotate(180deg); }
 ```
 
-**Apps conformes :** Synthesizer ✅ | Reader ✅
-**Apps à porter :** Transcriber | Describer | Enhancer | Composer | Imager | Anonymizer
+**Apps conformes (re-vérifié 2026-07-11) :** toutes les apps à groupes batch via la brique
+commune `_batch_card.html`/`wama-queue.js` (transcriber/describer/composer/reader/converter)
+ou leur collapse local (synthesizer, enhancer, avatarizer, anonymizer). La liste « à porter »
+qui vivait ici était périmée (contredite par §9.9/§9.10).
 
 ### 9.8 Boutons d'action dans l'en-tête du groupe batch (card mère)
 
@@ -1691,72 +1693,24 @@ sous la section **"RÈGLE OBLIGATOIRE : AJOUT D'UN NOUVEAU MODÈLE AI"**.
 
 ## 15. État de Conformité par Application
 
-> Mise à jour : 2026-05-16
+> ⚠️ **SOURCE LIVE = `/apps/`** (`app_registry.py::get_conformity_summary()`). Les tables
+> figées qui vivaient ici (snapshot 2026-05-16) DÉRIVAIENT massivement (ETA « ❌ toutes »
+> alors que les 3 niveaux sont câblés dans les 10 apps ; batch/download_all/tool_api
+> contredits par §7.2, §9.9, §9.10, §17.6). Elles ont été SUPPRIMÉES le 2026-07-11 lors de
+> l'audit empirique 31 critères (PROJECT_STATUS §31) — la grille `_conv()` du registre a été
+> étendue (new_item_card, queue_toolbar, queue_manipulation, anti_race, cycle_button,
+> processing_time, status_vocab, toast) et chaque flag re-vérifié avec preuve file:line.
+>
+> Scores au 2026-07-11 : transcriber 93 · describer 93 · composer 92 · reader 90 ·
+> converter 77 · enhancer 70 · synthesizer 70 · anonymizer 61 · imager 60 · avatarizer 55.
+> Détail des écarts par app : PROJECT_STATUS §31.2 + commentaires dans `app_registry.py`.
 
-### 15.1 Table de conformité
-
-| Fonctionnalité | Anony. | Describer | Enhancer | Imager | Synthés. | Transcr. | Composer | Reader | Avatarizer |
-|---------------|--------|-----------|----------|--------|----------|----------|----------|--------|------------|
-| Tabs Queue/Console/About/Help | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Card format standard | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⚠️ |
-| Bouton Paramètres (pos.1) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Bouton Start/Restart (pos.2) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Bouton Télécharger (pos.3) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Téléchargement multi-format (§6.3) | ❌ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ | ❌ |
-| Bouton Dupliquer (pos.4) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
-| Bouton Supprimer (pos.5) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Barre progression % | ⚠️ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Message d'étape | ⚠️ | ✅ | ✅ | ✅ | ✅ | ✅ | ⚠️ | ✅ | ⚠️ |
-| **ETA individuel** | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| **ETA batch** | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | N/A |
-| **ETA queue global** | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | N/A |
-| Aperçu résultat (card) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ |
-| Start All | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
-| Clear All | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
-| Download All | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
-| **Drag & drop zone** | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ | ✅ | ✅ |
-| **Import dossier récursif** | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| **Import FileManager** | ❌ | ⚠️ | ⚠️ | ❌ | ⚠️ | ⚠️ | ❌ | ❌ | ❌ |
-| **Système Batch** | ❌ | ✅ | ❌ | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ |
-| **Duplication Batch** | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ |
-| Chemins media standard | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Model registry | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **RAG injection** | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| **Bouton Réinitialiser** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⚠️ |
-| **Barre détection batch** | ✅ | ✅ | ✅ | ✅ | ✅ | N/A | N/A | ✅ | N/A |
-| **Header menu** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **Home page card** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **API tool_api.py** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⚠️ | ✅ | ❌ |
-
-#### Converter — statut spécifique (ajouté 2026-04-14, complété 2026-05-16)
-
-> **Source de vérité automatisée** : `APP_CATALOG['converter']['conventions']` dans
-> `wama/common/app_registry.py`. Le score temps réel est affiché à `/apps/`.
-> Ce sous-tableau est la vue détaillée annotée — il doit rester synchronisé avec le registre.
-
-| Fonctionnalité | Statut | Notes |
-|---|---|---|
-| Tabs Queue/Console/About/Help | ✅ | |
-| Boutons d'action (5 positions) | ✅ | Ordre conforme §6.1 |
-| Modal Paramètres item | ✅ | Phase 0 (2026-05-16) — formulaire dynamique selon `media_type` ; "Appliquer" + "Appliquer & (Re)lancer" |
-| Profils sauvegardables | ✅ | Phase 1 (2026-05-16) — `ConversionProfile` + endpoints + dropdown filtré par type |
-| Drag & drop zone | ✅ | |
-| Import FileManager | ✅ | "Envoyer vers Converter" + modal "Conversion rapide" — dispatch `wama:fileimported` (fix 2026-05-16) |
-| Start All / Clear All | ✅ | |
-| **Options cross-app (Phase 2)** | ❌ | Upscaling (Real-ESRGAN) + audio enhance (DeepFilterNet) — `cross_app_options` JSONField existe sur le model, CROSS_APP_OPTIONS dict aussi, mais ni l'UI ni `tasks.py` ne câblent encore |
-| Téléchargement multi-format (§6.3) | ❌ | Un seul `output_format` par job |
-| Download All (ZIP) | ❌ | À implémenter |
-| Aperçu thumbnail (card) | ❌ | Filename seulement |
-| Système Batch | ❌ | Conversion 1-to-1 — pas de modèle batch (mais batch implicite via "Démarrer tout") |
-| ETA individuel / queue | ❌ | Convention transversale non implémentée (eta_batch = N/A — pas de batch) |
-| Import dossier récursif | ❌ | Convention transversale non implémentée |
-| API tool_api.py | ❌ | À ajouter (§17) |
-
-**Score auto-calculé actuel : 11/19 (57%)** — voir `/apps/` pour les détails à jour.
+#### Converter — note d'intention (conservée)
 
 > Le Converter est intentionnellement plus léger côté queue (pas de batch model, pas de
 > ZIP) car son cas d'usage primaire est la conversion à la demande, souvent inline via
 > Filemanager. Si l'usage évolue vers du traitement massif → réévaluer.
+
 
 ### 15.2 Priorités de mise en conformité
 
@@ -1764,17 +1718,16 @@ sous la section **"RÈGLE OBLIGATOIRE : AJOUT D'UN NOUVEAU MODÈLE AI"**.
 - ~~Anonymizer : ajouter bouton Dupliquer~~ — handler JS ajouté dans `update.js`
 - ~~Composer : ajouter bouton Dupliquer + Download All~~ — vues + URLs + templates + JS
 
-**Priorité 2 — UX manquante (drag & drop)**
-- Anonymizer : ajouter zone drag & drop
-- Imager : ajouter zone drag & drop (pour image de référence)
-- Composer : ajouter zone drag & drop (pour fichier batch)
+**Priorité 2 — ~~UX manquante (drag & drop)~~ ✅ OBSOLÈTE (audit 2026-07-11)**
+- Anonymizer/Imager/Composer ont tous une zone drag & drop vérifiée (audit §31).
 
-**Priorité 3 — Feature transversale (ETA)**
-- Toutes les apps : implémenter calcul ETA dans les tâches Celery + affichage JS
+**Priorité 3 — ~~Feature transversale (ETA)~~ ✅ OBSOLÈTE (audit 2026-07-11)**
+- ETA 3 niveaux (card/batch/queue) câblé dans les 10 apps (`wama-eta.js` + `_global_progress.html`).
 
-**Priorité 4 — Uniformisation batch**
-- Transcriber, Enhancer, Anonymizer, Reader : ajouter système batch
-- Extraire `BaseBatch` + `duplicate_batch()` dans `wama/common/`
+**Priorité 4 — ~~Uniformisation batch~~ ✅ OBSOLÈTE (audit 2026-07-11)**
+- `BatchMixin` (`wama/common/models.py`) adopté par 8 apps ; batch UI conforme (§9.9).
+  Restent hors mixin : converter (`ConversionBatch` sans mixin, choix à confirmer) et
+  imager (batch propriétaire `parent_generation`, « to be redesigned »).
 
 **Priorité 5 — Import avancé**
 - Toutes les apps : import dossier récursif

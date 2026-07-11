@@ -1,6 +1,6 @@
 # WAMA — Roadmap
 
-> Dernière mise à jour : 2026-05-16 (cam_analyzer Propositions A→F + Converter modal Paramètres item + profils sauvegardables)
+> Dernière mise à jour : 2026-07-11 (audit conformité — PROJECT_STATUS §31 ; l'en-tête précédent « 2026-05-16 » mentait, le contenu allait jusqu'à 2026-07-01) (cam_analyzer Propositions A→F + Converter modal Paramètres item + profils sauvegardables)
 > Légende : ✅ Fait · 🔄 En cours · ⏳ Planifié · 💡 Proposé · ❌ Abandonné · 🐛 Bug bloquant
 
 ---
@@ -44,7 +44,7 @@
 | Parité batch UI (⚙ batch + ⚙/⧉ par item + duplication in-batch) | ✅ | **Terminée** : transcriber, reader, synthesizer, describer, composer, enhancer, converter, anonymizer (⚙ batch = global). Group-by-nature commun (converter/describer/enhancer/anonymizer). Cf. conventions §9.8/§9.9. |
 | **Phase B — Format batch unifié à balises** (`-i/-p/-r/-o`) | ✅ | Parseur commun `parse_unified_batch` + détection legacy + **`BATCH_FORMAT.md`**. **Câblé partout** : apps Type A (reader/describer/transcriber/converter/anonymizer/enhancer) via `parse_media_list_batch` rendu balise-aware (`-i`→path, `-o/-p/--opt` transportés) ; **imager** (`-p`→prompt, `--steps/--cfg/--model/--np`…) ; **synthesizer** (`-p`→texte, `--voice/--speed/-r/--language`) ; **composer** (réf. : auto-modèle musicgen-melody si `-r`) ; **avatarizer** (nouveau système de lots `BatchAvatarJob` + import par fichier balise + group-by-nature pipeline/standalone + UI groupes ▶/⬇/⧉/🗑). **Variante CSV à en-têtes** ✅ (centralisée : `is_csv_header_batch`/`parse_csv_header_batch`, gérée par `parse_unified_batch`/`parse_media_list_batch` → toutes les apps). Virgules dans une cellule gérées via guillemets (`csv.DictReader`). |
 | Duplication d'un élément = DANS le batch (fix) | ✅ | Synthesizer + Transcriber (était hors groupe = bug) |
-| **Zone de staging (« À valider »)** — import → réglage → file | 🔶 Pilote | **Transcriber ✅** (statut `DRAFT` serveur ; `stage_commit`/`commit_all`/`clear`/`update_all` ; zone UI + handlers). Décision : DRAFT serveur + pilote-puis-généralisation. Cf. conventions §8.X. **Reste** : généraliser (describer/enhancer/reader/synthesizer/converter/anonymizer/composer/imager/avatarizer) + extraire `common/staging.py` + `wama-staging.js`. |
+| **Zone de staging (« À valider »)** | ⛔ **SUPPRIMÉE** | Décision 2026-06-29 (CARD_DESIGN §8.5) : PAS de staging — la card « nouveau » remplace ce besoin. Cette ligne annonçait à tort une généralisation à 9 apps (corrigé 2026-07-11). |
 | **Architecture UI « card-centric »** (card auto-suffisante + volet droit = inspecteur) | 🔶 Décidée | **Décision projet 2026-06** : voir **`CARD_CENTRIC_UI.md`** (spec + phases). Card de composition (dépôt/prompt/référence/RAG par card), volet droit reflète la sélection, 1 source (filemanager) + 1 destination (card) par app, RAG ponctuel isolé par card, modales conservées puis rationalisées. Bâtit sur le staging. Multi-drop→1 batch ✅ corrigé partout (dont enhancer audio). **Preview à 3 niveaux** (§5bis) : composant commun `.wama-card-preview` (double-clic → `wama:card-expand` ; apps média → overlay `unified_preview`) ✅ livré, **1ᵉʳ consommateur transcriber** (preview compacte + métriques sous la barre, bouton œil retiré, double-clic → modal résultat). **Niveau 2 (volet = inspecteur)** ✅ pilote transcriber (clic card → volet édite l'élément ; `[×]` revient aux défauts). Reste : preview complète dans le volet, sélection en-têtes batch, généralisation. WAMA Lab non impacté (composants communs additifs). |
 | **Transcriber — correction manuelle assistée IA** (éditeur onde + heatmap) | 🔶 Spec | Spec : **`wama/transcriber/TRANSCRIBER_CORRECTION.md`** (inspiré Whispurge/Sonal). Page dédiée `/edit/<id>/`, guidage non destructif, heatmap cohérence(→confiance) par-segment, réutilise le lecteur d'onde commun. **Fait** : défaut ASR VibeVoice→**Whisper large-v3** (artefact d'ordre, pas benchmark ; diarisation=pyannote ; 10<16 GB) + **word_timestamps** conservés. À évaluer : WhisperX/Canary-Qwen-2.5B/Granite 3.3 ; réparer Qwen3-ASR. Mener le transcriber au bout avant généralisation. |
 | **Drag & drop appartenance batch** (entrer/sortir une carte d'un batch) | ⏳ Phase 2 | Toutes les apps à batch — appartenance fluide |
@@ -96,11 +96,12 @@ composition par capacités. Voir aussi §10.B (Translator) et §5b (sélection/d
 
 **État 2026-07-01 + TÂCHE 1 (consolidation) :** A est **partiellement** déployé et les divergences
 prévues sont **réelles** → il faut les inventorier avant d'en porter d'autres :
-- Modale item : `WamaParams.render(item)` = **4/10** (transcriber, converter, reader, describer) ;
-  hand-built = synthesizer, avatarizer, composer ; **enhancer porté le 2026-07-01**.
+- Modale item : `WamaParams.render(item)` = **7/10** (transcriber, converter, reader, describer,
+  enhancer, composer, avatarizer — audit empirique 2026-07-11) ; hand-built restants =
+  synthesizer (params.py ne ponte que les dom_id), anonymizer, imager (params.py orphelins).
 - Volet : `WamaParams.render(panel)` (référence) vs `WamaInspector.initFromSchema` (synthesizer,
   avatarizer, composer, enhancer) — **à trancher**.
-- `params.py` : **8/10** (manquent anonymizer, imager).
+- `params.py` : **10/10 EXISTENT** (audit 2026-07-11) — mais anonymizer/imager ORPHELINS (aucun consommateur).
 - Capacités→UI : `WamaModelCaps` (option-level) — **transcriber ne l'utilise pas**, enhancer a du
   `show_if` **hardcodé** à supprimer. Manque le **niveau-champ**. Modèles déclarent leurs params via
   `capabilities.params` (route existante ; moteurs audio enhancer enregistrés le 2026-07-01).

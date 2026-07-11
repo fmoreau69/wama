@@ -176,14 +176,14 @@
                 .then(r => r.json())
                 .then(data => {
                     if (data.error) {
-                        alert('Erreur : ' + data.error);
+                        WamaApp.toast('Erreur : ' + data.error, 'error');
                     } else {
                         promptInput.value = '';
                         insertRenderedCard(data.id);
                         startPolling(data.id);
                     }
                 })
-                .catch(err => alert('Erreur réseau : ' + err))
+                .catch(err => WamaApp.toast('Erreur réseau : ' + err, 'error'))
                 .finally(() => {
                     generateBtn.disabled = false;
                     generateBtn.innerHTML = '<i class="fas fa-play me-1"></i> Générer';
@@ -361,7 +361,7 @@
                         exportBtn.outerHTML = '<span class="btn btn-sm btn-outline-secondary disabled" title="Exporté"><i class="fas fa-check"></i></span>';
                         showToast('Exporté vers la médiathèque', 'success');
                     } else {
-                        alert('Erreur export : ' + (d.error || 'inconnue'));
+                        WamaApp.toast('Erreur export : ' + (d.error || 'inconnue'), 'error');
                     }
                 });
             return;
@@ -412,7 +412,7 @@
                     updateCardStatus(id, 'PENDING', 0);
                     startPolling(parseInt(id));
                 } else {
-                    alert('Erreur : ' + (d.error || 'inconnue'));
+                    WamaApp.toast('Erreur : ' + (d.error || 'inconnue'), 'error');
                 }
             });
     }

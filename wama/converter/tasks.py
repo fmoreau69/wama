@@ -178,7 +178,7 @@ def convert_media_task(self, job_id: int):
         rel_path = f"{output_rel_dir}{output_name}"
         ConversionJob.objects.filter(pk=job_id).update(
             output_file=rel_path,
-            status='DONE',
+            status='SUCCESS',
             progress=100,
             # Temps réel persisté (ProcessingTimeMixin) — même mesure que le seeding ETA ci-dessous.
             processing_seconds=_time.time() - _t0,
@@ -213,7 +213,7 @@ def convert_media_task(self, job_id: int):
             except Exception:
                 pass
         ConversionJob.objects.filter(pk=job_id).update(
-            status='ERROR',
+            status='FAILURE',
             error_message=error_msg,
         )
         _console(user_id, f"✗ Erreur conversion : {error_msg}", level='error')

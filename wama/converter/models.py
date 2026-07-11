@@ -46,8 +46,8 @@ class ConversionJob(ProcessingTimeMixin, models.Model):
     STATUS_CHOICES = [
         ('PENDING',  'En attente'),
         ('RUNNING',  'En cours'),
-        ('DONE',     'Terminé'),
-        ('ERROR',    'Erreur'),
+        ('SUCCESS',  'Terminé'),
+        ('FAILURE',  'Erreur'),
     ]
 
     user          = models.ForeignKey(User, on_delete=models.CASCADE, related_name='conversion_jobs')

@@ -281,7 +281,7 @@ def status(request, pk):
         'status':          job.status,
         'progress':        pct,
         'error_message':   job.error_message,
-        'output_ready':    bool(job.status == 'DONE' and job.output_file),
+        'output_ready':    bool(job.status == 'SUCCESS' and job.output_file),
         'output_filename': job.output_filename,
         'input_filename':  job.input_filename,
         'media_type':      job.media_type,
@@ -316,13 +316,13 @@ def global_progress(request):
                 .values('id', 'status', 'progress'))
 
     total = len(jobs)
-    done = sum(1 for j in jobs if j['status'] == 'DONE')
+    done = sum(1 for j in jobs if j['status'] == 'SUCCESS')
     running = sum(1 for j in jobs if j['status'] == 'RUNNING')
 
     if total:
         acc = 0
         for j in jobs:
-            if j['status'] == 'DONE':
+            if j['status'] == 'SUCCESS':
                 acc += 100
             elif j['status'] == 'RUNNING':
                 acc += cache.get(f"converter_progress_{j['id']}", j['progress'] or 0)
@@ -336,7 +336,7 @@ def global_progress(request):
         'total': total,
         'done': done,
         'running': running,
-        'failed': sum(1 for j in jobs if j['status'] == 'ERROR'),
+        'failed': sum(1 for j in jobs if j['status'] == 'FAILURE'),
         'overall_progress': overall,
     })
 
@@ -468,7 +468,7 @@ def batch_download(request, pk):
     import zipfile
     from .models import ConversionBatch
     batch = get_object_or_404(ConversionBatch, pk=pk, user=request.user)
-    jobs = (ConversionJob.objects.filter(batch=batch, user=request.user, status='DONE')
+    jobs = (ConversionJob.objects.filter(batch=batch, user=request.user, status='SUCCESS')
             .exclude(output_file=''))
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
@@ -481,6 +481,33 @@ def batch_download(request, pk):
                 pass
     buf.seek(0)
     return FileResponse(buf, as_attachment=True, filename=f'converter_batch_{batch.id}.zip')
+
+
+@login_required
+def download_all(request):
+    """ZIP de TOUTES les sorties réussies de l'utilisateur (bouton global de la toolbar).
+
+    Complète batch_download (par lot) — écart download_all comblé à l'audit 2026-07-11
+    (PROJECT_STATUS §31.5).
+    """
+    import io
+    import os
+    import zipfile
+    jobs = (ConversionJob.objects.filter(user=request.user, status='SUCCESS')
+            .exclude(output_file=''))
+    if not jobs.exists():
+        return JsonResponse({'error': 'Aucune conversion terminée à télécharger'}, status=400)
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
+        for job in jobs:
+            try:
+                path = job.output_file.path
+                if os.path.exists(path):
+                    zf.write(path, os.path.basename(path))
+            except Exception:
+                pass
+    buf.seek(0)
+    return FileResponse(buf, as_attachment=True, filename='converter_all.zip')
 
 
 @login_required

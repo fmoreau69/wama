@@ -583,14 +583,14 @@
                 body: JSON.stringify(payload),
             });
             const data = await r.json();
-            if (!r.ok || !data.success) { alert(data.error || 'Erreur sauvegarde'); return; }
+            if (!r.ok || !data.success) { WamaApp.toast(data.error || 'Erreur sauvegarde', 'error'); return; }
             _batchSettingsModal.hide();
             if (andStart) {
                 await startBatch(batchId);
             } else {
                 window.location.reload();
             }
-        } catch { alert('Erreur réseau'); }
+        } catch { WamaApp.toast('Erreur réseau', 'error'); }
     }
 
     function bindBatchGroupActions() {

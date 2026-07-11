@@ -31,9 +31,9 @@ donc l'imbrication dans un groupe ne change rien à son fonctionnement.
 
         <!-- Status badge -->
         <span class="badge status-badge
-            {% if job.status == 'DONE' %}bg-success
+            {% if job.status == 'SUCCESS' %}bg-success
             {% elif job.status == 'RUNNING' %}bg-warning text-dark
-            {% elif job.status == 'ERROR' %}bg-danger
+            {% elif job.status == 'FAILURE' %}bg-danger
             {% else %}bg-secondary
             {% endif %} badge-media">
             {{ job.get_status_display }}
@@ -47,7 +47,7 @@ donc l'imbrication dans un groupe ne change rien à son fonctionnement.
             </button>
             {# Bouton de cycle commun ▶/⏹/↻ (toujours actif, ⏹ Stop pendant RUNNING) #}
             {% include 'common/_cycle_button.html' with id=job.id status=job.status %}
-            {% if job.status == 'DONE' and job.output_file %}
+            {% if job.status == 'SUCCESS' and job.output_file %}
             <a href="{% url 'converter:download' job.id %}"
                class="btn btn-outline-info btn-sm py-0 px-2" title="Télécharger">
                 <i class="fas fa-download"></i>
@@ -73,12 +73,12 @@ donc l'imbrication dans un groupe ne change rien à son fonctionnement.
     <div class="wama-progress-track mt-2">
         <div class="wama-progress-fill" style="width:{{ job.progress }}%"></div>
     </div>
-    {% elif job.status == 'ERROR' %}
+    {% elif job.status == 'FAILURE' %}
     <div class="text-danger small mt-1">
         <i class="fas fa-exclamation-triangle"></i>
         {{ job.error_message|truncatechars:120 }}
     </div>
-    {% elif job.status == 'DONE' and job.output_file %}
+    {% elif job.status == 'SUCCESS' and job.output_file %}
     <div class="text-success small mt-1">
         <i class="fas fa-check-circle"></i>
         {{ job.output_filename }}

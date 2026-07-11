@@ -1,6 +1,6 @@
 # PROJECT_STATUS.md — Point d'étape des chantiers WAMA
 
-> Photo des chantiers en cours. Mise à jour : **2026-06-29**.
+> Photo des chantiers en cours. Mise à jour : **2026-07-11** (§31 : audit empirique conformité 10 apps).
 > Marqueurs : ✅ fait · 🔄 en cours · ⏳ à faire. Détails par chantier dans les docs/mémoire référencés.
 
 ## 1. PromptPipeline (prompts centralisés §16.6 / §10.B) — bien avancé
@@ -935,3 +935,113 @@ structure, et aucun des deux n'utilise le formalisme commun établi ailleurs :
 **PAS implémenté** — Enhancer a besoin d'un vrai chantier de portage (cards communes sur les 2
 onglets, unifier la barre audio sur `_global_progress.html`, PUIS la card d'entrée par domaine),
 pas d'un ajout isolé. À traiter comme un palier à part entière, pas glissé dans cette session.
+
+---
+
+## 31. Audit empirique de conformité des 10 apps généralistes (2026-07-10/11)
+
+### 31.1 Méthode
+Audit **empirique** (grep/lecture de code, zéro déclaratif) des 10 apps sur **31 critères** :
+les 25 flags existants de la grille `_conv()` + 8 nouveaux critères d'uniformisation mesurés
+(`new_item_card`, `queue_toolbar`, `queue_manipulation`, `anti_race`, `cycle_button`,
+`processing_time`, `status_vocab`, `toast`), chaque verdict adossé à une preuve `file:line`.
+La grille `app_registry.py::_conv()` a été **étendue** avec ces 8 critères (comblant les
+« colonnes manquantes » identifiées en §27.2) et les flags périmés corrigés. Source live
+inchangée : `/apps/` (`get_conformity_summary()`).
+
+### 31.2 Scores APRÈS correction de grille (avant : §27.2)
+| App | Score | Écarts restants (issues de la grille) |
+|---|---|---|
+| transcriber | **93 %** (28/30) | recursive_import, toast (1 alert+confirm edit.js:675) |
+| describer | **93 %** (28/30) | recursive_import, modes (pas déclaré APP_MODES) |
+| composer | **92 %** (26/28) | recursive_import, toast (4 alert index.js) |
+| reader | **90 %** (28/31) | recursive_import, modes, toast (2 alert reader.js) |
+| converter | **77 %** (24/31) | download_all, cross_app_options (Phase 2), modes, queue_manipulation, recursive_import, status_vocab (DONE/ERROR), toast (21 alert) |
+| enhancer | **70 %** (22/31) | anti_race ⚠, batch-card mère hand-built, new_item_card, queue_toolbar, cycle_button, layout, processing_time, toast (13 alert) |
+| synthesizer | **70 %** (22/31) | anti_race ⚠, modales hand-built (params.py ponte dom_id), new_item_card, _batch_card, queue_toolbar, layout, processing_time, toast (42 alert) |
+| anonymizer | **61 %** (19/31) | **pas de champ status** (booléen `processed`) = prérequis bloquant, params.py ORPHELIN, inspecteur (preview seule), toast (23 alert) |
+| imager | **60 %** (18/30) | **inspecteur 0/4**, params.py ORPHELIN, anti_race ⚠, double markup card image/vidéo, toast |
+| avatarizer | **55 %** (17/31) | start_all/download_all sans vue serveur, clear_all simulé client, anti_race ⚠, ordre boutons card KO, toast (21 alert) |
+
+### 31.3 Flags périmés corrigés dans la grille (preuves dans les commentaires du code)
+- **ETA sous-déclaré partout** : les 3 niveaux (card `.wama-eta`, batch `data-eta-ids`,
+  `_global_progress.html`) sont en réalité câblés dans **les 10 apps** — les flags False
+  dataient d'avant le déploiement ETA. Corrigé pour describer/enhancer/synthesizer/
+  anonymizer/imager/avatarizer + eta_batch transcriber.
+- **avatarizer.tool_api False → True** : add_to/start/get_status présents au registre
+  central `wama/tool_api.py` (le « seul manque restant » de CONV §17.6 était périmé).
+- **filemanager_import** : True vérifié pour transcriber/describer/reader/synthesizer/
+  anonymizer (listener `wama:fileimported`) ; composer=N/A (entrée texte) ; imager/
+  avatarizer partiels (drop-zone `data-wama-app` sans listener) → restent False.
+- **reader.layout False → True** ; **converter.layout False → True** ;
+  **multi_format_download → N/A** pour converter/enhancer/synthesizer/anonymizer/imager/
+  avatarizer (early binding : le format se règle AVANT le traitement).
+
+### 31.4 Enseignements transverses (au-delà des flags)
+1. **Fracture nette 5+5** : les 5 apps portées (transcriber/describer/composer/reader/
+   converter) ont TOUTE la pile commune (new_item_card, _batch_card, queue_toolbar,
+   queue_manipulation*, begin_processing*, ProcessingTimeMixin, initFromSchema+
+   _inspector_actions+detail/preview registries). Les 5 autres n'ont RIEN de la couche
+   file commune. (*converter : consolidate artisanal + verrou local — voir 31.5.)
+2. **anti_race absent = seul risque fonctionnel réel** des 5 non portées : start() de
+   enhancer (views.py:423), synthesizer (:549), imager (:626), avatarizer (:172) font
+   check-then-set sans verrou ni revoke.
+3. **`alert()` : ~106 occurrences** dans 8 apps (le helper `WamaApp.toast` existe et
+   marche — describer = preuve).
+4. **params.py = 10/10 EXISTENT** (contradiction UI_MECHANISMS §0bis/§7 tranchée
+   empiriquement) MAIS 2 sont **orphelins** (imager, anonymizer : aucun consommateur
+   WamaParams) et 1 ne ponte que les dom_id (synthesizer).
+5. **Couleurs de boutons card** : seuls converter (réf) / reader / transcriber sont au
+   schéma outline canonique. describer/composer/synthesizer/anonymizer/imager/avatarizer
+   ont des variantes pleines ou intercalent des boutons hors référence.
+6. **Statuts en base** : reader migré (0008) ; converter encore DONE/ERROR ; anonymizer
+   n'a PAS de champ status (booléen `processed`) — hors norme la plus profonde.
+7. **modes** : APP_MODES déclare 5 apps (anonymizer/enhancer/imager/synthesizer/
+   transcriber) mais seuls enhancer+imager CÂBLENT WamaModes. Question ouverte pour
+   Fabien : describer/reader ont-ils vocation à des modes-switch, ou N/A comme composer
+   (« type dérivé », flag None) ?
+
+### 31.5 Plan de finition des 5 apps les plus proches (exécuté à la suite de cet audit)
+1. **transcriber → 100 %*** : purger alert()/confirm() de edit.js → toast.
+2. **describer** : aligner couleurs boutons card (⚙/⧉/🗑) sur la référence outline.
+3. **composer** : 4 alert() → toast ; couleurs boutons card ; ⚙ visible pendant RUNNING.
+4. **reader** : 2 alert() → toast.
+5. **converter** : migration statuts DONE/ERROR → SUCCESS/FAILURE (pattern reader.0008) ;
+   vue+bouton download_all global ; fabrique make_queue_manipulation_views ; 21 alert() → toast.
+   (cross_app_options Phase 2 et modes = chantiers séparés, pas dans cette passe.)
+(*) hors dettes transverses assumées : recursive_import (toutes), card v2 chips (pilote
+reader à valider avant propagation), profils (capacité non déclarée), WamaModelCaps.
+
+### 31.6 Docs remis à jour dans cette passe
+- `WAMA_APP_CONVENTIONS.md` §15.1 : table figée remplacée par un pointeur vers `/apps/`.
+- `UI_MECHANISMS_CONSOLIDATION.md` : contradiction P0 params.py purgée (10/10 existent,
+  2 orphelins), P3 marqué fait (transcriber+converter → initFromSchema).
+- `ROADMAP.md` : en-tête daté, ligne staging alignée sur CARD_DESIGN §8.5 (supprimé),
+  compteurs modale WamaParams corrigés (7/10 : + enhancer, avatarizer ; hand-built :
+  synthesizer, anonymizer, imager).
+- `CARD_DESIGN.md` §5 : table re-mesurée ; §10.6 ProcessingTimeMixin fait (5 apps portées).
+- `INSPECTOR_DETAIL_FIELDS.md` : état de rollout par app ajouté (detail 5/10, preview 8/10).
+
+### 31.7 Exécution du plan §31.5 (2026-07-11) — FAIT
+| App | Avant | Après | Actions |
+|---|---|---|---|
+| transcriber | 93 % | **96 %** | alert() edit.js:675 → toast (confirm() conservé = décision utilisateur, pas une notification) |
+| composer | 92 % | **96 %** | 4 alert() → toast ; couleurs card alignées outline (⚙/⬇/🗑) ; ⚙ VISIBLE pendant RUNNING (le `{% if != RUNNING %}` masquait la modale en cours de traitement) |
+| describer | 93 % | 93 % | couleurs card alignées (⚙ outline-secondary, ⧉ outline-warning, 🗑 outline-danger, 👁 adouci en outline-success — conservé, bouton légitime hors référence) |
+| reader | 90 % | **93 %** | 2 alert() reader.js → toast |
+| converter | 77 % | **87 %** | migration statuts **SUCCESS/FAILURE** (0005, appliquée WSL2, pattern reader.0008 ; sweep models/tasks/views/_job_card/converter.js = 19 littéraux) ; vue+bouton **download_all** (ZIP global, slot toolbar `converterDownloadAllBtn`) ; 21 alert() → toast typés |
+
+Écarts restants ASSUMÉS (défauts documentés, pas des oublis) :
+- `recursive_import` : dette transverse 10 apps (inchangé).
+- `modes` describer/reader/converter : à trancher — vrai switch WamaModes ou N/A « dérivé »
+  comme composer ? (question posée §31.4.7).
+- `converter.cross_app_options` : Phase 2 planifiée (upscale/audio enhance).
+- `converter.queue_manipulation` : la fabrique commune exige l'architecture batch unifiée
+  (liaison + BatchMixin) que `ConversionBatch` n'a pas — batch léger = choix documenté
+  (note d'intention CONV §15). Trancher le passage à BatchMixin AVANT d'adopter la fabrique.
+- JS déployés dans `staticfiles/` : converter.js, reader.js, composer/index.js,
+  transcriber/edit.js. ⚠ Redémarrage du process WSL2 requis pour les changements Python
+  (converter views/urls/models).
+
+Smoke tests : /transcriber/ /describer/ /composer/ /reader/ /converter/ /common/apps/
+→ tous 200 (client Django, superuser).

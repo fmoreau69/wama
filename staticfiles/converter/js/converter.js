@@ -40,6 +40,7 @@
 
     // Global action buttons
     const startAllBtn = document.getElementById('converterStartAllBtn');
+    const downloadAllBtn = document.getElementById('converterDownloadAllBtn');
     const clearAllBtn = document.getElementById('converterClearAllBtn');
 
     // Profile dropdown
@@ -184,10 +185,10 @@
     // le reload se fait une fois après la consolidation (handleFiles).
     async function uploadFile(file) {
         const mediaType = detectMediaType(file.name);
-        if (!mediaType) { alert(`Format non supporté : ${file.name}`); return null; }
+        if (!mediaType) { WamaApp.toast(`Format non supporté : ${file.name}`, 'warning'); return null; }
         const outputFmt = outputFmtSel.value;
         if (!outputFmt) {
-            alert('Choisissez un format de sortie avant d\'envoyer un fichier.');
+            WamaApp.toast('Choisissez un format de sortie avant d\'envoyer un fichier.', 'error');
             return null;
         }
         const opts = readMainPanelOptions();
@@ -199,13 +200,13 @@
             const resp = await csrfPost(APP.urls.upload, fd);
             const data = await resp.json();
             if (!resp.ok || data.error) {
-                alert('Erreur : ' + (data.error || resp.statusText));
+                WamaApp.toast('Erreur : ' + (data.error || resp.statusText), 'error');
                 return null;
             }
             if (window.WamaFM) WamaFM.uploaded();  // fichier ajouté → refresh filemanager
             return data.job_id || null;
         } catch (err) {
-            alert('Erreur réseau : ' + err.message);
+            WamaApp.toast('Erreur réseau : ' + err.message, 'error');
             return null;
         }
     }
@@ -287,10 +288,10 @@
                 startPolling(jobId);
             } else {
                 const d = await resp.json();
-                alert(d.error || 'Erreur démarrage');
+                WamaApp.toast(d.error || 'Erreur démarrage', 'error');
             }
         } catch (err) {
-            alert('Erreur réseau : ' + err.message);
+            WamaApp.toast('Erreur réseau : ' + err.message, 'error');
         }
     }
 
@@ -318,7 +319,7 @@
                 if (!emptyState) location.reload();
             }
         } catch (err) {
-            alert('Erreur réseau : ' + err.message);
+            WamaApp.toast('Erreur réseau : ' + err.message, 'error');
         }
     }
 
@@ -327,7 +328,7 @@
             await csrfPost(urlFor(APP.urls.duplicate, jobId));
             location.reload();
         } catch (err) {
-            alert('Erreur réseau : ' + err.message);
+            WamaApp.toast('Erreur réseau : ' + err.message, 'error');
         }
     }
 
@@ -351,7 +352,7 @@
             if (!resp.ok) return;
             const data = await resp.json();
             updateCard(jobId, data);
-            if (data.status === 'DONE' || data.status === 'ERROR') {
+            if (data.status === 'SUCCESS' || data.status === 'FAILURE') {
                 stopPolling(jobId);
             }
         } catch (_) { /* ignore */ }
@@ -407,7 +408,7 @@
                 progressBar = fill;
             }
             progressBar.style.width = data.progress + '%';
-        } else if (data.status === 'DONE') {
+        } else if (data.status === 'SUCCESS') {
             const track = card.querySelector('.wama-progress-track');
             if (track) track.remove();
             let info = card.querySelector('.job-info-line');
@@ -436,7 +437,7 @@
                 startBtn.innerHTML = '<i class="fas fa-redo"></i>';
                 startBtn.title = 'Recommencer';
             }
-        } else if (data.status === 'ERROR') {
+        } else if (data.status === 'FAILURE') {
             const track = card.querySelector('.wama-progress-track');
             if (track) track.remove();
             let info = card.querySelector('.job-info-line');
@@ -501,7 +502,7 @@
         try {
             await csrfPost(urlFor(APP.urls.batchDuplicate, batchId));
             location.reload();
-        } catch (err) { alert('Erreur : ' + err.message); }
+        } catch (err) { WamaApp.toast('Erreur : ' + err.message, 'error'); }
     }
 
     // ── Batch group actions ─────────────────────────────────────────────────────
@@ -512,7 +513,7 @@
             const data = await resp.json();
             if (data.started && data.started.length) data.started.forEach(id => startPolling(id));
             location.reload();
-        } catch (err) { alert('Erreur : ' + err.message); }
+        } catch (err) { WamaApp.toast('Erreur : ' + err.message, 'error'); }
     }
 
     async function deleteBatch(batchId) {
@@ -520,7 +521,7 @@
         try {
             await csrfPost(urlFor(APP.urls.batchDelete, batchId));
             location.reload();
-        } catch (err) { alert('Erreur : ' + err.message); }
+        } catch (err) { WamaApp.toast('Erreur : ' + err.message, 'error'); }
     }
 
     let _currentBatchId = null;
@@ -577,8 +578,12 @@
             }
             location.reload();
         } catch (err) {
-            alert('Erreur : ' + err.message);
+            WamaApp.toast('Erreur : ' + err.message, 'error');
         }
+    });
+
+    downloadAllBtn && downloadAllBtn.addEventListener('click', () => {
+        window.location.href = APP.urls.downloadAll;
     });
 
     clearAllBtn && clearAllBtn.addEventListener('click', async () => {
@@ -587,7 +592,7 @@
             await csrfPost(APP.urls.clearAll);
             location.reload();
         } catch (err) {
-            alert('Erreur : ' + err.message);
+            WamaApp.toast('Erreur : ' + err.message, 'error');
         }
     });
 
@@ -839,7 +844,7 @@
             if (applyBtn) applyBtn.disabled = isRunning;
             if (startBtn) {
                 startBtn.disabled = isRunning;
-                startBtn.innerHTML = data.status === 'DONE'
+                startBtn.innerHTML = data.status === 'SUCCESS'
                     ? '<i class="fas fa-redo"></i> Appliquer & Recommencer'
                     : '<i class="fas fa-play"></i> Appliquer & (Re)lancer';
             }
@@ -861,7 +866,7 @@
         const { output_format, options } = (window.WamaParams && APP.schema)
             ? readModalViaSchema() : readModalForm();
         if (!output_format) {
-            alert('Format de sortie requis.');
+            WamaApp.toast('Format de sortie requis.', 'warning');
             return false;
         }
         const fd = new FormData();
@@ -871,7 +876,7 @@
             const resp = await csrfPost(urlFor(APP.urls.update, currentModalJobId), fd);
             const data = await resp.json();
             if (!resp.ok || data.error) {
-                alert('Erreur : ' + (data.error || resp.statusText));
+                WamaApp.toast('Erreur : ' + (data.error || resp.statusText), 'error');
                 return false;
             }
             // Reflect new format in the queue card immediately
@@ -882,7 +887,7 @@
             });
             return true;
         } catch (err) {
-            alert('Erreur réseau : ' + err.message);
+            WamaApp.toast('Erreur réseau : ' + err.message, 'error');
             return false;
         }
     }
@@ -910,7 +915,7 @@
     document.getElementById('jobSettingsSaveProfileBtn')?.addEventListener('click', () => {
         const { output_format, options } = readModalForm();
         if (!output_format) {
-            alert('Format de sortie requis avant de sauver.');
+            WamaApp.toast('Format de sortie requis avant de sauver.', 'warning');
             return;
         }
         // Stash for confirm handler
@@ -928,7 +933,7 @@
     document.getElementById('saveProfileConfirmBtn')?.addEventListener('click', async () => {
         const name = (document.getElementById('saveProfileName').value || '').trim();
         const desc = (document.getElementById('saveProfileDesc').value || '').trim();
-        if (!name) { alert('Nom requis'); return; }
+        if (!name) { WamaApp.toast('Nom requis', 'warning'); return; }
         let payload;
         try {
             payload = JSON.parse(document.getElementById('saveProfileModal').dataset.pendingPayload || '{}');
@@ -945,7 +950,7 @@
             const resp = await csrfPost(APP.urls.profileSave, fd);
             const data = await resp.json();
             if (!resp.ok || data.error) {
-                alert('Erreur : ' + (data.error || resp.statusText));
+                WamaApp.toast('Erreur : ' + (data.error || resp.statusText), 'error');
                 return;
             }
             const modal = bootstrap.Modal.getInstance(document.getElementById('saveProfileModal'));
@@ -953,7 +958,7 @@
             await loadProfiles();
             renderProfileDropdown(currentMediaType);
         } catch (err) {
-            alert('Erreur réseau : ' + err.message);
+            WamaApp.toast('Erreur réseau : ' + err.message, 'error');
         }
     });
 
@@ -1013,7 +1018,7 @@
             await loadProfiles();
             renderProfileDropdown(currentMediaType);
         } catch (err) {
-            alert('Erreur réseau : ' + err.message);
+            WamaApp.toast('Erreur réseau : ' + err.message, 'error');
         }
     });
 

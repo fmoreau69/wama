@@ -147,16 +147,21 @@ Ordre canonique (conventions UI) · style **sobre** : `btn btn-outline-X btn-sm 
 
 ## 5. Cartographie des cards existantes (conformité au formalisme)
 
-| App | Rendu | Boutons (couleurs) | Barre pleine largeur | Aperçu | Conformité |
-|-----|-------|--------------------|----------------------|--------|------------|
-| **converter** (RÉF) | partial server | ✅ schéma complet | ✅ `wama-progress-track` | sortie (texte) | **~95 %** |
-| transcriber | partial server (`_card_*`) | ~ (à aligner couleurs) | ✅ | onde/texte | ~80 % |
-| reader | JS buildCard | sobre outline (dupliquer gris) | ~ | texte OCR | ~70 % (couleur dupliquer + rebuild JS) |
-| enhancer | **JS buildCard (rebuild)** | mélange (dupliquer bleu) | partiel | miniature | ~50 % (rebuild JS, couleurs) |
-| synthesizer / describer / imager / anonymizer / composer / avatarizer | à cartographier | à vérifier | à vérifier | à vérifier | ⏳ |
+> Re-mesurée à l'audit empirique **2026-07-11** (PROJECT_STATUS §31) — l'ancienne table
+> (converter/transcriber/reader/enhancer + « 6 à cartographier ») datait d'avant les ports.
 
-> **À compléter** : cartographier finement les 6 dernières (quelles infos chaque card montre) avant de
-> migrer, pour **ne rien perdre** (durée, taille, dimensions, locuteurs, etc. selon l'app).
+| App | Rendu | Ordre boutons | Couleurs boutons | Écarts card |
+|-----|-------|---------------|------------------|-------------|
+| **converter** (RÉF) | partial server | ✅ | ✅ outline canonique | — |
+| reader (pilote v2) | partial server + chips | ✅ | ✅ outline canonique | — |
+| transcriber | partial server | ✅ (+1 bouton édition légitime) | ✅ outline | — |
+| describer | partial server | ✅ (+👁 hors réf.) | ❌ ⚙ plein, ⧉ info, 🗑 plein | couleurs à aligner |
+| composer | partial server | ✅ (+export intercalé) | ❌ pleins (secondary/info/danger) | couleurs ; ⚙ masqué si RUNNING |
+| synthesizer | partial server (`_synthesis_card`) | ✅ | ❌ ⚙/⬇/🗑 pleins, ⧉ info | couleurs |
+| anonymizer | partial server (`_media_card`) | ✅ | ❌ ⚙ warning, ⧉ secondary | couleurs ; pas de `_cycle_button` |
+| imager | markup inline ×2 (image/vidéo dupliqué) | ✅ | ❌ tous non conformes | dédupliquer + couleurs |
+| enhancer | hand-built (`.synthesis-card` manuel) | ✅ | ❌ mélange | porter sur cards communes |
+| avatarizer | markup inline | ❌ ↻ avant ⚙ | ❌ aucune conforme | ordre + couleurs + `_cycle_button` |
 
 ## 6. Plan d'adoption
 1. **Extraire la brique commune** `_card.html` (+ helper update-en-place) **du converter** (référence).
@@ -398,10 +403,8 @@ tranchent une fois sur les briques communes et se propagent. Consignés au fil d
   peu lisible et les **boutons discrets (hover à peine visible)**. Cible : porter le fond sur la
   classe commune `.wama-card` (wama-inspector.css) avec une **opacité choisie pour le contraste des
   boutons** ; retirer les fonds par app. (Signalé Fabien 2026-07-07.)
-- **Temps de traitement affiché seulement par transcriber (écart FONCTIONNEL, pas UI).** La card doit
-  transformer l'ETA en **durée de traitement** à la fin (SUCCESS). Seul transcriber le fait
-  (`_card_progress.html` + `Transcript.processing_display` + `processing_seconds` posé par le worker).
-  describer / composer / reader n'ont NI le champ, NI l'affichage. **Fix universel** (hors passe UI) :
-  mixin commun `ProcessingTimeMixin` (`processing_seconds` + propriété `processing_display`),
-  workers qui enregistrent `fin - début`, cards qui affichent la durée sur SUCCESS. Migrations ×3
-  → à valider avant de générer. (Signalé Fabien 2026-07-07, tâche ouverte.)
+- **~~Temps de traitement affiché seulement par transcriber~~ ✅ **RÉSOLU pour les 5 apps portées**
+  (audit 2026-07-11) : `ProcessingTimeMixin` (`wama/common/models.py`) adopté par transcriber/
+  describer/composer/reader/converter, affichage via `_processing_time.html`/`_card_progress.html`.
+  Restent SANS le mixin : enhancer (2 modèles), synthesizer, anonymizer, imager, avatarizer —
+  à poser lors de leur port (grille `processing_time` dans `/apps/`).

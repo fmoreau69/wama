@@ -63,3 +63,22 @@ par chemin+mtime : une sonde par fichier, pas par clic). Zéro travail par app.
 Voir l'audit (transcriber `backend→engine` `audio→source_file` … ; reader `backend→engine`
 `input_file→source_file` `page_count→propriétés` ; composer `model→engine` `audio_output→result_file`
 `estimated_seconds→ETA` ; etc.). Pilote = **Reader**, puis rollout 9 apps.
+
+## État de rollout par app (audit empirique 2026-07-11)
+
+| App | `register_app_detail` | preview (registre) | `initFromSchema` | `_inspector_actions` |
+|---|---|---|---|---|
+| transcriber | ✅ apps.py:68 | ✅ PreviewRegistry direct (apps.py:45) | ✅ index.js:1167 | ✅ index.html:53 |
+| describer | ✅ apps.py:43 | ✅ apps.py:19 | ✅ index.html:313 | ✅ index.html:27 |
+| composer | ✅ apps.py:46 | ✅ apps.py:27 | ✅ index.html:263 | ✅ index.html:69 |
+| reader | ✅ apps.py:42 | ✅ apps.py:20 | ✅ reader.js:632 | ✅ index.html:50 |
+| converter | ✅ apps.py:37 | ✅ apps.py:13 | ✅ index.html:345 | ✅ index.html:191 |
+| enhancer | ❌ | ✅ ×2 (apps.py:27/37) | ✅ ×2 (index.html:864/879) | ❌ |
+| synthesizer | ❌ | ✅ PreviewRegistry (apps.py:25) | ✅ index.html:830 | ❌ |
+| anonymizer | ❌ | ✅ PreviewRegistry (apps.py:23) | ❌ | ❌ |
+| avatarizer | ❌ | ❌ | ✅ index.html:691 | ❌ |
+| imager | ❌ | ❌ | ❌ | ❌ |
+
+> Bilan : detail **5/10** (les 5 apps portées), preview **8/10** (manquent avatarizer, imager),
+> câblage complet 4 sous-éléments **5/10**. Prochaines cibles naturelles : enhancer + synthesizer
+> (il ne leur manque que detail + actions), puis anonymizer, avatarizer, imager.
