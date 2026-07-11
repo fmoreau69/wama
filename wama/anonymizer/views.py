@@ -283,9 +283,9 @@ class ProcessView(View):
 
             # Reset all media to allow reprocessing
             for media in all_medias:
-                media.processed = False
+                media.status = 'PENDING'
                 media.blur_progress = 0
-                media.save(update_fields=['processed', 'blur_progress'])
+                media.save(update_fields=['status', 'blur_progress'])
                 # Clear cache for this media
                 cache.delete(f"media_progress_{media.id}")
                 # Set individual media lock
@@ -390,7 +390,7 @@ def debug_media_status(request):
         'effective_user': user.username,
         'effective_user_id': user.id,
         'total_medias': Media.objects.filter(user=user).count(),
-        'unprocessed_medias': Media.objects.filter(user=user, processed=False).count(),
+        'unprocessed_medias': Media.objects.filter(user=user).exclude(status='SUCCESS').count(),
         'medias': []
     }
 
@@ -399,6 +399,7 @@ def debug_media_status(request):
             'id': m.id,
             'title': m.title or f"Media {m.id}",
             'processed': m.processed,
+            'status': m.status,
             'blur_progress': m.blur_progress,
             'file': str(m.file),
             'user': m.user.username,
@@ -571,7 +572,7 @@ def download_all_media(request):
 
     # Check all user media first
     all_medias = Media.objects.filter(user=user)
-    processed_medias = all_medias.filter(processed=True)
+    processed_medias = all_medias.filter(status='SUCCESS')
 
     print(f"[download_all_media] Total user media: {all_medias.count()}")
     print(f"[download_all_media] Processed media: {processed_medias.count()}")
@@ -1494,7 +1495,7 @@ def restart_media(request):
         cache.set(lock_key, True, timeout=7200)
 
         # Reset processing status
-        media.processed = False
+        media.status = 'PENDING'
         media.blur_progress = 0
         media.save()
         logger.info(f"[restart_media] Reset media processing status")
@@ -1542,9 +1543,9 @@ def global_progress(request):
             })
 
         total = medias.count()
-        # Anonymizer uses 'processed' instead of 'status'
-        pending = medias.filter(processed=False).count()
-        success = medias.filter(processed=True).count()
+        # Statut canonique depuis 2026-07-11 (audit §31) — l'ancien booléen `processed` = property dérivée
+        pending = medias.exclude(status='SUCCESS').count()
+        success = medias.filter(status='SUCCESS').count()
         running = 0  # Anonymizer doesn't have explicit RUNNING status
 
         # Calculate overall progress using cache
@@ -1629,7 +1630,7 @@ def duplicate_media(request, media_id):
     media = get_object_or_404(Media, pk=media_id, user=user)
     new_media = duplicate_instance(
         media,
-        reset_fields={'processed': False, 'blur_progress': 0},
+        reset_fields={'status': 'PENDING', 'blur_progress': 0},
         clear_fields=[],
     )
     return JsonResponse({'duplicated': new_media.id})
@@ -1647,7 +1648,7 @@ def batch_duplicate(request, pk):
         if not item.media:
             continue
         new_media = duplicate_instance(
-            item.media, reset_fields={'processed': False, 'blur_progress': 0}, clear_fields=[])
+            item.media, reset_fields={'status': 'PENDING', 'blur_progress': 0}, clear_fields=[])
         BatchAnonymizerItem.objects.create(batch=new_batch, media=new_media, row_index=idx)
         idx += 1
     new_batch.total = idx

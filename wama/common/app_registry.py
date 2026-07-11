@@ -319,12 +319,21 @@ APP_CATALOG = {
             filemanager_import=True,   # wama:fileimported écouté (right_panel.js:581)
             cross_app_options=True,    # select output_format + apply_inline_conversion (tasks.py:81)
             multi_format_download=None,  # N/A — format réglé en amont (early binding via output_format)
-            # KO audit 2026-07-10 : status_vocab=False — PAS de champ status (booléen `processed`,
-            # models.py:37) = prérequis bloquant pour cycle/progress conformes ; inspector=False
-            # (preview enregistrée apps.py:23 mais detail + initFromSchema + _inspector_actions
-            # absents) ; modes déclaré APP_MODES:129 mais non câblé ; anti_race partiel (lock cache
-            # restart seulement) ; _new_item_card/_batch_card/_queue_toolbar/_cycle_button/layout/
-            # ProcessingTimeMixin absents ; 23 alert().
+            # Portage 2026-07-11 (suite audit §31) — le PRÉREQUIS le plus profond est tombé :
+            status_vocab=True,         # champ `status` PENDING/RUNNING/SUCCESS/FAILURE (migration 0021
+                                       # avec conversion des données AVANT drop de `processed` ;
+                                       # `processed` survit en property dérivée pour les lecteurs)
+            processing_time=True,      # ProcessingTimeMixin + worker (`processing_seconds` au SUCCESS)
+                                       # + task_id/error_message ajoutés (FAILURE consigné sur exception)
+            layout=True,               # wama-queue-{{ card_layout }} sur #medias
+            toast=True,                # 23 alert() → WamaApp.toast typés (5 fichiers JS) ; couleurs
+                                       # boutons card alignées (⚙ outline-secondary, ⧉ outline-warning)
+            # KO restants : inspector=False (detail FAIT 2026-07-11 + preview OK, mais initFromSchema
+            # + _inspector_actions absents — volet droit hand-built right_panel.js) ; modes déclaré
+            # APP_MODES:129 mais non câblé ; anti_race partiel (RUNNING posé par le worker + lock
+            # cache, pas de begin_processing — pas de vue start par item) ; _new_item_card/
+            # _batch_card/_queue_toolbar/_cycle_button absents ; modale hand-built (params.py
+            # partiellement orphelin : consommé par le detail adapter désormais).
         ),
     },
 

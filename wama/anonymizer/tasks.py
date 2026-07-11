@@ -349,7 +349,11 @@ def process_single_media(self, media_id, force_individual=False):
             cache.delete(f"stop_process_{user.id}")
             return {"stopped": media.id}
 
-        # Reset progress at start
+        # Reset progress at start + statut canonique (audit 2026-07-11)
+        media.status = 'RUNNING'
+        media.error_message = ''
+        media.save(update_fields=['status', 'error_message'])
+        _proc_t0 = time.time()
         set_media_progress(media.id, 0)
         _console(user.id, f"Start processing media {media.id} ...")
 
@@ -395,8 +399,9 @@ def process_single_media(self, media_id, force_individual=False):
         # Marque le média comme traité
         try:
             media.refresh_from_db()
-            media.processed = True
-            media.save(update_fields=["processed"])
+            media.status = 'SUCCESS'
+            media.processing_seconds = time.time() - _proc_t0
+            media.save(update_fields=["status", "processing_seconds"])
             set_media_progress(media.id, 100)
             _console(user.id, f"Finished media {media.id} ✔")
             try:
@@ -416,6 +421,13 @@ def process_single_media(self, media_id, force_individual=False):
 
     except Exception as e:
         print(f"Erreur sur media {media_id}: {e}")
+        try:
+            media.refresh_from_db()
+            media.status = 'FAILURE'
+            media.error_message = str(e)[:2000]
+            media.save(update_fields=['status', 'error_message'])
+        except Exception:
+            pass
         try:
             _console(user.id, f"Error on media {media_id}: {e}")
         except Exception:
@@ -557,7 +569,7 @@ def process_user_media_batch(self, user_id):
     user = User.objects.get(pk=user_id)
     logger.info(f"[process_user_media_batch] User: {user.username}")
 
-    medias_list = Media.objects.filter(user=user, processed=False)
+    medias_list = Media.objects.filter(user=user).exclude(status='SUCCESS')
     logger.info(f"[process_user_media_batch] Found {medias_list.count()} unprocessed media(s)")
 
     if not medias_list.exists():
@@ -800,10 +812,10 @@ def merge_and_blur_detections(self, detection_results=None, media_id=None, **kwa
         # Clean up detection cache
         cleanup_detection_cache(media_id, model_ids)
 
-        # Mark media as processed
+        # Mark media as processed (statut canonique — audit 2026-07-11)
         media.refresh_from_db()
-        media.processed = True
-        media.save(update_fields=['processed'])
+        media.status = 'SUCCESS'
+        media.save(update_fields=['status'])
         set_media_progress(media_id, 100)
 
         # Release dedup locks (parallel path completion)

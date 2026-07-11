@@ -69,7 +69,7 @@ document.addEventListener('DOMContentLoaded', function() {
         })
         .catch(error => {
             console.error('[settings_modal.js] Error fetching settings:', error);
-            alert('Erreur lors du chargement des paramètres. Veuillez réessayer.');
+            WamaApp.toast('Erreur lors du chargement des paramètres. Veuillez réessayer.', 'error');
         });
     }
 
@@ -554,12 +554,12 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 }
             } else {
-                alert('Error saving settings: ' + (data.error || 'Unknown error'));
+                WamaApp.toast('Error saving settings: ' + (data.error || 'Unknown error'), 'error');
             }
         })
         .catch(error => {
             console.error('[settings_modal.js] Error saving settings:', error);
-            alert('Error saving settings. Please try again.');
+            WamaApp.toast('Error saving settings. Please try again.', 'error');
         });
     }
 
@@ -602,12 +602,12 @@ document.addEventListener('DOMContentLoaded', function() {
                     console.error('[settings_modal.js] Error fetching new settings:', err);
                 });
             } else {
-                alert('Erreur lors de la reinitialisation: ' + (data.error || 'Erreur inconnue'));
+                WamaApp.toast('Erreur lors de la reinitialisation: ' + (data.error || 'Erreur inconnue'), 'error');
             }
         })
         .catch(error => {
             console.error('[settings_modal.js] Error resetting settings:', error);
-            alert('Erreur lors de la reinitialisation. Veuillez reessayer.');
+            WamaApp.toast('Erreur lors de la reinitialisation. Veuillez reessayer.', 'error');
         });
     }
 
@@ -776,12 +776,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             } else {
                 console.error('[settings_modal.js] Restart failed:', data.error);
-                alert('Error restarting media: ' + (data.error || 'Unknown error'));
+                WamaApp.toast('Error restarting media: ' + (data.error || 'Unknown error'), 'error');
             }
         })
         .catch(error => {
             console.error('[settings_modal.js] Error restarting media:', error);
-            alert('Error restarting media. Please try again.');
+            WamaApp.toast('Error restarting media. Please try again.', 'error');
         });
     }
 
@@ -824,12 +824,12 @@ document.addEventListener('DOMContentLoaded', function() {
                     location.reload();
                 }
             } else {
-                alert('Error deleting media: ' + (data.error || 'Unknown error'));
+                WamaApp.toast('Error deleting media: ' + (data.error || 'Unknown error'), 'error');
             }
         })
         .catch(error => {
             console.error('[settings_modal.js] Error deleting media:', error);
-            alert('Error deleting media. Please try again.');
+            WamaApp.toast('Error deleting media. Please try again.', 'error');
         });
     }
 

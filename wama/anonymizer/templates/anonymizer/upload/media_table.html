@@ -1,5 +1,5 @@
 {% if batches_list %}
-<div id="medias">
+<div id="medias" class="wama-queue-{{ card_layout|default:'list' }}">
     {% for b in batches_list %}
     {% if b.total == 1 %}
     {# ── Batch-of-1 → carte simple ── #}

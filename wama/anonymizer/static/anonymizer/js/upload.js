@@ -163,7 +163,7 @@ $(function () {
         }
       } else {
         const error = data.result?.error || "Le fichier n'est pas valide ou une erreur est survenue.";
-        alert(error);
+        WamaApp.toast(error, 'error');
       }
 
       // Consolidation débouncée : un seul batch si plusieurs fichiers uploadés ensemble.
@@ -172,7 +172,7 @@ $(function () {
     },
 
     fail: function (e, data) {
-      alert("Échec du téléchargement : " + (data.errorThrown || "erreur inconnue"));
+      WamaApp.toast("Échec du téléchargement : " + (data.errorThrown || "erreur inconnue"), 'error');
       // Use the pre-initialized modal instance
       if (progressModal) {
         progressModal.hide();
@@ -187,7 +187,7 @@ $(function () {
     const mediaUrl = $form.find("input[name='media_url']").val();
 
     if (!mediaUrl) {
-      alert("Veuillez entrer une URL de média.");
+      WamaApp.toast("Veuillez entrer une URL de média.", 'warning');
       return;
     }
 
@@ -215,7 +215,7 @@ $(function () {
           }
         } else {
           const error = data.error || "Le téléchargement a échoué.";
-          alert(error);
+          WamaApp.toast(error, 'error');
         }
 
         // Rafraîchir uniquement la table des médias après ajout par URL
@@ -224,7 +224,7 @@ $(function () {
       error: function (xhr) {
         let msg = "Une erreur s'est produite";
         try { msg = JSON.parse(xhr.responseText).error || msg; } catch (e) {}
-        alert("Erreur téléchargement URL : " + msg);
+        WamaApp.toast("Erreur téléchargement URL : " + msg, 'error');
       },
       complete: function () {
         // Use the pre-initialized modal instance

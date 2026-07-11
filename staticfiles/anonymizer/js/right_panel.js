@@ -413,12 +413,12 @@
                     showResetSuccessMessage();
                 } else {
                     console.error('[right_panel.js] Reset failed:', data.error);
-                    alert('Erreur: ' + (data.error || 'Erreur inconnue'));
+                    WamaApp.toast('Erreur: ' + (data.error || 'Erreur inconnue'), 'error');
                 }
             })
             .catch(err => {
                 console.error('[right_panel.js] Reset error:', err);
-                alert('Erreur lors de la reinitialisation');
+                WamaApp.toast('Erreur lors de la reinitialisation', 'error');
             })
             .finally(function() {
                 resetBtn.disabled = false;

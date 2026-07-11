@@ -1098,3 +1098,44 @@ les migrations DES DEUX CÔTÉS (WSL2 = live ; Windows = copie de dev pour smoke
   + câblage WamaModes (déclaré, inerte).
 - Puis : anonymizer (prérequis champ `status`), imager (inspecteur 0/4), avatarizer (vues
   globales serveur).
+
+---
+
+## 33. Portage anonymizer — le prérequis « champ status » est tombé (2026-07-11)
+
+Anonymizer **61 → 74 %**. La non-conformité la plus profonde de la grille (§31.4.6 : pas de
+champ `status`, booléen `processed`) est résolue.
+
+### 33.1 Migration de modèle (0021, appliquée WSL2 + Windows)
+- `Media` gagne `status` (PENDING/RUNNING/SUCCESS/FAILURE), `task_id`, `error_message`,
+  et hérite `ProcessingTimeMixin`.
+- **Conversion des données AVANT drop** : la migration auto-générée droppait `processed`
+  sans convertir → réécrite à la main (AddField → RunPython processed=True→SUCCESS →
+  RemoveField). Vérifié sur la base live WSL2 : 18 médias → SUCCESS.
+- **`processed` survit en PROPERTY dérivée** (`status == 'SUCCESS'`) : les ~50 LECTEURS
+  (templates `media.processed`, JSON `'processed': m.processed`, JS) fonctionnent sans
+  modification ; seuls les ~12 usages DB-level (filtres queryset, écritures,
+  `update_fields`, `reset_fields` de la fabrique) ont été balayés vers `status`.
+- Cycle de vie complet dans le worker : RUNNING au démarrage effectif, SUCCESS +
+  `processing_seconds` à la fin (2 chemins : YOLO single-task + SAM3/parallel),
+  **FAILURE + error_message sur exception** (avant : échec invisible, progression figée).
+
+### 33.2 Aussi fait
+- `register_app_detail('anonymizer')` (labels params.py — qui n'est du coup plus
+  totalement orphelin ; `result_file=None` car la sortie est un chemin dérivé `_blurred_*`).
+  Testé bout-en-bout : 200, schéma canonique.
+- 23 alert() → toasts typés (batch/right_panel/settings_modal/update/upload.js),
+  vérification parseur : 0 appel mal formé.
+- Couleurs boutons card : ⚙ `btn-warning`→`outline-secondary`, ⧉ →`outline-warning`.
+- Classe layout `wama-queue-*` sur `#medias` ; `status` exposé dans le JSON de liste
+  (en plus de `processed` conservé).
+
+### 33.3 KO restants anonymizer (port complet)
+inspector (initFromSchema + _inspector_actions — volet droit hand-built `right_panel.js`),
+modes (déclaré, non câblé), anti_race complet (pas de vue start par item — RUNNING posé par
+le worker), _new_item_card/_batch_card/_queue_toolbar/_cycle_button, modale hand-built
+(settings_modal.js) à migrer vers WamaParams.
+
+### 33.4 Grille au 2026-07-11 (après §31.7 + §32 + §33)
+transcriber 96 · composer 96 · describer 93 · reader 93 · converter 87 · enhancer 83 ·
+synthesizer 83 · **anonymizer 74** · imager 60 · avatarizer 55.

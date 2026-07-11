@@ -26,7 +26,7 @@ Attend la variable `media` dans le contexte.
 
             {# Boutons d'action — ordre : ⚙ ▶ ⬇ ⧉ 🗑 #}
             <div class="d-flex gap-1 flex-shrink-0 ms-2">
-                <button type="button" class="btn btn-warning btn-sm settings-btn"
+                <button type="button" class="btn btn-outline-secondary btn-sm settings-btn"
                         data-media-id="{{ media.id }}" title="Configurer les paramètres">
                     <i class="fas fa-cog"></i>
                 </button>
@@ -44,7 +44,7 @@ Attend la variable `media` dans le contexte.
                         <i class="fas fa-download"></i>
                     </button>
                 </form>
-                <button type="button" class="btn btn-outline-secondary btn-sm duplicate-btn"
+                <button type="button" class="btn btn-outline-warning btn-sm duplicate-btn"
                         data-duplicate-url="{% url 'anonymizer:duplicate_media' media.id %}"
                         title="Dupliquer (tester d'autres paramètres)">
                     <i class="fas fa-copy"></i>

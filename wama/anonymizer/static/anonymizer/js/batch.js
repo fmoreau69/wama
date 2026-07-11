@@ -54,7 +54,7 @@ const AnonymizerBatch = (function () {
         fetch(_cfg.batchPreviewUrl, { method: 'POST', body: fd })
             .then(r => r.json())
             .then(data => {
-                if (data.error) { alert('Erreur batch : ' + data.error); cancelBatch(); return; }
+                if (data.error) { WamaApp.toast('Erreur batch : ' + data.error, 'error'); cancelBatch(); return; }
                 _previewData = data;
                 renderPreview(data);
             })
@@ -107,7 +107,7 @@ const AnonymizerBatch = (function () {
             .then(r => r.json())
             .then(data => {
                 el('batchCreateProgress').style.display = 'none';
-                if (data.error) { alert('Erreur batch : ' + data.error); resetCreateBtns(); return; }
+                if (data.error) { WamaApp.toast('Erreur batch : ' + data.error, 'error'); resetCreateBtns(); return; }
 
                 cancelBatch();  // hide the bar
 

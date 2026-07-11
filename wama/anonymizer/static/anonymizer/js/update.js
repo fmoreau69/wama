@@ -115,7 +115,7 @@ $(document).ready(function () {
                 else window.location.reload();
             },
             error: function (xhr) {
-                alert("Erreur lors de la duplication du batch : " + (xhr.responseText || "Erreur inconnue"));
+                WamaApp.toast("Erreur lors de la duplication du batch : " + (xhr.responseText || "Erreur inconnue"), 'error');
             },
         });
     });
@@ -135,7 +135,7 @@ $(document).ready(function () {
                 if (window.WamaFM) WamaFM.deleted();  // fichiers supprimés → refresh filemanager
             },
             error: function (xhr) {
-                alert("Erreur lors de la suppression du batch : " + (xhr.responseText || "Erreur inconnue"));
+                WamaApp.toast("Erreur lors de la suppression du batch : " + (xhr.responseText || "Erreur inconnue"), 'error');
             },
         });
     });
@@ -171,7 +171,7 @@ $(document).ready(function () {
             },
             error: function (xhr) {
                 console.error("%c[update.js] ✖ Erreur clear_all_media", "color:red", xhr.responseText);
-                alert("Erreur lors de la suppression des médias : " + (xhr.responseText || "Erreur inconnue"));
+                WamaApp.toast("Erreur lors de la suppression des médias : " + (xhr.responseText || "Erreur inconnue"), 'error');
             },
         });
     });
@@ -220,7 +220,7 @@ $(document).ready(function () {
             },
             error: function (xhr) {
                 console.error("%c[update.js] ✖ Erreur AJAX formulaire", "color:red", xhr.responseText);
-                alert("Erreur lors de l'envoi du formulaire : " + (xhr.responseText || "Erreur inconnue"));
+                WamaApp.toast("Erreur lors de l'envoi du formulaire : " + (xhr.responseText || "Erreur inconnue"), 'error');
             },
         });
     });
@@ -289,7 +289,7 @@ $(document).ready(function () {
             },
             error: function (xhr) {
                 console.error("%c[update.js] ✖ Erreur duplication", "color:red", xhr.responseText);
-                alert("Erreur lors de la duplication : " + (xhr.responseText || "Erreur inconnue"));
+                WamaApp.toast("Erreur lors de la duplication : " + (xhr.responseText || "Erreur inconnue"), 'error');
             },
         });
     });
