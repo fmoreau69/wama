@@ -56,6 +56,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // Orientation de montage de chaque caméra (deg, sens horaire depuis l'avant véhicule).
     // Rig 360° ~90° ; ajustable ensuite (les caméras ne sont pas exactement à 90°).
     const CAMERA_YAW = { front: 0, right: 90, rear: 180, left: -90 };
+    let TOPDOWN_FOV_V_DEG = 60;      // FOV vertical caméra (deg) pour le cap pinhole (ajustable)
     let _lastTimeSave = 0;           // throttle de la persistance de position timeline
     let proximityByTime = [];  // [{time, proximity}] for timeline
 
@@ -2298,17 +2299,21 @@ document.addEventListener('DOMContentLoaded', function () {
             if (!fr || !fr.detections) return;
             const vid = document.getElementById('video-' + camPos);
             const iw = (vid && vid.videoWidth) || 384;
+            const ih = (vid && vid.videoHeight) || 288;
+            const focal = ih / (2 * Math.tan(TOPDOWN_FOV_V_DEG * Math.PI / 360));  // px (pixels carrés)
             fr.detections.forEach(det => {
                 if (det.type === 'road_mask' || det.type === 'sam3_marking') return;
-                let g = det.ground_xy;
-                if (!Array.isArray(g) || g.length < 2) return;
-                // L'homographie (calibrée sur le passage piéton) COMPRIME la distance
-                // (objets à 25m projetés à ~7m). On recale la MAGNITUDE sur la distance
-                // pinhole (distance_m, précise, = label vidéo) en gardant la DIRECTION.
-                // Corrige le mismatch vidéo↔vue-de-dessus ET l'effet convoi.
-                if (det.distance_m != null) {
-                    const _r = Math.hypot(g[0], g[1]);
-                    if (_r > 0.1) { const _f = det.distance_m / _r; g = [g[0] * _f, g[1] * _f]; }
+                // POSITION reconstruite depuis le PINHOLE (précis + centré), pas l'homographie
+                // (qui COMPRIME la distance ×3-4 ET la biaise latéralement de ~1,5m → objets
+                // de gauche projetés à droite). X = distance·(centre_bbox−centre_image)/focale ;
+                // Y = distance. Centré (objet au centre image = latéral 0) et à la bonne distance.
+                let g;
+                if (det.distance_m != null && Array.isArray(det.bbox)) {
+                    const bcx = (det.bbox[0] + det.bbox[2]) / 2;
+                    g = [det.distance_m * (bcx - iw / 2) / focal, det.distance_m];
+                } else {
+                    g = det.ground_xy;
+                    if (!Array.isArray(g) || g.length < 2) return;
                 }
                 if (g[1] <= 0 || g[1] > 60 || Math.abs(g[0]) > 25) return;          // zone fiable
                 const bb = det.bbox;
