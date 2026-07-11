@@ -58,6 +58,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const CAMERA_YAW = { front: 0, right: 90, rear: 180, left: -90 };
     let TOPDOWN_FOV_V_DEG = 60;      // FOV vertical caméra (deg) pour le cap pinhole (ajustable)
     let _lastTimeSave = 0;           // throttle de la persistance de position timeline
+    let _restoreTargetTime = 0;      // position timeline à restaurer (capturée avant reset)
     let proximityByTime = [];  // [{time, proximity}] for timeline
 
     // Phase 3 state
@@ -355,6 +356,11 @@ document.addEventListener('DOMContentLoaded', function () {
             const data = await resp.json();
 
             currentSessionId = sessionId;
+            // Capturer la position timeline sauvegardée TÔT : le setup appelle syncStop()
+            // → syncSeek(0) → saveTime(0) qui écraserait la valeur avant le restore.
+            try {
+                _restoreTargetTime = parseFloat(localStorage.getItem('cam_analyzer_time_' + sessionId) || '0') || 0;
+            } catch (e) { _restoreTargetTime = 0; }
             saveActiveSession(sessionId);
             sessionSelect.value = sessionId;
             deleteSessionBtn.disabled = false;
@@ -639,8 +645,8 @@ document.addEventListener('DOMContentLoaded', function () {
         if (position === 'front') {
             video.addEventListener('loadeddata', () => {
                 try {
-                    const sv = currentSessionId && localStorage.getItem('cam_analyzer_time_' + currentSessionId);
-                    const t = sv ? parseFloat(sv) : 0;
+                    // Utiliser la valeur capturée TÔT (avant que syncStop→saveTime(0) l'écrase).
+                    const t = _restoreTargetTime || 0;
                     if (t > 0) syncSeek(t);
                 } catch (e) { /* noop */ }
             }, { once: true });
