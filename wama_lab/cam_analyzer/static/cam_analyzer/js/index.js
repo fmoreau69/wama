@@ -2337,6 +2337,7 @@ document.addEventListener('DOMContentLoaded', function () {
         // ramenées dans le repère VÉHICULE via l'orientation de chaque caméra). Togglable
         // (topDown360) à tout moment — le mode existant reste intact.
         const seen = new Set();
+        const _drawnGlobal = new Set();   // dedupe : 1 objet global dessiné une seule fois (multi-cam)
         const _camToVeh = (cx, cy, yawDeg) => {   // cam(latéral droite, avant) → véhicule(droite, avant)
             const t = yawDeg * Math.PI / 180, s = Math.sin(t), c = Math.cos(t);
             return [cy * s + cx * c, cy * c - cx * s];
@@ -2368,10 +2369,18 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (g[1] <= 0 || g[1] > 60 || Math.abs(g[0]) > 25) return;          // zone fiable
                 const bb = det.bbox;
                 if (Array.isArray(bb) && (bb[0] <= 8 || bb[2] >= iw - 8)) return;   // coupé/partiel au bord
+                // Dedupe multi-caméra : si l'objet a un global_track_id déjà dessiné cette
+                // frame (vu par une autre caméra), on le saute → 1 seule empreinte.
+                const gid = det.global_track_id;
+                if (gid != null) {
+                    if (_drawnGlobal.has(gid)) return;
+                    _drawnGlobal.add(gid);
+                }
                 const v = _camToVeh(g[0], g[1], yawDeg);          // → repère véhicule commun
                 const ll = egoToLatLon(pose.lat, pose.lon, pose.heading, v[0], v[1]);
                 const color = ttcColor(det);
-                const tkey = camPos + ':' + det.track_id;
+                // Trail continu via l'ID GLOBAL (persiste au passage d'une caméra à l'autre).
+                const tkey = gid != null ? 'g' + gid : camPos + ':' + det.track_id;
                 if (det.track_id != null) {
                     seen.add(tkey);
                     const tr = topDownTrails.get(tkey) || [];
