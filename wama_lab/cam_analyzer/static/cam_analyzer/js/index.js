@@ -2336,7 +2336,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
                 if (g[1] <= 0 || g[1] > 60 || Math.abs(g[0]) > 25) return;          // zone fiable
                 const bb = det.bbox;
-                if (Array.isArray(bb) && (bb[0] <= 3 || bb[2] >= iw - 3)) return;   // coupé au bord
+                if (Array.isArray(bb) && (bb[0] <= 8 || bb[2] >= iw - 8)) return;   // coupé/partiel au bord
                 const v = _camToVeh(g[0], g[1], yawDeg);          // → repère véhicule commun
                 const ll = egoToLatLon(pose.lat, pose.lon, pose.heading, v[0], v[1]);
                 const color = ttcColor(det);
