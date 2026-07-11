@@ -2291,15 +2291,43 @@ document.addEventListener('DOMContentLoaded', function () {
                 pose ? ('heading=' + pose.heading) : 'pas de fix GPS');
             return;
         }
-        // Gabarit de voie (repère navette, le long du cap). France : la navette roule à
-        // droite dans SA voie → ligne centrale à gauche (pointillés jaunes), bords de route
-        // pleins. Largeur = laneWidthM (défaut 3,5m, ajustable/auto). Aligné à la circulation.
+        // Gabarit de voie. France : navette dans SA voie (droite) → ligne centrale à gauche
+        // (pointillés jaunes), bords pleins. laneWidthM = largeur (auto/slider).
         const _half = laneWidthM / 2;
-        [{ x: _half, c: '#e0e0e0', d: null }, { x: -_half, c: '#ffd54f', d: '6,6' },
-         { x: -_half * 3, c: '#e0e0e0', d: null }].forEach(e => {
+        const _edges = [{ x: _half, c: '#e0e0e0', d: null }, { x: -_half, c: '#ffd54f', d: '6,6' },
+                        { x: -_half * 3, c: '#e0e0e0', d: null }];
+        // Fenêtre de trajectoire GPS ±50 m autour de la position courante (le long du path).
+        const _distM = (a, b) => {
+            const dLa = (b.lat - a.lat) * 111320;
+            const dLo = (b.lon - a.lon) * 111320 * Math.cos(a.lat * Math.PI / 180);
+            return Math.hypot(dLa, dLo);
+        };
+        const _tsCur = currentTime * gpsTimeScale + gpsTimeOffset;
+        const _win = [];
+        if (cachedGpsTrack.length) {
+            let lo = 0, hi = cachedGpsTrack.length - 1;
+            while (lo < hi - 1) { const m = (lo + hi) >> 1; if (cachedGpsTrack[m].ts <= _tsCur) lo = m; else hi = m; }
+            _win.push(cachedGpsTrack[lo]);
+            let acc = 0;
+            for (let i = lo + 1; i < cachedGpsTrack.length && acc < 50; i++) { acc += _distM(cachedGpsTrack[i - 1], cachedGpsTrack[i]); _win.push(cachedGpsTrack[i]); }
+            acc = 0;
+            for (let i = lo - 1; i >= 0 && acc < 50; i--) { acc += _distM(cachedGpsTrack[i + 1], cachedGpsTrack[i]); _win.unshift(cachedGpsTrack[i]); }
+        }
+        // OPTION 1 (traits pleins) : aligné sur la trajectoire → suit la courbe réelle.
+        if (_win.length >= 2) {
+            _edges.forEach(e => {
+                const pts = _win.filter(p => p.heading != null).map(p => egoToLatLon(p.lat, p.lon, p.heading, e.x, 0));
+                if (pts.length >= 2) L.polyline(pts, { color: e.c, weight: 1.5, opacity: 0.85, dashArray: e.d }).addTo(miniMapLaneLayer);
+            });
+        }
+        // OPTION 2 (pointillés fins atténués) : droit le long du cap LISSÉ, ±25 m → confrontation.
+        let _sh = pose.heading, _sx = 0, _sy = 0;
+        _win.forEach(p => { if (p.heading != null) { _sx += Math.cos(p.heading * Math.PI / 180); _sy += Math.sin(p.heading * Math.PI / 180); } });
+        if (_sx || _sy) _sh = Math.atan2(_sy, _sx) * 180 / Math.PI;
+        _edges.forEach(e => {
             const pts = [];
-            for (let y = -50; y <= 50; y += 5) pts.push(egoToLatLon(pose.lat, pose.lon, pose.heading, e.x, y));
-            L.polyline(pts, { color: e.c, weight: 1.5, opacity: 0.85, dashArray: e.d }).addTo(miniMapLaneLayer);
+            for (let y = -25; y <= 25; y += 5) pts.push(egoToLatLon(pose.lat, pose.lon, _sh, e.x, y));
+            L.polyline(pts, { color: e.c, weight: 1, opacity: 0.35, dashArray: '2,6' }).addTo(miniMapLaneLayer);
         });
 
         // Objets : mode "avant seul" (existant) OU "fusion 360°" (toutes les caméras
