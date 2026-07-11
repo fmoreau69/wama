@@ -551,37 +551,30 @@ def start(request, pk: int):
     Démarre la synthèse vocale pour un fichier.
     """
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    synthesis = get_object_or_404(VoiceSynthesis, pk=pk, user=user)
 
-    if synthesis.status == 'RUNNING':
-        return JsonResponse({
-            'error': 'La synthèse est déjà en cours'
-        }, status=400)
+    def _reset(s):
+        s.progress = 0
+        s.error_message = ''
+        # Supprimer l'ancien audio si présent
+        if s.audio_output:
+            try:
+                s.audio_output.delete(save=False)
+            except Exception:
+                pass
 
-    # Réinitialiser complètement la synthèse
-    synthesis.status = 'PENDING'
-    synthesis.progress = 0
-    synthesis.error_message = ''
+    # Anti-race COMMUN (atomic + select_for_update + revoke) — audit 2026-07-11
+    from wama.common.utils.process_control import begin_processing
+    synthesis, err = begin_processing(VoiceSynthesis, pk, user=user, reset=_reset)
+    if err:
+        msg = 'La synthèse est déjà en cours' if err == 'already_running' else err
+        return JsonResponse({'error': msg}, status=404 if err == 'not_found' else 400)
 
-    # Supprimer l'ancien audio si présent
-    if synthesis.audio_output:
-        try:
-            synthesis.audio_output.delete(save=False)
-        except:
-            pass
-
-    synthesis.save(update_fields=['status', 'progress', 'error_message', 'audio_output'])
     cache.set(f"synthesizer_progress_{synthesis.id}", 0, timeout=3600)
-
     _ensure_workers_imported()
 
     task = synthesize_voice.delay(synthesis.id)
-
     synthesis.task_id = task.id
-    synthesis.status = 'RUNNING'
-    synthesis.progress = 0
-    cache.set(f"synthesizer_progress_{synthesis.id}", 0, timeout=3600)
-    synthesis.save(update_fields=['task_id', 'status', 'progress'])
+    synthesis.save(update_fields=['task_id'])
 
     return JsonResponse({
         'task_id': task.id,

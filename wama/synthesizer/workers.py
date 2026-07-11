@@ -375,7 +375,8 @@ def synthesize_voice(self, synthesis_id: int):
 
         # Finalisation
         synthesis.status = 'SUCCESS'
-        synthesis.save(update_fields=['status', 'audio_output'])
+        synthesis.processing_seconds = _time.time() - _t0
+        synthesis.save(update_fields=['status', 'audio_output', 'processing_seconds'])
 
         # Apprentissage ETA : durée réelle ∝ longueur du texte (unit='char'), par modèle TTS.
         # Service-based (chargement non séparable) → total dans per_unit, load_seconds=None.

@@ -3,7 +3,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Configuration - URLs définies côté serveur (injectées depuis le template)
     if (!window.WAMA_CONFIG) {
         console.error('WAMA_CONFIG not found. Make sure the template injects it.');
-        alert('Erreur de configuration. Veuillez recharger la page.');
+        WamaApp.toast('Erreur de configuration. Veuillez recharger la page.', 'warning');
         return;
     }
 
@@ -260,7 +260,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         location.reload();
                     } else {
                         const data = await startResponse.json();
-                        alert('Paramètres sauvegardés mais erreur au démarrage: ' + (data.error || 'Échec'));
+                        WamaApp.toast('Paramètres sauvegardés mais erreur au démarrage: ' + (data.error || 'Échec'), 'error');
                         location.reload();
                     }
                 } else {
@@ -269,11 +269,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             } else {
                 const data = await response.json();
-                alert('Erreur lors de la sauvegarde: ' + (data.error || 'Échec'));
+                WamaApp.toast('Erreur lors de la sauvegarde: ' + (data.error || 'Échec'), 'error');
             }
         } catch (error) {
             console.error('Save settings error:', error);
-            alert('Erreur: ' + error.message);
+            WamaApp.toast('Erreur: ' + error.message, 'error');
         }
     }
 
@@ -291,9 +291,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     location.reload();
                 } else {
                     const d = await r.json();
-                    alert('Erreur: ' + (d.error || 'Échec du démarrage'));
+                    WamaApp.toast('Erreur: ' + (d.error || 'Échec du démarrage'), 'error');
                 }
-            } catch (err) { alert('Erreur: ' + err.message); }
+            } catch (err) { WamaApp.toast('Erreur: ' + err.message, 'error'); }
             return;
         }
 
@@ -314,10 +314,10 @@ document.addEventListener('DOMContentLoaded', function() {
                         });
                     }
                 } else {
-                    alert(data.error || 'Impossible de charger le texte');
+                    WamaApp.toast(data.error || 'Impossible de charger le texte', 'error');
                 }
             } catch (err) {
-                alert('Erreur: ' + err.message);
+                WamaApp.toast('Erreur: ' + err.message, 'error');
             }
             return;
         }
@@ -358,9 +358,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     location.reload();
                 } else {
                     const d = await r.json();
-                    alert('Erreur: ' + (d.error || 'Échec de la duplication'));
+                    WamaApp.toast('Erreur: ' + (d.error || 'Échec de la duplication'), 'error');
                 }
-            } catch (err) { alert('Erreur: ' + err.message); }
+            } catch (err) { WamaApp.toast('Erreur: ' + err.message, 'error'); }
             return;
         }
 
@@ -379,9 +379,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (card) card.remove();
                     if (window.WamaFM) WamaFM.deleted();  // fichier supprimé → refresh filemanager
                 } else {
-                    alert('Erreur lors de la suppression');
+                    WamaApp.toast('Erreur lors de la suppression', 'error');
                 }
-            } catch (err) { alert('Erreur: ' + err.message); }
+            } catch (err) { WamaApp.toast('Erreur: ' + err.message, 'error'); }
             return;
         }
     });
@@ -413,10 +413,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     location.reload();
                 } else {
                     const data = await response.json();
-                    alert('Erreur: ' + (data.error || 'Échec du démarrage'));
+                    WamaApp.toast('Erreur: ' + (data.error || 'Échec du démarrage'), 'error');
                 }
             } catch (error) {
-                alert('Erreur: ' + error.message);
+                WamaApp.toast('Erreur: ' + error.message, 'error');
             }
         });
     }
@@ -442,10 +442,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (response.ok) {
                     location.reload();
                 } else {
-                    alert('Erreur lors de la suppression');
+                    WamaApp.toast('Erreur lors de la suppression', 'error');
                 }
             } catch (error) {
-                alert('Erreur: ' + error.message);
+                WamaApp.toast('Erreur: ' + error.message, 'error');
             }
         });
     }
@@ -551,7 +551,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const title = document.getElementById('textTitle').value.trim();
 
             if (!textContent) {
-                alert('Veuillez entrer du texte à synthétiser.');
+                WamaApp.toast('Veuillez entrer du texte à synthétiser.', 'warning');
                 return;
             }
 
@@ -582,17 +582,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 const data = await response.json();
 
                 if (response.ok && data.success) {
-                    alert(`Texte ajouté avec succès à la file d'attente !\nMots: ${data.word_count}`);
+                    WamaApp.toast(`Texte ajouté avec succès à la file d'attente !\nMots: ${data.word_count}`, 'success');
                     // Clear form
                     textInputForm.reset();
                     // Reload page to show new synthesis
                     location.reload();
                 } else {
-                    alert('Erreur: ' + (data.error || 'Échec de l\'ajout'));
+                    WamaApp.toast('Erreur: ' + (data.error || 'Échec de l\'ajout'), 'error');
                 }
             } catch (error) {
                 console.error('Text upload error:', error);
-                alert('Erreur de communication: ' + error.message);
+                WamaApp.toast('Erreur de communication: ' + error.message, 'error');
             } finally {
                 submitBtn.disabled = false;
                 submitBtn.innerHTML = '<i class="fas fa-plus-circle"></i> Ajouter à la file d\'attente';
@@ -683,7 +683,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const textContent = document.getElementById('textContent').value.trim();
 
             if (!textContent) {
-                alert('Veuillez entrer du texte pour générer un aperçu.');
+                WamaApp.toast('Veuillez entrer du texte pour générer un aperçu.', 'warning');
                 return;
             }
 
@@ -806,7 +806,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                     console.error('Error details:', eventData.details);
                                 }
                                 previewLoader.style.display = 'none';
-                                alert('Erreur: ' + eventData.message);
+                                WamaApp.toast('Erreur: ' + eventData.message, 'error');
                                 if (currentEventSource) {
                                     currentEventSource.close();
                                     currentEventSource = null;
@@ -826,7 +826,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
                     // Show more detailed error information
                     const errorMsg = 'Erreur de streaming. Vérifiez la console pour plus de détails.';
-                    alert(errorMsg);
+                    WamaApp.toast(errorMsg, 'error');
 
                     if (currentEventSource) {
                         currentEventSource.close();
@@ -836,7 +836,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
             } catch (error) {
                 console.error('Voice preview error:', error);
-                alert('Erreur: ' + error.message);
+                WamaApp.toast('Erreur: ' + error.message, 'error');
                 previewLoader.style.display = 'none';
             } finally {
                 previewTextBtn.disabled = false;
@@ -906,7 +906,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         } catch (error) {
             console.error('Error assembling audio:', error);
-            alert('Erreur lors de l\'assemblage de l\'audio: ' + error.message);
+            WamaApp.toast('Erreur lors de l\'assemblage de l\'audio: ' + error.message, 'error');
             loaderElement.style.display = 'none';
         }
     }
@@ -1063,7 +1063,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 fd.append('csrfmiddlewaretoken', csrfToken);
                 const resp = await fetch(URLS.batchPreview, { method: 'POST', body: fd });
                 const data = await resp.json();
-                if (!resp.ok) { alert(data.error || 'Erreur'); return; }
+                if (!resp.ok) { WamaApp.toast(data.error || 'Erreur', 'error'); return; }
                 _batchTasks = data.tasks;
                 _populateBatchPreview(data.tasks, data.warnings || []);
                 document.getElementById('batchDetectPreview').style.display = 'block';
@@ -1131,7 +1131,7 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
             const resp = await fetch(URLS.batchCreate, { method: 'POST', body: fd });
             const data = await resp.json();
-            if (!resp.ok) { alert(data.error || 'Erreur création batch'); return; }
+            if (!resp.ok) { WamaApp.toast(data.error || 'Erreur création batch', 'error'); return; }
 
             if (andStart && data.batch_id) {
                 await fetch(URLS.batchStart + data.batch_id + '/start/', {
@@ -1142,7 +1142,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             window.location.reload();
         } catch (err) {
-            alert('Erreur : ' + err.message);
+            WamaApp.toast('Erreur : ' + err.message, 'error');
             if (progress) progress.style.display = 'none';
             if (btnStart) btnStart.disabled = false;
             if (btnOnly)  btnOnly.disabled  = false;
@@ -1181,12 +1181,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 // imports multiples en UN seul batch, puis recharge une fois.
                 return data.id || null;
             } else {
-                alert('Erreur: ' + (data.error || 'Upload échoué'));
+                WamaApp.toast('Erreur: ' + (data.error || 'Upload échoué'), 'error');
                 return null;
             }
         } catch (error) {
             console.error('Upload error:', error);
-            alert('Erreur de communication: ' + error.message);
+            WamaApp.toast('Erreur de communication: ' + error.message, 'error');
             return null;
         }
     }
@@ -1312,9 +1312,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
             } catch (error) {
                 console.error('Microphone access error:', error);
-                alert(error.name === 'NotAllowedError'
+                WamaApp.toast(error.name === 'NotAllowedError'
                     ? 'Accès au microphone refusé. Veuillez autoriser l\'accès dans les paramètres du navigateur.'
-                    : 'Erreur micro: ' + error.message);
+                    : 'Erreur micro: ' + error.message, 'warning');
             }
         });
     }
@@ -1333,7 +1333,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const audioFile = customVoiceAudioInput ? customVoiceAudioInput.files[0] : null;
 
             if (!name || !audioFile) {
-                alert('Veuillez remplir le nom et sélectionner un fichier audio.');
+                WamaApp.toast('Veuillez remplir le nom et sélectionner un fichier audio.', 'warning');
                 return;
             }
 
@@ -1364,11 +1364,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
                     if (customVoiceModalInstance) customVoiceModalInstance.hide();
                 } else {
-                    alert('Erreur: ' + (data.error || 'Échec de l\'enregistrement'));
+                    WamaApp.toast('Erreur: ' + (data.error || 'Échec de l\'enregistrement'), 'error');
                 }
             } catch (error) {
                 console.error('Custom voice upload error:', error);
-                alert('Erreur: ' + error.message);
+                WamaApp.toast('Erreur: ' + error.message, 'error');
             } finally {
                 saveCustomVoiceBtn.disabled = false;
                 saveCustomVoiceBtn.innerHTML = '<i class="fas fa-save"></i> Enregistrer';

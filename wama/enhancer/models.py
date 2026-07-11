@@ -1,9 +1,10 @@
 from django.db import models
 from django.contrib.auth.models import User
+from wama.common.models import ProcessingTimeMixin
 from wama.common.utils.media_paths import UploadToUserPath, upload_to_user_input
 
 
-class Enhancement(models.Model):
+class Enhancement(ProcessingTimeMixin, models.Model):
     """
     Represents an image or video enhancement task.
     """
@@ -85,7 +86,6 @@ class Enhancement(models.Model):
     output_width = models.IntegerField(default=0)
     output_height = models.IntegerField(default=0)
     output_file_size = models.BigIntegerField(default=0)
-    processing_time = models.FloatField(default=0, help_text='Processing time in seconds')
 
     class Meta:
         ordering = ['-created_at']
@@ -106,7 +106,7 @@ class Enhancement(models.Model):
         return os.path.basename(self.output_file.name) if self.output_file else ''
 
 
-class AudioEnhancement(models.Model):
+class AudioEnhancement(ProcessingTimeMixin, models.Model):
     """
     Represents an audio speech enhancement task.
     Engines: Resemble Enhance (quality) | DeepFilterNet 3 (speed).
@@ -160,7 +160,6 @@ class AudioEnhancement(models.Model):
     status = models.CharField(max_length=32, choices=STATUS_CHOICES, default='PENDING')
     progress = models.IntegerField(default=0)
     error_message = models.TextField(blank=True, default='')
-    processing_time = models.FloatField(default=0, help_text='Processing time in seconds')
 
     class Meta:
         ordering = ['-created_at']

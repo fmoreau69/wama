@@ -143,8 +143,8 @@ def enhance_media(self, enhancement_id: int):
                 enhancement.refresh_from_db()
                 enhancement.status = 'SUCCESS'
                 enhancement.progress = 100
-                enhancement.processing_time = processing_time
-                enhancement.save(update_fields=['status', 'progress', 'processing_time'])
+                enhancement.processing_seconds = processing_time
+                enhancement.save(update_fields=['status', 'progress', 'processing_seconds'])
                 cache.set(f"enhancer_progress_{enhancement_id}", 100, timeout=3600)
                 _console(user_id, f"Enhancement #{enhancement_id} completed ✓")
                 try:
@@ -272,8 +272,8 @@ def enhance_audio(self, audio_enhancement_id: int):
         _apply_enhancer_output_format(ae)  # Phase 3 — conversion format inline
         ae.status = 'SUCCESS'
         ae.progress = 100
-        ae.processing_time = processing_time
-        ae.save(update_fields=['output_file', 'status', 'progress', 'processing_time'])
+        ae.processing_seconds = processing_time
+        ae.save(update_fields=['output_file', 'status', 'progress', 'processing_seconds'])
         cache.set(f"audio_enhancer_progress_{audio_enhancement_id}", 100, timeout=3600)
         try:
             from wama.model_manager.services.eta_estimator import record_run

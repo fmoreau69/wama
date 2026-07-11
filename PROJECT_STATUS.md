@@ -1045,3 +1045,56 @@ reader à valider avant propagation), profils (capacité non déclarée), WamaMo
 
 Smoke tests : /transcriber/ /describer/ /composer/ /reader/ /converter/ /common/apps/
 → tous 200 (client Django, superuser).
+
+---
+
+## 32. Portage enhancer + synthesizer — passe « risques + mécanique » (2026-07-11)
+
+Suite directe de §31 : les 2 apps à 70 % rapprochées de la pile commune (**83 % chacune**)
+sans toucher à leur architecture de file (port complet différé, voir KO restants).
+
+### 32.1 Fait (enhancer 70 → 83 %)
+- **anti-race** : `start()` + `audio_start()` → `begin_processing` (verrou + revoke + reset
+  sous verrou via callable) ; en cas d'échec de dispatch Celery, retour à PENDING.
+- **ProcessingTimeMixin ×2** (migrations 0010/0011, appliquées WSL2 **et** Windows) — le champ
+  legacy `processing_time` (doublon par-app, AUCUN lecteur) a été SUPPRIMÉ, tasks écrivent
+  `processing_seconds` ; affichage `_processing_time.html` sur les 2 cards (média + audio).
+- **Inspecteur detail** : `register_app_detail('enhancer')` + `('audio_enhancer')` avec labels
+  `params.py` (MEDIA_PARAMS/AUDIO_PARAMS) — actif immédiatement car les cards avaient déjà
+  `data-preview-url` (dérivation /preview/→/detail/ de wama-inspector.js).
+- **13 alert() → toasts typés** ; couleurs boutons alignées outline (template ET buildCard JS
+  synchronisés — double rendu CONV §5) ; classe layout `wama-queue-*` sur `#enhancer-queue`.
+
+### 32.2 Fait (synthesizer 70 → 83 %)
+- **anti-race** : `start()` → `begin_processing` (reset audio_output sous verrou).
+- **ProcessingTimeMixin** (migration 0013, WSL2 + Windows) + worker (`processing_seconds` au
+  SUCCESS) + affichage card.
+- **Inspecteur detail** : `register_app_detail('synthesizer')` (labels params.py, alias
+  output_quality) + `data-preview-url` AJOUTÉ sur `_synthesis_card.html` (manquait → preview
+  et detail inspecteur inertes).
+- **42 alert() → toasts** (34 index.js + 8 inline template, dont 3 en callback `.catch()` —
+  piège de la parenthèse imbriquée traité individuellement) ; couleurs boutons alignées ;
+  classe layout sur `#synthesisQueue`.
+
+### 32.3 Vérifications
+- Detail end-to-end : objets éphémères créés/supprimés (base Windows = copie dev) →
+  `/common/detail/synthesizer/N/` et `/common/detail/enhancer/N/` = 200, schéma canonique.
+- Registre detail : 8 apps (audio_enhancer, composer, converter, describer, enhancer,
+  reader, synthesizer, transcriber) — manquent avatarizer, imager, anonymizer.
+- Chaque `WamaApp.toast(...)` vérifié bien formé (parseur d'équilibre : 0 appel sans type).
+- Smoke tests 200 : /enhancer/ /synthesizer/ /converter/ /transcriber/ /common/apps/.
+
+### 32.4 Découverte infra IMPORTANTE
+La base Windows et la base WSL2 sont **deux bases différentes et divergentes** (re-prouvé :
+colonne `processing_seconds` présente en WSL2 après migrate, absente côté Windows →
+`ProgrammingError`). C'était déjà documenté dans la mémoire détaillée (correction 2026-06-25)
+mais le RÉSUMÉ d'index disait encore « base unique partagée » — corrigé. Règle : appliquer
+les migrations DES DEUX CÔTÉS (WSL2 = live ; Windows = copie de dev pour smoke tests).
+
+### 32.5 KO restants (port complet de la file, chantier suivant)
+- enhancer : `_new_item_card` (2 domaines), `_batch_card` mère, `_queue_toolbar`+tri/filtre,
+  `_cycle_button` — cf. brief §30.
+- synthesizer : idem + modales WamaParams (P1 BLOCKER — params.py ne ponte que les dom_id)
+  + câblage WamaModes (déclaré, inerte).
+- Puis : anonymizer (prérequis champ `status`), imager (inspecteur 0/4), avatarizer (vues
+  globales serveur).

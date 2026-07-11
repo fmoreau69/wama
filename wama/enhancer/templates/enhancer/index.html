@@ -273,7 +273,7 @@
 <div class="row">
     <div class="col-12">
         <h4 class="mb-3"><i class="fas fa-list"></i> File d'attente — Images &amp; Vidéos</h4>
-        <div id="enhancer-queue">
+        <div id="enhancer-queue" class="wama-queue-{{ card_layout|default:'list' }}">
             {% for batch_info in batches_list %}
 
             {% if batch_info.obj.total == 1 %}
@@ -313,10 +313,11 @@
                         </div>
                         <small class="progress-text text-light">{{ e.progress }}%</small>
                         <span class="wama-eta d-block"></span>
+                        {% include 'common/_processing_time.html' with elapsed=e.processing_display %}
                     </div>
                     <div class="col-md-4">
                         <div class="btn-group-actions">
-                            <button class="btn btn-sm btn-secondary js-open-settings"
+                            <button class="btn btn-sm btn-outline-secondary js-open-settings"
                                     data-id="{{ e.id }}"
                                     data-ai-model="{{ e.ai_model }}"
                                     data-denoise="{{ e.denoise|lower }}"
@@ -329,28 +330,28 @@
                                 <i class="fas fa-spinner fa-spin"></i>
                             </button>
                             {% elif e.status == 'SUCCESS' or e.status == 'FAILURE' %}
-                            <button class="btn btn-sm btn-warning js-restart-enhancement action-btn"
+                            <button class="btn btn-sm btn-outline-success js-restart-enhancement action-btn"
                                     data-id="{{ e.id }}" title="Relancer">
                                 <i class="fas fa-redo"></i>
                             </button>
                             {% else %}
-                            <button class="btn btn-sm btn-primary js-restart-enhancement action-btn"
+                            <button class="btn btn-sm btn-outline-success js-restart-enhancement action-btn"
                                     data-id="{{ e.id }}" title="Lancer">
                                 <i class="fas fa-play"></i>
                             </button>
                             {% endif %}
                             {% if e.output_file %}
-                            <a class="btn btn-sm btn-success download-btn"
+                            <a class="btn btn-sm btn-outline-info download-btn"
                                href="{% url 'enhancer:download' e.id %}" title="Télécharger">
                                 <i class="fas fa-download"></i>
                             </a>
                             {% endif %}
-                            <button class="btn btn-sm btn-outline-info duplicate-btn"
+                            <button class="btn btn-sm btn-outline-warning duplicate-btn"
                                     data-duplicate-url="{% url 'enhancer:duplicate' e.id %}"
                                     title="Dupliquer">
                                 <i class="fas fa-copy"></i>
                             </button>
-                            <button class="btn btn-sm btn-danger js-delete-enhancement"
+                            <button class="btn btn-sm btn-outline-danger js-delete-enhancement"
                                     data-delete-url="{% url 'enhancer:delete' e.id %}"
                                     title="Supprimer">
                                 <i class="fas fa-trash-alt"></i>
@@ -449,7 +450,7 @@
                             </div>
                             <div class="col-md-4">
                                 <div class="btn-group-actions">
-                                    <button class="btn btn-sm btn-secondary js-open-settings"
+                                    <button class="btn btn-sm btn-outline-secondary js-open-settings"
                                             data-id="{{ e.id }}"
                                             data-ai-model="{{ e.ai_model }}"
                                             data-denoise="{{ e.denoise|lower }}"
@@ -458,7 +459,7 @@
                                         <i class="fas fa-cog"></i>
                                     </button>
                                     {% if e.status != 'RUNNING' %}
-                                    <button class="btn btn-sm btn-primary js-restart-enhancement action-btn"
+                                    <button class="btn btn-sm btn-outline-success js-restart-enhancement action-btn"
                                             data-id="{{ e.id }}" title="Lancer">
                                         <i class="fas fa-play"></i>
                                     </button>
@@ -468,17 +469,17 @@
                                     </button>
                                     {% endif %}
                                     {% if e.output_file %}
-                                    <a class="btn btn-sm btn-success download-btn"
+                                    <a class="btn btn-sm btn-outline-info download-btn"
                                        href="{% url 'enhancer:download' e.id %}" title="Télécharger">
                                         <i class="fas fa-download"></i>
                                     </a>
                                     {% endif %}
-                                    <button class="btn btn-sm btn-outline-info duplicate-btn"
+                                    <button class="btn btn-sm btn-outline-warning duplicate-btn"
                                             data-duplicate-url="{% url 'enhancer:duplicate' e.id %}"
                                             title="Dupliquer dans le batch">
                                         <i class="fas fa-copy"></i>
                                     </button>
-                                    <button class="btn btn-sm btn-danger js-delete-enhancement"
+                                    <button class="btn btn-sm btn-outline-danger js-delete-enhancement"
                                             data-delete-url="{% url 'enhancer:delete' e.id %}"
                                             title="Supprimer">
                                         <i class="fas fa-trash-alt"></i>
@@ -551,10 +552,11 @@
                         <span class="status-badge badge {% if ae.status == 'PENDING' %}bg-secondary{% elif ae.status == 'RUNNING' %}bg-warning{% elif ae.status == 'SUCCESS' %}bg-success{% elif ae.status == 'FAILURE' %}bg-danger{% endif %}">{{ ae.status }}</span>
                         <div class="wama-progress-track mt-2"><div class="wama-progress-fill {% if ae.status == 'RUNNING' %}active{% endif %}" style="width: {{ ae.progress }}%"></div></div>
                         <small class="progress-text text-light">{{ ae.progress }}%</small>
+                        {% include 'common/_processing_time.html' with elapsed=ae.processing_display %}
                     </div>
                     <div class="col-md-4">
                         <div class="btn-group-actions">
-                            <button class="btn btn-sm btn-secondary js-audio-settings"
+                            <button class="btn btn-sm btn-outline-secondary js-audio-settings"
                                     data-id="{{ ae.id }}" data-engine="{{ ae.engine }}"
                                     data-mode="{{ ae.mode }}" data-strength="{{ ae.denoising_strength }}"
                                     data-quality="{{ ae.quality }}" title="Paramètres">
@@ -563,18 +565,18 @@
                             {% if ae.status == 'RUNNING' %}
                             <button class="btn btn-sm btn-secondary action-btn" disabled><i class="fas fa-spinner fa-spin"></i></button>
                             {% elif ae.status == 'SUCCESS' or ae.status == 'FAILURE' %}
-                            <button class="btn btn-sm btn-warning js-audio-start action-btn" data-id="{{ ae.id }}" title="Relancer"><i class="fas fa-redo"></i></button>
+                            <button class="btn btn-sm btn-outline-success js-audio-start action-btn" data-id="{{ ae.id }}" title="Relancer"><i class="fas fa-redo"></i></button>
                             {% else %}
-                            <button class="btn btn-sm btn-primary js-audio-start action-btn" data-id="{{ ae.id }}" title="Lancer"><i class="fas fa-play"></i></button>
+                            <button class="btn btn-sm btn-outline-success js-audio-start action-btn" data-id="{{ ae.id }}" title="Lancer"><i class="fas fa-play"></i></button>
                             {% endif %}
                             {% if ae.output_file %}
                             <a class="btn btn-sm btn-success" href="{% url 'enhancer:audio_download' ae.id %}" title="Télécharger"><i class="fas fa-download"></i></a>
                             {% endif %}
-                            <button class="btn btn-sm btn-outline-info duplicate-btn"
+                            <button class="btn btn-sm btn-outline-warning duplicate-btn"
                                     data-duplicate-url="{% url 'enhancer:audio_duplicate' ae.id %}" title="Dupliquer">
                                 <i class="fas fa-copy"></i>
                             </button>
-                            <button class="btn btn-sm btn-danger js-audio-delete" data-id="{{ ae.id }}" title="Supprimer"><i class="fas fa-trash-alt"></i></button>
+                            <button class="btn btn-sm btn-outline-danger js-audio-delete" data-id="{{ ae.id }}" title="Supprimer"><i class="fas fa-trash-alt"></i></button>
                         </div>
                     </div>
                 </div>
@@ -659,14 +661,14 @@
                             <div class="col-md-4">
                                 <div class="btn-group-actions">
                                     {% if ae.status != 'RUNNING' %}
-                                    <button class="btn btn-sm btn-primary js-audio-start action-btn" data-id="{{ ae.id }}" title="Lancer"><i class="fas fa-play"></i></button>
+                                    <button class="btn btn-sm btn-outline-success js-audio-start action-btn" data-id="{{ ae.id }}" title="Lancer"><i class="fas fa-play"></i></button>
                                     {% else %}
                                     <button class="btn btn-sm btn-secondary action-btn" disabled><i class="fas fa-spinner fa-spin"></i></button>
                                     {% endif %}
                                     {% if ae.output_file %}
                                     <a class="btn btn-sm btn-success" href="{% url 'enhancer:audio_download' ae.id %}" title="Télécharger"><i class="fas fa-download"></i></a>
                                     {% endif %}
-                                    <button class="btn btn-sm btn-danger js-audio-delete" data-id="{{ ae.id }}" title="Supprimer"><i class="fas fa-trash-alt"></i></button>
+                                    <button class="btn btn-sm btn-outline-danger js-audio-delete" data-id="{{ ae.id }}" title="Supprimer"><i class="fas fa-trash-alt"></i></button>
                                 </div>
                             </div>
                         </div>

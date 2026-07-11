@@ -5,6 +5,7 @@ Gère la synthèse vocale (Text-to-Speech)
 
 from django.db import models
 from django.contrib.auth import get_user_model
+from wama.common.models import ProcessingTimeMixin
 from django.core.validators import FileExtensionValidator
 from wama.common.utils.media_paths import upload_to_user_input, upload_to_user_output, UploadToUserPath
 from wama.common.tts.constants import TTS_MODEL_CHOICES, LANGUAGE_CHOICES, VOICE_PRESET_CHOICES
@@ -12,7 +13,7 @@ from wama.common.tts.constants import TTS_MODEL_CHOICES, LANGUAGE_CHOICES, VOICE
 User = get_user_model()
 
 
-class VoiceSynthesis(models.Model):
+class VoiceSynthesis(ProcessingTimeMixin, models.Model):
     """
     Modèle représentant une tâche de synthèse vocale.
     """

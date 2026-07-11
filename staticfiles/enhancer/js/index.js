@@ -45,7 +45,7 @@ document.addEventListener('DOMContentLoaded', function () {
       if (window.WamaFM) WamaFM.uploaded();  // fichier ajouté → refresh filemanager
       return data.id;
     } catch (error) {
-      alert(`Erreur pour ${file.name}: ${error.message}`);
+      WamaApp.toast(`Erreur pour ${file.name}: ${error.message}`, 'error');
       return null;
     }
   }
@@ -167,7 +167,7 @@ document.addEventListener('DOMContentLoaded', function () {
         </div>
         <div class="col-md-4">
           <div class="btn-group-actions">
-            <button class="btn btn-sm btn-secondary js-open-settings"
+            <button class="btn btn-sm btn-outline-secondary js-open-settings"
                     data-id="${data.id}"
                     data-ai-model="${escapeHtml(data.ai_model || '')}"
                     data-denoise="${data.denoise || 'false'}"
@@ -176,7 +176,7 @@ document.addEventListener('DOMContentLoaded', function () {
               <i class="fas fa-cog"></i>
             </button>
             ${window.WamaCycleButton ? WamaCycleButton.html(data.status || 'PENDING', data.id) : `<button class="btn btn-sm btn-outline-success js-restart-enhancement action-btn" data-id="${data.id}" title="Lancer"><i class="fas fa-play"></i></button>`}
-            <button class="btn btn-sm btn-danger js-delete-enhancement"
+            <button class="btn btn-sm btn-outline-danger js-delete-enhancement"
                     data-delete-url="${getUrl(config.deleteUrlTemplate, data.id)}"
                     title="Supprimer">
               <i class="fas fa-trash-alt"></i>
@@ -333,17 +333,17 @@ document.addEventListener('DOMContentLoaded', function () {
     if (actionBtn) {
       if (status === 'RUNNING') {
         actionBtn.disabled = true;
-        actionBtn.className = 'btn btn-sm btn-secondary action-btn';
+        actionBtn.className = 'btn btn-sm btn-outline-secondary action-btn';
         actionBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
         actionBtn.title = 'En cours...';
       } else if (status === 'SUCCESS' || status === 'FAILURE') {
         actionBtn.disabled = false;
-        actionBtn.className = 'btn btn-sm btn-warning js-restart-enhancement action-btn';
+        actionBtn.className = 'btn btn-sm btn-outline-success js-restart-enhancement action-btn';
         actionBtn.innerHTML = '<i class="fas fa-redo"></i>';
         actionBtn.title = 'Relancer';
       } else {
         actionBtn.disabled = false;
-        actionBtn.className = 'btn btn-sm btn-primary js-restart-enhancement action-btn';
+        actionBtn.className = 'btn btn-sm btn-outline-success js-restart-enhancement action-btn';
         actionBtn.innerHTML = '<i class="fas fa-play"></i>';
         actionBtn.title = 'Lancer';
       }
@@ -356,7 +356,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const deleteBtn = card.querySelector('.js-delete-enhancement');
         if (actionsDiv && deleteBtn) {
           const dlBtn = document.createElement('a');
-          dlBtn.className = 'btn btn-sm btn-success download-btn';
+          dlBtn.className = 'btn btn-sm btn-outline-info download-btn';
           dlBtn.href = getUrl(config.downloadUrlTemplate, id);
           dlBtn.title = 'Télécharger';
           dlBtn.innerHTML = '<i class="fas fa-download"></i>';
@@ -436,7 +436,7 @@ document.addEventListener('DOMContentLoaded', function () {
       })
       .catch((error) => {
         console.error('Erreur restart:', error);
-        alert(error.message || 'Erreur lors du démarrage du traitement.');
+        WamaApp.toast(error.message || 'Erreur lors du démarrage du traitement.', 'error');
       });
   }
 
@@ -519,7 +519,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }
       })
       .catch((error) => {
-        alert(error.message || 'Erreur lors de la suppression');
+        WamaApp.toast(error.message || 'Erreur lors de la suppression', 'error');
       })
       .finally(() => {
         button.disabled = false;
@@ -566,11 +566,11 @@ document.addEventListener('DOMContentLoaded', function () {
           // Restart enhancement with new settings
           handleRestartEnhancement(enhancementId);
         } else {
-          alert('Paramètres sauvegardés !');
+          WamaApp.toast('Paramètres sauvegardés !', 'success');
         }
       })
       .catch((error) => {
-        alert('Erreur lors de la sauvegarde: ' + error.message);
+        WamaApp.toast('Erreur lors de la sauvegarde: ' + error.message, 'error');
       });
   }
 
@@ -634,12 +634,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
         if (errors.length > 0) {
           console.error('Erreurs lors du démarrage:', errors);
-          alert(`Certains fichiers n'ont pas pu démarrer. Vérifiez que Celery est lancé.\n${errors[0].error}`);
+          WamaApp.toast(`Certains fichiers n'ont pas pu démarrer. Vérifiez que Celery est lancé.\n${errors[0].error}`, 'error');
         }
 
         if (!started.length) {
           if (!errors.length) {
-            alert('Aucun fichier à traiter.');
+            WamaApp.toast('Aucun fichier à traiter.', 'warning');
           }
           return;
         }
@@ -649,7 +649,7 @@ document.addEventListener('DOMContentLoaded', function () {
       })
       .catch((error) => {
         console.error('Erreur start_all:', error);
-        alert(error.message || 'Erreur lors du démarrage des traitements.');
+        WamaApp.toast(error.message || 'Erreur lors du démarrage des traitements.', 'error');
       })
       .finally(() => {
         startProcessBtn.disabled = false;
@@ -678,7 +678,7 @@ document.addEventListener('DOMContentLoaded', function () {
         updateDownloadAllState();
       })
       .catch((error) => {
-        alert(error.message || 'Erreur lors de la suppression.');
+        WamaApp.toast(error.message || 'Erreur lors de la suppression.', 'error');
       })
       .finally(() => {
         clearAllBtn.disabled = false;
@@ -757,7 +757,7 @@ document.addEventListener('DOMContentLoaded', function () {
       const mediaUrl = mediaUrlInput ? mediaUrlInput.value.trim() : '';
 
       if (!mediaUrl) {
-        alert('Veuillez entrer une URL de média.');
+        WamaApp.toast('Veuillez entrer une URL de média.', 'warning');
         return;
       }
 
@@ -801,7 +801,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
       } catch (error) {
         console.error('URL upload error:', error);
-        alert('Erreur lors du téléchargement: ' + error.message);
+        WamaApp.toast('Erreur lors du téléchargement: ' + error.message, 'error');
       } finally {
         // Restore button
         if (submitBtn) {
@@ -909,7 +909,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (el) el.remove();
         else location.reload();
       })
-      .catch(() => alert('Erreur lors de la suppression'));
+      .catch(() => WamaApp.toast('Erreur lors de la suppression', 'error'));
   });
 
   // ── Duplication d'un item (autonome ou dans un batch) — la vue place la copie
@@ -950,7 +950,7 @@ document.addEventListener('DOMContentLoaded', function () {
           setTimeout(() => location.reload(), 400);
         }
       })
-      .catch(() => alert('Erreur lors de la duplication'));
+      .catch(() => WamaApp.toast('Erreur lors de la duplication', 'error'));
   });
 });
 

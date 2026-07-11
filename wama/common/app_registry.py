@@ -517,7 +517,9 @@ APP_CATALOG = {
             settings_modal_item=True,
             tool_api=True,
             inspector=True,      # volet contextuel via WamaInspector.initFromSchema (image/vidéo/audio)
-                                 # ⚠ incomplet (audit 2026-07-10) : register_app_detail + _inspector_actions absents
+                                 # register_app_detail FAIT 2026-07-11 (enhancer + audio_enhancer,
+                                 # labels params.py) ; reste _inspector_actions (avec cloneActions,
+                                 # à câbler au port complet de la file)
             modes=True,          # onglets domaine image/vidéo/audio générés (WamaModes.fetch/create)
             model_help=True,     # WamaModelHelp (help_fallback moteurs, cf. enhancer/params.py)
             # Audit empirique 2026-07-10 :
@@ -528,10 +530,15 @@ APP_CATALOG = {
             cross_app_options=True,    # select output_format converter inline (index.html:205)
             multi_format_download=None,  # N/A — format réglé en amont (early binding output_format)
             status_vocab=True,         # SUCCESS/FAILURE (models.py:15/123)
-            # KO audit 2026-07-10 : anti_race ABSENT (start views.py:423 sans verrou — seul risque
-            # fonctionnel réel) ; briques de file non adoptées (_new_item_card, _batch_card mère
-            # hand-built index.html:367, _queue_toolbar, _cycle_button, layout) ; ProcessingTimeMixin
-            # absent des 2 modèles ; 13 alert() ; couleurs boutons card non conformes.
+            # Portage 2026-07-11 (suite audit §31) :
+            anti_race=True,            # begin_processing sur start + audio_start (verrou + revoke)
+            processing_time=True,      # ProcessingTimeMixin ×2 (migrations 0010/0011 — champ legacy
+                                       # processing_time supprimé, doublon sans lecteur) + _processing_time.html
+            layout=True,               # wama-queue-{{ card_layout }} sur #enhancer-queue
+            toast=True,                # 13 alert() → WamaApp.toast typés ; couleurs boutons alignées
+                                       # outline (template + buildCard JS synchronisés)
+            # KO restants : _new_item_card, _batch_card mère (hand-built index.html:367),
+            # _queue_toolbar, _cycle_button — port complet de la file à faire (PROJECT_STATUS §30/§32).
         ),
     },
 
@@ -641,7 +648,8 @@ APP_CATALOG = {
                                        # mais ponte seulement les dom_id — à migrer vers WamaParams.render
             tool_api=True,
             inspector=True,      # volet contextuel via WamaInspector.initFromSchema (volet = zone compose, à séparer)
-                                 # ⚠ incomplet (audit 2026-07-10) : register_app_detail + _inspector_actions absents
+                                 # register_app_detail FAIT 2026-07-11 (labels params.py) +
+                                 # data-preview-url posé sur la card ; reste _inspector_actions
             model_help=True,     # WamaModelHelp (select #tts_model, meta catalogue via _tts_model_help_meta)
             # Audit empirique 2026-07-10 :
             eta_individual=True,       # .wama-eta card (_synthesis_card.html:57) + eta_estimator (views.py:623)
@@ -653,9 +661,14 @@ APP_CATALOG = {
             cycle_button=True,         # _cycle_button.html (_synthesis_card.html:76)
             status_vocab=True,         # SUCCESS/FAILURE (models.py:20/150)
             modes=False,               # déclaré APP_MODES (normal/realtime) mais WamaModes non câblé côté UI
-            # KO audit 2026-07-10 : anti_race ABSENT (start views.py:549 sans verrou ni revoke) ;
-            # _new_item_card/_batch_card/_queue_toolbar/layout/ProcessingTimeMixin absents ;
-            # 42 alert() (JS+template) ; couleurs boutons card non conformes.
+            # Portage 2026-07-11 (suite audit §31) :
+            anti_race=True,            # begin_processing sur start (verrou + revoke + reset audio_output)
+            processing_time=True,      # ProcessingTimeMixin (migration 0013) + _processing_time.html + worker
+            layout=True,               # wama-queue-{{ card_layout }} sur #synthesisQueue
+            toast=True,                # 42 alert() (JS + template) → WamaApp.toast typés ; couleurs
+                                       # boutons card alignées outline
+            # KO restants : modales hand-built (params.py ne ponte que les dom_id — P1 BLOCKER),
+            # _new_item_card/_batch_card/_queue_toolbar — port complet de la file à faire.
         ),
     },
 

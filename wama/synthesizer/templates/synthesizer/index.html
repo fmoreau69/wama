@@ -318,7 +318,7 @@
             <span class="badge bg-secondary" id="queueCount">{{ queue_count }}</span>
         </h4>
 
-        <div id="synthesisQueue">
+        <div id="synthesisQueue" class="wama-queue-{{ card_layout|default:'list' }}">
             {% for batch_info in batches_list %}
 
             {% if batch_info.obj.total == 1 %}
@@ -929,9 +929,9 @@ document.addEventListener('DOMContentLoaded', function () {
         .then(r => r.json())
         .then(data => {
             if (data.success) { location.reload(); }
-            else { alert('Erreur lors de la suppression'); }
+            else { WamaApp.toast('Erreur lors de la suppression', 'error'); }
         })
-        .catch(() => alert('Erreur réseau'));
+        .catch(() => WamaApp.toast('Erreur réseau', 'error'));
     });
 
     // Batch settings modal
@@ -974,7 +974,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 body: JSON.stringify(payload),
             });
             const data = await r.json();
-            if (!r.ok || !data.success) { alert(data.error || 'Erreur sauvegarde'); return; }
+            if (!r.ok || !data.success) { WamaApp.toast(data.error || 'Erreur sauvegarde', 'error'); return; }
             if (andStart) {
                 await fetch(URLS.batchStart + batchId + '/start/', {
                     method: 'POST',
@@ -982,7 +982,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 });
             }
             location.reload();
-        } catch { alert('Erreur réseau'); }
+        } catch { WamaApp.toast('Erreur réseau', 'error'); }
     }
 
     const saveBtn = document.getElementById('saveBatchSettingsBtn');
@@ -1003,9 +1003,9 @@ document.addEventListener('DOMContentLoaded', function () {
         .then(r => r.json())
         .then(data => {
             if (data.success) { location.reload(); }
-            else { alert('Erreur lors de la duplication du batch'); }
+            else { WamaApp.toast('Erreur lors de la duplication du batch', 'error'); }
         })
-        .catch(() => alert('Erreur réseau'));
+        .catch(() => WamaApp.toast('Erreur réseau', 'error'));
     });
 
     // Duplicate queue item (shares source file, resets results)
@@ -1020,9 +1020,9 @@ document.addEventListener('DOMContentLoaded', function () {
         .then(r => r.json())
         .then(data => {
             if (data.duplicated) location.reload();
-            else alert('Duplication impossible');
+            else WamaApp.toast('Duplication impossible', 'error');
         })
-        .catch(() => alert('Erreur réseau lors de la duplication'));
+        .catch(() => WamaApp.toast('Erreur réseau lors de la duplication', 'error'));
     });
 });
 </script>

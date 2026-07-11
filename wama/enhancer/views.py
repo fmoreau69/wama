@@ -425,54 +425,39 @@ def start(request, pk: int):
     logger.info(f"=== START ENHANCEMENT {pk} ===")
 
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    logger.info(f"User: {user.username} (ID: {user.id})")
 
-    enhancement = get_object_or_404(Enhancement, pk=pk, user=user)
-    logger.info(f"Enhancement found: ID={enhancement.id}, media_type={enhancement.media_type}, current_status={enhancement.status}")
-
-    # Get settings from request (support both JSON and form-data)
+    # Réglages de la requête (JSON ou form-data) — appliqués SOUS le verrou via reset()
     try:
         import json
         data = json.loads(request.body) if request.body else {}
     except (json.JSONDecodeError, ValueError):
         data = request.POST
 
-    ai_model = data.get('ai_model', enhancement.ai_model)
-    denoise_value = data.get('denoise', enhancement.denoise)
-    if isinstance(denoise_value, str):
-        denoise = denoise_value.lower() in ('1', 'true', 'on')
-    else:
-        denoise = bool(denoise_value)
-    blend_factor = float(data.get('blend_factor', enhancement.blend_factor))
+    def _apply_settings(enh):
+        enh.ai_model = data.get('ai_model', enh.ai_model)
+        denoise_value = data.get('denoise', enh.denoise)
+        enh.denoise = (denoise_value.lower() in ('1', 'true', 'on')
+                       if isinstance(denoise_value, str) else bool(denoise_value))
+        enh.blend_factor = float(data.get('blend_factor', enh.blend_factor))
+        enh.progress = 0
+        enh.error_message = ''
 
-    logger.info(f"Settings: model={ai_model}, denoise={denoise}, blend_factor={blend_factor}")
+    # Anti-race COMMUN (atomic + select_for_update + revoke) — audit 2026-07-11
+    from wama.common.utils.process_control import begin_processing
+    enhancement, err = begin_processing(Enhancement, pk, user=user, reset=_apply_settings)
+    if err:
+        return JsonResponse({'error': err}, status=404 if err == 'not_found' else 400)
 
-    # Update enhancement with new settings
-    enhancement.ai_model = ai_model
-    enhancement.denoise = denoise
-    enhancement.blend_factor = blend_factor
-    enhancement.save(update_fields=['ai_model', 'denoise', 'blend_factor'])
-    logger.info("Enhancement settings updated")
-
-    # Start Celery task
     from .tasks import enhance_media
-
     try:
-        logger.info("Calling enhance_media.delay()...")
         task = enhance_media.delay(pk)
-        logger.info(f"Task created: task_id={task.id}")
-
         enhancement.task_id = task.id
-        enhancement.status = 'RUNNING'
-        enhancement.save(update_fields=['task_id', 'status'])
-        logger.info(f"Enhancement {pk} status updated to RUNNING")
-
-        return JsonResponse({
-            'task_id': task.id,
-            'status': 'RUNNING',
-        })
+        enhancement.save(update_fields=['task_id'])
+        return JsonResponse({'task_id': task.id, 'status': 'RUNNING'})
     except Exception as e:
         logger.error(f"Failed to start task for Enhancement {pk}: {e}", exc_info=True)
+        enhancement.status = 'PENDING'
+        enhancement.save(update_fields=['status'])
         return JsonResponse({
             'error': str(e),
             'message': 'Failed to start task. Is Celery running?',
@@ -1182,28 +1167,35 @@ def audio_start(request, pk: int):
     import json as _json
 
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    ae = get_object_or_404(AudioEnhancement, pk=pk, user=user)
 
     try:
         data = _json.loads(request.body) if request.body else {}
     except Exception:
         data = {}
 
-    ae.engine = data.get('engine', ae.engine)
-    ae.mode = data.get('mode', ae.mode)
-    ae.denoising_strength = float(data.get('denoising_strength', ae.denoising_strength))
-    ae.quality = int(data.get('quality', ae.quality))
-    ae.save(update_fields=['engine', 'mode', 'denoising_strength', 'quality'])
+    def _apply_settings(a):
+        a.engine = data.get('engine', a.engine)
+        a.mode = data.get('mode', a.mode)
+        a.denoising_strength = float(data.get('denoising_strength', a.denoising_strength))
+        a.quality = int(data.get('quality', a.quality))
+        a.progress = 0
+        a.error_message = ''
+
+    # Anti-race COMMUN (atomic + select_for_update + revoke) — audit 2026-07-11
+    from wama.common.utils.process_control import begin_processing
+    ae, err = begin_processing(AudioEnhancement, pk, user=user, reset=_apply_settings)
+    if err:
+        return JsonResponse({'error': err}, status=404 if err == 'not_found' else 400)
 
     from .tasks import enhance_audio
-
     try:
         task = enhance_audio.delay(pk)
         ae.task_id = task.id
-        ae.status = 'RUNNING'
-        ae.save(update_fields=['task_id', 'status'])
+        ae.save(update_fields=['task_id'])
         return JsonResponse({'task_id': task.id, 'status': 'RUNNING'})
     except Exception as e:
+        ae.status = 'PENDING'
+        ae.save(update_fields=['status'])
         return JsonResponse({'error': str(e)}, status=500)
 
 

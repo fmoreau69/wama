@@ -29,3 +29,25 @@ class SynthesizerConfig(AppConfig):
             file_field='audio_output',
             user_field='user'
         )
+
+        # Détail inspecteur (schéma canonique INSPECTOR_DETAIL_FIELDS.md) — audit 2026-07-11.
+        # Réglages spécifiques → labels de params.py (source unique), jamais relabellisés.
+        from wama.common.utils.detail_registry import register_app_detail, build_detail
+
+        def _synth_detail(s):
+            from .params import PARAMS
+            extra = {p.label: getattr(s, p.name, None) for p in PARAMS
+                     if p.label and getattr(s, p.name, None) not in (None, '', False)}
+            d = build_detail(
+                s,
+                source_file=s.text_file or s.voice_reference,
+                source_type='text' if (s.text_file or s.text_content) else 'audio',
+                engine=s.tts_model,
+                result_file=s.audio_output,
+                extra=extra,
+            )
+            if s.output_quality:
+                d['output_quality'] = s.output_quality
+            return d
+
+        register_app_detail('synthesizer', VoiceSynthesis, _synth_detail)

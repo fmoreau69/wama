@@ -42,6 +42,39 @@ class EnhancerConfig(AppConfig):
             duration_field='duration',
         )
 
+        # Détail inspecteur (schéma canonique INSPECTOR_DETAIL_FIELDS.md) — audit 2026-07-11.
+        # Réglages spécifiques → labels de params.py (source unique), jamais relabellisés.
+        from wama.common.utils.detail_registry import register_app_detail, build_detail
+
+        def _extra_from_params(obj, params):
+            return {p.label: getattr(obj, p.name, None) for p in params
+                    if p.label and getattr(obj, p.name, None) not in (None, '', False)}
+
+        def _enhancer_detail(e):
+            from .params import MEDIA_PARAMS
+            return build_detail(
+                e,
+                source_file=e.input_file,
+                source_type=e.media_type,
+                engine=e.ai_model,
+                result_file=e.output_file,
+                extra=_extra_from_params(e, MEDIA_PARAMS),
+            )
+
+        def _audio_detail(ae):
+            from .params import AUDIO_PARAMS
+            return build_detail(
+                ae,
+                source_file=ae.input_file,
+                source_type='audio',
+                engine=ae.engine,
+                result_file=ae.output_file,
+                extra=_extra_from_params(ae, AUDIO_PARAMS),
+            )
+
+        register_app_detail('enhancer', Enhancement, _enhancer_detail)
+        register_app_detail('audio_enhancer', AudioEnhancement, _audio_detail)
+
         # Enregistre les scénarios de test nocturne (AVANT le guard RUN_MAIN : doit aussi
         # s'enregistrer pour les management commands comme run_nightly_tests).
         try:
