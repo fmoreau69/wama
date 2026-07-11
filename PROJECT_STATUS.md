@@ -1236,3 +1236,33 @@ Demande Fabien : « la card d'entrée en en-tête de file comme pour les applica
 - ⚠ Récidive n°5 du piège commentaire Django `{# #}` multi-lignes (dans MES ajouts) —
   détectée et corrigée en `{% comment %}` + re-scan du fichier (0 restant). Le réflexe
   d'écriture reste le point faible : TOUJOURS `{% comment %}` pour tout commentaire ≥ 2 lignes.
+
+---
+
+## 36. Avatarizer STANDALONE-ONLY (décision Fabien, 2026-07-11)
+
+> « On peut basculer l'avatarizer en standalone seul, comme on utilisera le synthesizer +
+> avatarizer dans le studio pour le pipeline. » — concrétise R16/§20bis (pipeline = axe
+> WORKFLOW de la méta-app, pas un mode d'app).
+
+### 36.1 Retiré de l'UI (création)
+- Radios `workflow_mode` + bloc `#pipelineSettings` (TTS : modèle/langue/voix) du volet droit.
+- Prompt texte de la card d'entrée (la card devient : dropzone audio « voix de l'avatar »
+  + Médiathèque + galerie d'avatars + Générer).
+- JS : `getMode()` figé à `'standalone'` ; branches pipeline de `createJob`/
+  `updateGenerateButton` supprimées ; bloc mort du drop de texte (~90 lignes,
+  extractTextViaServer/loadTextIntoArea) purgé après vérification qu'aucun symbole n'était
+  utilisé ailleurs ; CSS `#text-dropzone` mort retiré.
+- Vue `create()` : défaut serveur `mode='standalone'`.
+
+### 36.2 INTACT (backend + historique)
+- Modèle : champ `mode`, champs TTS ; worker pipeline ; **batch** (les fichiers batch à
+  lignes texte→pipeline restent acceptés — à re-trancher quand le studio orchestrera) ;
+  tool_api ; AFFICHAGE des jobs pipeline historiques (cards, modale section pipeline,
+  label « Mode » du detail inspecteur via params.py — la déclaration `mode` du schéma est
+  conservée pour ça, son câblage radio absent est null-gardé).
+
+### 36.3 Vérifications
+Rendu 200 ; 0 résidu `pipelineSettings`/`text_content`/`text-dropzone` ; réglages MuseTalk
+(quality_mode/bbox_shift/enhancer) intacts ; `manage.py check` 0 issue ; garde-fou avant
+purge du bloc mort : grep de chaque symbole → 0 usage externe.

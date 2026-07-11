@@ -97,7 +97,7 @@ def create(request):
         return JsonResponse({'error': 'POST requis'}, status=405)
 
     user = _get_user(request)
-    mode = request.POST.get('mode', 'pipeline')
+    mode = request.POST.get('mode', 'standalone')  # standalone-only côté UI (2026-07-11) ; pipeline accepté si explicite (batch/tool_api/studio)
     job = AvatarJob(user=user, mode=mode)
 
     # --- Pipeline : champs TTS ---

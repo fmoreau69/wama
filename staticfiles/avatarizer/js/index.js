@@ -25,8 +25,10 @@
     const $$ = (sel, ctx = document) => ctx.querySelectorAll(sel);
 
     function getMode() {
-        const checked = $('input[name="workflow_mode"]:checked');
-        return checked ? checked.value : 'pipeline';
+        // STANDALONE-ONLY depuis 2026-07-11 (décision : le pipeline texte→TTS→avatar devient
+        // une composition STUDIO synthesizer→avatarizer). Le backend garde le champ mode
+        // (jobs historiques, batch, tool_api) — seule la création UI est standalone.
+        return 'standalone';
     }
 
     // -----------------------------------------------------------------------
@@ -151,7 +153,7 @@
     const audioInput    = $('#audio_input');
     // Zones rendues par la card commune _new_item_card : data-wama-app posé ici (le partial ne
     // le rend pas) — requis par le quick-drop filemanager (getAppFromDropZone → dataset.wamaApp).
-    ['text-dropzone', 'audio-dropzone'].forEach(id => {
+    ['audio-dropzone'].forEach(id => {
         const z = document.getElementById(id);
         if (z && !z.dataset.wamaApp) z.dataset.wamaApp = 'avatarizer';
     });
@@ -193,13 +195,6 @@
                 const blob = await resp.blob();
                 const file = new File([blob], name || 'audio', { type: blob.type || mime || 'audio/mpeg' });
                 handleAudioFile(file);
-                // Bascule le workflow en standalone via le RADIO du volet droit (les onglets
-                // ont disparu avec la card commune — le radio reste la source du mode)
-                const standaloneRadio = $('input[name="workflow_mode"][value="standalone"]');
-                if (standaloneRadio && !standaloneRadio.checked) {
-                    standaloneRadio.checked = true;
-                    standaloneRadio.dispatchEvent(new Event('change'));
-                }
             } catch (err) {
                 WamaApp.toast('Erreur lors du chargement du fichier depuis le Filemanager : ' + err.message, 'error');
             }
@@ -217,95 +212,8 @@
     // -----------------------------------------------------------------------
     // Text drop zone (Pipeline) — filemanager drag + Windows Explorer drag
     // -----------------------------------------------------------------------
-    const textDropzone = $('#text-dropzone');
-    // Formats identiques au Synthesizer
-    const TEXT_EXTS_PLAIN  = ['txt', 'md', 'csv', 'text']; // lisibles directement côté client
-    const TEXT_EXTS_SERVER = ['pdf', 'docx'];               // extraction serveur requise
-    const TEXT_EXTS_ALL    = [...TEXT_EXTS_PLAIN, ...TEXT_EXTS_SERVER];
-
-    function loadTextIntoArea(text) {
-        if (!textArea) return;
-        textArea.value = text;
-        textArea.dispatchEvent(new Event('input')); // maj compteur mots + bouton générer
-    }
-
-    async function extractTextViaServer(formData) {
-        const resp = await fetch(cfg.urls.extractText, {
-            method: 'POST',
-            headers: { 'X-CSRFToken': csrf },
-            body: formData,
-        });
-        const data = await resp.json();
-        if (!resp.ok) throw new Error(data.error || `Erreur extraction (HTTP ${resp.status})`);
-        return data.text || '';
-    }
-
-    if (textDropzone) {
-        // — Filemanager drag-and-drop —
-        textDropzone.addEventListener('filemanager:filedrop', async (e) => {
-            const { path, name } = e.detail;
-            const ext = (name || '').split('.').pop().toLowerCase();
-            if (!TEXT_EXTS_ALL.includes(ext)) {
-                WamaApp.toast(`Format non supporté : .${ext}\nFormats acceptés : ${TEXT_EXTS_ALL.join(', ')}.`, 'error');
-                return;
-            }
-            try {
-                if (TEXT_EXTS_PLAIN.includes(ext)) {
-                    // Lecture directe du fichier texte brut
-                    const url = (window.MEDIA_URL || cfg.mediaUrl || '/media/') + path;
-                    const resp = await fetch(url);
-                    if (!resp.ok) throw new Error(`Fichier introuvable (HTTP ${resp.status})`);
-                    loadTextIntoArea(await resp.text());
-                } else {
-                    // Extraction serveur (PDF, DOCX)
-                    const fd = new FormData();
-                    fd.append('media_path', path);
-                    loadTextIntoArea(await extractTextViaServer(fd));
-                }
-            } catch (err) {
-                WamaApp.toast('Erreur chargement fichier : ' + err.message, 'error');
-            }
-        });
-
-        // — Windows Explorer / navigateur natif —
-        textDropzone.addEventListener('dragover', e => {
-            if (e.dataTransfer && e.dataTransfer.types && e.dataTransfer.types.includes('Files')) {
-                e.preventDefault();
-                textDropzone.classList.add('dragover');
-            }
-        });
-        textDropzone.addEventListener('dragleave', e => {
-            if (!textDropzone.contains(e.relatedTarget)) {
-                textDropzone.classList.remove('dragover');
-            }
-        });
-        textDropzone.addEventListener('drop', async (e) => {
-            textDropzone.classList.remove('dragover');
-            if (!e.dataTransfer || !e.dataTransfer.files || !e.dataTransfer.files.length) return;
-            e.preventDefault();
-            const file = e.dataTransfer.files[0];
-            const ext = file.name.split('.').pop().toLowerCase();
-            if (!TEXT_EXTS_ALL.includes(ext)) {
-                WamaApp.toast(`Format non supporté : .${ext}\nFormats acceptés : ${TEXT_EXTS_ALL.join(', ')}.`, 'error');
-                return;
-            }
-            try {
-                if (TEXT_EXTS_PLAIN.includes(ext)) {
-                    // Lecture client-side
-                    const reader = new FileReader();
-                    reader.onload = ev => loadTextIntoArea(ev.target.result);
-                    reader.readAsText(file, 'UTF-8');
-                } else {
-                    // Envoi serveur pour extraction PDF/DOCX
-                    const fd = new FormData();
-                    fd.append('file', file);
-                    loadTextIntoArea(await extractTextViaServer(fd));
-                }
-            } catch (err) {
-                WamaApp.toast('Erreur extraction : ' + err.message, 'error');
-            }
-        });
-    }
+    // Drop de fichier texte (.txt/.pdf/.docx) : RETIRÉ avec le workflow pipeline
+    // (standalone-only 2026-07-11 — le pipeline texte→TTS→avatar = composition studio).
 
     function handleAudioFile(file) {
         if (!file) return;
@@ -316,39 +224,14 @@
     }
 
     // -----------------------------------------------------------------------
-    // Mode radio (volet droit) — source unique du workflow. Les onglets
-    // Pipeline/Standalone de l'ancienne colonne de saisie ont été remplacés par
-    // la card commune _new_item_card (2026-07-11) : prompt + dropzone coexistent,
-    // le radio choisit ce qui est consommé au Générer.
-    // -----------------------------------------------------------------------
-    $$('input[name="workflow_mode"]').forEach(radio => {
-        radio.addEventListener('change', () => {
-            const pipelineSettings = $('#pipelineSettings');
-            pipelineSettings && (pipelineSettings.style.display =
-                radio.value === 'pipeline' ? '' : 'none');
-            updateGenerateButton();
-        });
-    });
-
-    // -----------------------------------------------------------------------
     // Update "Generate" button state
     // -----------------------------------------------------------------------
     function updateGenerateButton() {
         const btn = $('#btn-generate');
         if (!btn) return;
 
-        const mode = getMode();
-        let ready = true;
-
-        if (mode === 'pipeline') {
-            const text = textArea ? textArea.value.trim() : '';
-            if (!text) ready = false;
-        } else {
-            if (!audioFile) ready = false;
-        }
-
-        if (!selectedAvatarSource) ready = false;
-        btn.disabled = !ready;
+        // Standalone-only (2026-07-11) : audio + avatar requis
+        btn.disabled = !(audioFile && selectedAvatarSource);
     }
 
     if (textArea) {
@@ -398,18 +281,9 @@
     // Create job (POST /avatarizer/create/)
     // -----------------------------------------------------------------------
     async function createJob() {
-        const mode = getMode();
         const fd = new FormData();
-        fd.append('mode', mode);
-
-        if (mode === 'pipeline') {
-            fd.append('text_content', textArea.value.trim());
-            fd.append('tts_model', $('#tts_model').value);
-            fd.append('language', $('#language').value);
-            fd.append('voice_preset', $('#voice_preset').value);
-        } else {
-            fd.append('audio_input', audioFile);
-        }
+        fd.append('mode', getMode());          // standalone (pipeline = studio, 2026-07-11)
+        fd.append('audio_input', audioFile);
 
         fd.append('avatar_source', selectedAvatarSource);
         if (selectedAvatarSource === 'gallery') {

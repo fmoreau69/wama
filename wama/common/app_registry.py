@@ -375,11 +375,12 @@ APP_CATALOG = {
             anti_race=True,      # begin_processing sur start + start_all (verrou + revoke)
             toast=True,          # 21 alert() → WamaApp.toast typés ; ordre boutons card corrigé
                                  # (⚙ avant ↻) + couleurs outline (template + buildCard JS)
-            new_item_card=True,  # _new_item_card COMMUNE en tête de file (2026-07-11) : prompt=
-                                 # consigne pipeline, dropzone=audio standalone, galerie avatars via
-                                 # slot déclaré extra_zone_template, ids historiques conservés →
-                                 # handlers JS intacts ; onglets Pipeline/Standalone remplacés par
-                                 # le radio workflow_mode (source unique du mode)
+            new_item_card=True,  # _new_item_card COMMUNE en tête de file (2026-07-11) : dropzone=
+                                 # audio (voix de l'avatar) + galerie avatars via slot déclaré
+                                 # extra_zone_template. STANDALONE-ONLY depuis 2026-07-11 (décision
+                                 # Fabien) : le pipeline texte→TTS→avatar = composition STUDIO
+                                 # synthesizer→avatarizer ; backend mode/tts intact (historique,
+                                 # batch, tool_api), seule la création UI est standalone.
             # KO restants : _batch_card mère (inline)/_queue_toolbar/_cycle_button/layout/
             # ProcessingTimeMixin absents ; absent d'APP_MODES ; filemanager_import partiel
             # (quick-drop filemanager:filedrop OK, listener wama:fileimported absent).

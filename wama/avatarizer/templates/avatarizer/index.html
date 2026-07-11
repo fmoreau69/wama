@@ -32,19 +32,6 @@
 .drop-zone.dragover { border-color: #0dcaf0; background: #1a2a30; }
 .video-section video { border-radius: 6px; background: #000; }
 /* Text drop zone : invisible par défaut, s'illumine sur dragover */
-#text-dropzone.drop-zone {
-    border: 2px dashed transparent;
-    border-radius: 8px;
-    padding: 6px 8px;
-    text-align: left;
-    cursor: default;
-    background: transparent;
-    transition: border-color 0.2s, background 0.2s;
-}
-#text-dropzone.drop-zone.dragover {
-    border-color: #0dcaf0;
-    background: #1a2a30;
-}
 {% endblock %}
 
 {# ===================================================================== #}
@@ -76,72 +63,11 @@
 {% include 'common/_inspector_banner.html' %}{# bandeau « Réglages de l'élément #N » (inspecteur contextuel) #}
 <div id="avatarPanelParams">
 
-<!-- Mode workflow -->
-<div class="mb-3">
-    <label class="form-label small fw-bold text-light"><i class="fas fa-exchange-alt"></i> Mode</label>
-    <div class="btn-group w-100" role="group">
-        <input type="radio" class="btn-check" name="workflow_mode" id="mode_pipeline" value="pipeline" checked>
-        <label class="btn btn-outline-info btn-sm" for="mode_pipeline">
-            <i class="fas fa-stream"></i> Pipeline
-        </label>
-        <input type="radio" class="btn-check" name="workflow_mode" id="mode_standalone" value="standalone">
-        <label class="btn btn-outline-secondary btn-sm" for="mode_standalone">
-            <i class="fas fa-upload"></i> Standalone
-        </label>
-    </div>
-</div>
-
-<!-- Paramètres Pipeline (TTS) -->
-<div id="pipelineSettings">
-    <div class="mb-2">
-        <label for="tts_model" class="form-label small fw-bold text-light"><i class="fas fa-robot"></i> Modèle TTS</label>
-        <select class="form-select form-select-sm bg-dark text-white border-secondary" id="tts_model">
-            {% for value, label in tts_models %}
-            <option value="{{ value }}" {% if value == 'xtts_v2' %}selected{% endif %}>{{ label }}</option>
-            {% endfor %}
-        </select>
-    </div>
-    <div class="mb-2">
-        <label for="language" class="form-label small fw-bold text-light"><i class="fas fa-language"></i> Langue</label>
-        <select class="form-select form-select-sm bg-dark text-white border-secondary" id="language">
-            {% for value, label in languages %}
-            <option value="{{ value }}" {% if value == 'fr' %}selected{% endif %}>{{ label }}</option>
-            {% endfor %}
-        </select>
-    </div>
-    <div class="mb-2">
-        <label for="voice_preset" class="form-label small fw-bold text-light"><i class="fas fa-microphone"></i> Voix</label>
-        <select class="form-select form-select-sm bg-dark text-white border-secondary" id="voice_preset">
-            <optgroup label="Voix intégrées">
-                <option value="default">Voix par défaut</option>
-                <option value="male_1">Voix masculine 1</option>
-                <option value="male_2">Voix masculine 2</option>
-                <option value="female_1">Voix féminine 1</option>
-                <option value="female_2">Voix féminine 2</option>
-            </optgroup>
-            <optgroup label="Voix personnalisées (clonage)">
-                {% for cv in custom_voices %}
-                <option value="cv_{{ cv.id }}">{{ cv.name }}</option>
-                {% endfor %}
-            </optgroup>
-            <optgroup label="Bark (presets)">
-                <option value="bark_v2_en_0">Bark EN Speaker 0</option>
-                <option value="bark_v2_en_1">Bark EN Speaker 1</option>
-                <option value="bark_v2_en_2">Bark EN Speaker 2</option>
-                <option value="bark_v2_en_3">Bark EN Speaker 3</option>
-                <option value="bark_v2_en_4">Bark EN Speaker 4</option>
-                <option value="bark_v2_en_5">Bark EN Speaker 5</option>
-                <option value="bark_v2_fr_0">Bark FR Speaker 0</option>
-                <option value="bark_v2_fr_1">Bark FR Speaker 1</option>
-                <option value="bark_v2_es_0">Bark ES Speaker 0</option>
-                <option value="bark_v2_de_0">Bark DE Speaker 0</option>
-            </optgroup>
-        </select>
-    </div>
-</div>
-
-<hr class="border-secondary">
-
+{% comment %}Workflow PIPELINE (texte → TTS → avatar) RETIRÉ de l'UI (décision Fabien
+2026-07-11, cf. R16/§20bis) : le pipeline devient une composition STUDIO synthesizer →
+avatarizer. L'app ne produit plus que du STANDALONE (audio prêt + avatar). Le backend
+(champ mode, worker TTS, réglages tts_* de params.py) reste intact : jobs historiques +
+orchestration studio/tool_api.{% endcomment %}
 <!-- Paramètres MuseTalk -->
 <div class="mb-2">
     <label class="form-label small fw-bold text-light"><i class="fas fa-sliders-h"></i> Pipeline MuseTalk</label>
@@ -245,9 +171,9 @@ action primaire de la card, conventions CARD_DESIGN §2 ; id #btn-generate incha
         {% comment %}Card « Nouvel élément » COMMUNE en tête de file (2026-07-11, alignement apps
         portées). Prompt = texte de la consigne (mode pipeline) ; dropzone = audio prêt (mode
         standalone) ; galerie d'avatars + badge audio via le slot déclaré extra_zone_template ;
-        ids historiques conservés (#text_content, #text-dropzone, #audio-dropzone, #audio_input,
-        #btn-generate) → tous les handlers de index.js fonctionnent sans réécriture.{% endcomment %}
-        {% include 'common/_new_item_card.html' with card_id='avatarizerNewCard' show_prompt=True prompt_input_id='text_content' prompt_zone_id='text-dropzone' prompt_rows=4 prompt_placeholder='Entrez ici le texte de la consigne expérimentale…' prompt_hint='Ou glissez un .txt .pdf .docx sur la zone de texte (mode pipeline : texte → TTS → avatar).' prompt_counter_id='word-count' drop_zone_id='audio-dropzone' file_input_id='audio_input' file_accept='.wav,.mp3,.ogg,.flac' formats_label='WAV, MP3, OGG, FLAC — audio prêt (mode standalone)' show_media_library=True media_library_type='audio' extra_zone_template='avatarizer/_new_item_extra.html' primary_btn_id='btn-generate' primary_btn_label='Générer la vidéo' primary_btn_icon='fa-play-circle' %}
+        ids historiques conservés (#audio-dropzone, #audio_input, #btn-generate) → handlers
+        de index.js intacts. STANDALONE-ONLY depuis 2026-07-11 (pipeline = studio).{% endcomment %}
+        {% include 'common/_new_item_card.html' with card_id='avatarizerNewCard' drop_zone_id='audio-dropzone' file_input_id='audio_input' file_accept='.wav,.mp3,.ogg,.flac' formats_label='WAV, MP3, OGG, FLAC — la voix de l’avatar' show_media_library=True media_library_type='audio' extra_zone_template='avatarizer/_new_item_extra.html' primary_btn_id='btn-generate' primary_btn_label='Générer la vidéo' primary_btn_icon='fa-play-circle' %}
 
         <div id="jobs-container">
             {% if batches_list %}
