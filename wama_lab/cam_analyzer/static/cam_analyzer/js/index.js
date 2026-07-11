@@ -2300,9 +2300,17 @@ document.addEventListener('DOMContentLoaded', function () {
             const iw = (vid && vid.videoWidth) || 384;
             fr.detections.forEach(det => {
                 if (det.type === 'road_mask' || det.type === 'sam3_marking') return;
-                const g = det.ground_xy;
+                let g = det.ground_xy;
                 if (!Array.isArray(g) || g.length < 2) return;
-                if (g[1] <= 0 || g[1] > 45 || Math.abs(g[0]) > 20) return;          // zone proche fiable
+                // L'homographie (calibrée sur le passage piéton) COMPRIME la distance
+                // (objets à 25m projetés à ~7m). On recale la MAGNITUDE sur la distance
+                // pinhole (distance_m, précise, = label vidéo) en gardant la DIRECTION.
+                // Corrige le mismatch vidéo↔vue-de-dessus ET l'effet convoi.
+                if (det.distance_m != null) {
+                    const _r = Math.hypot(g[0], g[1]);
+                    if (_r > 0.1) { const _f = det.distance_m / _r; g = [g[0] * _f, g[1] * _f]; }
+                }
+                if (g[1] <= 0 || g[1] > 60 || Math.abs(g[0]) > 25) return;          // zone fiable
                 const bb = det.bbox;
                 if (Array.isArray(bb) && (bb[0] <= 3 || bb[2] >= iw - 3)) return;   // coupé au bord
                 const v = _camToVeh(g[0], g[1], yawDeg);          // → repère véhicule commun
