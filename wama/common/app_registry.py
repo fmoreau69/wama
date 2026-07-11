@@ -355,14 +355,14 @@ APP_CATALOG = {
             # Corrigé 2026-07-10 (grille périmée) : duplicate/batch/clear_all vérifiés présents
             # (btn-duplicate-job, BatchAvatarJob(BatchMixin), btn-clear-all — index.html:337/442/217).
             duplicate=True,
-            start_all=False,     # pas de bouton « Démarrer tout » global (vérifié absent)
-            clear_all=True,
-            download_all=False,  # pas de bouton « Télécharger tout » global (vérifié absent)
+            start_all=True,      # vue start_all + bouton #btn-start-all (audit 2026-07-11)
+            clear_all=True,      # vue serveur clear_all (remplace la boucle DELETE client, 2026-07-11)
+            download_all=True,   # vue download_all (ZIP) + bouton #btn-download-all (2026-07-11)
             batch=True,
             settings_modal_item=True,
             inspector=True,      # volet contextuel via WamaInspector.initFromSchema (clic card → réglages #N)
-                                 # ⚠ incomplet (audit 2026-07-10) : register_app_detail/preview
-                                 # + _inspector_actions tous absents (volet non auto-rempli)
+                                 # register_app_detail + register_app_preview FAITS 2026-07-11
+                                 # (labels params.py, aperçu = avatar_upload) ; reste _inspector_actions
             eta_batch=True,      # wama-eta câblé sur les batchs (index.html:332)
             eta_individual=True, # .wama-eta sur la card (index.html:413) + eta_estimator (views.py:206)
             eta_queue=True,      # _global_progress.html inclus (index.html:319) — N/A périmé (audit 2026-07-10)
@@ -371,11 +371,13 @@ APP_CATALOG = {
             status_vocab=True,   # SUCCESS/FAILURE (models.py:19)
             multi_format_download=None,  # N/A — sortie vidéo MP4 unique (conversion = rôle converter)
             model_help=None,     # N/A — MuseTalk fixe (v1.5), aucun select de modèle exposé
-            # KO audit 2026-07-10 : start_all/download_all sans vue serveur, clear_all simulé côté
-            # client (boucle DELETE, index.js:946) ; anti_race ABSENT (start views.py:172 sans
-            # verrou ni revoke) ; ordre/couleurs boutons card KO (↻ avant ⚙, index.html:417) ;
-            # _new_item_card/_batch_card/_queue_toolbar/_cycle_button/layout/ProcessingTimeMixin
-            # absents ; 21 alert() ; absent d'APP_MODES.
+            # Passe conservatrice 2026-07-11 (suite audit §31) :
+            anti_race=True,      # begin_processing sur start + start_all (verrou + revoke)
+            toast=True,          # 21 alert() → WamaApp.toast typés ; ordre boutons card corrigé
+                                 # (⚙ avant ↻) + couleurs outline (template + buildCard JS)
+            # KO restants : _new_item_card/_batch_card mère (inline)/_queue_toolbar/_cycle_button/
+            # layout/ProcessingTimeMixin absents ; absent d'APP_MODES ; filemanager_import partiel
+            # (data-wama-app sans listener wama:fileimported).
         ),
     },
 
@@ -588,12 +590,17 @@ APP_CATALOG = {
             cross_app_options=True,    # output_format/quality (models.py:307) + apply_inline_conversion (tasks.py:284)
             multi_format_download=None,  # N/A — format choisi à la GÉNÉRATION (early binding)
             status_vocab=True,         # PENDING/RUNNING/SUCCESS/FAILURE (models.py:165)
-            # KO audit 2026-07-10 : inspector=False — 0/4 sous-éléments (ni detail, ni preview, ni
-            # initFromSchema, ni _inspector_actions) = plus gros écart vs apps portées ; anti_race
-            # ABSENT (start_generation views.py:626 sans verrou ni revoke) ; filemanager_import
-            # partiel (data-wama-app présent, listener wama:fileimported absent) ; double markup
-            # card image/vidéo (index.html:533 vs 896) ; _new_item_card/_queue_toolbar/
-            # _cycle_button/layout/ProcessingTimeMixin absents ; showNotification custom + 2 alert().
+            # Passe conservatrice 2026-07-11 (suite audit §31) :
+            anti_race=True,            # begin_processing sur start_generation (verrou + revoke)
+            toast=True,                # showNotification délègue à WamaApp.toast (doublon Bootstrap
+                                       # retiré) + 3 alert() purgés
+            # KO restants : inspector=False — detail FAIT (register_app_detail, labels params.py)
+            # mais preview VOLONTAIREMENT différé (`generated_images` = JSON multi-images, choix de
+            # design au port complet) + initFromSchema/_inspector_actions absents ;
+            # filemanager_import partiel (data-wama-app sans listener) ; double markup card
+            # image/vidéo (index.html:533 vs 896) ; layout NON posé (cards Bootstrap larges,
+            # rendu mosaïque incertain — décision différée) ; _new_item_card/_queue_toolbar/
+            # _cycle_button/ProcessingTimeMixin absents.
         ),
     },
 

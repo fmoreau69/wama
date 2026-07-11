@@ -1139,3 +1139,61 @@ le worker), _new_item_card/_batch_card/_queue_toolbar/_cycle_button, modale hand
 ### 33.4 Grille au 2026-07-11 (après §31.7 + §32 + §33)
 transcriber 96 · composer 96 · describer 93 · reader 93 · converter 87 · enhancer 83 ·
 synthesizer 83 · **anonymizer 74** · imager 60 · avatarizer 55.
+
+---
+
+## 34. Passe conservatrice imager + avatarizer (2026-07-11)
+
+Consigne Fabien : « sans rien casser — si doute, ne pas implémenter ». Uniquement des ajouts
+additifs vérifiés. **imager 60 → 66 %**, **avatarizer 55 → 68 %**.
+
+### 34.1 Imager
+- **anti-race** : `start_generation` → `begin_processing` (verrou + revoke — le modèle avait
+  déjà status/task_id, drop-in propre).
+- **register_app_detail('imager')** (labels IMAGE_PARAMS/VIDEO_PARAMS selon le mode) — testé
+  bout-en-bout (200, schéma canonique). **PAS de register_app_preview** (décision différée :
+  `generated_images` = JSON multi-images, « quelle image prévisualiser » = choix de design
+  du port complet).
+- **`showNotification` délègue à `WamaApp.toast`** (le doublon Bootstrap local est retiré ;
+  types danger/success/info compatibles) + 3 alert() purgés.
+- ⚠ Incident réparé pendant la passe : un remplacement a perdu un backslash (chaîne JS
+  `l\'amélioration` cassée) — détecté immédiatement (grep du segment) et réécrit par
+  construction explicite. Vérif finale : 0 alert(), parens/braces/backticks équilibrés,
+  0 toast mal formé.
+- **NON fait (doute assumé)** : classe layout `wama-queue-*` (cards Bootstrap larges, rendu
+  mosaïque incertain) ; dédup du double markup card image/vidéo ; initFromSchema ; modale
+  WamaParams ; listener wama:fileimported.
+
+### 34.2 Avatarizer
+- **3 vues serveur globales créées** : `start_all` (begin_processing par job non terminé),
+  `clear_all` (remplace la boucle DELETE côté client ; MÊME nettoyage de fichiers que la
+  vue delete par item — audio_input/avatar_upload/output_video ; refuse si un job RUNNING),
+  `download_all` (ZIP des sorties) + URLs + boutons standards (#btn-start-all vert,
+  #btn-download-all bleu) + bindings JS (le clear-all JS appelle désormais la vue serveur).
+- **anti-race** : `start` → `begin_processing` (le statut passe RUNNING à l'acceptation,
+  comme partout — avant : PENDING posé en vue, RUNNING par le worker).
+- **register_app_preview** (aperçu = `avatar_upload`, l'identité visuelle du job) +
+  **register_app_detail** (labels params.py) — testés bout-en-bout (200 ; preview sans
+  fichier → « No file available » propre).
+- **Ordre boutons card corrigé** : ⚙ AVANT ↻ (seule app dans le mauvais ordre) + couleurs
+  outline canoniques (template + buildCard JS synchronisés) ; 21 alert() → toasts typés.
+- Vérifs : `manage.py check` 0 issue ; smoke 200 (/avatarizer/ /imager/) ; parseur toasts
+  0 mal formé.
+
+### 34.3 Grille au terme de la session (audit §31 → §34)
+| | avant audit | après |
+|---|---|---|
+| transcriber | 86 | **96** |
+| composer | 94 | **96** |
+| describer | 72 | **93** |
+| reader | 82 | **93** |
+| converter | 75 | **87** |
+| enhancer | 69 | **83** |
+| synthesizer | 63 | **83** |
+| anonymizer | 60 | **74** |
+| avatarizer | 57 | **68** |
+| imager | 63 | **66** |
+
+Prochaines marches (dans l'ordre de rendement) : port complet de la file enhancer/synthesizer
+(brief §30/§32.5) ; inspecteur imager (preview multi-images = décision design) ; anonymizer
+initFromSchema + modale WamaParams ; avatarizer briques de file.

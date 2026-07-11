@@ -215,6 +215,13 @@
     </div>
 </div>
 
+{# Boutons globaux standard (CONV §21.4) — start_all/download_all ajoutés audit 2026-07-11 #}
+<button id="btn-start-all" class="btn btn-success w-100 btn-sm mb-1">
+    <i class="fas fa-play me-1"></i> Tout démarrer
+</button>
+<button id="btn-download-all" class="btn btn-info w-100 btn-sm mb-1">
+    <i class="fas fa-download me-1"></i> Tout télécharger
+</button>
 <button id="btn-clear-all" class="btn btn-outline-danger w-100 btn-sm">
     <i class="fas fa-trash-alt me-1"></i> Vider l'historique
 </button>
@@ -415,13 +422,10 @@
 
                         <!-- Col 5 : Actions -->
                         <div class="col-2">
+                            {# Ordre + couleurs canoniques CARD_DESIGN §2 : ⚙ ▶ ⬇ ⧉ 🗑 (audit 2026-07-11) #}
                             <div class="btn-group-actions flex-wrap">
                                 {% if job.status != 'RUNNING' %}
-                                <button class="btn btn-sm btn-outline-warning btn-start-job"
-                                        data-job-id="{{ job.id }}" title="Relancer">
-                                    <i class="fas fa-redo"></i>
-                                </button>
-                                <button class="btn btn-sm btn-secondary btn-settings-job"
+                                <button class="btn btn-sm btn-outline-secondary btn-settings-job"
                                         data-job-id="{{ job.id }}"
                                         data-mode="{{ job.mode }}"
                                         data-tts-model="{{ job.tts_model }}"
@@ -433,18 +437,22 @@
                                         title="Paramètres">
                                     <i class="fas fa-cog"></i>
                                 </button>
+                                <button class="btn btn-sm btn-outline-success btn-start-job"
+                                        data-job-id="{{ job.id }}" title="Relancer">
+                                    <i class="fas fa-redo"></i>
+                                </button>
                                 {% endif %}
                                 {% if job.status == 'SUCCESS' and job.output_video %}
                                 <a href="{% url 'avatarizer:download' job.id %}"
-                                   class="btn btn-sm btn-info" title="Télécharger">
+                                   class="btn btn-sm btn-outline-info" title="Télécharger">
                                     <i class="fas fa-download"></i>
                                 </a>
                                 {% endif %}
-                                <button class="btn btn-sm btn-outline-secondary btn-duplicate-job"
+                                <button class="btn btn-sm btn-outline-warning btn-duplicate-job"
                                         data-job-id="{{ job.id }}" title="Dupliquer">
                                     <i class="fas fa-copy"></i>
                                 </button>
-                                <button class="btn btn-sm btn-danger btn-delete-job"
+                                <button class="btn btn-sm btn-outline-danger btn-delete-job"
                                         data-job-id="{{ job.id }}" title="Supprimer">
                                     <i class="fas fa-trash"></i>
                                 </button>
@@ -630,6 +638,9 @@ window.AVATARIZER_CONFIG = {
         updateOptions: "/avatarizer/update-options/",
         duplicate:     "/avatarizer/duplicate/",
         extractText:   "{% url 'avatarizer:extract_text' %}",
+        startAll:      "{% url 'avatarizer:start_all' %}",
+        clearAll:      "{% url 'avatarizer:clear_all' %}",
+        downloadAll:   "{% url 'avatarizer:download_all' %}",
         batchTemplate: "{% url 'avatarizer:batch_template' %}",
         batchPreview:  "{% url 'avatarizer:batch_preview' %}",
         batchCreate:   "{% url 'avatarizer:batch_create' %}",

@@ -17,6 +17,11 @@ urlpatterns = [
     path('duplicate/<int:pk>/', views.duplicate, name='duplicate'),
     path('extract-text/', views.extract_text, name='extract_text'),
 
+    # Vues globales de file (audit 2026-07-11 — manquaient côté serveur)
+    path('start-all/', views.start_all, name='start_all'),
+    path('clear-all/', views.clear_all, name='clear_all'),
+    path('download-all/', views.download_all, name='download_all'),
+
     # Batch — import par fichier + opérations de lot
     path('batch/template/', views.batch_template, name='batch_template'),
     path('batch/preview/', views.batch_preview, name='batch_preview'),

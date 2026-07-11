@@ -628,15 +628,16 @@ def start_generation(request, generation_id):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
 
     try:
-        generation = get_object_or_404(ImageGeneration, id=generation_id, user=user)
-
-        if generation.status == 'RUNNING':
+        # Anti-race COMMUN (atomic + select_for_update + revoke) — audit 2026-07-11
+        from wama.common.utils.process_control import begin_processing
+        generation, err = begin_processing(
+            ImageGeneration, generation_id, user=user,
+            reset={'progress': 0, 'error_message': ''},
+        )
+        if err == 'not_found':
+            return JsonResponse({'error': 'Generation not found'}, status=404)
+        if err == 'already_running':
             return JsonResponse({'error': 'Generation already running'}, status=400)
-
-        # Reset progress, error message and clear cache
-        generation.progress = 0
-        generation.error_message = ""
-        generation.save()
         cache.delete(f"imager_progress_{generation_id}")
 
         # Import tasks - use video task for video modes
@@ -648,10 +649,8 @@ def start_generation(request, generation_id):
         else:
             task = generate_image_task.delay(generation.id)
 
-        # Update status
-        generation.status = 'RUNNING'
         generation.task_id = task.id
-        generation.save()
+        generation.save(update_fields=['task_id'])
 
         logger.info(f"Started generation #{generation.id}, task_id: {task.id}")
 

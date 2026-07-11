@@ -317,10 +317,10 @@
                     textarea.dataset.originalPrompt = textarea.value;
                     textarea.value = data.enhanced;
                 } else {
-                    alert(data.error || 'Erreur lors de l\'amélioration du prompt');
+                    WamaApp.toast(data.error || 'Erreur lors de l\'amélioration du prompt', 'error');
                 }
             })
-            .catch(() => alert('Erreur réseau'))
+            .catch(() => WamaApp.toast('Erreur réseau', 'error'))
             .finally(() => {
                 icon.className = originalClass;
                 btn.disabled = false;

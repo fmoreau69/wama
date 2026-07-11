@@ -172,19 +172,22 @@ def stop(request, pk):
 def start(request, pk):
     """GET : Lance la génération d'un AvatarJob via Celery (queue gpu)."""
     user = _get_user(request)
-    job = get_object_or_404(AvatarJob, pk=pk, user=user)
 
-    if job.status == 'RUNNING':
+    # Anti-race COMMUN (atomic + select_for_update + revoke de l'ancienne tâche) —
+    # audit 2026-07-11. Le worker précise ensuite RUNNING/étapes ; statut posé RUNNING
+    # dès l'acceptation comme dans les autres apps.
+    from wama.common.utils.process_control import begin_processing
+    job, err = begin_processing(AvatarJob, pk, user=user,
+                                reset={'progress': 0, 'error_message': ''})
+    if err == 'not_found':
+        return JsonResponse({'error': 'Job introuvable.'}, status=404)
+    if err == 'already_running':
         return JsonResponse({'error': 'Job déjà en cours.'}, status=400)
 
     _ensure_workers_imported()
     task = _generate_avatar.delay(job.id)
-
-    job.status = 'PENDING'
     job.task_id = task.id
-    job.progress = 0
-    job.error_message = ''
-    job.save(update_fields=['status', 'task_id', 'progress', 'error_message'])
+    job.save(update_fields=['task_id'])
 
     return JsonResponse({'task_id': task.id, 'status': 'started'})
 
@@ -380,6 +383,73 @@ def download(request, pk):
         return response
     except FileNotFoundError:
         raise Http404("Fichier vidéo introuvable.")
+
+
+@require_POST
+def start_all(request):
+    """POST : Démarre tous les jobs non terminés (bouton global) — audit 2026-07-11."""
+    user = _get_user(request)
+    from wama.common.utils.process_control import begin_processing
+    _ensure_workers_imported()
+    started = []
+    for job in AvatarJob.objects.filter(user=user).exclude(status__in=['RUNNING', 'SUCCESS']):
+        j, err = begin_processing(AvatarJob, job.pk, user=user,
+                                  reset={'progress': 0, 'error_message': ''})
+        if err:
+            continue
+        task = _generate_avatar.delay(j.id)
+        j.task_id = task.id
+        j.save(update_fields=['task_id'])
+        started.append(j.id)
+    return JsonResponse({'started': started, 'count': len(started)})
+
+
+@require_POST
+def clear_all(request):
+    """POST : Supprime tous les jobs de l'utilisateur (vue serveur — remplace la boucle
+    DELETE côté client, audit 2026-07-11). Refuse si un job est RUNNING."""
+    user = _get_user(request)
+    jobs = AvatarJob.objects.filter(user=user)
+    if jobs.filter(status='RUNNING').exists():
+        return JsonResponse({'error': 'Un job est en cours — stoppez-le avant de tout effacer.'},
+                            status=400)
+    count = 0
+    for job in jobs:
+        # Même nettoyage de fichiers que la vue delete() par item
+        for field_name in ['audio_input', 'avatar_upload', 'output_video']:
+            f = getattr(job, field_name)
+            if f:
+                try:
+                    path = f.path
+                    if os.path.exists(path):
+                        os.remove(path)
+                except Exception:
+                    pass
+        job.delete()  # signal batch_sync : recale total / supprime le batch vidé
+        count += 1
+    return JsonResponse({'deleted': count})
+
+
+def download_all(request):
+    """GET : ZIP de toutes les vidéos générées (bouton global) — audit 2026-07-11."""
+    import io
+    import zipfile
+    user = _get_user(request)
+    jobs = (AvatarJob.objects.filter(user=user, status='SUCCESS')
+            .exclude(output_video=''))
+    if not jobs.exists():
+        return JsonResponse({'error': 'Aucune vidéo à télécharger'}, status=400)
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
+        for job in jobs:
+            try:
+                path = job.output_video.path
+                if os.path.exists(path):
+                    zf.write(path, os.path.basename(path))
+            except Exception:
+                pass
+    buf.seek(0)
+    return FileResponse(buf, as_attachment=True, filename='avatarizer_all.zip')
 
 
 @require_POST

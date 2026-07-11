@@ -129,7 +129,7 @@
         if (!file) return;
         const allowed = ['image/jpeg', 'image/png', 'image/webp'];
         if (!allowed.includes(file.type)) {
-            alert('Format non supporté. Utilisez JPG, PNG ou WebP.');
+            WamaApp.toast('Format non supporté. Utilisez JPG, PNG ou WebP.', 'error');
             return;
         }
         avatarUploadFile = file;
@@ -177,7 +177,7 @@
             const ext = (name || '').split('.').pop().toLowerCase();
             const allowedExts = ['wav', 'mp3', 'ogg', 'flac'];
             if (!allowedExts.includes(ext)) {
-                alert(`Format non supporté : .${ext}\nL'avatarizer accepte uniquement : ${allowedExts.join(', ')}`);
+                WamaApp.toast(`Format non supporté : .${ext}\nL'avatarizer accepte uniquement : ${allowedExts.join(', ')}`, 'error');
                 return;
             }
             try {
@@ -191,7 +191,7 @@
                 const standaloneTab = $('#tab-standalone');
                 if (standaloneTab) standaloneTab.click();
             } catch (err) {
-                alert('Erreur lors du chargement du fichier depuis le Filemanager : ' + err.message);
+                WamaApp.toast('Erreur lors du chargement du fichier depuis le Filemanager : ' + err.message, 'error');
             }
         });
     }
@@ -236,7 +236,7 @@
             const { path, name } = e.detail;
             const ext = (name || '').split('.').pop().toLowerCase();
             if (!TEXT_EXTS_ALL.includes(ext)) {
-                alert(`Format non supporté : .${ext}\nFormats acceptés : ${TEXT_EXTS_ALL.join(', ')}.`);
+                WamaApp.toast(`Format non supporté : .${ext}\nFormats acceptés : ${TEXT_EXTS_ALL.join(', ')}.`, 'error');
                 return;
             }
             try {
@@ -253,7 +253,7 @@
                     loadTextIntoArea(await extractTextViaServer(fd));
                 }
             } catch (err) {
-                alert('Erreur chargement fichier : ' + err.message);
+                WamaApp.toast('Erreur chargement fichier : ' + err.message, 'error');
             }
         });
 
@@ -276,7 +276,7 @@
             const file = e.dataTransfer.files[0];
             const ext = file.name.split('.').pop().toLowerCase();
             if (!TEXT_EXTS_ALL.includes(ext)) {
-                alert(`Format non supporté : .${ext}\nFormats acceptés : ${TEXT_EXTS_ALL.join(', ')}.`);
+                WamaApp.toast(`Format non supporté : .${ext}\nFormats acceptés : ${TEXT_EXTS_ALL.join(', ')}.`, 'error');
                 return;
             }
             try {
@@ -292,7 +292,7 @@
                     loadTextIntoArea(await extractTextViaServer(fd));
                 }
             } catch (err) {
-                alert('Erreur extraction : ' + err.message);
+                WamaApp.toast('Erreur extraction : ' + err.message, 'error');
             }
         });
     }
@@ -386,7 +386,7 @@
                 if (audioInput) audioInput.value = '';
 
             } catch (err) {
-                alert('Erreur : ' + err.message);
+                WamaApp.toast('Erreur : ' + err.message, 'error');
             } finally {
                 btnGenerate.innerHTML = '<i class="fas fa-play-circle me-1"></i> Générer la vidéo';
                 updateGenerateButton();
@@ -549,7 +549,7 @@
                 </div>
                 <div class="col-2">
                     <div class="btn-group-actions flex-wrap">
-                        <button class="btn btn-sm btn-secondary btn-settings-job"
+                        <button class="btn btn-sm btn-outline-secondary btn-settings-job"
                                 data-job-id="${jobId}"
                                 data-mode="${mode}"
                                 data-tts-model="${$('#tts_model') ? $('#tts_model').value : ''}"
@@ -562,7 +562,7 @@
                             <i class="fas fa-cog"></i>
                         </button>
                         ${window.WamaCycleButton ? WamaCycleButton.html('PENDING', jobId) : ''}
-                        <button class="btn btn-sm btn-danger btn-delete-job" data-job-id="${jobId}" title="Supprimer">
+                        <button class="btn btn-sm btn-outline-danger btn-delete-job" data-job-id="${jobId}" title="Supprimer">
                             <i class="fas fa-trash"></i>
                         </button>
                     </div>
@@ -595,7 +595,7 @@
                 const card = $(`.synthesis-card[data-job-id="${id}"]`);
                 if (card && (card.dataset.status || '').toUpperCase() === 'RUNNING') await stopJob(id);
                 try { await startJob(id); if (card) card.dataset.status = 'RUNNING'; startPolling(id); }
-                catch (e) { alert(e.message || 'Erreur'); }
+                catch (e) { WamaApp.toast(e.message || 'Erreur', 'error'); }
             },
             stop: (id) => stopJob(id),
         });
@@ -854,11 +854,11 @@
                     await startJob(jobId);
                     startPolling(jobId);
                 } catch (err) {
-                    alert('Erreur démarrage : ' + err.message);
+                    WamaApp.toast('Erreur démarrage : ' + err.message, 'error');
                 }
             }
         } catch (err) {
-            alert('Erreur : ' + err.message);
+            WamaApp.toast('Erreur : ' + err.message, 'error');
         }
     }
 
@@ -900,7 +900,7 @@
                         }
                     }
                 } catch (err) {
-                    alert('Erreur lors de la suppression : ' + err.message);
+                    WamaApp.toast('Erreur lors de la suppression : ' + err.message, 'error');
                 }
             });
         }
@@ -913,7 +913,7 @@
                     await startJob(jid);
                     startPolling(jid);
                 } catch (err) {
-                    alert('Erreur : ' + err.message);
+                    WamaApp.toast('Erreur : ' + err.message, 'error');
                 }
             });
         }
@@ -943,23 +943,60 @@
     // -----------------------------------------------------------------------
     // Clear all
     // -----------------------------------------------------------------------
+    // Boutons globaux serveur (audit 2026-07-11)
+    const btnStartAll = $('#btn-start-all');
+    if (btnStartAll) {
+        btnStartAll.addEventListener('click', async () => {
+            try {
+                const r = await fetch(cfg.urls.startAll, {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': csrf },
+                });
+                const data = await r.json().catch(() => ({}));
+                if (!r.ok) {
+                    WamaApp.toast(data.error || 'Démarrage impossible', 'error');
+                    return;
+                }
+                WamaApp.toast(`${data.count} job(s) démarré(s)`, 'success');
+                location.reload();
+            } catch (_) {
+                WamaApp.toast('Erreur réseau', 'error');
+            }
+        });
+    }
+
+    const btnDownloadAll = $('#btn-download-all');
+    if (btnDownloadAll) {
+        btnDownloadAll.addEventListener('click', () => {
+            window.location.href = cfg.urls.downloadAll;
+        });
+    }
+
     const btnClearAll = $('#btn-clear-all');
     if (btnClearAll) {
         btnClearAll.addEventListener('click', async () => {
             if (!confirm('Supprimer tous les jobs et leurs fichiers ?')) return;
-            const cards = $$('.synthesis-card');
-            for (const card of cards) {
-                const jid = card.dataset.jobId;
-                try {
-                    await fetch(`${cfg.urls.delete}${jid}/`, {
-                        method: 'POST',
-                        headers: { 'X-CSRFToken': csrf },
-                    });
-                    clearInterval(activePollers[jid]);
-                    delete activePollers[jid];
-                    card.remove();
-                } catch (_) {}
+            // Vue serveur commune (audit 2026-07-11) — remplace la boucle de DELETE unitaires
+            try {
+                const r = await fetch(cfg.urls.clearAll, {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': csrf },
+                });
+                const data = await r.json().catch(() => ({}));
+                if (!r.ok) {
+                    WamaApp.toast(data.error || 'Suppression impossible', 'error');
+                    return;
+                }
+            } catch (_) {
+                WamaApp.toast('Erreur réseau', 'error');
+                return;
             }
+            $$('.synthesis-card').forEach((card) => {
+                const jid = card.dataset.jobId;
+                clearInterval(activePollers[jid]);
+                delete activePollers[jid];
+                card.remove();
+            });
             if (window.WamaFM) WamaFM.deleted();  // fichiers supprimés → refresh filemanager
             const container = $('#jobs-container');
             if (container && !$('.synthesis-card')) {
@@ -1029,8 +1066,8 @@
             try {
                 const r = await postJson(`${cfg.urls.duplicate}${dupBtn.dataset.jobId}/`);
                 if (r.ok) { if (window.WamaFM) WamaFM.uploaded(); window.location.reload(); }
-                else alert('Erreur lors de la duplication.');
-            } catch (_) { alert('Erreur réseau.'); }
+                else WamaApp.toast('Erreur lors de la duplication.', 'error');
+            } catch (_) { WamaApp.toast('Erreur réseau.', 'error'); }
             return;
         }
         // ── Démarrer un lot ──
@@ -1039,8 +1076,8 @@
             e.preventDefault();
             try {
                 const r = await postJson(`${cfg.urls.batchStart}${startBtn.dataset.batchId}/start/`);
-                if (r.ok) window.location.reload(); else alert('Erreur au démarrage du lot.');
-            } catch (_) { alert('Erreur réseau.'); }
+                if (r.ok) window.location.reload(); else WamaApp.toast('Erreur au démarrage du lot.', 'error');
+            } catch (_) { WamaApp.toast('Erreur réseau.', 'error'); }
             return;
         }
         // ── Dupliquer un lot ──
@@ -1050,8 +1087,8 @@
             try {
                 const r = await postJson(`${cfg.urls.batchDuplicate}${bDup.dataset.batchId}/duplicate/`);
                 if (r.ok) { if (window.WamaFM) WamaFM.uploaded(); window.location.reload(); }
-                else alert('Erreur lors de la duplication du lot.');
-            } catch (_) { alert('Erreur réseau.'); }
+                else WamaApp.toast('Erreur lors de la duplication du lot.', 'error');
+            } catch (_) { WamaApp.toast('Erreur réseau.', 'error'); }
             return;
         }
         // ── Supprimer un lot ──
@@ -1062,8 +1099,8 @@
             try {
                 const r = await postJson(`${cfg.urls.batchDelete}${bDel.dataset.batchId}/delete/`);
                 if (r.ok) { if (window.WamaFM) WamaFM.deleted(); window.location.reload(); }
-                else alert('Erreur lors de la suppression du lot.');
-            } catch (_) { alert('Erreur réseau.'); }
+                else WamaApp.toast('Erreur lors de la suppression du lot.', 'error');
+            } catch (_) { WamaApp.toast('Erreur réseau.', 'error'); }
             return;
         }
     });
