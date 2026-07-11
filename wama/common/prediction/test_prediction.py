@@ -1,4 +1,4 @@
-"""Tests de validation du portage PROSPECT (exécuter : python -m wama.common.prospect.test_prospect)."""
+"""Tests de validation du portage Prédiction (exécuter : python -m wama.common.prediction.test_prediction)."""
 import numpy as np
 
 from . import (rect_intersect_sat, point_traj_to_shape,
@@ -61,4 +61,4 @@ if __name__ == "__main__":
     test_extrapolation()
     test_head_on_ttc()
     test_crossing_pet()
-    print("\n*** TOUS LES TESTS PROSPECT PASSENT ***")
+    print("\n*** TOUS LES TESTS Prédiction PASSENT ***")

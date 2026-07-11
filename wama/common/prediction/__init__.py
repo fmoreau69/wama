@@ -1,8 +1,8 @@
 """
-PROSPECT — indicateurs de sécurité par prédiction de trajectoire (SSM : TTC, PET).
+Prédiction — indicateurs de sécurité par prédiction de trajectoire (SSM : TTC, PET).
 
 Brique WAMA généraliste et AUTONOME (numpy pur, zéro dépendance app), portée du code
-MATLAB PROSPECT de l'utilisateur. Destinée à migrer vers `wama_data` ou à rester en
+MATLAB Prédiction de l'utilisateur. Destinée à migrer vers `wama_data` ou à rester en
 `common/` si `wama_lab` l'utilise.
 
 Pipeline :

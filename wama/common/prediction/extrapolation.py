@@ -1,5 +1,5 @@
 """
-Extrapolation de trajectoire PROSPECT : prédiction des positions futures d'un objet
+Extrapolation de trajectoire Prédiction : prédiction des positions futures d'un objet
 à partir de sa trajectoire observée.
 
 Méthodes :
@@ -28,7 +28,7 @@ def extrapolate_speed_accel(traj, n_future, dt=None, threshold_speed=0.0):
     if dt is None:
         dt = traj[-1, 0] - traj[-2, 0]
 
-    # Vitesse et accélération estimées sur les 3 derniers points (comme PROSPECT).
+    # Vitesse et accélération estimées sur les 3 derniers points (comme Prédiction).
     if m >= 3:
         p1, p2, p3 = traj[-3, 1:3], traj[-2, 1:3], traj[-1, 1:3]
         dt1 = traj[-2, 0] - traj[-3, 0]

@@ -13,7 +13,7 @@ import math
 
 from django.apps import apps
 
-from .prospect_adapter import (make_local_frame, shuttle_trajectory, pinhole_ego,
+from .prediction_adapter import (make_local_frame, shuttle_trajectory, pinhole_ego,
                                ego_to_world, _shuttle_pose_at, CLASS_DIMS)
 
 # Orientation de montage de chaque caméra (deg, sens horaire depuis l'avant véhicule).

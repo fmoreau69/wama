@@ -1,8 +1,8 @@
 """
-Géométrie PROSPECT : collision de rectangles orientés (SAT) + conversion d'une
+Géométrie Prédiction : collision de rectangles orientés (SAT) + conversion d'une
 trajectoire ponctuelle en trajectoire de rectangles orientés (empreinte au sol).
 
-Portage fidèle de RectIntersectUsingSATProspect.m et TrajConvPointToShapeProspect.m.
+Portage fidèle de RectIntersectUsingSATPrediction.m et TrajConvPointToShapePrediction.m.
 Autonome (numpy pur).
 """
 import numpy as np
@@ -41,7 +41,7 @@ def point_traj_to_shape(traj, length_m, width_m, min_speed=1e-6):
     traj      : (N, 3) — colonnes [timecode, X, Y].
     length_m  : longueur de l'objet (avant→arrière).
     width_m   : largeur de l'objet (gauche→droite).
-    Orientation = direction de la vitesse instantanée (comme PROSPECT).
+    Orientation = direction de la vitesse instantanée (comme Prédiction).
 
     Retourne : (N, 9) — [timecode, x1,y1, x2,y2, x3,y3, x4,y4] (4 coins/instant).
     """
@@ -61,7 +61,7 @@ def point_traj_to_shape(traj, length_m, width_m, min_speed=1e-6):
             last_dir = vx
         else:
             vx = last_dir           # objet ~immobile : garder la dernière orientation
-        vy = np.array([vx[1], -vx[0]])   # perpendiculaire (convention PROSPECT)
+        vy = np.array([vx[1], -vx[0]])   # perpendiculaire (convention Prédiction)
         pos = traj[i, 1:3]
         for k in range(4):
             world = pos + local[k, 0] * vx + local[k, 1] * vy

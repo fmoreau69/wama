@@ -1,10 +1,10 @@
 """
-Adaptateur cam_analyzer ↔ PROSPECT.
+Adaptateur cam_analyzer ↔ Prédiction.
 
 Reconstruit les trajectoires MONDE (repère métrique local) de la navette et des objets
-suivis, puis calcule TTC/PET navette↔objet via le cœur PROSPECT (common.prospect).
+suivis, puis calcule TTC/PET navette↔objet via le cœur Prédiction (common.prediction).
 
-Pourquoi le repère monde : PROSPECT extrapole les trajectoires ; comme la navette bouge,
+Pourquoi le repère monde : Prédiction extrapole les trajectoires ; comme la navette bouge,
 un objet à position ego constante avance en réalité → il faut le monde pour un TTC juste.
 
 Position ego de l'objet = reconstruction PINHOLE (distance_m + cap du bbox), plus fiable
@@ -14,7 +14,7 @@ import math
 
 import numpy as np
 
-from wama.common.prospect import (point_traj_to_shape, extrapolate_speed_accel,
+from wama.common.prediction import (point_traj_to_shape, extrapolate_speed_accel,
                                    extrapolate_kalman, collision_detection)
 
 # Dimensions (longueur, largeur) en m par classe pour les empreintes.
@@ -23,6 +23,16 @@ CLASS_DIMS = {
     'person': (0.6, 0.6), 'bicycle': (1.8, 0.6), 'motorcycle': (2.0, 0.8),
 }
 SHUTTLE_DIMS = (5.5, 2.1)   # navette
+
+# Orientation de montage de chaque caméra (deg, sens horaire depuis l'avant véhicule).
+CAMERA_YAW = {'front': 0.0, 'right': 90.0, 'rear': 180.0, 'left': -90.0}
+
+
+def cam_to_vehicle(lateral, longitudinal, yaw_deg):
+    """Position repère caméra → repère VÉHICULE commun (via l'orientation de la caméra)."""
+    t = math.radians(yaw_deg)
+    s, c = math.sin(t), math.cos(t)
+    return (longitudinal * s + lateral * c, longitudinal * c - lateral * s)
 
 
 def make_local_frame(gps_track):
@@ -114,62 +124,87 @@ def build_object_world_trajectory(det_rows, shuttle_traj, iw, ih, fov_v_deg=60.0
     return smooth_trajectory(np.array(pts), window=5)   # lissage anti-tremblement
 
 
-def annotate_prospect_indicators(session, position='front', method='speed_accel',
-                                 max_range_m=45.0, fov_v_deg=60.0, frame_range=None):
+def annotate_prediction_indicators(session, method='speed_accel', max_range_m=45.0,
+                                 fov_v_deg=60.0, frame_range=None):
     """
-    Calcule TTC/PET PROSPECT (navette↔objet) pour chaque détection suivie proche et les
-    stocke dans la détection (`prospect_ttc`, `prospect_pet`). Ré-annotation (pas de
-    re-détection). frame_range=(min,max) pour restreindre. Retourne le nb de détections annotées.
+    Calcule TTC/PET par PRÉDICTION de trajectoire (navette↔objet) pour chaque détection
+    suivie proche et les stocke (`prediction_ttc`/`prediction_pet`). Utilise les TRACKS GLOBAUX
+    multi-caméra (`global_track_id`, à calculer avant via annotate_global_tracks) → une
+    trajectoire CONTINUE par objet même en passant d'une caméra à l'autre = TTC/PET meilleurs.
+    Repli sur `<caméra>:<track_id>` si les tracks globaux ne sont pas encore calculés.
     """
     from collections import defaultdict
     from django.apps import apps
     DF = apps.get_model('cam_analyzer', 'DetectionFrame')
-    cam = session.cameras.filter(position=position).first()
     gt = session.gps_track or []
-    if not cam or len(gt) < 5:
+    if len(gt) < 5:
         return 0
-    fps = cam.fps or 12.0
-    scale = session.gps_time_scale or 1.0
-    off = session.gps_time_offset or 0.0
-    iw = getattr(cam, 'width', None) or 384
-    ih = getattr(cam, 'height', None) or 248
     to_local = make_local_frame(gt)
     sh_traj = shuttle_trajectory(gt, to_local)
     if len(sh_traj) < 5:
         return 0
+    cams = [c for c in session.cameras.all()
+            if c.position in CAMERA_YAW and DF.objects.filter(camera=c).exists()]
+    if not cams:
+        return 0
+    fps = cams[0].fps or 12.0
+    scale = session.gps_time_scale or 1.0
+    off = session.gps_time_offset or 0.0
 
-    qs = DF.objects.filter(camera=cam)
-    if frame_range:
-        qs = qs.filter(frame_number__gte=frame_range[0], frame_number__lte=frame_range[1])
-    by_tid, frame_objs = defaultdict(list), {}
-    for f in qs.only('frame_number', 'detections').order_by('frame_number'):
-        frame_objs[f.frame_number] = f
-        ts = f.frame_number / fps * scale + off
-        for d in (f.detections or []):
-            if d.get('class_name') in CLASS_DIMS and d.get('track_id') is not None:
-                by_tid[d['track_id']].append((ts, d, f.frame_number))
+    # Collecte par global_track_id, avec position MONDE de chaque détection (toutes caméras).
+    by_gid = defaultdict(list)   # gid -> [(ts, det, frame_obj, e, n, ego_long, class)]
+    for c in cams:
+        iw = getattr(c, 'width', None) or 384
+        ih = getattr(c, 'height', None) or 248
+        q = DF.objects.filter(camera=c)
+        if frame_range:
+            q = q.filter(frame_number__gte=frame_range[0], frame_number__lte=frame_range[1])
+        for f in q.only('frame_number', 'detections').order_by('frame_number'):
+            ts = f.frame_number / fps * scale + off
+            se, sn, sh = _shuttle_pose_at(sh_traj, ts)
+            for d in (f.detections or []):
+                if d.get('class_name') not in CLASS_DIMS:
+                    continue
+                gid = d.get('global_track_id')
+                if gid is None:
+                    if d.get('track_id') is None:
+                        continue
+                    gid = c.position + ':' + str(d['track_id'])
+                ego = pinhole_ego(d, iw, ih, fov_v_deg)
+                if ego is None:
+                    continue
+                xv, yv = cam_to_vehicle(ego[0], ego[1], CAMERA_YAW[c.position])
+                e, n = ego_to_world(se, sn, sh, xv, yv)
+                by_gid[gid].append((ts, d, f, e, n, ego[1], d.get('class_name', 'car')))
 
     count, dirty = 0, set()
-    for tid, rows in by_tid.items():
+    for gid, rows in by_gid.items():
         rows.sort(key=lambda r: r[0])
-        obj_traj = build_object_world_trajectory([(ts, d) for ts, d, _ in rows], sh_traj, iw, ih, fov_v_deg)
-        if obj_traj is None:
+        # Trajectoire monde continue ; dédupliquer les ts identiques (2 caméras) par moyenne.
+        agg = {}
+        for ts, _, _, e, n, _, _ in rows:
+            pe, pn, k = agg.get(ts, (0.0, 0.0, 0))
+            agg[ts] = (pe + e, pn + n, k + 1)
+        ts_sorted = sorted(agg)
+        if len(ts_sorted) < 3:
             continue
-        cls = rows[0][1].get('class_name', 'car')
-        for ts, d, fn in rows:
-            ego = pinhole_ego(d, iw, ih, fov_v_deg)
-            if ego is None or ego[1] > max_range_m:
+        obj_traj = smooth_trajectory(
+            np.array([[t, agg[t][0] / agg[t][2], agg[t][1] / agg[t][2]] for t in ts_sorted]), window=5)
+        cls = rows[0][6]
+        for ts, d, f, e, n, ego_long, _ in rows:
+            if ego_long > max_range_m:
                 continue
             r = ttc_pet_shuttle_object(sh_traj, obj_traj, ts, method=method, class_name=cls)
+            changed = False
             if r['ttc'] is not None:
-                d['prospect_ttc'] = round(r['ttc'], 2)
+                d['prediction_ttc'] = round(r['ttc'], 2); changed = True
             if r['pet'] is not None:
-                d['prospect_pet'] = round(r['pet'], 2)
-            if r['ttc'] is not None or r['pet'] is not None:
-                dirty.add(fn)
+                d['prediction_pet'] = round(r['pet'], 2); changed = True
+            if changed:
+                dirty.add(f)
                 count += 1
-    for fn in dirty:
-        frame_objs[fn].save(update_fields=['detections'])
+    for f in dirty:
+        f.save(update_fields=['detections'])
     return count
 
 

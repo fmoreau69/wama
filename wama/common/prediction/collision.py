@@ -1,5 +1,5 @@
 """
-Détection de collision PROSPECT entre deux trajectoires de rectangles orientés →
+Détection de collision Prédiction entre deux trajectoires de rectangles orientés →
 TTC (Time To Collision) et PET (Post-Encroachment Time).
 
 Portage de CollisionDetection.m :

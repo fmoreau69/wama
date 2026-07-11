@@ -1885,18 +1885,18 @@ def _free_memory_before_sam3(user_id=None):
 
 
 @shared_task(bind=True)
-def annotate_prospect_task(self, session_id: str):
-    """Calcule les indicateurs PROSPECT (TTC/PET par trajectoire) pour la session et les
-    stocke sur les détections (prospect_ttc/pet). Ré-annotation, pas de re-détection."""
+def annotate_prediction_task(self, session_id: str):
+    """Calcule les indicateurs Prédiction (TTC/PET par trajectoire) pour la session et les
+    stocke sur les détections (prediction_ttc/pet). Ré-annotation, pas de re-détection."""
     from .models import AnalysisSession
-    from .utils.prospect_adapter import annotate_prospect_indicators
+    from .utils.prediction_adapter import annotate_prediction_indicators
     from .utils.multicam_tracker import annotate_global_tracks
     session = AnalysisSession.objects.get(pk=session_id)
     # 1) Tracks globaux multi-caméra (rapide) → continuité 360° + hand-off.
     ng = annotate_global_tracks(session)
     _console(session.user_id, f"Tracking multi-caméra : {ng} tracks globaux (hand-off inter-caméras).")
     # 2) Prédiction TTC/PET par trajectoire.
-    n = annotate_prospect_indicators(session)
+    n = annotate_prediction_indicators(session)
     _console(session.user_id, f"Prédiction : {n} détections annotées (TTC/PET par trajectoire).")
     return {'session': session_id, 'global_tracks': ng, 'annotated': n}
 

@@ -362,12 +362,12 @@ def sync_from_rec(request, session_id):
 
 @login_required
 @require_http_methods(["POST"])
-def prospect_annotate(request, session_id):
-    """Lance (en tâche de fond) le calcul des indicateurs PROSPECT (TTC/PET par
-    trajectoire) pour la session → stockés sur les détections (prospect_ttc/pet)."""
+def prediction_annotate(request, session_id):
+    """Lance (en tâche de fond) le calcul des indicateurs Prédiction (TTC/PET par
+    trajectoire) pour la session → stockés sur les détections (prediction_ttc/pet)."""
     session = get_object_or_404(AnalysisSession, id=session_id, user=request.user)
-    from .tasks import annotate_prospect_task
-    annotate_prospect_task.delay(str(session.id))
+    from .tasks import annotate_prediction_task
+    annotate_prediction_task.delay(str(session.id))
     return JsonResponse({'success': True})
 
 

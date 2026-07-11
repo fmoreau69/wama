@@ -53,7 +53,7 @@ document.addEventListener('DOMContentLoaded', function () {
     let laneWidthM = 3.5;            // largeur de voie (m) pour le gabarit vue de dessus
     let miniMapLaneLayer = null;     // calque du gabarit de voie
     let topDown360 = false;          // fusion multi-caméra dans le repère véhicule (toggle)
-    let useProspect = false;         // coloration PROSPECT (trajectoire) vs ttc_s naïf (toggle)
+    let usePrediction = false;         // coloration Prédiction (trajectoire) vs ttc_s naïf (toggle)
     // Orientation de montage de chaque caméra (deg, sens horaire depuis l'avant véhicule).
     // Rig 360° ~90° ; ajustable ensuite (les caméras ne sont pas exactement à 90°).
     const CAMERA_YAW = { front: 0, right: 90, rear: 180, left: -90 };
@@ -2243,8 +2243,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Couleur en paliers selon TTC (sinon distance) : vert/orange/rouge.
     function ttcColor(det) {
-        // Mode PROSPECT (trajectoire) vs naïf (ttc_s par frame) — togglable pour comparer.
-        const ttc = useProspect ? det.prospect_ttc : det.ttc_s;
+        // Mode Prédiction (trajectoire) vs naïf (ttc_s par frame) — togglable pour comparer.
+        const ttc = usePrediction ? det.prediction_ttc : det.ttc_s;
         if (ttc != null && ttc >= 0) return ttc < 2 ? '#dc3545' : (ttc < 4 ? '#fd7e14' : '#28a745');
         const d = det.dist_euclid_m;
         if (d != null) return d < 5 ? '#dc3545' : (d < 12 ? '#fd7e14' : '#28a745');
@@ -4008,25 +4008,25 @@ document.addEventListener('DOMContentLoaded', function () {
         wire('sam3TestBtn', () => runSam3Test(false));
         wire('sam3CalibBtn', () => runSam3Test(true));
         wire('copyDebugBtn', copyDebugInfo);
-        // Bascule coloration PROSPECT (trajectoire) ↔ naïf (ttc_s) pour comparer.
-        const _pb = document.getElementById('prospectBtn');
+        // Bascule coloration Prédiction (trajectoire) ↔ naïf (ttc_s) pour comparer.
+        const _pb = document.getElementById('predictionBtn');
         if (_pb) _pb.onclick = () => {
-            useProspect = !useProspect;
-            _pb.classList.toggle('btn-danger', useProspect);
-            _pb.classList.toggle('btn-outline-danger', !useProspect);
+            usePrediction = !usePrediction;
+            _pb.classList.toggle('btn-danger', usePrediction);
+            _pb.classList.toggle('btn-outline-danger', !usePrediction);
             if (typeof currentTime === 'number') {
                 topDownLastRender = -999;
                 updateMiniMapShuttle(currentTime);
                 updateDetectionOverlay(currentTime);
             }
         };
-        // Lancer le calcul PROSPECT (tâche de fond) pour la session.
-        const _pcb = document.getElementById('prospectCalcBtn');
+        // Lancer le calcul Prédiction (tâche de fond) pour la session.
+        const _pcb = document.getElementById('predictionCalcBtn');
         if (_pcb) _pcb.onclick = async () => {
             if (!currentSessionId) return;
             const _t0 = _pcb.innerHTML; _pcb.disabled = true; _pcb.innerHTML = '⏳';
             try {
-                const r = await fetch(`${config.urls.deleteSession}${currentSessionId}/prospect/`,
+                const r = await fetch(`${config.urls.deleteSession}${currentSessionId}/prediction/`,
                     { method: 'POST', headers: { 'X-CSRFToken': config.csrfToken } });
                 const d = await r.json();
                 alert(d.success ? 'Calcul de prédiction lancé en tâche de fond. Recharge la session dans quelques minutes puis active le mode Prédiction.'
