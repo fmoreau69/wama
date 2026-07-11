@@ -4020,8 +4020,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 const r = await fetch(`${config.urls.deleteSession}${currentSessionId}/prospect/`,
                     { method: 'POST', headers: { 'X-CSRFToken': config.csrfToken } });
                 const d = await r.json();
-                alert(d.success ? 'PROSPECT lancé en tâche de fond. Recharge la session dans quelques minutes puis active le mode PROSPECT.'
-                                : 'PROSPECT : ' + (d.error || '?'));
+                alert(d.success ? 'Calcul de prédiction lancé en tâche de fond. Recharge la session dans quelques minutes puis active le mode Prédiction.'
+                                : 'Prédiction : ' + (d.error || '?'));
             } catch (e) { alert('Échec : ' + e.message); }
             finally { _pcb.disabled = false; _pcb.innerHTML = _t0; }
         };
