@@ -1885,6 +1885,18 @@ def _free_memory_before_sam3(user_id=None):
 
 
 @shared_task(bind=True)
+def annotate_prospect_task(self, session_id: str):
+    """Calcule les indicateurs PROSPECT (TTC/PET par trajectoire) pour la session et les
+    stocke sur les détections (prospect_ttc/pet). Ré-annotation, pas de re-détection."""
+    from .models import AnalysisSession
+    from .utils.prospect_adapter import annotate_prospect_indicators
+    session = AnalysisSession.objects.get(pk=session_id)
+    n = annotate_prospect_indicators(session)
+    _console(session.user_id, f"PROSPECT : {n} détections annotées (TTC/PET par trajectoire).")
+    return {'session': session_id, 'annotated': n}
+
+
+@shared_task(bind=True)
 def sam3_test_frame_task(self, session_id: str, position: str, frame_number: int,
                          min_confidence: float = 0.0, calibrate: bool = False):
     """

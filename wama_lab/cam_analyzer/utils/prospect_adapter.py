@@ -111,7 +111,80 @@ def build_object_world_trajectory(det_rows, shuttle_traj, iw, ih, fov_v_deg=60.0
         pts.append((ts, e, n))
     if len(pts) < 3:
         return None
-    return np.array(pts)
+    return smooth_trajectory(np.array(pts), window=5)   # lissage anti-tremblement
+
+
+def annotate_prospect_indicators(session, position='front', method='speed_accel',
+                                 max_range_m=45.0, fov_v_deg=60.0, frame_range=None):
+    """
+    Calcule TTC/PET PROSPECT (navette↔objet) pour chaque détection suivie proche et les
+    stocke dans la détection (`prospect_ttc`, `prospect_pet`). Ré-annotation (pas de
+    re-détection). frame_range=(min,max) pour restreindre. Retourne le nb de détections annotées.
+    """
+    from collections import defaultdict
+    from django.apps import apps
+    DF = apps.get_model('cam_analyzer', 'DetectionFrame')
+    cam = session.cameras.filter(position=position).first()
+    gt = session.gps_track or []
+    if not cam or len(gt) < 5:
+        return 0
+    fps = cam.fps or 12.0
+    scale = session.gps_time_scale or 1.0
+    off = session.gps_time_offset or 0.0
+    iw = getattr(cam, 'width', None) or 384
+    ih = getattr(cam, 'height', None) or 248
+    to_local = make_local_frame(gt)
+    sh_traj = shuttle_trajectory(gt, to_local)
+    if len(sh_traj) < 5:
+        return 0
+
+    qs = DF.objects.filter(camera=cam)
+    if frame_range:
+        qs = qs.filter(frame_number__gte=frame_range[0], frame_number__lte=frame_range[1])
+    by_tid, frame_objs = defaultdict(list), {}
+    for f in qs.only('frame_number', 'detections').order_by('frame_number'):
+        frame_objs[f.frame_number] = f
+        ts = f.frame_number / fps * scale + off
+        for d in (f.detections or []):
+            if d.get('class_name') in CLASS_DIMS and d.get('track_id') is not None:
+                by_tid[d['track_id']].append((ts, d, f.frame_number))
+
+    count, dirty = 0, set()
+    for tid, rows in by_tid.items():
+        rows.sort(key=lambda r: r[0])
+        obj_traj = build_object_world_trajectory([(ts, d) for ts, d, _ in rows], sh_traj, iw, ih, fov_v_deg)
+        if obj_traj is None:
+            continue
+        cls = rows[0][1].get('class_name', 'car')
+        for ts, d, fn in rows:
+            ego = pinhole_ego(d, iw, ih, fov_v_deg)
+            if ego is None or ego[1] > max_range_m:
+                continue
+            r = ttc_pet_shuttle_object(sh_traj, obj_traj, ts, method=method, class_name=cls)
+            if r['ttc'] is not None:
+                d['prospect_ttc'] = round(r['ttc'], 2)
+            if r['pet'] is not None:
+                d['prospect_pet'] = round(r['pet'], 2)
+            if r['ttc'] is not None or r['pet'] is not None:
+                dirty.add(fn)
+                count += 1
+    for fn in dirty:
+        frame_objs[fn].save(update_fields=['detections'])
+    return count
+
+
+def smooth_trajectory(traj, window=5):
+    """Moyenne glissante sur les positions (réduit le tremblement GPS/pinhole)."""
+    traj = np.asarray(traj, dtype=float)
+    if len(traj) < window or window < 2:
+        return traj
+    out = traj.copy()
+    k = window // 2
+    for i in range(len(traj)):
+        lo, hi = max(0, i - k), min(len(traj), i + k + 1)
+        out[i, 1] = traj[lo:hi, 1].mean()
+        out[i, 2] = traj[lo:hi, 2].mean()
+    return out
 
 
 def ttc_pet_shuttle_object(shuttle_traj, obj_traj, t0, horizon_s=5.0,

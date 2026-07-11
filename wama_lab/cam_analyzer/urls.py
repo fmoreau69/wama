@@ -19,6 +19,7 @@ urlpatterns = [
     path('api/sessions/<uuid:session_id>/update/', views.update_session, name='update_session'),
     path('api/sessions/<uuid:session_id>/gps-offset/', views.set_gps_offset, name='set_gps_offset'),
     path('api/sessions/<uuid:session_id>/sync-rec/', views.sync_from_rec, name='sync_from_rec'),
+    path('api/sessions/<uuid:session_id>/prospect/', views.prospect_annotate, name='prospect_annotate'),
 
     # Camera management
     path('api/sessions/<uuid:session_id>/cameras/upload/', views.upload_camera, name='upload_camera'),
