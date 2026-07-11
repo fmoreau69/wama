@@ -2313,22 +2313,23 @@ document.addEventListener('DOMContentLoaded', function () {
             acc = 0;
             for (let i = lo - 1; i >= 0 && acc < 50; i--) { acc += _distM(cachedGpsTrack[i + 1], cachedGpsTrack[i]); _win.unshift(cachedGpsTrack[i]); }
         }
-        // OPTION 1 (traits pleins) : aligné sur la trajectoire → suit la courbe réelle.
+        // Gabarit aligné sur la trajectoire GPS → suit la courbe réelle de la route.
+        // Cap lissé par petite fenêtre glissante (±2 pts, moyenne circulaire) pour absorber
+        // le tremblement GPS sans perdre la courbe.
         if (_win.length >= 2) {
+            const _sm = _win.map((p, i) => {
+                let cx = 0, cy = 0;
+                for (let k = Math.max(0, i - 2); k <= Math.min(_win.length - 1, i + 2); k++) {
+                    const h = _win[k].heading;
+                    if (h != null) { cx += Math.cos(h * Math.PI / 180); cy += Math.sin(h * Math.PI / 180); }
+                }
+                return { lat: p.lat, lon: p.lon, h: (cx || cy) ? Math.atan2(cy, cx) * 180 / Math.PI : p.heading };
+            }).filter(p => p.h != null);
             _edges.forEach(e => {
-                const pts = _win.filter(p => p.heading != null).map(p => egoToLatLon(p.lat, p.lon, p.heading, e.x, 0));
+                const pts = _sm.map(p => egoToLatLon(p.lat, p.lon, p.h, e.x, 0));
                 if (pts.length >= 2) L.polyline(pts, { color: e.c, weight: 1.5, opacity: 0.85, dashArray: e.d }).addTo(miniMapLaneLayer);
             });
         }
-        // OPTION 2 (pointillés fins atténués) : droit le long du cap LISSÉ, ±25 m → confrontation.
-        let _sh = pose.heading, _sx = 0, _sy = 0;
-        _win.forEach(p => { if (p.heading != null) { _sx += Math.cos(p.heading * Math.PI / 180); _sy += Math.sin(p.heading * Math.PI / 180); } });
-        if (_sx || _sy) _sh = Math.atan2(_sy, _sx) * 180 / Math.PI;
-        _edges.forEach(e => {
-            const pts = [];
-            for (let y = -25; y <= 25; y += 5) pts.push(egoToLatLon(pose.lat, pose.lon, _sh, e.x, y));
-            L.polyline(pts, { color: e.c, weight: 1, opacity: 0.35, dashArray: '2,6' }).addTo(miniMapLaneLayer);
-        });
 
         // Objets : mode "avant seul" (existant) OU "fusion 360°" (toutes les caméras
         // ramenées dans le repère VÉHICULE via l'orientation de chaque caméra). Togglable
