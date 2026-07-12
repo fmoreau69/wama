@@ -100,6 +100,21 @@ def api_run_options(request):
     listes dynamiques (galerie d'avatars)."""
     from .services.runners import RUNNERS
     specs = {app: r['params_spec'] for app, r in RUNNERS.items()}
+    # Nœuds intégrés (cards d'entrée / de sortie) — configurables dans l'inspecteur
+    specs['text_input'] = [
+        {'name': 'text', 'label': 'Texte', 'type': 'textarea',
+         'placeholder': 'Texte / prompt envoyé au nœud aval…'},
+    ]
+    specs['media_import'] = [
+        {'name': 'asset_path', 'label': 'Média (médiathèque)', 'type': 'media_picker'},
+    ]
+    specs['studio_output'] = [
+        {'name': 'asset_name', 'label': 'Nom dans la médiathèque', 'type': 'text',
+         'placeholder': '(défaut : nom du fichier produit)'},
+        {'name': 'asset_type', 'label': "Type d'asset", 'type': 'select',
+         'options': ['video', 'image', 'voice', 'audio_music', 'audio_sfx', 'document'],
+         'default': 'video'},
+    ]
     # Galerie d'avatars (même source que l'app avatarizer : media/avatarizer/gallery/)
     import os
     from django.conf import settings
@@ -128,15 +143,21 @@ def api_run(request):
         topo_order(graph)
     except ValueError as exc:
         return JsonResponse({'error': str(exc)}, status=400)
+    from .tasks import SOURCE_HANDLERS
     links = graph.get('links', [])
+
+    def _executable(app):
+        return runner_for(app) is not None or app in SOURCE_HANDLERS or app == 'studio_output'
+
     for n in nodes:
-        if runner_for(n['app']) is None and any(l['to'] == n['id'] for l in links):
+        if not _executable(n['app']) and any(l['to'] == n['id'] for l in links):
             return JsonResponse(
-                {'error': f"Nœud « {n['app']} » : app non exécutable dans un pipeline (V1 : "
-                          f"synthesizer, avatarizer)."}, status=400)
+                {'error': f"Nœud « {n['app']} » : app non exécutable dans un pipeline "
+                          f"(V1 : synthesizer, avatarizer, converter + nœuds Texte/Médiathèque/Sortie)."},
+                status=400)
     if not any(runner_for(n['app']) for n in nodes):
-        return JsonResponse({'error': 'Aucun nœud exécutable dans le graphe (V1 : synthesizer, avatarizer).'},
-                            status=400)
+        return JsonResponse({'error': 'Aucun nœud-app exécutable dans le graphe '
+                                      '(V1 : synthesizer, avatarizer, converter).'}, status=400)
     run = StudioRun.objects.create(user=request.user, graph=graph,
                                    pipeline_id=data.get('pipeline_id') or None)
     task = run_pipeline_task.delay(run.pk)

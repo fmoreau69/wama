@@ -1319,3 +1319,27 @@ décision §36 : le pipeline texte→TTS→avatar EST une composition studio).
 - Chaîne = graphe acyclique quelconque mais UNE valeur par type de port en entrée ;
   pas de fan-out parallèle (exécution séquentielle).
 - Les sorties restent dans les files des apps (pas encore de dossier studio dédié).
+
+### 37.5 Cards d'entrée / de sortie + inspecteur complet (2026-07-12)
+Réponse au manque pointé par Fabien (« cards d'entrées de tous les types + médiathèque,
+inspecteur fonctionnel, cards de sorties ») :
+- **Nœud « Texte »** (source exécutable) : texte/prompt saisi dans l'inspecteur → port
+  `prompt` (consommé par synthesizer ; demain imager/composer).
+- **Nœud « Médias importés »** : désormais CONFIGURABLE — bouton « Choisir dans la
+  médiathèque » (MediaPicker COMMUN) dans l'inspecteur ; catégorie du média résolue
+  côté serveur (extensions app_registry) → typage de port correct à l'exécution.
+- **Nœud « Sortie »** (terminal, sans port aval) : range le résultat final dans la
+  MÉDIATHÈQUE — UserAsset RÉEL (fichier copié dans son stockage, nom dédoublonné,
+  mime via mime_utils commun), nom + type d'asset configurables dans l'inspecteur.
+- **Runner converter** ajouté (3e app exécutable) : « configurer le FORMAT de sortie »
+  = chaîner un nœud converter (format + qualité dans l'inspecteur) ; type de port
+  produit résolu dynamiquement du format demandé (`output_type_fn`).
+- **Inspecteur = configurateur pour TOUS les nœuds** : specs servies par
+  `/studio/api/run-options/` (runners + nœuds intégrés), rendu générique
+  (textarea/select/text/media_picker).
+- Testé à blanc de bout en bout : Texte → synthesizer(mock) → avatarizer(mock, fichier
+  réel) → Sortie → **UserAsset créé dans la vraie médiathèque** (chemin
+  media_library/<user>/assets/), texte bien reçu en amont, states par nœud corrects.
+- Reste connu : prompt_batch (source multi-prompts) non exécutable (attend le runner
+  imager + la sémantique batch dans un pipeline) ; sorties texte (futurs runners
+  transcriber/describer) : le sink attend un fichier — à traiter avec ces runners.

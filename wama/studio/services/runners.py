@@ -99,6 +99,52 @@ def _avatarizer_poll(user, item_id):
     }
 
 
+# ── converter : média → média (changement de FORMAT — « configurer la sortie ») ──
+
+def _category_of_path(path):
+    """Catégorie WAMA ('audio'|'video'|'image'|'document') d'un chemin, via app_registry."""
+    import os
+    from wama.common import app_registry as AR
+    ext = os.path.splitext(path)[1].lower()
+    for cat, exts in (('audio', AR.AUDIO_EXTENSIONS), ('video', AR.VIDEO_EXTENSIONS),
+                      ('image', AR.IMAGE_EXTENSIONS), ('document', AR.DOCUMENT_EXTENSIONS)):
+        if ext in exts:
+            return cat
+    return 'document'
+
+
+def _converter_create(user, inputs, params):
+    from wama import tool_api
+    src_path = (inputs.get('audio') or inputs.get('video') or inputs.get('image')
+                or inputs.get('document') or '')
+    if not src_path:
+        raise ValueError("Nœud converter : aucune entrée média (connectez une sortie).")
+    fmt = (params.get('output_format') or '').strip().lstrip('.').lower()
+    if not fmt:
+        raise ValueError("Nœud converter : renseignez le paramètre « Format de sortie ».")
+    res = tool_api.convert_file(user, src_path, fmt,
+                                quality_preset=params.get('quality_preset', 'balanced'))
+    if 'error' in res:
+        raise ValueError(f"converter : {res['error']}")
+    return res['job_id']
+
+
+def _converter_start(user, item_id):
+    # convert_file dispatche déjà la tâche Celery (status RUNNING au retour) — rien à faire.
+    pass
+
+
+def _converter_poll(user, item_id):
+    from wama.converter.models import ConversionJob
+    j = ConversionJob.objects.get(pk=item_id, user=user)
+    return {
+        'status': j.status,
+        'progress': j.progress or 0,
+        'output': (j.output_file.name if j.output_file else ''),
+        'error': j.error_message or '',
+    }
+
+
 # ── Registre ───────────────────────────────────────────────────────────────────
 # output_type : type de port produit (pour router la sortie vers le bon port aval).
 # params_spec : déclaration des réglages de nœud (rendus par le canvas — métadonnée-driven).
@@ -115,6 +161,19 @@ RUNNERS = {
              'options': ['fr', 'en', 'es', 'de'], 'default': 'fr'},
             {'name': 'voice_preset', 'label': 'Voix', 'type': 'select',
              'options': ['default', 'male_1', 'male_2', 'female_1', 'female_2'], 'default': 'default'},
+        ],
+    },
+    'converter': {
+        'create': _converter_create,
+        'start': _converter_start,
+        'poll': _converter_poll,
+        # le type produit dépend du format demandé → résolu par output_type_fn(params)
+        'output_type_fn': lambda params: _category_of_path('x.' + (params.get('output_format') or 'mp4')),
+        'params_spec': [
+            {'name': 'output_format', 'label': 'Format de sortie', 'type': 'text',
+             'placeholder': 'mp3, wav, mp4, webm, png, pdf…'},
+            {'name': 'quality_preset', 'label': 'Qualité', 'type': 'select',
+             'options': ['fast', 'balanced', 'high'], 'default': 'balanced'},
         ],
     },
     'avatarizer': {

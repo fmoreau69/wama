@@ -19,6 +19,11 @@
     // Nœuds-SOURCE intégrés (pas des apps) : produisent une sortie typée, sans entrée.
     // 1er maillon de la chaîne vidéo : un batch de prompts → port prompt de l'Imager.
     var BUILTINS = {
+        text_input: {
+            label: 'Texte', icon: 'fas fa-keyboard', color: '#f7c46c',
+            description: "Source : un texte / prompt saisi dans les paramètres du nœud (inspecteur).",
+            inputs: [], output: { label: 'Texte', types: ['prompt', 'text'] }, builtin: true,
+        },
         prompt_batch: {
             label: 'Batch de prompts', icon: 'fas fa-list-ul', color: '#c4a7fb',
             description: "Source : une liste de prompts à envoyer à une app génératrice (ex. Imager vidéo).",
@@ -28,6 +33,12 @@
             label: 'Médias importés', icon: 'fas fa-photo-film', color: '#6ee7a8',
             description: "Source : vos médias existants (image/vidéo/audio) injectés dans le pipeline.",
             inputs: [], output: { label: 'Médias', types: ['image', 'video', 'audio'] }, builtin: true,
+        },
+        studio_output: {
+            label: 'Sortie', icon: 'fas fa-flag-checkered', color: '#e78fb3',
+            description: "Range le résultat final dans la MÉDIATHÈQUE (nom + type configurables dans l'inspecteur).",
+            inputs: [{ label: 'Média final', types: ['image', 'video', 'audio', 'document', 'text'], group: 'travail' }],
+            output: false, builtin: true,
         },
     };
 
@@ -111,9 +122,11 @@
         (a.inputs || []).forEach(function (p) {
             inCol.appendChild(portEl('in', p.types, p.label, p.group || 'travail'));
         });
-        // Sortie : types produits.
-        var out = a.output || { label: 'Sortie', types: [] };
-        outCol.appendChild(portEl('out', out.types, out.label, 'out'));
+        // Sortie : types produits (output === false → nœud TERMINAL, pas de port).
+        if (a.output !== false) {
+            var out = a.output || { label: 'Sortie', types: [] };
+            outCol.appendChild(portEl('out', out.types, out.label, 'out'));
+        }
         ports.appendChild(inCol);
         ports.appendChild(outCol);
         box.appendChild(ports);
@@ -330,6 +343,26 @@
                     var op = el('option'); op.value = o; op.textContent = o;
                     input.appendChild(op);
                 });
+            } else if (p.type === 'media_picker') {
+                // Bouton Médiathèque (MediaPicker commun) → stocke le chemin + la catégorie du média.
+                input = el('button', 'btn btn-sm btn-outline-info w-100');
+                input.type = 'button';
+                var chosen = node.params.asset_name_display || '';
+                input.innerHTML = '<i class="fas fa-photo-film me-1"></i>' +
+                    (chosen ? chosen : 'Choisir dans la médiathèque…');
+                input.addEventListener('click', function () {
+                    if (!window.MediaPicker) { toast('Médiathèque indisponible sur cette page.', 'error'); return; }
+                    MediaPicker.open({ type: 'all', onSelect: function (file, asset) {
+                        if (!asset) return;
+                        var url = asset.file_url || '';
+                        node.params.asset_path = url.replace(/^\/?media\//, '');
+                        node.params.asset_name_display = asset.name || url.split('/').pop();
+                        input.innerHTML = '<i class="fas fa-photo-film me-1"></i>' + node.params.asset_name_display;
+                    } });
+                });
+                field.appendChild(input);
+                wrap.appendChild(field);
+                return;   // pas de câblage value/input générique pour ce type
             } else {
                 input = el('input', 'form-control form-control-sm bg-dark text-light border-secondary');
             }

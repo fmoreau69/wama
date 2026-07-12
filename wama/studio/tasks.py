@@ -46,6 +46,64 @@ def topo_order(graph):
     return [nodes[nid] for nid in order]
 
 
+# ── Nœuds SOURCE (cards d'entrée) : produisent une valeur depuis leurs params ──
+def _source_text(user, params):
+    text = (params.get('text') or '').strip()
+    if not text:
+        raise ValueError("Nœud « Texte » : renseignez le texte dans les paramètres du nœud.")
+    return 'prompt', text
+
+
+def _source_media(user, params):
+    import os
+    from django.conf import settings
+    rel = (params.get('asset_path') or '').strip().lstrip('/')
+    if rel.startswith('media/'):
+        rel = rel[len('media/'):]
+    if not rel:
+        raise ValueError("Nœud « Médiathèque » : choisissez un média dans les paramètres du nœud.")
+    if not os.path.exists(os.path.join(settings.MEDIA_ROOT, rel)):
+        raise ValueError(f"Nœud « Médiathèque » : fichier introuvable ({rel}).")
+    from wama.studio.services.runners import _category_of_path
+    return (params.get('asset_category') or _category_of_path(rel)), rel
+
+
+SOURCE_HANDLERS = {
+    'text_input': _source_text,
+    'media_import': _source_media,
+}
+
+
+# ── Nœud de SORTIE (card de sortie) : range le résultat final ──
+def _sink_media_library(user, value, params):
+    """Copie la sortie dans la MÉDIATHÈQUE (UserAsset) — fichier DUPLIQUÉ (la sortie
+    d'app reste dans sa file ; l'asset est autonome, supprimable indépendamment)."""
+    import os
+    from django.conf import settings
+    from django.core.files import File
+    from wama.common.utils.mime_utils import guess_mime_type
+    from wama.media_library.models import UserAsset
+    src_abs = os.path.join(settings.MEDIA_ROOT, value)
+    if not os.path.exists(src_abs):
+        raise ValueError(f"Nœud « Sortie » : fichier à ranger introuvable ({value}).")
+    asset_type = params.get('asset_type') or 'video'
+    base = (params.get('asset_name') or '').strip() or os.path.splitext(os.path.basename(value))[0]
+    name, k = base, 2
+    while UserAsset.objects.filter(user=user, name=name, asset_type=asset_type).exists():
+        name = f"{base} ({k})"
+        k += 1
+    asset = UserAsset(user=user, name=name, asset_type=asset_type,
+                      mime_type=guess_mime_type(value) or '')
+    with open(src_abs, 'rb') as fh:
+        asset.file.save(os.path.basename(value), File(fh), save=False)
+    try:
+        asset.file_size = asset.file.size
+    except Exception:
+        pass
+    asset.save()
+    return f"médiathèque : « {name} » ({asset_type})"
+
+
 @shared_task(bind=True)
 def run_pipeline_task(self, run_id):
     from django.contrib.auth import get_user_model
@@ -74,10 +132,30 @@ def run_pipeline_task(self, run_id):
 
         for node in order:
             nid, app = node['id'], node['app']
+
+            # Nœud SOURCE (card d'entrée) : produit sa valeur depuis ses params.
+            if app in SOURCE_HANDLERS:
+                _save_state(nid, status='RUNNING')
+                out_type, value = SOURCE_HANDLERS[app](user, node.get('params') or {})
+                outputs[nid] = {'type': out_type, 'value': value}
+                _save_state(nid, status='SUCCESS', output=value)
+                continue
+
+            # Nœud de SORTIE (card de sortie) : range la valeur reçue de l'amont.
+            if app == 'studio_output':
+                _save_state(nid, status='RUNNING')
+                incoming = [outputs[l['from']] for l in links
+                            if l['to'] == nid and l['from'] in outputs]
+                if not incoming:
+                    raise ValueError("Nœud « Sortie » : aucune entrée reçue (connectez un nœud amont).")
+                note = _sink_media_library(user, incoming[0]['value'], node.get('params') or {})
+                _save_state(nid, status='SUCCESS', output=note)
+                _console(user.id, f"Studio run #{run.pk} : sortie rangée — {note}")
+                continue
+
             runner = runner_for(app)
             if runner is None:
-                # Nœud-source intégré ou app non exécutable : toléré s'il n'a PAS d'amont
-                # (V1 : ses aval liront leurs params) — sinon erreur claire.
+                # Nœud non exécutable : toléré s'il n'a PAS d'amont — sinon erreur claire.
                 if any(l['to'] == nid for l in links):
                     raise ValueError(f"Nœud « {app} » : app non exécutable dans un pipeline (V1).")
                 _save_state(nid, status='SUCCESS', note='source non exécutée (V1)')
@@ -105,7 +183,8 @@ def run_pipeline_task(self, run_id):
                 if st['status'] == 'SUCCESS':
                     if not st.get('output'):
                         raise ValueError(f"Nœud {app} : terminé mais aucune sortie.")
-                    outputs[nid] = {'type': runner['output_type'], 'value': st['output']}
+                    otype = runner.get('output_type') or runner['output_type_fn'](node.get('params') or {})
+                    outputs[nid] = {'type': otype, 'value': st['output']}
                     _save_state(nid, status='SUCCESS', progress=100, output=st['output'])
                     _console(user.id, f"Studio run #{run.pk} : nœud {app} ✔ → {st['output']}")
                     break
