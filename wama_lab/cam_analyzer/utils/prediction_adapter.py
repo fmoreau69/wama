@@ -191,15 +191,20 @@ def annotate_prediction_indicators(session, method='speed_accel', max_range_m=45
         obj_traj = smooth_trajectory(
             np.array([[t, agg[t][0] / agg[t][2], agg[t][1] / agg[t][2]] for t in ts_sorted]), window=5)
         cls = rows[0][6]
-        for ts, d, f, e, n, ego_long, _ in rows:
+        # Échantillonnage : ne calculer que toutes les K détections et RÉUTILISER la valeur
+        # sur l'intervalle (le TTC/PET varie lentement) → ~K× moins de calculs.
+        K = 4
+        last = {'ttc': None, 'pet': None}
+        for idx, (ts, d, f, e, n, ego_long, _) in enumerate(rows):
             if ego_long > max_range_m:
                 continue
-            r = ttc_pet_shuttle_object(sh_traj, obj_traj, ts, method=method, class_name=cls)
+            if idx % K == 0:
+                last = ttc_pet_shuttle_object(sh_traj, obj_traj, ts, method=method, class_name=cls)
             changed = False
-            if r['ttc'] is not None:
-                d['prediction_ttc'] = round(r['ttc'], 2); changed = True
-            if r['pet'] is not None:
-                d['prediction_pet'] = round(r['pet'], 2); changed = True
+            if last['ttc'] is not None:
+                d['prediction_ttc'] = round(last['ttc'], 2); changed = True
+            if last['pet'] is not None:
+                d['prediction_pet'] = round(last['pet'], 2); changed = True
             if changed:
                 dirty.add(f)
                 count += 1
@@ -236,7 +241,8 @@ def ttc_pet_shuttle_object(shuttle_traj, obj_traj, t0, horizon_s=5.0,
     ob_hist = obj_traj[(obj_traj[:, 0] <= t0 + 1e-6) & (obj_traj[:, 0] >= t0 - 2.0)]
     if len(sh_hist) < 3 or len(ob_hist) < 3:
         return {'ttc': None, 'pet': None}
-    dt = 0.1
+    dt = 0.2                       # pas plus grossier (2× moins d'étapes, résolution 0,2s)
+    horizon_s = min(horizon_s, 4.0)
     n_future = int(horizon_s / dt)
     extra = extrapolate_kalman if method == 'kalman' else extrapolate_speed_accel
     # Forcer les deux historiques à finir à t0 → grilles futures alignées (t0, t0+dt, …).
@@ -244,8 +250,13 @@ def ttc_pet_shuttle_object(shuttle_traj, obj_traj, t0, horizon_s=5.0,
     ob_hist = _ensure_endpoint(ob_hist, t0)
     sh_fut = extra(sh_hist, n_future, dt=dt)
     ob_fut = extra(ob_hist, n_future, dt=dt)
-    # Aligner les timecodes sur une grille commune pour la collision.
+    # Ne garder que le FUTUR (t >= t0) : TTC/PET mesurés depuis t0, et pas de collision
+    # passée parasite → moitié moins de tests SAT.
+    sh_fut = sh_fut[sh_fut[:, 0] >= t0 - 1e-6]
+    ob_fut = ob_fut[ob_fut[:, 0] >= t0 - 1e-6]
+    if len(sh_fut) < 2 or len(ob_fut) < 2:
+        return {'ttc': None, 'pet': None}
     sh_shape = point_traj_to_shape(sh_fut, *SHUTTLE_DIMS)
     ob_shape = point_traj_to_shape(ob_fut, *CLASS_DIMS.get(class_name, (2.0, 1.0)))
-    res = collision_detection(sh_shape, ob_shape)
+    res = collision_detection(sh_shape, ob_shape, max_pet_steps=12)   # PET borné (±2,4s)
     return {'ttc': res['ttc'], 'pet': res['pet']}
