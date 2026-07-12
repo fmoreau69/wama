@@ -2386,15 +2386,27 @@ document.addEventListener('DOMContentLoaded', function () {
                 const color = ttcColor(det);
                 // Trail continu via l'ID GLOBAL (persiste au passage d'une caméra à l'autre).
                 const tkey = gid != null ? 'g' + gid : camPos + ':' + det.track_id;
-                if (det.track_id != null) {
+                let tr = null;
+                if (det.track_id != null || gid != null) {   // ghosts inclus (ont un gid)
                     seen.add(tkey);
-                    const tr = topDownTrails.get(tkey) || [];
+                    tr = topDownTrails.get(tkey) || [];
                     tr.push(ll);
                     if (tr.length > TRAIL_LEN) tr.shift();
                     topDownTrails.set(tkey, tr);
                     for (let i = 1; i < tr.length; i++)
                         L.polyline([tr[i - 1], tr[i]],
                             { color, weight: 2, opacity: 0.1 + 0.7 * (i / tr.length) }).addTo(miniMapTrailLayer);
+                }
+                // Cap PROPRE de l'objet = direction de sa trace (son mouvement réel), pas le
+                // cap navette → l'empreinte suit la vraie orientation du véhicule (un véhicule
+                // perpendiculaire apparaît perpendiculaire). Repli sur le cap navette si trace
+                // trop courte / objet quasi immobile.
+                let objHeading = pose.heading;
+                if (tr && tr.length >= 2) {
+                    const a = tr[Math.max(0, tr.length - 4)], b = tr[tr.length - 1];
+                    const dN = (b[0] - a[0]) * 111320;
+                    const dE = (b[1] - a[1]) * 111320 * Math.cos(b[0] * Math.PI / 180);
+                    if (Math.hypot(dN, dE) > 0.4) objHeading = Math.atan2(dE, dN) * 180 / Math.PI;
                 }
                 const label = `${det.class_name || 'objet'} [${camPos}]`
                     + `${det.dist_euclid_m != null ? ' · ' + det.dist_euclid_m + ' m' : ''}`
@@ -2403,9 +2415,8 @@ document.addEventListener('DOMContentLoaded', function () {
                              bicycle: [1.8, 0.6], motorcycle: [2, 0.8] })[(det.class_name || '').toLowerCase()]
                            || [1.5, 1.5];
                 const hl = sz[0] / 2, hw = sz[1] / 2;
-                const corners = [[v[0] - hw, v[1] - hl], [v[0] + hw, v[1] - hl],
-                                 [v[0] + hw, v[1] + hl], [v[0] - hw, v[1] + hl]]
-                    .map(c => egoToLatLon(pose.lat, pose.lon, pose.heading, c[0], c[1]));
+                const corners = [[-hw, -hl], [hw, -hl], [hw, hl], [-hw, hl]]
+                    .map(c => egoToLatLon(ll[0], ll[1], objHeading, c[0], c[1]));
                 // Fantôme prédit (comble le trou au hand-off) : atténué + pointillés.
                 L.polygon(corners, {
                     color: '#000', weight: 1, fillColor: color,
