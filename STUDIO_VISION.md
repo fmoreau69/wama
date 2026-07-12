@@ -99,3 +99,36 @@ contrôlables.
 2. **Card batch de prompts** comme nœud-source branché sur l'Imager vidéo.
 3. Réutiliser le **composant card** pour les éléments qui circulent.
 4. **Persistance** du graphe puis **exécution** (la file = méta-app à 1 app).
+
+---
+
+## PRINCIPE DIRECTEUR (recadrage Fabien 2026-07-12) : le studio consomme le CONTRAT, jamais l'état courant
+
+> Le studio doit fonctionner sur le **schéma d'une app complètement uniforme**, quelle que soit
+> l'app. Si un mécanisme manque à une app pour être orchestrable, on **finit le port de l'app**
+> (le manque devient un item de portage) — on n'écrit **jamais** de colle côté studio qui
+> s'adapte à son état actuel. La colle par app fige l'hétérogénéité et crée une seconde source
+> de vérité qui dérive. (Mémoire : feedback_studio_uniform_contract.)
+
+### Le contrat d'app exécutable (spec cible)
+Une app est orchestrable quand ces 4 éléments viennent du CONTRAT COMMUN :
+| # | Élément | Source unique | État |
+|---|---|---|---|
+| 1 | **Entrées typées** (ports du nœud) | `APP_CATALOG` / `studio_node_ports()` | ✅ en place |
+| 2 | **Création** depuis les entrées | triade `wama/tool_api.py` **normalisée** : `add_to_<app>(user, <entrées typées>, **params)` → `{'<app>_id' → clé UNIFORME 'item_id'}` | 🔄 signatures disparates à normaliser app par app |
+| 3 | **Suivi + résultat** | clés CANONIQUES de `unified_detail(app, pk)` : `status`/`progress`/`result_file` (+ `result_text` à ajouter au schéma pour transcriber/describer/reader) | ✅ 8/10 (manquent imager résultat multi-images, avatarizer detail ✅ fait) |
+| 4 | **Params de nœud** | `params.py` (PARAMS_JSON, filtrable par contexte `pipeline`) — JAMAIS de spec locale | ⏳ à brancher (specs locales = shim) |
+
+### État courant (à résorber)
+`wama/studio/services/runners.py` = **SHIM V1 GELÉ** : 10 adapters manuels écrits avant ce
+recadrage (signatures encodées, params dupliqués, champs de sortie par modèle). Interdiction de
+l'étendre — chaque manque = item de portage de l'app concernée (exemple du bon geste :
+`start_composer` manquait à la triade → ajouté au registre central, pas contourné). Le fichier
+disparaît app par app au profit du runner GÉNÉRIQUE piloté par le contrat.
+
+### Preview entrée/sortie (décision 2026-07-12)
+L'inspecteur (toutes apps, pas seulement studio) doit permettre de basculer la preview
+**[Entrée | Sortie]** — clés canoniques `source_file`/`result_file` déjà normalisées — avec un
+mode **slider comparatif** offert automatiquement quand entrée et sortie sont de nature
+comparable (image/image, vidéo/vidéo : anonymizer, enhancer, converter…). Capacité DÉRIVÉE des
+types I/O du manifeste, zéro flag par app.

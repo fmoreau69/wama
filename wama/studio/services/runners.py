@@ -1,6 +1,14 @@
 """
 Studio — adapters d'exécution par app (« runners »).
 
+⛔ SHIM V1 GELÉ (recadrage Fabien 2026-07-12 — STUDIO_VISION « principe directeur » +
+mémoire feedback_studio_uniform_contract) : ces adapters manuels s'adaptent à l'état
+COURANT des apps (signatures tool_api disparates, params dupliqués, champs de sortie par
+modèle) — c'est l'anti-pattern. NE PLUS ÉTENDRE ce fichier : tout manque découvert est un
+item de PORTAGE de l'app (normaliser sa triade tool_api / ses clés canoniques), et l'app
+bascule alors sur le runner GÉNÉRIQUE (generic_runner.py) piloté par le contrat. Ce
+fichier doit se VIDER app par app jusqu'à suppression.
+
 Chaque app exécutable dans un pipeline déclare la triade canonique via `wama/tool_api.py`
 (philosophie CLAUDE.md §5 : chaque app expose son API à l'assistant/méta-app) :
 

@@ -141,3 +141,16 @@
 .wama-status-dot[data-s="SUCCESS"], .wama-status-dot[data-s="DONE"] { background: #198754; }
 .wama-status-dot[data-s="FAILURE"], .wama-status-dot[data-s="ERROR"] { background: #dc3545; }
 @keyframes wamaDotPulse { 50% { opacity: .35; } }
+
+/* ── Preview entrée/sortie + slider comparatif (2026-07-12, STUDIO_VISION) ── */
+.wama-preview-sides { display: inline-flex; }
+.wama-compare { position: relative; display: inline-block; max-width: 100%; }
+.wama-compare img { max-width: 100%; max-height: 220px; border-radius: 6px; display: block; }
+.wama-compare-top { position: absolute; inset: 0; width: 50%; overflow: hidden;
+                    border-right: 2px solid #0dcaf0; }
+.wama-compare-top img { max-width: none; }
+.wama-compare-badge { position: absolute; top: 4px; font-size: .65rem; padding: 1px 6px;
+                      border-radius: 4px; background: rgba(0,0,0,.55); color: #fff; }
+.wama-compare-badge.in { left: 4px; }
+.wama-compare-badge.out { right: 4px; }
+.wama-compare-range { max-width: 100%; margin-top: .25rem; }

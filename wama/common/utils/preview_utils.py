@@ -28,6 +28,35 @@ def get_or_create_anonymous_user():
     return user
 
 
+def _mime_category(mime):
+    return (mime or '').split('/')[0]
+
+
+def _output_preview_data(app_name, instance, request):
+    """Payload preview du RÉSULTAT, dérivé des clés CANONIQUES du detail (`result_file`
+    de build_detail — INSPECTOR_DETAIL_FIELDS.md). Zéro code par app : si l'app a un
+    adapter detail avec un résultat, la preview de sortie existe. None sinon."""
+    try:
+        from .detail_registry import DetailRegistry
+        entry = DetailRegistry.get(app_name)
+        adapter = entry.get('adapter') if entry else None
+        if not adapter:
+            return None
+        d = adapter(instance)
+        url = (d or {}).get('result_file')
+        if not url:
+            return None
+        from .mime_utils import guess_mime_type
+        clean = url.split('?')[0]
+        return {
+            'name': os.path.basename(clean),
+            'url': request.build_absolute_uri(url),
+            'mime_type': guess_mime_type(clean) or 'application/octet-stream',
+        }
+    except Exception:
+        return None
+
+
 def unified_preview(request, app_name: str, pk: int):
     """
     Unified preview endpoint for any registered app.
@@ -66,7 +95,29 @@ def unified_preview(request, app_name: str, pk: int):
     # Get preview data using the registered adapter
     try:
         preview_data = PreviewRegistry.get_preview_data(app_name, instance, request)
-        return JsonResponse(preview_data)
+        # Preview ENTRÉE/SORTIE (décision 2026-07-12, STUDIO_VISION) : ?side=output sert le
+        # RÉSULTAT (clé canonique result_file du detail) ; méta `sides` additive pour que
+        # l'inspecteur affiche le toggle [Entrée|Sortie] (+ slider comparatif si comparable).
+        output_data = _output_preview_data(app_name, instance, request)
+        has_input = bool(preview_data and not preview_data.get('error'))
+        has_output = bool(output_data)
+        cat_in = _mime_category(preview_data.get('mime_type')) if has_input else ''
+        cat_out = _mime_category(output_data.get('mime_type')) if has_output else ''
+        sides = {
+            'has_input': has_input,
+            'has_output': has_output,
+            # slider comparatif V1 : images uniquement (vidéos = toggle seulement)
+            'comparable': bool(has_input and has_output and cat_in == cat_out and cat_in == 'image'),
+        }
+        side = (request.GET.get('side') or 'input').lower()
+        if side == 'output' and has_output:
+            data = dict(output_data)
+            data['side'] = 'output'
+        else:
+            data = dict(preview_data)
+            data['side'] = 'input'
+        data['sides'] = sides
+        return JsonResponse(data)
     except Exception as e:
         logger.error(f"Error generating preview for {app_name}/{pk}: {e}")
         return JsonResponse({'error': str(e)}, status=500)

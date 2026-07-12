@@ -281,12 +281,89 @@
       var link = (card.matches && card.matches('[data-preview-url]')) ? card : card.querySelector('[data-preview-url]');
       var url = link && link.getAttribute('data-preview-url');
       if (!url) { restorePreview(); return; }
-      fetch(url).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
+      // Défaut INTELLIGENT (2026-07-12) : item terminé → on demande la SORTIE (le serveur
+      // replie sur l'entrée si l'app n'a pas de result_file). Sinon : entrée.
+      var status = (card.dataset && card.dataset.status) || '';
+      var side = (status === 'SUCCESS') ? 'output' : 'input';
+      _fetchPreviewSide(url, side, title);
+    }
+
+    function _fetchPreviewSide(baseUrl, side, title) {
+      var u = baseUrl + (baseUrl.indexOf('?') === -1 ? '?' : '&') + 'side=' + side;
+      fetch(u).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
         if (!d || !d.url) { restorePreview(); return; }
         var autoplay = (cfg.autoplay != null) ? cfg.autoplay : global.WAMA_INSPECTOR_AUTOPLAY;
         renderInlinePreview(previewHost, d, !!autoplay);
+        _renderSideToggle(baseUrl, d, title);
         if (previewTitleEl && title) previewTitleEl.textContent = title;
       }).catch(restorePreview);
+    }
+
+    // Toggle [Entrée | Sortie | Comparer] — générique (clés canoniques source_file/result_file,
+    // méta `sides` de unified_preview). Comparer = slider image/image (STUDIO_VISION 2026-07-12).
+    function _renderSideToggle(baseUrl, d, title) {
+      var s = d.sides;
+      if (!s || !s.has_input || !s.has_output) return;
+      var bar = document.createElement('div');
+      bar.className = 'btn-group btn-group-sm wama-preview-sides mt-1';
+      function mk(label, icon, active, onClick) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'btn py-0 px-2 ' + (active ? 'btn-info' : 'btn-outline-info');
+        b.innerHTML = '<i class="fas ' + icon + ' me-1"></i>' + label;
+        b.addEventListener('click', onClick);
+        return b;
+      }
+      bar.appendChild(mk('Entrée', 'fa-right-to-bracket', d.side === 'input', function () {
+        _fetchPreviewSide(baseUrl, 'input', title);
+      }));
+      bar.appendChild(mk('Sortie', 'fa-flag-checkered', d.side === 'output', function () {
+        _fetchPreviewSide(baseUrl, 'output', title);
+      }));
+      if (s.comparable) {
+        bar.appendChild(mk('Comparer', 'fa-left-right', false, function () {
+          _renderCompare(baseUrl, title);
+        }));
+      }
+      previewHost.appendChild(bar);
+    }
+
+    // Slider comparatif entrée/sortie (V1 : images) — l'image SORTIE est rognée par un
+    // conteneur dont la largeur suit le curseur ; les deux images ont la même géométrie.
+    function _renderCompare(baseUrl, title) {
+      var sep = baseUrl.indexOf('?') === -1 ? '?' : '&';
+      Promise.all([
+        fetch(baseUrl + sep + 'side=input').then(function (r) { return r.json(); }),
+        fetch(baseUrl + sep + 'side=output').then(function (r) { return r.json(); }),
+      ]).then(function (both) {
+        var inD = both[0], outD = both[1];
+        if (!inD || !outD || !inD.url || !outD.url) return;
+        previewHost.innerHTML = '';
+        var wrap = document.createElement('div');
+        wrap.className = 'wama-compare';
+        wrap.innerHTML =
+          '<img class="wama-compare-base" src="' + inD.url + '" alt="Entrée">' +
+          '<div class="wama-compare-top"><img src="' + outD.url + '" alt="Sortie"></div>' +
+          '<span class="wama-compare-badge in">Entrée</span>' +
+          '<span class="wama-compare-badge out">Sortie</span>';
+        previewHost.appendChild(wrap);
+        var range = document.createElement('input');
+        range.type = 'range';
+        range.min = 0; range.max = 100; range.value = 50;
+        range.className = 'form-range wama-compare-range';
+        previewHost.appendChild(range);
+        var base = wrap.querySelector('.wama-compare-base');
+        var top = wrap.querySelector('.wama-compare-top');
+        var topImg = top.querySelector('img');
+        function sync() {
+          topImg.style.width = base.clientWidth + 'px';
+          top.style.width = range.value + '%';
+        }
+        base.addEventListener('load', sync);
+        range.addEventListener('input', sync);
+        if (base.complete) sync();
+        _renderSideToggle(baseUrl, { side: 'compare', sides: { has_input: true, has_output: true, comparable: true } }, title);
+      });
     }
 
     // Agrégats (file / batch) affichés dans la section Infos quand rien / un batch est sélectionné.
