@@ -2359,7 +2359,10 @@ document.addEventListener('DOMContentLoaded', function () {
                 // de gauche projetés à droite). X = distance·(centre_bbox−centre_image)/focale ;
                 // Y = distance. Centré (objet au centre image = latéral 0) et à la bonne distance.
                 let g;
-                if (det.distance_m != null && Array.isArray(det.bbox)) {
+                const isGhost = det.predicted && Array.isArray(det.vehicle_xy);
+                if (isGhost) {
+                    g = det.vehicle_xy;              // fantôme prédit : déjà en repère véhicule
+                } else if (det.distance_m != null && Array.isArray(det.bbox)) {
                     const bcx = (det.bbox[0] + det.bbox[2]) / 2;
                     g = [det.distance_m * (bcx - iw / 2) / focal, det.distance_m];
                 } else {
@@ -2367,8 +2370,10 @@ document.addEventListener('DOMContentLoaded', function () {
                     if (!Array.isArray(g) || g.length < 2) return;
                 }
                 if (g[1] <= 0 || g[1] > 60 || Math.abs(g[0]) > 25) return;          // zone fiable
-                const bb = det.bbox;
-                if (Array.isArray(bb) && (bb[0] <= 8 || bb[2] >= iw - 8)) return;   // coupé/partiel au bord
+                if (!isGhost) {
+                    const bb = det.bbox;
+                    if (Array.isArray(bb) && (bb[0] <= 8 || bb[2] >= iw - 8)) return;   // coupé/partiel au bord
+                }
                 // Dedupe multi-caméra : si l'objet a un global_track_id déjà dessiné cette
                 // frame (vu par une autre caméra), on le saute → 1 seule empreinte.
                 const gid = det.global_track_id;
@@ -2401,8 +2406,12 @@ document.addEventListener('DOMContentLoaded', function () {
                 const corners = [[v[0] - hw, v[1] - hl], [v[0] + hw, v[1] - hl],
                                  [v[0] + hw, v[1] + hl], [v[0] - hw, v[1] + hl]]
                     .map(c => egoToLatLon(pose.lat, pose.lon, pose.heading, c[0], c[1]));
-                L.polygon(corners, { color: '#000', weight: 1, fillColor: color, fillOpacity: 0.75 })
-                    .bindTooltip(label, { direction: 'top' }).addTo(miniMapObjectLayer);
+                // Fantôme prédit (comble le trou au hand-off) : atténué + pointillés.
+                L.polygon(corners, {
+                    color: '#000', weight: 1, fillColor: color,
+                    fillOpacity: isGhost ? 0.3 : 0.75,
+                    dashArray: isGhost ? '3,3' : null,
+                }).bindTooltip(isGhost ? label + ' (prédit)' : label, { direction: 'top' }).addTo(miniMapObjectLayer);
             });
         };
         if (topDown360) Object.keys(CAMERA_YAW).forEach(cp => _drawCam(cp, CAMERA_YAW[cp]));

@@ -10,11 +10,22 @@ Post-traitement (pas de re-détection). Vérifie les caméras réellement analys
 Association = plus-proche-voisin en repère monde avec gating + prédiction de position.
 """
 import math
+from collections import defaultdict
 
 from django.apps import apps
 
 from .prediction_adapter import (make_local_frame, shuttle_trajectory, pinhole_ego,
                                ego_to_world, _shuttle_pose_at, CLASS_DIMS)
+
+
+def world_to_vehicle(world_e, world_n, shuttle_e, shuttle_n, heading_deg):
+    """Position monde → repère véhicule (inverse d'ego_to_world) : (latéral, longitudinal)."""
+    de, dn = world_e - shuttle_e, world_n - shuttle_n
+    h = math.radians(heading_deg)
+    s, c = math.sin(h), math.cos(h)
+    lateral = de * c - dn * s
+    longitudinal = de * s + dn * c
+    return lateral, longitudinal
 
 # Orientation de montage de chaque caméra (deg, sens horaire depuis l'avant véhicule).
 CAMERA_YAW = {'front': 0.0, 'right': 90.0, 'rear': 180.0, 'left': -90.0}
@@ -65,6 +76,7 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=1.0, f
 
     all_fns = sorted({fn for (_, _, frames) in per_cam.values() for fn in frames})
     tracks = []        # {id, e, n, ve, vn, last_t}
+    track_hist = defaultdict(list)   # gid -> [(fn, t, world_e, world_n, class)]
     next_id = 1
     dirty = set()
 
@@ -111,7 +123,57 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=1.0, f
                     best['vn'] = (n - best['n']) / dt
                     best['e'], best['n'], best['last_t'] = e, n, t
             d['global_track_id'] = best['id']
+            track_hist[best['id']].append((fn, t, e, n, d.get('class_name', 'car')))
             dirty.add(f)
+
+    # ── Comblement des trous de détection au hand-off (empreintes prédites) ──────
+    # Pour chaque track, on interpole en repère MONDE entre avant/après le trou, puis on
+    # convertit en repère véhicule et on insère une détection "fantôme" (predicted) dans
+    # la frame front manquante. Bornes : trou ≤ max_gap_frames.
+    front_frames = per_cam.get('front', (None, None, {}))[2]
+    max_gap_frames = int(1.2 * fps)   # ~1,2 s max
+    ghosts = 0
+    if front_frames:
+        # Retirer les anciens fantômes (idempotence si on recalcule).
+        for fr in front_frames.values():
+            if fr.detections and any(d.get('predicted') for d in fr.detections):
+                fr.detections = [d for d in fr.detections if not d.get('predicted')]
+                dirty.add(fr)
+        for gid, hist in track_hist.items():
+            hist.sort()
+            # positions monde uniques par frame (moyenne si doublons)
+            byfn = {}
+            for fn, t, e, n, cls in hist:
+                pe, pn, k = byfn.get(fn, (0.0, 0.0, 0))
+                byfn[fn] = (pe + e, pn + n, k + 1)
+            fns_h = sorted(byfn)
+            cls = hist[0][4]
+            for i in range(1, len(fns_h)):
+                f0, f1 = fns_h[i - 1], fns_h[i]
+                gap = f1 - f0
+                if gap <= 1 or gap - 1 > max_gap_frames:
+                    continue
+                e0, n0 = byfn[f0][0] / byfn[f0][2], byfn[f0][1] / byfn[f0][2]
+                e1, n1 = byfn[f1][0] / byfn[f1][2], byfn[f1][1] / byfn[f1][2]
+                for fn in range(f0 + 1, f1):
+                    fr = front_frames.get(fn)
+                    if not fr:
+                        continue
+                    a = (fn - f0) / gap
+                    we, wn = e0 + a * (e1 - e0), n0 + a * (n1 - n0)   # interpolation monde
+                    t = fn / fps * scale + off
+                    se, sn, sh = _shuttle_pose_at(sh_traj, t)
+                    lat, lon = world_to_vehicle(we, wn, se, sn, sh)
+                    if lon <= 0:
+                        continue
+                    if fr.detections is None:
+                        fr.detections = []
+                    fr.detections.append({
+                        'type': 'ghost', 'predicted': True, 'global_track_id': gid,
+                        'class_name': cls, 'vehicle_xy': [round(lat, 3), round(lon, 3)],
+                    })
+                    dirty.add(fr)
+                    ghosts += 1
 
     for f in dirty:
         f.save(update_fields=['detections'])
