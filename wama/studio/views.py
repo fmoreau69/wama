@@ -149,15 +149,17 @@ def api_run(request):
     def _executable(app):
         return runner_for(app) is not None or app in SOURCE_HANDLERS or app == 'studio_output'
 
+    from .services.runners import RUNNERS
+    runnable = ', '.join(sorted(RUNNERS.keys()))
     for n in nodes:
         if not _executable(n['app']) and any(l['to'] == n['id'] for l in links):
             return JsonResponse(
-                {'error': f"Nœud « {n['app']} » : app non exécutable dans un pipeline "
-                          f"(V1 : synthesizer, avatarizer, converter + nœuds Texte/Médiathèque/Sortie)."},
+                {'error': f"Nœud « {n['app']} » : non exécutable dans un pipeline "
+                          f"(apps : {runnable} + nœuds Texte/Médiathèque/Sortie)."},
                 status=400)
     if not any(runner_for(n['app']) for n in nodes):
-        return JsonResponse({'error': 'Aucun nœud-app exécutable dans le graphe '
-                                      '(V1 : synthesizer, avatarizer, converter).'}, status=400)
+        return JsonResponse({'error': f'Aucun nœud-app exécutable dans le graphe (apps : {runnable}).'},
+                            status=400)
     run = StudioRun.objects.create(user=request.user, graph=graph,
                                    pipeline_id=data.get('pipeline_id') or None)
     task = run_pipeline_task.delay(run.pk)

@@ -68,6 +68,27 @@ def _source_media(user, params):
     return (params.get('asset_category') or _category_of_path(rel)), rel
 
 
+def _sink_text_to_media_library(user, text, params, run_id):
+    """Variante TEXTE du nœud Sortie : écrit un .txt et le range en médiathèque (document)."""
+    import io
+    from django.core.files.base import ContentFile
+    from wama.media_library.models import UserAsset
+    base = (params.get('asset_name') or '').strip() or f"studio-run-{run_id}"
+    asset_type = params.get('asset_type') or 'document'
+    name, k = base, 2
+    while UserAsset.objects.filter(user=user, name=name, asset_type=asset_type).exists():
+        name = f"{base} ({k})"
+        k += 1
+    asset = UserAsset(user=user, name=name, asset_type=asset_type, mime_type='text/plain')
+    asset.file.save(f"{base}.txt", ContentFile(text.encode('utf-8')), save=False)
+    try:
+        asset.file_size = asset.file.size
+    except Exception:
+        pass
+    asset.save()
+    return f"médiathèque : « {name} » (texte, {len(text)} car.)"
+
+
 SOURCE_HANDLERS = {
     'text_input': _source_text,
     'media_import': _source_media,
@@ -148,7 +169,11 @@ def run_pipeline_task(self, run_id):
                             if l['to'] == nid and l['from'] in outputs]
                 if not incoming:
                     raise ValueError("Nœud « Sortie » : aucune entrée reçue (connectez un nœud amont).")
-                note = _sink_media_library(user, incoming[0]['value'], node.get('params') or {})
+                if incoming[0].get('is_text'):
+                    note = _sink_text_to_media_library(user, incoming[0]['value'],
+                                                       node.get('params') or {}, run.pk)
+                else:
+                    note = _sink_media_library(user, incoming[0]['value'], node.get('params') or {})
                 _save_state(nid, status='SUCCESS', output=note)
                 _console(user.id, f"Studio run #{run.pk} : sortie rangée — {note}")
                 continue
@@ -183,8 +208,15 @@ def run_pipeline_task(self, run_id):
                 if st['status'] == 'SUCCESS':
                     if not st.get('output'):
                         raise ValueError(f"Nœud {app} : terminé mais aucune sortie.")
-                    otype = runner.get('output_type') or runner['output_type_fn'](node.get('params') or {})
-                    outputs[nid] = {'type': otype, 'value': st['output']}
+                    otype = runner.get('output_type')
+                    if otype in (None, 'auto'):
+                        if 'output_type_fn' in runner:
+                            otype = runner['output_type_fn'](node.get('params') or {})
+                        else:
+                            from wama.studio.services.runners import _category_of_path
+                            otype = _category_of_path(st['output'])
+                    outputs[nid] = {'type': otype, 'value': st['output'],
+                                    'is_text': bool(st.get('is_text'))}
                     _save_state(nid, status='SUCCESS', progress=100, output=st['output'])
                     _console(user.id, f"Studio run #{run.pk} : nœud {app} ✔ → {st['output']}")
                     break

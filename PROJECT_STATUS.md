@@ -1343,3 +1343,26 @@ inspecteur fonctionnel, cards de sorties ») :
 - Reste connu : prompt_batch (source multi-prompts) non exécutable (attend le runner
   imager + la sémantique batch dans un pipeline) ; sorties texte (futurs runners
   transcriber/describer) : le sink attend un fichier — à traiter avec ces runners.
+
+### 37.6 Les 10 apps généralistes exécutables dans le studio (2026-07-12)
+- **RUNNERS 3 → 10** : + transcriber, describer, reader (sorties TEXTE), composer
+  (prompt→audio), enhancer, imager (types AUTO — catégorie du fichier produit),
+  anonymizer (sortie = chemin dérivé `_blurred_*`, même logique que download_media).
+- **Extension du contrat d'exécution** : `poll` peut retourner `is_text` (la valeur
+  circule comme texte, pas comme fichier) ; `output_type: 'auto'` = catégorie du
+  fichier produit (app_registry) ; le nœud Sortie a une variante TEXTE (écrit un
+  `.txt` en médiathèque, type `document`).
+- **`start_composer` AJOUTÉ au registre central `wama/tool_api.py`** (la triade
+  create/start/status était incomplète — compose_music créait sans pouvoir lancer) ;
+  begin_processing + compose_task, conforme au pattern des autres.
+- **Vérification EMPIRIQUE des signatures** avant écriture : 4 écarts corrigés
+  (transcriber sans kwarg language ; describer output_format/output_language ;
+  reader backend ; composer model — défaut musicgen-small préservé) + ai_model
+  enhancer aligné sur la vraie clé (RealESR_Gx4).
+- Chaînes testées à blanc : Médiathèque→transcriber→Sortie (.txt RÉEL en médiathèque,
+  contenu vérifié) ; Texte→imager→enhancer→Sortie (types auto, asset image).
+- `/studio/api/run-options/` sert 13 specs (10 apps + Texte/Médiathèque/Sortie) ;
+  messages d'erreur du run dynamiques depuis RUNNERS.
+- Nouvelles compositions possibles : re-voicing (transcriber→synthesizer),
+  sous-titrage différé (transcriber→Sortie txt), OCR→lecture audio
+  (reader→synthesizer), prompt→image→amélioration→médiathèque, floutage→conversion…

@@ -1072,6 +1072,27 @@ def compose_music(
     }
 
 
+def start_composer(user, generation_id: int) -> dict:
+    """
+    Lance (ou relance) la génération d'une composition créée via compose_music().
+    Complète la triade create/start/status pour la méta-app studio (2026-07-12).
+
+    Returns:
+        {"generation_id": int, "status": "RUNNING"} ou {"error": str}
+    """
+    from wama.common.utils.process_control import begin_processing
+    from wama.composer.models import ComposerGeneration
+    gen, err = begin_processing(ComposerGeneration, generation_id, user=user,
+                                reset={'progress': 0, 'error_message': ''})
+    if err:
+        return {'error': 'Génération introuvable' if err == 'not_found' else 'Déjà en cours'}
+    from wama.composer.tasks import compose_task
+    task = compose_task.apply_async(args=(gen.id,))
+    gen.task_id = task.id
+    gen.save(update_fields=['task_id'])
+    return {'generation_id': gen.id, 'status': 'RUNNING'}
+
+
 def get_composer_status(user) -> dict:
     """
     Return status of the user's recent Composer jobs (last 10).
@@ -2000,6 +2021,7 @@ TOOL_REGISTRY = {
     'start_synthesizer':      start_synthesizer,
     'get_synthesizer_status': get_synthesizer_status,
     'compose_music':          compose_music,
+    'start_composer': start_composer,
     'get_composer_status':    get_composer_status,
     'add_to_describer':       add_to_describer,
     'start_describer':        start_describer,
