@@ -47,6 +47,9 @@ class Media(ProcessingTimeMixin, models.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='PENDING')
     task_id = models.CharField(max_length=255, blank=True, default='')
     error_message = models.TextField(blank=True, default='')
+    # Chemin MEDIA-relatif de la sortie floutée (posé au SUCCESS par le worker, 2026-07-13 —
+    # avant : chemin uniquement DÉRIVÉ (_blurred_*) à chaque lecture, hors contrat canonique).
+    output_file = models.CharField(max_length=500, blank=True, default='')
 
     @property
     def processed(self):

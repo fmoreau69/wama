@@ -98,11 +98,9 @@ def api_pipeline_detail(request, pk):
 def api_run_options(request):
     """Options d'exécution métadonnée-driven : params_spec par app exécutable +
     listes dynamiques (galerie d'avatars)."""
-    from .services.runners import RUNNERS, runner_for
+    from .services.runners import runner_for
     from .services.generic_runner import GENERIC_APPS
-    specs = {app: r['params_spec'] for app, r in RUNNERS.items()}
-    for app in GENERIC_APPS:
-        specs[app] = runner_for(app)['params_spec']   # source unique : params.py de l'app
+    specs = {app: runner_for(app)['params_spec'] for app in GENERIC_APPS}   # source unique : params.py
     # Nœuds intégrés (cards d'entrée / de sortie) — configurables dans l'inspecteur
     specs['text_input'] = [
         {'name': 'text', 'label': 'Texte', 'type': 'textarea',
@@ -152,10 +150,13 @@ def api_run(request):
     def _executable(app):
         return runner_for(app) is not None or app in SOURCE_HANDLERS or app == 'studio_output'
 
-    from .services.runners import RUNNERS
-    runnable = ', '.join(sorted(RUNNERS.keys()))
+    from .services.generic_runner import GENERIC_APPS
+    runnable = ', '.join(sorted(GENERIC_APPS.keys()))
     for n in nodes:
-        if not _executable(n['app']) and any(l['to'] == n['id'] for l in links):
+        # Un nœud non exécutable ne peut être CONNECTÉ ni en amont ni en aval : il ne
+        # produira aucune sortie et ne peut rien consommer (validation AVANT dispatch).
+        if not _executable(n['app']) and any(
+                l['to'] == n['id'] or l['from'] == n['id'] for l in links):
             return JsonResponse(
                 {'error': f"Nœud « {n['app']} » : non exécutable dans un pipeline "
                           f"(apps : {runnable} + nœuds Texte/Médiathèque/Sortie)."},

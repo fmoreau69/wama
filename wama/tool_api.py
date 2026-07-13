@@ -198,6 +198,7 @@ def add_to_anonymizer(
 
     return {
         'media_id': media_id,
+        'item_id': media_id,   # clé UNIFORME du contrat méta-app
         'name': result['name'],
         'duration': result.get('duration', ''),
         'status': 'queued',
@@ -1073,38 +1074,6 @@ def compose_music(
     }
 
 
-# ── Aliases NORMALISÉS du contrat méta-app (STUDIO_VISION 2026-07-12) ─────────────
-# La triade canonique est add_to_<app>/start_<app>/detail. Les créateurs historiques à
-# entrée PROMPT (synthesize_text, compose_music, create_image) restent la façade de
-# l'assistant ; ces wrappers @wraps exposent le nom normalisé + la clé UNIFORME item_id
-# (introspection de signature préservée pour le filtrage de params du runner générique).
-import functools
-
-
-@functools.wraps(synthesize_text)
-def add_to_synthesizer(user, *args, **kwargs):
-    res = synthesize_text(user, *args, **kwargs)
-    if isinstance(res, dict) and 'synthesis_id' in res:
-        res['item_id'] = res['synthesis_id']
-    return res
-
-
-@functools.wraps(compose_music)
-def add_to_composer(user, *args, **kwargs):
-    res = compose_music(user, *args, **kwargs)
-    if isinstance(res, dict) and 'generation_id' in res:
-        res['item_id'] = res['generation_id']
-    return res
-
-
-@functools.wraps(create_image)
-def add_to_imager(user, *args, **kwargs):
-    res = create_image(user, *args, **kwargs)
-    if isinstance(res, dict) and 'generation_id' in res:
-        res['item_id'] = res['generation_id']
-    return res
-
-
 def start_composer(user, generation_id: int) -> dict:
     """
     Lance (ou relance) la génération d'une composition créée via compose_music().
@@ -1958,7 +1927,7 @@ def add_to_avatarizer(
     except Exception as e:
         return {'error': f'Erreur création AvatarJob : {e}'}
 
-    return {'job_id': job.id, 'mode': job.mode, 'status': 'pending'}
+    return {'job_id': job.id, 'item_id': job.id, 'mode': job.mode, 'status': 'pending'}
 
 
 def start_avatarizer(user, job_id: int = None) -> dict:
@@ -2034,6 +2003,48 @@ def translate_text(user, text, source_lang='fr', target_lang='en', glossary=None
         return {'error': res.get('error', 'échec traduction')}
     return {'text': res['text'], 'source_lang': source_lang,
             'target_lang': target_lang, 'cached': res.get('cached', False)}
+
+
+# ── Aliases NORMALISÉS du contrat méta-app (STUDIO_VISION 2026-07-12) ─────────────
+# La triade canonique est add_to_<app>/start_<app>/detail. Les créateurs historiques à
+# entrée PROMPT (synthesize_text, compose_music, create_image) restent la façade de
+# l'assistant ; ces wrappers @wraps exposent le nom normalisé + la clé UNIFORME item_id
+# (introspection de signature préservée pour le filtrage de params du runner générique).
+import functools
+
+
+@functools.wraps(synthesize_text)
+def add_to_synthesizer(user, *args, **kwargs):
+    res = synthesize_text(user, *args, **kwargs)
+    if isinstance(res, dict) and 'synthesis_id' in res:
+        res['item_id'] = res['synthesis_id']
+    return res
+
+
+@functools.wraps(compose_music)
+def add_to_composer(user, *args, **kwargs):
+    res = compose_music(user, *args, **kwargs)
+    if isinstance(res, dict) and 'generation_id' in res:
+        res['item_id'] = res['generation_id']
+    return res
+
+
+@functools.wraps(convert_file)
+def add_to_converter(user, *args, **kwargs):
+    # NB : convert_file DISPATCHE immédiatement (auto_start déclaré au manifeste studio).
+    res = convert_file(user, *args, **kwargs)
+    if isinstance(res, dict) and 'job_id' in res:
+        res['item_id'] = res['job_id']
+    return res
+
+
+@functools.wraps(create_image)
+def add_to_imager(user, *args, **kwargs):
+    res = create_image(user, *args, **kwargs)
+    if isinstance(res, dict) and 'generation_id' in res:
+        res['item_id'] = res['generation_id']
+    return res
+
 
 
 TOOL_REGISTRY = {

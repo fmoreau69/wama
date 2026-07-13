@@ -1417,3 +1417,27 @@ Recadrage Fabien : « le studio consomme le CONTRAT, jamais l'état courant des 
   portage).
 - Testés : création réelle par prompt ×3 (coercitions duration/width/height vérifiées),
   poll SUCCESS avec sortie canonique, specs 7/5/8 params depuis params.py.
+
+### 37.10 Shim SUPPRIMÉ — 10/10 apps sur le runner générique (2026-07-13)
+- **converter** : alias normalisé `add_to_converter` (item_id) + `auto_start` DÉCLARÉ au
+  manifeste (convert_file dispatche à la création → start no-op).
+- **avatarizer** : vocabulaire manifeste étendu — `input_kwarg='audio_path'` +
+  `fixed_kwargs={mode: standalone, avatar_source: gallery}` (spécificité déclarée, pas
+  codée) ; l'avatar vient d'une `extra_params_spec` (à résorber en l'ajoutant au
+  params.py de l'app avec options_source).
+- **anonymizer — ITEM DE PORTAGE réalisé** : champ `Media.output_file` (migration 0022
+  WSL2+Windows avec BACKFILL — 1re version same-dir = 0/18, dérivation RÉELLE
+  `<user>/output/<base>_blurred*` = **17/18** sur la base live, le 18e n'a plus de
+  fichier) ; posé au SUCCESS par le worker (2 chemins YOLO/SAM3) ; detail expose enfin
+  `result_file` canonique (⇒ preview Sortie inspecteur aussi).
+- **`runners.py` = façade de 25 lignes** (résolution + historique) ; toute la logique
+  dans generic_runner (manifeste GENERIC_APPS, 10 apps + vocabulaire déclaré :
+  primary_input/input_kwarg/fixed_kwargs/auto_start/extra_params_spec).
+- 🐛 Trou de validation trouvé au smoke final : un nœud d'app inconnue SANS amont était
+  toléré comme « source » alors qu'il alimentait un aval (run dispatché pour échouer à
+  l'exécution) → un nœud non exécutable ne peut plus être connecté NI en amont NI en
+  aval ; runs parasites purgés (2 bases).
+- Tests : avatarizer (mode standalone forcé, avatar, audio via input_kwarg, poll vidéo),
+  anonymizer (vraie image PIL — le tool valide les fichiers —, poll output_file
+  canonique, 17 params de son params.py), converter (start no-op) ; 13 specs servies ;
+  pages 200.

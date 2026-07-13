@@ -27,6 +27,23 @@ from .parallel_detection import (
 logger = logging.getLogger(__name__)
 
 
+def _resolve_output_rel(media):
+    """Chemin MEDIA-relatif de la sortie floutée. Sortie RÉELLE = dossier output/ de
+    l'utilisateur, base sans extension + _blurred* (ext vidéo coercée .mp4, variante
+    _blurred_sam3) — même logique que get_blurred_media_path/download_media."""
+    import glob
+    import os
+    from django.conf import settings
+    from wama.common.utils.media_paths import get_app_media_path
+    base = os.path.splitext(os.path.basename(media.file.name))[0]
+    out_dir = str(get_app_media_path('anonymizer', media.user_id, 'output'))
+    candidates = sorted(glob.glob(os.path.join(out_dir, base + '_blurred*')))
+    if not candidates:
+        return ''
+    return os.path.relpath(candidates[0], settings.MEDIA_ROOT).replace(chr(92), '/')
+
+
+
 def _console(user_id: int, message: str, level: str = None) -> None:
     """Push console message to user."""
     try:
@@ -401,7 +418,8 @@ def process_single_media(self, media_id, force_individual=False):
             media.refresh_from_db()
             media.status = 'SUCCESS'
             media.processing_seconds = time.time() - _proc_t0
-            media.save(update_fields=["status", "processing_seconds"])
+            media.output_file = _resolve_output_rel(media)
+            media.save(update_fields=["status", "processing_seconds", "output_file"])
             set_media_progress(media.id, 100)
             _console(user.id, f"Finished media {media.id} ✔")
             try:
@@ -815,7 +833,8 @@ def merge_and_blur_detections(self, detection_results=None, media_id=None, **kwa
         # Mark media as processed (statut canonique — audit 2026-07-11)
         media.refresh_from_db()
         media.status = 'SUCCESS'
-        media.save(update_fields=['status'])
+        media.output_file = _resolve_output_rel(media)
+        media.save(update_fields=['status', 'output_file'])
         set_media_progress(media_id, 100)
 
         # Release dedup locks (parallel path completion)

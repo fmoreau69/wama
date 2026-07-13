@@ -11,7 +11,12 @@ Une app est éligible quand sa triade est NORMALISÉE :
   4. `params.py` (…PARAMS_JSON) = source UNIQUE des paramètres de nœud — `params_attr`
      est un POINTEUR vers ce schéma, jamais une copie.
 
-Déclarer une app ici = 4 lignes de manifeste. Le shim `runners.py` se vide en miroir.
+Déclarer une app ici = quelques lignes de manifeste. Vocabulaire optionnel (spécificités
+DÉCLARÉES, pas codées) : `primary_input='prompt'` (entrée = texte) ; `input_kwarg`
+(l'entrée primaire part dans ce kwarg au lieu du 2e positionnel) ; `fixed_kwargs`
+(constantes de création, ex. mode standalone) ; `auto_start` (le créateur dispatche
+déjà — start = no-op) ; `extra_params_spec` (params de nœud ABSENTS du schéma d'app —
+à résorber en les ajoutant au params.py de l'app). Le shim `runners.py` se vide en miroir.
 """
 from __future__ import annotations
 
@@ -63,6 +68,33 @@ GENERIC_APPS = {
         'params_attr': 'MEDIA_PARAMS_JSON',
         'output_type': 'auto',
     },
+    'converter': {
+        'input_kinds': ('image', 'video', 'audio', 'document'),
+        'params_module': 'wama.converter.params',
+        'params_attr': 'PARAMS_JSON',
+        'output_type': 'auto',
+        'auto_start': True,   # convert_file dispatche à la création (déclaré)
+    },
+    'avatarizer': {
+        'input_kinds': ('audio',),
+        'input_kwarg': 'audio_path',                    # signature historique (déclaré)
+        'fixed_kwargs': {'mode': 'standalone', 'avatar_source': 'gallery'},
+        'params_module': 'wama.avatarizer.params',
+        'params_attr': 'PARAMS_JSON',
+        'output_type': 'video',
+        # L'avatar n'est PAS (encore) dans le params.py de l'app → spec additionnelle
+        # déclarée ici ; à résorber en l'ajoutant au schéma d'app (options_source).
+        'extra_params_spec': [
+            {'name': 'avatar_gallery_name', 'label': 'Avatar', 'type': 'select',
+             'options_source': 'avatar_gallery'},
+        ],
+    },
+    'anonymizer': {
+        'input_kinds': ('image', 'video'),
+        'params_module': 'wama.anonymizer.params',
+        'params_attr': 'PARAMS_JSON',
+        'output_type': 'auto',
+    },
 }
 
 
@@ -105,6 +137,7 @@ def _node_params_spec(conf):
         if p.get('default') is not None:
             entry['default'] = p['default']
         spec.append(entry)
+    spec.extend(conf.get('extra_params_spec') or [])
     return spec
 
 
@@ -135,7 +168,12 @@ def build_generic_runner(app_id):
         kwargs = {k: _coerce(v, types_by_name.get(k))
                   for k, v in (params or {}).items()
                   if k in sig.parameters and k not in consumed and v not in (None, '')}
-        res = fn(user, primary, **kwargs)
+        kwargs.update(conf.get('fixed_kwargs') or {})
+        if conf.get('input_kwarg'):
+            kwargs[conf['input_kwarg']] = primary
+            res = fn(user, **kwargs)
+        else:
+            res = fn(user, primary, **kwargs)
         if 'error' in res:
             raise ValueError(f"{app_id} : {res['error']}")
         if 'item_id' not in res:
@@ -144,6 +182,8 @@ def build_generic_runner(app_id):
         return res['item_id']
 
     def start(user, item_id):
+        if conf.get('auto_start'):
+            return   # le créateur a déjà dispatché (déclaré au manifeste)
         from wama import tool_api
         fn = getattr(tool_api, f'start_{app_id}', None)
         if fn is None:

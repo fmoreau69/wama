@@ -32,6 +32,10 @@ class AnonymizerConfig(AppConfig):
         # Réglages spécifiques → labels de params.py (source unique), jamais relabellisés.
         from wama.common.utils.detail_registry import register_app_detail, build_detail
 
+        def settings_media_url(rel):
+            from django.conf import settings
+            return settings.MEDIA_URL.rstrip('/') + '/' + rel.lstrip('/')
+
         def _anonymizer_detail(m):
             from .params import PARAMS
             extra = {p.label: getattr(m, p.name, None) for p in PARAMS
@@ -41,7 +45,7 @@ class AnonymizerConfig(AppConfig):
                 source_file=m.file,
                 source_type=m.media_type,
                 engine=getattr(m, 'model_to_use', None),
-                result_file=None,  # sortie = chemin dérivé (_blurred_*), pas un champ modèle
+                result_file=(settings_media_url(m.output_file) if m.output_file else None),
                 extra=extra,
             )
             if getattr(m, 'output_quality', None):
