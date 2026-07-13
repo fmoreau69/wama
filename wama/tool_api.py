@@ -1073,6 +1073,38 @@ def compose_music(
     }
 
 
+# ── Aliases NORMALISÉS du contrat méta-app (STUDIO_VISION 2026-07-12) ─────────────
+# La triade canonique est add_to_<app>/start_<app>/detail. Les créateurs historiques à
+# entrée PROMPT (synthesize_text, compose_music, create_image) restent la façade de
+# l'assistant ; ces wrappers @wraps exposent le nom normalisé + la clé UNIFORME item_id
+# (introspection de signature préservée pour le filtrage de params du runner générique).
+import functools
+
+
+@functools.wraps(synthesize_text)
+def add_to_synthesizer(user, *args, **kwargs):
+    res = synthesize_text(user, *args, **kwargs)
+    if isinstance(res, dict) and 'synthesis_id' in res:
+        res['item_id'] = res['synthesis_id']
+    return res
+
+
+@functools.wraps(compose_music)
+def add_to_composer(user, *args, **kwargs):
+    res = compose_music(user, *args, **kwargs)
+    if isinstance(res, dict) and 'generation_id' in res:
+        res['item_id'] = res['generation_id']
+    return res
+
+
+@functools.wraps(create_image)
+def add_to_imager(user, *args, **kwargs):
+    res = create_image(user, *args, **kwargs)
+    if isinstance(res, dict) and 'generation_id' in res:
+        res['item_id'] = res['generation_id']
+    return res
+
+
 def start_composer(user, generation_id: int) -> dict:
     """
     Lance (ou relance) la génération d'une composition créée via compose_music().

@@ -28,42 +28,6 @@ Ajouter une app = ajouter une entrée ici — AUCUNE logique d'orchestration à 
 from __future__ import annotations
 
 
-# ── synthesizer : texte → audio ────────────────────────────────────────────────
-
-def _synthesizer_create(user, inputs, params):
-    from wama import tool_api
-    text = (inputs.get('prompt') or inputs.get('text') or params.get('text') or '').strip()
-    if not text:
-        raise ValueError("Nœud synthesizer : aucun texte (renseignez le paramètre « Texte » du nœud).")
-    res = tool_api.synthesize_text(
-        user, text,
-        language=params.get('language', 'fr'),
-        tts_model=params.get('tts_model', 'xtts_v2'),
-        voice_preset=params.get('voice_preset', 'default'),
-    )
-    if 'error' in res:
-        raise ValueError(f"synthesizer : {res['error']}")
-    return res['synthesis_id']
-
-
-def _synthesizer_start(user, item_id):
-    from wama import tool_api
-    res = tool_api.start_synthesizer(user, item_id)
-    if isinstance(res, dict) and res.get('error'):
-        raise ValueError(f"synthesizer : {res['error']}")
-
-
-def _synthesizer_poll(user, item_id):
-    from wama.synthesizer.models import VoiceSynthesis
-    s = VoiceSynthesis.objects.get(pk=item_id, user=user)
-    return {
-        'status': s.status,
-        'progress': s.progress or 0,
-        'output': (s.audio_output.name if s.audio_output else ''),
-        'error': s.error_message or '',
-    }
-
-
 # ── avatarizer : audio (+ avatar) → vidéo ──────────────────────────────────────
 
 def _avatarizer_create(user, inputs, params):
@@ -153,75 +117,6 @@ def _converter_poll(user, item_id):
     }
 
 
-# ── composer : prompt → musique/SFX (audio) ────────────────────────────────────
-
-def _composer_create(user, inputs, params):
-    from wama import tool_api
-    prompt = (inputs.get('prompt') or inputs.get('text') or params.get('prompt') or '').strip()
-    if not prompt:
-        raise ValueError("Nœud composer : aucun prompt (connectez un nœud Texte ou renseignez le paramètre).")
-    kwargs = {'duration': int(params.get('duration', 15) or 15)}
-    if params.get('model'):
-        kwargs['model'] = params['model']
-    res = tool_api.compose_music(user, prompt, **kwargs)
-    if 'error' in res:
-        raise ValueError(f"composer : {res['error']}")
-    return res['generation_id']
-
-
-def _composer_start(user, item_id):
-    from wama import tool_api
-    res = tool_api.start_composer(user, item_id)
-    if isinstance(res, dict) and res.get('error'):
-        raise ValueError(f"composer : {res['error']}")
-
-
-def _composer_poll(user, item_id):
-    from wama.composer.models import ComposerGeneration
-    g = ComposerGeneration.objects.get(pk=item_id, user=user)
-    return {'status': g.status, 'progress': g.progress or 0,
-            'output': (g.audio_output.name if g.audio_output else ''),
-            'error': g.error_message or ''}
-
-
-# ── imager : prompt → image (ou vidéo) ─────────────────────────────────────────
-
-def _imager_create(user, inputs, params):
-    from wama import tool_api
-    prompt = (inputs.get('prompt') or inputs.get('text') or params.get('prompt') or '').strip()
-    if not prompt:
-        raise ValueError("Nœud imager : aucun prompt (connectez un nœud Texte ou renseignez le paramètre).")
-    res = tool_api.create_image(user, prompt,
-                                model=params.get('model', 'stable-diffusion-xl'),
-                                width=int(params.get('width', 1024) or 1024),
-                                height=int(params.get('height', 1024) or 1024))
-    if 'error' in res:
-        raise ValueError(f"imager : {res['error']}")
-    return res['generation_id']
-
-
-def _imager_start(user, item_id):
-    from wama import tool_api
-    res = tool_api.start_imager(user, item_id)
-    if isinstance(res, dict) and res.get('error'):
-        raise ValueError(f"imager : {res['error']}")
-
-
-def _imager_poll(user, item_id):
-    from wama.imager.models import ImageGeneration
-    g = ImageGeneration.objects.get(pk=item_id, user=user)
-    output = ''
-    if g.output_video:
-        output = g.output_video.name
-    elif g.generated_images:
-        imgs = g.generated_images if isinstance(g.generated_images, list) else []
-        output = imgs[0] if imgs else ''
-        if output.startswith('/media/'):
-            output = output[len('/media/'):]
-    return {'status': g.status, 'progress': g.progress or 0,
-            'output': output, 'error': g.error_message or ''}
-
-
 # ── anonymizer : image/vidéo → média flouté ────────────────────────────────────
 
 def _anonymizer_create(user, inputs, params):
@@ -265,42 +160,12 @@ def _anonymizer_poll(user, item_id):
 # output_type : type de port produit (pour router la sortie vers le bon port aval).
 # params_spec : déclaration des réglages de nœud (rendus par le canvas — métadonnée-driven).
 RUNNERS = {
-    'synthesizer': {
-        'create': _synthesizer_create,
-        'start': _synthesizer_start,
-        'poll': _synthesizer_poll,
-        'output_type': 'audio',
-        'params_spec': [
-            {'name': 'text', 'label': 'Texte', 'type': 'textarea',
-             'placeholder': 'Texte à synthétiser (si aucun nœud prompt en amont)…'},
-            {'name': 'language', 'label': 'Langue', 'type': 'select',
-             'options': ['fr', 'en', 'es', 'de'], 'default': 'fr'},
-            {'name': 'voice_preset', 'label': 'Voix', 'type': 'select',
-             'options': ['default', 'male_1', 'male_2', 'female_1', 'female_2'], 'default': 'default'},
-        ],
-    },
-    'composer': {
-        'create': _composer_create, 'start': _composer_start, 'poll': _composer_poll,
-        'output_type': 'audio',
-        'params_spec': [
-            {'name': 'prompt', 'label': 'Prompt (si pas de nœud Texte en amont)', 'type': 'textarea'},
-            {'name': 'duration', 'label': 'Durée (s)', 'type': 'text', 'default': '15'},
-        ],
-    },
+    # 'synthesizer' / 'composer' / 'imager' : BASCULÉS sur le runner GÉNÉRIQUE (2026-07-13)
+    #   — entrée PROMPT du contrat + aliases normalisés add_to_* (tool_api, @wraps).
     # 'transcriber' / 'describer' / 'reader' : BASCULÉS sur le runner GÉNÉRIQUE (2026-07-13)
     #   — triades normalisées (item_id) + clé canonique result_text au detail.
     # 'enhancer' : BASCULÉ sur le runner GÉNÉRIQUE (generic_runner.py, 2026-07-13)
     #   — 1re app au contrat normalisé (item_id + detail canonique + params.py pointés).
-    'imager': {
-        'create': _imager_create, 'start': _imager_start, 'poll': _imager_poll,
-        'output_type': 'auto',   # image (ou vidéo selon le mode)
-        'params_spec': [
-            {'name': 'prompt', 'label': 'Prompt (si pas de nœud Texte en amont)', 'type': 'textarea'},
-            {'name': 'model', 'label': 'Modèle', 'type': 'select',
-             'options': ['stable-diffusion-xl', 'hunyuan-image-2.1', 'qwen-image-2'],
-             'default': 'stable-diffusion-xl'},
-        ],
-    },
     'anonymizer': {
         'create': _anonymizer_create, 'start': _anonymizer_start, 'poll': _anonymizer_poll,
         'output_type': 'auto',

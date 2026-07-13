@@ -21,6 +21,24 @@ import inspect
 # Manifeste des apps NORMALISÉES (contrat rempli). L'ordre d'input_kinds = priorité de
 # résolution quand plusieurs entrées typées arrivent sur le nœud.
 GENERIC_APPS = {
+    'synthesizer': {
+        'primary_input': 'prompt',
+        'params_module': 'wama.synthesizer.params',
+        'params_attr': 'PARAMS_JSON',
+        'output_type': 'audio',
+    },
+    'composer': {
+        'primary_input': 'prompt',
+        'params_module': 'wama.composer.params',
+        'params_attr': 'PARAMS_JSON',
+        'output_type': 'audio',
+    },
+    'imager': {
+        'primary_input': 'prompt',
+        'params_module': 'wama.imager.params',
+        'params_attr': 'IMAGE_PARAMS_JSON',   # nœud imager V1 = génération d'IMAGE (txt2img)
+        'output_type': 'auto',
+    },
     'transcriber': {
         'input_kinds': ('audio', 'video'),
         'params_module': 'wama.transcriber.params',
@@ -98,17 +116,26 @@ def build_generic_runner(app_id):
         fn = getattr(tool_api, f'add_to_{app_id}', None)
         if fn is None:
             raise ValueError(f"{app_id} : add_to_{app_id} absent du registre central (contrat).")
-        file_path = next((inputs[k] for k in conf['input_kinds'] if inputs.get(k)), '')
-        if not file_path:
-            raise ValueError(f"Nœud {app_id} : aucune entrée "
-                             f"({' / '.join(conf['input_kinds'])}).")
+        if conf.get('primary_input') == 'prompt':
+            primary = (inputs.get('prompt') or inputs.get('text')
+                       or (params or {}).get('prompt') or (params or {}).get('text')
+                       or (params or {}).get('text_content') or '').strip()
+            if not primary:
+                raise ValueError(f"Nœud {app_id} : aucun prompt (connectez un nœud Texte "
+                                 f"ou renseignez le paramètre).")
+        else:
+            primary = next((inputs[k] for k in conf['input_kinds'] if inputs.get(k)), '')
+            if not primary:
+                raise ValueError(f"Nœud {app_id} : aucune entrée "
+                                 f"({' / '.join(conf['input_kinds'])}).")
         # Filtre des params sur la signature RÉELLE + coercition par type du schéma
         sig = inspect.signature(fn)
         types_by_name = {p['name']: p.get('type') for p in _params_json(conf)}
+        consumed = {'prompt', 'text', 'text_content'} if conf.get('primary_input') == 'prompt' else set()
         kwargs = {k: _coerce(v, types_by_name.get(k))
                   for k, v in (params or {}).items()
-                  if k in sig.parameters and v not in (None, '')}
-        res = fn(user, file_path, **kwargs)
+                  if k in sig.parameters and k not in consumed and v not in (None, '')}
+        res = fn(user, primary, **kwargs)
         if 'error' in res:
             raise ValueError(f"{app_id} : {res['error']}")
         if 'item_id' not in res:

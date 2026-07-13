@@ -1400,3 +1400,20 @@ Recadrage Fabien : « le studio consomme le CONTRAT, jamais l'état courant des 
 - Restent au shim : synthesizer, avatarizer, converter, composer, imager, anonymizer
   (créations non-fichier ou signatures spéciales : prompt d'entrée, convert_file
   auto-start, sortie dérivée anonymizer, multi-images imager).
+
+### 37.9 Entrées PROMPT génériques → synthesizer/composer/imager (2026-07-13)
+- Aliases NORMALISÉS `add_to_synthesizer`/`add_to_composer`/`add_to_imager` dans le
+  registre central (`@functools.wraps` → la signature réelle reste introspectable pour
+  le filtrage de params ; clé UNIFORME `item_id` ; les façades historiques de
+  l'assistant inchangées).
+- `generic_runner` : `primary_input='prompt'` — prompt résolu des entrées typées
+  (nœud Texte, sorties texte transcriber/reader…) avec repli params ; clés consommées
+  exclues des kwargs.
+- imager : clé canonique `result_file` COMPLÉTÉE dans son adapter detail (vidéo OU
+  1re image de `generated_images`) — bénéficie aussi à la preview Sortie de l'inspecteur.
+- **Shim vidé 7/10.** Restent (raisons identifiées) : avatarizer (double entrée
+  audio+avatar), converter (convert_file auto-start, nom non normalisé), anonymizer
+  (sortie dérivée sans champ modèle — le vrai fix est un champ output_file, item de
+  portage).
+- Testés : création réelle par prompt ×3 (coercitions duration/width/height vérifiées),
+  poll SUCCESS avec sortie canonique, specs 7/5/8 params depuis params.py.

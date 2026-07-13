@@ -27,7 +27,11 @@ class ImagerConfig(AppConfig):
                 source_file=g.reference_image or g.prompt_file or None,
                 source_type='video' if g.is_video_generation else 'image',
                 engine=g.model,
-                result_file=g.output_video or None,  # images : liste JSON, pas un champ fichier
+                # result_file canonique COMPLÉTÉ (2026-07-13, contrat méta-app) : vidéo, ou
+                # PREMIÈRE image générée (generated_images = liste JSON de chemins).
+                result_file=(g.output_video or
+                             ((g.generated_images or [None])[0]
+                              if isinstance(g.generated_images, list) else None)),
                 extra=extra,
             )
             if g.output_quality:
