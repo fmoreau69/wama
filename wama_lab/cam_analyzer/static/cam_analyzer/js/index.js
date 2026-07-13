@@ -2356,6 +2356,16 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
                 return { lat: p.lat, lon: p.lon, h: (cx || cy) ? Math.atan2(cy, cx) * 180 / Math.PI : p.heading };
             }).filter(p => p.h != null);
+            // Bande de route PLEINE (surface normalisée, hérite de laneWidthM) : voie navette
+            // + voie opposée. Dessinée SOUS les lignes de bord.
+            const _band = (xL, xR, col) => {
+                if (_sm.length < 2) return;
+                const a = _sm.map(p => egoToLatLon(p.lat, p.lon, p.h, xL, 0));
+                const b = _sm.map(p => egoToLatLon(p.lat, p.lon, p.h, xR, 0)).reverse();
+                L.polygon(a.concat(b), { stroke: false, fillColor: col, fillOpacity: 0.12 }).addTo(miniMapLaneLayer);
+            };
+            _band(-_half, _half, '#4caf50');        // voie navette (droite)
+            _band(-_half * 3, -_half, '#78909c');   // voie opposée
             _edges.forEach(e => {
                 const pts = _sm.map(p => egoToLatLon(p.lat, p.lon, p.h, e.x, 0));
                 if (pts.length >= 2) L.polyline(pts, { color: e.c, weight: 1.5, opacity: 0.85, dashArray: e.d }).addTo(miniMapLaneLayer);
@@ -2383,6 +2393,11 @@ document.addEventListener('DOMContentLoaded', function () {
             const focal = ih / (2 * Math.tan(TOPDOWN_FOV_V_DEG * Math.PI / 360));  // px (pixels carrés)
             fr.detections.forEach(det => {
                 if (det.type === 'road_mask' || det.type === 'sam3_marking') return;
+                // Cohérence avec l'overlay vidéo : mêmes filtres de classe + de confiance.
+                if (overlayVisibleClasses && det.class_name
+                    && !overlayVisibleClasses.has(det.class_name.toLowerCase())) return;
+                if (!det.predicted && overlayMinConf > 0 && typeof det.confidence === 'number'
+                    && det.confidence < overlayMinConf) return;
                 // POSITION reconstruite depuis le PINHOLE (précis + centré), pas l'homographie
                 // (qui COMPRIME la distance ×3-4 ET la biaise latéralement de ~1,5m → objets
                 // de gauche projetés à droite). X = distance·(centre_bbox−centre_image)/focale ;
@@ -4178,7 +4193,10 @@ document.addEventListener('DOMContentLoaded', function () {
                 const _lbl = document.getElementById('overlayConfVal');
                 if (_lbl) _lbl.textContent = Math.round(overlayMinConf * 100) + '%';
                 try { localStorage.setItem('cam_analyzer_min_conf', String(overlayMinConf)); } catch (e) { /* noop */ }
-                if (typeof currentTime === 'number') updateDetectionOverlay(currentTime);
+                if (typeof currentTime === 'number') {
+                    updateDetectionOverlay(currentTime);
+                    topDownLastRender = -999; updateMiniMapShuttle(currentTime);   // top-down cohérent
+                }
             };
         }
         // Offset GPS↔vidéo : ajustement en direct (re-aligne la navette/objets) + save.
