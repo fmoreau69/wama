@@ -2407,7 +2407,10 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (isGhost) {
                     g = det.vehicle_xy;              // fantôme prédit : déjà en repère véhicule
                 } else if (det.distance_m != null && Array.isArray(det.bbox)) {
-                    const bcx = (det.bbox[0] + det.bbox[2]) / 2;
+                    // Point de contact au sol du MASQUE (segmentation) si présent → latéral
+                    // plus précis que le centre du bbox ; sinon centre du bbox (détection).
+                    const bcx = Array.isArray(det.seg_ground_px) ? det.seg_ground_px[0]
+                                                                 : (det.bbox[0] + det.bbox[2]) / 2;
                     g = [det.distance_m * (bcx - iw / 2) / focal, det.distance_m];
                 } else {
                     g = det.ground_xy;

@@ -91,7 +91,12 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=1.0,
             if not f:
                 continue
             for d in (f.detections or []):
-                if d.get('class_name') not in CLASS_DIMS or d.get('track_id') is None:
+                if d.get('class_name') not in CLASS_DIMS:
+                    continue
+                # Accepte les détections suivies (track_id) ET les objets SEGMENTÉS sans
+                # track_id (le tracker global les suit par position monde). Exclut les
+                # fantômes (predicted) qui n'ont ni track_id ni source segmentation.
+                if d.get('track_id') is None and d.get('source') != 'segmentation':
                     continue
                 ego = pinhole_ego(d, iw, ih, fov_v_deg)
                 if ego is None:
