@@ -51,6 +51,8 @@ document.addEventListener('DOMContentLoaded', function () {
     let gpsTimeOffset = 0;           // recalage GPS↔vidéo (s) : ts_gps = t*scale + offset
     let gpsTimeScale = 1;            // échelle temps vidéo→réel (corrige fps AVI erroné)
     let laneWidthM = 3.5;            // largeur de voie (m) pour le gabarit vue de dessus
+    let showLaneVideo = false;       // projeter le gabarit de voie SUR la vidéo (calibration)
+    let laneCamHeightM = 1.3;        // hauteur caméra (m) pour la projection sol→image
     let miniMapLaneLayer = null;     // calque du gabarit de voie
     let topDown360 = false;          // fusion multi-caméra dans le repère véhicule (toggle)
     let usePrediction = false;         // coloration Prédiction (trajectoire) vs ttc_s naïf (toggle)
@@ -1852,6 +1854,27 @@ document.addEventListener('DOMContentLoaded', function () {
 
         const scaleX = drawW / srcWidth;
         const scaleY = drawH / srcHeight;
+
+        // Gabarit de voie NORMALISÉ projeté sur la vidéo (pinhole sol→image) → permet de
+        // CALIBRER la largeur de voie visuellement contre la route réelle. Distinct de la
+        // segmentation yolopv2 (qu'on garde). Bords pleins + ligne centrale pointillée.
+        if (position === 'front' && showLaneVideo) {
+            const _focal = srcHeight / (2 * Math.tan(TOPDOWN_FOV_V_DEG * Math.PI / 360));
+            const _cx = srcWidth / 2, _cy = srcHeight / 2, _half = laneWidthM / 2;
+            [{ x: _half, c: '#e0e0e0', d: [] }, { x: -_half, c: '#ffd54f', d: [7, 7] },
+             { x: -_half * 3, c: '#e0e0e0', d: [] }].forEach(ln => {
+                ctx.beginPath(); ctx.strokeStyle = ln.c; ctx.lineWidth = 2; ctx.setLineDash(ln.d);
+                let started = false;
+                for (let Y = 3; Y <= 45; Y += 1) {
+                    const px = _cx + _focal * ln.x / Y, py = _cy + _focal * laneCamHeightM / Y;
+                    if (px < 0 || px > srcWidth || py > srcHeight) continue;
+                    const cxp = offsetX + px * scaleX, cyp = offsetY + py * scaleY;
+                    if (!started) { ctx.moveTo(cxp, cyp); started = true; } else ctx.lineTo(cxp, cyp);
+                }
+                ctx.stroke();
+            });
+            ctx.setLineDash([]);
+        }
 
         // Persistance de l'aire roulable : si la frame courante a un road_mask, on
         // mémorise ; sinon on redessine le dernier connu (atténué, pointillés) → pas de
@@ -4113,7 +4136,31 @@ document.addEventListener('DOMContentLoaded', function () {
                 const _lwl = document.getElementById('laneWidthVal'); if (_lwl) _lwl.textContent = laneWidthM.toFixed(1) + 'm';
                 // Override manuel PAR SESSION (gagne sur l'auto au rechargement).
                 try { if (currentSessionId) localStorage.setItem('cam_analyzer_lane_width_' + currentSessionId, String(laneWidthM)); } catch (e) { /* noop */ }
-                if (typeof currentTime === 'number') { topDownLastRender = -999; updateMiniMapShuttle(currentTime); }
+                if (typeof currentTime === 'number') {
+                    topDownLastRender = -999; updateMiniMapShuttle(currentTime);
+                    if (showLaneVideo) updateDetectionOverlay(currentTime);   // gabarit vidéo suit le slider
+                }
+            };
+        }
+        // Toggle gabarit de voie SUR la vidéo (calibration visuelle de la largeur).
+        const _lvb = document.getElementById('laneVideoBtn');
+        if (_lvb) _lvb.onclick = () => {
+            showLaneVideo = !showLaneVideo;
+            _lvb.classList.toggle('btn-secondary', showLaneVideo);
+            _lvb.classList.toggle('btn-outline-secondary', !showLaneVideo);
+            if (typeof currentTime === 'number') updateDetectionOverlay(currentTime);
+        };
+        // Hauteur caméra (projection sol→image du gabarit vidéo) + persistance.
+        const _chs = document.getElementById('camHeightSlider');
+        if (_chs) {
+            try { const sv = localStorage.getItem('cam_analyzer_cam_height'); if (sv) laneCamHeightM = parseFloat(sv) || 1.3; } catch (e) { /* noop */ }
+            _chs.value = laneCamHeightM;
+            const _ch0 = document.getElementById('camHeightVal'); if (_ch0) _ch0.textContent = laneCamHeightM.toFixed(1) + 'm';
+            _chs.oninput = () => {
+                laneCamHeightM = parseFloat(_chs.value) || 1.3;
+                const _l = document.getElementById('camHeightVal'); if (_l) _l.textContent = laneCamHeightM.toFixed(1) + 'm';
+                try { localStorage.setItem('cam_analyzer_cam_height', String(laneCamHeightM)); } catch (e) { /* noop */ }
+                if (showLaneVideo && typeof currentTime === 'number') updateDetectionOverlay(currentTime);
             };
         }
         // Filtre de confiance à l'affichage (sans ré-analyse) + persistance de la valeur.
