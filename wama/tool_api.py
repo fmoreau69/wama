@@ -572,6 +572,7 @@ def add_to_enhancer(
 
     return {
         'enhancement_id': enhancement.id,
+        'item_id': enhancement.id,   # clé UNIFORME du contrat méta-app (STUDIO_VISION 2026-07-12)
         'name': src.name,
         'media_type': media_type,
         'ai_model': ai_model,

@@ -1366,3 +1366,24 @@ inspecteur fonctionnel, cards de sorties ») :
 - Nouvelles compositions possibles : re-voicing (transcriber→synthesizer),
   sous-titrage différé (transcriber→Sortie txt), OCR→lecture audio
   (reader→synthesizer), prompt→image→amélioration→médiathèque, floutage→conversion…
+
+### 37.7 Contrat uniforme : gel du shim, preview E/S, runner générique (2026-07-12/13)
+Recadrage Fabien : « le studio consomme le CONTRAT, jamais l'état courant des apps »
+(mémoire feedback_studio_uniform_contract + STUDIO_VISION « principe directeur »). Exécuté :
+1. **runners.py = shim V1 GELÉ** (bandeau interdiction d'étendre) ; spec du contrat d'app
+   exécutable consignée (STUDIO_VISION : 4 éléments, tous du contrat commun).
+2. **Preview ENTRÉE/SORTIE générique** (toutes apps, zéro code par app) :
+   `unified_preview ?side=` + méta `sides` (dérivées de `result_file` canonique du detail) ;
+   inspecteur : défaut intelligent (SUCCESS→sortie), toggle [Entrée|Sortie], mode
+   **Comparer** (slider image/image V1). Fix au passage : `DetailRegistry.get()` renvoie
+   {model, adapter}. Testé : converter (comparable), synthesizer (toggle audio), 8 pages 200.
+3. **Runner GÉNÉRIQUE** (`generic_runner.py`) piloté par le contrat : create =
+   `add_to_<app>` avec params FILTRÉS PAR INTROSPECTION de signature + coercition par type
+   du schéma ; poll = clés canoniques du detail + `progress` modèle ; params de nœud =
+   POINTEUR vers …PARAMS_JSON de l'app (mapping de forme, jamais de copie).
+   **Pilote : enhancer** — triade normalisée (`item_id` ajouté au retour d'add_to_enhancer),
+   adapter manuel SUPPRIMÉ du shim (1/10 vidé). Testé empiriquement : spec 3 params depuis
+   params.py, création réelle tool_api (param inconnu filtré, toggle coercé), poll
+   PENDING→SUCCESS avec sortie.
+   Prochaines normalisations (déjà proches du contrat) : transcriber/describer/reader —
+   il leur faut la clé `item_id` + `result_text` au schéma canonique du detail (sorties texte).

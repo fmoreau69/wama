@@ -270,36 +270,6 @@ def _composer_poll(user, item_id):
             'error': g.error_message or ''}
 
 
-# ── enhancer : image/vidéo → image/vidéo améliorée ─────────────────────────────
-
-def _enhancer_create(user, inputs, params):
-    from wama import tool_api
-    media = inputs.get('image') or inputs.get('video') or ''
-    if not media:
-        raise ValueError("Nœud enhancer : aucune entrée image/vidéo.")
-    res = tool_api.add_to_enhancer(user, media,
-                                   ai_model=params.get('ai_model', 'RealESR_Gx4'),
-                                   denoise=bool(params.get('denoise', False)))
-    if 'error' in res:
-        raise ValueError(f"enhancer : {res['error']}")
-    return res['enhancement_id']
-
-
-def _enhancer_start(user, item_id):
-    from wama import tool_api
-    res = tool_api.start_enhancer(user, item_id)
-    if isinstance(res, dict) and res.get('error'):
-        raise ValueError(f"enhancer : {res['error']}")
-
-
-def _enhancer_poll(user, item_id):
-    from wama.enhancer.models import Enhancement
-    e = Enhancement.objects.get(pk=item_id, user=user)
-    return {'status': e.status, 'progress': e.progress or 0,
-            'output': (e.output_file.name if e.output_file else ''),
-            'error': e.error_message or ''}
-
-
 # ── imager : prompt → image (ou vidéo) ─────────────────────────────────────────
 
 def _imager_create(user, inputs, params):
@@ -429,14 +399,8 @@ RUNNERS = {
             {'name': 'duration', 'label': 'Durée (s)', 'type': 'text', 'default': '15'},
         ],
     },
-    'enhancer': {
-        'create': _enhancer_create, 'start': _enhancer_start, 'poll': _enhancer_poll,
-        'output_type': 'auto',   # image OU vidéo — catégorie du fichier produit
-        'params_spec': [
-            {'name': 'ai_model', 'label': 'Modèle', 'type': 'text',
-             'placeholder': 'RealESR_Gx4 (défaut) — clés du catalogue enhancer'},
-        ],
-    },
+    # 'enhancer' : BASCULÉ sur le runner GÉNÉRIQUE (generic_runner.py, 2026-07-13)
+    #   — 1re app au contrat normalisé (item_id + detail canonique + params.py pointés).
     'imager': {
         'create': _imager_create, 'start': _imager_start, 'poll': _imager_poll,
         'output_type': 'auto',   # image (ou vidéo selon le mode)
@@ -485,5 +449,13 @@ RUNNERS = {
 }
 
 
+_GENERIC_CACHE = {}
+
+
 def runner_for(app_id: str):
+    from .generic_runner import GENERIC_APPS, build_generic_runner
+    if app_id in GENERIC_APPS:
+        if app_id not in _GENERIC_CACHE:
+            _GENERIC_CACHE[app_id] = build_generic_runner(app_id)
+        return _GENERIC_CACHE[app_id]
     return RUNNERS.get(app_id)

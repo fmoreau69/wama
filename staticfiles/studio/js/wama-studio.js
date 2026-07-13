@@ -340,7 +340,9 @@
                 input = el('select', 'form-select form-select-sm bg-dark text-light border-secondary');
                 var opts = p.options || runOptions[p.options_source] || [];
                 opts.forEach(function (o) {
-                    var op = el('option'); op.value = o; op.textContent = o;
+                    var op = el('option');
+                    if (o && typeof o === 'object') { op.value = o.value; op.textContent = o.label || o.value; }
+                    else { op.value = o; op.textContent = o; }
                     input.appendChild(op);
                 });
             } else if (p.type === 'media_picker') {

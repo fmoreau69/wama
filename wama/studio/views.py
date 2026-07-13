@@ -98,8 +98,11 @@ def api_pipeline_detail(request, pk):
 def api_run_options(request):
     """Options d'exécution métadonnée-driven : params_spec par app exécutable +
     listes dynamiques (galerie d'avatars)."""
-    from .services.runners import RUNNERS
+    from .services.runners import RUNNERS, runner_for
+    from .services.generic_runner import GENERIC_APPS
     specs = {app: r['params_spec'] for app, r in RUNNERS.items()}
+    for app in GENERIC_APPS:
+        specs[app] = runner_for(app)['params_spec']   # source unique : params.py de l'app
     # Nœuds intégrés (cards d'entrée / de sortie) — configurables dans l'inspecteur
     specs['text_input'] = [
         {'name': 'text', 'label': 'Texte', 'type': 'textarea',

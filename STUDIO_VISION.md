@@ -115,9 +115,9 @@ Une app est orchestrable quand ces 4 éléments viennent du CONTRAT COMMUN :
 | # | Élément | Source unique | État |
 |---|---|---|---|
 | 1 | **Entrées typées** (ports du nœud) | `APP_CATALOG` / `studio_node_ports()` | ✅ en place |
-| 2 | **Création** depuis les entrées | triade `wama/tool_api.py` **normalisée** : `add_to_<app>(user, <entrées typées>, **params)` → `{'<app>_id' → clé UNIFORME 'item_id'}` | 🔄 signatures disparates à normaliser app par app |
+| 2 | **Création** depuis les entrées | triade `wama/tool_api.py` **normalisée** : `add_to_<app>(user, <entrées typées>, **params)` → clé UNIFORME `item_id` (params filtrés par introspection de signature) | 🔄 1/10 normalisée (enhancer, 2026-07-13) — suivantes : transcriber, describer, reader (déjà proches) |
 | 3 | **Suivi + résultat** | clés CANONIQUES de `unified_detail(app, pk)` : `status`/`progress`/`result_file` (+ `result_text` à ajouter au schéma pour transcriber/describer/reader) | ✅ 8/10 (manquent imager résultat multi-images, avatarizer detail ✅ fait) |
-| 4 | **Params de nœud** | `params.py` (PARAMS_JSON, filtrable par contexte `pipeline`) — JAMAIS de spec locale | ⏳ à brancher (specs locales = shim) |
+| 4 | **Params de nœud** | `params.py` (PARAMS_JSON, filtrable par contexte `pipeline`) — JAMAIS de spec locale | ✅ runner générique (2026-07-13) : pointeur `params_module`/`params_attr`, mapping de FORME |
 
 ### État courant (à résorber)
 `wama/studio/services/runners.py` = **SHIM V1 GELÉ** : 10 adapters manuels écrits avant ce
