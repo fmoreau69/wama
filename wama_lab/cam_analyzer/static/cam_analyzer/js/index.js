@@ -54,6 +54,8 @@ document.addEventListener('DOMContentLoaded', function () {
     let miniMapLaneLayer = null;     // calque du gabarit de voie
     let topDown360 = false;          // fusion multi-caméra dans le repère véhicule (toggle)
     let usePrediction = false;         // coloration Prédiction (trajectoire) vs ttc_s naïf (toggle)
+    let hideParked = false;            // masquer les véhicules stationnés/garés (toggle)
+    let stationaryGids = new Set();    // global_track_id des véhicules stationnés (du serveur)
     // Orientation de montage de chaque caméra (deg, sens horaire depuis l'avant véhicule).
     // Rig 360° ~90° ; ajustable ensuite (les caméras ne sont pas exactement à 90°).
     const CAMERA_YAW = { front: 0, right: 90, rear: 180, left: -90 };
@@ -389,6 +391,9 @@ document.addEventListener('DOMContentLoaded', function () {
             // Offset de synchro GPS↔vidéo (recalage manuel par session).
             gpsTimeOffset = data.gps_time_offset || 0;
             gpsTimeScale = data.gps_time_scale || 1;
+            try {
+                stationaryGids = new Set((data.results_summary && data.results_summary.stationary_global_tracks) || []);
+            } catch (e) { stationaryGids = new Set(); }
             // Largeur de voie : override manuel (par session) > auto-estimée > défaut 3,5m.
             let _lwManual = null;
             try { _lwManual = localStorage.getItem('cam_analyzer_lane_width_' + sessionId); } catch (e) { /* noop */ }
@@ -2378,6 +2383,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Dedupe multi-caméra : si l'objet a un global_track_id déjà dessiné cette
                 // frame (vu par une autre caméra), on le saute → 1 seule empreinte.
                 const gid = det.global_track_id;
+                if (hideParked && gid != null && stationaryGids.has(gid)) return;   // véhicule garé masqué
                 if (gid != null) {
                     if (_drawnGlobal.has(gid)) return;
                     _drawnGlobal.add(gid);
@@ -4061,6 +4067,14 @@ document.addEventListener('DOMContentLoaded', function () {
                                 : 'Prédiction : ' + (d.error || '?'));
             } catch (e) { alert('Échec : ' + e.message); }
             finally { _pcb.disabled = false; _pcb.innerHTML = _t0; }
+        };
+        // Bascule masquage des véhicules stationnés/garés.
+        const _hpb = document.getElementById('hideParkedBtn');
+        if (_hpb) _hpb.onclick = () => {
+            hideParked = !hideParked;
+            _hpb.classList.toggle('btn-secondary', hideParked);
+            _hpb.classList.toggle('btn-outline-secondary', !hideParked);
+            if (typeof currentTime === 'number') { topDownLastRender = -999; updateMiniMapShuttle(currentTime); }
         };
         // Bascule fusion multi-caméra 360° (repère véhicule) ↔ avant seul.
         const _tdb = document.getElementById('topDown360Btn');

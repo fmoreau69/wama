@@ -1893,8 +1893,15 @@ def annotate_prediction_task(self, session_id: str):
     from .utils.multicam_tracker import annotate_global_tracks
     session = AnalysisSession.objects.get(pk=session_id)
     # 1) Tracks globaux multi-caméra (rapide) → continuité 360° + hand-off.
-    ng = annotate_global_tracks(session)
-    _console(session.user_id, f"Tracking multi-caméra : {ng} tracks globaux (hand-off inter-caméras).")
+    _gt = annotate_global_tracks(session)
+    ng = _gt['tracks']
+    stat = _gt.get('stationary_gids', [])
+    rs = session.results_summary or {}
+    rs['stationary_global_tracks'] = stat
+    session.results_summary = rs
+    session.save(update_fields=['results_summary'])
+    _console(session.user_id, f"Tracking multi-caméra : {ng} tracks globaux (hand-off), "
+                              f"{len(stat)} véhicules stationnés détectés.")
     # 2) Prédiction TTC/PET par trajectoire.
     n = annotate_prediction_indicators(session)
     _console(session.user_id, f"Prédiction : {n} détections annotées (TTC/PET par trajectoire).")

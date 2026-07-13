@@ -38,7 +38,8 @@ def _cam_to_vehicle(lateral, longitudinal, yaw_deg):
     return (longitudinal * s + lateral * c, longitudinal * c - lateral * s)
 
 
-def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=1.0, frame_range=None):
+def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=1.0,
+                           frame_range=None, spread_max_m=6.0):
     """
     Assigne un `global_track_id` à chaque détection (objets suivis) de toutes les caméras
     ANALYSÉES, associées en repère monde. Retourne le nombre de tracks globaux créés.
@@ -175,6 +176,35 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=1.0, f
                     dirty.add(fr)
                     ghosts += 1
 
+    # ── Détection des véhicules STATIONNÉS (garés) ──────────────────────────────
+    # Track à vitesse max ~nulle sur toute sa vie = garé, SAUF s'il passe près d'une
+    # intersection (voiture arrêtée au carrefour = pertinente, on la garde).
+    windows = session.intersection_windows or []
+    win_local = []
+    for w in windows:
+        if w.get('lat') is not None and w.get('lon') is not None:
+            we, wn = to_local(w['lat'], w['lon'])
+            win_local.append((we, wn, w.get('radius_m', 30.0)))
+
+    def _near_intersection(hs):
+        for (_, _, e, n, _) in hs:
+            for we, wn, wr in win_local:
+                if math.hypot(e - we, n - wn) <= wr:
+                    return True
+        return False
+
+    # Métrique robuste au bruit : ÉTALEMENT spatial de la position monde sur la vie du
+    # track (un véhicule garé reste groupé ; un mobile s'étale le long de son trajet).
+    stationary_gids = []
+    for gid, hist in track_hist.items():
+        hs = sorted(hist)
+        if len(hs) < 5 or (hs[-1][1] - hs[0][1]) < 1.0:
+            continue
+        e0, n0 = hs[0][2], hs[0][3]
+        spread = max(math.hypot(e - e0, n - n0) for (_, _, e, n, _) in hs)
+        if spread < spread_max_m and not _near_intersection(hs):
+            stationary_gids.append(gid)
+
     for f in dirty:
         f.save(update_fields=['detections'])
-    return next_id - 1
+    return {'tracks': next_id - 1, 'stationary_gids': stationary_gids}
