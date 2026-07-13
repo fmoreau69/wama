@@ -1387,3 +1387,16 @@ Recadrage Fabien : « le studio consomme le CONTRAT, jamais l'état courant des 
    PENDING→SUCCESS avec sortie.
    Prochaines normalisations (déjà proches du contrat) : transcriber/describer/reader —
    il leur faut la clé `item_id` + `result_text` au schéma canonique du detail (sorties texte).
+
+### 37.8 Normalisation transcriber/describer/reader → runner générique (2026-07-13)
+- `item_id` ajouté aux retours `add_to_transcriber`/`add_to_describer` (reader l'avait) ;
+- **`result_text` = nouvelle clé CANONIQUE du detail** (build_detail +
+  INSPECTOR_DETAIL_FIELDS), servie par les 3 adapters → les sorties TEXTE sont chaînables
+  par le contrat (transcriber→synthesizer, reader→synthesizer, →Sortie .txt) ;
+- generic_runner : poll texte (`is_text`) ; **shim vidé 4/10** (enhancer + les 3) ;
+- 🐛 **bug préexistant réparé** (découvert par le test empirique du runner) :
+  `add_to_describer` passait `output_format=` au constructeur alors que le champ modèle
+  est `output_style` — le tool était cassé pour l'assistant aussi.
+- Restent au shim : synthesizer, avatarizer, converter, composer, imager, anonymizer
+  (créations non-fichier ou signatures spéciales : prompt d'entrée, convert_file
+  auto-start, sortie dérivée anonymizer, multi-images imager).
