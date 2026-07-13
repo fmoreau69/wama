@@ -21,6 +21,24 @@ import inspect
 # Manifeste des apps NORMALISÉES (contrat rempli). L'ordre d'input_kinds = priorité de
 # résolution quand plusieurs entrées typées arrivent sur le nœud.
 GENERIC_APPS = {
+    'transcriber': {
+        'input_kinds': ('audio', 'video'),
+        'params_module': 'wama.transcriber.params',
+        'params_attr': 'PARAMS_JSON',
+        'output_type': 'text',
+    },
+    'describer': {
+        'input_kinds': ('image', 'video', 'audio', 'document'),
+        'params_module': 'wama.describer.params',
+        'params_attr': 'PARAMS_JSON',
+        'output_type': 'text',
+    },
+    'reader': {
+        'input_kinds': ('document', 'image'),
+        'params_module': 'wama.reader.params',
+        'params_attr': 'PARAMS_JSON',
+        'output_type': 'text',
+    },
     'enhancer': {
         'input_kinds': ('image', 'video'),
         'params_module': 'wama.enhancer.params',
@@ -114,13 +132,18 @@ def build_generic_runner(app_id):
             raise ValueError(f"{app_id} : pas d'adapter detail (contrat) — porter l'app.")
         instance = entry['model'].objects.get(pk=item_id, user=user)
         d = entry['adapter'](instance) or {}
-        result = d.get('result_file') or ''
-        if result.startswith('/media/'):
-            result = result[len('/media/'):]
+        is_text = conf.get('output_type') == 'text'
+        if is_text:
+            result = d.get('result_text') or ''
+        else:
+            result = d.get('result_file') or ''
+            if result.startswith('/media/'):
+                result = result[len('/media/'):]
         return {
             'status': d.get('status') or getattr(instance, 'status', ''),
             'progress': getattr(instance, 'progress', 0) or 0,
             'output': result,
+            'is_text': is_text,
             'error': getattr(instance, 'error_message', '') or '',
         }
 

@@ -1176,7 +1176,10 @@ def add_to_describer(
                 filename=src.name,
                 file_size=src.stat().st_size,
                 detected_type=detected_type,
-                output_format=output_format,
+                # kwarg public output_format → champ modèle output_style (renommage modèle
+                # jamais répercuté ici : le tool était CASSÉ — découvert par le runner
+                # générique du studio, 2026-07-13)
+                output_style=output_format,
                 output_language=output_language,
                 max_length=int(max_length),
             )
@@ -1185,6 +1188,7 @@ def add_to_describer(
 
     return {
         'description_id': description.id,
+        'item_id': description.id,   # clé UNIFORME du contrat méta-app (STUDIO_VISION)
         'filename': src.name,
         'detected_type': detected_type,
         'output_format': output_format,
@@ -1352,6 +1356,7 @@ def add_to_transcriber(
 
     return {
         'transcript_id': transcript.id,
+        'item_id': transcript.id,   # clé UNIFORME du contrat méta-app (STUDIO_VISION)
         'filename': transcript.filename,
         'duration_display': transcript.duration_display or '—',
         'properties': transcript.properties or '—',

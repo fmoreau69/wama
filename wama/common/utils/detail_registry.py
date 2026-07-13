@@ -55,12 +55,14 @@ def register_app_detail(app_name, model_class, adapter):
 
 
 def build_detail(instance, *, source_file=None, source_type=None, engine=None,
-                 engine_effective=None, result_file=None, extra=None):
+                 engine_effective=None, result_file=None, result_text=None, extra=None):
     """Assemble le dict canonique d'un item (épine dorsale). Les valeurs vides sont OMISES
     (la ligne disparaît côté WamaDetails). `extra` = réglages spécifiques d'app {label: valeur}.
 
     Arguments = valeurs DÉJÀ résolues par l'adapter (il connaît les noms de champs de son modèle) :
-      source_file (FileField|str), source_type (str), engine, engine_effective, result_file.
+      source_file (FieldFile|str), source_type (str), engine, engine_effective, result_file,
+      result_text (str — clé canonique AJOUTÉE 2026-07-13 pour les apps à sortie TEXTE :
+      transcriber/describer/reader ; consommée par le runner générique du studio).
     Les champs communs (id/created_at/status/…) sont lus directement sur l'instance.
     """
     def _url(f):
@@ -122,6 +124,10 @@ def build_detail(instance, *, source_file=None, source_type=None, engine=None,
     res = _url(result_file)
     if res:
         d['result_file'] = res
+
+    if result_text:
+        d['result_text'] = result_text
+
     for k in ('output_format', 'output_quality'):
         v = getattr(instance, k, None)
         if v:

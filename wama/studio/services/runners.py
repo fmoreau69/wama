@@ -153,92 +153,6 @@ def _converter_poll(user, item_id):
     }
 
 
-# ── transcriber : audio/vidéo → TEXTE ─────────────────────────────────────────
-
-def _transcriber_create(user, inputs, params):
-    from wama import tool_api
-    media = inputs.get('audio') or inputs.get('video') or ''
-    if not media:
-        raise ValueError("Nœud transcriber : aucune entrée audio/vidéo.")
-    res = tool_api.add_to_transcriber(user, media, backend=params.get('backend', 'auto'))
-    if 'error' in res:
-        raise ValueError(f"transcriber : {res['error']}")
-    return res['transcript_id']
-
-
-def _transcriber_start(user, item_id):
-    from wama import tool_api
-    res = tool_api.start_transcriber(user, item_id)
-    if isinstance(res, dict) and res.get('error'):
-        raise ValueError(f"transcriber : {res['error']}")
-
-
-def _transcriber_poll(user, item_id):
-    from wama.transcriber.models import Transcript
-    t = Transcript.objects.get(pk=item_id, user=user)
-    return {'status': t.status, 'progress': t.progress or 0,
-            'output': t.text or '', 'is_text': True, 'error': ''}
-
-
-# ── describer : média → TEXTE (description) ───────────────────────────────────
-
-def _describer_create(user, inputs, params):
-    from wama import tool_api
-    media = (inputs.get('image') or inputs.get('video') or inputs.get('audio')
-             or inputs.get('document') or '')
-    if not media:
-        raise ValueError("Nœud describer : aucune entrée média.")
-    res = tool_api.add_to_describer(user, media,
-                                    output_format=params.get('output_format', 'detailed'),
-                                    output_language=params.get('output_language', 'fr'))
-    if 'error' in res:
-        raise ValueError(f"describer : {res['error']}")
-    return res['description_id']
-
-
-def _describer_start(user, item_id):
-    from wama import tool_api
-    res = tool_api.start_describer(user, item_id)
-    if isinstance(res, dict) and res.get('error'):
-        raise ValueError(f"describer : {res['error']}")
-
-
-def _describer_poll(user, item_id):
-    from wama.describer.models import Description
-    d = Description.objects.get(pk=item_id, user=user)
-    return {'status': d.status, 'progress': d.progress or 0,
-            'output': d.result_text or '', 'is_text': True,
-            'error': d.error_message or ''}
-
-
-# ── reader : document → TEXTE (OCR) ────────────────────────────────────────────
-
-def _reader_create(user, inputs, params):
-    from wama import tool_api
-    doc = inputs.get('document') or inputs.get('image') or ''
-    if not doc:
-        raise ValueError("Nœud reader : aucune entrée document/image.")
-    res = tool_api.add_to_reader(user, doc, backend=params.get('backend', 'auto'))
-    if 'error' in res:
-        raise ValueError(f"reader : {res['error']}")
-    return res['item_id']
-
-
-def _reader_start(user, item_id):
-    from wama import tool_api
-    res = tool_api.start_reader(user, item_id)
-    if isinstance(res, dict) and res.get('error'):
-        raise ValueError(f"reader : {res['error']}")
-
-
-def _reader_poll(user, item_id):
-    from wama.reader.models import ReadingItem
-    r = ReadingItem.objects.get(pk=item_id, user=user)
-    return {'status': r.status, 'progress': r.progress or 0,
-            'output': r.result_text or '', 'is_text': True,
-            'error': r.error_message or ''}
-
-
 # ── composer : prompt → musique/SFX (audio) ────────────────────────────────────
 
 def _composer_create(user, inputs, params):
@@ -365,32 +279,6 @@ RUNNERS = {
              'options': ['default', 'male_1', 'male_2', 'female_1', 'female_2'], 'default': 'default'},
         ],
     },
-    'transcriber': {
-        'create': _transcriber_create, 'start': _transcriber_start, 'poll': _transcriber_poll,
-        'output_type': 'text',
-        'params_spec': [
-            {'name': 'backend', 'label': 'Moteur ASR', 'type': 'select',
-             'options': ['auto', 'whisper', 'vibevoice'], 'default': 'auto'},
-        ],
-    },
-    'describer': {
-        'create': _describer_create, 'start': _describer_start, 'poll': _describer_poll,
-        'output_type': 'text',
-        'params_spec': [
-            {'name': 'output_format', 'label': 'Style', 'type': 'select',
-             'options': ['detailed', 'concise', 'technical'], 'default': 'detailed'},
-            {'name': 'output_language', 'label': 'Langue', 'type': 'select',
-             'options': ['fr', 'en'], 'default': 'fr'},
-        ],
-    },
-    'reader': {
-        'create': _reader_create, 'start': _reader_start, 'poll': _reader_poll,
-        'output_type': 'text',
-        'params_spec': [
-            {'name': 'backend', 'label': 'Moteur OCR', 'type': 'select',
-             'options': ['auto', 'doctr', 'olmocr', 'glmocr'], 'default': 'auto'},
-        ],
-    },
     'composer': {
         'create': _composer_create, 'start': _composer_start, 'poll': _composer_poll,
         'output_type': 'audio',
@@ -399,6 +287,8 @@ RUNNERS = {
             {'name': 'duration', 'label': 'Durée (s)', 'type': 'text', 'default': '15'},
         ],
     },
+    # 'transcriber' / 'describer' / 'reader' : BASCULÉS sur le runner GÉNÉRIQUE (2026-07-13)
+    #   — triades normalisées (item_id) + clé canonique result_text au detail.
     # 'enhancer' : BASCULÉ sur le runner GÉNÉRIQUE (generic_runner.py, 2026-07-13)
     #   — 1re app au contrat normalisé (item_id + detail canonique + params.py pointés).
     'imager': {

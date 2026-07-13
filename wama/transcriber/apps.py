@@ -63,6 +63,6 @@ class TranscriberConfig(AppConfig):
             }
             return build_detail(item, source_file=item.audio, source_type='audio',
                                 engine=item.backend, engine_effective=item.used_backend,
-                                result_file=None, extra=extra)
+                                result_file=None, result_text=item.text or None, extra=extra)
 
         register_app_detail('transcriber', Transcript, _transcriber_detail)

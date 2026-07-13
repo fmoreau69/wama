@@ -35,7 +35,8 @@ class ReaderConfig(AppConfig):
                 source_type='document',            # reader = OCR documents/images
                 engine=item.backend,
                 engine_effective=item.used_backend,
-                result_file=None,                  # sortie = texte (result_text), pas un fichier
+                result_file=None,                  # sortie = texte, pas un fichier
+                result_text=item.result_text or None,   # clé canonique (2026-07-13)
                 extra=extra,
             )
 

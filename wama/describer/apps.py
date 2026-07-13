@@ -38,6 +38,7 @@ class DescriberConfig(AppConfig):
             }
             return build_detail(item, source_file=item.input_file,
                                 source_type=(item.detected_type or item.content_type),
-                                engine=None, result_file=item.result_file, extra=extra)
+                                engine=None, result_file=item.result_file,
+                                result_text=item.result_text or None, extra=extra)
 
         register_app_detail('describer', Description, _describer_detail)

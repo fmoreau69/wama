@@ -82,3 +82,9 @@ Voir l'audit (transcriber `backend→engine` `audio→source_file` … ; reader 
 > Bilan : detail **5/10** (les 5 apps portées), preview **8/10** (manquent avatarizer, imager),
 > câblage complet 4 sous-éléments **5/10**. Prochaines cibles naturelles : enhancer + synthesizer
 > (il ne leur manque que detail + actions), puis anonymizer, avatarizer, imager.
+
+## Ajout au schéma canonique (2026-07-13)
+- **`result_text`** — résultat TEXTE d'un item (transcriber `text`, describer/reader
+  `result_text`). Complète `result_file` pour les apps dont la sortie n'est pas un fichier.
+  Consommateurs : runner générique du studio (chaînage texte→synthesizer, nœud Sortie .txt) ;
+  l'inspecteur peut l'afficher à terme (aperçu du texte côté Sortie).
