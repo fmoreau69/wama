@@ -2063,7 +2063,8 @@ document.addEventListener('DOMContentLoaded', function () {
     let miniMapTrailLayer = null;      // traces récentes (opacité décroissante)
     let miniMapHeadingLine = null;     // flèche de cap navette
     let miniMapEgoRect = null;         // rectangle navette à l'échelle (zoom tactique)
-    const topDownTrails = new Map();   // track_id -> [[lat,lon], ...] récent
+    const topDownTrails = new Map();   // track_id -> [[lat,lon], ...] réc
+    const topDownHeadings = new Map(); // tkey -> [cosN, sinE] cap lissé (EMA), maintenu à l'arrêtent
     let topDownLastTime = -999;        // détection de saut (reset traces)
     let topDownLastRender = -999;      // throttle ~10 Hz
     let topDownAutoFollow = true;      // recentrage auto en lecture (zoom tactique)
@@ -2277,7 +2278,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!miniMapTrailLayer) miniMapTrailLayer = L.layerGroup().addTo(miniMap);
         if (!miniMapLaneLayer) miniMapLaneLayer = L.layerGroup().addTo(miniMap);
         // Reset des traces sur saut temporel (seek).
-        if (Math.abs(currentTime - topDownLastTime) > 1.0) topDownTrails.clear();
+        if (Math.abs(currentTime - topDownLastTime) > 1.0) { topDownTrails.clear(); topDownHeadings.clear(); }
         topDownLastTime = currentTime;
 
         miniMapObjectLayer.clearLayers();
@@ -2402,12 +2403,19 @@ document.addEventListener('DOMContentLoaded', function () {
                 // perpendiculaire apparaît perpendiculaire). Repli sur le cap navette si trace
                 // trop courte / objet quasi immobile.
                 let objHeading = pose.heading;
+                let sm = topDownHeadings.get(tkey);
                 if (tr && tr.length >= 2) {
-                    const a = tr[Math.max(0, tr.length - 4)], b = tr[tr.length - 1];
+                    const a = tr[Math.max(0, tr.length - 5)], b = tr[tr.length - 1];
                     const dN = (b[0] - a[0]) * 111320;
                     const dE = (b[1] - a[1]) * 111320 * Math.cos(b[0] * Math.PI / 180);
-                    if (Math.hypot(dN, dE) > 0.4) objHeading = Math.atan2(dE, dN) * 180 / Math.PI;
+                    const mv = Math.hypot(dN, dE);
+                    if (mv > 0.4) {              // assez de mouvement → MAJ de l'EMA du cap
+                        const iN = dN / mv, iE = dE / mv, al = 0.25;
+                        sm = sm ? [sm[0] * (1 - al) + iN * al, sm[1] * (1 - al) + iE * al] : [iN, iE];
+                        topDownHeadings.set(tkey, sm);
+                    }
                 }
+                if (sm) objHeading = Math.atan2(sm[1], sm[0]) * 180 / Math.PI;   // maintenu si à l'arrêt
                 const label = `${det.class_name || 'objet'} [${camPos}]`
                     + `${det.dist_euclid_m != null ? ' · ' + det.dist_euclid_m + ' m' : ''}`
                     + `${det.ttc_s != null ? ' · TTC ' + det.ttc_s + ' s' : ''}`;
@@ -4061,7 +4069,7 @@ document.addEventListener('DOMContentLoaded', function () {
             _tdb.classList.toggle('active', topDown360);
             _tdb.classList.toggle('btn-warning', topDown360);
             _tdb.classList.toggle('btn-outline-warning', !topDown360);
-            topDownTrails.clear();
+            topDownTrails.clear(); topDownHeadings.clear();
             if (typeof currentTime === 'number') { topDownLastRender = -999; updateMiniMapShuttle(currentTime); }
         };
         // Synchro auto depuis le .rec (scale+offset GPS + largeur de voie).
