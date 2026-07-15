@@ -2092,7 +2092,8 @@ document.addEventListener('DOMContentLoaded', function () {
     let miniMapHeadingLine = null;     // flèche de cap navette
     let miniMapEgoRect = null;         // rectangle navette à l'échelle (zoom tactique)
     const topDownTrails = new Map();   // track_id -> [[lat,lon], ...] réc
-    const topDownHeadings = new Map(); // tkey -> [cosN, sinE] cap lissé (EMA), maintenu à l'arrêtent
+    const topDownHeadings = new Map(); // tkey -> [cosN, sinE] cap lissé (EMA), maintenu à l'arrêt
+    const topDownDist = new Map();     // tkey -> distance lissée (EMA) : réduit le jitter radial du pinholeent
     let topDownLastTime = -999;        // détection de saut (reset traces)
     let topDownLastRender = -999;      // throttle ~10 Hz
     let topDownAutoFollow = true;      // recentrage auto en lecture (zoom tactique)
@@ -2306,7 +2307,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!miniMapTrailLayer) miniMapTrailLayer = L.layerGroup().addTo(miniMap);
         if (!miniMapLaneLayer) miniMapLaneLayer = L.layerGroup().addTo(miniMap);
         // Reset des traces sur saut temporel (seek).
-        if (Math.abs(currentTime - topDownLastTime) > 1.0) { topDownTrails.clear(); topDownHeadings.clear(); }
+        if (Math.abs(currentTime - topDownLastTime) > 1.0) { topDownTrails.clear(); topDownHeadings.clear(); topDownDist.clear(); }
         topDownLastTime = currentTime;
 
         miniMapObjectLayer.clearLayers();
@@ -2411,7 +2412,18 @@ document.addEventListener('DOMContentLoaded', function () {
                     // plus précis que le centre du bbox ; sinon centre du bbox (détection).
                     const bcx = Array.isArray(det.seg_ground_px) ? det.seg_ground_px[0]
                                                                  : (det.bbox[0] + det.bbox[2]) / 2;
-                    g = [det.distance_m * (bcx - iw / 2) / focal, det.distance_m];
+                    // Distance LISSÉE dans le temps par objet (EMA) : la distance pinhole
+                    // brute saute de ~±20% (hauteur bbox) → positions incohérentes. On lisse
+                    // pour stabiliser trails/orientation/fusion 360°.
+                    let dm = det.distance_m;
+                    const _dk = det.global_track_id != null ? 'g' + det.global_track_id
+                              : (det.track_id != null ? camPos + ':' + det.track_id : null);
+                    if (_dk) {
+                        const _pv = topDownDist.get(_dk);
+                        dm = _pv != null ? _pv * 0.7 + dm * 0.3 : dm;
+                        topDownDist.set(_dk, dm);
+                    }
+                    g = [dm * (bcx - iw / 2) / focal, dm];
                 } else {
                     g = det.ground_xy;
                     if (!Array.isArray(g) || g.length < 2) return;
@@ -4124,7 +4136,7 @@ document.addEventListener('DOMContentLoaded', function () {
             _tdb.classList.toggle('active', topDown360);
             _tdb.classList.toggle('btn-warning', topDown360);
             _tdb.classList.toggle('btn-outline-warning', !topDown360);
-            topDownTrails.clear(); topDownHeadings.clear();
+            topDownTrails.clear(); topDownHeadings.clear(); topDownDist.clear();
             if (typeof currentTime === 'number') { topDownLastRender = -999; updateMiniMapShuttle(currentTime); }
         };
         // Synchro auto depuis le .rec (scale+offset GPS + largeur de voie).
