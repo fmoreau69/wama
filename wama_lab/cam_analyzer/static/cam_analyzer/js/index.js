@@ -2403,6 +2403,13 @@ document.addEventListener('DOMContentLoaded', function () {
                 // (qui COMPRIME la distance ×3-4 ET la biaise latéralement de ~1,5m → objets
                 // de gauche projetés à droite). X = distance·(centre_bbox−centre_image)/focale ;
                 // Y = distance. Centré (objet au centre image = latéral 0) et à la bonne distance.
+                // Les détections FANTÔMES (comblement de trou prédit, `vehicle_xy` interpolé
+                // monde) n'appartiennent qu'au mode Prédiction : hors de ce mode on ne dessine
+                // QUE les détections réelles — cohérence avec l'overlay caméra, qui les ignore
+                // (pas de bbox). Sans ce garde, elles apparaissaient toujours en vue de dessus
+                // dès qu'un calcul de prédiction avait été lancé (elles sont persistées), d'où
+                // l'impression de « prédiction activée par défaut » et l'incohérence caméra↔carte.
+                if (det.predicted && !usePrediction) return;
                 let g;
                 const isGhost = det.predicted && Array.isArray(det.vehicle_xy);
                 if (isGhost) {
@@ -2423,7 +2430,25 @@ document.addEventListener('DOMContentLoaded', function () {
                         dm = _pv != null ? _pv * 0.7 + dm * 0.3 : dm;
                         topDownDist.set(_dk, dm);
                     }
-                    g = [dm * (bcx - iw / 2) / focal, dm];
+                    // ── Latéral (X) ─────────────────────────────────────────────────────────
+                    // CAUSE RACINE du « ramassis » (audit 2026-07-15 §3) : la recompute pinhole
+                    // X = dm·(bcx−cx)/focal est BRUITÉE (focale devinée + petites erreurs de
+                    // centre bbox amplifiées par dm). L'homographie (ground_xy) donne un latéral
+                    // CALIBRÉ et LISSE, mais son échelle peut être compressée si la calibration
+                    // near/far est approximative. → On récupère la LISSITUDE de l'homographie ET
+                    // l'ÉCHELLE du pinhole (audit §6.2) : on remet le latéral homographique à
+                    // l'échelle du longitudinal pinhole (dm, fiable = distance affichée caméra).
+                    // scale = dm / Yh ; homographie bien calibrée ⇒ scale≈1 (no-op).
+                    let gx = null;
+                    if (Array.isArray(det.ground_xy)) {
+                        const xh = det.ground_xy[0], yh = det.ground_xy[1];
+                        if (isFinite(xh) && isFinite(yh) && yh > 0.5) {
+                            const scale = dm / yh;
+                            if (scale > 0.25 && scale < 4) gx = xh * scale;   // garde-fou calibration aberrante
+                        }
+                    }
+                    if (gx == null) gx = dm * (bcx - iw / 2) / focal;   // repli pinhole si pas d'homographie exploitable
+                    g = [gx, dm];
                 } else {
                     g = det.ground_xy;
                     if (!Array.isArray(g) || g.length < 2) return;
