@@ -10,7 +10,7 @@
  *  - réutilisation du composant card pour les éléments qui circulent,
  *  - persistance + exécution (la file = méta-app dégénérée à 1 app).
  */
-(function () {
+(function (global) {
     'use strict';
 
     var canvas, svg, hint, paletteList;
@@ -625,4 +625,4 @@
 
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
     else init();
-})();
+})(window);

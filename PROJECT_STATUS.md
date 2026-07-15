@@ -1460,3 +1460,21 @@ Refonte (« on réutilise le commun, on retire le spécifique ») :
   params de nœud générés des specs — rien de spécifique ajouté.
 ⚠ À revalider navigateur (hard-refresh inutile : static_v cache-bust). Si un message
 « Inspecteur en erreur : … » ou un warn [WamaStudio] apparaît → me le remonter tel quel.
+
+### 37.12 CAUSE RACINE de l'inspecteur studio vide — trouvée par exécution V8 (2026-07-15)
+Le fix 37.11 (délégation + erreurs visibles) a fait apparaître une régression (palette
+« Chargement… ») qui a mené à la VRAIE cause, prouvée en exécutant le script dans V8
+(mini-racer + DOM stub) :
+- **`global` n'a JAMAIS été défini dans wama-studio.js** (IIFE sans paramètre, contrairement
+  aux briques communes `(function (global) {...})(window)`).
+- Le check historique `!node || !global.WamaDetails` ne survivait au chargement que par
+  COURT-CIRCUIT (`!node` vrai quand rien n'est sélectionné). Au CLIC (node défini),
+  `global.WamaDetails` → ReferenceError → avalé par le try/catch silencieux du mousedown
+  → **inspecteur vide depuis le premier jour du squelette**.
+- Mon warn de 37.11 évaluait `global.…` inconditionnellement dans init() → init plantait
+  avant le fetch du catalogue → palette bloquée (le symptôme rapporté).
+Fix : IIFE au pattern commun `(function (global) {...})(window)`. Vérifié dans V8 : init
+complet (3 fetches), plus d'erreur, WamaDetails réel chargé et détecté.
+**Outillage durable** : `esprima` (syntaxe) + `mini-racer` (runtime V8 + DOM stub)
+installés — désormais TOUT edit JS passe par ces deux vérifications (l'équilibre de
+parenthèses ne détecte ni les ReferenceError ni les pièges de portée). Consigné en mémoire.
