@@ -48,8 +48,24 @@ document.addEventListener('DOMContentLoaded', function () {
     let detectionData = {};    // { position: { fps, width, height, frames: [{frame_number, timestamp, detections}] } }
     let lastSam3TestOverlay = null;  // { time, res } — overlay du dernier 🔬 Test SAM3 (persistant)
     let lastRoadMask = {};           // position → derniers road_mask connus (overlay route persistant)
-    let gpsTimeOffset = 0;           // recalage manuel GPS↔vidéo (s) : ajouté au temps vidéo
+    let gpsTimeOffset = 0;           // recalage GPS↔vidéo (s) : ts_gps = t*scale + offset
+    let gpsTimeScale = 1;            // échelle temps vidéo→réel (corrige fps AVI erroné)
+    let laneWidthM = 3.5;            // largeur de voie (m) pour le gabarit vue de dessus
+    let showLaneVideo = false;       // projeter le gabarit de voie SUR la vidéo (calibration)
+    let laneCamHeightM = 1.3;        // hauteur caméra (m) pour la projection sol→image
+    let miniMapLaneLayer = null;     // calque du gabarit de voie
+    let topDown360 = false;          // fusion multi-caméra dans le repère véhicule (toggle)
+    let usePrediction = false;         // coloration Prédiction (trajectoire) vs ttc_s naïf (toggle)
+    let hideParked = false;            // masquer les véhicules stationnés/garés (toggle)
+    let stationaryGids = new Set();    // global_track_id des véhicules stationnés (du serveur)
+    // Orientation de montage de chaque caméra (deg, sens horaire depuis l'avant véhicule).
+    // Rig 360° ~90° ; ajustable ensuite (les caméras ne sont pas exactement à 90°).
+    const CAMERA_YAW = { front: 0, right: 90, rear: 180, left: -90 };
+    let TOPDOWN_FOV_V_DEG = 60;      // FOV vertical caméra (deg) pour le cap pinhole (ajustable)
     let _lastTimeSave = 0;           // throttle de la persistance de position timeline
+    let _restoreTargetTime = 0;      // position timeline à restaurer (capturée avant reset)
+    let _savedMinimapZoom = null;    // zoom mini-carte sauvegardé (persistance)
+    let _zoomRestored = false;       // zoom déjà restauré (une seule fois)
     let proximityByTime = [];  // [{time, proximity}] for timeline
 
     // Phase 3 state
@@ -347,6 +363,11 @@ document.addEventListener('DOMContentLoaded', function () {
             const data = await resp.json();
 
             currentSessionId = sessionId;
+            // Capturer la position timeline sauvegardée TÔT : le setup appelle syncStop()
+            // → syncSeek(0) → saveTime(0) qui écraserait la valeur avant le restore.
+            try {
+                _restoreTargetTime = parseFloat(localStorage.getItem('cam_analyzer_time_' + sessionId) || '0') || 0;
+            } catch (e) { _restoreTargetTime = 0; }
             saveActiveSession(sessionId);
             sessionSelect.value = sessionId;
             deleteSessionBtn.disabled = false;
@@ -371,6 +392,19 @@ document.addEventListener('DOMContentLoaded', function () {
 
             // Offset de synchro GPS↔vidéo (recalage manuel par session).
             gpsTimeOffset = data.gps_time_offset || 0;
+            gpsTimeScale = data.gps_time_scale || 1;
+            try {
+                stationaryGids = new Set((data.results_summary && data.results_summary.stationary_global_tracks) || []);
+            } catch (e) { stationaryGids = new Set(); }
+            // Largeur de voie : override manuel (par session) > auto-estimée > défaut 3,5m.
+            let _lwManual = null;
+            try { _lwManual = localStorage.getItem('cam_analyzer_lane_width_' + sessionId); } catch (e) { /* noop */ }
+            laneWidthM = _lwManual ? (parseFloat(_lwManual) || 3.5)
+                : (data.lane_width_m && data.lane_width_m > 0 ? data.lane_width_m : 3.5);
+            const _lws = document.getElementById('laneWidthSlider');
+            if (_lws) _lws.value = laneWidthM;
+            const _lwv = document.getElementById('laneWidthVal');
+            if (_lwv) _lwv.textContent = laneWidthM.toFixed(1) + 'm';
             const _goi = document.getElementById('gpsOffsetInput');
             if (_goi) _goi.value = gpsTimeOffset;
             const _gos = document.getElementById('gpsOffsetSlider');
@@ -616,6 +650,17 @@ document.addEventListener('DOMContentLoaded', function () {
         zone.classList.add('has-video');
         if (info) info.style.display = 'flex';
         updateAnalyzedBadge(position);
+        // Restaurer la position timeline QUAND la vidéo front est réellement seekable
+        // (le restore dans setup s'exécutait trop tôt → la timeline repartait à 0).
+        if (position === 'front') {
+            video.addEventListener('loadeddata', () => {
+                try {
+                    // Utiliser la valeur capturée TÔT (avant que syncStop→saveTime(0) l'écrase).
+                    const t = _restoreTargetTime || 0;
+                    if (t > 0) syncSeek(t);
+                } catch (e) { /* noop */ }
+            }, { once: true });
+        }
     }
 
     // Active profile context — set by loadSession after fetching profile details.
@@ -832,6 +877,15 @@ document.addEventListener('DOMContentLoaded', function () {
         const intersectionsCount = (p.intersections || []).length;
         const modelName = (p.model_path || '').split(/[\\/]/).pop() || '—';
         const classes = (p.target_classes || []).join(', ') || '—';
+        // Le filtre d'AFFICHAGE suit les classes cibles du profil (ID COCO → nom) : si
+        // seul « car » est coché, l'overlay ne montre que les voitures — sans ré-analyse.
+        if (Array.isArray(p.target_classes) && p.target_classes.length) {
+            overlayVisibleClasses = new Set(p.target_classes.map(c => {
+                const nm = (config.cocoClasses && config.cocoClasses[c]) || String(c);
+                return String(nm).toLowerCase();
+            }).filter(Boolean));
+            if (typeof currentTime === 'number') updateDetectionOverlay(currentTime);
+        }
         const isIntersection = p.report_type === 'intersection_insertion';
         const sam3Enabled = !!p.sam3_markings_enabled;
         summary.innerHTML = `
@@ -1081,13 +1135,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
         syncSeekBar.max = maxDuration || 100;
         updateTimeDisplay(0);
-
-        // Restaurer la position timeline sauvegardée (persistance entre rafraîchissements).
-        try {
-            const _sv = currentSessionId && localStorage.getItem('cam_analyzer_time_' + currentSessionId);
-            const _t = _sv ? parseFloat(_sv) : 0;
-            if (_t > 0 && _t < (maxDuration || 1e9)) syncSeek(_t);
-        } catch (e) { /* noop */ }
+        // (Restauration de la position déplacée sur l'event 'loadeddata' de la vidéo
+        // front — voir showCameraVideo — car ici la vidéo n'est pas encore seekable.)
 
         // Re-render intersection markers now that maxDuration is known
         renderIntersectionWindows(intersectionWindows);
@@ -1806,6 +1855,27 @@ document.addEventListener('DOMContentLoaded', function () {
         const scaleX = drawW / srcWidth;
         const scaleY = drawH / srcHeight;
 
+        // Gabarit de voie NORMALISÉ projeté sur la vidéo (pinhole sol→image) → permet de
+        // CALIBRER la largeur de voie visuellement contre la route réelle. Distinct de la
+        // segmentation yolopv2 (qu'on garde). Bords pleins + ligne centrale pointillée.
+        if (position === 'front' && showLaneVideo) {
+            const _focal = srcHeight / (2 * Math.tan(TOPDOWN_FOV_V_DEG * Math.PI / 360));
+            const _cx = srcWidth / 2, _cy = srcHeight / 2, _half = laneWidthM / 2;
+            [{ x: _half, c: '#e0e0e0', d: [] }, { x: -_half, c: '#ffd54f', d: [7, 7] },
+             { x: -_half * 3, c: '#e0e0e0', d: [] }].forEach(ln => {
+                ctx.beginPath(); ctx.strokeStyle = ln.c; ctx.lineWidth = 2; ctx.setLineDash(ln.d);
+                let started = false;
+                for (let Y = 3; Y <= 45; Y += 1) {
+                    const px = _cx + _focal * ln.x / Y, py = _cy + _focal * laneCamHeightM / Y;
+                    if (px < 0 || px > srcWidth || py > srcHeight) continue;
+                    const cxp = offsetX + px * scaleX, cyp = offsetY + py * scaleY;
+                    if (!started) { ctx.moveTo(cxp, cyp); started = true; } else ctx.lineTo(cxp, cyp);
+                }
+                ctx.stroke();
+            });
+            ctx.setLineDash([]);
+        }
+
         // Persistance de l'aire roulable : si la frame courante a un road_mask, on
         // mémorise ; sinon on redessine le dernier connu (atténué, pointillés) → pas de
         // clignotement (l'aire change lentement ; road_mask parfois épars/disjoint SAM3).
@@ -2021,7 +2091,9 @@ document.addEventListener('DOMContentLoaded', function () {
     let miniMapTrailLayer = null;      // traces récentes (opacité décroissante)
     let miniMapHeadingLine = null;     // flèche de cap navette
     let miniMapEgoRect = null;         // rectangle navette à l'échelle (zoom tactique)
-    const topDownTrails = new Map();   // track_id -> [[lat,lon], ...] récent
+    const topDownTrails = new Map();   // track_id -> [[lat,lon], ...] réc
+    const topDownHeadings = new Map(); // tkey -> [cosN, sinE] cap lissé (EMA), maintenu à l'arrêt
+    const topDownDist = new Map();     // tkey -> distance lissée (EMA) : réduit le jitter radial du pinholeent
     let topDownLastTime = -999;        // détection de saut (reset traces)
     let topDownLastRender = -999;      // throttle ~10 Hz
     let topDownAutoFollow = true;      // recentrage auto en lecture (zoom tactique)
@@ -2077,8 +2149,14 @@ document.addEventListener('DOMContentLoaded', function () {
         // couche objets (qui n'apparaît qu'au zoom ≥ TOPDOWN_ZOOM_MIN) ne se met à jour
         // qu'au prochain seek/lecture — l'utilisateur zoome et « rien ne se passe ».
         miniMap.on('zoomend', () => {
+            try { localStorage.setItem('cam_analyzer_minimap_zoom', String(miniMap.getZoom())); } catch (e) { /* noop */ }
             if (typeof currentTime === 'number') { topDownLastRender = -999; updateMiniMapShuttle(currentTime); }
         });
+        // Zoom sauvegardé (capturé une fois, appliqué après le fitBounds initial).
+        try {
+            const _z = parseFloat(localStorage.getItem('cam_analyzer_minimap_zoom'));
+            if (!isNaN(_z)) _savedMinimapZoom = _z;
+        } catch (e) { /* noop */ }
     }
 
     function renderMiniMap(gpsTrack, intersectionWindows) {
@@ -2137,6 +2215,11 @@ document.addEventListener('DOMContentLoaded', function () {
             const grp = L.featureGroup(miniMapIntersectionLayers);
             miniMap.fitBounds(grp.getBounds(), { padding: [12, 12] });
         }
+        // Restaurer le niveau de zoom sauvegardé (une seule fois, après le fitBounds).
+        if (_savedMinimapZoom != null && !_zoomRestored) {
+            _zoomRestored = true;
+            try { miniMap.setZoom(_savedMinimapZoom); } catch (e) { /* noop */ }
+        }
 
         // Force redraw (Leaflet sometimes mis-sizes when its container was hidden)
         setTimeout(() => miniMap && miniMap.invalidateSize(), 50);
@@ -2145,7 +2228,9 @@ document.addEventListener('DOMContentLoaded', function () {
     // Find the GPS point whose timestamp is closest to a given time
     function findGpsAtTime(t) {
         if (!cachedGpsTrack.length) return null;
-        t = t + gpsTimeOffset;   // recalage manuel GPS↔vidéo (par session)
+        // ts_gps = temps_vidéo * scale + offset (scale corrige un fps AVI erroné → la
+        // désync ne grandit plus ; offset = recalage constant). Voir gps_time_scale.
+        t = t * gpsTimeScale + gpsTimeOffset;
         let lo = 0, hi = cachedGpsTrack.length - 1;
         while (lo < hi - 1) {
             const mid = (lo + hi) >> 1;
@@ -2188,7 +2273,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Couleur en paliers selon TTC (sinon distance) : vert/orange/rouge.
     function ttcColor(det) {
-        const ttc = det.ttc_s;
+        // Mode Prédiction (trajectoire) vs naïf (ttc_s par frame) — togglable pour comparer.
+        const ttc = usePrediction ? det.prediction_ttc : det.ttc_s;
         if (ttc != null && ttc >= 0) return ttc < 2 ? '#dc3545' : (ttc < 4 ? '#fd7e14' : '#28a745');
         const d = det.dist_euclid_m;
         if (d != null) return d < 5 ? '#dc3545' : (d < 12 ? '#fd7e14' : '#28a745');
@@ -2219,12 +2305,14 @@ document.addEventListener('DOMContentLoaded', function () {
         topDownLastRender = currentTime;
         if (!miniMapObjectLayer) miniMapObjectLayer = L.layerGroup().addTo(miniMap);
         if (!miniMapTrailLayer) miniMapTrailLayer = L.layerGroup().addTo(miniMap);
+        if (!miniMapLaneLayer) miniMapLaneLayer = L.layerGroup().addTo(miniMap);
         // Reset des traces sur saut temporel (seek).
-        if (Math.abs(currentTime - topDownLastTime) > 1.0) topDownTrails.clear();
+        if (Math.abs(currentTime - topDownLastTime) > 1.0) { topDownTrails.clear(); topDownHeadings.clear(); topDownDist.clear(); }
         topDownLastTime = currentTime;
 
         miniMapObjectLayer.clearLayers();
         miniMapTrailLayer.clearLayers();
+        miniMapLaneLayer.clearLayers();
 
         const pose = findGpsAtTime(currentTime);
         updateEgoShape(pose);
@@ -2235,46 +2323,177 @@ document.addEventListener('DOMContentLoaded', function () {
                 pose ? ('heading=' + pose.heading) : 'pas de fix GPS');
             return;
         }
-        const dd = detectionData['front'];
-        if (!dd || !dd.frames || !dd.frames.length) {
-            console.warn('[topdown] rien : detectionData[front] vide (détections pas chargées).');
-            return;
+        // Gabarit de voie. France : navette dans SA voie (droite) → ligne centrale à gauche
+        // (pointillés jaunes), bords pleins. laneWidthM = largeur (auto/slider).
+        const _half = laneWidthM / 2;
+        const _edges = [{ x: _half, c: '#e0e0e0', d: null }, { x: -_half, c: '#ffd54f', d: '6,6' },
+                        { x: -_half * 3, c: '#e0e0e0', d: null }];
+        // Fenêtre de trajectoire GPS ±50 m autour de la position courante (le long du path).
+        const _distM = (a, b) => {
+            const dLa = (b.lat - a.lat) * 111320;
+            const dLo = (b.lon - a.lon) * 111320 * Math.cos(a.lat * Math.PI / 180);
+            return Math.hypot(dLa, dLo);
+        };
+        const _tsCur = currentTime * gpsTimeScale + gpsTimeOffset;
+        const _win = [];
+        if (cachedGpsTrack.length) {
+            let lo = 0, hi = cachedGpsTrack.length - 1;
+            while (lo < hi - 1) { const m = (lo + hi) >> 1; if (cachedGpsTrack[m].ts <= _tsCur) lo = m; else hi = m; }
+            _win.push(cachedGpsTrack[lo]);
+            let acc = 0;
+            for (let i = lo + 1; i < cachedGpsTrack.length && acc < 50; i++) { acc += _distM(cachedGpsTrack[i - 1], cachedGpsTrack[i]); _win.push(cachedGpsTrack[i]); }
+            acc = 0;
+            for (let i = lo - 1; i >= 0 && acc < 50; i--) { acc += _distM(cachedGpsTrack[i + 1], cachedGpsTrack[i]); _win.unshift(cachedGpsTrack[i]); }
         }
-        const camOff = (cameras['front'] && cameras['front'].time_offset) || 0;
-        const frame = findClosestFrame(dd.frames, currentTime + camOff);
-        if (!frame || !frame.detections) {
-            console.warn('[topdown] rien : pas de frame front proche de t=' + currentTime.toFixed(1));
-            return;
-        }
-        const _gxy = frame.detections.filter(d => Array.isArray(d.ground_xy) && d.ground_xy.length >= 2).length;
-        console.debug('[topdown] frame#' + frame.frame_number + ' : ' + frame.detections.length
-            + ' détections, ' + _gxy + ' avec ground_xy, zoom=' + miniMap.getZoom());
-
-        const seen = new Set();
-        frame.detections.forEach(det => {
-            if (det.type === 'road_mask' || det.type === 'sam3_marking') return;
-            const g = det.ground_xy;
-            if (!Array.isArray(g) || g.length < 2) return;
-            const ll = egoToLatLon(pose.lat, pose.lon, pose.heading, g[0], g[1]);
-            const color = ttcColor(det);
-            if (det.track_id != null) {
-                seen.add(det.track_id);
-                const tr = topDownTrails.get(det.track_id) || [];
-                tr.push(ll);
-                if (tr.length > TRAIL_LEN) tr.shift();
-                topDownTrails.set(det.track_id, tr);
-                for (let i = 1; i < tr.length; i++) {   // opacité croissante vers l'objet
-                    L.polyline([tr[i - 1], tr[i]],
-                        { color, weight: 2, opacity: 0.1 + 0.7 * (i / tr.length) })
-                        .addTo(miniMapTrailLayer);
+        // Gabarit aligné sur la trajectoire GPS → suit la courbe réelle de la route.
+        // Cap lissé par petite fenêtre glissante (±2 pts, moyenne circulaire) pour absorber
+        // le tremblement GPS sans perdre la courbe.
+        if (_win.length >= 2) {
+            const _sm = _win.map((p, i) => {
+                let cx = 0, cy = 0;
+                for (let k = Math.max(0, i - 2); k <= Math.min(_win.length - 1, i + 2); k++) {
+                    const h = _win[k].heading;
+                    if (h != null) { cx += Math.cos(h * Math.PI / 180); cy += Math.sin(h * Math.PI / 180); }
                 }
-            }
-            const label = `${det.class_name || 'objet'}${det.dist_euclid_m != null ? ' · ' + det.dist_euclid_m + ' m' : ''}`
-                + `${det.ttc_s != null ? ' · TTC ' + det.ttc_s + ' s' : ''}`;
-            L.circleMarker(ll, { radius: 4, color: '#000', weight: 1, fillColor: color, fillOpacity: 0.9 })
-                .bindTooltip(label, { direction: 'top' })
-                .addTo(miniMapObjectLayer);
-        });
+                return { lat: p.lat, lon: p.lon, h: (cx || cy) ? Math.atan2(cy, cx) * 180 / Math.PI : p.heading };
+            }).filter(p => p.h != null);
+            // Bande de route PLEINE (surface normalisée, hérite de laneWidthM) : voie navette
+            // + voie opposée. Dessinée SOUS les lignes de bord.
+            const _band = (xL, xR, col) => {
+                if (_sm.length < 2) return;
+                const a = _sm.map(p => egoToLatLon(p.lat, p.lon, p.h, xL, 0));
+                const b = _sm.map(p => egoToLatLon(p.lat, p.lon, p.h, xR, 0)).reverse();
+                L.polygon(a.concat(b), { stroke: false, fillColor: col, fillOpacity: 0.12 }).addTo(miniMapLaneLayer);
+            };
+            _band(-_half, _half, '#4caf50');        // voie navette (droite)
+            _band(-_half * 3, -_half, '#78909c');   // voie opposée
+            _edges.forEach(e => {
+                const pts = _sm.map(p => egoToLatLon(p.lat, p.lon, p.h, e.x, 0));
+                if (pts.length >= 2) L.polyline(pts, { color: e.c, weight: 1.5, opacity: 0.85, dashArray: e.d }).addTo(miniMapLaneLayer);
+            });
+        }
+
+        // Objets : mode "avant seul" (existant) OU "fusion 360°" (toutes les caméras
+        // ramenées dans le repère VÉHICULE via l'orientation de chaque caméra). Togglable
+        // (topDown360) à tout moment — le mode existant reste intact.
+        const seen = new Set();
+        const _drawnGlobal = new Set();   // dedupe : 1 objet global dessiné une seule fois (multi-cam)
+        const _camToVeh = (cx, cy, yawDeg) => {   // cam(latéral droite, avant) → véhicule(droite, avant)
+            const t = yawDeg * Math.PI / 180, s = Math.sin(t), c = Math.cos(t);
+            return [cy * s + cx * c, cy * c - cx * s];
+        };
+        const _drawCam = (camPos, yawDeg) => {
+            const dd = detectionData[camPos];
+            if (!dd || !dd.frames || !dd.frames.length) return;
+            const camOff = (cameras[camPos] && cameras[camPos].time_offset) || 0;
+            const fr = findClosestFrame(dd.frames, currentTime + camOff);
+            if (!fr || !fr.detections) return;
+            const vid = document.getElementById('video-' + camPos);
+            const iw = (vid && vid.videoWidth) || 384;
+            const ih = (vid && vid.videoHeight) || 288;
+            const focal = ih / (2 * Math.tan(TOPDOWN_FOV_V_DEG * Math.PI / 360));  // px (pixels carrés)
+            fr.detections.forEach(det => {
+                if (det.type === 'road_mask' || det.type === 'sam3_marking') return;
+                // Cohérence avec l'overlay vidéo : mêmes filtres de classe + de confiance.
+                if (overlayVisibleClasses && det.class_name
+                    && !overlayVisibleClasses.has(det.class_name.toLowerCase())) return;
+                if (!det.predicted && overlayMinConf > 0 && typeof det.confidence === 'number'
+                    && det.confidence < overlayMinConf) return;
+                // POSITION reconstruite depuis le PINHOLE (précis + centré), pas l'homographie
+                // (qui COMPRIME la distance ×3-4 ET la biaise latéralement de ~1,5m → objets
+                // de gauche projetés à droite). X = distance·(centre_bbox−centre_image)/focale ;
+                // Y = distance. Centré (objet au centre image = latéral 0) et à la bonne distance.
+                let g;
+                const isGhost = det.predicted && Array.isArray(det.vehicle_xy);
+                if (isGhost) {
+                    g = det.vehicle_xy;              // fantôme prédit : déjà en repère véhicule
+                } else if (det.distance_m != null && Array.isArray(det.bbox)) {
+                    // Point de contact au sol du MASQUE (segmentation) si présent → latéral
+                    // plus précis que le centre du bbox ; sinon centre du bbox (détection).
+                    const bcx = Array.isArray(det.seg_ground_px) ? det.seg_ground_px[0]
+                                                                 : (det.bbox[0] + det.bbox[2]) / 2;
+                    // Distance LISSÉE dans le temps par objet (EMA) : la distance pinhole
+                    // brute saute de ~±20% (hauteur bbox) → positions incohérentes. On lisse
+                    // pour stabiliser trails/orientation/fusion 360°.
+                    let dm = det.distance_m;
+                    const _dk = det.global_track_id != null ? 'g' + det.global_track_id
+                              : (det.track_id != null ? camPos + ':' + det.track_id : null);
+                    if (_dk) {
+                        const _pv = topDownDist.get(_dk);
+                        dm = _pv != null ? _pv * 0.7 + dm * 0.3 : dm;
+                        topDownDist.set(_dk, dm);
+                    }
+                    g = [dm * (bcx - iw / 2) / focal, dm];
+                } else {
+                    g = det.ground_xy;
+                    if (!Array.isArray(g) || g.length < 2) return;
+                }
+                if (g[1] <= 0 || g[1] > 60 || Math.abs(g[0]) > 25) return;          // zone fiable
+                if (!isGhost) {
+                    const bb = det.bbox;
+                    if (Array.isArray(bb) && (bb[0] <= 8 || bb[2] >= iw - 8)) return;   // coupé/partiel au bord
+                }
+                // Dedupe multi-caméra : si l'objet a un global_track_id déjà dessiné cette
+                // frame (vu par une autre caméra), on le saute → 1 seule empreinte.
+                const gid = det.global_track_id;
+                if (hideParked && gid != null && stationaryGids.has(gid)) return;   // véhicule garé masqué
+                if (gid != null) {
+                    if (_drawnGlobal.has(gid)) return;
+                    _drawnGlobal.add(gid);
+                }
+                const v = _camToVeh(g[0], g[1], yawDeg);          // → repère véhicule commun
+                const ll = egoToLatLon(pose.lat, pose.lon, pose.heading, v[0], v[1]);
+                const color = ttcColor(det);
+                // Trail continu via l'ID GLOBAL (persiste au passage d'une caméra à l'autre).
+                const tkey = gid != null ? 'g' + gid : camPos + ':' + det.track_id;
+                let tr = null;
+                if (det.track_id != null || gid != null) {   // ghosts inclus (ont un gid)
+                    seen.add(tkey);
+                    tr = topDownTrails.get(tkey) || [];
+                    tr.push(ll);
+                    if (tr.length > TRAIL_LEN) tr.shift();
+                    topDownTrails.set(tkey, tr);
+                    for (let i = 1; i < tr.length; i++)
+                        L.polyline([tr[i - 1], tr[i]],
+                            { color, weight: 2, opacity: 0.1 + 0.7 * (i / tr.length) }).addTo(miniMapTrailLayer);
+                }
+                // Cap PROPRE de l'objet = direction de sa trace (son mouvement réel), pas le
+                // cap navette → l'empreinte suit la vraie orientation du véhicule (un véhicule
+                // perpendiculaire apparaît perpendiculaire). Repli sur le cap navette si trace
+                // trop courte / objet quasi immobile.
+                let objHeading = pose.heading;
+                let sm = topDownHeadings.get(tkey);
+                if (tr && tr.length >= 2) {
+                    const a = tr[Math.max(0, tr.length - 5)], b = tr[tr.length - 1];
+                    const dN = (b[0] - a[0]) * 111320;
+                    const dE = (b[1] - a[1]) * 111320 * Math.cos(b[0] * Math.PI / 180);
+                    const mv = Math.hypot(dN, dE);
+                    if (mv > 0.4) {              // assez de mouvement → MAJ de l'EMA du cap
+                        const iN = dN / mv, iE = dE / mv, al = 0.25;
+                        sm = sm ? [sm[0] * (1 - al) + iN * al, sm[1] * (1 - al) + iE * al] : [iN, iE];
+                        topDownHeadings.set(tkey, sm);
+                    }
+                }
+                if (sm) objHeading = Math.atan2(sm[1], sm[0]) * 180 / Math.PI;   // maintenu si à l'arrêt
+                const label = `${det.class_name || 'objet'} [${camPos}]`
+                    + `${det.dist_euclid_m != null ? ' · ' + det.dist_euclid_m + ' m' : ''}`
+                    + `${det.ttc_s != null ? ' · TTC ' + det.ttc_s + ' s' : ''}`;
+                const sz = ({ car: [4.5, 1.8], truck: [8, 2.5], bus: [10, 2.8], person: [0.6, 0.6],
+                             bicycle: [1.8, 0.6], motorcycle: [2, 0.8] })[(det.class_name || '').toLowerCase()]
+                           || [1.5, 1.5];
+                const hl = sz[0] / 2, hw = sz[1] / 2;
+                const corners = [[-hw, -hl], [hw, -hl], [hw, hl], [-hw, hl]]
+                    .map(c => egoToLatLon(ll[0], ll[1], objHeading, c[0], c[1]));
+                // Fantôme prédit (comble le trou au hand-off) : atténué + pointillés.
+                L.polygon(corners, {
+                    color: '#000', weight: 1, fillColor: color,
+                    fillOpacity: isGhost ? 0.3 : 0.75,
+                    dashArray: isGhost ? '3,3' : null,
+                }).bindTooltip(isGhost ? label + ' (prédit)' : label, { direction: 'top' }).addTo(miniMapObjectLayer);
+            });
+        };
+        if (topDown360) Object.keys(CAMERA_YAW).forEach(cp => _drawCam(cp, CAMERA_YAW[cp]));
+        else _drawCam('front', 0);
         // Purge des traces d'objets non vus cette frame (borne la mémoire).
         for (const k of topDownTrails.keys()) if (!seen.has(k)) topDownTrails.delete(k);
         // (Recentrage auto déplacé dans updateMiniMapShuttle → suivi à tout zoom.)
@@ -3876,14 +4095,125 @@ document.addEventListener('DOMContentLoaded', function () {
         wire('sam3TestBtn', () => runSam3Test(false));
         wire('sam3CalibBtn', () => runSam3Test(true));
         wire('copyDebugBtn', copyDebugInfo);
-        // Filtre de confiance à l'affichage (sans ré-analyse).
-        const _cf = document.getElementById('overlayConfSlider');
-        if (_cf) _cf.oninput = () => {
-            overlayMinConf = parseFloat(_cf.value) || 0;
-            const _lbl = document.getElementById('overlayConfVal');
-            if (_lbl) _lbl.textContent = Math.round(overlayMinConf * 100) + '%';
+        // Bascule coloration Prédiction (trajectoire) ↔ naïf (ttc_s) pour comparer.
+        const _pb = document.getElementById('predictionBtn');
+        if (_pb) _pb.onclick = () => {
+            usePrediction = !usePrediction;
+            _pb.classList.toggle('btn-danger', usePrediction);
+            _pb.classList.toggle('btn-outline-danger', !usePrediction);
+            if (typeof currentTime === 'number') {
+                topDownLastRender = -999;
+                updateMiniMapShuttle(currentTime);
+                updateDetectionOverlay(currentTime);
+            }
+        };
+        // Lancer le calcul Prédiction (tâche de fond) pour la session.
+        const _pcb = document.getElementById('predictionCalcBtn');
+        if (_pcb) _pcb.onclick = async () => {
+            if (!currentSessionId) return;
+            const _t0 = _pcb.innerHTML; _pcb.disabled = true; _pcb.innerHTML = '⏳';
+            try {
+                const r = await fetch(`${config.urls.deleteSession}${currentSessionId}/prediction/`,
+                    { method: 'POST', headers: { 'X-CSRFToken': config.csrfToken } });
+                const d = await r.json();
+                alert(d.success ? 'Calcul de prédiction lancé en tâche de fond. Recharge la session dans quelques minutes puis active le mode Prédiction.'
+                                : 'Prédiction : ' + (d.error || '?'));
+            } catch (e) { alert('Échec : ' + e.message); }
+            finally { _pcb.disabled = false; _pcb.innerHTML = _t0; }
+        };
+        // Bascule masquage des véhicules stationnés/garés.
+        const _hpb = document.getElementById('hideParkedBtn');
+        if (_hpb) _hpb.onclick = () => {
+            hideParked = !hideParked;
+            _hpb.classList.toggle('btn-secondary', hideParked);
+            _hpb.classList.toggle('btn-outline-secondary', !hideParked);
+            if (typeof currentTime === 'number') { topDownLastRender = -999; updateMiniMapShuttle(currentTime); }
+        };
+        // Bascule fusion multi-caméra 360° (repère véhicule) ↔ avant seul.
+        const _tdb = document.getElementById('topDown360Btn');
+        if (_tdb) _tdb.onclick = () => {
+            topDown360 = !topDown360;
+            _tdb.classList.toggle('active', topDown360);
+            _tdb.classList.toggle('btn-warning', topDown360);
+            _tdb.classList.toggle('btn-outline-warning', !topDown360);
+            topDownTrails.clear(); topDownHeadings.clear(); topDownDist.clear();
+            if (typeof currentTime === 'number') { topDownLastRender = -999; updateMiniMapShuttle(currentTime); }
+        };
+        // Synchro auto depuis le .rec (scale+offset GPS + largeur de voie).
+        const _srb = document.getElementById('syncRecBtn');
+        if (_srb) _srb.onclick = async () => {
+            if (!currentSessionId) return;
+            const _t0 = _srb.innerHTML; _srb.disabled = true; _srb.innerHTML = '⏳';
+            try {
+                const r = await fetch(`${config.urls.deleteSession}${currentSessionId}/sync-rec/`, {
+                    method: 'POST', headers: { 'X-CSRFToken': config.csrfToken },
+                });
+                const d = await r.json();
+                if (d.success) {
+                    try { localStorage.removeItem('cam_analyzer_lane_width_' + currentSessionId); } catch (e) { /* noop */ }
+                    alert('Synchro .rec OK :\nscale=' + d.gps_time_scale + '  offset=' + d.gps_time_offset + 's'
+                          + (d.lane_width_m ? '\nlargeur voie=' + d.lane_width_m + 'm' : '') + '\n(' + d.rec + ')');
+                    loadSession(currentSessionId);
+                } else { alert('Sync .rec : ' + (d.error || '?')); }
+            } catch (e) { alert('Sync .rec échec : ' + e.message); }
+            finally { _srb.disabled = false; _srb.innerHTML = _t0; }
+        };
+        // Largeur de voie (gabarit vue de dessus) : slider + persistance + re-render live.
+        const _lw = document.getElementById('laneWidthSlider');
+        if (_lw) {
+            _lw.oninput = () => {
+                laneWidthM = parseFloat(_lw.value) || 3.5;
+                const _lwl = document.getElementById('laneWidthVal'); if (_lwl) _lwl.textContent = laneWidthM.toFixed(1) + 'm';
+                // Override manuel PAR SESSION (gagne sur l'auto au rechargement).
+                try { if (currentSessionId) localStorage.setItem('cam_analyzer_lane_width_' + currentSessionId, String(laneWidthM)); } catch (e) { /* noop */ }
+                if (typeof currentTime === 'number') {
+                    topDownLastRender = -999; updateMiniMapShuttle(currentTime);
+                    if (showLaneVideo) updateDetectionOverlay(currentTime);   // gabarit vidéo suit le slider
+                }
+            };
+        }
+        // Toggle gabarit de voie SUR la vidéo (calibration visuelle de la largeur).
+        const _lvb = document.getElementById('laneVideoBtn');
+        if (_lvb) _lvb.onclick = () => {
+            showLaneVideo = !showLaneVideo;
+            _lvb.classList.toggle('btn-secondary', showLaneVideo);
+            _lvb.classList.toggle('btn-outline-secondary', !showLaneVideo);
             if (typeof currentTime === 'number') updateDetectionOverlay(currentTime);
         };
+        // Hauteur caméra (projection sol→image du gabarit vidéo) + persistance.
+        const _chs = document.getElementById('camHeightSlider');
+        if (_chs) {
+            try { const sv = localStorage.getItem('cam_analyzer_cam_height'); if (sv) laneCamHeightM = parseFloat(sv) || 1.3; } catch (e) { /* noop */ }
+            _chs.value = laneCamHeightM;
+            const _ch0 = document.getElementById('camHeightVal'); if (_ch0) _ch0.textContent = laneCamHeightM.toFixed(1) + 'm';
+            _chs.oninput = () => {
+                laneCamHeightM = parseFloat(_chs.value) || 1.3;
+                const _l = document.getElementById('camHeightVal'); if (_l) _l.textContent = laneCamHeightM.toFixed(1) + 'm';
+                try { localStorage.setItem('cam_analyzer_cam_height', String(laneCamHeightM)); } catch (e) { /* noop */ }
+                if (showLaneVideo && typeof currentTime === 'number') updateDetectionOverlay(currentTime);
+            };
+        }
+        // Filtre de confiance à l'affichage (sans ré-analyse) + persistance de la valeur.
+        const _cf = document.getElementById('overlayConfSlider');
+        if (_cf) {
+            try {
+                const _sv = localStorage.getItem('cam_analyzer_min_conf');
+                if (_sv !== null) overlayMinConf = parseFloat(_sv) || 0;
+            } catch (e) { /* noop */ }
+            _cf.value = overlayMinConf;
+            const _lbl0 = document.getElementById('overlayConfVal');
+            if (_lbl0) _lbl0.textContent = Math.round(overlayMinConf * 100) + '%';
+            _cf.oninput = () => {
+                overlayMinConf = parseFloat(_cf.value) || 0;
+                const _lbl = document.getElementById('overlayConfVal');
+                if (_lbl) _lbl.textContent = Math.round(overlayMinConf * 100) + '%';
+                try { localStorage.setItem('cam_analyzer_min_conf', String(overlayMinConf)); } catch (e) { /* noop */ }
+                if (typeof currentTime === 'number') {
+                    updateDetectionOverlay(currentTime);
+                    topDownLastRender = -999; updateMiniMapShuttle(currentTime);   // top-down cohérent
+                }
+            };
+        }
         // Offset GPS↔vidéo : ajustement en direct (re-aligne la navette/objets) + save.
         const _goInput = document.getElementById('gpsOffsetInput');
         const _goSlider = document.getElementById('gpsOffsetSlider');
