@@ -1478,3 +1478,21 @@ complet (3 fetches), plus d'erreur, WamaDetails réel chargé et détecté.
 **Outillage durable** : `esprima` (syntaxe) + `mini-racer` (runtime V8 + DOM stub)
 installés — désormais TOUT edit JS passe par ces deux vérifications (l'équilibre de
 parenthèses ne détecte ni les ReferenceError ni les pièges de portée). Consigné en mémoire.
+
+### 37.13 MediaPicker au studio + brouillon PERSISTANT du canvas (2026-07-15)
+1. **« Médiathèque indisponible »** : media-picker.js est bien chargé globalement
+   (base.html:270) mais exporte via `const MediaPicker = …` au top-level = binding
+   lexical global, PAS `window.MediaPicker` — mon garde testait window.* → toujours
+   faux. Fix : détection par identifiant (`typeof MediaPicker !== 'undefined'`).
+   (NB : le prérequis ML_LIST_URL a un fallback interne vers /media-library/api/assets/.)
+2. **Brouillon persistant** (demande Fabien : ne plus perdre le graphe en changeant
+   d'app) : autosave localStorage (`wama_studio_draft`, graphe + nom) à CHAQUE mutation
+   (ajout/suppression nœud, lien, drag, params, choix médiathèque) ; restauration à
+   l'init APRÈS le catalogue ; « Vider le canvas » purge le brouillon (geste explicite) ;
+   la sauvegarde en pipeline garde le brouillon synchronisé.
+3. Validé dans le harnais V8 (fetch résolvant + localStorage préchargé) : 2 nœuds + nom
+   restaurés, hooks réécrivent le brouillon, zéro warn. Deux gaps de STUB corrigés au
+   passage (style.setProperty, querySelector→El neutre) — le catch de restauration est
+   volontairement BAVARD (console.warn) comme le reste depuis 37.12.
+4. **Harnais pérennisé** : `wama-dev-ai/tools/js_v8_harness.py <script.js>` (esprima +
+   mini-racer) — référencé en mémoire.

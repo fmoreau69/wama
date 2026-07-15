@@ -140,6 +140,7 @@
         });
         makeDraggable(node, head);
         selectNode(id);   // sélectionne le nœud fraîchement ajouté
+        persistDraft();
         return node;
     }
 
@@ -220,6 +221,7 @@
         links.push(link);
         updateLinks();
         updateInspector();   // rafraîchit les compteurs de connexions
+        persistDraft();
     }
 
     function updateLinks() {
@@ -235,6 +237,7 @@
             return false;
         });
         updateInspector();
+        persistDraft();
     }
     function removeNode(id) {
         // retirer les liens touchant ce nœud
@@ -253,6 +256,7 @@
         if (!nodes.length && hint) hint.style.display = '';
         if (selected === id) { selected = null; }
         updateInspector();
+        persistDraft();
     }
 
     // ── Inspecteur (volet droit, généré par WamaDetails) ──────────────────
@@ -371,13 +375,16 @@
                 input.innerHTML = '<i class="fas fa-photo-film me-1"></i>' +
                     (chosen ? chosen : 'Choisir dans la médiathèque…');
                 input.addEventListener('click', function () {
-                    if (!window.MediaPicker) { toast('Médiathèque indisponible sur cette page.', 'error'); return; }
-                    MediaPicker.open({ type: 'all', onSelect: function (file, asset) {
+                    // const MediaPicker au top-level = binding lexical global, PAS window.MediaPicker
+                    var MP = (typeof MediaPicker !== 'undefined') ? MediaPicker : global.MediaPicker;
+                    if (!MP) { toast('Médiathèque indisponible sur cette page.', 'error'); return; }
+                    MP.open({ type: 'all', onSelect: function (file, asset) {
                         if (!asset) return;
                         var url = asset.file_url || '';
                         node.params.asset_path = url.replace(/^\/?media\//, '');
                         node.params.asset_name_display = asset.name || url.split('/').pop();
                         input.innerHTML = '<i class="fas fa-photo-film me-1"></i>' + node.params.asset_name_display;
+                        persistDraft();
                     } });
                 });
                 field.appendChild(input);
@@ -388,8 +395,8 @@
             }
             input.value = node.params[p.name] != null ? node.params[p.name] : (p['default'] || '');
             if (input.value && !node.params[p.name]) node.params[p.name] = input.value;
-            input.addEventListener('input', function () { node.params[p.name] = input.value; });
-            input.addEventListener('change', function () { node.params[p.name] = input.value; });
+            input.addEventListener('input', function () { node.params[p.name] = input.value; persistDraft(); });
+            input.addEventListener('change', function () { node.params[p.name] = input.value; persistDraft(); });
             field.appendChild(input);
             wrap.appendChild(field);
         });
@@ -432,6 +439,37 @@
             if (outDot && inDot) createLink(outDot, inDot);
         });
         updateLinks();
+    }
+
+    // ── Brouillon PERSISTANT (localStorage) : le travail en cours survit à la
+    //    navigation entre apps, jusqu'à sauvegarde en pipeline ou « Vider le canvas ».
+    var DRAFT_KEY = 'wama_studio_draft';
+
+    function persistDraft() {
+        try {
+            var nameEl = document.getElementById('studioPipelineName');
+            localStorage.setItem(DRAFT_KEY, JSON.stringify({
+                graph: serializeGraph(),
+                name: nameEl ? nameEl.value : '',
+            }));
+        } catch (e) { /* stockage privé/plein : non bloquant */ }
+    }
+    function clearDraft() {
+        try { localStorage.removeItem(DRAFT_KEY); } catch (e) { /* idem */ }
+    }
+    function restoreDraft() {
+        try {
+            var raw = localStorage.getItem(DRAFT_KEY);
+            if (!raw) return;
+            var d = JSON.parse(raw);
+            if (d && d.graph && d.graph.nodes && d.graph.nodes.length) {
+                loadGraph(d.graph);
+                var nameEl = document.getElementById('studioPipelineName');
+                if (nameEl && d.name) nameEl.value = d.name;
+            }
+        } catch (e) {
+            if (global.console && console.warn) console.warn('[WamaStudio] brouillon non restauré :', e && e.message ? e.message : e);
+        }
     }
 
     // ── Persistance (StudioPipeline) ───────────────────────────────────────
@@ -562,6 +600,7 @@
                 document.removeEventListener('mousemove', move);
                 document.removeEventListener('mouseup', up);
                 handle.style.cursor = 'grab';
+                persistDraft();   // position du nœud conservée
             }
             document.addEventListener('mousemove', move);
             document.addEventListener('mouseup', up);
@@ -600,13 +639,18 @@
         var clear = document.getElementById('studioClear');
         if (clear) clear.addEventListener('click', function () {
             nodes.slice().forEach(function (n) { removeNode(n.id); });
+            clearDraft();   // geste explicite : on repart de zéro
         });
 
         updateInspector();
 
         fetch('/studio/api/nodes/')
             .then(function (r) { return r.json(); })
-            .then(function (d) { apps = d.nodes || {}; renderPalette(); })
+            .then(function (d) {
+                apps = d.nodes || {};
+                renderPalette();
+                restoreDraft();   // le graphe en cours survit à la navigation (2026-07-15)
+            })
             .catch(function () { paletteList.innerHTML = '<span class="text-danger">Catalogue indisponible.</span>'; });
 
         // Persistance + exécution (2026-07-11)
