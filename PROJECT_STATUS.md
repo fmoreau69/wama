@@ -1496,3 +1496,14 @@ parenthèses ne détecte ni les ReferenceError ni les pièges de portée). Consi
    volontairement BAVARD (console.warn) comme le reste depuis 37.12.
 4. **Harnais pérennisé** : `wama-dev-ai/tools/js_v8_harness.py <script.js>` (esprima +
    mini-racer) — référencé en mémoire.
+
+### 37.14 Fix enregistrement pipeline studio : CSRF (403) (2026-07-15)
+Symptôme : « Unexpected token '<' … is not valid JSON » + POST 403 à
+/studio/api/pipelines/. Double cause dans la fonction `api()` de wama-studio.js :
+1. `WamaApp.csrfHeaders()` appelé SANS argument — or sa signature est
+   `csrfHeaders(csrfToken, extra)` → envoyait `X-CSRFToken: undefined` → 403 Django ;
+2. `r.json()` sur la page d'erreur HTML → « Unexpected token '<' » (message opaque).
+Fix : `api()` lit le vrai token (input `csrfmiddlewaretoken` sinon cookie `csrftoken`),
+`credentials:'same-origin'`, et détecte les réponses non-JSON pour un message CLAIR
+(403 → « Session expirée ou accès refusé »). Vérifié serveur (Client CSRF strict) :
+token présent au HTML + cookie posé, POST avec token → 200 (pipeline créé/nettoyé).

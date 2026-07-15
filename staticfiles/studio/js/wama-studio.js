@@ -473,11 +473,27 @@
     }
 
     // ── Persistance (StudioPipeline) ───────────────────────────────────────
+    // Jeton CSRF : input caché (posé par {% csrf_token %} du volet) sinon cookie.
+    function csrfToken() {
+        var el = document.querySelector('[name=csrfmiddlewaretoken]');
+        if (el && el.value) return el.value;
+        var m = document.cookie.match(/csrftoken=([^;]+)/);
+        return m ? m[1] : '';
+    }
     function api(url, opts) {
         opts = opts || {};
+        // credentials same-origin : garantit l'envoi du cookie de session + csrftoken.
+        if (!opts.credentials) opts.credentials = 'same-origin';
         opts.headers = Object.assign({ 'Content-Type': 'application/json' },
-            (window.WamaApp && WamaApp.csrfHeaders) ? WamaApp.csrfHeaders() : {}, opts.headers || {});
+            { 'X-CSRFToken': csrfToken() }, opts.headers || {});
         return fetch(url, opts).then(function (r) {
+            // Réponse non-JSON (page d'erreur HTML 403/500) → message CLAIR, pas
+            // « Unexpected token '<' » (la cause du bug d'enregistrement, 2026-07-15).
+            var ct = r.headers.get('content-type') || '';
+            if (ct.indexOf('application/json') === -1) {
+                if (r.status === 403) throw new Error('Session expirée ou accès refusé (403) — rechargez la page.');
+                throw new Error('Réponse inattendue du serveur (HTTP ' + r.status + ').');
+            }
             return r.json().then(function (d) {
                 if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status));
                 return d;
