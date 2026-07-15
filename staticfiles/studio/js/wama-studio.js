@@ -280,9 +280,24 @@
     function updateInspector() {
         var body = document.getElementById('studioInspectorBody');
         var actionsHost = document.getElementById('studioInspectorActions');
-        if (!body) return;
+        if (!body) {
+            // Hôte disparu = un autre script a réécrit le volet droit (interférence) —
+            // on le RECRÉE dans le conteneur commun plutôt que d'échouer en silence.
+            var host = document.getElementById('global-settings-container');
+            if (global.console && console.warn) {
+                console.warn('[WamaStudio] #studioInspectorBody absent — recréé', !!host);
+            }
+            if (!host) return;
+            body = document.createElement('div');
+            body.id = 'studioInspectorBody';
+            body.className = 'text-muted small';
+            host.appendChild(body);
+        }
         var node = nodes.find(function (n) { return n.id === selected; });
         if (!node || !global.WamaDetails) {
+            if (!global.WamaDetails && global.console && console.warn) {
+                console.warn('[WamaStudio] WamaDetails indisponible (wama-inspector-autofill.js non chargé ?)');
+            }
             body.innerHTML = '<span class="text-muted small">Sélectionnez un nœud pour voir ses détails.</span>';
             if (actionsHost) actionsHost.innerHTML = '';
             return;
@@ -312,8 +327,11 @@
             ]);
             if (actionsHost) { actionsHost.innerHTML = acts.html; if (acts.wire) acts.wire(actionsHost); }
         } catch (err) {
-            body.innerHTML = '<span class="text-warning small">Inspecteur indisponible.</span>';
+            // JAMAIS avaler : message visible + trace console (recadrage 2026-07-15)
+            body.innerHTML = '<span class="text-danger small">Inspecteur en erreur : '
+                + (err && err.message ? err.message : err) + '</span>';
             if (actionsHost) actionsHost.innerHTML = '';
+            if (global.console && console.error) console.error('[WamaStudio] inspecteur', err);
         }
     }
 
@@ -547,8 +565,6 @@
             }
             document.addEventListener('mousemove', move);
             document.addEventListener('mouseup', up);
-            // ── Sélection ensuite (ne doit jamais casser le drag si l'inspecteur échoue) ──
-            try { selectNode(node.id); } catch (err) { /* inspecteur non bloquant */ }
         });
     }
 
@@ -567,10 +583,16 @@
             pending.path.setAttribute('d', pathD(dotCenter(pending.dot),
                 { x: e.clientX - c.left, y: e.clientY - c.top }));
         });
+        // Sélection par DÉLÉGATION (pattern commun des apps, 2026-07-15) : un clic
+        // N'IMPORTE OÙ sur la card-nœud la sélectionne et remplit l'inspecteur ;
+        // un clic sur le fond (canvas OU calque SVG des liens) désélectionne.
         canvas.addEventListener('click', function (e) {
-            if (pending && !e.target.classList.contains('dot')) cancelPending();
-            // Clic sur le fond (pas un nœud) → désélectionne.
-            else if (e.target === canvas || e.target === svg) deselect();
+            if (pending && !e.target.classList.contains('dot')) { cancelPending(); return; }
+            if (e.target.classList.contains('dot')) return;             // ports : gérés par onDot
+            if (e.target.closest('.studio-node-del')) return;           // suppression : gérée à part
+            var box = e.target.closest('.studio-node');
+            if (box) selectNode(box.dataset.node);
+            else if (e.target === canvas || e.target === svg || e.target.closest('#studioLinks')) deselect();
         });
         document.addEventListener('keydown', function (e) { if (e.key === 'Escape') cancelPending(); });
         window.addEventListener('resize', updateLinks);

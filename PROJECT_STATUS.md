@@ -1441,3 +1441,22 @@ Recadrage Fabien : « le studio consomme le CONTRAT, jamais l'état courant des 
   anonymizer (vraie image PIL — le tool valide les fichiers —, poll output_file
   canonique, 17 params de son params.py), converter (start no-op) ; 13 specs servies ;
   pages 200.
+
+### 37.11 Fix inspecteur studio : sélection par délégation + zéro échec silencieux (2026-07-15)
+Symptôme (Fabien) : clic sur une card-nœud → inspecteur vide. Diagnostic empirique :
+l'hôte existe dans le DOM ; le rendu (WamaDetails, brique commune description-driven)
+est conforme au contrat ; les VRAIES causes étaient dans le câblage spécifique :
+1. la sélection n'était câblée que sur l'EN-TÊTE du nœud (mousedown de la poignée de
+   drag) — cliquer le corps de la card ne faisait RIEN ;
+2. toute erreur d'inspecteur était AVALÉE (`try{selectNode()}catch{/*non bloquant*/}`
+   + catch « Inspecteur indisponible » sans trace) ;
+3. hôte disparu (interférence d'un autre script sur le volet droit) → retour silencieux.
+Refonte (« on réutilise le commun, on retire le spécifique ») :
+- sélection par DÉLÉGATION au clic sur TOUT le nœud (pattern commun des apps), fond
+  (canvas/SVG) = désélection — l'ancien couple mousedown-head + click-fond supprimé ;
+- erreurs VISIBLES (message dans le volet + console.error) ; hôte manquant →
+  RECRÉÉ dans #global-settings-container + console.warn (interférence diagnosticable) ;
+- le rendu reste 100 % WamaDetails (renderSections/renderActions, schéma déclaratif) +
+  params de nœud générés des specs — rien de spécifique ajouté.
+⚠ À revalider navigateur (hard-refresh inutile : static_v cache-bust). Si un message
+« Inspecteur en erreur : … » ou un warn [WamaStudio] apparaît → me le remonter tel quel.
