@@ -52,7 +52,7 @@ document.addEventListener('DOMContentLoaded', function () {
     let gpsTimeScale = 1;            // échelle temps vidéo→réel (corrige fps AVI erroné)
     let laneWidthM = 3.5;            // largeur de voie (m) pour le gabarit vue de dessus
     let showLaneVideo = false;       // projeter le gabarit de voie SUR la vidéo (calibration)
-    let laneCamHeightM = 1.3;        // hauteur caméra (m) pour la projection sol→image
+    let laneCamHeightM = 2.4;        // hauteur caméra (m) — rig ENA : ~2 m au-dessus du plancher + châssis ≈ 0,4 m
     let miniMapLaneLayer = null;     // calque du gabarit de voie
     let topDown360 = false;          // fusion multi-caméra dans le repère véhicule (toggle)
     let usePrediction = false;         // coloration Prédiction (trajectoire) vs ttc_s naïf (toggle)
@@ -60,10 +60,30 @@ document.addEventListener('DOMContentLoaded', function () {
     let stationaryGids = new Set();    // global_track_id des véhicules stationnés (du serveur)
     // Orientation de montage de chaque caméra (deg, sens horaire depuis l'avant véhicule).
     // Rig 360° ~90° ; ajustable ensuite (les caméras ne sont pas exactement à 90°).
-    const CAMERA_YAW = { front: 0, right: 90, rear: 180, left: -90 };
+    const CAMERA_YAW = { front: 0, right: 75, rear: 180, left: -75 };   // défauts rig ENA (±75° latérales)
     // Yaw effectifs (défauts surchargés par session.config.camera_yaw au chargement,
     // éditables via le bouton Yaw de la vue de dessus) — mutable, contrairement à CAMERA_YAW.
     const camYaw = { ...CAMERA_YAW };
+    // ── Géométrie RÉELLE du rig ENA (audit 2026-07-16, schéma claude/ENA_Installation) ──
+    // FOV H réels : avant/arrière AXIS F4005-E 110°, latérales AXIS F1015 réglées ~55°.
+    // FOV V réels : 61° / 31°. Les distances stockées ont été annotées avec un FOV V
+    // SUPPOSÉ (fov_v_used, legacy 60°/90°) → distScale les ramène au réel (latérales :
+    // 90° supposé vs 31° réel = distances ×3,6 trop courtes). mount = position de la
+    // caméra dans le repère véhicule (droite, avant) en m, origine = ANTENNE GPS (à
+    // l'ARRIÈRE du toit) : la caméra avant est ~4,5 m devant l'antenne — sans ce bras
+    // de levier, tous les objets avant étaient dessinés ~4,5 m trop près de la navette.
+    const CAMERA_FOV_H = { front: 110, right: 55, rear: 110, left: 55 };
+    const CAMERA_FOV_V = { front: 61, right: 31, rear: 61, left: 31 };
+    const LEGACY_FOV_V = { front: 60, right: 90, rear: 60, left: 90 };
+    const CAMERA_MOUNT = { front: [0, 4.5], right: [1.0, 3.4], rear: [0, 0], left: [-1.0, 3.4] };
+    const camGeo = {};   // rempli au chargement de session (config.fov_v_used)
+    Object.keys(CAMERA_YAW).forEach(p => {
+        camGeo[p] = {
+            fovH: CAMERA_FOV_H[p],
+            distScale: Math.tan(LEGACY_FOV_V[p] * Math.PI / 360) / Math.tan(CAMERA_FOV_V[p] * Math.PI / 360),
+            mount: CAMERA_MOUNT[p],
+        };
+    });
     let TOPDOWN_FOV_V_DEG = 60;      // FOV vertical caméra (deg) pour le cap pinhole (ajustable)
     let _lastTimeSave = 0;           // throttle de la persistance de position timeline
     let _restoreTargetTime = 0;      // position timeline à restaurer (capturée avant reset)
@@ -402,6 +422,14 @@ document.addEventListener('DOMContentLoaded', function () {
                 const _cy = (data.config && data.config.camera_yaw) || {};
                 Object.keys(CAMERA_YAW).forEach(p => {
                     if (_cy[p] != null && isFinite(_cy[p])) camYaw[p] = parseFloat(_cy[p]);
+                });
+                // FOV V réellement utilisé à l'annotation (écrit par l'analyse) → si la
+                // session a été annotée avec le FOV réel, distScale redevient 1 (pas de
+                // double correction). Sessions anciennes sans la clé : legacy 60°/90°.
+                const _fu = (data.config && data.config.fov_v_used) || {};
+                Object.keys(camGeo).forEach(p => {
+                    const used = (_fu[p] != null && isFinite(_fu[p])) ? parseFloat(_fu[p]) : LEGACY_FOV_V[p];
+                    camGeo[p].distScale = Math.tan(used * Math.PI / 360) / Math.tan(CAMERA_FOV_V[p] * Math.PI / 360);
                 });
             } catch (e) { /* défauts conservés */ }
             try {
@@ -2000,9 +2028,14 @@ document.addEventListener('DOMContentLoaded', function () {
             if (det.global_track_id != null) label += ` G${det.global_track_id}`;
             if (det.global_track_id != null && stationaryGids.has(det.global_track_id)) label += ' 🅿';
             if (inShuttleLane) label += ' 🚌';
-            const dist = det.distance_m;
+            // Correction FOV V (audit 2026-07-16) : distances annotées avec un FOV V
+            // supposé (90° latérales) vs réel (31°) → ×3,6 trop courtes sur les vues
+            // latérales. Le TTC est un RATIO distance/vitesse → insensible à l'échelle.
+            const _ds = (camGeo[position] && camGeo[position].distScale) || 1;
+            const dist = typeof det.distance_m === 'number' ? det.distance_m * _ds : det.distance_m;
             const ttc = det.ttc_s;
-            const rspeed = det.relative_speed_kmh;
+            const rspeed = typeof det.relative_speed_kmh === 'number'
+                ? det.relative_speed_kmh * _ds : det.relative_speed_kmh;
             const extras = [];
             if (typeof dist === 'number') extras.push(`${dist.toFixed(0)}m`);
             // « rel. » : vitesse RELATIVE (dérivée de distance) — une voiture garée
@@ -2112,7 +2145,8 @@ document.addEventListener('DOMContentLoaded', function () {
     let miniMapEgoRect = null;         // rectangle navette à l'échelle (zoom tactique)
     const topDownTrails = new Map();   // track_id -> [[lat,lon], ...] réc
     const topDownHeadings = new Map(); // tkey -> [cosN, sinE] cap lissé (EMA), maintenu à l'arrêt
-    const topDownDist = new Map();     // tkey -> distance lissée (EMA) : réduit le jitter radial du pinholeent
+    const topDownDist = new Map();     // tkey -> distance lissée (EMA) : réduit le jitter radial du pinhole
+    const topDownLat = new Map();      // tkey -> latéral lissé (EMA) : réduit le jitter du centre bboxent
     let topDownLastTime = -999;        // détection de saut (reset traces)
     let topDownLastRender = -999;      // throttle ~10 Hz
     let topDownAutoFollow = true;      // recentrage auto en lecture (zoom tactique)
@@ -2309,8 +2343,11 @@ document.addEventListener('DOMContentLoaded', function () {
         miniMapHeadingLine = L.polyline([[pose.lat, pose.lon], tip],
             { color: '#ffd400', weight: 3, opacity: 0.9 }).addTo(miniMap);
         if (miniMap.getZoom() >= TOPDOWN_ZOOM_MIN) {
-            const hw = EGO_WIDTH_M / 2, half = EGO_LENGTH_M / 2;
-            const corners = [[-hw, -half], [hw, -half], [hw, half], [-hw, half]]
+            // L'ANTENNE GPS est à l'ARRIÈRE du toit (schéma ENA) : la silhouette s'étend
+            // vers l'AVANT depuis la position GPS, elle n'est pas centrée dessus (sinon
+            // la navette dessinée recule de ~2,4 m par rapport à la réalité).
+            const hw = EGO_WIDTH_M / 2;
+            const corners = [[-hw, -0.3], [hw, -0.3], [hw, EGO_LENGTH_M - 0.3], [-hw, EGO_LENGTH_M - 0.3]]
                 .map(([x, y]) => egoToLatLon(pose.lat, pose.lon, pose.heading, x, y));
             miniMapEgoRect = L.polygon(corners,
                 { color: '#ffd400', weight: 1.5, fillOpacity: 0.15 }).addTo(miniMap);
@@ -2326,7 +2363,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!miniMapTrailLayer) miniMapTrailLayer = L.layerGroup().addTo(miniMap);
         if (!miniMapLaneLayer) miniMapLaneLayer = L.layerGroup().addTo(miniMap);
         // Reset des traces sur saut temporel (seek).
-        if (Math.abs(currentTime - topDownLastTime) > 1.0) { topDownTrails.clear(); topDownHeadings.clear(); topDownDist.clear(); }
+        if (Math.abs(currentTime - topDownLastTime) > 1.0) { topDownTrails.clear(); topDownHeadings.clear(); topDownDist.clear(); topDownLat.clear(); }
         topDownLastTime = currentTime;
 
         miniMapObjectLayer.clearLayers();
@@ -2456,6 +2493,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 // dès qu'un calcul de prédiction avait été lancé (elles sont persistées), d'où
                 // l'impression de « prédiction activée par défaut » et l'incohérence caméra↔carte.
                 if (det.predicted && !usePrediction) return;
+                const _geoMount = (camGeo[camPos] || {}).mount;   // bras de levier caméra
                 let g;
                 const isGhost = det.predicted && Array.isArray(det.vehicle_xy);
                 if (isGhost) {
@@ -2468,7 +2506,10 @@ document.addEventListener('DOMContentLoaded', function () {
                     // Distance LISSÉE dans le temps par objet (EMA) : la distance pinhole
                     // brute saute de ~±20% (hauteur bbox) → positions incohérentes. On lisse
                     // pour stabiliser trails/orientation/fusion 360°.
-                    let dm = det.distance_m;
+                    // Correction FOV V : distances stockées annotées avec un FOV supposé
+                    // (60°/90° legacy) ≠ réel (61°/31°) → latérales ×3,6 trop courtes.
+                    const _geo = camGeo[camPos] || {};
+                    let dm = det.distance_m * (_geo.distScale || 1);
                     const _dk = det.global_track_id != null ? 'g' + det.global_track_id
                               : (det.track_id != null ? camPos + ':' + det.track_id : null);
                     if (_dk) {
@@ -2476,24 +2517,25 @@ document.addEventListener('DOMContentLoaded', function () {
                         dm = _pv != null ? _pv * 0.7 + dm * 0.3 : dm;
                         topDownDist.set(_dk, dm);
                     }
-                    // ── Latéral (X) ─────────────────────────────────────────────────────────
-                    // CAUSE RACINE du « ramassis » (audit 2026-07-15 §3) : la recompute pinhole
-                    // X = dm·(bcx−cx)/focal est BRUITÉE (focale devinée + petites erreurs de
-                    // centre bbox amplifiées par dm). L'homographie (ground_xy) donne un latéral
-                    // CALIBRÉ et LISSE, mais son échelle peut être compressée si la calibration
-                    // near/far est approximative. → On récupère la LISSITUDE de l'homographie ET
-                    // l'ÉCHELLE du pinhole (audit §6.2) : on remet le latéral homographique à
-                    // l'échelle du longitudinal pinhole (dm, fiable = distance affichée caméra).
-                    // scale = dm / Yh ; homographie bien calibrée ⇒ scale≈1 (no-op).
-                    let gx = null;
-                    if (Array.isArray(det.ground_xy)) {
-                        const xh = det.ground_xy[0], yh = det.ground_xy[1];
-                        if (isFinite(xh) && isFinite(yh) && yh > 0.5) {
-                            const scale = dm / yh;
-                            if (scale > 0.25 && scale < 4) gx = xh * scale;   // garde-fou calibration aberrante
-                        }
+                    // ── Latéral (X) : pinhole avec la VRAIE focale HORIZONTALE ──────────────
+                    // L'homographie (ground_xy) est DÉBRANCHÉE — calibration prouvée cassée sur
+                    // les données réelles (audit 2026-07-16) : latéral avec inversions de signe
+                    // (#546 : centre bbox À GAUCHE de l'axe mais X homographie = +1,74 m) et
+                    // profondeur non monotone (#537 : pinhole 23,5 m vs homographie 6,8 m).
+                    // C'était LA cause du décalage DROIT systématique (garés à gauche ramenés
+                    // dans la voie gauche, voie opposée ramenée dans la voie navette).
+                    // Pinhole f_x = iw/(2·tan(FOV_H/2)) avec les FOV H RÉELS du rig (110°
+                    // avant/arrière, 55° latérales) — l'ancienne focale verticale 60° supposée
+                    // compressait le latéral ~1,6× sur la caméra avant. Latéral lissé (EMA) par
+                    // objet contre le jitter du centre bbox (le bruit résiduel qui avait motivé
+                    // l'essai homographie).
+                    const _fx = iw / (2 * Math.tan((_geo.fovH || 60) * Math.PI / 360));
+                    let gx = dm * (bcx - iw / 2) / _fx;
+                    if (_dk) {
+                        const _pl = topDownLat.get(_dk);
+                        gx = _pl != null ? _pl * 0.7 + gx * 0.3 : gx;
+                        topDownLat.set(_dk, gx);
                     }
-                    if (gx == null) gx = dm * (bcx - iw / 2) / focal;   // repli pinhole si pas d'homographie exploitable
                     g = [gx, dm];
                 } else {
                     g = det.ground_xy;
@@ -2512,7 +2554,12 @@ document.addEventListener('DOMContentLoaded', function () {
                     if (_drawnGlobal.has(gid)) return;
                     _drawnGlobal.add(gid);
                 }
-                const v = _camToVeh(g[0], g[1], yawDeg);          // → repère véhicule commun
+                let v = _camToVeh(g[0], g[1], yawDeg);            // → repère véhicule commun
+                // Bras de levier : position de MONTAGE de la caméra (origine = antenne GPS,
+                // à l'ARRIÈRE du toit — schéma ENA). La caméra avant est ~4,5 m devant
+                // l'antenne : sans cet offset les objets avant étaient ~4,5 m trop près.
+                // Pas pour les fantômes : vehicle_xy backend inclut déjà le montage.
+                if (!isGhost && _geoMount) v = [v[0] + _geoMount[0], v[1] + _geoMount[1]];
                 const ll = egoToLatLon(pose.lat, pose.lon, pose.heading, v[0], v[1]);
                 const color = ttcColor(det);
                 // Trail continu via l'ID GLOBAL (persiste au passage d'une caméra à l'autre).
@@ -4222,7 +4269,7 @@ document.addEventListener('DOMContentLoaded', function () {
             _tdb.classList.toggle('active', topDown360);
             _tdb.classList.toggle('btn-warning', topDown360);
             _tdb.classList.toggle('btn-outline-warning', !topDown360);
-            topDownTrails.clear(); topDownHeadings.clear(); topDownDist.clear();
+            topDownTrails.clear(); topDownHeadings.clear(); topDownDist.clear(); topDownLat.clear();
             if (typeof currentTime === 'number') { topDownLastRender = -999; updateMiniMapShuttle(currentTime); }
         };
         // ── Éditeur de yaw caméras (calibration de session) ──────────────────────
@@ -4247,7 +4294,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 const v = parseFloat(inp.value);
                 if (isFinite(v)) { camYaw[inp.dataset.pos] = v; payload[inp.dataset.pos] = v; }
             });
-            topDownTrails.clear(); topDownHeadings.clear(); topDownDist.clear();
+            topDownTrails.clear(); topDownHeadings.clear(); topDownDist.clear(); topDownLat.clear();
             if (typeof currentTime === 'number') { topDownLastRender = -999; updateMiniMapShuttle(currentTime); }
             try {
                 const r = await fetch(`${config.urls.deleteSession}${currentSessionId}/camera-yaw/`, {
@@ -4306,7 +4353,7 @@ document.addEventListener('DOMContentLoaded', function () {
         // Hauteur caméra (projection sol→image du gabarit vidéo) + persistance.
         const _chs = document.getElementById('camHeightSlider');
         if (_chs) {
-            try { const sv = localStorage.getItem('cam_analyzer_cam_height'); if (sv) laneCamHeightM = parseFloat(sv) || 1.3; } catch (e) { /* noop */ }
+            try { const sv = localStorage.getItem('cam_analyzer_cam_height'); if (sv) laneCamHeightM = parseFloat(sv) || 2.4; } catch (e) { /* noop */ }
             _chs.value = laneCamHeightM;
             const _ch0 = document.getElementById('camHeightVal'); if (_ch0) _ch0.textContent = laneCamHeightM.toFixed(1) + 'm';
             _chs.oninput = () => {

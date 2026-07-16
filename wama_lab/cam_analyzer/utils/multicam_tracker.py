@@ -16,7 +16,7 @@ from django.apps import apps
 
 from .prediction_adapter import (make_local_frame, shuttle_trajectory, pinhole_ego,
                                ego_to_world, _shuttle_pose_at, CLASS_DIMS,
-                               camera_yaw_map)
+                               camera_geometry)
 
 
 def world_to_vehicle(world_e, world_n, shuttle_e, shuttle_n, heading_deg):
@@ -29,7 +29,7 @@ def world_to_vehicle(world_e, world_n, shuttle_e, shuttle_n, heading_deg):
     return lateral, longitudinal
 
 # Orientation de montage de chaque caméra (deg, sens horaire depuis l'avant véhicule).
-CAMERA_YAW = {'front': 0.0, 'right': 90.0, 'rear': 180.0, 'left': -90.0}
+CAMERA_YAW = {'front': 0.0, 'right': 75.0, 'rear': 180.0, 'left': -75.0}   # défauts rig ENA (±75° latérales)
 
 
 def _cam_to_vehicle(lateral, longitudinal, yaw_deg):
@@ -65,7 +65,7 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=1.0,
     fps = cams[0].fps or 12.0
     scale = session.gps_time_scale or 1.0
     off = session.gps_time_offset or 0.0
-    _yaw = camera_yaw_map(session)   # yaw réels par caméra (calibration de session)
+    _geo = camera_geometry(session)  # yaw/FOV/montage réels par caméra (rig + session)
 
     per_cam = {}
     for c in cams:
@@ -100,10 +100,13 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=1.0,
                 # fantômes (predicted) qui n'ont ni track_id ni source segmentation.
                 if d.get('track_id') is None and d.get('source') != 'segmentation':
                     continue
-                ego = pinhole_ego(d, iw, ih, fov_v_deg)
+                _g = _geo[pos]
+                ego = pinhole_ego(d, iw, ih, fov_v_deg,
+                                  fov_h_deg=_g['fov_h'], dist_scale=_g['dist_scale'])
                 if ego is None:
                     continue
-                xv, yv = _cam_to_vehicle(ego[0], ego[1], _yaw[pos])
+                xv, yv = _cam_to_vehicle(ego[0], ego[1], _g['yaw'])
+                xv, yv = xv + _g['mount'][0], yv + _g['mount'][1]
                 e, n = ego_to_world(se, sn, sh, xv, yv)
                 dets_here.append((f, d, e, n))
 

@@ -46,9 +46,14 @@ CLASS_REAL_HEIGHT_M = {
     'rider': 1.7,
 }
 
-# FoV vertical par caméra (degrés). Approximations Navya — à raffiner.
+# FoV vertical par caméra (degrés) — VALEURS RÉELLES du rig ENA (audit 2026-07-16,
+# schéma claude/ENA_Installation + specs AXIS) : avant/arrière AXIS F4005-E 110°H/61°V,
+# latérales AXIS F1015 vari-focale ~55°H → ~31°V (table constructeur 97-52°H ↔ 53-30°V).
+# ⚠ Les anciennes valeurs (60/60/90/90) sous-estimaient les distances latérales ×3,6 ;
+# les sessions annotées avec elles sont corrigées à l'affichage via LEGACY_FOV_V +
+# config['fov_v_used'] (prediction_adapter.camera_geometry).
 DEFAULT_FOV_V_DEG = {
-    'front': 60.0, 'rear': 60.0, 'left': 90.0, 'right': 90.0,
+    'front': 61.0, 'rear': 61.0, 'left': 31.0, 'right': 31.0,
 }
 
 # ── Paramètres du filtrage vitesse/TTC ────────────────────────────────

@@ -1189,6 +1189,19 @@ def process_session_task(self, session_id: str, force_rerun: bool = False,
             from .utils.distance_speed import TrackKinematics
             _kinematics = TrackKinematics()
 
+            # Trace le FOV V utilisé pour l'annotation des distances de CETTE caméra →
+            # camera_geometry() peut corriger les sessions annotées avec un ancien FOV
+            # (dist_scale devient 1.0 quand fov_v_used == FOV réel du rig). Les sessions
+            # SANS cette clé sont supposées annotées avec les anciens défauts (LEGACY_FOV_V).
+            try:
+                from .utils.distance_speed import DEFAULT_FOV_V_DEG as _FOVV
+                _cfg = session.config or {}
+                _cfg.setdefault('fov_v_used', {})[position] = _FOVV.get(position, 60.0)
+                session.config = _cfg
+                session.save(update_fields=['config'])
+            except Exception:
+                logger.debug('fov_v_used save failed (non-blocking)', exc_info=True)
+
             # Projecteur sol (homographie) — actif UNIQUEMENT si CETTE caméra a une
             # calibration (camera.ground_homography, par session) ET
             # profile.geometry_enabled. Sinon None → seules les distances pinhole

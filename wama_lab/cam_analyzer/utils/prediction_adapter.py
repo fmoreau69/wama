@@ -25,7 +25,10 @@ CLASS_DIMS = {
 SHUTTLE_DIMS = (5.5, 2.1)   # navette
 
 # Orientation de montage de chaque caméra (deg, sens horaire depuis l'avant véhicule).
-CAMERA_YAW = {'front': 0.0, 'right': 90.0, 'rear': 180.0, 'left': -90.0}
+# Latérales : fixées aux épaules AVANT, orientées ~±75° de l'axe (70-80° d'après
+# l'installation ENA — recouvrement avant↔latérales, aucun avec l'arrière). Ajustable
+# par session via le bouton Yaw (session.config['camera_yaw']).
+CAMERA_YAW = {'front': 0.0, 'right': 75.0, 'rear': 180.0, 'left': -75.0}
 
 
 def camera_yaw_map(session):
@@ -44,11 +47,58 @@ def camera_yaw_map(session):
     return yaw
 
 
-def cam_to_vehicle(lateral, longitudinal, yaw_deg):
-    """Position repère caméra → repère VÉHICULE commun (via l'orientation de la caméra)."""
+# ── Géométrie RÉELLE du rig ENA (schéma claude/ENA_Installation + specs AXIS) ────────
+# Avant/arrière : AXIS F4005-E dome, FOV 110°H / ~61°V, aux extrémités de la navette.
+# Latérales : AXIS F1015 vari-focale réglées ~55°H → ~31°V (table constructeur
+# 97°-52°H ↔ 53°-30°V), fixées aux épaules avant, orientées ~±75° de l'axe.
+CAMERA_FOV_H = {'front': 110.0, 'right': 55.0, 'rear': 110.0, 'left': 55.0}
+CAMERA_FOV_V = {'front': 61.0, 'right': 31.0, 'rear': 61.0, 'left': 31.0}
+# FOV V utilisés HISTORIQUEMENT à l'annotation (anciens DEFAULT_FOV_V_DEG) : sessions
+# analysées avant le correctif n'ont pas config['fov_v_used'] → on suppose ces valeurs
+# pour le facteur de correction des distances stockées (latérales : 90° supposé vs 31°
+# réel = distances 3,6× trop courtes).
+LEGACY_FOV_V = {'front': 60.0, 'right': 90.0, 'rear': 60.0, 'left': 90.0}
+# Montage (droite_m, avant_m) dans le repère véhicule, origine = ANTENNE GPS (à
+# l'arrière du toit — schéma ENA). Navya ≈ 4,75 m × 2,11 m.
+CAMERA_MOUNT = {'front': (0.0, 4.5), 'right': (1.0, 3.4),
+                'rear': (0.0, 0.0), 'left': (-1.0, 3.4)}
+
+
+def camera_geometry(session):
+    """Géométrie effective par caméra : {position: {yaw, fov_h, dist_scale, mount}}.
+    Défauts du rig ENA surchargés par la calibration de session (`session.config` :
+    `camera_yaw`, `camera_mount`, `fov_v_used` — ce dernier écrit par l'analyse pour
+    que `dist_scale` devienne 1.0 quand les distances sont annotées avec le bon FOV)."""
+    cfg = (getattr(session, 'config', None) or {})
+    yaw = camera_yaw_map(session)
+    fov_used = cfg.get('fov_v_used') or {}
+    mounts = cfg.get('camera_mount') or {}
+    geo = {}
+    for pos in CAMERA_YAW:
+        try:
+            used = float(fov_used.get(pos, LEGACY_FOV_V[pos]))
+        except (TypeError, ValueError):
+            used = LEGACY_FOV_V[pos]
+        m = mounts.get(pos) or CAMERA_MOUNT[pos]
+        geo[pos] = {
+            'yaw': yaw[pos],
+            'fov_h': CAMERA_FOV_H[pos],
+            'dist_scale': math.tan(math.radians(used) / 2) / math.tan(math.radians(CAMERA_FOV_V[pos]) / 2),
+            'mount': (float(m[0]), float(m[1])),
+        }
+    return geo
+
+
+def cam_to_vehicle(lateral, longitudinal, yaw_deg, mount=(0.0, 0.0)):
+    """Position repère caméra → repère VÉHICULE commun (via l'orientation de la caméra).
+    `mount` = position de MONTAGE de la caméra dans le repère véhicule (droite, avant)
+    en m, origine = antenne GPS. Le rig ENA a l'antenne à l'ARRIÈRE et la caméra avant
+    à l'extrémité AVANT (~4,5 m devant l'antenne) : sans ce bras de levier, tous les
+    objets avant étaient dessinés ~4,5 m trop près de la navette. Audit 2026-07-16."""
     t = math.radians(yaw_deg)
     s, c = math.sin(t), math.cos(t)
-    return (longitudinal * s + lateral * c, longitudinal * c - lateral * s)
+    return (longitudinal * s + lateral * c + mount[0],
+            longitudinal * c - lateral * s + mount[1])
 
 
 def make_local_frame(gps_track):
@@ -75,16 +125,25 @@ def shuttle_trajectory(gps_track, to_local):
     return np.array(rows) if rows else np.zeros((0, 4))
 
 
-def pinhole_ego(det, iw, ih, fov_v_deg=60.0):
+def pinhole_ego(det, iw, ih, fov_v_deg=60.0, fov_h_deg=None, dist_scale=1.0):
     """Détection → position ego (latéral droite, longitudinal avant) en m, ou None.
-    Reconstruction pinhole (comme l'affichage) : robuste au biais de l'homographie."""
+    Reconstruction pinhole (comme l'affichage) : robuste au biais de l'homographie.
+    `fov_h_deg` : FOV HORIZONTAL réel de la caméra → focale latérale correcte (l'ancien
+    calcul appliquait la focale verticale 60° à toutes les caméras : latéral compressé
+    ~1,6× sur la caméra avant 110°). `dist_scale` : correction des distances stockées
+    annotées avec un mauvais FOV V (latérales : 90° supposé vs 31° réel = ×3,6).
+    Audit 2026-07-16 (specs rig ENA)."""
     dm = det.get('distance_m')
     bb = det.get('bbox')
     if dm is None or not (isinstance(bb, (list, tuple)) and len(bb) >= 4):
         return None
     if bb[0] <= 8 or bb[2] >= iw - 8:      # coupé au bord → cap non fiable
         return None
-    focal = ih / (2.0 * math.tan(math.radians(fov_v_deg) / 2.0))
+    dm = dm * dist_scale
+    if fov_h_deg:
+        focal = iw / (2.0 * math.tan(math.radians(fov_h_deg) / 2.0))
+    else:
+        focal = ih / (2.0 * math.tan(math.radians(fov_v_deg) / 2.0))
     bcx = (bb[0] + bb[2]) / 2.0
     lateral = dm * (bcx - iw / 2.0) / focal
     return lateral, dm       # [latéral, longitudinal]
@@ -169,7 +228,7 @@ def annotate_prediction_indicators(session, method='speed_accel', max_range_m=45
             if c.position in CAMERA_YAW and DF.objects.filter(camera=c).exists()]
     if not cams:
         return 0
-    _yaw = camera_yaw_map(session)   # yaw réels par caméra (calibration de session)
+    _geo = camera_geometry(session)  # yaw/FOV/montage réels par caméra (rig + session)
     fps = cams[0].fps or 12.0
     scale = session.gps_time_scale or 1.0
     off = session.gps_time_offset or 0.0
@@ -193,10 +252,12 @@ def annotate_prediction_indicators(session, method='speed_accel', max_range_m=45
                     if d.get('track_id') is None:
                         continue
                     gid = c.position + ':' + str(d['track_id'])
-                ego = pinhole_ego(d, iw, ih, fov_v_deg)
+                _g = _geo[c.position]
+                ego = pinhole_ego(d, iw, ih, fov_v_deg,
+                                  fov_h_deg=_g['fov_h'], dist_scale=_g['dist_scale'])
                 if ego is None:
                     continue
-                xv, yv = cam_to_vehicle(ego[0], ego[1], _yaw[c.position])
+                xv, yv = cam_to_vehicle(ego[0], ego[1], _g['yaw'], mount=_g['mount'])
                 e, n = ego_to_world(se, sn, sh, xv, yv)
                 by_gid[gid].append((ts, d, f, e, n, ego[1], d.get('class_name', 'car')))
 
