@@ -2148,7 +2148,52 @@ document.addEventListener('DOMContentLoaded', function () {
     const topDownHeadings = new Map(); // tkey -> [cosN, sinE] cap lissé (EMA), maintenu à l'arrêt
     const topDownDist = new Map();     // tkey -> distance lissée (EMA) : réduit le jitter radial du pinhole
     const topDownLat = new Map();      // tkey -> latéral lissé (EMA) : réduit le jitter du centre bbox
-    const topDownCls = new Map();      // tkey -> {classe: Σ confiance} : vote live anti-flapping car↔truckent
+    const topDownCls = new Map();      // tkey -> {classe: Σ confiance} : vote live anti-flapping car↔truck
+    const topDownAxial = new Map();    // tkey -> [cos2θ, sin2θ] : EMA AXIALE du cap ratio-bbox (mod 180°)
+
+    // Dimensions physiques par classe (m) : [longueur, largeur, hauteur]. Hauteurs
+    // IDENTIQUES à CLASS_REAL_HEIGHT_M backend (cohérence du calcul d'étendue).
+    const CLASS_DIMS_JS = { car: [4.5, 1.8, 1.5], truck: [8, 2.5, 3.0], bus: [10, 2.8, 3.2],
+                            motorcycle: [2, 0.8, 1.4], bicycle: [1.8, 0.6, 1.4] };
+
+    // ── Cap par RATIO de bbox (étendue apparente) ────────────────────────────────────
+    // Un véhicule vu de FACE expose sa largeur W, de PROFIL sa longueur L : l'étendue
+    // horizontale apparente vaut E = L·|sinθ| + W·|cosθ| (θ = angle cap↔ligne de visée).
+    // Comme la distance provient de la HAUTEUR bbox, E se déduit du seul ratio pixels :
+    // E = H_classe · (f_y/f_x) · (largeur_px/hauteur_px) — indépendant de la distance.
+    // On inverse pour |θ| (2 racines possibles quand E ≥ L : branche montante/descendante
+    // de f(θ), départagées par la continuité temporelle). Retourne les 2 caps candidats
+    // MONDE mod 180° (le gabarit est un rectangle : le sens n'importe pas), ou null si
+    // le signal est inexploitable (bbox coupée/minuscule, classe sans dims, conf faible).
+    function ratioHeadingCandidates(det, cls, camPos, iw, ih, losWorldDeg) {
+        const dims = CLASS_DIMS_JS[(cls || '').toLowerCase()];
+        const bb = det.bbox;
+        if (!dims || !Array.isArray(bb) || bb.length < 4) return null;
+        if ((det.confidence || 0) < 0.4) return null;
+        const bw = bb[2] - bb[0], bh = bb[3] - bb[1];
+        if (bh < 12 || bw < 4) return null;                     // trop petit → ratio bruité
+        if (bb[0] <= 8 || bb[2] >= iw - 8) return null;         // coupé au bord → étendue fausse
+        const [L, W, H] = dims;
+        const fovH = CAMERA_FOV_H[camPos] || 60, fovV = CAMERA_FOV_V[camPos] || 61;
+        const fy = ih / (2 * Math.tan(fovV * Math.PI / 360));
+        const fx = iw / (2 * Math.tan(fovH * Math.PI / 360));
+        let E = H * (fy / fx) * (bw / bh);
+        const diag = Math.hypot(L, W);
+        if (E < W) E = W; if (E > diag) E = diag;               // clamp au domaine physique
+        // L·s + W·√(1−s²) = E  →  s = [LE ± W·√(L²+W²−E²)] / (L²+W²)
+        const disc = Math.max(0, L * L + W * W - E * E);
+        const sqd = Math.sqrt(disc);
+        const norm = (a) => ((a % 180) + 180) % 180;
+        const cands = [];
+        [+1, -1].forEach(sg => {
+            const s = (L * E + sg * W * sqd) / (L * L + W * W);
+            if (s >= -1e-9 && s <= 1 + 1e-9) {
+                const th = Math.asin(Math.min(1, Math.max(0, s))) * 180 / Math.PI;
+                cands.push(norm(losWorldDeg + th), norm(losWorldDeg - th));
+            }
+        });
+        return cands.length ? cands : null;
+    }ent
     let topDownLastTime = -999;        // détection de saut (reset traces)
     let topDownLastRender = -999;      // throttle ~10 Hz
     let topDownAutoFollow = true;      // recentrage auto en lecture (zoom tactique)
@@ -2365,7 +2410,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!miniMapTrailLayer) miniMapTrailLayer = L.layerGroup().addTo(miniMap);
         if (!miniMapLaneLayer) miniMapLaneLayer = L.layerGroup().addTo(miniMap);
         // Reset des traces sur saut temporel (seek).
-        if (Math.abs(currentTime - topDownLastTime) > 1.0) { topDownTrails.clear(); topDownHeadings.clear(); topDownDist.clear(); topDownLat.clear(); topDownCls.clear(); }
+        if (Math.abs(currentTime - topDownLastTime) > 1.0) { topDownTrails.clear(); topDownHeadings.clear(); topDownDist.clear(); topDownLat.clear(); topDownCls.clear(); topDownAxial.clear(); }
         topDownLastTime = currentTime;
 
         miniMapObjectLayer.clearLayers();
@@ -2627,6 +2672,39 @@ document.addEventListener('DOMContentLoaded', function () {
                         topDownCls.set(tkey, _cv);
                         effCls = Object.keys(_cv).reduce((a, b) => (_cv[a] >= _cv[b] ? a : b));
                     } else effCls = det.class_name;
+                }
+                // ── FUSION cap trajectoire ↔ cap ratio-bbox ─────────────────────────────
+                // La trajectoire observe le mouvement RÉEL → prioritaire quand l'objet
+                // bouge franchement (aucune ambiguïté de sens). Pour les STATIONNÉS/lents,
+                // elle est aveugle : le cap était figé = axe de la rue — faux pour un
+                // stationnement perpendiculaire. Le ratio de bbox fournit l'orientation
+                // mod 180° (gabarit = rectangle, le sens n'importe pas), départagée par la
+                // continuité temporelle (candidat le plus proche du cap courant) puis
+                // lissée AXIALEMENT (EMA du vecteur d'angle doublé — la statistique
+                // correcte pour un axe). Confrontation demandée par l'utilisateur
+                // 2026-07-16 — voir CAM_ANALYZER_CHAINE_TRAITEMENT.md §Cap.
+                const _movingConfident = !_isStationary && sm != null;
+                if (!_movingConfident && !isGhost && Array.isArray(det.bbox) && det.bbox.length >= 4) {
+                    const _fx2 = iw / (2 * Math.tan(((camGeo[camPos] || {}).fovH || 60) * Math.PI / 360));
+                    const _bcx2 = (det.bbox[0] + det.bbox[2]) / 2;
+                    // Ligne de visée MONDE = cap navette + yaw caméra + gisement dans l'image.
+                    const _los = pose.heading + yawDeg + Math.atan2(_bcx2 - iw / 2, _fx2) * 180 / Math.PI;
+                    const _cands = ratioHeadingCandidates(det, effCls, camPos, iw, ih, _los);
+                    if (_cands) {
+                        const _axPrev = topDownAxial.get(tkey);
+                        const _refDeg = _axPrev ? Math.atan2(_axPrev[1], _axPrev[0]) * 90 / Math.PI : objHeading;
+                        let _best = _cands[0], _bd = Infinity;
+                        _cands.forEach(c => {
+                            const d = Math.abs((((c - _refDeg) % 180) + 270) % 180 - 90);   // écart axial [0..90]
+                            if (d < _bd) { _bd = d; _best = c; }
+                        });
+                        const _a2 = _best * Math.PI / 90, _al = 0.2;   // angle doublé (rad)
+                        const _v = _axPrev ? [_axPrev[0] * (1 - _al) + Math.cos(_a2) * _al,
+                                              _axPrev[1] * (1 - _al) + Math.sin(_a2) * _al]
+                                           : [Math.cos(_a2), Math.sin(_a2)];
+                        topDownAxial.set(tkey, _v);
+                        objHeading = Math.atan2(_v[1], _v[0]) * 90 / Math.PI;   // demi-angle → axe mod 180°
+                    }
                 }
                 const label = `${effCls || 'objet'} [${camPos}]`
                     + `${det.dist_euclid_m != null ? ' · ' + det.dist_euclid_m + ' m' : ''}`
@@ -4296,7 +4374,7 @@ document.addEventListener('DOMContentLoaded', function () {
             _tdb.classList.toggle('active', topDown360);
             _tdb.classList.toggle('btn-warning', topDown360);
             _tdb.classList.toggle('btn-outline-warning', !topDown360);
-            topDownTrails.clear(); topDownHeadings.clear(); topDownDist.clear(); topDownLat.clear(); topDownCls.clear();
+            topDownTrails.clear(); topDownHeadings.clear(); topDownDist.clear(); topDownLat.clear(); topDownCls.clear(); topDownAxial.clear();
             if (typeof currentTime === 'number') { topDownLastRender = -999; updateMiniMapShuttle(currentTime); }
         };
         // ── Éditeur de yaw caméras (calibration de session) ──────────────────────
@@ -4321,7 +4399,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 const v = parseFloat(inp.value);
                 if (isFinite(v)) { camYaw[inp.dataset.pos] = v; payload[inp.dataset.pos] = v; }
             });
-            topDownTrails.clear(); topDownHeadings.clear(); topDownDist.clear(); topDownLat.clear(); topDownCls.clear();
+            topDownTrails.clear(); topDownHeadings.clear(); topDownDist.clear(); topDownLat.clear(); topDownCls.clear(); topDownAxial.clear();
             if (typeof currentTime === 'number') { topDownLastRender = -999; updateMiniMapShuttle(currentTime); }
             try {
                 const r = await fetch(`${config.urls.deleteSession}${currentSessionId}/camera-yaw/`, {

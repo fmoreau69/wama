@@ -7,6 +7,12 @@ de la route (détection d'objets, segmentation de voie, proximité, conflits aux
 
 > **Statut** : pipeline quasi-complet **implémenté**, **validation en cours** (pas tout testé).
 > Voir [`CONTEXT.md`](CONTEXT.md) pour l'état détaillé, l'analyse de faisabilité et les priorités de reprise.
+>
+> **Docs techniques** :
+> [`CAM_ANALYZER_CHAINE_TRAITEMENT.md`](CAM_ANALYZER_CHAINE_TRAITEMENT.md) — la chaîne de
+> traitement de bout en bout (formules, fichiers, calibration, limites) ;
+> [`CAM_ANALYZER_CHANGELOG.md`](CAM_ANALYZER_CHANGELOG.md) — **traçabilité de toutes les
+> modifications** (quoi/pourquoi/annulation) — à mettre à jour à CHAQUE changement de comportement.
 
 ---
 

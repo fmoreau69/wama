@@ -1,0 +1,40 @@
+# Cam Analyzer — Journal des modifications (traçabilité & annulation)
+
+> **Règle** : TOUTE modification qui change le comportement (positionnement, cap, distances,
+> tracking, affichage) reçoit une entrée ici — quoi / pourquoi / comment annuler / validation.
+> **Annulation** : `git revert <commit>` (chaque entrée = 1 commit atomique), puis
+> `cp wama_lab/cam_analyzer/static/cam_analyzer/js/index.js staticfiles/cam_analyzer/js/index.js`
+> si du JS est touché, et **restart du process WSL2** si du Python est touché.
+> Si une régression de qualité est constatée, remonter ce tableau du plus récent au plus
+> ancien pour identifier le changement fautif.
+>
+> Chaîne complète : [`CAM_ANALYZER_CHAINE_TRAITEMENT.md`](CAM_ANALYZER_CHAINE_TRAITEMENT.md).
+
+## 2026-07-16
+
+| Commit | Quoi | Pourquoi | Validé |
+|---|---|---|---|
+| *(courant)* | **Cap ratio-bbox + fusion** : cap des stationnés/lents estimé par le ratio largeur/hauteur de bbox (étendue apparente → \|θ\| vs ligne de visée, 2 candidats mod 180° départagés par continuité, EMA axiale) ; trajectoire prioritaire quand l'objet bouge. + docs CHAINE_TRAITEMENT & CHANGELOG | Cap des garés figé = axe de la rue → faux en stationnement perpendiculaire ; demande de confrontation trajectoire↔ratio (utilisateur) | math validée numériquement (face→0°, profil→90°) ; rendu navigateur à valider |
+| `3dab195` | **Classe stable par track** (vote majoritaire pondéré confiance, backend `stable_class` + fallback vote live JS) ; **persistance des bascules** 360°/Préd/garés/Voie·vidéo (localStorage) | Gabarit qui sautait car↔truck au gré des frames ; bascules perdues au rechargement de page | compile + rendu à valider |
+| `79a0315` | **Cap indépendant du sens de lecture** : points de trace horodatés, vecteur orienté par le signe de Δt ; purge de trace sur seek > 2 s | En lecture arrière, tous les caps s'inversaient à 180° (trace remplie dans l'ordre de lecture) | rendu à valider |
+| `43cf064` | **Géométrie réelle du rig ENA** : homographie DÉBRANCHÉE de la vue de dessus (latéral pinhole avec focale HORIZONTALE réelle 110°/55°) ; FOV V réels 61°/31° (`DEFAULT_FOV_V_DEG`) + correction rétroactive ×3,6 des distances latérales (`dist_scale`, `fov_v_used`) ; **bras de levier caméras** (antenne GPS à l'arrière, caméra avant +4,5 m) ; yaw latéraux défauts ±75° ; silhouette navette étendue vers l'avant ; H cam défaut 2,4 m ; overlays latéraux corrigés | **Décalage DROIT systématique** : calibration homographie prouvée cassée (inversion de signe #546, profondeur non monotone #537) — c'était elle qui décalait tout à droite ; specs caméras + schéma d'implantation fournis par l'utilisateur | smoke tests numériques OK (#537→+4,8 m/27,6 m ; #499 garée→−10,7 m hors voie) ; rendu à valider |
+| `0f8d215` | **6 correctifs cap/vitesses/yaw/hand-off** : lissage circulaire du cap ego (±2 fixes) ; fix wrap 359→1° (`_shuttle_pose_at`) ; vitesse de track EMA + rejet >15 m/s ; yaw caméras configurable (bouton 🧭 + endpoint `camera-yaw/`) ; ID global `G<n>` + badge 🅿 sur les vidéos ; « rel. » sur la vitesse ; gel du cap des stationnés + seuil 0,4→0,8 m ; badge d'état minimap | Objets qui tournent sur eux-mêmes (cap ego GPS bruité amplifié par bras de levier + wrap plein nord) ; garés « roulant » à 1-3 km/h ; hand-off 360° cassé ; boutons à l'effet invisible | smoke tests wrap/yaw OK ; rendu validé partiellement (l'utilisateur a ensuite signalé le décalage droit → `43cf064`) |
+| `1508935` | Fantômes prédits masqués quand Prédiction OFF ; latéral = homographie rescalée *(⚠ ANNULÉ par `43cf064` — l'homographie s'est révélée biaisée à droite)* | Vue de dessus incohérente avec les vues caméra ; « prédiction activée par défaut » | fix 1 conservé ; fix 2 remplacé |
+
+## Historique antérieur (contexte)
+
+| Commit | Quoi |
+|---|---|
+| `7327b19` | Lissage EMA de la distance top-down (mitigation du « ramassis ») |
+| `6509cc2` | Passage au positionnement pinhole en vue de dessus (cause racine identifiée par l'audit du 2026-07-15 : latéral bruité) |
+| `dbeb939` | Audit complet dégradation vue de dessus (`docs/AUDIT_CAM_ANALYZER_VUE_DE_DESSUS_2026-07-15.md`) |
+| `c469867`, `9961a4c` | Étapes antérieures du chantier vue de dessus (voir audit) |
+
+## Procédure de non-régression (à chaque modification)
+
+1. Commit atomique + entrée dans ce tableau (quoi/pourquoi/validation).
+2. `python -m py_compile` sur les fichiers Python touchés + `python manage.py check`.
+3. Si formule géométrique : smoke test numérique sur un cas réel documenté
+   (référence : frame 6176, session `8cecc4a6`, véhicules #537/#499/#546).
+4. Sync `staticfiles/` si JS/CSS.
+5. Validation visuelle par l'utilisateur (navigateur) AVANT de considérer l'entrée « validée ».
