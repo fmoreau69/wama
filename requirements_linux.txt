@@ -14,7 +14,7 @@ opencv_python
 pillow
 psutil
 bitsandbytes
-setuptools
+setuptools<81  # pkg_resources retiré en setuptools 81+ ; requis par mmengine/mmpose (MuseTalk) — 2026-07-16
 resampy>=0.4.3
 python_ldap
 PySide6

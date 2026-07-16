@@ -21,7 +21,7 @@ litellm>=1.0.0
 opencv_python>=4.11.0.86
 pillow>=11.2.1
 psutil>=5.9.0
-setuptools
+setuptools<81  # pkg_resources retiré en setuptools 81+ ; requis par mmengine/mmpose (MuseTalk) — 2026-07-16
 python-ldap>=3.4.4
 PySide6>=6.9
 pytube>=15.0.0
