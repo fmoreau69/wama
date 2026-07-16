@@ -95,6 +95,10 @@
         <input type="range" id="camHeightSlider" min="0.8" max="3.2" step="0.05" value="2.4" style="width:80px;">
         <span class="small text-secondary" id="camHeightVal" style="min-width:34px;">2.4m</span>
     </span>
+    <button type="button" id="featModesBtn" class="btn btn-sm btn-outline-info ms-1"
+            title="Bascules de comparaison : activer/désactiver chaque amélioration du positionnement pour comparer AVEC/SANS instantanément. ⟳ = nécessite de relancer le calcul des indicateurs.">
+        <i class="fas fa-flag me-1"></i>Modes
+    </button>
     <button type="button" id="camYawBtn" class="btn btn-sm btn-outline-secondary ms-1"
             title="Yaw de montage réel de chaque caméra (deg, sens horaire depuis l'avant) — les caméras ne sont pas toutes exactement à 0/±90/180°. Appliqué au rendu immédiatement, au tracking 360°/prédiction au prochain calcul.">
         <i class="fas fa-compass me-1"></i>Yaw
@@ -117,6 +121,8 @@
          style="height: 320px; width: 100%; border-radius: 6px; border: 1px solid #495057; background: #1a1d20;"></div>
     <div id="topDownStatus" class="position-absolute small"
          style="top:6px; left:6px; z-index:1000; background:rgba(26,29,32,.8); color:#adb5bd; padding:2px 8px; border-radius:4px; font-size:0.7rem; pointer-events:none;"></div>
+    <div id="featModesPanel" class="position-absolute d-none"
+         style="top:6px; right:6px; z-index:1100; background:rgba(26,29,32,.95); color:#e0e0e0; border:1px solid #495057; border-radius:6px; padding:8px 10px; max-width:280px;"></div>
 </div>
 <div class="small text-secondary mt-1" style="font-size: 0.7rem;">
     <i class="fas fa-mouse-pointer me-1"></i>Cliquer sur le parcours pour aller au passage le plus proche

@@ -22,6 +22,7 @@ from django.core.cache import cache
 from .models import AnalysisSession, AnalysisProfile, CameraView, DetectionFrame, TemporalSegment
 from .models import get_unique_filename
 from wama.common.utils.console_utils import push_console_line, get_console_lines
+from .utils.features import catalog as _features_catalog
 
 logger = logging.getLogger(__name__)
 
@@ -297,6 +298,9 @@ def get_session(request, session_id):
         'cameras': cameras,
         'progress': session.progress,
         'results_summary': session.results_summary,
+        # Catalogue des bascules ⚑ Modes (registre + état effectif) — l'UI s'auto-génère
+        # depuis ces métadonnées (libellé/description/scope), zéro HTML par bascule.
+        'features': _features_catalog(session),
         'intersection_windows': session.intersection_windows,
         'gps_track': gps_sampled,
         'gps_time_offset': getattr(session, 'gps_time_offset', 0.0) or 0.0,
@@ -342,6 +346,26 @@ def set_camera_yaw(request, session_id):
     session.config = cfg
     session.save(update_fields=['config'])
     return JsonResponse({'success': True, 'camera_yaw': yaw})
+
+
+@login_required
+@require_http_methods(["POST"])
+def set_features(request, session_id):
+    """Surcharges des bascules de fonctionnalités (⚑ Modes) — comparer AVEC/SANS chaque
+    amélioration du positionnement/cap/distances. Registre : `utils/features.py` ;
+    mécanisme générique : `wama/common/utils/feature_flags.py`. Les bascules `live`
+    agissent au rendu suivant ; les `compute` au prochain calcul d'indicateurs."""
+    from .utils.features import clean_overrides, catalog
+    session = get_object_or_404(AnalysisSession, id=session_id, user=request.user)
+    try:
+        raw = json.loads(request.body or '{}').get('features')
+    except ValueError:
+        return JsonResponse({'error': 'JSON invalide'}, status=400)
+    cfg = session.config or {}
+    cfg['features'] = {**(cfg.get('features') or {}), **clean_overrides(raw)}
+    session.config = cfg
+    session.save(update_fields=['config'])
+    return JsonResponse({'success': True, 'features': catalog(session)})
 
 
 @login_required

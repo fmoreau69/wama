@@ -175,12 +175,39 @@ voie navette (TTC/PET/distance min/vitesses) → tables et timeline de l'UI.
 | `fov_v_used` | l'analyse ([1]) | `dist_scale` [5]/[9] |
 | `gps_time_offset/scale` | UI synchro | [2] |
 
+## Bascules de comparaison (⚑ Modes)
+
+Chaque amélioration COMPARABLE est une bascule déclarée dans `utils/features.py`
+(mécanisme générique : `wama/common/utils/feature_flags.py`, conçu pour WAMA Data) —
+panneau ⚑ Modes de la vue de dessus, persistée dans `session.config['features']`.
+Les bascules `live` agissent instantanément au rendu (JS `rebuildCamGeo`) ET côté
+backend au prochain calcul (`camera_geometry` les consulte — un seul point d'application
+par côté). Règle : **jamais de if ad hoc dispersé** pour une amélioration comparable.
+
+| Bascule | Défaut | Scope | Effet |
+|---|---|---|---|
+| `fov_dist_correction` | ON | live | correction des distances annotées avec un ancien FOV V |
+| `mount_lever_arm` | ON | live | bras de levier des caméras (antenne GPS arrière) |
+| `heading_ratio` | ON | live | cap par ratio de bbox fondu avec la trajectoire |
+| `track_speed_unified` | OFF | compute | (chantier) vitesse/distance monde uniques par track |
+
 ## Limites connues / chantiers ouverts
 
-1. **Homographie à recalibrer** (multi-frames passages piétons + lignes centrales) — le
+1. **Unification distance/vitesse par track** (bascule `track_speed_unified`, à
+   implémenter) : servir sur chaque détection la position/vitesse MONDE du
+   `global_track_id` (tracker [7], `ve/vn` lissés) au lieu des valeurs par-caméra —
+   une seule vérité par véhicule sur toutes les vues, améliore distance/vitesse/TTC
+   génériquement.
+2. **Cap par cluster de stationnés** (générique, pas de cas codé en dur) : l'axe de
+   stationnement est APPRIS des véhicules eux-mêmes — moyenne AXIALE des caps ratio des
+   stationnés voisins utilisée comme *prior* pondéré (pas contrainte dure). Épi,
+   bataille, créneau émergent naturellement du cluster. Même levier que l'EMA
+   temporelle, appliqué spatialement.
+3. **YOLO-OBB** (boîtes orientées natives) : l'orientation devient une mesure — poids
+   publics entraînés sur imagerie aérienne, fine-tuning nécessaire → long terme.
+4. **Homographie à recalibrer** (multi-frames passages piétons + lignes centrales) — le
    latéral pinhole reste moins précis à >20 m.
-2. **Bbox coupées au bord** : pas affichées en vue de dessus (délibéré).
-3. **Vitesse absolue par objet** : seule la vitesse relative radiale existe ; la vraie
-   vitesse vectorielle monde (tracker [7]) n'est pas encore affichée.
-4. **Cap ratio** : ambiguïté résiduelle aux angles > pic diagonal (~68°).
-5. « Fixer » la zone routière rose (road_mask) : non opérationnel, sémantique à préciser.
+5. **Bbox coupées au bord** : pas affichées en vue de dessus (délibéré) ; le hand-off
+   les ponte temporellement (gate croissant, gap 2,5 s).
+6. **Cap ratio** : ambiguïté résiduelle aux angles > pic diagonal (~68°).
+7. « Fixer » la zone routière rose (road_mask) : non opérationnel, sémantique à préciser.

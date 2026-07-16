@@ -19,6 +19,7 @@ urlpatterns = [
     path('api/sessions/<uuid:session_id>/update/', views.update_session, name='update_session'),
     path('api/sessions/<uuid:session_id>/gps-offset/', views.set_gps_offset, name='set_gps_offset'),
     path('api/sessions/<uuid:session_id>/camera-yaw/', views.set_camera_yaw, name='set_camera_yaw'),
+    path('api/sessions/<uuid:session_id>/features/', views.set_features, name='set_features'),
     path('api/sessions/<uuid:session_id>/sync-rec/', views.sync_from_rec, name='sync_from_rec'),
     path('api/sessions/<uuid:session_id>/prediction/', views.prediction_annotate, name='prediction_annotate'),
 

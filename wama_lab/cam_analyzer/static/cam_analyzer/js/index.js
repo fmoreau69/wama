@@ -76,14 +76,26 @@ document.addEventListener('DOMContentLoaded', function () {
     const CAMERA_FOV_V = { front: 61, right: 31, rear: 61, left: 31 };
     const LEGACY_FOV_V = { front: 60, right: 90, rear: 60, left: 90 };
     const CAMERA_MOUNT = { front: [0, 4.5], right: [1.0, 3.4], rear: [0, 0], left: [-1.0, 3.4] };
-    const camGeo = {};   // rempli au chargement de session (config.fov_v_used)
-    Object.keys(CAMERA_YAW).forEach(p => {
-        camGeo[p] = {
-            fovH: CAMERA_FOV_H[p],
-            distScale: Math.tan(LEGACY_FOV_V[p] * Math.PI / 360) / Math.tan(CAMERA_FOV_V[p] * Math.PI / 360),
-            mount: CAMERA_MOUNT[p],
-        };
-    });
+    const camGeo = {};        // géométrie effective par caméra — reconstruite par rebuildCamGeo()
+    const camFovUsed = {};    // FOV V utilisé à l'annotation (config.fov_v_used, sinon legacy)
+    // Bascules ⚑ Modes (miroir de utils/features.py) : comparer AVEC/SANS chaque
+    // amélioration. Surchargées par le catalogue serveur au chargement de session.
+    const camFeat = { fov_dist_correction: true, mount_lever_arm: true, heading_ratio: true };
+    // Les bascules géométriques s'appliquent ICI et nulle part ailleurs (même principe
+    // que camera_geometry backend) : couper une bascule neutralise le levier partout.
+    function rebuildCamGeo() {
+        Object.keys(CAMERA_YAW).forEach(p => {
+            const used = (camFovUsed[p] != null && isFinite(camFovUsed[p])) ? camFovUsed[p] : LEGACY_FOV_V[p];
+            camGeo[p] = {
+                fovH: CAMERA_FOV_H[p],
+                distScale: camFeat.fov_dist_correction !== false
+                    ? Math.tan(used * Math.PI / 360) / Math.tan(CAMERA_FOV_V[p] * Math.PI / 360)
+                    : 1,
+                mount: camFeat.mount_lever_arm !== false ? CAMERA_MOUNT[p] : [0, 0],
+            };
+        });
+    }
+    rebuildCamGeo();
     let TOPDOWN_FOV_V_DEG = 60;      // FOV vertical caméra (deg) pour le cap pinhole (ajustable)
     let _lastTimeSave = 0;           // throttle de la persistance de position timeline
     let _restoreTargetTime = 0;      // position timeline à restaurer (capturée avant reset)
@@ -427,10 +439,13 @@ document.addEventListener('DOMContentLoaded', function () {
                 // session a été annotée avec le FOV réel, distScale redevient 1 (pas de
                 // double correction). Sessions anciennes sans la clé : legacy 60°/90°.
                 const _fu = (data.config && data.config.fov_v_used) || {};
-                Object.keys(camGeo).forEach(p => {
-                    const used = (_fu[p] != null && isFinite(_fu[p])) ? parseFloat(_fu[p]) : LEGACY_FOV_V[p];
-                    camGeo[p].distScale = Math.tan(used * Math.PI / 360) / Math.tan(CAMERA_FOV_V[p] * Math.PI / 360);
+                Object.keys(CAMERA_YAW).forEach(p => {
+                    if (_fu[p] != null && isFinite(_fu[p])) camFovUsed[p] = parseFloat(_fu[p]);
                 });
+                // Bascules ⚑ Modes : état effectif servi par le serveur (registre + config).
+                (data.features || []).forEach(f => { camFeat[f.key] = !!f.enabled; });
+                rebuildCamGeo();
+                renderFeatPanel(data.features || []);
             } catch (e) { /* défauts conservés */ }
             try {
                 stationaryGids = new Set((data.results_summary && data.results_summary.stationary_global_tracks) || []);
@@ -2195,6 +2210,47 @@ document.addEventListener('DOMContentLoaded', function () {
         return cands.length ? cands : null;
     }
 
+    // ── Panneau ⚑ Modes : bascules AUTO-GÉNÉRÉES depuis le catalogue serveur ─────────
+    // (métadonnée-driven : libellé/description/scope viennent de utils/features.py —
+    // zéro HTML par bascule). live = effet immédiat ; ⟳ = recalcul des indicateurs requis.
+    function renderFeatPanel(catalog) {
+        const panel = document.getElementById('featModesPanel');
+        if (!panel) return;
+        panel.innerHTML = '';
+        catalog.forEach(f => {
+            const row = document.createElement('label');
+            row.className = 'd-flex align-items-start gap-2 small mb-1';
+            row.style.cursor = 'pointer';
+            row.title = f.description + (f.scope === 'compute'
+                ? ' — ⟳ nécessite de relancer « Calculer les indicateurs ».' : '');
+            const cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.checked = !!f.enabled;
+            cb.onchange = async () => {
+                camFeat[f.key] = cb.checked;
+                rebuildCamGeo();
+                topDownTrails.clear(); topDownHeadings.clear(); topDownDist.clear(); topDownLat.clear(); topDownCls.clear(); topDownAxial.clear();
+                if (typeof currentTime === 'number') {
+                    topDownLastRender = -999;
+                    updateMiniMapShuttle(currentTime);
+                    updateDetectionOverlay(currentTime);
+                }
+                try {
+                    await fetch(`${config.urls.deleteSession}${currentSessionId}/features/`, {
+                        method: 'POST',
+                        headers: { 'X-CSRFToken': config.csrfToken, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ features: { [f.key]: cb.checked } }),
+                    });
+                } catch (e) { console.error('[features] sauvegarde échouée', e); }
+            };
+            row.appendChild(cb);
+            const span = document.createElement('span');
+            span.textContent = f.label + (f.scope === 'compute' ? ' ⟳' : '');
+            row.appendChild(span);
+            panel.appendChild(row);
+        });
+    }
+
     let topDownLastTime = -999;        // détection de saut (reset traces)
     let topDownLastRender = -999;      // throttle ~10 Hz
     let topDownAutoFollow = true;      // recentrage auto en lecture (zoom tactique)
@@ -2700,7 +2756,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
                 const _wRatio = _isStationary ? 1
                     : (_vEst == null ? 1 : Math.min(1, Math.max(0, (2.0 - _vEst) / 2.0)));
-                if (_wRatio > 0 && !isGhost && Array.isArray(det.bbox) && det.bbox.length >= 4) {
+                if (camFeat.heading_ratio !== false && _wRatio > 0 && !isGhost
+                        && Array.isArray(det.bbox) && det.bbox.length >= 4) {
                     const _fx2 = iw / (2 * Math.tan(((camGeo[camPos] || {}).fovH || 60) * Math.PI / 360));
                     const _bcx2 = (det.bbox[0] + det.bbox[2]) / 2;
                     // Ligne de visée MONDE = cap navette + yaw caméra + gisement dans l'image.
@@ -4406,6 +4463,10 @@ document.addEventListener('DOMContentLoaded', function () {
         // une erreur de yaw décale latéralement tous les objets (sin(Δyaw)·distance).
         // Appliqué au rendu top-down immédiatement ; persisté côté serveur pour le
         // tracking 360°/prédiction (repasser « Calculer les indicateurs » ensuite).
+        // Panneau ⚑ Modes (contenu auto-généré par renderFeatPanel au chargement session).
+        const _fmb = document.getElementById('featModesBtn');
+        const _fmp = document.getElementById('featModesPanel');
+        if (_fmb && _fmp) _fmb.onclick = () => _fmp.classList.toggle('d-none');
         const _cyb = document.getElementById('camYawBtn');
         const _cyi = document.getElementById('camYawInputs');
         if (_cyb && _cyi) _cyb.onclick = () => {

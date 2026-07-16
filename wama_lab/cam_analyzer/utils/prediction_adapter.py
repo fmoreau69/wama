@@ -73,6 +73,11 @@ def camera_geometry(session):
     yaw = camera_yaw_map(session)
     fov_used = cfg.get('fov_v_used') or {}
     mounts = cfg.get('camera_mount') or {}
+    # Bascules de comparaison (⚑ Modes) : appliquées ICI et nulle part ailleurs —
+    # camera_geometry est la source unique de la géométrie, donc couper une bascule
+    # neutralise le levier partout (tracking, prédiction… le JS a son miroir camGeo).
+    from .features import effective as _features_effective
+    feat = _features_effective(session)
     geo = {}
     for pos in CAMERA_YAW:
         try:
@@ -83,8 +88,9 @@ def camera_geometry(session):
         geo[pos] = {
             'yaw': yaw[pos],
             'fov_h': CAMERA_FOV_H[pos],
-            'dist_scale': math.tan(math.radians(used) / 2) / math.tan(math.radians(CAMERA_FOV_V[pos]) / 2),
-            'mount': (float(m[0]), float(m[1])),
+            'dist_scale': (math.tan(math.radians(used) / 2) / math.tan(math.radians(CAMERA_FOV_V[pos]) / 2)
+                           if feat.get('fov_dist_correction', True) else 1.0),
+            'mount': (float(m[0]), float(m[1])) if feat.get('mount_lever_arm', True) else (0.0, 0.0),
         }
     return geo
 
