@@ -2684,8 +2684,23 @@ document.addEventListener('DOMContentLoaded', function () {
                 // lissée AXIALEMENT (EMA du vecteur d'angle doublé — la statistique
                 // correcte pour un axe). Confrontation demandée par l'utilisateur
                 // 2026-07-16 — voir CAM_ANALYZER_CHAINE_TRAITEMENT.md §Cap.
-                const _movingConfident = !_isStationary && sm != null;
-                if (!_movingConfident && !isGhost && Array.isArray(det.bbox) && det.bbox.length >= 4) {
+                // Pondération CONTINUE par la vitesse (demande 2026-07-17) : ratio seul à
+                // l'arrêt, trajectoire seule ≥ 2 m/s (~7 km/h), fondu AXIAL entre les deux
+                // dans l'intervalle — le ratio h/l ne dit rien du SENS, seulement de l'axe,
+                // donc le mélange se fait sur l'angle doublé (statistique axiale).
+                let _vEst = null;   // vitesse apparente (m/s) sur la fenêtre de trace
+                if (tr && tr.length >= 2) {
+                    const _ta = tr[Math.max(0, tr.length - 5)], _tb = tr[tr.length - 1];
+                    const _dtw = Math.abs((_tb[2] ?? 0) - (_ta[2] ?? 0));
+                    if (_dtw > 0.15) {
+                        const _dN2 = (_tb[0] - _ta[0]) * 111320;
+                        const _dE2 = (_tb[1] - _ta[1]) * 111320 * Math.cos(_tb[0] * Math.PI / 180);
+                        _vEst = Math.hypot(_dN2, _dE2) / _dtw;
+                    }
+                }
+                const _wRatio = _isStationary ? 1
+                    : (_vEst == null ? 1 : Math.min(1, Math.max(0, (2.0 - _vEst) / 2.0)));
+                if (_wRatio > 0 && !isGhost && Array.isArray(det.bbox) && det.bbox.length >= 4) {
                     const _fx2 = iw / (2 * Math.tan(((camGeo[camPos] || {}).fovH || 60) * Math.PI / 360));
                     const _bcx2 = (det.bbox[0] + det.bbox[2]) / 2;
                     // Ligne de visée MONDE = cap navette + yaw caméra + gisement dans l'image.
@@ -2704,7 +2719,15 @@ document.addEventListener('DOMContentLoaded', function () {
                                               _axPrev[1] * (1 - _al) + Math.sin(_a2) * _al]
                                            : [Math.cos(_a2), Math.sin(_a2)];
                         topDownAxial.set(tkey, _v);
-                        objHeading = Math.atan2(_v[1], _v[0]) * 90 / Math.PI;   // demi-angle → axe mod 180°
+                        // Fondu axial ratio↔trajectoire pondéré par la vitesse.
+                        const _rl = Math.hypot(_v[0], _v[1]) || 1;
+                        let _bx = (_v[0] / _rl) * _wRatio, _by = (_v[1] / _rl) * _wRatio;
+                        if (sm && _wRatio < 1) {
+                            const _t2 = Math.atan2(sm[1], sm[0]) * 2;   // axe trajectoire (angle doublé)
+                            _bx += Math.cos(_t2) * (1 - _wRatio);
+                            _by += Math.sin(_t2) * (1 - _wRatio);
+                        }
+                        objHeading = Math.atan2(_by, _bx) * 90 / Math.PI;   // demi-angle → axe mod 180°
                     }
                 }
                 const label = `${effCls || 'objet'} [${camPos}]`

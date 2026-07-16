@@ -141,17 +141,21 @@ pré-calculées) — mêmes formules que [5]/[6] avec `camGeo` (miroir JS de `ca
 - Ego : silhouette navette étendue vers l'AVANT depuis le point GPS (antenne à l'arrière).
 - Badge d'état (« 360° ON · Préd OFF · objets: F7 R2… ») + bascules persistées (localStorage).
 
-### §Cap — fusion trajectoire ↔ ratio de bbox (2026-07-16)
+### §Cap — fusion trajectoire ↔ ratio de bbox (2026-07-16, pondération vitesse 2026-07-17)
 
-1. **Trajectoire** (prioritaire quand l'objet bouge) : direction de la trace monde, points
-   HORODATÉS (cap identique en lecture avant/arrière — orienté par le signe de Δt), EMA,
-   MAJ seulement si déplacement > 0,8 m/fenêtre ; purge sur seek > 2 s.
-2. **Ratio de bbox** (stationnés/lents — la trajectoire y est aveugle) : l'étendue apparente
-   `E = L·|sinθ| + W·|cosθ|` se déduit du seul ratio pixels (`E = H·(f_y/f_x)·(w_px/h_px)`,
-   indépendant de la distance). Inversion → `|θ|` vs ligne de visée → 2 candidats de cap
-   mod 180° (gabarit = rectangle, le sens n'importe pas), départagés par continuité
-   temporelle, lissés par **EMA axiale** (vecteur d'angle doublé).
-   Gating : conf ≥ 0.4, hauteur ≥ 12 px, bbox non coupée, classe avec dimensions connues.
+1. **Trajectoire** : direction de la trace monde, points HORODATÉS (cap identique en
+   lecture avant/arrière — orienté par le signe de Δt), EMA, MAJ seulement si déplacement
+   > 0,8 m/fenêtre ; purge sur seek > 2 s.
+2. **Ratio de bbox** : l'étendue apparente `E = L·|sinθ| + W·|cosθ|` se déduit du seul
+   ratio pixels (`E = H·(f_y/f_x)·(w_px/h_px)`, indépendant de la distance). Inversion →
+   `|θ|` vs ligne de visée → 2 candidats de cap mod 180° (gabarit = rectangle, le sens
+   n'importe pas), départagés par continuité temporelle, lissés par **EMA axiale**
+   (vecteur d'angle doublé). Gating : conf ≥ 0.4, hauteur ≥ 12 px, bbox non coupée,
+   classe avec dimensions connues.
+3. **Pondération CONTINUE par la vitesse** (`w_ratio = clamp((2 − v)/2, 0, 1)`, v estimée
+   sur la fenêtre de trace) : ratio seul à l'arrêt/stationné, trajectoire seule ≥ 2 m/s
+   (~7 km/h — le mouvement réel observé est sans ambiguïté), **fondu axial** entre les
+   deux dans l'intervalle.
    Limite connue : E écrête au pic diagonal (~68° pour une voiture) → un vrai 90° peut
    être lu ~68-80° ; les miroirs/ombres gonflent légèrement le ratio.
 

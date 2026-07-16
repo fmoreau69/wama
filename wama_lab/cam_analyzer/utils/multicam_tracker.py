@@ -39,7 +39,7 @@ def _cam_to_vehicle(lateral, longitudinal, yaw_deg):
     return (longitudinal * s + lateral * c, longitudinal * c - lateral * s)
 
 
-def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=1.0,
+def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
                            frame_range=None, spread_max_m=6.0):
     """
     Assigne un `global_track_id` à chaque détection (objets suivis) de toutes les caméras
@@ -113,17 +113,22 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=1.0,
 
         # Association plus-proche-voisin (gating + prédiction). On autorise plusieurs
         # détections → même track (fusion des doublons vus par 2 caméras).
+        # Gate CROISSANT avec le trou (2026-07-17) : à la COUTURE inter-caméras, le
+        # véhicule est coupé au bord (exclu par le garde-fou pinhole) pendant ~1-2 s →
+        # le gate fixe + gap 1 s cassait la continuité (perte du G entre avant et
+        # latérale, constat #537/G313). On tolère un trou plus long, avec une exigence
+        # de proximité qui se relâche avec l'incertitude (~1,5 m/s de dérive).
         for f, d, e, n in dets_here:
-            best, best_dist = None, gate_m
+            best, best_ratio = None, 1.0
             for tr in tracks:
                 dt = t - tr['last_t']
                 if dt < 0 or dt > max_gap_s:
                     continue
                 pe = tr['e'] + tr['ve'] * dt
                 pn = tr['n'] + tr['vn'] * dt
-                dist = math.hypot(e - pe, n - pn)
-                if dist < best_dist:
-                    best, best_dist = tr, dist
+                ratio = math.hypot(e - pe, n - pn) / (gate_m + 1.5 * dt)
+                if ratio < best_ratio:
+                    best, best_ratio = tr, ratio
             if best is None:
                 best = {'id': next_id, 'e': e, 'n': n, 've': 0.0, 'vn': 0.0, 'last_t': t}
                 tracks.append(best)
@@ -220,14 +225,20 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=1.0,
 
     # Métrique robuste au bruit : ÉTALEMENT spatial de la position monde sur la vie du
     # track (un véhicule garé reste groupé ; un mobile s'étale le long de son trajet).
+    # ⚠ Critère VITESSE-AWARE (2026-07-17) : l'étalement seul marquait « garés » des
+    # véhicules ROULANTS trackés brièvement (10 km/h × 1,5 s = 4 m < 6 m). Un stationné
+    # doit être vu ASSEZ LONGTEMPS (≥ 4 s) avec une vitesse moyenne quasi nulle
+    # (étalement/durée < 0,7 m/s ≈ 2,5 km/h), en plus du plafond absolu d'étalement.
     stationary_gids = []
     for gid, hist in track_hist.items():
         hs = sorted(hist)
-        if len(hs) < 5 or (hs[-1][1] - hs[0][1]) < 1.0:
+        dur = (hs[-1][1] - hs[0][1]) if len(hs) >= 2 else 0.0
+        if len(hs) < 5 or dur < 4.0:
             continue
         e0, n0 = hs[0][2], hs[0][3]
         spread = max(math.hypot(e - e0, n - n0) for (_, _, e, n, _) in hs)
-        if spread < spread_max_m and not _near_intersection(hs):
+        if (spread < spread_max_m and (spread / dur) < 0.7
+                and not _near_intersection(hs)):
             stationary_gids.append(gid)
 
     # ── Classe STABLE par track (vote majoritaire pondéré confiance) ────────────────
