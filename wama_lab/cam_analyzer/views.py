@@ -324,6 +324,28 @@ def set_gps_offset(request, session_id):
 
 @login_required
 @require_http_methods(["POST"])
+def set_camera_yaw(request, session_id):
+    """Enregistre le yaw de montage réel de chaque caméra (deg, sens horaire depuis
+    l'avant véhicule) dans `session.config['camera_yaw']` — les caméras terrain ne sont
+    pas toutes exactement à 0/±90/180°, et une erreur de yaw décale latéralement tous
+    les objets de la vue (sin(Δyaw)·distance). Appliqué immédiatement au rendu vue de
+    dessus, et au tracking 360°/prédiction au prochain calcul (pas de ré-analyse)."""
+    session = get_object_or_404(AnalysisSession, id=session_id, user=request.user)
+    try:
+        raw = json.loads(request.body or '{}').get('camera_yaw') or {}
+        yaw = {k: float(v) for k, v in raw.items()
+               if k in ('front', 'right', 'rear', 'left')}
+    except (ValueError, TypeError, AttributeError):
+        return JsonResponse({'error': 'camera_yaw invalide'}, status=400)
+    cfg = session.config or {}
+    cfg['camera_yaw'] = yaw
+    session.config = cfg
+    session.save(update_fields=['config'])
+    return JsonResponse({'success': True, 'camera_yaw': yaw})
+
+
+@login_required
+@require_http_methods(["POST"])
 def sync_from_rec(request, session_id):
     """Recalcule la synchro GPS↔vidéo (scale+offset) depuis le .rec RTMaps + la largeur
     de voie. Cherche un .rec dans le dossier input de l'utilisateur (best-effort)."""

@@ -15,7 +15,8 @@ from collections import defaultdict
 from django.apps import apps
 
 from .prediction_adapter import (make_local_frame, shuttle_trajectory, pinhole_ego,
-                               ego_to_world, _shuttle_pose_at, CLASS_DIMS)
+                               ego_to_world, _shuttle_pose_at, CLASS_DIMS,
+                               camera_yaw_map)
 
 
 def world_to_vehicle(world_e, world_n, shuttle_e, shuttle_n, heading_deg):
@@ -64,6 +65,7 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=1.0,
     fps = cams[0].fps or 12.0
     scale = session.gps_time_scale or 1.0
     off = session.gps_time_offset or 0.0
+    _yaw = camera_yaw_map(session)   # yaw réels par caméra (calibration de session)
 
     per_cam = {}
     for c in cams:
@@ -101,7 +103,7 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=1.0,
                 ego = pinhole_ego(d, iw, ih, fov_v_deg)
                 if ego is None:
                     continue
-                xv, yv = _cam_to_vehicle(ego[0], ego[1], CAMERA_YAW[pos])
+                xv, yv = _cam_to_vehicle(ego[0], ego[1], _yaw[pos])
                 e, n = ego_to_world(se, sn, sh, xv, yv)
                 dets_here.append((f, d, e, n))
 
@@ -125,8 +127,18 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=1.0,
             else:
                 dt = t - best['last_t']
                 if dt > 1e-3:
-                    best['ve'] = (e - best['e']) / dt
-                    best['vn'] = (n - best['n']) / dt
+                    # Vitesse LISSÉE (EMA α=0.3) + rejet des mesures aberrantes. Le delta
+                    # instantané brut ((e−e₀)/dt, dt≈1/12 s) transformait ~25 cm de bruit
+                    # de position (pinhole ±20 % + cap ego GPS) en ~3 m/s de vitesse
+                    # fantôme : le gate prédictif (e+ve·dt) partait n'importe où → hand-off
+                    # cassé, et les véhicules garés « roulaient » à 1-3 km/h.
+                    # Audit vue de dessus 2026-07-16.
+                    rve = (e - best['e']) / dt
+                    rvn = (n - best['n']) / dt
+                    if math.hypot(rve, rvn) > 15.0:   # >54 km/h en urbain = jitter
+                        rve = rvn = 0.0
+                    best['ve'] = 0.7 * best['ve'] + 0.3 * rve
+                    best['vn'] = 0.7 * best['vn'] + 0.3 * rvn
                     best['e'], best['n'], best['last_t'] = e, n, t
             d['global_track_id'] = best['id']
             track_hist[best['id']].append((fn, t, e, n, d.get('class_name', 'car')))

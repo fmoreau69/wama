@@ -61,6 +61,9 @@ document.addEventListener('DOMContentLoaded', function () {
     // Orientation de montage de chaque caméra (deg, sens horaire depuis l'avant véhicule).
     // Rig 360° ~90° ; ajustable ensuite (les caméras ne sont pas exactement à 90°).
     const CAMERA_YAW = { front: 0, right: 90, rear: 180, left: -90 };
+    // Yaw effectifs (défauts surchargés par session.config.camera_yaw au chargement,
+    // éditables via le bouton Yaw de la vue de dessus) — mutable, contrairement à CAMERA_YAW.
+    const camYaw = { ...CAMERA_YAW };
     let TOPDOWN_FOV_V_DEG = 60;      // FOV vertical caméra (deg) pour le cap pinhole (ajustable)
     let _lastTimeSave = 0;           // throttle de la persistance de position timeline
     let _restoreTargetTime = 0;      // position timeline à restaurer (capturée avant reset)
@@ -393,6 +396,14 @@ document.addEventListener('DOMContentLoaded', function () {
             // Offset de synchro GPS↔vidéo (recalage manuel par session).
             gpsTimeOffset = data.gps_time_offset || 0;
             gpsTimeScale = data.gps_time_scale || 1;
+            // Yaw réels des caméras (calibration de session) — les caméras terrain ne
+            // sont pas toutes à 0/±90/180°. Surcharge les défauts CAMERA_YAW.
+            try {
+                const _cy = (data.config && data.config.camera_yaw) || {};
+                Object.keys(CAMERA_YAW).forEach(p => {
+                    if (_cy[p] != null && isFinite(_cy[p])) camYaw[p] = parseFloat(_cy[p]);
+                });
+            } catch (e) { /* défauts conservés */ }
             try {
                 stationaryGids = new Set((data.results_summary && data.results_summary.stationary_global_tracks) || []);
             } catch (e) { stationaryGids = new Set(); }
@@ -1982,13 +1993,21 @@ document.addEventListener('DOMContentLoaded', function () {
             // Phase 2 — flag in_shuttle_lane with a 🚌 marker
             let label = `${det.class_name} ${(det.confidence * 100).toFixed(0)}%`;
             if (det.track_id != null) label += ` #${det.track_id}`;
+            // ID GLOBAL 360° (hand-off inter-caméras) : #N est l'ID par-caméra (YOLO,
+            // indépendant par vue — le même véhicule a un #N différent sur chaque vue,
+            // c'est attendu). G·N est l'ID unifié : s'il est identique d'une vue à
+            // l'autre, le hand-off 360° fonctionne. Audit 2026-07-16.
+            if (det.global_track_id != null) label += ` G${det.global_track_id}`;
+            if (det.global_track_id != null && stationaryGids.has(det.global_track_id)) label += ' 🅿';
             if (inShuttleLane) label += ' 🚌';
             const dist = det.distance_m;
             const ttc = det.ttc_s;
             const rspeed = det.relative_speed_kmh;
             const extras = [];
             if (typeof dist === 'number') extras.push(`${dist.toFixed(0)}m`);
-            if (typeof rspeed === 'number') extras.push(`${rspeed > 0 ? '↑' : '↓'}${Math.abs(rspeed).toFixed(0)}km/h`);
+            // « rel. » : vitesse RELATIVE (dérivée de distance) — une voiture garée
+            // affiche la vitesse de la navette qui s'en approche, PAS sa vitesse propre.
+            if (typeof rspeed === 'number') extras.push(`${rspeed > 0 ? '↑' : '↓'}${Math.abs(rspeed).toFixed(0)}km/h rel.`);
             if (typeof ttc === 'number') extras.push(`TTC ${ttc.toFixed(1)}s`);
             const extrasLabel = extras.join(' · ');
 
@@ -2315,12 +2334,39 @@ document.addEventListener('DOMContentLoaded', function () {
         miniMapLaneLayer.clearLayers();
 
         const pose = findGpsAtTime(currentTime);
+        // ── Cap ego LISSÉ (moyenne circulaire sur ±2 fixes GPS) ─────────────────────
+        // CAUSE RACINE de la rotation des objets (audit 2026-07-16) : le cap GPS brut
+        // = bearing entre 2 fixes espacés de ~2,7 s. À faible vitesse le déplacement
+        // entre fixes (~1-2 m) est du même ordre que le bruit GPS → cap faux de ±10-25°,
+        // appliqué en marche d'escalier. Chaque erreur balaye TOUS les objets par bras
+        // de levier (8 m × 15° ≈ 2 m d'arc) → trails en zigzag → les caps objets
+        // (direction du trail) tournent sur eux-mêmes. Moyenne CIRCULAIRE (atan2 des
+        // vecteurs unitaires) : pas de piège au wrap 359°→1° (navette plein nord).
+        if (pose && pose.heading != null && cachedGpsTrack && cachedGpsTrack.length) {
+            const ts = currentTime * gpsTimeScale + gpsTimeOffset;
+            let ci = cachedGpsTrack.findIndex(p => p.ts > ts);
+            if (ci < 0) ci = cachedGpsTrack.length;
+            let sx = 0, sy = 0;
+            for (let k = Math.max(0, ci - 3); k < Math.min(cachedGpsTrack.length, ci + 2); k++) {
+                const h = cachedGpsTrack[k].heading;
+                if (h == null) continue;
+                sx += Math.cos(h * Math.PI / 180); sy += Math.sin(h * Math.PI / 180);
+            }
+            if (sx !== 0 || sy !== 0)
+                pose.heading = (Math.atan2(sy, sx) * 180 / Math.PI + 360) % 360;
+        }
         updateEgoShape(pose);
         // Objets seulement en zoom tactique + pose+cap disponibles + détections front.
         const _zoomOk = miniMap.getZoom() >= TOPDOWN_ZOOM_MIN;
+        const _camCounts = {};   // objets dessinés par caméra (badge d'état)
+        const _setTopDownStatus = (txt) => {
+            const el = document.getElementById('topDownStatus');
+            if (el) el.textContent = txt;
+        };
         if (!pose || pose.heading == null || !_zoomOk) {
             if (_zoomOk) console.warn('[topdown] rien : pose/heading GPS manquant à t=' + currentTime.toFixed(1),
                 pose ? ('heading=' + pose.heading) : 'pas de fix GPS');
+            _setTopDownStatus(_zoomOk ? 'pose GPS manquante' : 'zoomer pour voir les objets');
             return;
         }
         // Gabarit de voie. France : navette dans SA voie (droite) → ligne centrale à gauche
@@ -2488,12 +2534,20 @@ document.addEventListener('DOMContentLoaded', function () {
                 // trop courte / objet quasi immobile.
                 let objHeading = pose.heading;
                 let sm = topDownHeadings.get(tkey);
-                if (tr && tr.length >= 2) {
+                // Véhicules STATIONNÉS (détectés par le tracking 360°) : cap FIGÉ — leur
+                // « mouvement » de trace n'est que du bruit (pinhole + cap ego), le cap
+                // dérivé tournait sur lui-même. On garde le dernier cap appris, sinon le
+                // cap navette (voitures garées ≈ parallèles à la rue). Audit 2026-07-16.
+                const _isStationary = gid != null && stationaryGids.has(gid);
+                if (!_isStationary && tr && tr.length >= 2) {
                     const a = tr[Math.max(0, tr.length - 5)], b = tr[tr.length - 1];
                     const dN = (b[0] - a[0]) * 111320;
                     const dE = (b[1] - a[1]) * 111320 * Math.cos(b[0] * Math.PI / 180);
                     const mv = Math.hypot(dN, dE);
-                    if (mv > 0.4) {              // assez de mouvement → MAJ de l'EMA du cap
+                    // Seuil 0,8 m sur ~5 points (~0,4 s) : sous ce déplacement la direction
+                    // de trace est dominée par le bruit résiduel — cap maintenu (0,4 m
+                    // laissait passer le jitter → rotation des objets lents/garés).
+                    if (mv > 0.8) {              // assez de mouvement → MAJ de l'EMA du cap
                         const iN = dN / mv, iE = dE / mv, al = 0.25;
                         sm = sm ? [sm[0] * (1 - al) + iN * al, sm[1] * (1 - al) + iE * al] : [iN, iE];
                         topDownHeadings.set(tkey, sm);
@@ -2515,10 +2569,17 @@ document.addEventListener('DOMContentLoaded', function () {
                     fillOpacity: isGhost ? 0.3 : 0.75,
                     dashArray: isGhost ? '3,3' : null,
                 }).bindTooltip(isGhost ? label + ' (prédit)' : label, { direction: 'top' }).addTo(miniMapObjectLayer);
+                _camCounts[camPos] = (_camCounts[camPos] || 0) + 1;
             });
         };
-        if (topDown360) Object.keys(CAMERA_YAW).forEach(cp => _drawCam(cp, CAMERA_YAW[cp]));
-        else _drawCam('front', 0);
+        if (topDown360) Object.keys(camYaw).forEach(cp => _drawCam(cp, camYaw[cp]));
+        else _drawCam('front', camYaw.front);
+        // Badge d'état : rend VÉRIFIABLE l'effet réel des boutons (360°/Préd/garés) —
+        // l'utilisateur doutait de boutons morts faute de retour visuel. Audit 2026-07-16.
+        _setTopDownStatus(
+            `360° ${topDown360 ? 'ON' : 'OFF'} · Préd ${usePrediction ? 'ON' : 'OFF'}`
+            + (hideParked ? ' · garés masqués' : '')
+            + ' · objets: ' + (Object.keys(_camCounts).map(c => `${c[0].toUpperCase()}${_camCounts[c]}`).join(' ') || '0'));
         // Purge des traces d'objets non vus cette frame (borne la mémoire).
         for (const k of topDownTrails.keys()) if (!seen.has(k)) topDownTrails.delete(k);
         // (Recentrage auto déplacé dans updateMiniMapShuttle → suivi à tout zoom.)
@@ -4163,6 +4224,43 @@ document.addEventListener('DOMContentLoaded', function () {
             _tdb.classList.toggle('btn-outline-warning', !topDown360);
             topDownTrails.clear(); topDownHeadings.clear(); topDownDist.clear();
             if (typeof currentTime === 'number') { topDownLastRender = -999; updateMiniMapShuttle(currentTime); }
+        };
+        // ── Éditeur de yaw caméras (calibration de session) ──────────────────────
+        // Les caméras terrain ne sont pas toutes montées exactement à 0/±90/180° ;
+        // une erreur de yaw décale latéralement tous les objets (sin(Δyaw)·distance).
+        // Appliqué au rendu top-down immédiatement ; persisté côté serveur pour le
+        // tracking 360°/prédiction (repasser « Calculer les indicateurs » ensuite).
+        const _cyb = document.getElementById('camYawBtn');
+        const _cyi = document.getElementById('camYawInputs');
+        if (_cyb && _cyi) _cyb.onclick = () => {
+            _cyi.classList.toggle('d-none');
+            if (!_cyi.classList.contains('d-none'))
+                _cyi.querySelectorAll('.cam-yaw-input').forEach(inp => {
+                    inp.value = camYaw[inp.dataset.pos];
+                });
+        };
+        const _cys = document.getElementById('camYawSaveBtn');
+        if (_cys && _cyi) _cys.onclick = async () => {
+            if (!currentSessionId) return;
+            const payload = {};
+            _cyi.querySelectorAll('.cam-yaw-input').forEach(inp => {
+                const v = parseFloat(inp.value);
+                if (isFinite(v)) { camYaw[inp.dataset.pos] = v; payload[inp.dataset.pos] = v; }
+            });
+            topDownTrails.clear(); topDownHeadings.clear(); topDownDist.clear();
+            if (typeof currentTime === 'number') { topDownLastRender = -999; updateMiniMapShuttle(currentTime); }
+            try {
+                const r = await fetch(`${config.urls.deleteSession}${currentSessionId}/camera-yaw/`, {
+                    method: 'POST', headers: { 'X-CSRFToken': config.csrfToken, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ camera_yaw: payload }),
+                });
+                const d = await r.json();
+                if (d.success) { _cys.textContent = '✓'; setTimeout(() => { _cys.textContent = '💾'; }, 1200); }
+                else alert('Échec sauvegarde yaw : ' + (d.error || '?'));
+            } catch (e) {
+                console.error('[camYaw] sauvegarde échouée', e);
+                alert('Échec sauvegarde yaw caméras');
+            }
         };
         // Synchro auto depuis le .rec (scale+offset GPS + largeur de voie).
         const _srb = document.getElementById('syncRecBtn');

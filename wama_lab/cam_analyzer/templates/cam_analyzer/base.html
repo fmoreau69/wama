@@ -95,10 +95,28 @@
         <input type="range" id="camHeightSlider" min="0.8" max="2.5" step="0.05" value="1.3" style="width:80px;">
         <span class="small text-secondary" id="camHeightVal" style="min-width:34px;">1.3m</span>
     </span>
+    <button type="button" id="camYawBtn" class="btn btn-sm btn-outline-secondary ms-1"
+            title="Yaw de montage réel de chaque caméra (deg, sens horaire depuis l'avant) — les caméras ne sont pas toutes exactement à 0/±90/180°. Appliqué au rendu immédiatement, au tracking 360°/prédiction au prochain calcul.">
+        <i class="fas fa-compass me-1"></i>Yaw
+    </button>
+    <span id="camYawInputs" class="d-none d-inline-flex align-items-center gap-1 ms-1">
+        <span class="small text-secondary">Av</span>
+        <input type="number" class="form-control form-control-sm cam-yaw-input" data-pos="front" step="0.5" style="width:70px; padding:1px 4px;">
+        <span class="small text-secondary">Dr</span>
+        <input type="number" class="form-control form-control-sm cam-yaw-input" data-pos="right" step="0.5" style="width:70px; padding:1px 4px;">
+        <span class="small text-secondary">Ar</span>
+        <input type="number" class="form-control form-control-sm cam-yaw-input" data-pos="rear" step="0.5" style="width:70px; padding:1px 4px;">
+        <span class="small text-secondary">Ga</span>
+        <input type="number" class="form-control form-control-sm cam-yaw-input" data-pos="left" step="0.5" style="width:70px; padding:1px 4px;">
+        <button type="button" id="camYawSaveBtn" class="btn btn-sm btn-outline-success"
+                title="Enregistrer les yaw caméras pour cette session">💾</button>
+    </span>
 </div>
 <div id="camAnalyzerMapWrap" class="position-relative">
     <div id="camAnalyzerMiniMap"
          style="height: 320px; width: 100%; border-radius: 6px; border: 1px solid #495057; background: #1a1d20;"></div>
+    <div id="topDownStatus" class="position-absolute small"
+         style="top:6px; left:6px; z-index:1000; background:rgba(26,29,32,.8); color:#adb5bd; padding:2px 8px; border-radius:4px; font-size:0.7rem; pointer-events:none;"></div>
 </div>
 <div class="small text-secondary mt-1" style="font-size: 0.7rem;">
     <i class="fas fa-mouse-pointer me-1"></i>Cliquer sur le parcours pour aller au passage le plus proche

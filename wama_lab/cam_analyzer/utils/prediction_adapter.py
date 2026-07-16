@@ -28,6 +28,22 @@ SHUTTLE_DIMS = (5.5, 2.1)   # navette
 CAMERA_YAW = {'front': 0.0, 'right': 90.0, 'rear': 180.0, 'left': -90.0}
 
 
+def camera_yaw_map(session):
+    """Yaw de montage par caméra : défauts CAMERA_YAW surchargés par la calibration de
+    session (`session.config['camera_yaw'] = {position: deg}`) — sur le terrain les
+    caméras ne sont pas toutes montées exactement à 0/±90/180°, et une erreur de yaw
+    décale latéralement tous les objets de la vue (sin(Δyaw)·distance) → hand-off
+    inter-caméras impossible. Éditable depuis la vue de dessus (bouton Yaw)."""
+    yaw = dict(CAMERA_YAW)
+    try:
+        for k, v in ((getattr(session, 'config', None) or {}).get('camera_yaw') or {}).items():
+            if k in yaw:
+                yaw[k] = float(v)
+    except (TypeError, ValueError):
+        pass
+    return yaw
+
+
 def cam_to_vehicle(lateral, longitudinal, yaw_deg):
     """Position repère caméra → repère VÉHICULE commun (via l'orientation de la caméra)."""
     t = math.radians(yaw_deg)
@@ -103,7 +119,13 @@ def _shuttle_pose_at(shuttle_traj, ts):
     i = int(np.searchsorted(t, ts))
     a, b = shuttle_traj[i - 1], shuttle_traj[i]
     f = (ts - a[0]) / max(b[0] - a[0], 1e-9)
-    return a[1] + f * (b[1] - a[1]), a[2] + f * (b[2] - a[2]), a[3] + f * (b[3] - a[3])
+    # Cap : interpolation CIRCULAIRE (plus court arc). L'interpolation linéaire naïve
+    # en degrés faisait passer le cap par ~180° au wrap 359°→1° (navette plein nord =
+    # zone de wrap permanente) → tous les objets alentour balayaient un demi-tour
+    # fantôme pendant l'intervalle GPS (~2,7 s), amplifié par le bras de levier
+    # cap × distance. Audit vue de dessus 2026-07-16.
+    dh = (b[3] - a[3] + 180.0) % 360.0 - 180.0
+    return a[1] + f * (b[1] - a[1]), a[2] + f * (b[2] - a[2]), (a[3] + f * dh) % 360.0
 
 
 def build_object_world_trajectory(det_rows, shuttle_traj, iw, ih, fov_v_deg=60.0):
@@ -147,6 +169,7 @@ def annotate_prediction_indicators(session, method='speed_accel', max_range_m=45
             if c.position in CAMERA_YAW and DF.objects.filter(camera=c).exists()]
     if not cams:
         return 0
+    _yaw = camera_yaw_map(session)   # yaw réels par caméra (calibration de session)
     fps = cams[0].fps or 12.0
     scale = session.gps_time_scale or 1.0
     off = session.gps_time_offset or 0.0
@@ -173,7 +196,7 @@ def annotate_prediction_indicators(session, method='speed_accel', max_range_m=45
                 ego = pinhole_ego(d, iw, ih, fov_v_deg)
                 if ego is None:
                     continue
-                xv, yv = cam_to_vehicle(ego[0], ego[1], CAMERA_YAW[c.position])
+                xv, yv = cam_to_vehicle(ego[0], ego[1], _yaw[c.position])
                 e, n = ego_to_world(se, sn, sh, xv, yv)
                 by_gid[gid].append((ts, d, f, e, n, ego[1], d.get('class_name', 'car')))
 
