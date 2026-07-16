@@ -2193,7 +2193,8 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         });
         return cands.length ? cands : null;
-    }ent
+    }
+
     let topDownLastTime = -999;        // détection de saut (reset traces)
     let topDownLastRender = -999;      // throttle ~10 Hz
     let topDownAutoFollow = true;      // recentrage auto en lecture (zoom tactique)

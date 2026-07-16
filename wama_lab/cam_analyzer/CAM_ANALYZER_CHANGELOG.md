@@ -10,6 +10,12 @@
 >
 > Chaîne complète : [`CAM_ANALYZER_CHAINE_TRAITEMENT.md`](CAM_ANALYZER_CHAINE_TRAITEMENT.md).
 
+## 2026-07-17
+
+| Commit | Quoi | Pourquoi | Validé |
+|---|---|---|---|
+| *(hotfix)* | Fragment résiduel `ent` après l'accolade fermante de `ratioHeadingCandidates` (introduit par `558194c`) → `ReferenceError: ent is not defined` au chargement, **toute l'app UI morte** (sessions bloquées sur « chargement ») | Résidu d'édition non détecté par le comptage d'accolades (`ent` est un identifiant valide) — parse esprima ajouté à la procédure de non-régression | syntaxe re-validée par parse complet |
+
 ## 2026-07-16
 
 | Commit | Quoi | Pourquoi | Validé |
@@ -34,6 +40,9 @@
 
 1. Commit atomique + entrée dans ce tableau (quoi/pourquoi/validation).
 2. `python -m py_compile` sur les fichiers Python touchés + `python manage.py check`.
+   Pour le JS : parse complet via esprima (le simple comptage d'accolades ne détecte pas
+   les fragments résiduels d'édition — cf. hotfix du 2026-07-17) :
+   `python -c "import esprima; esprima.parseScript(open('wama_lab/cam_analyzer/static/cam_analyzer/js/index.js', encoding='utf-8').read().replace('?.', '.').replace('??', '||'))"`
 3. Si formule géométrique : smoke test numérique sur un cas réel documenté
    (référence : frame 6176, session `8cecc4a6`, véhicules #537/#499/#546).
 4. Sync `staticfiles/` si JS/CSS.
