@@ -287,8 +287,20 @@ print("=== xformers GroupName (torch 2.9.x compat) ===")
 seqpar = site / "xformers/ops/seqpar.py"
 if seqpar.exists():
     content = seqpar.read_text(encoding="utf-8")
-    if "GroupName = None" in content:
-        print("  [OK — seqpar.py] try/except fallback already applied")
+    # CRITIQUE : le fallback DOIT être `str`, pas `None`. `GroupName` sert d'ANNOTATION de
+    # type dans ~10 custom_op de ce fichier ; en torch 2.9.x, `torch.library.infer_schema`
+    # lit ces annotations à l'import → `None.__origin__` plante (AttributeError). `GroupName`
+    # était un alias de str (nom de process group) → `= str` donne des annotations valides.
+    if "GroupName = str" in content:
+        print("  [OK — seqpar.py] GroupName = str fallback already applied")
+    elif "GroupName = None" in content:
+        # Corrige un ancien patch (= None) qui cassait infer_schema en torch 2.9.x.
+        apply_patch(
+            seqpar,
+            search='    GroupName = None  # type: ignore[assignment,misc]  # removed in torch 2.9.x',
+            replace='    GroupName = str  # type: ignore[assignment,misc]  # torch 2.9.x : GroupName supprimé (= str)',
+            description="5a. seqpar.py: GroupName fallback None -> str (infer_schema torch 2.9.x)",
+        )
     elif "GroupName" not in content:
         print("  [OK — seqpar.py] GroupName not referenced (xformers updated?)")
     else:
@@ -300,12 +312,48 @@ if seqpar.exists():
                 'try:\n'
                 '    from torch.distributed.distributed_c10d import GroupName\n'
                 'except ImportError:\n'
-                '    GroupName = None  # type: ignore[assignment,misc]  # removed in torch 2.9.x'
+                '    GroupName = str  # type: ignore[assignment,misc]  # torch 2.9.x : GroupName supprimé (= str)'
             ),
-            description="5a. seqpar.py: GroupName import — try/except fallback",
+            description="5a. seqpar.py: GroupName import — try/except fallback (= str)",
         )
-print("  [INFO] Primary fix: audiocraft_backend.py injects GroupName=str before audiocraft import")
-print("         Covers both seqpar.py and sequence_parallel_fused_ops.py in one shot.")
+spfo = site / "xformers/ops/sequence_parallel_fused_ops.py"
+if spfo.exists():
+    content = spfo.read_text(encoding="utf-8")
+    if "dist.distributed_c10d.GroupName" not in content:
+        print("  [OK — sequence_parallel_fused_ops.py] GroupName annotation already fixed / absent")
+    else:
+        # Deux annotations IDENTIQUES (fonctions différentes) : évaluées à l'import par
+        # torch.library.custom_op → AttributeError (GroupName supprimé en torch 2.9.x).
+        # GroupName = alias de str (nom de process group) → remplacer par str préserve
+        # l'inférence de schéma du custom_op. Contexte suivant (gathered_/scattered_outputs)
+        # pour distinguer les deux occurrences (apply_patch ne remplace que la 1re).
+        apply_patch(
+            spfo,
+            search=(
+                "    process_group_name: dist.distributed_c10d.GroupName,\n"
+                "    gathered_outputs: List[torch.Tensor],"
+            ),
+            replace=(
+                "    process_group_name: str,  # torch 2.9.x : GroupName supprimé (= str)\n"
+                "    gathered_outputs: List[torch.Tensor],"
+            ),
+            description="5b. sequence_parallel_fused_ops.py: GroupName annotation (allgather) -> str",
+        )
+        apply_patch(
+            spfo,
+            search=(
+                "    process_group_name: dist.distributed_c10d.GroupName,\n"
+                "    scattered_outputs: List[torch.Tensor],"
+            ),
+            replace=(
+                "    process_group_name: str,  # torch 2.9.x : GroupName supprimé (= str)\n"
+                "    scattered_outputs: List[torch.Tensor],"
+            ),
+            description="5b. sequence_parallel_fused_ops.py: GroupName annotation (reducescatter) -> str",
+        )
+print("  [INFO] Fix FICHIER (5a seqpar.py + 5b sequence_parallel_fused_ops.py) : couvre TOUS les")
+print("         consommateurs xformers (diffusers/MuseTalk, audiocraft…), pas seulement le backend")
+print("         audiocraft. L'injection runtime GroupName=str y reste en ceinture+bretelles.")
 print()
 
 print("=== 6. VibeVoice ASR: lm_head sur audio long (crash CUDA 'unknown error') ===")
