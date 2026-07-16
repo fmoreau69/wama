@@ -2568,7 +2568,14 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (det.track_id != null || gid != null) {   // ghosts inclus (ont un gid)
                     seen.add(tkey);
                     tr = topDownTrails.get(tkey) || [];
-                    tr.push(ll);
+                    // Saut temporel (seek/scrub) : la trace accumulée n'a plus de continuité
+                    // physique avec l'instant courant → repartir de zéro (sinon le segment
+                    // de saut fabrique un cap aberrant).
+                    if (tr.length && Math.abs((tr[tr.length - 1][2] ?? currentTime) - currentTime) > 2) tr = [];
+                    // Chaque point est HORODATÉ (temps vidéo) : en lecture ARRIÈRE les points
+                    // arrivent en ordre chronologique inverse — le cap est ensuite orienté par
+                    // le SIGNE de Δt, pas par l'ordre d'arrivée (sens des flèches inversé sinon).
+                    tr.push([ll[0], ll[1], currentTime]);
                     if (tr.length > TRAIL_LEN) tr.shift();
                     topDownTrails.set(tkey, tr);
                     for (let i = 1; i < tr.length; i++)
@@ -2588,8 +2595,12 @@ document.addEventListener('DOMContentLoaded', function () {
                 const _isStationary = gid != null && stationaryGids.has(gid);
                 if (!_isStationary && tr && tr.length >= 2) {
                     const a = tr[Math.max(0, tr.length - 5)], b = tr[tr.length - 1];
-                    const dN = (b[0] - a[0]) * 111320;
-                    const dE = (b[1] - a[1]) * 111320 * Math.cos(b[0] * Math.PI / 180);
+                    // Orientation CHRONOLOGIQUE : en lecture arrière b est antérieur à a
+                    // (Δt<0) → on inverse le vecteur pour garder le cap PHYSIQUE du véhicule,
+                    // identique quel que soit le sens de lecture. Audit 2026-07-16.
+                    const _chron = (a[2] != null && b[2] != null && b[2] < a[2]) ? -1 : 1;
+                    const dN = (b[0] - a[0]) * 111320 * _chron;
+                    const dE = (b[1] - a[1]) * 111320 * Math.cos(b[0] * Math.PI / 180) * _chron;
                     const mv = Math.hypot(dN, dE);
                     // Seuil 0,8 m sur ~5 points (~0,4 s) : sous ce déplacement la direction
                     // de trace est dominée par le bruit résiduel — cap maintenu (0,4 m
