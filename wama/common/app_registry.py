@@ -68,6 +68,15 @@ def _build_cat_of():
 
 _CAT_OF = _build_cat_of()
 
+
+def category_of_path(path):
+    """Catégorie média ('image'|'video'|'audio'|'document'|'archive'|'text') d'un chemin
+    d'après son extension. Source UNIQUE (studio, previews, etc.) — défaut 'document'."""
+    import os
+    ext = os.path.splitext(str(path or ''))[1].lstrip('.').lower()
+    return _CAT_OF.get(ext, 'document')
+
+
 def normalize_types(types):
     """['wav','image','srt'] → ['audio','image','text'] (catégories média, dédupliquées, ordre stable)."""
     out = []

@@ -6,7 +6,7 @@
 
 {% block app_icon %}<i class="fas fa-user-circle text-info"></i>{% endblock %}
 {% block app_title %}Avatarizer{% endblock %}
-{% block app_description %}Générez des vidéos d'avatars animés synchronisés avec l'audio TTS{% endblock %}
+{% block app_description %}Générez des vidéos d'avatars animés synchronisés avec un fichier audio{% endblock %}
 {% block footer_text %}Avatarizer - Animated Avatar Generation | WAMA{% endblock %}
 
 {% block console_content_id %}avatarizer-console-content{% endblock %}
@@ -63,14 +63,14 @@
 {% include 'common/_inspector_banner.html' %}{# bandeau « Réglages de l'élément #N » (inspecteur contextuel) #}
 <div id="avatarPanelParams">
 
-{% comment %}Workflow PIPELINE (texte → TTS → avatar) RETIRÉ de l'UI (décision Fabien
-2026-07-11, cf. R16/§20bis) : le pipeline devient une composition STUDIO synthesizer →
-avatarizer. L'app ne produit plus que du STANDALONE (audio prêt + avatar). Le backend
-(champ mode, worker TTS, réglages tts_* de params.py) reste intact : jobs historiques +
-orchestration studio/tool_api.{% endcomment %}
+{% comment %}Avatarizer = STANDALONE (2026-07-15) : audio (fourni, ou produit en amont par
+le Synthesizer via le Studio) + avatar → MuseTalk. Le TTS ne fait plus partie de l'app
+(relève du Synthesizer) : params.py ne déclare plus mode/tts_model/language/voice_preset ;
+le TTS a été retiré de l'UI (card, modale, aide). Le pipeline texte→voix→avatar se compose
+dans le Studio (runner avatarizer : mode=standalone fixe).{% endcomment %}
 <!-- Paramètres MuseTalk -->
 <div class="mb-2">
-    <label class="form-label small fw-bold text-light"><i class="fas fa-sliders-h"></i> Pipeline MuseTalk</label>
+    <label class="form-label small fw-bold text-light"><i class="fas fa-sliders-h"></i> Paramètres MuseTalk</label>
 </div>
 
 <!-- Mode qualité -->
@@ -201,8 +201,7 @@ action primaire de la card, conventions CARD_DESIGN §2 ; id #btn-generate incha
                 {% for job in b.items %}
                 <div class="synthesis-card {% if job.status == 'RUNNING' %}processing{% elif job.status == 'SUCCESS' %}success{% elif job.status == 'FAILURE' %}error{% endif %}"
                      id="job-{{ job.id }}" data-job-id="{{ job.id }}"
-                     data-status="{{ job.status }}" data-mode="{{ job.mode }}"
-                     data-text-preview="{{ job.text_content|truncatechars:60 }}">
+                     data-status="{{ job.status }}" data-mode="standalone">
                     <div class="row align-items-center g-2">
 
                         <!-- Col 1 : Avatar + miniature -->
@@ -224,22 +223,14 @@ action primaire de la card, conventions CARD_DESIGN §2 ; id #btn-generate incha
                                 <strong class="text-light d-block">
                                     {% if job.avatar_source == 'gallery' %}{{ job.avatar_gallery_name|default:"—"|truncatechars:14 }}{% else %}Photo importée{% endif %}
                                 </strong>
-                                <small class="text-white-50">
-                                    {{ job.get_mode_display }} &bull; {{ job.created_at|date:"H:i" }}
-                                </small>
+                                <small class="text-white-50">{{ job.created_at|date:"H:i" }}</small>
                             </div>
                         </div>
 
                         <!-- Col 2 : Paramètres -->
                         <div class="col-3">
                             <small class="job-params-display">
-                                {% if job.mode == 'pipeline' %}
-                                <i class="fas fa-robot"></i> {{ job.get_tts_model_display|truncatechars:12 }}<br>
-                                <i class="fas fa-language"></i> {{ job.language }}<br>
-                                <i class="fas fa-microphone"></i> {{ job.voice_preset|truncatechars:10 }}<br>
-                                {% else %}
-                                <i class="fas fa-upload"></i> Audio importé<br>
-                                {% endif %}
+                                <i class="fas fa-upload"></i> Audio<br>
                                 <i class="fas fa-{% if job.quality_mode == 'quality' %}star{% else %}bolt{% endif %}"></i> {{ job.get_quality_mode_display }}{% if job.use_enhancer %} <span class="badge bg-secondary" style="font-size:0.6rem;">CF</span>{% endif %}{% if job.bbox_shift != 0 %} &bull; <i class="fas fa-arrows-alt-v"></i> {{ job.bbox_shift }}{% endif %}
                             </small>
                         </div>
@@ -248,7 +239,6 @@ action primaire de la card, conventions CARD_DESIGN §2 ; id #btn-generate incha
                         <div class="col-2">
                             <small class="text-white-50 step-desc">
                                 {% if job.status == 'FAILURE' %}{{ job.error_message|truncatechars:50 }}
-                                {% elif job.status == 'SUCCESS' and job.mode == 'pipeline' and job.text_content %}"{{ job.text_content|truncatechars:50 }}"
                                 {% elif job.status == 'SUCCESS' %}Vidéo générée ✓
                                 {% elif job.status == 'RUNNING' %}En cours…
                                 {% else %}En attente{% endif %}
@@ -277,10 +267,6 @@ action primaire de la card, conventions CARD_DESIGN §2 ; id #btn-generate incha
                                 {% if job.status != 'RUNNING' %}
                                 <button class="btn btn-sm btn-outline-secondary btn-settings-job"
                                         data-job-id="{{ job.id }}"
-                                        data-mode="{{ job.mode }}"
-                                        data-tts-model="{{ job.tts_model }}"
-                                        data-language="{{ job.language }}"
-                                        data-voice-preset="{{ job.voice_preset }}"
                                         data-quality-mode="{{ job.quality_mode }}"
                                         data-use-enhancer="{{ job.use_enhancer|yesno:'true,false' }}"
                                         data-bbox-shift="{{ job.bbox_shift }}"
@@ -358,11 +344,11 @@ action primaire de la card, conventions CARD_DESIGN §2 ; id #btn-generate incha
         </p>
     </div>
     <div class="mb-3">
-        <h5>Modes de fonctionnement</h5>
-        <ul class="text-light">
-            <li><strong>Pipeline</strong> : saisissez un texte → le service TTS génère l'audio → MuseTalk anime l'avatar</li>
-            <li><strong>Standalone</strong> : uploadez votre propre fichier audio → MuseTalk anime l'avatar</li>
-        </ul>
+        <h5>Fonctionnement</h5>
+        <p class="text-light">Fournissez un <strong>fichier audio</strong> (ou une voix produite en amont
+        par le Synthesizer, via le Studio) et un <strong>avatar</strong> : MuseTalk anime le visage en
+        synchronisation labiale. La génération de la voix (texte → audio) relève du <strong>Synthesizer</strong> ;
+        l'enchaînement texte → voix → avatar se compose dans le <strong>Studio</strong>.</p>
     </div>
     <div class="mb-3">
         <h5>Avatars</h5>
@@ -389,21 +375,10 @@ action primaire de la card, conventions CARD_DESIGN §2 ; id #btn-generate incha
 <div class="info-card">
     <h3><i class="fas fa-question-circle me-2"></i>Guide d'utilisation</h3>
     <div class="mb-3">
-        <h5>Mode Pipeline (texte → TTS → avatar)</h5>
+        <h5>Générer un avatar parlant</h5>
         <ol class="text-light">
-            <li>Sélectionnez le mode <strong>Pipeline</strong> dans le panneau de droite</li>
-            <li>Saisissez le texte de la consigne</li>
-            <li>Choisissez le modèle TTS, la langue et la voix</li>
+            <li>Glissez ou sélectionnez un fichier audio (WAV, MP3…) — la voix de l'avatar</li>
             <li>Sélectionnez un avatar dans la galerie ou importez une photo</li>
-            <li>Cliquez sur <strong>Générer la vidéo</strong></li>
-        </ol>
-    </div>
-    <div class="mb-3">
-        <h5>Mode Standalone (audio existant)</h5>
-        <ol class="text-light">
-            <li>Sélectionnez le mode <strong>Standalone</strong></li>
-            <li>Glissez ou sélectionnez un fichier audio (WAV, MP3…)</li>
-            <li>Sélectionnez un avatar</li>
             <li>Cliquez sur <strong>Générer la vidéo</strong></li>
         </ol>
     </div>
@@ -435,17 +410,10 @@ action primaire de la card, conventions CARD_DESIGN §2 ; id #btn-generate incha
             <div class="modal-body">
                 <input type="hidden" id="settingsJobId">
 
-                <!-- TTS (pipeline seulement — section montrée/masquée par le JS selon le mode du job) -->
-                <div id="settingsPipelineSection">
-                    <h6 class="text-info mb-3"><i class="fas fa-stream me-1"></i>Paramètres TTS</h6>
-                    {# Champs GÉNÉRÉS par WamaParams (params.py, context 'item') — IDs legacy via dom_id. #}
-                    {# Voix : groupes depuis la brique commune get_voice_groups (remplace les optgroups hardcodés). #}
-                    <div class="wama-params" id="avatarizerTtsFields"></div>
-                    <hr class="border-secondary">
-                </div>
-
-                <!-- MuseTalk params -->
-                <h6 class="text-info mb-3"><i class="fas fa-sliders-h me-1"></i>Paramètres MuseTalk</h6>
+                {# Réglages GÉNÉRÉS par WamaParams (params.py, context 'item') — source unique.
+                   Avatarizer = STANDALONE : uniquement les paramètres MuseTalk (le TTS relève du
+                   synthesizer ; en pipeline c'est la composition studio synthesizer -> avatarizer). #}
+                <h6 class="text-info mb-3"><i class="fas fa-sliders-h me-1"></i>Paramètres</h6>
                 <div class="wama-params" id="avatarizerMtFields"></div>
             </div>
             {# Pied de modale COMMUN (convention MODAL_ACTIONS_AUDIT §3) #}
@@ -516,13 +484,8 @@ window.WAMA_GLOBAL_PROGRESS_URL = "{% url 'avatarizer:global_progress' %}";
     var schema = {{ params_json|default:"[]"|safe }};
     var voiceGroups = {{ voice_groups_json|default:"[]"|safe }};
     var resolver = function (p) { return p.options_source === 'voices' ? voiceGroups : null; };
-    var tts = ['tts_model', 'language', 'voice_preset'];
-    var hostTts = document.getElementById('avatarizerTtsFields');
-    var hostMt  = document.getElementById('avatarizerMtFields');
-    if (hostTts) WamaParams.render(hostTts, schema.filter(function (p) { return tts.indexOf(p.name) !== -1; }),
-                                   { context: 'item', optionsResolver: resolver });
-    if (hostMt)  WamaParams.render(hostMt,  schema.filter(function (p) { return tts.indexOf(p.name) === -1; }),
-                                   { context: 'item', optionsResolver: resolver });
+    var hostMt = document.getElementById('avatarizerMtFields');
+    if (hostMt) WamaParams.render(hostMt, schema, { context: 'item', optionsResolver: resolver });
 })();
 </script>
 <script src="{% static_v 'avatarizer/js/index.js' %}"></script>
@@ -562,8 +525,7 @@ document.addEventListener('DOMContentLoaded', function () {
             var b = card.querySelector('.btn-settings-job');
             if (!b) return {};
             return {
-                mode: b.dataset.mode, tts_model: b.dataset.ttsModel, language: b.dataset.language,
-                voice_preset: b.dataset.voicePreset, quality_mode: b.dataset.qualityMode,
+                quality_mode: b.dataset.qualityMode,
                 use_enhancer: b.dataset.useEnhancer, bbox_shift: b.dataset.bboxShift,
             };
         },

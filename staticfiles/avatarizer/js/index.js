@@ -330,7 +330,7 @@
         if (progress >= 40)  return 'MuseTalk : synchronisation labiale…';
         if (progress >= 30)  return 'Préparation de la sortie…';
         if (progress >= 20)  return "Résolution de l'avatar…";
-        if (progress >= 10)  return mode === 'pipeline' ? 'Synthèse audio TTS…' : 'Chargement audio…';
+        if (progress >= 10)  return 'Chargement audio…';
         if (progress >= 5)   return 'Démarrage…';
         return 'En attente…';
     }
@@ -348,9 +348,7 @@
         const qIsQuality   = qualityMode && qualityMode.value === 'quality';
         const useEnhancer  = $('#use_enhancer') && $('#use_enhancer').checked;
         const bboxShiftVal = bboxSlider ? bboxSlider.value : '0';
-        const textPreview  = (textArea && mode === 'pipeline') ? textArea.value.trim().substring(0, 60) : '';
         const now          = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-        const modeLabel    = mode === 'pipeline' ? 'Pipeline' : 'Standalone';
 
         // Avatar thumbnail
         let thumbHtml;
@@ -368,19 +366,8 @@
             avatarDisplayName = '—';
         }
 
-        // Col 2: paramètres
-        let col2Html = '';
-        if (mode === 'pipeline') {
-            const ttsEl = $('#tts_model');
-            const ttsLabel = ttsEl ? ttsEl.options[ttsEl.selectedIndex].text : '';
-            const lang  = $('#language')     ? $('#language').value : '';
-            const voice = $('#voice_preset') ? $('#voice_preset').value : '';
-            col2Html  = `<i class="fas fa-robot"></i> ${ttsLabel}<br>`;
-            col2Html += `<i class="fas fa-language"></i> ${lang}<br>`;
-            col2Html += `<i class="fas fa-microphone"></i> ${voice}<br>`;
-        } else {
-            col2Html = `<i class="fas fa-upload"></i> Audio importé<br>`;
-        }
+        // Col 2: paramètres (standalone-only 2026-07-15)
+        let col2Html = '<i class="fas fa-upload"></i> Audio<br>';
         col2Html += `<i class="fas fa-${qIsQuality ? 'star' : 'bolt'}"></i> ${qIsQuality ? 'Qualité' : 'Rapide'}`;
         if (useEnhancer) col2Html += ` <span class="badge bg-secondary" style="font-size:0.6rem;">CF</span>`;
         if (bboxShiftVal !== '0') col2Html += ` &bull; <i class="fas fa-arrows-alt-v"></i> ${bboxShiftVal}`;
@@ -390,15 +377,14 @@
         card.id = `job-${jobId}`;
         card.dataset.jobId = jobId;
         card.dataset.status = 'PENDING';
-        card.dataset.mode = mode;
-        card.dataset.textPreview = textPreview;
+        card.dataset.mode = 'standalone';
         card.innerHTML = `
             <div class="row align-items-center g-2">
                 <div class="col-3 d-flex align-items-start gap-2">
                     ${thumbHtml}
                     <div>
                         <strong class="text-light d-block">${avatarDisplayName}</strong>
-                        <small class="text-white-50">${modeLabel} &bull; ${now}</small>
+                        <small class="text-white-50">${now}</small>
                     </div>
                 </div>
                 <div class="col-3">
@@ -418,10 +404,6 @@
                     <div class="btn-group-actions flex-wrap">
                         <button class="btn btn-sm btn-outline-secondary btn-settings-job"
                                 data-job-id="${jobId}"
-                                data-mode="${mode}"
-                                data-tts-model="${$('#tts_model') ? $('#tts_model').value : ''}"
-                                data-language="${$('#language') ? $('#language').value : 'fr'}"
-                                data-voice-preset="${$('#voice_preset') ? $('#voice_preset').value : 'default'}"
                                 data-quality-mode="${qualityMode ? qualityMode.value : 'fast'}"
                                 data-use-enhancer="${useEnhancer ? 'true' : 'false'}"
                                 data-bbox-shift="${bboxShiftVal}"
@@ -535,7 +517,7 @@
             if (data.status === 'RUNNING' || data.status === 'PENDING') {
                 stepDesc.textContent = getStepLabel(data.progress, mode);
             } else if (data.status === 'SUCCESS') {
-                const preview = data.text_preview || card.dataset.textPreview || '';
+                const preview = data.text_preview || '';
                 stepDesc.textContent = preview ? `"${preview}"` : 'Vidéo générée ✓';
             } else if (data.status === 'FAILURE') {
                 stepDesc.textContent = (data.error || 'Erreur').substring(0, 50);
@@ -598,10 +580,6 @@
     function openSettingsModal(btn) {
         if (!settingsModal) return;
         const jobId      = btn.dataset.jobId;
-        const mode       = btn.dataset.mode;
-        const ttsModel   = btn.dataset.ttsModel   || '';
-        const language   = btn.dataset.language    || 'fr';
-        const voice      = btn.dataset.voicePreset || 'default';
         const qmode      = btn.dataset.qualityMode || 'fast';
         const enhancer   = btn.dataset.useEnhancer === 'true';
         const bboxShift  = parseInt(btn.dataset.bboxShift || '0', 10);
@@ -609,18 +587,7 @@
         const jobIdInput = $('#settingsJobId');
         if (jobIdInput) jobIdInput.value = jobId;
 
-        // Pipeline / standalone section visibility
-        const pipelineSection = $('#settingsPipelineSection');
-        if (pipelineSection) pipelineSection.style.display = mode === 'pipeline' ? '' : 'none';
-
-        // Pre-fill TTS fields
-        const ttsModelSel = $('#settingsTtsModel');
-        if (ttsModelSel) ttsModelSel.value = ttsModel;
-        const langSel = $('#settingsLanguage');
-        if (langSel) langSel.value = language;
-        const voiceSel = $('#settingsVoicePreset');
-        if (voiceSel) voiceSel.value = voice;
-
+        // Standalone-only (2026-07-15) : plus de TTS (relève du synthesizer). Réglages MuseTalk.
         // Quality mode
         const qRadio = $(`input[name="settings_quality_mode"][value="${qmode}"]`);
         if (qRadio) qRadio.checked = true;
@@ -640,15 +607,9 @@
         settingsModal.show();
     }
 
-    function buildParamsHtml(mode, ttsLabel, lang, voice, qmode, useEnhancer, bboxShift) {
-        let html = '';
-        if (mode === 'pipeline') {
-            html += `<i class="fas fa-robot"></i> ${ttsLabel}<br>`;
-            html += `<i class="fas fa-language"></i> ${lang}<br>`;
-            html += `<i class="fas fa-microphone"></i> ${voice}<br>`;
-        } else {
-            html += `<i class="fas fa-upload"></i> Audio importé<br>`;
-        }
+    function buildParamsHtml(qmode, useEnhancer, bboxShift) {
+        // Standalone-only (2026-07-15) : l'audio vient d'amont/import, plus de TTS.
+        let html = '<i class="fas fa-upload"></i> Audio<br>';
         const qIsQuality = qmode === 'quality';
         html += `<i class="fas fa-${qIsQuality ? 'star' : 'bolt'}"></i> ${qIsQuality ? 'Qualité' : 'Rapide'}`;
         if (useEnhancer) html += ` <span class="badge bg-secondary" style="font-size:0.6rem;">CF</span>`;
@@ -660,24 +621,14 @@
         const jobId = $('#settingsJobId') ? $('#settingsJobId').value : null;
         if (!jobId) return;
 
-        const ttsModelSel = $('#settingsTtsModel');
-        const langSel     = $('#settingsLanguage');
-        const voiceSel    = $('#settingsVoicePreset');
         const qRadio      = $('input[name="settings_quality_mode"]:checked');
         const enhancerCb  = $('#settingsUseEnhancer');
 
-        const newTtsModel  = ttsModelSel ? ttsModelSel.value : '';
-        const newTtsLabel  = ttsModelSel ? ttsModelSel.options[ttsModelSel.selectedIndex].text : '';
-        const newLang      = langSel    ? langSel.value    : '';
-        const newVoice     = voiceSel   ? voiceSel.value   : '';
         const newQmode     = qRadio     ? qRadio.value     : 'fast';
         const newEnhancer  = !!(enhancerCb && enhancerCb.checked);
         const newBbox      = settingsBboxSlider ? settingsBboxSlider.value : '0';
 
         const fd = new FormData();
-        fd.append('tts_model',   newTtsModel);
-        fd.append('language',    newLang);
-        fd.append('voice_preset', newVoice);
         fd.append('quality_mode', newQmode);
         fd.append('use_enhancer', newEnhancer ? 'true' : 'false');
         fd.append('bbox_shift',   newBbox);
@@ -699,15 +650,12 @@
                 // 1. Rafraîchir le bloc paramètres (col-2)
                 const paramsEl = $('.job-params-display', card);
                 if (paramsEl) {
-                    paramsEl.innerHTML = buildParamsHtml(mode, newTtsLabel, newLang, newVoice, newQmode, newEnhancer, newBbox);
+                    paramsEl.innerHTML = buildParamsHtml(newQmode, newEnhancer, newBbox);
                 }
 
                 // 2. Mettre à jour les data-* du bouton settings (pour le prochain ouverture du modal)
                 const settBtn = $('.btn-settings-job', card);
                 if (settBtn) {
-                    settBtn.dataset.ttsModel    = newTtsModel;
-                    settBtn.dataset.language    = newLang;
-                    settBtn.dataset.voicePreset = newVoice;
                     settBtn.dataset.qualityMode = newQmode;
                     settBtn.dataset.useEnhancer = newEnhancer ? 'true' : 'false';
                     settBtn.dataset.bboxShift   = newBbox;

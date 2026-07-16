@@ -64,8 +64,8 @@ def _source_media(user, params):
         raise ValueError("Nœud « Médiathèque » : choisissez un média dans les paramètres du nœud.")
     if not os.path.exists(os.path.join(settings.MEDIA_ROOT, rel)):
         raise ValueError(f"Nœud « Médiathèque » : fichier introuvable ({rel}).")
-    from wama.studio.services.runners import _category_of_path
-    return (params.get('asset_category') or _category_of_path(rel)), rel
+    from wama.common.app_registry import category_of_path
+    return (params.get('asset_category') or category_of_path(rel)), rel
 
 
 def _sink_text_to_media_library(user, text, params, run_id):
@@ -213,8 +213,8 @@ def run_pipeline_task(self, run_id):
                         if 'output_type_fn' in runner:
                             otype = runner['output_type_fn'](node.get('params') or {})
                         else:
-                            from wama.studio.services.runners import _category_of_path
-                            otype = _category_of_path(st['output'])
+                            from wama.common.app_registry import category_of_path
+                            otype = category_of_path(st['output'])
                     outputs[nid] = {'type': otype, 'value': st['output'],
                                     'is_text': bool(st.get('is_text'))}
                     _save_state(nid, status='SUCCESS', progress=100, output=st['output'])
