@@ -2019,7 +2019,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
             // Phase 4 — show distance / speed / TTC in the label when present
             // Phase 2 — flag in_shuttle_lane with a 🚌 marker
-            let label = `${det.class_name} ${(det.confidence * 100).toFixed(0)}%`;
+            // stable_class = classe majoritaire du track (anti-flapping car↔truck).
+            let label = `${det.stable_class || det.class_name} ${(det.confidence * 100).toFixed(0)}%`;
             if (det.track_id != null) label += ` #${det.track_id}`;
             // ID GLOBAL 360° (hand-off inter-caméras) : #N est l'ID par-caméra (YOLO,
             // indépendant par vue — le même véhicule a un #N différent sur chaque vue,
@@ -2146,7 +2147,8 @@ document.addEventListener('DOMContentLoaded', function () {
     const topDownTrails = new Map();   // track_id -> [[lat,lon], ...] réc
     const topDownHeadings = new Map(); // tkey -> [cosN, sinE] cap lissé (EMA), maintenu à l'arrêt
     const topDownDist = new Map();     // tkey -> distance lissée (EMA) : réduit le jitter radial du pinhole
-    const topDownLat = new Map();      // tkey -> latéral lissé (EMA) : réduit le jitter du centre bboxent
+    const topDownLat = new Map();      // tkey -> latéral lissé (EMA) : réduit le jitter du centre bbox
+    const topDownCls = new Map();      // tkey -> {classe: Σ confiance} : vote live anti-flapping car↔truckent
     let topDownLastTime = -999;        // détection de saut (reset traces)
     let topDownLastRender = -999;      // throttle ~10 Hz
     let topDownAutoFollow = true;      // recentrage auto en lecture (zoom tactique)
@@ -2363,7 +2365,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!miniMapTrailLayer) miniMapTrailLayer = L.layerGroup().addTo(miniMap);
         if (!miniMapLaneLayer) miniMapLaneLayer = L.layerGroup().addTo(miniMap);
         // Reset des traces sur saut temporel (seek).
-        if (Math.abs(currentTime - topDownLastTime) > 1.0) { topDownTrails.clear(); topDownHeadings.clear(); topDownDist.clear(); topDownLat.clear(); }
+        if (Math.abs(currentTime - topDownLastTime) > 1.0) { topDownTrails.clear(); topDownHeadings.clear(); topDownDist.clear(); topDownLat.clear(); topDownCls.clear(); }
         topDownLastTime = currentTime;
 
         miniMapObjectLayer.clearLayers();
@@ -2612,11 +2614,25 @@ document.addEventListener('DOMContentLoaded', function () {
                     }
                 }
                 if (sm) objHeading = Math.atan2(sm[1], sm[0]) * 180 / Math.PI;   // maintenu si à l'arrêt
-                const label = `${det.class_name || 'objet'} [${camPos}]`
+                // Classe STABLE du track : `stable_class` (vote majoritaire pondéré confiance,
+                // écrit par le calcul des indicateurs) sinon vote LIVE local en fallback
+                // (sessions pas encore recalculées) — YOLO fait flapper car↔truck d'une frame
+                // à l'autre → le gabarit sautait entre voiture et camion.
+                let effCls = det.stable_class;
+                if (!effCls) {
+                    if (tkey != null) {
+                        const _cv = topDownCls.get(tkey) || {};
+                        const _cn = det.class_name || '?';
+                        _cv[_cn] = (_cv[_cn] || 0) + (det.confidence || 0.5);
+                        topDownCls.set(tkey, _cv);
+                        effCls = Object.keys(_cv).reduce((a, b) => (_cv[a] >= _cv[b] ? a : b));
+                    } else effCls = det.class_name;
+                }
+                const label = `${effCls || 'objet'} [${camPos}]`
                     + `${det.dist_euclid_m != null ? ' · ' + det.dist_euclid_m + ' m' : ''}`
                     + `${det.ttc_s != null ? ' · TTC ' + det.ttc_s + ' s' : ''}`;
                 const sz = ({ car: [4.5, 1.8], truck: [8, 2.5], bus: [10, 2.8], person: [0.6, 0.6],
-                             bicycle: [1.8, 0.6], motorcycle: [2, 0.8] })[(det.class_name || '').toLowerCase()]
+                             bicycle: [1.8, 0.6], motorcycle: [2, 0.8] })[(effCls || '').toLowerCase()]
                            || [1.5, 1.5];
                 const hl = sz[0] / 2, hw = sz[1] / 2;
                 const corners = [[-hw, -hl], [hw, -hl], [hw, hl], [-hw, hl]]
@@ -4280,7 +4296,7 @@ document.addEventListener('DOMContentLoaded', function () {
             _tdb.classList.toggle('active', topDown360);
             _tdb.classList.toggle('btn-warning', topDown360);
             _tdb.classList.toggle('btn-outline-warning', !topDown360);
-            topDownTrails.clear(); topDownHeadings.clear(); topDownDist.clear(); topDownLat.clear();
+            topDownTrails.clear(); topDownHeadings.clear(); topDownDist.clear(); topDownLat.clear(); topDownCls.clear();
             if (typeof currentTime === 'number') { topDownLastRender = -999; updateMiniMapShuttle(currentTime); }
         };
         // ── Éditeur de yaw caméras (calibration de session) ──────────────────────
@@ -4305,7 +4321,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 const v = parseFloat(inp.value);
                 if (isFinite(v)) { camYaw[inp.dataset.pos] = v; payload[inp.dataset.pos] = v; }
             });
-            topDownTrails.clear(); topDownHeadings.clear(); topDownDist.clear(); topDownLat.clear();
+            topDownTrails.clear(); topDownHeadings.clear(); topDownDist.clear(); topDownLat.clear(); topDownCls.clear();
             if (typeof currentTime === 'number') { topDownLastRender = -999; updateMiniMapShuttle(currentTime); }
             try {
                 const r = await fetch(`${config.urls.deleteSession}${currentSessionId}/camera-yaw/`, {
@@ -4374,6 +4390,24 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (showLaneVideo && typeof currentTime === 'number') updateDetectionOverlay(currentTime);
             };
         }
+        // ── Persistance des BASCULES vue de dessus (les sliders persistaient déjà) ──
+        // Chaque bouton repartait OFF au rechargement de page. On restaure l'état
+        // mémorisé en REJOUANT le handler du bouton (état + classes CSS + re-render
+        // en un seul chemin), puis on enveloppe le handler pour mémoriser les clics.
+        try {
+            [['cam_analyzer_td_360', _tdb, () => topDown360],
+             ['cam_analyzer_td_pred', _pb, () => usePrediction],
+             ['cam_analyzer_td_parked', _hpb, () => hideParked],
+             ['cam_analyzer_td_lanevid', _lvb, () => showLaneVideo]].forEach(([key, btn, get]) => {
+                if (!btn || !btn.onclick) return;
+                if (localStorage.getItem(key) === '1' && !get()) btn.onclick();
+                const _prev = btn.onclick;
+                btn.onclick = () => {
+                    _prev();
+                    try { localStorage.setItem(key, get() ? '1' : '0'); } catch (e) { /* noop */ }
+                };
+            });
+        } catch (e) { /* noop */ }
         // Filtre de confiance à l'affichage (sans ré-analyse) + persistance de la valeur.
         const _cf = document.getElementById('overlayConfSlider');
         if (_cf) {

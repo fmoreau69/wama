@@ -80,6 +80,7 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=1.0,
     all_fns = sorted({fn for (_, _, frames) in per_cam.values() for fn in frames})
     tracks = []        # {id, e, n, ve, vn, last_t}
     track_hist = defaultdict(list)   # gid -> [(fn, t, world_e, world_n, class)]
+    cls_votes = defaultdict(lambda: defaultdict(float))   # gid -> {classe: Σ confiance}
     next_id = 1
     dirty = set()
 
@@ -145,6 +146,10 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=1.0,
                     best['e'], best['n'], best['last_t'] = e, n, t
             d['global_track_id'] = best['id']
             track_hist[best['id']].append((fn, t, e, n, d.get('class_name', 'car')))
+            # Vote de classe pondéré par la confiance : YOLO fait flapper car↔truck
+            # d'une frame à l'autre sur le même véhicule → la classe STABLE d'un track
+            # est la majorité pondérée sur toute sa durée (écrite en 2e passe).
+            cls_votes[best['id']][d.get('class_name', 'car')] += float(d.get('confidence') or 0.5)
             dirty.add(f)
 
     # ── Comblement des trous de détection au hand-off (empreintes prédites) ──────
@@ -224,6 +229,18 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=1.0,
         spread = max(math.hypot(e - e0, n - n0) for (_, _, e, n, _) in hs)
         if spread < spread_max_m and not _near_intersection(hs):
             stationary_gids.append(gid)
+
+    # ── Classe STABLE par track (vote majoritaire pondéré confiance) ────────────────
+    # YOLO fait flapper la classe (car↔truck) d'une frame à l'autre sur le même
+    # véhicule → gabarit vue de dessus qui saute. La classe d'un TRACK est la majorité
+    # pondérée sur toute sa durée, écrite sur chaque détection (`stable_class`) —
+    # l'affichage la préfère à la classe brute de la frame.
+    stable_cls = {gid: max(v, key=v.get) for gid, v in cls_votes.items() if v}
+    for f in dirty:
+        for d in (f.detections or []):
+            sc = stable_cls.get(d.get('global_track_id'))
+            if sc:
+                d['stable_class'] = sc
 
     for f in dirty:
         f.save(update_fields=['detections'])
