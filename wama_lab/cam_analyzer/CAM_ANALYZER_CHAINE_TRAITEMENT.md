@@ -205,6 +205,15 @@ par côté). Règle : **jamais de if ad hoc dispersé** pour une amélioration c
    temporelle, appliqué spatialement.
 3. **YOLO-OBB** (boîtes orientées natives) : l'orientation devient une mesure — poids
    publics entraînés sur imagerie aérienne, fine-tuning nécessaire → long terme.
+   **Raccourci disponible : exploiter les MASQUES du mode segment.** La chaîne entière
+   est indexée sur bbox/classe/conf/track (`_extract_detections` ne lit que
+   `prediction.boxes`) → tout fonctionne à l'identique en mode segmentation, MAIS les
+   masques sont actuellement JETÉS à l'extraction. Or ils offrent : (a) l'orientation
+   par `minAreaRect` du masque = boîte orientée GRATUITE (le levier OBB sans
+   fine-tuning), (b) le point de contact sol affiné (ligne des roues vs bas de bbox) →
+   meilleure distance, (c) le centre latéral robuste (centroïde vs centre bbox,
+   insensible aux rétroviseurs/ombres). À déclarer comme bascule `mask_geometry` le
+   moment venu.
 4. **Homographie à recalibrer** (multi-frames passages piétons + lignes centrales) — le
    latéral pinhole reste moins précis à >20 m.
 5. **Bbox coupées au bord** : pas affichées en vue de dessus (délibéré) ; le hand-off
