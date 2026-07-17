@@ -335,17 +335,24 @@ def set_camera_yaw(request, session_id):
     les objets de la vue (sin(Δyaw)·distance). Appliqué immédiatement au rendu vue de
     dessus, et au tracking 360°/prédiction au prochain calcul (pas de ré-analyse)."""
     session = get_object_or_404(AnalysisSession, id=session_id, user=request.user)
+    _POS = ('front', 'right', 'rear', 'left')
     try:
-        raw = json.loads(request.body or '{}').get('camera_yaw') or {}
-        yaw = {k: float(v) for k, v in raw.items()
-               if k in ('front', 'right', 'rear', 'left')}
+        body = json.loads(request.body or '{}')
+        yaw = {k: float(v) for k, v in (body.get('camera_yaw') or {}).items() if k in _POS}
+        # FOV réels par caméra (vari-focales latérales : réglage terrain incertain 52-97°H).
+        fov = {k: {a: float(x) for a, x in (v or {}).items() if a in ('h', 'v')}
+               for k, v in (body.get('camera_fov') or {}).items() if k in _POS}
     except (ValueError, TypeError, AttributeError):
-        return JsonResponse({'error': 'camera_yaw invalide'}, status=400)
+        return JsonResponse({'error': 'camera_yaw/camera_fov invalide'}, status=400)
     cfg = session.config or {}
-    cfg['camera_yaw'] = yaw
+    if yaw or 'camera_yaw' in (body or {}):
+        cfg['camera_yaw'] = yaw
+    if fov:
+        cfg['camera_fov'] = {**(cfg.get('camera_fov') or {}), **fov}
     session.config = cfg
     session.save(update_fields=['config'])
-    return JsonResponse({'success': True, 'camera_yaw': yaw})
+    return JsonResponse({'success': True, 'camera_yaw': cfg.get('camera_yaw'),
+                         'camera_fov': cfg.get('camera_fov')})
 
 
 @login_required

@@ -112,8 +112,10 @@
         <input type="number" class="form-control form-control-sm cam-yaw-input" data-pos="rear" step="0.5" style="width:70px; padding:1px 4px;">
         <span class="small text-secondary">Ga</span>
         <input type="number" class="form-control form-control-sm cam-yaw-input" data-pos="left" step="0.5" style="width:70px; padding:1px 4px;">
+        <span class="small text-secondary" title="FOV HORIZONTAL réel des caméras latérales (vari-focales AXIS F1015 : 52-97°). Le réglage terrain est incertain — un FOV réel plus grand que supposé SURESTIME les distances latérales. Le FOV vertical est dérivé de la table constructeur. Essayer 97 si les garés semblent trop loin.">FOV lat.</span>
+        <input type="number" id="camFovLatInput" class="form-control form-control-sm" min="52" max="97" step="1" style="width:70px; padding:1px 4px;">
         <button type="button" id="camYawSaveBtn" class="btn btn-sm btn-outline-success"
-                title="Enregistrer les yaw caméras pour cette session">💾</button>
+                title="Enregistrer yaw + FOV caméras pour cette session">💾</button>
     </span>
 </div>
 <div id="camAnalyzerMapWrap" class="position-relative">

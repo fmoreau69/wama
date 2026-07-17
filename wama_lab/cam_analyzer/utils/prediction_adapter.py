@@ -73,6 +73,12 @@ def camera_geometry(session):
     yaw = camera_yaw_map(session)
     fov_used = cfg.get('fov_v_used') or {}
     mounts = cfg.get('camera_mount') or {}
+    # FOV RÉELS surchargables par session (`config['camera_fov'] = {pos: {'h':deg,'v':deg}}`)
+    # — les F1015 latérales sont VARI-FOCALES (97-52°H) : le réglage terrain est incertain
+    # (55° supposé, probablement resté au large 97°). Changer le FOV réel ajuste dist_scale
+    # (tan(used/2)/tan(réel/2)) → les distances affichées/traquées se recalent SANS
+    # ré-annotation. Éditable depuis le bouton Yaw de la vue de dessus.
+    fov_over = cfg.get('camera_fov') or {}
     # Bascules de comparaison (⚑ Modes) : appliquées ICI et nulle part ailleurs —
     # camera_geometry est la source unique de la géométrie, donc couper une bascule
     # neutralise le levier partout (tracking, prédiction… le JS a son miroir camGeo).
@@ -84,11 +90,17 @@ def camera_geometry(session):
             used = float(fov_used.get(pos, LEGACY_FOV_V[pos]))
         except (TypeError, ValueError):
             used = LEGACY_FOV_V[pos]
+        ov = fov_over.get(pos) or {}
+        try:
+            real_h = float(ov.get('h', CAMERA_FOV_H[pos]))
+            real_v = float(ov.get('v', CAMERA_FOV_V[pos]))
+        except (TypeError, ValueError):
+            real_h, real_v = CAMERA_FOV_H[pos], CAMERA_FOV_V[pos]
         m = mounts.get(pos) or CAMERA_MOUNT[pos]
         geo[pos] = {
             'yaw': yaw[pos],
-            'fov_h': CAMERA_FOV_H[pos],
-            'dist_scale': (math.tan(math.radians(used) / 2) / math.tan(math.radians(CAMERA_FOV_V[pos]) / 2)
+            'fov_h': real_h,
+            'dist_scale': (math.tan(math.radians(used) / 2) / math.tan(math.radians(real_v) / 2)
                            if feat.get('fov_dist_correction', True) else 1.0),
             'mount': (float(m[0]), float(m[1])) if feat.get('mount_lever_arm', True) else (0.0, 0.0),
         }

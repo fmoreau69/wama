@@ -74,6 +74,13 @@ document.addEventListener('DOMContentLoaded', function () {
     // de levier, tous les objets avant étaient dessinés ~4,5 m trop près de la navette.
     const CAMERA_FOV_H = { front: 110, right: 55, rear: 110, left: 55 };
     const CAMERA_FOV_V = { front: 61, right: 31, rear: 61, left: 31 };
+    // FOV EFFECTIFS (mutables) — surchargés par session.config.camera_fov. Les F1015
+    // latérales sont VARI-FOCALES (97-52°H) : le réglage terrain est incertain (55°
+    // supposé, probablement resté au large ~97°). Un FOV réel plus grand que supposé
+    // SURESTIME les distances (focale supposée trop longue) — éditable via le bouton
+    // Yaw pour comparer 55↔97 à l'écran sans ré-annotation (dist_scale s'ajuste).
+    const camFovH = { ...CAMERA_FOV_H };
+    const camFovV = { ...CAMERA_FOV_V };
     const LEGACY_FOV_V = { front: 60, right: 90, rear: 60, left: 90 };
     const CAMERA_MOUNT = { front: [0, 4.5], right: [1.0, 3.4], rear: [0, 0], left: [-1.0, 3.4] };
     const camGeo = {};        // géométrie effective par caméra — reconstruite par rebuildCamGeo()
@@ -87,9 +94,9 @@ document.addEventListener('DOMContentLoaded', function () {
         Object.keys(CAMERA_YAW).forEach(p => {
             const used = (camFovUsed[p] != null && isFinite(camFovUsed[p])) ? camFovUsed[p] : LEGACY_FOV_V[p];
             camGeo[p] = {
-                fovH: CAMERA_FOV_H[p],
+                fovH: camFovH[p],
                 distScale: camFeat.fov_dist_correction !== false
-                    ? Math.tan(used * Math.PI / 360) / Math.tan(CAMERA_FOV_V[p] * Math.PI / 360)
+                    ? Math.tan(used * Math.PI / 360) / Math.tan(camFovV[p] * Math.PI / 360)
                     : 1,
                 mount: camFeat.mount_lever_arm !== false ? CAMERA_MOUNT[p] : [0, 0],
             };
@@ -441,6 +448,12 @@ document.addEventListener('DOMContentLoaded', function () {
                 const _fu = (data.config && data.config.fov_v_used) || {};
                 Object.keys(CAMERA_YAW).forEach(p => {
                     if (_fu[p] != null && isFinite(_fu[p])) camFovUsed[p] = parseFloat(_fu[p]);
+                });
+                // FOV réels surchargés par session (vari-focales latérales incertaines).
+                const _cf = (data.config && data.config.camera_fov) || {};
+                Object.keys(CAMERA_YAW).forEach(p => {
+                    if (_cf[p] && isFinite(_cf[p].h)) camFovH[p] = parseFloat(_cf[p].h);
+                    if (_cf[p] && isFinite(_cf[p].v)) camFovV[p] = parseFloat(_cf[p].v);
                 });
                 // Bascules ⚑ Modes : état effectif servi par le serveur (registre + config).
                 (data.features || []).forEach(f => { camFeat[f.key] = !!f.enabled; });
@@ -2229,7 +2242,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (bh < 12 || bw < 4) return null;                     // trop petit → ratio bruité
         if (bb[0] <= 8 || bb[2] >= iw - 8) return null;         // coupé au bord → étendue fausse
         const [L, W, H] = dims;
-        const fovH = CAMERA_FOV_H[camPos] || 60, fovV = CAMERA_FOV_V[camPos] || 61;
+        const fovH = camFovH[camPos] || 60, fovV = camFovV[camPos] || 61;
         const fy = ih / (2 * Math.tan(fovV * Math.PI / 360));
         const fx = iw / (2 * Math.tan(fovH * Math.PI / 360));
         let E = H * (fy / fx) * (bw / bh);
@@ -2827,9 +2840,18 @@ document.addEventListener('DOMContentLoaded', function () {
                         objHeading = Math.atan2(_by, _bx) * 90 / Math.PI;   // demi-angle → axe mod 180°
                     }
                 }
-                const label = `${effCls || 'objet'} [${camPos}]`
-                    + `${det.dist_euclid_m != null ? ' · ' + det.dist_euclid_m + ' m' : ''}`
-                    + `${det.ttc_s != null ? ' · TTC ' + det.ttc_s + ' s' : ''}`;
+                // Tooltip SYSTÉMATIQUE : basé sur les valeurs réellement affichées (pinhole
+                // corrigé distScale). L'ancien affichait dist_euclid_m — un champ HOMOGRAPHIE,
+                // absent quand elle n'est pas calibrée → tooltips tantôt vides tantôt partiels
+                // (constat utilisateur 2026-07-17).
+                const _dsT = (camGeo[camPos] || {}).distScale || 1;
+                const _lp = [`${effCls || 'objet'} [${camPos}]`];
+                if (gid != null) _lp.push(`G${gid}`);
+                if (typeof det.distance_m === 'number') _lp.push((det.distance_m * _dsT).toFixed(1) + ' m');
+                if (typeof det.relative_speed_kmh === 'number')
+                    _lp.push(`${det.relative_speed_kmh > 0 ? '↑' : '↓'}${Math.abs(det.relative_speed_kmh * _dsT).toFixed(0)} km/h rel.`);
+                if (det.ttc_s != null) _lp.push(`TTC ${det.ttc_s} s`);
+                const label = _lp.join(' · ');
                 const sz = ({ car: [4.5, 1.8], truck: [8, 2.5], bus: [10, 2.8], person: [0.6, 0.6],
                              bicycle: [1.8, 0.6], motorcycle: [2, 0.8] })[(effCls || '').toLowerCase()]
                            || [1.5, 1.5];
@@ -4511,10 +4533,13 @@ document.addEventListener('DOMContentLoaded', function () {
         const _cyi = document.getElementById('camYawInputs');
         if (_cyb && _cyi) _cyb.onclick = () => {
             _cyi.classList.toggle('d-none');
-            if (!_cyi.classList.contains('d-none'))
+            if (!_cyi.classList.contains('d-none')) {
                 _cyi.querySelectorAll('.cam-yaw-input').forEach(inp => {
                     inp.value = camYaw[inp.dataset.pos];
                 });
+                const _fl = document.getElementById('camFovLatInput');
+                if (_fl) _fl.value = camFovH.left;
+            }
         };
         const _cys = document.getElementById('camYawSaveBtn');
         if (_cys && _cyi) _cys.onclick = async () => {
@@ -4524,12 +4549,29 @@ document.addEventListener('DOMContentLoaded', function () {
                 const v = parseFloat(inp.value);
                 if (isFinite(v)) { camYaw[inp.dataset.pos] = v; payload[inp.dataset.pos] = v; }
             });
+            // FOV latéral réel (H saisi ; V dérivé de la table constructeur F1015 :
+            // 52°H↔30°V, 97°H↔53°V, interpolation linéaire). Appliqué aux 2 latérales.
+            let fovPayload = null;
+            const _fl = document.getElementById('camFovLatInput');
+            const _fh = _fl ? parseFloat(_fl.value) : NaN;
+            if (isFinite(_fh) && _fh >= 40 && _fh <= 110) {
+                const _fv = 30 + (_fh - 52) * (53 - 30) / (97 - 52);
+                camFovH.left = camFovH.right = _fh;
+                camFovV.left = camFovV.right = Math.round(_fv * 10) / 10;
+                fovPayload = { left: { h: _fh, v: camFovV.left }, right: { h: _fh, v: camFovV.right } };
+            }
+            rebuildCamGeo();
             topDownTrails.clear(); topDownHeadings.clear(); topDownDist.clear(); topDownLat.clear(); topDownCls.clear(); topDownAxial.clear();
-            if (typeof currentTime === 'number') { topDownLastRender = -999; updateMiniMapShuttle(currentTime); }
+            if (typeof currentTime === 'number') {
+                topDownLastRender = -999;
+                updateMiniMapShuttle(currentTime);
+                updateDetectionOverlay(currentTime);   // labels vidéo recalés (distScale)
+            }
             try {
                 const r = await fetch(`${config.urls.deleteSession}${currentSessionId}/camera-yaw/`, {
                     method: 'POST', headers: { 'X-CSRFToken': config.csrfToken, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ camera_yaw: payload }),
+                    body: JSON.stringify(fovPayload ? { camera_yaw: payload, camera_fov: fovPayload }
+                                                    : { camera_yaw: payload }),
                 });
                 const d = await r.json();
                 if (d.success) { _cys.textContent = '✓'; setTimeout(() => { _cys.textContent = '💾'; }, 1200); }
