@@ -342,7 +342,10 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
                 pe, pn, k = byfn.get(fn, (0.0, 0.0, 0))
                 byfn[fn] = (pe + e, pn + n, k + 1)
             fns_h = sorted(byfn)
-            cls = hist[0][4]
+            # Classe MAJORITAIRE du track (pondérée confiance), pas celle de la 1re frame
+            # — un fantôme doit hériter de la classe stable (gabarit cohérent).
+            _v = cls_votes.get(gid)
+            cls = max(_v, key=_v.get) if _v else hist[0][4]
             for i in range(1, len(fns_h)):
                 f0, f1 = fns_h[i - 1], fns_h[i]
                 gap = f1 - f0
@@ -366,6 +369,10 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
                     fr.detections.append({
                         'type': 'ghost', 'predicted': True, 'global_track_id': gid,
                         'class_name': cls, 'vehicle_xy': [round(lat, 3), round(lon, 3)],
+                        # Distance GÉOMÉTRIQUE dérivée de la position interpolée (repère
+                        # véhicule, origine antenne) : donne au fantôme un tooltip chiffré
+                        # et une couleur par distance (au lieu du cyan « aucune mesure »).
+                        'dist_euclid_m': round(math.hypot(lat, lon), 1),
                     })
                     dirty.add(fr)
                     ghosts += 1

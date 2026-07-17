@@ -2855,6 +2855,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 const _lp = [`${effCls || 'objet'} [${camPos}]`];
                 if (gid != null) _lp.push(`G${gid}`);
                 if (typeof det.distance_m === 'number') _lp.push((det.distance_m * _dsT).toFixed(1) + ' m');
+                else if (typeof det.dist_euclid_m === 'number') _lp.push(det.dist_euclid_m.toFixed(1) + ' m');   // fantômes : distance géométrique interpolée
                 if (typeof det.relative_speed_kmh === 'number')
                     _lp.push(`${det.relative_speed_kmh > 0 ? '↑' : '↓'}${Math.abs(det.relative_speed_kmh * _dsT).toFixed(0)} km/h rel.`);
                 if (det.ttc_s != null) _lp.push(`TTC ${det.ttc_s} s`);
