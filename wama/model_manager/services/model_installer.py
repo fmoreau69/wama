@@ -162,6 +162,67 @@ def register_after_install():
     return ModelSyncService().full_sync()
 
 
+def install_from_spec(spec: dict) -> dict:
+    """
+    Point d'entrée UNIQUE d'installation — DESCRIPTEUR déclaratif au lieu de mécanismes
+    hardcodés par type. Le spec peut être construit par l'UI, par la prospection, ou par
+    l'ASSISTANT IA (pipeline cible : besoin utilisateur → modèle → librairie → app →
+    install ; voir PROSPECTION_PIPELINE.md). Les `pull_*` existants deviennent les
+    drivers derrière ce dispatcher.
+
+    spec = {
+      'kind': 'ollama' | 'hf' | 'yolo',        # driver d'installation
+      'ref':  'qwen3:8b' | 'org/model' | 'yolo26s-seg',
+      'category': 'diffusion' | 'speech' | …,  # hf : catégorie de dossier (model_locations)
+      'family': 'qwen-image',                  # hf : sous-dossier famille (optionnel)
+      'allow_patterns': ['*.safetensors'],     # hf : restreindre les fichiers (optionnel)
+      'pip_dependencies': ['lib>=x'],          # optionnel — VALIDATION HUMAINE OBLIGATOIRE
+      'human_validated': True,                 # requis si pip_dependencies non vide
+      'note': 'pourquoi ce modèle',            # traçabilité (journalisée)
+    }
+    Retourne {'ok': bool, …} (mêmes clés que les drivers, + 'pip' si dépendances).
+    """
+    spec = spec or {}
+    kind = spec.get('kind')
+    ref = (spec.get('ref') or '').strip()
+    if not ref:
+        return {'ok': False, 'error': 'spec.ref requis'}
+    deps = [d for d in (spec.get('pip_dependencies') or []) if d]
+    # ⚠ Installer des paquets = surface de risque (cf. pip_install_packages) : le spec
+    # doit porter la preuve d'une validation humaine explicite, jamais d'auto.
+    if deps and not spec.get('human_validated'):
+        return {'ok': False,
+                'error': "pip_dependencies exige une validation humaine explicite "
+                         "(spec.human_validated=true)"}
+    if spec.get('note'):
+        logger.info("install_from_spec %s:%s — %s", kind, ref, spec['note'])
+
+    if kind == 'ollama':
+        res = pull_ollama_model(ref)
+    elif kind == 'yolo':
+        res = pull_yolo_weights(ref)
+    elif kind == 'hf':
+        if not spec.get('category'):
+            return {'ok': False, 'error': "spec.category requis pour kind='hf'"}
+        res = pull_hf_model(ref, spec['category'], spec.get('family'),
+                            allow_patterns=spec.get('allow_patterns'))
+    else:
+        return {'ok': False, 'error': f"spec.kind inconnu: {kind!r} (ollama|hf|yolo)"}
+
+    if res.get('ok') and deps:
+        res['pip'] = pip_install_packages(deps)
+        if not res['pip'].get('ok'):
+            res['ok'] = False
+            res['error'] = "modèle téléchargé mais dépendances pip en échec (voir 'pip')"
+    if res.get('ok'):
+        try:
+            register_after_install()
+        except Exception:
+            logger.warning("register_after_install a échoué (le sync périodique rattrapera)",
+                           exc_info=True)
+    return res
+
+
 def pip_install_packages(packages, timeout: int = 1800) -> dict:
     """
     Installe des paquets pip dans le venv courant — pour rendre un backend disponible quand un

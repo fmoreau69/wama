@@ -1296,7 +1296,15 @@ def api_prospect_install(request):
                                            register_after_install)
     try:
         data = json.loads(request.body or '{}')
-        # ── Install direct de poids YOLO (vision) — pas de candidat de prospection requis ──
+        # ── Install par DESCRIPTEUR (point d'entrée générique — UI/prospection/assistant) ──
+        if data.get('spec'):
+            from .services.model_installer import install_from_spec
+            res = install_from_spec(data['spec'])
+            if not res.get('ok'):
+                return JsonResponse({'success': False, 'error': res.get('error', 'échec')}, status=500)
+            return JsonResponse({'success': True, 'installed': data['spec'].get('ref'),
+                                 'path': res.get('path')})
+        # ── Raccourci YOLO conservé (équivaut à spec={'kind':'yolo','ref':name}) ──
         if data.get('source') == 'yolo':
             res = pull_yolo_weights(data.get('name') or '')
             if not res.get('ok'):
