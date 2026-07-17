@@ -1666,6 +1666,68 @@ def compute_lane_events_task(self, session_id: str):
 
 
 @shared_task(bind=True)
+def compute_distance_task(self, session_id: str):
+    """Passe DÉCOUPLÉE « Distance / vitesse / TTC » : ré-annote distance_m,
+    relative_speed_kmh et ttc_s sur les détections STOCKÉES — sans relancer YOLO
+    (bbox + classe + timestamps suffisent). Utilise les FOV V COURANTS du rig
+    (DEFAULT_FOV_V_DEG) et trace `config['fov_v_used']` par caméra : une session
+    annotée avec d'anciens FOV est ainsi remise à niveau ici, et l'affichage cesse
+    d'appliquer la correction rétroactive (dist_scale → 1). Manquait au dispatch de
+    run_passes → le ▶ de la passe était un bouton mort (skip silencieux)."""
+    close_old_connections()
+    from .models import AnalysisSession, DetectionFrame
+    from .utils.pass_tracking import mark_started, mark_completed, mark_failed
+    from .utils.distance_speed import (annotate_detections_with_distance,
+                                       DEFAULT_FOV_V_DEG, TrackKinematics)
+
+    try:
+        session = AnalysisSession.objects.select_related('profile').get(pk=session_id)
+        ok, err = _check_data_available(session, [])  # toute caméra analysée convient
+        if not ok:
+            mark_failed(session, 'distance', err)
+            return {'error': err, 'session_id': session_id}
+
+        mark_started(session, 'distance', session.profile)
+        total_frames = 0
+        for cam in session.cameras.all():
+            if not cam.height:
+                continue
+            qs = (DetectionFrame.objects.filter(camera=cam)
+                  .order_by('frame_number').only('detections', 'timestamp'))
+            if not qs.exists():
+                continue
+            fov_v = DEFAULT_FOV_V_DEG.get(cam.position, 60.0)
+            _console(session.user_id,
+                     f"Recalcul distance/vitesse/TTC [{cam.position}] (FOV V {fov_v}°)")
+            kin = TrackKinematics()   # reset par caméra (collisions de track_id)
+            n = 0
+            for df in qs.iterator(chunk_size=500):
+                dets = df.detections or []
+                if not dets:
+                    continue
+                annotate_detections_with_distance(dets, cam.height, fov_v, df.timestamp, kin)
+                df.detections = dets
+                df.save(update_fields=['detections'])
+                n += 1
+            total_frames += n
+            cfg = session.config or {}
+            cfg.setdefault('fov_v_used', {})[cam.position] = fov_v
+            session.config = cfg
+            session.save(update_fields=['config'])
+            _console(session.user_id, f"  [{cam.position}] {n} frames ré-annotées")
+        mark_completed(session, 'distance', output_summary={'frames': total_frames})
+        _console(session.user_id, f"Distance/vitesse/TTC : {total_frames} frames ré-annotées")
+        return {'session_id': session_id, 'frames': total_frames}
+    except Exception as e:
+        logger.error(f"compute_distance_task failed: {e}", exc_info=True)
+        try:
+            mark_failed(AnalysisSession.objects.get(pk=session_id), 'distance', str(e))
+        except Exception:
+            pass
+        return {'error': str(e), 'session_id': session_id}
+
+
+@shared_task(bind=True)
 def compute_temporal_segments_task(self, session_id: str):
     """Run temporal segment detection on existing DetectionFrames. Filters by
     profile.target_classes + confidence at read time."""

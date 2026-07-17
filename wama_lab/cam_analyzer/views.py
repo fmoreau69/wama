@@ -958,6 +958,7 @@ def run_passes(request, session_id):
     elif needs_run:
         from .tasks import (
             compute_lane_events_task,
+            compute_distance_task,
             compute_temporal_segments_task,
             compute_conflict_events_task,
             analyze_sam3_only_task,
@@ -966,6 +967,7 @@ def run_passes(request, session_id):
 
         dispatch_map = {
             'lane_events':       compute_lane_events_task,
+            'distance':          compute_distance_task,
             'temporal_segments': compute_temporal_segments_task,
             'conflicts':         compute_conflict_events_task,
             'sam3_markings':     analyze_sam3_only_task,
