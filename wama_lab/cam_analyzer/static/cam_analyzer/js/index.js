@@ -806,11 +806,13 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     async function loadPipelinePanel() {
+        // Retourne la liste des passes (état frais) — null si indisponible. Utilisé par
+        // startPassesPolling pour détecter la fin des passes légères.
         const panel = document.getElementById('camAnalyzerPipelinePanel');
-        if (!panel) return;
+        if (!panel) return null;
         if (!currentSessionId) {
             panel.innerHTML = '<div class="text-secondary">Sélectionnez une session.</div>';
-            return;
+            return null;
         }
         try {
             const resp = await fetch(`${config.urls.listPasses}${currentSessionId}/passes/`);
@@ -861,10 +863,42 @@ document.addEventListener('DOMContentLoaded', function () {
             panel.querySelectorAll('[data-rp-run]').forEach(btn => {
                 btn.addEventListener('click', () => runPasses([btn.dataset.rpRun], false));
             });
+            return data.passes || [];
         } catch (e) {
             console.error('loadPipelinePanel:', e);
             panel.innerHTML = '<div class="text-danger small">Erreur de chargement</div>';
+            return null;
         }
+    }
+
+    // ── Polling des PASSES légères (distance, conflits, lane_events, segments) ──────
+    // Ces passes découplées ne touchent PAS session.status (seule l'analyse lourde le
+    // fait) : le poller de session s'arrêtait au 1er tick (status resté 'completed'),
+    // rechargeait les ANCIENNES données puis ne rafraîchissait plus jamais — l'état
+    // « en cours » du panneau semblait figé (constat utilisateur 2026-07-17). On
+    // surveille donc les passes elles-mêmes jusqu'à ce qu'aucune ne soit 'running',
+    // avec une période de grâce (la tâche Celery peut mettre quelques secondes à
+    // démarrer et à poser son état running).
+    let passesPollTimer = null;
+    function stopPassesPolling() {
+        if (passesPollTimer) { clearInterval(passesPollTimer); passesPollTimer = null; }
+    }
+    function startPassesPolling() {
+        stopPassesPolling();
+        let seenRunning = false, ticks = 0;
+        passesPollTimer = setInterval(async () => {
+            if (!currentSessionId) { stopPassesPolling(); return; }
+            ticks += 1;
+            const passes = await loadPipelinePanel();   // re-render + état frais
+            if (passes === null) return;                // erreur transitoire → on réessaie
+            if (passes.some(p => p.status === 'running')) { seenRunning = true; return; }
+            if (seenRunning || ticks >= 4) {            // fini (ou jamais démarré après ~10 s)
+                stopPassesPolling();
+                loadAllDetections(currentSessionId);    // données ré-annotées fraîches
+                loadSessions();
+                setRightPanelExportsEnabled(true);
+            }
+        }, 2500);
     }
 
     async function runPasses(types, force) {
@@ -883,10 +917,16 @@ document.addEventListener('DOMContentLoaded', function () {
                 alert('Erreur: ' + (data.error || 'lancement échoué'));
                 return;
             }
-            // If a Celery task was launched, switch to the running UI + start polling
-            if ((data.launched || []).some(t => t.endsWith('_task'))) {
+            const launched = data.launched || [];
+            if (launched.includes('process_session_task')) {
+                // Analyse LOURDE : session.status pilote l'UI globale + polling session.
                 setAnalysisUI(true);
                 startStatusPolling(currentSessionId);
+            } else if (launched.some(t => t.endsWith('_task'))) {
+                // Passe LÉGÈRE : session.status ne bouge pas (resté 'completed') — le
+                // polling session s'arrêtait au 1er tick sans jamais rafraîchir la fin.
+                // → suivre l'état des passes elles-mêmes.
+                startPassesPolling();
             }
             await loadPipelinePanel();
         } catch (e) {
