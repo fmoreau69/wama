@@ -283,55 +283,6 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
                 if g is not None and _root(g) != g:
                     d['global_track_id'] = _root(g)
 
-    # ── Comblement des trous de détection au hand-off (empreintes prédites) ──────
-    # Pour chaque track, on interpole en repère MONDE entre avant/après le trou, puis on
-    # convertit en repère véhicule et on insère une détection "fantôme" (predicted) dans
-    # la frame front manquante. Bornes : trou ≤ max_gap_frames.
-    front_frames = per_cam.get('front', (None, None, {}))[2]
-    max_gap_frames = int(1.2 * fps)   # ~1,2 s max
-    ghosts = 0
-    if front_frames:
-        # Retirer les anciens fantômes (idempotence si on recalcule).
-        for fr in front_frames.values():
-            if fr.detections and any(d.get('predicted') for d in fr.detections):
-                fr.detections = [d for d in fr.detections if not d.get('predicted')]
-                dirty.add(fr)
-        for gid, hist in track_hist.items():
-            hist.sort()
-            # positions monde uniques par frame (moyenne si doublons)
-            byfn = {}
-            for fn, t, e, n, cls in hist:
-                pe, pn, k = byfn.get(fn, (0.0, 0.0, 0))
-                byfn[fn] = (pe + e, pn + n, k + 1)
-            fns_h = sorted(byfn)
-            cls = hist[0][4]
-            for i in range(1, len(fns_h)):
-                f0, f1 = fns_h[i - 1], fns_h[i]
-                gap = f1 - f0
-                if gap <= 1 or gap - 1 > max_gap_frames:
-                    continue
-                e0, n0 = byfn[f0][0] / byfn[f0][2], byfn[f0][1] / byfn[f0][2]
-                e1, n1 = byfn[f1][0] / byfn[f1][2], byfn[f1][1] / byfn[f1][2]
-                for fn in range(f0 + 1, f1):
-                    fr = front_frames.get(fn)
-                    if not fr:
-                        continue
-                    a = (fn - f0) / gap
-                    we, wn = e0 + a * (e1 - e0), n0 + a * (n1 - n0)   # interpolation monde
-                    t = fn / fps * scale + off
-                    se, sn, sh = _shuttle_pose_at(sh_traj, t)
-                    lat, lon = world_to_vehicle(we, wn, se, sn, sh)
-                    if lon <= 0:
-                        continue
-                    if fr.detections is None:
-                        fr.detections = []
-                    fr.detections.append({
-                        'type': 'ghost', 'predicted': True, 'global_track_id': gid,
-                        'class_name': cls, 'vehicle_xy': [round(lat, 3), round(lon, 3)],
-                    })
-                    dirty.add(fr)
-                    ghosts += 1
-
     # ── Détection des véhicules STATIONNÉS (garés) ──────────────────────────────
     # Track à vitesse max ~nulle sur toute sa vie = garé, SAUF s'il passe près d'une
     # intersection (voiture arrêtée au carrefour = pertinente, on la garde).
@@ -366,6 +317,58 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
         if (spread < spread_max_m and (spread / dur) < 0.7
                 and not _near_intersection(hs)):
             stationary_gids.append(gid)
+    _stat_set = set(stationary_gids)
+
+    # ── Comblement des trous de détection au hand-off (empreintes prédites) ──────
+    # Pour chaque track, on interpole en repère MONDE entre avant/après le trou, puis on
+    # convertit en repère véhicule et on insère une détection "fantôme" (predicted) dans
+    # la frame front manquante. Bornes : trou ≤ max_gap_frames.
+    front_frames = per_cam.get('front', (None, None, {}))[2]
+    max_gap_frames = int(6.0 * fps)   # aligné stitching : INTERPOLATION entre 2 mesures réelles   # ~1,2 s max
+    ghosts = 0
+    if front_frames:
+        # Retirer les anciens fantômes (idempotence si on recalcule).
+        for fr in front_frames.values():
+            if fr.detections and any(d.get('predicted') for d in fr.detections):
+                fr.detections = [d for d in fr.detections if not d.get('predicted')]
+                dirty.add(fr)
+        for gid, hist in track_hist.items():
+            if gid in _stat_set:
+                continue   # trajectoire d'un STATIONNÉ = rien à reconstituer
+            hist.sort()
+            # positions monde uniques par frame (moyenne si doublons)
+            byfn = {}
+            for fn, t, e, n, cls in hist:
+                pe, pn, k = byfn.get(fn, (0.0, 0.0, 0))
+                byfn[fn] = (pe + e, pn + n, k + 1)
+            fns_h = sorted(byfn)
+            cls = hist[0][4]
+            for i in range(1, len(fns_h)):
+                f0, f1 = fns_h[i - 1], fns_h[i]
+                gap = f1 - f0
+                if gap <= 1 or gap - 1 > max_gap_frames:
+                    continue
+                e0, n0 = byfn[f0][0] / byfn[f0][2], byfn[f0][1] / byfn[f0][2]
+                e1, n1 = byfn[f1][0] / byfn[f1][2], byfn[f1][1] / byfn[f1][2]
+                for fn in range(f0 + 1, f1):
+                    fr = front_frames.get(fn)
+                    if not fr:
+                        continue
+                    a = (fn - f0) / gap
+                    we, wn = e0 + a * (e1 - e0), n0 + a * (n1 - n0)   # interpolation monde
+                    t = fn / fps * scale + off
+                    se, sn, sh = _shuttle_pose_at(sh_traj, t)
+                    lat, lon = world_to_vehicle(we, wn, se, sn, sh)
+                    # lon <= 0 accepté (2026-07-17) : la trajectoire doit être
+                    # reconstituée AUSSI derrière/à côté de la navette (dépassement).
+                    if fr.detections is None:
+                        fr.detections = []
+                    fr.detections.append({
+                        'type': 'ghost', 'predicted': True, 'global_track_id': gid,
+                        'class_name': cls, 'vehicle_xy': [round(lat, 3), round(lon, 3)],
+                    })
+                    dirty.add(fr)
+                    ghosts += 1
 
     # ── Classe STABLE par track (vote majoritaire pondéré confiance) ────────────────
     # YOLO fait flapper la classe (car↔truck) d'une frame à l'autre sur le même

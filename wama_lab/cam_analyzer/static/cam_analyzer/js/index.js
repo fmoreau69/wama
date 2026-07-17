@@ -2700,8 +2700,15 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
                 if (g[1] <= 0 || g[1] > 60 || Math.abs(g[0]) > 25) return;          // zone fiable
                 if (!isGhost) {
+                    // Bord d'image : une détection coupée a un latéral biaisé — mais si
+                    // elle est TRACKÉE (gid), on la dessine quand même (position lissée
+                    // EMA) : c'était le « masque » qui faisait disparaître le véhicule
+                    // au contact de la navette pendant un dépassement, puis ressauter
+                    // plus loin (constat utilisateur 2026-07-17). Les détections coupées
+                    // SANS track restent exclues (bruit).
                     const bb = det.bbox;
-                    if (Array.isArray(bb) && (bb[0] <= 8 || bb[2] >= iw - 8)) return;   // coupé/partiel au bord
+                    if (Array.isArray(bb) && (bb[0] <= 8 || bb[2] >= iw - 8)
+                            && det.global_track_id == null) return;
                 }
                 // Dedupe multi-caméra : si l'objet a un global_track_id déjà dessiné cette
                 // frame (vu par une autre caméra), on le saute → 1 seule empreinte.
