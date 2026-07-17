@@ -4529,11 +4529,18 @@ document.addEventListener('DOMContentLoaded', function () {
         const _fmb = document.getElementById('featModesBtn');
         const _fmp = document.getElementById('featModesPanel');
         if (_fmb && _fmp) _fmb.onclick = () => _fmp.classList.toggle('d-none');
-        const _cyb = document.getElementById('camYawBtn');
         const _cyi = document.getElementById('camYawInputs');
-        if (_cyb && _cyi) _cyb.onclick = () => {
-            _cyi.classList.toggle('d-none');
-            if (!_cyi.classList.contains('d-none')) {
+        // Panneau CALIBRATION repliable (réorganisation barre 2026-07-17, option validée) :
+        // regroupe synchro GPS, yaw/FOV, H cam et calibration sol — réglés 1× par session.
+        // À l'ouverture, les champs yaw/FOV sont remplis avec l'état courant (l'ancien
+        // bouton Yaw dédié, devenu redondant, a été retiré).
+        const _cpb = document.getElementById('calibPanelBtn');
+        const _cpp = document.getElementById('calibPanel');
+        if (_cpb && _cpp) _cpb.onclick = () => {
+            _cpp.classList.toggle('d-none');
+            const _open = !_cpp.classList.contains('d-none');
+            _cpb.classList.toggle('active', _open);
+            if (_open && _cyi) {
                 _cyi.querySelectorAll('.cam-yaw-input').forEach(inp => {
                     inp.value = camYaw[inp.dataset.pos];
                 });

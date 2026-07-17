@@ -24,99 +24,118 @@
 {% block right_panel_media_title %}<i class="fas fa-map-marked-alt me-1 text-info"></i> Carte & passages{% endblock %}
 
 {% block right_panel_media %}
-{# Barre d'outils ACTIONS — hors carte pour libérer le champ de vision (vue de dessus) #}
-<div class="d-flex flex-wrap gap-1 mb-1" id="camAnalyzerMapToolbar">
-    <button type="button" id="calibToggleBtn" class="btn btn-sm btn-outline-info"
-            title="Calibrer le sol : cliquer les 4 coins d'un passage piéton">
-        <i class="fas fa-ruler-combined me-1"></i>Calibrer
+{# Barre d'outils — réorganisée par familles (2026-07-17) : VUE (quotidien, live) +
+   ANALYSE (calculs/outils) en barre ; la CALIBRATION complète (réglée 1× par session)
+   est regroupée dans un panneau repliable pour ne pas encombrer le quotidien. #}
+<div class="d-flex flex-wrap gap-1 mb-1 align-items-center" id="camAnalyzerMapToolbar">
+    <span class="small text-secondary fw-semibold">Vue</span>
+    <button type="button" id="topDown360Btn" class="btn btn-sm btn-outline-warning"
+            title="Fusion multi-caméra : affiche les objets de TOUTES les caméras dans le repère véhicule (vue 360°). Basculable à tout moment.">
+        <i class="fas fa-globe me-1"></i>360°
     </button>
-    <button type="button" id="sam3CalibBtn" class="btn btn-sm btn-outline-info"
-            title="Détecter le passage sur la frame courante et calibrer la vue de dessus">
-        <i class="fas fa-crosshairs me-1"></i>Calib. SAM3
+    <button type="button" id="predictionBtn" class="btn btn-sm btn-outline-danger"
+            title="Coloration par PRÉDICTION de trajectoire (TTC/PET extrapolés) vs TTC naïf par frame + affichage des fantômes prédits. Basculable pour comparer.">
+        <i class="fas fa-project-diagram me-1"></i>Prédiction
     </button>
-    <button type="button" id="sam3TestBtn" class="btn btn-sm btn-outline-light"
-            title="Tester SAM3 sur la frame courante (masks + scores)">
-        <i class="fas fa-flask"></i>
+    <button type="button" id="hideParkedBtn" class="btn btn-sm btn-outline-secondary"
+            title="Masquer les véhicules stationnés/garés (sauf ceux présents aux intersections).">
+        <i class="fas fa-parking me-1"></i>Garés
+    </button>
+    <button type="button" id="laneVideoBtn" class="btn btn-sm btn-outline-secondary"
+            title="Projeter le gabarit de voie SUR la vidéo pour caler la largeur de voie sur la route réelle (garde la segmentation yolopv2 séparément)">
+        <i class="fas fa-road me-1"></i>Voie/vidéo
+    </button>
+    <span class="d-inline-flex align-items-center gap-1"
+          title="Filtre de confiance à l'affichage : masque les détections faibles, SANS ré-analyse">
+        <span class="small text-secondary"><i class="fas fa-filter me-1"></i>Conf ≥</span>
+        <input type="range" id="overlayConfSlider" min="0" max="0.95" step="0.05" value="0" style="width:80px;">
+        <span class="small text-secondary" id="overlayConfVal" style="min-width:34px;">0%</span>
+    </span>
+    <span class="d-inline-flex align-items-center gap-1"
+          title="Largeur de voie (m) pour le gabarit de la vue de dessus — ajuste pour coller aux bordures (auto à venir)">
+        <span class="small text-secondary"><i class="fas fa-road me-1"></i>Voie</span>
+        <input type="range" id="laneWidthSlider" min="2" max="6" step="0.1" value="3.5" style="width:80px;">
+        <span class="small text-secondary" id="laneWidthVal" style="min-width:38px;">3.5m</span>
+    </span>
+    <div class="vr mx-1"></div>
+    <span class="small text-secondary fw-semibold">Analyse</span>
+    <button type="button" id="predictionCalcBtn" class="btn btn-sm btn-outline-secondary"
+            title="Calculer les indicateurs par prédiction de trajectoire (TTC/PET) + tracking 360° pour cette session — peut prendre du temps.">
+        <i class="fas fa-calculator me-1"></i>Indicateurs
+    </button>
+    <button type="button" id="featModesBtn" class="btn btn-sm btn-outline-info"
+            title="Bascules de comparaison : activer/désactiver chaque amélioration du positionnement pour comparer AVEC/SANS instantanément. ⟳ = nécessite de relancer le calcul des indicateurs.">
+        <i class="fas fa-flag me-1"></i>Comparer
     </button>
     <button type="button" id="copyDebugBtn" class="btn btn-sm btn-outline-secondary"
             title="Copier les infos de synchro de cet instant (temps vidéo, GPS, détections) pour debug">
         <i class="fas fa-clipboard"></i>
     </button>
-    <span class="d-inline-flex align-items-center gap-1 ms-1 px-2 py-1 rounded"
-          style="background:rgba(255,193,7,.12);border:1px solid rgba(255,193,7,.3);"
-          title="Recalage synchro GPS↔vidéo (secondes) : glisse jusqu'à ce que la navette colle à la vidéo, puis 💾">
-        <span class="small fw-semibold text-warning"><i class="fas fa-sync-alt me-1"></i>Synchro GPS Δ</span>
-        <input type="range" id="gpsOffsetSlider" min="-30" max="30" step="0.05" value="0" style="width:130px;">
-        <input type="number" id="gpsOffsetInput" step="0.05" value="0"
-               class="form-control form-control-sm" style="width:64px;">
-        <span class="small text-secondary">s</span>
-        <button type="button" id="gpsOffsetSaveBtn" class="btn btn-sm btn-outline-success"
-                title="Enregistrer l'offset pour cette session">💾</button>
-    </span>
-    <button type="button" id="syncRecBtn" class="btn btn-sm btn-outline-info ms-1"
-            title="Recalculer la synchro GPS↔vidéo (échelle+offset) + largeur de voie depuis le .rec RTMaps">
-        <i class="fas fa-magic me-1"></i>Sync .rec
+    <div class="vr mx-1"></div>
+    <button type="button" id="calibPanelBtn" class="btn btn-sm btn-outline-info"
+            title="Calibration de la session (réglée une fois) : synchro GPS↔vidéo, orientation/FOV des caméras, hauteur caméra, calibration sol (homographie/SAM3).">
+        <i class="fas fa-compass me-1"></i>Calibration <i class="fas fa-caret-down ms-1"></i>
     </button>
-    <button type="button" id="topDown360Btn" class="btn btn-sm btn-outline-warning ms-1"
-            title="Fusion multi-caméra : affiche les objets de TOUTES les caméras dans le repère véhicule (vue 360°). Basculable à tout moment.">
-        <i class="fas fa-globe me-1"></i>360°
-    </button>
-    <button type="button" id="predictionBtn" class="btn btn-sm btn-outline-danger ms-1"
-            title="Coloration par PRÉDICTION de trajectoire (TTC/PET extrapolés) vs TTC naïf par frame. Basculable pour comparer.">
-        <i class="fas fa-project-diagram me-1"></i>Prédiction
-    </button>
-    <button type="button" id="predictionCalcBtn" class="btn btn-sm btn-outline-secondary ms-1"
-            title="Calculer les indicateurs par prédiction de trajectoire (TTC/PET) pour cette session — peut prendre du temps.">
-        <i class="fas fa-calculator"></i>
-    </button>
-    <button type="button" id="hideParkedBtn" class="btn btn-sm btn-outline-secondary ms-1"
-            title="Masquer les véhicules stationnés/garés (sauf ceux présents aux intersections).">
-        <i class="fas fa-parking me-1"></i>Masquer garés
-    </button>
-    <span class="d-inline-flex align-items-center gap-1 ms-1"
-          title="Filtre de confiance à l'affichage : masque les détections faibles, SANS ré-analyse">
-        <span class="small text-secondary"><i class="fas fa-filter me-1"></i>Conf ≥</span>
-        <input type="range" id="overlayConfSlider" min="0" max="0.95" step="0.05" value="0" style="width:90px;">
-        <span class="small text-secondary" id="overlayConfVal" style="min-width:34px;">0%</span>
-    </span>
-    <span class="d-inline-flex align-items-center gap-1 ms-1"
-          title="Largeur de voie (m) pour le gabarit de la vue de dessus — ajuste pour coller aux bordures (auto à venir)">
-        <span class="small text-secondary"><i class="fas fa-road me-1"></i>Voie</span>
-        <input type="range" id="laneWidthSlider" min="2" max="6" step="0.1" value="3.5" style="width:90px;">
-        <span class="small text-secondary" id="laneWidthVal" style="min-width:38px;">3.5m</span>
-    </span>
-    <button type="button" id="laneVideoBtn" class="btn btn-sm btn-outline-secondary ms-1"
-            title="Projeter le gabarit de voie SUR la vidéo pour caler la largeur de voie sur la route réelle (garde la segmentation yolopv2 séparément).">
-        <i class="fas fa-road me-1"></i>Voie/vidéo
-    </button>
-    <span class="d-inline-flex align-items-center gap-1 ms-1"
-          title="Hauteur caméra (m) pour la projection sol→image du gabarit vidéo">
-        <span class="small text-secondary">H cam</span>
-        <input type="range" id="camHeightSlider" min="0.8" max="3.2" step="0.05" value="2.4" style="width:80px;">
-        <span class="small text-secondary" id="camHeightVal" style="min-width:34px;">2.4m</span>
-    </span>
-    <button type="button" id="featModesBtn" class="btn btn-sm btn-outline-info ms-1"
-            title="Bascules de comparaison : activer/désactiver chaque amélioration du positionnement pour comparer AVEC/SANS instantanément. ⟳ = nécessite de relancer le calcul des indicateurs.">
-        <i class="fas fa-flag me-1"></i>Modes
-    </button>
-    <button type="button" id="camYawBtn" class="btn btn-sm btn-outline-secondary ms-1"
-            title="Yaw de montage réel de chaque caméra (deg, sens horaire depuis l'avant) — les caméras ne sont pas toutes exactement à 0/±90/180°. Appliqué au rendu immédiatement, au tracking 360°/prédiction au prochain calcul.">
-        <i class="fas fa-compass me-1"></i>Yaw
-    </button>
-    <span id="camYawInputs" class="d-none d-inline-flex align-items-center flex-wrap gap-1 ms-1">
-        <span class="small text-secondary">Av</span>
-        <input type="number" class="form-control form-control-sm cam-yaw-input" data-pos="front" step="0.5" style="width:52px; padding:1px 3px;">
-        <span class="small text-secondary">Dr</span>
-        <input type="number" class="form-control form-control-sm cam-yaw-input" data-pos="right" step="0.5" style="width:52px; padding:1px 3px;">
-        <span class="small text-secondary">Ar</span>
-        <input type="number" class="form-control form-control-sm cam-yaw-input" data-pos="rear" step="0.5" style="width:52px; padding:1px 3px;">
-        <span class="small text-secondary">Ga</span>
-        <input type="number" class="form-control form-control-sm cam-yaw-input" data-pos="left" step="0.5" style="width:52px; padding:1px 3px;">
-        <span class="small text-secondary" title="FOV HORIZONTAL réel des caméras latérales (vari-focales AXIS F1015 : 52-97°). Le réglage terrain est incertain — un FOV réel plus grand que supposé SURESTIME les distances latérales. Le FOV vertical est dérivé de la table constructeur. Essayer 97 si les garés semblent trop loin.">FOV lat.</span>
-        <input type="number" id="camFovLatInput" class="form-control form-control-sm" min="52" max="97" step="1" style="width:52px; padding:1px 3px;">
-        <button type="button" id="camYawSaveBtn" class="btn btn-sm btn-outline-success"
-                title="Enregistrer yaw + FOV caméras pour cette session">💾</button>
-    </span>
+</div>
+{# ── Panneau CALIBRATION (replié par défaut) — tout ce qui définit la géométrie ── #}
+<div id="calibPanel" class="d-none mb-1 p-2 rounded"
+     style="background:rgba(255,255,255,.03); border:1px solid #495057;">
+    <div class="d-flex flex-wrap gap-2 align-items-center">
+        <span class="d-inline-flex align-items-center gap-1 px-2 py-1 rounded"
+              style="background:rgba(255,193,7,.12);border:1px solid rgba(255,193,7,.3);"
+              title="Recalage synchro GPS↔vidéo (secondes) : glisse jusqu'à ce que la navette colle à la vidéo, puis 💾">
+            <span class="small fw-semibold text-warning"><i class="fas fa-sync-alt me-1"></i>Synchro GPS Δ</span>
+            <input type="range" id="gpsOffsetSlider" min="-30" max="30" step="0.05" value="0" style="width:110px;">
+            <input type="number" id="gpsOffsetInput" step="0.05" value="0"
+                   class="form-control form-control-sm" style="width:64px;">
+            <span class="small text-secondary">s</span>
+            <button type="button" id="gpsOffsetSaveBtn" class="btn btn-sm btn-outline-success"
+                    title="Enregistrer l'offset pour cette session">💾</button>
+        </span>
+        <button type="button" id="syncRecBtn" class="btn btn-sm btn-outline-info"
+                title="Recalculer la synchro GPS↔vidéo (échelle+offset) + largeur de voie depuis le .rec RTMaps">
+            <i class="fas fa-magic me-1"></i>Sync .rec
+        </button>
+    </div>
+    <div class="d-flex flex-wrap gap-1 align-items-center mt-2"
+         title="Orientation de montage réelle de chaque caméra (deg, sens horaire depuis l'avant) — appliquée au rendu immédiatement, au tracking 360°/prédiction au prochain calcul des indicateurs.">
+        <span class="small text-secondary fw-semibold"><i class="fas fa-compass me-1"></i>Yaw</span>
+        <span id="camYawInputs" class="d-inline-flex align-items-center flex-wrap gap-1">
+            <span class="small text-secondary">Av</span>
+            <input type="number" class="form-control form-control-sm cam-yaw-input" data-pos="front" step="0.5" style="width:52px; padding:1px 3px;">
+            <span class="small text-secondary">Dr</span>
+            <input type="number" class="form-control form-control-sm cam-yaw-input" data-pos="right" step="0.5" style="width:52px; padding:1px 3px;">
+            <span class="small text-secondary">Ar</span>
+            <input type="number" class="form-control form-control-sm cam-yaw-input" data-pos="rear" step="0.5" style="width:52px; padding:1px 3px;">
+            <span class="small text-secondary">Ga</span>
+            <input type="number" class="form-control form-control-sm cam-yaw-input" data-pos="left" step="0.5" style="width:52px; padding:1px 3px;">
+            <span class="small text-secondary" title="FOV HORIZONTAL réel des caméras latérales (vari-focales AXIS F1015 : 52-97°). Un FOV réel plus grand que supposé SURESTIME les distances latérales. Le FOV vertical est dérivé de la table constructeur. Essayer 97 si les garés semblent trop loin.">FOV lat.</span>
+            <input type="number" id="camFovLatInput" class="form-control form-control-sm" min="52" max="97" step="1" style="width:52px; padding:1px 3px;">
+            <button type="button" id="camYawSaveBtn" class="btn btn-sm btn-outline-success"
+                    title="Enregistrer yaw + FOV caméras pour cette session">💾</button>
+        </span>
+        <span class="d-inline-flex align-items-center gap-1 ms-2"
+              title="Hauteur caméra (m) pour la projection sol→image du gabarit vidéo">
+            <span class="small text-secondary">H cam</span>
+            <input type="range" id="camHeightSlider" min="0.8" max="3.2" step="0.05" value="2.4" style="width:80px;">
+            <span class="small text-secondary" id="camHeightVal" style="min-width:34px;">2.4m</span>
+        </span>
+    </div>
+    <div class="d-flex flex-wrap gap-1 align-items-center mt-2">
+        <span class="small text-secondary fw-semibold"><i class="fas fa-ruler-combined me-1"></i>Sol</span>
+        <button type="button" id="calibToggleBtn" class="btn btn-sm btn-outline-info"
+                title="Calibrer le sol : cliquer les 4 coins d'un passage piéton">
+            <i class="fas fa-ruler-combined me-1"></i>Calibrer
+        </button>
+        <button type="button" id="sam3CalibBtn" class="btn btn-sm btn-outline-info"
+                title="Détecter le passage sur la frame courante et calibrer la vue de dessus">
+            <i class="fas fa-crosshairs me-1"></i>Calib. SAM3
+        </button>
+        <button type="button" id="sam3TestBtn" class="btn btn-sm btn-outline-light"
+                title="Tester SAM3 sur la frame courante (masks + scores)">
+            <i class="fas fa-flask"></i>
+        </button>
+    </div>
 </div>
 <div id="camAnalyzerMapWrap" class="position-relative">
     <div id="camAnalyzerMiniMap"
