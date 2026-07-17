@@ -103,17 +103,17 @@
             title="Yaw de montage réel de chaque caméra (deg, sens horaire depuis l'avant) — les caméras ne sont pas toutes exactement à 0/±90/180°. Appliqué au rendu immédiatement, au tracking 360°/prédiction au prochain calcul.">
         <i class="fas fa-compass me-1"></i>Yaw
     </button>
-    <span id="camYawInputs" class="d-none d-inline-flex align-items-center gap-1 ms-1">
+    <span id="camYawInputs" class="d-none d-inline-flex align-items-center flex-wrap gap-1 ms-1">
         <span class="small text-secondary">Av</span>
-        <input type="number" class="form-control form-control-sm cam-yaw-input" data-pos="front" step="0.5" style="width:70px; padding:1px 4px;">
+        <input type="number" class="form-control form-control-sm cam-yaw-input" data-pos="front" step="0.5" style="width:52px; padding:1px 3px;">
         <span class="small text-secondary">Dr</span>
-        <input type="number" class="form-control form-control-sm cam-yaw-input" data-pos="right" step="0.5" style="width:70px; padding:1px 4px;">
+        <input type="number" class="form-control form-control-sm cam-yaw-input" data-pos="right" step="0.5" style="width:52px; padding:1px 3px;">
         <span class="small text-secondary">Ar</span>
-        <input type="number" class="form-control form-control-sm cam-yaw-input" data-pos="rear" step="0.5" style="width:70px; padding:1px 4px;">
+        <input type="number" class="form-control form-control-sm cam-yaw-input" data-pos="rear" step="0.5" style="width:52px; padding:1px 3px;">
         <span class="small text-secondary">Ga</span>
-        <input type="number" class="form-control form-control-sm cam-yaw-input" data-pos="left" step="0.5" style="width:70px; padding:1px 4px;">
+        <input type="number" class="form-control form-control-sm cam-yaw-input" data-pos="left" step="0.5" style="width:52px; padding:1px 3px;">
         <span class="small text-secondary" title="FOV HORIZONTAL réel des caméras latérales (vari-focales AXIS F1015 : 52-97°). Le réglage terrain est incertain — un FOV réel plus grand que supposé SURESTIME les distances latérales. Le FOV vertical est dérivé de la table constructeur. Essayer 97 si les garés semblent trop loin.">FOV lat.</span>
-        <input type="number" id="camFovLatInput" class="form-control form-control-sm" min="52" max="97" step="1" style="width:70px; padding:1px 4px;">
+        <input type="number" id="camFovLatInput" class="form-control form-control-sm" min="52" max="97" step="1" style="width:52px; padding:1px 3px;">
         <button type="button" id="camYawSaveBtn" class="btn btn-sm btn-outline-success"
                 title="Enregistrer yaw + FOV caméras pour cette session">💾</button>
     </span>
