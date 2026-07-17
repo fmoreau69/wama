@@ -96,6 +96,63 @@ def pull_hf_model(hf_id: str, category: str, family: str | None = None,
         return {'ok': False, 'error': f"{type(e).__name__}: {e}"}
 
 
+# Suffixe de nom de poids → sous-dossier de tâche YOLO (AI-models/models/vision/yolo/<task>/).
+_YOLO_TASK_DIRS = {'-seg': 'segment', '-obb': 'obb', '-pose': 'pose', '-cls': 'classify'}
+
+
+def pull_yolo_weights(name: str, timeout: int = 600, dry_run: bool = False):
+    """
+    Télécharge des poids YOLO OFFICIELS (assets GitHub Ultralytics, URL stable
+    `releases/latest/download/<name>.pt`) DANS LE BON DOSSIER :
+    `AI-models/models/vision/yolo/<task>/<name>.pt` — le sous-dossier de tâche est déduit
+    du suffixe du nom (-seg/-obb/-pose/-cls, sinon detect), exactement l'arborescence que
+    `model_registry` découvre au sync. Ouvre l'installation VISION du model_manager
+    (l'endpoint prospect/install n'était qu'Ollama — phase 1).
+
+    `dry_run` : ne télécharge pas, retourne la cible (valide la logique de chemin).
+    Retourne {'ok': bool, 'path'|'target'|'error': …}. Idempotent : fichier déjà présent → ok.
+    """
+    import os
+    import re
+    import requests
+    from django.conf import settings
+
+    base = name[:-3] if name.endswith('.pt') else name
+    # Noms officiels uniquement (yolo11s-seg, yolo26x, yolov12n-seg…) — pas d'URL arbitraire.
+    if not re.fullmatch(r'yolo[a-z0-9._\-]+', base, re.IGNORECASE):
+        return {'ok': False, 'error': f"nom de poids YOLO invalide: {name!r}"}
+    task = next((d for suf, d in _YOLO_TASK_DIRS.items() if base.endswith(suf)), 'detect')
+    target_dir = os.path.join(str(settings.AI_MODELS_DIR), 'models', 'vision', 'yolo', task)
+    target = os.path.join(target_dir, f"{base}.pt")
+    if dry_run:
+        return {'ok': True, 'target': target, 'dry_run': True}
+    if os.path.exists(target):
+        return {'ok': True, 'path': target, 'already': True}
+
+    os.makedirs(target_dir, exist_ok=True)
+    url = f"https://github.com/ultralytics/assets/releases/latest/download/{base}.pt"
+    tmp = target + '.part'
+    try:
+        with requests.get(url, stream=True, timeout=timeout, allow_redirects=True) as r:
+            r.raise_for_status()
+            with open(tmp, 'wb') as fh:
+                for chunk in r.iter_content(chunk_size=1 << 20):
+                    fh.write(chunk)
+        # Garde-fou : une page d'erreur HTML ferait un .pt de quelques Ko.
+        if os.path.getsize(tmp) < 1_000_000:
+            os.remove(tmp)
+            return {'ok': False, 'error': f"téléchargement suspect (<1 Mo) — poids inexistant ? {url}"}
+        os.replace(tmp, target)
+        return {'ok': True, 'path': target, 'url': url}
+    except Exception as e:
+        try:
+            if os.path.exists(tmp):
+                os.remove(tmp)
+        except OSError:
+            pass
+        return {'ok': False, 'error': f"{type(e).__name__}: {e}"}
+
+
 def register_after_install():
     """
     Re-synchronise le catalogue `AIModel` pour que le modèle fraîchement installé apparaisse.

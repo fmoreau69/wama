@@ -1287,11 +1287,27 @@ def api_prospect_ollama(request):
 @user_passes_test(is_admin_or_dev)
 @require_POST
 def api_prospect_install(request):
-    """Installe un candidat proposé (ollama pull) puis le retire de la liste proposée."""
+    """Installe un candidat proposé (ollama pull) puis le retire de la liste proposée.
+    Accepte aussi une installation VISION directe sans candidat :
+    `{'source': 'yolo', 'name': 'yolo26s-seg'}` → poids officiels Ultralytics téléchargés
+    dans `AI-models/models/vision/yolo/<task>/` + sync du catalogue."""
     from .models import AIModel
-    from .services.model_installer import pull_ollama_model, register_after_install
+    from .services.model_installer import (pull_ollama_model, pull_yolo_weights,
+                                           register_after_install)
     try:
         data = json.loads(request.body or '{}')
+        # ── Install direct de poids YOLO (vision) — pas de candidat de prospection requis ──
+        if data.get('source') == 'yolo':
+            res = pull_yolo_weights(data.get('name') or '')
+            if not res.get('ok'):
+                return JsonResponse({'success': False, 'error': res.get('error', 'échec')}, status=500)
+            try:
+                register_after_install()
+            except Exception:
+                logger.warning("register_after_install a échoué (le sync périodique rattrapera)",
+                               exc_info=True)
+            return JsonResponse({'success': True, 'installed': data.get('name'),
+                                 'path': res.get('path')})
         model_id = data.get('model_id')
         cand = AIModel.objects.filter(model_key=model_id, is_proposed=True).first()
         if not cand:
