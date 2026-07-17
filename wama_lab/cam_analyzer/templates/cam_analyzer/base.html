@@ -24,10 +24,18 @@
 {% block right_panel_media_title %}<i class="fas fa-map-marked-alt me-1 text-info"></i> Carte & passages{% endblock %}
 
 {% block right_panel_media %}
-{# Barre d'outils — réorganisée par familles (2026-07-17) : VUE (quotidien, live) +
-   ANALYSE (calculs/outils) en barre ; la CALIBRATION complète (réglée 1× par session)
-   est regroupée dans un panneau repliable pour ne pas encombrer le quotidien. #}
+{% comment %}
+Barre d'outils — réorganisée par familles (2026-07-17), ordre CHRONOLOGIQUE du
+workflow : 1. CALIBRATION (réglée 1× par session, panneau repliable pour ne pas
+encombrer le quotidien) → 2. VUE (bascules d'affichage quotidiennes, live) →
+3. ANALYSE (calculs/outils). ⚠ JAMAIS de {# #} multi-ligne (affiché en texte brut).
+{% endcomment %}
 <div class="d-flex flex-wrap gap-1 mb-1 align-items-center" id="camAnalyzerMapToolbar">
+    <button type="button" id="calibPanelBtn" class="btn btn-sm btn-outline-info"
+            title="Étape 1 — Calibration de la session (réglée une fois) : synchro GPS↔vidéo, orientation/FOV des caméras, hauteur caméra, calibration sol (homographie/SAM3).">
+        <i class="fas fa-compass me-1"></i>Calibration <i class="fas fa-caret-down ms-1"></i>
+    </button>
+    <div class="vr mx-1"></div>
     <span class="small text-secondary fw-semibold">Vue</span>
     <button type="button" id="topDown360Btn" class="btn btn-sm btn-outline-warning"
             title="Fusion multi-caméra : affiche les objets de TOUTES les caméras dans le repère véhicule (vue 360°). Basculable à tout moment.">
@@ -70,11 +78,6 @@
     <button type="button" id="copyDebugBtn" class="btn btn-sm btn-outline-secondary"
             title="Copier les infos de synchro de cet instant (temps vidéo, GPS, détections) pour debug">
         <i class="fas fa-clipboard"></i>
-    </button>
-    <div class="vr mx-1"></div>
-    <button type="button" id="calibPanelBtn" class="btn btn-sm btn-outline-info"
-            title="Calibration de la session (réglée une fois) : synchro GPS↔vidéo, orientation/FOV des caméras, hauteur caméra, calibration sol (homographie/SAM3).">
-        <i class="fas fa-compass me-1"></i>Calibration <i class="fas fa-caret-down ms-1"></i>
     </button>
 </div>
 {# ── Panneau CALIBRATION (replié par défaut) — tout ce qui définit la géométrie ── #}
