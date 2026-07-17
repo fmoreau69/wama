@@ -81,6 +81,8 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
     tracks = []        # {id, e, n, ve, vn, last_t}
     track_hist = defaultdict(list)   # gid -> [(fn, t, world_e, world_n, class)]
     cls_votes = defaultdict(lambda: defaultdict(float))   # gid -> {classe: Σ confiance}
+    chain = {}    # (pos, track_id) -> {'gid', 't'} : verrou de chaîne par caméra
+    by_gid = {}   # gid -> track : accès direct pour le verrou de chaîne
     next_id = 1
     dirty = set()
 
@@ -104,12 +106,30 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
                 _g = _geo[pos]
                 ego = pinhole_ego(d, iw, ih, fov_v_deg,
                                   fov_h_deg=_g['fov_h'], dist_scale=_g['dist_scale'])
+                relaxed = False
                 if ego is None:
-                    continue
+                    # Mesure DÉGRADÉE (bbox coupée au bord) : autorisée UNIQUEMENT pour
+                    # PROLONGER une chaîne déjà appariée — jamais pour créer un track.
+                    # Cas dépassement (audit 2026-07-17, G432) : le véhicule qui longe la
+                    # navette est coupé au bord sur ~100 % des frames de la caméra
+                    # latérale → il disparaissait du tracker pendant toute la phase de
+                    # dépassement et ressortait avec un nouveau gid. Le latéral est
+                    # biaisé (centre bbox tronqué) mais borné — suffisant pour maintenir
+                    # la continuité.
+                    tid = d.get('track_id')
+                    dm = d.get('distance_m')
+                    bb = d.get('bbox')
+                    if (tid is None or dm is None
+                            or not (isinstance(bb, (list, tuple)) and len(bb) >= 4)):
+                        continue
+                    dm = dm * _g['dist_scale']
+                    fx = iw / (2.0 * math.tan(math.radians(_g['fov_h']) / 2.0))
+                    ego = (dm * ((bb[0] + bb[2]) / 2.0 - iw / 2.0) / fx, dm)
+                    relaxed = True
                 xv, yv = _cam_to_vehicle(ego[0], ego[1], _g['yaw'])
                 xv, yv = xv + _g['mount'][0], yv + _g['mount'][1]
                 e, n = ego_to_world(se, sn, sh, xv, yv)
-                dets_here.append((f, d, e, n))
+                dets_here.append((f, d, e, n, pos, relaxed))
 
         # Association plus-proche-voisin (gating + prédiction). On autorise plusieurs
         # détections → même track (fusion des doublons vus par 2 caméras).
@@ -118,20 +138,38 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
         # le gate fixe + gap 1 s cassait la continuité (perte du G entre avant et
         # latérale, constat #537/G313). On tolère un trou plus long, avec une exigence
         # de proximité qui se relâche avec l'incertitude (~1,5 m/s de dérive).
-        for f, d, e, n in dets_here:
-            best, best_ratio = None, 1.0
-            for tr in tracks:
-                dt = t - tr['last_t']
-                if dt < 0 or dt > max_gap_s:
-                    continue
-                pe = tr['e'] + tr['ve'] * dt
-                pn = tr['n'] + tr['vn'] * dt
-                ratio = math.hypot(e - pe, n - pn) / (gate_m + 1.5 * dt)
-                if ratio < best_ratio:
-                    best, best_ratio = tr, ratio
+        for f, d, e, n, pos, relaxed in dets_here:
+            _tid = d.get('track_id')
+            ck = (pos, _tid) if _tid is not None else None
+            best = None
+            # ── VERROU DE CHAÎNE ── : un track YOLO par caméra est une chaîne
+            # temporellement cohérente — une fois appariée à un gid, elle le GARDE.
+            # L'association frame par frame faisait churner le gid sur un même track
+            # (track avant #166 = 6 gids différents, audit dépassement 2026-07-17).
+            # Le plus-proche-voisin ne sert plus qu'à apparier les chaînes NOUVELLES.
+            if ck and ck in chain and (t - chain[ck]['t']) <= 4.0:
+                best = by_gid.get(chain[ck]['gid'])
+            if best is None:
+                # NN — STRICT pour les mesures dégradées (ratio < 0.7, jamais de
+                # création) : c'est le pont physique du dépassement — le véhicule qui
+                # longe la navette est vu par la caméra latérale mais 100 % coupé au
+                # bord ; il peut REJOINDRE un track existant, pas en fonder un.
+                best_ratio = 0.7 if relaxed else 1.0
+                for tr in tracks:
+                    dt = t - tr['last_t']
+                    if dt < 0 or dt > max_gap_s:
+                        continue
+                    pe = tr['e'] + tr['ve'] * dt
+                    pn = tr['n'] + tr['vn'] * dt
+                    ratio = math.hypot(e - pe, n - pn) / (gate_m + 1.5 * dt)
+                    if ratio < best_ratio:
+                        best, best_ratio = tr, ratio
+                if best is None and relaxed:
+                    continue   # dégradée sans correspondance → ignorée
             if best is None:
                 best = {'id': next_id, 'e': e, 'n': n, 've': 0.0, 'vn': 0.0, 'last_t': t}
                 tracks.append(best)
+                by_gid[next_id] = best
                 next_id += 1
             else:
                 dt = t - best['last_t']
@@ -150,12 +188,100 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
                     best['vn'] = 0.7 * best['vn'] + 0.3 * rvn
                     best['e'], best['n'], best['last_t'] = e, n, t
             d['global_track_id'] = best['id']
+            if ck:
+                chain[ck] = {'gid': best['id'], 't': t}   # verrou de chaîne (voir plus haut)
             track_hist[best['id']].append((fn, t, e, n, d.get('class_name', 'car')))
             # Vote de classe pondéré par la confiance : YOLO fait flapper car↔truck
             # d'une frame à l'autre sur le même véhicule → la classe STABLE d'un track
             # est la majorité pondérée sur toute sa durée (écrite en 2e passe).
             cls_votes[best['id']][d.get('class_name', 'car')] += float(d.get('confidence') or 0.5)
             dirty.add(f)
+
+    # ── RECOLLEMENT DE TRACKLETS (stitching) ─────────────────────────────────────
+    # Cas dépassement (audit 2026-07-17, G432) : le véhicule qui double traverse la
+    # zone AVEUGLE arrière↔latérale (aucun recouvrement caméras) et ses détections
+    # latérales sont coupées au bord → le tracklet arrière et le tracklet avant
+    # restaient deux gids distincts. On recolle les tracklets dont la CINÉMATIQUE
+    # s'aligne : B commence peu après la fin de A, à la position PRÉDITE par la
+    # vitesse de fin de A (gate croissant avec le trou, comme l'association).
+    # Grâce au verrou de chaîne, les tracklets sont propres → le recollement par
+    # extrémités est fiable. Les tracks lents (< 1 m/s) ne pontent que 2 s max
+    # (deux garés voisins ne doivent JAMAIS fusionner).
+    stitch_gap_s = 6.0
+    alias = {}
+
+    def _root(g):
+        while g in alias:
+            g = alias[g]
+        return g
+
+    # État de FIN robuste par tracklet : ajustement linéaire (t → e, n) sur la queue
+    # SAINE de l'historique — fenêtre 2,5 s finissant 0,5 s AVANT la vraie fin. Les
+    # toutes dernières mesures d'un track qui sort du champ (bbox tronquée, portée
+    # < 3 m) sont les plus corrompues : prédire depuis le dernier état brut faisait
+    # systématiquement rater le pont du dépassement (constat G252→G256, données 4da52).
+    _endfit = {}
+    for gid, hist in track_hist.items():
+        hs = sorted(hist, key=lambda h: h[1])
+        te = hs[-1][1]
+        win = [h for h in hs if te - 2.5 <= h[1] <= te - 0.5] or hs[-4:]
+        tr = by_gid.get(gid)
+        if len(win) >= 3:
+            tm = sum(h[1] for h in win) / len(win)
+            em = sum(h[2] for h in win) / len(win)
+            nm = sum(h[3] for h in win) / len(win)
+            den = sum((h[1] - tm) ** 2 for h in win)
+            if den > 1e-6:
+                ve = sum((h[1] - tm) * (h[2] - em) for h in win) / den
+                vn = sum((h[1] - tm) * (h[3] - nm) for h in win) / den
+                _endfit[gid] = (te, win[-1][1], win[-1][2], win[-1][3], ve, vn)
+                continue
+        if tr is not None:
+            _endfit[gid] = (te, tr['last_t'], tr['e'], tr['n'], tr['ve'], tr['vn'])
+
+    _starts = []
+    for gid, hist in track_hist.items():
+        hs = min(hist, key=lambda h: h[1])
+        _starts.append((gid, hs[1], hs[2], hs[3]))
+    _starts.sort(key=lambda s: s[1])
+    for gid, t0, e0, n0 in _starts:
+        best_g, best_ratio = None, 1.0
+        for og, fit in _endfit.items():
+            if _root(og) == _root(gid):
+                continue
+            te, tw, ew, nw, ve, vn = fit
+            gap = t0 - te
+            if gap <= 0 or gap > stitch_gap_s:
+                continue
+            sp = math.hypot(ve, vn)
+            if sp < 1.0 and gap > 2.0:
+                continue
+            dtp = t0 - tw                     # horizon de prédiction depuis le point sain
+            pe = ew + ve * dtp
+            pn = nw + vn * dtp
+            ratio = math.hypot(e0 - pe, n0 - pn) / (gate_m + 1.5 * gap)
+            if ratio < best_ratio:
+                best_g, best_ratio = og, ratio
+        if best_g is not None:
+            alias[_root(gid)] = _root(best_g)
+
+    if alias:
+        # Remap gid → racine PARTOUT : historiques, votes de classe, détections annotées
+        # (les fantômes/stationnés/classe stable calculés ensuite héritent de la fusion).
+        _mh = defaultdict(list)
+        for gid, h in track_hist.items():
+            _mh[_root(gid)].extend(h)
+        track_hist = _mh
+        _mv = defaultdict(lambda: defaultdict(float))
+        for gid, votes in cls_votes.items():
+            for c, w in votes.items():
+                _mv[_root(gid)][c] += w
+        cls_votes = _mv
+        for f in dirty:
+            for d in (f.detections or []):
+                g = d.get('global_track_id')
+                if g is not None and _root(g) != g:
+                    d['global_track_id'] = _root(g)
 
     # ── Comblement des trous de détection au hand-off (empreintes prédites) ──────
     # Pour chaque track, on interpole en repère MONDE entre avant/après le trou, puis on
