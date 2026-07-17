@@ -1507,3 +1507,16 @@ Fix : `api()` lit le vrai token (input `csrfmiddlewaretoken` sinon cookie `csrft
 `credentials:'same-origin'`, et détecte les réponses non-JSON pour un message CLAIR
 (403 → « Session expirée ou accès refusé »). Vérifié serveur (Client CSRF strict) :
 token présent au HTML + cookie posé, POST avec token → 200 (pipeline créé/nettoyé).
+
+### 37.15 Studio : animation de flux sur les câbles pendant l'exécution (2026-07-17)
+Demande Fabien : montrer la donnée qui transite entre 2 cards pendant un run.
+- Un point cyan lumineux circule le long d'un câble tant que son nœud CIBLE est RUNNING
+  (= la donnée entre dans la card en cours de traitement) ; le câble s'illumine aussi.
+- Pur SVG, dans l'esprit vanilla du studio : `<circle><animateMotion><mpath href="#linkpath-<id>"/>`
+  → le point SUIT le tracé du câble (et le suit même si le nœud est déplacé, car mpath
+  référence la path vivante). Aucune dépendance.
+- Piloté par les ÉTATS RÉELS du run (pollRun/node_states) via updateFlows ; coupé en fin de
+  run et par clearRunStates. Chaque path de lien porte désormais un id (`linkpath-<id>`).
+- Validé : esprima + harnais V8 (init 0 erreur) + test unitaire isolé de setLinkFlowing
+  (structure circle>animateMotion>mpath[href] correcte, ON/OFF). Harnais pérenne complété
+  (style.setProperty, document.cookie/querySelector/createElementNS, fetch headers).

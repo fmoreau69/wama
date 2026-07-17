@@ -19,7 +19,7 @@ var __errors = [];
 var __logs = [];
 function El(id) {
     this.id = id || '';
-    this.style = {}; this.dataset = {}; this.classList = {
+    this.style = { setProperty: function(){}, removeProperty: function(){} }; this.dataset = {}; this.classList = {
         add: function(){}, remove: function(){}, toggle: function(){}, contains: function(){ return false; }
     };
     this.children = []; this.innerHTML = ''; this.textContent = ''; this.value = '';
@@ -38,6 +38,7 @@ El.prototype.click = function(){};
 var __ids = {};
 var document = {
     readyState: 'loading',
+    cookie: '',
     createElement: function(t){ return new El(''); },
     createElementNS: function(ns, t){ return new El(''); },
     getElementById: function(id){
@@ -45,7 +46,9 @@ var document = {
         return __ids[id];
     },
     addEventListener: function(ev, fn){ if (ev === 'DOMContentLoaded') __domready = fn; },
-    querySelectorAll: function(){ return { forEach: function(){} }; }
+    querySelector: function(){ return new El(''); },
+    querySelectorAll: function(){ return { forEach: function(){} }; },
+    createElementNS: function(ns, tag){ var e = new El(''); e.__tag = tag; return e; }
 };
 var __domready = null;
 var window = this;
@@ -54,6 +57,11 @@ window.MEDIA_URL = '/media/';
 var console = { log: function(m){ __logs.push('log:'+m); },
                 warn: function(m){ __logs.push('warn:'+m); },
                 error: function(m, e){ __errors.push('console.error:'+m+' :: '+(e && e.message ? e.message : e)); } };
+var __resp = function(payload){ var t={ok:true,status:200,headers:{get:function(){return 'application/json';}},
+    json:function(){return t;},then:function(fn){var r=fn(payload||{});return (r&&r.then)?r:t;},catch:function(){return t;}};
+    return {ok:true,status:200,headers:{get:function(){return 'application/json';}},
+      then:function(fn){var r=fn({ok:true,status:200,headers:{get:function(){return 'application/json';}},json:function(){return payload||{};}});return (r&&r.then)?r:t;},
+      catch:function(){return t;}}; };
 var fetch = function(url){ __logs.push('fetch:'+url);
     return { then: function(){ return this; }, catch: function(){ return this; } }; };
 var WamaApp = { toast: function(){}, csrfHeaders: function(){ return {}; } };

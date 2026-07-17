@@ -215,8 +215,9 @@
     function createLink(outDot, inDot) {
         var path = svgEl('path');
         path.setAttribute('class', 'studio-link');
-        svg.appendChild(path);
         var link = { id: 'l' + (++seq), from: { dot: outDot }, to: { dot: inDot }, path: path };
+        path.setAttribute('id', 'linkpath-' + link.id);   // référencé par <mpath> (animation de flux)
+        svg.appendChild(path);
         path.addEventListener('click', function () { removeLink(link.id); });
         links.push(link);
         updateLinks();
@@ -233,6 +234,7 @@
     function removeLink(id) {
         links = links.filter(function (l) {
             if (l.id !== id) return true;
+            setLinkFlowing(l, false);
             if (l.path.parentNode) l.path.parentNode.removeChild(l.path);
             return false;
         });
@@ -544,6 +546,47 @@
     // ── Exécution (StudioRun) : POST puis polling + coloration des nœuds ──
     var runPoll = null;
 
+    // ── Animation de FLUX sur les câbles (2026-07-17) : un point circule le long d'un
+    //    câble tant que le nœud CIBLE est en cours (RUNNING) — la donnée qui entre dans
+    //    la card en traitement. Pur SVG (<animateMotion>+<mpath>), aucune dépendance.
+    function setLinkFlowing(link, on) {
+        if (on) {
+            link.path.classList.add('flowing');
+            if (link.flowDot) return;
+            var dot = svgEl('circle');
+            dot.setAttribute('class', 'studio-flow-dot');
+            dot.setAttribute('r', '5');
+            var motion = svgEl('animateMotion');
+            motion.setAttribute('dur', '1.1s');
+            motion.setAttribute('repeatCount', 'indefinite');
+            motion.setAttribute('rotate', 'auto');
+            var mpath = svgEl('mpath');
+            var ref = '#' + link.path.getAttribute('id');
+            mpath.setAttribute('href', ref);   // SVG2
+            mpath.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', ref);  // compat
+            motion.appendChild(mpath);
+            dot.appendChild(motion);
+            svg.appendChild(dot);
+            link.flowDot = dot;
+        } else {
+            link.path.classList.remove('flowing');
+            if (link.flowDot && link.flowDot.parentNode) link.flowDot.parentNode.removeChild(link.flowDot);
+            link.flowDot = null;
+        }
+    }
+    function clearAllFlows() {
+        links.forEach(function (l) { setLinkFlowing(l, false); });
+    }
+    // Un câble est ACTIF quand son nœud cible est RUNNING (la donnée y transite).
+    function updateFlows(nodeStates) {
+        nodeStates = nodeStates || {};
+        links.forEach(function (l) {
+            var target = nodeOf(l.to.dot);
+            var st = nodeStates[target] && nodeStates[target].status;
+            setLinkFlowing(l, st === 'RUNNING');
+        });
+    }
+
     function setNodeRunState(nodeId, status) {
         var n = nodes.filter(function (x) { return x.id === nodeId; })[0];
         if (!n || !n.el) return;
@@ -556,6 +599,7 @@
         nodes.forEach(function (n) {
             if (n.el) n.el.classList.remove('run-running', 'run-success', 'run-failure');
         });
+        clearAllFlows();
     }
     function setRunStatus(text, cls) {
         var s = document.getElementById('studioRunStatus');
@@ -583,8 +627,10 @@
             Object.keys(d.node_states || {}).forEach(function (nid) {
                 setNodeRunState(nid, d.node_states[nid].status);
             });
+            updateFlows(d.node_states);
             if (d.status === 'SUCCESS' || d.status === 'FAILURE') {
                 clearInterval(runPoll); runPoll = null;
+                clearAllFlows();
                 if (btn) btn.disabled = false;
                 if (d.status === 'SUCCESS') {
                     setRunStatus('Terminé ✔ (' + (d.processing_display || '') + ')', 'text-success');
