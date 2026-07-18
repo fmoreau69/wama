@@ -187,6 +187,34 @@ tracking 360° — les refonder sur les trajectoires monde par `global_track_id`
 (un dépassement = un track qui passe de derrière à devant le long du flanc,
 exactement la signature validée sur G242) au lieu des heuristiques par caméra.
 
+### Chantier : analyse incrémentale par complétion (design 2026-07-18, non implémenté)
+
+Problème : le rapport intersections restreint l'analyse aux fenêtres (~zones de 60 m),
+le rapport dépassements exige le parcours complet → une session analysée « restreinte »
+ne peut pas produire un rapport dépassements sans tout ré-analyser.
+
+Design retenu (validé sur le principe avec Fabien) :
+
+1. **Le scope d'analyse = union des besoins des rapports demandés.** Chaque type de
+   rapport DÉCLARE son scope requis (dépassements : parcours complet ; intersections :
+   fenêtres ∪ rayon ; ronds-points futurs : leurs zones). Le rayon d'un rapport ne
+   gouverne que sa FENÊTRE de sortie — pas ce qui a été analysé.
+2. **Registre de couverture** : intervalles `[t0, t1]` réellement analysés par caméra
+   (`session.config['analyzed_ranges']`), tenu par l'analyse. La présence de
+   `DetectionFrame` en base est la vérité de secours.
+3. **Complétion** : scope demandé − couverture = intervalles manquants → l'analyse ne
+   traite QUE ces tranches (l'itérateur fenêtré `_use_window_iter` sait déjà itérer des
+   plages de frames ; timecodes = frame/fps, inchangés).
+4. **Coutures** : les `track_id` ByteTrack ne se recollent pas entre tranches — c'est le
+   TRACKER 360° qui répare (verrou de chaîne + stitching en repère monde, déjà validé
+   sur des trous > 2 s). Après complétion : relancer « Indicateurs » (obligatoire).
+5. **Vidéo annotée** : PAS de patch incrémental (coût ≫ gain) — l'overlay live du player
+   est dessiné depuis les DetectionFrames et couvre automatiquement les tranches
+   complétées ; la vidéo annotée exportée reste un artefact à régénérer à la demande.
+6. **Recommandation d'usage** : analyser le parcours COMPLET par défaut (une seule fois,
+   tous les rapports deviennent des passes légères gratuites) ; la restriction reste une
+   optimisation d'aperçu rapide, la complétion rattrape ensuite.
+
 ## Calibration par session (`AnalysisSession.config`)
 
 | Clé | Écrite par | Consommée par |
