@@ -745,9 +745,12 @@ def process_session_task(self, session_id: str, force_rerun: bool = False,
         from .utils.pass_tracking import (
             mark_started, mark_completed, mark_failed,
         )
+        # Capacité DÉCLARÉE du profil (modèle route présent), PAS le type de rapport :
+        # les calculs sont génériques, seule la SORTIE du rapport diffère (doctrine
+        # 2026-07-18). Le rapport dépassements a besoin des voies (attribution de voie)
+        # autant que celui des intersections.
         _has_yolopv2 = (
-            profile.report_type == 'intersection_insertion'
-            and profile.road_model_path
+            profile.road_model_path
             and 'yolopv2' in os.path.basename(profile.road_model_path).lower()
         )
         # SAM3 markings run as a SEPARATE chained Celery task at the end of
@@ -913,8 +916,9 @@ def process_session_task(self, session_id: str, force_rerun: bool = False,
             _yolopv2_here = (position == 'front') or getattr(profile, 'yolopv2_all_views', False)
             if not _yolopv2_here:
                 pass  # yolopv2 désactivé sur cette vue (front-only)
-            elif profile.report_type != 'intersection_insertion':
-                _console(user_id, "  road_segmenter ignoré (report_type != intersection_insertion)")
+            # Doctrine 2026-07-18 : la segmentation route est un calcul GÉNÉRIQUE gouverné
+            # par la capacité du profil (road_model_path), pas par le type de rapport —
+            # le rapport dépassements a autant besoin des voies que les intersections.
             elif not _road_path_raw:
                 _console(user_id, "  road_segmenter ignoré (road_model_path vide dans le profil)")
             else:

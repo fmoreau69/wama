@@ -26,7 +26,11 @@ def recompute_intersection_windows(session, profile=None) -> list[dict]:
     """
     profile = profile or session.profile
 
-    if not profile or profile.report_type != 'intersection_insertion':
+    # Doctrine 2026-07-18 : les fenêtres sont un outil de gating spatial GÉNÉRIQUE —
+    # gouverné par la présence d'INTERSECTIONS déclarées dans le profil, pas par le
+    # type de rapport (un profil dépassements qui déclare des intersections les a ;
+    # sans intersections, aucune fenêtre — comportement inchangé).
+    if not profile:
         if session.intersection_windows:
             session.intersection_windows = []
             session.save(update_fields=['intersection_windows'])

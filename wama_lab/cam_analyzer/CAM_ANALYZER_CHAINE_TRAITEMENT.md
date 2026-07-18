@@ -166,6 +166,27 @@ voie navette (TTC/PET/distance min/vitesses) → tables et timeline de l'UI.
 
 ---
 
+## Doctrine : calculs GÉNÉRIQUES, seule la SORTIE du rapport diffère (2026-07-18)
+
+Toute la chaîne [1..9] est **identique pour tous les types de rapport** (intersections,
+dépassements, …). Les capacités sont gouvernées par ce que le profil DÉCLARE, jamais
+par `report_type` :
+
+| Étape | Gouvernée par |
+|---|---|
+| YOLOPv2 (voies/zone roulable) | `profile.road_model_path` présent |
+| Fenêtres spatiales | `profile.intersections` non vide |
+| Distance/vitesse/TTC, tracking 360°, ancres, fantômes, prédiction | toujours (aucune condition) |
+
+Seule l'étape [10] (segments temporels typés, événements de conflit, rendu du rapport)
+branche sur `report_type` — c'est la couche de SORTIE. Interdit d'ajouter un
+`if report_type` en amont de [10].
+
+**Chantier noté** : les détecteurs de segments « dépassement » datent d'avant le
+tracking 360° — les refonder sur les trajectoires monde par `global_track_id`
+(un dépassement = un track qui passe de derrière à devant le long du flanc,
+exactement la signature validée sur G242) au lieu des heuristiques par caméra.
+
 ## Calibration par session (`AnalysisSession.config`)
 
 | Clé | Écrite par | Consommée par |
