@@ -59,6 +59,7 @@ document.addEventListener('DOMContentLoaded', function () {
     let hideParked = false;            // masquer les véhicules stationnés/garés (toggle)
     let stationaryGids = new Set();    // global_track_id des véhicules stationnés (du serveur)
     let stationaryAnchors = {};        // gid -> [lat, lon] : position MONDE ancrée (médiane du track)
+    let sessionAnalyzedRanges = {};    // position -> [[t0, t1], ...] : registre de couverture d'analyse
     // Orientation de montage de chaque caméra (deg, sens horaire depuis l'avant véhicule).
     // Rig 360° ~90° ; ajustable ensuite (les caméras ne sont pas exactement à 90°).
     const CAMERA_YAW = { front: 0, right: 75, rear: 180, left: -75 };   // défauts rig ENA (±75° latérales)
@@ -464,7 +465,8 @@ document.addEventListener('DOMContentLoaded', function () {
             try {
                 stationaryGids = new Set((data.results_summary && data.results_summary.stationary_global_tracks) || []);
                 stationaryAnchors = (data.results_summary && data.results_summary.stationary_anchors) || {};
-            } catch (e) { stationaryGids = new Set(); stationaryAnchors = {}; }
+                sessionAnalyzedRanges = (data.config && data.config.analyzed_ranges) || {};
+            } catch (e) { stationaryGids = new Set(); stationaryAnchors = {}; sessionAnalyzedRanges = {}; }
             // Largeur de voie : override manuel (par session) > auto-estimée > défaut 3,5m.
             let _lwManual = null;
             try { _lwManual = localStorage.getItem('cam_analyzer_lane_width_' + sessionId); } catch (e) { /* noop */ }
@@ -863,7 +865,54 @@ document.addEventListener('DOMContentLoaded', function () {
                             title="Charge les détections actuellement en DB (utile pendant une analyse en cours ou après annulation)">
                         <i class="fas fa-eye me-1"></i>Afficher détections actuelles
                     </button>
+                </div>
+                <div class="small text-secondary mt-2" id="rpCoverageLine"></div>
+                <div class="d-grid gap-1 mt-1">
+                    <button type="button" class="btn btn-sm btn-outline-success" id="rpCompleteFullBtn"
+                            title="Analyse UNIQUEMENT les tranches du parcours jamais analysées (registre de couverture). Ne ré-analyse rien d'existant, pas de vidéo annotée. Relancer « Calculer les indicateurs » ensuite pour souder les tranches.">
+                        <i class="fas fa-puzzle-piece me-1"></i>Compléter l'analyse (parcours complet)
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-success" id="rpCompleteWinBtn"
+                            title="Complète uniquement les tranches manquantes DANS les fenêtres d'intersection (utile après correction des fenêtres).">
+                        <i class="fas fa-puzzle-piece me-1"></i>Compléter (fenêtres intersections)
+                    </button>
                 </div>`;
+            // ── Ligne de couverture (registre analyzed_ranges, % vs durée vidéo) ─────
+            try {
+                const _covEl = document.getElementById('rpCoverageLine');
+                const _dur = (typeof maxDuration === 'number' && maxDuration > 0) ? maxDuration : 0;
+                if (_covEl && _dur) {
+                    const parts = Object.entries(sessionAnalyzedRanges).map(([pos, rs]) => {
+                        const sec = (rs || []).reduce((s, r) => s + Math.max(0, r[1] - r[0]), 0);
+                        return `${pos[0].toUpperCase()}${Math.min(100, Math.round(sec / _dur * 100))}%`;
+                    });
+                    _covEl.textContent = parts.length
+                        ? 'Couverture d\'analyse : ' + parts.join(' · ')
+                        : 'Couverture d\'analyse : inconnue (session antérieure au registre)';
+                }
+            } catch (e) { /* affichage optionnel */ }
+            const _completeAnalysis = async (scope, label) => {
+                if (!currentSessionId) return;
+                if (!confirm(`Compléter l'analyse (${label}) ? Seules les tranches jamais analysées seront traitées.`)) return;
+                try {
+                    const r = await fetch(`${config.urls.deleteSession}${currentSessionId}/complete-analysis/`, {
+                        method: 'POST',
+                        headers: { 'X-CSRFToken': config.csrfToken, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ scope }),
+                    });
+                    const d = await r.json();
+                    if (!d.success) { alert('Erreur : ' + (d.error || '?')); return; }
+                    setAnalysisUI(true);
+                    startStatusPolling(currentSessionId);
+                } catch (e) {
+                    console.error('completeAnalysis:', e);
+                    alert('Erreur réseau');
+                }
+            };
+            document.getElementById('rpCompleteFullBtn')?.addEventListener('click',
+                () => _completeAnalysis('full', 'parcours complet'));
+            document.getElementById('rpCompleteWinBtn')?.addEventListener('click',
+                () => _completeAnalysis('windows', 'fenêtres intersections'));
             document.getElementById('rpRunMissingBtn')?.addEventListener('click', () => runPasses([], false));
             document.getElementById('rpRunAllBtn')?.addEventListener('click', () => {
                 if (confirm('Relancer toutes les passes en force ? Cela écrase les résultats existants.')) {

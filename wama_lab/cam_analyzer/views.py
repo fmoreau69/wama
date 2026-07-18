@@ -998,6 +998,36 @@ def run_passes(request, session_id):
 
 @login_required
 @require_http_methods(["POST"])
+def complete_analysis(request, session_id):
+    """Complétion d'analyse (étape 2 analyse incrémentale) : analyse UNIQUEMENT les
+    tranches du scope demandé absentes du registre de couverture. Body :
+    {"scope": "full" | "windows"}. Ne wipe rien ; les coutures se réparent au prochain
+    « Calculer les indicateurs » (tracking 360°)."""
+    session = get_object_or_404(AnalysisSession, id=session_id, user=request.user)
+    if not session.profile:
+        return JsonResponse({'success': False, 'error': 'Aucun profil assigné'}, status=400)
+    try:
+        scope = (json.loads(request.body or '{}').get('scope') or 'full')
+    except ValueError:
+        scope = 'full'
+    if scope not in ('full', 'windows'):
+        return JsonResponse({'success': False, 'error': f'scope invalide: {scope}'}, status=400)
+    if scope == 'windows' and not session.intersection_windows:
+        return JsonResponse({'success': False,
+                             'error': 'Aucune fenêtre d\'intersection sur cette session'}, status=400)
+    from .tasks import process_session_task
+    cache.delete(f"stop_cam_analyzer_{request.user.id}")
+    session.status = AnalysisSession.Status.PENDING
+    session.progress = 0
+    session.save(update_fields=['status', 'progress'])
+    task = process_session_task.delay(str(session.id), force_rerun=False,
+                                      chain_sam3=False, completion_scope=scope)
+    cache.set(f"cam_analyzer_task_{session.id}", task.id, timeout=86400)
+    return JsonResponse({'success': True, 'scope': scope, 'task_id': task.id})
+
+
+@login_required
+@require_http_methods(["POST"])
 def recompute_windows(request, session_id):
     """
     Pass A — recompute session.intersection_windows from the current profile

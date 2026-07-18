@@ -668,10 +668,17 @@ def detect_temporal_segments(session):
 
 @shared_task(bind=True)
 def process_session_task(self, session_id: str, force_rerun: bool = False,
-                         chain_sam3: bool = True, positions: list = None):
+                         chain_sam3: bool = True, positions: list = None,
+                         completion_scope: str = None):
     """
     Process a cam analyzer session:
     - Load YOLO model from profile
+
+    `completion_scope` ('full' | 'windows') : mode COMPLÉTION (étape 2 analyse
+    incrémentale) — n'analyse QUE les tranches du scope demandé absentes du registre
+    de couverture (`utils/coverage.py`). Ne wipe jamais, ne skip pas les caméras déjà
+    partiellement analysées, ne génère pas de vidéo annotée. Les coutures entre
+    tranches sont réparées ensuite par le tracking 360° (« Calculer les indicateurs »).
     - Run tracking on each camera's video
     - Store DetectionFrame records
     - Generate annotated output videos
@@ -881,7 +888,9 @@ def process_session_task(self, session_id: str, force_rerun: bool = False,
             # skip it (preserves partial analyses across cancel/restart cycles).
             # force_rerun=True wipes existing data and re-computes.
             _prev_count = DetectionFrame.objects.filter(camera=camera).count()
-            if _prev_count and not force_rerun:
+            # En COMPLÉTION, une caméra déjà (partiellement) analysée n'est ni skippée
+            # ni wipée : on ne traite que les tranches manquantes (voir plus bas).
+            if _prev_count and not force_rerun and not completion_scope:
                 _console(user_id,
                          f"  Caméra {position} déjà analysée ({_prev_count} DetectionFrames). "
                          f"Skip — utiliser 'Tout relancer' pour forcer une nouvelle passe.")
@@ -972,17 +981,24 @@ def process_session_task(self, session_id: str, force_rerun: bool = False,
             output_filename = f"{session_name}_{position}_annotated.avi"
             output_path = os.path.join(output_dir, output_filename)
 
-            vid_writer = cv2.VideoWriter(
-                output_path,
-                cv2.VideoWriter_fourcc(*'MJPG'),
-                fps,
-                (width, height),
-                True
-            )
-
-            if not vid_writer.isOpened():
-                _console(user_id, f"  AVERTISSEMENT: Impossible de créer la vidéo annotée")
+            if completion_scope:
+                # Complétion : PAS de vidéo annotée incrémentale (design §complétion :
+                # patcher un .avi existant coûte plus qu'il ne rapporte — l'overlay live
+                # du player couvre les tranches complétées ; l'export se régénère à la
+                # demande par une ré-analyse complète).
                 vid_writer = None
+            else:
+                vid_writer = cv2.VideoWriter(
+                    output_path,
+                    cv2.VideoWriter_fourcc(*'MJPG'),
+                    fps,
+                    (width, height),
+                    True
+                )
+
+                if not vid_writer.isOpened():
+                    _console(user_id, f"  AVERTISSEMENT: Impossible de créer la vidéo annotée")
+                    vid_writer = None
 
             # =================================================================
             # Run YOLO tracking
@@ -1061,6 +1077,39 @@ def process_session_task(self, session_id: str, force_rerun: bool = False,
                 _total_processing_frames = total_frames
                 _console(user_id,
                          f"  Tracking YOLO démarré — mode complet ({total_frames} frames)")
+
+            # ── Mode COMPLÉTION : n'analyser QUE les tranches manquantes du scope ────
+            # (étape 2 analyse incrémentale). Écrase le choix fenêtré/complet ci-dessus :
+            # scope demandé − registre de couverture = plages à traiter, converties en
+            # plages de frames pour l'itérateur fenêtré existant.
+            if completion_scope:
+                from .utils.coverage import missing_ranges
+                if completion_scope == 'windows' and _intersection_windows:
+                    _scope_s = [[w['t_enter'], w['t_exit']] for w in _intersection_windows]
+                else:
+                    _scope_s = [[0.0, total_frames / fps]]
+                _miss = missing_ranges(session, position, _scope_s, min_len=1.0 / fps)
+                _raw_c = []
+                for _a, _b in _miss:
+                    fs = max(0, int(_a * fps))
+                    fe = min(total_frames - 1, int(_b * fps))
+                    if fs <= fe:
+                        _raw_c.append((fs, fe))
+                _frame_ranges = _merge_ranges(_raw_c)
+                if not _frame_ranges:
+                    _console(user_id, f"  [{position}] scope déjà entièrement couvert — rien à compléter")
+                    summary['cameras_processed'] += 1
+                    summary['by_camera'][position] = {'frames_existing': _prev_count,
+                                                     'completion': 'already_covered'}
+                    continue
+                _use_window_iter = True
+                _restrict_to_windows = False   # pas de skip hors-fenêtre : l'itérateur borne déjà
+                _total_processing_frames = sum(fe - fs + 1 for fs, fe in _frame_ranges)
+                _console(user_id,
+                         f"  COMPLÉTION [{position}] scope={completion_scope} : "
+                         f"{len(_frame_ranges)} tranche(s) manquante(s), "
+                         f"~{_total_processing_frames} frames "
+                         f"({_total_processing_frames / max(total_frames, 1) * 100:.0f}% de la vidéo)")
 
             # Periodic console heartbeat so the user sees real progress in the
             # worker log (set_session_progress only updates the UI bar).
@@ -1380,12 +1429,15 @@ def process_session_task(self, session_id: str, force_rerun: bool = False,
 
                 # Bulk save every 500 frames
                 if len(frames_to_create) >= 500:
-                    DetectionFrame.objects.bulk_create(frames_to_create)
+                    # ignore_conflicts : en complétion, les BORDS de tranches peuvent
+                    # recouvrir d'une frame l'existant (registre reconstruit ±0,25 s) —
+                    # la ligne existante gagne, pas d'IntegrityError.
+                    DetectionFrame.objects.bulk_create(frames_to_create, ignore_conflicts=True)
                     frames_to_create = []
 
             # Save remaining frames
             if frames_to_create:
-                DetectionFrame.objects.bulk_create(frames_to_create)
+                DetectionFrame.objects.bulk_create(frames_to_create, ignore_conflicts=True)
 
             # Release video writer
             has_annotated_video = False
