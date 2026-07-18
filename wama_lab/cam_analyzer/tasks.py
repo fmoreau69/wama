@@ -1973,6 +1973,9 @@ def annotate_prediction_task(self, session_id: str):
     stat = _gt.get('stationary_gids', [])
     rs = session.results_summary or {}
     rs['stationary_global_tracks'] = stat
+    # Ancres monde des stationnés (lat/lon, médiane du track) : l'affichage dessine
+    # les garés à position FIXE au lieu de la reconstruction par frame (jitter).
+    rs['stationary_anchors'] = _gt.get('stationary_anchors', {})
     session.results_summary = rs
     session.save(update_fields=['results_summary'])
     _console(session.user_id, f"Tracking multi-caméra : {ng} tracks globaux (hand-off), "

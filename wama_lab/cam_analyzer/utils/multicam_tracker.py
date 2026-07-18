@@ -319,6 +319,28 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
             stationary_gids.append(gid)
     _stat_set = set(stationary_gids)
 
+    # ── Ancres MONDE des stationnés ─────────────────────────────────────────────
+    # Un stationné est STATIQUE par définition : sa position monde est unique. La
+    # reconstruire PAR FRAME le faisait « bouger/tourner » hors de l'axe caméra
+    # (erreur de focale × gisement : quand la navette passe devant, le gisement
+    # balaie → la position reconstruite décrit un arc ; dans l'axe l'erreur
+    # latérale est ~nulle — diagnostic utilisateur 2026-07-18). Ancre = MÉDIANE
+    # de toutes les observations du track (robuste aux mesures aberrantes),
+    # servie en lat/lon à l'affichage qui dessine le garé à position FIXE.
+    lat0, lon0 = gt[0]['lat'], gt[0]['lon']
+    _m_lat = 111320.0
+    _m_lon = 111320.0 * math.cos(math.radians(lat0))
+    stationary_anchors = {}
+    for gid in stationary_gids:
+        hs = track_hist.get(gid) or []
+        if not hs:
+            continue
+        es = sorted(h[2] for h in hs)
+        ns = sorted(h[3] for h in hs)
+        me, mn = es[len(es) // 2], ns[len(ns) // 2]
+        stationary_anchors[gid] = [round(lat0 + mn / _m_lat, 7),
+                                   round(lon0 + me / _m_lon, 7)]
+
     # ── Comblement des trous de détection au hand-off (empreintes prédites) ──────
     # Pour chaque track, on interpole en repère MONDE entre avant/après le trou, puis on
     # convertit en repère véhicule et on insère une détection "fantôme" (predicted) dans
@@ -391,4 +413,5 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
 
     for f in dirty:
         f.save(update_fields=['detections'])
-    return {'tracks': next_id - 1, 'stationary_gids': stationary_gids}
+    return {'tracks': next_id - 1, 'stationary_gids': stationary_gids,
+            'stationary_anchors': stationary_anchors}

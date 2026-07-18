@@ -58,6 +58,7 @@ document.addEventListener('DOMContentLoaded', function () {
     let usePrediction = false;         // coloration Prédiction (trajectoire) vs ttc_s naïf (toggle)
     let hideParked = false;            // masquer les véhicules stationnés/garés (toggle)
     let stationaryGids = new Set();    // global_track_id des véhicules stationnés (du serveur)
+    let stationaryAnchors = {};        // gid -> [lat, lon] : position MONDE ancrée (médiane du track)
     // Orientation de montage de chaque caméra (deg, sens horaire depuis l'avant véhicule).
     // Rig 360° ~90° ; ajustable ensuite (les caméras ne sont pas exactement à 90°).
     const CAMERA_YAW = { front: 0, right: 75, rear: 180, left: -75 };   // défauts rig ENA (±75° latérales)
@@ -462,7 +463,8 @@ document.addEventListener('DOMContentLoaded', function () {
             } catch (e) { /* défauts conservés */ }
             try {
                 stationaryGids = new Set((data.results_summary && data.results_summary.stationary_global_tracks) || []);
-            } catch (e) { stationaryGids = new Set(); }
+                stationaryAnchors = (data.results_summary && data.results_summary.stationary_anchors) || {};
+            } catch (e) { stationaryGids = new Set(); stationaryAnchors = {}; }
             // Largeur de voie : override manuel (par session) > auto-estimée > défaut 3,5m.
             let _lwManual = null;
             try { _lwManual = localStorage.getItem('cam_analyzer_lane_width_' + sessionId); } catch (e) { /* noop */ }
@@ -2718,13 +2720,24 @@ document.addEventListener('DOMContentLoaded', function () {
                     if (_drawnGlobal.has(gid)) return;
                     _drawnGlobal.add(gid);
                 }
-                let v = _camToVeh(g[0], g[1], yawDeg);            // → repère véhicule commun
-                // Bras de levier : position de MONTAGE de la caméra (origine = antenne GPS,
-                // à l'ARRIÈRE du toit — schéma ENA). La caméra avant est ~4,5 m devant
-                // l'antenne : sans cet offset les objets avant étaient ~4,5 m trop près.
-                // Pas pour les fantômes : vehicle_xy backend inclut déjà le montage.
-                if (!isGhost && _geoMount) v = [v[0] + _geoMount[0], v[1] + _geoMount[1]];
-                const ll = egoToLatLon(pose.lat, pose.lon, pose.heading, v[0], v[1]);
+                let ll;
+                const _anchor = gid != null ? stationaryAnchors[gid] : null;
+                if (_anchor) {
+                    // STATIONNÉ ANCRÉ : position MONDE fixe (médiane du track, serveur) —
+                    // la reconstruction par frame faisait « bouger/tourner » les garés
+                    // hors de l'axe caméra (erreur focale × gisement balayé au passage
+                    // de la navette ; dans l'axe l'erreur latérale est ~nulle —
+                    // diagnostic utilisateur 2026-07-18). Zéro jitter par construction.
+                    ll = _anchor;
+                } else {
+                    let v = _camToVeh(g[0], g[1], yawDeg);        // → repère véhicule commun
+                    // Bras de levier : position de MONTAGE de la caméra (origine = antenne GPS,
+                    // à l'ARRIÈRE du toit — schéma ENA). La caméra avant est ~4,5 m devant
+                    // l'antenne : sans cet offset les objets avant étaient ~4,5 m trop près.
+                    // Pas pour les fantômes : vehicle_xy backend inclut déjà le montage.
+                    if (!isGhost && _geoMount) v = [v[0] + _geoMount[0], v[1] + _geoMount[1]];
+                    ll = egoToLatLon(pose.lat, pose.lon, pose.heading, v[0], v[1]);
+                }
                 const color = ttcColor(det);
                 // Trail continu via l'ID GLOBAL (persiste au passage d'une caméra à l'autre).
                 const tkey = gid != null ? 'g' + gid : camPos + ':' + det.track_id;
