@@ -891,6 +891,13 @@ def process_session_task(self, session_id: str, force_rerun: bool = False,
                 continue
             elif _prev_count and force_rerun:
                 DetectionFrame.objects.filter(camera=camera).delete()
+                # Le wipe invalide la couverture consignée pour cette caméra (registre
+                # d'analyse incrémentale) — elle sera re-consignée en fin de passe.
+                try:
+                    from .utils.coverage import reset_coverage
+                    reset_coverage(session, position)
+                except Exception:
+                    logger.warning('reset_coverage failed (non-blocking)', exc_info=True)
                 _console(user_id,
                          f"  Force rerun : {_prev_count} DetectionFrame d'un run précédent supprimée(s)")
 
@@ -1385,6 +1392,20 @@ def process_session_task(self, session_id: str, force_rerun: bool = False,
             if vid_writer:
                 vid_writer.release()
                 has_annotated_video = True
+
+            # ── Registre de COUVERTURE (étape 1 analyse incrémentale) ────────────
+            # Consigne les plages de temps vidéo réellement analysées pour CETTE
+            # caméra : mode fenêtré = les plages de frames itérées ; mode complet =
+            # toute la vidéo. Fondation de la complétion (scope − couverture).
+            try:
+                from .utils.coverage import add_coverage
+                if _use_window_iter and _frame_ranges:
+                    _cov = [[fs / fps, (fe + 1) / fps] for fs, fe in _frame_ranges]
+                else:
+                    _cov = [[0.0, (total_frames or 0) / fps]] if total_frames else []
+                add_coverage(session, position, _cov)
+            except Exception:
+                logger.warning('add_coverage failed (non-blocking)', exc_info=True)
 
             # Per-camera YOLO pass completed (Proposition A)
             try:
