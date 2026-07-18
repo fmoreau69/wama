@@ -47,6 +47,20 @@ def recompute_intersection_windows(session, profile=None) -> list[dict]:
         frame_height=250,
     ).find_intersection_windows()
 
+    # ── Conversion temps GPS → temps VIDÉO ──────────────────────────────────────
+    # La piste GPS a sa propre base de temps (ts), reliée à la vidéo par
+    # t_gps = t_vidéo × gps_time_scale + gps_time_offset. TOUS les consommateurs
+    # d'intersection_windows (gating YOLO/SAM3, conflits, timeline, panneau
+    # passages, tracker) comparent en temps VIDÉO — servir des fenêtres en temps
+    # GPS décalait les zones proportionnellement au temps (scale 0,961 sur ENA :
+    # ~20 s à 8 min, ~5 min en fin de session → passages ratés, segments à côté
+    # des zones, saut « aller au passage » avant le centre — constat 2026-07-18).
+    _scale = float(session.gps_time_scale or 1.0) or 1.0
+    _off = float(session.gps_time_offset or 0.0)
+
+    def _to_video(ts):
+        return (ts - _off) / _scale
+
     windows: list[dict] = []
     for w in raw_windows:
         bearing = None
@@ -69,9 +83,9 @@ def recompute_intersection_windows(session, profile=None) -> list[dict]:
             'lat': w['intersection'].get('lat'),
             'lon': w['intersection'].get('lon'),
             'radius_m': w['intersection'].get('radius_m'),
-            't_enter': round(w['t_enter'], 2),
-            't_exit': round(w['t_exit'], 2),
-            't_closest': round(w.get('t_closest', (w['t_enter'] + w['t_exit']) / 2), 2),
+            't_enter': round(_to_video(w['t_enter']), 2),
+            't_exit': round(_to_video(w['t_exit']), 2),
+            't_closest': round(_to_video(w.get('t_closest', (w['t_enter'] + w['t_exit']) / 2)), 2),
             'min_distance_m': w.get('min_distance_m'),
             'bearing_deg': round(bearing, 1) if bearing is not None else None,
         })
