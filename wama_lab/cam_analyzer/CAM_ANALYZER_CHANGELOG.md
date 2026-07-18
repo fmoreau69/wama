@@ -10,6 +10,12 @@
 >
 > Chaîne complète : [`CAM_ANALYZER_CHAINE_TRAITEMENT.md`](CAM_ANALYZER_CHAINE_TRAITEMENT.md).
 
+## 2026-07-18
+
+| Commit | Quoi | Pourquoi | Validé |
+|---|---|---|---|
+| `65d5f38` | **Stationnés ANCRÉS en position monde** : ancre = médiane des observations du track (tracker, `stationary_anchors` {gid: [lat,lon]} dans results_summary) ; l affichage dessine les garés à position FIXE (bypass reconstruction par frame) ; cap toujours fourni par le ratio-bbox | Hors de l axe caméra, erreur de position ∝ gisement (erreur focale × \|bcx−cx\|) : le gisement balayé au passage de la navette faisait décrire un arc aux garés → jitter + rotation (diagnostic utilisateur : seuls ceux DANS l axe étaient stables) | 18 stationnés → 18 ancres persistées, coordonnées plausibles ; rendu navigateur à valider |
+
 ## 2026-07-17
 
 | Commit | Quoi | Pourquoi | Validé |
