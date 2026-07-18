@@ -513,10 +513,10 @@ window.CAM_ANALYZER = {
                     </div>
                 </div>
 
-                <!-- Intersections (visible only for intersection_insertion report type) -->
-                <div id="intersectionsSection" style="display:none;">
+                <!-- Modèles d'ANALYSE (génériques — TOUS les types de rapport ;
+                     doctrine 2026-07-18 : les calculs sont généraux, seule la SORTIE du rapport diffère) -->
+                <div id="analysisModelsSection">
                     <hr class="border-secondary my-3">
-
                     <!-- yolopv2 sur les 4 vues (Phase C 360°) -->
                     <div class="form-check form-switch mb-3">
                         <input class="form-check-input" type="checkbox" id="yolopv2AllViews">
@@ -527,20 +527,6 @@ window.CAM_ANALYZER = {
                             OFF (défaut) = yolopv2 sur la vue avant seule → analyse plus légère et stable.
                             ON = les 4 vues (pour calibrer les côtés en vue de dessus 360°), ~4× plus long.
                             À activer quand le matériel est stable.
-                        </div>
-                    </div>
-
-                    <!-- Restrict analysis to intersection windows -->
-                    <div class="form-check form-switch mb-3">
-                        <input class="form-check-input" type="checkbox" id="restrictToIntersectionWindows" checked>
-                        <label class="form-check-label small fw-semibold text-warning" for="restrictToIntersectionWindows">
-                            <i class="fas fa-crosshairs me-1"></i>Restreindre l'analyse aux fenêtres d'intersection
-                        </label>
-                        <div class="form-text text-secondary small">
-                            Lorsqu'activé, la détection YOLO ne s'exécute qu'à l'intérieur des fenêtres GPS calculées
-                            autour de chaque intersection (rayon configuré ci-dessous). En dehors, la vidéo annotée
-                            conserve les images brutes mais aucune détection n'est calculée — gain de temps majeur
-                            sur des longs trajets.
                         </div>
                     </div>
 
@@ -564,6 +550,55 @@ window.CAM_ANALYZER = {
                         <div class="form-text text-secondary small">
                             YOLO segmentation .pt entraîné sur BDD100K — améliore la détection d'insertion en voie.
                             Sans ce modèle, la détection se base sur la position horizontale du véhicule.
+                        </div>
+                    </div>
+
+                    <!-- SAM3 Phase Avancée -->
+                    <hr class="border-secondary my-3">
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input" type="checkbox" id="sam3MarkingsEnabled">
+                            <label class="form-check-label fw-semibold" for="sam3MarkingsEnabled" style="color:#c07aff;">
+                                <i class="fas fa-magic me-1"></i> Marquages SAM3 <span class="badge bg-purple ms-1" style="background:#6f42c1!important; font-size:0.65rem;">Phase Avancée</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div id="sam3Config" style="display:none;">
+                        <p class="text-secondary small mb-2">
+                            Détecte les lignes de stop et passages piétons dans les fenêtres d'intersection via SAM3 text-prompt.
+                        </p>
+                        <div class="d-flex align-items-center justify-content-between mb-1">
+                            <span class="form-label small mb-0">Prompts de détection</span>
+                            <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-1" id="addSam3PromptBtn" style="font-size:0.75rem;">
+                                <i class="fas fa-plus me-1"></i>Ajouter
+                            </button>
+                        </div>
+                        <div id="sam3PromptsList" class="mb-2">
+                            <!-- Populated by JS -->
+                        </div>
+                        <div class="form-check mt-2">
+                            <input class="form-check-input" type="checkbox" id="sam3AsRoadFallback">
+                            <label class="form-check-label small text-secondary" for="sam3AsRoadFallback">
+                                Utiliser SAM3 comme fallback de segmentation routière (si aucun modèle YOLO configuré)
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Paramètres du RAPPORT intersections (visibles pour intersection_insertion) -->
+                <div id="intersectionsSection" style="display:none;">
+                    <hr class="border-secondary my-3">
+                    <!-- Restrict analysis to intersection windows -->
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" id="restrictToIntersectionWindows" checked>
+                        <label class="form-check-label small fw-semibold text-warning" for="restrictToIntersectionWindows">
+                            <i class="fas fa-crosshairs me-1"></i>Restreindre l'analyse aux fenêtres d'intersection
+                        </label>
+                        <div class="form-text text-secondary small">
+                            Lorsqu'activé, la détection YOLO ne s'exécute qu'à l'intérieur des fenêtres GPS calculées
+                            autour de chaque intersection (rayon configuré ci-dessous). En dehors, la vidéo annotée
+                            conserve les images brutes mais aucune détection n'est calculée — gain de temps majeur
+                            sur des longs trajets.
                         </div>
                     </div>
 
@@ -624,37 +659,6 @@ window.CAM_ANALYZER = {
                                  style="background:rgba(0,0,0,.7); display:none; font-size:0.75rem; white-space:nowrap;">
                                 <i class="fas fa-exclamation-triangle me-1"></i><span id="mapSearchErrorMsg"></span>
                             </div>
-                        </div>
-                    </div>
-
-                    <!-- SAM3 Phase Avancée -->
-                    <hr class="border-secondary my-3">
-                    <div class="d-flex align-items-center gap-2 mb-2">
-                        <div class="form-check form-switch mb-0">
-                            <input class="form-check-input" type="checkbox" id="sam3MarkingsEnabled">
-                            <label class="form-check-label fw-semibold" for="sam3MarkingsEnabled" style="color:#c07aff;">
-                                <i class="fas fa-magic me-1"></i> Marquages SAM3 <span class="badge bg-purple ms-1" style="background:#6f42c1!important; font-size:0.65rem;">Phase Avancée</span>
-                            </label>
-                        </div>
-                    </div>
-                    <div id="sam3Config" style="display:none;">
-                        <p class="text-secondary small mb-2">
-                            Détecte les lignes de stop et passages piétons dans les fenêtres d'intersection via SAM3 text-prompt.
-                        </p>
-                        <div class="d-flex align-items-center justify-content-between mb-1">
-                            <span class="form-label small mb-0">Prompts de détection</span>
-                            <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-1" id="addSam3PromptBtn" style="font-size:0.75rem;">
-                                <i class="fas fa-plus me-1"></i>Ajouter
-                            </button>
-                        </div>
-                        <div id="sam3PromptsList" class="mb-2">
-                            <!-- Populated by JS -->
-                        </div>
-                        <div class="form-check mt-2">
-                            <input class="form-check-input" type="checkbox" id="sam3AsRoadFallback">
-                            <label class="form-check-label small text-secondary" for="sam3AsRoadFallback">
-                                Utiliser SAM3 comme fallback de segmentation routière (si aucun modèle YOLO configuré)
-                            </label>
                         </div>
                     </div>
                 </div>
