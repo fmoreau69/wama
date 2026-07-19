@@ -1239,6 +1239,7 @@ def list_profiles(request):
         'sam3_markings_enabled': p.sam3_markings_enabled,
         'sam3_markings_prompts': p.sam3_markings_prompts,
         'sam3_as_road_fallback': p.sam3_as_road_fallback,
+        'sam3_fps': p.sam3_fps,
         'restrict_to_intersection_windows': p.restrict_to_intersection_windows,
         'analyzed_positions': p.analyzed_positions or ['front', 'rear'],
         'model_path': p.model_path,
@@ -1315,6 +1316,10 @@ def save_profile(request):
             profile.sam3_markings_enabled = sam3_markings_enabled
             profile.sam3_markings_prompts = sam3_markings_prompts
             profile.sam3_as_road_fallback = sam3_as_road_fallback
+            try:
+                profile.sam3_fps = max(0.5, min(12.0, float(data.get('sam3_fps') or 2.0)))
+            except (TypeError, ValueError):
+                pass
             profile.restrict_to_intersection_windows = restrict_to_intersection_windows
             profile.yolopv2_all_views = yolopv2_all_views
             profile.analyzed_positions = analyzed_positions
@@ -1335,6 +1340,7 @@ def save_profile(request):
                 sam3_markings_enabled=sam3_markings_enabled,
                 sam3_markings_prompts=sam3_markings_prompts,
                 sam3_as_road_fallback=sam3_as_road_fallback,
+                sam3_fps=max(0.5, min(12.0, float(data.get('sam3_fps') or 2.0))),
                 restrict_to_intersection_windows=restrict_to_intersection_windows,
                 yolopv2_all_views=yolopv2_all_views,
                 analyzed_positions=analyzed_positions,
@@ -1378,6 +1384,7 @@ def save_profile(request):
                 'sam3_markings_enabled': profile.sam3_markings_enabled,
                 'sam3_markings_prompts': profile.sam3_markings_prompts,
                 'sam3_as_road_fallback': profile.sam3_as_road_fallback,
+                'sam3_fps': profile.sam3_fps,
                 'restrict_to_intersection_windows': profile.restrict_to_intersection_windows,
                 'analyzed_positions': profile.analyzed_positions or ['front', 'rear'],
                 'model_path': profile.model_path,

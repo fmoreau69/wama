@@ -40,6 +40,11 @@ FEATURES = [
             "du track (calculé par le tracking 360°), au lieu de l'estimation frame par "
             "frame au rendu.",
             default=True, scope='live'),
+    Feature('sam3_interp', 'Interpolation des marquages SAM3',
+            "Les marquages (passages piétons…) ne sont segmentés qu'aux keyframes "
+            "(sam3_fps du profil) : l'affichage interpole entre deux keyframes "
+            "(translation+échelle) pour un rendu continu, avec fondu aux extrémités.",
+            default=True, scope='live'),
     Feature('learned_branches', 'Branches apprises du trafic',
             "Les voies croisantes aux intersections sont apprises des trajectoires monde "
             "des véhicules suivis (côté, azimut, étendue et largeur observés) au lieu "

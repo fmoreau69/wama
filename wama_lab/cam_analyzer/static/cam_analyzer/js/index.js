@@ -1391,7 +1391,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 const camTime = video.currentTime - offset;
                 const frame   = findClosestFrame(data.frames, camTime);
                 if (frame && frame.detections && frame.detections.length > 0) {
-                    drawDetections(pos, frame.detections, data.width, data.height);
+                    drawDetections(pos, withSam3Interp(data.frames, camTime, frame.detections), data.width, data.height);
                 } else {
                     clearCanvas(pos);
                 }
@@ -1963,7 +1963,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 return;
             }
 
-            drawDetections(pos, targetFrame.detections, data.width, data.height);
+            drawDetections(pos, withSam3Interp(data.frames, currentTime, targetFrame.detections), data.width, data.height);
         });
         // Ré-afficher l'overlay du test SAM3 s'il correspond à la frame courante
         // (drawDetections vient d'effacer le canvas front).
@@ -2005,6 +2005,95 @@ document.addEventListener('DOMContentLoaded', function () {
         if (Math.abs(closest.timestamp - time) > tol) return null;
 
         return closest;
+    }
+
+    // ── Interpolation des marquages SAM3 entre keyframes (⚑ sam3_interp) ─────────
+    // SAM3 ne segmente qu'aux keyframes (sam3_fps du profil, ~1 frame/6) : sans ceci,
+    // les marquages clignotent 1 frame sur 6. Post-traitement → on connaît la keyframe
+    // SUIVANTE : morphing translation+échelle entre kf1 et kf2 (exact aux extrémités,
+    // pas d'appariement de sommets requis), fondu (_alpha) quand un marquage n'a pas
+    // de correspondant (entrée/sortie de champ). Zéro inférence supplémentaire.
+    function _sam3Of(fr) { return (fr.detections || []).filter(d => d.type === 'sam3_marking'); }
+    function _sam3BBox(d) {
+        if (Array.isArray(d.bbox) && d.bbox.length >= 4) return d.bbox;
+        const pts = d.polygon || [];
+        if (!pts.length) return null;
+        let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+        pts.forEach(pt => { x0 = Math.min(x0, pt[0]); y0 = Math.min(y0, pt[1]);
+                            x1 = Math.max(x1, pt[0]); y1 = Math.max(y1, pt[1]); });
+        return [x0, y0, x1, y1];
+    }
+    function sam3Interpolated(frames, t) {
+        // keyframes SAM3 encadrantes (fenêtre de recherche ±1.2 s)
+        let kf1 = null, kf2 = null;
+        for (let i = 0; i < frames.length; i++) {
+            const fr = frames[i];
+            if (fr.timestamp > t + 1.2) break;
+            if (fr.timestamp <= t + 0.02 && _sam3Of(fr).length) kf1 = fr;
+            else if (fr.timestamp > t + 0.02 && !kf2 && _sam3Of(fr).length &&
+                     fr.timestamp <= t + 1.2) { kf2 = fr; break; }
+        }
+        if (!kf1 && !kf2) return null;
+        if (kf1 && t - kf1.timestamp > 1.2) kf1 = null;
+        if (!kf1) {   // fondu d'entrée sur la keyframe à venir
+            const a = Math.max(0, 1 - (kf2.timestamp - t) / 0.6);
+            return a <= 0 ? [] : _sam3Of(kf2).map(d => ({ ...d, _alpha: a }));
+        }
+        const m1 = _sam3Of(kf1);
+        if (!kf2) {   // fondu de sortie sur la dernière keyframe connue
+            const a = Math.max(0, 1 - (t - kf1.timestamp) / 0.6);
+            return a <= 0 ? [] : m1.map(d => ({ ...d, _alpha: a }));
+        }
+        const m2 = _sam3Of(kf2);
+        const f = (t - kf1.timestamp) / (kf2.timestamp - kf1.timestamp);
+        const used2 = new Set();
+        const out = [];
+        m1.forEach(d1 => {
+            const b1 = _sam3BBox(d1);
+            if (!b1) return;
+            const c1 = [(b1[0] + b1[2]) / 2, (b1[1] + b1[3]) / 2];
+            let best = null, bd = 1e9, bi = -1;
+            m2.forEach((d2, i2) => {
+                if (used2.has(i2) || (d2.label || '') !== (d1.label || '')) return;
+                const b2 = _sam3BBox(d2);
+                if (!b2) return;
+                const dd = Math.hypot((b2[0] + b2[2]) / 2 - c1[0], (b2[1] + b2[3]) / 2 - c1[1]);
+                if (dd < bd) { bd = dd; best = b2; bi = i2; }
+            });
+            const diag = Math.hypot(b1[2] - b1[0], b1[3] - b1[1]);
+            if (!best || bd > Math.max(80, diag)) {
+                // pas de correspondant : fondu de sortie progressif
+                const a = Math.max(0, 1 - f / 0.8);
+                if (a > 0) out.push({ ...d1, _alpha: a });
+                return;
+            }
+            used2.add(bi);
+            const c2 = [(best[0] + best[2]) / 2, (best[1] + best[3]) / 2];
+            const cx = c1[0] + (c2[0] - c1[0]) * f, cy = c1[1] + (c2[1] - c1[1]) * f;
+            const sx = 1 + ((best[2] - best[0]) / Math.max(1, b1[2] - b1[0]) - 1) * f;
+            const sy = 1 + ((best[3] - best[1]) / Math.max(1, b1[3] - b1[1]) - 1) * f;
+            const tr = pt => [cx + (pt[0] - c1[0]) * sx, cy + (pt[1] - c1[1]) * sy];
+            const nd = { ...d1 };
+            if (Array.isArray(d1.polygon) && d1.polygon.length) nd.polygon = d1.polygon.map(tr);
+            if (Array.isArray(d1.bbox) && d1.bbox.length >= 4) {
+                const p0 = tr([d1.bbox[0], d1.bbox[1]]), p1 = tr([d1.bbox[2], d1.bbox[3]]);
+                nd.bbox = [p0[0], p0[1], p1[0], p1[1]];
+            }
+            out.push(nd);
+        });
+        // marquages présents seulement dans kf2 : fondu d'entrée
+        m2.forEach((d2, i2) => {
+            if (used2.has(i2)) return;
+            const a = Math.max(0, (f - 0.2) / 0.8);
+            if (a > 0) out.push({ ...d2, _alpha: a });
+        });
+        return out;
+    }
+    function withSam3Interp(frames, t, dets) {
+        if (camFeat.sam3_interp === false) return dets;
+        const interp = sam3Interpolated(frames, t);
+        if (interp === null) return dets;
+        return dets.filter(d => d.type !== 'sam3_marking').concat(interp);
     }
 
     function drawDetections(position, detections, srcWidth, srcHeight) {
@@ -2111,6 +2200,8 @@ document.addEventListener('DOMContentLoaded', function () {
             if (_hasPoly && (_isRoad || _isSam3 || !Array.isArray(det.bbox))) {
                 let rgb = '255, 64, 192';   // road_mask = magenta
                 if (_isSam3) rgb = /cross/i.test(det.label || det.class_name || '') ? '0, 229, 255' : '255, 213, 0';
+                // _alpha : fondu d'interpolation SAM3 (entrée/sortie de champ)
+                const _fa = (typeof det._alpha === 'number') ? det._alpha : 1;
                 ctx.beginPath();
                 det.polygon.forEach(([px, py], i) => {
                     const x = px * scaleX + offsetX;
@@ -2118,13 +2209,13 @@ document.addEventListener('DOMContentLoaded', function () {
                     if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
                 });
                 ctx.closePath();
-                ctx.fillStyle = `rgba(${rgb}, 0.18)`;
+                ctx.fillStyle = `rgba(${rgb}, ${0.18 * _fa})`;
                 ctx.fill();
-                ctx.strokeStyle = `rgba(${rgb}, 0.9)`;
+                ctx.strokeStyle = `rgba(${rgb}, ${0.9 * _fa})`;
                 ctx.lineWidth = 1.5;
                 ctx.stroke();
                 // Étiquette du marquage SAM3 (au 1er sommet du polygone).
-                if (_isSam3 && det.polygon[0]) {
+                if (_isSam3 && det.polygon[0] && _fa > 0.5) {
                     const lx = det.polygon[0][0] * scaleX + offsetX;
                     const ly = det.polygon[0][1] * scaleY + offsetY;
                     const txt = `${det.label || 'marquage'} ${Math.round((det.confidence || 0) * 100)}%`;
@@ -4235,6 +4326,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     sam3_markings_enabled: document.getElementById('sam3MarkingsEnabled').checked,
                     sam3_markings_prompts: sam3Prompts,
                     sam3_as_road_fallback: document.getElementById('sam3AsRoadFallback').checked,
+                    sam3_fps: parseFloat((document.getElementById('sam3FpsInput') || {}).value) || 2.0,
                     restrict_to_intersection_windows: document.getElementById('restrictToIntersectionWindows').checked,
                     yolopv2_all_views: document.getElementById('yolopv2AllViews')?.checked || false,
                     analyzed_positions: ['front', 'rear', 'left', 'right'].filter(p =>
@@ -4403,6 +4495,8 @@ document.addEventListener('DOMContentLoaded', function () {
                     document.getElementById('sam3MarkingsEnabled').checked = !!profile.sam3_markings_enabled;
                     sam3Prompts = Array.isArray(profile.sam3_markings_prompts) ? [...profile.sam3_markings_prompts] : [];
                     document.getElementById('sam3AsRoadFallback').checked = !!profile.sam3_as_road_fallback;
+                    const _sfi = document.getElementById('sam3FpsInput');
+                    if (_sfi) _sfi.value = profile.sam3_fps || 2.0;
                     toggleSam3Config();
                     renderSam3PromptsList();
 

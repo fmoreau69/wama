@@ -2556,9 +2556,11 @@ def analyze_sam3_only_task(self, session_id: str):
         scanned = 0
         last_progress_frame = 0
 
-        # Sous-échantillonnage : 1 frame sur `sam3_stride` (≈ SAM3_TARGET_FPS).
-        sam3_stride = max(1, int(round(fps / SAM3_TARGET_FPS)))
-        _console(user_id, f"SAM3 ~{SAM3_TARGET_FPS:g} fps (1 frame/{sam3_stride}) dans les fenêtres")
+        # Sous-échantillonnage : 1 frame sur `sam3_stride` — cadence déclarée au profil
+        # (défaut 2 img/s ; l'affichage interpole entre keyframes, densifier = dernier recours).
+        _sam3_fps = float(getattr(profile, 'sam3_fps', 0) or SAM3_TARGET_FPS)
+        sam3_stride = max(1, int(round(fps / _sam3_fps)))
+        _console(user_id, f"SAM3 ~{_sam3_fps:g} fps (1 frame/{sam3_stride}) dans les fenêtres")
 
         frame_idx = -1
         while True:

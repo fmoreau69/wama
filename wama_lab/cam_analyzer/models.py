@@ -90,6 +90,11 @@ class AnalysisProfile(models.Model):
         default=False,
         help_text='Use SAM3 to generate road_mask entries when road_model_path is absent',
     )
+    sam3_fps = models.FloatField(
+        default=2.0,
+        help_text='Cadence cible SAM3 (images segmentées/s) — l\'affichage interpole '
+                  'entre les keyframes, densifier n\'est utile qu\'en dernier recours',
+    )
     restrict_to_intersection_windows = models.BooleanField(
         default=True,
         help_text='Skip YOLO inference outside intersection windows (intersection_insertion only)',
