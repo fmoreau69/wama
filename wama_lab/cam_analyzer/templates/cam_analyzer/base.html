@@ -79,6 +79,10 @@ encombrer le quotidien) → 2. VUE (bascules d'affichage quotidiennes, live) →
             title="Copier les infos de synchro de cet instant (temps vidéo, GPS, détections) pour debug">
         <i class="fas fa-clipboard"></i>
     </button>
+    <button type="button" id="liveAnalysisBtn" class="btn btn-sm btn-outline-warning"
+            title="Analyse AU FIL DE LA LECTURE : les tranches jamais analysées autour du curseur sont analysées en tâche de fond pendant que tu lis la vidéo (zéro GPU si la zone est déjà couverte). Les indicateurs complets arrivent au prochain « Calculer les indicateurs ».">
+        <i class="fas fa-bolt me-1"></i>Live
+    </button>
 </div>
 {# ── Panneau CALIBRATION (replié par défaut) — tout ce qui définit la géométrie ── #}
 <div id="calibPanel" class="d-none mb-1 p-2 rounded"

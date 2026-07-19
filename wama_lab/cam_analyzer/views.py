@@ -1028,6 +1028,39 @@ def complete_analysis(request, session_id):
 
 @login_required
 @require_http_methods(["POST"])
+def live_cursor(request, session_id):
+    """Curseur du mode « analyse au fil de la lecture » (étape 3). Body :
+    {"t": secondes_video, "enabled": bool, "lookahead": s}. Pose le curseur en cache et
+    démarre `live_analysis_task` si aucune instance ne tourne (verrou). enabled=false
+    efface le curseur (la tâche s'éteint d'elle-même après inactivité)."""
+    session = get_object_or_404(AnalysisSession, id=session_id, user=request.user)
+    if not session.profile:
+        return JsonResponse({'success': False, 'error': 'Aucun profil assigné'}, status=400)
+    try:
+        body = json.loads(request.body or '{}')
+    except ValueError:
+        body = {}
+    cursor_key = f"cam_live_cursor_{session_id}"
+    lock_key = f"cam_live_lock_{session_id}"
+    if not body.get('enabled', True):
+        cache.delete(cursor_key)
+        return JsonResponse({'success': True, 'running': bool(cache.get(lock_key))})
+    try:
+        t = max(0.0, float(body.get('t', 0.0)))
+        lookahead = float(body.get('lookahead', 15.0))
+    except (TypeError, ValueError):
+        return JsonResponse({'success': False, 'error': 't invalide'}, status=400)
+    cache.set(cursor_key, {'t': t, 'lookahead': lookahead}, timeout=120)
+    started = False
+    if not cache.get(lock_key):
+        from .tasks import live_analysis_task
+        live_analysis_task.delay(str(session.id))
+        started = True
+    return JsonResponse({'success': True, 'running': True, 'started': started})
+
+
+@login_required
+@require_http_methods(["POST"])
 def recompute_windows(request, session_id):
     """
     Pass A — recompute session.intersection_windows from the current profile

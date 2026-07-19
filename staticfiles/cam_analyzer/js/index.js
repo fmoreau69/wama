@@ -4590,6 +4590,65 @@ document.addEventListener('DOMContentLoaded', function () {
             topDownTrails.clear(); topDownHeadings.clear(); topDownDist.clear(); topDownLat.clear(); topDownCls.clear(); topDownAxial.clear();
             if (typeof currentTime === 'number') { topDownLastRender = -999; updateMiniMapShuttle(currentTime); }
         };
+        // ── Mode LIVE : analyse au fil de la lecture (étape 3 analyse incrémentale) ──
+        // ON : envoie le curseur (~1,2 s) → le backend analyse les tranches manquantes
+        // du lookahead (modèles gardés chargés, zéro GPU si couvert) ; toutes les 3 s,
+        // les détections fraîches de la zone visible sont fusionnées dans detectionData
+        // (les trous se comblent visuellement pendant la lecture). Les gid/indicateurs
+        // complets arrivent au prochain « Calculer les indicateurs ».
+        let liveMode = false, liveCursorTimer = null, liveMergeTimer = null;
+        const _liveSendCursor = async (enabled) => {
+            if (!currentSessionId) return;
+            try {
+                await fetch(`${config.urls.deleteSession}${currentSessionId}/live-cursor/`, {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': config.csrfToken, 'Content-Type': 'application/json' },
+                    body: JSON.stringify(enabled
+                        ? { t: (typeof currentTime === 'number' ? currentTime : 0), enabled: true, lookahead: 15 }
+                        : { enabled: false }),
+                });
+            } catch (e) { /* réseau : réessaiera au tick suivant */ }
+        };
+        const _liveMergeFresh = async () => {
+            if (!liveMode || !currentSessionId || typeof currentTime !== 'number') return;
+            for (const [pos, dd] of Object.entries(detectionData || {})) {
+                const cam = cameras[pos];
+                if (!cam || !cam.id || !dd) continue;
+                const fps = dd.fps || 12;
+                const f0 = Math.max(0, Math.floor((currentTime - 5) * fps));
+                const f1 = Math.floor((currentTime + 30) * fps);
+                try {
+                    const r = await fetch(`${config.urls.getDetections}${currentSessionId}/cameras/${cam.id}/detections/?start=${f0}&end=${f1}`);
+                    const d = await r.json();
+                    const fresh = d.frames || [];
+                    if (!fresh.length) continue;
+                    const have = new Set(dd.frames.filter(f => f.frame_number >= f0 && f.frame_number <= f1)
+                                                  .map(f => f.frame_number));
+                    const add = fresh.filter(f => !have.has(f.frame_number));
+                    if (add.length) {
+                        dd.frames = dd.frames.concat(add).sort((a, b) => a.frame_number - b.frame_number);
+                    }
+                } catch (e) { /* tick suivant */ }
+            }
+        };
+        const _lab = document.getElementById('liveAnalysisBtn');
+        if (_lab) _lab.onclick = () => {
+            liveMode = !liveMode;
+            _lab.classList.toggle('active', liveMode);
+            _lab.classList.toggle('btn-warning', liveMode);
+            _lab.classList.toggle('btn-outline-warning', !liveMode);
+            if (liveMode) {
+                _liveSendCursor(true);
+                liveCursorTimer = setInterval(() => _liveSendCursor(true), 1200);
+                liveMergeTimer = setInterval(_liveMergeFresh, 3000);
+            } else {
+                clearInterval(liveCursorTimer); clearInterval(liveMergeTimer);
+                liveCursorTimer = liveMergeTimer = null;
+                _liveSendCursor(false);
+                loadPipelinePanel();   // rafraîchit la ligne de couverture
+            }
+        };
+
         // ── Éditeur de yaw caméras (calibration de session) ──────────────────────
         // Les caméras terrain ne sont pas toutes montées exactement à 0/±90/180° ;
         // une erreur de yaw décale latéralement tous les objets (sin(Δyaw)·distance).
