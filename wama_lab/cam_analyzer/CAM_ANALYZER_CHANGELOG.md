@@ -14,6 +14,7 @@
 
 | Commit | Quoi | Pourquoi | Validé |
 |---|---|---|---|
+| `92553ce` | **Fix Live : `playheadT()`** — pas de globale currentTime, 12 gardes `typeof currentTime` silencieusement morts (curseur Live à 0, merge jamais exécuté, re-renders immédiats yaw/FOV/bascules inertes) ; + bouton Live persistant (localStorage) | Live sans effet visuel malgré une tâche serveur qui produisait (+840 s de couverture mesurés en cache/base) | parse OK ; à re-tester en lecture |
 | `411c817` | **Mode LIVE — analyse au fil de la lecture** (étape 3) : `live_analysis_task` (boucle curseur+lookahead 15 s, modèles gardés chargés, zéro GPU si couvert, sortie après 90 s d inactivité, parité d inférence batch) + endpoint `live-cursor/` + bouton ⚡ Live (curseur 1,2 s, fusion incrémentale des détections 3 s) | Combler visuellement les trous d analyse pendant la lecture (discussion utilisateur : jouable et pas trop lourd — même mécanisme que la complétion, playhead = curseur de priorité) | compile/parse/route OK ; run GPU réel à déclencher (bouton) |
 
 ## 2026-07-18
