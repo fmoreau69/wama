@@ -129,6 +129,11 @@ document.addEventListener('DOMContentLoaded', function () {
     const playPauseIcon = document.getElementById('playPauseIcon');
     const syncStopBtn = document.getElementById('syncStopBtn');
     const syncSeekBar = document.getElementById('syncSeekBar');
+    // Position de lecture COURANTE (s) — SOURCE DE VÉRITÉ. ⚠ Il n'existe PAS de globale
+    // `currentTime` dans ce fichier (c'est une locale de certaines fonctions) : les gardes
+    // `typeof currentTime === 'number'` étaient silencieusement toujours FAUX (bug mode
+    // Live 2026-07-19 : curseur envoyé à 0, merge jamais exécuté). Toujours passer par ici.
+    const playheadT = () => parseFloat(syncSeekBar && syncSeekBar.value) || 0;
     const syncTimeDisplay = document.getElementById('syncTimeDisplay');
     const playbackSpeed = document.getElementById('playbackSpeed');
     const sessionsContainer = document.getElementById('sessionsContainer');
@@ -1042,7 +1047,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 const nm = (config.cocoClasses && config.cocoClasses[c]) || String(c);
                 return String(nm).toLowerCase();
             }).filter(Boolean));
-            if (typeof currentTime === 'number') updateDetectionOverlay(currentTime);
+            updateDetectionOverlay(playheadT());
         }
         const isIntersection = p.report_type === 'intersection_insertion';
         const sam3Enabled = !!p.sam3_markings_enabled;
@@ -2334,10 +2339,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 camFeat[f.key] = cb.checked;
                 rebuildCamGeo();
                 topDownTrails.clear(); topDownHeadings.clear(); topDownDist.clear(); topDownLat.clear(); topDownCls.clear(); topDownAxial.clear();
-                if (typeof currentTime === 'number') {
+                {
+                    const _t = playheadT();
                     topDownLastRender = -999;
-                    updateMiniMapShuttle(currentTime);
-                    updateDetectionOverlay(currentTime);
+                    updateMiniMapShuttle(_t);
+                    updateDetectionOverlay(_t);
                 }
                 try {
                     await fetch(`${config.urls.deleteSession}${currentSessionId}/features/`, {
@@ -2411,7 +2417,7 @@ document.addEventListener('DOMContentLoaded', function () {
         // qu'au prochain seek/lecture — l'utilisateur zoome et « rien ne se passe ».
         miniMap.on('zoomend', () => {
             try { localStorage.setItem('cam_analyzer_minimap_zoom', String(miniMap.getZoom())); } catch (e) { /* noop */ }
-            if (typeof currentTime === 'number') { topDownLastRender = -999; updateMiniMapShuttle(currentTime); }
+            { topDownLastRender = -999; updateMiniMapShuttle(playheadT()); }
         });
         // Zoom sauvegardé (capturé une fois, appliqué après le fitBounds initial).
         try {
@@ -4552,10 +4558,11 @@ document.addEventListener('DOMContentLoaded', function () {
             usePrediction = !usePrediction;
             _pb.classList.toggle('btn-danger', usePrediction);
             _pb.classList.toggle('btn-outline-danger', !usePrediction);
-            if (typeof currentTime === 'number') {
+            {
+                const _t = playheadT();
                 topDownLastRender = -999;
-                updateMiniMapShuttle(currentTime);
-                updateDetectionOverlay(currentTime);
+                updateMiniMapShuttle(_t);
+                updateDetectionOverlay(_t);
             }
         };
         // Lancer le calcul Prédiction (tâche de fond) pour la session.
@@ -4578,7 +4585,7 @@ document.addEventListener('DOMContentLoaded', function () {
             hideParked = !hideParked;
             _hpb.classList.toggle('btn-secondary', hideParked);
             _hpb.classList.toggle('btn-outline-secondary', !hideParked);
-            if (typeof currentTime === 'number') { topDownLastRender = -999; updateMiniMapShuttle(currentTime); }
+            { topDownLastRender = -999; updateMiniMapShuttle(playheadT()); }
         };
         // Bascule fusion multi-caméra 360° (repère véhicule) ↔ avant seul.
         const _tdb = document.getElementById('topDown360Btn');
@@ -4588,7 +4595,7 @@ document.addEventListener('DOMContentLoaded', function () {
             _tdb.classList.toggle('btn-warning', topDown360);
             _tdb.classList.toggle('btn-outline-warning', !topDown360);
             topDownTrails.clear(); topDownHeadings.clear(); topDownDist.clear(); topDownLat.clear(); topDownCls.clear(); topDownAxial.clear();
-            if (typeof currentTime === 'number') { topDownLastRender = -999; updateMiniMapShuttle(currentTime); }
+            { topDownLastRender = -999; updateMiniMapShuttle(playheadT()); }
         };
         // ── Mode LIVE : analyse au fil de la lecture (étape 3 analyse incrémentale) ──
         // ON : envoie le curseur (~1,2 s) → le backend analyse les tranches manquantes
@@ -4604,19 +4611,20 @@ document.addEventListener('DOMContentLoaded', function () {
                     method: 'POST',
                     headers: { 'X-CSRFToken': config.csrfToken, 'Content-Type': 'application/json' },
                     body: JSON.stringify(enabled
-                        ? { t: (typeof currentTime === 'number' ? currentTime : 0), enabled: true, lookahead: 15 }
+                        ? { t: playheadT(), enabled: true, lookahead: 15 }
                         : { enabled: false }),
                 });
             } catch (e) { /* réseau : réessaiera au tick suivant */ }
         };
         const _liveMergeFresh = async () => {
-            if (!liveMode || !currentSessionId || typeof currentTime !== 'number') return;
+            if (!liveMode || !currentSessionId) return;
+            const _tNow = playheadT();
             for (const [pos, dd] of Object.entries(detectionData || {})) {
                 const cam = cameras[pos];
                 if (!cam || !cam.id || !dd) continue;
                 const fps = dd.fps || 12;
-                const f0 = Math.max(0, Math.floor((currentTime - 5) * fps));
-                const f1 = Math.floor((currentTime + 30) * fps);
+                const f0 = Math.max(0, Math.floor((_tNow - 5) * fps));
+                const f1 = Math.floor((_tNow + 30) * fps);
                 try {
                     const r = await fetch(`${config.urls.getDetections}${currentSessionId}/cameras/${cam.id}/detections/?start=${f0}&end=${f1}`);
                     const d = await r.json();
@@ -4698,10 +4706,11 @@ document.addEventListener('DOMContentLoaded', function () {
             }
             rebuildCamGeo();
             topDownTrails.clear(); topDownHeadings.clear(); topDownDist.clear(); topDownLat.clear(); topDownCls.clear(); topDownAxial.clear();
-            if (typeof currentTime === 'number') {
+            {
+                const _t = playheadT();
                 topDownLastRender = -999;
-                updateMiniMapShuttle(currentTime);
-                updateDetectionOverlay(currentTime);   // labels vidéo recalés (distScale)
+                updateMiniMapShuttle(_t);
+                updateDetectionOverlay(_t);   // labels vidéo recalés (distScale)
             }
             try {
                 const r = await fetch(`${config.urls.deleteSession}${currentSessionId}/camera-yaw/`, {
@@ -4744,9 +4753,10 @@ document.addEventListener('DOMContentLoaded', function () {
                 const _lwl = document.getElementById('laneWidthVal'); if (_lwl) _lwl.textContent = laneWidthM.toFixed(1) + 'm';
                 // Override manuel PAR SESSION (gagne sur l'auto au rechargement).
                 try { if (currentSessionId) localStorage.setItem('cam_analyzer_lane_width_' + currentSessionId, String(laneWidthM)); } catch (e) { /* noop */ }
-                if (typeof currentTime === 'number') {
-                    topDownLastRender = -999; updateMiniMapShuttle(currentTime);
-                    if (showLaneVideo) updateDetectionOverlay(currentTime);   // gabarit vidéo suit le slider
+                {
+                    const _t = playheadT();
+                    topDownLastRender = -999; updateMiniMapShuttle(_t);
+                    if (showLaneVideo) updateDetectionOverlay(_t);   // gabarit vidéo suit le slider
                 }
             };
         }
@@ -4756,7 +4766,7 @@ document.addEventListener('DOMContentLoaded', function () {
             showLaneVideo = !showLaneVideo;
             _lvb.classList.toggle('btn-secondary', showLaneVideo);
             _lvb.classList.toggle('btn-outline-secondary', !showLaneVideo);
-            if (typeof currentTime === 'number') updateDetectionOverlay(currentTime);
+            updateDetectionOverlay(playheadT());
         };
         // Hauteur caméra (projection sol→image du gabarit vidéo) + persistance.
         const _chs = document.getElementById('camHeightSlider');
@@ -4768,7 +4778,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 laneCamHeightM = parseFloat(_chs.value) || 1.3;
                 const _l = document.getElementById('camHeightVal'); if (_l) _l.textContent = laneCamHeightM.toFixed(1) + 'm';
                 try { localStorage.setItem('cam_analyzer_cam_height', String(laneCamHeightM)); } catch (e) { /* noop */ }
-                if (showLaneVideo && typeof currentTime === 'number') updateDetectionOverlay(currentTime);
+                if (showLaneVideo) updateDetectionOverlay(playheadT());
             };
         }
         // ── Persistance des BASCULES vue de dessus (les sliders persistaient déjà) ──
@@ -4779,7 +4789,8 @@ document.addEventListener('DOMContentLoaded', function () {
             [['cam_analyzer_td_360', _tdb, () => topDown360],
              ['cam_analyzer_td_pred', _pb, () => usePrediction],
              ['cam_analyzer_td_parked', _hpb, () => hideParked],
-             ['cam_analyzer_td_lanevid', _lvb, () => showLaneVideo]].forEach(([key, btn, get]) => {
+             ['cam_analyzer_td_lanevid', _lvb, () => showLaneVideo],
+             ['cam_analyzer_td_live', _lab, () => liveMode]].forEach(([key, btn, get]) => {
                 if (!btn || !btn.onclick) return;
                 if (localStorage.getItem(key) === '1' && !get()) btn.onclick();
                 const _prev = btn.onclick;
@@ -4804,9 +4815,10 @@ document.addEventListener('DOMContentLoaded', function () {
                 const _lbl = document.getElementById('overlayConfVal');
                 if (_lbl) _lbl.textContent = Math.round(overlayMinConf * 100) + '%';
                 try { localStorage.setItem('cam_analyzer_min_conf', String(overlayMinConf)); } catch (e) { /* noop */ }
-                if (typeof currentTime === 'number') {
-                    updateDetectionOverlay(currentTime);
-                    topDownLastRender = -999; updateMiniMapShuttle(currentTime);   // top-down cohérent
+                {
+                    const _t = playheadT();
+                    updateDetectionOverlay(_t);
+                    topDownLastRender = -999; updateMiniMapShuttle(_t);   // top-down cohérent
                 }
             };
         }
@@ -4820,7 +4832,7 @@ document.addEventListener('DOMContentLoaded', function () {
             // Forcer le re-render (le throttle de la vue de dessus skippe sinon car le
             // temps vidéo ne bouge pas pendant le drag) → recalage navette + objets live.
             topDownLastRender = -999;
-            if (currentSessionId && typeof currentTime === 'number') updateMiniMapShuttle(currentTime);
+            if (currentSessionId) updateMiniMapShuttle(playheadT());
         };
         if (_goInput) _goInput.oninput = () => _applyOffset(_goInput.value);
         if (_goSlider) _goSlider.oninput = () => _applyOffset(_goSlider.value);
