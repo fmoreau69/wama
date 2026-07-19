@@ -332,6 +332,7 @@ class AnalysisPass(models.Model):
         LANE_EVENTS = 'lane_events', 'Évènements de voie'
         TEMPORAL_SEGMENTS = 'temporal_segments', 'Segments temporels'
         DISTANCE = 'distance', 'Distance / vitesse / TTC'
+        GLOBAL_TRACKING = 'global_tracking', 'Tracking 360° (gids + trajectoires)'
         CONFLICTS = 'conflicts', 'Conflits'
 
     class Status(models.TextChoices):

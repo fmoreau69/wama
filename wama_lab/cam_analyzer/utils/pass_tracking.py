@@ -28,6 +28,7 @@ _WATCHED: dict[str, list[str]] = {
     'lane_events': [],  # purely derivative of yolo_detect + yolopv2_lanes
     'temporal_segments': ['target_classes', 'confidence'],
     'distance': [],
+    'global_tracking': [],   # tracking 360° : gids + ancres + trajectoires lissées
     'conflicts': [],
 }
 
@@ -41,6 +42,7 @@ _DEPENDS_ON: dict[str, list[str]] = {
     'lane_events': ['yolo_detect', 'yolopv2_lanes'],
     'temporal_segments': ['yolo_detect', 'intersection_windows'],
     'distance': ['lane_events'],
+    'global_tracking': ['yolo_detect', 'distance'],
     'conflicts': ['lane_events', 'distance'],
 }
 
@@ -205,6 +207,7 @@ def get_passes_status(session) -> list[dict]:
         AnalysisPass.PassType.LANE_EVENTS,
         AnalysisPass.PassType.TEMPORAL_SEGMENTS,
         AnalysisPass.PassType.DISTANCE,
+        AnalysisPass.PassType.GLOBAL_TRACKING,
         AnalysisPass.PassType.CONFLICTS,
     ]
     label_map = dict(AnalysisPass.PassType.choices)

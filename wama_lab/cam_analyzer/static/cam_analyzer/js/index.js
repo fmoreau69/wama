@@ -966,6 +966,15 @@ document.addEventListener('DOMContentLoaded', function () {
                 loadAllDetections(currentSessionId);    // données ré-annotées fraîches
                 loadSessions();
                 setRightPanelExportsEnabled(true);
+                // Données DÉRIVÉES du tracking (ancres, stationnés, couverture) : re-fetch
+                // léger du payload session — sans réinitialiser lecteurs/vidéos.
+                try {
+                    const r = await fetch(`${config.urls.getSession}${currentSessionId}/`);
+                    const d = await r.json();
+                    stationaryGids = new Set((d.results_summary && d.results_summary.stationary_global_tracks) || []);
+                    stationaryAnchors = (d.results_summary && d.results_summary.stationary_anchors) || {};
+                    sessionAnalyzedRanges = (d.config && d.config.analyzed_ranges) || {};
+                } catch (e) { /* prochaine sélection de session fera foi */ }
             }
         }, 2500);
     }
@@ -4697,7 +4706,10 @@ document.addEventListener('DOMContentLoaded', function () {
                 clearInterval(liveCursorTimer); clearInterval(liveMergeTimer);
                 liveCursorTimer = liveMergeTimer = null;
                 _liveSendCursor(false);
-                loadPipelinePanel();   // rafraîchit la ligne de couverture
+                // L'arrêt explicite déclenche côté serveur l'ENCHAÎNEMENT AUTO du
+                // tracking 360° (gids + trajectoires lissées, ~90 s) — le poller de
+                // passes suit son état et recharge détections + données dérivées à la fin.
+                startPassesPolling();
             }
         };
 

@@ -1857,9 +1857,13 @@ def live_analysis_task(self, session_id: str):
         _console(user_id, "Analyse live démarrée (suivra la lecture ; s'arrête après 90 s d'inactivité)")
 
         cams = [c for c in session.cameras.all() if getattr(c, 'video_file', None)]
+        stop_key = f"cam_live_stop_{session_id}"
         last_work = time.time()
         while True:
             cache.set(lock_key, self.request.id, timeout=30)   # heartbeat du verrou
+            if cache.get(stop_key):
+                cache.delete(stop_key)
+                break   # arrêt EXPLICITE (bouton Live désactivé) — sortie immédiate
             cur = cache.get(cursor_key)
             if not cur:
                 if time.time() - last_work > 90:
@@ -1933,6 +1937,29 @@ def live_analysis_task(self, session_id: str):
             else:
                 time.sleep(0.7)
         _console(user_id, f"Analyse live terminée ({slices_done} tranche(s) complétée(s))")
+        # ── Enchaînement AUTO (validé utilisateur 2026-07-19) : si le live a produit,
+        # relancer le TRACKING GLOBAL SEUL (gids + ancres + trajectoires lissées,
+        # ~90 s CPU/DB) pour que les nouvelles détections rejoignent l'affichage
+        # fusionné sans action manuelle. La phase prédiction TTC/PET (longue) reste
+        # au bouton « Calculer les indicateurs ». GPU libéré AVANT (tracking sans GPU).
+        if slices_done:
+            for cap in caps.values():
+                try:
+                    cap.release()
+                except Exception:
+                    pass
+            caps = {}
+            model = road_segmenter = None
+            try:
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+            except Exception:
+                pass
+            _console(user_id, "Enchaînement auto : tracking 360° (gids + trajectoires lissées)…")
+            try:
+                _run_global_tracking(session)
+            except Exception:
+                logger.warning('live: enchaînement tracking échoué', exc_info=True)
         return {'session_id': session_id, 'slices': slices_done}
     except Exception as e:
         logger.error(f"live_analysis_task failed: {e}", exc_info=True)
@@ -2184,6 +2211,57 @@ def _free_memory_before_sam3(user_id=None):
             pass
 
 
+def _run_global_tracking(session):
+    """Cœur PARTAGÉ du tracking 360° : annote les gids/classes stables/trajectoires
+    lissées (world_en) + persiste stationnaires et ancres dans results_summary, avec
+    marquage de la passe `global_tracking` (panneau pipeline). Appelé par
+    « Calculer les indicateurs », par la passe pipeline dédiée, et par
+    l'enchaînement auto de fin de mode Live. Retourne le dict du tracker."""
+    from .utils.multicam_tracker import annotate_global_tracks
+    from .utils.pass_tracking import mark_started, mark_completed, mark_failed
+    try:
+        mark_started(session, 'global_tracking', session.profile)
+        _gt = annotate_global_tracks(session)
+        if not isinstance(_gt, dict):          # 0 = prérequis manquants (GPS…)
+            mark_failed(session, 'global_tracking', 'prérequis manquants (GPS/détections)')
+            return {'tracks': 0}
+        stat = _gt.get('stationary_gids', [])
+        rs = session.results_summary or {}
+        rs['stationary_global_tracks'] = stat
+        # Ancres monde des stationnés (lat/lon, médiane du track) : l'affichage dessine
+        # les garés à position FIXE au lieu de la reconstruction par frame (jitter).
+        rs['stationary_anchors'] = _gt.get('stationary_anchors', {})
+        session.results_summary = rs
+        session.save(update_fields=['results_summary'])
+        mark_completed(session, 'global_tracking', output_summary={
+            'tracks': _gt['tracks'], 'stationary': len(stat)})
+        _console(session.user_id,
+                 f"Tracking multi-caméra : {_gt['tracks']} tracks globaux (hand-off), "
+                 f"{len(stat)} véhicules stationnés détectés.")
+        return _gt
+    except Exception as e:
+        try:
+            mark_failed(session, 'global_tracking', str(e))
+        except Exception:
+            pass
+        raise
+
+
+@shared_task(bind=True)
+def compute_global_tracking_task(self, session_id: str):
+    """Passe pipeline découplée « Tracking 360° » : gids + ancres + trajectoires
+    lissées, SANS la phase prédiction TTC/PET (la partie longue). CPU/DB seulement."""
+    close_old_connections()
+    from .models import AnalysisSession
+    try:
+        session = AnalysisSession.objects.select_related('profile').get(pk=session_id)
+        r = _run_global_tracking(session)
+        return {'session_id': session_id, 'tracks': r.get('tracks', 0)}
+    except Exception as e:
+        logger.error(f"compute_global_tracking_task failed: {e}", exc_info=True)
+        return {'error': str(e), 'session_id': session_id}
+
+
 @shared_task(bind=True)
 def annotate_prediction_task(self, session_id: str):
     """Calcule les indicateurs Prédiction (TTC/PET par trajectoire) pour la session et les
@@ -2193,18 +2271,8 @@ def annotate_prediction_task(self, session_id: str):
     from .utils.multicam_tracker import annotate_global_tracks
     session = AnalysisSession.objects.get(pk=session_id)
     # 1) Tracks globaux multi-caméra (rapide) → continuité 360° + hand-off.
-    _gt = annotate_global_tracks(session)
-    ng = _gt['tracks']
-    stat = _gt.get('stationary_gids', [])
-    rs = session.results_summary or {}
-    rs['stationary_global_tracks'] = stat
-    # Ancres monde des stationnés (lat/lon, médiane du track) : l'affichage dessine
-    # les garés à position FIXE au lieu de la reconstruction par frame (jitter).
-    rs['stationary_anchors'] = _gt.get('stationary_anchors', {})
-    session.results_summary = rs
-    session.save(update_fields=['results_summary'])
-    _console(session.user_id, f"Tracking multi-caméra : {ng} tracks globaux (hand-off), "
-                              f"{len(stat)} véhicules stationnés détectés.")
+    _gt = _run_global_tracking(session)
+    ng = _gt.get('tracks', 0)
     # 2) Prédiction TTC/PET par trajectoire.
     n = annotate_prediction_indicators(session)
     _console(session.user_id, f"Prédiction : {n} détections annotées (TTC/PET par trajectoire).")

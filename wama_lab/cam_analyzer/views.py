@@ -966,6 +966,7 @@ def run_passes(request, session_id):
         from .tasks import (
             compute_lane_events_task,
             compute_distance_task,
+            compute_global_tracking_task,
             compute_temporal_segments_task,
             compute_conflict_events_task,
             analyze_sam3_only_task,
@@ -975,6 +976,7 @@ def run_passes(request, session_id):
         dispatch_map = {
             'lane_events':       compute_lane_events_task,
             'distance':          compute_distance_task,
+            'global_tracking':   compute_global_tracking_task,
             'temporal_segments': compute_temporal_segments_task,
             'conflicts':         compute_conflict_events_task,
             'sam3_markings':     analyze_sam3_only_task,
@@ -1044,6 +1046,10 @@ def live_cursor(request, session_id):
     lock_key = f"cam_live_lock_{session_id}"
     if not body.get('enabled', True):
         cache.delete(cursor_key)
+        # Arrêt EXPLICITE : la tâche sort immédiatement (au lieu d'attendre le délai
+        # d'inactivité) et enchaîne le tracking global si elle a produit.
+        if cache.get(lock_key):
+            cache.set(f"cam_live_stop_{session_id}", 1, timeout=120)
         return JsonResponse({'success': True, 'running': bool(cache.get(lock_key))})
     try:
         t = max(0.0, float(body.get('t', 0.0)))
