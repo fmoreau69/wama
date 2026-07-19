@@ -10,6 +10,12 @@
 >
 > Chaîne complète : [`CAM_ANALYZER_CHAINE_TRAITEMENT.md`](CAM_ANALYZER_CHAINE_TRAITEMENT.md).
 
+## 2026-07-19
+
+| Commit | Quoi | Pourquoi | Validé |
+|---|---|---|---|
+| `411c817` | **Mode LIVE — analyse au fil de la lecture** (étape 3) : `live_analysis_task` (boucle curseur+lookahead 15 s, modèles gardés chargés, zéro GPU si couvert, sortie après 90 s d inactivité, parité d inférence batch) + endpoint `live-cursor/` + bouton ⚡ Live (curseur 1,2 s, fusion incrémentale des détections 3 s) | Combler visuellement les trous d analyse pendant la lecture (discussion utilisateur : jouable et pas trop lourd — même mécanisme que la complétion, playhead = curseur de priorité) | compile/parse/route OK ; run GPU réel à déclencher (bouton) |
+
 ## 2026-07-18
 
 | Commit | Quoi | Pourquoi | Validé |
