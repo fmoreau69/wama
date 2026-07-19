@@ -2668,6 +2668,33 @@ document.addEventListener('DOMContentLoaded', function () {
                 const pts = _sm.map(p => egoToLatLon(p.lat, p.lon, p.h, e.x, 0));
                 if (pts.length >= 2) L.polyline(pts, { color: e.c, weight: 1.5, opacity: 0.85, dashArray: e.d }).addTo(miniMapLaneLayer);
             });
+
+            // ── Routes PERPENDICULAIRES aux intersections (repère GPS, demande 2026-07-19) ──
+            // Le fond de tuiles OSM flotte de quelques mètres par rapport au repère GPS
+            // (géoréférencement + biais) : la route croisée n'était portée QUE par les
+            // tuiles → balise perçue « décalée ». On dessine la route croisée DANS le
+            // repère GPS : bande ancrée sur la balise (lat/lon du profil), orientée
+            // perpendiculairement au cap d'entrée de la navette (bearing_deg de la
+            // fenêtre), longueur = 2×rayon, largeur = 2 voies (gabarit).
+            (intersectionWindows || []).forEach(w => {
+                if (w.lat == null || w.lon == null) return;
+                const dKm = Math.hypot((w.lat - pose.lat) * 111320,
+                                       (w.lon - pose.lon) * 111320 * Math.cos(pose.lat * Math.PI / 180));
+                if (dKm > 200) return;                       // seulement à proximité
+                const brg = (w.bearing_deg != null ? w.bearing_deg : pose.heading) + 90;   // axe de la route croisée
+                const th = brg * Math.PI / 180;
+                const ux = Math.sin(th), uy = Math.cos(th);   // unitaire (est, nord) le long de la croisée
+                const vx = Math.sin(th + Math.PI / 2), vy = Math.cos(th + Math.PI / 2);
+                const halfL = Math.max(15, (w.radius_m || 20));
+                const halfW = laneWidthM;                     // 2 voies (une par sens)
+                const mLat = 111320, mLon = 111320 * Math.cos(w.lat * Math.PI / 180);
+                const _pt = (du, dv) => [w.lat + (uy * du + vy * dv) / mLat,
+                                         w.lon + (ux * du + vx * dv) / mLon];
+                L.polygon([_pt(-halfL, -halfW), _pt(halfL, -halfW), _pt(halfL, halfW), _pt(-halfL, halfW)],
+                    { stroke: false, fillColor: '#ab47bc', fillOpacity: 0.10 }).addTo(miniMapLaneLayer);
+                L.polyline([_pt(-halfL, 0), _pt(halfL, 0)],
+                    { color: '#ab47bc', weight: 1.5, opacity: 0.8, dashArray: '6,6' }).addTo(miniMapLaneLayer);
+            });
         }
 
         // Objets : mode "avant seul" (existant) OU "fusion 360°" (toutes les caméras
