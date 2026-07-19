@@ -1078,7 +1078,10 @@ def live_cursor(request, session_id):
         return JsonResponse({'success': False, 'error': 't invalide'}, status=400)
     cache.set(cursor_key, {'t': t, 'lookahead': lookahead}, timeout=120)
     started = False
-    if not cache.get(lock_key):
+    if not cache.get(lock_key) and cache.add(f"cam_live_spawn_{session_id}", 1, timeout=15):
+        # cache.add = verrou de SPAWN atomique (15 s, levé par la tâche à son démarrage) :
+        # sans lui, chaque POST curseur pendant que la file est occupée empilait une
+        # tâche de plus — mesuré 1440 messages en file le 2026-07-19.
         from .tasks import live_analysis_task
         live_analysis_task.delay(str(session.id))
         started = True

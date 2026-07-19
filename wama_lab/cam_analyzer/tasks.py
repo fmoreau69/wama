@@ -1844,6 +1844,11 @@ def live_analysis_task(self, session_id: str):
         return {'error': 'no profile'}
     lock_key = f"cam_live_lock_{session_id}"
     cursor_key = f"cam_live_cursor_{session_id}"
+    cache.delete(f"cam_live_spawn_{session_id}")   # lève le verrou de spawn (voir live_cursor)
+    if cache.get(f"cam_live_cool_{session_id}"):
+        # Cooldown post-préemption : sortie SILENCIEUSE — indispensable pour drainer un
+        # éventuel arriéré de tâches empilées sans spam console ni churn de verrou.
+        return {'skipped': 'cooldown'}
     if not cache.add(lock_key, self.request.id, timeout=30):
         return {'skipped': 'already_running'}
 
@@ -1889,6 +1894,7 @@ def live_analysis_task(self, session_id: str):
                        .values_list('status', flat=True).first())
                 if _st in (AnalysisSession.Status.PENDING, AnalysisSession.Status.PROCESSING):
                     _console(user_id, "Analyse batch détectée — mode Live suspendu (slot GPU rendu)")
+                    cache.set(f"cam_live_cool_{session_id}", 1, timeout=30)
                     _stop_reason = 'preempt'
                     break
             cur = cache.get(cursor_key)
