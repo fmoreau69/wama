@@ -14,6 +14,7 @@
 
 | Commit | Quoi | Pourquoi | Validation/annulation |
 |---|---|---|---|
+| `edd269e` | Branches **mutualisées par intersection physique** (lat/lon ~1 m près : 1 analyse/lieu, partagée entre passages) + ortho IGN `maxNativeZoom` 19 | Passages multiples du même carrefour → jeux de branches contradictoires superposés (« croix ») ; tuiles z20 absentes par endroits → fond vide | 28 fenêtres → 2 jeux distincts ; session réparée après restart pendant complétion |
 | `0ead425` | **Levier antenne GPS** (⚑ antenna_lever, coin arrière droit ENA, config gps_antenna + 2 champs Calibration, appliqué Python+JS) + **branches apprises du trafic** (⚑ learned_branches, `intersection_branches.py`, filtre rectitude, 2 dominantes ≥3 véh., dessinées à la place de la bande symétrique, fallback conservé) + **fond ortho IGN 20 cm** (bouton 🛰 persisté) | Repère calé ~1 m à droite (GPS=antenne≠centre) ; bande perpendiculaire aveugle des 2 côtés ; largeurs de fond raster symboliques | Mesuré : déport 1,00 m ; 56 branches/28 fenêtres ; run 197 s 4631 tracks ; validation navigateur à faire (relancer Indicateurs pour recaler les world_en avec l antenne) |
 
 ## 2026-07-19
