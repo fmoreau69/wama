@@ -2429,8 +2429,8 @@ document.addEventListener('DOMContentLoaded', function () {
             + '&LAYER=ORTHOIMAGERY.ORTHOPHOTOS&STYLE=normal&TILEMATRIXSET=PM'
             + '&FORMAT=image/jpeg&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}', {
             attribution: '&copy; <a href="https://www.ign.fr/">IGN</a>',
-            maxNativeZoom: 20,
-            maxZoom: 24,
+            maxNativeZoom: 19,   // z20 non servi sur toutes les zones (404 → fond vide) ;
+            maxZoom: 24,         // au-delà : tuiles z19 étirées (comme le fond sombre)
         });
         let _orthoOn = localStorage.getItem('cam_analyzer_td_ortho') === '1';
         (_orthoOn ? _baseOrtho : _baseDark).addTo(miniMap);

@@ -67,11 +67,18 @@ def learn_branches(session, radius_m=25.0, min_angle_deg=30.0, min_span_m=8.0,
                 if len(lst) < max_pts_per_track:
                     lst.append((df.timestamp, float(w[0]), float(w[1])))
 
+    # Mutualisation par intersection PHYSIQUE : plusieurs fenêtres = plusieurs PASSAGES
+    # par le même carrefour ; apprises séparément, elles divergeaient (corridors/échantillons
+    # différents) et l'affichage superposait des branches contradictoires (« croix » —
+    # constat utilisateur 2026-07-20). Une seule analyse par lieu, résultat partagé.
     out = {}
+    _by_place = {}   # (lat arrondi, lon arrondi) -> liste de clés de fenêtres
     for wi, w in enumerate(wins):
-        wlat, wlon = w.get('lat'), w.get('lon')
-        if wlat is None or wlon is None:
+        if w.get('lat') is None or w.get('lon') is None:
             continue
+        _by_place.setdefault((round(w['lat'], 5), round(w['lon'], 5)), []).append(wi)
+
+    for (wlat, wlon), wids in _by_place.items():
         we, wn = to_local(wlat, wlon)
         # Axe du corridor navette au plus proche de l'intersection
         dists = [(abs(math.hypot(r[1] - we, r[2] - wn)), r[3]) for r in sh_traj[::5]]
@@ -146,7 +153,8 @@ def learn_branches(session, radius_m=25.0, min_angle_deg=30.0, min_span_m=8.0,
                 'n_tracks': cl['n'],
             })
         if branches:
-            out[str(wi)] = branches
+            for wi in wids:
+                out[str(wi)] = branches   # même lieu → mêmes branches pour tous les passages
     if out:
         logger.info("branches apprises : %s",
                     {k: len(v) for k, v in out.items()})
