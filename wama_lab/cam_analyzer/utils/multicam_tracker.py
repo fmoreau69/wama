@@ -104,7 +104,8 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
     if len(gt) < 5:
         return 0
     to_local = make_local_frame(gt)
-    sh_traj = shuttle_trajectory(gt, to_local)
+    from .prediction_adapter import antenna_offset
+    sh_traj = shuttle_trajectory(gt, to_local, antenna=antenna_offset(session))
     if len(sh_traj) < 5:
         return 0
 

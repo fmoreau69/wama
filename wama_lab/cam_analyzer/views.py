@@ -349,10 +349,18 @@ def set_camera_yaw(request, session_id):
         cfg['camera_yaw'] = yaw
     if fov:
         cfg['camera_fov'] = {**(cfg.get('camera_fov') or {}), **fov}
+    ant = body.get('gps_antenna')
+    if isinstance(ant, (list, tuple)) and len(ant) >= 2:
+        try:
+            cfg['gps_antenna'] = [max(-2.0, min(2.0, float(ant[0]))),
+                                  max(-1.0, min(5.0, float(ant[1])))]
+        except (TypeError, ValueError):
+            pass
     session.config = cfg
     session.save(update_fields=['config'])
     return JsonResponse({'success': True, 'camera_yaw': cfg.get('camera_yaw'),
-                         'camera_fov': cfg.get('camera_fov')})
+                         'camera_fov': cfg.get('camera_fov'),
+                         'gps_antenna': cfg.get('gps_antenna')})
 
 
 @login_required

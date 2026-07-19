@@ -58,8 +58,9 @@ CAMERA_FOV_V = {'front': 61.0, 'right': 31.0, 'rear': 61.0, 'left': 31.0}
 # pour le facteur de correction des distances stockées (latérales : 90° supposé vs 31°
 # réel = distances 3,6× trop courtes).
 LEGACY_FOV_V = {'front': 60.0, 'right': 90.0, 'rear': 60.0, 'left': 90.0}
-# Montage (droite_m, avant_m) dans le repère véhicule, origine = ANTENNE GPS (à
-# l'arrière du toit — schéma ENA). Navya ≈ 4,75 m × 2,11 m.
+# Montage (droite_m, avant_m) dans le repère véhicule, origine = CENTRE ARRIÈRE.
+# Le point GPS (= l'antenne, coin arrière droit du rig ENA) est ramené à cette origine
+# par le levier GPS_ANTENNA dans shuttle_trajectory(). Navya ≈ 4,75 m × 2,11 m.
 CAMERA_MOUNT = {'front': (0.0, 4.5), 'right': (1.0, 3.4),
                 'rear': (0.0, 0.0), 'left': (-1.0, 3.4)}
 
@@ -110,9 +111,9 @@ def camera_geometry(session):
 def cam_to_vehicle(lateral, longitudinal, yaw_deg, mount=(0.0, 0.0)):
     """Position repère caméra → repère VÉHICULE commun (via l'orientation de la caméra).
     `mount` = position de MONTAGE de la caméra dans le repère véhicule (droite, avant)
-    en m, origine = antenne GPS. Le rig ENA a l'antenne à l'ARRIÈRE et la caméra avant
-    à l'extrémité AVANT (~4,5 m devant l'antenne) : sans ce bras de levier, tous les
-    objets avant étaient dessinés ~4,5 m trop près de la navette. Audit 2026-07-16."""
+    en m, origine = CENTRE ARRIÈRE (le point GPS y est ramené via GPS_ANTENNA). La
+    caméra avant est à l'extrémité AVANT (~4,5 m devant l'arrière) : sans ce bras de
+    levier, tous les objets avant étaient dessinés ~4,5 m trop près. Audit 2026-07-16."""
     t = math.radians(yaw_deg)
     s, c = math.sin(t), math.cos(t)
     return (longitudinal * s + lateral * c + mount[0],
@@ -130,14 +131,48 @@ def make_local_frame(gps_track):
     return to_local
 
 
-def shuttle_trajectory(gps_track, to_local):
-    """GPS → [t, east, north, heading_deg] (points avec cap valide, triés)."""
+# Position de l'ANTENNE GPS dans le repère véhicule (latéral droite, longitudinal avant),
+# origine = centre arrière. Rig ENA : antenne dans le COIN ARRIÈRE DROIT (schéma
+# d'installation, confirmé utilisateur 2026-07-20) → tout le repère véhicule était calé
+# ~1 m à droite de la réalité (le point GPS était traité comme le centre arrière) —
+# composante du « décalage latéral systématique vers la droite » signalé à l'origine.
+GPS_ANTENNA = (1.0, 0.0)
+
+
+def antenna_offset(session=None):
+    """Levier d'antenne effectif (latéral, longitudinal) — déclaré par session
+    (config['gps_antenna']), défaut rig ENA, désactivable (⚑ antenna_lever)."""
+    ant = list(GPS_ANTENNA)
+    if session is not None:
+        try:
+            cfg = session.config or {}
+            ov = cfg.get('gps_antenna')
+            if isinstance(ov, (list, tuple)) and len(ov) >= 2:
+                ant = [float(ov[0]), float(ov[1])]
+            from .features import effective
+            if not effective(session).get('antenna_lever', True):
+                return (0.0, 0.0)
+        except Exception:
+            pass
+    return (ant[0], ant[1])
+
+
+def shuttle_trajectory(gps_track, to_local, antenna=None):
+    """GPS → [t, east, north, heading_deg] (points avec cap valide, triés).
+    `antenna` (latéral, longitudinal) : position de l'antenne dans le repère véhicule —
+    le point GPS est ramené au CENTRE ARRIÈRE (origine des montages caméra) en
+    retranchant le levier tourné par le cap."""
+    ax, ay = antenna if antenna else (0.0, 0.0)
     rows = []
     for p in gps_track:
         h = p.get('heading')
         if h is None:
             continue
         e, n = to_local(p['lat'], p['lon'])
+        if ax or ay:
+            hr = math.radians(h)
+            e -= ay * math.sin(hr) + ax * math.cos(hr)
+            n -= ay * math.cos(hr) - ax * math.sin(hr)
         rows.append((p['ts'], e, n, h))
     rows.sort(key=lambda r: r[0])
     return np.array(rows) if rows else np.zeros((0, 4))
@@ -239,7 +274,7 @@ def annotate_prediction_indicators(session, method='speed_accel', max_range_m=45
     if len(gt) < 5:
         return 0
     to_local = make_local_frame(gt)
-    sh_traj = shuttle_trajectory(gt, to_local)
+    sh_traj = shuttle_trajectory(gt, to_local, antenna=antenna_offset(session))
     if len(sh_traj) < 5:
         return 0
     cams = [c for c in session.cameras.all()

@@ -2264,6 +2264,15 @@ def _run_global_tracking(session):
         # Ancres monde des stationnés (lat/lon, médiane du track) : l'affichage dessine
         # les garés à position FIXE au lieu de la reconstruction par frame (jitter).
         rs['stationary_anchors'] = _gt.get('stationary_anchors', {})
+        # Branches d'intersection APPRISES DU TRAFIC (world_en fraîchement écrits) —
+        # remplace la bande perpendiculaire symétrique quand des croisants sont observés.
+        try:
+            from .utils.features import effective as _feff
+            if _feff(session).get('learned_branches', True):
+                from .utils.intersection_branches import learn_branches
+                rs['intersection_branches'] = learn_branches(session)
+        except Exception:
+            logger.warning('learn_branches failed (non-blocking)', exc_info=True)
         session.results_summary = rs
         session.save(update_fields=['results_summary'])
         mark_completed(session, 'global_tracking', output_summary={

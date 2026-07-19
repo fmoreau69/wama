@@ -25,6 +25,11 @@ FEATURES = [
             "avec la trajectoire selon la vitesse. OFF = trajectoire seule (cap figé à "
             "l'arrêt).",
             default=True, scope='live'),
+    Feature('antenna_lever', "Levier d'antenne GPS",
+            "Le point GPS est l'ANTENNE (coin arrière droit sur le rig ENA), pas le centre "
+            "du véhicule : tout le repère est ramené au centre arrière via le levier déclaré "
+            "(config gps_antenna). Corrige un biais systématique ~1 m vers la droite.",
+            default=True, scope='compute'),
     Feature('artifact_filter', 'Filtre reflets/artefacts',
             "Masque les détections collées à l'image (reflets de vitrage : bbox immobile "
             "pendant que la navette avance). Le marquage/exclusion du tracking s'applique "
@@ -35,6 +40,11 @@ FEATURES = [
             "du track (calculé par le tracking 360°), au lieu de l'estimation frame par "
             "frame au rendu.",
             default=True, scope='live'),
+    Feature('learned_branches', 'Branches apprises du trafic',
+            "Les voies croisantes aux intersections sont apprises des trajectoires monde "
+            "des véhicules suivis (côté, azimut, étendue et largeur observés) au lieu "
+            "d'une bande perpendiculaire symétrique aveugle.",
+            default=True, scope='compute'),
     Feature('heading_cluster', 'Prior de cluster (cap des garés)',
             "Les garés voisins (< 15 m) partagent souvent leur axe (rangée, épi) : mélange "
             "axial pondéré du cap individuel avec celui des voisins.",

@@ -86,6 +86,11 @@ document.addEventListener('DOMContentLoaded', function () {
     const LEGACY_FOV_V = { front: 60, right: 90, rear: 60, left: 90 };
     const CAMERA_MOUNT = { front: [0, 4.5], right: [1.0, 3.4], rear: [0, 0], left: [-1.0, 3.4] };
     const camGeo = {};        // géométrie effective par caméra — reconstruite par rebuildCamGeo()
+    // Levier d'antenne GPS (droite, avant) : le point GPS = l'ANTENNE (coin arrière
+    // droit du rig ENA), pas le centre — ramené au centre arrière (⚑ antenna_lever).
+    let camAntenna = [1.0, 0.0];
+    let camAntennaCfg = null;      // surcharge session (config.gps_antenna), lue au chargement
+    let sessionBranches = {};      // branches d'intersection apprises du trafic (par index de fenêtre)
     const camFovUsed = {};    // FOV V utilisé à l'annotation (config.fov_v_used, sinon legacy)
     // Bascules ⚑ Modes (miroir de utils/features.py) : comparer AVEC/SANS chaque
     // amélioration. Surchargées par le catalogue serveur au chargement de session.
@@ -94,6 +99,10 @@ document.addEventListener('DOMContentLoaded', function () {
     // Les bascules géométriques s'appliquent ICI et nulle part ailleurs (même principe
     // que camera_geometry backend) : couper une bascule neutralise le levier partout.
     function rebuildCamGeo() {
+        const _antCfg = camAntennaCfg;
+        camAntenna = (camFeat.antenna_lever === false) ? [0, 0]
+            : (Array.isArray(_antCfg) && _antCfg.length >= 2
+                ? [parseFloat(_antCfg[0]) || 0, parseFloat(_antCfg[1]) || 0] : [1.0, 0.0]);
         Object.keys(CAMERA_YAW).forEach(p => {
             const used = (camFovUsed[p] != null && isFinite(camFovUsed[p])) ? camFovUsed[p] : LEGACY_FOV_V[p];
             camGeo[p] = {
@@ -463,6 +472,8 @@ document.addEventListener('DOMContentLoaded', function () {
                     if (_cf[p] && isFinite(_cf[p].h)) camFovH[p] = parseFloat(_cf[p].h);
                     if (_cf[p] && isFinite(_cf[p].v)) camFovV[p] = parseFloat(_cf[p].v);
                 });
+                // Levier d'antenne GPS surchargé par session (défaut : coin arrière droit ENA).
+                camAntennaCfg = (data.config && data.config.gps_antenna) || null;
                 // Bascules ⚑ Modes : état effectif servi par le serveur (registre + config).
                 (data.features || []).forEach(f => { camFeat[f.key] = !!f.enabled; });
                 rebuildCamGeo();
@@ -470,6 +481,7 @@ document.addEventListener('DOMContentLoaded', function () {
             } catch (e) { /* défauts conservés */ }
             try {
                 stationaryGids = new Set((data.results_summary && data.results_summary.stationary_global_tracks) || []);
+                sessionBranches = (data.results_summary && data.results_summary.intersection_branches) || {};
                 stationaryAnchors = (data.results_summary && data.results_summary.stationary_anchors) || {};
                 sessionAnalyzedRanges = (data.config && data.config.analyzed_ranges) || {};
             } catch (e) { stationaryGids = new Set(); stationaryAnchors = {}; sessionAnalyzedRanges = {}; }
@@ -977,6 +989,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     const r = await fetch(`${config.urls.getSession}${currentSessionId}/`);
                     const d = await r.json();
                     stationaryGids = new Set((d.results_summary && d.results_summary.stationary_global_tracks) || []);
+                    sessionBranches = (d.results_summary && d.results_summary.intersection_branches) || {};
                     stationaryAnchors = (d.results_summary && d.results_summary.stationary_anchors) || {};
                     sessionAnalyzedRanges = (d.config && d.config.analyzed_ranges) || {};
                 } catch (e) { /* prochaine sélection de session fera foi */ }
@@ -2399,12 +2412,49 @@ document.addEventListener('DOMContentLoaded', function () {
         // and matches the WAMA dark theme. Same provider as the profile editor map.
         // maxNativeZoom 19 = zoom réel des tuiles ; maxZoom 24 = overzoom (tuiles étirées,
         // un peu floues) pour ÉTALER les objets de la vue de dessus (sinon empilés à z19).
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        // Deux fonds commutables (bouton 🛰, persisté) :
+        // - CARTO dark : lisible, thème WAMA, mais largeurs de voies SYMBOLIQUES
+        //   (style raster : pixels fixes par classe de route, jamais métriques) ;
+        // - Orthophoto IGN (Géoplateforme, BD ORTHO 20 cm/px, z20 natif) : géométrie
+        //   RÉELLE des voies — la seule vérité métrique en fond de carte (discussion
+        //   2026-07-20 « largeurs du fond ne coïncident pas »).
+        const _baseDark = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
             attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
             subdomains: 'abcd',
             maxNativeZoom: 19,
             maxZoom: 24,
-        }).addTo(miniMap);
+        });
+        const _baseOrtho = L.tileLayer(
+            'https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0'
+            + '&LAYER=ORTHOIMAGERY.ORTHOPHOTOS&STYLE=normal&TILEMATRIXSET=PM'
+            + '&FORMAT=image/jpeg&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}', {
+            attribution: '&copy; <a href="https://www.ign.fr/">IGN</a>',
+            maxNativeZoom: 20,
+            maxZoom: 24,
+        });
+        let _orthoOn = localStorage.getItem('cam_analyzer_td_ortho') === '1';
+        (_orthoOn ? _baseOrtho : _baseDark).addTo(miniMap);
+        const _BaseSwitch = L.Control.extend({
+            options: { position: 'topleft' },
+            onAdd: () => {
+                const b = L.DomUtil.create('a', 'leaflet-bar');
+                b.href = '#'; b.textContent = '🛰';
+                b.title = "Fond orthophoto IGN (20 cm/px — largeurs de voies réelles) / fond sombre";
+                b.style.cssText = 'width:26px;height:26px;line-height:26px;text-align:center;'
+                    + 'background:#222;display:block;font-size:14px;'
+                    + (_orthoOn ? 'outline:2px solid #ffb300;' : '');
+                L.DomEvent.on(b, 'click', (ev) => {
+                    L.DomEvent.stop(ev);
+                    _orthoOn = !_orthoOn;
+                    localStorage.setItem('cam_analyzer_td_ortho', _orthoOn ? '1' : '0');
+                    miniMap.removeLayer(_orthoOn ? _baseDark : _baseOrtho);
+                    (_orthoOn ? _baseOrtho : _baseDark).addTo(miniMap);
+                    b.style.outline = _orthoOn ? '2px solid #ffb300' : 'none';
+                });
+                return b;
+            },
+        });
+        miniMap.addControl(new _BaseSwitch());
 
         // Barre d'échelle (mètres) — pour estimer les distances (ex. l'offset GPS/vidéo).
         L.control.scale({ metric: true, imperial: false, position: 'bottomright' }).addTo(miniMap);
@@ -2461,7 +2511,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // Draw the shuttle trajectory polyline
         if (cachedGpsTrack.length >= 2) {
-            const latlngs = cachedGpsTrack.map(p => [p.lat, p.lon]);
+            const latlngs = cachedGpsTrack.map(p => { const c = antennaCorrect(p); return [c.lat, c.lon]; });
             miniMapPolyline = L.polyline(latlngs, {
                 color: '#0dcaf0', weight: 3, opacity: 0.8,
             }).addTo(miniMap);
@@ -2510,6 +2560,17 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     // Find the GPS point whose timestamp is closest to a given time
+    function antennaCorrect(pt) {
+        // Point GPS (antenne) → centre arrière véhicule : retranche le levier tourné par le cap.
+        const ax = camAntenna[0], ay = camAntenna[1];
+        if ((!ax && !ay) || pt.heading == null) return pt;
+        const hr = pt.heading * Math.PI / 180;
+        const de = ay * Math.sin(hr) + ax * Math.cos(hr);   // m vers l'est
+        const dn = ay * Math.cos(hr) - ax * Math.sin(hr);   // m vers le nord
+        return { ...pt, lat: pt.lat - dn / 111320.0,
+                 lon: pt.lon - de / (111320.0 * Math.cos(pt.lat * Math.PI / 180)) };
+    }
+
     function findGpsAtTime(t) {
         if (!cachedGpsTrack.length) return null;
         // ts_gps = temps_vidéo * scale + offset (scale corrige un fps AVI erroné → la
@@ -2524,10 +2585,11 @@ document.addEventListener('DOMContentLoaded', function () {
         // Interpolation linéaire entre les 2 fixes encadrants : le GPS est à ~1 Hz,
         // renvoyer le fixe le plus proche fait « sauter » le marqueur de ±0,5 s.
         // On interpole lat/lon pour un déplacement fluide et calé sur le temps.
-        if (a === b || b.ts <= a.ts || t <= a.ts) return a;
-        if (t >= b.ts) return b;
+        if (a === b || b.ts <= a.ts || t <= a.ts) return antennaCorrect(a);
+        if (t >= b.ts) return antennaCorrect(b);
         const f = (t - a.ts) / (b.ts - a.ts);
-        return { ...a, ts: t, lat: a.lat + (b.lat - a.lat) * f, lon: a.lon + (b.lon - a.lon) * f };
+        return antennaCorrect({ ...a, ts: t, lat: a.lat + (b.lat - a.lat) * f,
+                                lon: a.lon + (b.lon - a.lon) * f });
     }
 
     function updateMiniMapShuttle(currentTime) {
@@ -2701,11 +2763,30 @@ document.addEventListener('DOMContentLoaded', function () {
             // repère GPS : bande ancrée sur la balise (lat/lon du profil), orientée
             // perpendiculairement au cap d'entrée de la navette (bearing_deg de la
             // fenêtre), longueur = 2×rayon, largeur = 2 voies (gabarit).
-            (intersectionWindows || []).forEach(w => {
+            (intersectionWindows || []).forEach((w, _wi) => {
                 if (w.lat == null || w.lon == null) return;
                 const dKm = Math.hypot((w.lat - pose.lat) * 111320,
                                        (w.lon - pose.lon) * 111320 * Math.cos(pose.lat * Math.PI / 180));
                 if (dKm > 200) return;                       // seulement à proximité
+                // Branches APPRISES DU TRAFIC (trajectoires monde des croisants) : on ne
+                // dessine que là où des véhicules ont réellement roulé — côté, azimut,
+                // étendue et largeur observés. Fallback : bande symétrique aveugle.
+                const _learned = sessionBranches[String(_wi)];
+                if (Array.isArray(_learned) && _learned.length) {
+                    _learned.forEach(br => {
+                        const th2 = br.bearing_deg * Math.PI / 180;
+                        const vx2 = Math.sin(th2 + Math.PI / 2), vy2 = Math.cos(th2 + Math.PI / 2);
+                        const hw = (br.width_m || 6) / 2;
+                        const mLat2 = 111320, mLon2 = 111320 * Math.cos(br.a[0] * Math.PI / 180);
+                        const _sh = (pt2, sgn) => [pt2[0] + sgn * hw * vy2 / mLat2,
+                                                   pt2[1] + sgn * hw * vx2 / mLon2];
+                        L.polygon([_sh(br.a, -1), _sh(br.b, -1), _sh(br.b, 1), _sh(br.a, 1)],
+                            { stroke: false, fillColor: '#ab47bc', fillOpacity: 0.14 }).addTo(miniMapLaneLayer);
+                        L.polyline([br.a, br.b],
+                            { color: '#ab47bc', weight: 1.5, opacity: 0.85, dashArray: '6,6' }).addTo(miniMapLaneLayer);
+                    });
+                    return;
+                }
                 const brg = (w.bearing_deg != null ? w.bearing_deg : pose.heading) + 90;   // axe de la route croisée
                 const th = brg * Math.PI / 180;
                 const ux = Math.sin(th), uy = Math.cos(th);   // unitaire (est, nord) le long de la croisée
@@ -3055,7 +3136,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         const segment = cachedGpsTrack
             .filter(p => p.ts >= w.t_enter && p.ts <= w.t_exit)
-            .map(p => [p.lat, p.lon]);
+            .map(p => { const c = antennaCorrect(p); return [c.lat, c.lon]; });
 
         if (segment.length >= 2) {
             miniMapPassHighlight = L.polyline(segment, {
@@ -4763,6 +4844,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 });
                 const _fl = document.getElementById('camFovLatInput');
                 if (_fl) _fl.value = camFovH.left;
+                const _al = document.getElementById('antLatInput');
+                const _ao = document.getElementById('antLonInput');
+                const _antEff = camAntennaCfg || [1.0, 0.0];
+                if (_al) _al.value = _antEff[0];
+                if (_ao) _ao.value = _antEff[1];
             }
         };
         const _cys = document.getElementById('camYawSaveBtn');
@@ -4784,7 +4870,21 @@ document.addEventListener('DOMContentLoaded', function () {
                 camFovV.left = camFovV.right = Math.round(_fv * 10) / 10;
                 fovPayload = { left: { h: _fh, v: camFovV.left }, right: { h: _fh, v: camFovV.right } };
             }
+            // Levier d'antenne GPS (latéral, longitudinal) — appliqué immédiatement au
+            // rendu (pose navette + parcours) et persisté pour le tracking.
+            let antPayload = null;
+            const _al = document.getElementById('antLatInput');
+            const _ao = document.getElementById('antLonInput');
+            const _av = [_al ? parseFloat(_al.value) : NaN, _ao ? parseFloat(_ao.value) : NaN];
+            if (isFinite(_av[0]) && isFinite(_av[1])) {
+                antPayload = _av;
+                camAntennaCfg = _av;
+            }
             rebuildCamGeo();
+            if (miniMapPolyline && cachedGpsTrack.length >= 2) {
+                // retrace le parcours avec le nouveau levier antenne
+                miniMapPolyline.setLatLngs(cachedGpsTrack.map(pt => { const c = antennaCorrect(pt); return [c.lat, c.lon]; }));
+            }
             topDownTrails.clear(); topDownHeadings.clear(); topDownDist.clear(); topDownLat.clear(); topDownCls.clear(); topDownAxial.clear();
             {
                 const _t = playheadT();
@@ -4795,8 +4895,9 @@ document.addEventListener('DOMContentLoaded', function () {
             try {
                 const r = await fetch(`${config.urls.deleteSession}${currentSessionId}/camera-yaw/`, {
                     method: 'POST', headers: { 'X-CSRFToken': config.csrfToken, 'Content-Type': 'application/json' },
-                    body: JSON.stringify(fovPayload ? { camera_yaw: payload, camera_fov: fovPayload }
-                                                    : { camera_yaw: payload }),
+                    body: JSON.stringify(Object.assign({ camera_yaw: payload },
+                        fovPayload ? { camera_fov: fovPayload } : {},
+                        antPayload ? { gps_antenna: antPayload } : {})),
                 });
                 const d = await r.json();
                 if (d.success) { _cys.textContent = '✓'; setTimeout(() => { _cys.textContent = '💾'; }, 1200); }
