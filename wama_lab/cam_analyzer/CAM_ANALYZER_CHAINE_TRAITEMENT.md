@@ -135,7 +135,13 @@ gabarits sur ces valeurs (sinon `ttc_s` de la frame).
 Recalcule les positions **par frame** à partir des champs persistés (pas de positions
 pré-calculées) — mêmes formules que [5]/[6] avec `camGeo` (miroir JS de `camera_geometry`) :
 
-- **Position** : Y = `distance_m × distScale` (EMA par objet), X = pinhole `f_x` FOV H (EMA).
+- **Position — hiérarchie GLOBALE (2026-07-19)** : ① **ancre** monde (stationné, médiane du
+  track) > ② **`world_en`** (mobile tracké : trajectoire monde fusionnée **Kalman avant +
+  RTS arrière** sur toutes les observations du gid, toutes caméras — écrite par le
+  tracker, caméra-indépendante, sans retard de phase) > ③ reconstruction par frame
+  (repli : Y = `distance_m × distScale` EMA, X = pinhole `f_x` FOV H EMA — les gardes
+  zone-fiable/bord-d'image ne s'appliquent qu'ici). Les frames analysées APRÈS le dernier
+  « Calculer les indicateurs » restent en repli jusqu'au prochain calcul.
 - **Cap objet** — fusion (voir §Cap ci-dessous).
 - **Gabarit** : rectangle aux dimensions de `stable_class` (sinon vote live), orienté au cap.
 - Ego : silhouette navette étendue vers l'AVANT depuis le point GPS (antenne à l'arrière).
