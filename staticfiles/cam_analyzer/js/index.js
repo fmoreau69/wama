@@ -900,6 +900,10 @@ document.addEventListener('DOMContentLoaded', function () {
             const _completeAnalysis = async (scope, label) => {
                 if (!currentSessionId) return;
                 if (!confirm(`Compléter l'analyse (${label}) ? Seules les tranches jamais analysées seront traitées.`)) return;
+                // Le batch est PRIORITAIRE sur le Live (même slot GPU) : coupe le Live
+                // par le même chemin que le clic (persistance localStorage incluse).
+                const _lb0 = document.getElementById('liveAnalysisBtn');
+                if (_lb0 && _lb0.classList.contains('active')) _lb0.click();
                 try {
                     const r = await fetch(`${config.urls.deleteSession}${currentSessionId}/complete-analysis/`, {
                         method: 'POST',
@@ -982,6 +986,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
     async function runPasses(types, force) {
         if (!currentSessionId) return;
+        const _lbP = document.getElementById('liveAnalysisBtn');
+        if (_lbP && _lbP.classList.contains('active')) _lbP.click();   // batch prioritaire sur Live
         try {
             const resp = await fetch(`${config.urls.runPasses}${currentSessionId}/passes/run/`, {
                 method: 'POST',
@@ -4672,13 +4678,19 @@ document.addEventListener('DOMContentLoaded', function () {
         const _liveSendCursor = async (enabled) => {
             if (!currentSessionId) return;
             try {
-                await fetch(`${config.urls.deleteSession}${currentSessionId}/live-cursor/`, {
+                const _r = await fetch(`${config.urls.deleteSession}${currentSessionId}/live-cursor/`, {
                     method: 'POST',
                     headers: { 'X-CSRFToken': config.csrfToken, 'Content-Type': 'application/json' },
                     body: JSON.stringify(enabled
                         ? { t: playheadT(), enabled: true, lookahead: 15 }
                         : { enabled: false }),
                 });
+                if (enabled && _r.status === 409 && liveMode) {
+                    // Analyse batch en attente/en cours : le serveur refuse le Live —
+                    // on coupe le bouton pour ne pas marteler.
+                    const _lb1 = document.getElementById('liveAnalysisBtn');
+                    if (_lb1 && _lb1.classList.contains('active')) _lb1.click();
+                }
             } catch (e) { /* réseau : réessaiera au tick suivant */ }
         };
         const _liveMergeFresh = async () => {

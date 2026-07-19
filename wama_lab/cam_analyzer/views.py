@@ -646,6 +646,7 @@ def sam3_test_frame(request, session_id):
     from django.core.cache import cache
     cache.set(f"sam3_test_{session_id}", {'status': 'running'}, 600)
     from .tasks import sam3_test_frame_task
+    _pause_live(session_id)   # tâches GPU manuelles prioritaires sur le Live
     sam3_test_frame_task.delay(str(session_id), position, frame_number, min_conf, calibrate)
     return JsonResponse({'success': True, 'status': 'running'})
 
@@ -810,6 +811,7 @@ def start_analysis(request, session_id):
     session.results_summary = {}
     session.save()
 
+    _pause_live(session_id)   # tâches GPU manuelles prioritaires sur le Live
     task = process_session_task.delay(str(session_id))
     cache.set(f"cam_analyzer_task_{session_id}", task.id, timeout=86400)
     _console(user_id, f"Analyse lancée pour la session : {session.name}")
@@ -945,6 +947,7 @@ def run_passes(request, session_id):
         # semblait sans effet. Ré-exécute toute la détection (yolo+yolopv2, toutes vues).
         _explicit_heavy = bool(heavy_needed & set(requested))
         _force_detection = force or _explicit_heavy
+        _pause_live(session_id)
         cache.delete(f"stop_cam_analyzer_{request.user.id}")
         session.status = AnalysisSession.Status.PENDING
         session.progress = 0
@@ -971,6 +974,7 @@ def run_passes(request, session_id):
             compute_conflict_events_task,
             analyze_sam3_only_task,
         )
+        _pause_live(session_id)
         cache.delete(f"stop_cam_analyzer_{request.user.id}")
 
         dispatch_map = {
@@ -998,6 +1002,16 @@ def run_passes(request, session_id):
     })
 
 
+def _pause_live(session_id):
+    """Suspend le mode Live (curseur purgé + flag stop) : les tâches GPU MANUELLES
+    sont PRIORITAIRES sur l'analyse au fil de la lecture — elles partagent le même
+    slot worker GPU, et une tâche batch coincée > 5 min derrière la boucle live
+    déclenchait le watchdog « worker mort » (constat utilisateur 2026-07-19)."""
+    cache.delete(f"cam_live_cursor_{session_id}")
+    if cache.get(f"cam_live_lock_{session_id}"):
+        cache.set(f"cam_live_stop_{session_id}", 'preempt', timeout=300)
+
+
 @login_required
 @require_http_methods(["POST"])
 def complete_analysis(request, session_id):
@@ -1018,6 +1032,7 @@ def complete_analysis(request, session_id):
         return JsonResponse({'success': False,
                              'error': 'Aucune fenêtre d\'intersection sur cette session'}, status=400)
     from .tasks import process_session_task
+    _pause_live(session_id)
     cache.delete(f"stop_cam_analyzer_{request.user.id}")
     session.status = AnalysisSession.Status.PENDING
     session.progress = 0
@@ -1042,6 +1057,11 @@ def live_cursor(request, session_id):
         body = json.loads(request.body or '{}')
     except ValueError:
         body = {}
+    if session.status in (AnalysisSession.Status.PENDING, AnalysisSession.Status.PROCESSING):
+        # Une analyse batch est en file/en cours : le Live lui rendrait le slot GPU
+        # inaccessible — refus explicite (le client désactive le bouton).
+        return JsonResponse({'success': False, 'running': False,
+                             'error': 'analyse en cours'}, status=409)
     cursor_key = f"cam_live_cursor_{session_id}"
     lock_key = f"cam_live_lock_{session_id}"
     if not body.get('enabled', True):
@@ -1049,7 +1069,7 @@ def live_cursor(request, session_id):
         # Arrêt EXPLICITE : la tâche sort immédiatement (au lieu d'attendre le délai
         # d'inactivité) et enchaîne le tracking global si elle a produit.
         if cache.get(lock_key):
-            cache.set(f"cam_live_stop_{session_id}", 1, timeout=120)
+            cache.set(f"cam_live_stop_{session_id}", 'user', timeout=120)
         return JsonResponse({'success': True, 'running': bool(cache.get(lock_key))})
     try:
         t = max(0.0, float(body.get('t', 0.0)))

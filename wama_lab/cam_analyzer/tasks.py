@@ -1643,6 +1643,17 @@ def process_session_task(self, session_id: str, force_rerun: bool = False,
         _console(user_id, f"Analyse terminée en {elapsed:.0f}s — "
                           f"{summary['detections_total']} détections sur {summary['cameras_processed']} caméras")
 
+        # COMPLÉTION : enchaîner le tracking global (gids + trajectoires lissées) pour
+        # que les tranches fraîchement analysées rejoignent l'affichage fusionné —
+        # même logique que la fin du mode Live (statut déjà COMPLETED → pas de
+        # préemption croisée).
+        if completion_scope:
+            try:
+                _console(user_id, "Complétion : tracking 360° (gids + trajectoires lissées)…")
+                _run_global_tracking(session)
+            except Exception:
+                logger.warning('completion: enchaînement tracking échoué', exc_info=True)
+
         return {'processed': session_id}
 
     except InterruptedError as e:
@@ -1859,11 +1870,27 @@ def live_analysis_task(self, session_id: str):
         cams = [c for c in session.cameras.all() if getattr(c, 'video_file', None)]
         stop_key = f"cam_live_stop_{session_id}"
         last_work = time.time()
+        _last_status_check = 0.0
+        _stop_reason = 'idle'
         while True:
             cache.set(lock_key, self.request.id, timeout=30)   # heartbeat du verrou
-            if cache.get(stop_key):
+            _stop_val = cache.get(stop_key)
+            if _stop_val:
                 cache.delete(stop_key)
-                break   # arrêt EXPLICITE (bouton Live désactivé) — sortie immédiate
+                _stop_reason = _stop_val if isinstance(_stop_val, str) else 'user'
+                break   # arrêt EXPLICITE — sortie immédiate
+            # Les tâches BATCH sont PRIORITAIRES (même slot worker GPU) : si une analyse
+            # est en attente/en cours, on rend le slot immédiatement — sinon elle restait
+            # coincée en file > 5 min et le watchdog la marquait « worker mort »
+            # (constat utilisateur 2026-07-19).
+            if time.time() - _last_status_check > 3.0:
+                _last_status_check = time.time()
+                _st = (AnalysisSession.objects.filter(pk=session_id)
+                       .values_list('status', flat=True).first())
+                if _st in (AnalysisSession.Status.PENDING, AnalysisSession.Status.PROCESSING):
+                    _console(user_id, "Analyse batch détectée — mode Live suspendu (slot GPU rendu)")
+                    _stop_reason = 'preempt'
+                    break
             cur = cache.get(cursor_key)
             if not cur:
                 if time.time() - last_work > 90:
@@ -1942,7 +1969,7 @@ def live_analysis_task(self, session_id: str):
         # ~90 s CPU/DB) pour que les nouvelles détections rejoignent l'affichage
         # fusionné sans action manuelle. La phase prédiction TTC/PET (longue) reste
         # au bouton « Calculer les indicateurs ». GPU libéré AVANT (tracking sans GPU).
-        if slices_done:
+        if slices_done and _stop_reason != 'preempt':
             for cap in caps.values():
                 try:
                     cap.release()
