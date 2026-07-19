@@ -391,6 +391,9 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
                     fr.detections.append({
                         'type': 'ghost', 'predicted': True, 'global_track_id': gid,
                         'class_name': cls, 'vehicle_xy': [round(lat, 3), round(lon, 3)],
+                        # Position MONDE interpolée : même canal de consommation que les
+                        # détections réelles lissées (world_en) — affichage uniforme.
+                        'world_en': [round(we, 2), round(wn, 2)],
                         # Distance GÉOMÉTRIQUE dérivée de la position interpolée (repère
                         # véhicule, origine antenne) : donne au fantôme un tooltip chiffré
                         # et une couleur par distance (au lieu du cyan « aucune mesure »).
@@ -398,6 +401,30 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
                     })
                     dirty.add(fr)
                     ghosts += 1
+
+    # ── Trajectoires LISSÉES des mobiles (Kalman + RTS, 2026-07-19) ─────────────────
+    # Agrège TOUTES les observations monde d'un même gid (toutes caméras, toute la
+    # manœuvre) et les lisse par Kalman avant + RTS arrière — le lissage utilise le
+    # futur ET le passé de chaque point (pas de retard de phase). La position lissée
+    # est écrite sur chaque détection (`world_en`, repère monde) : l'affichage la
+    # CONSOMME au lieu de re-reconstruire par frame/caméra — plus de sauts au
+    # changement de caméra ni de disparitions dues aux gardes par-frame.
+    # Stationnés exclus (les ancres font mieux).
+    from .trajectory_smoother import smooth_track
+    smoothed = {}   # (gid, fn) -> (e, n)
+    for gid, hist in track_hist.items():
+        if gid in _stat_set or len(hist) < 5:
+            continue
+        try:
+            out = smooth_track([(t, e, n) for (_fn, t, e, n, _c) in hist])
+        except Exception:
+            logger.debug('smooth_track failed gid=%s', gid, exc_info=True)
+            continue
+        by_t = {round(t, 4): (e, n) for t, e, n, _vx, _vy in out}
+        for fn, t, _e, _n, _c in hist:
+            v = by_t.get(round(t, 4))
+            if v:
+                smoothed[(gid, fn)] = v
 
     # ── Classe STABLE par track (vote majoritaire pondéré confiance) ────────────────
     # YOLO fait flapper la classe (car↔truck) d'une frame à l'autre sur le même
@@ -407,9 +434,13 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
     stable_cls = {gid: max(v, key=v.get) for gid, v in cls_votes.items() if v}
     for f in dirty:
         for d in (f.detections or []):
-            sc = stable_cls.get(d.get('global_track_id'))
+            g = d.get('global_track_id')
+            sc = stable_cls.get(g)
             if sc:
                 d['stable_class'] = sc
+            w = smoothed.get((g, f.frame_number)) if g is not None else None
+            if w:
+                d['world_en'] = [round(w[0], 2), round(w[1], 2)]
 
     for f in dirty:
         f.save(update_fields=['detections'])

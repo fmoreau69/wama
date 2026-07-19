@@ -2529,6 +2529,14 @@ document.addEventListener('DOMContentLoaded', function () {
     // ── Vue de dessus : objets (X,Y) égo → lat/lon sur la carte ──────────────
     // Position d'un objet dans le monde depuis sa position égo (X latéral droite+,
     // Y longitudinal avant+) et la pose navette (lat/lon + cap depuis le Nord, CW).
+        // Repère MONDE (origine = 1er fixe GPS — même convention que le backend
+    // make_local_frame/ancres) → lat/lon. Consommé par world_en (trajectoires lissées).
+    function worldToLatLon(e, n) {
+        const o = cachedGpsTrack && cachedGpsTrack[0];
+        if (!o) return null;
+        return [o.lat + n / 111320, o.lon + e / (111320 * Math.cos(o.lat * Math.PI / 180))];
+    }
+
     function egoToLatLon(lat, lon, headingDeg, X, Y) {
         const h = headingDeg * Math.PI / 180;
         const east = Y * Math.sin(h) + X * Math.cos(h);     // avant·sin + droite·cos
@@ -2737,6 +2745,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 const _geoMount = (camGeo[camPos] || {}).mount;   // bras de levier caméra
                 let g;
                 const isGhost = det.predicted && Array.isArray(det.vehicle_xy);
+                // Trajectoire LISSÉE serveur (Kalman+RTS, repère monde) : position de
+                // référence des mobiles trackés — l'affichage la CONSOMME au lieu de
+                // reconstruire par frame/caméra (fin des sauts inter-caméras et des
+                // disparitions dues aux gardes par-frame). Audit dépassement 2026-07-19.
+                const _worldEn = Array.isArray(det.world_en) ? det.world_en : null;
                 if (isGhost) {
                     g = det.vehicle_xy;              // fantôme prédit : déjà en repère véhicule
                 } else if (det.distance_m != null && Array.isArray(det.bbox)) {
@@ -2782,8 +2795,8 @@ document.addEventListener('DOMContentLoaded', function () {
                     g = det.ground_xy;
                     if (!Array.isArray(g) || g.length < 2) return;
                 }
-                if (g[1] <= 0 || g[1] > 60 || Math.abs(g[0]) > 25) return;          // zone fiable
-                if (!isGhost) {
+                if (!_worldEn && (g[1] <= 0 || g[1] > 60 || Math.abs(g[0]) > 25)) return;   // zone fiable (reconstruction seulement)
+                if (!isGhost && !_worldEn) {
                     // Bord d'image : une détection coupée a un latéral biaisé — mais si
                     // elle est TRACKÉE (gid), on la dessine quand même (position lissée
                     // EMA) : c'était le « masque » qui faisait disparaître le véhicule
@@ -2804,7 +2817,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
                 let ll;
                 const _anchor = gid != null ? stationaryAnchors[gid] : null;
-                if (_anchor) {
+                if (!_anchor && _worldEn) {
+                    // Mobile tracké : position lissée monde (caméra-indépendante).
+                    ll = worldToLatLon(_worldEn[0], _worldEn[1]);
+                }
+                if (ll) { /* déjà positionné */ } else if (_anchor) {
                     // STATIONNÉ ANCRÉ : position MONDE fixe (médiane du track, serveur) —
                     // la reconstruction par frame faisait « bouger/tourner » les garés
                     // hors de l'axe caméra (erreur focale × gisement balayé au passage
