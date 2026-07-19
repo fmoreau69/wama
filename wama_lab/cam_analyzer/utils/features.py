@@ -25,6 +25,20 @@ FEATURES = [
             "avec la trajectoire selon la vitesse. OFF = trajectoire seule (cap figé à "
             "l'arrêt).",
             default=True, scope='live'),
+    Feature('artifact_filter', 'Filtre reflets/artefacts',
+            "Masque les détections collées à l'image (reflets de vitrage : bbox immobile "
+            "pendant que la navette avance). Le marquage/exclusion du tracking s'applique "
+            "au prochain calcul des indicateurs ; le masquage à l'affichage est immédiat.",
+            default=True, scope='live'),
+    Feature('anchor_heading', 'Cap serveur des stationnés',
+            "Cap des véhicules garés = consensus axial du ratio de bbox sur TOUTE la vie "
+            "du track (calculé par le tracking 360°), au lieu de l'estimation frame par "
+            "frame au rendu.",
+            default=True, scope='live'),
+    Feature('heading_cluster', 'Prior de cluster (cap des garés)',
+            "Les garés voisins (< 15 m) partagent souvent leur axe (rangée, épi) : mélange "
+            "axial pondéré du cap individuel avec celui des voisins.",
+            default=True, scope='compute'),
     Feature('track_speed_unified', 'Vitesse/distance unifiées par track',
             "Une seule vitesse/distance monde par véhicule (tracker 360°) servie à toutes "
             "les vues, au lieu de valeurs indépendantes par caméra. (Pas encore implémenté "

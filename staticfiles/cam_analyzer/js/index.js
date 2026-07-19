@@ -89,7 +89,8 @@ document.addEventListener('DOMContentLoaded', function () {
     const camFovUsed = {};    // FOV V utilisé à l'annotation (config.fov_v_used, sinon legacy)
     // Bascules ⚑ Modes (miroir de utils/features.py) : comparer AVEC/SANS chaque
     // amélioration. Surchargées par le catalogue serveur au chargement de session.
-    const camFeat = { fov_dist_correction: true, mount_lever_arm: true, heading_ratio: true };
+    const camFeat = { fov_dist_correction: true, mount_lever_arm: true, heading_ratio: true,
+                      artifact_filter: true, anchor_heading: true };
     // Les bascules géométriques s'appliquent ICI et nulle part ailleurs (même principe
     // que camera_geometry backend) : couper une bascule neutralise le levier partout.
     function rebuildCamGeo() {
@@ -2128,6 +2129,7 @@ document.addEventListener('DOMContentLoaded', function () {
             // road_mask/sam3 (rendus en polygone plus haut, pas ici).
             if (overlayMinConf > 0 && det.type !== 'sam3_marking' && det.type !== 'road_mask'
                 && typeof det.confidence === 'number' && det.confidence < overlayMinConf) return;
+            if (det.artifact && camFeat.artifact_filter !== false) return;   // reflets/artefacts marqués
 
             const [x1, y1, x2, y2] = det.bbox;
             const sx = x1 * scaleX + offsetX;
@@ -2751,6 +2753,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 // dès qu'un calcul de prédiction avait été lancé (elles sont persistées), d'où
                 // l'impression de « prédiction activée par défaut » et l'incohérence caméra↔carte.
                 if (det.predicted && !usePrediction) return;
+                // Reflets/artefacts collés à l'image (marqués par le tracking) : masqués
+                // sauf si la bascule ⚑ est désactivée pour comparaison.
+                if (det.artifact && camFeat.artifact_filter !== false) return;
                 const _geoMount = (camGeo[camPos] || {}).mount;   // bras de levier caméra
                 let g;
                 const isGhost = det.predicted && Array.isArray(det.vehicle_xy);
@@ -2967,6 +2972,13 @@ document.addEventListener('DOMContentLoaded', function () {
                         }
                         objHeading = Math.atan2(_by, _bx) * 90 / Math.PI;   // demi-angle → axe mod 180°
                     }
+                }
+                // CAP SERVEUR des stationnés (chantiers 2+3, 2026-07-19) : consensus axial
+                // du ratio sur toute la vie du track (+ prior cluster), calculé par le
+                // tracking 360° et porté par l'ancre — prime sur l'estimation par frame.
+                if (_anchor && _anchor.length > 2 && _anchor[2] != null
+                        && camFeat.anchor_heading !== false) {
+                    objHeading = _anchor[2];
                 }
                 // Tooltip SYSTÉMATIQUE : basé sur les valeurs réellement affichées (pinhole
                 // corrigé distScale). L'ancien affichait dist_euclid_m — un champ HOMOGRAPHIE,

@@ -32,6 +32,60 @@ def world_to_vehicle(world_e, world_n, shuttle_e, shuttle_n, heading_deg):
 CAMERA_YAW = {'front': 0.0, 'right': 75.0, 'rear': 180.0, 'left': -75.0}   # défauts rig ENA (±75° latérales)
 
 
+def _ratio_heading_candidates(bb, iw, ih, cls, geo, fov_v_deg, sh_heading):
+    """Cap MONDE (mod 180°) d'un véhicule depuis le ratio largeur/hauteur de sa bbox —
+    portage serveur du calcul JS (étendue apparente E = L·|sinθ| + W·|cosθ|, indépendante
+    de la distance car celle-ci vient de la hauteur bbox). Retourne les 2 candidats."""
+    from .distance_speed import CLASS_REAL_HEIGHT_M
+    dims = CLASS_DIMS.get(cls)
+    H = CLASS_REAL_HEIGHT_M.get(cls)
+    if not dims or not H:
+        return []
+    L, W = dims[0], dims[1]
+    bw, bh = bb[2] - bb[0], bb[3] - bb[1]
+    if bh < 12 or bw < 4:
+        return []
+    fy = ih / (2.0 * math.tan(math.radians(fov_v_deg) / 2.0))
+    fx = iw / (2.0 * math.tan(math.radians(geo['fov_h']) / 2.0))
+    E = max(W, min(math.hypot(L, W), H * (fy / fx) * (bw / bh)))
+    disc = max(0.0, L * L + W * W - E * E)
+    sq = math.sqrt(disc)
+    los = sh_heading + geo['yaw'] + math.degrees(
+        math.atan2((bb[0] + bb[2]) / 2.0 - iw / 2.0, fx))
+    out = []
+    for sg in (1.0, -1.0):
+        s = (L * E + sg * W * sq) / (L * L + W * W)
+        if -1e-9 <= s <= 1 + 1e-9:
+            th = math.degrees(math.asin(min(1.0, max(0.0, s))))
+            out.append((los + th) % 180.0)
+            out.append((los - th) % 180.0)
+    return out
+
+
+def _axial_consensus(cands):
+    """Axe dominant (deg, mod 180°) d'un nuage de candidats : pic d'histogramme 5°
+    (lissé sur 3 bins, circulaire) puis moyenne AXIALE (angle doublé) à ±15° du pic.
+    La vraie orientation est stable à travers les gisements ; le candidat fantôme du
+    ratio bouge avec la ligne de visée → le pic isole la vérité."""
+    if not cands:
+        return None
+    bins = [0] * 36
+    for a in cands:
+        bins[int(a % 180.0 // 5)] += 1
+    best = max(range(36), key=lambda i: bins[(i - 1) % 36] + bins[i] + bins[(i + 1) % 36])
+    center = best * 5 + 2.5
+    sx = sy = 0.0
+    for a in cands:
+        dv = ((a - center) % 180.0 + 90.0) % 180.0 - 90.0
+        if abs(dv) <= 15.0:
+            r = math.radians((center + dv) * 2.0)
+            sx += math.cos(r)
+            sy += math.sin(r)
+    if sx == 0 and sy == 0:
+        return None
+    return (math.degrees(math.atan2(sy, sx)) / 2.0) % 180.0
+
+
 def _cam_to_vehicle(lateral, longitudinal, yaw_deg):
     """Position dans le repère caméra → repère VÉHICULE commun (via l'orientation caméra)."""
     t = math.radians(yaw_deg)
@@ -66,6 +120,21 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
     scale = session.gps_time_scale or 1.0
     off = session.gps_time_offset or 0.0
     _geo = camera_geometry(session)  # yaw/FOV/montage réels par caméra (rig + session)
+    from .features import effective as _features_effective
+    _feat = _features_effective(session)
+    # ── Artefacts collés à l'image (reflets de vitrage) — chantier 1, 2026-07-19 ──
+    # Détectés par cinématique pure AVANT l'association : bbox quasi immobile pendant
+    # que la navette avance = pas un objet du monde. Marqués (jamais supprimés) et
+    # exclus du tracking quand la bascule ⚑ artifact_filter est active.
+    _artifact_tids = set()
+    if _feat.get('artifact_filter', True):
+        try:
+            from .artifact_filter import detect_static_artifacts
+            _artifact_tids = detect_static_artifacts(session)
+        except Exception:
+            logger.warning('detect_static_artifacts failed (non-blocking)', exc_info=True)
+    _head_obs = defaultdict(list)   # gid -> [(pos, t, bbox)] pour le cap serveur des ancrés
+    _cam_dims = {c.position: (c.width or 384, c.height or 248) for c in cams}
 
     per_cam = {}
     for c in cams:
@@ -103,6 +172,10 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
                 # fantômes (predicted) qui n'ont ni track_id ni source segmentation.
                 if d.get('track_id') is None and d.get('source') != 'segmentation':
                     continue
+                if (pos, d.get('track_id')) in _artifact_tids:
+                    d['artifact'] = True   # marqué, jamais supprimé (bascule ⚑ à l'affichage)
+                    dirty.add(f)
+                    continue               # exclu de l'association (pas un objet du monde)
                 _g = _geo[pos]
                 ego = pinhole_ego(d, iw, ih, fov_v_deg,
                                   fov_h_deg=_g['fov_h'], dist_scale=_g['dist_scale'])
@@ -190,6 +263,13 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
             d['global_track_id'] = best['id']
             if ck:
                 chain[ck] = {'gid': best['id'], 't': t}   # verrou de chaîne (voir plus haut)
+            _bb = d.get('bbox')
+            if (not relaxed and isinstance(_bb, (list, tuple)) and len(_bb) >= 4
+                    and _bb[0] > 8 and _bb[2] < _cam_dims.get(pos, (384, 248))[0] - 8):
+                # Observation pour le CAP serveur des ancrés (bbox non coupée seulement —
+                # une bbox tronquée fausse l'étendue apparente, donc le ratio).
+                _head_obs[best['id']].append((pos, t, (float(_bb[0]), float(_bb[1]),
+                                                       float(_bb[2]), float(_bb[3]))))
             track_hist[best['id']].append((fn, t, e, n, d.get('class_name', 'car')))
             # Vote de classe pondéré par la confiance : YOLO fait flapper car↔truck
             # d'une frame à l'autre sur le même véhicule → la classe STABLE d'un track
@@ -330,7 +410,13 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
     lat0, lon0 = gt[0]['lat'], gt[0]['lon']
     _m_lat = 111320.0
     _m_lon = 111320.0 * math.cos(math.radians(lat0))
-    stationary_anchors = {}
+    # Phase 1 : position (médiane) + CAP SERVEUR (chantier 2, 2026-07-19) — consensus
+    # axial du ratio-bbox sur TOUTES les observations du track (la navette balaie des
+    # gisements variés en passant devant un garé : très informatif, et bien plus stable
+    # que l'EMA par frame au rendu). Phase 2 : prior CLUSTER (chantier 3) — les garés
+    # voisins (< 15 m) partagent souvent leur axe (rangée/épi) : mélange axial pondéré
+    # (soi ×2, voisins ×1), débrayable (⚑ heading_cluster).
+    _anchor_tmp = {}
     for gid in stationary_gids:
         hs = track_hist.get(gid) or []
         if not hs:
@@ -338,8 +424,39 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
         es = sorted(h[2] for h in hs)
         ns = sorted(h[3] for h in hs)
         me, mn = es[len(es) // 2], ns[len(ns) // 2]
+        cands = []
+        _v = cls_votes.get(gid)
+        _cls = max(_v, key=_v.get) if _v else 'car'
+        for pos, tt, bb in (_head_obs.get(gid) or [])[:400]:
+            iw_o, ih_o = _cam_dims.get(pos, (384, 248))
+            _, _, shh = _shuttle_pose_at(sh_traj, tt)
+            from .prediction_adapter import CAMERA_FOV_V as _FOVV_REAL
+            cands.extend(_ratio_heading_candidates(
+                bb, iw_o, ih_o, _cls, _geo[pos], _FOVV_REAL.get(pos, 61.0), shh))
+        _anchor_tmp[gid] = (me, mn, _axial_consensus(cands))
+
+    if _feat.get('heading_cluster', True):
+        _blended = {}
+        for gid, (me, mn, hd) in _anchor_tmp.items():
+            neigh = [ohd for og, (oe, on, ohd) in _anchor_tmp.items()
+                     if og != gid and ohd is not None
+                     and math.hypot(oe - me, on - mn) <= 15.0]
+            if hd is not None and len(neigh) >= 2:
+                sx = 2.0 * math.cos(math.radians(hd * 2))
+                sy = 2.0 * math.sin(math.radians(hd * 2))
+                for oh in neigh:
+                    sx += math.cos(math.radians(oh * 2))
+                    sy += math.sin(math.radians(oh * 2))
+                _blended[gid] = (math.degrees(math.atan2(sy, sx)) / 2.0) % 180.0
+        for gid, hd in _blended.items():
+            me, mn, _ = _anchor_tmp[gid]
+            _anchor_tmp[gid] = (me, mn, hd)
+
+    stationary_anchors = {}
+    for gid, (me, mn, hd) in _anchor_tmp.items():
         stationary_anchors[gid] = [round(lat0 + mn / _m_lat, 7),
-                                   round(lon0 + me / _m_lon, 7)]
+                                   round(lon0 + me / _m_lon, 7),
+                                   round(hd, 1) if hd is not None else None]
 
     # ── Comblement des trous de détection au hand-off (empreintes prédites) ──────
     # Pour chaque track, on interpole en repère MONDE entre avant/après le trou, puis on
