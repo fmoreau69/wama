@@ -2328,6 +2328,47 @@ def compute_global_tracking_task(self, session_id: str):
 
 
 @shared_task(bind=True)
+def compute_ortho_recalage_task(self, session_id: str):
+    """Étape 2b — recalage ABSOLU par marquages ortho : segmente les passages piétons
+    sur l'orthophoto IGN (SAM3, GPU + réseau), les matche avec les crossings caméra
+    (marking_world) et mesure l'offset de recalage par intersection. RAPPORT seul —
+    l'offset est stocké mais PAS appliqué au positionnement (validation d'abord)."""
+    close_old_connections()
+    from .models import AnalysisSession
+    from .utils.ortho_markings import segment_ortho_crossings, match_recalage
+    try:
+        session = AnalysisSession.objects.get(pk=session_id)
+        uid = session.user_id
+        _console(uid, "Recalage ortho : segmentation SAM3 des passages piétons sur l'orthophoto…")
+        oc = segment_ortho_crossings(session)
+        n_cross = sum(len(v) for v in {tuple(sorted(w)): v for w, v in oc.items()}.values())
+        rec = match_recalage(session, oc)
+        rs = session.results_summary or {}
+        rs['ortho_markings'] = oc
+        rs['ortho_recalage'] = rec
+        session.results_summary = rs
+        session.save(update_fields=['results_summary'])
+        g = rec.get('global')
+        if g:
+            import math as _m
+            _console(uid, f"Recalage ortho : offset mesuré {_m.hypot(g['de_m'], g['dn_m']):.1f} m "
+                          f"(E {g['de_m']:+.1f} / N {g['dn_m']:+.1f}, {g['n']} appariements) — "
+                          f"non appliqué (bascule à venir).")
+        else:
+            _console(uid, f"Recalage ortho : {n_cross} passages piétons ortho détectés, "
+                          f"aucun appariement avec les crossings caméra (relancer le tracking ?).")
+        return {'session_id': session_id, 'ortho_crossings': n_cross, 'recalage': rec.get('global')}
+    except Exception as e:
+        logger.error(f"compute_ortho_recalage_task failed: {e}", exc_info=True)
+        try:
+            _console(AnalysisSession.objects.get(pk=session_id).user_id,
+                     f"Recalage ortho : échec ({e})")
+        except Exception:
+            pass
+        return {'error': str(e), 'session_id': session_id}
+
+
+@shared_task(bind=True)
 def annotate_prediction_task(self, session_id: str):
     """Calcule les indicateurs Prédiction (TTC/PET par trajectoire) pour la session et les
     stocke sur les détections (prediction_ttc/pet). Ré-annotation, pas de re-détection."""

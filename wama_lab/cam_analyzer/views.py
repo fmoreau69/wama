@@ -1154,6 +1154,25 @@ def start_sam3_only(request, session_id):
 
 
 @login_required
+@require_http_methods(["POST"])
+def ortho_recalage(request, session_id):
+    """Étape 2b — mesure l'offset de recalage absolu via les passages piétons de
+    l'orthophoto IGN (SAM3 + réseau). Asynchrone (GPU). Le résultat est affiché sur
+    la mini-carte et dans la console ; l'offset n'est PAS appliqué (validation d'abord)."""
+    from .tasks import compute_ortho_recalage_task
+    session = get_object_or_404(AnalysisSession, id=session_id, user=request.user)
+    if not session.intersection_windows:
+        return JsonResponse({'success': False,
+                             'error': 'Aucune intersection définie sur ce profil'}, status=400)
+    if session.status == AnalysisSession.Status.PROCESSING:
+        return JsonResponse({'success': False, 'error': 'Une analyse est déjà en cours'}, status=400)
+    _pause_live(session_id)
+    task = compute_ortho_recalage_task.delay(str(session.id))
+    _console(request.user.id, "Recalage ortho — lancement (segmentation SAM3 sur l'orthophoto).")
+    return JsonResponse({'success': True, 'task_id': task.id})
+
+
+@login_required
 @require_http_methods(["GET"])
 def get_session_status(request, session_id):
     """Get session status and progress."""

@@ -92,6 +92,8 @@ document.addEventListener('DOMContentLoaded', function () {
     let camAntennaCfg = null;      // surcharge session (config.gps_antenna), lue au chargement
     let sessionBranches = {};      // branches d'intersection apprises du trafic (par index de fenêtre)
     let sessionMarkings = {};      // marquages SAM3 agrégés en monde (stop_line/crossing, par fenêtre)
+    let orthoMarkings = {};        // passages piétons segmentés sur l'ortho IGN (recalage 2b)
+    let orthoRecalage = null;      // offset de recalage mesuré (global + par fenêtre)
     const camFovUsed = {};    // FOV V utilisé à l'annotation (config.fov_v_used, sinon legacy)
     // Bascules ⚑ Modes (miroir de utils/features.py) : comparer AVEC/SANS chaque
     // amélioration. Surchargées par le catalogue serveur au chargement de session.
@@ -484,6 +486,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 stationaryGids = new Set((data.results_summary && data.results_summary.stationary_global_tracks) || []);
                 sessionBranches = (data.results_summary && data.results_summary.intersection_branches) || {};
                 sessionMarkings = (data.results_summary && data.results_summary.intersection_markings) || {};
+                orthoMarkings = (data.results_summary && data.results_summary.ortho_markings) || {};
+                orthoRecalage = (data.results_summary && data.results_summary.ortho_recalage) || null;
                 stationaryAnchors = (data.results_summary && data.results_summary.stationary_anchors) || {};
                 sessionAnalyzedRanges = (data.config && data.config.analyzed_ranges) || {};
             } catch (e) { stationaryGids = new Set(); stationaryAnchors = {}; sessionAnalyzedRanges = {}; }
@@ -993,6 +997,8 @@ document.addEventListener('DOMContentLoaded', function () {
                     stationaryGids = new Set((d.results_summary && d.results_summary.stationary_global_tracks) || []);
                     sessionBranches = (d.results_summary && d.results_summary.intersection_branches) || {};
                     sessionMarkings = (d.results_summary && d.results_summary.intersection_markings) || {};
+                    orthoMarkings = (d.results_summary && d.results_summary.ortho_markings) || {};
+                    orthoRecalage = (d.results_summary && d.results_summary.ortho_recalage) || null;
                     stationaryAnchors = (d.results_summary && d.results_summary.stationary_anchors) || {};
                     sessionAnalyzedRanges = (d.config && d.config.analyzed_ranges) || {};
                 } catch (e) { /* prochaine sélection de session fera foi */ }
@@ -2908,6 +2914,20 @@ document.addEventListener('DOMContentLoaded', function () {
                             color: col, weight: 3, opacity: mk.calibrated ? 0.9 : 0.55,
                             dashArray: mk.label === 'crossing' ? '3,3' : null,
                         }).addTo(miniMapLaneLayer);
+                    });
+                }
+                // Passages piétons de l'ORTHO IGN (recalage 2b) : contour orange plein —
+                // vérité géoréférencée à comparer aux crossings caméra (cyan) sur le fond 🛰.
+                const _ortho = orthoMarkings[String(_wi)];
+                if (Array.isArray(_ortho)) {
+                    _ortho.forEach(oc => {
+                        if (Array.isArray(oc.poly_latlon) && oc.poly_latlon.length >= 3) {
+                            L.polygon(oc.poly_latlon, { color: '#ff9800', weight: 2,
+                                opacity: 0.9, fill: false }).addTo(miniMapLaneLayer);
+                        } else {
+                            L.circleMarker([oc.lat, oc.lon], { radius: 4, color: '#ff9800',
+                                weight: 2, fill: false }).addTo(miniMapLaneLayer);
+                        }
                     });
                 }
                 const _learned = sessionBranches[String(_wi)];
@@ -4845,6 +4865,7 @@ document.addEventListener('DOMContentLoaded', function () {
         wire('calibToggleBtn', () => calibMode ? stopCalibration() : startCalibration());
         wire('sam3TestBtn', () => runSam3Test(false));
         wire('sam3CalibBtn', () => runSam3Test(true));
+        wire('orthoRecalageBtn', runOrthoRecalage);
         wire('copyDebugBtn', copyDebugInfo);
         // Bascule coloration Prédiction (trajectoire) ↔ naïf (ttc_s) pour comparer.
         const _pb = document.getElementById('predictionBtn');
@@ -5260,6 +5281,46 @@ document.addEventListener('DOMContentLoaded', function () {
             alert('Test SAM3 : délai dépassé (le modèle charge ~30 s, réessaie).');
         } catch (e) { alert('Échec : ' + e.message); }
         finally { if (btn) { btn.disabled = false; btn.textContent = label; } }
+    }
+
+    // Recalage 2b : segmente les passages piétons sur l'ortho IGN (serveur, SAM3) et
+    // mesure le décalage avec les crossings caméra. Poll jusqu'au résultat, puis retrace.
+    async function runOrthoRecalage() {
+        if (!currentSessionId) return;
+        const btn = document.getElementById('orthoRecalageBtn');
+        const label = btn ? btn.innerHTML : '';
+        if (btn) { btn.disabled = true; btn.textContent = '⏳ Recalage…'; }
+        try {
+            const r = await fetch(`${config.urls.deleteSession}${currentSessionId}/ortho-recalage/`, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': config.csrfToken, 'Content-Type': 'application/json' },
+            });
+            const j = await r.json();
+            if (!j.success) { alert('Recalage ortho : ' + (j.error || '?')); return; }
+            // Poll (SAM3 charge ~30 s + fetch tuiles) — jusqu'à ~3 min.
+            for (let i = 0; i < 36; i++) {
+                await new Promise(res => setTimeout(res, 5000));
+                const sr = await fetch(`${config.urls.getSession}${currentSessionId}/`);
+                const sd = await sr.json();
+                const rec = sd.results_summary && sd.results_summary.ortho_recalage;
+                if (rec) {
+                    orthoMarkings = (sd.results_summary.ortho_markings) || {};
+                    orthoRecalage = rec;
+                    const g = rec.global;
+                    updateTopDown(playheadT());
+                    alert(g
+                        ? `Recalage ortho mesuré : décalage ${Math.hypot(g.de_m, g.dn_m).toFixed(1)} m `
+                          + `(Est ${g.de_m >= 0 ? '+' : ''}${g.de_m} / Nord ${g.dn_m >= 0 ? '+' : ''}${g.dn_m} m, `
+                          + `${g.n} appariements).\nLes passages piétons ortho (orange) sont tracés sur la carte. `
+                          + `Offset NON appliqué (comparaison visuelle).`
+                        : 'Recalage ortho : passages piétons ortho détectés mais aucun appariement '
+                          + 'avec les crossings caméra (relance le tracking 360° puis réessaie).');
+                    return;
+                }
+            }
+            alert('Recalage ortho : délai dépassé (réessaie — le réseau IGN peut être lent).');
+        } catch (e) { alert('Échec : ' + e.message); }
+        finally { if (btn) { btn.disabled = false; btn.innerHTML = label; } }
     }
 
     // Copie un instantané de synchro de l'instant courant (temps vidéo, frames &
