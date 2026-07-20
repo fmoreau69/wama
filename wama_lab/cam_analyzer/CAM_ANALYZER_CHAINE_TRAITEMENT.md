@@ -193,7 +193,12 @@ tracking 360° — les refonder sur les trajectoires monde par `global_track_id`
 (un dépassement = un track qui passe de derrière à devant le long du flanc,
 exactement la signature validée sur G242) au lieu des heuristiques par caméra.
 
-### Chantier : analyse incrémentale par complétion (design 2026-07-18, non implémenté)
+### Analyse incrémentale par complétion (design 2026-07-18, ✅ IMPLÉMENTÉ 2026-07-19)
+
+> Statut : les 3 étapes sont livrées — registre `coverage.py`, bouton « Compléter l'analyse »
+> (`complete_analysis` → `process_session_task(completion_scope=…)`), mode Live (⚡,
+> `live_analysis_task`). La complétion et la fin de Live enchaînent automatiquement le
+> tracking 360° (`_run_global_tracking`). Le design ci-dessous reste la référence.
 
 Problème : le rapport intersections restreint l'analyse aux fenêtres (~zones de 60 m),
 le rapport dépassements exige le parcours complet → une session analysée « restreinte »
@@ -225,10 +230,17 @@ Design retenu (validé sur le principe avec Fabien) :
 
 | Clé | Écrite par | Consommée par |
 |---|---|---|
-| `camera_yaw` | bouton 🧭 Yaw (vue de dessus) | [5] backend + [9] JS |
+| `camera_yaw` | panneau Calibration (Yaw 4×) | [5] backend + [9] JS |
+| `camera_fov` | panneau Calibration (FOV lat.) | `camera_geometry` [5]/[9] |
 | `camera_mount` | (manuel, pas d'UI) | [5] backend + [9] JS |
+| `gps_antenna` | panneau Calibration (Antenne 2 champs) | `shuttle_trajectory` [7] + `antennaCorrect` [9] |
 | `fov_v_used` | l'analyse ([1]) | `dist_scale` [5]/[9] |
 | `gps_time_offset/scale` | UI synchro | [2] |
+| `features` | panneau ⚑ Modes | `effective(session)` (voir table bascules) |
+| `analyzed_ranges` | [1] complétion/live | registre de couverture ([coverage.py]) |
+
+`profile.sam3_fps` (cadence SAM3) et `profile.geometry_enabled` (active l'homographie sol)
+sont sur le PROFIL (pas la session).
 
 ## Bascules de comparaison (⚑ Modes)
 
@@ -242,36 +254,78 @@ par côté). Règle : **jamais de if ad hoc dispersé** pour une amélioration c
 | Bascule | Défaut | Scope | Effet |
 |---|---|---|---|
 | `fov_dist_correction` | ON | live | correction des distances annotées avec un ancien FOV V |
-| `mount_lever_arm` | ON | live | bras de levier des caméras (antenne GPS arrière) |
+| `mount_lever_arm` | ON | live | bras de levier des caméras (montage vs centre arrière) |
 | `heading_ratio` | ON | live | cap par ratio de bbox fondu avec la trajectoire |
+| `antenna_lever` | ON | compute | point GPS = antenne (coin arrière droit ENA) ramené au centre arrière |
+| `artifact_filter` | ON | live | masque les reflets/artefacts fixes (bbox immobile pendant que la navette avance) |
+| `anchor_heading` | ON | live | cap des garés = consensus axial du ratio sur toute la vie du track |
+| `heading_cluster` | ON | compute | prior de cap : garés voisins <15 m partagent leur axe |
+| `sam3_interp` | ON | live | interpolation des marquages SAM3 entre keyframes (fondu aux bords) |
+| `world_markings` | ON | compute | stop_line/crossing projetés+agrégés en monde (bornes d'intersection) |
+| `learned_branches` | ON | compute | voies croisantes apprises des trajectoires du trafic |
 | `track_speed_unified` | OFF | compute | (chantier) vitesse/distance monde uniques par track |
 
-## Limites connues / chantiers ouverts
+## Calibration sol — plan complet (angle par le mouvement + échelle par les marquages)
 
-1. **Unification distance/vitesse par track** (bascule `track_speed_unified`, à
-   implémenter) : servir sur chaque détection la position/vitesse MONDE du
-   `global_track_id` (tracker [7], `ve/vn` lissés) au lieu des valeurs par-caméra —
-   une seule vérité par véhicule sur toutes les vues, améliore distance/vitesse/TTC
-   génériquement.
-2. **Cap par cluster de stationnés** (générique, pas de cas codé en dur) : l'axe de
-   stationnement est APPRIS des véhicules eux-mêmes — moyenne AXIALE des caps ratio des
-   stationnés voisins utilisée comme *prior* pondéré (pas contrainte dure). Épi,
-   bataille, créneau émergent naturellement du cluster. Même levier que l'EMA
-   temporelle, appliqué spatialement.
-3. **YOLO-OBB** (boîtes orientées natives) : l'orientation devient une mesure — poids
-   publics entraînés sur imagerie aérienne, fine-tuning nécessaire → long terme.
-   **Raccourci disponible : exploiter les MASQUES du mode segment.** La chaîne entière
-   est indexée sur bbox/classe/conf/track (`_extract_detections` ne lit que
-   `prediction.boxes`) → tout fonctionne à l'identique en mode segmentation, MAIS les
-   masques sont actuellement JETÉS à l'extraction. Or ils offrent : (a) l'orientation
-   par `minAreaRect` du masque = boîte orientée GRATUITE (le levier OBB sans
-   fine-tuning), (b) le point de contact sol affiné (ligne des roues vs bas de bbox) →
-   meilleure distance, (c) le centre latéral robuste (centroïde vs centre bbox,
-   insensible aux rétroviseurs/ombres). À déclarer comme bascule `mask_geometry` le
-   moment venu.
-4. **Homographie à recalibrer** (multi-frames passages piétons + lignes centrales) — le
-   latéral pinhole reste moins précis à >20 m.
-5. **Bbox coupées au bord** : pas affichées en vue de dessus (délibéré) ; le hand-off
-   les ponte temporellement (gate croissant, gap 2,5 s).
+> **Insight fondateur (2026-07-20)** : la calibration homographique complète se décompose
+> en DEUX inconnues aux sources DIFFÉRENTES et complémentaires. Ne jamais confondre les deux.
+>
+> - **L'ANGLE (tangage/roulis)** se récupère par le MOUVEMENT seul, sans vérité terrain :
+>   un objet statique vu à plusieurs distances doit se projeter au même point monde
+>   (ego-motion GPS = ancre). C'est l'auto-calibration → `homography_estimator.py`. La
+>   cohérence contraint fortement l'angle (sensibilité différentielle à la distance) mais
+>   est AVEUGLE à l'échelle (un facteur d'échelle global préserve le regroupement).
+> - **L'ÉCHELLE ABSOLUE** exige des objets de GÉOMÉTRIE CONNUE au sol : passages piétons
+>   (bandes ~50 cm), lignes axiales à intervalles normalisés. Ce sont des mètres-étalons.
+>   Le mouvement ne peut PAS la déduire — c'est la limite mathématique, pas un manque d'effort.
+
+**État `homography_estimator.py` (v1, rapport seul — RIEN branché sur le positionnement) :**
+- résout (pitch, hauteur) par étalement monde des stationnés + ancrage échelle pinhole ;
+- MESURÉ caméra avant : baseline désaccord sol⟷pinhole 14,55 m → **3,05 m** à pitch 21,5°
+  (hauteur physique 2,2 m). Gain ×5, entièrement dû à l'angle ;
+- **k1 (distorsion) testé, ÉCARTÉ** : sature la borne sans gain (3,05→3,05) → pas le levier ;
+- résiduel ~3 m = ancrage pinhole (±10 %) + bruit bas-de-bbox = **l'échelle manquante**.
+
+**Étapes restantes (dans l'ordre) :**
+
+- **2a — Intégrer le pitch estimé** derrière bascule `auto_ground_calib` (OFF) pour A/B
+  visuel du placement (le gros gain sûr : l'angle). Caméra arrière = 3 stationnés seulement
+  → non fiable, exclure ou attendre session plus riche.
+- **2b — Recalage ABSOLU via marquages ortho** (idée Fabien, l'échelle manquante) : SAM3
+  segmente les passages piétons **sur l'orthophoto IGN** (vus du ciel, géoréférencés →
+  positions absolues), puis MATCHING avec nos crossings agrégés depuis les caméras
+  (`marking_world.py`). Le décalage mesuré = offset de recalage par intersection (biais GPS
+  + biais projection), + l'échelle vraie via la géométrie connue des bandes. Amers =
+  marquages PERMANENTS uniquement (les véhicules statiques de l'ortho datent d'un autre jour ;
+  ils ne servent qu'à repérer les ZONES DE STATIONNEMENT — piste secondaire). NB : les
+  crossings n'ont pas de correspondance inter-frame → ils ne pluggent PAS dans le solveur
+  d'étalement 2a ; ils entrent par la GÉOMÉTRIE CONNUE, porte complémentaire. Emplacement
+  prévu : extension `homography_estimator.py` + fetch tuiles ortho serveur (même WMTS que [9]).
+- **2c — Calibration jointe** : une fois 2a+2b mesurés, résoudre angle+échelle+distorsion
+  ensemble (contraintes mouvement ET marquages), écrire `camera.ground_homography` par caméra,
+  brancher sur le placement des objets (fusion bas-de-bbox ⟷ pinhole).
+
+## Autres limites connues / chantiers ouverts
+
+1. **Unification distance/vitesse par track** (bascule `track_speed_unified`, OFF, à
+   implémenter) : servir sur chaque détection la position/vitesse MONDE du `global_track_id`
+   (tracker [7], `ve/vn` lissés) au lieu des valeurs par-caméra — une seule vérité par
+   véhicule sur toutes les vues, améliore distance/vitesse/TTC génériquement.
+2. ✅ **Cap par cluster de stationnés** — FAIT (bascule `heading_cluster`, 2026-07-20) :
+   l'axe est appris des voisins <15 m (mélange axial pondéré). Voir table bascules.
+3. **YOLO-OBB / masques du mode segment** : la chaîne entière est indexée sur
+   bbox/classe/conf/track (`_extract_detections` ne lit que `prediction.boxes`) → tout
+   fonctionne à l'identique en segmentation, MAIS les masques sont JETÉS à l'extraction. Ils
+   offrent : (a) orientation par `minAreaRect` = boîte orientée GRATUITE (OBB sans
+   fine-tuning), (b) point de contact sol affiné (ligne des roues vs bas de bbox) → meilleure
+   distance ET meilleure entrée pour la calibration 2a, (c) centre latéral robuste (centroïde
+   vs centre bbox). À déclarer bascule `mask_geometry` le moment venu.
+4. **Branches apprises — couverture** : une branche sans trafic croisant observé reste
+   invisible (fallback bande symétrique). Complétée par 2b (marquages = géométrie sans trafic).
+5. **Bbox coupées au bord** : pas affichées en vue de dessus (délibéré) ; le hand-off les
+   ponte temporellement (gate croissant, gap 2,5 s).
 6. **Cap ratio** : ambiguïté résiduelle aux angles > pic diagonal (~68°).
-7. « Fixer » la zone routière rose (road_mask) : non opérationnel, sémantique à préciser.
+7. **Reflets « fantômes géants »** (vitrage latéral) : bbox ~90 % image, conf 0,3, fragments
+   1-4 s — non couverts par `artifact_filter` (critère « statique en image ») → raffinement =
+   analyse de transparence sur candidats (conf basse + bbox géante + fragments courts).
+8. « Fixer » la zone routière rose (road_mask) : non opérationnel, sémantique à préciser.
