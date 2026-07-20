@@ -18,6 +18,16 @@ from wama.common.utils.queue_duplication import safe_delete_file, duplicate_inst
 from .models import ComposerBatch, ComposerBatchItem, ComposerGeneration
 from .utils.model_config import COMPOSER_MODELS, MUSIC_MODELS, SFX_MODELS
 
+# Pseudo-modèles « choix automatique » — résolus à l'exécution par capacités + VRAM libre
+# (utils/auto_model.py). Le type reste dérivé du choix dans le select, conformément à la
+# décision 2026-07-02 (pas de switch de type ; un auto par optgroup).
+AUTO_MODELS = {'auto-music': 'music', 'auto-sfx': 'sfx'}
+
+
+def _model_type(model_id):
+    """Type music/sfx d'un id de modèle réel OU d'un pseudo-modèle auto-*."""
+    return AUTO_MODELS.get(model_id) or COMPOSER_MODELS[model_id]['type']
+
 logger = logging.getLogger(__name__)
 
 
@@ -149,7 +159,7 @@ def generate(request):
     prompt = request.POST.get('prompt', '').strip()
 
     model_id = request.POST.get('model', 'musicgen-small')
-    if model_id not in COMPOSER_MODELS:
+    if model_id not in COMPOSER_MODELS and model_id not in AUTO_MODELS:
         return JsonResponse({'error': 'Modèle invalide'}, status=400)
 
     try:
@@ -158,7 +168,7 @@ def generate(request):
     except (ValueError, TypeError):
         duration = 10.0
 
-    generation_type = COMPOSER_MODELS[model_id]['type']
+    generation_type = _model_type(model_id)
 
     gen = ComposerGeneration.objects.create(
         user=user,
@@ -285,7 +295,7 @@ def import_batch(request):
 
     # Default params for items without explicit model/duration
     default_model = request.POST.get('default_model', 'musicgen-small')
-    if default_model not in COMPOSER_MODELS:
+    if default_model not in COMPOSER_MODELS and default_model not in AUTO_MODELS:
         default_model = 'musicgen-small'
     try:
         default_duration = float(request.POST.get('default_duration', 10))
@@ -397,12 +407,22 @@ def _input_match_meta():
     try:
         from wama.model_manager.models import AIModel
         meta = {}
+        unions = {'auto-music': set(), 'auto-sfx': set()}
         for m in AIModel.objects.filter(source='composer', is_proposed=False):
             caps = m.capabilities or {}
             meta[m.model_key.split(':', 1)[-1]] = {
                 'inputs_required': caps.get('inputs_required', []),
                 'inputs_optional': caps.get('inputs_optional', []),
             }
+            # Union des entrées acceptées par type → méta des pseudo-modèles auto-*
+            # (l'auto accepte ce qu'au moins UN candidat de son groupe accepte ;
+            # la résolution runtime — utils/auto_model.py — restreint ensuite).
+            auto_id = ('auto-sfx' if caps.get('task') == 'text-to-audio' else 'auto-music')
+            unions[auto_id] |= set(caps.get('inputs_required') or []) | \
+                               set(caps.get('inputs_optional') or [])
+        if meta:
+            for auto_id, accepted in unions.items():
+                meta[auto_id] = {'inputs_required': [], 'inputs_optional': sorted(accepted)}
         return meta
     except Exception:
         return {}
@@ -427,7 +447,7 @@ def update_settings(request, pk):
         return JsonResponse({'error': 'Impossible de modifier une génération en cours'}, status=400)
 
     model_id = request.POST.get('model', gen.model)
-    if model_id not in COMPOSER_MODELS:
+    if model_id not in COMPOSER_MODELS and model_id not in AUTO_MODELS:
         return JsonResponse({'error': 'Modèle invalide'}, status=400)
 
     try:
@@ -436,8 +456,8 @@ def update_settings(request, pk):
     except (ValueError, TypeError):
         duration = gen.duration
 
-    # Update generation type based on new model
-    generation_type = COMPOSER_MODELS[model_id]['type']
+    # Update generation type based on new model (auto-* compris)
+    generation_type = _model_type(model_id)
 
     gen.model = model_id
     gen.duration = duration
@@ -697,9 +717,9 @@ def batch_update(request, pk):
         g = item.generation
         if not g or g.status == 'RUNNING':
             continue
-        if model and model in COMPOSER_MODELS:
+        if model and (model in COMPOSER_MODELS or model in AUTO_MODELS):
             g.model = model
-            g.generation_type = COMPOSER_MODELS[model]['type']
+            g.generation_type = _model_type(model)
         if duration:
             try:
                 g.duration = max(10.0, min(600.0, float(duration)))

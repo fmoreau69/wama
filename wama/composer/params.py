@@ -22,9 +22,17 @@ PARAMS = [
     Param(name="model", type="select", label="Modèle", icon="fa-music",
           dom_id={"panel": "modelSelect", "item": "settingsModel"}, contexts=PANEL_ITEM,
           option_groups=[
-              ("🎵 Musique (MusicGen)", [(mid, cfg['description']) for mid, cfg in COMPOSER_MODELS.items()
+              # « auto-* » en tête de CHAQUE groupe (décision 2026-07-02 : pas de switch de type,
+              # le type est dérivé du « modèle » choisi — l'auto respecte ce contrat par groupe).
+              # Résolution à l'exécution : capacités catalogue + VRAM libre via select_model()
+              # — cf. composer/utils/auto_model.py.
+              ("🎵 Musique (MusicGen)", [("auto-music", "🧠 Choix automatique — le plus gros modèle "
+                                          "musique tenant dans la VRAM libre au lancement")] +
+                                        [(mid, cfg['description']) for mid, cfg in COMPOSER_MODELS.items()
                                          if cfg.get('type') == 'music']),
-              ("⚡ Bruitages (AudioGen)", [(mid, cfg['description']) for mid, cfg in COMPOSER_MODELS.items()
+              ("⚡ Bruitages (AudioGen)", [("auto-sfx", "🧠 Choix automatique — le plus gros modèle "
+                                           "bruitages tenant dans la VRAM libre au lancement")] +
+                                         [(mid, cfg['description']) for mid, cfg in COMPOSER_MODELS.items()
                                           if cfg.get('type') != 'music']),
           ]),
     Param(name="duration", type="range", label="Durée", icon="fa-clock", min=10, max=600, step=5,

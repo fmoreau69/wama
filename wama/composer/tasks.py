@@ -40,6 +40,11 @@ def compose_task(self, generation_id: int):
         return
 
     user_id = gen.user_id
+    if gen.model in ('auto-music', 'auto-sfx'):
+        from wama.composer.utils.auto_model import resolve_auto_model
+        gen.model = resolve_auto_model(gen)
+        gen.save(update_fields=['model'])
+        _console(user_id, f"[Composer] 🧠 Auto → {gen.model} (capacités + VRAM libre au lancement)")
     _console(user_id, f"[Composer] Démarrage : {gen.model} — {gen.prompt[:60]}…")
 
     import time as _time
