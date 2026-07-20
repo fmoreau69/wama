@@ -1731,15 +1731,45 @@ def _try_cifs_mount(server, share, subpath='', username=None, password=None, dom
     if not sys.platform.startswith('linux'):
         return False, None, 'CIFS auto-mount uniquement sur Linux/WSL2.'
 
+    sudoers_hint = (
+        'Autorisez le montage sans mot de passe (une fois, dans WSL2) :\n'
+        '  echo "$(whoami) ALL=(ALL) NOPASSWD: /usr/bin/mount, /usr/bin/umount, '
+        '/bin/mount, /bin/umount" | sudo tee /etc/sudoers.d/wama-cifs'
+    )
+
     # Sanitise mount point name
     safe = re.sub(r'[^\w_-]', '_', f'{server}_{share}')
-    mount_base = Path('/mnt/wama_mounts')
-    mount_point = mount_base / safe
 
-    try:
-        mount_point.mkdir(parents=True, exist_ok=True)
-    except OSError as e:
-        return False, None, f'Impossible de créer le point de montage : {e}'
+    # Base des points de montage : /mnt/ exige root pour mkdir — repli sur un dossier
+    # utilisateur si indisponible (le point de montage peut être n'importe où, seul
+    # `mount` exige root). Ordre : réglage explicite → convention /mnt → home.
+    candidates = []
+    override = getattr(settings, 'WAMA_MOUNT_BASE', '') or os.environ.get('WAMA_MOUNT_BASE', '')
+    if override:
+        candidates.append(Path(override))
+    candidates += [Path('/mnt/wama_mounts'), Path.home() / '.wama' / 'mounts']
+
+    mount_point, mkdir_errors = None, []
+    for base in candidates:
+        mp = base / safe
+        try:
+            mp.mkdir(parents=True, exist_ok=True)
+            mount_point = mp
+            break
+        except OSError as e:
+            # Tentative non bloquante via sudo (puis chown pour les prochains mkdir sans root)
+            r = subprocess.run(['sudo', '-n', 'mkdir', '-p', str(mp)],
+                               capture_output=True, text=True)
+            if r.returncode == 0:
+                subprocess.run(['sudo', '-n', 'chown', '-R',
+                                f'{os.getuid()}:{os.getgid()}', str(base)],
+                               capture_output=True, text=True)
+                mount_point = mp
+                break
+            mkdir_errors.append(f'{base} : {e}')
+    if mount_point is None:
+        return False, None, ('Impossible de créer le point de montage — '
+                             + ' ; '.join(mkdir_errors) + '\n' + sudoers_hint)
 
     # Already mounted?
     check = subprocess.run(['mountpoint', '-q', str(mount_point)], capture_output=True)
@@ -1747,19 +1777,29 @@ def _try_cifs_mount(server, share, subpath='', username=None, password=None, dom
         linux_path = str(mount_point / subpath) if subpath else str(mount_point)
         return True, linux_path, None
 
-    # Build CIFS options
+    # Build CIFS options — identifiants via fichier credentials 0600 (jamais dans la
+    # ligne de commande : elle est visible de tous dans `ps`)
     uid = os.getuid()
     gid = os.getgid()
     opts = [f'uid={uid}', f'gid={gid}', 'vers=3.0', 'nounix']
+    cred_file = None
     if username:
-        opts.append(f'username={username}')
-        opts.append(f'password={password or ""}')
+        import tempfile
+        cf = tempfile.NamedTemporaryFile('w', delete=False,
+                                         prefix='wama_cifs_', suffix='.cred')
+        cf.write(f'username={username}\npassword={password or ""}\n')
         if domain:
-            opts.append(f'domain={domain}')
+            cf.write(f'domain={domain}\n')
+        cf.close()
+        os.chmod(cf.name, 0o600)
+        cred_file = cf.name
+        opts.append(f'credentials={cred_file}')
     else:
         opts.append('guest')
 
-    cmd = ['sudo', 'mount', '-t', 'cifs',
+    # sudo -n : échoue immédiatement si un mot de passe serait requis (un process web
+    # ne doit JAMAIS attendre un prompt sudo)
+    cmd = ['sudo', '-n', 'mount', '-t', 'cifs',
            f'//{server}/{share}', str(mount_point),
            '-o', ','.join(opts)]
 
@@ -1769,7 +1809,11 @@ def _try_cifs_mount(server, share, subpath='', username=None, password=None, dom
             linux_path = str(mount_point / subpath) if subpath else str(mount_point)
             return True, linux_path, None
         err = (result.stderr.strip() or result.stdout.strip() or 'Erreur de montage inconnue')
-        # Detect authentication failures
+        # 1) sudo lui-même refuse (config hôte, PAS les identifiants du partage)
+        if 'password is required' in err or err.startswith('sudo:'):
+            return False, None, ('Le serveur WAMA n\'est pas autorisé à monter sans mot de '
+                                 'passe.\n' + sudoers_hint)
+        # 2) Identifiants du partage refusés
         if any(k in err for k in ('Permission denied', 'NT_STATUS_LOGON_FAILURE',
                                    'NT_STATUS_ACCESS_DENIED', 'ERRDOS', 'Invalid argument')):
             return False, None, 'AUTH_REQUIRED'
@@ -1777,13 +1821,16 @@ def _try_cifs_mount(server, share, subpath='', username=None, password=None, dom
     except subprocess.TimeoutExpired:
         return False, None, 'Timeout lors du montage CIFS (20 s).'
     except FileNotFoundError:
-        return False, None, (
-            'mount.cifs introuvable. Installez cifs-utils : sudo apt install cifs-utils\n'
-            'Et autorisez le montage sans mot de passe :\n'
-            '  echo "$(whoami) ALL=(ALL) NOPASSWD: /bin/mount -t cifs *" | sudo tee /etc/sudoers.d/wama-cifs'
-        )
+        return False, None, ('mount.cifs introuvable. Installez cifs-utils : '
+                             'sudo apt install cifs-utils\n' + sudoers_hint)
     except Exception as e:
         return False, None, str(e)
+    finally:
+        if cred_file:
+            try:
+                os.unlink(cred_file)
+            except OSError:
+                pass
 
 
 def _resolve_path(path_str):

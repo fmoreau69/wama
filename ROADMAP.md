@@ -94,7 +94,7 @@
 ### 1.2 Features transversales manquantes
 | Feature | Statut | Apps concernées |
 |---------|--------|-----------------|
-| Import dossier récursif | 🔄 | ✅ FileManager (webkitdirectory, filemanager.js:1516) ; reste : zones de dépôt des apps (vérifié 2026-07-20)
+| Import dossier récursif | 🔄 | ✅ Upload de dossier FileManager (webkitdirectory, filemanager.js:1516) + montages locaux/distants (fix CIFS 2026-07-20). **Architecture cible (Fabien 2026-07-20)** : monter un dossier (local ou serveur) puis « Envoyer vers » une app AVEC sous-dossiers depuis le filemanager — pas de zone de dépôt par app ; le studio doit pouvoir consommer ces dossiers. Reste : « Envoyer vers » récursif (dossier entier), et (moins prioritaire) drag & drop de dossier |
 | **Zone de staging (« À valider »)** | ⛔ **SUPPRIMÉE** | Décision 2026-06-29 (CARD_DESIGN §8.5) : PAS de staging — la card « nouveau » remplace ce besoin. Cette ligne annonçait à tort une généralisation à 9 apps (corrigé 2026-07-11). |
 | **Transcriber — correction manuelle assistée IA** (éditeur onde + heatmap) | 🔶 Spec | Spec : **`wama/transcriber/TRANSCRIBER_CORRECTION.md`** (inspiré Whispurge/Sonal). Page dédiée `/edit/<id>/`, guidage non destructif, heatmap cohérence(→confiance) par-segment, réutilise le lecteur d'onde commun. **Fait** : défaut ASR VibeVoice→**Whisper large-v3** (artefact d'ordre, pas benchmark ; diarisation=pyannote ; 10<16 GB) + **word_timestamps** conservés. À évaluer : WhisperX/Canary-Qwen-2.5B/Granite 3.3 ; réparer Qwen3-ASR. Mener le transcriber au bout avant généralisation. |
 | **Architecture UI « card-centric »** (card auto-suffisante + volet droit = inspecteur) | 🔶 Décidée | **Décision projet 2026-06** : voir **`CARD_CENTRIC_UI.md`** (spec + phases). Livré depuis : preview 3 niveaux (1ᵉʳ consommateur transcriber), volet=inspecteur généralisé (5 apps portées, PROJECT_STATUS §21). **Reste** : preview complète dans le volet, sélection en-têtes batch, généralisation aux 5 apps non portées. |
@@ -368,8 +368,10 @@ dépendants au `change` du modèle. Lié à [[project-assistant-vision]] (TTS au
 - [x] Fix VRAM (décharge Ollama + WAMA avant audit)
 - [x] Fix format DeepSeek Coder V2 (Format 6 + strip hallucinations)
 - [x] Migrer vers `qwen3-coder:30b` (remplace deepseek-coder-v2:16b — config.py + views.py mis à jour)
-  — **révisé depuis** : `qwen3-coder:30b` trop lourd pour l'agentique sur hôte 24 Go partagé ;
-  choix fiabilisé = **`gemma4:e4b` non-thinking** via `--force-model` (CLAUDE.md §wama-dev-ai)
+  — **révisé (2026-07-20, nuance Fabien)** : `qwen3-coder:30b` PAS exclu — simplement trop lourd
+  pour l'agentique quand l'hôte 24 Go est partagé. Défaut fiabilisé = **`gemma4:e4b`** ; la
+  sélection doit à terme être **pilotée par le model_manager** (VRAM dispo → choisir
+  qwen3-coder:30b ou mieux selon la prospection), cf. `config.py::select_model_for_role()`
 - [x] Mémoire persistante `memory.json` — bugs connus, règles, notes — + outil `write_memory` + injection prompt
 - [x] Premier audit complet avec `write_report` appelé — **FAIT 2026-07-17** : campagne « état des
   lieux vision », 6 audits ciblés avec rapports écrits + contre-vérification Claude (fiabilité
