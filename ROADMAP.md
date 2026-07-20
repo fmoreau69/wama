@@ -87,34 +87,20 @@
 > Référence : `WAMA_APP_CONVENTIONS.md` · Règle : ordre boutons `[⚙ Params] [▶ Start] [⬇ DL] [⧉ Dup] [🗑 Del]`
 
 ### 1.1 Bouton Dupliquer
-| App | Statut | Notes |
-|-----|--------|-------|
-| Transcriber | ✅ | views.py + urls.py + template + JS |
-| Synthesizer | ✅ | single + batch |
-| Reader | ✅ | |
-| Composer | ✅ | |
-| Anonymizer | ✅ | |
-| Describer | ✅ | |
-| Imager | ✅ | |
-| Enhancer | ✅ | image + audio (single + batch) |
+
+✅ Toutes les apps (vérifié ; Composer confirmé 2026-07-03). Table figée archivée :
+`docs/archive/ROADMAP_ARCHIVE_2026-07-20.md` — source vivante : `/apps/`.
 
 ### 1.2 Features transversales manquantes
 | Feature | Statut | Apps concernées |
 |---------|--------|-----------------|
-| ETA (barre de progression) | ✅ | Carte + globale + batch — toutes les apps (moteur commun `WamaEta`) |
-| Auto-refresh filemanager (ajout input + sortie + suppression) | ✅ | **Commun** : `WamaFM` (`media:uploaded`/`processed`/`deleted`) + poll mtime non bloquant. **Triggers instantanés posés sur TOUTES les apps** (audit conventions §8). |
-| Consolidation import multi-fichiers → batch | ✅ | converter, reader, transcriber, describer, enhancer, **anonymizer** (+ DnD filemanager multi-fichiers) ; composer/synthesizer = N/A (pas d'import média) |
-| Mode batch anonymizer (groupes + consolidation) | ✅ | Modèles existants + `consolidate`/`_auto_wrap_orphans` + rendu groupé `media_table.html` + suppr. batch. Traitement reste global (pas de start par-batch) |
-| Import dossier récursif | ⏳ | Toutes les apps acceptant des fichiers |
-| Download All (ZIP) | ✅ | Composer |
-| Drag & drop zone | ✅ | Imager (prompt image, style ref, img2vid, description) |
-| Parité batch UI (⚙ batch + ⚙/⧉ par item + duplication in-batch) | ✅ | **Terminée** : transcriber, reader, synthesizer, describer, composer, enhancer, converter, anonymizer (⚙ batch = global). Group-by-nature commun (converter/describer/enhancer/anonymizer). Cf. conventions §9.8/§9.9. |
-| **Phase B — Format batch unifié à balises** (`-i/-p/-r/-o`) | ✅ | Parseur commun `parse_unified_batch` + détection legacy + **`BATCH_FORMAT.md`**. **Câblé partout** : apps Type A (reader/describer/transcriber/converter/anonymizer/enhancer) via `parse_media_list_batch` rendu balise-aware (`-i`→path, `-o/-p/--opt` transportés) ; **imager** (`-p`→prompt, `--steps/--cfg/--model/--np`…) ; **synthesizer** (`-p`→texte, `--voice/--speed/-r/--language`) ; **composer** (réf. : auto-modèle musicgen-melody si `-r`) ; **avatarizer** (nouveau système de lots `BatchAvatarJob` + import par fichier balise + group-by-nature pipeline/standalone + UI groupes ▶/⬇/⧉/🗑). **Variante CSV à en-têtes** ✅ (centralisée : `is_csv_header_batch`/`parse_csv_header_batch`, gérée par `parse_unified_batch`/`parse_media_list_batch` → toutes les apps). Virgules dans une cellule gérées via guillemets (`csv.DictReader`). |
-| Duplication d'un élément = DANS le batch (fix) | ✅ | Synthesizer + Transcriber (était hors groupe = bug) |
+| Import dossier récursif | 🔄 | ✅ FileManager (webkitdirectory, filemanager.js:1516) ; reste : zones de dépôt des apps (vérifié 2026-07-20)
 | **Zone de staging (« À valider »)** | ⛔ **SUPPRIMÉE** | Décision 2026-06-29 (CARD_DESIGN §8.5) : PAS de staging — la card « nouveau » remplace ce besoin. Cette ligne annonçait à tort une généralisation à 9 apps (corrigé 2026-07-11). |
-| **Architecture UI « card-centric »** (card auto-suffisante + volet droit = inspecteur) | 🔶 Décidée | **Décision projet 2026-06** : voir **`CARD_CENTRIC_UI.md`** (spec + phases). Card de composition (dépôt/prompt/référence/RAG par card), volet droit reflète la sélection, 1 source (filemanager) + 1 destination (card) par app, RAG ponctuel isolé par card, modales conservées puis rationalisées. Bâtit sur le staging. Multi-drop→1 batch ✅ corrigé partout (dont enhancer audio). **Preview à 3 niveaux** (§5bis) : composant commun `.wama-card-preview` (double-clic → `wama:card-expand` ; apps média → overlay `unified_preview`) ✅ livré, **1ᵉʳ consommateur transcriber** (preview compacte + métriques sous la barre, bouton œil retiré, double-clic → modal résultat). **Niveau 2 (volet = inspecteur)** ✅ pilote transcriber (clic card → volet édite l'élément ; `[×]` revient aux défauts). Reste : preview complète dans le volet, sélection en-têtes batch, généralisation. WAMA Lab non impacté (composants communs additifs). |
 | **Transcriber — correction manuelle assistée IA** (éditeur onde + heatmap) | 🔶 Spec | Spec : **`wama/transcriber/TRANSCRIBER_CORRECTION.md`** (inspiré Whispurge/Sonal). Page dédiée `/edit/<id>/`, guidage non destructif, heatmap cohérence(→confiance) par-segment, réutilise le lecteur d'onde commun. **Fait** : défaut ASR VibeVoice→**Whisper large-v3** (artefact d'ordre, pas benchmark ; diarisation=pyannote ; 10<16 GB) + **word_timestamps** conservés. À évaluer : WhisperX/Canary-Qwen-2.5B/Granite 3.3 ; réparer Qwen3-ASR. Mener le transcriber au bout avant généralisation. |
-| **Drag & drop appartenance batch** (entrer/sortir une carte d'un batch) | ⏳ Phase 2 | Toutes les apps à batch — appartenance fluide |
+| **Architecture UI « card-centric »** (card auto-suffisante + volet droit = inspecteur) | 🔶 Décidée | **Décision projet 2026-06** : voir **`CARD_CENTRIC_UI.md`** (spec + phases). Livré depuis : preview 3 niveaux (1ᵉʳ consommateur transcriber), volet=inspecteur généralisé (5 apps portées, PROJECT_STATUS §21). **Reste** : preview complète dans le volet, sélection en-têtes batch, généralisation aux 5 apps non portées. |
+| **Drag & drop appartenance batch** (entrer/sortir une carte d'un batch) | ⏳ UI seule | Backend COMPLET + validé 2026-06-29 (`remove_from_batch`/`reorder`/`move_to_batch`/`consolidate`) ; reste l'UI SortableJS — vérifié 2026-07-20 : seul un commentaire l'annonce (`transcriber/index.js:172`) |
+
+> Lignes ✅ archivées : `docs/archive/ROADMAP_ARCHIVE_2026-07-20.md` — conformité vivante : `/apps/` (`get_conformity_summary`).
 
 ---
 
@@ -124,17 +110,10 @@
 
 | Élément | Statut | Fichier cible | Impact |
 |---------|--------|--------------|--------|
-| `wama-eta.js` — moteur ETA commun | ✅ | `common/static/common/js/wama-eta.js` | Toutes les apps (carte/batch/globale) |
-| `wama-global-progress.js` + `_global_progress.html` — barre globale | ✅ | `common/…` | converter, avatarizer (autres = barre maison) |
-| `wama-fm-notify.js` — notify filemanager (`WamaFM`) | ✅ | `common/static/common/js/wama-fm-notify.js` | Auto-refresh homogène, toutes les apps |
-| `batch_common.py` — consolidation import multi-fichiers | ✅ | `common/utils/batch_common.py` | converter, reader, transcriber, describer, enhancer |
-| sélection VRAM-aware centralisée | ✅ | `model_manager/services/model_selector.py` | cf. §5b (PAS dans common : model_manager=source de vérité) |
-| `wama-app-base.js` — JS inter-apps (Poller, csrf/url, emptyState) | ✅ | `common/static/common/js/wama-app-base.js` | Transcriber rebranché ; à adopter par les autres |
-| `audio_decode.py` — décodage multi-format (PyAV/ffmpeg) | ✅ | `common/utils/audio_decode.py` | torchcodec cassé ; à faire converger voice_utils/enhancer/preprocessor |
-| `wama-inspector.js`, `wama-model-help.js` | ✅ | `common/static/common/js/` | Volet inspecteur + descriptif modèle (court/long) |
-| Briques card : `_card_progress`, `_card_state`, `_new_item_card`, `_queue_actions` | ✅ | `common/templates/common/` | Assemblées par app (pas de card monolithique) |
 | `keep_loaded` singleton pattern | ⏳ | Généraliser depuis Reader (olmOCR) | Transcriber (Whisper), Describer, Enhancer |
 
+
+> Briques ✅ archivées (`docs/archive/ROADMAP_ARCHIVE_2026-07-20.md`) — registre vivant : `COMMON_REFACTORING.md`.
 ### Templating générique — paramètres & composition (discuté 2026-06-16)
 
 > Constat : l'affichage des paramètres est **hardcodé par app ET par template**
@@ -163,18 +142,17 @@ composition par capacités. Voir aussi §10.B (Translator) et §5b (sélection/d
 
 **État 2026-07-01 + TÂCHE 1 (consolidation) :** A est **partiellement** déployé et les divergences
 prévues sont **réelles** → il faut les inventorier avant d'en porter d'autres :
-- Modale item : `WamaParams.render(item)` = **7/10** (transcriber, converter, reader, describer,
-  enhancer, composer, avatarizer — audit empirique 2026-07-11) ; hand-built restants =
-  synthesizer (params.py ne ponte que les dom_id), anonymizer, imager (params.py orphelins).
-- Volet : `WamaParams.render(panel)` (référence) vs `WamaInspector.initFromSchema` (synthesizer,
-  avatarizer, composer, enhancer) — **à trancher**.
-- `params.py` : **10/10 EXISTENT** (audit 2026-07-11) — mais anonymizer/imager ORPHELINS (aucun consommateur).
-- Capacités→UI : `WamaModelCaps` (option-level) — **transcriber ne l'utilise pas**, enhancer a du
-  `show_if` **hardcodé** à supprimer. Manque le **niveau-champ**. Modèles déclarent leurs params via
-  `capabilities.params` (route existante ; moteurs audio enhancer enregistrés le 2026-07-01).
-- ⏳ **TÂCHE 1 avant tout portage** : produire `UI_MECHANISMS_CONSOLIDATION.md` (mécanisme|apps|
-  référence|à déprécier par axe + plan de convergence). Spec : `memory/project_ui_mechanisms_consolidation.md`,
-  suivi PROJECT_STATUS §20. Contraintes : route existante, zéro réinvention, zéro hardcoding.
+### État des mécanismes d'UI — voir PROJECT_STATUS §20 (source vivante)
+
+Bloc d'état 2026-07-11 archivé (`docs/archive/ROADMAP_ARCHIVE_2026-07-20.md`). Corrections vérifiées 2026-07-20 :
+- `UI_MECHANISMS_CONSOLIDATION.md` **EXISTE** (produit 2026-07-0x — le ⏳ « produire » était
+  périmé). Reste = **dérouler** son plan de convergence (= H1.1 des Horizons).
+- Plan « templating générique » (décision 2026-06-16 ci-dessus) : le volet **A est LIVRÉ**
+  (`params.py` par app + `wama-params.js`/`WamaParams` + `initFromSchema` — vérifié 2026-07-20,
+  briques présentes dans `common/static/common/js/`) ; ne restent que les convergences par app.
+- Toujours ouvert : trancher le mécanisme de volet (initFromSchema vs render(panel)) pour
+  synthesizer/avatarizer/composer ; `show_if` hardcodé enhancer à remplacer (WamaModelCaps
+  niveau-champ) ; params.py anonymizer/imager orphelins (aucun consommateur).
 
 ---
 

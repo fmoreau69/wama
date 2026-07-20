@@ -107,3 +107,66 @@
 | **4** | Distance/vitesse/TTC : pinhole + références normalisées (hauteur véhicule par classe, hauteur piéton 1.7m, FoV par caméra) ; persistés sur chaque détection (`distance_m`, `relative_speed_kmh`, `ttc_s`). Homographie sol auto-calibrée à reporter (Phase 4.bis si Phase 4 trop bruitée) | ✅ (2026-05-07) |
 | **5** | `ConflictEvent` model (track_id, intersection_window, conflict_type, navette_passed_first, delta_t, min_distance, min_ttc, severity) + computer `_compute_conflict_events` qui croise LaneEvent (in_shuttle_lane=True) × intersection_window × distance/TTC | ✅ (2026-05-07) |
 | **6** | UI : marqueur 🚌 sur détections in_shuttle_lane + bbox épaissie ; affichage distance/vitesse/TTC dans le label ; export CSV étendu (`type`, `lane_id`, `in_shuttle_lane`, `distance_m`, `relative_speed_kmh`, `ttc_s`) ; export JSON `lane_events`+`conflict_events`+`intersection_windows` ; nouvel export `Conflits (CSV)` trié par sévérité | ✅ (2026-05-07) |
+
+---
+
+## §1.2 Features transversales — lignes livrées ✅
+
+| ETA (barre de progression) | ✅ | Carte + globale + batch — toutes les apps (moteur commun `WamaEta`) |
+| Auto-refresh filemanager (ajout input + sortie + suppression) | ✅ | **Commun** : `WamaFM` (`media:uploaded`/`processed`/`deleted`) + poll mtime non bloquant. **Triggers instantanés posés sur TOUTES les apps** (audit conventions §8). |
+| Consolidation import multi-fichiers → batch | ✅ | converter, reader, transcriber, describer, enhancer, **anonymizer** (+ DnD filemanager multi-fichiers) ; composer/synthesizer = N/A (pas d'import média) |
+| Mode batch anonymizer (groupes + consolidation) | ✅ | Modèles existants + `consolidate`/`_auto_wrap_orphans` + rendu groupé `media_table.html` + suppr. batch. Traitement reste global (pas de start par-batch) |
+| Download All (ZIP) | ✅ | Composer |
+| Drag & drop zone | ✅ | Imager (prompt image, style ref, img2vid, description) |
+| Parité batch UI (⚙ batch + ⚙/⧉ par item + duplication in-batch) | ✅ | **Terminée** : transcriber, reader, synthesizer, describer, composer, enhancer, converter, anonymizer (⚙ batch = global). Group-by-nature commun (converter/describer/enhancer/anonymizer). Cf. conventions §9.8/§9.9. |
+| **Phase B — Format batch unifié à balises** (`-i/-p/-r/-o`) | ✅ | Parseur commun `parse_unified_batch` + détection legacy + **`BATCH_FORMAT.md`**. **Câblé partout** : apps Type A (reader/describer/transcriber/converter/anonymizer/enhancer) via `parse_media_list_batch` rendu balise-aware (`-i`→path, `-o/-p/--opt` transportés) ; **imager** (`-p`→prompt, `--steps/--cfg/--model/--np`…) ; **synthesizer** (`-p`→texte, `--voice/--speed/-r/--language`) ; **composer** (réf. : auto-modèle musicgen-melody si `-r`) ; **avatarizer** (nouveau système de lots `BatchAvatarJob` + import par fichier balise + group-by-nature pipeline/standalone + UI groupes ▶/⬇/⧉/🗑). **Variante CSV à en-têtes** ✅ (centralisée : `is_csv_header_batch`/`parse_csv_header_batch`, gérée par `parse_unified_batch`/`parse_media_list_batch` → toutes les apps). Virgules dans une cellule gérées via guillemets (`csv.DictReader`). |
+| Duplication d'un élément = DANS le batch (fix) | ✅ | Synthesizer + Transcriber (était hors groupe = bug) |
+| **Architecture UI « card-centric »** (card auto-suffisante + volet droit = inspecteur) | 🔶 Décidée | **Décision projet 2026-06** : voir **`CARD_CENTRIC_UI.md`** (spec + phases). Card de composition (dépôt/prompt/référence/RAG par card), volet droit reflète la sélection, 1 source (filemanager) + 1 destination (card) par app, RAG ponctuel isolé par card, modales conservées puis rationalisées. Bâtit sur le staging. Multi-drop→1 batch ✅ corrigé partout (dont enhancer audio). **Preview à 3 niveaux** (§5bis) : composant commun `.wama-card-preview` (double-clic → `wama:card-expand` ; apps média → overlay `unified_preview`) ✅ livré, **1ᵉʳ consommateur transcriber** (preview compacte + métriques sous la barre, bouton œil retiré, double-clic → modal résultat). **Niveau 2 (volet = inspecteur)** ✅ pilote transcriber (clic card → volet édite l'élément ; `[×]` revient aux défauts). Reste : preview complète dans le volet, sélection en-têtes batch, généralisation. WAMA Lab non impacté (composants communs additifs). |
+
+---
+
+## §1.1 Bouton Dupliquer — table figée (toutes apps ✅)
+
+### 1.1 Bouton Dupliquer
+| App | Statut | Notes |
+|-----|--------|-------|
+| Transcriber | ✅ | views.py + urls.py + template + JS |
+| Synthesizer | ✅ | single + batch |
+| Reader | ✅ | |
+| Composer | ✅ | |
+| Anonymizer | ✅ | |
+| Describer | ✅ | |
+| Imager | ✅ | |
+| Enhancer | ✅ | image + audio (single + batch) |
+
+
+---
+
+## §2 — bloc « état des mécanismes 2026-07-11 » (doublon PROJECT_STATUS §20)
+
+- Modale item : `WamaParams.render(item)` = **7/10** (transcriber, converter, reader, describer,
+  enhancer, composer, avatarizer — audit empirique 2026-07-11) ; hand-built restants =
+  synthesizer (params.py ne ponte que les dom_id), anonymizer, imager (params.py orphelins).
+- Volet : `WamaParams.render(panel)` (référence) vs `WamaInspector.initFromSchema` (synthesizer,
+  avatarizer, composer, enhancer) — **à trancher**.
+- `params.py` : **10/10 EXISTENT** (audit 2026-07-11) — mais anonymizer/imager ORPHELINS (aucun consommateur).
+- Capacités→UI : `WamaModelCaps` (option-level) — **transcriber ne l'utilise pas**, enhancer a du
+  `show_if` **hardcodé** à supprimer. Manque le **niveau-champ**. Modèles déclarent leurs params via
+  `capabilities.params` (route existante ; moteurs audio enhancer enregistrés le 2026-07-01).
+- ⏳ **TÂCHE 1 avant tout portage** : produire `UI_MECHANISMS_CONSOLIDATION.md` (mécanisme|apps|
+  référence|à déprécier par axe + plan de convergence). Spec : `memory/project_ui_mechanisms_consolidation.md`,
+  suivi PROJECT_STATUS §20. Contraintes : route existante, zéro réinvention, zéro hardcoding.
+
+---
+
+## §2 — table briques communes : lignes livrées ✅
+
+| `wama-eta.js` — moteur ETA commun | ✅ | `common/static/common/js/wama-eta.js` | Toutes les apps (carte/batch/globale) |
+| `wama-global-progress.js` + `_global_progress.html` — barre globale | ✅ | `common/…` | converter, avatarizer (autres = barre maison) |
+| `wama-fm-notify.js` — notify filemanager (`WamaFM`) | ✅ | `common/static/common/js/wama-fm-notify.js` | Auto-refresh homogène, toutes les apps |
+| `batch_common.py` — consolidation import multi-fichiers | ✅ | `common/utils/batch_common.py` | converter, reader, transcriber, describer, enhancer |
+| sélection VRAM-aware centralisée | ✅ | `model_manager/services/model_selector.py` | cf. §5b (PAS dans common : model_manager=source de vérité) |
+| `wama-app-base.js` — JS inter-apps (Poller, csrf/url, emptyState) | ✅ | `common/static/common/js/wama-app-base.js` | Transcriber rebranché ; à adopter par les autres |
+| `audio_decode.py` — décodage multi-format (PyAV/ffmpeg) | ✅ | `common/utils/audio_decode.py` | torchcodec cassé ; à faire converger voice_utils/enhancer/preprocessor |
+| `wama-inspector.js`, `wama-model-help.js` | ✅ | `common/static/common/js/` | Volet inspecteur + descriptif modèle (court/long) |
+| Briques card : `_card_progress`, `_card_state`, `_new_item_card`, `_queue_actions` | ✅ | `common/templates/common/` | Assemblées par app (pas de card monolithique) |
