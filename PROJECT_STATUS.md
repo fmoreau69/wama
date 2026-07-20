@@ -528,6 +528,18 @@ check_app_conformity exécutable → introspection Django→schéma → scaffold
 
 ## 23. Audit + nettoyage documentation racine (2026-07-09)
 
+> **MAJ 2026-07-20 — dédoublonnage ROADMAP↔PROJECT_STATUS en cours d'exécution** (recommandation
+> 23.2 ; méthode : micro-lectures + vérif code systématique + scripts gardés + archive
+> `docs/archive/ROADMAP_ARCHIVE_2026-07-20.md`, rien n'est perdu). **Fait** : §0→PROJECT_STATUS,
+> §1, §2, §3, §4, §6 (cases mises à jour), §8d-P1, §9.1+tables 9.2, §15 (requalifiée LIVRÉE=Studio).
+> Divergences corrigées au passage : import récursif FAIT côté FileManager ;
+> UI_MECHANISMS_CONSOLIDATION.md existe (⏳ « produire » périmé) ; params.py/WamaParams livrés ;
+> Pexels/Openverse livrés ; canvas studio vanilla JS+SVG (pas de lib node-graph).
+> **Reste à trier** (vérif code par item, petites passes) : §5+5b Model Manager (~180 l),
+> §7 Converter (~160 l), §8/8b/8c, §9 reste (9.2ter→9.5), §10 i18n (~120 l), §16 (keeper à
+> rafraîchir). §11 relu ce jour = au bon niveau ; §12/§13/§14 = keepers selon l'audit 07-09
+> (simple survol de fraîcheur à faire en fin de chantier).
+
 > Demandé par Fabien : « la jungle des .md ». 26 fichiers `.md` à la racine, audit exhaustif via
 > 8 agents en parallèle (lecture intégrale + vérification empirique de 2-4 affirmations par
 > fichier contre le code réel), synthèse + corrections ci-dessous. **Graphe de référencement**
