@@ -31,59 +31,67 @@ workflow : 1. CALIBRATION (réglée 1× par session, panneau repliable pour ne p
 encombrer le quotidien) → 2. VUE (bascules d'affichage quotidiennes, live) →
 3. ANALYSE (calculs/outils). ⚠ JAMAIS de {# #} multi-ligne (affiché en texte brut).
 {% endcomment %}
-<div class="d-flex flex-wrap gap-1 mb-1 align-items-center" id="camAnalyzerMapToolbar">
-    <button type="button" id="calibPanelBtn" class="btn btn-sm btn-outline-info"
-            title="Étape 1 — Calibration de la session (réglée une fois) : synchro GPS↔vidéo, orientation/FOV des caméras, hauteur caméra, calibration sol (homographie/SAM3).">
-        <i class="fas fa-compass me-1"></i>Calibration <i class="fas fa-caret-down ms-1"></i>
-    </button>
-    <div class="vr mx-1"></div>
-    <span class="small text-secondary fw-semibold">Vue</span>
-    <button type="button" id="topDown360Btn" class="btn btn-sm btn-outline-warning"
-            title="Fusion multi-caméra : affiche les objets de TOUTES les caméras dans le repère véhicule (vue 360°). Basculable à tout moment.">
-        <i class="fas fa-globe me-1"></i>360°
-    </button>
-    <button type="button" id="predictionBtn" class="btn btn-sm btn-outline-danger"
-            title="Coloration par PRÉDICTION de trajectoire (TTC/PET extrapolés) vs TTC naïf par frame + affichage des fantômes prédits. Basculable pour comparer.">
-        <i class="fas fa-project-diagram me-1"></i>Prédiction
-    </button>
-    <button type="button" id="hideParkedBtn" class="btn btn-sm btn-outline-secondary"
-            title="Masquer les véhicules stationnés/garés (sauf ceux présents aux intersections).">
-        <i class="fas fa-parking me-1"></i>Garés
-    </button>
-    <button type="button" id="laneVideoBtn" class="btn btn-sm btn-outline-secondary"
-            title="Projeter le gabarit de voie SUR la vidéo pour caler la largeur de voie sur la route réelle (garde la segmentation yolopv2 séparément)">
-        <i class="fas fa-road me-1"></i>Voie/vidéo
-    </button>
-    <span class="d-inline-flex align-items-center gap-1"
-          title="Filtre de confiance à l'affichage : masque les détections faibles, SANS ré-analyse">
-        <span class="small text-secondary"><i class="fas fa-filter me-1"></i>Conf ≥</span>
-        <input type="range" id="overlayConfSlider" min="0" max="0.95" step="0.05" value="0" style="width:80px;">
-        <span class="small text-secondary" id="overlayConfVal" style="min-width:34px;">0%</span>
-    </span>
-    <span class="d-inline-flex align-items-center gap-1"
-          title="Largeur de voie (m) pour le gabarit de la vue de dessus — ajuste pour coller aux bordures (auto à venir)">
-        <span class="small text-secondary"><i class="fas fa-road me-1"></i>Voie</span>
-        <input type="range" id="laneWidthSlider" min="2" max="6" step="0.1" value="3.5" style="width:80px;">
-        <span class="small text-secondary" id="laneWidthVal" style="min-width:38px;">3.5m</span>
-    </span>
-    <div class="vr mx-1"></div>
-    <span class="small text-secondary fw-semibold">Analyse</span>
-    <button type="button" id="predictionCalcBtn" class="btn btn-sm btn-outline-secondary"
-            title="Calculer les indicateurs par prédiction de trajectoire (TTC/PET) + tracking 360° pour cette session — peut prendre du temps.">
-        <i class="fas fa-calculator me-1"></i>Indicateurs
-    </button>
-    <button type="button" id="featModesBtn" class="btn btn-sm btn-outline-info"
-            title="Bascules de comparaison : activer/désactiver chaque amélioration du positionnement pour comparer AVEC/SANS instantanément. ⟳ = nécessite de relancer le calcul des indicateurs.">
-        <i class="fas fa-flag me-1"></i>Comparer
-    </button>
-    <button type="button" id="copyDebugBtn" class="btn btn-sm btn-outline-secondary"
-            title="Copier les infos de synchro de cet instant (temps vidéo, GPS, détections) pour debug">
-        <i class="fas fa-clipboard"></i>
-    </button>
-    <button type="button" id="liveAnalysisBtn" class="btn btn-sm btn-outline-warning"
-            title="Analyse AU FIL DE LA LECTURE : les tranches jamais analysées autour du curseur sont analysées en tâche de fond pendant que tu lis la vidéo (zéro GPU si la zone est déjà couverte). Les indicateurs complets arrivent au prochain « Calculer les indicateurs ».">
-        <i class="fas fa-bolt me-1"></i>Live
-    </button>
+<div class="d-flex flex-wrap gap-2 mb-1 align-items-center" id="camAnalyzerMapToolbar">
+    {# ── Section 1 : CALIBRATION (réglée une fois par session) ── #}
+    <div class="td-group">
+        <span class="td-group-label">Calibration</span>
+        <button type="button" id="calibPanelBtn" class="btn btn-sm btn-outline-info"
+                title="Étape 1 — Calibration de la session (réglée une fois) : synchro GPS↔vidéo, orientation/FOV des caméras, hauteur caméra, calibration sol (homographie/SAM3).">
+            <i class="fas fa-compass me-1"></i>Ouvrir <i class="fas fa-caret-down ms-1"></i>
+        </button>
+    </div>
+    {# ── Section 2 : VUE (bascules d'affichage) ── #}
+    <div class="td-group">
+        <span class="td-group-label">Vue</span>
+        <button type="button" id="topDown360Btn" class="btn btn-sm btn-outline-warning"
+                title="Fusion multi-caméra : affiche les objets de TOUTES les caméras dans le repère véhicule (vue 360°). Basculable à tout moment.">
+            <i class="fas fa-globe me-1"></i>360°
+        </button>
+        <button type="button" id="predictionBtn" class="btn btn-sm btn-outline-danger"
+                title="Coloration par PRÉDICTION de trajectoire (TTC/PET extrapolés) vs TTC naïf par frame + affichage des fantômes prédits. Basculable pour comparer.">
+            <i class="fas fa-project-diagram me-1"></i>Prédiction
+        </button>
+        <button type="button" id="hideParkedBtn" class="btn btn-sm btn-outline-secondary"
+                title="Masquer les véhicules stationnés/garés (sauf ceux présents aux intersections).">
+            <i class="fas fa-parking me-1"></i>Garés
+        </button>
+        <button type="button" id="laneVideoBtn" class="btn btn-sm btn-outline-secondary"
+                title="Projeter le gabarit de voie SUR la vidéo pour caler la largeur de voie sur la route réelle (garde la segmentation yolopv2 séparément)">
+            <i class="fas fa-road me-1"></i>Voie/vidéo
+        </button>
+        <span class="d-inline-flex align-items-center gap-1 ms-1"
+              title="Filtre de confiance à l'affichage : masque les détections faibles, SANS ré-analyse">
+            <span class="small text-secondary"><i class="fas fa-filter me-1"></i>Conf ≥</span>
+            <input type="range" id="overlayConfSlider" min="0" max="0.95" step="0.05" value="0" style="width:70px;">
+            <span class="small text-secondary" id="overlayConfVal" style="min-width:34px;">0%</span>
+        </span>
+        <span class="d-inline-flex align-items-center gap-1 ms-1"
+              title="Largeur de voie (m) pour le gabarit de la vue de dessus — ajuste pour coller aux bordures (auto à venir)">
+            <span class="small text-secondary"><i class="fas fa-road me-1"></i>Voie</span>
+            <input type="range" id="laneWidthSlider" min="2" max="6" step="0.1" value="3.5" style="width:70px;">
+            <span class="small text-secondary" id="laneWidthVal" style="min-width:38px;">3.5m</span>
+        </span>
+    </div>
+    {# ── Section 3 : ANALYSE (calculs + comparaison + live) ── #}
+    <div class="td-group">
+        <span class="td-group-label">Analyse</span>
+        <button type="button" id="predictionCalcBtn" class="btn btn-sm btn-outline-secondary"
+                title="Calculer les indicateurs par prédiction de trajectoire (TTC/PET) + tracking 360° pour cette session — peut prendre du temps.">
+            <i class="fas fa-calculator me-1"></i>Indicateurs
+        </button>
+        <button type="button" id="featModesBtn" class="btn btn-sm btn-outline-info"
+                title="Bascules de comparaison : activer/désactiver chaque amélioration du positionnement pour comparer AVEC/SANS instantanément. ⟳ = nécessite de relancer le calcul des indicateurs.">
+            <i class="fas fa-flag me-1"></i>Comparer
+        </button>
+        <button type="button" id="liveAnalysisBtn" class="btn btn-sm btn-outline-warning"
+                title="Analyse AU FIL DE LA LECTURE : les tranches jamais analysées autour du curseur sont analysées en tâche de fond pendant que tu lis la vidéo (zéro GPU si la zone est déjà couverte). Les indicateurs complets arrivent au prochain « Calculer les indicateurs ».">
+            <i class="fas fa-bolt me-1"></i>Live
+        </button>
+        <button type="button" id="copyDebugBtn" class="btn btn-sm btn-outline-secondary"
+                title="Copier les infos de synchro de cet instant (temps vidéo, GPS, détections) pour debug">
+            <i class="fas fa-clipboard"></i>
+        </button>
+    </div>
 </div>
 {# ── Panneau CALIBRATION (replié par défaut) — tout ce qui définit la géométrie ── #}
 <div id="calibPanel" class="d-none mb-1 p-2 rounded"
@@ -169,6 +177,21 @@ encombrer le quotidien) → 2. VUE (bascules d'affichage quotidiennes, live) →
     #camAnalyzerMapWrap:fullscreen #camAnalyzerMiniMap,
     #camAnalyzerMapWrap:-webkit-full-screen #camAnalyzerMiniMap {
         height: 100vh !important; border: none; border-radius: 0;
+    }
+    /* Le badge d'état (topDownStatus) occupe le coin haut-gauche : on descend la pile
+       de contrôles gauche (zoom + 🛰 IGN + 🧭 orientation) dessous pour éviter le chevauchement. */
+    #camAnalyzerMiniMap .leaflet-top.leaflet-left { margin-top: 30px; }
+    /* Barre d'outils groupée par SECTIONS (Calibration / Vue / Analyse) : chaque groupe
+       est un bloc encadré avec son label, qui s'enroule comme une unité. */
+    #camAnalyzerMapToolbar .td-group {
+        display: inline-flex; align-items: center; gap: 4px;
+        padding: 2px 6px 2px 4px; border: 1px solid rgba(255,255,255,.10);
+        border-radius: 7px; background: rgba(255,255,255,.03);
+    }
+    #camAnalyzerMapToolbar .td-group-label {
+        font-size: .62rem; font-weight: 700; letter-spacing: .04em;
+        text-transform: uppercase; color: #8b98a5; padding: 0 3px;
+        border-right: 1px solid rgba(255,255,255,.10); margin-right: 2px;
     }
 </style>
 

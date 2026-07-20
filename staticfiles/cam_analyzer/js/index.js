@@ -2660,9 +2660,10 @@ document.addEventListener('DOMContentLoaded', function () {
             miniMapIntersectionLayers.push(circle, center);
         });
 
-        // Initial shuttle marker at first GPS point (if any)
+        // Initial shuttle marker at first GPS point (if any) — centre véhicule (levier antenne)
         if (cachedGpsTrack.length > 0) {
-            miniMapShuttleMarker = L.circleMarker([cachedGpsTrack[0].lat, cachedGpsTrack[0].lon], {
+            const _c0 = antennaCorrect(cachedGpsTrack[0]);
+            miniMapShuttleMarker = L.circleMarker([_c0.lat, _c0.lon], {
                 radius: 7, color: '#fff', weight: 2, fillColor: '#dc3545', fillOpacity: 1,
             }).addTo(miniMap);
         }
@@ -2871,7 +2872,11 @@ document.addEventListener('DOMContentLoaded', function () {
                     const h = _win[k].heading;
                     if (h != null) { cx += Math.cos(h * Math.PI / 180); cy += Math.sin(h * Math.PI / 180); }
                 }
-                return { lat: p.lat, lon: p.lon, h: (cx || cy) ? Math.atan2(cy, cx) * 180 / Math.PI : p.heading };
+                // Levier d'antenne GPS : le gabarit de voie doit être centré sur le CENTRE
+                // du véhicule, comme le marqueur navette et les objets — pas sur l'antenne
+                // brute (sinon la navette apparaît décalée d'~1 m sur la ligne centrale).
+                const c = antennaCorrect(p);
+                return { lat: c.lat, lon: c.lon, h: (cx || cy) ? Math.atan2(cy, cx) * 180 / Math.PI : p.heading };
             }).filter(p => p.h != null);
             // Bande de route PLEINE (surface normalisée, hérite de laneWidthM) : voie navette
             // + voie opposée. Dessinée SOUS les lignes de bord.
