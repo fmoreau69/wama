@@ -12,6 +12,7 @@ urlpatterns = [
     path('api/assets/upload/',            views.api_upload,           name='api_upload'),
     path('api/assets/<int:pk>/edit/',     views.api_edit,             name='api_edit'),
     path('api/assets/<int:pk>/delete/',   views.api_delete,           name='api_delete'),
+    path('api/assets/<int:pk>/promote/',  views.api_promote,          name='api_promote'),
 
     # Assets système
     path('api/system/',                   views.api_system_list,      name='api_system_list'),

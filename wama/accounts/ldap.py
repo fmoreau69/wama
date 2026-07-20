@@ -78,6 +78,20 @@ def _apply_ldap_org(sender, instance, **kwargs):
             if v and getattr(prof, k, None) != v:
                 setattr(prof, k, v)
                 changed = True
+        # Si l'entité principale correspond à un OrgUnit connu (synchro structures), on
+        # renseigne nom + hiérarchie lisibles depuis l'arbre en BDD (sans requête LDAP).
+        code = org.get('org_entity_code')
+        if code:
+            try:
+                from wama.common.models import OrgUnit
+                unit = OrgUnit.objects.filter(code=code).first()
+                if unit:
+                    prof.org_entity_name = unit.name
+                    prof.org_hierarchy = [{'code': u.code, 'name': u.name, 'type': u.unit_type}
+                                          for u in unit.ancestors()]
+                    changed = True
+            except Exception:
+                pass
         if changed:
             prof.save()
     except Exception:

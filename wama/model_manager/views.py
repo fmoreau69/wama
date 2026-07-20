@@ -1366,7 +1366,15 @@ def function_catalog(request):
     from wama.common.data.function_catalog import load_all, catalog_dict
     load_all()
     cat = catalog_dict()
-    funcs = sorted(cat.values(), key=lambda f: (f['binding'] != 'pure', f['app'], f['name']))
+    funcs = list(cat.values())
+    # + fonctions UTILISATEUR (BDD) visibles pour cet utilisateur (privé/unité/public).
+    try:
+        from wama.common.models import UserFunction, scoped_visible_q
+        for uf in UserFunction.objects.filter(scoped_visible_q(request.user, owner_field='owner')):
+            funcs.append(uf.to_dict())
+    except Exception:
+        pass
+    funcs = sorted(funcs, key=lambda f: (f['binding'] != 'pure', f.get('app', ''), f['name']))
     stats = {
         'total': len(funcs),
         'pure': sum(1 for f in funcs if f['binding'] == 'pure'),

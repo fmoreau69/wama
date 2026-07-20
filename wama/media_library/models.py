@@ -62,8 +62,13 @@ for _cat in MEDIA_CATEGORIES:
 del _cat, _members
 
 
-class UserAsset(models.Model):
-    """Asset personnel d'un utilisateur, réutilisable dans toutes les apps."""
+from wama.common.models import ScopedVisibility, scoped_visible_q
+
+
+class UserAsset(ScopedVisibility, models.Model):
+    """Asset personnel d'un utilisateur, réutilisable dans toutes les apps.
+    Hérite de ScopedVisibility : privé par défaut, promouvable vers une unité
+    (labo/dépt/université) ou public (médiathèque partagée). Voir §MONDES."""
 
     user       = models.ForeignKey(User, on_delete=models.CASCADE, related_name='user_assets')
     name       = models.CharField(max_length=200)

@@ -233,6 +233,43 @@ def api_delete(request, pk: int):
     return JsonResponse({'deleted': pk})
 
 
+@require_POST
+def api_promote(request, pk: int):
+    """POST /media-library/api/assets/<pk>/promote/ — change la visibilité d'un asset
+    (privé / unité / public). Body JSON : {visibility, scope_org_unit_code?}.
+    Seul le PROPRIÉTAIRE peut promouvoir ; le partage 'unit' exige une unité qui COUVRE
+    l'utilisateur (labo/dépt/université de son appartenance). Voir §MONDES."""
+    import json
+    from wama.common.models import OrgUnit, ScopedVisibility, user_scope_org_ids
+    user = _get_user(request)
+    try:
+        asset = UserAsset.objects.get(pk=pk, user=user)   # propriété obligatoire
+    except UserAsset.DoesNotExist:
+        return JsonResponse({'error': 'Asset introuvable ou non propriétaire'}, status=404)
+    try:
+        body = json.loads(request.body or '{}')
+    except ValueError:
+        return JsonResponse({'error': 'JSON invalide'}, status=400)
+    vis = body.get('visibility')
+    if vis not in (ScopedVisibility.VIS_PRIVATE, ScopedVisibility.VIS_UNIT, ScopedVisibility.VIS_PUBLIC):
+        return JsonResponse({'error': 'visibility invalide'}, status=400)
+    scope = None
+    if vis == ScopedVisibility.VIS_UNIT:
+        code = body.get('scope_org_unit_code')
+        try:
+            scope = OrgUnit.objects.get(code=code)
+        except OrgUnit.DoesNotExist:
+            return JsonResponse({'error': 'unité inconnue'}, status=400)
+        # l'utilisateur ne peut promouvoir que vers une unité qui le couvre
+        if scope.id not in user_scope_org_ids(user):
+            return JsonResponse({'error': "vous n'appartenez pas à cette unité"}, status=403)
+    asset.visibility = vis
+    asset.scope_org_unit = scope
+    asset.save(update_fields=['visibility', 'scope_org_unit'])
+    return JsonResponse({'id': pk, 'visibility': vis,
+                         'scope': scope.name if scope else None})
+
+
 # ---------------------------------------------------------------------------
 # API — Assets système
 # ---------------------------------------------------------------------------
