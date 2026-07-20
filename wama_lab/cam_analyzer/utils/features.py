@@ -40,6 +40,11 @@ FEATURES = [
             "du track (calculé par le tracking 360°), au lieu de l'estimation frame par "
             "frame au rendu.",
             default=True, scope='live'),
+    Feature('world_markings', 'Marquages SAM3 en monde',
+            "Les stop_line/passages piétons segmentés par SAM3 sont projetés au sol et "
+            "agrégés multi-passages : bornes réelles d'intersection sur la mini-map, et "
+            "axe de la branche croisante même sans trafic observé.",
+            default=True, scope='compute'),
     Feature('sam3_interp', 'Interpolation des marquages SAM3',
             "Les marquages (passages piétons…) ne sont segmentés qu'aux keyframes "
             "(sam3_fps du profil) : l'affichage interpole entre deux keyframes "

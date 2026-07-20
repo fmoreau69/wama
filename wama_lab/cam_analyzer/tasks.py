@@ -2273,6 +2273,14 @@ def _run_global_tracking(session):
                 rs['intersection_branches'] = learn_branches(session)
         except Exception:
             logger.warning('learn_branches failed (non-blocking)', exc_info=True)
+        # Marquages SAM3 agrégés en monde (stop_line/crossing/lignes) — bornes réelles
+        # d'intersection + axe de branche SANS trafic (complément des branches apprises).
+        try:
+            if _feff(session).get('world_markings', True):
+                from .utils.marking_world import aggregate_markings
+                rs['intersection_markings'] = aggregate_markings(session)
+        except Exception:
+            logger.warning('aggregate_markings failed (non-blocking)', exc_info=True)
         session.results_summary = rs
         session.save(update_fields=['results_summary'])
         mark_completed(session, 'global_tracking', output_summary={

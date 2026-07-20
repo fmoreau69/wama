@@ -91,6 +91,7 @@ document.addEventListener('DOMContentLoaded', function () {
     let camAntenna = [1.0, 0.0];
     let camAntennaCfg = null;      // surcharge session (config.gps_antenna), lue au chargement
     let sessionBranches = {};      // branches d'intersection apprises du trafic (par index de fenêtre)
+    let sessionMarkings = {};      // marquages SAM3 agrégés en monde (stop_line/crossing, par fenêtre)
     const camFovUsed = {};    // FOV V utilisé à l'annotation (config.fov_v_used, sinon legacy)
     // Bascules ⚑ Modes (miroir de utils/features.py) : comparer AVEC/SANS chaque
     // amélioration. Surchargées par le catalogue serveur au chargement de session.
@@ -482,6 +483,7 @@ document.addEventListener('DOMContentLoaded', function () {
             try {
                 stationaryGids = new Set((data.results_summary && data.results_summary.stationary_global_tracks) || []);
                 sessionBranches = (data.results_summary && data.results_summary.intersection_branches) || {};
+                sessionMarkings = (data.results_summary && data.results_summary.intersection_markings) || {};
                 stationaryAnchors = (data.results_summary && data.results_summary.stationary_anchors) || {};
                 sessionAnalyzedRanges = (data.config && data.config.analyzed_ranges) || {};
             } catch (e) { stationaryGids = new Set(); stationaryAnchors = {}; sessionAnalyzedRanges = {}; }
@@ -990,6 +992,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     const d = await r.json();
                     stationaryGids = new Set((d.results_summary && d.results_summary.stationary_global_tracks) || []);
                     sessionBranches = (d.results_summary && d.results_summary.intersection_branches) || {};
+                    sessionMarkings = (d.results_summary && d.results_summary.intersection_markings) || {};
                     stationaryAnchors = (d.results_summary && d.results_summary.stationary_anchors) || {};
                     sessionAnalyzedRanges = (d.config && d.config.analyzed_ranges) || {};
                 } catch (e) { /* prochaine sélection de session fera foi */ }
@@ -2862,6 +2865,19 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Branches APPRISES DU TRAFIC (trajectoires monde des croisants) : on ne
                 // dessine que là où des véhicules ont réellement roulé — côté, azimut,
                 // étendue et largeur observés. Fallback : bande symétrique aveugle.
+                // Marquages SAM3 agrégés (⚑ world_markings) : stop_line = blanc,
+                // crossing = cyan, lignes = jaune — les BORNES réelles de l'intersection.
+                const _mk = sessionMarkings[String(_wi)];
+                if (Array.isArray(_mk)) {
+                    _mk.forEach(mk => {
+                        const col = mk.label === 'stop_line' ? '#ffffff'
+                                  : mk.label === 'crossing' ? '#00e5ff' : '#ffd500';
+                        L.polyline([mk.a, mk.b], {
+                            color: col, weight: 3, opacity: mk.calibrated ? 0.9 : 0.55,
+                            dashArray: mk.label === 'crossing' ? '3,3' : null,
+                        }).addTo(miniMapLaneLayer);
+                    });
+                }
                 const _learned = sessionBranches[String(_wi)];
                 if (Array.isArray(_learned) && _learned.length) {
                     _learned.forEach(br => {
