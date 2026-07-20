@@ -15,6 +15,28 @@ Doc : [`PROMPT_PIPELINE.md`](PROMPT_PIPELINE.md).
 - ⏳ Câbler QC (`qc.py`) en post-génération ; (option) preview pré-lancement
 
 ## 2. Model Manager — centralisation + prospection + UI volet droit
+
+> **État réel gestion VRAM — inventaire vérifié 2026-07-20** (demande Fabien : « tracer le réel »).
+> **EXISTE** : ① `select_model()` (`model_manager/services/model_selector.py`) = sélecteur central
+> complet — budget VRAM **live** (`get_free_vram_gb`), « le plus gros qui tient », `prefer_loaded`
+> (lit `AIModel.is_loaded`), filtre capacités `requires`/`classes`, paliers `priority`,
+> `availability_probe` runtime ; il se déclare remplaçant du `backend_selector` planifié
+> (CLAUDE.md corrigé en conséquence) ; ② `WAMAMemoryCleaner` **automatique** (thread périodique,
+> décharge idle 300 s, seuils RAM/GPU 80-95 % → cleanup agressif) + API/UI volet droit ;
+> ③ `memory_monitor` (jauges + budget du sélecteur) ; ④ contrat `unload()` de `BaseModelBackend`
+> sur toutes les apps ; ⑤ `vram_gb` déclaré partout (model_config par app + catalogue `AIModel`) ;
+> ⑥ nightly runner **sérialisé VRAM-aware** (teardown avant/après) ; ⑦ ETA hardware-aware
+> (`ModelRuntimeStat` par GPU) ; ⑧ sélection LLM par tier (`llm_utils`) + wama-dev-ai
+> `select_model_for_role` (découplés by design, jonction = Phase 4 MCP) ; ⑨ sélecteur
+> app-spécifique anonymizer (précision/perf).
+> **MANQUE (affinages réels)** : ⓐ `select_model()` = **0 consommateur app** (vérifié grep
+> 2026-07-20) — l'« étape 3 adaptateurs » ⏳ ci-dessous EST ce chantier d'adoption ; l'imager
+> choisit par priorité/disponibilité, pas par VRAM libre ; ⓑ pas d'**éviction synchrone au
+> chargement** (le cleaner est périodique/seuils) : si un modèle ne tient pas, rien ne décharge
+> les idle des AUTRES apps à l'instant T ; ⓒ pas de **coordination inter-process** (Django +
+> workers Celery lisent chacun la VRAM ; seul le nightly sérialise) → double chargement concurrent
+> possible ; ⓓ `keep_loaded` = comportement `prefer_loaded`/`is_loaded`, pas un flag persistant
+> par modèle (à décider si besoin réel).
 - ✅ Briques prospection/maintenance (détecteur MAJ, prospecteur HF, installeur Ollama+HF, QC, multi-agents, bench vision, sélecteur)
 - ✅ **UI volet droit (débloque le test prospection via `/model-manager/`)** : inspecteur par-modèle
   câblé dans le **volet droit GLOBAL `#wama-right-panel`** (surcharge des blocs `right_panel_settings`
@@ -1535,3 +1557,6 @@ Demande Fabien : montrer la donnée qui transite entre 2 cards pendant un run.
 - Validé : esprima + harnais V8 (init 0 erreur) + test unitaire isolé de setLinkFlowing
   (structure circle>animateMotion>mpath[href] correcte, ON/OFF). Harnais pérenne complété
   (style.setProperty, document.cookie/querySelector/createElementNS, fetch headers).
+
+## 🌍 Architecture en MONDES (doctrine 2026-07-20)
+WAMA = 4 mondes (Médias / Data / Lab / Transversal) qui communiquent via le système de capacités/ports typés, peuplent studio + médiathèque ; accès par profil/rôle. Détail : `docs/VISION_STATUS.md` §Architecture en MONDES. Confidentialité fonctions amorcée (FunctionSpec.projects/visibility/owner). Catalogue : `/model-manager/functions/`.
