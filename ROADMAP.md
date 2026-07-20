@@ -11,6 +11,13 @@
 > `docs/VISION_STATUS.md` ; règles d'engagement (« non-objectifs ») : `docs/WAMA_Vision_Complet_v2.md`
 > (docs/ non versionné). En cas de conflit avec une priorité plus ancienne citée ailleurs dans ce
 > fichier, CETTE section fait foi.
+>
+> **Rôles des documents de suivi (contrat 2026-07-20)** — chaque info vit à UN seul niveau, les
+> autres pointent : **Vision** (docs/) = le cap, horizon années, jamais de statut ; **ROADMAP** (ce
+> fichier) = les chantiers macro et leur ordre, horizon trimestres ; **PROJECT_STATUS** = l'état
+> d'avancement au jour le jour (fait/en cours/détails) ; **VISION_STATUS** (docs/) = pont
+> périodique vision ↔ code. Le dédoublonnage à venir = redescendre au bon niveau ce qui a dérivé
+> (statuts et checklists détaillées présents ici → PROJECT_STATUS), pas fusionner les fichiers.
 
 ### H1 — Maintenant (finir avant d'ouvrir quoi que ce soit)
 1. Consolidation des mécanismes d'UI + port schéma-driven des 5 apps restantes
@@ -30,8 +37,20 @@
    qu'avec delta mesuré. Prospection suites (multi-agents, routing capacité→app Phase A).
 6. Face Analyzer : intégration au catalogue (flag lab) + premier flux exploitable.
 
+### H2-parallèle — Couche Data (décision Fabien 2026-07-20 : fil indépendant, démarrage progressif)
+> Reclassée depuis « lointain » : c'est le **prochain grand chantier** après H1/H2, à intégrer
+> **progressivement, en parallèle du reste** — indépendant mais connecté au système.
+1. **Socle data** : gestion des données tabulaires/signaux comme citoyens de première classe
+   (types, aperçus, profils) — s'appuie sur la partie média existante (médiathèque, files).
+2. **Centralisation des fonctions de calcul de wama_lab** (cam_analyzer, face_analyzer :
+   trajectoires, TTC, fenêtres, métriques physio…) en briques communes réutilisables — même
+   logique que `common/` côté apps : le labo capitalise ses calculs au lieu de les disperser.
+3. La suite IA de la partie VII (Data Comprehender, boucle de découverte) reste en H3 — elle
+   attend ce socle + le RAG + les garde-fous méthodologiques (vision v2 §28).
+
 ### H3 — Lointain (vision ; NE PAS ouvrir — cf. non-objectifs v2)
-- Couche Data + Data Comprehender (vision partie VII) — après RAG + cas d'usage labo réel.
+- Data Comprehender + boucle de découverte (partie VII aval) — après couche Data (H2-parallèle),
+  RAG et garde-fous méthodologiques.
 - Médiathèque universitaire, SI labo, assistant réunions (partie VIII) — conditionné au chapitre
   conformité (RGPD/consentement/SSO) et à l'adoption interne de la médiathèque.
 - Story Director / storyboard / apps montage & mixage (partie V) — après Studio complet, avec cas
