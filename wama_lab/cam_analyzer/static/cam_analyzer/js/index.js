@@ -1367,6 +1367,11 @@ document.addEventListener('DOMContentLoaded', function () {
         const refOffset = (cameras[refPos] && cameras[refPos].time_offset) || 0;
         const refTime   = refVideo.currentTime - refOffset;
 
+        // RÉSILIENCE : le rendu (overlays, mini-carte, marquages…) ne doit JAMAIS tuer
+        // la boucle d'animation — une donnée malformée figeait tout le playback quand la
+        // navette approchait d'une intersection (constat 2026-07-20). On loggue et on
+        // re-planifie toujours (finally).
+        try {
         // Update seekbar + time display (only when user is not dragging)
         if (!isSeeking) {
             syncSeekBar.value = refTime;
@@ -1406,8 +1411,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
             }
         });
-
-        rafHandle = requestAnimationFrame(rafLoop);
+        } catch (e) {
+            if (window.console) console.warn('[cam_analyzer] rafLoop render error (loop survives):', e);
+        } finally {
+            rafHandle = requestAnimationFrame(rafLoop);
+        }
     }
 
     function startRafLoop() {
@@ -2660,10 +2668,10 @@ document.addEventListener('DOMContentLoaded', function () {
             miniMapIntersectionLayers.push(circle, center);
         });
 
-        // Initial shuttle marker at first GPS point (if any) — centre véhicule (levier antenne)
+        // Marqueur initial = position ANTENNE (GPS brut, coin arrière droit) ; il sera
+        // recalé à chaque frame par antennaPoint(findGpsAtTime).
         if (cachedGpsTrack.length > 0) {
-            const _c0 = antennaCorrect(cachedGpsTrack[0]);
-            miniMapShuttleMarker = L.circleMarker([_c0.lat, _c0.lon], {
+            miniMapShuttleMarker = L.circleMarker([cachedGpsTrack[0].lat, cachedGpsTrack[0].lon], {
                 radius: 7, color: '#fff', weight: 2, fillColor: '#dc3545', fillOpacity: 1,
             }).addTo(miniMap);
         }
@@ -2697,6 +2705,19 @@ document.addEventListener('DOMContentLoaded', function () {
                  lon: pt.lon - de / (111320.0 * Math.cos(pt.lat * Math.PI / 180)) };
     }
 
+    function antennaPoint(pc) {
+        // Inverse de antennaCorrect : centre véhicule → position réelle de l'ANTENNE
+        // (coin arrière droit). Le marqueur rouge représente l'antenne GPS physique,
+        // pas le centre — d'où sa position à l'arrière-droit et non arrière-centre.
+        const ax = camAntenna[0], ay = camAntenna[1];
+        if ((!ax && !ay) || pc.heading == null) return pc;
+        const hr = pc.heading * Math.PI / 180;
+        const de = ay * Math.sin(hr) + ax * Math.cos(hr);
+        const dn = ay * Math.cos(hr) - ax * Math.sin(hr);
+        return { ...pc, lat: pc.lat + dn / 111320.0,
+                 lon: pc.lon + de / (111320.0 * Math.cos(pc.lat * Math.PI / 180)) };
+    }
+
     function findGpsAtTime(t) {
         if (!cachedGpsTrack.length) return null;
         // ts_gps = temps_vidéo * scale + offset (scale corrige un fps AVI erroné → la
@@ -2722,7 +2743,8 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!miniMap || !miniMapShuttleMarker || !cachedGpsTrack.length) return;
         const p = findGpsAtTime(currentTime);
         if (p) {
-            miniMapShuttleMarker.setLatLng([p.lat, p.lon]);
+            const _ant = antennaPoint(p);   // point rouge = antenne (arrière-droit), pas le centre
+            miniMapShuttleMarker.setLatLng([_ant.lat, _ant.lon]);
             // Suivi : recentrer la navette à TOUT zoom (avant, le panTo était dans
             // updateTopDown, APRÈS le return early zoom<17 → pas de suivi dézoomé).
             if (topDownAutoFollow) miniMap.panTo([p.lat, p.lon], { animate: false });
@@ -2910,26 +2932,42 @@ document.addEventListener('DOMContentLoaded', function () {
                 // étendue et largeur observés. Fallback : bande symétrique aveugle.
                 // Marquages SAM3 agrégés (⚑ world_markings) : stop_line = blanc,
                 // crossing = cyan, lignes = jaune — les BORNES réelles de l'intersection.
+                // Validateur de coordonnée [lat, lon] : rejette undefined/NaN/hors-plage —
+                // une seule coord invalide faisait throw Leaflet et FIGEAIT le playback
+                // (cause racine du blocage « en arrivant vers les marquages », 2026-07-20),
+                // et les valeurs aberrantes = les marquages « n'importe comment ».
+                const _okLL = ll => Array.isArray(ll) && ll.length >= 2
+                    && isFinite(ll[0]) && isFinite(ll[1])
+                    && Math.abs(ll[0]) <= 90 && Math.abs(ll[1]) <= 180;
+                // Marquages : on ne montre que les BORNES utiles (stop_line + crossing) et
+                // proches de la balise (≤ 18 m) — les « line » longitudinales bruitées
+                // encombraient la carte (« n'importe comment ») et alourdissaient le rendu.
                 const _mk = sessionMarkings[String(_wi)];
-                if (Array.isArray(_mk)) {
-                    _mk.forEach(mk => {
-                        const col = mk.label === 'stop_line' ? '#ffffff'
-                                  : mk.label === 'crossing' ? '#00e5ff' : '#ffd500';
-                        L.polyline([mk.a, mk.b], {
-                            color: col, weight: 3, opacity: mk.calibrated ? 0.9 : 0.55,
-                            dashArray: mk.label === 'crossing' ? '3,3' : null,
-                        }).addTo(miniMapLaneLayer);
-                    });
+                if (Array.isArray(_mk) && w.lat != null) {
+                    const _mLon = 111320 * Math.cos(w.lat * Math.PI / 180);
+                    _mk.filter(mk => (mk.label === 'stop_line' || mk.label === 'crossing')
+                            && _okLL(mk.a) && _okLL(mk.b)
+                            && Math.hypot(((mk.a[0] + mk.b[0]) / 2 - w.lat) * 111320,
+                                          ((mk.a[1] + mk.b[1]) / 2 - w.lon) * _mLon) <= 18)
+                        .forEach(mk => {
+                            const col = mk.label === 'stop_line' ? '#ffffff' : '#00e5ff';
+                            L.polyline([mk.a, mk.b], {
+                                color: col, weight: 3, opacity: mk.calibrated ? 0.9 : 0.55,
+                                dashArray: mk.label === 'crossing' ? '3,3' : null,
+                            }).addTo(miniMapLaneLayer);
+                        });
                 }
                 // Passages piétons de l'ORTHO IGN (recalage 2b) : contour orange plein —
                 // vérité géoréférencée à comparer aux crossings caméra (cyan) sur le fond 🛰.
                 const _ortho = orthoMarkings[String(_wi)];
                 if (Array.isArray(_ortho)) {
                     _ortho.forEach(oc => {
-                        if (Array.isArray(oc.poly_latlon) && oc.poly_latlon.length >= 3) {
-                            L.polygon(oc.poly_latlon, { color: '#ff9800', weight: 2,
+                        const poly = Array.isArray(oc.poly_latlon)
+                            ? oc.poly_latlon.filter(_okLL) : [];
+                        if (poly.length >= 3) {
+                            L.polygon(poly, { color: '#ff9800', weight: 2,
                                 opacity: 0.9, fill: false }).addTo(miniMapLaneLayer);
-                        } else {
+                        } else if (_okLL([oc.lat, oc.lon])) {
                             L.circleMarker([oc.lat, oc.lon], { radius: 4, color: '#ff9800',
                                 weight: 2, fill: false }).addTo(miniMapLaneLayer);
                         }
@@ -2938,6 +2976,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 const _learned = sessionBranches[String(_wi)];
                 if (Array.isArray(_learned) && _learned.length) {
                     _learned.forEach(br => {
+                        if (!_okLL(br.a) || !_okLL(br.b) || !isFinite(br.bearing_deg)) return;
                         const th2 = br.bearing_deg * Math.PI / 180;
                         const vx2 = Math.sin(th2 + Math.PI / 2), vy2 = Math.cos(th2 + Math.PI / 2);
                         const hw = (br.width_m || 6) / 2;
