@@ -5,8 +5,39 @@
 > fallback robuste, fusion inertielle, filtrage des véhicules d'intérêt, et une
 > **vue de dessus cartographiée** des éléments autour de la navette.
 >
-> Périmètre de travail actuel : **uniquement le jeu `ENA_CASA`** (site de Nice, une
-> seule navette ego). Les autres vues/sites sont hors scope pour l'instant.
+> Périmètre initial de travail : le jeu `ENA_CASA` (site de Nice, une seule navette ego).
+> ⚠️ **Mise à jour** : la **vue de dessus 360° multi-caméras est désormais implémentée** (elle
+> n'est plus hors scope) — voir l'ADDENDUM ci-dessous, qui SUPERSÈDE les statuts du corps.
+
+---
+
+## ADDENDUM POST-IMPLÉMENTATION (2026-07-20)
+
+> Ce document reste valable pour son **raisonnement de conception** (il fonde le design), mais le
+> chantier a été **exécuté puis dépassé**. Cet addendum décrit ce qui a réellement été construit et
+> **SUPERSÈDE les marqueurs de statut du corps** (« à créer », « hors scope », « 0 entrée », le
+> phasage, le « BUG STRUCTUREL »…). En cas de contradiction, l'addendum fait foi.
+
+Ce qui a réellement été construit :
+- **Calibration sol AUTO retenue** (`utils/homography_estimator.py`) = **minimisation de l'étalement
+  monde des stationnés**, qui **résout le pitch** caméra (mesuré : désaccord sol⟷pinhole
+  **14,55 m → 3,05 m** à pitch **21,5°**). **k1 / distorsion testé et ÉCARTÉ** (pas de gain sur cette
+  optique quasi-rectiligne). L'étape **2a « placement par projection sol » est faite** mais derrière la
+  bascule `auto_ground_calib` (**OFF** par défaut) ; **2b** (échelle absolue via marquages ortho) et
+  **2c** (calibration jointe pitch + échelle) restent à venir.
+- **Lissage Kalman CV + RTS** (`utils/trajectory_smoother.py`, écrit `world_en`) — va **au-delà** du
+  simple lissage EMA de la correction 3a.
+- **Vue de dessus 360° multi-caméras IMPLÉMENTÉE** (`utils/multicam_tracker.py` : hand-off d'identité
+  inter-caméras, repère ego commun) — exactement ce que le §6 « Points ouverts » déclarait hors scope.
+- **Calibration stockée sur la SESSION** (`config['ground_calib']`) + `CameraView.ground_homography`
+  (mig **0014**) → le « **BUG STRUCTUREL : la calibration fuit via le profil** » (Roadmap calibration)
+  est **RÉSOLU**.
+- **SAM3 fonctionnel** (crossing / stop_line), **interpolation** entre keyframes, cadence
+  `profile.sam3_fps`, **agrégation monde** (`utils/marking_world.py`) — le corps qui indiquait
+  « 0 entrée / inactif » est **périmé**.
+- **11 feature flags A/B** (`utils/features.py`) ; **cap serveur des stationnés**
+  (`anchor_heading` / `heading_cluster` / `heading_ratio`) ; **levier antenne GPS** ; **fond
+  orthophoto IGN** ; bouton **cap navette** (Leaflet-rotate).
 
 ---
 
@@ -16,7 +47,7 @@ Base réelle (WSL2 Postgres), 2 sessions / **56 655 frames** :
 
 | Vérification | Résultat empirique |
 |---|---|
-| Détections SAM3 (`sam3_marking`) | **0** entrée. Aucune donnée SAM3 persistée. |
+| Détections SAM3 (`sam3_marking`) | *Constat 2026-07-07 : 0 entrée.* **Périmé** : SAM3 est désormais fonctionnel (crossing/stop_line, interpolation, agrégation monde `marking_world.py`) — voir ADDENDUM. |
 | Types stockés | `road_mask` 78 463 (dont classes `lane (yolopv2)` ≈ 55,6k, `drivable area (yolopv2)` ≈ 22,9k), + objets COCO. |
 | « Passages piétons roses » | **Ce ne sont pas des détections de passage.** Les polygones `road_mask` sont rendus en **magenta** (`index.js:1659`) ; la tête *lane* de YOLOPv2 s'allume sur les **zébrures** → un polygone `lane` épouse le passage. C'est le masque de lignes, pas un passage étiqueté. |
 | Classes objets | **COCO non filtré** : `airplane`, `bird` 2950, `train` 3432, `boat`, `sheep`… → beaucoup de faux positifs. Filtre `target_classes` appliqué **au read-time seulement**, conditionné à un `target_classes` non vide. |
@@ -86,7 +117,7 @@ clamp des sauts impossibles + rejet des vitesses hors plage plausible**. Les **d
    1. Calibration utilisateur (vérité terrain injectée) ;
    2. **Lignes de voie** (YOLOPv2) — échelle latérale via largeur de voie, longitudinale via
       période des pointillés ;
-   3. Passages piétons (SAM3) — **inactif aujourd'hui** (pas de données) ; réactivable ;
+   3. Passages piétons (SAM3) — **désormais actif** (SAM3 fonctionnel, cf. ADDENDUM) ; 2ᵉ estimateur ;
    4. **Pinhole + lissage** — dernier recours, jamais faux « d'un coup ».
 
    Règles : lignes ⟷ pinhole se confrontent ; désaccord fort → segmentation douteuse →
@@ -149,9 +180,10 @@ clamp des sauts impossibles + rejet des vitesses hors plage plausible**. Les **d
                                                                 (+ corridor)         (intersection_analyzer)
 ```
 
-Modules (à créer, `utils/`) : `ground_projection.py` (socle), `homography_estimator.py`
-(lignes → H), `ego_pose.py` (GPS+IMU). `distance_speed.py` reste la couche fallback +
-dérivation temporelle (déjà durcie en 3a).
+Modules (`utils/`) — **les trois EXISTENT désormais** (n'étaient plus « à créer ») :
+`ground_projection.py` (socle), `homography_estimator.py` (calib sol AUTO / lignes → H),
+`ego_pose.py` (GPS+IMU). `distance_speed.py` reste la couche fallback + dérivation temporelle
+(déjà durcie en 3a) ; le lissage principal est désormais `trajectory_smoother.py` (Kalman+RTS).
 
 ---
 
@@ -162,6 +194,9 @@ dérivation temporelle (déjà durcie en 3a).
 - `camera_calibration` (JSON) — par position : `{lens_type, fx_px, fy_px, cx_px, cy_px,
   distortion[], fov_h_deg, fov_v_deg, height_m, pitch_deg, yaw_deg, roll_deg, mount_x_m,
   mount_y_m, homography[3][3]}`. Tous optionnels (manquants → estimés/pinhole).
+  ⚠️ **Mise à jour** : la calibration n'est plus **seulement** sur `AnalysisProfile`. Elle est
+  désormais portée aussi par la **session** (`AnalysisSession.config['ground_calib']`) et par
+  `CameraView.ground_homography` (mig **0014**) — voir ADDENDUM (résout la fuite inter-sessions).
 - Références sol : `lane_width_m` (3.5), `dash_mark_length_m` (3.0), `dash_gap_length_m`
   (9.0), `crossing_band_width_m` (0.5), `crossing_gap_width_m` (0.5).
 - Navette ego : `ego_length_m` (4.75), `ego_width_m` (2.11), `ego_height_m` (2.65),
@@ -213,8 +248,10 @@ dérivation temporelle (déjà durcie en 3a).
 - **Point-sol tronqué** (objet coupé en bas d'image) → position fausse → garde-fou confiance
   + fallback pinhole.
 - **Cap à l'arrêt** : non observable (pas de gyro) → tenir le dernier cap GPS.
-- **Vue de dessus multi-caméras 360°** : hors scope (une seule navette/site pour l'instant) ;
-  exigerait les extrinsèques de montage relatives.
+- **Vue de dessus multi-caméras 360°** : ~~hors scope~~ → **IMPLÉMENTÉE** (`multicam_tracker.py`,
+  hand-off d'identité, repère ego commun). N'est plus un point ouvert — voir ADDENDUM.
+- **Auto-calibration sol** : ~~ouverte~~ → **faite** (`homography_estimator.py`, résout le pitch).
+  Restent ouverts : l'échelle métrique absolue (étape 2b, marquages ortho) et la calib jointe (2c).
 ```
 
 ---
@@ -234,8 +271,9 @@ base `_auto_calibrate_from_crossings`).
 - **Ne PAS se cantonner aux zones d'analyse** pour la calibration (meilleurs passages ailleurs). La
   **sélection manuelle d'une frame reste la baseline**. Semi-auto = GPS pour localiser un passage puis
   extraire frames proche→loin.
-- ⚠️ **BUG STRUCTUREL** : `camera_calibration` est sur `AnalysisProfile` (réutilisé entre sessions,
-  views.py:318) → **la calibration FUIT d'une session à l'autre**. Faux dès qu'une caméra décroche/bouge.
+- ✅ **BUG STRUCTUREL RÉSOLU** : `camera_calibration` était sur `AnalysisProfile` (réutilisé entre
+  sessions, views.py:318) → la calibration fuyait d'une session à l'autre. **Corrigé** : calib portée
+  par la **session** (`config['ground_calib']`) + `CameraView.ground_homography` (mig **0014**).
 - **Caméras qui décrochent** (entre sessions ET en cours de session) : calibration DOIT être **par
   session**. En cours de session → surveiller le **RMS de reprojection** des passages successifs ; saut
   = caméra bougée → **époques de calibration** (avant/après).
@@ -244,13 +282,18 @@ base `_auto_calibrate_from_crossings`).
   hand-off de tracks par continuité de position sol → trajectoires continues.
 
 ### Phasage
-| Phase | Contenu | Effort |
+> **Statut 2026-07-20** (SUPERSÈDE la colonne d'origine) : Phase **0 = FAITE** (calib par session,
+> `CameraView.ground_homography`, mig 0014), Phase **C (360° / hand-off) = FAITE**
+> (`multicam_tracker.py`), Phase **B (auto-calib) = en grande partie faite**
+> (`homography_estimator.py`, pitch résolu ; reste l'échelle absolue 2b + calib jointe 2c).
+
+| Phase | Contenu | Statut |
 |-------|---------|--------|
 | ✅ Actuel | 📐 Calib. SAM3 manuel (baseline) | fait |
-| **0 (bientôt)** | Calibration **par caméra** (`Camera.ground_homography`), plus sur profil partagé ; dims passage/ego restent sur profil | petit-moyen |
-| **A** | Raffinement **multi-frames** GPS-ancré (précision au loin) | moyen |
-| **B** | Auto-calibration **background par session** + détection dérive RMS (époques) | moyen-gros |
-| **C** | **360°** : sides via voies, repère ego commun, hand-off de tracks | gros, gated A/B |
+| **0** | Calibration **par session** (`CameraView.ground_homography`, mig 0014), plus sur profil partagé ; dims passage/ego restent sur profil | ✅ **fait** |
+| **A** | Raffinement **multi-frames** GPS-ancré (précision au loin) | partiel |
+| **B** | Auto-calibration **par session** (`homography_estimator.py`) + détection dérive RMS | ✅ **en grande partie faite** (reste 2b échelle + 2c jointe) |
+| **C** | **360°** : sides via voies, repère ego commun, hand-off de tracks | ✅ **fait** (`multicam_tracker.py`) |
 
-**Recommandation** : Phase 0 assez tôt (bug latent, pas juste amélioration). Reste après tickets
-copier→debug + désync GPS.
+**Point de reprise** : étape **2b** (échelle métrique absolue via passages piétons ortho IGN +
+matching crossings caméra `marking_world.py`), puis **2c** (calibration jointe pitch + échelle).

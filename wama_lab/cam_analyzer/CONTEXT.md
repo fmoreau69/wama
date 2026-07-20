@@ -23,6 +23,37 @@ avec les usagers de la route.
 
 ---
 
+## ÉTAT ACTUEL (mise à jour 2026-07-20)
+
+> Depuis la refonte « Distances / vue de dessus » (Phase 3+), une grande partie de ce que les
+> sections d'état ci-dessous décrivaient comme « à faire » ou « pas en place » **est désormais
+> implémentée**. Cette section fait foi ; les §4, §6, §7/§7bis, §8, §10 conservent le raisonnement
+> mais sont requalifiés en historique là où ils décrivaient un état pré-refonte. Détail complet
+> (bascules, plan de calibration sol 2a/2b/2c) : **`CAM_ANALYZER_CHAINE_TRAITEMENT.md`**.
+
+Ce qui est désormais IMPLÉMENTÉ :
+- **Vue de dessus 360°** : fusion de toutes les caméras dans le repère véhicule ; positions monde
+  tracées sur mini-carte **Leaflet** (fond sombre OU orthophoto **IGN 🛰**, nord OU cap-navette 🧭).
+- **Tracker global multi-caméras** (`utils/multicam_tracker.py`) : hand-off d'identité inter-caméras
+  (gids), classes stables par vote, stationnés + ancres monde, remplissage de fantômes, filtre
+  d'artefacts, cap serveur des garés (consensus ratio bbox + prior cluster).
+- **Lissage Kalman CV + RTS** (`utils/trajectory_smoother.py`) — écrit `world_en` sur chaque détection.
+- **Analyse incrémentale COMPLÈTE** : registre de couverture (`utils/coverage.py` +
+  `wama/common/utils/intervals.py`), bouton « **Compléter l'analyse** », mode **Live**
+  (`live_analysis_task`), enchaînement auto du tracking 360° (`_run_global_tracking`) en fin de
+  complétion / Live.
+- **Calibration** : yaw / FOV / levier antenne GPS réglables par session ; **calibration sol AUTO**
+  (`utils/homography_estimator.py`) — résout le pitch caméra par minimisation de l'étalement monde des
+  stationnés (mesuré : désaccord sol⟷pinhole **14,55 m → 3,05 m** à pitch **21,5°** ; k1/distorsion
+  testé et **écarté**). Calib stockée sur la **SESSION** (`config['ground_calib']`,
+  `CameraView.ground_homography`, mig 0014), plus seulement sur le profil.
+- **11 bascules de comparaison A/B** (`utils/features.py` + `wama/common/utils/feature_flags.py`).
+- **Branches d'intersection apprises du trafic** (`utils/intersection_branches.py`) ; **marquages SAM3
+  agrégés en monde** (`utils/marking_world.py`) ; **interpolation SAM3** + cadence `profile.sam3_fps`.
+- **Nouveaux endpoints** : `camera-yaw/`, `features/`, `complete-analysis/`, `live-cursor/`.
+
+---
+
 ## 2. Librairies spécifiques
 - **Extraction rosbags** : https://github.com/rpng/rosbags
 - **Segmentation route / voies** : **YOLOPv2** https://github.com/CAIC-AD/YOLOPv2
@@ -36,7 +67,10 @@ avec les usagers de la route.
 
 ---
 
-## 3. Modèle de données (`models.py`, migrations 0001→0010)
+## 3. Modèle de données (`models.py`, migrations 0001→0020)
+> Principales migrations post-0010 : **0011** `ConflictEvent`, **0013** `camera_calibration`,
+> **0014** `CameraView.ground_homography`, **0016/0017** `gps_time_offset` / `gps_time_scale`,
+> **0018** `lane_width_m`, **0020** `sam3_fps`.
 - **AnalysisProfile** : config réutilisable — `model_path` YOLO, `task_type` (detect/segment),
   `target_classes` (IDs COCO), `confidence`, `iou_threshold`, `tracker` (botsort), `report_type`,
   `intersections` = [{name, lat, lon, radius_m}], `sam3_markings_enabled` (mig 0006), seuils.
@@ -65,7 +99,8 @@ Upload : `cam_analyzer/{user_id}/input/` et `/output/`.
 - `sam3_road_analyzer.py` — marquages au sol via SAM3.
 - `lane_partition.py` — partition voies.
 - `intersection_analyzer.py` (**38 Ko — le gros moteur**) — analyse intersections/insertions.
-- `distance_speed.py` (**3.8 Ko — petit → basique**, cohérent avec « vitesses irréalistes »).
+- `distance_speed.py` (**3.8 Ko — basique**) — *désormais couche fallback* ; le calcul principal passe
+  par la projection sol homographique + `trajectory_smoother.py` (Kalman/RTS). Voir ÉTAT ACTUEL.
 - `pass_tracking.py` — **suivi des passes incrémentales** (cf. §8, implémenté, pas juste schéma).
 - `window_recompute.py` — recalcul sur fenêtre/param changé (gestion STALE).
 
@@ -97,10 +132,12 @@ Upload : `cam_analyzer/{user_id}/input/` et `/output/`.
 - **Fenêtres d'intersection + GPS** — implémenté (`intersection_windows`, `gps_track`, `_gps_speed_at`).
 - **Segments temporels (4 types dont intersection_stop / insertion_front)** — implémenté.
 - **Passes incrémentales (`AnalysisPass`, STALE, recompute)** — implémenté (≠ juste schéma).
-- **Distance / vitesse** — implémenté mais **BASIQUE** (`distance_speed.py` ~3.8 Ko) →
-  **PROBLÈME CONNU : vitesses non réalistes**.
-- **Infos caméras / calibration (intrinsèques) pour « mesures absolues »** — **PAS en place** (chaînon
-  manquant pour des vitesses fiables, cf. §7).
+- **Distance / vitesse** — *Historiquement* basique (`distance_speed.py` ~3.8 Ko) → vitesses non
+  réalistes. **Désormais résolu** : projection sol homographique + lissage Kalman/RTS
+  (`trajectory_smoother.py`) ; `distance_speed.py` reste le fallback. Voir **ÉTAT ACTUEL**.
+- **Infos caméras / calibration (intrinsèques) pour « mesures absolues »** — *Historiquement* le
+  chaînon manquant. **Désormais en place** : calibration sol AUTO (`homography_estimator.py`) + manuelle
+  + stockée sur la session (mig 0013/0014). Voir **ÉTAT ACTUEL**.
 - **Tests** — **non faits / partiels** sur l'ensemble.
 
 ---
@@ -153,8 +190,8 @@ synchronisées entre elles ?
 | Marquages (crosswalks, stop_lines, trottoirs) | SAM3 prompted (+ fallback) | ✅ implémenté |
 | Identification voie navette / objet | `lane_partition` + `_compute_lane_events` | ✅ implémenté, à tester |
 | Conflit avant/après / TTC | `_compute_conflict_events` (ConflictEvent) | ✅ implémenté, à tester |
-| Estimation distance / vitesse | `distance_speed.py` (basique) | ⚠️ implémenté mais **irréaliste** |
-| Calibration caméra (mesures absolues) | — | ❌ **pas en place** |
+| Estimation distance / vitesse | projection sol homographique + `trajectory_smoother.py` | ✅ projection sol homographique + lissage Kalman (historique `distance_speed.py` = fallback) |
+| Calibration caméra (mesures absolues) | `homography_estimator.py` + calib session/manuelle | ✅ **fait** (auto + manuel + session, mig 0013/0014) |
 
 **Division** : YOLOPv2 = drivable+lanes denses (chaque frame) ; YOLO+BoTSORT = détection+tracking
 (chaque frame) ; SAM3 = marquages épars (fenêtres d'intersection) ; GPS+math = conflit/vitesse/distance.
@@ -172,7 +209,9 @@ synchronisées entre elles ?
 6. Avant/après : compare t_navette vs t_objet au point X. |Δt| < seuil → conflit ; sinon passé avant /
    passera après.
 
-**Estimation distances / vitesses** (PROBLÈME ACTUEL : vitesses irréalistes) :
+**Estimation distances / vitesses** (*Historique* — le problème « vitesses irréalistes » décrit ici
+est **désormais résolu** par la projection sol homographique + lissage Kalman ; cf. **ÉTAT ACTUEL**.
+Raisonnement conservé car il fonde le design retenu) :
 - *Idée 1 — références normalisées (la plus robuste)* : largeur voie urbaine FR 3.0 m (échelle
   horizontale via lane lines), passage piéton bandes 0.5 m, pointillés 3 m trait / 9 m vide (échelle
   longitudinale), hauteur piéton 1.7 m / véhicule par classe → distance par triangulation pinhole.
@@ -180,10 +219,11 @@ synchronisées entre elles ?
   image→sol, distance exacte du bottom-center. Auto-calibration à chaque crosswalk traversé.
 - *Idée 3 — GPS navette* : vitesse/position/heading propres + distance pixel→sol → vitesse **absolue**
   des objets (relative + vitesse navette).
-- **À FAIRE (pas encore en place) : ajouter les infos des caméras (calibration/intrinsèques) pour
-  fiabiliser les « mesures absolues ».** C'est le chaînon manquant pour des vitesses réalistes.
+- *Historiquement le chaînon manquant* : ajouter les infos des caméras (calibration/intrinsèques)
+  pour fiabiliser les « mesures absolues ». **Désormais en place** : calibration sol AUTO
+  (`homography_estimator.py`) résolvant le pitch + calib manuelle/session (cf. **ÉTAT ACTUEL**).
 
-### 7bis. POURQUOI les vitesses sont irréalistes (vérifié dans `distance_speed.py`, 2026-06)
+### 7bis. POURQUOI les vitesses étaient irréalistes (analyse historique `distance_speed.py`, 2026-06 — désormais résolu, voir ÉTAT ACTUEL)
 Méthode actuelle = **triangulation pinhole monoculaire** : `distance ≈ (hauteur_réelle_classe × focal_y)
 / hauteur_bbox_px`, avec `focal_y` déduit d'un **FoV vertical SUPPOSÉ par position** (avant/arrière 60°,
 gauche/droite 90°) et d'une **hauteur réelle SUPPOSÉE par classe** (voiture 1.5 m, piéton 1.7 m, …).
@@ -238,12 +278,15 @@ disparaît mécaniquement. **Palliatif UI** possible : filtrer les segments < 1 
 
 ---
 
-## 10. Reprendre ici — priorités (dixit Fabien, juin 2026)
-- [ ] **Tester** ce qui est implémenté (la plupart code mais pas tout validé).
-- [ ] **Phase 3 — vitesses irréalistes** : fiabiliser l'estimation de vitesse (cf. §7).
-- [ ] **Infos caméras / calibration** pour les « mesures absolues » → PAS encore en place (cf. §7).
-- [ ] Construire identification voie navette + conflit/TTC (§7) — dépend de YOLOPv2 testé.
-- [ ] Trancher l'analyse incrémentale (§8).
+## 10. Reprendre ici — priorités (mise à jour 2026-07-20)
+> Les priorités « fiabiliser les vitesses » et « calibration pas en place » de juin 2026 sont
+> **traitées** (cf. **ÉTAT ACTUEL**). Point de reprise réel = achever le **plan de calibration sol**.
+- [ ] **Étape 2b du plan de calibration sol** (point de reprise) : **échelle absolue** via passages
+  piétons segmentés sur l'**orthophoto IGN** + matching avec les crossings caméra
+  (`marking_world.py`). La calib AUTO actuelle (2a) résout le pitch mais pas l'échelle métrique globale.
+- [ ] **Étape 2c** : **calibration jointe** (pitch + échelle) une fois 2b disponible.
+  → détail dans **`CAM_ANALYZER_CHAINE_TRAITEMENT.md`**, section « Calibration sol — plan complet ».
+- [ ] **Valider** empiriquement l'ensemble (analyse incrémentale, tracking 360°, Live).
 - [ ] (optionnel) palliatif UI segments < 1 s (§9).
 
 ---
