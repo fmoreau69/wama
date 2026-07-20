@@ -1,7 +1,60 @@
 # WAMA — Roadmap
 
-> Dernière mise à jour : 2026-07-11 (audit conformité — PROJECT_STATUS §31 ; l'en-tête précédent « 2026-05-16 » mentait, le contenu allait jusqu'à 2026-07-01) (cam_analyzer Propositions A→F + Converter modal Paramètres item + profils sauvegardables)
+> Dernière mise à jour : 2026-07-20 (section « Horizons » + entrée GNM en Études/veille). Précédent : 2026-07-11 (audit conformité — PROJECT_STATUS §31 ; l'en-tête « 2026-05-16 » mentait, le contenu allait jusqu'à 2026-07-01)
 > Légende : ✅ Fait · 🔄 En cours · ⏳ Planifié · 💡 Proposé · ❌ Abandonné · 🐛 Bug bloquant
+
+---
+
+## Horizons — boussole de priorités (2026-07-20)
+
+> Hiérarchise TOUT le document par horizon pour ne pas s'éparpiller. Détail statut vision ↔ code :
+> `docs/VISION_STATUS.md` ; règles d'engagement (« non-objectifs ») : `docs/WAMA_Vision_Complet_v2.md`
+> (docs/ non versionné). En cas de conflit avec une priorité plus ancienne citée ailleurs dans ce
+> fichier, CETTE section fait foi.
+
+### H1 — Maintenant (finir avant d'ouvrir quoi que ce soit)
+1. Consolidation des mécanismes d'UI + port schéma-driven des 5 apps restantes
+   (enhancer, anonymizer, synthesizer, imager, avatarizer) — LE goulot qui gate manifestes,
+   génération d'apps et prospection Phase B.
+2. Transcriber 100 % (gold standard) + extraction des dernières briques communes.
+3. Studio — suites V1 : runners restants, sorties → filemanager studio, specs montage/mixage.
+4. Cam Analyzer Phase 3 (calibration vitesses) — livrable labo concret.
+
+### H2 — Ensuite (dès H1 stabilisé)
+1. Fondation RAG **mono-niveau** (`wama/rag/`, ChromaDB + bge-m3, branchée sur l'étape `enrich`) —
+   la hiérarchie univ/labo/équipe attendra la preuve d'usage.
+2. Traduction de sortie (`translate_output` existe mais n'est appelé nulle part) + i18n statique.
+3. Manifeste formel + `check_app_conformity` exécutable (scaffold d'app = dernier maillon, gaté).
+4. Anonymisation multimodale (Presidio + GLiNER) = porte privacy avant tout routage cloud.
+5. Évaluation continue : jeux de test par capacité + QC câblé ; la veille ne propose un modèle
+   qu'avec delta mesuré. Prospection suites (multi-agents, routing capacité→app Phase A).
+6. Face Analyzer : intégration au catalogue (flag lab) + premier flux exploitable.
+
+### H3 — Lointain (vision ; NE PAS ouvrir — cf. non-objectifs v2)
+- Couche Data + Data Comprehender (vision partie VII) — après RAG + cas d'usage labo réel.
+- Médiathèque universitaire, SI labo, assistant réunions (partie VIII) — conditionné au chapitre
+  conformité (RGPD/consentement/SSO) et à l'adoption interne de la médiathèque.
+- Story Director / storyboard / apps montage & mixage (partie V) — après Studio complet, avec cas
+  d'usage labo nommé.
+- Connecteurs conversationnels (Mattermost/Matrix) + gouvernance des IA (partie XI) — après
+  modèle de menace de l'assistant.
+- Auto-instanciation d'apps ; migration infra Nginx/Linux étapes 2-3.
+
+### Études / veille (aucun chantier ouvert)
+- **GNM — modèle 3D paramétrique génératif de tête/visage** (évalué 2026-07-20, type FLAME/3DMM :
+  253 params identité + 383 expression + pose, sampler sémantique, backends NumPy/JAX/PyTorch/TF,
+  Apache 2.0 annoncé, **Python 3.13**, tête seule, projet très jeune). Verdict WAMA :
+  - ✅ cas d'usage n°1 = **stimuli expérimentaux contrôlés** (identité×expression×pose à labels
+    connus par construction — reproductibilité by design, aligné provenance v2) + données
+    synthétiques d'entraînement/étalonnage pour face_analyzer ;
+  - ⚠️ avatarizer : pas de branchement direct sur la chaîne actuelle (MuseTalk photo 2D + audio) —
+    exigerait une chaîne rendu 3D complète (textures/rigging/éclairage) = chantier lourd, H3 ;
+  - ⚠️ reconnaissance d'émotion par fitting 3DMM = analyse-par-synthèse = RECHERCHE, pas une
+    intégration ; le face_analyzer garde une classif 2D dédiée ;
+  - **Gate de test** (1 session WAMA Lab, avant toute intégration) : venv isolé py3.13 (stack WAMA
+    = 3.12, jamais dans le venv principal), pin de commit, générer N maillages + rendu offscreen
+    trimesh, mesurer VRAM/latence/qualité ; contre-vérifier licence et poids inclus. Si concluant :
+    entrée « Proposés par IA » dans la prospection model_manager (confidence/complexity).
 
 ---
 
