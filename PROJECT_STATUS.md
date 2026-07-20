@@ -29,9 +29,15 @@ Doc : [`PROMPT_PIPELINE.md`](PROMPT_PIPELINE.md).
 > (`ModelRuntimeStat` par GPU) ; ⑧ sélection LLM par tier (`llm_utils`) + wama-dev-ai
 > `select_model_for_role` (découplés by design, jonction = Phase 4 MCP) ; ⑨ sélecteur
 > app-spécifique anonymizer (précision/perf).
-> **MANQUE (affinages réels)** : ⓐ `select_model()` = **0 consommateur app** (vérifié grep
-> 2026-07-20) — l'« étape 3 adaptateurs » ⏳ ci-dessous EST ce chantier d'adoption ; l'imager
-> choisit par priorité/disponibilité, pas par VRAM libre ; ⓑ pas d'**éviction synchrone au
+> **MANQUE (affinages réels)** : ⓐ `select_model()` = **0 consommateur TOUT COURT** (contre-vérif
+> exhaustive 2026-07-20 sur question Fabien : ni apps, ni tool_api, ni studio, ni assistant, ni
+> wama-dev-ai — ces derniers ont leurs sélecteurs PROPRES : `select_model_for_role` Ollama,
+> tiers `llm_utils`, précision anonymizer) — l'« étape 3 adaptateurs » ⏳ ci-dessous EST ce
+> chantier d'adoption ; l'imager choisit par priorité/disponibilité, pas par VRAM libre.
+> **1er adopteur décidé (Fabien 2026-07-20) : COMPOSER** (app portée, risque faible, 4 modèles
+> étagés 4/8/8/16 Go, point d'intégration unique = résolution de `gen.model` en début de tâche →
+> option « auto » qui appelle `select_model`, choix explicite utilisateur conservé prioritaire) ;
+> imager ENSUITE avec la recette (plus gros gain VRAM mais app la moins portée) ; ⓑ pas d'**éviction synchrone au
 > chargement** (le cleaner est périodique/seuils) : si un modèle ne tient pas, rien ne décharge
 > les idle des AUTRES apps à l'instant T ; ⓒ pas de **coordination inter-process** (Django +
 > workers Celery lisent chacun la VRAM ; seul le nightly sérialise) → double chargement concurrent
