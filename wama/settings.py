@@ -215,6 +215,18 @@ if ENABLE_LDAP:
         "last_name": "sn",
         "email": "mail",
     }
+    # Attributs SUPANN/eduPerson à RÉCUPÉRER en plus (appartenance organisationnelle → profil,
+    # appliqués par wama/accounts/ldap.py au login). Sans cette liste, django_auth_ldap ne
+    # ramène que les attributs de USER_ATTR_MAP.
+    AUTH_LDAP_USER_ATTRLIST = [
+        'givenName', 'sn', 'mail', 'uid',
+        'supannEtablissement', 'supannEntiteAffectationPrincipale',
+        'supannEntiteAffectation', 'eduPersonPrimaryAffiliation', 'eduPersonAffiliation',
+    ]
+    # Base des STRUCTURES (SUPANN) pour résoudre noms + hiérarchie institut→…→équipe
+    # (best-effort, resolve_org_hierarchy). Standard SUPANN ; surchargeable par env.
+    LDAP_STRUCTURES_BASE_DN = os.environ.get(
+        'WAMA_LDAP_STRUCTURES_DN', 'ou=structures,dc=univ-eiffel,dc=fr')
     AUTH_LDAP_ALWAYS_UPDATE_USER = True
     AUTHENTICATION_BACKENDS = [
         'django_auth_ldap.backend.LDAPBackend',

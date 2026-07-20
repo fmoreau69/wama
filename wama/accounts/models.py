@@ -49,6 +49,39 @@ class UserProfile(models.Model):
         db_index=True,
         verbose_name='Profil de compte',
     )
+    # Axe C — APPARTENANCE ORGANISATIONNELLE (remontée du LDAP/SUPANN au login).
+    # Colonne vertébrale : mêmes unités que l'héritage RAG + les scopes de partage
+    # médiathèque (labo/service/département/université). Voir docs/VISION_STATUS.md §MONDES.
+    establishment = models.CharField(
+        max_length=128, blank=True, default='',
+        verbose_name='Établissement', help_text='supannEtablissement (université).')
+    org_entity_code = models.CharField(
+        max_length=64, blank=True, default='', db_index=True,
+        verbose_name='Entité principale (code)',
+        help_text='supannEntiteAffectationPrincipale (labo/service de rattachement).')
+    org_entity_name = models.CharField(
+        max_length=192, blank=True, default='',
+        verbose_name='Entité principale', help_text='Nom lisible de l\'entité principale.')
+    org_affiliations = models.JSONField(
+        default=list, blank=True,
+        verbose_name='Rattachements',
+        help_text='supannEntiteAffectation — liste de codes (tous les rattachements).')
+    org_hierarchy = models.JSONField(
+        default=list, blank=True,
+        verbose_name='Hiérarchie organisationnelle',
+        help_text='Chaîne institut→département→labo→équipe résolue depuis ou=structures '
+                  '[{code, name, type}], du plus large au plus fin.')
+    ldap_affiliation = models.CharField(
+        max_length=64, blank=True, default='',
+        verbose_name='Affiliation LDAP',
+        help_text='eduPersonPrimaryAffiliation (researcher/faculty/staff/student…) — aide au rôle.')
+
+    def org_path(self):
+        """Chaîne lisible institut → … → équipe (depuis org_hierarchy, sinon entité principale)."""
+        if self.org_hierarchy:
+            return ' → '.join(u.get('name') or u.get('code') for u in self.org_hierarchy)
+        return self.org_entity_name or self.org_entity_code or ''
+
     # Notifications email (fin/échec des traitements longs).
     notify_email = models.BooleanField(default=True, verbose_name='Notifications par email')
     notify_on = models.CharField(
