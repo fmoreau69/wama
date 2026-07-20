@@ -1101,6 +1101,15 @@ def process_session_task(self, session_id: str, force_rerun: bool = False,
                     summary['cameras_processed'] += 1
                     summary['by_camera'][position] = {'frames_existing': _prev_count,
                                                      'completion': 'already_covered'}
+                    # La détection était marquée 'started' (ligne ~916) : sans rien à
+                    # compléter on saute la fin de boucle → il FAUT clore la passe ici,
+                    # sinon elle reste « en cours » à vie (bug complétion 2026-07-21).
+                    mark_completed(session, 'yolo_detect', camera=camera,
+                                   output_summary={'completion': 'already_covered',
+                                                   'frames_existing': _prev_count})
+                    if _has_yolopv2:
+                        mark_completed(session, 'yolopv2_lanes', camera=camera,
+                                       output_summary={'completion': 'already_covered'})
                     continue
                 _use_window_iter = True
                 _restrict_to_windows = False   # pas de skip hors-fenêtre : l'itérateur borne déjà
