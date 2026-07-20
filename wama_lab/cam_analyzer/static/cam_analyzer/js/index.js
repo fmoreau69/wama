@@ -2500,7 +2500,10 @@ document.addEventListener('DOMContentLoaded', function () {
             return;
         }
 
-        miniMap = L.map(container, { zoomControl: true, attributionControl: false, maxZoom: 24 })
+        // rotate:true = plugin leaflet-rotate (vendorisé) — mode « cap navette en haut »
+        // (bouton 🧭, comme un GPS) en plus du nord en haut classique.
+        miniMap = L.map(container, { zoomControl: true, attributionControl: false, maxZoom: 24,
+                                     rotate: true, rotateControl: false })
                    .setView([46.5, 2.3], 6);
         // CartoDB dark tiles — no Referer-based blocking (unlike tile.openstreetmap.org)
         // and matches the WAMA dark theme. Same provider as the profile editor map.
@@ -2549,6 +2552,28 @@ document.addEventListener('DOMContentLoaded', function () {
             },
         });
         miniMap.addControl(new _BaseSwitch());
+        let headingUpMode = localStorage.getItem('cam_analyzer_td_headup') === '1';
+        const _HeadSwitch = L.Control.extend({
+            options: { position: 'topleft' },
+            onAdd: () => {
+                const b = L.DomUtil.create('a', 'leaflet-bar');
+                b.href = '#'; b.textContent = '🧭';
+                b.title = "Orientation : cap navette en haut (mode GPS) / nord en haut";
+                b.style.cssText = 'width:26px;height:26px;line-height:26px;text-align:center;'
+                    + 'background:#222;display:block;font-size:14px;'
+                    + (headingUpMode ? 'outline:2px solid #ffb300;' : '');
+                L.DomEvent.on(b, 'click', (ev) => {
+                    L.DomEvent.stop(ev);
+                    headingUpMode = !headingUpMode;
+                    localStorage.setItem('cam_analyzer_td_headup', headingUpMode ? '1' : '0');
+                    b.style.outline = headingUpMode ? '2px solid #ffb300' : 'none';
+                    if (!headingUpMode && miniMap.setBearing) miniMap.setBearing(0);
+                });
+                return b;
+            },
+        });
+        miniMap.addControl(new _HeadSwitch());
+        window._tdHeadingUp = () => headingUpMode;   // lu par la boucle de mise à jour
 
         // Barre d'échelle (mètres) — pour estimer les distances (ex. l'offset GPS/vidéo).
         L.control.scale({ metric: true, imperial: false, position: 'bottomright' }).addTo(miniMap);
@@ -2766,6 +2791,13 @@ document.addEventListener('DOMContentLoaded', function () {
         miniMapLaneLayer.clearLayers();
 
         const pose = findGpsAtTime(currentTime);
+        // Mode « cap navette en haut » (🧭) : la carte tourne pour matcher la vue caméra.
+        if (pose && miniMap && miniMap.setBearing && window._tdHeadingUp && window._tdHeadingUp()) {
+            const _tgt = -(pose.heading || 0);
+            if (Math.abs(((_tgt - (miniMap.getBearing ? miniMap.getBearing() : 0)) % 360 + 540) % 360 - 180) > 1.5) {
+                miniMap.setBearing(_tgt);
+            }
+        }
         // ── Cap ego LISSÉ (moyenne circulaire sur ±2 fixes GPS) ─────────────────────
         // CAUSE RACINE de la rotation des objets (audit 2026-07-16) : le cap GPS brut
         // = bearing entre 2 fixes espacés de ~2,7 s. À faible vitesse le déplacement

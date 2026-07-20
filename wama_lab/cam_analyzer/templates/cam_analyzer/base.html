@@ -12,7 +12,8 @@
 {% block extra_css %}
 {{ block.super }}
 <link rel="stylesheet" href="{% static_v 'cam_analyzer/css/cam_analyzer.css' %}">
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+{% comment %}Leaflet VENDORISÉ (règle assets locaux, jamais CDN) + plugin rotation (bouton cap navette){% endcomment %}
+<link rel="stylesheet" href="{% static 'vendors/leaflet-1.9.4/leaflet.css' %}">
 {% endblock %}
 
 {% block queue_content %}
@@ -880,7 +881,8 @@ Upload vidéos / .rec + CSV
 
 {% block app_scripts %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script src="{% static 'vendors/leaflet-1.9.4/leaflet.js' %}"></script>
+<script src="{% static 'vendors/leaflet-1.9.4/leaflet-rotate.js' %}"></script>
 <script src="{% static_v 'common/js/wama-shuttle.js' %}"></script>
 <script src="{% static_v 'cam_analyzer/js/index.js' %}"></script>
 {% endblock %}
