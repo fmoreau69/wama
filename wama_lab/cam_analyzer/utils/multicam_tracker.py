@@ -9,14 +9,17 @@ doublons (même objet vu par 2 caméras) partagent l'ID.
 Post-traitement (pas de re-détection). Vérifie les caméras réellement analysées.
 Association = plus-proche-voisin en repère monde avec gating + prédiction de position.
 """
+import logging
 import math
 from collections import defaultdict
 
 from django.apps import apps
 
+logger = logging.getLogger(__name__)
+
 from .prediction_adapter import (make_local_frame, shuttle_trajectory, pinhole_ego,
                                ego_to_world, _shuttle_pose_at, CLASS_DIMS,
-                               camera_geometry)
+                               camera_geometry, ground_projector_for, ground_ego)
 
 
 def world_to_vehicle(world_e, world_n, shuttle_e, shuttle_n, heading_deg):
@@ -136,6 +139,17 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
             logger.warning('detect_static_artifacts failed (non-blocking)', exc_info=True)
     _head_obs = defaultdict(list)   # gid -> [(pos, t, bbox)] pour le cap serveur des ancrés
     _cam_dims = {c.position: (c.width or 384, c.height or 248) for c in cams}
+    # ⚑ auto_ground_calib (étape 2a) : projecteurs sol par caméra depuis la calib
+    # persistée (angle estimé). Vide si la bascule est OFF → placement pinhole inchangé.
+    _gproj = {}
+    if _feat.get('auto_ground_calib', False):
+        for pos in _geo:
+            gp = ground_projector_for(session, pos, _geo[pos])
+            if gp is not None:
+                _gproj[pos] = gp
+        if _gproj:
+            logger.info('auto_ground_calib actif : projection sol pour %s',
+                        sorted(_gproj.keys()))
 
     per_cam = {}
     for c in cams:
@@ -178,8 +192,14 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
                     dirty.add(f)
                     continue               # exclu de l'association (pas un objet du monde)
                 _g = _geo[pos]
-                ego = pinhole_ego(d, iw, ih, fov_v_deg,
-                                  fov_h_deg=_g['fov_h'], dist_scale=_g['dist_scale'])
+                ego = None
+                if _gproj.get(pos) is not None:
+                    # ⚑ auto_ground_calib : projection SOL du bas de bbox (angle estimé)
+                    # avec fallback pinhole si hors de portée utile — jamais de trou.
+                    ego = ground_ego(_gproj[pos], d.get('bbox'))
+                if ego is None:
+                    ego = pinhole_ego(d, iw, ih, fov_v_deg,
+                                      fov_h_deg=_g['fov_h'], dist_scale=_g['dist_scale'])
                 relaxed = False
                 if ego is None:
                     # Mesure DÉGRADÉE (bbox coupée au bord) : autorisée UNIQUEMENT pour

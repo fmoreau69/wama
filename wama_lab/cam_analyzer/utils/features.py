@@ -40,6 +40,12 @@ FEATURES = [
             "du track (calculé par le tracking 360°), au lieu de l'estimation frame par "
             "frame au rendu.",
             default=True, scope='live'),
+    Feature('auto_ground_calib', 'Calibration sol auto (pitch)',
+            "Position des objets par PROJECTION SOL (angle caméra estimé automatiquement "
+            "depuis le mouvement + véhicules stationnés) au lieu du pinhole (hauteur de "
+            "bbox). Étape 2a : corrige l'angle (gain ×5 mesuré) ; l'échelle absolue viendra "
+            "des marquages ortho. Recalcule la calib au tracking si absente.",
+            default=False, scope='compute'),
     Feature('world_markings', 'Marquages SAM3 en monde',
             "Les stop_line/passages piétons segmentés par SAM3 sont projetés au sol et "
             "agrégés multi-passages : bornes réelles d'intersection sur la mini-map, et "

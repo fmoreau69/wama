@@ -108,8 +108,11 @@ def _eval_params(pitch_deg, height_m, obs, size, geo, sh_traj, fov_v_deg, k1=0.0
     return spread + 0.5 * scale, spread, scale, len(spreads)
 
 
-def estimate_camera(session, position='front'):
-    """Grille (pitch, height) → meilleurs paramètres + rapport avant/après."""
+def estimate_camera(session, position='front', with_k1=False):
+    """Grille (pitch, height[, k1]) → meilleurs paramètres + rapport avant/après.
+    `with_k1=False` (défaut) : recherche pitch seul à hauteur physique (~8 s/caméra) —
+    k1 a été ÉCARTÉ comme levier (sature la borne sans gain, cf. CHANGELOG 8a19577).
+    with_k1=True reste dispo pour le diagnostic."""
     from .prediction_adapter import (camera_geometry, make_local_frame,
                                      shuttle_trajectory, antenna_offset, CAMERA_FOV_V)
     gt = session.gps_track or []
@@ -130,9 +133,10 @@ def estimate_camera(session, position='front'):
     # pitch⟷hauteur (l'optimum libre fuit vers des hauteurs absurdes). On résout donc
     # pitch × k1 à hauteur connue — les deux vrais inconnus optiques.
     best, best_p, best_k, best_h = None, 0.0, 0.0, 2.4
+    _k_range = range(-45, 46, 3) if with_k1 else range(0, 1)   # k1 écarté par défaut
     for h10 in (23, 24, 25):               # hauteur 2.3 … 2.5 m (plage physique)
         for p10 in range(-50, 305, 5):     # pitch −5.0° … +30.0° par 0.5°
-            for k100 in range(-45, 46, 3):  # k1 −0.45 … +0.45 par 0.03
+            for k100 in _k_range:           # k1 −0.45 … +0.45 par 0.03 (si with_k1)
                 r = _eval_params(p10 / 10.0, h10 / 10.0, obs, size, geo, sh_traj,
                                  fov_v, k1=k100 / 100.0)
                 if r and (best is None or r[0] < best[0]):
@@ -150,3 +154,46 @@ def estimate_camera(session, position='front'):
         'baseline_spread_m': round(base[1], 2) if base else None,
         'baseline_scale_err_m': round(base[2], 2) if base else None,
     }
+
+
+def store_ground_calib(session, positions=('front', 'rear', 'left', 'right'),
+                       min_objects=6, max_spread_m=2.5):
+    """Estime et PERSISTE la calibration sol par caméra dans
+    `session.config['ground_calib']` = {pos: {pitch_deg, height_m, spread_m,
+    scale_err_m, n_objects}}. N'écrit QUE les caméras FIABLES : ≥ min_objects
+    stationnés ET étalement résiduel ≤ max_spread_m (une calib à 5-6 m d'étalement
+    ne converge pas → l'appliquer DÉGRADERAIT le placement, on la rejette).
+    Retourne le résumé (avec la raison du skip).
+
+    Étape 2a du plan de calibration sol (CAM_ANALYZER_CHAINE_TRAITEMENT.md) :
+    l'ANGLE seul (le gain sûr, ×5 mesuré). L'échelle absolue viendra de 2b (ortho).
+    """
+    cfg = session.config or {}
+    calib = dict(cfg.get('ground_calib') or {})
+    report = {}
+    for pos in positions:
+        try:
+            r = estimate_camera(session, pos, with_k1=False)
+        except Exception:
+            logger.warning('estimate_camera %s failed', pos, exc_info=True)
+            r = None
+        if not r or r['n_objects'] < min_objects:
+            report[pos] = {'skipped': 'trop peu de stationnés',
+                           'n_objects': (r or {}).get('n_objects', 0)}
+            calib.pop(pos, None)
+            continue
+        if r['spread_m'] > max_spread_m:
+            report[pos] = {'skipped': 'étalement trop grand (calib non convergée)',
+                           'spread_m': r['spread_m'], 'n_objects': r['n_objects']}
+            calib.pop(pos, None)   # ne pas garder une vieille calib douteuse non plus
+            continue
+        calib[pos] = {
+            'pitch_deg': r['pitch_deg'], 'height_m': r['height_m'],
+            'spread_m': r['spread_m'], 'scale_err_m': r['scale_err_m'],
+            'n_objects': r['n_objects'],
+        }
+        report[pos] = calib[pos]
+    cfg['ground_calib'] = calib
+    session.config = cfg
+    session.save(update_fields=['config'])
+    return report

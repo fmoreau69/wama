@@ -2254,6 +2254,21 @@ def _run_global_tracking(session):
     from .utils.pass_tracking import mark_started, mark_completed, mark_failed
     try:
         mark_started(session, 'global_tracking', session.profile)
+        # ⚑ auto_ground_calib (étape 2a) : si la bascule est ON et la calib absente,
+        # l'estimer AVANT le tracking (depuis distance_m + stationnés d'un run précédent)
+        # pour que le tracker place les objets par projection sol dès ce run.
+        try:
+            from .utils.features import effective as _feff0
+            if _feff0(session).get('auto_ground_calib', False) \
+                    and not ((session.config or {}).get('ground_calib')):
+                from .utils.homography_estimator import store_ground_calib
+                _rep = store_ground_calib(session)
+                _ok = [p for p, v in _rep.items() if not v.get('skipped')]
+                _console(session.user_id,
+                         f"Calibration sol auto : {', '.join(_ok) or 'aucune caméra fiable'} "
+                         f"(angle estimé — voir ⚑ Calibration sol auto)")
+        except Exception:
+            logger.warning('store_ground_calib failed (non-blocking)', exc_info=True)
         _gt = annotate_global_tracks(session)
         if not isinstance(_gt, dict):          # 0 = prérequis manquants (GPS…)
             mark_failed(session, 'global_tracking', 'prérequis manquants (GPS/détections)')

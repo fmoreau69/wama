@@ -202,6 +202,46 @@ def pinhole_ego(det, iw, ih, fov_v_deg=60.0, fov_h_deg=None, dist_scale=1.0):
     return lateral, dm       # [latéral, longitudinal]
 
 
+def ground_projector_for(session, position, geo):
+    """GroundProjector à partir du pitch/hauteur ESTIMÉS et persistés
+    (`config['ground_calib'][pos]`, cf. homography_estimator.store_ground_calib).
+    Retourne None si pas de calib pour cette caméra → l'appelant retombe sur le pinhole.
+    Étape 2a du plan de calibration sol : l'ANGLE, derrière ⚑ auto_ground_calib."""
+    cal = ((session.config or {}).get('ground_calib') or {}).get(position)
+    if not cal:
+        return None
+    cam = session.cameras.filter(position=position).first()
+    if not cam or not cam.width or not cam.height:
+        return None
+    try:
+        from .ground_projection import GroundProjector
+        from .calibration import intrinsics_from_fov
+        intr = intrinsics_from_fov(cam.width, cam.height, geo['fov_h'],
+                                   CAMERA_FOV_V.get(position, 61.0))
+        gp = GroundProjector(dict(intr, height_m=cal['height_m'],
+                                  pitch_deg=cal['pitch_deg'], hfov_deg=geo['fov_h'],
+                                  lens_type='rectilinear'), (cam.width, cam.height))
+        return gp if gp.available else None
+    except Exception:
+        return None
+
+
+def ground_ego(projector, bbox):
+    """Position ego (latéral, longitudinal) par PROJECTION SOL du bas de bbox
+    (point de contact) via le pitch estimé — alternative au pinhole (hauteur de bbox).
+    Retourne None hors de portée utile → l'appelant garde le pinhole."""
+    if projector is None or not bbox or len(bbox) < 4:
+        return None
+    bcx = (bbox[0] + bbox[2]) / 2.0
+    xy = projector.project(bcx, bbox[3])
+    if not xy:
+        return None
+    lateral, longitudinal = xy[0], xy[1]
+    if not (1.0 < longitudinal < 40.0):    # garde-fou : au-delà, projection sol non fiable
+        return None
+    return lateral, longitudinal
+
+
 def ego_to_world(shuttle_e, shuttle_n, heading_deg, lateral, longitudinal):
     """Position ego (latéral, longitudinal) + pose navette → position monde (east, north)."""
     h = math.radians(heading_deg)
