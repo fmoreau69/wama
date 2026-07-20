@@ -94,7 +94,7 @@ debug affiche `dist_long` (homographie), l'UI affiche `distance_m` (pinhole).
 | `yaw` | front 0°, right **75°**, rear 180°, left **−75°** | `config['camera_yaw']` (bouton 🧭 Yaw) | orientation de montage |
 | `fov_h` | 110/55/110/55° | — | focale latérale `f_x = iw/(2·tan(FOV_H/2))` |
 | `dist_scale` | `tan(fov_v_used/2)/tan(fov_v_réel/2)` | `config['fov_v_used']` (écrit par l'analyse) | correction des distances annotées avec un ancien FOV |
-| `mount` | front (0, +4.5), sides (±1.0, +3.4), rear (0,0) | `config['camera_mount']` | bras de levier (origine = **antenne GPS, à l'ARRIÈRE du toit**) |
+| `mount` | front (0, +4.5), sides (±1.0, +3.4), rear (0,0) | `config['camera_mount']` | bras de levier (origine = **CENTRE arrière** du véhicule ; le point GPS = antenne coin arrière droit y est ramené via `gps_antenna`) |
 
 - `pinhole_ego(det, iw, ih, fov_v, fov_h_deg, dist_scale)` → (latéral, longitudinal) :
   longitudinal = `distance_m × dist_scale` ; **latéral = dm·(bcx − cx)/f_x** avec la focale
@@ -233,7 +233,7 @@ Design retenu (validé sur le principe avec Fabien) :
 | `camera_yaw` | panneau Calibration (Yaw 4×) | [5] backend + [9] JS |
 | `camera_fov` | panneau Calibration (FOV lat.) | `camera_geometry` [5]/[9] |
 | `camera_mount` | (manuel, pas d'UI) | [5] backend + [9] JS |
-| `gps_antenna` | panneau Calibration (Antenne 2 champs) | `shuttle_trajectory` [7] + `antennaCorrect` [9] |
+| `gps_antenna` | panneau Calibration (Antenne 2 champs) | `shuttle_trajectory` [7] (tracker/prediction/marking_world/branches/estimator) + `antennaCorrect` [9] (marqueur navette, parcours, **ET gabarit de voie `_sm`** — corrigé 552dd24 : le point GPS est l'antenne, coin arrière droit ≈ (1.0, 0.0), tout ramené au CENTRE arrière) |
 | `fov_v_used` | l'analyse ([1]) | `dist_scale` [5]/[9] |
 | `gps_time_offset/scale` | UI synchro | [2] |
 | `features` | panneau ⚑ Modes | `effective(session)` (voir table bascules) |
