@@ -145,6 +145,31 @@ Ne PAS coder ces fonctions dans une app : brique commune d'abord (règle de cent
 
 ---
 
+## 7bis. RÈGLE SYSTÉMATIQUE — tout traitement se déclare (2026-07-20)
+
+> **Tout traitement, existant ou futur, EST déclaré par un `FunctionSpec` dans le catalogue.**
+> Aucun traitement n'existe « hors catalogue ». C'est le pendant de « toute app est dans APP_CATALOG ».
+
+Deux `binding` cohabitent dans le MÊME `FUNCTION_CATALOG` :
+- **`pure`** — signature `(données_typées, params) → données_typées`, chaînable direct. Défaut pour
+  toute nouvelle fonction. Ex. les 4 fonctions toolbox tierce (`wama/common/data/functions/`).
+- **`app`** — couplée à une app (lit/écrit la session/BDD via une passe Celery). **Cataloguée** (capacités
+  déclarées, `impl` = chemin d'implémentation) mais **pas encore chaînable** ; à porter vers `pure` au cas
+  par cas via un adaptateur de ports quand on veut la mettre dans une chaîne.
+
+**Inventaire déclaré à ce jour** (18 fonctions, vérifié au démarrage) :
+- **Pures (4)** : `gps_map_match`, `brake_detection`, `generate_sections`, `operator_annotations`.
+- **App-bound cam_analyzer (14)**, déclarées dans `wama_lab/cam_analyzer/function_specs.py`, enregistrées
+  via `apps.py::ready` : `yolo_detect`, `yolopv2_lanes`, `sam3_markings`, `distance`, `global_tracking`,
+  `artifact_filter`, `ground_calib`, `learned_branches`, `world_markings`, `ortho_recalage`,
+  `lane_events`, `temporal_segments`, `conflicts`, `prediction`.
+
+**Checklist à l'ajout d'un traitement (toute app)** :
+1. Écrire un `FunctionSpec` (key, name, description, category, tags, inputs/outputs typés, params).
+2. `binding='pure'` si possible (impl dans `common/data/`), sinon `'app'` + `impl` + `app`.
+3. `register(spec)` (import chargé via l'`apps.py::ready` de l'app) → il apparaît au catalogue.
+4. Types d'E/S pris dans la taxonomie `data_types` ; étendre la taxonomie AVANT d'inventer un type.
+
 ## 8. Reste à trancher (quand on implémentera)
 
 - Représentation runtime d'une « donnée typée » : DataFrame pandas + un `schema`/`meta` (data_type +

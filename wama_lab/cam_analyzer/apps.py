@@ -8,4 +8,10 @@ class CamAnalyzerConfig(AppConfig):
 
     def ready(self):
         """Initialize the cam analyzer when Django starts."""
-        pass
+        # Déclare les traitements cam_analyzer dans le catalogue WAMA Data (capabilities).
+        try:
+            from . import function_specs  # noqa: F401
+        except Exception:
+            import logging
+            logging.getLogger(__name__).warning(
+                'cam_analyzer function_specs non enregistrées', exc_info=True)

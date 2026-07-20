@@ -50,6 +50,13 @@ class PortSpec:
     description: str = ''
 
 
+class Binding:
+    """Comment la fonction se branche dans une chaîne."""
+    PURE = 'pure'    # signature pure (données_typées, params) → données_typées : chaînable direct
+    APP = 'app'      # couplée à une app (lit/écrit la session/BDD) : cataloguée, non encore pure
+                     # → à porter vers PURE quand on la rend chaînable (adaptateur de ports)
+
+
 @dataclass
 class FunctionSpec:
     """Descripteur complet d'une fonction de traitement."""
@@ -57,7 +64,10 @@ class FunctionSpec:
     name: str
     description: str
     category: str
-    fn: Callable
+    fn: Callable = None          # None si app-bound déclarée par référence (voir `impl`)
+    binding: str = Binding.PURE
+    impl: str = ''               # chemin d'implémentation (app-bound), ex. "cam_analyzer.tasks:compute_distance_task"
+    app: str = ''                # app propriétaire si binding=app, ex. "cam_analyzer"
     tags: list = field(default_factory=list)
     inputs: list = field(default_factory=list)     # [PortSpec]
     outputs: list = field(default_factory=list)    # [PortSpec]
@@ -79,7 +89,8 @@ class FunctionSpec:
 
         return {
             'key': self.key, 'name': self.name, 'description': self.description,
-            'category': self.category, 'tags': self.tags,
+            'category': self.category, 'binding': self.binding, 'app': self.app,
+            'impl': self.impl, 'tags': self.tags,
             'inputs': [_port(p) for p in self.inputs],
             'outputs': [_port(p) for p in self.outputs],
             'params': [_param(p) for p in self.params],
