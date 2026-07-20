@@ -150,5 +150,6 @@ SPEC = register(FunctionSpec(
                   description='Lissage du signal accéléro (points).'),
     ],
     cost={'cpu_bound': True},
+    projects=['ENA'],
     fn=detect_braking,
 ))

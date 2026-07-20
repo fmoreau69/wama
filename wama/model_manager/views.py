@@ -1356,3 +1356,24 @@ def api_prospect_reject(request):
     except Exception as e:
         logger.exception("api_prospect_reject failed")
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@login_required
+def function_catalog(request):
+    """Catalogue des FONCTIONS de traitement WAMA Data (card-style, tri/filtre côté client).
+    Lit `FUNCTION_CATALOG` (fonctions pures + app-bound déclarées par capacités)."""
+    import json as _json
+    from wama.common.data.function_catalog import load_all, catalog_dict
+    load_all()
+    cat = catalog_dict()
+    funcs = sorted(cat.values(), key=lambda f: (f['binding'] != 'pure', f['app'], f['name']))
+    stats = {
+        'total': len(funcs),
+        'pure': sum(1 for f in funcs if f['binding'] == 'pure'),
+        'app': sum(1 for f in funcs if f['binding'] == 'app'),
+        'categories': sorted({f['category'] for f in funcs}),
+        'projects': sorted({p for f in funcs for p in (f.get('projects') or [])}),
+        'apps': sorted({f['app'] for f in funcs if f['app']}),
+    }
+    return render(request, 'model_manager/function_catalog.html',
+                  {'functions_json': _json.dumps(funcs), 'stats': stats})

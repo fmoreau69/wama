@@ -73,6 +73,9 @@ class FunctionSpec:
     outputs: list = field(default_factory=list)    # [PortSpec]
     params: list = field(default_factory=list)     # [ParamSpec]
     cost: dict = field(default_factory=dict)       # {vram_gb, cpu_bound, approx_s…}
+    projects: list = field(default_factory=list)   # traçabilité : projets utilisant la fonction (ex. ["ENA"])
+    visibility: str = 'public'                     # 'public' | 'private' | 'shared' (confidentialité — à venir)
+    owner: str = ''                                # propriétaire si private/shared (à venir)
 
     def to_dict(self):
         """Représentation métadonnée-driven (card + ports + modale)."""
@@ -90,7 +93,8 @@ class FunctionSpec:
         return {
             'key': self.key, 'name': self.name, 'description': self.description,
             'category': self.category, 'binding': self.binding, 'app': self.app,
-            'impl': self.impl, 'tags': self.tags,
+            'impl': self.impl, 'tags': self.tags, 'projects': self.projects,
+            'visibility': self.visibility, 'owner': self.owner,
             'inputs': [_port(p) for p in self.inputs],
             'outputs': [_port(p) for p in self.outputs],
             'params': [_param(p) for p in self.params],
@@ -141,3 +145,16 @@ def can_connect(out_port: PortSpec, in_port: PortSpec, available_fields=None):
     if missing and available_fields is not None:
         return False, f"champs manquants : {missing}"
     return True, ''
+
+
+def load_all():
+    """Force l'import des fonctions du catalogue (idempotent) — utile hors cycle Django ready()."""
+    try:
+        from wama.common.data import functions  # noqa: F401
+    except Exception:
+        pass
+    try:
+        from wama_lab.cam_analyzer import function_specs  # noqa: F401
+    except Exception:
+        pass
+    return FUNCTION_CATALOG

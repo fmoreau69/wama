@@ -18,11 +18,12 @@ from wama.common.data.function_catalog import (
 _APP = 'cam_analyzer'
 
 
-def _spec(key, name, desc, category, impl, tags, inputs, outputs, params=None, cost=None):
+def _spec(key, name, desc, category, impl, tags, inputs, outputs, params=None, cost=None, projects=('ENA',)):
     return register(FunctionSpec(
         key=f'cam_analyzer.{key}', name=name, description=desc, category=category,
         binding=Binding.APP, app=_APP, impl=impl, tags=tags,
-        inputs=inputs, outputs=outputs, params=params or [], cost=cost or {}))
+        inputs=inputs, outputs=outputs, params=params or [], cost=cost or {},
+        projects=list(projects)))
 
 
 # ── Détection & segmentation image ────────────────────────────────────────────

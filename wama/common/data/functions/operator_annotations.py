@@ -130,5 +130,6 @@ SPEC = register(FunctionSpec(
                   description='Nombre max de tags de contexte voisins collectés.'),
     ],
     cost={'cpu_bound': True},
+    projects=['ENA'],
     fn=process_annotations,
 ))

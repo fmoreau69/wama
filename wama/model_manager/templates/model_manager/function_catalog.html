@@ -1,0 +1,130 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Catalogue des fonctions - WAMA{% endblock %}
+{% block console_app_name %}model_manager{% endblock %}
+
+{% block extra_css %}
+<style>
+  .fc-wrap { padding: 16px 20px; }
+  .fc-stats { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .fc-stat { background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08);
+             border-radius: 8px; padding: 6px 12px; font-size: .85rem; }
+  .fc-stat b { color: #ffb300; }
+  .fc-bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; }
+  .fc-bar input, .fc-bar select { background: #1a1d20; color: #e6e6e6;
+             border: 1px solid rgba(255,255,255,.12); border-radius: 6px; padding: 5px 9px; font-size: .85rem; }
+  .fc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+  .fc-card { background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.10);
+             border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; }
+  .fc-card h3 { font-size: 1rem; margin: 0; display: flex; align-items: center; gap: 8px; }
+  .fc-badge { font-size: .62rem; font-weight: 700; text-transform: uppercase; letter-spacing: .03em;
+              padding: 2px 7px; border-radius: 5px; }
+  .fc-pure { background: #1b5e20; color: #c8facc; }
+  .fc-app  { background: #37474f; color: #cfd8dc; }
+  .fc-cat  { background: rgba(255,179,0,.15); color: #ffcf66; }
+  .fc-desc { font-size: .8rem; color: #b0bac4; line-height: 1.35; }
+  .fc-io { font-size: .74rem; color: #8fa3b3; font-family: monospace; }
+  .fc-io .arrow { color: #ffb300; }
+  .fc-meta { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 2px; }
+  .fc-chip { font-size: .68rem; padding: 1px 7px; border-radius: 10px;
+             background: rgba(255,255,255,.06); color: #9fb0bd; }
+  .fc-proj { background: rgba(3,169,244,.15); color: #79c9f2; }
+  .fc-vis-private { background: rgba(244,67,54,.18); color: #ff8a80; }
+  .fc-empty { color: #8fa3b3; padding: 30px; text-align: center; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="fc-wrap">
+  <h2 class="mb-2">⚙️ Catalogue des fonctions</h2>
+  <p class="text-secondary small mb-3">Tous les traitements WAMA déclarés par leurs capacités
+     (entrées/sorties typées). <b>Pures</b> = chaînables ; <b>app</b> = couplées à une app (cataloguées).</p>
+
+  <div class="fc-stats">
+    <div class="fc-stat"><b>{{ stats.total }}</b> fonctions</div>
+    <div class="fc-stat"><b>{{ stats.pure }}</b> pures</div>
+    <div class="fc-stat"><b>{{ stats.app }}</b> app-bound</div>
+    <div class="fc-stat"><b>{{ stats.categories|length }}</b> catégories</div>
+    <div class="fc-stat"><b>{{ stats.projects|length }}</b> projets</div>
+  </div>
+
+  <div class="fc-bar">
+    <input type="text" id="fcSearch" placeholder="🔍 Rechercher (nom, description, tag)…" style="min-width:240px;">
+    <select id="fcBinding"><option value="">Tout binding</option>
+      <option value="pure">Pures</option><option value="app">App-bound</option></select>
+    <select id="fcCategory"><option value="">Toute catégorie</option>
+      {% for c in stats.categories %}<option value="{{ c }}">{{ c }}</option>{% endfor %}</select>
+    <select id="fcProject"><option value="">Tout projet</option>
+      {% for p in stats.projects %}<option value="{{ p }}">{{ p }}</option>{% endfor %}</select>
+    <select id="fcApp"><option value="">Toute app</option>
+      {% for a in stats.apps %}<option value="{{ a }}">{{ a }}</option>{% endfor %}</select>
+    <select id="fcSort">
+      <option value="name">Tri : nom</option>
+      <option value="category">Tri : catégorie</option>
+      <option value="app">Tri : app</option>
+      <option value="binding">Tri : binding</option></select>
+    <span class="text-secondary small" id="fcCount"></span>
+  </div>
+
+  <div class="fc-grid" id="fcGrid"></div>
+  <div class="fc-empty" id="fcEmpty" style="display:none;">Aucune fonction ne correspond aux filtres.</div>
+</div>
+
+<script id="fcData" type="application/json">{{ functions_json|safe }}</script>
+<script>
+(function () {
+  const DATA = JSON.parse(document.getElementById('fcData').textContent || '[]');
+  const grid = document.getElementById('fcGrid'), empty = document.getElementById('fcEmpty');
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c =>
+    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const ports = arr => (arr || []).map(p => p.data_type + (p.optional ? '?' : '')).join(', ') || '∅';
+
+  function card(f) {
+    const bind = f.binding === 'pure'
+      ? '<span class="fc-badge fc-pure">pure</span>'
+      : '<span class="fc-badge fc-app">app · ' + esc(f.app) + '</span>';
+    const projs = (f.projects || []).map(p => '<span class="fc-chip fc-proj">' + esc(p) + '</span>').join('');
+    const tags = (f.tags || []).map(t => '<span class="fc-chip">' + esc(t) + '</span>').join('');
+    const vis = f.visibility && f.visibility !== 'public'
+      ? '<span class="fc-chip fc-vis-private">' + esc(f.visibility) + '</span>' : '';
+    return '<div class="fc-card">'
+      + '<h3>' + esc(f.name) + bind + '</h3>'
+      + '<div><span class="fc-badge fc-cat">' + esc(f.category) + '</span></div>'
+      + '<div class="fc-desc">' + esc(f.description) + '</div>'
+      + '<div class="fc-io">' + ports(f.inputs) + ' <span class="arrow">→</span> ' + ports(f.outputs) + '</div>'
+      + '<div class="fc-meta">' + projs + vis + tags + '</div>'
+      + '</div>';
+  }
+
+  function render() {
+    const q = (document.getElementById('fcSearch').value || '').toLowerCase();
+    const fb = document.getElementById('fcBinding').value;
+    const fc = document.getElementById('fcCategory').value;
+    const fp = document.getElementById('fcProject').value;
+    const fa = document.getElementById('fcApp').value;
+    const sort = document.getElementById('fcSort').value;
+    let list = DATA.filter(f => {
+      if (fb && f.binding !== fb) return false;
+      if (fc && f.category !== fc) return false;
+      if (fa && f.app !== fa) return false;
+      if (fp && !(f.projects || []).includes(fp)) return false;
+      if (q) {
+        const hay = (f.name + ' ' + f.description + ' ' + (f.tags || []).join(' ')
+                     + ' ' + f.key).toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+    list.sort((a, b) => String(a[sort]).localeCompare(String(b[sort]))
+                        || a.name.localeCompare(b.name));
+    grid.innerHTML = list.map(card).join('');
+    empty.style.display = list.length ? 'none' : 'block';
+    document.getElementById('fcCount').textContent = list.length + ' / ' + DATA.length;
+  }
+
+  ['fcSearch', 'fcBinding', 'fcCategory', 'fcProject', 'fcApp', 'fcSort'].forEach(id =>
+    document.getElementById(id).addEventListener('input', render));
+  render();
+})();
+</script>
+{% endblock %}

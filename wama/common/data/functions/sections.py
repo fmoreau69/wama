@@ -111,5 +111,6 @@ SPEC = register(FunctionSpec(
                   description='Longueur minimale (points) d\'une section (anti-rebond).'),
     ],
     cost={'cpu_bound': True},
+    projects=['ENA'],
     fn=generate_sections,
 ))

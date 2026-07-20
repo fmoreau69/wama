@@ -190,5 +190,6 @@ SPEC = register(FunctionSpec(
                   description='Écart de cap au-dessus duquel le sens = −1 (sens inverse).'),
     ],
     cost={'cpu_bound': True},
+    projects=['ENA'],
     fn=map_match,
 ))
