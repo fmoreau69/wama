@@ -30,8 +30,8 @@ def _axial_diff(a, b):
     return min(d, 180.0 - d)
 
 
-def learn_branches(session, radius_m=25.0, min_angle_deg=30.0, min_span_m=8.0,
-                   min_tracks=3, max_branches=2, max_pts_per_track=400):
+def learn_branches(session, radius_m=25.0, min_angle_deg=35.0, min_span_m=14.0,
+                   min_tracks=4, max_branches=2, max_pts_per_track=400):
     """Apprend les branches croisantes de chaque intersection depuis les world_en."""
     from ..models import DetectionFrame
     from .prediction_adapter import make_local_frame, shuttle_trajectory, antenna_offset
@@ -128,10 +128,21 @@ def learn_branches(session, radius_m=25.0, min_angle_deg=30.0, min_span_m=8.0,
         branches = []
         # Seules les branches DOMINANTES (le bruit latéral à 10-20 m fragmente les
         # clusters secondaires) : tri par nombre de véhicules, max `max_branches`.
+        # Validation ortho 2026-07-20 : des manœuvres de parking (segments courts
+        # diagonaux) passaient les filtres → span minimal relevé à 14 m, ET la
+        # centreligne d'une VRAIE branche passe PRÈS du centre d'intersection.
         clusters.sort(key=lambda c: -c['n'])
         for cl in clusters[:max_branches]:
             if cl['n'] < min_tracks:
                 continue
+            _ce = sum(p[0] for p in cl['pts']) / len(cl['pts'])
+            _cn = sum(p[1] for p in cl['pts']) / len(cl['pts'])
+            _ux = math.sin(math.radians(cl['brgs'][0]))
+            _uy = math.cos(math.radians(cl['brgs'][0]))
+            # distance perpendiculaire balise → centreligne du cluster
+            _dperp = abs(-(we - _ce) * _uy + (wn - _cn) * _ux)
+            if _dperp > 8.0:
+                continue   # la « branche » ne passe pas par l'intersection : bruit
             # Axe = moyenne axiale ; centreligne = point moyen + projections extrêmes
             sx = sum(math.cos(math.radians(b * 2)) for b in cl['brgs'])
             sy = sum(math.sin(math.radians(b * 2)) for b in cl['brgs'])
