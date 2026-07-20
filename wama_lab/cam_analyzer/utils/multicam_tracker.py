@@ -17,6 +17,8 @@ from django.apps import apps
 
 logger = logging.getLogger(__name__)
 
+from .artifact_filter import is_giant_reflection as _giant_reflection
+
 from .prediction_adapter import (make_local_frame, shuttle_trajectory, pinhole_ego,
                                ego_to_world, _shuttle_pose_at, CLASS_DIMS,
                                camera_geometry, ground_projector_for, ground_ego)
@@ -187,7 +189,9 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
                 # fantômes (predicted) qui n'ont ni track_id ni source segmentation.
                 if d.get('track_id') is None and d.get('source') != 'segmentation':
                     continue
-                if (pos, d.get('track_id')) in _artifact_tids:
+                if ((pos, d.get('track_id')) in _artifact_tids
+                        or (_feat.get('artifact_filter', True)
+                            and _giant_reflection(d, iw, ih))):
                     d['artifact'] = True   # marqué, jamais supprimé (bascule ⚑ à l'affichage)
                     dirty.add(f)
                     continue               # exclu de l'association (pas un objet du monde)

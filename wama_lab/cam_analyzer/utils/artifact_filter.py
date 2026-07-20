@@ -41,6 +41,23 @@ def _shuttle_positions(session):
     return out
 
 
+def is_giant_reflection(det, iw, ih, area_frac=0.5, max_conf=0.55):
+    """Reflet « fantôme géant » (vitrage) : bbox couvrant > area_frac de l'image AVEC
+    confiance < max_conf. Un vrai véhicule aussi gros serait détecté avec forte
+    confiance. Complément géométrique du critère cinématique (bbox fixe) pour les
+    reflets fragmentés qui bougent trop pour être « statiques en image »."""
+    if det.get('type') in ('sam3_marking', 'road_mask'):
+        return False
+    conf = det.get('confidence')
+    bb = det.get('bbox')
+    if conf is None or conf >= max_conf or not (isinstance(bb, (list, tuple)) and len(bb) >= 4):
+        return False
+    if not iw or not ih:
+        return False
+    frac = ((bb[2] - bb[0]) * (bb[3] - bb[1])) / float(iw * ih)
+    return frac > area_frac
+
+
 def detect_static_artifacts(session, min_dur_s=10.0, max_px_drift=4.0,
                             min_shuttle_move_m=8.0, min_obs=20):
     """Retourne {(position, track_id), ...} des tracks par-caméra jugés artefacts."""

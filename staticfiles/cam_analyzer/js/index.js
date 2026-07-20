@@ -2256,7 +2256,8 @@ document.addEventListener('DOMContentLoaded', function () {
             // road_mask/sam3 (rendus en polygone plus haut, pas ici).
             if (overlayMinConf > 0 && det.type !== 'sam3_marking' && det.type !== 'road_mask'
                 && typeof det.confidence === 'number' && det.confidence < overlayMinConf) return;
-            if (det.artifact && camFeat.artifact_filter !== false) return;   // reflets/artefacts marqués
+            if (camFeat.artifact_filter !== false
+                && (det.artifact || isGiantReflection(det, srcWidth, srcHeight))) return;   // reflets/artefacts
 
             const [x1, y1, x2, y2] = det.bbox;
             const sx = x1 * scaleX + offsetX;
@@ -2705,6 +2706,19 @@ document.addEventListener('DOMContentLoaded', function () {
                  lon: pt.lon - de / (111320.0 * Math.cos(pt.lat * Math.PI / 180)) };
     }
 
+    function isGiantReflection(det, iw, ih) {
+        // Reflet « fantôme géant » (vitrage) : bbox couvrant une grande part de l'image
+        // AVEC confiance basse — un vrai véhicule aussi gros serait détecté avec une
+        // forte confiance. Complète le filtre cinématique (bbox fixe) pour les reflets
+        // fragmentés qui bougent trop pour être « statiques en image ».
+        if (det.type === 'sam3_marking' || det.type === 'road_mask') return false;
+        if (typeof det.confidence !== 'number' || det.confidence >= 0.55) return false;
+        const b = det.bbox;
+        if (!Array.isArray(b) || b.length < 4 || !iw || !ih) return false;
+        const frac = ((b[2] - b[0]) * (b[3] - b[1])) / (iw * ih);
+        return frac > 0.5;   // > 50 % de l'image + conf < 0.55 → reflet quasi certain
+    }
+
     function antennaPoint(pc) {
         // Inverse de antennaCorrect : centre véhicule → position réelle de l'ANTENNE
         // (coin arrière droit). Le marqueur rouge représente l'antenne GPS physique,
@@ -3043,9 +3057,10 @@ document.addEventListener('DOMContentLoaded', function () {
                 // dès qu'un calcul de prédiction avait été lancé (elles sont persistées), d'où
                 // l'impression de « prédiction activée par défaut » et l'incohérence caméra↔carte.
                 if (det.predicted && !usePrediction) return;
-                // Reflets/artefacts collés à l'image (marqués par le tracking) : masqués
-                // sauf si la bascule ⚑ est désactivée pour comparaison.
-                if (det.artifact && camFeat.artifact_filter !== false) return;
+                // Reflets/artefacts collés à l'image (marqués par le tracking) OU fantômes
+                // géants (bbox énorme + conf basse) : masqués sauf bascule ⚑ désactivée.
+                if (camFeat.artifact_filter !== false
+                    && (det.artifact || isGiantReflection(det, iw, ih))) return;
                 const _geoMount = (camGeo[camPos] || {}).mount;   // bras de levier caméra
                 let g;
                 const isGhost = det.predicted && Array.isArray(det.vehicle_xy);
