@@ -125,7 +125,9 @@ Si deux apps ont besoin de la même logique, elle va dans `common/` et les deux 
    En attendant le refactoring : ne pas créer de nouveau modal sans vérifier `common/`.
 
 4. **Le pattern singleton + keep_loaded + sélection VRAM-aware** doit venir de
-   `wama/common/utils/backend_selector.py` — ne pas le ré-implémenter par app.
+   `wama/model_manager/services/model_selector.py::select_model()` — brique EXISTANTE et complète
+   (vérifié 2026-07-20 ; l'ancien plan `common/utils/backend_selector.py` est REMPLACÉ par elle).
+   Ne pas le ré-implémenter par app ; le chantier restant est l'ADOPTION (0 consommateur app à ce jour).
 
 5. **Le JS de base** (polling, csrfFetch, urlFor, actions batch) doit venir de
    `wama/common/static/common/js/wama-app-base.js` une fois créé.
@@ -146,7 +148,8 @@ Si deux apps ont besoin de la même logique, elle va dans `common/` et les deux 
 > disponibles, app de référence (Transcriber), recette d'adoption, décisions prises. **À lire avant
 > de créer/modifier une app.** Voir aussi `memory/project_refactoring_common.md` pour l'historique.
 
-1. `common/utils/backend_selector.py` — sélection VRAM + règle singleton
+1. ~~`common/utils/backend_selector.py`~~ — REMPLACÉ : `select_model()` (model_manager) existe et
+   couvre VRAM + singleton (vérifié 2026-07-20) ; reste = adoption par les apps (étape 3, PROJECT_STATUS §2)
 2. `common/static/common/js/wama-app-base.js` — JS de base inter-apps ✅ (fait)
 3. `common/templates/common/_settings_modal.html` — modal paramètres générique
 
