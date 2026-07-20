@@ -291,16 +291,19 @@ par côté). Règle : **jamais de if ad hoc dispersé** pour une amélioration c
 - **2a — Intégrer le pitch estimé** derrière bascule `auto_ground_calib` (OFF) pour A/B
   visuel du placement (le gros gain sûr : l'angle). Caméra arrière = 3 stationnés seulement
   → non fiable, exclure ou attendre session plus riche.
-- **2b — Recalage ABSOLU via marquages ortho** (idée Fabien, l'échelle manquante) : SAM3
-  segmente les passages piétons **sur l'orthophoto IGN** (vus du ciel, géoréférencés →
-  positions absolues), puis MATCHING avec nos crossings agrégés depuis les caméras
-  (`marking_world.py`). Le décalage mesuré = offset de recalage par intersection (biais GPS
-  + biais projection), + l'échelle vraie via la géométrie connue des bandes. Amers =
-  marquages PERMANENTS uniquement (les véhicules statiques de l'ortho datent d'un autre jour ;
-  ils ne servent qu'à repérer les ZONES DE STATIONNEMENT — piste secondaire). NB : les
-  crossings n'ont pas de correspondance inter-frame → ils ne pluggent PAS dans le solveur
-  d'étalement 2a ; ils entrent par la GÉOMÉTRIE CONNUE, porte complémentaire. Emplacement
-  prévu : extension `homography_estimator.py` + fetch tuiles ortho serveur (même WMTS que [9]).
+- **2b — Recalage ABSOLU via marquages ortho** (idée Fabien, l'échelle manquante) —
+  ✅ **FAIT (rapport + affichage)**, commit `034912c`, `utils/ortho_markings.py`. SAM3 segmente
+  les passages piétons **sur l'orthophoto IGN** (mosaïque WMTS z19 ≈ 0,22 m/px, géo-transform
+  Web Mercator exacte), puis MATCHING avec nos crossings agrégés depuis les caméras
+  (`marking_world.py`). Tâche `compute_ortho_recalage_task` + bouton « Recalage ortho »
+  (panneau Calibration) ; crossings ortho tracés en orange sur la mini-carte. **MESURÉ** :
+  2 passages piétons/intersection (conf ~0,7), offset global caméra→ortho **2,93 m E / 4,2 m N
+  (~5,1 m)** = biais GPS + projection résiduel. **RAPPORT SEUL** : l'offset est stocké
+  (`results_summary.ortho_recalage`) mais PAS appliqué au positionnement — validation visuelle
+  d'abord. Amers = marquages PERMANENTS uniquement (les véhicules statiques de l'ortho datent
+  d'un autre jour ; piste secondaire = repérer les ZONES DE STATIONNEMENT). NB : les crossings
+  n'ont pas de correspondance inter-frame → ils entrent par la GÉOMÉTRIE CONNUE, pas par le
+  solveur d'étalement 2a. **Reste 2b-app** : appliquer l'offset derrière une bascule.
 - **2c — Calibration jointe** : une fois 2a+2b mesurés, résoudre angle+échelle+distorsion
   ensemble (contraintes mouvement ET marquages), écrire `camera.ground_homography` par caméra,
   brancher sur le placement des objets (fusion bas-de-bbox ⟷ pinhole).
