@@ -62,6 +62,41 @@
 
 ---
 
+## 📦 Projets, manifestes & ingestion (doctrine 2026-07-21)
+
+> Un **manifeste métadonnée-driven** décrit un jeu de données brut (enregistrements RTMaps/LSL/rosbag,
+> BDD, documents) pour l'instancier dans les apps. Un **LLM local (wama-dev-ai)** explore le dossier d'un
+> projet, en **infère un manifeste brouillon** (canaux, types, unités, tables de référence), qu'un **humain
+> valide** (doctrine wama-dev-ai : propose, l'humain valide). Multi-projets : indexer/labéliser un dossier
+> contenant plusieurs projets, un manifeste par projet.
+
+**Le manifeste toolbox tierce (`ENA_NAVYA/manifest.xml`) = RÉFÉRENCE quasi-idéale** — il fait déjà exactement ça :
+`das`/`channel`/`signal` typés (VIDEO, TABBED_TEXT) avec datatype + unité, mappés aux sorties brutes
+(`rtMapsOutputName`) ; `reference_table` = vocabulaires contrôlés (enums BatteryState/DoorsState/RobotMode
++ **le dico NV_AnnotationTag des 36 tags** dont on avait besoin) ; `record`/`timeseries` = signaux typés
+(GNSS→geo_track, Accéléro→signal, Annotations→events, NavyaAPI→timeseries). **Ce que WAMA généralise** :
+(a) source-AGNOSTIQUE (un « reader » par type : rtmaps/lsl/rosbag/csv, pas seulement `rtMapsOutputName`) ;
+(b) mapping des types toolbox tierce → **taxonomie de types WAMA Data** (`data_types`) ; (c) ajout de la couche
+**propriété / projet / visibilité** (absente de toolbox tierce). → Le manifeste WAMA = richesse descriptive toolbox tierce
++ reader pluggable + types WAMA + métadonnées projet.
+
+**Couche PROJET (nouveau, ⏳)** — distincte d'`OrgUnit` : un **`Project`** a une **org propriétaire**
+(labo) MAIS des **membres explicites pouvant venir d'AUTRES orgs** (partenaires : autre labo/institut/
+université). Le partage par org (`ScopedVisibility` unité) ne suffit pas — un projet ANR inter-établissements
+est un **groupe de collaboration explicite qui traverse l'arbre org**. → Ajouter `Project` (owner OrgUnit +
+membres M2M cross-org + rôles) et une visibilité `project` (4e scope : privé / **projet** / unité / public).
+
+**Accès & modération (⏳, recommandé)** :
+- **Journal d'accès** : `User.date_joined` + `User.last_login` sont **déjà** fournis par Django ; ajouter
+  un `AccessLog` léger (user, timestamp, ip, action/projet) pour tracer les connexions et accès data
+  (traçabilité recherche + responsabilité RGPD).
+- **Modération 1ʳᵉ connexion** : **fortement recommandé** — le login LDAP expose TOUTE l'université, donc
+  sans gate, n'importe quel membre UGE aurait un compte. À la 1ʳᵉ connexion LDAP, créer l'utilisateur
+  **inactif** (`is_active=False`) → notification email admin → validation → activation + email de bienvenue.
+  C'est ce qui rend « qui est dans WAMA » intentionnel.
+
+---
+
 ## Synthèse par partie de la vision
 
 | Partie | Thème | État global |
