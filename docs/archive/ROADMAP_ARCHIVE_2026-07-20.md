@@ -170,3 +170,24 @@
 | `audio_decode.py` — décodage multi-format (PyAV/ffmpeg) | ✅ | `common/utils/audio_decode.py` | torchcodec cassé ; à faire converger voice_utils/enhancer/preprocessor |
 | `wama-inspector.js`, `wama-model-help.js` | ✅ | `common/static/common/js/` | Volet inspecteur + descriptif modèle (court/long) |
 | Briques card : `_card_progress`, `_card_state`, `_new_item_card`, `_queue_actions` | ✅ | `common/templates/common/` | Assemblées par app (pas de card monolithique) |
+
+---
+
+## §15 Méta-app Pipeline — spec d'origine (2026-06-17, réalisée = Studio)
+
+
+> Idée 2026-06-17. ComfyUI-like **très simplifié**, orienté utilisateur. Dépend de §14.
+
+Chaque app WAMA = une **card** avec tous ses paramètres (générés depuis sa métadonnée §14).
+L'utilisateur glisse des **cards d'entrée** typées (`travail` = fichiers/prompts → batch 1/N,
+`contexte` = RAG, `référence` = voix/photo…, + médiathèque/URL), les **chaîne** vers les
+entrées compatibles d'une card d'app (**vérif systématique compat I/O**), paramètre, puis
+chaîne la sortie vers une autre app (ex. synthesizer → avatarizer) ou un dossier/URL de sortie.
+Sauvegarde de la chaîne ; à réfléchir : appliquer une chaîne à une file (batch).
+- **C'est le frère VISUEL de l'agent** : tous deux orchestrent les apps via la même méta + tool API.
+  La méta-app pourrait **simplifier le chaînage multi-apps de l'AI-Assistant** (abstraction « graphe »).
+- **Ne PAS coder le canvas from scratch** : réutiliser une lib de node-graph (React Flow /
+  Rete.js / LiteGraph.js / Drawflow).
+- **Prérequis dur** : le **contrat de types I/O** des apps (audio/image/vidéo/texte-prompt/
+  référence:voix/contexte:rag…) — à définir dans `WAMA_APP_CONVENTIONS.md`.
+

@@ -368,8 +368,13 @@ dépendants au `change` du modèle. Lié à [[project-assistant-vision]] (TTS au
 - [x] Fix VRAM (décharge Ollama + WAMA avant audit)
 - [x] Fix format DeepSeek Coder V2 (Format 6 + strip hallucinations)
 - [x] Migrer vers `qwen3-coder:30b` (remplace deepseek-coder-v2:16b — config.py + views.py mis à jour)
+  — **révisé depuis** : `qwen3-coder:30b` trop lourd pour l'agentique sur hôte 24 Go partagé ;
+  choix fiabilisé = **`gemma4:e4b` non-thinking** via `--force-model` (CLAUDE.md §wama-dev-ai)
 - [x] Mémoire persistante `memory.json` — bugs connus, règles, notes — + outil `write_memory` + injection prompt
-- [ ] Premier audit complet avec `write_report` appelé (3+ audits validés avant de monter en autonomie)
+- [x] Premier audit complet avec `write_report` appelé — **FAIT 2026-07-17** : campagne « état des
+  lieux vision », 6 audits ciblés avec rapports écrits + contre-vérification Claude (fiabilité
+  mesurée : positifs cités ~100 % exacts, affirmations d'absence fausses 4/6 → protocole consigné
+  dans `docs/VISION_STATUS.md` annexe + mémoire projet)
 - [ ] Cron nightly : `0 2 * * *`
 
 ### Phase 1b — Schémas d'architecture WAMA (read-only, tâche de fond) ⏳
@@ -1069,22 +1074,18 @@ orchestrateur de modèles** (§5b/§8d), **(5) génération/scaffold d'apps**.
 I/O typés + tool API), pas seulement déplacer du HTML. À faire AVANT de migrer en masse.
 Mode visé = **C (hybride chat ↔ UI synchronisés)**.
 
-## 15. Méta-app « Pipeline » — programmation graphique de chaînes (priorité basse)
+## 15. Méta-app « Pipeline » → livrée = **Studio**
 
-> Idée 2026-06-17. ComfyUI-like **très simplifié**, orienté utilisateur. Dépend de §14.
-
-Chaque app WAMA = une **card** avec tous ses paramètres (générés depuis sa métadonnée §14).
-L'utilisateur glisse des **cards d'entrée** typées (`travail` = fichiers/prompts → batch 1/N,
-`contexte` = RAG, `référence` = voix/photo…, + médiathèque/URL), les **chaîne** vers les
-entrées compatibles d'une card d'app (**vérif systématique compat I/O**), paramètre, puis
-chaîne la sortie vers une autre app (ex. synthesizer → avatarizer) ou un dossier/URL de sortie.
-Sauvegarde de la chaîne ; à réfléchir : appliquer une chaîne à une file (batch).
-- **C'est le frère VISUEL de l'agent** : tous deux orchestrent les apps via la même méta + tool API.
-  La méta-app pourrait **simplifier le chaînage multi-apps de l'AI-Assistant** (abstraction « graphe »).
-- **Ne PAS coder le canvas from scratch** : réutiliser une lib de node-graph (React Flow /
-  Rete.js / LiteGraph.js / Drawflow).
-- **Prérequis dur** : le **contrat de types I/O** des apps (audio/image/vidéo/texte-prompt/
-  référence:voix/contexte:rag…) — à définir dans `WAMA_APP_CONVENTIONS.md`.
+> ✅ **LIVRÉE sous le nom STUDIO** (`wama/studio`, app dédiée) — la réalisation dépasse la
+> spec d'origine (2026-06-17) : canvas nœuds-app métadonnée-driven, ports typés, persistance
+> (`StudioPipeline`), **exécution réelle V1** (moteur Celery topologique via `tool_api`),
+> cards d'entrée/sortie ↔ médiathèque, animation de flux. État vivant : `PROJECT_STATUS §15/§37`.
+>
+> Divergence assumée vs spec : le canvas est finalement **vanilla JS + SVG** (vérifié
+> 2026-07-20 : aucune lib React Flow/Rete/LiteGraph), pas de réutilisation de lib node-graph.
+> Restes ouverts (repris en Horizons H1.3) : runners restants, sorties → dossier studio,
+> appliquer une chaîne à une file (batch), entrée « contexte » (gatée RAG §8c).
+> Spec d'origine archivée : `docs/archive/ROADMAP_ARCHIVE_2026-07-20.md`.
 
 ## 16. Grappe IA de DEV + orchestrateur cloud/local (chantier infra — à cadrer)
 
