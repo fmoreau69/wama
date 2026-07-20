@@ -58,14 +58,18 @@ def _collect_static_obs(session, position, max_gids=40, max_per_gid=120):
     return {g: v for g, v in obs.items() if len(v) >= 8}, size
 
 
-def _eval_params(pitch_deg, height_m, obs, size, geo, sh_traj, fov_v_deg):
-    """Coût = étalement monde des statiques + ancrage d'échelle sur le pinhole."""
+def _eval_params(pitch_deg, height_m, obs, size, geo, sh_traj, fov_v_deg, k1=0.0):
+    """Coût = étalement monde des statiques + ancrage d'échelle sur le pinhole.
+    `k1` : distorsion radiale (Brown-Conrady) — les dômes AXIS 110° ne sont pas
+    rectilinéaires, le résiduel d'étalement à k1=0 en est la signature."""
     from .ground_projection import GroundProjector
     from .calibration import intrinsics_from_fov
     from .prediction_adapter import ego_to_world, _shuttle_pose_at
     intr = intrinsics_from_fov(size[0], size[1], geo['fov_h'], fov_v_deg)
     cal = dict(intr, height_m=height_m, pitch_deg=pitch_deg,
                hfov_deg=geo['fov_h'], lens_type='rectilinear')
+    if k1:
+        cal['distortion'] = [k1, 0.0, 0.0, 0.0, 0.0]
     try:
         gp = GroundProjector(cal, size)
         if not gp.available:
@@ -122,17 +126,23 @@ def estimate_camera(session, position='front'):
     fov_v = CAMERA_FOV_V.get(position, 61.0)
 
     base = _eval_params(0.0, 2.4, obs, size, geo, sh_traj, fov_v)
-    best, best_p, best_h = None, 0.0, 2.4
-    for p10 in range(-100, 305, 5):        # pitch −10.0° … +30.0° par 0.5°
-        for h10 in range(14, 33):          # hauteur 1.4 … 3.2 m par 0.1
-            r = _eval_params(p10 / 10.0, h10 / 10.0, obs, size, geo, sh_traj, fov_v)
-            if r and (best is None or r[0] < best[0]):
-                best, best_p, best_h = r, p10 / 10.0, h10 / 10.0
+    # Hauteur FIXÉE au physique (rig ENA ~2.4 m) : la surface de coût est dégénérée
+    # pitch⟷hauteur (l'optimum libre fuit vers des hauteurs absurdes). On résout donc
+    # pitch × k1 à hauteur connue — les deux vrais inconnus optiques.
+    best, best_p, best_k, best_h = None, 0.0, 0.0, 2.4
+    for h10 in (23, 24, 25):               # hauteur 2.3 … 2.5 m (plage physique)
+        for p10 in range(-50, 305, 5):     # pitch −5.0° … +30.0° par 0.5°
+            for k100 in range(-45, 46, 3):  # k1 −0.45 … +0.45 par 0.03
+                r = _eval_params(p10 / 10.0, h10 / 10.0, obs, size, geo, sh_traj,
+                                 fov_v, k1=k100 / 100.0)
+                if r and (best is None or r[0] < best[0]):
+                    best, best_p, best_k, best_h = r, p10 / 10.0, k100 / 100.0, h10 / 10.0
     if best is None:
         return None
     return {
         'position': position,
         'pitch_deg': best_p,
+        'k1': best_k,
         'height_m': best_h,
         'n_objects': best[3],
         'spread_m': round(best[1], 2),
