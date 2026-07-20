@@ -1,6 +1,6 @@
 # WAMA — Roadmap
 
-> Dernière mise à jour : 2026-07-20 (section « Horizons » + entrée GNM en Études/veille). Précédent : 2026-07-11 (audit conformité — PROJECT_STATUS §31 ; l'en-tête « 2026-05-16 » mentait, le contenu allait jusqu'à 2026-07-01)
+> Dernière mise à jour : 2026-07-20 (Horizons + GNM ; **dédoublonnage exécuté** : sections actées → archive + renvois PROJECT_STATUS, bugs §0 → PROJECT_STATUS). Précédent : 2026-07-11 (audit conformité — PROJECT_STATUS §31 ; l'en-tête « 2026-05-16 » mentait, le contenu allait jusqu'à 2026-07-01)
 > Légende : ✅ Fait · 🔄 En cours · ⏳ Planifié · 💡 Proposé · ❌ Abandonné · 🐛 Bug bloquant
 
 ---
@@ -79,13 +79,8 @@
 
 ## 0. Dysfonctionnements connus — À corriger en priorité
 
-| Composant | Symptôme | Statut | Piste |
-|-----------|----------|--------|-------|
-| **Qwen3-ASR** (Transcriber) | Backend implémenté (`qwen_asr_backend.py`) mais non fonctionnel — erreurs de dépendances à l'import | 🐛 Bloqué | Résoudre conflits deps pip (transformers, torchaudio, accelerate) |
-| **Higgs Audio V2** (Synthesizer) | Audio généré inaudible, artefacts, bruits de fond — modèle inutilisable | 🐛 Bloqué | Nombreux patches appliqués + CUDA graphs désactivés (voir memory/). Prochaine étape : test sans voice reference pour isoler |
-| **Prétraitement audio** (Transcriber) | L'ancien pipeline (pydub + `noisereduce`/spectral-gating) dégradait l'ASR | ✅ Corrigé | Remplacé par débruitage IA **DeepFilterNet** (singleton keep_loaded partagé avec l'enhancer) + format ASR 16k mono. Optionnel, défaut OFF (Whisper robuste au bruit). Resemble Enhance possible en option « restauration » (générative, peut altérer l'ASR) — non câblé |
-
----
+> Niveau statut → suivi déplacé dans `PROJECT_STATUS.md` § « Bugs / dettes connus »
+> (contrat des niveaux, 2026-07-20). Contenu d'origine archivé : `docs/archive/ROADMAP_ARCHIVE_2026-07-20.md`.
 
 ## 1. Conformité UI — WAMA App Conventions
 
@@ -185,48 +180,22 @@ prévues sont **réelles** → il faut les inventorier avant d'en porter d'autre
 
 ## 3. Media Library
 
-### Phase 1 ✅ (2026-03-17)
-- UserAsset, SystemAsset, page `/media-library/`, migration CustomVoice, intégration synthesizer
+> ✅ Phases 1-4 + connecteurs providers **livrés** — état vivant : `PROJECT_STATUS.md §9`
+> (NB divergence corrigée : Pexels/Openverse marqués ⏳ ici étaient livrés, vérifié 2026-07-09).
+> Détail d'implémentation archivé : `docs/archive/ROADMAP_ARCHIVE_2026-07-20.md`. Reste ouvert (repris tel quel) :
 
-### Phase 2 ✅ (2026-03-17)
-- Recherche/filtrage tags, pagination, preview modal, métadonnées éditables inline
-
-### Phase 3+4 ✅ (2026-03-17)
-- MediaProvider + UserProviderConfig, BaseProvider, connecteurs Wikimedia/Pixabay/Freesound
-- Vue proxy `api_provider_search` + `api_provider_download` (clés jamais exposées en JS)
-
-### Phase 5 — Connecteurs avancés ⏳
-- Pexels, Unsplash, Openverse, ccMixter (musique CC)
-- Mozilla Data Collective (voix, si API stable)
+### Phase 5 — Connecteurs avancés (restants) ⏳
+- Unsplash · ccMixter (musique CC) · Mozilla Data Collective (voix, si API stable)
+  — Pexels/Openverse retirés : livrés (PROJECT_STATUS §9)
 
 ### Phase 6 — Intégration cross-apps ⏳
 - Imager : sélecteur image de style depuis médiathèque
 - Avatarizer : sélecteur portrait de référence
-- Synthesizer : déjà fait ✅
-
----
 
 ## 4. Intégrations modèles AI — Ollama
 
-### 4.1 qwen3-coder:30b (MoE 3.3B actifs, 256K ctx, 19GB) ✅ (2026-04-07)
-- Remplace `deepseek-coder-v2:16b` dans wama-dev-ai (rôle `debug`) et `wama/views.py`
-- `wama-dev-ai/config.py` : entrée debug mise à jour (context_length 262144, ram 19GB)
-- `wama/views.py` : rôle debug + _MODEL_SAFE_CHARS mis à jour (512K chars = 128K tokens)
-
-### 4.2 qwen3-vl:8b — backend vision Ollama pour Describer ✅ (2026-04-14)
-- Cascade Ollama vision : qwen3-vl:8b > qwen3-vl > moondream2 > moondream > BLIP (local HF)
-- Implémenté dans `wama/describer/utils/image_describer.py`
-- `/api/chat` primary, `/api/generate` fallback pour moondream ancien
-- Auto-détection des modèles disponibles, cache par worker process
-
-### 4.3 glm-ocr:0.9b — backend OCR léger via Ollama ✅ (2026-04-14)
-- Implémenté dans `wama/reader/backends/glm_ocr_backend.py`
-- Cascade auto : olmOCR singleton > GLM-OCR (Ollama) > olmOCR-7B (VRAM) > docTR
-- Gère PDF multi-pages (PyMuPDF → PNG temp) + images directes
-- Migration `0006_alter_readingitem_backend.py` appliquée
-- `ollama pull glm-ocr`
-
----
+> ✅ **Livré** (modèles installés, sélection par tier, wama-dev-ai opérationnel) — état vivant :
+> `PROJECT_STATUS.md §2/§3`. Détail archivé : `docs/archive/ROADMAP_ARCHIVE_2026-07-20.md`.
 
 ## 5. Model Manager — Phase 2 : Veille automatique modèles
 
@@ -787,10 +756,8 @@ session de travail Q&A + génération de contenu depuis ces sources.
 
 ### Phase 1 — Couche d'abstraction locale ✅ (2026-04-14)
 
-- `llm_chat()` dans `wama/common/utils/llm_utils.py` — point d'entrée unifié
-- `LITELLM_PROVIDER = 'ollama'` dans settings.py (défaut, aucun appel cloud)
-- `ollama_chat()` conservée telle quelle — zéro breaking change pour les appelants existants
-- `litellm` installé : `pip install litellm`
+✅ Livrée : `llm_chat()` (`wama/common/utils/llm_utils.py`), `LITELLM_PROVIDER='ollama'`
+par défaut, zéro breaking change. Détail archivé : `docs/archive/ROADMAP_ARCHIVE_2026-07-20.md`.
 
 ### Phase 2 — Mode hybride utilisateur ⏳
 
@@ -830,16 +797,9 @@ Stack : `mcp` Python SDK (officiel Anthropic) + `uvicorn` SSE server (port dédi
 ## 9. cam_analyzer (wama_lab)
 
 ### 9.1 Détection insertions aux intersections ✅
-| Composant | Statut | Fichier |
-|-----------|--------|---------|
-| `rtmaps_parser.py` | ✅ | `wama_lab/cam_analyzer/utils/` |
-| `quadrature_video.py` | ✅ | `wama_lab/cam_analyzer/utils/` |
-| `intersection_analyzer.py` | ✅ | `wama_lab/cam_analyzer/utils/` |
-| Modèles DB (`intersections`, `source_type`, `gps_track`) | ✅ | `cam_analyzer/models.py` + migration |
-| Tâche `extract_rtmaps_task` | ✅ | `cam_analyzer/tasks.py` |
-| `_detect_intersection_insertion()` | ✅ | `cam_analyzer/tasks.py` |
-| Vue `upload_rtmaps` + `rtmaps_status` | ✅ | `cam_analyzer/views.py` |
-| UI : section RTMaps + intersections dans profil modal | ✅ | `cam_analyzer/index.html` + JS |
+
+✅ Livré — état vivant : `PROJECT_STATUS.md §5` (Cam Analyzer). Détail archivé :
+`docs/archive/ROADMAP_ARCHIVE_2026-07-20.md`.
 
 ### 9.2 Pipeline conflit / voie navette / vitesse-distance
 
@@ -852,13 +812,10 @@ que pour drivable+lanes.
 
 | Phase | Description | Statut |
 |-------|-------------|--------|
-| **1** | YOLOPv2 backend (`yolopv2_segmenter.py`), dispatcher dans `tasks.py`, validation thresholds | ✅ (2026-05-07) |
-| **2** | Lane attribution : partition drivable→voies via lane lines, voie navette = bottom-center, attribution `lane_id` par détection (foot point) | ✅ (2026-05-07) |
-| **3** | `LaneEvent` model (track_id, intersection_window_idx, t_enter, t_exit, lane_id) + computer post-loop + migration | ✅ (2026-05-07) |
-| **4** | Distance/vitesse/TTC : pinhole + références normalisées (hauteur véhicule par classe, hauteur piéton 1.7m, FoV par caméra) ; persistés sur chaque détection (`distance_m`, `relative_speed_kmh`, `ttc_s`). Homographie sol auto-calibrée à reporter (Phase 4.bis si Phase 4 trop bruitée) | ✅ (2026-05-07) |
-| **5** | `ConflictEvent` model (track_id, intersection_window, conflict_type, navette_passed_first, delta_t, min_distance, min_ttc, severity) + computer `_compute_conflict_events` qui croise LaneEvent (in_shuttle_lane=True) × intersection_window × distance/TTC | ✅ (2026-05-07) |
-| **6** | UI : marqueur 🚌 sur détections in_shuttle_lane + bbox épaissie ; affichage distance/vitesse/TTC dans le label ; export CSV étendu (`type`, `lane_id`, `in_shuttle_lane`, `distance_m`, `relative_speed_kmh`, `ttc_s`) ; export JSON `lane_events`+`conflict_events`+`intersection_windows` ; nouvel export `Conflits (CSV)` trié par sévérité | ✅ (2026-05-07) |
 | **7** | Trottoirs (optionnel) : SAM3 prompt "sidewalk" en parallèle des marquages ; si insuffisant → mmseg + bdd100k-sem-seg en backend isolé | 💡 |
+
+
+> Phases ✅ archivées : `docs/archive/ROADMAP_ARCHIVE_2026-07-20.md` — état vivant : `PROJECT_STATUS.md §5`.
 
 ### 9.2.ter Modularité incrémentale (Propositions A→F, 2026-05-14)
 

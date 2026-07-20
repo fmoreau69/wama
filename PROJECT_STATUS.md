@@ -1,6 +1,6 @@
 # PROJECT_STATUS.md — Point d'étape des chantiers WAMA
 
-> Photo des chantiers en cours. Mise à jour : **2026-07-11** (§31 : audit empirique conformité 10 apps).
+> Photo des chantiers en cours. Mise à jour : **2026-07-20** (bugs ROADMAP §0 repris ; conformité 2026-07-11 (§31 : audit empirique conformité 10 apps).
 > Marqueurs : ✅ fait · 🔄 en cours · ⏳ à faire. Détails par chantier dans les docs/mémoire référencés.
 
 ## 1. PromptPipeline (prompts centralisés §16.6 / §10.B) — bien avancé
@@ -276,6 +276,9 @@ neuve** (contexte chargé = erreurs). Recoupe et précise §19.
   pièce 3 (câblage capacités→visibilité + **retrait du `show_if` hardcodé**).
 
 ## Bugs / dettes connus
+
+> Repris de ROADMAP §0 (2026-07-20, contrat des niveaux — à revalider) :
+-  **Qwen3-ASR** (Transcriber) — Backend implémenté (`qwen_asr_backend.py`) mais non fonctionnel — erreurs de dépendances à l'import — 🐛 Bloqué — Résoudre conflits deps pip (transformers, torchaudio, accelerate) 
 - 🐞 Higgs Audio V2 : ~5 s d'audio dégradé malgré tous les patches — non résolu.
 - 🔧 Patches venv → toujours via `patches/apply_patches.py`.
 - 🌐 Headroom code-aware : `Mode: token` actuel → activer via terminal neuf + vérifier `headroom_stats`.
