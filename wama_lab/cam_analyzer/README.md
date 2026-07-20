@@ -5,7 +5,10 @@ caméras embarquées sur une **navette autonome** (laboratoire transport, Univer
 Lescot). Objectif : étudier la **sécurité et la cohabitation** de la navette avec les autres usagers
 de la route (détection d'objets, segmentation de voie, proximité, conflits aux intersections).
 
-> **Statut** : pipeline quasi-complet **implémenté**, **validation en cours** (pas tout testé).
+> **Statut** : pipeline complet **implémenté** (détection → tracking 360° → vue de dessus →
+> intersections/conflits), **validation navigateur en cours** sur session réelle. Le gros chantier
+> récent = **reconstruction de la scène en vue de dessus** (fusion multi-caméras, hand-off d'identité,
+> lissage Kalman) + **calibration sol semi-automatique**.
 > Voir [`CONTEXT.md`](CONTEXT.md) pour l'état détaillé, l'analyse de faisabilité et les priorités de reprise.
 >
 > **Docs techniques** :
@@ -23,10 +26,18 @@ de la route (détection d'objets, segmentation de voie, proximité, conflits aux
 - **Multi-caméras** : 3–4 vues embarquées (avant / arrière / gauche / droite), disposées autour d'une
   silhouette de navette, **drag & drop** des vidéos, **lecture synchronisée** (play/pause/seek + offset
   de synchro par caméra).
-- **Détection & tracking** : YOLO (ultralytics) + BoTSORT — véhicules, piétons, deux-roues, etc.
+- **Détection & tracking** : YOLO (ultralytics, boxes ou segmentation) + BoTSORT — véhicules, piétons, etc.
+- **Vue de dessus 360°** : toutes les caméras fusionnées dans le repère véhicule, positions monde tracées
+  sur une mini-carte Leaflet (fond sombre ou **orthophoto IGN 🛰**, orientation nord ou **cap-navette 🧭**).
+  Tracker global inter-caméras : **hand-off d'identité** (un véhicule garde son id d'une caméra à l'autre),
+  classes stables par vote, stationnés ancrés, trajectoires **lissées Kalman**, remplissage de fantômes.
 - **Segmentation de la route** : YOLOPv2 (zone roulable + lignes de voie) + modèle BDD100K-seg ;
-  marquages au sol épars (passages piétons, lignes d'arrêt) via SAM3.
+  marquages au sol (passages piétons, lignes d'arrêt) via SAM3, **interpolés** entre keyframes à l'affichage.
 - **Attribution de voie** : chaque objet est rattaché à une voie ; identification de la voie navette.
+- **Calibration** : yaw/FOV/levier antenne GPS réglables par session ; **calibration sol semi-automatique**
+  (pitch caméra estimé par ego-motion) ; voies croisantes et marquages d'intersection reconstruits.
+- **Bascules de comparaison ⚑** : 11 leviers A/B (correction FOV, cap, filtre d'artefacts, cap des garés,
+  branches apprises, marquages monde, calibration sol…) pour mesurer chaque amélioration avec/sans.
 - **Timeline de proximité** colorée (vert → rouge) synchronisée à la lecture.
 - **Segmentation temporelle** automatique (suivi rapproché, dépassement, croisement, arrêt/insertion
   aux intersections).
@@ -52,9 +63,12 @@ de la route (détection d'objets, segmentation de voie, proximité, conflits aux
 
 ### Modèles (`models.py`)
 - **AnalysisProfile** — config réutilisable : modèle YOLO, classes cibles, seuils, tracker,
-  `report_type`, `intersections` `[{name,lat,lon,radius_m}]`, options SAM3, modèle de route.
+  `report_type`, `intersections` `[{name,lat,lon,radius_m}]`, options SAM3, `sam3_fps` (cadence),
+  `geometry_enabled`, modèle de route.
 - **AnalysisSession** — UUID, statut (draft/pending/processing/paused/completed/failed), `source_type`
-  (video/rtmaps), `gps_track`, `intersection_windows`, `results_summary`, progression.
+  (video/rtmaps), `gps_track`, `intersection_windows`, `camera_calibration`, `results_summary`, progression.
+  `config` porte les réglages par session : `camera_yaw`/`camera_fov`/`gps_antenna` (calibration),
+  `features` (bascules ⚑), `ground_calib` (pitch estimé), `analyzed_ranges` (couverture).
 - **CameraView** — position, fichier vidéo, fps/résolution/durée, `time_offset` (synchro).
 - **DetectionFrame** — détections frame par frame (`bbox`, classe, confiance, `track_id`, proximité).
 - **TemporalSegment** — segments typés (suivi rapproché, dépassement, croisement, arrêt/insertion).
@@ -70,19 +84,31 @@ de la route (détection d'objets, segmentation de voie, proximité, conflits aux
 | `rtmaps_parser.py`, `quadrature_video.py` | Parsing RTMaps + vidéo quadrature multi-caméras. |
 | `yolopv2_segmenter.py` | YOLOPv2 : zone roulable + lignes de voie. |
 | `road_segmenter.py`, `road_model_downloader.py` | Segmentation route (BDD100K-seg) + téléchargement modèle. |
-| `sam3_road_analyzer.py` | Marquages au sol (SAM3 prompté). |
+| `sam3_road_analyzer.py` | Marquages au sol (SAM3 prompté ; cadence `profile.sam3_fps`, l'affichage **interpole** entre keyframes). |
 | `lane_partition.py` | Attribution de voie par franchissements de lignes ; voie navette. |
 | `intersection_analyzer.py` | Moteur intersections : fenêtres GPS, phase d'arrêt, classification d'insertion, t0/t1/t2 (t2 raffiné par ratio d'aspect), densité. |
 | `distance_speed.py` | Distance pinhole (fallback) + **vitesse/TTC filtrés** (EMA + régression fenêtrée + clamp). |
 | `ground_projection.py` | **Projection sol par homographie** : point-sol bbox → `(X,Y)` repère navette → distances longitudinale/latérale/euclidienne. |
-| `calibration.py` | **Calibration homographie** : `solve_homography_dlt` (4 coins d'un objet-sol normé) + solveur pitch 1-point + intrinsèques depuis FoV. |
+| `calibration.py` | **Calibration homographie** : `homography_from_quad` (DLT 4 coins), solveur pitch 1-point, intrinsèques depuis FoV. |
+| `homography_estimator.py` | **Calibration sol AUTO** : résout le pitch/hauteur caméra en minimisant l'étalement monde des stationnés (auto-calibration par ego-motion, sans vérité terrain). Étape 2a du plan de calibration. |
+| `prediction_adapter.py` | Repère véhicule : `camera_geometry` (yaw/FOV/montage par caméra + surcharges session), `shuttle_trajectory` (levier antenne GPS), `pinhole_ego`/`ground_ego`, `ego_to_world`. |
+| `multicam_tracker.py` | **Tracker global 360°** : hand-off d'identité inter-caméras (gids), classes stables par vote, stationnés + ancres monde, remplissage de fantômes, filtre d'artefacts, cap serveur des garés, écrit `world_en`. |
+| `trajectory_smoother.py` | **Lissage Kalman CV + RTS** des trajectoires monde (`smooth_track`). |
+| `artifact_filter.py` | Détecte les reflets/artefacts collés à l'image (bbox immobile pendant que la navette avance). |
+| `intersection_branches.py` | **Voies croisantes apprises du trafic** (trajectoires monde des véhicules). |
+| `marking_world.py` | **Marquages SAM3 agrégés en monde** (stop_line/crossing projetés multi-passages → bornes d'intersection). |
+| `coverage.py` | Registre de couverture d'analyse (`analyzed_ranges` par caméra) pour la complétion incrémentale et le mode Live. |
+| `features.py` | Registre des **bascules de comparaison** (11 flags A/B, cf. `CAM_ANALYZER_CHAINE_TRAITEMENT.md`). |
 | `ego_pose.py` | **Ego-pose GPS + accéléromètre** (parse CSV RecFile_Data ; cap = course GPS tenue à l'arrêt ; priorité API navette si dispo). |
 | `pass_tracking.py`, `window_recompute.py` | Passes incrémentales (STALE + cascade) et recalcul ciblé. |
 
 ### Tâches Celery (`tasks.py`, queue `gpu`)
-`process_session_task` (pipeline complet), `compute_lane_events_task`,
-`compute_temporal_segments_task`, `compute_conflict_events_task`, `analyze_sam3_only_task`,
-`extract_rtmaps_task`.
+`process_session_task` (pipeline complet ; paramètre `completion_scope` pour la **complétion
+incrémentale**), `compute_lane_events_task`, `compute_distance_task`, `compute_temporal_segments_task`,
+`compute_conflict_events_task`, `compute_global_tracking_task` (**tracking 360°** seul), `analyze_sam3_only_task`,
+`live_analysis_task` (**mode Live**, analyse au fil de la lecture), `extract_rtmaps_task`.
+`_run_global_tracking()` = cœur partagé (gids + trajectoires lissées + ancres + branches + marquages),
+enchaîné automatiquement en fin de complétion et de mode Live.
 
 ### Modèles & librairies
 - **YOLO** : `AI-models/models/vision/yolo/detect/` (`yolo11{n,s,m,l,x}.pt` + `-seg`). Classes COCO
@@ -100,8 +126,10 @@ de la route (détection d'objets, segmentation de voie, proximité, conflits aux
 - **Caméras** : `<id>/cameras/upload/`, `cameras/<cid>/delete/`, `.../update-position/`, `.../stream/`.
 - **Analyse** : `<id>/start/`, `<id>/status/`, `<id>/cancel/`, `<id>/recompute-windows/`,
   `<id>/start-sam3/`, `<id>/passes/` + `passes/run/`, `<id>/cameras/<cid>/detections/`.
+- **Analyse incrémentale** : `<id>/complete-analysis/` (compléter les zones non analysées),
+  `<id>/live-cursor/` (mode Live : suit le curseur de lecture, préempté par les tâches batch).
 - **Calibration** : `<id>/calibrate/` (POST : 4 coins d'un passage piéton + dimensions → homographie sol
-  par DLT, enregistrée dans le profil + `geometry_enabled`).
+  par DLT), `<id>/camera-yaw/` (yaw/FOV latéral/levier antenne par session), `<id>/features/` (bascules ⚑).
 - **Export & analytics** : `<id>/export/{detections,json,segments,conflicts}/`, `<id>/segments/`,
   `<id>/analytics/`.
 - **Profils** : `api/profiles/`, `profiles/save/`, `profiles/<pid>/delete/`.
@@ -120,16 +148,20 @@ FileManager (WAMA Lab → Cam Analyzer).
 - **Vitesses irréalistes** : ✅ **corrigé** — `distance_speed.py` filtre désormais vitesse/TTC (lissage
   EMA de la distance + régression sur fenêtre courte + clamp/rejet des valeurs implausibles) au lieu
   d'une dérivée frame-à-frame brute. Voir [`CAM_ANALYZER_DISTANCE_DESIGN.md`](CAM_ANALYZER_DISTANCE_DESIGN.md) §3a.
-- **Distances absolues** : 🔄 **homographie sol câblée** (`ground_projection.py`), activée par caméra
-  quand le profil fournit une calibration (`geometry_enabled` + `camera_calibration[position]`). La
-  calibration s'obtient sans mesure terrain via l'endpoint `calibrate/` (4 coins d'un passage piéton
-  → DLT). Priorité méthode : DLT 4-points > solveur pitch 1-point > H analytique (priors FoV/hauteur)
-  > fallback pinhole. **Reste** : la mini-UI de clic des coins (dernier maillon).
+- **Vue de dessus des objets** : ✅ **implémentée** — fusion 360° de toutes les caméras dans le repère
+  véhicule, positions monde lissées (Kalman) tracées sur la mini-carte Leaflet, ancres pour les stationnés,
+  fond orthophoto IGN (🛰) et orientation cap-navette (🧭).
+- **Distances absolues** : deux canaux comparables par bascule ⚑. **Pinhole** (défaut, hauteur de bbox).
+  **Homographie sol** (`ground_projection.py`) activée par caméra quand une calibration existe : soit
+  manuelle via `calibrate/` (4 coins → DLT), soit **AUTO** via `homography_estimator.py` (pitch estimé par
+  ego-motion, bascule `auto_ground_calib`). Le désaccord des deux canaux sur session réelle (14,55 m au
+  pitch nul → 3,05 m au pitch estimé) a montré que **l'angle** était la grosse erreur. **Reste** :
+  l'échelle absolue (étape 2b — passages piétons segmentés sur l'ortho + matching) et la calib jointe (2c).
 - **Attribution de voie** : heuristique par franchissements de lignes ; renvoie `-1` quand les pointillés
   sont trop fragmentés (intersections).
-- **Sur-fragmentation des segments** : détection per-frame → doublons ; consolidée par `LaneEvent` /
-  `ConflictEvent` (palliatif UI possible : filtrer les segments < 1 s).
-- **Validation** : la majorité du pipeline est codée mais **pas entièrement testée**.
+- **Reflets de vitrage** : les « fantômes géants » fragmentés (bbox ~90 % image, conf basse) échappent au
+  filtre cinématique `artifact_filter` (raffinement = analyse de transparence sur candidats, à venir).
+- **Validation** : le pipeline est complet ; validation navigateur sur session réelle en cours.
 
 ## Intégration WAMA
 Menu *Applications → WAMA Lab → Cam Analyzer*, carte sur la page d'accueil, dossiers dans le FileManager,
@@ -143,7 +175,16 @@ tâches sur la queue Celery `gpu`. App enregistrée dans `wama/settings.py` (INS
 - **Filtre de classes** : répartition, résumé et **overlay vidéo** limités aux usagers de la route ;
   la légende du camembert sert de filtre overlay interactif.
 - **Divers** : renommage de session (🖉), durées en `hh:mm:ss`, panneau pipeline affiché au chargement,
-  marqueur GPS **interpolé** (fluide). Vue de dessus des objets = à venir (tracé des `(X,Y)` sur la carte).
+  marqueur GPS **interpolé** (fluide), **vue de dessus des objets** tracée sur la carte (fusion 360°).
+
+## Documentation
+| Fichier | Contenu |
+|---|---|
+| [`README.md`](README.md) | Ce fichier — vue d'ensemble, modules, API, limites. |
+| [`CONTEXT.md`](CONTEXT.md) | État détaillé, faisabilité, priorités de reprise (handoff). |
+| [`CAM_ANALYZER_CHAINE_TRAITEMENT.md`](CAM_ANALYZER_CHAINE_TRAITEMENT.md) | Chaîne de traitement complète [1..10], repère de position, table des **bascules ⚑** et de la **calibration**, **plan de calibration sol 2a/2b/2c**, chantiers ouverts. |
+| [`CAM_ANALYZER_DISTANCE_DESIGN.md`](CAM_ANALYZER_DISTANCE_DESIGN.md) | Conception distance/vitesse/TTC + homographie. |
+| [`CAM_ANALYZER_CHANGELOG.md`](CAM_ANALYZER_CHANGELOG.md) | Journal OBLIGATOIRE : 1 ligne/commit (quoi/pourquoi/validation) + procédure de non-régression. |
 
 ## Voir aussi
 - [`CAM_ANALYZER_DISTANCE_DESIGN.md`](CAM_ANALYZER_DISTANCE_DESIGN.md) — **conception distances/vitesses/TTC
