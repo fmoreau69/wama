@@ -59,18 +59,20 @@ encombrer le quotidien) → 2. VUE (bascules d'affichage quotidiennes, live) →
                 title="Projeter le gabarit de voie SUR la vidéo pour caler la largeur de voie sur la route réelle (garde la segmentation yolopv2 séparément)">
             <i class="fas fa-road me-1"></i>Voie/vidéo
         </button>
-        <span class="d-inline-flex align-items-center gap-1 ms-1"
-              title="Filtre de confiance à l'affichage : masque les détections faibles, SANS ré-analyse">
-            <span class="small text-secondary"><i class="fas fa-filter me-1"></i>Conf ≥</span>
-            <input type="range" id="overlayConfSlider" min="0" max="0.95" step="0.05" value="0" style="width:70px;">
-            <span class="small text-secondary" id="overlayConfVal" style="min-width:34px;">0%</span>
-        </span>
-        <span class="d-inline-flex align-items-center gap-1 ms-1"
-              title="Largeur de voie (m) pour le gabarit de la vue de dessus — ajuste pour coller aux bordures (auto à venir)">
-            <span class="small text-secondary"><i class="fas fa-road me-1"></i>Voie</span>
-            <input type="range" id="laneWidthSlider" min="2" max="6" step="0.1" value="3.5" style="width:70px;">
-            <span class="small text-secondary" id="laneWidthVal" style="min-width:38px;">3.5m</span>
-        </span>
+        <div class="td-subrow">
+            <span class="d-inline-flex align-items-center gap-1"
+                  title="Filtre de confiance à l'affichage : masque les détections faibles, SANS ré-analyse">
+                <span class="small text-secondary"><i class="fas fa-filter me-1"></i>Conf ≥</span>
+                <input type="range" id="overlayConfSlider" min="0" max="0.95" step="0.05" value="0" style="width:70px;">
+                <span class="small text-secondary" id="overlayConfVal" style="min-width:34px;">0%</span>
+            </span>
+            <span class="d-inline-flex align-items-center gap-1"
+                  title="Largeur de voie (m) pour le gabarit de la vue de dessus — ajuste pour coller aux bordures (auto à venir)">
+                <span class="small text-secondary"><i class="fas fa-road me-1"></i>Voie</span>
+                <input type="range" id="laneWidthSlider" min="2" max="6" step="0.1" value="3.5" style="width:70px;">
+                <span class="small text-secondary" id="laneWidthVal" style="min-width:38px;">3.5m</span>
+            </span>
+        </div>
     </div>
     {# ── Section 3 : ANALYSE (calculs + comparaison + live) ── #}
     <div class="td-group">
@@ -184,9 +186,15 @@ encombrer le quotidien) → 2. VUE (bascules d'affichage quotidiennes, live) →
     /* Barre d'outils groupée par SECTIONS (Calibration / Vue / Analyse) : chaque groupe
        est un bloc encadré avec son label, qui s'enroule comme une unité. */
     #camAnalyzerMapToolbar .td-group {
-        display: inline-flex; align-items: center; gap: 4px;
+        display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap;
         padding: 2px 6px 2px 4px; border: 1px solid rgba(255,255,255,.10);
         border-radius: 7px; background: rgba(255,255,255,.03);
+    }
+    /* Réglages (Conf/Voie) : forcés sur leur propre ligne sous les boutons de la
+       section Vue (sinon ils débordent à droite du panneau inspecteur étroit). */
+    #camAnalyzerMapToolbar .td-subrow {
+        flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: center;
+        gap: 10px; margin-top: 2px;
     }
     #camAnalyzerMapToolbar .td-group-label {
         font-size: .62rem; font-weight: 700; letter-spacing: .04em;
