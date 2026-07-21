@@ -548,9 +548,24 @@ check_app_conformity exécutable → introspection Django→schéma → scaffold
 > `insertRenderedCard` après chaque save) · ✅ **pt3** actions héritées par le volet
 > (`renderItemActions`/`renderBatchActions` + `.btn-group-actions` sur la card ; clics fonctionnels,
 > lien médiathèque inclus) · ✅ **pt6** `hideOnInspect` (saveGlobal/titres = N/A composer). **Reste** :
-> ✅ **pt2** (2026-07-21) : sauvegarde modale via `WamaParams.read` (schéma model/duration/prompt lu
-> génériquement ; `output_format`/`output_quality` restent explicites car **gérés via le converter**,
-> hors schéma composer — précision Fabien). **Reste** : pt4 (preview entrée/sortie — **design corrigé
+> ✅ **pt2 FINALISÉ 2026-07-21** : sauvegarde modale = **100% `WamaParams.read`** (aucun hand-read).
+> **Chaîne output_format/output_quality VÉRIFIÉE end-to-end, saine, zéro hardcoding** (trace Fabien) :
+> options ← `output_format_params_for_app` → `get_output_formats` → **`CONVERTER_OUTPUT_FORMATS`**
+> (source unique converter) ; presets qualité = `OUTPUT_QUALITY_CHOICES` (web/équilibré/max) ; ces 2
+> Param SONT dans le schéma composer (confirmé live : `['model','duration','prompt','output_format',
+> 'output_quality']`) → `read` les capte ; application réelle = `composer/tasks.py` appelle
+> `apply_inline_conversion` (converter). **Apps branchées early-binding : composer + synthesizer** ;
+> late-binding = conversion au download (`multi_format_download`). (Ma gestion explicite initiale
+> était redondante/fausse → corrigée.)
+> **pt4 preview — ALIGNÉ sur le manifeste (autre instance, `WAMA_MANIFEST_SPEC.md:108-113`)** :
+> preview d'entrée bind sur le port **travail/prompt, JAMAIS `reference`** ; à terme **dérivée du
+> manifeste** (« plus de preview codée en dur par app »). Pour composer : entrée = **prompt**, sortie
+> = audio, mélodie de réf = reference (pas l'entrée). Régression actuelle : l'adaptateur
+> (`composer/apps.py`) met `audio_output` en entrée. **COORDINATION EN COURS** avec l'instance
+> manifeste avant de coder l'adaptateur (risque de conflit sur composer/apps.py / mécanisme preview).
+> **Streaming preview « à la Suno »** (sortie audio construite pendant le process) = faisable
+> (MusicGen autorégressif + callback), à faire en **capacité commune déclarée par métadonnée**, APRÈS
+> pt4 de base — pas en dur dans composer. **Reste** : pt4 (preview entrée/sortie — **design corrigé
 > Fabien** : entrée = **le PROMPT utilisateur** = entrée principale ; la mélodie de réf = fichier de
 > référence secondaire, PAS l'entrée ; sortie = audio généré ; adaptateur `apps.py` à corriger, il
 > pointe 2× sur `audio_output`), pt7 (includes card `_card_state`/`_card_progress`),
