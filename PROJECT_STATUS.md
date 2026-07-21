@@ -548,8 +548,12 @@ check_app_conformity exécutable → introspection Django→schéma → scaffold
 > `insertRenderedCard` après chaque save) · ✅ **pt3** actions héritées par le volet
 > (`renderItemActions`/`renderBatchActions` + `.btn-group-actions` sur la card ; clics fonctionnels,
 > lien médiathèque inclus) · ✅ **pt6** `hideOnInspect` (saveGlobal/titres = N/A composer). **Reste** :
-> pt2 (supprimer `_postSettings` au profit de `WamaParams.read` — cleanup, non bloquant), pt4 (preview
-> entrée/sortie : adaptateur pointe 2× sur `audio_output`), pt7 (includes card `_card_state`/`_card_progress`),
+> ✅ **pt2** (2026-07-21) : sauvegarde modale via `WamaParams.read` (schéma model/duration/prompt lu
+> génériquement ; `output_format`/`output_quality` restent explicites car **gérés via le converter**,
+> hors schéma composer — précision Fabien). **Reste** : pt4 (preview entrée/sortie — **design corrigé
+> Fabien** : entrée = **le PROMPT utilisateur** = entrée principale ; la mélodie de réf = fichier de
+> référence secondaire, PAS l'entrée ; sortie = audio généré ; adaptateur `apps.py` à corriger, il
+> pointe 2× sur `audio_output`), pt7 (includes card `_card_state`/`_card_progress`),
 > pt8 (ETA `data-*`→catalogue), pt9 (bouton médiathèque = action commune par capacité de sortie).
 >
 > **Route commune = existante et unique** (ne rien réinventer) : `WamaParams` (render+read/apply,
