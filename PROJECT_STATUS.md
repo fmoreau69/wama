@@ -597,6 +597,14 @@ check_app_conformity exécutable → introspection Django→schéma → scaffold
 >   `setPeaks` normalise uint8→0-1 (fin de l'incompat 255 vs 1). **Renderer zoomable de l'éditeur =
 >   coexistence LÉGITIME** (correction = zoom/pan/heatmap ≠ aperçu fixe). Futur (non fait) : fusionner
 >   les 2 renderers en 1 composant commun à 2 modes (aperçu / zoom-éditeur) — gros refactor, plus tard.
+>   **FRONTEND + WORKER (2026-07-21)** : ✅ inspecteur COMMUN poll `?side=during` pendant RUNNING si
+>   `during_capable`, rend le partiel (`setPeaks`), auto-arrêt → face SORTIE ; `renderInlinePreview`
+>   dessine `data.peaks`. **Bug chantier 1 corrigé au passage** : `_fetchPreviewSide` exigeait `d.url`
+>   → le prompt en entrée (content, sans url) ne s'affichait pas ; garde relâché (url|content|peaks).
+>   ✅ helper commun `emit_streaming_peaks(app,pk,pcm,sr)` ; ✅ hook `on_audio` best-effort dans
+>   `audiocraft_backend` + `emit_streaming_peaks`/`clear_partial` dans `composer/tasks.py` (émet
+>   l'audio FINAL ; streaming mid-génération = token-callback MusicGen = **dev GPU**, même point).
+>   **Chaîne complète, dormante** tant que composer ne déclare pas `during_preview` (rôle manifeste).
 > - ⏳ **Chantier 3 — unifier le filemanager** sur `media-preview.js` commun (il a sa propre modale).
 > **Streaming preview « à la Suno »** (sortie audio construite pendant le process) = faisable
 > (MusicGen autorégressif + callback), à faire en **capacité commune déclarée par métadonnée**, APRÈS
