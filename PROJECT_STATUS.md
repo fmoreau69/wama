@@ -533,6 +533,58 @@ check_app_conformity exécutable → introspection Django→schéma → scaffold
 - Validation NAVIGATEUR par Fabien toujours attendue : pilote card v2 Reader + inspecteur des 5
   apps portées (smoke serveur fait, pas de clic réel).
 
+## 21bis. Composer — ÉTAT RÉEL VÉRIFIÉ (2026-07-21) : structure ≠ comportement
+
+> Vérifié en profondeur (lecture code + 3 explorations croisées) sur signalement Fabien que le
+> « 96 %/audit » surestime. **Cause de l'écart** : `get_conformity_summary` et l'audit UI mesurent
+> la STRUCTURE (« appelle-t-il `WamaParams.render` ? une preview est-elle enregistrée ? »), PAS le
+> COMPORTEMENT (« la sauvegarde persiste-t-elle ? les actions apparaissent-elles ? »). D'où une app
+> structurellement ~90 % mais fonctionnellement cassée sur la modale. **→ ajouter une dimension
+> conformité COMPORTEMENTALE (smoke) est recommandé.**
+>
+> **Route commune = existante et unique** (ne rien réinventer) : `WamaParams` (render+read/apply,
+> modale+volet+batch), `WamaInspector.initFromSchema({renderItemActions,renderBatchActions,...})`,
+> preview `unified_preview`/`preview_utils.py` (`?side=output` + toggle [Entrée|Sortie], décision
+> 2026-07-12). **Transcriber = référence conforme ; Composer demi-porté.**
+>
+> **Reste à porter (vérifié, ordonné) :**
+> 1. **Bug bloquant modale = ORDRE DE RENDU.** `index.js` (IIFE nue, sans DOMContentLoaded) est
+>    chargé `composer/index.html:242` AVANT le bloc `WamaParams.render` (index.html:276-322) qui
+>    crée `modelSelect`/`durationSlider`/`settingsModel`/`settingsDuration` → consts nulles
+>    (index.js:43/44/103/106) → `_postSettings` (index.js:380/381/394/395) lève TypeError au clic
+>    « Enregistrer »/« Enregistrer et relancer ». **Fix = pattern Transcriber : rendre WamaParams
+>    AVANT `<script index.js>`** (transcriber index.html:107-129 avant 131). Le volet (`postPanel`,
+>    getElementById au POST) marche déjà → d'où DEUX chemins concurrents (volet OK / modale cassée).
+> 2. **Supprimer le 2ᵉ chemin** : `_postSettings` → lire via `WamaParams.read` (ou getElementById
+>    au POST) comme le volet.
+> 3. **Actions héritées par le volet** : passer `renderItemActions`/`renderBatchActions` à
+>    `initFromSchema` (absents index.html:263-273 ; présents transcriber index.js:1175-1176) **ET**
+>    donner à la card le conteneur clonable `.btn-group-actions` (elle a `.d-flex flex-wrap gap-1`,
+>    `_generation_card.html:80` ; `cloneActions` clone `.btn-group-actions`, wama-inspector.js:44).
+> 4. **Preview Entrée/Sortie** : aujourd'hui input ET output pointent sur `audio_output`
+>    (apps.py:30 & 44) → le toggle montrerait 2× le même fichier. Input = mélodie de référence si
+>    présente (sinon pas de side entrée) ; le prompt reste l'« entrée » textuelle.
+> 5. **Curseur durée 10-600 s vs `max_duration:30`** (model_config) : aligner (seul vrai petit
+>    réglage `params.py`, pas une brique).
+> 6. **Compléter `initFromSchema`** : `saveGlobal`, `hideOnInspect`, `settingsTitleSelector/Inspect`.
+> 7. **(Card, optionnel)** remplacer badge statut + barre écrits à la main (`_generation_card.html:
+>    51-65`) par includes communs `_card_state.html`/`_card_progress.html` (que transcriber inclut) ;
+>    card v2 chips (`chip=True`) = pilote **reader** (pas transcriber), différée.
+> 8. **ETA** encore en `data-*` inline (blocage identifié UI_MECHANISMS_CONSOLIDATION) → catalogue.
+> 9. **Bouton « ajouter médiathèque »** = spécifique composer → à généraliser en action commune
+>    pilotée par capacité de sortie (APP_CATALOG déclare les output types).
+>
+> **Doc autorité uniformisation = `UI_MECHANISMS_CONSOLIDATION.md` (~2026-07-11) MAIS via ses notes
+> §9 seulement** (tableaux du haut périmés + auto-contradictoires : « params.py 8/10 »→10/10 ;
+> « transcriber `.init` »→`initFromSchema`). `COMMON_REFACTORING.md` (2026-06-24) = catalogue de
+> briques + contrat backend, mais roadmap « À faire » périmée + registre dérivé (`model_capabilities.py`
+> non listé). **Aucun des deux ne capture les bugs de comportement** → à rafraîchir + dimension smoke.
+>
+> **Boucle de refresh** (signalée Fabien) = design client préexistant, PAS lié à login/modération/
+> email (backend fail-safe, 0 middleware, 0 JS touché) : `wama-global-progress.js` poll 1500 ms sans
+> arrêt + `.active` ré-appliqué à chaque tick + émission `media:processed` dès `done` croît →
+> `filemanager tree.refresh()` en cascade. Rendue visible par les 502 récents (restart Apache→Django).
+
 ## 22. Skills de prompt par application (2026-07-08) — FAIT, validé Fabien
 
 > Doc de référence : **`PROMPT_PIPELINE.md` §Skills** + `wama/common/prompt_skills/README.md`.
