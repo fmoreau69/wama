@@ -2,6 +2,9 @@
 
 > Photo des chantiers en cours. Mise à jour : **2026-07-20** (bugs ROADMAP §0 repris ; conformité 2026-07-11 (§31 : audit empirique conformité 10 apps).
 > Marqueurs : ✅ fait · 🔄 en cours · ⏳ à faire. Détails par chantier dans les docs/mémoire référencés.
+>
+> 🔜 **REPRISE session neuve** : voir **[`REPRISE_2026-07-22.md`](REPRISE_2026-07-22.md)** — handoff
+> daté (fait / mis de côté / validations navigateur en attente / coordination manifeste / discipline git).
 
 ## 1. PromptPipeline (prompts centralisés §16.6 / §10.B) — bien avancé
 Doc : [`PROMPT_PIPELINE.md`](PROMPT_PIPELINE.md).
@@ -622,8 +625,13 @@ check_app_conformity exécutable → introspection Django→schéma → scaffold
 >   au double-clic). ✅ **source_text canonique** (`build_detail`+`_input_preview`) → retire le hardcode
 >   de champs (repli transitoire conservé, 5/5 toggles OK). **RESTE** : streaming MusicGen mid-génération
 >   (dev GPU, hook `on_audio` prêt) ; `describer.result_file` orphelin = migration différée (dual-DB,
->   risque) — fonctionnellement neutralisé (repli `result_text`) ; passer les prompt-apps à `source_text`
->   (composer/synthesizer/imager) pour retirer le repli candidat.
+>   risque) — fonctionnellement neutralisé (repli `result_text`).
+>   ✅ **source_text DÉCLARÉE** (2026-07-22) par composer (=prompt) et synthesizer (=text_content) →
+>   **repli candidat SUPPRIMÉ** de `_input_preview` (zéro nom de champ en dur). imager N/A (port travail).
+>   ⚠️ **onglets description/résumé/cohérence DUPLIQUÉS** describer+transcriber (HTML inline ×2 + JS ×2,
+>   AUCUN commun) → cible : extraire `common/_result_tabs.html`+JS. Ils utilisent `result_text`/`summary`,
+>   PAS `result_file`. ⚠️ **`describer.result_file` retrait DIFFÉRÉ (passe ISOLÉE)** : ~15 sites
+>   `views.py` + `output_filename` + migration DUAL-DB, zone fragile — hors concurrence d'instances.
 > - ⏳ **Chantier 3 — unifier le filemanager** sur `media-preview.js` commun (il a sa propre modale).
 > **Streaming preview « à la Suno »** (sortie audio construite pendant le process) = faisable
 > (MusicGen autorégressif + callback), à faire en **capacité commune déclarée par métadonnée**, APRÈS
