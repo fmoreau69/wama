@@ -41,7 +41,8 @@ class ComposerConfig(AppConfig):
                     'Prompt': (p[:60] + '…') if len(p) > 60 else (p or None),
                 }
                 return build_detail(item, source_file=None, source_type=None,
-                                    engine=item.model, result_file=item.audio_output, extra=extra)
+                                    engine=item.model, result_file=item.audio_output,
+                                    source_text=item.prompt, extra=extra)
 
             register_app_detail('composer', ComposerGeneration, _composer_detail)
         except Exception:

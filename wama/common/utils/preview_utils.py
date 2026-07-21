@@ -92,9 +92,10 @@ def _input_preview(app_name, instance, request):
     - port `travail` (média, ex. transcriber/imager) → l'adaptateur enregistré (fichier de travail).
     """
     if _input_port_group(app_name) == 'prompt':
-        # Texte d'entrée : clé CANONIQUE `source_text` du detail (symétrique de `result_text`) si
-        # l'app la fournit → ZÉRO nom de champ en dur. Repli TRANSITOIRE sur des champs candidats
-        # tant que tous les prompt-apps ne l'ont pas déclarée (à retirer ensuite).
+        # Texte d'entrée = clé CANONIQUE `source_text` du detail (symétrique de `result_text`).
+        # ZÉRO nom de champ en dur : les prompt-apps la déclarent dans leur `build_detail`
+        # (composer=prompt, synthesizer=text_content). Une app à port prompt qui ne la déclare
+        # pas n'aura simplement pas de face Entrée (signal clair : la déclarer).
         txt = ''
         try:
             from .detail_registry import DetailRegistry
@@ -106,12 +107,6 @@ def _input_preview(app_name, instance, request):
                     txt = str(st).strip()
         except Exception:
             pass
-        if not txt:
-            for _f in ('prompt', 'text_content', 'text'):
-                _v = getattr(instance, _f, None)
-                if _v:
-                    txt = str(_v).strip()
-                    break
         return {'name': 'Prompt', 'mime_type': 'text/plain', 'content': txt} if txt else None
     return PreviewRegistry.get_preview_data(app_name, instance, request)
 

@@ -44,6 +44,7 @@ class SynthesizerConfig(AppConfig):
                 source_type='text' if (s.text_file or s.text_content) else 'audio',
                 engine=s.tts_model,
                 result_file=s.audio_output,
+                source_text=s.text_content,   # clé canonique entrée-texte (preview face Entrée)
                 extra=extra,
             )
             if s.output_quality:
