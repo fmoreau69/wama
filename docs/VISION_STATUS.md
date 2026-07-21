@@ -80,11 +80,13 @@
 **propriété / projet / visibilité** (absente de toolbox tierce). → Le manifeste WAMA = richesse descriptive toolbox tierce
 + reader pluggable + types WAMA + métadonnées projet.
 
-**Couche PROJET (nouveau, ⏳)** — distincte d'`OrgUnit` : un **`Project`** a une **org propriétaire**
-(labo) MAIS des **membres explicites pouvant venir d'AUTRES orgs** (partenaires : autre labo/institut/
-université). Le partage par org (`ScopedVisibility` unité) ne suffit pas — un projet ANR inter-établissements
-est un **groupe de collaboration explicite qui traverse l'arbre org**. → Ajouter `Project` (owner OrgUnit +
-membres M2M cross-org + rôles) et une visibilité `project` (4e scope : privé / **projet** / unité / public).
+**Couche PROJET — ✅ FAIT (0e03d66)** — distincte d'`OrgUnit` : `wama.common.models.Project`
+(code/name/owner_org/lead/membres M2M) + `ProjectMembership` (rôle + org d'origine du partenaire).
+Un projet traverse l'arbre org (membres d'autres labo/université). **4e scope de visibilité** :
+`ScopedVisibility.VIS_PROJECT` + `scope_project` → `scoped_visible_q` ajoute la branche projet, appliquée
+AUTOMATIQUEMENT à la médiathèque (`UserAsset`) et aux fonctions (`UserFunction`). `api_promote` accepte
+la visibilité 'project' (gate = membre du projet). Admin Project + inline membres. Testé cross-org
+(porteur LESCOT + partenaire COSYS/autre univ voient ; non-membre non). Reste : UI de gestion des projets.
 
 **Accès & modération — ✅ FAIT (a7c2240)** :
 - **Journal d'accès** : `AccessLog` (user/username/event login-logout-denied/ip/user_agent/timestamp) via
