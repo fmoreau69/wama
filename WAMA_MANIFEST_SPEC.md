@@ -1,5 +1,7 @@
 # WAMA — Formalisme des manifestes (spécification de référence)
 
+> **Schéma fonctionnel des flux (manifestes → ingest → app_gen → UI) : [`WAMA_MANIFEST_ARCHITECTURE.md`](WAMA_MANIFEST_ARCHITECTURE.md).**
+>
 > **Statut : DESIGN / fondation (2026-07-21).** Le manifeste n'existe pas encore : c'est l'**entrée
 > générale** qu'on construit pour exploiter tout le chemin déjà bâti par briques (le « tunnel » se
 > rejoint ici). Cette spec fixe le formalisme COMMUN à tous les types de manifestes + le schéma du
