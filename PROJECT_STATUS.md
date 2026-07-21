@@ -605,6 +605,16 @@ check_app_conformity exécutable → introspection Django→schéma → scaffold
 >   `audiocraft_backend` + `emit_streaming_peaks`/`clear_partial` dans `composer/tasks.py` (émet
 >   l'audio FINAL ; streaming mid-génération = token-callback MusicGen = **dev GPU**, même point).
 >   **Chaîne complète, dormante** tant que composer ne déclare pas `during_preview` (rôle manifeste).
+>   **UNIFORMISATION PREVIEW 7 apps (2026-07-21, audit)** : ✅ toggle Entrée/Comparer/Sortie
+>   (ordre chronologique + pleine largeur `flex-fill`) ; ✅ plein écran au **double-clic** (réutilise
+>   `WamaMediaPreview.showPreviewModal`) + icône overlay ; ✅ **toggle réparé sur 5 apps** via 2
+>   corrections COMMUNES (0 patch par app, vérifié live 5/5) : (1) `_output_preview_data` repli sur
+>   `result_text` inline (transcriber/describer/reader = sortie texte → face Sortie existe) ; (2)
+>   `_input_preview` résout le texte par champs candidats prompt/text_content/text (synthesizer).
+>   Images/vidéos/docs déjà gérés par `renderInlinePreview`. **TODO** : clé canonique `source_text`
+>   (detail, symétrique `result_text`) → supprimer la liste de champs ; `describer.result_file`
+>   FileField orphelin à nettoyer ; flag `during_preview` composer (rôle manifeste) ; streaming
+>   MusicGen mid-génération (dev GPU, hook `on_audio` prêt).
 > - ⏳ **Chantier 3 — unifier le filemanager** sur `media-preview.js` commun (il a sa propre modale).
 > **Streaming preview « à la Suno »** (sortie audio construite pendant le process) = faisable
 > (MusicGen autorégressif + callback), à faire en **capacité commune déclarée par métadonnée**, APRÈS
