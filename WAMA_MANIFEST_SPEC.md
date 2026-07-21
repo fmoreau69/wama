@@ -115,10 +115,12 @@ body:                                   # (sous l'enveloppe commune)
     outputs: [{id, label, types:[<media_cat>|auto]}]
     # RÈGLE PREVIEW D'ENTRÉE (importante) : la preview d'entrée BIND sur le port de TRAVAIL
     # (group ∈ {travail, prompt}) — JAMAIS sur un port `reference`. La référence CONDITIONNE le
-    # traitement (voix/image/mélodie/negative_prompt), elle n'EST pas l'entrée transformée. Le prompt
-    # de travail peut être unique OU batch → la preview gère les deux (dont le cas prompt = TEXTE, pas
-    # seulement fichier). Dérivable du manifeste (on lit quel port a group=travail|prompt), donc plus de
-    # preview codée en dur par app. PreviewRegistry bind déjà sur le fichier de travail (input_file).
+    # traitement (voix/image/mélodie/negative_prompt), elle n'EST pas l'entrée transformée.
+    # La preview est TOUJOURS UNITAIRE (par card) : fichier de travail | prompt (dont TEXTE) | fichier
+    # de sortie. PAS de preview de batch (une card = un item). Seule exception : imager peut produire
+    # plusieurs images en sortie = MOSAÏQUE (N sorties dans UNE card), pas un batch. Dérivable du
+    # manifeste (on lit quel port a group=travail|prompt) → plus de preview codée en dur par app.
+    # PreviewRegistry bind déjà sur le fichier de travail (input_file).
 
     # ── CONTRAT DE JONCTION AVEC LA CHAÎNE PREVIEW COMMUNE (2 instances creusent en parallèle) ─────
     # La preview commune (media-preview.js / unified_preview / PreviewRegistry) LIT les groupes de
