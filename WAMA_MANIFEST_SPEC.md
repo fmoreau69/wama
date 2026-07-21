@@ -116,9 +116,21 @@ body:                                   # (sous l'enveloppe commune)
     # RÈGLE PREVIEW D'ENTRÉE (importante) : la preview d'entrée BIND sur le port de TRAVAIL
     # (group ∈ {travail, prompt}) — JAMAIS sur un port `reference`. La référence CONDITIONNE le
     # traitement (voix/image/mélodie/negative_prompt), elle n'EST pas l'entrée transformée. Le prompt
-    # de travail peut être unique OU batch → la preview gère les deux. Dérivable du manifeste (on lit
-    # quel port a group=travail|prompt), donc plus de preview codée en dur par app. PreviewRegistry
-    # bind déjà sur le fichier de travail (input_file) — ne PAS régresser vers le fichier de référence.
+    # de travail peut être unique OU batch → la preview gère les deux (dont le cas prompt = TEXTE, pas
+    # seulement fichier). Dérivable du manifeste (on lit quel port a group=travail|prompt), donc plus de
+    # preview codée en dur par app. PreviewRegistry bind déjà sur le fichier de travail (input_file).
+
+    # ── CONTRAT DE JONCTION AVEC LA CHAÎNE PREVIEW COMMUNE (2 instances creusent en parallèle) ─────
+    # La preview commune (media-preview.js / unified_preview / PreviewRegistry) LIT les groupes de
+    # ports ; le manifeste les GÉNÈRE. Aujourd'hui, extract_app() ET la preview lisent la MÊME source :
+    # `studio_node_ports(app_id)` (app_registry+app_modes). Demain, quand la projection inverse le sens,
+    # `studio_node_ports` devient une projection DU manifeste — la preview hérite sans changer sa logique.
+    # ÉTANCHÉITÉ : preview ET extract passent par UN SEUL accesseur (`studio_node_ports`/`app_ports`),
+    # jamais par app_modes/app_registry en direct → un seul point de bascule le jour de la projection.
+    # Le « PENDANT » (preview progressive/temporaire pendant le traitement, streaming « à la Suno ») =
+    # une CAPACITÉ DÉCLARÉE (`capabilities.during_preview`/`streaming`), pas un mécanisme codé en dur :
+    # le manifeste déclare QUELLES apps streament, la brique commune fournit le COMMENT. Même patron que
+    # has_realtime/instant_preview et que le bouton de cycle ▶/⏹/↻. Plan détaillé preview = doc dédié.
   capabilities: {has_realtime, has_edit_page, instant_preview, batch,
                  export_binding: late|early, supports_profiles, has_url_import, has_youtube}
   modes: [{id, label, icon, realtime, inputs:[port_id], settings:[param_name]}]   # ex-APP_MODES

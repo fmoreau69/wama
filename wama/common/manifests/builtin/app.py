@@ -185,7 +185,8 @@ def _capabilities(cat: dict) -> dict:
         d = _to_dict(conv)
         # drapeaux de capacité utiles (spec F2) — présents seulement s'ils existent dans conventions
         for k in ('settings_modal_item', 'settings_modal_batch', 'inspector', 'realtime',
-                  'edit_page', 'instant_preview', 'multi_format_download', 'layout', 'anti_race'):
+                  'edit_page', 'instant_preview', 'during_preview', 'streaming',
+                  'multi_format_download', 'layout', 'anti_race'):
             if k in d:
                 caps[k] = d[k]
     return caps
