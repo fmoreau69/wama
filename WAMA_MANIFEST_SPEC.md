@@ -34,6 +34,14 @@ Kinds prévus : **`app`** (§3), **`function`** (= `FunctionSpec`, déjà fait, 
 **`dataset`** (style toolbox tierce : channels/signals/reference_tables), **`model`** (= `AIModel`), **`pipeline`**
 (= `StudioPipeline.graph`), **`project`** (= `Project`, déjà fait).
 
+> **Distinction EXTRAIT vs AUTORÉ** (dégagée en construisant `dataset`) : deux familles de kinds.
+> - **Extraits** (`app`, `model`, `pipeline`) : l'objet existe DÉJÀ dans le code/DB → le kind fournit
+>   `extract(key)` qui LIT les registres et produit le manifeste. Le round-trip (extract → régénère →
+>   diff) est leur test de fidélité.
+> - **Autorés** (`dataset`, `project`, `function`-user) : le manifeste EST l'origine (pas de code à
+>   extraire) → `extract=None`, le kind est `validate + store`. La fidélité se teste par la projection
+>   (instancier → vérifier), pas par le round-trip.
+
 ### 1.1 Décisions actées (2026-07-21)
 
 - **`world`** = champ de **1er niveau de l'enveloppe** (pas dans `body`), valeurs **closes** :
