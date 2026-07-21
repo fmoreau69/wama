@@ -542,6 +542,16 @@ check_app_conformity exécutable → introspection Django→schéma → scaffold
 > structurellement ~90 % mais fonctionnellement cassée sur la modale. **→ ajouter une dimension
 > conformité COMPORTEMENTALE (smoke) est recommandé.**
 >
+> **AVANCEMENT 2026-07-21** (validé navigateur Fabien au fil de l'eau) : ✅ **pt1** ordre de rendu
+> (sauvegarde modale débloquée) · ✅ **pt5** brique `coerce_params` + câblage · ✅ **bug affichage**
+> (card re-rendue après save → modale+inspecteur affichent les valeurs enregistrées, pas les défauts ;
+> `insertRenderedCard` après chaque save) · ✅ **pt3** actions héritées par le volet
+> (`renderItemActions`/`renderBatchActions` + `.btn-group-actions` sur la card ; clics fonctionnels,
+> lien médiathèque inclus) · ✅ **pt6** `hideOnInspect` (saveGlobal/titres = N/A composer). **Reste** :
+> pt2 (supprimer `_postSettings` au profit de `WamaParams.read` — cleanup, non bloquant), pt4 (preview
+> entrée/sortie : adaptateur pointe 2× sur `audio_output`), pt7 (includes card `_card_state`/`_card_progress`),
+> pt8 (ETA `data-*`→catalogue), pt9 (bouton médiathèque = action commune par capacité de sortie).
+>
 > **Route commune = existante et unique** (ne rien réinventer) : `WamaParams` (render+read/apply,
 > modale+volet+batch), `WamaInspector.initFromSchema({renderItemActions,renderBatchActions,...})`,
 > preview `unified_preview`/`preview_utils.py` (`?side=output` + toggle [Entrée|Sortie], décision
