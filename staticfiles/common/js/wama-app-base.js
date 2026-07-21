@@ -128,6 +128,86 @@
     setTimeout(function () { el.remove(); }, 3500);
   }
 
+  // ── Import par URL : câble le bloc URL de la carte commune (_new_item_card.html) ──
+  // Élimine le handler fetch/CSRF/spinner/erreur dupliqué dans chaque app. L'app
+  // déclare la capacité dans son template (show_url=True + url_input_id/url_submit_id)
+  // et fournit ici l'endpoint + un hook de succès ; TOUTE la plomberie (POST du
+  // champ URL, CSRF, spinner, gestion d'erreur, reset du champ, touche Entrée) est
+  // centralisée. No-op silencieux si le bloc URL n'est pas présent sur la page.
+  //
+  // cfg = {
+  //   inputId, buttonId,        // = url_input_id / url_submit_id passés au template
+  //   onSubmit(url),            // MODE DÉLÉGUÉ (préféré) : l'app traite l'URL
+  //                             //   (ex. la router vers le pipeline batch commun,
+  //                             //   WamaBatchImport.ingestText). Peut renvoyer une
+  //                             //   Promise. Si fourni, endpoint/fieldName ignorés.
+  //   endpoint,                 // MODE POST : URL d'upload de l'app (reçoit le champ)
+  //   csrfToken,
+  //   fieldName='media_url',    // nom du champ POST portant l'URL
+  //   extraFields,              // optionnel : () => ({k:v}) champs additionnels
+  //   onSuccess(data),          // MODE POST : ajout de l'item à la file (spéc. app)
+  //   onEmpty,                  // optionnel : URL vide (défaut = focus input)
+  //   onError(err),             // optionnel ; défaut = toast rouge
+  // }
+  // Retourne { submit } ou null si le bloc URL est absent.
+  function initUrlImport(cfg) {
+    cfg = cfg || {};
+    const input = document.getElementById(cfg.inputId);
+    const btn   = document.getElementById(cfg.buttonId);
+    if (!input || !btn) return null;           // capacité URL non déclarée ici
+    const field = cfg.fieldName || 'media_url';
+
+    function submit() {
+      const url = (input.value || '').trim();
+      if (!url) {
+        if (typeof cfg.onEmpty === 'function') cfg.onEmpty();
+        else input.focus();
+        return;
+      }
+      const original = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+
+      // Mode délégué : l'app traite l'URL elle-même (ex. la router vers le
+      // pipeline batch commun via WamaBatchImport.ingestText, réutilisant le
+      // formalisme batch) au lieu du POST direct d'un champ vers un endpoint.
+      if (typeof cfg.onSubmit === 'function') {
+        Promise.resolve()
+          .then(function () { return cfg.onSubmit(url); })
+          .then(function () { input.value = ''; })
+          .catch(function (err) {
+            if (typeof cfg.onError === 'function') cfg.onError(err);
+            else toast(err.message || "Échec de l'import de l'URL", 'error');
+          })
+          .finally(function () { btn.disabled = false; btn.innerHTML = original; });
+        return;
+      }
+
+      const fd = new FormData();
+      fd.append(field, url);
+      const extra = (typeof cfg.extraFields === 'function') ? (cfg.extraFields() || {}) : {};
+      Object.keys(extra).forEach(function (k) { fd.append(k, extra[k]); });
+      csrfFetch(cfg.endpoint, cfg.csrfToken, { method: 'POST', body: fd })
+        .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+        .then(function (res) {
+          if (!res.ok || res.d.error) throw new Error(res.d.error || ('HTTP ' + (res.d.status || '')));
+          input.value = '';
+          if (typeof cfg.onSuccess === 'function') cfg.onSuccess(res.d);
+        })
+        .catch(function (err) {
+          if (typeof cfg.onError === 'function') cfg.onError(err);
+          else toast(err.message || "Échec du téléchargement de l'URL", 'error');
+        })
+        .finally(function () { btn.disabled = false; btn.innerHTML = original; });
+    }
+
+    btn.addEventListener('click', submit);
+    input.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); submit(); }
+    });
+    return { submit: submit };
+  }
+
   // ── Maps statut → apparence (source UNIQUE ; recopiées par app avant 2026-07-06) ──
   // Alignées sur le tricolore CARD_DESIGN : gris=brouillon · orange=en cours · vert=fini · rouge=échec.
   const STATUS_BADGE = {
@@ -148,6 +228,7 @@
     Poller: Poller,
     emptyState: emptyState,
     toast: toast,
+    initUrlImport: initUrlImport,
     STATUS_BADGE: STATUS_BADGE,
     STATUS_LABEL: STATUS_LABEL,
   };

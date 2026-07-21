@@ -263,6 +263,19 @@ function WamaBatchImport(cfg) {
     return ok !== false;
   }
 
+  /**
+   * ingestText(text, filename) — fait passer du texte brut (ex. une URL saisie
+   * dans la card d'entrée) par le MÊME pipeline batch qu'un fichier déposé.
+   * Le texte est enveloppé dans un File .txt synthétique → parsé par le
+   * formalisme batch commun (batch_parsers : URL, prompt, séparateur, csv…) →
+   * consolidé en card unité ou batch. Aucune route serveur dédiée.
+   * Retourne la promesse de detectAndHandle (true si pris en charge = preview).
+   */
+  function ingestText(text, filename) {
+    const file = new File([text], filename || 'batch.txt', { type: 'text/plain' });
+    return detectAndHandle(file);
+  }
+
   // ── Init ───────────────────────────────────────────────────────────────────
 
   document.addEventListener('DOMContentLoaded', function () {
@@ -270,5 +283,5 @@ function WamaBatchImport(cfg) {
     if (cfg.dropZoneId || cfg.fileInputId) hookDropZone();
   });
 
-  return { detectAndHandle };
+  return { detectAndHandle, ingestText };
 }

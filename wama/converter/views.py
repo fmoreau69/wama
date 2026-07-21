@@ -182,6 +182,11 @@ def upload(request):
     file_obj    = request.FILES.get('file')
     output_fmt  = request.POST.get('output_format', '').strip().lower()
 
+    # Note : l'import par URL depuis la card d'entrée NE passe PAS par ici. Il
+    # réutilise le formalisme batch commun (URL = batch d'1 ligne → batch_preview
+    # → batch_create, qui télécharge via upload_media_from_url et consolide). Voir
+    # WamaBatchImport.ingestText (JS) câblé dans converter/index.html.
+
     if not file_obj:
         return JsonResponse({'error': 'Aucun fichier fourni'}, status=400)
     if not output_fmt:

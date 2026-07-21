@@ -215,37 +215,20 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   function initYoutube() {
-    const youtubeUrl = document.getElementById('youtubeUrl');
-    const youtubeBtn = document.getElementById('youtubeSubmitBtn');
-    if (!youtubeUrl || !youtubeBtn) return;
-
-    youtubeBtn.addEventListener('click', async () => {
-      const url = youtubeUrl.value.trim();
-      if (!url) { showToast('Veuillez entrer une URL YouTube', 'warning'); return; }
-
-      youtubeBtn.disabled = true;
-      youtubeBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Téléchargement...';
-
-      try {
-        const body = new FormData();
-        body.append('youtube_url', url);
-        _appendPanelParams(body);
-        const response = await fetch(config.uploadYoutubeUrl, { method: 'POST', headers: csrfHeaders(), body });
-        const data = await response.json();
-        if (data.error) throw new Error(data.error);
-        youtubeUrl.value = '';
-        if (window.WamaFM) WamaFM.uploaded();
-        // L'élément arrive en zone de staging (DRAFT) → recharge (rendu serveur).
-        location.reload();
-      } catch (error) {
-        showToast(`Erreur YouTube: ${error.message}`, 'danger');
-      } finally {
-        youtubeBtn.disabled = false;
-        youtubeBtn.innerHTML = '<i class="fas fa-download"></i> Télécharger & Transcrire';
-      }
+    // Import YouTube/URL : plomberie 100% centralisée (WamaApp.initUrlImport).
+    // On ne déclare que endpoint + champ + params panneau + succès/erreur ;
+    // POST, CSRF, spinner, reset et touche Entrée viennent de la brique commune.
+    WamaApp.initUrlImport({
+      inputId: 'youtubeUrl',
+      buttonId: 'youtubeSubmitBtn',
+      endpoint: config.uploadYoutubeUrl,
+      csrfToken: csrfToken,
+      fieldName: 'youtube_url',
+      extraFields: _panelParamsObj,
+      onEmpty: function () { showToast('Veuillez entrer une URL YouTube', 'warning'); },
+      onSuccess: function () { if (window.WamaFM) WamaFM.uploaded(); location.reload(); },
+      onError: function (err) { showToast(`Erreur YouTube: ${err.message}`, 'danger'); },
     });
-
-    youtubeUrl.addEventListener('keypress', (e) => { if (e.key === 'Enter') youtubeBtn.click(); });
   }
 
   // ======================================================================

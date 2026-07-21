@@ -237,6 +237,7 @@ migré 2026-07-05) ; IDs dropZone/fileInput/media_url conservés → handlers JS
 <script src="{% static_v 'common/js/batch-import.js' %}"></script>
 <script src="{% static_v 'common/js/wama-inspector.js' %}"></script>
 <script src="{% static_v 'common/js/wama-params.js' %}"></script>
+<script src="{% static_v 'common/js/wama-app-base.js' %}"></script>
 <script>
 (function () {
   if (!window.WamaParams) return;
@@ -252,25 +253,16 @@ migré 2026-07-05) ; IDs dropZone/fileInput/media_url conservés → handlers JS
 <!-- Barre globale commune (balayage permanent + ETA agrégée) : URL puis script auto-démarré. -->
 <script>window.WAMA_GLOBAL_PROGRESS_URL = "{% url 'describer:global_progress' %}";</script>
 <script>
-// Import URL depuis la card d'entrée commune (remplace l'ancien form natif du volet MÉDIAS,
-// migré 2026-07-05) : même POST que le form, puis reload.
+// Import URL depuis la card d'entrée commune : plomberie 100% centralisée
+// (WamaApp.initUrlImport). L'app ne déclare que endpoint + succès (reload).
 document.addEventListener('DOMContentLoaded', function () {
-    var btn = document.getElementById('mediaUrlSubmit');
-    var inp = document.getElementById('media_url');
-    if (!btn || !inp) return;
-    function submitUrl() {
-        var v = inp.value.trim();
-        if (!v) return;
-        btn.disabled = true;
-        var fd = new FormData();
-        fd.append('media_url', v);
-        fd.append('csrfmiddlewaretoken', '{{ csrf_token }}');
-        fetch("{% url 'describer:upload' %}", { method: 'POST', body: fd })
-            .finally(function () { location.reload(); });
-    }
-    btn.addEventListener('click', submitUrl);
-    inp.addEventListener('keypress', function (e) {
-        if (e.key === 'Enter') { e.preventDefault(); submitUrl(); }
+    if (!window.WamaApp) return;
+    WamaApp.initUrlImport({
+        inputId: 'media_url',
+        buttonId: 'mediaUrlSubmit',
+        endpoint: "{% url 'describer:upload' %}",
+        csrfToken: '{{ csrf_token }}',
+        onSuccess: function () { location.reload(); },
     });
 });
 </script>

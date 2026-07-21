@@ -331,10 +331,30 @@ window.WAMA_GLOBAL_PROGRESS_URL = "{% url 'converter:global_progress' %}";
 <script src="{% static_v 'common/js/batch-import.js' %}"></script>
 <script src="{% static_v 'common/js/wama-inspector.js' %}"></script>
 <script src="{% static_v 'common/js/wama-params.js' %}"></script>
+<script src="{% static_v 'common/js/wama-app-base.js' %}"></script>
 <script src="{% static_v 'converter/js/converter.js' %}"></script>
 <script src="{% static_v 'common/js/wama-global-progress.js' %}"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
+    // ── Import par URL (carte d'entrée) : réutilise le FORMALISME BATCH commun.
+    // L'URL est traitée comme un batch d'1 ligne → même parseur (batch_parsers :
+    // URL/prompt/csv/séparateur) → même consolidation en card unité/batch. Aucune
+    // route serveur dédiée. initUrlImport (commun) gère input/bouton/Entrée/spinner ;
+    // ingestText (commun) enveloppe l'URL et la pousse dans le pipeline batch.
+    // Placé AVANT le garde WamaInspector pour ne pas être court-circuité.
+    if (window.WamaApp) {
+        WamaApp.initUrlImport({
+            inputId: 'converterUrl',
+            buttonId: 'converterUrlSubmit',
+            onSubmit: function (url) {
+                if (!window._converterBatchImport) {
+                    throw new Error("Import batch non initialisé");
+                }
+                return window._converterBatchImport.ingestText(url + '\n', 'url.txt');
+            },
+        });
+    }
+
     if (!window.WamaInspector || !WamaInspector.initFromSchema) return;
     var q = document.getElementById('converterQueue');
     if (!q) return;
@@ -373,7 +393,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     {% comment %}Card d'entrée commune, en TÊTE DE FILE (2026-07-10 — alignement reader/composer/
     transcriber/describer ; batch_detect_bar déplacé dedans via show_batch_bar).{% endcomment %}
-    {% include 'common/_new_item_card.html' with drop_zone_id='converterDropZone' file_input_id='converterFileInput' file_accept='.jpg,.jpeg,.png,.webp,.bmp,.tiff,.tif,.gif,.heic,.heif,.avif,.mp4,.avi,.mov,.mkv,.webm,.flv,.mpg,.mpeg,.3gp,.wmv,.ts,.m4v,.mp3,.wav,.flac,.ogg,.m4a,.aac,.opus,.wma,.aiff,.aif,.pdf,.docx,.md,.markdown,.html,.htm,.txt,.rtf,.odt,.epub,.tex,.latex' formats_label='Images · Vidéos · Audio · Documents' show_batch_bar=True %}
+    {% include 'common/_new_item_card.html' with drop_zone_id='converterDropZone' file_input_id='converterFileInput' file_accept='.jpg,.jpeg,.png,.webp,.bmp,.tiff,.tif,.gif,.heic,.heif,.avif,.mp4,.avi,.mov,.mkv,.webm,.flv,.mpg,.mpeg,.3gp,.wmv,.ts,.m4v,.mp3,.wav,.flac,.ogg,.m4a,.aac,.opus,.wma,.aiff,.aif,.pdf,.docx,.md,.markdown,.html,.htm,.txt,.rtf,.odt,.epub,.tex,.latex' formats_label='Images · Vidéos · Audio · Documents' show_batch_bar=True show_url=True url_input_id='converterUrl' url_submit_id='converterUrlSubmit' url_placeholder='https://… (page web, YouTube, média distant)' %}
 
     {% comment %}Barre d'outils commune (tri/filtre/disposition Ligne-Mosaïque/actions globales),
     alignement reader/composer/transcriber/describer (2026-07-10, absente jusqu'ici).{% endcomment %}
