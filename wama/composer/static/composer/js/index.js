@@ -391,15 +391,17 @@
         const id = document.getElementById('settingsGenId').value;
         const formData = new FormData();
         formData.append('csrfmiddlewaretoken', CSRF);
-        formData.append('model', settingsModel.value);
-        formData.append('duration', settingsDuration.value);
-        // Modale complète (P1) : prompt + format/qualité de sortie.
-        const sp = document.getElementById('settingsPrompt');
-        if (sp) formData.append('prompt', sp.value);
+        // pt2 du portage : les champs du SCHÉMA (params.py = model/duration/prompt) sont lus
+        // GÉNÉRIQUEMENT via la brique commune WamaParams.read(container) — plus de hand-read par id.
+        // (Un param ajouté au schéma sera posté automatiquement, sans toucher ce code.)
+        const _fields = document.getElementById('composerSettingsFields');
+        const vals = (window.WamaParams && _fields) ? WamaParams.read(_fields) : {};
+        // output_format / output_quality : gérés via le CONVERTER (hors schéma composer) → explicites.
         const sof = document.getElementById('settingsOutputFormat');
-        if (sof) formData.append('output_format', sof.value);
+        if (sof) vals.output_format = sof.value;
         const soq = document.getElementById('settingsOutputQuality');
-        if (soq) formData.append('output_quality', soq.value);
+        if (soq) vals.output_quality = soq.value;
+        Object.keys(vals).forEach(function (k) { formData.append(k, vals[k]); });
         formData.append('restart', restart ? '1' : '0');
 
         fetch(WamaApp.getUrl(APP.settingsUrlTemplate, id), { method: 'POST', body: formData })
