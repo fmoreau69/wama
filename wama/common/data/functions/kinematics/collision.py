@@ -12,7 +12,7 @@ aucune collision détectée.
 """
 import numpy as np
 
-from .geometry import rect_intersect_sat
+from ..geometry.shapes import rect_intersect_sat
 
 
 def _row_rect(shape_row):

@@ -15,8 +15,8 @@ Le MÉCANISME (fenêtres, gestion, validité, voisins) est générique.
 """
 from __future__ import annotations
 
-from ..data_types import DataType, TypedFrame
-from ..function_catalog import (FunctionSpec, PortSpec, ParamSpec,
+from ...data_types import DataType, TypedFrame
+from ...function_catalog import (FunctionSpec, PortSpec, ParamSpec,
                                 FunctionCategory, register)
 
 # Consolidation des variantes vers un libellé canonique (extrait — à compléter avec le

@@ -390,7 +390,7 @@ def sync_from_rec(request, session_id):
     de voie. Cherche un .rec dans le dossier input de l'utilisateur (best-effort)."""
     import glob
     from django.conf import settings
-    from wama.common.rtmaps.rec_parser import parse_rec
+    from wama.common.data.functions.io.rtmaps_rec import parse_rec
     session = get_object_or_404(AnalysisSession, id=session_id, user=request.user)
     base = os.path.join(settings.MEDIA_ROOT, 'cam_analyzer', str(request.user.id), 'input')
     recs = [r for r in glob.glob(os.path.join(base, '**', '*.rec'), recursive=True)

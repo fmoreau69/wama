@@ -1,8 +1,9 @@
-"""Tests de validation du portage Prédiction (exécuter : python -m wama.common.prediction.test_prediction)."""
+"""Tests de validation du portage Prédiction
+(exécuter : python -m wama.common.data.functions.kinematics.test_prediction)."""
 import numpy as np
 
-from . import (rect_intersect_sat, point_traj_to_shape,
-               extrapolate_speed_accel, extrapolate_kalman, collision_detection)
+from ..geometry import rect_intersect_sat, point_traj_to_shape
+from . import extrapolate_speed_accel, extrapolate_kalman, collision_detection
 
 
 def test_sat():

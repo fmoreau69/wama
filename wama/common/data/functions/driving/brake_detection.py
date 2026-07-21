@@ -13,8 +13,8 @@ from __future__ import annotations
 
 import numpy as np
 
-from ..data_types import DataType, TypedFrame
-from ..function_catalog import (FunctionSpec, PortSpec, ParamSpec,
+from ...data_types import DataType, TypedFrame
+from ...function_catalog import (FunctionSpec, PortSpec, ParamSpec,
                                 FunctionCategory, register)
 
 

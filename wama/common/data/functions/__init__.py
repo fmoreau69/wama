@@ -1,10 +1,20 @@
 """
-Fonctions WAMA Data (capability-first). Importer ce paquet enregistre tout le catalogue.
+Bibliothèque de traitement WAMA Data (capability-first), catégorisée par DOMAINE.
 
-Premières fonctions = portage toolbox tierce (partenaire/ENA) : map-matching GPS, freinage brusque,
-sections, annotations opérateur. Voir `WAMA_DATA_FUNCTION_CARDS.md` + memory toolbox tierce.
+Importer ce paquet enregistre tout le catalogue de fonctions (les modules qui appellent
+`register(FunctionSpec(...))` s'auto-déclarent à l'import). Certains modules sont des
+**libs helper** (parsing, géométrie) utilisées PAR des fonctions, pas des FunctionSpec.
+
+Domaines (axe orthogonal à `DataType` = type de donnée et `FunctionCategory` = rôle) :
+  - `io/`         : ingest / parsing de formats source (RTMaps `.rec`…)
+  - `geometry/`   : placement monde, projections, formes spatiales, métriques de placement
+  - `kinematics/` : vitesse / accélération / TTC / collision / extrapolation
+  - `driving/`    : analyse de conduite toolbox tierce (partenaire/ENA) — freinage, map-matching GPS,
+                    sections, annotations opérateur
+
+Voir `WAMA_DATA_FUNCTION_CARDS.md` + memory toolbox tierce.
 """
-from . import gps_map_match     # noqa: F401
-from . import brake_detection   # noqa: F401
-from . import sections          # noqa: F401
-from . import operator_annotations  # noqa: F401
+from . import io          # noqa: F401
+from . import geometry    # noqa: F401
+from . import kinematics  # noqa: F401
+from . import driving     # noqa: F401

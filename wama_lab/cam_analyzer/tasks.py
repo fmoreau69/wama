@@ -3025,7 +3025,7 @@ def extract_rtmaps_task(self, session_id: str, rec_path: str = None, csv_path: s
                           if 'LogConsole' not in os.path.basename(r)]
                 _sync_rec = _cands[0] if _cands else None
             if _sync_rec:
-                from wama.common.rtmaps.rec_parser import parse_rec
+                from wama.common.data.functions.io.rtmaps_rec import parse_rec
                 _p = parse_rec(_sync_rec)
                 _vt = _p.get('video_timestamps') or []
                 _gp = _p.get('gps') or []

@@ -12,8 +12,8 @@ segments propres : ignore le hors-parcours (None/0), supprime les changements d'
 """
 from __future__ import annotations
 
-from ..data_types import DataType, TypedFrame
-from ..function_catalog import (FunctionSpec, PortSpec, ParamSpec,
+from ...data_types import DataType, TypedFrame
+from ...function_catalog import (FunctionSpec, PortSpec, ParamSpec,
                                 FunctionCategory, register)
 
 
