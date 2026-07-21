@@ -102,6 +102,10 @@ def _partial_key(app_name, pk):
     return f'wama_partial_preview_{app_name}_{pk}'
 
 
+def _partial_peaks_key(app_name, pk):
+    return f'wama_partial_peaks_{app_name}_{pk}'
+
+
 def publish_partial(app_name, pk, url_or_path):
     """Worker : publie l'URL (média) d'un aperçu PARTIEL courant, servi par `?side=during`.
     TTL court (le partiel est éphémère). Appeler `clear_partial` à la fin du traitement."""
@@ -109,30 +113,51 @@ def publish_partial(app_name, pk, url_or_path):
     cache.set(_partial_key(app_name, pk), str(url_or_path), 900)
 
 
+def publish_partial_peaks(app_name, pk, peaks, duration=None):
+    """Worker : publie des PICS d'onde partiels (« waveform par parties », cf. `waveform.compute_peaks`)
+    pour le streaming « pendant » — le front dessine l'onde qui se CONSTRUIT sans re-décoder le
+    fichier (effet « Suno »). Complémentaire de `publish_partial` (URL jouable). `peaks` = liste [0..1]."""
+    from django.core.cache import cache
+    cache.set(_partial_peaks_key(app_name, pk),
+              {'peaks': list(peaks or []), 'duration': duration}, 900)
+
+
 def clear_partial(app_name, pk):
     """Worker : retire l'aperçu partiel (fin de traitement — la face SORTIE prend le relais)."""
     from django.core.cache import cache
     cache.delete(_partial_key(app_name, pk))
+    cache.delete(_partial_peaks_key(app_name, pk))
 
 
 def _during_preview_data(app_name, instance, request):
     """Payload preview PENDANT le traitement : aperçu partiel publié par le worker, si l'app
-    déclare la capacité. None sinon (→ face during absente, dormant)."""
+    déclare la capacité. Peut porter une URL jouable (`publish_partial`) ET/OU des pics d'onde
+    (`publish_partial_peaks`). None si l'app ne déclare pas la capacité ou n'a rien publié (dormant)."""
     from wama.common.app_registry import app_supports_during_preview
     if not app_supports_during_preview(app_name):
         return None
     from django.core.cache import cache
-    url = cache.get(_partial_key(app_name, getattr(instance, 'pk', None)))
-    if not url:
+    pk = getattr(instance, 'pk', None)
+    url = cache.get(_partial_key(app_name, pk))
+    peaks_entry = cache.get(_partial_peaks_key(app_name, pk))
+    if not url and not peaks_entry:
         return None
-    from .mime_utils import guess_mime_type
-    clean = str(url).split('?')[0]
-    return {
-        'name': os.path.basename(clean) or 'partiel',
-        'url': request.build_absolute_uri(url) if str(url).startswith('/') else str(url),
-        'mime_type': guess_mime_type(clean) or 'application/octet-stream',
-        'partial': True,
-    }
+    data = {'partial': True}
+    if url:
+        from .mime_utils import guess_mime_type
+        clean = str(url).split('?')[0]
+        data['name'] = os.path.basename(clean) or 'partiel'
+        data['url'] = request.build_absolute_uri(url) if str(url).startswith('/') else str(url)
+        data['mime_type'] = guess_mime_type(clean) or 'application/octet-stream'
+    else:
+        # pics seuls (pas encore de fichier jouable) : onde qui se construit, mime audio générique
+        data['name'] = 'partiel'
+        data['mime_type'] = 'audio/*'
+    if peaks_entry:
+        data['peaks'] = peaks_entry.get('peaks') or []
+        if peaks_entry.get('duration') is not None:
+            data['duration'] = peaks_entry['duration']
+    return data
 
 
 def unified_preview(request, app_name: str, pk: int):
