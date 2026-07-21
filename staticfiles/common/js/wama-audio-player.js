@@ -309,6 +309,22 @@
             if (el) el.remove();
         },
 
+        /** Dessine l'onde à partir de PICS pré-calculés serveur (common/utils/waveform.compute_peaks)
+         *  au lieu de décoder le PCM. ADDITIF — n'affecte pas le décodage client existant. Usages :
+         *  - fichiers longs (>30 Mo) : onde dessinable sans décoder en mémoire (au lieu du repli timeline) ;
+         *  - streaming « pendant » : appeler à répétition avec des pics qui grandissent → onde qui se
+         *    construit (effet « Suno »). Les pics [0..1] SONT des amplitudes → drawWaveform les gère tel quel. */
+        setPeaks: function(playerId, peaks) {
+            var s = registry.get(String(playerId));
+            if (!s || !s.canvas || !Array.isArray(peaks) || !peaks.length) return;
+            s.fallback = false;                 // on a une onde → plus de repli timeline
+            s.channelData = peaks;
+            if (!s.canvas.width)  s.canvas.width  = s.canvas.offsetWidth || 400;
+            if (!s.canvas.height) s.canvas.height = s.height || 64;
+            var dur = s.audio && s.audio.duration;
+            drawWaveform(s.canvas, peaks, (dur ? s.audio.currentTime / dur : 0) || 0);
+        },
+
         /** Met en pause tous les players actifs. */
         pauseAll: function() {
             registry.forEach(function(state) {
