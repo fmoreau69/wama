@@ -212,6 +212,9 @@ def _conv(
     processing_time=False,         # ProcessingTimeMixin + affichage du temps de traitement sur la card
     status_vocab=False,            # vocabulaire de statut SUCCESS/FAILURE en base (pas DONE/ERROR)
     toast=False,                   # notifications WamaApp.toast — zéro alert() bloquant restant
+    during_preview=False,          # §preview — aperçu « PENDANT » (partiel/progressif) : le mécanisme
+    streaming=False,               #   commun (preview_utils / app_capabilities) lit ce flag. streaming =
+                                   #   émission progressive de l'onde/média (effet « Suno »). Cf. WAMA_MANIFEST_SPEC.
 ):
     return {
         # Buttons & queue
@@ -250,6 +253,8 @@ def _conv(
         'processing_time':        processing_time,
         'status_vocab':           status_vocab,
         'toast':                  toast,
+        'during_preview':         during_preview,
+        'streaming':              streaming,
     }
 
 
@@ -447,6 +452,8 @@ APP_CATALOG = {
         'output_types': ('wav', 'mp3'),
         'conventions': _conv(
             start=None,  # auto-start on generate, no per-item start button needed
+            during_preview=True,  # aperçu « pendant » activé : le worker publie l'audio via on_audio
+                                  #   (composer/tasks.py) → face ?side=during (mécanisme commun)
             settings_modal_item=True,
             inspector=True,      # volet contextuel via WamaInspector.initFromSchema
             model_help=True,     # WamaModelHelp (descriptif sous le select modèle)
