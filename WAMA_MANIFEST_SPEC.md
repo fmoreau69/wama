@@ -39,6 +39,14 @@ Kinds prévus : **`app`** (§3), **`function`** (= `FunctionSpec`, déjà fait, 
 - **`world`** = champ de **1er niveau de l'enveloppe** (pas dans `body`), valeurs **closes** :
   `media | data | lab | transverse`. Pas de niveau au-dessus (les 4 mondes SONT la partition de tête) ;
   `OrgUnit`/`project` sont des axes ORTHOGONAUX (portée/partage), pas une hiérarchie au-dessus des mondes.
+  **Sémantique** : le monde classe la **finalité** de l'app, PAS ce qu'elle touche. `media` = production
+  générative/créative ; `data` = traitement/analyse de signaux et données ; `lab` = apps de **science
+  métier** spécifiques à un labo (cam_analyzer, apprentissage de profils conducteurs par deep learning) ;
+  `transverse` = le **substrat** commun (studio/pipeline, médiathèque, model_manager, permissions, i18n,
+  RAG, assistant). Une app déclare **un** monde = sa finalité primaire ; sa **capacité** vit dans les
+  `ports` + les kinds de manifeste (une app `lab` peut consommer des ports `data` et produire un kind
+  `model`). Conséquence : une classification de monde discutable est **cosmétique** (navigation), jamais
+  structurelle — rien ne peut être « omis » car le *quoi* est dans ports+kinds, pas dans l'étiquette monde.
 - **Confidentialité de l'app** = déjà portée par l'enveloppe : `visibility` + `scope_project`/`scope_org_unit`
   décident **qui voit/utilise l'app** (une app privée-labo ne sort pas du labo). C'est DISTINCT de
   `body.access` (roles/public/min_tier) = le **gating de permission WAMA**. Les deux vivent dans le manifeste :
@@ -97,6 +105,12 @@ body:                                   # (sous l'enveloppe commune)
   ports:
     inputs:  [{id, label, group: travail|prompt|reference, types:[image|video|audio|document|text], multi}]
     outputs: [{id, label, types:[<media_cat>|auto]}]
+    # RÈGLE PREVIEW D'ENTRÉE (importante) : la preview d'entrée BIND sur le port de TRAVAIL
+    # (group ∈ {travail, prompt}) — JAMAIS sur un port `reference`. La référence CONDITIONNE le
+    # traitement (voix/image/mélodie/negative_prompt), elle n'EST pas l'entrée transformée. Le prompt
+    # de travail peut être unique OU batch → la preview gère les deux. Dérivable du manifeste (on lit
+    # quel port a group=travail|prompt), donc plus de preview codée en dur par app. PreviewRegistry
+    # bind déjà sur le fichier de travail (input_file) — ne PAS régresser vers le fichier de référence.
   capabilities: {has_realtime, has_edit_page, instant_preview, batch,
                  export_binding: late|early, supports_profiles, has_url_import, has_youtube}
   modes: [{id, label, icon, realtime, inputs:[port_id], settings:[param_name]}]   # ex-APP_MODES
