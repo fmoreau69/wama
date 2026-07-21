@@ -290,6 +290,27 @@
     var _duringTimer = null;
     function _stopDuring() { if (_duringTimer) { clearInterval(_duringTimer); _duringTimer = null; } }
 
+    // Double-clic sur l'aperçu → PLEIN ÉCRAN via la modale commune (WamaMediaPreview, PAS de
+    // réinvention) + icône overlay indicative. Le texte inline (prompt/sortie) passe par text_content.
+    function _attachFullscreen(d) {
+      if (!previewHost || typeof global.showPreviewModal !== 'function') return;
+      previewHost.style.position = previewHost.style.position || 'relative';
+      previewHost.title = 'Double-clic : plein écran';
+      previewHost.ondblclick = function () {
+        try {
+          var m = (d.content && !d.url) ? { text_content: d.content, name: d.name || 'Texte' } : d;
+          global.showPreviewModal(m);
+        } catch (e) { /* no-op */ }
+      };
+      if (!previewHost.querySelector('.wama-preview-expand')) {
+        var ic = document.createElement('div');
+        ic.className = 'wama-preview-expand';
+        ic.innerHTML = '<i class="fas fa-expand"></i>';
+        ic.style.cssText = 'position:absolute;top:6px;right:6px;opacity:.55;pointer-events:none;font-size:.8rem;';
+        previewHost.appendChild(ic);
+      }
+    }
+
     function restorePreview() {
       _stopDuring();
       if (previewHost) previewHost.innerHTML = previewPlaceholder;
@@ -337,6 +358,7 @@
         if (!d || (!d.url && !d.content && !(d.peaks && d.peaks.length))) { restorePreview(); return; }
         var autoplay = (cfg.autoplay != null) ? cfg.autoplay : global.WAMA_INSPECTOR_AUTOPLAY;
         renderInlinePreview(previewHost, d, !!autoplay);
+        _attachFullscreen(d);
         _renderSideToggle(baseUrl, d, title);
         if (previewTitleEl && title) previewTitleEl.textContent = title;
       }).catch(restorePreview);
