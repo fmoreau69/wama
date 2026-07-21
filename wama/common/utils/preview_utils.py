@@ -122,6 +122,20 @@ def publish_partial_peaks(app_name, pk, peaks, duration=None):
               {'peaks': list(peaks or []), 'duration': duration}, 900)
 
 
+def emit_streaming_peaks(app_name, pk, pcm, sr, buckets=800):
+    """Worker de streaming (COMMUN, toute app) : calcule les pics uint8 d'une fenêtre PCM courante
+    (via la source unique `waveform.compute_peaks`) et les publie pour `?side=during` → l'onde se
+    CONSTRUIT au fil de la génération (effet « Suno »). `pcm` = tableau/liste PCM (mono/stéréo),
+    `sr` = fréquence d'échantillonnage. Ne lève jamais (best-effort — un tick raté n'arrête rien)."""
+    try:
+        from .waveform import compute_peaks
+        peaks, duration = compute_peaks(pcm, buckets=buckets, sr=sr, dtype='uint8', with_duration=True)
+        if peaks:
+            publish_partial_peaks(app_name, pk, peaks, duration=duration)
+    except Exception:
+        pass
+
+
 def clear_partial(app_name, pk):
     """Worker : retire l'aperçu partiel (fin de traitement — la face SORTIE prend le relais)."""
     from django.core.cache import cache

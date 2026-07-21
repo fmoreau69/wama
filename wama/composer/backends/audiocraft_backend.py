@@ -66,6 +66,7 @@ class AudioCraftBackend(BaseModelBackend):
         output_path: str,
         melody_path: Optional[str] = None,
         progress_callback: Optional[Callable[[int], None]] = None,
+        on_audio: Optional[Callable] = None,
     ) -> str:
         """
         Generate audio and save to output_path.
@@ -137,6 +138,17 @@ class AudioCraftBackend(BaseModelBackend):
                 audio_np = audio_np.T  # (channels, samples) → (samples, channels)
             sf.write(output_path, audio_np, sample_rate, subtype='PCM_16')
             logger.info(f"[Composer] Saved to {output_path}")
+
+            # Hook RÉUTILISABLE (best-effort) : publie l'audio produit pour la preview « pendant ».
+            # N'interrompt JAMAIS la génération (try/except). Ici on émet l'audio FINAL ; le vrai
+            # streaming mid-génération (onde qui se construit) nécessiterait le token-callback de
+            # MusicGen (dev GPU) — même point d'appel, à répéter par fenêtre. Dormant tant que l'app
+            # ne déclare pas la capacité during_preview.
+            if on_audio:
+                try:
+                    on_audio(audio_np, sample_rate)
+                except Exception:
+                    pass
 
             if progress_callback:
                 progress_callback(100)

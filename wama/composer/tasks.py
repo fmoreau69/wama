@@ -93,6 +93,7 @@ def compose_task(self, generation_id: int):
         )
 
         backend = AudioCraftBackend()
+        from wama.common.utils.preview_utils import emit_streaming_peaks, clear_partial
         backend.generate(
             model_id=gen.model,
             prompt=routed_prompt,
@@ -100,6 +101,9 @@ def compose_task(self, generation_id: int):
             output_path=output_abs_path,
             melody_path=melody_abs,
             progress_callback=lambda p: _set_progress(generation_id, p),
+            # Preview « pendant » (COMMUN) : publie l'audio produit → onde de la face during.
+            # Dormant tant que composer ne déclare pas la capacité during_preview (rôle manifeste).
+            on_audio=lambda arr, sr: emit_streaming_peaks('composer', generation_id, arr, sr),
         )
 
         gen.refresh_from_db()
@@ -120,6 +124,7 @@ def compose_task(self, generation_id: int):
         gen.progress = 100
         gen.processing_seconds = _time.time() - _t0  # persiste le temps réel (déjà mesuré pour l'ETA)
         gen.save(update_fields=['audio_output', 'status', 'progress', 'processing_seconds'])
+        clear_partial('composer', generation_id)   # fin du « pendant » → la face SORTIE prend le relais
 
         _console(user_id, f"[Composer] ✓ Terminé : {output_filename}", level='info')
 
@@ -141,6 +146,11 @@ def compose_task(self, generation_id: int):
     except Exception as exc:
         logger.exception(f"[Composer] Erreur generation {generation_id}: {exc}")
         _set_progress(generation_id, 0)
+        try:
+            from wama.common.utils.preview_utils import clear_partial
+            clear_partial('composer', generation_id)   # échec → pas de partiel obsolète
+        except Exception:
+            pass
         try:
             gen.refresh_from_db()
             gen.status = 'FAILURE'

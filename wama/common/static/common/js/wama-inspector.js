@@ -78,7 +78,15 @@
     } else if (mime.indexOf('audio/') === 0) {
       if (global.WamaAudioPlayer && WamaAudioPlayer.create) {
         host.innerHTML = '';
-        try { host.appendChild(WamaAudioPlayer.create(url, 'insp', { autoplay: !!autoplay })); }
+        try {
+          host.appendChild(WamaAudioPlayer.create(url, 'insp', { autoplay: !!autoplay }));
+          // Pics serveur (common/utils/waveform.compute_peaks) : onde dessinée SANS décoder
+          // (fichiers longs) ou qui se CONSTRUIT (streaming « pendant »). setPeaks normalise
+          // l'échelle uint8→0-1. Additif : sans data.peaks, comportement inchangé.
+          if (Array.isArray(data.peaks) && data.peaks.length && WamaAudioPlayer.setPeaks) {
+            WamaAudioPlayer.setPeaks('insp', data.peaks);
+          }
+        }
         catch (e) { host.innerHTML = '<audio src="' + u + '" controls ' + (autoplay ? 'autoplay ' : '') + 'style="width:100%;"></audio>'; }
         _previewCaption(host, name);
         return;
@@ -279,11 +287,16 @@
         if (db) db.addEventListener('click', deselect);
       }).catch(hideDetail);
     }
+    var _duringTimer = null;
+    function _stopDuring() { if (_duringTimer) { clearInterval(_duringTimer); _duringTimer = null; } }
+
     function restorePreview() {
+      _stopDuring();
       if (previewHost) previewHost.innerHTML = previewPlaceholder;
       if (previewTitleEl) previewTitleEl.textContent = previewTitleDefault;
     }
     function fillPreview(card, title) {
+      _stopDuring();
       if (!previewHost || !card) return;
       var link = (card.matches && card.matches('[data-preview-url]')) ? card : card.querySelector('[data-preview-url]');
       var url = link && link.getAttribute('data-preview-url');
@@ -293,12 +306,35 @@
       var status = (card.dataset && card.dataset.status) || '';
       var side = (status === 'SUCCESS') ? 'output' : 'input';
       _fetchPreviewSide(url, side, title);
+      // Phase PENDANT (COMMUN, toute app) : item en cours + app qui streame (during_capable) →
+      // on suit l'aperçu partiel qui se CONSTRUIT. Auto-arrêt si l'app ne streame pas.
+      if (status === 'RUNNING' || status === 'PROCESSING') _startDuring(url, card, title);
+    }
+
+    function _startDuring(baseUrl, card, title) {
+      _stopDuring();
+      var tick = function () {
+        var st = card && card.dataset && card.dataset.status;
+        if (st !== 'RUNNING' && st !== 'PROCESSING') {   // terminé → bascule sur la SORTIE
+          _stopDuring();
+          _fetchPreviewSide(baseUrl, 'output', title);
+          return;
+        }
+        var u = baseUrl + (baseUrl.indexOf('?') === -1 ? '?' : '&') + 'side=during';
+        fetch(u).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
+          if (!d || !d.sides || !d.sides.during_capable) { _stopDuring(); return; }  // ne streame pas → stop
+          if (d.sides.has_during) renderInlinePreview(previewHost, d, false);
+        }).catch(function () {});
+      };
+      _duringTimer = setInterval(tick, 1300);
+      tick();
     }
 
     function _fetchPreviewSide(baseUrl, side, title) {
       var u = baseUrl + (baseUrl.indexOf('?') === -1 ? '?' : '&') + 'side=' + side;
       fetch(u).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
-        if (!d || !d.url) { restorePreview(); return; }
+        // accepte une face à URL (média), à CONTENU inline (prompt texte) OU à PICS (streaming)
+        if (!d || (!d.url && !d.content && !(d.peaks && d.peaks.length))) { restorePreview(); return; }
         var autoplay = (cfg.autoplay != null) ? cfg.autoplay : global.WAMA_INSPECTOR_AUTOPLAY;
         renderInlinePreview(previewHost, d, !!autoplay);
         _renderSideToggle(baseUrl, d, title);
