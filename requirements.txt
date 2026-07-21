@@ -36,3 +36,4 @@ yt-dlp>=2025.6.9
 # Converter — document backend (Pandoc binding)
 pypandoc==1.13
 pdf2docx==0.5.13  # PDF → DOCX en préservant images/tableaux/mise en forme (converter)
+weasyprint==69.0  # HTML → PDF fidèle (CSS + SVG inline) sans LaTeX/rsvg-convert (converter)

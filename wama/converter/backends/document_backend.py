@@ -111,6 +111,28 @@ def _pdf_to_docx(input_path: str, output_path: str) -> None:
         cv.close()
 
 
+def _html_to_pdf_weasyprint(input_path: str, output_path: str) -> bool:
+    """HTML → PDF via WeasyPrint (moteur CSS complet, SVG inline natif).
+
+    Rend la page fidèlement (couleurs, mise en page, <svg> inline) sans dépendre
+    de LaTeX ni de `rsvg-convert`. La route pandoc→xelatex, elle, jette tout le
+    CSS et exige rsvg-convert pour rasteriser les <svg> inline (cause de l'échec
+    « rsvg-convert does not exist »).
+
+    Retourne False si WeasyPrint n'est pas installé — l'appelant retombe alors
+    proprement sur la route pandoc (aucune régression si la lib est absente).
+    """
+    try:
+        from weasyprint import HTML
+    except ImportError:
+        return False
+    # base_url = dossier source → résout les chemins relatifs (CSS/images locaux)
+    HTML(filename=input_path, base_url=os.path.dirname(input_path)).write_pdf(output_path)
+    if not os.path.exists(output_path):
+        raise RuntimeError(f"WeasyPrint n'a produit aucun fichier : {output_path}")
+    return True
+
+
 def convert_document(input_path: str, output_path: str, output_format: str,
                      options: dict = None) -> None:
     """
@@ -137,6 +159,17 @@ def convert_document(input_path: str, output_path: str, output_format: str,
             raise RuntimeError(f"Fichier de sortie introuvable : {output_path}")
         logger.info(f"PDF → DOCX (pdf2docx, mise en forme préservée) : {input_path} → {output_path}")
         return
+
+    # ── HTML → PDF : rendu fidèle du CSS + SVG inline via WeasyPrint ──────────
+    # Une page HTML stylée (présentation, fiche…) passée à pandoc→xelatex perd
+    # tout son CSS et casse sur les <svg> inline (rsvg-convert requis, absent).
+    # WeasyPrint est un vrai moteur CSS (pango/cairo) : il rend la page telle
+    # quelle, SVG inline compris. Fallback pandoc si WeasyPrint indisponible.
+    if in_ext in ('html', 'htm') and out_ext == 'pdf':
+        if _html_to_pdf_weasyprint(input_path, output_path):
+            logger.info(f"HTML → PDF (WeasyPrint, CSS+SVG fidèles) : {input_path} → {output_path}")
+            return
+        logger.warning("WeasyPrint indisponible → fallback pandoc/LaTeX pour HTML→PDF")
 
     # Calibre route : any mobi/azw3/azw side goes through ebook-convert, which
     # handles the full chain (epub↔mobi↔azw3↔pdf↔docx…) on its own.
