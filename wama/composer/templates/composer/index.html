@@ -239,7 +239,6 @@ window.COMPOSER_APP = {
     batchStartUrlTemplate: '{% url "composer:batch_start" 0 %}',
 };
 </script>
-<script src="{% static_v 'composer/js/index.js' %}"></script>
 <script src="{% static_v 'common/js/wama-inspector.js' %}"></script>
 <script>
 // Inspecteur CONTEXTUEL : la section params du volet (#composerPanelParams) devient « Réglages de
@@ -321,6 +320,15 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 })();
 </script>
+
+{% comment %}
+index.js est chargé ICI, APRÈS le rendu WamaParams ci-dessus. Ses constantes de haut niveau
+(modelSelect / durationSlider / settingsModel / settingsDuration, index.js:43/44/103/106) référencent
+des champs qui n'existent qu'une fois WamaParams.render exécuté — sinon elles sont null et la
+sauvegarde de la modale (_postSettings) lève une TypeError. Pattern Transcriber : rendu du
+volet+modale AVANT le script d'app. NE PAS remonter cette balise au-dessus du bloc de rendu.
+{% endcomment %}
+<script src="{% static_v 'composer/js/index.js' %}"></script>
 
 <script>
 // Descriptif du moteur sous le select (brique commune ; meta = catalogue model_manager).
