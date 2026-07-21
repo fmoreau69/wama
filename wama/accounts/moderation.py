@@ -14,9 +14,11 @@ from django.conf import settings
 from django.contrib.auth.models import User
 from django.contrib.auth.signals import (user_logged_in, user_logged_out,
                                          user_login_failed)
-from django.core.mail import send_mail
 from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
+
+# Brique commune d'envoi (fail-safe, transport centralisé) — ne PAS réinventer.
+from wama.common.utils.notifications import notify_user, notify_emails
 
 logger = logging.getLogger(__name__)
 
@@ -31,19 +33,6 @@ def _moderator_emails():
     return [e for e in emails if e]
 
 
-def _safe_send(subject, body, recipients):
-    """Envoi email best-effort (jamais bloquant)."""
-    recipients = [r for r in (recipients or []) if r]
-    if not recipients:
-        logger.info('email « %s » non envoyé : aucun destinataire', subject)
-        return
-    try:
-        send_mail(subject, body, getattr(settings, 'DEFAULT_FROM_EMAIL', None),
-                  recipients, fail_silently=False)
-    except Exception:
-        logger.warning('envoi email « %s » échoué', subject, exc_info=True)
-
-
 # ── Modération : nouvel utilisateur en attente ────────────────────────────────
 
 @receiver(post_save, sender=User)
@@ -51,13 +40,13 @@ def _notify_new_pending(sender, instance, created, **kwargs):
     if created and getattr(instance, '_wama_new_pending', False):
         instance._wama_new_pending = False
         name = instance.get_full_name() or instance.get_username()
-        _safe_send(
+        notify_emails(
+            _moderator_emails(),
             f'[WAMA] Nouveau compte à valider : {name}',
             f"Un nouvel utilisateur s'est connecté et attend votre validation.\n\n"
             f"Identifiant : {instance.get_username()}\n"
             f"Nom : {name}\nEmail : {instance.email or '—'}\n\n"
-            f"Activez le compte depuis l'admin Django (Utilisateurs → cocher « Actif »).",
-            _moderator_emails())
+            f"Activez le compte depuis l'admin Django (Utilisateurs → cocher « Actif »).")
         logger.info('modération : notification envoyée pour %s', instance.get_username())
 
 
@@ -77,12 +66,10 @@ def _welcome_on_activation(sender, instance, created, **kwargs):
     if created:
         return
     if getattr(instance, '_old_active', None) is False and instance.is_active:
-        if instance.email:
-            _safe_send(
-                '[WAMA] Votre compte est activé',
-                f"Bonjour {instance.get_full_name() or instance.get_username()},\n\n"
-                f"Votre compte WAMA a été validé. Vous pouvez maintenant vous connecter.\n",
-                [instance.email])
+        notify_user(
+            instance, '[WAMA] Votre compte est activé',
+            f"Bonjour {instance.get_full_name() or instance.get_username()},\n\n"
+            f"Votre compte WAMA a été validé. Vous pouvez maintenant vous connecter.\n")
         logger.info('compte %s activé → email de bienvenue', instance.get_username())
 
 

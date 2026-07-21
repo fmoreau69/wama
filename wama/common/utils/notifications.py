@@ -11,22 +11,29 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def notify_user(user, subject, body, html=None):
-    """Envoie un email à l'utilisateur si une adresse est disponible. Fail-safe (jamais d'exception)."""
+def notify_emails(recipients, subject, body, html=None):
+    """Envoie un email à une liste d'ADRESSES (pas forcément des Users) — ex. modérateurs.
+    Fail-safe (jamais d'exception), transport piloté par settings. Point d'envoi commun."""
     try:
-        email = getattr(user, 'email', '') or ''
-        if not email:
+        recipients = [e for e in (recipients or []) if e]
+        if not recipients:
             return False
         from django.core.mail import EmailMultiAlternatives
         from django.conf import settings
-        msg = EmailMultiAlternatives(subject, body, getattr(settings, 'DEFAULT_FROM_EMAIL', None), [email])
+        msg = EmailMultiAlternatives(subject, body,
+                                     getattr(settings, 'DEFAULT_FROM_EMAIL', None), recipients)
         if html:
             msg.attach_alternative(html, 'text/html')
         msg.send(fail_silently=True)
         return True
     except Exception as e:  # pragma: no cover
-        logger.warning("notify_user a échoué : %s", e)
+        logger.warning("notify_emails a échoué : %s", e)
         return False
+
+
+def notify_user(user, subject, body, html=None):
+    """Envoie un email à l'utilisateur si une adresse est disponible. Fail-safe (jamais d'exception)."""
+    return notify_emails([getattr(user, 'email', '') or ''], subject, body, html)
 
 
 def notify_job(user, app_label, item_name, success, detail='', url=''):
