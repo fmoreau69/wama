@@ -588,6 +588,15 @@ check_app_conformity exécutable → introspection Django→schéma → scaffold
 >   jamais d'exception) + `publish_partial_peaks` + `WamaAudioPlayer.setPeaks` (additif : dessine l'onde
 >   depuis pics serveur, débloque longs fichiers ET onde-qui-se-construit). Vérifié (array/fichier/
 >   dormant/activé). **Reste frontend** : le volet appelle `setPeaks` au poll `?side=during` pendant RUNNING.
+>   **UNIFICATION waveform (2026-07-21, recadrage Fabien « pas 2 mécanismes concurrents »)** :
+>   `common/utils/waveform.compute_peaks` = SOURCE UNIQUE paramétrable (backend ffmpeg/soundfile/array,
+>   résolution densité(bps)/N, dtype uint8/float, with_duration). **Reproduit à l'octet l'algo
+>   historique transcriber** (vérifié : 1341 pics, dur 26.838, mêmes valeurs). `transcriber/utils/
+>   waveform.compute_peaks` **délègue** désormais à common (cache/worker/endpoint/renderer zoomable
+>   INCHANGÉS — non-régression vérifiée, django check OK). Transport CANONIQUE = **uint8** ;
+>   `setPeaks` normalise uint8→0-1 (fin de l'incompat 255 vs 1). **Renderer zoomable de l'éditeur =
+>   coexistence LÉGITIME** (correction = zoom/pan/heatmap ≠ aperçu fixe). Futur (non fait) : fusionner
+>   les 2 renderers en 1 composant commun à 2 modes (aperçu / zoom-éditeur) — gros refactor, plus tard.
 > - ⏳ **Chantier 3 — unifier le filemanager** sur `media-preview.js` commun (il a sa propre modale).
 > **Streaming preview « à la Suno »** (sortie audio construite pendant le process) = faisable
 > (MusicGen autorégressif + callback), à faire en **capacité commune déclarée par métadonnée**, APRÈS
