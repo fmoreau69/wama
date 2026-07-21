@@ -45,6 +45,12 @@ def _output_preview_data(app_name, instance, request):
         d = adapter(instance)
         url = (d or {}).get('result_file')
         if not url:
+            # Sortie TEXTE (transcriber/describer/reader…) : servir `result_text` inline —
+            # SYMÉTRIQUE de l'entrée-prompt. `build_detail` expose déjà cette clé canonique.
+            # → la face Sortie existe pour les apps sans fichier de résultat (toggle visible).
+            txt = (d or {}).get('result_text')
+            if txt:
+                return {'name': 'Sortie', 'mime_type': 'text/plain', 'content': str(txt).strip()}
             return None
         from .mime_utils import guess_mime_type
         clean = url.split('?')[0]
@@ -86,7 +92,15 @@ def _input_preview(app_name, instance, request):
     - port `travail` (média, ex. transcriber/imager) → l'adaptateur enregistré (fichier de travail).
     """
     if _input_port_group(app_name) == 'prompt':
-        txt = (getattr(instance, 'prompt', '') or '').strip()
+        # Texte d'entrée résolu par champs CANDIDATS (pas de nom d'app en dur) : `prompt`
+        # (composer/imager) ou `text_content`/`text` (synthesizer…). TODO : clé canonique
+        # `source_text` côté detail, symétrique de `result_text`, pour supprimer même cette liste.
+        txt = ''
+        for _f in ('prompt', 'text_content', 'text'):
+            _v = getattr(instance, _f, None)
+            if _v:
+                txt = str(_v).strip()
+                break
         return {'name': 'Prompt', 'mime_type': 'text/plain', 'content': txt} if txt else None
     return PreviewRegistry.get_preview_data(app_name, instance, request)
 
