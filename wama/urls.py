@@ -13,6 +13,7 @@ urlpatterns = [
     path('', views.home, name='home'),
     path('presentation/', views.presentation, name='presentation'),
     path('architecture/', views.architecture, name='architecture'),
+    path('fiches/', views.fiches, name='fiches'),
     path('api/ai-chat/', views.ai_chat, name='ai_chat'),
     path('api/tts-kokoro/', views.kokoro_tts, name='kokoro_tts'),
     path('api/switch-ui-mode/', views.switch_ui_mode, name='switch_ui_mode'),

@@ -818,11 +818,38 @@
               <i class="fas fa-presentation"></i> Découvrir WAMA
             </h4>
             <p class="text-white-50 mb-3">
-              Présentation interactive de la plateforme WAMA et de ses fonctionnalités
+              Présentations, architecture et annexes — accès direct
             </p>
-            <a href="{% url 'presentation' %}" class="btn btn-light btn-lg">
-              <i class="fas fa-play-circle"></i> Lancer la présentation
-            </a>
+            <div class="dropdown d-inline-block">
+              <button class="btn btn-light btn-lg dropdown-toggle" type="button"
+                      id="presentationsMenu" data-bs-toggle="dropdown" aria-expanded="false">
+                <i class="fas fa-play-circle"></i> Présentations &amp; annexes
+              </button>
+              <ul class="dropdown-menu text-start" aria-labelledby="presentationsMenu">
+                <li>
+                  <a class="dropdown-item py-2" href="{% url 'presentation' %}">
+                    <i class="fas fa-play-circle fa-fw me-2 text-primary"></i>
+                    <span class="fw-semibold">La présentation interactive</span>
+                    <small class="d-block text-muted">Diaporama de la plateforme et de ses apps</small>
+                  </a>
+                </li>
+                <li><hr class="dropdown-divider"></li>
+                <li>
+                  <a class="dropdown-item py-2" href="{% url 'architecture' %}">
+                    <i class="fas fa-sitemap fa-fw me-2 text-primary"></i>
+                    <span class="fw-semibold">L'architecture technique</span>
+                    <small class="d-block text-muted">Comment WAMA est construit, en clair</small>
+                  </a>
+                </li>
+                <li>
+                  <a class="dropdown-item py-2" href="{% url 'fiches' %}">
+                    <i class="fas fa-folder-open fa-fw me-2 text-primary"></i>
+                    <span class="fw-semibold">Le système de fiches</span>
+                    <small class="d-block text-muted">Une fiche décrit, la plateforme se construit</small>
+                  </a>
+                </li>
+              </ul>
+            </div>
           </div>
         </div>
       </div>

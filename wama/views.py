@@ -85,6 +85,11 @@ def architecture(request):
     return render(request, 'includes/wama_architecture.html')
 
 
+def fiches(request):
+    """WAMA — système de fiches (manifestes) expliqué en vulgarisé pour un utilisateur."""
+    return render(request, 'includes/wama_fiches.html')
+
+
 _OLLAMA_MODEL_MAP = {
     'dev':        'qwen3.5:35b-a3b',
     'coder':      'qwen3.5:35b-a3b',
