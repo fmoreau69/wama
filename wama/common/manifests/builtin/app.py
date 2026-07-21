@@ -222,17 +222,19 @@ def _params(app_id):
 
 
 def _inspector(app_id):
-    """Introspecte l'enregistrement Detail/Preview (présence, pas contenu)."""
+    """Introspecte l'enregistrement Detail/Preview COMMUN (présence, pas contenu). Ces deux briques
+    sont largement adoptées : une app 'registered' tire son volet droit / sa preview du commun (source
+    unique), pas d'un HTML hand-built. `preview_registered` = la preview d'ENTRÉE/résultat vient du
+    commun (PreviewRegistry bind sur le fichier de TRAVAIL, jamais la référence — cf. spec F2)."""
     info = {}
     try:
-        from wama.common.utils.detail_registry import DETAIL_REGISTRY  # type: ignore
-        info['detail_registered'] = app_id in DETAIL_REGISTRY
+        from wama.common.utils.detail_registry import DetailRegistry
+        info['detail_registered'] = DetailRegistry.is_registered(app_id)
     except Exception:
         info['detail_registered'] = None
     try:
-        from wama.common.utils.preview_registry import PreviewRegistry  # type: ignore
-        reg = getattr(PreviewRegistry, '_registry', None) or getattr(PreviewRegistry, 'registry', None)
-        info['preview_registered'] = (app_id in reg) if isinstance(reg, dict) else None
+        from wama.common.utils.preview_registry import PreviewRegistry
+        info['preview_registered'] = PreviewRegistry.is_registered(app_id)
     except Exception:
         info['preview_registered'] = None
     return info
