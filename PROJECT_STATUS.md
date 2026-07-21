@@ -615,6 +615,15 @@ check_app_conformity exécutable → introspection Django→schéma → scaffold
 >   (detail, symétrique `result_text`) → supprimer la liste de champs ; `describer.result_file`
 >   FileField orphelin à nettoyer ; flag `during_preview` composer (rôle manifeste) ; streaming
 >   MusicGen mid-génération (dev GPU, hook `on_audio` prêt).
+>   **CLÔTURE (2026-07-21)** : ✅ flag `during_preview=True` sur composer (conventions `_conv` +
+>   champs `during_preview`/`streaming` additifs) → chaîne « pendant » ACTIVE (plus dormante).
+>   ✅ **toggle Entrée/Comparer/Sortie DANS le plein écran** (media-preview.js `_renderModalSides`/
+>   `_modalCompare`, réutilise `?side=X`+`buildPreviewContent` ; inspecteur transmet `_baseUrl`+`sides`
+>   au double-clic). ✅ **source_text canonique** (`build_detail`+`_input_preview`) → retire le hardcode
+>   de champs (repli transitoire conservé, 5/5 toggles OK). **RESTE** : streaming MusicGen mid-génération
+>   (dev GPU, hook `on_audio` prêt) ; `describer.result_file` orphelin = migration différée (dual-DB,
+>   risque) — fonctionnellement neutralisé (repli `result_text`) ; passer les prompt-apps à `source_text`
+>   (composer/synthesizer/imager) pour retirer le repli candidat.
 > - ⏳ **Chantier 3 — unifier le filemanager** sur `media-preview.js` commun (il a sa propre modale).
 > **Streaming preview « à la Suno »** (sortie audio construite pendant le process) = faisable
 > (MusicGen autorégressif + callback), à faire en **capacité commune déclarée par métadonnée**, APRÈS
