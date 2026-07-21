@@ -257,3 +257,68 @@ class UserFunction(ScopedVisibility):
             'inputs': self.inputs or [], 'outputs': self.outputs or [],
             'params': self.params or [], 'cost': {},
         }
+
+
+class Manifest(models.Model):
+    """Store des MANIFESTES (union discriminée par `manifest_kind`) — cf. WAMA_MANIFEST_SPEC.md.
+
+    Source AUTORITAIRE re-synchronisable. L'enveloppe (identité/monde/confidentialité) est en colonnes ;
+    le `body` spécifique au kind est un JSON. `scope_project`/`scope_org_unit` sont des CODES (str), pas
+    des FK : un manifeste peut référencer un projet/une unité pas encore créés (portabilité). SANDBOX =
+    `visibility='private'` ; `promote()` publie au commun. Idempotent sur (manifest_kind, key)."""
+
+    manifest_kind = models.CharField(max_length=32, db_index=True)   # app|function|dataset|model|pipeline|project
+    key = models.CharField(max_length=128, db_index=True)            # unique DANS le kind
+    schema_version = models.CharField(max_length=16, default='1.0')
+
+    name = models.CharField(max_length=200)                          # anglais canonique
+    description = models.TextField(blank=True, default='')           # anglais canonique
+    world = models.CharField(max_length=16, default='transverse')    # media|data|lab|transverse
+
+    owner = models.ForeignKey('auth.User', null=True, blank=True, on_delete=models.SET_NULL,
+                              related_name='wama_manifests')
+    visibility = models.CharField(max_length=12, default='private')  # private(=sandbox)|project|unit|public
+    scope_project = models.CharField(max_length=64, blank=True, default='')   # code Project
+    scope_org_unit = models.CharField(max_length=64, blank=True, default='')  # code OrgUnit
+
+    projects = models.JSONField(default=list, blank=True)            # traçabilité qualité
+    source = models.JSONField(default=dict, blank=True)              # {type, ref}
+    body = models.JSONField(default=dict, blank=True)                # spécifique au kind
+    errors = models.JSONField(default=list, blank=True)             # dernières erreurs de validation
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = (('manifest_kind', 'key'),)
+        ordering = ('manifest_kind', 'key')
+        indexes = [models.Index(fields=['manifest_kind', 'visibility'])]
+
+    def __str__(self):
+        return f"{self.manifest_kind}:{self.key} ({self.visibility})"
+
+    @property
+    def is_sandbox(self) -> bool:
+        return self.visibility == 'private'
+
+    @property
+    def is_valid(self) -> bool:
+        return not self.errors
+
+    def as_manifest(self) -> dict:
+        """Reconstruit le dict manifeste complet (enveloppe + body)."""
+        return {
+            'manifest_kind': self.manifest_kind,
+            'key': self.key,
+            'schema_version': self.schema_version,
+            'name': self.name,
+            'description': self.description,
+            'world': self.world,
+            'owner': self.owner.get_username() if self.owner_id else None,
+            'visibility': self.visibility,
+            'scope_project': self.scope_project or None,
+            'scope_org_unit': self.scope_org_unit or None,
+            'projects': self.projects or [],
+            'source': self.source or {},
+            'body': self.body or {},
+        }
