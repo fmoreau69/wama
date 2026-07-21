@@ -86,14 +86,15 @@ université). Le partage par org (`ScopedVisibility` unité) ne suffit pas — u
 est un **groupe de collaboration explicite qui traverse l'arbre org**. → Ajouter `Project` (owner OrgUnit +
 membres M2M cross-org + rôles) et une visibilité `project` (4e scope : privé / **projet** / unité / public).
 
-**Accès & modération (⏳, recommandé)** :
-- **Journal d'accès** : `User.date_joined` + `User.last_login` sont **déjà** fournis par Django ; ajouter
-  un `AccessLog` léger (user, timestamp, ip, action/projet) pour tracer les connexions et accès data
-  (traçabilité recherche + responsabilité RGPD).
-- **Modération 1ʳᵉ connexion** : **fortement recommandé** — le login LDAP expose TOUTE l'université, donc
-  sans gate, n'importe quel membre UGE aurait un compte. À la 1ʳᵉ connexion LDAP, créer l'utilisateur
-  **inactif** (`is_active=False`) → notification email admin → validation → activation + email de bienvenue.
-  C'est ce qui rend « qui est dans WAMA » intentionnel.
+**Accès & modération — ✅ FAIT (a7c2240)** :
+- **Journal d'accès** : `AccessLog` (user/username/event login-logout-denied/ip/user_agent/timestamp) via
+  signaux `user_logged_in/out/login_failed` ; complète `User.date_joined`+`last_login` (Django). Admin
+  lecture seule.
+- **Modération 1ʳᵉ connexion** : `WamaLDAPBackend` crée tout nouvel utilisateur LDAP **inactif**
+  (`is_active=False`) + email aux modérateurs (`WAMA_MODERATOR_EMAILS`, sinon superusers) ; l'activation
+  admin (is_active False→True) envoie un **email de bienvenue**. Réglable par `WAMA_MODERATE_NEW_USERS`.
+  Emails best-effort (n'interrompent jamais login/activation). Reste : une UI de modération dédiée
+  (au-delà de l'admin Django).
 
 ---
 
