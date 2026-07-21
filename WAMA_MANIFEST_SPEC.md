@@ -34,6 +34,27 @@ Kinds prévus : **`app`** (§3), **`function`** (= `FunctionSpec`, déjà fait, 
 **`dataset`** (style toolbox tierce : channels/signals/reference_tables), **`model`** (= `AIModel`), **`pipeline`**
 (= `StudioPipeline.graph`), **`project`** (= `Project`, déjà fait).
 
+### 1.1 Décisions actées (2026-07-21)
+
+- **`world`** = champ de **1er niveau de l'enveloppe** (pas dans `body`), valeurs **closes** :
+  `media | data | lab | transverse`. Pas de niveau au-dessus (les 4 mondes SONT la partition de tête) ;
+  `OrgUnit`/`project` sont des axes ORTHOGONAUX (portée/partage), pas une hiérarchie au-dessus des mondes.
+- **Confidentialité de l'app** = déjà portée par l'enveloppe : `visibility` + `scope_project`/`scope_org_unit`
+  décident **qui voit/utilise l'app** (une app privée-labo ne sort pas du labo). C'est DISTINCT de
+  `body.access` (roles/public/min_tier) = le **gating de permission WAMA**. Les deux vivent dans le manifeste :
+  enveloppe = confidentialité (diffusion), `access` = droits (tier/rôles).
+- **Enrichissement / RAG / skills** = l'app **DÉCLARE sa participation + ses défauts** dans le manifeste
+  (`body.prompts.targets`, `skills`, `rag_eligible`, `enrich_default`), mais le **NIVEAU effectif**
+  (RAG user/équipe/labo/université) est **résolu au RUNTIME** = réglage utilisateur ⊕ défaut app ⊕ héritage
+  `OrgUnit`. On ne fige PAS le niveau dans le manifeste (il dépend de l'utilisateur), on fige la CAPACITÉ.
+- **Statuts** = le vocabulaire canonique **`PENDING | RUNNING | SUCCESS | FAILURE`** est la CIBLE imposée ;
+  le round-trip signale les apps déviantes comme non-conformes (fait progresser la conformité réelle).
+- **Langue du manifeste = ANGLAIS canonique.** Les chaînes lisibles (`label`, `description`, `help`…) sont
+  en anglais SOURCE et alimentent le **registre de chaînes WAMA** (i18n central : pivot interne EN, identif.
+  de langue, traduction injectée selon la langue par défaut de l'utilisateur). Le manifeste **NE PORTE PAS
+  ses propres traductions** (ce serait un 2e système de traduction = roue réinventée) : il fournit l'anglais,
+  le registre central traduit. Chaque chaîne a une clé stable (ex. `app.transcriber.label`) pour le registre.
+
 ---
 
 ## 2. Ingest — pas une simple fonction
