@@ -1,3 +1,7 @@
+> ⚠️ **ARCHIVÉ / SUPERSEDED (2026-07-21).** Contenu vivant absorbé dans `CAM_ANALYZER_CHANGELOG.md` (§ État courant & RESTE À FAIRE). Conservé pour provenance uniquement — NE PLUS METTRE À JOUR.
+
+---
+
 # Cam Analyzer — Vue de dessus : état des lieux & prompt de redémarrage
 
 > **But de ce document** : repartir sur une session neuve avec le statut COMPLET de la qualité/cohérence

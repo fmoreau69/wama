@@ -142,7 +142,7 @@ Doc : [`COMMON_REFACTORING.md`](COMMON_REFACTORING.md). Transcriber = référenc
 - ⏳ Adoption app par app (converter, describer, enhancer, imager, reader, synthesizer, anonymizer, composer)
 
 ## 5. Cam Analyzer (WAMA Lab) — consigné, à finaliser
-Docs : `wama_lab/cam_analyzer/CONTEXT.md` + `README.md` + ROADMAP §9.
+Docs (3 piliers, 2026-07-21) : `wama_lab/cam_analyzer/README.md` (carte) + `CAM_ANALYZER_CHAINE_TRAITEMENT.md` (chaîne+conception) + `CAM_ANALYZER_CHANGELOG.md` (historique+backlog « État courant & RESTE ») ; spécificités projet → `projects/ENA_CASA.md` ; ROADMAP §9.
 - ✅ Pipeline quasi-complet (extraction rosbag/RTMaps, YOLO+BoTSORT, YOLOPv2, SAM3, LaneEvent, ConflictEvent/TTC, fenêtres intersection, passes incrémentales)
 - 🔄 Tests (pas tout validé)
 - ⏳ Phase 3 vitesses irréalistes (calibration + références sol + lissage) ; infos caméras pour mesures absolues ; valider passes incrémentales ; (option) palliatif UI segments < 1 s

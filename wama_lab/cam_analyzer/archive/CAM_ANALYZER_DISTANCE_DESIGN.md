@@ -1,3 +1,7 @@
+> ⚠️ **ARCHIVÉ / SUPERSEDED (2026-07-21).** Contenu vivant absorbé dans `CAM_ANALYZER_CHAINE_TRAITEMENT.md` (§ Conception & justification, terminologie, plan calibration sol). Les valeurs propres au run ENA_CASA sont dans `projects/ENA_CASA.md`. Conservé pour provenance uniquement — NE PLUS METTRE À JOUR.
+
+---
+
 # Cam Analyzer — Distances, vitesses, TTC & vue de dessus (design)
 
 > Document de conception du chantier **Phase 3** : passer d'une distance pinhole non

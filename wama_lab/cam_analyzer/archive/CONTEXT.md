@@ -1,3 +1,7 @@
+> ⚠️ **ARCHIVÉ / SUPERSEDED (2026-07-21).** Handoff de reprise devenu obsolète. Faits durables projet → `projects/ENA_CASA.md` ; état/priorités → `CAM_ANALYZER_CHANGELOG.md` (§ État courant). Conservé pour provenance uniquement — NE PLUS METTRE À JOUR.
+
+---
+
 # Cam Analyzer — Contexte complet & reprise (handoff)
 
 > But : reprendre Cam Analyzer dans une **session neuve** sans recharger l'énorme transcript

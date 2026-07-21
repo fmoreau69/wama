@@ -9,6 +9,74 @@
 > ancien pour identifier le changement fautif.
 >
 > Chaîne complète : [`CAM_ANALYZER_CHAINE_TRAITEMENT.md`](CAM_ANALYZER_CHAINE_TRAITEMENT.md).
+> Spécificités **projet** ENA_CASA (données/calibration/rig) : [`projects/ENA_CASA.md`](projects/ENA_CASA.md).
+
+---
+
+# État courant & RESTE À FAIRE
+
+> Absorbe l'ex-`CAM_ANALYZER_TOPDOWN_STATUS.md` (archivé). Photo au **2026-07-21**. Le détail
+> historique est dans le journal daté plus bas ; ici = **où on en est + ce qui reste**.
+
+## Cause racine (audit 2026-07-15) — et son traitement
+
+Le basculement `6509cc2` a mis la position en **100 % pinhole** (échelle correcte mais **bruitée
+±20 %** via hauteur de bbox) → orientation, fusion 360°, fantômes, stationnés en héritent. Traité
+depuis : estimateur de pitch (`homography_estimator.py`, désaccord 14,55→**3,05 m** ×5, k1 écarté),
+Kalman+RTS (`trajectory_smoother.py` → `world_en`), ground calib 2a (⚑ OFF), recalage ortho 2b
+(rapport seul). **La position sous-jacente était la cause — pas 360°/fantômes/orientation.**
+
+## FAIT (synthèse par thème — détail = journal daté)
+
+Position/échelle (pinhole→pitch ×5, Kalman+RTS, ground calib 2a flag OFF) · Tracking 360° + fusion
+(verrou de chaîne gid, enchaînement fin de Live, trajectoires fusionnées) · Fantômes/reconstitution
+(comblement ≤6 s, héritage mesures, stationnés ancrés position monde) · Filtres reflets/artefacts ·
+Cap/orientation (consensus axial, fondu ratio↔trajectoire) · Marquages monde SAM3 (⚑) · Intersections
+/branches apprises · Ortho/recalage IGN + mini-carte orientable · Live/complétion + préemption ·
+Levier antenne GPS · UI toolbar par familles + bascules ⚑ génériques.
+
+## RESTE À FAIRE (priorisé — qualité/cohérence vue de dessus)
+
+**P1 — le cœur (position) :**
+1. **Métrique A/B objective** (préalable/instrument) : exposer `distance_source` par détection +
+   un désaccord chiffré (RMS reprojection stationnés, ou sol⟷pinhole⟷ortho) dans l'UI/rapport. C'est
+   ce qui permet de **valider** P1.2/P1.3 sans « à l'œil » — et c'est une **brique commune** réutilisable.
+2. **Terminer 2a (pitch)** : corriger le placement mixte **G7**, puis basculer `auto_ground_calib`
+   ON sur une session ENA, **mesurer** l'A/B, décider du défaut.
+3. **Appliquer l'offset ortho 2b** (~5,1 m mesuré) derrière un **nouveau flag** (aujourd'hui rapport seul).
+4. **Calibration jointe 2c** (pitch + échelle réconciliés avec l'ortho).
+5. **Passe de validation NAVIGATEUR systématique** : la majorité des commits 07-17→07-20 sont
+   **compile/parse-only** (« navigateur à valider »). Rejouer une session ENA (ex. `4da52df3`),
+   relancer « Calculer les indicateurs » (recale les `world_en` avec l'antenne), vérifier à l'écran.
+
+**P2 — compléments :** voie/vidéo ancré yolopv2 détectés (audit #3) · FOV réel 55↔97° à confirmer
+(audit #4) · vitesse/distance unifiées par track (`track_speed_unified` = **stub, 0 consommateur**) ·
+mask_geometry / YOLO-OBB (non implémenté) · dépassement depuis trajectoires monde par `global_track_id`.
+
+## Gaps vérifiés dans le code (2026-07-21 — audit de reprise)
+
+| # | Constat (fichier) | Gravité | Statut |
+|---|---|---|---|
+| **G7** | `auto_ground_calib` ON → `ground_ego` retombe **silencieusement** sur pinhole hors portée (`multicam_tracker.py:204`) → **placement MIXTE** sans indication → **fausse tout A/B** du flag. Corriger avant/avec la métrique (clé = `distance_source`). | Haute | vérifié |
+| **G8** | `_run_global_tracking` avale les échecs de `learn_branches`/`aggregate_markings` (`except non-blocking`) → clés `results_summary` **périmées en silence**. | Moyenne | rapporté |
+| **G2** | Bloc SAM3 inline **mort** dans `process_session_task` + `_use_sam3_fallback` **jamais défini** (`tasks.py:1336`) = `NameError` latent, masqué car le garde est toujours faux (SAM3 tourne via la tâche enchaînée). | Basse | vérifié (mort par design) |
+| **G4** | Marque de traçabilité au FOV **codé en dur** `{front:60,rear:60,left:90,right:90}` (`tasks.py:1562`) divergent du `DEFAULT_FOV_V_DEG` réellement appliqué → la trace peut mentir. | Basse | rapporté |
+| ~~G3~~ | *(affirmé par l'audit : `fov_v_used` non écrit par la passe inline)* — **RÉFUTÉ** : `tasks.py:1268` l'écrit bien par caméra. Fausse alerte conservée pour mémoire. | — | réfuté |
+
+## Non-régression (OBLIGATOIRE à chaque modif) — voir procédure détaillée en fin de doc
+
+CHANGELOG + 1 commit atomique · `py_compile` + `manage.py check` · **parse esprima** du JS · **sync**
+`staticfiles/` si JS · migrations sur **les DEUX bases** (Windows + WSL2) · **restart WSL2** si Python ·
+pas de tests destructifs (user id=1 = Fabien réel, `transaction.atomic()`) · pas de `cd` en préfixe ·
+**une amélioration comparable = un flag ⚑** (`utils/features.py`), jamais de `if` ad hoc.
+
+---
+
+## 2026-07-21
+
+| Commit | Quoi | Pourquoi | Validation/annulation |
+|---|---|---|---|
+| *(doc)* | **Refactoring documentation** : 6 docs → **3 piliers** (README/CHAINE/CHANGELOG) + `projects/ENA_CASA.md` (spécificités projet façonnées manifeste). `DISTANCE_DESIGN`/`TOPDOWN_STATUS`/`CONTEXT` **archivés** (`archive/`) après absorption. Correction dérive CHAINE (date + étape [4] + 2b). Consignation des gaps G7/G8/G2/G4. | La carte de référence (CHAINE) avait dérivé derrière le changelog ; docs redondants → mises à jour multiples à chaque changement. App générique vs spécificités projet mélangées. | Aucun code touché ; `git revert` du commit doc. Contenu vivant préservé (absorbé), reste dans `git log` + `archive/`. |
 
 ## 2026-07-20
 

@@ -3,11 +3,19 @@
 > **But** : document de référence expliquant TOUTE la chaîne, de la vidéo brute aux
 > indicateurs d'intersection — étape par étape, avec les formules, les fichiers, les
 > paramètres de calibration et les limites connues.
-> **Voir aussi** : [`CAM_ANALYZER_CHANGELOG.md`](CAM_ANALYZER_CHANGELOG.md) (traçabilité de
-> toutes les modifications, avec procédure d'annulation), `CAM_ANALYZER_DISTANCE_DESIGN.md`
-> (design distances), `CONTEXT.md` (contexte métier), `docs/AUDIT_CAM_ANALYZER_VUE_DE_DESSUS_2026-07-15.md`.
+> **Voir aussi** : [`CAM_ANALYZER_CHANGELOG.md`](CAM_ANALYZER_CHANGELOG.md) (traçabilité +
+> **État courant & RESTE À FAIRE** en tête), [`projects/ENA_CASA.md`](projects/ENA_CASA.md)
+> (spécificités **projet** : données, calibration, rig — hors app générique),
+> `docs/AUDIT_CAM_ANALYZER_VUE_DE_DESSUS_2026-07-15.md` (audit fondateur).
+> Le raisonnement de conception (ex-`DISTANCE_DESIGN`) est désormais **absorbé** ci-dessous
+> (§ Conception & justification) ; l'ancien doc est dans `archive/`.
 
-Dernière mise à jour : 2026-07-16.
+> **Piliers de doc (3, rôles nets)** : `README` = carte d'entrée (modules/API/limites) ·
+> **ce document** = comment ça marche + pourquoi (DOIT matcher le code) · `CHANGELOG` =
+> historique + backlog + non-régression. Un changement de comportement ne touche que
+> **CHAINE (si la logique change) + CHANGELOG (toujours)**.
+
+Dernière mise à jour : 2026-07-21.
 
 ---
 
@@ -20,7 +28,8 @@ vidéos 4 caméras (RTMaps)          données véhicule (RTMaps)
    YOLO+ByteTrack, YOLOPv2, SAM3       (ego_pose.py : cap = bearing entre fixes)
         │                                   │
    [3] Distances & vitesses (pinhole)       │
-   [4] (Homographie sol — DÉBRANCHÉE)       │
+   [4] Projection sol (⚑ auto_ground_calib  │
+       OFF ; recalage ortho 2b = rapport)   │
         │                                   │
         └────────────┬──────────────────────┘
                      ▼
@@ -74,15 +83,29 @@ de chaque caméra** (front 384×248, left 408×244, rear 408×248, right 384×24
   garée « affiche » la vitesse de la navette qui s'en approche (suffixe « rel. » dans l'UI).
 - **TTC** = distance / vitesse de rapprochement (ratio → insensible à l'échelle de distance).
 
-## [4] Homographie sol — `ground_projection.py` — ⚠ DÉBRANCHÉE de la vue de dessus
+## [4] Projection sol — `ground_projection.py` + `homography_estimator.py` (⚑ `auto_ground_calib`, OFF)
 
-Calibrée depuis les passages piétons SAM3 (dimensions normées). Écrit `dist_longitudinal_m`,
-`dist_lateral_m`, `ground_xy` sur les détections. **État 2026-07-16 : calibration prouvée
-cassée sur les données réelles** — latéral avec inversions de signe (#546 : centre bbox à
-gauche de l'axe, X homographie +1,74 m) et profondeur non monotone (#537 : 23,5 m pinhole
-vs 6,8 m homographie). La vue de dessus n'utilise PLUS ces champs. ⚠ Piège : l'extraction
-debug affiche `dist_long` (homographie), l'UI affiche `distance_m` (pinhole).
-**Chantier ouvert** : recalibration multi-frames (passages piétons + lignes centrales).
+État 2026-07-21 — **deux générations** de calibration sol :
+
+- **Ancienne voie (passages piétons SAM3, `CameraView.ground_homography`)** — calibrée depuis les
+  passages SAM3 (dimensions normées), écrivait `dist_longitudinal_m`/`dist_lateral_m`/`ground_xy`.
+  **Prouvée biaisée** sur les données réelles (inversion de signe #546 ; profondeur non monotone #537
+  : 23,5 m pinhole vs 6,8 m homographie) → **débranchée** ; ne subsiste que sous `profile.geometry_enabled`.
+- **Voie retenue (`homography_estimator.py`, étape 2a)** — l'angle (pitch/hauteur) est estimé par
+  **étalement monde des stationnés** (auto-calibration, gain ×5 mesuré, cf. § Calibration sol) et
+  stocké dans `session.config['ground_calib']`. Le tracker 360° l'applique via `ground_ego`
+  **UNIQUEMENT si `auto_ground_calib` est ON** (défaut **OFF**) ; sinon → placement pinhole `[3]`.
+- **Recalage ortho 2b** (`ortho_markings.py`, `compute_ortho_recalage_task`) : offset absolu par
+  intersection via passages piétons SAM3 sur ortho IGN (~5,1 m mesuré). **RAPPORT SEUL —
+  `results_summary['ortho_recalage']`, NON appliqué au positionnement** (bascule à venir).
+
+> ⚠ **Placement mixte quand `auto_ground_calib` = ON** (gap G7, cf. CHANGELOG) : `ground_ego` retombe
+> **silencieusement** sur le pinhole hors de portée utile → un A/B « ON vs OFF » compare *pinhole* à
+> *sol+pinhole mélangé*. Toute mesure A/B doit s'appuyer sur `distance_source` ∈ {homography, pinhole}
+> (présent par détection) pour être honnête.
+
+Voir § **Calibration sol — plan complet** (angle par le mouvement / échelle par les marquages) et
+`projects/ENA_CASA.md` §2 (valeurs de calibration du run ENA_CASA).
 
 ## [5] Repère caméra → véhicule — `prediction_adapter.py`
 
@@ -279,7 +302,7 @@ par côté). Règle : **jamais de if ad hoc dispersé** pour une amélioration c
 >   (bandes ~50 cm), lignes axiales à intervalles normalisés. Ce sont des mètres-étalons.
 >   Le mouvement ne peut PAS la déduire — c'est la limite mathématique, pas un manque d'effort.
 
-**État `homography_estimator.py` (v1, rapport seul — RIEN branché sur le positionnement) :**
+**État `homography_estimator.py` (résout l'angle ; l'estimateur v1 reste un rapport) :**
 - résout (pitch, hauteur) par étalement monde des stationnés + ancrage échelle pinhole ;
 - MESURÉ caméra avant : baseline désaccord sol⟷pinhole 14,55 m → **3,05 m** à pitch 21,5°
   (hauteur physique 2,2 m). Gain ×5, entièrement dû à l'angle ;
@@ -288,9 +311,12 @@ par côté). Règle : **jamais de if ad hoc dispersé** pour une amélioration c
 
 **Étapes restantes (dans l'ordre) :**
 
-- **2a — Intégrer le pitch estimé** derrière bascule `auto_ground_calib` (OFF) pour A/B
-  visuel du placement (le gros gain sûr : l'angle). Caméra arrière = 3 stationnés seulement
-  → non fiable, exclure ou attendre session plus riche.
+- **2a — Pitch estimé : CÂBLÉ derrière `auto_ground_calib` (défaut OFF)** — `store_ground_calib`
+  écrit `config['ground_calib']`, le tracker applique `ground_ego` (`multicam_tracker.py`).
+  Caméra arrière = 3 stationnés seulement → non fiable (exclue). **Reste** : (i) une **métrique
+  A/B objective** (désaccord sol⟷pinhole/ortho via `distance_source`, RMS reprojection) pour
+  décider de basculer le défaut ; (ii) corriger le **placement mixte G7** (fallback pinhole
+  silencieux) pour que l'A/B soit propre. La bascule seule ne « termine » pas 2a — la métrique si.
 - **2b — Recalage ABSOLU via marquages ortho** (idée Fabien, l'échelle manquante) —
   ✅ **FAIT (rapport + affichage)**, commit `034912c`, `utils/ortho_markings.py`. SAM3 segmente
   les passages piétons **sur l'orthophoto IGN** (mosaïque WMTS z19 ≈ 0,22 m/px, géo-transform
@@ -332,3 +358,47 @@ par côté). Règle : **jamais de if ad hoc dispersé** pour une amélioration c
    1-4 s — non couverts par `artifact_filter` (critère « statique en image ») → raffinement =
    analyse de transparence sur candidats (conf basse + bbox géante + fragments courts).
 8. « Fixer » la zone routière rose (road_mask) : non opérationnel, sémantique à préciser.
+
+---
+
+## Conception & justification (design — absorbé de l'ex-`DISTANCE_DESIGN`)
+
+> Raisonnement fondateur du chantier distances/vue-de-dessus. **Générique** (méthode, pas valeurs) ;
+> les valeurs ENA_CASA sont dans `projects/ENA_CASA.md`. L'ancien doc est archivé.
+
+### Décisions actées
+1. **Option B (homographie sol)** comme méthode cible de distance, avec **fallback pinhole + lissage**
+   quand la géométrie n'est pas calculable ou désactivée.
+2. **Une primitive unifie tout** : projeter le **point-sol** de l'objet (centre-bas de bbox, supposé
+   au sol) par l'homographie `H` (image→plan-sol) → position `(X, Y)` dans le repère navette. Distance,
+   vitesse, TTC, vue de dessus et filtrage stationnés en découlent.
+3. **`H` est constante par caméra** (montage rigide + sol plan) → les marquages **accumulent des
+   correspondances dans le temps** pour estimer **une seule `H` stable** (auto-calibration en ligne),
+   pas une `H` par frame.
+4. **Sources hiérarchisées + confrontation** (chaque source émet `(valeur, confiance)`) : calibration
+   utilisateur > lignes de voie (YOLOPv2) > passages piétons (SAM3) > **pinhole + lissage** (dernier
+   recours, jamais faux « d'un coup »). Désaccord fort lignes⟷pinhole → segmentation douteuse → fallback.
+5. **La calibration précise n'est PAS requise** : `H` estimée depuis les lignes **absorbe intrinsèques
+   + extrinsèques**. L'échelle métrique vient des marquages (largeur voie + période pointillés, défauts
+   normes FR). Seule contrainte : une caméra fisheye doit être **redressée d'abord**.
+6. **Toutes les références métriques et dimensions sont surchargeables au profil** (idéalement mesurées).
+7. **Fusion IMU (accéléromètre) + GPS** pour l'ego-pose : améliore vitesse propre et trajectoire, donne
+   le tilt (pitch/roll via gravité). **N'apporte PAS le cap** (pas de gyro) → cap = course GPS en
+   mouvement, tenu au dernier connu à l'arrêt.
+8. **Vue de dessus** = tracé des `(X, Y)` autour d'une silhouette navette dimensionnée (profil).
+9. **Filtrage véhicules d'intérêt** — règle `of_interest` (implémentée, non destructive) : chaque
+   segment d'intersection est tagué `of_interest = (event_type ∈ {insertion, wait}) ET (classe ∈
+   ROAD_USER_CLASSES)`. Les `turn` (traversée sans interaction) et faux positifs COCO → masqués par
+   défaut (bascule « Afficher tout »). Mesuré P97 : 130 segments → 5 d'intérêt.
+
+### L'insight fondateur (2 inconnues, 2 sources — ne jamais confondre)
+- **L'ANGLE (tangage/roulis)** se récupère par le **MOUVEMENT seul**, sans vérité terrain (un objet
+  statique vu à plusieurs distances doit se projeter au même point monde ; ego-motion GPS = ancre).
+  Contraint fortement l'angle mais **aveugle à l'échelle**.
+- **L'ÉCHELLE ABSOLUE** exige des objets de **géométrie connue au sol** (passages ~50 cm, lignes à
+  intervalles normalisés) = mètres-étalons. Le mouvement ne peut PAS la déduire (limite mathématique).
+
+### Terminologie distances (actée)
+- `dist_longitudinal_m` = **Y** (projection instantanée sur l'axe navette).
+- `dist_lateral_m` = **X** (écart latéral).
+- `dist_euclid_m` = **‖(X, Y)‖** (distance directe / euclidienne — préféré à « rectiligne »).

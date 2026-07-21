@@ -9,13 +9,17 @@ de la route (détection d'objets, segmentation de voie, proximité, conflits aux
 > intersections/conflits), **validation navigateur en cours** sur session réelle. Le gros chantier
 > récent = **reconstruction de la scène en vue de dessus** (fusion multi-caméras, hand-off d'identité,
 > lissage Kalman) + **calibration sol semi-automatique**.
-> Voir [`CONTEXT.md`](CONTEXT.md) pour l'état détaillé, l'analyse de faisabilité et les priorités de reprise.
+> Voir la section **« État courant & RESTE À FAIRE »** en tête de
+> [`CAM_ANALYZER_CHANGELOG.md`](CAM_ANALYZER_CHANGELOG.md) pour l'état détaillé et les priorités de reprise.
 >
-> **Docs techniques** :
-> [`CAM_ANALYZER_CHAINE_TRAITEMENT.md`](CAM_ANALYZER_CHAINE_TRAITEMENT.md) — la chaîne de
-> traitement de bout en bout (formules, fichiers, calibration, limites) ;
-> [`CAM_ANALYZER_CHANGELOG.md`](CAM_ANALYZER_CHANGELOG.md) — **traçabilité de toutes les
-> modifications** (quoi/pourquoi/annulation) — à mettre à jour à CHAQUE changement de comportement.
+> **Documentation = 3 piliers** (rôles nets, zéro doublon) :
+> [`CAM_ANALYZER_CHAINE_TRAITEMENT.md`](CAM_ANALYZER_CHAINE_TRAITEMENT.md) — comment ça marche + pourquoi
+> (chaîne de bout en bout, formules, calibration, conception ; **DOIT matcher le code**) ;
+> [`CAM_ANALYZER_CHANGELOG.md`](CAM_ANALYZER_CHANGELOG.md) — historique + backlog + non-régression
+> (**traçabilité** quoi/pourquoi/annulation — à jour à CHAQUE changement de comportement) ;
+> ce **README** — carte d'entrée (modules/API/limites).
+> Les **spécificités projet** (ex. ENA_CASA : données, calibration, rig) vivent dans
+> [`projects/`](projects/) — `cam_analyzer` est **générique multi-projets**.
 
 ---
 
@@ -177,17 +181,18 @@ tâches sur la queue Celery `gpu`. App enregistrée dans `wama/settings.py` (INS
 - **Divers** : renommage de session (🖉), durées en `hh:mm:ss`, panneau pipeline affiché au chargement,
   marqueur GPS **interpolé** (fluide), **vue de dessus des objets** tracée sur la carte (fusion 360°).
 
-## Documentation
-| Fichier | Contenu |
-|---|---|
-| [`README.md`](README.md) | Ce fichier — vue d'ensemble, modules, API, limites. |
-| [`CONTEXT.md`](CONTEXT.md) | État détaillé, faisabilité, priorités de reprise (handoff). |
-| [`CAM_ANALYZER_CHAINE_TRAITEMENT.md`](CAM_ANALYZER_CHAINE_TRAITEMENT.md) | Chaîne de traitement complète [1..10], repère de position, table des **bascules ⚑** et de la **calibration**, **plan de calibration sol 2a/2b/2c**, chantiers ouverts. |
-| [`CAM_ANALYZER_DISTANCE_DESIGN.md`](CAM_ANALYZER_DISTANCE_DESIGN.md) | Conception distance/vitesse/TTC + homographie. |
-| [`CAM_ANALYZER_CHANGELOG.md`](CAM_ANALYZER_CHANGELOG.md) | Journal OBLIGATOIRE : 1 ligne/commit (quoi/pourquoi/validation) + procédure de non-régression. |
+## Documentation — 3 piliers + projets
+| Fichier | Rôle | Change quand |
+|---|---|---|
+| [`README.md`](README.md) | Carte d'entrée — vue d'ensemble, modules, API, limites. | Un module/endpoint/limite change. |
+| [`CAM_ANALYZER_CHAINE_TRAITEMENT.md`](CAM_ANALYZER_CHAINE_TRAITEMENT.md) | **Comment ça marche + pourquoi** : chaîne [1..10], formules, bascules ⚑, calibration, plan sol 2a/2b/2c, **conception**. DOIT matcher le code. | La logique du pipeline change (même commit que le changelog). |
+| [`CAM_ANALYZER_CHANGELOG.md`](CAM_ANALYZER_CHANGELOG.md) | **Historique + backlog + non-régression** : « État courant & RESTE » en tête, journal 1 ligne/commit, procédure. | À CHAQUE changement de comportement. |
+| [`projects/ENA_CASA.md`](projects/ENA_CASA.md) | **Spécificités projet** (hors app générique) : données (façon manifeste `dataset`), calibration, rig, contexte du run. | Le run/le rig/la calibration du projet change. |
+
+> Docs **archivés** (`archive/`, contenu vivant absorbé — provenance seulement) : `CAM_ANALYZER_DISTANCE_DESIGN.md`
+> (→ CHAINE § Conception), `CAM_ANALYZER_TOPDOWN_STATUS.md` (→ CHANGELOG § État courant), `CONTEXT.md`
+> (→ projects/ENA_CASA.md + CHANGELOG). Audit fondateur : `docs/AUDIT_CAM_ANALYZER_VUE_DE_DESSUS_2026-07-15.md`.
 
 ## Voir aussi
-- [`CAM_ANALYZER_DISTANCE_DESIGN.md`](CAM_ANALYZER_DISTANCE_DESIGN.md) — **conception distances/vitesses/TTC
-  + homographie + calibration + ego-pose + vue de dessus** (décisions, preuves empiriques, phasage).
-- [`CONTEXT.md`](CONTEXT.md) — handoff de reprise (état réel vérifié, faisabilité, algorithmes, priorités).
 - **ROADMAP.md §9** — phases détaillées et règles d'événements.
+- [`projects/ENA_CASA.md`](projects/ENA_CASA.md) — jeu de données, calibration et rig du run ENA_CASA.
