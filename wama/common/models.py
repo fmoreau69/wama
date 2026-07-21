@@ -110,6 +110,59 @@ class OrgUnit(models.Model):
         return [u.id for u in self.ancestors(include_self=True)]
 
 
+class Project(models.Model):
+    """Projet de recherche = groupe de collaboration EXPLICITE qui peut TRAVERSER l'arbre
+    org : org propriétaire (labo) MAIS membres pouvant venir d'autres orgs (partenaires :
+    autre labo/institut/université). Le partage par unité (`OrgUnit`) ne couvre PAS un projet
+    inter-établissements → un `Project` est le 4e scope de partage. Voir §MONDES/Projets."""
+    code = models.CharField(max_length=64, unique=True, db_index=True)
+    name = models.CharField(max_length=192)
+    description = models.TextField(blank=True, default='')
+    owner_org = models.ForeignKey(OrgUnit, null=True, blank=True, on_delete=models.SET_NULL,
+                                  related_name='projects',
+                                  help_text='Unité propriétaire (labo porteur).')
+    lead = models.ForeignKey('auth.User', null=True, blank=True, on_delete=models.SET_NULL,
+                             related_name='led_projects', help_text='Responsable du projet.')
+    members = models.ManyToManyField('auth.User', through='ProjectMembership',
+                                     related_name='projects', blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['name']
+        verbose_name = 'Projet'
+
+    def __str__(self):
+        return f'{self.name} ({self.code})'
+
+
+class ProjectMembership(models.Model):
+    """Adhésion d'un utilisateur à un projet, avec son rôle et son org (traçabilité
+    cross-org : de quel labo/établissement vient chaque partenaire)."""
+    ROLE_CHOICES = [('lead', 'Responsable'), ('member', 'Membre'), ('partner', 'Partenaire'),
+                    ('viewer', 'Lecture seule')]
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='memberships')
+    user = models.ForeignKey('auth.User', on_delete=models.CASCADE, related_name='project_memberships')
+    role = models.CharField(max_length=16, choices=ROLE_CHOICES, default='member')
+    org = models.ForeignKey(OrgUnit, null=True, blank=True, on_delete=models.SET_NULL,
+                            related_name='+', help_text='Org d\'origine du membre (partenaire).')
+    added_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('project', 'user')
+        verbose_name = 'Adhésion projet'
+
+    def __str__(self):
+        return f'{self.user_id} @ {self.project_id} ({self.role})'
+
+
+def user_projects(user):
+    """Ids des projets dont l'utilisateur est membre (tous rôles)."""
+    if not getattr(user, 'is_authenticated', False):
+        return set()
+    return set(ProjectMembership.objects.filter(user=user).values_list('project_id', flat=True))
+
+
 def user_scope_org_ids(user):
     """Ensemble des OrgUnit ids « couvrant » l'utilisateur : ses unités de rattachement
     ET tous leurs ancêtres. Un item partagé au LABO est visible pour un membre d'une
@@ -129,25 +182,30 @@ def user_scope_org_ids(user):
 
 
 class ScopedVisibility(models.Model):
-    """Mixin ABSTRAIT : visibilité par scope organisationnel (privé / unité / public).
-    `visibility='unit'` + `scope_org_unit` = partagé avec cette unité ET ses sous-unités
-    (un item promu au LABO est vu par tout le labo). Utilisé par médiathèque et fonctions."""
-    VIS_PRIVATE, VIS_UNIT, VIS_PUBLIC = 'private', 'unit', 'public'
-    VIS_CHOICES = [(VIS_PRIVATE, 'Privé'), (VIS_UNIT, 'Unité (labo/dépt/univ…)'),
-                   (VIS_PUBLIC, 'Public')]
+    """Mixin ABSTRAIT : visibilité par scope (privé / PROJET / unité org / public).
+    - `unit` + `scope_org_unit` : partagé avec l'unité ET ses sous-unités (labo→équipes) ;
+    - `project` + `scope_project` : partagé avec les MEMBRES d'un projet (peut TRAVERSER
+      les orgs : partenaires d'un autre labo/université). Utilisé par médiathèque + fonctions."""
+    VIS_PRIVATE, VIS_PROJECT, VIS_UNIT, VIS_PUBLIC = 'private', 'project', 'unit', 'public'
+    VIS_CHOICES = [(VIS_PRIVATE, 'Privé'), (VIS_PROJECT, 'Projet (membres, cross-org)'),
+                   (VIS_UNIT, 'Unité (labo/dépt/univ…)'), (VIS_PUBLIC, 'Public')]
     visibility = models.CharField(max_length=12, choices=VIS_CHOICES, default=VIS_PRIVATE,
                                   db_index=True)
     scope_org_unit = models.ForeignKey(OrgUnit, null=True, blank=True,
                                        on_delete=models.SET_NULL, related_name='+',
                                        help_text="Unité de partage si visibility='unit'.")
+    scope_project = models.ForeignKey('common.Project', null=True, blank=True,
+                                      on_delete=models.SET_NULL, related_name='+',
+                                      help_text="Projet de partage si visibility='project'.")
 
     class Meta:
         abstract = True
 
 
 def scoped_visible_q(user, owner_field='user'):
-    """`Q` filtrant les objets ScopedVisibility visibles pour `user` :
-    les siens + les publics + ceux partagés à une unité qui le couvre."""
+    """`Q` filtrant les objets ScopedVisibility visibles pour `user` : les siens + les
+    publics + ceux partagés à une unité qui le couvre + ceux partagés à un projet dont
+    il est membre (le scope PROJET traverse les orgs → partenaires externes)."""
     from django.db.models import Q
     q = Q(visibility=ScopedVisibility.VIS_PUBLIC)
     if getattr(user, 'is_authenticated', False):
@@ -155,6 +213,9 @@ def scoped_visible_q(user, owner_field='user'):
         ids = user_scope_org_ids(user)
         if ids:
             q |= Q(visibility=ScopedVisibility.VIS_UNIT, scope_org_unit_id__in=ids)
+        pids = user_projects(user)
+        if pids:
+            q |= Q(visibility=ScopedVisibility.VIS_PROJECT, scope_project_id__in=pids)
     return q
 
 

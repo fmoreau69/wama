@@ -1,6 +1,21 @@
 from django.contrib import admin
 
-from .models import OrgUnit, UserFunction
+from .models import OrgUnit, UserFunction, Project, ProjectMembership
+
+
+class ProjectMembershipInline(admin.TabularInline):
+    model = ProjectMembership
+    extra = 1
+    autocomplete_fields = ('user', 'org')
+
+
+@admin.register(Project)
+class ProjectAdmin(admin.ModelAdmin):
+    list_display = ('name', 'code', 'owner_org', 'lead')
+    list_filter = ('owner_org',)
+    search_fields = ('name', 'code')
+    autocomplete_fields = ('owner_org', 'lead')
+    inlines = [ProjectMembershipInline]
 
 
 @admin.register(OrgUnit)

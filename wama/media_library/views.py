@@ -240,7 +240,8 @@ def api_promote(request, pk: int):
     Seul le PROPRIÉTAIRE peut promouvoir ; le partage 'unit' exige une unité qui COUVRE
     l'utilisateur (labo/dépt/université de son appartenance). Voir §MONDES."""
     import json
-    from wama.common.models import OrgUnit, ScopedVisibility, user_scope_org_ids
+    from wama.common.models import (OrgUnit, Project, ScopedVisibility,
+                                    user_scope_org_ids, user_projects)
     user = _get_user(request)
     try:
         asset = UserAsset.objects.get(pk=pk, user=user)   # propriété obligatoire
@@ -251,23 +252,30 @@ def api_promote(request, pk: int):
     except ValueError:
         return JsonResponse({'error': 'JSON invalide'}, status=400)
     vis = body.get('visibility')
-    if vis not in (ScopedVisibility.VIS_PRIVATE, ScopedVisibility.VIS_UNIT, ScopedVisibility.VIS_PUBLIC):
+    if vis not in (ScopedVisibility.VIS_PRIVATE, ScopedVisibility.VIS_PROJECT,
+                   ScopedVisibility.VIS_UNIT, ScopedVisibility.VIS_PUBLIC):
         return JsonResponse({'error': 'visibility invalide'}, status=400)
-    scope = None
+    scope_unit = scope_project = None
     if vis == ScopedVisibility.VIS_UNIT:
-        code = body.get('scope_org_unit_code')
         try:
-            scope = OrgUnit.objects.get(code=code)
+            scope_unit = OrgUnit.objects.get(code=body.get('scope_org_unit_code'))
         except OrgUnit.DoesNotExist:
             return JsonResponse({'error': 'unité inconnue'}, status=400)
-        # l'utilisateur ne peut promouvoir que vers une unité qui le couvre
-        if scope.id not in user_scope_org_ids(user):
+        if scope_unit.id not in user_scope_org_ids(user):   # doit couvrir l'utilisateur
             return JsonResponse({'error': "vous n'appartenez pas à cette unité"}, status=403)
+    elif vis == ScopedVisibility.VIS_PROJECT:
+        try:
+            scope_project = Project.objects.get(code=body.get('scope_project_code'))
+        except Project.DoesNotExist:
+            return JsonResponse({'error': 'projet inconnu'}, status=400)
+        if scope_project.id not in user_projects(user):     # doit être membre du projet
+            return JsonResponse({'error': "vous n'êtes pas membre de ce projet"}, status=403)
     asset.visibility = vis
-    asset.scope_org_unit = scope
-    asset.save(update_fields=['visibility', 'scope_org_unit'])
+    asset.scope_org_unit = scope_unit
+    asset.scope_project = scope_project
+    asset.save(update_fields=['visibility', 'scope_org_unit', 'scope_project'])
     return JsonResponse({'id': pk, 'visibility': vis,
-                         'scope': scope.name if scope else None})
+                         'scope': (scope_unit or scope_project).name if (scope_unit or scope_project) else None})
 
 
 # ---------------------------------------------------------------------------
