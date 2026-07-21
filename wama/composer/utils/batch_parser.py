@@ -39,7 +39,7 @@ def parse_batch_file(
     from wama.common.utils.batch_parsers import (
         extract_batch_file_text, is_structured_batch_text, parse_unified_batch,
     )
-    from wama.composer.utils.model_config import COMPOSER_MODELS
+    from wama.composer.utils.model_config import COMPOSER_MODELS, clamp_duration
 
     # Legacy pipe positionnel si pas de batch structuré → comportement inchangé.
     if not is_structured_batch_text(extract_batch_file_text(file_path)):
@@ -63,7 +63,7 @@ def parse_batch_file(
             duration = float(it['options'].get('duration', default_duration))
         except (ValueError, TypeError):
             duration = default_duration
-        duration = max(10.0, min(600.0, duration))
+        duration = clamp_duration(duration)
         # Nom de sortie : explicite (-o / colonne output) sinon laissé vide —
         # apply_indexed_output_names() le remplit via <fichier_batch>_NN.wav.
         output_filename = it.get('output') or ''

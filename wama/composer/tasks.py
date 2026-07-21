@@ -45,6 +45,14 @@ def compose_task(self, generation_id: int):
         gen.model = resolve_auto_model(gen)
         gen.save(update_fields=['model'])
         _console(user_id, f"[Composer] 🧠 Auto → {gen.model} (capacités + VRAM libre au lancement)")
+    # Durée plafonnée par la capacité du modèle FINAL (source unique = clamp_duration : schéma +
+    # max_duration du modèle). Seul point où le vrai modèle est connu (auto-* résolu ci-dessus).
+    from wama.composer.utils.model_config import clamp_duration
+    _capped = clamp_duration(gen.duration, gen.model)
+    if _capped != gen.duration:
+        _console(user_id, f"[Composer] Durée {gen.duration:g}s → {_capped:g}s (max du modèle {gen.model})")
+        gen.duration = _capped
+        gen.save(update_fields=['duration'])
     _console(user_id, f"[Composer] Démarrage : {gen.model} — {gen.prompt[:60]}…")
 
     import time as _time

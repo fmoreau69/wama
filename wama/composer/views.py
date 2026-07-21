@@ -16,7 +16,7 @@ from wama.accounts.views import get_or_create_anonymous_user
 from wama.common.utils.console_utils import get_console_lines
 from wama.common.utils.queue_duplication import safe_delete_file, duplicate_instance
 from .models import ComposerBatch, ComposerBatchItem, ComposerGeneration
-from .utils.model_config import COMPOSER_MODELS, MUSIC_MODELS, SFX_MODELS
+from .utils.model_config import COMPOSER_MODELS, MUSIC_MODELS, SFX_MODELS, clamp_duration
 
 # Pseudo-modèles « choix automatique » — résolus à l'exécution par capacités + VRAM libre
 # (utils/auto_model.py). Le type reste dérivé du choix dans le select, conformément à la
@@ -164,7 +164,7 @@ def generate(request):
 
     try:
         duration = float(request.POST.get('duration', 10))
-        duration = max(10.0, min(600.0, duration))
+        duration = clamp_duration(duration)
     except (ValueError, TypeError):
         duration = 10.0
 
@@ -299,7 +299,7 @@ def import_batch(request):
         default_model = 'musicgen-small'
     try:
         default_duration = float(request.POST.get('default_duration', 10))
-        default_duration = max(10.0, min(600.0, default_duration))
+        default_duration = clamp_duration(default_duration)
     except (ValueError, TypeError):
         default_duration = 10.0
 
@@ -452,7 +452,7 @@ def update_settings(request, pk):
 
     try:
         duration = float(request.POST.get('duration', gen.duration))
-        duration = max(10.0, min(600.0, duration))
+        duration = clamp_duration(duration)
     except (ValueError, TypeError):
         duration = gen.duration
 
@@ -722,7 +722,7 @@ def batch_update(request, pk):
             g.generation_type = _model_type(model)
         if duration:
             try:
-                g.duration = max(10.0, min(600.0, float(duration)))
+                g.duration = clamp_duration(duration)
             except (ValueError, TypeError):
                 pass
         if output_format:

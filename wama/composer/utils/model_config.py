@@ -104,6 +104,21 @@ MUSIC_MODELS = {k: v for k, v in COMPOSER_MODELS.items() if v['type'] == 'music'
 SFX_MODELS = {k: v for k, v in COMPOSER_MODELS.items() if v['type'] == 'sfx'}
 
 
+def clamp_duration(value, model_id=None):
+    """Durée bornée par la SOURCE UNIQUE = le schéma `params.py` (via `coerce_params`), plafonnée
+    par le `max_duration` du modèle si `model_id` est connu. Remplace les clamps hardcodés
+    `max(10, min(600, …))` (cf. PROJECT_STATUS §21bis). Le cap modèle ne s'applique qu'au moment où
+    le vrai modèle est résolu (pas pour les pseudo-modèles `auto-*` ni au dépôt batch)."""
+    from wama.common.utils.param_schema import coerce_params
+    from wama.composer.params import PARAMS
+    caps = {}
+    if model_id and model_id in COMPOSER_MODELS:
+        md = COMPOSER_MODELS[model_id].get('max_duration')
+        if md:
+            caps['duration'] = md
+    return coerce_params(PARAMS, {'duration': value}, caps=caps).get('duration', value)
+
+
 def estimate_seconds(model_id: str, duration: float) -> int:
     """
     Estimate generation time in seconds (warm GPU, RTX 4090).

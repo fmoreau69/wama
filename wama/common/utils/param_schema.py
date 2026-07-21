@@ -137,3 +137,50 @@ def derive_from_model(model_class, include: List[str], overrides: dict = None) -
 def schema_to_dicts(params: List[Param]) -> List[dict]:
     """Sérialise un schéma pour le front (JSON) / un template."""
     return [p.to_dict() for p in params]
+
+
+def _pget(p, key, default=None):
+    """Accès uniforme à un champ de schéma, que `p` soit un Param ou un dict (schema_to_dicts)."""
+    return p.get(key, default) if isinstance(p, dict) else getattr(p, key, default)
+
+
+def coerce_params(schema, data, caps=None):
+    """Borne UNIQUE des paramètres numériques = le SCHÉMA (`params.py`). Source de vérité serveur.
+
+    Remplace les clamps hardcodés `max(min_, min(max_, x))` disséminés dans les vues/tâches
+    (≈28 sites, cf. PROJECT_STATUS §21bis) : la borne n'est plus copiée, elle est LUE du schéma
+    déjà affiché côté client → plus de dérive possible entre le slider et la validation serveur.
+
+    schema : itérable de `Param` (ou de dicts issus de `schema_to_dicts`).
+    data   : mapping nom→valeur brute (ex. `request.POST`, ou un simple dict).
+    caps   : optionnel {nom: max_dynamique} — plafonne DAVANTAGE la borne haute d'un range/number
+             selon une capacité runtime (ex. `duration` ← `max_duration` du modèle choisi). Un cap
+             ne peut que RESSERRER la borne du schéma, jamais l'élargir.
+
+    Retourne {nom: valeur_coercée} pour chaque paramètre numérique (`range`/`number`) du schéma :
+    valeur absente/illisible → `default` du schéma ; sinon clampée à [min, min(max, cap)].
+    Les paramètres non numériques (select/toggle/text…) sont ignorés — le caller les valide à part.
+    """
+    caps = caps or {}
+    out = {}
+    for p in schema:
+        if _pget(p, 'type') not in ('range', 'number'):
+            continue
+        name = _pget(p, 'name')
+        lo = _pget(p, 'min')
+        hi = _pget(p, 'max')
+        cap = caps.get(name)
+        if cap is not None:
+            hi = cap if hi is None else min(hi, cap)
+        raw = data.get(name) if hasattr(data, 'get') else None
+        try:
+            val = float(raw)
+        except (TypeError, ValueError):
+            dflt = _pget(p, 'default')
+            val = float(dflt) if dflt is not None else (float(lo) if lo is not None else 0.0)
+        if lo is not None:
+            val = max(float(lo), val)
+        if hi is not None:
+            val = min(float(hi), val)
+        out[name] = val
+    return out
