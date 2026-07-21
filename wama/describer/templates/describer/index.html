@@ -253,16 +253,20 @@ migré 2026-07-05) ; IDs dropZone/fileInput/media_url conservés → handlers JS
 <!-- Barre globale commune (balayage permanent + ETA agrégée) : URL puis script auto-démarré. -->
 <script>window.WAMA_GLOBAL_PROGRESS_URL = "{% url 'describer:global_progress' %}";</script>
 <script>
-// Import URL depuis la card d'entrée commune : plomberie 100% centralisée
-// (WamaApp.initUrlImport). L'app ne déclare que endpoint + succès (reload).
+// Import URL depuis la card d'entrée : réutilise le FORMALISME BATCH commun.
+// L'URL = un batch d'1 ligne → même parseur + consolidation qu'un fichier batch
+// (batch_create crée la Description avec source_url, téléchargée au démarrage de
+// la tâche). initUrlImport (commun) gère input/bouton/Entrée/spinner ; ingestText
+// (commun) pousse l'URL dans le pipeline batch. Aucune route serveur dédiée.
 document.addEventListener('DOMContentLoaded', function () {
     if (!window.WamaApp) return;
     WamaApp.initUrlImport({
         inputId: 'media_url',
         buttonId: 'mediaUrlSubmit',
-        endpoint: "{% url 'describer:upload' %}",
-        csrfToken: '{{ csrf_token }}',
-        onSuccess: function () { location.reload(); },
+        onSubmit: function (url) {
+            if (!window._batchImport) throw new Error("Import batch non initialisé");
+            return window._batchImport.ingestText(url + '\n', 'url.txt');
+        },
     });
 });
 </script>
