@@ -292,13 +292,17 @@
 
     // Double-clic sur l'aperçu → PLEIN ÉCRAN via la modale commune (WamaMediaPreview, PAS de
     // réinvention) + icône overlay indicative. Le texte inline (prompt/sortie) passe par text_content.
-    function _attachFullscreen(d) {
+    function _attachFullscreen(d, baseUrl) {
       if (!previewHost || typeof global.showPreviewModal !== 'function') return;
       previewHost.style.position = previewHost.style.position || 'relative';
       previewHost.title = 'Double-clic : plein écran';
       previewHost.ondblclick = function () {
         try {
-          var m = (d.content && !d.url) ? { text_content: d.content, name: d.name || 'Texte' } : d;
+          // Transmet baseUrl + sides + side : la modale reconstruit le toggle Entrée/Comparer/Sortie.
+          var m = (d.content && !d.url)
+            ? { text_content: d.content, name: d.name || 'Texte', mime_type: 'text/plain' }
+            : d;
+          m._baseUrl = baseUrl; m.sides = d.sides; m.side = d.side;
           global.showPreviewModal(m);
         } catch (e) { /* no-op */ }
       };
@@ -358,7 +362,7 @@
         if (!d || (!d.url && !d.content && !(d.peaks && d.peaks.length))) { restorePreview(); return; }
         var autoplay = (cfg.autoplay != null) ? cfg.autoplay : global.WAMA_INSPECTOR_AUTOPLAY;
         renderInlinePreview(previewHost, d, !!autoplay);
-        _attachFullscreen(d);
+        _attachFullscreen(d, baseUrl);
         _renderSideToggle(baseUrl, d, title);
         if (previewTitleEl && title) previewTitleEl.textContent = title;
       }).catch(restorePreview);

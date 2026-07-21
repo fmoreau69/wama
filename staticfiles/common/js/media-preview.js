@@ -238,6 +238,9 @@
         if (data.properties) metaParts.push(data.properties);
         meta.textContent = metaParts.join(' | ');
 
+        // Toggle Entrée/Comparer/Sortie dans le plein écran (si l'appelant a fourni _baseUrl+sides).
+        _renderModalSides(modal, data);
+
         // Update navigation UI
         updateNavigationUI(modal);
 
@@ -269,6 +272,64 @@
         // getOrCreateInstance : réutilise l'instance existante (évite l'empilement de backdrops)
         const bsModal = bootstrap.Modal.getOrCreateInstance(modal);
         bsModal.show();
+    }
+
+    function _sepQS(u) { return u.indexOf('?') === -1 ? '?' : '&'; }
+
+    /** Toggle Entrée/Comparer/Sortie DANS le plein écran — commun, réutilise `?side=X`. Ne s'affiche
+     *  que si l'appelant a passé `_baseUrl` + `sides` (has_input && has_output). */
+    function _renderModalSides(modal, data) {
+        const container = modal.querySelector('.preview-container');
+        let bar = modal.querySelector('.wama-modal-sides');
+        const s = data.sides, base = data._baseUrl;
+        if (!base || !s || !s.has_input || !s.has_output) { if (bar) bar.remove(); return; }
+        if (!bar) {
+            bar = document.createElement('div');
+            bar.className = 'wama-modal-sides btn-group btn-group-sm';
+            bar.style.cssText = 'position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:6;';
+            if (container) { container.style.position = container.style.position || 'relative'; container.appendChild(bar); }
+        }
+        bar.innerHTML = '';
+        const add = function (label, icon, active, fn) {
+            const b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'btn btn-sm px-3 ' + (active ? 'btn-info' : 'btn-outline-info');
+            b.innerHTML = '<i class="fas ' + icon + ' me-1"></i>' + label;
+            b.addEventListener('click', fn);
+            bar.appendChild(b);
+        };
+        const goSide = function (side) {
+            fetch(base + _sepQS(base) + 'side=' + side).then(function (r) { return r.ok ? r.json() : null; })
+                .then(function (nd) { if (nd) { nd._baseUrl = base; nd.sides = nd.sides || s; showPreviewModal(nd); } });
+        };
+        add('Entrée', 'fa-right-to-bracket', data.side === 'input', function () { goSide('input'); });
+        if (s.comparable) add('Comparer', 'fa-left-right', data.side === 'compare', function () { _modalCompare(modal, base, s); });
+        add('Sortie', 'fa-flag-checkered', data.side === 'output', function () { goSide('output'); });
+    }
+
+    /** Comparaison côte-à-côte (entrée | sortie) dans le plein écran — réutilise buildPreviewContent. */
+    function _modalCompare(modal, base, s) {
+        const container = modal.querySelector('.preview-container');
+        Promise.all([
+            fetch(base + _sepQS(base) + 'side=input').then(function (r) { return r.ok ? r.json() : null; }),
+            fetch(base + _sepQS(base) + 'side=output').then(function (r) { return r.ok ? r.json() : null; }),
+        ]).then(function (a) {
+            const din = a[0], dout = a[1];
+            if (!din || !dout || !container) return;
+            Array.prototype.forEach.call(container.querySelectorAll(':scope > :not(.wama-modal-sides):not(.wama-preview-nav-btn)'),
+                function (el) { el.remove(); });
+            const wrap = document.createElement('div');
+            wrap.style.cssText = 'display:flex;gap:10px;width:100%;height:100%;align-items:center;justify-content:center;';
+            [din, dout].forEach(function (dd) {
+                const col = document.createElement('div');
+                col.style.cssText = 'flex:1;min-width:0;max-height:100%;text-align:center;overflow:auto;';
+                col.appendChild(buildPreviewContent(dd));
+                wrap.appendChild(col);
+            });
+            container.appendChild(wrap);
+            din._baseUrl = base; din.sides = s; din.side = 'compare';
+            _renderModalSides(modal, din);
+        });
     }
 
     /**
@@ -491,6 +552,9 @@
         if (item.resolution) metaParts.push(item.resolution);
         if (item.properties) metaParts.push(item.properties);
         meta.textContent = metaParts.join(' | ');
+
+        // Toggle Entrée/Comparer/Sortie dans le plein écran (si l'appelant a fourni _baseUrl+sides).
+        _renderModalSides(modal, data);
 
         // Update navigation UI
         updateNavigationUI(modal);
