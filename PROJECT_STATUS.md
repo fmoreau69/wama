@@ -564,8 +564,17 @@ check_app_conformity exécutable → introspection Django→schéma → scaffold
 > 4. **Preview Entrée/Sortie** : aujourd'hui input ET output pointent sur `audio_output`
 >    (apps.py:30 & 44) → le toggle montrerait 2× le même fichier. Input = mélodie de référence si
 >    présente (sinon pas de side entrée) ; le prompt reste l'« entrée » textuelle.
-> 5. **Curseur durée 10-600 s vs `max_duration:30`** (model_config) : aligner (seul vrai petit
->    réglage `params.py`, pas une brique).
+> 5. **Borne de durée = DUPLICATION 7× (dette architecturale, PAS un petit réglage — corrigé
+>    2026-07-21).** La borne 10-600 s est copiée à la main dans : champ modèle (help_text seul, AUCUN
+>    validateur `models.py:27`), `params.py` (slider min/max), et **5 clamps `max(10,min(600))`**
+>    (views.py ×4 + batch_parser) ; elle a déjà dérivé (migrations : max30→10-300→10-600) et
+>    contredit `max_duration:30` (model_config). **Source unique = le mécanisme commun
+>    `derive_from_model` (`common/utils/param_schema.py`)** — dériver le schéma DU modèle Django,
+>    déjà adopté par anonymizer/avatarizer/describer/imager ; **Composer ne l'utilise pas**.
+>    Cible : borne définie 1× (validateurs sur le champ modèle → Django valide serveur + derive lit),
+>    clamps serveur LISENT le schéma (petit helper commun), effective_max = min(borne, model.max_duration).
+>    ⚠ Trou SYSTÉMIQUE probable : même les apps qui dérivent mettent min/max dans les `overrides`
+>    params.py et leurs clamps serveur re-hardcodent → à auditer (fix Composer isolé vs brique commune).
 > 6. **Compléter `initFromSchema`** : `saveGlobal`, `hideOnInspect`, `settingsTitleSelector/Inspect`.
 > 7. **(Card, optionnel)** remplacer badge statut + barre écrits à la main (`_generation_card.html:
 >    51-65`) par includes communs `_card_state.html`/`_card_progress.html` (que transcriber inclut) ;
