@@ -269,6 +269,22 @@ document.addEventListener('DOMContentLoaded', function () {
         batchLabel: function (id) { return "le batch #" + id + " (tous les éléments)"; },
         saveItem: function (id) { return postPanel('/composer/settings/' + id + '/'); },
         saveBatch: function (bid) { return postPanel('/composer/batch/' + bid + '/update/'); },
+        // Point 3 du portage : le volet HÉRITE des boutons d'action de la card / du batch —
+        // cloneActions clone le conteneur .btn-group-actions (clics fonctionnels : la délégation
+        // est au niveau document dans index.js). Miroir du contrat Transcriber.
+        renderItemActions: function (host, card) {
+            WamaInspector.cloneActions(host, card.querySelector('.btn-group-actions'),
+                '<i class="fas fa-crosshairs text-info"></i> Actions — élément #' + card.dataset.id);
+        },
+        renderBatchActions: function (host, bid) {
+            var anyBtn = document.querySelector('.btn-group-actions [data-batch-id="' + bid + '"]');
+            WamaInspector.cloneActions(host, anyBtn ? anyBtn.closest('.btn-group-actions') : null,
+                '<i class="fas fa-layer-group text-info"></i> Actions — batch #' + bid);
+        },
+        // Point 6 : masque les options de création (reset) pendant l'inspection d'une card.
+        // (saveGlobal et settingsTitle* = N/A pour Composer : pas de réglages globaux persistés
+        //  ni d'élément de titre dédié dans le volet.)
+        hideOnInspect: ['resetOptions'],
     });
 });
 </script>
