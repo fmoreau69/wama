@@ -348,26 +348,27 @@
       var s = d.sides;
       if (!s || !s.has_input || !s.has_output) return;
       var bar = document.createElement('div');
-      bar.className = 'btn-group btn-group-sm wama-preview-sides mt-1';
+      bar.className = 'btn-group btn-group-sm wama-preview-sides mt-1 w-100';   // pleine largeur
       function mk(label, icon, active, onClick) {
         var b = document.createElement('button');
         b.type = 'button';
-        b.className = 'btn py-0 px-2 ' + (active ? 'btn-info' : 'btn-outline-info');
+        b.className = 'btn py-0 px-2 flex-fill ' + (active ? 'btn-info' : 'btn-outline-info');
         b.innerHTML = '<i class="fas ' + icon + ' me-1"></i>' + label;
         b.addEventListener('click', onClick);
         return b;
       }
+      // Ordre CHRONOLOGIQUE (2026-07-21) : Entrée → Comparer → Sortie.
       bar.appendChild(mk('Entrée', 'fa-right-to-bracket', d.side === 'input', function () {
         _fetchPreviewSide(baseUrl, 'input', title);
       }));
-      bar.appendChild(mk('Sortie', 'fa-flag-checkered', d.side === 'output', function () {
-        _fetchPreviewSide(baseUrl, 'output', title);
-      }));
       if (s.comparable) {
-        bar.appendChild(mk('Comparer', 'fa-left-right', false, function () {
+        bar.appendChild(mk('Comparer', 'fa-left-right', d.side === 'compare', function () {
           _renderCompare(baseUrl, title);
         }));
       }
+      bar.appendChild(mk('Sortie', 'fa-flag-checkered', d.side === 'output', function () {
+        _fetchPreviewSide(baseUrl, 'output', title);
+      }));
       previewHost.appendChild(bar);
     }
 
