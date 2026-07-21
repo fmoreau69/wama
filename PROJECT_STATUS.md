@@ -557,12 +557,21 @@ check_app_conformity exécutable → introspection Django→schéma → scaffold
 > `apply_inline_conversion` (converter). **Apps branchées early-binding : composer + synthesizer** ;
 > late-binding = conversion au download (`multi_format_download`). (Ma gestion explicite initiale
 > était redondante/fausse → corrigée.)
-> **pt4 preview — ALIGNÉ sur le manifeste (autre instance, `WAMA_MANIFEST_SPEC.md:108-113`)** :
-> preview d'entrée bind sur le port **travail/prompt, JAMAIS `reference`** ; à terme **dérivée du
-> manifeste** (« plus de preview codée en dur par app »). Pour composer : entrée = **prompt**, sortie
-> = audio, mélodie de réf = reference (pas l'entrée). Régression actuelle : l'adaptateur
-> (`composer/apps.py`) met `audio_output` en entrée. **COORDINATION EN COURS** avec l'instance
-> manifeste avant de coder l'adaptateur (risque de conflit sur composer/apps.py / mécanisme preview).
+> **pt4 preview = CHANTIER PREVIEW COMMUN (tunnel : moi=briques preview, autre instance=manifeste+
+> ingest ; on se rejoint sur les ports).** CONTRAT DE JONCTION : la preview lit les ports par
+> **l'UNIQUE accesseur `studio_node_ports(app_id)`** (jamais app_modes/app_registry en direct) —
+> `extract_app()` du manifeste utilise déjà le même → quand le manifeste devient autoritaire,
+> `studio_node_ports` = sa projection, la preview hérite sans changer. Le « pendant » = **capacité
+> déclarée** (`body.capabilities`, ex. `during_preview`/`streaming`) : moi le mécanisme, eux le flag.
+> Cycle avant/pendant/après (comme ▶/⏹/↻). État :
+> - ✅ **Chantier 1 (2026-07-21) — face ENTRÉE dérivée du port travail/prompt, jamais reference**
+>   (`preview_utils._input_preview` via `studio_node_ports` ; prompt→texte inline `content`,
+>   travail→adaptateur fichier ; frontend rend `content` inline). Corrige composer GÉNÉRIQUEMENT
+>   (0 hardcode). Vérifié live : composer/synthesizer=prompt, transcriber/imager=travail ; endpoint
+>   composer entrée=prompt(text/plain), sortie=audio, toggle OK.
+> - ⏳ **Chantier 2 — phase PENDANT** : mécanisme commun de preview en cours de traitement (sortie
+>   temporaire/partielle), socle du streaming « à la Suno », lit la capacité `during_preview`/`streaming`.
+> - ⏳ **Chantier 3 — unifier le filemanager** sur `media-preview.js` commun (il a sa propre modale).
 > **Streaming preview « à la Suno »** (sortie audio construite pendant le process) = faisable
 > (MusicGen autorégressif + callback), à faire en **capacité commune déclarée par métadonnée**, APRÈS
 > pt4 de base — pas en dur dans composer. **Reste** : pt4 (preview entrée/sortie — **design corrigé
