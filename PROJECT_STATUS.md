@@ -569,8 +569,17 @@ check_app_conformity exécutable → introspection Django→schéma → scaffold
 >   travail→adaptateur fichier ; frontend rend `content` inline). Corrige composer GÉNÉRIQUEMENT
 >   (0 hardcode). Vérifié live : composer/synthesizer=prompt, transcriber/imager=travail ; endpoint
 >   composer entrée=prompt(text/plain), sortie=audio, toggle OK.
-> - ⏳ **Chantier 2 — phase PENDANT** : mécanisme commun de preview en cours de traitement (sortie
->   temporaire/partielle), socle du streaming « à la Suno », lit la capacité `during_preview`/`streaming`.
+> - 🔄 **Chantier 2 — phase PENDANT** : ✅ **socle backend (2026-07-21)** — accesseur capacités unique
+>   `app_capabilities`/`app_supports_during_preview` (`app_registry.py`, analogue `studio_node_ports` ;
+>   lit `during_preview`/`streaming` des conventions APP_CATALOG, déjà projetées par le manifeste
+>   `builtin/app.py:188`) + mécanisme `publish_partial`/`clear_partial`/`_during_preview_data` +
+>   `unified_preview` `?side=during` + `sides.during_capable`/`has_during`. Vérifié dormant (composer
+>   sans flag → fallback entrée) ET activé (partiel publié → servi). **Reste** : (a) **frontend** —
+>   volet poll `?side=during` pendant RUNNING si `during_capable`, rend le partiel qui se construit ;
+>   (b) **worker composer (2b)** — MusicGen streaming décode partiel → `publish_partial` (needs GPU +
+>   restart WSL2 pour valider) ; (c) **flag** `during_preview` sur composer dans les conventions =
+>   rôle « déclaration » de l'instance manifeste (moi=mécanisme). Tant que (c) absent, le socle est
+>   dormant (sûr).
 > - ⏳ **Chantier 3 — unifier le filemanager** sur `media-preview.js` commun (il a sa propre modale).
 > **Streaming preview « à la Suno »** (sortie audio construite pendant le process) = faisable
 > (MusicGen autorégressif + callback), à faire en **capacité commune déclarée par métadonnée**, APRÈS
