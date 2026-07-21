@@ -407,10 +407,13 @@
             .then(d => {
                 if (d.success) {
                     bootstrap.Modal.getInstance(document.getElementById('settingsModal'))?.hide();
-                    if (!d.restarted) return;   // Enregistrer simple : rien à relancer
-                    if (window.WamaEta) WamaEta.reset(id);   // l'ETA se re-seede via progress
-                    updateCardStatus(id, 'PENDING', 0);
-                    startPolling(parseInt(id));
+                    // Re-rend la card serveur (SOURCE UNIQUE du markup) → data-* frais (model/duration/
+                    // format/quality/prompt) : modale ET inspecteur relisent les valeurs ENREGISTRÉES au
+                    // ré-ouvrir, au lieu des data-* d'origine (= défauts). Vaut pour « Enregistrer » ET
+                    // « Enregistrer et relancer » ; le statut réel (RUNNING) vient du rendu serveur.
+                    if (window.WamaEta && d.restarted) WamaEta.reset(id);   // l'ETA se re-seede via progress
+                    insertRenderedCard(id);
+                    if (d.restarted) startPolling(parseInt(id));
                 } else {
                     WamaApp.toast('Erreur : ' + (d.error || 'inconnue'), 'error');
                 }
