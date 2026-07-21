@@ -1,50 +1,113 @@
-"""Pics de forme d'onde pré-calculés côté serveur (« waveform par parties »).
+"""Forme d'onde : calcul UNIQUE et centralisé des pics d'amplitude (« waveform par parties »).
 
-Centralise dans `common/` le mécanisme CONÇU mais reporté par la correction Transcriber
-(`TRANSCRIBER_CORRECTION.md` §5ter) : le SERVEUR downsample l'audio en N pics d'amplitude → le
-client dessine l'onde SANS décoder tout le PCM en mémoire. Bénéficie :
-- aux **fichiers longs** (le player commun échoue à décoder en mémoire → aujourd'hui repli timeline
-  sans amplitude ; avec des pics serveur, l'onde reste dessinable) ;
-- au **streaming « pendant »** (chantier 2) : le worker émet des pics par fenêtre au fil de la
-  génération (`publish_partial_peaks`), le front les ajoute → onde qui se construit (effet « Suno »).
+Source unique pour TOUTE l'app WAMA (unifie l'ex-`transcriber/utils/waveform.py` et l'ancien doublon
+`common`). Un seul `compute_peaks`, paramétrable :
 
-Contrat : `compute_peaks` ne lève JAMAIS (retourne `[]` si illisible) — le client garde son repli.
+- **backend** : `ffmpeg` (décode n'importe quel format, fichiers longs — mode éditeur/transcriber)
+  · `soundfile` (rapide, wav/flac) · `array` (PCM déjà en mémoire — streaming « pendant ») · `auto`.
+- **résolution** : `buckets_per_second` (densité fixe → N variable selon la durée, mode éditeur) OU
+  `buckets` (N absolu, mode aperçu à largeur fixe).
+- **dtype** : `uint8` (0–255, compact — format de transport/cache CANONIQUE) OU `float` (0–1).
+- **with_duration** : retourne `(peaks, duration_s)`.
+
+Le transcriber délègue ici (mode `ffmpeg`, `buckets_per_second=50`, `uint8`) — sortie identique à
+son implémentation historique. La preview/streaming l'appelle en mode `array`/`buckets` `uint8`.
+Contrat : ne lève JAMAIS (retourne `[]`/`(None|[], 0)`) — le client garde son repli.
 """
 
+BUCKETS_PER_SECOND = 50          # densité éditeur (transcriber historique)
+MAX_BUCKETS = 300_000            # garde-fou (~100 min à 50/s)
+DECODE_SR = 8000                 # l'enveloppe n'a pas besoin de la pleine bande
 
-def compute_peaks(source, buckets=800):
-    """N pics d'amplitude normalisés [0..1] (max |amplitude| par tranche).
 
-    `source` : chemin de fichier audio OU tableau/liste PCM (mono ou stéréo ; numpy accepté).
-    `buckets` : nombre de pics voulus (résolution horizontale de l'onde).
-    Retourne `[]` si l'audio est illisible ou vide (le client a un repli timeline — jamais d'erreur).
+def _decode_ffmpeg(audio_path):
+    """(int16 mono @ DECODE_SR, sr) via ffmpeg, ou (None, 0). Même commande que l'historique."""
+    import subprocess
+    try:
+        import numpy as np
+        from wama.common.utils.ffmpeg_utils import get_ffmpeg_exe
+        ffmpeg = get_ffmpeg_exe()
+        if not ffmpeg:
+            return None, 0
+        proc = subprocess.run(
+            [str(ffmpeg), "-v", "error", "-i", str(audio_path),
+             "-ac", "1", "-ar", str(DECODE_SR), "-f", "s16le", "-"],
+            capture_output=True, check=True,
+        )
+        return np.frombuffer(proc.stdout, dtype=np.int16), DECODE_SR
+    except Exception:
+        return None, 0
+
+
+def _decode_soundfile(audio_path):
+    """(float32 mono, sr) via soundfile, ou (None, 0)."""
+    try:
+        import numpy as np
+        import soundfile as sf
+        data, sr = sf.read(str(audio_path), dtype='float32', always_2d=False)
+        arr = np.asarray(data, dtype='float32')
+        if arr.ndim > 1:
+            arr = arr.mean(axis=1)
+        return arr, int(sr)
+    except Exception:
+        return None, 0
+
+
+def compute_peaks(source, buckets=800, *, buckets_per_second=None, sr=None,
+                  backend='auto', dtype='float', with_duration=False):
+    """Pics d'amplitude d'un audio. Voir le docstring de module pour les modes.
+
+    `source` : chemin de fichier OU tableau/liste PCM (mono/stéréo ; numpy accepté).
+    `buckets` : N absolu (mode aperçu). `buckets_per_second` : densité (mode éditeur ; prioritaire).
+    `sr` : requis pour la durée en mode `array` (sinon durée = 0).
+    Retourne une liste de pics, ou `(peaks, duration)` si `with_duration`.
     """
+    def _ret(peaks, duration):
+        return (peaks, duration) if with_duration else peaks
+
     try:
         import numpy as np
     except Exception:
-        return []
+        return _ret([], 0.0)
 
-    if isinstance(source, (str, bytes)) or hasattr(source, '__fspath__'):
-        try:
-            import soundfile as sf
-            data, _sr = sf.read(str(source), dtype='float32', always_2d=False)
-        except Exception:
-            return []
+    # ── 1) échantillons + sr ────────────────────────────────────────────────
+    is_path = isinstance(source, (str, bytes)) or hasattr(source, '__fspath__')
+    if is_path:
+        raw, s_sr = (None, 0)
+        if backend in ('ffmpeg', 'auto'):
+            raw, s_sr = _decode_ffmpeg(source)
+        if raw is None and backend in ('soundfile', 'auto'):
+            raw, s_sr = _decode_soundfile(source)
+        if raw is None:
+            return _ret(None, 0)                 # indisponible (contrat historique transcriber)
     else:
-        data = source
+        raw = np.asarray(source)
+        if raw.ndim > 1:
+            raw = raw.mean(axis=1)
+        s_sr = int(sr or 0)
 
+    n = int(raw.size)
+    if n == 0:
+        return _ret([], 0.0)
+
+    # ── 2) durée + nombre de buckets ────────────────────────────────────────
+    duration = (n / float(s_sr)) if s_sr else 0.0
+    if buckets_per_second:
+        nb = max(1, min(MAX_BUCKETS, int(duration * buckets_per_second))) if duration else \
+             max(1, min(MAX_BUCKETS, int(buckets)))
+    else:
+        nb = max(1, min(int(buckets), n))
+
+    # ── 3) enveloppe max-abs par bucket (reshape tronqué : identique à l'historique) ──
     try:
-        arr = np.asarray(data, dtype='float32')
-        if arr.ndim > 1:                      # stéréo/multi → mono
-            arr = arr.mean(axis=1)
-        n = int(arr.shape[0])
-        if n == 0 or buckets <= 0:
-            return []
-        buckets = min(int(buckets), n)
-        idx = np.linspace(0, n, buckets + 1, dtype=int)
-        peaks = [float(np.abs(arr[idx[i]:idx[i + 1]]).max()) if idx[i + 1] > idx[i] else 0.0
-                 for i in range(buckets)]
-        m = max(peaks) or 1.0
-        return [round(p / m, 4) for p in peaks]
+        spb = max(1, n // nb)
+        usable = spb * nb
+        env = np.abs(raw[:usable].astype(np.float32)).reshape(nb, spb).max(axis=1)
+        peak = float(env.max()) or 1.0
+        if dtype == 'uint8':
+            out = np.clip((env / peak) * 255.0, 0, 255).astype(np.uint8).tolist()
+        else:
+            out = [round(float(v), 4) for v in (env / peak)]
+        return _ret(out, duration)
     except Exception:
-        return []
+        return _ret([], duration)

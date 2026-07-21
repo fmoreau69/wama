@@ -35,37 +35,14 @@ def peaks_path(transcript):
 
 
 def compute_peaks(audio_path, buckets_per_second=BUCKETS_PER_SECOND):
-    """Décode l'audio (ffmpeg → PCM mono s16le) et calcule l'enveloppe max-abs par bucket.
-
-    Retourne (peaks_uint8_list, duration_seconds) ou (None, 0) si indisponible.
-    """
-    import numpy as np
-    ffmpeg = _get_ffmpeg_path()
-    if not ffmpeg:
-        logger.warning("[waveform] ffmpeg introuvable")
-        return None, 0
-    try:
-        proc = subprocess.run(
-            [ffmpeg, "-v", "error", "-i", str(audio_path),
-             "-ac", "1", "-ar", str(DECODE_SR), "-f", "s16le", "-"],
-            capture_output=True, check=True,
-        )
-    except subprocess.CalledProcessError as e:
-        logger.warning(f"[waveform] ffmpeg a échoué : {e.stderr[:300] if e.stderr else e}")
-        return None, 0
-
-    raw = np.frombuffer(proc.stdout, dtype=np.int16)
-    n = raw.size
-    if n == 0:
-        return [], 0.0
-    duration = n / float(DECODE_SR)
-    buckets = max(1, min(MAX_BUCKETS, int(duration * buckets_per_second)))
-    spb = max(1, n // buckets)               # samples par bucket
-    usable = spb * buckets
-    env = np.abs(raw[:usable].astype(np.float32)).reshape(buckets, spb).max(axis=1)
-    peak = float(env.max()) or 1.0
-    out = np.clip((env / peak) * 255.0, 0, 255).astype(np.uint8)
-    return out.tolist(), duration
+    """Pics d'onde (uint8, densite) — DELEGUE au calcul UNIQUE commun
+    `common.utils.waveform.compute_peaks` (mode ffmpeg/uint8/densite). Sortie identique a
+    l'historique (verifie octet pour octet). Le cache/worker/endpoint transcriber restent ici.
+    Ne plus dupliquer le calcul : la source unique est common/utils/waveform.py."""
+    from wama.common.utils.waveform import compute_peaks as _common_compute_peaks
+    return _common_compute_peaks(
+        audio_path, backend='ffmpeg', buckets_per_second=buckets_per_second,
+        dtype='uint8', with_duration=True)
 
 
 def write_peaks(transcript, peaks, duration):

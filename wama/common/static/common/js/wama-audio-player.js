@@ -317,12 +317,18 @@
         setPeaks: function(playerId, peaks) {
             var s = registry.get(String(playerId));
             if (!s || !s.canvas || !Array.isArray(peaks) || !peaks.length) return;
+            // Transport CANONIQUE = uint8 (0-255, cf. common/utils/waveform.compute_peaks, format du
+            // transcriber). drawWaveform attend des amplitudes ~0-1 → on normalise. Accepte aussi des
+            // floats 0-1 (max <= 1 → inchangé), donc robuste aux deux échelles.
+            var mx = 0, i;
+            for (i = 0; i < peaks.length; i++) { if (peaks[i] > mx) mx = peaks[i]; }
+            var data = mx > 1 ? peaks.map(function (v) { return v / 255; }) : peaks;
             s.fallback = false;                 // on a une onde → plus de repli timeline
-            s.channelData = peaks;
+            s.channelData = data;
             if (!s.canvas.width)  s.canvas.width  = s.canvas.offsetWidth || 400;
             if (!s.canvas.height) s.canvas.height = s.height || 64;
             var dur = s.audio && s.audio.duration;
-            drawWaveform(s.canvas, peaks, (dur ? s.audio.currentTime / dur : 0) || 0);
+            drawWaveform(s.canvas, data, (dur ? s.audio.currentTime / dur : 0) || 0);
         },
 
         /** Met en pause tous les players actifs. */
