@@ -573,8 +573,15 @@ check_app_conformity exécutable → introspection Django→schéma → scaffold
 >    déjà adopté par anonymizer/avatarizer/describer/imager ; **Composer ne l'utilise pas**.
 >    Cible : borne définie 1× (validateurs sur le champ modèle → Django valide serveur + derive lit),
 >    clamps serveur LISENT le schéma (petit helper commun), effective_max = min(borne, model.max_duration).
->    ⚠ Trou SYSTÉMIQUE probable : même les apps qui dérivent mettent min/max dans les `overrides`
->    params.py et leurs clamps serveur re-hardcodent → à auditer (fix Composer isolé vs brique commune).
+>    ✅ **FAIT 2026-07-21** : trou confirmé SYSTÉMIQUE (audit : ~28 clamps hardcodés sur 8 apps,
+>    même celles qui dérivent ; aucune brique n'existait). Créé `common/utils/param_schema.py::
+>    coerce_params(schema, data, caps=)` = borne LUE du schéma (source unique) + cap runtime optionnel.
+>    Composer = 1er consommateur : helper `clamp_duration` + 5 clamps remplacés + cap `max_duration`
+>    au lancement de tâche (auto-* résolu). Validé live (305→305, 999→600, 999+musicgen→30). **Reste** :
+>    (a) valider navigateur (305s demandé → 30s généré = cap modèle ; si trop bas, `max_duration` de
+>    model_config = désormais LA source à corriger 1×) ; (b) généraliser aux ~23 autres sites ;
+>    (c) plus tard, porter la borne dans le modèle Django (validateurs → derive_from_model les lit),
+>    décidé avec Fabien : « on aligne sur l'existant, puis modèle Django par la suite ».
 > 6. **Compléter `initFromSchema`** : `saveGlobal`, `hideOnInspect`, `settingsTitleSelector/Inspect`.
 > 7. **(Card, optionnel)** remplacer badge statut + barre écrits à la main (`_generation_card.html:
 >    51-65`) par includes communs `_card_state.html`/`_card_progress.html` (que transcriber inclut) ;
