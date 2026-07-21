@@ -55,7 +55,8 @@ def register_app_detail(app_name, model_class, adapter):
 
 
 def build_detail(instance, *, source_file=None, source_type=None, engine=None,
-                 engine_effective=None, result_file=None, result_text=None, extra=None):
+                 engine_effective=None, result_file=None, result_text=None,
+                 source_text=None, extra=None):
     """Assemble le dict canonique d'un item (épine dorsale). Les valeurs vides sont OMISES
     (la ligne disparaît côté WamaDetails). `extra` = réglages spécifiques d'app {label: valeur}.
 
@@ -127,6 +128,10 @@ def build_detail(instance, *, source_file=None, source_type=None, engine=None,
 
     if result_text:
         d['result_text'] = result_text
+    if source_text:
+        # Clé canonique du TEXTE D'ENTRÉE (prompt) — symétrique de result_text. Lue par
+        # `preview_utils._input_preview` pour servir l'entrée sans nom de champ en dur.
+        d['source_text'] = source_text
 
     for k in ('output_format', 'output_quality'):
         v = getattr(instance, k, None)
