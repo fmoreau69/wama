@@ -91,6 +91,50 @@ def _input_preview(app_name, instance, request):
     return PreviewRegistry.get_preview_data(app_name, instance, request)
 
 
+# ── Phase PENDANT (chantier 2) : preview progressive/temporaire pendant le traitement ──────────
+# Contrat de jonction : gâté par la capacité déclarée `during_preview`/`streaming`, lue via
+# l'accesseur UNIQUE `app_supports_during_preview` (comme la preview d'entrée lit les ports par
+# `studio_node_ports`). Le worker de l'app publie un aperçu partiel courant via `publish_partial`
+# (mécanisme = moi ; déclaration du flag + production du partiel = l'app). Dormant tant qu'aucune
+# app ne déclare la capacité ET ne publie de partiel.
+
+def _partial_key(app_name, pk):
+    return f'wama_partial_preview_{app_name}_{pk}'
+
+
+def publish_partial(app_name, pk, url_or_path):
+    """Worker : publie l'URL (média) d'un aperçu PARTIEL courant, servi par `?side=during`.
+    TTL court (le partiel est éphémère). Appeler `clear_partial` à la fin du traitement."""
+    from django.core.cache import cache
+    cache.set(_partial_key(app_name, pk), str(url_or_path), 900)
+
+
+def clear_partial(app_name, pk):
+    """Worker : retire l'aperçu partiel (fin de traitement — la face SORTIE prend le relais)."""
+    from django.core.cache import cache
+    cache.delete(_partial_key(app_name, pk))
+
+
+def _during_preview_data(app_name, instance, request):
+    """Payload preview PENDANT le traitement : aperçu partiel publié par le worker, si l'app
+    déclare la capacité. None sinon (→ face during absente, dormant)."""
+    from wama.common.app_registry import app_supports_during_preview
+    if not app_supports_during_preview(app_name):
+        return None
+    from django.core.cache import cache
+    url = cache.get(_partial_key(app_name, getattr(instance, 'pk', None)))
+    if not url:
+        return None
+    from .mime_utils import guess_mime_type
+    clean = str(url).split('?')[0]
+    return {
+        'name': os.path.basename(clean) or 'partiel',
+        'url': request.build_absolute_uri(url) if str(url).startswith('/') else str(url),
+        'mime_type': guess_mime_type(clean) or 'application/octet-stream',
+        'partial': True,
+    }
+
+
 def unified_preview(request, app_name: str, pk: int):
     """
     Unified preview endpoint for any registered app.
@@ -133,18 +177,26 @@ def unified_preview(request, app_name: str, pk: int):
         # RÉSULTAT (clé canonique result_file du detail) ; méta `sides` additive pour que
         # l'inspecteur affiche le toggle [Entrée|Sortie] (+ slider comparatif si comparable).
         output_data = _output_preview_data(app_name, instance, request)
+        during_data = _during_preview_data(app_name, instance, request)   # chantier 2 (PENDANT)
         has_input = bool(preview_data and not preview_data.get('error'))
         has_output = bool(output_data)
         cat_in = _mime_category(preview_data.get('mime_type')) if has_input else ''
         cat_out = _mime_category(output_data.get('mime_type')) if has_output else ''
+        from wama.common.app_registry import app_supports_during_preview
         sides = {
             'has_input': has_input,
             'has_output': has_output,
             # slider comparatif V1 : images uniquement (vidéos = toggle seulement)
             'comparable': bool(has_input and has_output and cat_in == cat_out and cat_in == 'image'),
+            # PENDANT : l'app SAIT-elle streamer (capacité) vs a-t-elle un partiel MAINTENANT
+            'during_capable': app_supports_during_preview(app_name),
+            'has_during': bool(during_data),
         }
         side = (request.GET.get('side') or 'input').lower()
-        if side == 'output' and has_output:
+        if side == 'during' and during_data:
+            data = dict(during_data)
+            data['side'] = 'during'
+        elif side == 'output' and has_output:
             data = dict(output_data)
             data['side'] = 'output'
         else:

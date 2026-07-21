@@ -88,6 +88,42 @@ def normalize_types(types):
     return out
 
 
+def app_capabilities(app_id):
+    """Capacités déclarées d'une app = les drapeaux `conventions` d'APP_CATALOG, retournés à plat.
+
+    Accesseur UNIQUE des capacités (analogue de `studio_node_ports` pour les ports) — contrat de
+    jonction manifeste : le mécanisme de preview « pendant » lit `during_preview`/`streaming` ICI,
+    jamais en tapant dans les conventions ailleurs. Quand le manifeste deviendra autoritaire, ceci
+    en sera la projection et les consommateurs (preview, etc.) hériteront sans changer.
+    """
+    meta = APP_CATALOG.get(app_id) or {}
+    conv = meta.get('conventions')
+    if conv is None:
+        return {}
+    if isinstance(conv, dict):
+        return dict(conv)
+    try:
+        return dict(conv._asdict())            # namedtuple
+    except Exception:
+        pass
+    try:
+        import dataclasses
+        if dataclasses.is_dataclass(conv):
+            return dataclasses.asdict(conv)    # dataclass
+    except Exception:
+        pass
+    return {k: getattr(conv, k) for k in dir(conv)
+            if not k.startswith('_') and not callable(getattr(conv, k, None))}
+
+
+def app_supports_during_preview(app_id):
+    """True si l'app déclare la capacité de preview « pendant » (progressive/temporaire pendant le
+    traitement, streaming « à la Suno »). Lit `during_preview` OU `streaming` via `app_capabilities`.
+    """
+    caps = app_capabilities(app_id)
+    return bool(caps.get('during_preview') or caps.get('streaming'))
+
+
 def studio_node_ports(app_id):
     """
     Dérive les PORTS d'un nœud studio pour une app, métadonnée-driven :
