@@ -91,13 +91,20 @@
       media = '<iframe src="' + u + '" sandbox class="wama-inspector-preview-media" ' +
         'style="width:100%;height:220px;border:0;background:#fff;border-radius:6px;"></iframe>';
     } else if (mime.indexOf('text/') === 0) {
-      // Texte (plain/markdown/csv…) : contenu inline tronqué, chargé en async.
+      // Texte (plain/markdown/csv… ; ex. le PROMPT en entrée). Contenu inline si fourni
+      // (data.content, cas prompt sans fichier), sinon chargé en async depuis l'URL.
       host.innerHTML = '<div class="wama-inspector-preview"><pre class="small text-white-50 text-start mb-1" ' +
         'style="max-height:200px;overflow:auto;white-space:pre-wrap;word-break:break-word;">…</pre></div>';
       var pre = host.querySelector('pre');
-      fetch(url).then(function (r) { return r.ok ? r.text() : ''; }).then(function (t) {
-        if (pre) pre.textContent = t.length > 3000 ? t.slice(0, 3000) + '\n…' : (t || '(vide)');
-      }).catch(function () { if (pre) pre.textContent = '(aperçu indisponible)'; });
+      var _renderText = function (t) {
+        if (pre) pre.textContent = (t && t.length > 3000) ? t.slice(0, 3000) + '\n…' : (t || '(vide)');
+      };
+      if (typeof data.content === 'string') {
+        _renderText(data.content);
+      } else {
+        fetch(url).then(function (r) { return r.ok ? r.text() : ''; }).then(_renderText)
+          .catch(function () { if (pre) pre.textContent = '(aperçu indisponible)'; });
+      }
       _previewCaption(host, name, data);
       return;
     } else {

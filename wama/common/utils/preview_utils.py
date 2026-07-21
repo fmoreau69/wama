@@ -57,6 +57,40 @@ def _output_preview_data(app_name, instance, request):
         return None
 
 
+def _input_port_group(app_name):
+    """Groupe du port d'ENTRÉE de l'app, lu par l'UNIQUE accesseur de ports `studio_node_ports`.
+
+    Contrat de jonction avec le manifeste (WAMA_MANIFEST_SPEC §preview) : on ne lit JAMAIS
+    `app_modes`/`app_registry` directement ici — uniquement `studio_node_ports(app_id)`. Quand le
+    manifeste deviendra autoritaire, `studio_node_ports` en sera la projection et cette logique
+    héritera sans changer. Règle : l'entrée bind sur le port de TRAVAIL, sinon le PROMPT —
+    JAMAIS un port `reference` (la référence conditionne le traitement, elle n'EST pas l'entrée).
+    """
+    try:
+        from wama.common.app_registry import studio_node_ports
+        ports = studio_node_ports(app_name) or {}
+    except Exception:
+        return None
+    groups = [p.get('group') for p in (ports.get('inputs') or [])]
+    if 'travail' in groups:
+        return 'travail'
+    if 'prompt' in groups:
+        return 'prompt'
+    return None
+
+
+def _input_preview(app_name, instance, request):
+    """Face ENTRÉE de la preview, dérivée du port de travail/prompt (jamais reference).
+
+    - port `prompt` (texte, ex. composer/synthesizer) → le PROMPT en texte inline (`content`) ;
+    - port `travail` (média, ex. transcriber/imager) → l'adaptateur enregistré (fichier de travail).
+    """
+    if _input_port_group(app_name) == 'prompt':
+        txt = (getattr(instance, 'prompt', '') or '').strip()
+        return {'name': 'Prompt', 'mime_type': 'text/plain', 'content': txt} if txt else None
+    return PreviewRegistry.get_preview_data(app_name, instance, request)
+
+
 def unified_preview(request, app_name: str, pk: int):
     """
     Unified preview endpoint for any registered app.
@@ -94,7 +128,7 @@ def unified_preview(request, app_name: str, pk: int):
 
     # Get preview data using the registered adapter
     try:
-        preview_data = PreviewRegistry.get_preview_data(app_name, instance, request)
+        preview_data = _input_preview(app_name, instance, request)
         # Preview ENTRÉE/SORTIE (décision 2026-07-12, STUDIO_VISION) : ?side=output sert le
         # RÉSULTAT (clé canonique result_file du detail) ; méta `sides` additive pour que
         # l'inspecteur affiche le toggle [Entrée|Sortie] (+ slider comparatif si comparable).
