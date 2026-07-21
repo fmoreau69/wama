@@ -170,6 +170,38 @@ les registres deviennent des **projections** re-synchronisables (`verify` récon
 
 ---
 
+## 5bis. Résultats du 1er round-trip / dry-run (2026-07-21, `496b85d`)
+
+Étape 1 de la projection = **dry-run sans code-gen** (`wama/common/manifests/projection.py`).
+Deux sorties, toutes deux fidèles au code réel :
+
+**A. Projetabilité par facette** — sur les 12 facettes du kind `app`, **une seule est projetable au
+RUNTIME** (`access` → `AppAccessPolicy`, DB) ; les **11 autres sont du CODE-GEN** (APP_CATALOG, params.py,
+models.py/urls, GENERIC_APPS…). Facettes MANQUANTES fréquentes (trou de schéma OU app non concernée — à
+lever au cas par cas) : `modes` (absent hors 5 apps), `prompts` (apps non génératives : normal), `models`
+(apps sans catalogue `<APP>_MODELS`).
+
+**B. Round-trip redondance `ports (app_registry)` ⟷ `GENERIC_APPS`** — le test a RÉVÉLÉ des divergences
+réelles entre les deux sources saisies à la main :
+
+- **`output_type` n'existe QUE dans GENERIC_APPS** (None depuis les ports sur les 10 apps) → le typage de
+  SORTIE n'est pas encodé dans app_registry. La source unifiée devra le porter (ou le lire de la facette `studio`).
+- **5 apps : typage d'ENTRÉE divergent** (la redondance a dérivé) :
+  | app | ports (app_registry) | GENERIC_APPS | écart |
+  |---|---|---|---|
+  | avatarizer | audio, image | audio | image en trop côté ports |
+  | converter | +archive | (sans archive) | archive absent du studio |
+  | describer | audio, image, video | +document | document absent des ports |
+  | enhancer | audio, image, video | image, video | audio en trop côté ports |
+  | imager | image | primary_input=prompt | ports plus riche (accepte une image en édition) |
+- **5 apps concordent** en entrée (anonymizer, composer, reader, synthesizer, transcriber) — seul `output_type` diffère.
+
+**Conclusion** : la convergence `APP_CATALOG ⟷ GENERIC_APPS` en un kind `app` unique est justifiée ET
+cadrée — il faut (1) faire porter le typage de sortie par la source unifiée, (2) réconcilier les 5 entrées
+divergentes. C'est le préalable au code-gen (on ne génère pas depuis deux sources qui se contredisent).
+
+---
+
 ## 6. Points de vigilance connus (à traiter dans/avant l'app_gen)
 
 - **`studio_node_ports` = accesseur unique de ports** partagé preview↔manifeste : un seul point de
