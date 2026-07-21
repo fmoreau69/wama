@@ -48,8 +48,8 @@ class Envelope:
             errs.append("manifest_kind manquant")
         if not self.key or not isinstance(self.key, str):
             errs.append("key manquant ou non-str")
-        elif not _is_slug(self.key):
-            errs.append(f"key '{self.key}' n'est pas un slug ([a-z0-9_-])")
+        elif not _is_key(self.key):
+            errs.append(f"key '{self.key}' contient des caractères interdits (autorisés: alphanumérique + -_:./ )")
         if not self.name:
             errs.append("name manquant")
         if self.world not in WORLDS:
@@ -80,5 +80,8 @@ class Envelope:
         return asdict(self)
 
 
-def _is_slug(s: str) -> bool:
-    return bool(s) and all(c.isalnum() or c in '-_' for c in s) and s == s.lower()
+def _is_key(s: str) -> bool:
+    """Identifiant d'enveloppe : baseline SÛRE mais namespacée (les model_key valent p.ex.
+    'huggingface:Qwen/Qwen-Image', avec ':' '/' et majuscules). Un kind peut imposer plus strict
+    dans son `validate` (ex. `app` → slug minuscule). Interdit les espaces et caractères de contrôle."""
+    return bool(s) and all(c.isalnum() or c in '-_:./' for c in s)
