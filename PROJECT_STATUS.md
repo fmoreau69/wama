@@ -580,6 +580,14 @@ check_app_conformity exécutable → introspection Django→schéma → scaffold
 >   restart WSL2 pour valider) ; (c) **flag** `during_preview` sur composer dans les conventions =
 >   rôle « déclaration » de l'instance manifeste (moi=mécanisme). Tant que (c) absent, le socle est
 >   dormant (sûr).
+>   **RÉUTILISATION correction Transcriber (2026-07-21, centralisé common/)** : (i) `wama-audio-player.js`
+>   gère déjà les longs fichiers (repli timeline si décode échoue) → réutilisé tel quel pour l'audio
+>   partiel ; (ii) pattern overlay 5ter (calque temps-mappé découplé) → modèle du calque de progression
+>   streaming ; (iii) **« waveform par parties » que transcriber avait CONÇU mais reporté → FAIT et
+>   centralisé** : `common/utils/waveform.py::compute_peaks` (downsample serveur fichier/PCM→pics [0..1],
+>   jamais d'exception) + `publish_partial_peaks` + `WamaAudioPlayer.setPeaks` (additif : dessine l'onde
+>   depuis pics serveur, débloque longs fichiers ET onde-qui-se-construit). Vérifié (array/fichier/
+>   dormant/activé). **Reste frontend** : le volet appelle `setPeaks` au poll `?side=during` pendant RUNNING.
 > - ⏳ **Chantier 3 — unifier le filemanager** sur `media-preview.js` commun (il a sa propre modale).
 > **Streaming preview « à la Suno »** (sortie audio construite pendant le process) = faisable
 > (MusicGen autorégressif + callback), à faire en **capacité commune déclarée par métadonnée**, APRÈS
