@@ -391,16 +391,13 @@
         const id = document.getElementById('settingsGenId').value;
         const formData = new FormData();
         formData.append('csrfmiddlewaretoken', CSRF);
-        // pt2 du portage : les champs du SCHÉMA (params.py = model/duration/prompt) sont lus
-        // GÉNÉRIQUEMENT via la brique commune WamaParams.read(container) — plus de hand-read par id.
-        // (Un param ajouté au schéma sera posté automatiquement, sans toucher ce code.)
+        // pt2 du portage : TOUS les champs de la modale sont des Param du schéma (params.py) et
+        // sont lus GÉNÉRIQUEMENT via la brique commune WamaParams.read — plus aucun hand-read par id.
+        // model/duration/prompt + output_format/output_quality (ces 2 viennent de la brique commune
+        // output_format_params_for_app, source = capacités du converter CONVERTER_OUTPUT_FORMATS).
+        // Un param ajouté au schéma est posté automatiquement, sans toucher ce code.
         const _fields = document.getElementById('composerSettingsFields');
         const vals = (window.WamaParams && _fields) ? WamaParams.read(_fields) : {};
-        // output_format / output_quality : gérés via le CONVERTER (hors schéma composer) → explicites.
-        const sof = document.getElementById('settingsOutputFormat');
-        if (sof) vals.output_format = sof.value;
-        const soq = document.getElementById('settingsOutputQuality');
-        if (soq) vals.output_quality = soq.value;
         Object.keys(vals).forEach(function (k) { formData.append(k, vals[k]); });
         formData.append('restart', restart ? '1' : '0');
 
