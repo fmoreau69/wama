@@ -80,6 +80,19 @@
 **propriété / projet / visibilité** (absente de toolbox tierce). → Le manifeste WAMA = richesse descriptive toolbox tierce
 + reader pluggable + types WAMA + métadonnées projet.
 
+**Formalisme des manifestes (doctrine 2026-07-21, ⏳)** — WAMA a DÉJÀ plusieurs manifestes épars
+(`APP_CATALOG`, `studio/GENERIC_APPS`, `FUNCTION_CATALOG`, `StudioPipeline.graph`, catalogue modèles,
++ le futur manifeste-données toolbox tierce) avec une **redondance** (app décrite 2× : APP_CATALOG *et* GENERIC_APPS).
+→ **Union discriminée** : enveloppe commune (`manifest_kind`, `schema_version`, key, name, owner, visibility,
+projects, source) + `body` par kind validé contre le **schéma du kind** (= le « template » du skill LLM) +
+un **registre `MANIFEST_KINDS`** (validation/dispatch keyés sur le kind). Kinds : `app` (à CONVERGER
+APP_CATALOG⟷GENERIC_APPS), `function` (fait), `dataset` (toolbox tierce), `model`, `pipeline`, `project` (fait).
+**Le dispatch n'est PAS « une simple fonction »** : risque de N-copies qui divergent → le manifeste = source
+UNIQUE (registres = projections OU ingest atomique avec back-link). Ingest = validate→sandbox→**promote**,
+IDEMPOTENT + TRANSACTIONNEL + RÉVERSIBLE + traçable. **Sandbox = manifeste en `visibility=private/staging` →
+promote** (réutilise ScopedVisibility + doctrine wama-dev-ai « propose, l'humain valide »). Voir
+`memory/project_manifest_formalism.md`.
+
 **Couche PROJET — ✅ FAIT (0e03d66)** — distincte d'`OrgUnit` : `wama.common.models.Project`
 (code/name/owner_org/lead/membres M2M) + `ProjectMembership` (rôle + org d'origine du partenaire).
 Un projet traverse l'arbre org (membres d'autres labo/université). **4e scope de visibilité** :
