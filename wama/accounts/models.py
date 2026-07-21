@@ -153,6 +153,27 @@ def create_user_profile_signal(sender, instance, created, **kwargs):
         UserProfile.objects.get_or_create(user=instance)
 
 
+class AccessLog(models.Model):
+    """Journal d'accès : trace les connexions (traçabilité recherche + responsabilité RGPD).
+    Complète `User.date_joined` (inscription) et `User.last_login` déjà fournis par Django."""
+    EVENT_CHOICES = [('login', 'Connexion'), ('logout', 'Déconnexion'),
+                     ('login_denied', 'Connexion refusée (compte inactif)')]
+    user = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL,
+                             related_name='access_logs')
+    username = models.CharField(max_length=150, blank=True, default='')   # conservé si user supprimé
+    event = models.CharField(max_length=16, choices=EVENT_CHOICES, default='login')
+    ip = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.CharField(max_length=256, blank=True, default='')
+    timestamp = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ['-timestamp']
+        verbose_name = "Journal d'accès"
+
+    def __str__(self):
+        return f'{self.username or self.user_id} · {self.event} · {self.timestamp:%Y-%m-%d %H:%M}'
+
+
 class LoginForm(AuthenticationForm):
     username = forms.CharField(
         widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': "User ID (forname.name)"})

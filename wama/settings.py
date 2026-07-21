@@ -229,7 +229,7 @@ if ENABLE_LDAP:
         'WAMA_LDAP_STRUCTURES_DN', 'ou=structures,dc=univ-eiffel,dc=fr')
     AUTH_LDAP_ALWAYS_UPDATE_USER = True
     AUTHENTICATION_BACKENDS = [
-        'django_auth_ldap.backend.LDAPBackend',
+        'wama.accounts.ldap_backend.WamaLDAPBackend',  # LDAP + modération 1re connexion
         'django.contrib.auth.backends.ModelBackend',
     ]
     LOGGING = {
@@ -251,7 +251,7 @@ if ENABLE_LDAP:
     }
 else:
     AUTHENTICATION_BACKENDS = [
-        'django_auth_ldap.backend.LDAPBackend',
+        'wama.accounts.ldap_backend.WamaLDAPBackend',  # LDAP + modération 1re connexion
         'django.contrib.auth.backends.ModelBackend',
     ]
 
@@ -328,6 +328,10 @@ EMAIL_HOST_USER = _os.environ.get('WAMA_EMAIL_USER', '')
 EMAIL_HOST_PASSWORD = _os.environ.get('WAMA_EMAIL_PASSWORD', '')
 EMAIL_USE_TLS = _os.environ.get('WAMA_EMAIL_USE_TLS', '1') == '1'
 DEFAULT_FROM_EMAIL = _os.environ.get('WAMA_EMAIL_FROM', 'WAMA <no-reply@univ-eiffel.fr>')
+
+# Modération des nouveaux comptes (login LDAP = toute l'université → gate).
+WAMA_MODERATE_NEW_USERS = os.environ.get('WAMA_MODERATE_NEW_USERS', '1') == '1'
+WAMA_MODERATOR_EMAILS = [e for e in os.environ.get('WAMA_MODERATOR_EMAILS', '').split(',') if e.strip()]
 if EMAIL_HOST:
     EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 else:

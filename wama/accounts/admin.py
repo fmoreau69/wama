@@ -22,3 +22,18 @@ class AppAccessPolicyAdmin(admin.ModelAdmin):
     @admin.display(description='Rôles')
     def roles_list(self, obj):
         return ', '.join(g.name.replace('role:', '') for g in obj.roles.all()) or '— commun —'
+
+
+from .models import AccessLog
+
+
+@admin.register(AccessLog)
+class AccessLogAdmin(admin.ModelAdmin):
+    list_display = ('timestamp', 'username', 'event', 'ip')
+    list_filter = ('event', 'timestamp')
+    search_fields = ('username', 'ip')
+    date_hierarchy = 'timestamp'
+    readonly_fields = ('user', 'username', 'event', 'ip', 'user_agent', 'timestamp')
+
+    def has_add_permission(self, request):
+        return False   # journal en lecture seule
