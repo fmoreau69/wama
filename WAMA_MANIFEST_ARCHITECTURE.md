@@ -181,24 +181,32 @@ models.py/urls, GENERIC_APPS…). Facettes MANQUANTES fréquentes (trou de sché
 lever au cas par cas) : `modes` (absent hors 5 apps), `prompts` (apps non génératives : normal), `models`
 (apps sans catalogue `<APP>_MODELS`).
 
-**B. Round-trip redondance `ports (app_registry)` ⟷ `GENERIC_APPS`** — le test a RÉVÉLÉ des divergences
-réelles entre les deux sources saisies à la main :
+**B. Round-trip redondance `ports (app_registry)` ⟷ `GENERIC_APPS`** — ⚠ **CORRIGÉ 2026-07-22 (Fabien).**
+La 1re lecture parlait de « divergences réelles » ; c'était une ERREUR d'analyse (lecture de la SURFACE des
+registres sans tracer le CHAÎNAGE d'exécution). Réalité :
 
-- **`output_type` n'existe QUE dans GENERIC_APPS** (None depuis les ports sur les 10 apps) → le typage de
-  SORTIE n'est pas encodé dans app_registry. La source unifiée devra le porter (ou le lire de la facette `studio`).
-- **5 apps : typage d'ENTRÉE divergent** (la redondance a dérivé) :
-  | app | ports (app_registry) | GENERIC_APPS | écart |
-  |---|---|---|---|
-  | avatarizer | audio, image | audio | image en trop côté ports |
-  | converter | +archive | (sans archive) | archive absent du studio |
-  | describer | audio, image, video | +document | document absent des ports |
-  | enhancer | audio, image, video | image, video | audio en trop côté ports |
-  | imager | image | primary_input=prompt | ports plus riche (accepte une image en édition) |
-- **5 apps concordent** en entrée (anonymizer, composer, reader, synthesizer, transcriber) — seul `output_type` diffère.
+- **Le typage de SORTIE n'est PAS un trou.** Il est chaîné : `output_types` (dans **APP_CATALOG**) → domaine →
+  `wama/common/utils/output_formats.py` (`output_format_params_for_app`) → réutilise `CONVERTER_OUTPUT_FORMATS`
+  (`converter.format_router`) = **source unique déjà maintenue**. Les apps early-binding injectent les Param
+  `output_format`/`output_quality` ; le converter fait la conversion. Le `output_type` de GENERIC_APPS est
+  juste la sortie déclarée du NŒUD studio (câblage du graphe), un concern DISTINCT. → le manifeste DÉCRIT la
+  capacité de conversion (early/late binding), il ne « manque » rien.
+- **Les écarts d'ENTRÉE sont majoritairement LÉGITIMES ou de l'incomplétude, PAS de la dérive** :
+  | app | lecture 1re (fausse) | réalité |
+  |---|---|---|
+  | avatarizer | « image en trop » | image = image de **RÉFÉRENCE** pour générer l'avatar → légitime ; GENERIC_APPS sous-décrit |
+  | converter | « archive divergent » | converter **pas encore dans le studio** (studio en dev) → incomplétude, pas dérive |
+  | enhancer | « audio en trop » | enhancer a **2 domaines** (image/video ET audio) → légitime ; GENERIC_APPS omet audio |
+  | imager | « divergent » | ports plus riche (accepte une image en édition) ; studio simplifie en prompt-primary → légitime |
+  | describer | — | **seul vrai TODO** : ajouter `document` aux ports describer |
 
-**Conclusion** : la convergence `APP_CATALOG ⟷ GENERIC_APPS` en un kind `app` unique est justifiée ET
-cadrée — il faut (1) faire porter le typage de sortie par la source unifiée, (2) réconcilier les 5 entrées
-divergentes. C'est le préalable au code-gen (on ne génère pas depuis deux sources qui se contredisent).
+**Conclusion CORRIGÉE** : `GENERIC_APPS` est une **VUE simplifiée (souvent lossy)** d'`app_registry` pour le
+runner studio ; `app_registry` (+ briques communes) est la source RICHE. La convergence n'est donc PAS « choisir
+un gagnant entre deux sources qui se contredisent » mais : **faire de GENERIC_APPS une PROJECTION calculée depuis
+app_registry** (préserver le riche, régénérer le simplifié), en gardant les champs de CÂBLAGE runner que
+app_registry n'a pas (`params_module/attr`, `input_kwarg`, `fixed_kwargs`, `auto_start` — pas de la redondance).
+Seul vrai correctif de données : `document` aux ports describer. **Leçon : tracer le chaînage d'exécution, pas
+la surface des registres.**
 
 ---
 

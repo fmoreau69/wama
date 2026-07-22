@@ -92,6 +92,35 @@ apply_patch(
 
 ---
 
+## 🔴 RÈGLE OBLIGATOIRE : PAS DE NOUVEAU `.md` CONCURRENT — COMPLÉTER L'EXISTANT
+
+> **Trop de fichiers `.md` coexistent avec des redondances et des dérives de mise à jour** (la même
+> route tracée dans 4 fichiers qui divergent). C'est la même maladie que la duplication de code.
+
+### Règle concrète
+
+1. **Avant de créer un `.md`** — chercher le fichier existant qui couvre le sujet et le
+   **COMPLÉTER / METTRE À JOUR**. Ne JAMAIS créer un second fichier « bis » sur un domaine déjà tracé.
+2. **Créer un nouveau `.md` est l'EXCEPTION** — uniquement si aucun existant ne couvre le domaine. Dans
+   ce cas, l'ajouter à l'index (`PROJECT_STATUS.md`) et le déclarer comme LA référence du domaine.
+3. **Confronter au RÉEL avant de consigner** — pas de recopie d'intentions périmées ; vérifier contre le
+   code (la grille de conformité et les statuts SURESTIMENT souvent l'avancement — ce sont des cibles).
+4. **Un domaine = un fichier de référence.** Si deux fichiers tracent le même sujet, les **fusionner**
+   (en les confrontant au code) plutôt que d'en maintenir deux.
+
+### Fichiers de référence par domaine (un seul par sujet — ne pas dupliquer)
+
+| Domaine | Fichier de référence unique |
+|---|---|
+| Mécanismes UI / génération / route de généralisation | `UI_MECHANISMS_CONSOLIDATION.md` (à consolider avec COMMON_REFACTORING / GENERALIZATION_PLAN / BACKEND_CARTOGRAPHY) |
+| Manifestes — formalisme | `WAMA_MANIFEST_SPEC.md` |
+| Manifestes — flux/schéma | `WAMA_MANIFEST_ARCHITECTURE.md` |
+| Avancement des chantiers | `PROJECT_STATUS.md` + `ROADMAP.md` |
+| Conventions d'app | `WAMA_APP_CONVENTIONS.md` |
+| Cam Analyzer (vue de dessus) | `wama_lab/cam_analyzer/CAM_ANALYZER_TOPDOWN_STATUS.md` |
+
+---
+
 ## 🔴 RÈGLE FONDAMENTALE : CENTRALISATION DANS `common/` — ZÉRO DUPLICATION
 
 > **Cette règle prime sur toutes les autres décisions d'architecture.**
