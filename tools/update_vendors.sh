@@ -25,8 +25,10 @@ BOOTSTRAP_VER=5.3.0
 FA_VER=6.4.0
 JSTREE_VER=3.3.16
 
-# ── Proxy : UGE par défaut. Override : PROXY=http://autre:port  |  PROXY= (aucun) ──
-PROXY="${PROXY-http://REDACTED_PROXY_IP:3128}"
+# ── Proxy (optionnel) : aucun par défaut. Derrière un proxy réseau, exporter avant l'appel :
+#     PROXY=http://<host>:<port> bash tools/update_vendors.sh
+#   (voir .env / .env.example — ne PAS coder l'IP en dur : dépôt public.) ──
+PROXY="${PROXY-${HTTP_PROXY-${http_proxy-}}}"
 CURL=(curl -fsSL)
 [ -n "$PROXY" ] && CURL+=(-x "$PROXY")
 

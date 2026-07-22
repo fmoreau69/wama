@@ -159,7 +159,12 @@ MEDIA_OUTPUT_URL = '/media/anonymizer/output'
 MEDIA_OUTPUT_ROOT = MEDIA_ROOT / 'anonymizer' / 'output'
 
 # Clé secrète & débogage
-SECRET_KEY = 'REDACTED_SECRET_KEY'
+# ⚠️ JAMAIS de clé en dur ici (dépôt public). Définir DJANGO_SECRET_KEY dans .env (non commité).
+# Le fallback ci-dessous est un placeholder DEV UNIQUEMENT — invalide pour la prod.
+SECRET_KEY = os.environ.get(
+    'DJANGO_SECRET_KEY',
+    'django-insecure-dev-only-CHANGE-ME-set-DJANGO_SECRET_KEY-in-.env',
+)
 ALLOWED_HOSTS = ['*']
 
 # Allow same-origin framing (needed for PDF embed preview in Chrome)
@@ -176,11 +181,11 @@ except:
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
-        "NAME": "wama_db",
-        "USER": "wama_user",
-        "PASSWORD": "REDACTED_DB_PASSWORD",
-        "HOST": "127.0.0.1",
-        "PORT": "5432",
+        "NAME": os.environ.get('WAMA_DB_NAME', 'wama_db'),
+        "USER": os.environ.get('WAMA_DB_USER', 'wama_user'),
+        "PASSWORD": os.environ.get('WAMA_DB_PASSWORD', ''),
+        "HOST": os.environ.get('WAMA_DB_HOST', '127.0.0.1'),
+        "PORT": os.environ.get('WAMA_DB_PORT', '5432'),
     }
 }
 
@@ -498,8 +503,8 @@ DESCRIBER_LLM_MODELS = {
 TTS_SERVICE_URL = os.environ.get('TTS_SERVICE_URL', 'http://localhost:8001')
 
 # Ollama host (AI Assistant on the home page)
-# If WAMA runs in WSL2 and Ollama runs on Windows, point this to the Windows IP:
-#   export OLLAMA_HOST=http://REDACTED_HOST_IP:11434
+# If WAMA runs in WSL2 and Ollama runs on Windows, point this to the Windows host IP:
+#   export OLLAMA_HOST=http://<windows-host-ip>:11434  (set in .env, do not hardcode)
 OLLAMA_HOST = os.environ.get('OLLAMA_HOST', 'http://127.0.0.1:11434')
 
 # LiteLLM — Unified LLM provider (Phase 1: local Ollama only)
