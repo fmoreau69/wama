@@ -1744,3 +1744,48 @@ Demande Fabien : montrer la donnée qui transite entre 2 cards pendant un run.
 
 ## 🌍 Architecture en MONDES (doctrine 2026-07-20)
 WAMA = 4 mondes (Médias / Data / Lab / Transversal) qui communiquent via le système de capacités/ports typés, peuplent studio + médiathèque. **Accès sur 3 axes** : tier + rôles métier + **appartenance organisationnelle** (arbre institut/université→département→labo/service→équipe→utilisateur). Cet arbre = **le même que les niveaux d'héritage RAG** → un seul modèle `OrgUnit`, 3 usages (héritage RAG, scopes de partage, gating d'accès), à ne pas dupliquer. ✅ **Points 1-3 faits (35073dd)** : `OrgUnit` (arbre common), médiathèque `UserAsset(ScopedVisibility)` + API promote, `UserFunction` (confidentialité). LDAP/SUPANN remonté au login (6ebeffe). Détail : `docs/VISION_STATUS.md` §MONDES (⚠ docs/ non versionné). Catalogue : `/model-manager/functions/`.
+
+## 23. Entrée URL unifiée + ingest média commun + Converter HTML→PDF (session 2026-07-22/23)
+
+Chantier « entrée URL » mené jusqu'au bout, dans l'esprit *manifeste descriptif → ingest commun → UI générée*.
+
+**23.1 Card d'entrée URL = formalisme batch (converter, describer, transcriber).**
+Une URL saisie dans la card = un batch d'1 ligne → même parseur (`parse_media_list_batch`, accepte
+http/https/file://, chemins Unix/Windows) et même consolidation en card unité/batch qu'un fichier batch.
+Briques communes **JS** ajoutées : `WamaApp.initUrlImport` (mode `onSubmit`/`onEmpty`, `wama-app-base.js`)
++ `WamaBatchImport.ingestText(text, filename)` (`batch-import.js`). L'app ne fait que *déclarer*
+(`show_url=True` + un `onSubmit → _batchImport.ingestText`). Les handlers URL dupliqués (fetch/CSRF)
+supprimés des 3 apps.
+
+**23.2 Lecture de page web + ingestion URL portées au commun.**
+`common/utils/url_ingest.py` (extrait du describer, où c'était dupliqué views⟷workers) :
+`html_to_readable_text` (page web → texte, BeautifulSoup), `fetch_html_as_text`, `fetch_url_content`
+(URL → fichier local : page web → texte / média → download + sniff HTML). Describer délègue via alias
+rétro-compat. **Lecture de page web complète PRÉSERVÉE** (à améliorer plus tard). Tous les types conservés
+(image/vidéo/audio/document/page web).
+
+**23.3 Ingest média DÉCLARATIF commun (`ensure_local_input`) — comble le plug du trou #14.**
+`common/utils/source_ingest.py::ensure_local_input(instance)` piloté par un attribut modèle
+`WAMA_INGEST = {source, target, mode: media|audio|smart, name_field?, size_field?, title_field?}`
+(stopgap avant la facette manifeste F5). Télécharge `source_url`→FileField via la bonne primitive commune.
+**Les 2 wrappers describer/transcriber fusionnés dessus** (le transcriber **crashait** faute de ce maillon :
+`batch_create` stockait `source_url` sans jamais le télécharger). Aucune migration (attribut de classe).
+→ Adopter l'URL sur une app = déclarer `WAMA_INGEST` + appeler `ensure_local_input` en tête de tâche.
+**Reste (instance manifeste)** : capacité **F2** `accepts_url`/`accepts_local_path` (génère la card) +
+facette **F5** `ingest:{…}` qui projette vers `WAMA_INGEST`. Voir `WAMA_APP_GENERATION_ROUTE.md §11` trou #14.
+
+**23.4 Download HTTP : nommage fiable.**
+`video_utils._filename_from_response` : Content-Disposition (filename*/filename UTF-8) → basename URL →
+extension déduite du Content-Type. Fini le fallback trompeur `video.mp4` pour documents/pages sans nom.
+
+**23.5 Converter HTML→PDF (WeasyPrint) — 2 correctifs.**
+(a) Route HTML/HTM→PDF via **WeasyPrint** (moteur CSS, SVG inline natif) au lieu de pandoc→xelatex qui
+jetait le CSS et exigeait `rsvg-convert` absent (`Pandoc exitcode 43`). Dépendance `weasyprint==69.0`.
+(b) **Pages blanches** : les pages web animent souvent leurs sections en `opacity:0` révélées par JS
+(IntersectionObserver / AOS / `.reveal`). WeasyPrint n'exécute pas le JS → sections invisibles = pages 2..N
+blanches. Fix : feuille d'impression forçant visible les patterns `reveal/fade/scroll-/aos/wow`
+(opacity/transform/animation/visibility `!important`). Vérifié : `wama_fiches.html` 5 pages, contenu complet.
+**Reste cosmétique** : WeasyPrint ignore `place-items:center` (grille) → léger désalignement, non traité.
+
+**⏳ Validation navigateur (Fabien)** : à faire après restart worker Celery + serveur web WSL2 — converter
+(PDF #43, card URL), describer (URL média/page web), transcriber (URL YouTube/lien direct → audio).
