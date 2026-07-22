@@ -120,6 +120,41 @@ def get_media_info(file_path: str) -> dict:
             vid.release()
 
 
+def _filename_from_response(url, response):
+    """Nom de fichier fiable pour un download HTTP générique.
+
+    Priorité : en-tête Content-Disposition (filename*/filename) → basename de
+    l'URL → nom générique + extension déduite du Content-Type. Évite le fallback
+    trompeur 'video.mp4' pour les documents/pages servis sans nom de fichier
+    (pdf, docx, contenu via redirection…).
+    """
+    import re
+    import mimetypes
+    from urllib.parse import unquote
+
+    # 1) Content-Disposition (filename*=UTF-8''… prioritaire sur filename="…")
+    cd = response.headers.get('Content-Disposition', '') if response is not None else ''
+    if cd:
+        m = re.search(r"filename\*=(?:UTF-8'')?([^;]+)", cd, flags=re.IGNORECASE) \
+            or re.search(r'filename="?([^";]+)"?', cd, flags=re.IGNORECASE)
+        if m:
+            name = os.path.basename(unquote(m.group(1).strip().strip('"')))
+            if name:
+                return name
+
+    # 2) basename de l'URL
+    name = os.path.basename(urlparse(url).path)
+
+    # 3) extension déduite du Content-Type si le nom n'en a pas
+    if not os.path.splitext(name)[1]:
+        ct = (response.headers.get('Content-Type', '') if response is not None else '').split(';')[0].strip()
+        guessed = mimetypes.guess_extension(ct) if ct else None
+        name = name or 'download'
+        if guessed and not name.endswith(guessed):
+            name = name + guessed
+    return name or 'download'
+
+
 def upload_media_from_url(url, output_path):
     """Download a media file from a URL using yt_dlp (with robust options) or direct HTTP.
 
@@ -220,7 +255,7 @@ def upload_media_from_url(url, output_path):
         }
         response = requests.get(url, stream=True, timeout=20, headers=headers)
         response.raise_for_status()
-        filename = os.path.basename(urlparse(url).path) or 'video.mp4'
+        filename = _filename_from_response(url, response)
         unique_filename = get_unique_filename(output_path, filename)
         save_path = os.path.join(output_path, unique_filename)
 
