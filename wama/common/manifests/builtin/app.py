@@ -96,7 +96,7 @@ def extract_app(app_id: str) -> Optional[dict]:
         body['ports'] = _ports(studio_node_ports(app_id))
     except Exception as e:
         body['ports'] = {'inputs': [], 'outputs': [], '_error': repr(e)}
-    body['capabilities'] = _capabilities(cat)
+    body['capabilities'] = _capabilities(cat, app_id)
 
     # F2bis MODES
     modes = _modes(app_id)
@@ -173,22 +173,26 @@ def _ports(raw) -> dict:
     return {'inputs': [], 'outputs': []}
 
 
-def _capabilities(cat: dict) -> dict:
+def _capabilities(cat: dict, app_id: str) -> dict:
     caps = {
         'has_batch': bool(cat.get('has_batch')),
         'batch_type': cat.get('batch_type'),
         'has_url_import': bool(cat.get('has_url_import')),
         'has_youtube': bool(cat.get('has_youtube')),
     }
-    conv = cat.get('conventions')
-    if conv is not None:
-        d = _to_dict(conv)
-        # drapeaux de capacité utiles (spec F2) — présents seulement s'ils existent dans conventions
-        for k in ('settings_modal_item', 'settings_modal_batch', 'inspector', 'realtime',
-                  'edit_page', 'instant_preview', 'during_preview', 'streaming',
-                  'multi_format_download', 'layout', 'anti_race'):
-            if k in d:
-                caps[k] = d[k]
+    # Accesseur PARTAGÉ app_capabilities(app_id) = point de bascule UNIQUE (contrat multi-instances,
+    # REPRISE_2026-07-22) — plus de lecture directe de `conventions`. Repli défensif si indisponible.
+    try:
+        from wama.common.app_registry import app_capabilities
+        d = app_capabilities(app_id) or {}
+    except Exception:
+        d = _to_dict(cat.get('conventions'))
+    # drapeaux de capacité utiles (spec F2) — présents seulement s'ils existent
+    for k in ('settings_modal_item', 'settings_modal_batch', 'inspector', 'realtime',
+              'edit_page', 'instant_preview', 'during_preview', 'streaming',
+              'multi_format_download', 'layout', 'anti_race'):
+        if k in d:
+            caps[k] = d[k]
     return caps
 
 
