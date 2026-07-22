@@ -215,19 +215,21 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   function initYoutube() {
-    // Import YouTube/URL : plomberie 100% centralisée (WamaApp.initUrlImport).
-    // On ne déclare que endpoint + champ + params panneau + succès/erreur ;
-    // POST, CSRF, spinner, reset et touche Entrée viennent de la brique commune.
+    // Import par URL : réutilise le FORMALISME BATCH commun (comme converter et
+    // describer). L'URL (YouTube/Vimeo…, lien direct audio/vidéo, ou chemin de
+    // fichier accessible au serveur) = un batch d'1 ligne → même parseur +
+    // consolidation. Le téléchargement (audio pour les plateformes média) se fait
+    // au démarrage de la tâche (_ensure_local_audio_from_source_url). initUrlImport
+    // (commun) gère input/bouton/Entrée/spinner ; ingestText (commun) pousse dans
+    // le pipeline batch. Plus de champ 'youtube_url' ni d'endpoint dédié.
     WamaApp.initUrlImport({
       inputId: 'youtubeUrl',
       buttonId: 'youtubeSubmitBtn',
-      endpoint: config.uploadYoutubeUrl,
-      csrfToken: csrfToken,
-      fieldName: 'youtube_url',
-      extraFields: _panelParamsObj,
-      onEmpty: function () { showToast('Veuillez entrer une URL YouTube', 'warning'); },
-      onSuccess: function () { if (window.WamaFM) WamaFM.uploaded(); location.reload(); },
-      onError: function (err) { showToast(`Erreur YouTube: ${err.message}`, 'danger'); },
+      onEmpty: function () { showToast('Veuillez entrer une URL', 'warning'); },
+      onSubmit: function (url) {
+        if (!window._batchImport) throw new Error("Import batch non initialisé");
+        return window._batchImport.ingestText(url + '\n', 'url.txt');
+      },
     });
   }
 
