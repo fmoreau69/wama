@@ -38,45 +38,8 @@ def extract_from_html(file_path: str) -> str:
     return _html_to_readable_text(html)
 
 
-def _html_to_readable_text(html: str) -> str:
-    """Convert HTML to readable plain text using BeautifulSoup + lxml."""
-    from bs4 import BeautifulSoup
-
-    soup = BeautifulSoup(html, 'lxml')
-
-    # Get page title
-    title_tag = soup.find('title')
-    title_text = title_tag.get_text(strip=True) if title_tag else ''
-
-    # Remove non-content elements
-    for tag in soup(['script', 'style', 'nav', 'footer', 'aside',
-                     'noscript', 'meta', 'link', 'button', 'svg', 'form',
-                     'iframe', 'template', 'header']):
-        tag.decompose()
-
-    # Find main content area.
-    # Specific content containers are preferred over generic <main> (which on GitHub
-    # includes the full page — file tree, navigation, sidebar — not just the README).
-    main = (
-        soup.find(id='readme') or          # GitHub README
-        soup.find(class_='markdown-body') or  # GitHub/GitLab markdown render
-        soup.find('article') or
-        soup.find(attrs={'role': 'main'}) or
-        soup.find('main') or
-        soup.find(id='content') or
-        soup.find(class_='content') or
-        soup.body or
-        soup
-    )
-
-    text = main.get_text(separator='\n', strip=True)
-    text = re.sub(r'\n{3,}', '\n\n', text)
-
-    if title_text:
-        text = f"# {title_text}\n\n{text}"
-
-    return text.strip()
-
+# _html_to_readable_text : extraction portee au commun (reutilisable partout).
+from wama.common.utils.url_ingest import html_to_readable_text as _html_to_readable_text  # noqa: E402,F401
 
 def extract_from_pdf(file_path: str) -> str:
     """Extract text from PDF file."""

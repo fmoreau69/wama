@@ -28,66 +28,8 @@ from ..accounts.views import get_or_create_anonymous_user
 from ..common.utils.video_utils import upload_media_from_url
 
 
-def _fetch_html_as_text(url: str, temp_dir: str) -> str:
-    """
-    Fetch a web page and save its readable text content as a .txt file.
-    Uses BeautifulSoup + lxml to strip markup and extract meaningful content.
-    Returns the path to the saved .txt file.
-    """
-    import re
-    import requests
-    from urllib.parse import urlparse
-    from bs4 import BeautifulSoup
-
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
-                      '(KHTML, like Gecko) Chrome/122 Safari/537.36',
-        'Accept-Language': 'en-US,en;q=0.9',
-    }
-    resp = requests.get(url, headers=headers, timeout=20)
-    resp.raise_for_status()
-
-    soup = BeautifulSoup(resp.text, 'lxml')
-
-    title_tag = soup.find('title')
-    title_text = title_tag.get_text(strip=True) if title_tag else ''
-
-    for tag in soup(['script', 'style', 'nav', 'footer', 'aside',
-                     'noscript', 'meta', 'link', 'button', 'svg', 'form',
-                     'iframe', 'template', 'header']):
-        tag.decompose()
-
-    main = (
-        soup.find(id='readme') or          # GitHub README
-        soup.find(class_='markdown-body') or  # GitHub/GitLab markdown render
-        soup.find('article') or
-        soup.find(attrs={'role': 'main'}) or
-        soup.find('main') or
-        soup.find(id='content') or
-        soup.find(class_='content') or
-        soup.body or
-        soup
-    )
-
-    text = main.get_text(separator='\n', strip=True)
-    text = re.sub(r'\n{3,}', '\n\n', text)
-    if title_text:
-        text = f"# {title_text}\n\n{text}"
-
-    # Build a clean filename from the URL path
-    parsed = urlparse(url)
-    path_parts = [p for p in parsed.path.split('/') if p]
-    base = '_'.join(path_parts[-2:]) if len(path_parts) >= 2 else (path_parts[-1] if path_parts else 'page')
-    base = re.sub(r'[^\w\-]', '_', base)[:60] or 'page'
-    save_path = os.path.join(temp_dir, f"{base}.txt")
-
-    with open(save_path, 'w', encoding='utf-8') as f:
-        f.write(text)
-
-    return save_path
-
-logger = logging.getLogger(__name__)
-
+# _fetch_html_as_text : lecture de page web portee au commun (reutilisable partout).
+from wama.common.utils.url_ingest import fetch_html_as_text as _fetch_html_as_text  # noqa: E402,F401
 
 def _read_creation_options(request, user):
     """Options de création (style/langue/longueur) : POST prioritaire, sinon DERNIERS réglages
@@ -292,65 +234,9 @@ def upload(request):
             # Media platform URLs (YouTube, Vimeo, …) serve text/html on HEAD but
             # must go through upload_media_from_url (yt_dlp), so we skip the check for them.
             temp_dir = tempfile.mkdtemp()
-            _MEDIA_PLATFORM_DOMAINS = (
-                'youtube.com', 'youtu.be', 'vimeo.com', 'dailymotion.com',
-                'twitch.tv', 'soundcloud.com', 'bandcamp.com', 'mixcloud.com',
-            )
-            _is_media_platform = any(d in media_url for d in _MEDIA_PLATFORM_DOMAINS)
-
-            # Also skip check if URL ends with a media file extension
-            _MEDIA_EXTS = ('.mp4', '.webm', '.mkv', '.avi', '.mov',
-                           '.mp3', '.wav', '.flac', '.ogg', '.m4a',
-                           '.jpg', '.jpeg', '.png', '.gif', '.webp')
-            _has_media_ext = media_url.lower().split('?')[0].endswith(_MEDIA_EXTS)
-
-            _is_html_page = False
-            if not _is_media_platform and not _has_media_ext:
-                try:
-                    import requests as _req
-                    _head = _req.head(media_url, timeout=10, allow_redirects=True,
-                                      headers={'User-Agent': 'Mozilla/5.0'})
-                    _ct = _head.headers.get('Content-Type', '')
-                    _is_html_page = 'text/html' in _ct
-                except Exception:
-                    pass
-
-            if _is_html_page:
-                logger.info(f"[Describer] HTML page detected — extracting text content")
-                downloaded_path = _fetch_html_as_text(media_url, temp_dir)
-            else:
-                downloaded_path = upload_media_from_url(media_url, temp_dir)
-                # Post-download: if the file has no extension or an HTML extension,
-                # sniff the content and extract text if it looks like HTML.
-                _dl_name = os.path.basename(downloaded_path)
-                _dl_ext = _dl_name.rsplit('.', 1)[-1].lower() if '.' in _dl_name else ''
-                if not _dl_ext or _dl_ext in ('html', 'htm'):
-                    try:
-                        with open(downloaded_path, 'rb') as _fh:
-                            _sample = _fh.read(2048).lower()
-                        if b'<html' in _sample or b'<!doctype' in _sample:
-                            logger.info(f"[Describer] Downloaded file looks like HTML — extracting text")
-                            with open(downloaded_path, 'r', encoding='utf-8', errors='replace') as _fh:
-                                _html = _fh.read()
-                            from .utils.text_describer import _html_to_readable_text
-                            _text = _html_to_readable_text(_html)
-                            import re as _re
-                            from urllib.parse import urlparse as _urlparse
-                            _parts = [p for p in _urlparse(media_url).path.split('/') if p]
-                            _base = '_'.join(_parts[-2:]) if len(_parts) >= 2 else (_parts[-1] if _parts else 'page')
-                            _base = _re.sub(r'[^\w\-]', '_', _base)[:60] or 'page'
-                            _new_path = os.path.join(temp_dir, f"{_base}.txt")
-                            with open(_new_path, 'w', encoding='utf-8') as _fh:
-                                _fh.write(_text)
-                            os.remove(downloaded_path)
-                            downloaded_path = _new_path
-                        elif not _dl_ext:
-                            # Unknown binary/text without extension — add .txt
-                            _new_path = downloaded_path + '.txt'
-                            os.rename(downloaded_path, _new_path)
-                            downloaded_path = _new_path
-                    except Exception as _ex:
-                        logger.warning(f"[Describer] Post-download sniff failed: {_ex}")
+            # Ingestion URL (page web -> texte / media -> download) centralisee.
+            from wama.common.utils.url_ingest import fetch_url_content
+            downloaded_path = fetch_url_content(media_url, temp_dir)
             filename = os.path.basename(downloaded_path)
 
             logger.info(f"[Describer] Downloaded to: {downloaded_path}")
