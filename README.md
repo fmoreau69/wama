@@ -137,20 +137,33 @@ pip install python_ldap-3.4.4-cp311-cp311-win_amd64.whl
 pip install -r requirements.txt
 ```
 
-### 4. Database & initial data
+### 4. Environment variables (`.env`)
+
+```bash
+cp .env.example .env
+# Fill DJANGO_SECRET_KEY:
+#   python -c "from django.core.management.utils import get_random_secret_key as k; print(k())"
+# and WAMA_DB_PASSWORD (matching your PostgreSQL role).
+```
+
+Secrets (Django key, DB password, proxy, LDAP…) are **read from the environment / `.env`**, never
+hardcoded in `settings.py`. `.env` is gitignored — **never commit it**. To rotate secrets later
+(dev or prod): `python manage.py rotate_secrets --all --also-wsl` (see `INFRA_WSL_VS_WINDOWS.md`).
+
+### 5. Database & initial data
 
 ```bash
 python manage.py migrate
 python manage.py init_wama
 ```
 
-### 5. Create superuser
+### 6. Create superuser
 
 ```bash
 python manage.py createsuperuser
 ```
 
-### 6. Apply compatibility patches
+### 7. Apply compatibility patches
 
 Third-party libraries installed via pip have version conflicts with recent PyTorch / torchaudio.
 Run the patch script once after setup, and again after any `pip install --upgrade`:

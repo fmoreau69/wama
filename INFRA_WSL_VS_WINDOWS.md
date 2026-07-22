@@ -61,8 +61,28 @@ wsl.exe -e bash -lc "PGPASSWORD=*** psql -h 127.0.0.1 -U wama_user -d wama_db -t
 5. **Services** : convertir `start_wama_*.sh` en **units systemd** (postgresql, redis, gunicorn,
    celery-gpu, celery-default, celery-beat, tts) avec dépendances et `Restart=on-failure`.
 6. **Static** : `collectstatic` + service par nginx/Apache (le `staticfiles/` prend alors tout son sens).
-7. **Secrets** : sortir le mot de passe DB en dur de `settings.py` vers l'environnement/`.env`.
+7. **Secrets** : ✅ FAIT (2026-07-23) — mot de passe DB, `SECRET_KEY`, proxy sortis de `settings.py`
+   vers l'environnement/`.env` (voir section ci-dessous). En prod : injecter via systemd
+   `EnvironmentFile=` / Docker secrets / Vault plutôt qu'un `.env` (le code ne change pas).
+
+## Secrets & configuration (`.env`)  — externalisation 2026-07-23
+- **Config env-driven** : `SECRET_KEY`, mot de passe DB, `PROXY`/`HTTP_PROXY`, LDAP… lus via
+  `os.environ.get(...)` dans `settings.py`. Plus AUCUN secret en dur. Valeurs réelles dans `.env`
+  (gitignoré, **jamais commité**) ; modèle sans secret = `.env.example` (commité).
+- **Secrets externalisés** : les anciens secrets ont été sortis du dépôt
+  ( puis republiés → **les références ont été mises à jour** le 2026-07-23. Aucun secret
+  ne subsiste dans l'arbre ni l'historique (les 2 branches). Rotation reportée à la prod (assumé :
+  DB en `127.0.0.1`, infra interne université, pas de données sensibles).
+- **Rotation à la demande** : `python manage.py rotate_secrets` (voir `wama/common/management/commands/`).
+  - `--all --also-wsl` = rote clé Django + mot de passe DB, applique l'`ALTER USER` à la base **dev
+    Windows** (courante) ET à la base **live WSL2** (via `wsl.exe`), met à jour `.env` — les DEUX bases
+    en une commande (cf. règle des deux Postgres distincts plus haut). Lancer **depuis Windows**.
+  - Vérifie une nouvelle connexion + rollback auto si KO ; l'ancienne `SECRET_KEY` bascule dans
+    `DJANGO_SECRET_KEY_FALLBACKS` (aucune session invalidée) ; journal `logs/secret_rotation.log`.
+  - Reste optionnel : hostname interne `vrlescot` + IP gateway WSL `172.29.240.1` encore en clair
+    dans quelques docs/scripts (divulgation d'infra mineure, non critique).
 
 ## Voir aussi
-- `start_wama_dev.sh`, `start_wama_prod.sh`, `gunicorn_conf.py`, `.env`.
+- `start_wama_dev.sh`, `start_wama_prod.sh`, `gunicorn_conf.py`, `.env` / `.env.example`.
+- `wama/common/management/commands/rotate_secrets.py` (rotation des secrets).
 - `CLAUDE.md` (proxy UGE, modèles), `memory/reference_proxy_uge.md`.

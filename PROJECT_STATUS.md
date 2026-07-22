@@ -321,6 +321,11 @@ neuve** (contexte chargé = erreurs). Recoupe et précise §19.
 - 🌐 Headroom code-aware : `Mode: token` actuel → activer via terminal neuf + vérifier `headroom_stats`.
 - 🩹 **`show_if engine=resemble` hardcodé** (enhancer audio, `params.py`) = anti-pattern à remplacer par
   capacités-driven (WamaModelCaps) — pièce 3 de la couche capacités (§20). Cf. `feedback_ui_from_model_capabilities`.
+- 🔐 **Secrets externalisés (✅ 2026-07-23)** : `SECRET_KEY` + mot de passe DB + proxy sortis de
+  `settings.py` vers `.env` (gitignoré) ; `.env.example` commité ; secrets sortis du dépôt (`outillage git`,
+  les références ont été mises à jour) sur `main`+`dev`. Commande `rotate_secrets --all --also-wsl` (2 bases Postgres).
+  Détails : `INFRA_WSL_VS_WINDOWS.md §Secrets`. **Reste (prod)** : rotation effective des secrets +
+  injection env via systemd/Vault ; option : masquer `vrlescot`/`172.29.240.1` (divulgation infra mineure).
 
 ## Ordre de reprise recommandé
 1. **Consolidation des mécanismes de génération d'UI (§20)** — inventaire + plan de convergence AVANT tout
