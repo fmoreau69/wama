@@ -165,6 +165,10 @@ SECRET_KEY = os.environ.get(
     'DJANGO_SECRET_KEY',
     'django-insecure-dev-only-CHANGE-ME-set-DJANGO_SECRET_KEY-in-.env',
 )
+# Clés de repli : permettent une rotation de SECRET_KEY SANS invalider les sessions
+# ni les jetons signés (Django ≥ 3.1). La commande `rotate_secrets` y déplace
+# automatiquement l'ancienne clé. Format env : clés séparées par espaces/virgules.
+SECRET_KEY_FALLBACKS = os.environ.get('DJANGO_SECRET_KEY_FALLBACKS', '').replace(',', ' ').split()
 ALLOWED_HOSTS = ['*']
 
 # Allow same-origin framing (needed for PDF embed preview in Chrome)
