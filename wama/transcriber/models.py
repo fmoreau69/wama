@@ -5,6 +5,15 @@ from wama.common.models import ProcessingTimeMixin
 
 
 class Transcript(ProcessingTimeMixin, models.Model):
+    # Ingest média déclaratif commun (common/utils/source_ingest.ensure_local_input) :
+    # une URL/chemin dans source_url est téléchargée vers audio. mode 'audio' =
+    # plateformes média → extraction audio (yt-dlp) / sinon → download direct.
+    # (stopgap avant facette manifeste F5)
+    WAMA_INGEST = {
+        'source': 'source_url', 'target': 'audio', 'mode': 'audio',
+        'title_field': 'title',
+    }
+
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='transcripts')
     audio = models.FileField(upload_to=upload_to_user_input('transcriber'))
     created_at = models.DateTimeField(auto_now_add=True)

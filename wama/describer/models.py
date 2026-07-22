@@ -15,6 +15,14 @@ User = get_user_model()
 class Description(ProcessingTimeMixin, models.Model):
     """Model for a description/summarization task."""
 
+    # Ingest média déclaratif commun (common/utils/source_ingest.ensure_local_input) :
+    # une URL/chemin dans source_url est téléchargée vers input_file. mode 'smart' =
+    # page web → texte lisible / média → download. (stopgap avant facette manifeste F5)
+    WAMA_INGEST = {
+        'source': 'source_url', 'target': 'input_file', 'mode': 'smart',
+        'name_field': 'filename', 'size_field': 'file_size',
+    }
+
     STATUS_CHOICES = [
         ('PENDING', 'En attente'),
         ('RUNNING', 'En cours'),

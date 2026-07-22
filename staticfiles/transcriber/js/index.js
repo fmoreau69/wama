@@ -219,7 +219,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // describer). L'URL (YouTube/Vimeo…, lien direct audio/vidéo, ou chemin de
     // fichier accessible au serveur) = un batch d'1 ligne → même parseur +
     // consolidation. Le téléchargement (audio pour les plateformes média) se fait
-    // au démarrage de la tâche (_ensure_local_audio_from_source_url). initUrlImport
+    // au démarrage de la tâche (common ensure_local_input). initUrlImport
     // (commun) gère input/bouton/Entrée/spinner ; ingestText (commun) pousse dans
     // le pipeline batch. Plus de champ 'youtube_url' ni d'endpoint dédié.
     WamaApp.initUrlImport({

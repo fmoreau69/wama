@@ -51,43 +51,26 @@ def _console(user_id: int, message: str, level: str = None) -> None:
 
 
 def _download_from_source_url(description, console):
+    """Ingestion média (page web -> texte / média -> download) via le mécanisme
+    commun déclaratif ensure_local_input (spec WAMA_INGEST du modèle Description).
+    Seule part spécifique describer restante : la dérivation de detected_type.
     """
-    Download the file from description.source_url and save it to description.input_file.
-    Updates description.filename, file_size, detected_type in the DB.
+    from wama.common.utils.source_ingest import ensure_local_input
 
-    Ingestion (page web -> texte / media -> download) centralisee dans
-    wama.common.utils.url_ingest.fetch_url_content (ex-logique dupliquee ici).
-    """
-    import os
-    import tempfile
-    import shutil
-    from django.core.files import File
-    from wama.common.utils.url_ingest import fetch_url_content
-
-    url = description.source_url
-    user_id = description.user_id
-
-    temp_dir = tempfile.mkdtemp()
-    try:
-        downloaded_path = fetch_url_content(url, temp_dir)
-
-        filename = os.path.basename(downloaded_path)
-        ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else ''
-        file_size = os.path.getsize(downloaded_path)
-
+    def _derive(inst, path, fname):
+        ext = fname.rsplit('.', 1)[-1].lower() if '.' in fname else ''
         from .views import detect_type_from_extension
-        detected_type = detect_type_from_extension(ext)
+        inst.detected_type = detect_type_from_extension(ext)
+        return ['detected_type']
 
-        with open(downloaded_path, 'rb') as f:
-            description.input_file.save(filename, File(f), save=False)
-        description.filename = filename
-        description.file_size = file_size
-        description.detected_type = detected_type
-        description.save(update_fields=['input_file', 'filename', 'file_size', 'detected_type'])
-        console(user_id, f"Fichier telecharge : {filename} ({file_size} o)")
+    ensure_local_input(
+        description,
+        console=lambda m: console(description.user_id, m),
+        derive=_derive,
+    )
 
-    finally:
-        shutil.rmtree(temp_dir, ignore_errors=True)
+
+
 
 @shared_task(bind=True)
 def describe_content(self, description_id: int):

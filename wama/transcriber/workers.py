@@ -361,44 +361,6 @@ def _transcribe_maybe_chunked(backend, audio_path: str, duration: float, kwargs:
         shutil.rmtree(tmp, ignore_errors=True)
 
 
-def _ensure_local_audio_from_source_url(t):
-    """Import par URL / batch : télécharge le média si l'item n'a pas encore de
-    fichier audio local mais possède un source_url. Plateformes média (YouTube,
-    Vimeo…) → extraction AUDIO (download_youtube_audio, yt-dlp) ; sinon (URL de
-    fichier direct ou chemin local accessible) → téléchargement du média
-    (upload_media_from_url), l'ASR extraira l'audio au prétraitement.
-
-    Comble le trou historique : batch_create stockait source_url sans jamais le
-    télécharger. Permet aussi l'uniformisation de la card URL (n'importe quelle
-    URL, plus seulement YouTube).
-    """
-    if t.audio.name or not t.source_url:
-        return
-    import os
-    import tempfile
-    import shutil
-    from django.core.files import File
-    from wama.common.utils.video_utils import download_youtube_audio, upload_media_from_url
-    from wama.common.utils.url_ingest import MEDIA_PLATFORM_DOMAINS
-
-    url = t.source_url
-    _console(t.user_id, "Téléchargement du média depuis l'URL…")
-    temp_dir = tempfile.mkdtemp()
-    try:
-        if any(d in url for d in MEDIA_PLATFORM_DOMAINS):
-            path, video_title = download_youtube_audio(url, temp_dir)
-        else:
-            path = upload_media_from_url(url, temp_dir)
-            video_title = ''
-        fname = os.path.basename(path)
-        with open(path, 'rb') as fh:
-            t.audio.save(fname, File(fh), save=False)
-        if not t.title:
-            t.title = video_title or fname
-        t.save(update_fields=['audio', 'title'])
-        _console(t.user_id, f"Média téléchargé : {fname}")
-    finally:
-        shutil.rmtree(temp_dir, ignore_errors=True)
 
 
 @shared_task(bind=True)
@@ -418,8 +380,10 @@ def transcribe(self, transcript_id: int):
 
     _set_partial_text(t.id, "🎙️ Transcription en cours...\n")
 
-    # Import par URL / batch : télécharger l'audio si pas encore de fichier local.
-    _ensure_local_audio_from_source_url(t)
+    # Import par URL / batch : télécharger l'audio si pas encore de fichier local
+    # (mécanisme commun déclaratif ensure_local_input, spec WAMA_INGEST du modèle).
+    from wama.common.utils.source_ingest import ensure_local_input
+    ensure_local_input(t, console=lambda m: _console(t.user_id, m))
 
     audio_path = t.audio.path
     cleaned_path = None
