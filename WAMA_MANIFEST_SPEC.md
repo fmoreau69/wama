@@ -92,6 +92,24 @@ autoritaire** :
 > La « redondance manifeste ↔ registres » est ACCEPTÉE parce qu'elle est **dérivée + re-synchronisable**,
 > pas maintenue à la main. Discipline : les entrées dérivées ne s'éditent JAMAIS à la main.
 
+### 2.1 PROPRIÉTÉ DE SÛRETÉ NON NÉGOCIABLE — rien ne lit le manifeste en direct
+
+> **Le système en marche ne lit JAMAIS le manifeste en direct.** Le manifeste est la source de *vérité* ;
+> les registres/BDD existants restent la source de *runtime* (l'**état committé**). Le seul pont entre les
+> deux est l'ingest — **explicite, validé, transactionnel, réversible, jamais silencieux/automatique**.
+
+Conséquence (répond à la crainte de corruption) : un manifeste corrompu ou supprimé **ne peut pas corrompre
+l'aval** —
+- invalide → **rejeté à la validation**, n'atteint jamais l'état committé ;
+- supprimé → **la dernière projection committée persiste** jusqu'à un `un_ingest` EXPLICITE ;
+- `verify` montre la **dérive (diff)** avant tout `promote` — l'humain reste dans la boucle.
+
+Analogie : le manifeste est aux registres ce que les **fichiers de migration** sont à la base — on ne
+*tourne* pas dessus en direct, on *migre* délibérément (= ingest), avec validation et rollback ; supprimer
+une migration ne *drop* pas les tables. **Garde-fou** : ne JAMAIS rendre l'ingest automatique — c'est le prix
+de la robustesse. Tranché sur « BDD vs réutilisation sans redondance vs tirage auto » = **BDD + ingest gaté**
+(réutilisation sans redondance = fragile + réécrit les briques ; tirage auto = corruption silencieuse).
+
 **Sandbox** = un manifeste en `visibility=private/staging` : l'app/fonction est instanciée et testée
 **hors registres communs**, puis **promue** (réutilise `ScopedVisibility` + l'action `promote`, et la
 doctrine wama-dev-ai « propose, l'humain valide »).
