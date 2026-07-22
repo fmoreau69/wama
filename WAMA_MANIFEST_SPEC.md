@@ -155,7 +155,12 @@ body:                                   # (sous l'enveloppe commune)
     # has_realtime/instant_preview et que le bouton de cycle ▶/⏹/↻. Plan détaillé preview = doc dédié.
   capabilities: {has_realtime, has_edit_page, instant_preview, batch,
                  export_binding: late|early, supports_profiles, has_url_import, has_youtube}
-  modes: [{id, label, icon, realtime, inputs:[port_id], settings:[param_name]}]   # ex-APP_MODES
+  # SORTIE = 3 CONCERNS SÉPARÉS (jamais surchargés — corrigé 2026-07-22, détail WAMA_APP_GENERATION_ROUTE §F2) :
+  #   output_type   = catégorie média FIXE (ports/preview/routage) ; converter = 'mirror/any'
+  #   output_format = mécanisme COMMUN hérité du converter (générique-par-catégorie ∪ app-spécifique) ; sélecteur download
+  #   domains       = onglets, hint DÉCLARATIF, NON dérivé du type (converter=0 onglet ; imager≠enhancer même modalités)
+  domains: [{id, label, icon}]         # hint déclaratif d'onglets (ex-APP_MODES.domains), reflète l'UI verbatim
+  modes: [{id, label, icon, realtime, settings:[param_name]}]  # DÉRIVÉ des capacités-modèle (switch inspecteur), pas déclaré
 
   # F3 UI / INSTANCIATION  [params.py PARAMS_JSON — déjà source unique, inchangé]
   params: [ Param{name,type,label,icon,default,choices,options_source,show_if,

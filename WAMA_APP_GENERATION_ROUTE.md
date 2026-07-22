@@ -82,6 +82,19 @@ manifeste** (ce que le kind `app` capte + cible de projection).
   `CONVERTER_OUTPUT_FORMATS` → `output_format_params_for_app()` injecte les Param format/qualité **seulement
   si `export_binding='early'`** (`output_formats.py:90`), sinon choix au téléchargement (late). **Converter =
   source unique** des formats.
+- **⚠ SURCHARGE `output_types` (à corriger proprement, 2026-07-22)** : 5 apps y mettent des FORMATS au lieu
+  de catégories — composer `(wav,mp3)`, describer `(txt)`, reader `(txt,markdown)`, synthesizer `(mp3,wav)`,
+  transcriber `(txt,srt,vtt,json)`. `normalize_types()` (`:140,320`) est la BÉQUILLE qui rattrape. **MODÈLE
+  PROPRE = 3 concerns SÉPARÉS, jamais surchargés :**
+  | Concern | Nature | Ex. | Consommé par |
+  |---|---|---|---|
+  | **`output_type`** | catégorie média FIXE de l'app | transcriber=`text`, converter=`mirror/any` | ports, preview, routage |
+  | **`output_format`** | mécanisme COMMUN hérité du converter (générique-par-catégorie ∪ app-spécifique) | txt/srt/vtt, wav/mp3 | sélecteur de téléchargement (toutes apps) |
+  | **`domains`** | **hint DÉCLARATIF** (onglets), NON dérivé du type | imager Images/Vidéos ; converter aucun | onglets de domaine |
+  Migration : `output_types`→catégories (composer/synth/describer/reader = formats génériques → gratuits via
+  domaine converter ; transcriber srt/vtt/json = app-spécifiques, sourcés d'où ils vivent déjà, ex.
+  `download_srt`). **Prérequis : tracer les consommateurs de formats BRUTS** (sélecteurs de téléchargement
+  des 5 apps) — les consommateurs de catégorie normalisent déjà. UI inchangée.
 - **Redondance** : `GENERIC_APPS.input_kinds/output_type` redéclare l'E/S ; sentinelle `'auto'` propre au
   studio (absente d'APP_CATALOG). `derive_io_from_ports()` (`projection.py:80`) prouve la reconstructibilité.
 - **Manifeste** : ports captés via l'accesseur unique ; **typage de sortie = CAPACITÉ** (`export_binding`
@@ -89,8 +102,11 @@ manifeste** (ce que le kind `app` capte + cible de projection).
 
 **DÉCISION 2026-07-22 (Fabien) — DOMAINE vs MODE (deux affordances UI distinctes) :**
 - **DOMAINE = onglets** : bifurcation de *but* (imager : Images/Vidéos ; enhancer : Image-Vidéo/Audio).
-  Déclaratif, en tête, persistant. Reste un **hint UI minimal** (onglets oui/non + labels), le contenu étant
-  dérivable de la modalité du modèle.
+  **100% DÉCLARATIF (hint), NON dérivable du type** — corrigé 2026-07-22. Preuves : converter = multi-type
+  mais **0 onglet** (sa multi-type est son mécanisme, pas des domaines) ; imager (image/vidéo = 2 onglets)
+  vs enhancer (fusionne image+vidéo, audio séparé = 2 onglets) → mêmes modalités, groupement différent =
+  décision UX. Le hint déclare la structure d'onglets *verbatim* → **UI inchangée par construction**. Piste
+  fallback future (différée, données trop creuses 36/147) : jeux de modalités distincts des MODÈLES.
 - **MODE = boutons de switch dans l'inspecteur** : affinage des capacités **DÉRIVÉ du modèle sélectionné**
   (référence : anonymizer yolo/SAM3). **N'est PAS déclaré** — généré par `WamaModelCaps` + `show_if`.
 - **`APP_MODES` (registre hand-maintained) SE DISSOUT dans les capacités** : le domaine devient un hint,
