@@ -25,15 +25,20 @@ BOOTSTRAP_VER=5.3.0
 FA_VER=6.4.0
 JSTREE_VER=3.3.16
 
-# ── Proxy (optionnel) : aucun par défaut. Derrière un proxy réseau, exporter avant l'appel :
-#     PROXY=http://<host>:<port> bash tools/update_vendors.sh
-#   (voir .env / .env.example — ne PAS coder l'IP en dur : dépôt public.) ──
-PROXY="${PROXY-${HTTP_PROXY-${http_proxy-}}}"
-CURL=(curl -fsSL)
-[ -n "$PROXY" ] && CURL+=(-x "$PROXY")
-
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 V="$ROOT/wama/static/vendors"
+
+# ── Proxy (optionnel) — priorité : env explicite > .env > HTTP_PROXY > aucun. ──
+#   Override ponctuel :  PROXY=http://host:port bash tools/update_vendors.sh
+#   Sinon, la clé PROXY du .env (non commité) est utilisée automatiquement.
+#   NB : on n'exécute PAS le .env (valeurs à caractères spéciaux) — on extrait la
+#   seule ligne PROXY= par sed, en retirant d'éventuels guillemets.
+if [ -z "${PROXY:-}" ] && [ -f "$ROOT/.env" ]; then
+  PROXY="$(sed -n 's/^[[:space:]]*PROXY=//p' "$ROOT/.env" | tail -n1 | sed -e 's/^["'\'']//' -e 's/["'\'']$//')"
+fi
+PROXY="${PROXY:-${HTTP_PROXY:-${http_proxy:-}}}"
+CURL=(curl -fsSL)
+[ -n "$PROXY" ] && CURL+=(-x "$PROXY")
 
 dl() { "${CURL[@]}" "$1" -o "$2" && echo "  OK   $(du -h "$2" | cut -f1)  ${2#"$ROOT"/}" \
        || { echo "  ECHEC: $1"; exit 1; }; }
