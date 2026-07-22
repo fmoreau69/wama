@@ -35,7 +35,7 @@
    peut opter pour des niveaux plus globaux. Tout élément descriptible héritera du RAG.
 
 > En cas de doute sur « où mettre le code » ou « comment présenter une UI » : relire ces 6 points,
-> puis `WAMA_APP_CONVENTIONS.md` et `COMMON_REFACTORING.md`.
+> puis `WAMA_APP_CONVENTIONS.md` et `WAMA_APP_GENERATION_ROUTE.md`.
 
 ---
 
@@ -112,7 +112,7 @@ apply_patch(
 
 | Domaine | Fichier de référence unique |
 |---|---|
-| Mécanismes UI / génération / route de généralisation | `UI_MECHANISMS_CONSOLIDATION.md` (à consolider avec COMMON_REFACTORING / GENERALIZATION_PLAN / BACKEND_CARTOGRAPHY) |
+| Route complète vers l'auto-génération d'apps (mécanismes) | **`WAMA_APP_GENERATION_ROUTE.md`** (consolide UI_MECHANISMS_CONSOLIDATION / COMMON_REFACTORING / GENERALIZATION_PLAN / BACKEND_CARTOGRAPHY, tous archivés dans `docs/archive/`) |
 | Manifestes — formalisme | `WAMA_MANIFEST_SPEC.md` |
 | Manifestes — flux/schéma | `WAMA_MANIFEST_ARCHITECTURE.md` |
 | Avancement des chantiers | `PROJECT_STATUS.md` + `ROADMAP.md` |
@@ -173,9 +173,9 @@ Si deux apps ont besoin de la même logique, elle va dans `common/` et les deux 
 
 ### Roadmap refactoring (à faire, dans l'ordre)
 
-> **Document de référence : [`COMMON_REFACTORING.md`](COMMON_REFACTORING.md)** — briques communes
-> disponibles, app de référence (Transcriber), recette d'adoption, décisions prises. **À lire avant
-> de créer/modifier une app.** Voir aussi `memory/project_refactoring_common.md` pour l'historique.
+> **Document de référence : [`WAMA_APP_GENERATION_ROUTE.md`](WAMA_APP_GENERATION_ROUTE.md)** — route
+> complète (mécanismes réels par facette F1–F8, adoption, trous), consolide l'ancien `COMMON_REFACTORING.md`
+> (archivé `docs/archive/`). **À lire avant de créer/modifier une app.** Historique : `memory/project_refactoring_common.md`.
 
 1. ~~`common/utils/backend_selector.py`~~ — REMPLACÉ : `select_model()` (model_manager) existe et
    couvre VRAM + singleton (vérifié 2026-07-20) ; reste = adoption par les apps (étape 3, PROJECT_STATUS §2)
