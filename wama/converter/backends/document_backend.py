@@ -123,11 +123,23 @@ def _html_to_pdf_weasyprint(input_path: str, output_path: str) -> bool:
     proprement sur la route pandoc (aucune régression si la lib est absente).
     """
     try:
-        from weasyprint import HTML
+        from weasyprint import HTML, CSS
     except ImportError:
         return False
+    # Rendu SANS JS : forcer visible le contenu à « révélation au scroll ».
+    # Beaucoup de pages web démarrent des sections en opacity:0 (+ transform) et
+    # les montrent via JS (IntersectionObserver / AOS / .reveal…). WeasyPrint
+    # n'exécute pas le JS → ces sections resteraient invisibles (pages blanches).
+    # !important en feuille d'impression bat la règle auteur non-important.
+    _reveal_css = CSS(string=(
+        '[class*="reveal"],[class*="fade"],[class*="scroll-"],'
+        '[data-reveal],[data-aos],.aos-init,.wow{'
+        'opacity:1!important;transform:none!important;'
+        'animation:none!important;visibility:visible!important;}'
+    ))
     # base_url = dossier source → résout les chemins relatifs (CSS/images locaux)
-    HTML(filename=input_path, base_url=os.path.dirname(input_path)).write_pdf(output_path)
+    HTML(filename=input_path, base_url=os.path.dirname(input_path)).write_pdf(
+        output_path, stylesheets=[_reveal_css])
     if not os.path.exists(output_path):
         raise RuntimeError(f"WeasyPrint n'a produit aucun fichier : {output_path}")
     return True
