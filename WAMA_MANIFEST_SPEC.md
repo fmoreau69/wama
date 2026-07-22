@@ -179,6 +179,9 @@ body:                                   # (sous l'enveloppe commune)
     batch: {strategy: fk|through, nature_of},
     task, endpoints:[start,status,download,duplicate,delete,start_all,clear_all,
                      download_all,batch.*,stage.*,console]     # standard, générés
+    ingest: {source: source_url, target: <field>, mode: audio|media|smart}  # trou #14 : projette vers
+    # WAMA_INGEST (common/utils/source_ingest.ensure_local_input). Capté par extract (transcriber/describer) ;
+    # projection = write-back futur. Va de pair avec capabilities.accepts_url (→ génère la card d'import URL).
 
   # F6 PROMPTS / IA        [PROMPT_TARGETS + prompt_skills + tool_api]
   prompts: {targets:[{field,kind,model_field,source,default_model_type,enrich,domain_field,reference_field}],

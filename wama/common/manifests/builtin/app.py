@@ -115,7 +115,7 @@ def extract_app(app_id: str) -> Optional[dict]:
         body['models'] = models
 
     # F5 TRAITEMENT
-    body['processing'] = _processing(cat)
+    body['processing'] = _processing(cat, app_id)
 
     # F6 PROMPTS / IA
     prompts = _prompts(app_id)
@@ -179,6 +179,9 @@ def _capabilities(cat: dict, app_id: str) -> dict:
         'batch_type': cat.get('batch_type'),
         'has_url_import': bool(cat.get('has_url_import')),
         'has_youtube': bool(cat.get('has_youtube')),
+        # accepts_url (F2, trou #14) : capacité déclarative → génère la card d'import URL (vs show_url manuel).
+        # Vrai si l'app importe depuis une URL OU déclare un ingest WAMA_INGEST.
+        'accepts_url': bool(cat.get('has_url_import')) or _ingest(app_id) is not None,
     }
     # Accesseur PARTAGÉ app_capabilities(app_id) = point de bascule UNIQUE (contrat multi-instances,
     # REPRISE_2026-07-22) — plus de lecture directe de `conventions`. Repli défensif si indisponible.
@@ -259,14 +262,38 @@ def _models(app_id):
     return None
 
 
-def _processing(cat: dict) -> dict:
+def _processing(cat: dict, app_id: str) -> dict:
     conv = _to_dict(cat.get('conventions')) if cat.get('conventions') is not None else {}
     return {
         'statuses': STATUS_VOCAB if conv.get('status_vocab') else None,
         'processing_time': bool(conv.get('processing_time')),
         'anti_race': conv.get('anti_race'),
         'endpoints': STANDARD_ENDPOINTS,   # cible conventionnelle
+        'ingest': _ingest(app_id),         # F5/trou #14 : projette vers WAMA_INGEST (source_ingest.py)
     }
+
+
+def _ingest(app_id: str):
+    """Facette INGEST (trou #14) : lit la déclaration `WAMA_INGEST` du modèle d'item de l'app
+    (mécanisme commun `common/utils/source_ingest.py::ensure_local_input`). C'est l'état committé vers
+    lequel la projection F5 écrira ; ici extract-only. None si l'app ne fait pas d'ingest source→fichier."""
+    model = None
+    try:
+        from wama.common.utils.detail_registry import DetailRegistry
+        entry = DetailRegistry.get(app_id) if DetailRegistry.is_registered(app_id) else None
+        model = (entry or {}).get('model')
+    except Exception:
+        return None
+    if model is None:
+        return None
+    spec = getattr(model, 'WAMA_INGEST', None)
+    if not spec:
+        return None
+    # normalise en dict sérialisable (spec = {source, target, mode, ...})
+    try:
+        return dict(spec)
+    except Exception:
+        return {'_raw': repr(spec)}
 
 
 def _prompts(app_id):
