@@ -243,5 +243,9 @@ les **besoins de modèles** de l'app. Le manifeste `app` les rend explicites.
    réversible + `verify` (diff). Back-link `_manifest_key` sur les entrées dérivées.
 3. **Kind `app`** de bout en bout : projection vers les registres du §5 (ingest) + **extraction** inverse
    (générer le manifeste d'une app existante depuis les registres) pour le round-trip.
+   - ✅ **Extraction** : `extract_app` (12 facettes) — fait.
+   - ✅ **Projection `access`** (write-back) : `project_app`/`un_project_app` → `AppAccessPolicy`, dry-run/
+     idempotent/réversible, round-trip non destructif validé (2026-07-23). **1re facette réellement écrite.**
+   - ⏳ **Projection des 11 autres facettes = CODE-GEN** (models.py/urls/params/nœud studio…) — chantier.
 4. **Round-trip** : extraire le manifeste d'une app existante → régénérer en sandbox → diff → itérer.
 5. Puis kind `dataset` (toolbox tierce généralisé), et convergence `app` (APP_CATALOG ⟷ GENERIC_APPS).

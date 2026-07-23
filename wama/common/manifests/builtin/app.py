@@ -15,6 +15,8 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
+from django.db import transaction
+
 from ..kinds import ManifestKind, register_kind
 
 # APP_GROUP (permissions) → world (spec §1.1 : le monde classe la FINALITÉ).
@@ -389,10 +391,68 @@ def _to_dict(obj) -> dict:
     return {}
 
 
+# ── PROJECTION (write-back) ──────────────────────────────────────────────────────
+# Propriété de sûreté (SPEC §2.1) : rien ne lit le manifeste en direct ; la projection est un geste
+# EXPLICITE, jamais automatique. AUJOURD'HUI, une SEULE facette est projetable au RUNTIME : `access`
+# → `AppAccessPolicy` (DB). Les autres facettes = CODE-GEN (non écrites, rapportées dans `codegen_required`).
+def project_app(manifest: dict, *, apply: bool = False) -> dict:
+    """Projette le manifeste `app` vers l'état committé. `apply=False` = DRY-RUN (retourne le plan) ;
+    `apply=True` = écrit (idempotent, transactionnel, réversible). Seule `access` écrit au runtime."""
+    key = manifest.get('key')
+    body = manifest.get('body', {}) or {}
+    return {
+        'app': key,
+        'access': _project_access(key, body.get('access') or {}, apply=apply),
+        'codegen_required': [f for f in ('identity', 'ports', 'params', 'inspector', 'models',
+                                         'processing', 'prompts', 'tool_api', 'studio') if body.get(f)],
+    }
+
+
+@transaction.atomic
+def _project_access(app_id: str, access: dict, *, apply: bool) -> dict:
+    from wama.accounts.models import AppAccessPolicy
+    from django.contrib.auth.models import Group
+    from wama.accounts.permissions import GROUP_PREFIX
+
+    roles = sorted(access.get('roles') or [])
+    public = bool(access.get('public'))
+    min_tier = access.get('min_tier') or ''
+    target = {'roles': roles, 'public': public, 'min_tier': min_tier}
+
+    cur = AppAccessPolicy.objects.filter(app_id=app_id).first()
+    cur_state = None
+    if cur:
+        cur_state = {
+            'roles': sorted(g.name[len(GROUP_PREFIX):] for g in cur.roles.all()
+                            if g.name.startswith(GROUP_PREFIX)),
+            'public': cur.public, 'min_tier': cur.min_tier or '',
+        }
+    if not apply:
+        return {'target': target, 'current': cur_state, 'would_change': cur_state != target}
+
+    pol, _created = AppAccessPolicy.objects.get_or_create(app_id=app_id)
+    pol.public = public
+    pol.min_tier = min_tier
+    pol.save()
+    pol.roles.set([Group.objects.get_or_create(name=GROUP_PREFIX + r)[0] for r in roles])
+    return {'applied': target, 'previous': cur_state, 'changed': cur_state != target,
+            '_manifest_key': f'app:{app_id}'}
+
+
+@transaction.atomic
+def un_project_app(manifest: dict) -> bool:
+    """Réversibilité : retire la politique DB projetée → retombe sur le seed `DEFAULT_APP_ACCESS`."""
+    from wama.accounts.models import AppAccessPolicy
+    n, _ = AppAccessPolicy.objects.filter(app_id=manifest.get('key')).delete()
+    return n > 0
+
+
 register_kind(ManifestKind(
     kind='app',
     validate=validate_app_body,
     extract=extract_app,
-    description="Application généraliste WAMA (8 facettes : identité/ports/UI/modèles/traitement/"
-                "prompts/permissions/studio). Extract-only pour l'instant (write-back = chantier).",
+    project=project_app,
+    un_project=un_project_app,
+    description="Application généraliste WAMA (8 facettes). Extract complet ; PROJECTION partielle : "
+                "seule `access`→AppAccessPolicy écrit au runtime (idempotent/réversible), le reste = code-gen.",
 ))

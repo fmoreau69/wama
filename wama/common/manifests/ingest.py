@@ -100,6 +100,16 @@ def extract(kind: str, key: str) -> Optional[dict]:
     return mk.extract(key)
 
 
+def project(manifest: dict, *, apply: bool = False):
+    """Projette (write-back) le manifeste vers l'état committé — geste EXPLICITE, jamais automatique
+    (propriété de sûreté §2.1). `apply=False` = DRY-RUN (plan) ; `apply=True` = écrit. Délègue au kind."""
+    env = Envelope.from_dict(manifest)
+    mk = get_kind(env.manifest_kind)
+    if not mk.project:
+        raise NotImplementedError(f"kind '{env.manifest_kind}' n'implémente pas project()")
+    return mk.project(manifest, apply=apply)
+
+
 # ── Verify (diff manifeste ↔ état courant) ──────────────────────────────────────
 def verify(manifest: dict) -> list[dict]:
     """Retourne la liste des écarts entre le manifeste fourni et l'état courant des registres.

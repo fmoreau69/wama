@@ -183,6 +183,13 @@ models.py/urls, GENERIC_APPS…). Facettes MANQUANTES fréquentes (trou de sché
 lever au cas par cas) : `modes` (absent hors 5 apps), `prompts` (apps non génératives : normal), `models`
 (apps sans catalogue `<APP>_MODELS`).
 
+> **✅ 1re PROJECTION RÉELLE (write-back) IMPLÉMENTÉE 2026-07-23** — `builtin/app.py::project_app` +
+> `un_project_app`, exposée `manifests.project(manifest, apply=False)`. La facette `access` s'écrit
+> réellement dans `AppAccessPolicy` : **dry-run par défaut**, **idempotent** (get_or_create par app_id),
+> **transactionnel**, **réversible** (`un_project` supprime → retombe sur le seed `DEFAULT_APP_ACCESS`).
+> Round-trip validé NON DESTRUCTIF (extract→project→`_policy_for` match→un_project→rollback, rien laissé).
+> Respecte la sûreté §2.1 : geste EXPLICIT, jamais automatique. **Reste = les 11 facettes code-gen.**
+
 **B. Round-trip redondance `ports (app_registry)` ⟷ `GENERIC_APPS`** — ⚠ **CORRIGÉ 2026-07-22 (Fabien).**
 La 1re lecture parlait de « divergences réelles » ; c'était une ERREUR d'analyse (lecture de la SURFACE des
 registres sans tracer le CHAÎNAGE d'exécution). Réalité :

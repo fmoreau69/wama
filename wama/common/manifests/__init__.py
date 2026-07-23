@@ -20,7 +20,7 @@ API publique stable :
 
 from .envelope import Envelope, WORLDS, VISIBILITIES
 from .kinds import MANIFEST_KINDS, register_kind, get_kind, ManifestKind
-from .ingest import validate, ingest, verify, un_ingest, extract, promote
+from .ingest import validate, ingest, verify, un_ingest, extract, promote, project
 
 # Enregistrement des kinds fournis (import pour effet de bord : peuple MANIFEST_KINDS).
 from . import builtin as _builtin  # noqa: F401
@@ -28,5 +28,5 @@ from . import builtin as _builtin  # noqa: F401
 __all__ = [
     'Envelope', 'WORLDS', 'VISIBILITIES',
     'MANIFEST_KINDS', 'register_kind', 'get_kind', 'ManifestKind',
-    'validate', 'ingest', 'verify', 'un_ingest', 'extract', 'promote',
+    'validate', 'ingest', 'verify', 'un_ingest', 'extract', 'promote', 'project',
 ]
