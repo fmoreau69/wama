@@ -266,7 +266,7 @@ réversible / `verify`). On préserve tout le riche, on régénère le simplifi�
 
 - **Remplace** (archivés `docs/archive/`, consultables) : `UI_MECHANISMS_CONSOLIDATION.md` (mécanismes UI),
   `COMMON_REFACTORING.md` (briques communes), `GENERALIZATION_PLAN.md` (9 axes A→I), `BACKEND_CARTOGRAPHY.md`
-  (contrat `BaseModelBackend`).
+  (contrat `BaseModelBackend`), `AUDIT_ROUTE_COMMUNE_2026-07-06.md` (audit prédécesseur route manifeste→app).
 - **À réintégrer ici** (non re-tracé en profondeur par la cartographie du 2026-07-22) : le contrat
   `BaseModelBackend` (F4) et le détail des 9 axes de `GENERALIZATION_PLAN` (répartis dans F1–F8). Marqués
   `⚠ À RÉINTÉGRER` là où c'est le cas.
