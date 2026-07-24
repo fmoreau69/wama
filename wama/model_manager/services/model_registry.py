@@ -590,16 +590,17 @@ class ModelRegistry:
                             else str(ct2_dir))
                     extra = {'hf_id': hf_id, 'path': path if is_downloaded else ''}
 
-                # Capacités CANONIQUES (common/utils/model_capabilities.py), alignées sur les
-                # flags backend : diarisation NATIVE (vibevoice) vs pyannote (whisper/qwen) ;
-                # hotwords/context biasing (vibevoice, qwen). languages ['*'] = multilingue.
-                caps = {'languages': ['*'], 'supports_timestamps': True}
+                # Capacités CANONIQUES. ⚠️ DOIVENT rester alignées sur les attributs de classe
+                # backend (`*Backend.supports_*`) — source déclarative de référence. diarisation
+                # NATIVE (vibevoice) vs pyannote post-traitement (whisper/qwen ; le flag reste
+                # False = pas de diar. NATIVE, mais l'app la fournit via pyannote). hotwords :
+                # les 3 backends l'exposent (whisper = param NATIF faster-whisper, cf.
+                # WhisperBackend.supports_hotwords=True). languages ['*'] = multilingue.
+                caps = {'languages': ['*'], 'supports_timestamps': True, 'supports_hotwords': True}
                 if model_id.startswith('vibevoice'):
-                    caps.update({'supports_diarization': True, 'supports_hotwords': True})
-                elif model_id.startswith('qwen3-asr'):
-                    caps.update({'supports_diarization': False, 'supports_hotwords': True})
-                else:  # whisper — diarisation via pyannote (post-traitement)
-                    caps.update({'supports_diarization': False, 'supports_hotwords': False})
+                    caps.update({'supports_diarization': True})
+                else:  # whisper / qwen3-asr — diarisation via pyannote (post-traitement)
+                    caps.update({'supports_diarization': False})
 
                 self._models[f"transcriber:{model_id}"] = ModelInfo(
                     id=f"transcriber:{model_id}",

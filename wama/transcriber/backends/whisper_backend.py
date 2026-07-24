@@ -38,7 +38,7 @@ class WhisperBackend(SpeechToTextBackend):
 
     supports_diarization = False   # pyannote post-processing in workers.py
     supports_timestamps  = True
-    supports_hotwords    = False
+    supports_hotwords    = True    # param NATIF `hotwords` de faster-whisper (cf. transcribe(), ~l.211)
     supports_streaming   = False
 
     min_vram_gb         = 2
@@ -173,7 +173,7 @@ class WhisperBackend(SpeechToTextBackend):
         self,
         audio_path: str,
         language: str = None,
-        hotwords: str = None,         # accepted but ignored (not supported)
+        hotwords: str = None,         # param NATIF faster-whisper (utilisé, cf. ~l.211)
         **kwargs,
     ) -> TranscriptionResult:
         """
