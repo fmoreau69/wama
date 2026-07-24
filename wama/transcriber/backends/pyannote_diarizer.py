@@ -130,6 +130,138 @@ def _preload_audio(audio_path: str) -> dict:
         return audio_path  # type: ignore[return-value]
 
 
+# ── Diarisation par tranches (audios longs) ──────────────────────────────────
+# Seuils conservateurs : on ne chunk QUE les audios vraiment longs, et seulement
+# quand l'audio est préchargé en mémoire (dict waveform) — sinon whole-file.
+_CHUNK_THRESHOLD_S = 40 * 60   # au-delà de 40 min → tranches
+_CHUNK_SIZE_S = 20 * 60        # tranche de 20 min
+_CHUNK_OVERLAP_S = 60          # recouvrement 60 s (sert au stitching des locuteurs)
+_STITCH_MIN_OVERLAP_S = 3.0    # recouvrement mini pour rattacher 2 labels entre tranches
+
+
+def _annotation_to_turns(diarization) -> List[tuple]:
+    """Extrait [(start, end, speaker)] d'une sortie pyannote (compat 3.x ↔ 4.x)."""
+    annotation = diarization
+    if not hasattr(annotation, 'itertracks'):
+        annotation = (getattr(diarization, 'speaker_diarization', None)
+                      or getattr(diarization, 'diarization', None)
+                      or annotation)
+    return [
+        (turn.start, turn.end, speaker)
+        for turn, _, speaker in annotation.itertracks(yield_label=True)
+    ]
+
+
+def _run_pipeline_turns(pipeline, audio_input, diarize_kwargs) -> List[tuple]:
+    """Un appel pipeline → liste de tours (start, end, speaker)."""
+    return _annotation_to_turns(pipeline(audio_input, **diarize_kwargs))
+
+
+def _stitch_labels(prev_turns: List[tuple], local_turns: List[tuple],
+                   zone: tuple) -> dict:
+    """
+    Aligne les labels LOCAUX d'une tranche sur les labels GLOBAUX de la tranche
+    précédente, via le recouvrement temporel dans `zone` (start, end).
+
+    Renvoie {label_local: label_global} pour les locuteurs présents dans la zone.
+    """
+    z0, z1 = zone
+    # overlap[llabel][glabel] = durée de recouvrement dans la zone
+    overlap: dict = {}
+    for ls, le, ll in local_turns:
+        a0, a1 = max(ls, z0), min(le, z1)
+        if a1 <= a0:
+            continue
+        for ps, pe, gl in prev_turns:
+            b0, b1 = max(ps, z0), min(pe, z1)
+            ov = min(a1, b1) - max(a0, b0)
+            if ov > 0:
+                overlap.setdefault(ll, {}).setdefault(gl, 0.0)
+                overlap[ll][gl] += ov
+    mapping = {}
+    for ll, gmap in overlap.items():
+        gl, best = max(gmap.items(), key=lambda kv: kv[1])
+        if best >= _STITCH_MIN_OVERLAP_S:
+            mapping[ll] = gl
+    return mapping
+
+
+def _compute_dia_turns(pipeline, audio_input, diarize_kwargs) -> List[tuple]:
+    """
+    Calcule les tours de diarisation, en tranches si l'audio est long ET préchargé
+    en mémoire. Stitch les labels par recouvrement pour garder une identité de
+    locuteur cohérente d'une tranche à l'autre.
+
+    Fallback whole-file (un seul appel) sur toute condition non gérée ou erreur.
+    """
+    wf = audio_input.get('waveform') if isinstance(audio_input, dict) else None
+    sr = audio_input.get('sample_rate') if isinstance(audio_input, dict) else None
+    if wf is None or not sr:
+        return _run_pipeline_turns(pipeline, audio_input, diarize_kwargs)
+
+    total_s = wf.shape[-1] / float(sr)
+    if total_s <= _CHUNK_THRESHOLD_S:
+        return _run_pipeline_turns(pipeline, audio_input, diarize_kwargs)
+
+    try:
+        step = _CHUNK_SIZE_S - _CHUNK_OVERLAP_S
+        starts, s = [], 0.0
+        while s < total_s:
+            starts.append(s)
+            s += step
+        logger.info(
+            f"[pyannote] Audio long ({total_s/60:.0f} min) → diarisation en "
+            f"{len(starts)} tranches de {_CHUNK_SIZE_S//60} min (recouvrement "
+            f"{_CHUNK_OVERLAP_S}s)"
+        )
+
+        global_turns: List[tuple] = []
+        prev_turns: List[tuple] = []
+        next_gid = 0
+
+        for ci, cstart in enumerate(starts):
+            cend = min(cstart + _CHUNK_SIZE_S, total_s)
+            i0, i1 = int(cstart * sr), int(cend * sr)
+            seg = wf[..., i0:i1]
+            local = _run_pipeline_turns(
+                pipeline, {'waveform': seg, 'sample_rate': sr}, diarize_kwargs
+            )
+            # Recale en temps global.
+            local = [(ls + cstart, le + cstart, ll) for ls, le, ll in local]
+
+            if ci == 0:
+                labels = {ll for _, _, ll in local}
+                mapping = {ll: f"SPEAKER_{i:02d}" for i, ll in enumerate(sorted(labels))}
+                next_gid = len(mapping)
+            else:
+                # Zone de recouvrement avec la tranche précédente.
+                zone = (cstart, min(cstart + _CHUNK_OVERLAP_S, cend))
+                mapping = _stitch_labels(prev_turns, local, zone)
+                # Locuteurs locaux non rattachés → nouveaux ids globaux.
+                for _, _, ll in local:
+                    if ll not in mapping:
+                        mapping[ll] = f"SPEAKER_{next_gid:02d}"
+                        next_gid += 1
+
+            mapped = [(ls, le, mapping[ll]) for ls, le, ll in local]
+            # Évite de dupliquer les tours de la zone de recouvrement : on ne garde,
+            # pour cette tranche, que ce qui commence après la fin du recouvrement
+            # déjà couvert par la tranche précédente (sauf 1re tranche).
+            cut = cstart + _CHUNK_OVERLAP_S if ci > 0 else 0.0
+            for ls, le, gl in mapped:
+                if le > cut:
+                    global_turns.append((max(ls, cut), le, gl))
+            prev_turns = mapped
+
+        logger.info(f"[pyannote] Stitching terminé → {next_gid} locuteur(s) global(aux)")
+        return global_turns
+    except Exception as e:
+        logger.warning(
+            f"[pyannote] chunking échoué ({e}) → repli diarisation whole-file"
+        )
+        return _run_pipeline_turns(pipeline, audio_input, diarize_kwargs)
+
+
 def diarize(
     audio_path: str,
     segments: list,
@@ -163,21 +295,10 @@ def diarize(
         audio_input = _preload_audio(audio_path)
 
         logger.info(f"[pyannote] Diarizing: {audio_path}")
-        diarization = pipeline(audio_input, **diarize_kwargs)
-
-        # Compat pyannote 3.x (Annotation, .itertracks) ↔ 4.x (DiarizeOutput :
-        # l'Annotation est dans .speaker_diarization / .diarization).
-        annotation = diarization
-        if not hasattr(annotation, 'itertracks'):
-            annotation = (getattr(diarization, 'speaker_diarization', None)
-                          or getattr(diarization, 'diarization', None)
-                          or annotation)
-
-        # Extract (start, end, speaker) turns from pyannote output
-        dia_turns: List[tuple] = [
-            (turn.start, turn.end, speaker)
-            for turn, _, speaker in annotation.itertracks(yield_label=True)
-        ]
+        # Audios longs → diarisation par tranches (anti-pic mémoire / TDR WSL2 sur
+        # de très longs kernels GPU). Stitching des locuteurs par recouvrement.
+        # Fallback whole-file intégral sur toute erreur (cf. _compute_dia_turns).
+        dia_turns: List[tuple] = _compute_dia_turns(pipeline, audio_input, diarize_kwargs)
         logger.info(f"[pyannote] {len(dia_turns)} diarization turns found")
 
         # Assign speaker to each Whisper segment by maximum time overlap

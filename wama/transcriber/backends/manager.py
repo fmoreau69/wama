@@ -154,9 +154,63 @@ class TranscriberBackendManager:
             self._instances[name] = self._backends[name]()
         return self._instances[name]
 
+    # Map model_key du catalogue AIModel → nom de backend interne.
+    # (le catalogue nomme finement : whisper-large-v3, vibevoice-asr, qwen3-asr-0.6b…)
+    @staticmethod
+    def _backend_for_model_key(model_key: str) -> Optional[str]:
+        mk = (model_key or '').lower()
+        if 'vibevoice' in mk:
+            return 'vibevoice'
+        if 'qwen' in mk:
+            return 'qwen_asr'
+        if 'whisper' in mk:
+            return 'whisper'
+        return None
+
+    def _select_backend_via_model_manager(self, availability: Dict[str, bool]) -> Optional[str]:
+        """
+        Choix VRAM-aware du backend via la brique commune `select_model()`
+        (keep_loaded + budget VRAM + priorité whisper-first préservée).
+
+        Renvoie un nom de backend DISPONIBLE, ou None → l'appelant retombe alors
+        sur la sélection statique BACKEND_PRIORITY (aucune régression si le
+        catalogue AIModel est vide ou le model_manager indisponible).
+        """
+        try:
+            from wama.model_manager.services import select_model
+        except Exception:
+            return None
+        try:
+            # availability_probe : ne retenir qu'un modèle dont le backend est
+            # réellement importable/disponible ici (au-delà du is_downloaded catalogue).
+            def _probe(m):
+                bname = self._backend_for_model_key(m.model_key)
+                return bool(bname) and availability.get(bname, False)
+
+            chosen = select_model(
+                source='transcriber',
+                prefer_loaded=True,          # keep_loaded : réutilise un backend déjà chargé
+                downloaded_only=False,       # la dispo runtime prime (availability_probe)
+                priority=['whisper', 'vibevoice', 'qwen'],  # même politique whisper-first
+                availability_probe=_probe,
+            )
+            if chosen is None:
+                return None
+            bname = self._backend_for_model_key(chosen.model_key)
+            if bname and availability.get(bname, False):
+                logger.info(f"[TranscriberManager] select_model → {chosen.model_key} → backend '{bname}'")
+                return bname
+        except Exception as e:
+            logger.debug(f"[TranscriberManager] select_model indisponible ({e}) → priorité statique")
+        return None
+
     def _get_best_backend(self) -> SpeechToTextBackend:
         """
-        Get the best available backend based on priority.
+        Get the best available backend.
+
+        1) Tente un choix VRAM-aware centralisé via `select_model()` (model_manager).
+        2) À défaut (catalogue vide / model_manager KO), retombe sur la priorité
+           statique BACKEND_PRIORITY — comportement historique, aucune régression.
 
         Returns:
             Best available backend instance.
@@ -166,6 +220,14 @@ class TranscriberBackendManager:
         """
         availability = self.check_availability()
 
+        # 1) Choix centralisé VRAM-aware (brique commune). None → fallback statique.
+        mm_choice = self._select_backend_via_model_manager(availability)
+        if mm_choice:
+            if mm_choice not in self._instances:
+                self._instances[mm_choice] = self._backends[mm_choice]()
+            return self._instances[mm_choice]
+
+        # 2) Fallback : priorité statique historique.
         for backend_name in self.BACKEND_PRIORITY:
             if backend_name in self._backends and availability.get(backend_name, False):
                 if backend_name not in self._instances:
