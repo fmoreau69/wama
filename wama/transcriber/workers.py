@@ -459,30 +459,8 @@ def transcribe(self, transcript_id: int):
 
         _set_progress(t, 75)
 
-        # ── VRAM : décharger le modèle ASR AVANT la diarisation ────────────────
-        # La diarisation pyannote (~2-4 Go VRAM) est un SECOND modèle chargé
-        # par-dessus l'ASR. Whisper/Qwen ne servent plus une fois `result` obtenu
-        # (la diarisation ne consomme que l'audio + les segments). Les garder
-        # résidents fait cohabiter deux gros modèles → pic VRAM/RAM qui, sous
-        # WSL2, gèle l'hôte (cf. diagnostic crash 2026-07-24). On libère donc ici,
-        # pas après les étapes LLM (l'intention historique était déjà de libérer
-        # avant Ollama — on l'avance simplement avant pyannote).
-        try:
-            backend.unload()
-        except Exception:
-            pass
-
         # Step 4b: Pyannote diarization (Whisper + Qwen3-ASR — VibeVoice has its own)
         if backend.name in ('whisper', 'qwen_asr') and t.enable_diarization and result.segments:
-            # Réclame la VRAM d'autres apps éventuellement résidentes (ex. modèle
-            # imager keep_loaded) AVANT de charger pyannote (~3 Go). Brique commune
-            # réutilisable (model_manager). `exclude={'transcriber'}` : on ne se
-            # décharge pas soi-même. No-op si assez de VRAM ou pas de GPU.
-            try:
-                from wama.model_manager.services.memory_manager import MemoryManager
-                MemoryManager.ensure_free_vram(3.0, exclude={'transcriber'})
-            except Exception:
-                pass
             try:
                 from .backends.pyannote_diarizer import is_available as pyannote_ok, diarize
                 if pyannote_ok():
@@ -520,8 +498,7 @@ def transcribe(self, transcript_id: int):
         _save_output_files(t, backend.name)
         _set_progress(t, 95)
 
-        # ASR déjà déchargé avant la diarisation (cf. plus haut). Appel idempotent
-        # laissé en filet au cas où la diarisation serait désactivée sur ce chemin.
+        # Unload the ASR model NOW — before LLM steps — to free GPU VRAM for Ollama
         try:
             backend.unload()
         except Exception:
