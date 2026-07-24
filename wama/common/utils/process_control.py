@@ -124,19 +124,8 @@ def is_task_dead(task_id: str) -> bool:
     return state in {"SUCCESS", "FAILURE", "REVOKED"}
 
 
-def reconcile_if_stuck(instance, *, status_field: str = "status", task_field: str = "task_id",
-                       running_value: str = "RUNNING", to_status: str = "FAILURE",
-                       error_field: str | None = None,
-                       error_message: str = "Tâche interrompue") -> bool:
-    """
-    PHASE 2 (non activée par défaut). Si l'item est RUNNING mais que sa tâche Celery est dans un état
-    terminal, le bascule en échec (relançable). NE traite PAS le cas PENDING (faux positifs sur la file).
-    À n'appeler que derrière un délai de grâce. Retourne True si une réconciliation a eu lieu.
-    """
-    if getattr(instance, status_field, None) != running_value:
-        return False
-    if not is_task_dead(getattr(instance, task_field, "") or ""):
-        return False
+def _mark_reconciled(instance, status_field, task_field, to_status, error_field, error_message):
+    """Bascule un item vers `to_status` (relançable) + message optionnel. Save minimal."""
     setattr(instance, status_field, to_status)
     fields = [status_field]
     if error_field:
@@ -146,4 +135,101 @@ def reconcile_if_stuck(instance, *, status_field: str = "status", task_field: st
         instance.save(update_fields=fields)
     except Exception:
         instance.save()
+
+
+def reconcile_if_stuck(instance, *, status_field: str = "status", task_field: str = "task_id",
+                       running_value: str = "RUNNING", to_status: str = "FAILURE",
+                       error_field: str | None = None,
+                       error_message: str = "Tâche interrompue") -> bool:
+    """
+    Si l'item est RUNNING mais que sa tâche Celery est dans un état TERMINAL
+    (SUCCESS/FAILURE/REVOKED), le bascule en échec (relançable). NE traite PAS le cas
+    PENDING (faux positifs sur la file). Retourne True si une réconciliation a eu lieu.
+
+    Ne couvre PAS le crash worker (la tâche reste STARTED, jamais terminale) :
+    pour ça, voir `reconcile_orphaned_running` (signal = absente des workers actifs).
+    """
+    if getattr(instance, status_field, None) != running_value:
+        return False
+    if not is_task_dead(getattr(instance, task_field, "") or ""):
+        return False
+    _mark_reconciled(instance, status_field, task_field, to_status, error_field, error_message)
     return True
+
+
+def collect_active_task_ids(timeout: float = 2.0):
+    """
+    Set des `task_id` actifs + réservés sur TOUS les workers Celery.
+
+    Renvoie None si aucun worker ne répond (incertitude → l'appelant NE réconcilie
+    rien, pour ne jamais tuer une tâche légitime par simple injoignabilité).
+    """
+    try:
+        from celery import current_app
+        insp = current_app.control.inspect(timeout=timeout)
+        active = insp.active()
+        reserved = insp.reserved()
+    except Exception:
+        return None
+    if active is None and reserved is None:
+        return None
+    ids = set()
+    for group in (active or {}, reserved or {}):
+        for tasks in group.values():
+            for t in (tasks or []):
+                tid = t.get("id") if isinstance(t, dict) else None
+                if tid:
+                    ids.add(tid)
+    return ids
+
+
+def is_task_orphaned(task_id: str, active_ids) -> bool:
+    """
+    True si la tâche a DÉMARRÉ (Celery `STARTED`) mais n'est plus active/réservée sur
+    aucun worker → worker mort (crash machine). Signal à très faible faux-positif :
+    STARTED prouve qu'un worker l'a lancée ; absente des actives prouve qu'il est mort.
+
+    Ne conclut RIEN (False) si : task_id vide, workers injoignables (`active_ids` None),
+    ou état non-STARTED (PENDING = en file légitime ; terminal = géré par is_task_dead).
+    """
+    if not task_id or active_ids is None:
+        return False
+    if task_id in active_ids:
+        return False
+    try:
+        from celery import current_app
+        from celery.result import AsyncResult
+        state = AsyncResult(task_id, app=current_app).state
+    except Exception:
+        return False
+    return state == "STARTED"
+
+
+def reconcile_orphaned_running(instances, *, active_ids=None,
+                               status_field: str = "status", task_field: str = "task_id",
+                               running_value: str = "RUNNING", to_status: str = "FAILURE",
+                               error_field: str | None = None,
+                               error_message: str = "Traitement interrompu (worker arrêté)") -> int:
+    """
+    Réconcilie une liste d'items RUNNING dont la tâche Celery est TERMINÉE (is_task_dead)
+    OU ORPHELINE (STARTED mais absente des workers actifs → crash worker). Chaque item
+    concerné bascule en échec RELANÇABLE. Renvoie le nombre d'items réconciliés.
+
+    Un SEUL `inspect()` par appel (via active_ids). Ne touche à rien si aucun worker ne
+    répond. Ignore les items sans task_id (peut-être tout juste démarrés — task_id pas
+    encore persisté, cf. begin_processing).
+    """
+    running = [i for i in instances if getattr(i, status_field, None) == running_value]
+    if not running:
+        return 0
+    if active_ids is None:
+        active_ids = collect_active_task_ids()
+    n = 0
+    for inst in running:
+        tid = getattr(inst, task_field, "") or ""
+        if not tid:
+            continue
+        if is_task_dead(tid) or is_task_orphaned(tid, active_ids):
+            _mark_reconciled(inst, status_field, task_field, to_status, error_field, error_message)
+            n += 1
+    return n

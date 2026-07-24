@@ -124,6 +124,21 @@ class IndexView(View):
         # Lazily wrap any orphan transcripts into a batch-of-1
         _auto_wrap_orphans(user)
 
+        # Réconcilie les tâches RUNNING orphelines (worker mort/crash machine) — brique
+        # COMMUNE. Un item RUNNING dont la tâche Celery a DÉMARRÉ mais n'est plus active
+        # sur aucun worker est un zombie (figé à son dernier %, anime un ETA fantôme →
+        # fausse impression de traitement en cours). Il repasse en échec RELANÇABLE.
+        # Un seul inspect() par chargement, uniquement s'il y a des RUNNING. Ne touche
+        # JAMAIS une tâche vivante ni ne l'interrompt (cf. process_control).
+        try:
+            from wama.common.utils.process_control import reconcile_orphaned_running
+            running = list(Transcript.objects.filter(user=user, status='RUNNING'))
+            n = reconcile_orphaned_running(running)
+            if n:
+                logger.info(f"[transcriber] {n} tâche(s) RUNNING orpheline(s) réconciliée(s) → échec relançable")
+        except Exception as exc:
+            logger.debug(f"[transcriber] reconcile_orphaned_running ignoré: {exc}")
+
         # Agrégats de file — brique COMMUNE (contrat toolbar) + enrichissements transcriber.
         from wama.common.utils.batch_common import build_batches_list
 
