@@ -64,15 +64,14 @@ echo "=== Seeding access policies + prompt keywords ==="
 python manage.py seed_access --settings=$DJANGO_SETTINGS_MODULE || true
 python manage.py seed_prompt_keywords --settings=$DJANGO_SETTINGS_MODULE || true
 
-# Playwright Chromium (converter HTML→PDF fidèle) — provisioning idempotent, non bloquant.
-# Binaire dans AI-models/browsers ; fallback WeasyPrint si absent. Cf. start_wama_prod.sh.
-export PLAYWRIGHT_BROWSERS_PATH="$PROJECT_DIR/AI-models/browsers"
+# Playwright Chromium (HTML→PDF fidèle, brique commune) — provisioning idempotent, non bloquant.
+# Navigateur = cache Playwright par défaut (~/.cache/ms-playwright) ; fallback WeasyPrint si absent.
 if python -c "import playwright" 2>/dev/null; then
-    PW_DEPS_MARKER="$PLAYWRIGHT_BROWSERS_PATH/.os-deps-ok"
+    PW_DEPS_MARKER="$HOME/.cache/ms-playwright/.wama-os-deps-ok"
     if [ ! -f "$PW_DEPS_MARKER" ]; then
         echo "=== Provisioning Playwright Chromium (one-time) ==="
         if python -m playwright install --with-deps chromium; then
-            mkdir -p "$PLAYWRIGHT_BROWSERS_PATH" && touch "$PW_DEPS_MARKER"
+            mkdir -p "$(dirname "$PW_DEPS_MARKER")" && touch "$PW_DEPS_MARKER"
         else
             python -m playwright install chromium || echo "WARN: Chromium indisponible → fallback WeasyPrint"
         fi

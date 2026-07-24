@@ -118,17 +118,17 @@ python manage.py seed_prompt_keywords --settings=$DJANGO_SETTINGS_MODULE || true
 # PLAYWRIGHT CHROMIUM  (converter HTML→PDF fidèle)
 # ------------------------------------------------------
 # Le binaire navigateur + ses libs OS ne sont PAS couverts par pip (requirements).
-# On les provisionne ici, dans un dossier CONNU (AI-models/browsers, comme les modèles —
-# sauvegardable). Idempotent : `install chromium` = no-op rapide si présent ; le marqueur
-# évite de refaire l'apt (`--with-deps`, sudo, lent). NON BLOQUANT : si échec (réseau/proxy/
-# sudo), le converter retombe automatiquement sur WeasyPrint puis pandoc.
-export PLAYWRIGHT_BROWSERS_PATH="$PROJECT_DIR/AI-models/browsers"
+# On les provisionne ici. Navigateur = cache Playwright par défaut
+# (~/.cache/ms-playwright, régénérable — PAS un modèle, donc PAS dans AI-models).
+# Idempotent : `install chromium` = no-op si présent ; marqueur pour l'apt (`--with-deps`,
+# sudo, lent). NON BLOQUANT : si échec (réseau/proxy/sudo), le converter retombe sur
+# WeasyPrint puis pandoc.
 if python -c "import playwright" 2>/dev/null; then
-    PW_DEPS_MARKER="$PLAYWRIGHT_BROWSERS_PATH/.os-deps-ok"
+    PW_DEPS_MARKER="$HOME/.cache/ms-playwright/.wama-os-deps-ok"
     if [ ! -f "$PW_DEPS_MARKER" ]; then
         echo "=== Provisioning Playwright Chromium (one-time : navigateur + libs apt) ==="
         if python -m playwright install --with-deps chromium; then
-            mkdir -p "$PLAYWRIGHT_BROWSERS_PATH" && touch "$PW_DEPS_MARKER"
+            mkdir -p "$(dirname "$PW_DEPS_MARKER")" && touch "$PW_DEPS_MARKER"
         else
             echo "WARN: 'playwright install --with-deps' a échoué (sudo/réseau/proxy) — tentative sans apt"
             python -m playwright install chromium || echo "WARN: Chromium indisponible → converter HTML→PDF via WeasyPrint (fallback)"

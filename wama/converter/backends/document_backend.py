@@ -20,6 +20,8 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
+from wama.common.utils.html_render import render_html_to_pdf
+
 
 # Extension → pandoc format identifier (for `--from` / `--to`)
 _PANDOC_FORMAT = {
@@ -111,132 +113,6 @@ def _pdf_to_docx(input_path: str, output_path: str) -> None:
         cv.close()
 
 
-# Force visible le contenu à « révélation au scroll » (IntersectionObserver / AOS /
-# .reveal…) qui démarre en opacity:0. Partagé par les routes Chromium et WeasyPrint.
-_REVEAL_SELECTORS_CSS = (
-    '[class*="reveal"],[class*="fade"],[class*="scroll-"],'
-    '[data-reveal],[data-aos],.aos-init,.wow{'
-    'opacity:1!important;transform:none!important;'
-    'animation:none!important;visibility:visible!important}'
-)
-
-
-def _find_chromium_executable():
-    """Localise le binaire Chromium complet téléchargé par Playwright.
-
-    Playwright ≥1.5x privilégie `chrome-headless-shell` (téléchargement séparé,
-    parfois KO derrière proxy) ; on cible d'abord le Chromium complet, utilisable
-    en headless. Cherche dans PLAYWRIGHT_BROWSERS_PATH, sinon AI-models/browsers,
-    sinon le cache par défaut. Retourne None si rien trouvé.
-    """
-    import glob
-    bases = []
-    if os.environ.get('PLAYWRIGHT_BROWSERS_PATH'):
-        bases.append(os.environ['PLAYWRIGHT_BROWSERS_PATH'])
-    try:
-        from django.conf import settings
-        ai = getattr(settings, 'AI_MODELS_DIR', None)
-        if ai:
-            bases.append(str(Path(ai) / 'browsers'))
-    except Exception:
-        pass
-    bases.append(os.path.expanduser('~/.cache/ms-playwright'))
-    for base in bases:
-        for pat in ('chromium-*/chrome-linux*/chrome',
-                    'chromium_headless_shell-*/*/chrome-headless-shell'):
-            hits = sorted(glob.glob(os.path.join(base, pat)))
-            if hits:
-                return hits[-1]
-    return None
-
-
-def _html_to_pdf_chromium(input_path: str, output_path: str) -> bool:
-    """HTML → PDF via Chromium headless (Playwright) — rendu FIDÈLE.
-
-    Route préférée pour les pages web riches : CSS moderne complet (clamp,
-    place-items, box-shadow, var…), exécution du JS, et surtout application des
-    breakpoints responsive (media=screen) → la page reflow proprement dans A4 au
-    lieu d'être coupée. WeasyPrint reste le fallback (pas de JS, CSS partiel).
-
-    Retourne False si Playwright/navigateur indisponible (→ l'appelant retombe sur
-    WeasyPrint), SANS lever : un serveur non encore provisionné reste fonctionnel.
-    """
-    # Dossier navigateurs connu (AI-models/browsers) si pas déjà fixé par l'env.
-    if not os.environ.get('PLAYWRIGHT_BROWSERS_PATH'):
-        try:
-            from django.conf import settings
-            ai = getattr(settings, 'AI_MODELS_DIR', None)
-            if ai:
-                os.environ['PLAYWRIGHT_BROWSERS_PATH'] = str(Path(ai) / 'browsers')
-        except Exception:
-            pass
-    try:
-        from playwright.sync_api import sync_playwright
-    except ImportError:
-        return False
-
-    exe = _find_chromium_executable()
-    src_url = 'file://' + os.path.abspath(input_path)
-    try:
-        with sync_playwright() as p:
-            kwargs = {'args': ['--no-sandbox', '--disable-gpu']}
-            if exe:
-                kwargs['executable_path'] = exe
-            browser = p.chromium.launch(**kwargs)
-            try:
-                page = browser.new_page(viewport={'width': 820, 'height': 1123})
-                page.goto(src_url, wait_until='networkidle', timeout=30000)
-                # Reveals au scroll → visibles (déterministe) + scroll intégral pour
-                # déclencher tout IntersectionObserver restant.
-                page.add_style_tag(content=_REVEAL_SELECTORS_CSS)
-                page.evaluate(
-                    "()=>new Promise(r=>{let y=0;const t=setInterval(()=>{"
-                    "window.scrollBy(0,600);y+=600;"
-                    "if(y>=document.body.scrollHeight){clearInterval(t);r()}},20)})"
-                )
-                page.wait_for_timeout(300)
-                page.emulate_media(media='screen')   # applique les breakpoints responsive
-                page.pdf(path=output_path, format='A4', print_background=True,
-                         margin={'top': '0', 'bottom': '0', 'left': '0', 'right': '0'})
-            finally:
-                browser.close()
-    except Exception as e:  # navigateur absent, libs OS manquantes, timeout…
-        logger.warning(f"Chromium HTML→PDF indisponible ({e}) → fallback WeasyPrint")
-        return False
-    if not os.path.exists(output_path) or os.path.getsize(output_path) == 0:
-        return False
-    return True
-
-
-def _html_to_pdf_weasyprint(input_path: str, output_path: str) -> bool:
-    """HTML → PDF via WeasyPrint (moteur CSS complet, SVG inline natif).
-
-    Rend la page fidèlement (couleurs, mise en page, <svg> inline) sans dépendre
-    de LaTeX ni de `rsvg-convert`. La route pandoc→xelatex, elle, jette tout le
-    CSS et exige rsvg-convert pour rasteriser les <svg> inline (cause de l'échec
-    « rsvg-convert does not exist »).
-
-    Retourne False si WeasyPrint n'est pas installé — l'appelant retombe alors
-    proprement sur la route pandoc (aucune régression si la lib est absente).
-    """
-    try:
-        from weasyprint import HTML, CSS
-    except ImportError:
-        return False
-    # Rendu SANS JS : forcer visible le contenu à « révélation au scroll ».
-    # Beaucoup de pages web démarrent des sections en opacity:0 (+ transform) et
-    # les montrent via JS (IntersectionObserver / AOS / .reveal…). WeasyPrint
-    # n'exécute pas le JS → ces sections resteraient invisibles (pages blanches).
-    # !important en feuille d'impression bat la règle auteur non-important.
-    _reveal_css = CSS(string=_REVEAL_SELECTORS_CSS)
-    # base_url = dossier source → résout les chemins relatifs (CSS/images locaux)
-    HTML(filename=input_path, base_url=os.path.dirname(input_path)).write_pdf(
-        output_path, stylesheets=[_reveal_css])
-    if not os.path.exists(output_path):
-        raise RuntimeError(f"WeasyPrint n'a produit aucun fichier : {output_path}")
-    return True
-
-
 def convert_document(input_path: str, output_path: str, output_format: str,
                      options: dict = None) -> None:
     """
@@ -270,13 +146,8 @@ def convert_document(input_path: str, output_path: str, output_format: str,
     # WeasyPrint est un vrai moteur CSS (pango/cairo) : il rend la page telle
     # quelle, SVG inline compris. Fallback pandoc si WeasyPrint indisponible.
     if in_ext in ('html', 'htm') and out_ext == 'pdf':
-        # Route préférée : Chromium headless (rendu fidèle, CSS moderne + JS +
-        # responsive). Fallback WeasyPrint (CSS partiel, pas de JS), puis pandoc.
-        if _html_to_pdf_chromium(input_path, output_path):
-            logger.info(f"HTML → PDF (Chromium, rendu fidèle) : {input_path} → {output_path}")
-            return
-        if _html_to_pdf_weasyprint(input_path, output_path):
-            logger.info(f"HTML → PDF (WeasyPrint, fallback) : {input_path} → {output_path}")
+        # Rendu HTML→PDF fidèle : brique commune (Chromium → WeasyPrint) ; pandoc en dernier.
+        if render_html_to_pdf(input_path, output_path):
             return
         logger.warning("Chromium & WeasyPrint indisponibles → fallback pandoc/LaTeX pour HTML→PDF")
 

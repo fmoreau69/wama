@@ -1792,14 +1792,32 @@ page reflow dans A4 sans coupe. `_html_to_pdf_chromium` : viewport 820, `add_sty
 intégral (déclenche l'IntersectionObserver), `page.pdf(A4, print_background)`. **WeasyPrint reste le
 fallback**, pandoc en dernier. Vérifié : `wama_fiches.html` 4 pages, fidèle, 0 vide, 0 coupe.
 
+**Rangement (MAJ 2026-07-23) : brique COMMUNE + navigateur hors AI-models.**
+- Le rendu HTML→PDF (Chromium→WeasyPrint) est **extrait dans `common/utils/html_render.py`**
+  (`render_html_to_pdf`) — capacité générique réutilisable (converter, describer web-page, exports). Le
+  converter ne fait que l'appeler ; pandoc reste son dernier fallback local.
+- Chromium **n'est PAS un modèle** → sorti d'`AI-models/browsers` (erreur de rangement corrigée) vers le
+  **cache Playwright par défaut** `~/.cache/ms-playwright` (régénérable, zéro env custom, zéro gitignore).
+  `tools/` = dossier de scripts (pas de binaires) → pas touché.
+
 **Déploiement Chromium (important — `requirements` NE SUFFIT PAS).** `pip install playwright` ≠ navigateur.
 Provisioning automatisé **dans `start_wama_prod.sh` + `start_wama_dev.sh`** (idempotent, non bloquant,
-marqueur `.os-deps-ok`) : `PLAYWRIGHT_BROWSERS_PATH=$PROJECT_DIR/AI-models/browsers` (dossier connu, ignoré
-git via `AI-models/.gitignore`) + `python -m playwright install --with-deps chromium` (télécharge le
-binaire + libs apt via sudo). Serveur neuf : `pip install -r requirements_linux.txt` → `./start_wama_prod.sh`
-suffit (provisionne au 1ᵉʳ lancement ; si échec réseau/sudo → fallback WeasyPrint, pas de plantage).
-NB Playwright 1.61 : `chrome-headless-shell` (dl séparé, KO derrière proxy) → le code cible le **Chromium
-complet** via `executable_path` (`_find_chromium_executable`).
+marqueur `~/.cache/ms-playwright/.wama-os-deps-ok`) : `python -m playwright install --with-deps chromium`
+(télécharge le binaire dans le cache par défaut + libs apt via sudo). Serveur neuf :
+`pip install -r requirements_linux.txt` → `./start_wama_prod.sh` suffit (provisionne au 1ᵉʳ lancement ; si
+échec réseau/sudo → fallback WeasyPrint, pas de plantage). NB Playwright 1.61 : `chrome-headless-shell`
+(dl séparé, KO derrière proxy) → le code cible le **Chromium complet** via `executable_path`
+(`_find_chromium_executable`).
+
+**23.6 Trou à consigner (côté manifeste) — dépendances lib/outil non déclarées.**
+F4 déclare les **modèles IA** mais **pas** les librairies (playwright…) ni outils système (binaire Chromium,
+ffmpeg, rsvg…). Le provisioning est **hard-codé** (bloc Chromium dans `start_wama_prod.sh`) au lieu d'être
+**dérivé d'une déclaration manifeste**. Pattern actuel : `requirements*.txt` global + `setup_<app>.sh`
+(1 app : avatarizer). **Cible (pendant F4/manifeste)** : facette `requires:{models, libraries, system_tools}`
++ **provisionneur commun** lisant l'union des déclarations ; ex. converter/describer déclarent
+« browser-render (chromium) », la capacité est fournie par `common/utils/html_render`. → à ajouter comme
+**trou #15** dans `WAMA_APP_GENERATION_ROUTE.md §11` (par l'instance manifeste — non touché ici pour éviter
+un conflit d'édition concurrente).
 
 **⏳ Validation navigateur (Fabien)** : à faire après restart worker Celery + serveur web WSL2 — converter
 (PDF #43, card URL), describer (URL média/page web), transcriber (URL YouTube/lien direct → audio).
