@@ -277,6 +277,7 @@ if ! pgrep -f "celery.*gpu@" > /dev/null; then
         --pool=solo \
         --queues=gpu \
         --hostname=gpu@%h \
+        --statedb=$LOG_DIR/celery-gpu.state \
         --loglevel=INFO \
         --detach \
         --logfile $LOG_DIR/celery-gpu.log
@@ -293,6 +294,7 @@ if ! pgrep -f "celery.*default@" > /dev/null; then
         --queues=default,celery \
         --hostname=default@%h \
         --autoscale=4,1 \
+        --statedb=$LOG_DIR/celery-default.state \
         --loglevel=INFO \
         --detach \
         --logfile $LOG_DIR/celery-default.log
