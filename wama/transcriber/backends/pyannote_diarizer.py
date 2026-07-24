@@ -186,80 +186,77 @@ def _stitch_labels(prev_turns: List[tuple], local_turns: List[tuple],
     return mapping
 
 
-def _compute_dia_turns(pipeline, audio_input, diarize_kwargs) -> List[tuple]:
+def _diarize_chunked_from_disk(pipeline, audio_path, total_s, diarize_kwargs) -> List[tuple]:
     """
-    Calcule les tours de diarisation, en tranches si l'audio est long ET préchargé
-    en mémoire. Stitch les labels par recouvrement pour garder une identité de
-    locuteur cohérente d'une tranche à l'autre.
+    Diarisation par tranches, chaque fenêtre étant décodée À LA DEMANDE depuis le
+    disque (`common.audio_decode.decode_window`) → RAM bornée à ~une tranche, JAMAIS
+    tout l'audio en mémoire (c'est le décodage complet d'un 2h+ qui gèle l'hôte WSL).
 
-    Fallback whole-file (un seul appel) sur toute condition non gérée ou erreur.
+    Stitch les labels par recouvrement pour garder une identité de locuteur cohérente
+    d'une tranche à l'autre. Best-effort : une tranche qui échoue est ignorée (les
+    autres sont conservées) ; si tout échoue → liste vide (diarize() renvoie alors les
+    segments sans locuteur, sans planter).
     """
-    wf = audio_input.get('waveform') if isinstance(audio_input, dict) else None
-    sr = audio_input.get('sample_rate') if isinstance(audio_input, dict) else None
-    if wf is None or not sr:
-        return _run_pipeline_turns(pipeline, audio_input, diarize_kwargs)
+    import torch
+    from wama.common.utils.audio_decode import decode_window
 
-    total_s = wf.shape[-1] / float(sr)
-    if total_s <= _CHUNK_THRESHOLD_S:
-        return _run_pipeline_turns(pipeline, audio_input, diarize_kwargs)
+    sr = 16000
+    step = _CHUNK_SIZE_S - _CHUNK_OVERLAP_S
+    starts, s = [], 0.0
+    while s < total_s:
+        starts.append(s)
+        s += step
+    logger.info(
+        f"[pyannote] Audio long ({total_s/60:.0f} min) → diarisation en {len(starts)} "
+        f"tranches de {_CHUNK_SIZE_S//60} min (recouvrement {_CHUNK_OVERLAP_S}s), "
+        f"décodage à la demande depuis le disque"
+    )
 
-    try:
-        step = _CHUNK_SIZE_S - _CHUNK_OVERLAP_S
-        starts, s = [], 0.0
-        while s < total_s:
-            starts.append(s)
-            s += step
-        logger.info(
-            f"[pyannote] Audio long ({total_s/60:.0f} min) → diarisation en "
-            f"{len(starts)} tranches de {_CHUNK_SIZE_S//60} min (recouvrement "
-            f"{_CHUNK_OVERLAP_S}s)"
-        )
+    global_turns: List[tuple] = []
+    prev_turns: List[tuple] = []
+    next_gid = 0
 
-        global_turns: List[tuple] = []
-        prev_turns: List[tuple] = []
-        next_gid = 0
+    for ci, cstart in enumerate(starts):
+        cend = min(cstart + _CHUNK_SIZE_S, total_s)
+        try:
+            arr, _sr = decode_window(audio_path, target_sr=sr, start_s=cstart,
+                                     duration_s=(cend - cstart), mono=False)
+            wf = torch.from_numpy(arr).float()
+            if wf.ndim == 1:
+                wf = wf.unsqueeze(0)
+            local = _run_pipeline_turns(pipeline, {'waveform': wf, 'sample_rate': sr}, diarize_kwargs)
+            del wf, arr
+        except Exception as e:
+            logger.warning(f"[pyannote] tranche {ci} (@{cstart/60:.0f} min) échouée: {e} — ignorée")
+            continue
 
-        for ci, cstart in enumerate(starts):
-            cend = min(cstart + _CHUNK_SIZE_S, total_s)
-            i0, i1 = int(cstart * sr), int(cend * sr)
-            seg = wf[..., i0:i1]
-            local = _run_pipeline_turns(
-                pipeline, {'waveform': seg, 'sample_rate': sr}, diarize_kwargs
-            )
-            # Recale en temps global.
-            local = [(ls + cstart, le + cstart, ll) for ls, le, ll in local]
+        # Recale en temps global.
+        local = [(ls + cstart, le + cstart, ll) for ls, le, ll in local]
 
-            if ci == 0:
-                labels = {ll for _, _, ll in local}
-                mapping = {ll: f"SPEAKER_{i:02d}" for i, ll in enumerate(sorted(labels))}
-                next_gid = len(mapping)
-            else:
-                # Zone de recouvrement avec la tranche précédente.
-                zone = (cstart, min(cstart + _CHUNK_OVERLAP_S, cend))
-                mapping = _stitch_labels(prev_turns, local, zone)
-                # Locuteurs locaux non rattachés → nouveaux ids globaux.
-                for _, _, ll in local:
-                    if ll not in mapping:
-                        mapping[ll] = f"SPEAKER_{next_gid:02d}"
-                        next_gid += 1
+        if not prev_turns:  # 1re tranche (ou toutes les précédentes ont échoué)
+            labels = sorted({ll for _, _, ll in local})
+            mapping = {ll: f"SPEAKER_{i:02d}" for i, ll in enumerate(labels)}
+            next_gid = max(next_gid, len(mapping))
+        else:
+            zone = (cstart, min(cstart + _CHUNK_OVERLAP_S, cend))
+            mapping = _stitch_labels(prev_turns, local, zone)
+            for _, _, ll in local:  # locuteurs locaux non rattachés → nouveaux ids
+                if ll not in mapping:
+                    mapping[ll] = f"SPEAKER_{next_gid:02d}"
+                    next_gid += 1
 
-            mapped = [(ls, le, mapping[ll]) for ls, le, ll in local]
-            # Évite de dupliquer les tours de la zone de recouvrement : on ne garde,
-            # pour cette tranche, que ce qui commence après la fin du recouvrement
-            # déjà couvert par la tranche précédente (sauf 1re tranche).
-            cut = cstart + _CHUNK_OVERLAP_S if ci > 0 else 0.0
-            for ls, le, gl in mapped:
-                if le > cut:
-                    global_turns.append((max(ls, cut), le, gl))
-            prev_turns = mapped
+        mapped = [(ls, le, mapping[ll]) for ls, le, ll in local]
+        # N'ajoute pas deux fois la zone de recouvrement (déjà couverte par la tranche
+        # précédente), sauf pour la 1re tranche effective.
+        cut = cstart + _CHUNK_OVERLAP_S if prev_turns else 0.0
+        for ls, le, gl in mapped:
+            if le > cut:
+                global_turns.append((max(ls, cut), le, gl))
+        prev_turns = mapped
 
-        logger.info(f"[pyannote] Stitching terminé → {next_gid} locuteur(s) global(aux)")
-        return global_turns
-    except Exception as e:
-        logger.warning(
-            f"[pyannote] chunking échoué ({e}) → repli diarisation whole-file"
-        )
-        return _run_pipeline_turns(pipeline, audio_input, diarize_kwargs)
+    logger.info(f"[pyannote] Stitching terminé → {next_gid} locuteur(s) global(aux), "
+                f"{len(global_turns)} tours")
+    return global_turns
 
 
 def diarize(
@@ -291,14 +288,24 @@ def diarize(
         if num_speakers:
             diarize_kwargs["num_speakers"] = num_speakers
 
-        # Pre-load audio as tensor to avoid torchcodec/FFmpeg dependency in pyannote
-        audio_input = _preload_audio(audio_path)
+        # Durée via ffprobe (sans décoder) ; repli sur la fin du dernier segment ASR.
+        from wama.common.utils.audio_decode import probe_duration_seconds
+        total_s = probe_duration_seconds(audio_path)
+        if not total_s and segments:
+            total_s = max((getattr(s, 'end_time', 0.0) or 0.0) for s in segments)
 
-        logger.info(f"[pyannote] Diarizing: {audio_path}")
-        # Audios longs → diarisation par tranches (anti-pic mémoire / TDR WSL2 sur
-        # de très longs kernels GPU). Stitching des locuteurs par recouvrement.
-        # Fallback whole-file intégral sur toute erreur (cf. _compute_dia_turns).
-        dia_turns: List[tuple] = _compute_dia_turns(pipeline, audio_input, diarize_kwargs)
+        if total_s and total_s > _CHUNK_THRESHOLD_S:
+            # Audios longs : diariser par tranches décodées À LA DEMANDE depuis le disque
+            # (RAM bornée à ~une fenêtre). NE JAMAIS charger tout l'audio en mémoire — le
+            # décodage complet d'un 2h+ gèle l'hôte WSL (crash 2026-07-24 : le worker meurt
+            # dans _preload_audio, AVANT même la ligne « Diarizing »).
+            dia_turns: List[tuple] = _diarize_chunked_from_disk(
+                pipeline, audio_path, total_s, diarize_kwargs)
+        else:
+            # Court : un seul décodage en mémoire (léger) + un appel pipeline.
+            audio_input = _preload_audio(audio_path)
+            logger.info(f"[pyannote] Diarizing: {audio_path}")
+            dia_turns = _run_pipeline_turns(pipeline, audio_input, diarize_kwargs)
         logger.info(f"[pyannote] {len(dia_turns)} diarization turns found")
 
         # Assign speaker to each Whisper segment by maximum time overlap

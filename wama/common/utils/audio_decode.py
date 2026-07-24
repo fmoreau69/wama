@@ -82,6 +82,59 @@ def decode_audio(path, target_sr: int = 16000, mono: bool = True):
     raise RuntimeError(f"[audio_decode] aucun décodeur n'a pu lire : {path}")
 
 
+def probe_duration_seconds(path):
+    """
+    Durée d'un média en secondes via ffprobe — SANS décoder (coût négligeable).
+
+    Renvoie float, ou None si la sonde échoue (l'appelant peut alors estimer la durée
+    autrement, ex. via le dernier segment ASR). Réutilisable par toute app.
+    """
+    try:
+        from wama.common.utils.ffmpeg_utils import get_ffprobe_exe, adapt_path_for_ffmpeg
+        exe = get_ffprobe_exe()
+        out = subprocess.run(
+            [exe, '-v', 'error', '-show_entries', 'format=duration',
+             '-of', 'default=noprint_wrappers=1:nokey=1', adapt_path_for_ffmpeg(str(path), exe)],
+            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, check=True, text=True,
+        )
+        return float(out.stdout.strip())
+    except Exception as e:
+        logger.debug(f"[audio_decode] probe_duration_seconds failed: {e}")
+        return None
+
+
+def decode_window(path, target_sr: int = 16000, start_s: float = 0.0,
+                  duration_s=None, mono: bool = True):
+    """
+    Décode UNE FENÊTRE [start_s, start_s+duration_s] d'un média en (ndarray float32, sr),
+    via ffmpeg (seek en entrée `-ss` avant `-i` = rapide sur gros fichiers).
+
+    Permet de traiter un long média **sans jamais le charger entièrement en mémoire**
+    (RAM bornée à ~une fenêtre) — indispensable là où le décodage complet d'un 2h+
+    fait exploser la RAM (torchcodec cassé → pas de décodage streamé natif). Réutilisable
+    par toute app (diarisation par tranches, prévisualisation, extraction de segment…).
+
+    Args:
+        start_s:     début de la fenêtre (s). duration_s: durée (s) ou None (jusqu'à la fin).
+        mono:        True → 1-D mono ; False → (1, time).
+    """
+    import numpy as np
+    from wama.common.utils.ffmpeg_utils import get_ffmpeg_exe, adapt_path_for_ffmpeg
+    _ff = get_ffmpeg_exe()
+    cmd = [_ff, '-nostdin', '-threads', '0']
+    if start_s and start_s > 0:
+        cmd += ['-ss', f'{float(start_s):.3f}']            # seek RAPIDE (avant -i)
+    cmd += ['-i', adapt_path_for_ffmpeg(str(path), _ff)]
+    if duration_s is not None:
+        cmd += ['-t', f'{float(duration_s):.3f}']
+    cmd += ['-f', 'f32le', '-ac', '1', '-ar', str(target_sr), '-']
+    proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, check=True)
+    arr = np.frombuffer(proc.stdout, dtype=np.float32)
+    if not mono:
+        arr = arr[None, :]
+    return np.ascontiguousarray(arr), target_sr
+
+
 def decode_for_pyannote(path, target_sr: int = 16000):
     """
     Décode en dict `{'waveform': (channels, time) torch.Tensor, 'sample_rate': int}`
