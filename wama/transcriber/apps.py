@@ -13,6 +13,21 @@ class TranscriberConfig(AppConfig):
         except Exception:
             pass
 
+        # Reclaim VRAM cross-app : déclare COMMENT libérer les modèles Transcriber
+        # (ASR + pyannote) au registre commun du model_manager. Ainsi toute autre
+        # app peut récupérer la VRAM de Transcriber via ensure_free_vram(), et
+        # inversement. Callable paresseux (imports différés) → pas de coût au boot.
+        try:
+            from wama.model_manager.services.memory_manager import (
+                MemoryManager, register_vram_unloader,
+            )
+            register_vram_unloader(
+                'transcriber',
+                lambda: MemoryManager._unload_transcriber_model('transcriber:*'),
+            )
+        except Exception:
+            pass
+
         # Batch unifié : total auto-réparé + suppression des batches vidés (cf. BATCH_MODEL_AUDIT.md)
         try:
             from wama.common.utils.batch_sync import register_batch_sync

@@ -73,8 +73,107 @@ MODEL_SIZE_PRESETS = {
 }
 
 
+# =============================================================================
+# VRAM release registry — reusable memory-admission for ALL apps
+# =============================================================================
+#
+# Problème résolu : jusqu'ici, `clear_gpu_memory()` / `unload_model()` codaient
+# en dur quelles apps décharger (imager + describer), et les autres apps
+# (transcriber, synthesizer, enhancer…) étaient des stubs no-op → invisibles au
+# reclaim central. Chaque app charge/décharge ses modèles dans son coin, sans
+# coordination : deux gros modèles peuvent cohabiter en VRAM et geler l'hôte.
+#
+# Ici, chaque app DÉCLARE un « unloader » (nom + callable qui libère sa VRAM).
+# `ensure_free_vram()` / `release_vram()` itèrent ces unloaders pour faire de la
+# place AVANT de charger un nouveau modèle — brique unique, réutilisable partout,
+# sans rien coder en dur par app.
+#
+# Un unloader est enregistré via `register_vram_unloader(name, fn)` (idempotent :
+# ré-enregistrer le même nom remplace). `fn()` renvoie True s'il a libéré qqch.
+
+_VRAM_UNLOADERS: "dict[str, callable]" = {}
+
+
+def register_vram_unloader(name: str, fn) -> None:
+    """Déclare un callable qui libère la VRAM d'une app (idempotent par `name`)."""
+    _VRAM_UNLOADERS[name] = fn
+    logger.debug(f"[MemoryManager] VRAM unloader registered: {name}")
+
+
+def unregister_vram_unloader(name: str) -> None:
+    _VRAM_UNLOADERS.pop(name, None)
+
+
 class MemoryManager:
     """Manages GPU and system memory for AI models."""
+
+    # ---- VRAM release registry (voir bloc ci-dessus) ----------------------
+    @staticmethod
+    def register_unloader(name: str, fn) -> None:
+        register_vram_unloader(name, fn)
+
+    @staticmethod
+    def release_vram(exclude: "Optional[set]" = None) -> int:
+        """
+        Décharge tous les modèles enregistrés (sauf `exclude`) pour récupérer la
+        VRAM. Renvoie le nombre d'unloaders ayant effectivement libéré qqch.
+
+        Ne casse pas les chemins hérités : les unloaders imager/describer codés
+        en dur restent appelés par `clear_gpu_memory()`. Ce registre est le
+        chemin NEUF que les apps adoptent progressivement.
+        """
+        exclude = exclude or set()
+        freed = 0
+        for name, fn in list(_VRAM_UNLOADERS.items()):
+            if name in exclude:
+                continue
+            try:
+                if fn():
+                    freed += 1
+                    logger.info(f"[MemoryManager] Released VRAM via unloader: {name}")
+            except Exception as e:
+                logger.warning(f"[MemoryManager] Unloader '{name}' failed: {e}")
+        if freed:
+            try:
+                import torch
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+                gc.collect()
+            except Exception:
+                pass
+        return freed
+
+    @staticmethod
+    def ensure_free_vram(needed_gb: float, headroom_gb: float = 1.5,
+                         exclude: "Optional[set]" = None) -> bool:
+        """
+        Garantit ~`needed_gb` + `headroom_gb` de VRAM libre AVANT de charger un
+        modèle. Si insuffisant, décharge les modèles enregistrés (`release_vram`)
+        puis re-mesure. Renvoie True si l'objectif est atteint (ou pas de GPU :
+        rien à garantir), False sinon (l'appelant peut alors dégrader : CPU,
+        chunking, refus…).
+
+        Brique réutilisable par TOUTE app avant un `load()` de modèle GPU.
+        """
+        target = needed_gb + headroom_gb
+        info = MemoryManager.get_gpu_memory_info()
+        if info is None:
+            return True  # pas de GPU → rien à garantir
+        if info['free_gb'] >= target:
+            return True
+        logger.info(
+            f"[MemoryManager] ensure_free_vram: {info['free_gb']:.1f}GB libre "
+            f"< {target:.1f}GB requis → reclaim…"
+        )
+        MemoryManager.release_vram(exclude=exclude)
+        info = MemoryManager.get_gpu_memory_info()
+        ok = info is not None and info['free_gb'] >= target
+        logger.info(
+            f"[MemoryManager] ensure_free_vram: après reclaim "
+            f"{info['free_gb']:.1f}GB libre (objectif {target:.1f}GB) → "
+            f"{'OK' if ok else 'INSUFFISANT'}"
+        )
+        return ok
 
     @staticmethod
     def get_gpu_memory_info() -> Optional[Dict]:
@@ -290,15 +389,41 @@ class MemoryManager:
 
     @staticmethod
     def _unload_transcriber_model(model_id: str) -> bool:
-        """Unload Transcriber models (Whisper)."""
+        """
+        Unload Transcriber models (ASR backends + pyannote diarizer).
+
+        Was a no-op stub → the central reclaim could not free Transcriber's VRAM.
+        Now delegates to the TranscriberManager (unloads the resident ASR backend)
+        and to the pyannote diarizer pipeline cache.
+        """
+        freed = False
+        # 1) ASR backends (whisper / qwen_asr / vibevoice) via leur manager
         try:
-            # Whisper models are typically loaded per-request
-            gc.collect()
-            logger.info(f"Transcriber model cleanup requested: {model_id}")
-            return True
+            from wama.transcriber.backends.manager import TranscriberBackendManager
+            mgr = TranscriberBackendManager.get_instance()
+            if any(getattr(i, 'is_loaded', False) for i in mgr._instances.values()):
+                freed = True
+            mgr.unload_all()  # décharge + vide le cache d'instances
         except Exception as e:
-            logger.error(f"Error unloading transcriber model: {e}")
-            return False
+            logger.debug(f"Could not unload ASR backends: {e}")
+
+        # 2) pyannote diarizer (pipeline caché module-level)
+        try:
+            from wama.transcriber.backends.pyannote_diarizer import unload_pipeline
+            if unload_pipeline():
+                freed = True
+        except Exception as e:
+            logger.debug(f"Could not unload pyannote pipeline: {e}")
+
+        try:
+            import torch
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+        except Exception:
+            pass
+        gc.collect()
+        logger.info(f"Transcriber model cleanup done (freed={freed}): {model_id}")
+        return True
 
     @staticmethod
     def _unload_synthesizer_model(model_id: str) -> bool:

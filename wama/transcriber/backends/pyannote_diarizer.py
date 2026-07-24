@@ -83,6 +83,36 @@ def _load_pipeline(hf_token: Optional[str] = None):
     return _pipeline
 
 
+def unload_pipeline() -> bool:
+    """
+    Libère le pipeline pyannote de la VRAM (cache module-level).
+
+    Utilisé par le reclaim mémoire centralisé (model_manager) et par le worker
+    Transcriber en fin de diarisation. Idempotent : renvoie False si rien à faire.
+    """
+    global _pipeline
+    if _pipeline is None:
+        return False
+    try:
+        import torch
+        try:
+            _pipeline.to(torch.device("cpu"))
+        except Exception:
+            pass
+        del _pipeline
+        _pipeline = None
+        import gc
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        logger.info("[pyannote] Pipeline unloaded ✓")
+        return True
+    except Exception as e:
+        logger.warning(f"[pyannote] unload_pipeline failed: {e}")
+        _pipeline = None
+        return False
+
+
 def _preload_audio(audio_path: str) -> dict:
     """
     Load audio into the {'waveform': tensor, 'sample_rate': int} dict expected by
