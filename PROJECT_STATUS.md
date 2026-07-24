@@ -1778,14 +1778,28 @@ facette **F5** `ingest:{…}` qui projette vers `WAMA_INGEST`. Voir `WAMA_APP_GE
 `video_utils._filename_from_response` : Content-Disposition (filename*/filename UTF-8) → basename URL →
 extension déduite du Content-Type. Fini le fallback trompeur `video.mp4` pour documents/pages sans nom.
 
-**23.5 Converter HTML→PDF (WeasyPrint) — 2 correctifs.**
-(a) Route HTML/HTM→PDF via **WeasyPrint** (moteur CSS, SVG inline natif) au lieu de pandoc→xelatex qui
-jetait le CSS et exigeait `rsvg-convert` absent (`Pandoc exitcode 43`). Dépendance `weasyprint==69.0`.
-(b) **Pages blanches** : les pages web animent souvent leurs sections en `opacity:0` révélées par JS
-(IntersectionObserver / AOS / `.reveal`). WeasyPrint n'exécute pas le JS → sections invisibles = pages 2..N
-blanches. Fix : feuille d'impression forçant visible les patterns `reveal/fade/scroll-/aos/wow`
-(opacity/transform/animation/visibility `!important`). Vérifié : `wama_fiches.html` 5 pages, contenu complet.
-**Reste cosmétique** : WeasyPrint ignore `place-items:center` (grille) → léger désalignement, non traité.
+**23.5 Converter HTML→PDF — route à 3 étages Chromium → WeasyPrint → pandoc.**
+Chronologie des correctifs :
+(a) D'abord routé via **WeasyPrint** (moteur CSS, SVG inline) au lieu de pandoc→xelatex qui jetait le
+CSS et exigeait `rsvg-convert` absent (`Pandoc exitcode 43`). Dépendance `weasyprint==69.0`.
+(b) **Pages blanches** : les pages web animent leurs sections en `opacity:0` révélées par JS
+(IntersectionObserver / AOS / `.reveal`) ; WeasyPrint (pas de JS) → sections invisibles. Fix commun :
+feuille d'impression `_REVEAL_SELECTORS_CSS` forçant visible `reveal/fade/scroll-/aos/wow`.
+(c) **Mise en page cassée** (WeasyPrint ne fait pas `clamp()`/`place-items`/grilles larges → titres
+riquiqui, 4ᵉ colonne coupée) : c'est une limite de fond. Route **préférée = Chromium headless
+(Playwright)** — CSS moderne complet + JS + **breakpoints responsive** (`emulate_media('screen')`) → la
+page reflow dans A4 sans coupe. `_html_to_pdf_chromium` : viewport 820, `add_style_tag` reveals, scroll
+intégral (déclenche l'IntersectionObserver), `page.pdf(A4, print_background)`. **WeasyPrint reste le
+fallback**, pandoc en dernier. Vérifié : `wama_fiches.html` 4 pages, fidèle, 0 vide, 0 coupe.
+
+**Déploiement Chromium (important — `requirements` NE SUFFIT PAS).** `pip install playwright` ≠ navigateur.
+Provisioning automatisé **dans `start_wama_prod.sh` + `start_wama_dev.sh`** (idempotent, non bloquant,
+marqueur `.os-deps-ok`) : `PLAYWRIGHT_BROWSERS_PATH=$PROJECT_DIR/AI-models/browsers` (dossier connu, ignoré
+git via `AI-models/.gitignore`) + `python -m playwright install --with-deps chromium` (télécharge le
+binaire + libs apt via sudo). Serveur neuf : `pip install -r requirements_linux.txt` → `./start_wama_prod.sh`
+suffit (provisionne au 1ᵉʳ lancement ; si échec réseau/sudo → fallback WeasyPrint, pas de plantage).
+NB Playwright 1.61 : `chrome-headless-shell` (dl séparé, KO derrière proxy) → le code cible le **Chromium
+complet** via `executable_path` (`_find_chromium_executable`).
 
 **⏳ Validation navigateur (Fabien)** : à faire après restart worker Celery + serveur web WSL2 — converter
 (PDF #43, card URL), describer (URL média/page web), transcriber (URL YouTube/lien direct → audio).
