@@ -160,9 +160,17 @@ manifeste** (ce que le kind `app` capte + cible de projection).
   l'app et construit les capabilities (`model_registry.py`). **Déclaration app** : `<APP>_MODELS` + `*_DIR`.
 - **Tirage runtime** : `settings.MODEL_PATHS → *_DIR → HF_HUB_CACHE (avant import) → cache_dir → from_pretrained`
   (backends imager conformes CLAUDE.md) — **indépendant de `select_model()`**.
-- **Sélection VRAM-aware** `select_model()` (`model_selector.py:66`) : **complète mais adoptée par composer
-  SEUL (1/10)** (`auto_model.py:43`). anonymizer a **son propre** sélecteur (dupliqué) ; transcriber sa
-  logique de priorité. Converter = **pas de modèle** (ffmpeg/pandoc) → `models: null` doit être toléré.
+- **Sélection VRAM-aware** `select_model()` (`model_selector.py:66`) : **adoptée par 2/10** — composer
+  (`auto_model.py:43`) + **transcriber depuis 2026-07-24** (`transcriber/backends/manager.py`,
+  `_select_backend_via_model_manager` = fin adaptateur, **fallback intégral** sur la priorité statique si
+  catalogue vide/model_manager KO ; pont granularité backend↔model_key via `_backend_for_model_key`).
+  anonymizer a **son propre** sélecteur (dupliqué). Converter = **pas de modèle** (ffmpeg/pandoc) →
+  `models: null` doit être toléré.
+- **Reclaim/coordination VRAM** (brique commune neuve 2026-07-24, `memory_manager.py`) : registre d'unloaders
+  `register_vram_unloader(name, fn)` + `MemoryManager.release_vram(exclude)` / `ensure_free_vram(needed_gb)`.
+  Chaque app DÉCLARE comment libérer sa VRAM (ex. transcriber dans `apps.py ready()`) → reclaim cross-app
+  AVANT un `load()`. Complète `select_model()` (qui choisit *quel* modèle mais ne libère rien). ADOPTION
+  1/10 (transcriber) ; `_unload_{synthesizer,enhancer,anonymizer}_model` restent des stubs no-op.
 - **Redondances** : `ModelType`/`ModelSource` dupliqués (`models.py` + `model_registry.py`) ; capabilities
   canonicalisées dans la découverte, pas dans les `model_config` d'app.
 - **Manifeste** : `models.{consumes, selection:{strategy: select_model|app_custom|fixed, requires, classes,
@@ -249,7 +257,7 @@ réversible / `verify`). On préserve tout le riche, on régénère le simplifi�
 | 2 | modale **batch** jamais rendue par WamaParams (hand-built partout) | F3 | adoption |
 | 3 | studio `renderNodeParams` appauvri (réinvente WamaParams en dégradant) | F3/F8 | réinvention à supprimer |
 | 4 | **« pendant »** : backend câblé, `media-preview.js` ne consomme pas `?side=during` | F3b | frontend manquant |
-| 5 | `select_model()` adopté par 1 app / 10 (2 sélecteurs concurrents) | F4 | adoption |
+| 5 | `select_model()` adopté par 2 apps / 10 (composer + transcriber ; anonymizer = sélecteur concurrent) ; reclaim VRAM commun adopté 1/10 | F4 | adoption |
 | 6 | **statuts non uniformes** → 3 tables d'alias | F5 | dette de schéma |
 | 7 | gating d'app **non ré-appliqué au RUN** d'un pipeline studio | F7 | sécurité |
 | 8 | **pas de test de contrat** sur la triade tool_api | F6 | robustesse |
