@@ -58,8 +58,8 @@ chacun de leur côté :
   réelle** (déjà instrumentée : `manifests/projection.py` diffe les deux). Mais elle porte AUSSI des champs
   qu'`APP_CATALOG` n'a pas (`params_module/attr`, `input_kwarg`, `fixed_kwargs`, `auto_start`) = **câblage
   runner, PAS de la redondance** → à préserver.
-- **`INSTALLED_APPS`** (`settings.py:259`) = liste plate hand-maintenue, disjointe des registres.
-- **Le manifeste `app`** (`manifests/builtin/app.py:74`) **agrège DÉJÀ les 4 registres + Django** en un body
+- **`INSTALLED_APPS`** (`settings.py:268`) = liste plate hand-maintenue, disjointe des registres.
+- **Le manifeste `app`** (`manifests/builtin/app.py:76`) **agrège DÉJÀ les 4 registres + Django** en un body
   12 facettes (extract-only). C'est la brique de convergence — reste le write-back (code-gen).
 
 ---
@@ -84,7 +84,7 @@ manifeste** (ce que le kind `app` capte + cible de projection).
   source unique** des formats.
 - **⚠ SURCHARGE `output_types` (à corriger proprement, 2026-07-22)** : 5 apps y mettent des FORMATS au lieu
   de catégories — composer `(wav,mp3)`, describer `(txt)`, reader `(txt,markdown)`, synthesizer `(mp3,wav)`,
-  transcriber `(txt,srt,vtt,json)`. `normalize_types()` (`:140,320`) est la BÉQUILLE qui rattrape. **MODÈLE
+  transcriber `(txt,srt,vtt,json)`. `normalize_types()` (def `:80`, appels `:139-140`, `:166`) est la BÉQUILLE qui rattrape. **MODÈLE
   PROPRE = 3 concerns SÉPARÉS, jamais surchargés :**
   | Concern | Nature | Ex. | Consommé par |
   |---|---|---|---|
@@ -136,7 +136,7 @@ manifeste** (ce que le kind `app` capte + cible de projection).
   | chips métadonnée (`card_chips.py`) | **reader seul** | 9 apps |
   | `WamaModelCaps` (show_if depuis caps) | **synthesizer seul** | — |
   | corps de modale commun `_settings_modal.html` | **n'existe pas** (seul le pied est factorisé) | — |
-- **Manifeste** : `params` capté (`app.py:203`) mais ⚠ **un seul `params_attr`** (rate les multi-schémas
+- **Manifeste** : `params` capté (`app.py:212`) mais ⚠ **un seul `params_attr`** (rate les multi-schémas
   `IMAGE_+VIDEO_`, `MEDIA_+AUDIO_`) ; ne distingue pas **déclaré vs câblé** (c'est le round-trip qui le révèle).
 
 ### F3b — Inspecteur, preview & progression  ⟷ `SPEC §F3 (inspector)`
@@ -185,6 +185,11 @@ manifeste** (ce que le kind `app` capte + cible de projection).
   reader `DONE/ERROR` → réconciliés à l'affichage par **3 tables d'alias dupliquées** (`detail_registry.
   normalize_status`, `batch_common._ALIAS`, `wama-cycle-button.js stateFor`). Pas d'enum commune.
 - **Task Celery** : `@shared_task`, **dual-write progress** (cache + `.update`), seeding ETA `record_run`.
+- **Reprise après crash worker** : `process_control.reconcile_orphaned_running()` (93329c4 puis
+  32df89c = bascule en échec sur **preuve positive de mort** du worker propriétaire seulement) —
+  adopté **1/10** (transcriber IndexView) → trou d'adoption de même nature que #5.
+- **Rendu HTML→PDF** : brique commune `common/utils/html_render.py` (Chromium headless → WeasyPrint,
+  1329638) — consommateur unique converter `document_backend`.
   **`start` anti-race conforme** (transaction.atomic + select_for_update + revoke, `converter/views.py:243`).
 - **Endpoints** : converter⟷transcriber **~80% de recouvrement**, nommage non aligné (`cancel`↔`stop`,
   `update`↔`save_settings`) + endpoints spécifiques déclarés (`edit`, `realtime`, `waveform_peaks`…).
@@ -261,12 +266,12 @@ réversible / `verify`). On préserve tout le riche, on régénère le simplifi�
 | 6 | **statuts non uniformes** → 3 tables d'alias | F5 | dette de schéma |
 | 7 | gating d'app **non ré-appliqué au RUN** d'un pipeline studio | F7 | sécurité |
 | 8 | **pas de test de contrat** sur la triade tool_api | F6 | robustesse |
-| 9 | imager : `create_image` vs `add_to_imager` attendu par le runner | F6 | à vérifier |
+| 9 | imager : ✅ résolu — alias `add_to_imager` (`tool_api.py:2042`, `functools.wraps(create_image)` + remap `generation_id`→`item_id`) | F6 | clos |
 | 10 | `params_attr` multiple (image/video, media/audio) non capté par le manifeste | F3 | manifeste |
 | 11 | `APP_MODES` (hand-maintained) à dissoudre : domaine=hint UI, mode=dérivé capacités | F2 | dette de conception |
 | 12 | anonymizer : refactor yolo/SAM3 en sélecteur modèle groupé + switch capacités (pas un « mode ») | F2/F3 | refactor UX |
 | 13 | avatarizer (rapide/qualité=param) + composer (music/bruitage=sélection modèle) : sortir du mécanisme modes | F2 | simplification |
-| 14 | **ingest média** (`source_url`→fichier local). ✅ **Mécanisme commun bâti** (2026-07-22, `0a9d960`) : `common/utils/source_ingest.ensure_local_input(instance)`, piloté par une déclaration modèle `WAMA_INGEST = {source, target, mode: media\|audio\|smart, name_field?, size_field?, title_field?}` (stopgap). Les 2 wrappers describer/transcriber sont **fusionnés** dessus (le transcriber **crashait** sans ce maillon). Réutilise `url_ingest.fetch_url_content` / `video_utils.upload_media_from_url`/`download_youtube_audio`. **Reste (côté instance manifeste) :** capacité **F2** `accepts_url`/`accepts_local_path` (→ génère la card au lieu du `show_url` manuel) + **facette F5** `ingest:{…}` qui *projette* vers `WAMA_INGEST` (remplacer le stopgap). Adopter l'URL sur une app = déclarer `WAMA_INGEST` + appeler `ensure_local_input` en tête de tâche. **✅ EXTRACT fait 2026-07-23** : `extract_app` capte `capabilities.accepts_url` + `processing.ingest` (lit `WAMA_INGEST` du modèle d'item via DetailRegistry ; transcriber/describer remontent leur spec, apps sans ingest → None). Reste = la **projection write-back** (manifeste → `WAMA_INGEST`), avec le reste de l'app_gen. | F2/F5 | extract ✅, projection ⏳ |
+| 14 | **ingest média** (`source_url`→fichier local). ✅ **Mécanisme commun bâti** (2026-07-22, `d8960e5`) : `common/utils/source_ingest.ensure_local_input(instance)`, piloté par une déclaration modèle `WAMA_INGEST = {source, target, mode: media\|audio\|smart, name_field?, size_field?, title_field?}` (stopgap). Les 2 wrappers describer/transcriber sont **fusionnés** dessus (le transcriber **crashait** sans ce maillon). Réutilise `url_ingest.fetch_url_content` / `video_utils.upload_media_from_url`/`download_youtube_audio`. **Reste (côté instance manifeste) :** capacité **F2** `accepts_url`/`accepts_local_path` (→ génère la card au lieu du `show_url` manuel) + **facette F5** `ingest:{…}` qui *projette* vers `WAMA_INGEST` (remplacer le stopgap). Adopter l'URL sur une app = déclarer `WAMA_INGEST` + appeler `ensure_local_input` en tête de tâche. **✅ EXTRACT fait 2026-07-23** : `extract_app` capte `capabilities.accepts_url` + `processing.ingest` (lit `WAMA_INGEST` du modèle d'item via DetailRegistry ; transcriber/describer remontent leur spec, apps sans ingest → None). Reste = la **projection write-back** (manifeste → `WAMA_INGEST`), avec le reste de l'app_gen. | F2/F5 | extract ✅, projection ⏳ |
 
 ---
 

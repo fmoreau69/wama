@@ -58,7 +58,7 @@
 
 ### Principe
 
-Les fichiers dans `venv_linux/site-packages/` sont écrasés à chaque `pip install --upgrade`.
+Les fichiers dans `venv_linux/lib/python3.12/site-packages/` sont écrasés à chaque `pip install --upgrade`.
 Un patch appliqué directement sans être enregistré dans `apply_patches.py` sera **perdu silencieusement**.
 
 ### Règle concrète
@@ -117,7 +117,9 @@ apply_patch(
 | Manifestes — flux/schéma | `WAMA_MANIFEST_ARCHITECTURE.md` |
 | Avancement des chantiers | `PROJECT_STATUS.md` + `ROADMAP.md` |
 | Conventions d'app | `WAMA_APP_CONVENTIONS.md` |
-| Cam Analyzer (vue de dessus) | `wama_lab/cam_analyzer/CAM_ANALYZER_TOPDOWN_STATUS.md` |
+| Cam Analyzer | `wama_lab/cam_analyzer/CAM_ANALYZER_CHAINE_TRAITEMENT.md` (chaîne+conception) + `CAM_ANALYZER_CHANGELOG.md` (historique) + `README.md` (carte) — l'ancien `CAM_ANALYZER_TOPDOWN_STATUS.md` est archivé (`wama_lab/cam_analyzer/archive/`) |
+| Prompts (traduction/enrichissement) | `PROMPT_PIPELINE.md` |
+| Transcriber — correction assistée | `wama/transcriber/TRANSCRIBER_CORRECTION.md` |
 
 ---
 
@@ -156,11 +158,13 @@ Si deux apps ont besoin de la même logique, elle va dans `common/` et les deux 
 4. **Le pattern singleton + keep_loaded + sélection VRAM-aware** doit venir de
    `wama/model_manager/services/model_selector.py::select_model()` — brique EXISTANTE et complète
    (vérifié 2026-07-20 ; l'ancien plan `common/utils/backend_selector.py` est REMPLACÉ par elle).
-   Ne pas le ré-implémenter par app ; le chantier restant est l'ADOPTION (0 consommateur app à ce jour).
+   Ne pas le ré-implémenter par app ; le chantier restant est l'ADOPTION — en cours : **composer**
+   (1er adopteur 2026-07-21, `utils/auto_model.py`) + **transcriber** (2e, 2026-07-24,
+   `backends/manager.py` via `priority` whisper-first) ; reste imager/describer + anonymizer.
 
-5. **Le JS de base** (polling, csrfFetch, urlFor, actions batch) doit venir de
-   `wama/common/static/common/js/wama-app-base.js` une fois créé.
-   En attendant : ne pas dupliquer, signaler le besoin dans `project_refactoring_common.md`.
+5. **Le JS de base** (polling, csrfFetch, urlFor, actions batch, toast) vient de
+   `wama/common/static/common/js/wama-app-base.js` (**existant**, monté global dans `base.html`) :
+   l'importer ; toute nouvelle brique JS inter-apps s'y ajoute au lieu d'être dupliquée.
 
 ### Ce qui existe déjà dans `common/` (à utiliser, ne pas recréer)
 
@@ -269,6 +273,9 @@ Ajouter le nouveau modèle dans la fonction `_discover_*_models()` correspondant
 ### ✅ Règle mnémotechnique :
 > **"Path d'abord, env vars ensuite, import après"**
 > settings.py → model_config.py → `os.environ['HF_HUB_CACHE']` → `from transformers import ...`
+>
+> ⚠ Règle TRANSITOIRE : la cible (ROADMAP §5b) est `cache_dir=` seul + `HF_HOME` posé UNE fois au
+> démarrage — ne pas ajouter de NOUVEAU mutateur d'env par modèle au-delà du pattern ci-dessus.
 
 ---
 
@@ -397,6 +404,10 @@ WAMA utilise une sélection simplifiée par tier (`llm_utils.py : get_describer_
 
 ## Modèles imager actifs (RTX 4090 24GB)
 
+> ⚠ Liste INDICATIVE (dérive) — source vivante : `wama/imager/utils/model_config.py` + catalogue
+> `AIModel` (model_manager). D'autres modèles y sont déclarés (SD 1.5/2.1, dreamshaper,
+> flux2-klein-4b…) sans figurer ici.
+
 ### Images
 | Modèle | VRAM | Dir |
 |--------|------|-----|
@@ -414,7 +425,7 @@ WAMA utilise une sélection simplifiée par tier (`llm_utils.py : get_describer_
 | Modèle | VRAM | Dir |
 |--------|------|-----|
 | mochi-1-preview | 22GB | `diffusion/mochi/` |
-| ltx-video-0.9.8-distilled | 6GB | `diffusion/ltx/` |
+| ltx-video-13b-0.9.8-distilled (+ variante fp8) | 6GB | `diffusion/ltx/` |
 | cogvideox-5b-i2v | 5GB | `diffusion/cogvideox/` |
 
 ### Supprimés (obsolètes/redondants)

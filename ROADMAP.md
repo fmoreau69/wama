@@ -9,7 +9,7 @@
 
 > Hiérarchise TOUT le document par horizon pour ne pas s'éparpiller. Détail statut vision ↔ code :
 > `docs/VISION_STATUS.md` ; règles d'engagement (« non-objectifs ») : `docs/WAMA_Vision_Complet_v2.md`
-> (docs/ non versionné). En cas de conflit avec une priorité plus ancienne citée ailleurs dans ce
+> (docs/ versionné depuis 2026-07-21). En cas de conflit avec une priorité plus ancienne citée ailleurs dans ce
 > fichier, CETTE section fait foi.
 >
 > **Rôles des documents de suivi (contrat 2026-07-20)** — chaque info vit à UN seul niveau, les
@@ -24,14 +24,20 @@
    (enhancer, anonymizer, synthesizer, imager, avatarizer) — LE goulot qui gate manifestes,
    génération d'apps et prospection Phase B.
 2. Transcriber 100 % (gold standard) + extraction des dernières briques communes.
-3. Studio — suites V1 : runners restants, sorties → filemanager studio, specs montage/mixage.
+3. Studio — suites V1 : sorties → filemanager studio, specs montage/mixage (runners : 10/10 apps
+   génériques sur le runner générique depuis 2026-07-13, cf. PROJECT_STATUS §37.10 ; restent les
+   apps wama_lab).
 4. Cam Analyzer Phase 3 (calibration vitesses) — livrable labo concret.
 
 ### H2 — Ensuite (dès H1 stabilisé)
 1. Fondation RAG **mono-niveau** (`wama/rag/`, ChromaDB + bge-m3, branchée sur l'étape `enrich`) —
    la hiérarchie univ/labo/équipe attendra la preuve d'usage.
 2. Traduction de sortie (`translate_output` existe mais n'est appelé nulle part) + i18n statique.
-3. Manifeste formel + `check_app_conformity` exécutable (scaffold d'app = dernier maillon, gaté).
+3. Manifeste formel 🔄 — socle LIVRÉ et en avance sur ce fichier : enveloppe + 6 kinds + ingest
+   idempotent + 1ʳᵉ projection write-back réelle (access → AppAccessPolicy, 2026-07-23) ; docs de
+   référence `WAMA_MANIFEST_SPEC.md` + `WAMA_MANIFEST_ARCHITECTURE.md` + route
+   `WAMA_APP_GENERATION_ROUTE.md` (F1–F8). Reste : `check_app_conformity` exécutable, scaffold
+   d'app = dernier maillon, gaté.
 4. Anonymisation multimodale (Presidio + GLiNER) = porte privacy avant tout routage cloud.
 5. Évaluation continue : jeux de test par capacité + QC câblé ; la veille ne propose un modèle
    qu'avec delta mesuré. Prospection suites (multi-agents, routing capacité→app Phase A).
@@ -96,7 +102,7 @@
 |---------|--------|-----------------|
 | Import dossier récursif | 🔄 | ✅ Upload de dossier FileManager (webkitdirectory, filemanager.js:1516) + montages locaux/distants (fix CIFS 2026-07-20). **Architecture cible (Fabien 2026-07-20)** : monter un dossier (local ou serveur) puis « Envoyer vers » une app AVEC sous-dossiers depuis le filemanager — pas de zone de dépôt par app ; le studio doit pouvoir consommer ces dossiers. Reste : « Envoyer vers » récursif (dossier entier), et (moins prioritaire) drag & drop de dossier |
 | **Zone de staging (« À valider »)** | ⛔ **SUPPRIMÉE** | Décision 2026-06-29 (CARD_DESIGN §8.5) : PAS de staging — la card « nouveau » remplace ce besoin. Cette ligne annonçait à tort une généralisation à 9 apps (corrigé 2026-07-11). |
-| **Transcriber — correction manuelle assistée IA** (éditeur onde + heatmap) | 🔶 Spec | Spec : **`wama/transcriber/TRANSCRIBER_CORRECTION.md`** (inspiré Whispurge/Sonal). Page dédiée `/edit/<id>/`, guidage non destructif, heatmap cohérence(→confiance) par-segment, réutilise le lecteur d'onde commun. **Fait** : défaut ASR VibeVoice→**Whisper large-v3** (artefact d'ordre, pas benchmark ; diarisation=pyannote ; 10<16 GB) + **word_timestamps** conservés. À évaluer : WhisperX/Canary-Qwen-2.5B/Granite 3.3 ; réparer Qwen3-ASR. Mener le transcriber au bout avant généralisation. |
+| **Transcriber — correction manuelle assistée IA** (éditeur onde + heatmap) | 🔄 Phase 1 LIVRÉE | Référence : **`wama/transcriber/TRANSCRIBER_CORRECTION.md`** (inspiré Whispurge/Sonal). Livré : page `/transcriber/edit/<pk>/` + save_correction/save_meta/suggest_speakers/waveform_peaks (`urls.py:29-33`), champs `corrected_segments_json`+`correction_status` (migration 0010), cohérence par segment pour la heatmap. Reste : Phase 2 heatmap (cf. doc de référence). **Fait aussi** : défaut ASR VibeVoice→**Whisper large-v3** (artefact d'ordre, pas benchmark ; diarisation=pyannote ; 10<16 GB) + **word_timestamps** conservés en mémoire/segment (non persistés — pas de `words_json`, cf. §8 Phase 1). À évaluer : WhisperX/Canary-Qwen-2.5B/Granite 3.3 ; réparer Qwen3-ASR. Mener le transcriber au bout avant généralisation. |
 | **Architecture UI « card-centric »** (card auto-suffisante + volet droit = inspecteur) | 🔶 Décidée | **Décision projet 2026-06** : voir **`CARD_CENTRIC_UI.md`** (spec + phases). Livré depuis : preview 3 niveaux (1ᵉʳ consommateur transcriber), volet=inspecteur généralisé (5 apps portées, PROJECT_STATUS §21). **Reste** : preview complète dans le volet, sélection en-têtes batch, généralisation aux 5 apps non portées. |
 | **Drag & drop appartenance batch** (entrer/sortir une carte d'un batch) | ⏳ UI seule | Backend COMPLET + validé 2026-06-29 (`remove_from_batch`/`reorder`/`move_to_batch`/`consolidate`) ; reste l'UI SortableJS — vérifié 2026-07-20 : seul un commentaire l'annonce (`transcriber/index.js:172`) |
 
@@ -110,10 +116,11 @@
 
 | Élément | Statut | Fichier cible | Impact |
 |---------|--------|--------------|--------|
-| `keep_loaded` singleton pattern | ⏳ | Généraliser depuis Reader (olmOCR) | Transcriber (Whisper), Describer, Enhancer |
+| `keep_loaded` singleton pattern | ⏳ | Généraliser depuis Reader (olmOCR) | Describer, Enhancer (Transcriber sorti de la liste : délégué à `select_model()` depuis 2026-07-24) |
 
 
-> Briques ✅ archivées (`docs/archive/ROADMAP_ARCHIVE_2026-07-20.md`) — registre vivant : `COMMON_REFACTORING.md`.
+> Briques ✅ archivées (`docs/archive/ROADMAP_ARCHIVE_2026-07-20.md`) — registre vivant :
+> `WAMA_APP_GENERATION_ROUTE.md` (l'ancien `COMMON_REFACTORING.md` y est consolidé, archivé `docs/archive/`).
 ### Templating générique — paramètres & composition (discuté 2026-06-16)
 
 > Constat : l'affichage des paramètres est **hardcodé par app ET par template**
@@ -145,14 +152,15 @@ prévues sont **réelles** → il faut les inventorier avant d'en porter d'autre
 ### État des mécanismes d'UI — voir PROJECT_STATUS §20 (source vivante)
 
 Bloc d'état 2026-07-11 archivé (`docs/archive/ROADMAP_ARCHIVE_2026-07-20.md`). Corrections vérifiées 2026-07-20 :
-- `UI_MECHANISMS_CONSOLIDATION.md` **EXISTE** (produit 2026-07-0x — le ⏳ « produire » était
-  périmé). Reste = **dérouler** son plan de convergence (= H1.1 des Horizons).
+- `UI_MECHANISMS_CONSOLIDATION.md` archivé (`docs/archive/`, 2026-07-22) — consolidé dans
+  `WAMA_APP_GENERATION_ROUTE.md` (facettes F1–F8). Reste = **dérouler** cette route (= H1.1 des Horizons).
 - Plan « templating générique » (décision 2026-06-16 ci-dessus) : le volet **A est LIVRÉ**
   (`params.py` par app + `wama-params.js`/`WamaParams` + `initFromSchema` — vérifié 2026-07-20,
   briques présentes dans `common/static/common/js/`) ; ne restent que les convergences par app.
 - Toujours ouvert : trancher le mécanisme de volet (initFromSchema vs render(panel)) pour
   synthesizer/avatarizer/composer ; `show_if` hardcodé enhancer à remplacer (WamaModelCaps
-  niveau-champ) ; params.py anonymizer/imager orphelins (aucun consommateur).
+  niveau-champ) ; params.py anonymizer/imager consommés seulement par `apps.py` (détail
+  inspecteur) — pas encore rendus par `WamaParams`.
 
 ---
 
@@ -319,6 +327,9 @@ microservice TTS + retirer le thread/`_get_kokoro`**. Élimine la course env ET 
 
 **Orchestration (`model_manager`)** : registre des modèles **épinglés/keep-warm** + budget
 VRAM + **éviction LRU** des modèles à la demande (s'appuie sur memory_manager/cleaner existants).
+**Reclaim VRAM inter-app** : ✅ brique livrée 2026-07-24 (`memory_manager.ensure_free_vram(needed_gb)`
++ registre `register_vram_unloader`, transcriber inscrit via `apps.py`) / ⏳ adoption = 0 appelant
+applicatif (le call-site diariseur a été annulé par le revert `6cc37ec`).
 Set temps réel : LLM→Ollama, vocalisation/preview→microservice TTS, speak→futur service Whisper
 chaud, traduction→Ollama.
 
@@ -336,9 +347,10 @@ chaud, traduction→Ollama.
   whisper-first) ; logique VRAM-greedy (le plus gros qui tient) pour les apps « par variante ».
 - **Descriptions à deux tiers** : `AIModel.description` (long) + `description_short` (court),
   dérivation auto, migration 0003. `WamaModelHelp` : court sous le sélecteur + long en ⓘ.
-- **Étape 3 (⏳)** : faire de l'anonymizer `ModelSelector` / du transcriber `manager` de fins
-  adaptateurs ; **piloter `select_model` sur une app par-variante** (describer/imager) plutôt
-  que le Transcriber (qui a raison de garder sa sélection runtime backend-class).
+- **Étape 3 (🔄)** : 2 adopteurs — **composer** (2026-07-21, auto-model VRAM-greedy,
+  `utils/auto_model.py`) + **transcriber** (2026-07-24, `backends/manager.py` via `priority`
+  whisper-first — contrairement au plan initial qui l'excluait). Reste : app par-variante
+  (describer/imager) + faire de l'anonymizer `ModelSelector` un fin adaptateur.
 
 ### Capacités des modèles → filtrage UI + sélection + cross-app (⏳ — unifié avec ci-dessus)
 > Décidé 2026-06-17. **Pas un quick-win** : nécessite un schéma de **capacités par modèle**.
@@ -462,7 +474,7 @@ wama/converter/
 │   ├── image_backend.py   # Pillow + Wand (ImageMagick)
 │   ├── video_backend.py   # FFmpeg (ffmpeg-python)
 │   ├── audio_backend.py   # FFmpeg + pydub
-│   └── document_backend.py # Pandoc (pypandoc)
+│   └── document_backend.py # HTML→PDF via brique commune common/utils/html_render.py ; fallback pandoc
 └── utils/
     └── format_router.py   # détection type entrant → formats sortie + options cross-apps disponibles
 ```
@@ -484,7 +496,7 @@ wama/converter/
 | Option upscaling ×2/×4 (Real-ESRGAN via Enhancer) | ⏳ | `cross_app_options` model prêt, wiring tasks.py P2 |
 | Format de sortie inline dans chaque app (Imager, Enhancer…) | ⏳ | `CONVERTER_OUTPUT_FORMATS` disponible depuis app_registry, UI P2 |
 | Batch avec aperçu avant/après sur échantillon | ⏳ Phase 5 | Essentiel sur gros volumes |
-| Conversion document (PDF ↔ DOCX ↔ MD ↔ HTML ↔ TXT) | ✅ Phase 4 (2026-06-01) | Pandoc + pypandoc 1.13 ; PDF input via PyMuPDF ; PDF output via xelatex/wkhtmltopdf si dispo |
+| Conversion document (PDF ↔ DOCX ↔ MD ↔ HTML ↔ TXT) | ✅ Phase 4 (2026-06-01, chaîne PDF refondue 2026-07) | Pandoc + pypandoc 1.13 ; PDF input via PyMuPDF ; **HTML→PDF = brique commune `common/utils/html_render.py`** (Chromium headless → WeasyPrint → fallback pandoc/xelatex — commits 34e84af/8013f22/1329638) |
 | Option enhancement audio lors conversion vidéo (Enhancer) | ⏳ Phase 2 | DeepFilterNet/ResembleEnhance via cross_app_options |
 | **Rotation** (90°/180°/270° + flip H/V) | ✅ Phase 6 (2026-05-16) | PIL `Image.Transpose` / ffmpeg `transpose,hflip,vflip` |
 | **Crop de zone** (image + vidéo, UI canvas) | ⏳ Phase 7 | Vision initiale — canvas JS overlay + ffmpeg crop |
@@ -525,7 +537,8 @@ if options.get('upscale'):
     result = upscale_image(result, model=options['upscale_model'])
 ```
 
-### Dépendances à installer ⏳
+### Dépendances — voir `requirements*.txt` + `start_wama_*.sh` (source vivante ; WeasyPrint +
+### provisioning Chromium ajoutés 2026-07, ce bloc figé était périmé)
 ```
 pip install ffmpeg-python pydub pypandoc Wand
 # Wand nécessite ImageMagick installé système
@@ -597,9 +610,14 @@ quand l'app Converter sera reprise.
 | Nouveau champ `words_json = JSONField` | `models.py` + migration | Backup complet des timestamps mot |
 | Adapter `qwen_asr_backend.py` | `qwen_asr_backend.py` | Quand dépendances résolues (cf. §0) |
 
-### Phase 2 — Vue correction interactive ⏳
+### Phase 2 — Vue correction interactive ✅ LIVRÉE (autrement que planifié)
 
-**URL :** `GET /transcriber/<pk>/correct/`
+> Référence du domaine : `wama/transcriber/TRANSCRIBER_CORRECTION.md` (ne pas maintenir le
+> détail ici). Réel livré : URL `GET /transcriber/edit/<pk>/` (+ `save_correction`/`save_meta`/
+> `suggest_speakers`/`waveform_peaks`), champs `corrected_segments_json` (JSONField) +
+> `correction_status` (`none/draft/done`), migration 0010. Le plan ci-dessous est HISTORIQUE.
+
+**URL (plan initial) :** `GET /transcriber/<pk>/correct/`
 
 | Fonctionnalité | Détail |
 |----------------|--------|
@@ -611,7 +629,7 @@ quand l'app Converter sera reprise.
 | Suggestion IA | Panneau `coherence_suggestion` — "Appliquer" par segment ou global |
 | Export | Re-génération SRT/TXT corrigé + nouveau champ `corrected_text` |
 
-**Nouveaux champs DB :**
+**Nouveaux champs DB (plan initial — réel : `corrected_segments_json` + `correction_status` `none/draft/done`) :**
 - `Transcript.corrected_text = TextField` (texte final validé)
 - `Transcript.correction_status = CharField` (PENDING / IN_PROGRESS / DONE)
 

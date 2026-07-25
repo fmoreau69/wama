@@ -1,9 +1,10 @@
 # WAMA Data — Fonctions comme cards génériques par capacités
 
-> **Statut : DESIGN / annonce de couleur (2026-07-20).** Rien d'implémenté encore. Ce document
-> fixe le cap pour que toute fonction de traitement écrite à partir de maintenant (toolbox tierce
-> map-matching, freinage, sections…) soit **conçue capability-first** et devienne une card sans
-> retouche le jour où l'UI de chaînage arrive. **Centralisation : `wama/common/` (comme le reste).**
+> **Statut : IMPLÉMENTÉ (MAJ 2026-07-25).** Taxonomie (`common/data/data_types.py`) + catalogue
+> (`function_catalog.py`) + **19 fonctions** enregistrées au démarrage + page catalogue
+> `/model-manager/functions/` (cards, tri/filtre, projet, confidentialité). **Reste** : l'UI de
+> chaînage (canvas) + exposition `tool_api`. Ce document fixe le cap capability-first pour toute
+> nouvelle fonction. **Centralisation : `wama/common/` (comme le reste).**
 
 ---
 
@@ -143,23 +144,37 @@ Voir [[project_toolbox tierce_integration]] : ses fonctions seront **les premiè
 Placement : `wama/common/data/` (implémentations + `function_catalog.py` + `data_types.py`).
 Ne PAS coder ces fonctions dans une app : brique commune d'abord (règle de centralisation).
 
+**Placement par DOMAINE (refactoring 2026-07-22, 9945ca8/a06f3be)** : les implémentations vivent
+sous `wama/common/data/functions/<domaine>/` — 4 sous-paquets : `io/` (parsing, ex. RTMaps .rec),
+`geometry/` (primitives + métriques), `kinematics/` (extrapolation, collision), `driving/`
+(fonctions métier conduite, dont les 4 toolbox tierce). Le domaine est un **3ᵉ axe orthogonal** à
+`data_type` et `category` (cf. docstring `functions/__init__.py`). Les anciens paquets
+`common/rtmaps/` et `common/prediction/` sont SUPPRIMÉS (consolidés ici).
+
 ---
 
 ## 7bis. RÈGLE SYSTÉMATIQUE — tout traitement se déclare (2026-07-20)
 
-> **Tout traitement, existant ou futur, EST déclaré par un `FunctionSpec` dans le catalogue.**
-> Aucun traitement n'existe « hors catalogue ». C'est le pendant de « toute app est dans APP_CATALOG ».
+> **Tout traitement CHAÎNABLE, existant ou futur, EST déclaré par un `FunctionSpec` dans le
+> catalogue.** C'est le pendant de « toute app est dans APP_CATALOG ». **Exception assumée
+> (2026-07-22)** : les **libs helper** (parsing, primitives) utilisées PAR des fonctions ne sont
+> pas des FunctionSpec — actuellement `io/rtmaps_rec.py` (`parse_rec`), `geometry/shapes.py`
+> (`rect_intersect_sat`, `point_traj_to_shape`), `kinematics/extrapolation.py`
+> (`extrapolate_speed_accel`, `extrapolate_kalman`), `kinematics/collision.py`
+> (`collision_detection`).
 
 Deux `binding` cohabitent dans le MÊME `FUNCTION_CATALOG` :
 - **`pure`** — signature `(données_typées, params) → données_typées`, chaînable direct. Défaut pour
-  toute nouvelle fonction. Ex. les 4 fonctions toolbox tierce (`wama/common/data/functions/`).
+  toute nouvelle fonction. Ex. les 4 fonctions toolbox tierce (`wama/common/data/functions/driving/`).
 - **`app`** — couplée à une app (lit/écrit la session/BDD via une passe Celery). **Cataloguée** (capacités
   déclarées, `impl` = chemin d'implémentation) mais **pas encore chaînable** ; à porter vers `pure` au cas
   par cas via un adaptateur de ports quand on veut la mettre dans une chaîne.
 
-**Inventaire déclaré à ce jour** (18 fonctions, vérifié au démarrage) :
-- **Pures (4)** : `gps_map_match`, `brake_detection`, `generate_sections`, `operator_annotations`.
-- **App-bound cam_analyzer (14)**, déclarées dans `wama_lab/cam_analyzer/function_specs.py`, enregistrées
+**Inventaire déclaré à ce jour** (19 fonctions, vérifié au démarrage) :
+- **Pures (5)** : `gps_map_match`, `brake_detection`, `generate_sections`, `operator_annotations`,
+  `placement_spread` (geometry — indicateur A/B d'étalement RMS, b779395).
+- **App-bound cam_analyzer (14)**, déclarées dans `wama_lab/cam_analyzer/function_specs.py`
+  (clés **namespacées** `cam_analyzer.<key>`), enregistrées
   via `apps.py::ready` : `yolo_detect`, `yolopv2_lanes`, `sam3_markings`, `distance`, `global_tracking`,
   `artifact_filter`, `ground_calib`, `learned_branches`, `world_markings`, `ortho_recalage`,
   `lane_events`, `temporal_segments`, `conflicts`, `prediction`.
@@ -172,10 +187,12 @@ Deux `binding` cohabitent dans le MÊME `FUNCTION_CATALOG` :
 
 ## 8. Reste à trancher (quand on implémentera)
 
-- Représentation runtime d'une « donnée typée » : DataFrame pandas + un `schema`/`meta` (data_type +
-  champs) attaché ? Ou un petit wrapper `TypedFrame` ? (préférence : pandas + meta léger).
+- ✅ TRANCHÉ (2026-07-20, c3b009c) — représentation runtime : wrapper **`TypedFrame`**
+  (DataFrame + `data_type` + `meta`), cf. `common/data/data_types.py:69`, consommé par les
+  fonctions (`placement_metrics` retourne un `TypedFrame(DataType.SCALAR)`).
 - Persistance des chaînes (comme les graphes studio) + exécution (réutiliser Celery + le scheduling
   par `cost`).
-- Où vit le registre : `common/data/function_catalog.py` seul, ou exposé aussi via `tool_api.py`
-  pour que l'assistant IA propose/enchaîne des fonctions.
+- Registre : exposé via la page catalogue `/model-manager/functions/` + le kind manifeste
+  `function` (repli `UserFunction`). **Reste ouvert** : exposition `tool_api` pour que
+  l'assistant IA propose/enchaîne des fonctions.
 - Croisement avec le RAG (fonctions descriptibles → héritage université→labo→équipe→user).

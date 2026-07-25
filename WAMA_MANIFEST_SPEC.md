@@ -2,11 +2,13 @@
 
 > **Schéma fonctionnel des flux (manifestes → ingest → app_gen → UI) : [`WAMA_MANIFEST_ARCHITECTURE.md`](WAMA_MANIFEST_ARCHITECTURE.md).**
 >
-> **Statut : DESIGN / fondation (2026-07-21).** Le manifeste n'existe pas encore : c'est l'**entrée
-> générale** qu'on construit pour exploiter tout le chemin déjà bâti par briques (le « tunnel » se
-> rejoint ici). Cette spec fixe le formalisme COMMUN à tous les types de manifestes + le schéma du
-> premier kind (`app`), issu d'un audit exhaustif du code réel (8 facettes). Sources : les briques
-> existantes (voir §Provenance). **Rien d'implémenté — à valider avant de coder.**
+> **Statut : socle IMPLÉMENTÉ (MAJ 2026-07-25).** Enveloppe + registre + ingest + les **6 kinds**
+> vivent dans `wama/common/manifests/` (envelope/kinds/ingest/projection + `builtin/{app,dataset,
+> function,model,pipeline,project}.py`, modèle DB `common.Manifest`) ; extract `app` = 12 clés
+> `APP_FACETS` ; **projection : 1 facette (`access` → AppAccessPolicy) réellement écrite
+> (a75c01d, 2026-07-23), 11 en code-gen**. Cette spec fixe le formalisme COMMUN + le schéma du
+> kind `app` (8 facettes fonctionnelles F1–F8 = 12 clés). Les blocs annotés « cible » ci-dessous
+> décrivent le schéma VISÉ, pas encore l'extract réel.
 
 ---
 
@@ -28,7 +30,8 @@ visibility: private           # private | project | unit | public (ScopedVisibil
 scope_project | scope_org_unit: null
 projects: []                  # traçabilité qualité
 source: {type: builtin|library|folder, ref: "..."}   # d'où vient le manifeste
-created_at, updated_at
+world: transverse             # media | data | lab | transverse (implémenté, envelope.py:18)
+created_at, updated_at        # portés par le store DB (common.Manifest), pas par l'enveloppe
 body: { ... }                 # spécifique au kind (voir §3 pour app)
 ```
 
@@ -125,7 +128,8 @@ jusqu'à diff nul. C'est le mécanisme qui garantit que le formalisme a capté l
 ```yaml
 body:                                   # (sous l'enveloppe commune)
   # F1 IDENTITÉ            [APP_CATALOG]
-  world: recherche                      # Médias | Data | Lab (auj. déduit d'APP_GROUP) — À AJOUTER
+  # (world = champ d'ENVELOPPE, pas de body — ✅ FAIT : media|data|lab|transverse, mapping
+  #  GROUP_TO_WORLD dans builtin/app.py)
   category, url_name, icon, color, input_extensions
 
   # F2 CAPACITÉS & PORTS   [fusionne APP_CATALOG.input/output_types ⟷ GENERIC_APPS.input_kinds/output_type
@@ -166,8 +170,12 @@ body:                                   # (sous l'enveloppe commune)
   params: [ Param{name,type,label,icon,default,choices,options_source,show_if,
                   contexts:[item|batch|panel],advanced,chip,help_source,...} ]
   inspector: {model, detail_adapter, preview_adapter, file_field, user_field}   # Detail/PreviewRegistry
+  # (cible ; extract actuel = detail_registered/preview_registered — présence, pas contenu)
 
-  # F4 MODÈLES IA          [model_config.py + model_selector.select_model]
+  # F4 MODÈLES IA          [model_config.py + model_selector.select_model] — CIBLE, pas l'extract
+  # réel : extract actuel = {catalog_keys, source_attr} (lecture best-effort de <APP>_MODELS) ;
+  # `paths_key` non implémenté ; select_model non touché par l'extracteur (adoption runtime :
+  # composer 07-21 + transcriber 07-24).
   models: {consumes: {source, model_types:[...]},
            selection: {requires:[cap], classes, vram_budget, prefer_loaded, priority},
            paths_key}
@@ -177,8 +185,9 @@ body:                                   # (sous l'enveloppe commune)
     item_model, statuses:[PENDING,RUNNING,SUCCESS,FAILURE],
     result_fields:[output_file|result_text, used_backend, used_model],
     batch: {strategy: fk|through, nature_of},
-    task, endpoints:[start,status,download,duplicate,delete,start_all,clear_all,
-                     download_all,batch.*,stage.*,console]     # standard, générés
+    task, endpoints: STANDARD_ENDPOINTS                        # = ['index','upload','start','status',
+    # 'download','delete','duplicate','update','start_all','clear_all','download_all',
+    # 'global_progress'] (builtin/app.py:38) ; item_model/result_fields/batch/task = cible non extraite
     ingest: {source: source_url, target: <field>, mode: audio|media|smart}  # trou #14 : projette vers
     # WAMA_INGEST (common/utils/source_ingest.ensure_local_input). Capté par extract (transcriber/describer) ;
     # projection = write-back futur. Va de pair avec capabilities.accepts_url (→ génère la card d'import URL).
@@ -226,7 +235,7 @@ les **besoins de modèles** de l'app. Le manifeste `app` les rend explicites.
 | Modes/domaines | `common/utils/app_modes.py` (`APP_MODES`, `INPUT_TYPES`) |
 | Params/UI | `wama/<app>/params.py` (`PARAMS_JSON`) + `common/utils/param_schema.py` |
 | Volet droit / preview | `common/utils/detail_registry.py`, `preview_registry.py` |
-| Modèles | `model_manager/models.py` (`AIModel`), `services/model_selector.py`, `common/utils/model_capabilities.py`, `<app>/utils/model_config.py` |
+| Modèles | `model_manager/models.py` (`AIModel`), `model_manager/services/model_selector.py`, `common/utils/model_capabilities.py`, `<app>/utils/model_config.py` |
 | Prompts | `common/utils/app_metadata.py` (`PROMPT_TARGETS`), `common/prompt_skills/` |
 | API assistant | `wama/tool_api.py` (`TOOL_REGISTRY`/`TOOL_DESCRIPTIONS`) |
 | Studio | `studio/services/generic_runner.py` (`GENERIC_APPS`), `studio/models.py` |

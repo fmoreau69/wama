@@ -40,7 +40,8 @@ Créer dans l'ordre. Ne pas sauter d'étape.
 [ ] 12. Enregistrer les modèles AI dans model_registry.py (si AI)
 [ ] 13. Ajouter les outils API dans wama/tool_api.py + wama/urls.py (§17)
 [ ] 14. Ajouter les icônes TOOL_ICONS dans home.html
-[ ] 15. Ajouter à la table de conformité §15 de ce document
+[ ] 15. Vérifier l'app dans `/apps/` (conformité live via `app_registry.py::get_conformity_summary()`)
+        — les tables figées du §15 ont été supprimées (2026-07-11), plus rien à éditer ici
 [ ] 16. Filemanager — ajouts manuels (ordre alphabétique) :
         a) `get_tree_data()` (filemanager/views.py) : entrée `app_folders_config`
            avec les sous-dossiers réels (input/output/…) — c'est ce qui FAIT
@@ -441,17 +442,12 @@ document.addEventListener('click', e => {
 - Autres formats → message + lien de téléchargement
 - La modal vide immédiatement son contenu à l'ouverture (spinner) puis charge à la demande
 
-**Conformité par app :**
-| App | Preview source | Remarque |
-|-----|---------------|---------|
-| Reader | ✅ | Images + PDFs |
-| Transcriber | 📋 | Audio — utiliser `<audio controls>` |
-| Describer | 📋 | Images/vidéos — utiliser player vidéo |
-| Enhancer | 📋 | Images/vidéos/audio |
-| Anonymizer | 📋 | Vidéos/images |
-| Imager | N/A | Génération — pas de source |
-| Synthesizer | N/A | Texte — pas de fichier source |
-| Composer | N/A | Génération |
+**Conformité par app (MAJ 2026-07-25)** : la preview source est une **brique commune enregistrée
+par app** (`common/utils/preview_utils.py::register_app_preview` / `PreviewRegistry`) — **9 apps /
+10 la déclarent** dans leur `apps.py` (transcriber, describer, enhancer, anonymizer, converter,
+reader, composer, avatarizer, synthesizer — ces deux derniers via la clé `source_text` pour les
+entrées texte, donc PAS « N/A »). Seule exception documentée : **imager** (`imager/apps.py` :
+« PAS de register_app_preview », génération pure). Ne plus maintenir de table figée ici.
 
 ### 5.2 Implémentation double (server-side + client-side)
 
@@ -621,6 +617,9 @@ def download(request, pk):
 - `python-docx` — génération DOCX
 
 **Règle de sélection** :
+- HTML (fichier ou template rendu) → PDF : passer par la **brique commune
+  `common/utils/html_render.py`** (Chromium headless → repli WeasyPrint, 1329638) — ne PAS appeler
+  WeasyPrint directement depuis une app
 - Contenu narratif riche (compte-rendu, synthèse scientifique) → **WeasyPrint** (template HTML+CSS dédié par format)
 - Export simple sans mise en page → **fpdf2**
 - Format Word requis → **python-docx**
@@ -743,11 +742,11 @@ if (window.WamaEta) {
 
 | Mode | Description | Status |
 |------|-------------|--------|
-| **Drag & drop** | Zone cliquable + glisser-déposer | ⚠️ Manquant dans Imager |
+| **Drag & drop** | Zone cliquable + glisser-déposer | ✅ Toutes les apps (audit 2026-07-11, cf. §15.2 — imager a bien sa drop-zone) |
 | **Parcourir** | `<input type="file" multiple>` | ✅ Toutes les apps |
 | **Dossier récursif** | `<input webkitdirectory>` | 📋 Non implémenté |
 | **FileManager** | Import depuis `/filemanager/` — sélection multiple ou dossier entier | 🚧 Partiel |
-| **URL** | Saisie d'URL directe | ⚠️ Transcriber (YouTube), Describer, Enhancer seulement |
+| **URL** | Mécanisme COMMUN déclaratif (2026-07-22) : `WAMA_INGEST` sur le modèle + `ensure_local_input()` en tête de tâche (`common/utils/source_ingest.py`) ; card générée par la capacité `accepts_url` | ✅ 5 apps `has_url_import=True` ; les autres = déclarer `WAMA_INGEST` |
 | **Batch file** | Fichier CSV/TXT/PDF/DOCX glissé dans la zone drag & drop — **détection automatique, pas de bouton séparé** | ✅ Toutes les apps avec batch |
 
 ### 8.2 Zone de drop standard
@@ -875,7 +874,8 @@ et masque le vrai bug (un dispatch manquant côté FileManager).
 Si l'app cible "ne voit pas" les nouveaux jobs, le réflexe est de vérifier le dispatch côté
 FileManager — pas d'ajouter un polling.
 
-> **État actuel :** ✅ Implémenté pour fichier unique + quick-actions Converter. 🚧 Multi-select et import dossier en cours.
+> **État actuel :** ✅ Fichier unique, sélection multiple (`sendToMultiple`), dossier entier
+> (`api_import_to_app` récursif, fd4552e 2026-07-20) et quick-actions Converter.
 
 ### 8.4 Import dossier récursif
 
@@ -1499,7 +1499,19 @@ def duplicate(request, pk):
 | `llm_utils.py` | `get_describer_model()` | Sélection modèle LLM |
 | `format_policy.py` | `validate_format()` | Validation formats médias |
 | `video_utils.py` | Utilitaires vidéo | Traitement vidéo |
-| `preview_utils.py` | Générateurs de miniatures | Prévisualisation |
+| `preview_utils.py` | Socle preview commune : faces Entrée/Comparer/Sortie dérivées des ports, phase « pendant », `register_app_preview()`, pics d'onde partiels | Prévisualisation |
+| `source_ingest.py` | `ensure_local_input()` piloté par `WAMA_INGEST` (URL→fichier local) | Ingest média déclaratif |
+| `url_ingest.py` | Lecture page web + ingestion URL | Ingest URL |
+| `html_render.py` | HTML→PDF (Chromium headless → WeasyPrint) | Export PDF |
+| `process_control.py` | `begin_processing()` anti-race + `reconcile_orphaned_running()` (preuve positive de mort) | Cycle de vie tâches |
+| `param_schema.py` | `coerce_params()` + schéma de params | Params typés |
+| `batch_common.py` | `wrap_in_batch`/`auto_wrap_orphans`/`build_batches_list`/`group_into_batches_by_nature` | Batchs |
+| `waveform.py` | `compute_peaks()` (calcul unifié) | Audio |
+| `detail_registry.py` / `preview_registry.py` | Adapters inspecteur par app | Volet droit |
+| `model_capabilities.py` | Capacités modèle → UI | WamaModelCaps |
+| `output_formats.py` | `output_format_params_for_app()` (délègue à converter) | Formats de sortie |
+| `notifications.py` | Notifications email par app | Profils |
+| `intervals.py` / `feature_flags.py` | Fenêtres temporelles / flags | Divers |
 
 ### 12.3 Règle : si c'est commun à ≥2 apps, ça va dans `common/`
 
@@ -1623,6 +1635,14 @@ prompt = f"Context utilisateur : {context}\n\nDocument : {text}"
 ---
 
 ## 14. Sélection de Modèle AI — Règle de Réutilisation VRAM
+
+> ⚠ **MAJ 2026-07-25 — route canonique** : ne PAS réimplémenter `_select_best_backend()` par app
+> (pattern ci-dessous = **legacy, à migrer**). L'arbitrage central existe :
+> `model_manager/services/model_selector.py::select_model()` (budget VRAM live + `prefer_loaded`
+> qui couvre la règle 14.2 ; 2 adopteurs : composer `utils/auto_model.py`, transcriber
+> `backends/manager.py`). Pour libérer de la VRAM avant un load :
+> `memory_manager.ensure_free_vram()` + déclarer un `register_vram_unloader` dans `apps.py`
+> (réf. transcriber). Le §14 reste utile pour comprendre le piège du faux fallback.
 
 ### 14.1 Problème : faux fallback lors de la sélection automatique en batch
 
@@ -1852,7 +1872,7 @@ dans `tool_api.py`, ainsi que dans `TOOL_ICONS` dans `wama/templates/home.html`.
 | Reader | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Synthesizer | ✅ synthesize_text | ✅ | ✅ | — | ✅ |
 | Transcriber | ✅ | ✅ | ✅ | — | ✅ |
-| **Avatarizer** | ❌ | ❌ | ❌ | — | ❌ — seul manque restant |
+| **Avatarizer** | ✅ | ✅ | ✅ | — | ✅ (`tool_api.py:2053-2055`, vérifié 2026-07-25) |
 
 ---
 
@@ -2015,11 +2035,15 @@ document.addEventListener('wama:fileimported', e => {
 | App | Drop zone volet droit | Menu "Envoyer vers…" | Event `wama:fileimported` |
 |---|---|---|---|
 | Reader | ✅ | ✅ | ✅ |
-| Anonymizer | ❌ à faire | ✅ (existant) | ❌ à faire |
-| Transcriber | ❌ à faire | ✅ (existant) | ❌ à faire |
-| Describer | ❌ à faire | ✅ (existant) | ❌ à faire |
-| Enhancer | ❌ à faire | ✅ (existant) | ❌ à faire |
-| Synthesizer | ❌ à faire | ✅ (existant) | ❌ à faire |
+| Anonymizer | ❌ à faire | ✅ (existant) | ✅ (`right_panel.js`) |
+| Transcriber | ❌ à faire | ✅ (existant) | ✅ (`index.js`) |
+| Describer | ❌ à faire | ✅ (existant) | ✅ (`index.js`) |
+| Enhancer | ❌ à faire | ✅ (existant) | ✅ (`index.js`) |
+| Synthesizer | ❌ à faire | ✅ (existant) | ✅ (`index.js`) |
+
+> MAJ 2026-07-25 : colonne Event vérifiée par grep `wama:fileimported` (listeners présents dans les
+> 5 apps + converter/reader) — cohérent avec §8.3 « TOUTES les apps ». Reste réellement à faire :
+> la drop zone du volet droit.
 
 ---
 
@@ -2247,8 +2271,9 @@ Rappel du modèle de file **universel** (cf. mémoire « Synthesizer — Unified
 > avatarizer, composer, enhancer) utilisent `WamaInspector.initFromSchema` pour le volet + une modale
 > **hand-built** (enhancer : modale portée sur `WamaParams` le 2026-07-01). Idem capacités→UI :
 > `WamaModelCaps` (synthesizer) vs `show_if` **hardcodé** (anti-pattern). **Avant d'uniformiser d'autres
-> apps**, produire l'inventaire de convergence `UI_MECHANISMS_CONSOLIDATION.md` (spec :
-> `memory/project_ui_mechanisms_consolidation.md`, suivi `PROJECT_STATUS.md §20`). Le registre de modèles,
+> apps**, consulter l'inventaire de convergence — PRODUIT puis consolidé dans
+> `WAMA_APP_GENERATION_ROUTE.md` (source archivée `docs/archive/UI_MECHANISMS_CONSOLIDATION.md` ;
+> spec : `memory/project_ui_mechanisms_consolidation.md`, suivi `PROJECT_STATUS.md §20`). Le registre de modèles,
 > lui, est **déjà unique** (`ModelRegistry`+`ModelInfo`+`capabilities`). Contraintes : route existante,
 > **zéro réinvention, zéro hardcoding**.
 
@@ -2293,7 +2318,7 @@ WamaInspector.init({ cardSelector:'.model-item', highlightClass:'…',
 
 Toute valeur vide masque sa ligne (et sa section si toutes vides). Charger les deux scripts + le CSS
 `common/css/wama-inspector-autofill.css` AVANT le JS de l'app. Référence : **model_manager** (premier
-consommateur). Détails brique : `COMMON_REFACTORING.md`.
+consommateur). Détails brique : `WAMA_APP_GENERATION_ROUTE.md` (ex-`COMMON_REFACTORING.md`, archivé `docs/archive/`).
 
 ### Conséquence pour la création d'app
 

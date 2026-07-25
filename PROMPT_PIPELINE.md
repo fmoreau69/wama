@@ -36,6 +36,7 @@ et la méta-app.
 | imager | `prompt` | generative | `enrich=True` |
 | imager | `negative_prompt` | generative | pas d'enrich |
 | anonymizer | `sam3_prompt` | concept | `when='use_sam3'` |
+| cam_analyzer | `sam3_markings_prompts` | concept | `when='use_sam3'`, `domain='transport'`, `list_item_field='prompt'` (liste `{label,prompt}`) |
 | composer | `prompt` | generative | `default_model_type='music'` (MusicGen EN) |
 | assistant | `message` | intent | `model_id=` dynamique (modèle Ollama résolu) |
 | synthesizer | — | — | **aucun target** : `text_content` = contenu à dire (jamais traduit) |
@@ -49,8 +50,9 @@ et la méta-app.
 ## Skills de prompt par application (2026-07-08)
 
 Les **consignes d'enrichissement** ne sont plus codées en dur : chaque app les DÉCLARE dans
-`wama/common/prompt_skills/<app>-<domain>.md` (résolution `<app>-<domain>` → `<app>` →
-`default-<kind>`, module `common/utils/prompt_skills.py`, **importable sans Django**).
+`wama/common/prompt_skills/<slug(app)>-<slug(domain)>.md` — le résolveur **slugifie** (`_` → `-`,
+ex. `cam_analyzer`+`transport` → `cam-analyzer-transport.md`) ; résolution `<app>-<domain>` →
+`<app>` → `default-<kind>`, module `common/utils/prompt_skills.py`, **importable sans Django**.
 Le domaine vient de `PROMPT_TARGETS` (`domain` statique ou `domain_field` lu sur l'instance,
 ex. imager `output_type` image|video), repli sur le `model_type` du modèle cible.
 
@@ -71,7 +73,8 @@ locales `_prompt`/`_negative`, la base garde l'original) ; composer `enrich=True
 ## Hooks à venir
 - **RAG** (`apply_rag`, commenté dans `prompt_pipeline`) : récupération depuis store **ChromaDB** +
   embeddings **bge-m3**. No-op tant que la fondation `wama/rag/` + l'indexation (§8c) n'existent pas.
-- **QC** : câbler `qc.py` en post-génération dans les apps.
+- **QC** : câbler `qc.py` en post-génération dans les apps (seul consommateur actuel = la
+  commande de bench `bench_describer`).
 
 ## Réglages (`wama/settings.py`)
 - `WAMA_PROMPT_ENRICH` (env, défaut OFF) — interrupteur maître de l'enrichissement.
@@ -95,4 +98,4 @@ locales `_prompt`/`_negative`, la base garde l'original) ; composer `enrich=True
 ## Voir aussi
 - `ROADMAP.md §10.B` (traduction runtime) et `§16.6` (pipeline + vision méta).
 - `WAMA_APP_CONVENTIONS.md §2bis.4` (contrat prompt targets), `§9.9` (héritage).
-- `COMMON_REFACTORING.md` (briques communes).
+- `WAMA_APP_GENERATION_ROUTE.md` (briques communes ; remplace `COMMON_REFACTORING.md`, archivé `docs/archive/`).

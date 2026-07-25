@@ -1,8 +1,9 @@
 # WAMA — Schéma fonctionnel : Manifestes → Ingest → Génération d'app → Mécanismes UI
 
 > **But** : voir clair sur la chaîne complète AVANT d'attaquer l'auto-génération d'application.
-> Complète `WAMA_MANIFEST_SPEC.md` (formalisme) avec les FLUX. État au 2026-07-21 : socle des 6 kinds
-> **fait et testé** ; la **projection / génération d'app** = le prochain (et gros) chantier, en pointillés.
+> Complète `WAMA_MANIFEST_SPEC.md` (formalisme) avec les FLUX. État au **2026-07-23** : socle des 6
+> kinds **fait et testé** ; **projection = 1 facette (`access` → AppAccessPolicy) réellement écrite**
+> (a75c01d, idempotente/réversible, dry-run par défaut), 11 facettes restantes en code-gen.
 > Légende des flux : **trait plein = existe & testé** · **pointillés = à construire (app_gen)**.
 
 ---
@@ -39,7 +40,8 @@ flowchart TD
 
     ING --> STORE["Manifest store<br/>(common.Manifest, DB)"]
 
-    STORE -.->|PROJECTION (app_gen, à venir)| REG
+    STORE -->|PROJECTION access → AppAccessPolicy ✅ écrite, apply=False par défaut| REG
+    STORE -.->|PROJECTION 11 autres facettes (app_gen, à venir)| REG
     subgraph REG["REGISTRES FONCTIONNELS (inchangés)"]
         R1["APP_CATALOG / GENERIC_APPS"]
         R2["params.py · Detail/PreviewRegistry"]
@@ -55,8 +57,11 @@ flowchart TD
 ```
 
 **Lecture** : aujourd'hui le flux VA `code → extract → manifeste → store` (on éprouve la lecture).
-La **projection** (`store → registres`) est le sens inverse, en pointillés : c'est elle qui *génère*
-l'app. Tant qu'elle n'existe pas, `project=None` et les registres restent la source — **zéro overlap**.
+La **projection** (`store → registres`) est le sens inverse : c'est elle qui *génère* l'app.
+**MAJ 2026-07-23** : `project` n'est plus `None` pour le kind `app` (`builtin/app.py::project_app`
++ `un_project_app`), mais elle est **dry-run par défaut** (`apply=False`) et ne couvre que
+`access` → l'overlap runtime reste borné à `AppAccessPolicy` ; pour tout le reste, les registres
+restent la source.
 
 ---
 
@@ -66,9 +71,9 @@ l'app. Tant qu'elle n'existe pas, `project=None` et les registres restent la sou
 flowchart LR
     subgraph EX["EXTRAITS — l'objet existe déjà → extract() + ROUND-TRIP"]
         A["app<br/>(APP_CATALOG+8 facettes)"]
-        M["model<br/>(AIModel, 147)"]
+        M["model<br/>(AIModel, N lignes DB)"]
         P["pipeline<br/>(StudioPipeline.graph)"]
-        F["function<br/>(FUNCTION_CATALOG, 18)"]
+        F["function<br/>(FUNCTION_CATALOG, 19)"]
     end
     subgraph AU["AUTORÉS — le manifeste EST l'origine → validate + store → PROJECTION"]
         D["dataset<br/>(généralisation toolbox tierce)"]
@@ -172,7 +177,7 @@ les registres deviennent des **projections** re-synchronisables (`verify` récon
 
 ---
 
-## 5bis. Résultats du 1er round-trip / dry-run (2026-07-21, `496b85d`)
+## 5bis. Résultats du 1er round-trip / dry-run (2026-07-21, `391eacc`)
 
 Étape 1 de la projection = **dry-run sans code-gen** (`wama/common/manifests/projection.py`).
 Deux sorties, toutes deux fidèles au code réel :
@@ -196,7 +201,7 @@ registres sans tracer le CHAÎNAGE d'exécution). Réalité :
 
 - **Le typage de SORTIE n'est PAS un trou.** Il est chaîné : `output_types` (dans **APP_CATALOG**) → domaine →
   `wama/common/utils/output_formats.py` (`output_format_params_for_app`) → réutilise `CONVERTER_OUTPUT_FORMATS`
-  (`converter.format_router`) = **source unique déjà maintenue**. Les apps early-binding injectent les Param
+  (`converter.utils.format_router`) = **source unique déjà maintenue**. Les apps early-binding injectent les Param
   `output_format`/`output_quality` ; le converter fait la conversion. Le `output_type` de GENERIC_APPS est
   juste la sortie déclarée du NŒUD studio (câblage du graphe), un concern DISTINCT. → le manifeste DÉCRIT la
   capacité de conversion (early/late binding), il ne « manque » rien.
