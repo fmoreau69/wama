@@ -393,11 +393,26 @@ class DeepFilterNetBackend(BaseModelBackend):
                 self._model, self._df_state, _ = init_df(str(model_dir))
             logger.info("[DeepFilterNet] Model loaded ✓")
 
+    # ── Garde-fou mémoire (2026-07-25) ───────────────────────────────────────
+    # `load_audio()` charge le fichier ENTIER à 48 kHz, tous canaux, et `df_enhance()`
+    # traite tout le signal en UN appel (STFT/ERB sur la totalité). Sur un 2 h 21 stéréo :
+    # 3,3 Go rien que pour l'entrée, ~13,7 Go de RSS au pic → **OOM killer**, worker `gpu`
+    # (pool solo) tué net, sans traceback, file `gpu` sans consommateur. Constaté le
+    # 2026-07-25 sur la transcription #176 (dmesg : anon-rss 14385544 kB, VM WSL2 = 15 Go).
+    # Au-delà du seuil on bascule en fenêtrage disque→disque : RAM bornée à une fenêtre,
+    # quelle que soit la durée. DFN est un modèle TEMPS RÉEL (trames de 20 ms) : le
+    # découpage lui est fidèle — contrairement à la diarisation, dont le clustering de
+    # locuteurs est global (fenêtrage annulé au commit 6cc37ec, ne pas confondre).
+    LONG_AUDIO_THRESHOLD_S = 600.0   # 10 min → fenêtrage
+    WINDOW_S = 120.0                 # durée traitée par passe
+    WINDOW_OVERLAP_S = 0.5           # recouvrement fondu (pas de clic aux jointures)
+
     def enhance(
         self,
         input_path: str,
         output_path: str,
         progress_callback=None,
+        mono: bool = False,
     ) -> str:
         """
         Enhance speech audio with DeepFilterNet 3.
@@ -406,19 +421,36 @@ class DeepFilterNetBackend(BaseModelBackend):
             input_path:        Path to input audio file
             output_path:       Path to output WAV file
             progress_callback: Optional 0–100 progress function
+            mono:              True → downmix mono AVANT débruitage (moitié moins de RAM,
+                               et sans aucune perte pour un appelant qui finit en mono —
+                               ex. le prétraitement ASR du transcriber, qui reconvertit
+                               en 16 kHz mono juste après).
 
         Returns:
             output_path on success
+
+        Note: au-delà de LONG_AUDIO_THRESHOLD_S, le traitement passe en fenêtré et la
+        sortie est MONO (contrainte de `decode_window`) — seule façon de borner la RAM.
         """
         self._ensure_loaded()
 
         if progress_callback:
             progress_callback(20)
 
+        from wama.common.utils.audio_decode import probe_duration_seconds
+        duration = probe_duration_seconds(input_path) or 0.0
+        if duration > self.LONG_AUDIO_THRESHOLD_S:
+            if not mono:
+                logger.warning(f"[DeepFilterNet] Fichier long ({duration / 60:.0f} min) → "
+                               "débruitage fenêtré, sortie MONO (garde-fou mémoire)")
+            return self._enhance_windowed(input_path, output_path, duration, progress_callback)
+
         from df.enhance import enhance as df_enhance, load_audio, save_audio
 
         # Load at model sample rate
         audio, _ = load_audio(input_path, sr=self._df_state.sr())
+        if mono and audio.shape[0] > 1:
+            audio = audio.mean(dim=0, keepdim=True)
         logger.info(f"[DeepFilterNet] Input: sr={self._df_state.sr()}, shape={audio.shape}")
 
         if progress_callback:
@@ -435,6 +467,74 @@ class DeepFilterNetBackend(BaseModelBackend):
         if progress_callback:
             progress_callback(100)
 
+        return output_path
+
+    def _enhance_windowed(self, input_path: str, output_path: str, duration: float,
+                          progress_callback=None) -> str:
+        """
+        Débruitage d'un long média par fenêtres, disque → disque (RAM constante).
+
+        Décodage fenêtré par la brique COMMUNE `audio_decode.decode_window` (ffmpeg, seek
+        avant `-i`) — pas de décodeur maison, et pas de torchcodec (cassé, cf.
+        `memory/reference_torchcodec_broken.md`). Écriture incrémentale via soundfile :
+        le signal débruité complet n'est jamais tenu en mémoire non plus.
+
+        Les fenêtres se recouvrent de WINDOW_OVERLAP_S, recollées en fondu enchaîné
+        linéaire : pas de discontinuité audible aux jointures.
+        """
+        import numpy as np
+        import soundfile as sf
+        import torch
+        from df.enhance import enhance as df_enhance
+        from wama.common.utils.audio_decode import decode_window
+
+        sr = self._df_state.sr()
+        overlap_n = int(self.WINDOW_OVERLAP_S * sr)
+        fade_in = np.linspace(0.0, 1.0, overlap_n, dtype=np.float32) if overlap_n else None
+        n_windows = max(1, int(np.ceil(duration / self.WINDOW_S)))
+        logger.info(f"[DeepFilterNet] Fenêtrage : {duration:.0f} s → {n_windows} fenêtre(s) "
+                    f"de {self.WINDOW_S:.0f} s (sr={sr}, mono) — RAM bornée")
+
+        prev_tail = None   # queue de la fenêtre précédente, en attente de fondu
+        start = 0.0
+        with sf.SoundFile(output_path, 'w', samplerate=sr, channels=1, subtype='PCM_16') as out:
+            while start < duration:
+                chunk, _ = decode_window(input_path, target_sr=sr, start_s=start,
+                                         duration_s=self.WINDOW_S + self.WINDOW_OVERLAP_S,
+                                         mono=True)
+                if chunk.size == 0:
+                    break
+
+                # .copy() : decode_window renvoie une vue np.frombuffer NON inscriptible
+                # (torch.from_numpy prévient alors d'un comportement indéfini si la lib
+                # écrivait dedans). Copie d'une fenêtre = ~23 Mo, négligeable.
+                enhanced = df_enhance(self._model, self._df_state,
+                                      torch.from_numpy(chunk.copy()).unsqueeze(0), pad=True)
+                y = enhanced.squeeze(0).detach().cpu().numpy().astype(np.float32)
+
+                # Fondu enchaîné avec la queue réservée par la fenêtre précédente.
+                if prev_tail is not None and y.size:
+                    n = min(prev_tail.size, y.size)
+                    out.write(y[:n] * fade_in[:n] + prev_tail[:n] * (1.0 - fade_in[:n]))
+                    y = y[n:]
+
+                # Réserve la zone de recouvrement pour le fondu de la fenêtre suivante.
+                has_next = (start + self.WINDOW_S) < duration
+                if has_next and overlap_n and y.size > overlap_n:
+                    prev_tail = y[-overlap_n:].copy()
+                    y = y[:-overlap_n]
+                else:
+                    prev_tail = None
+
+                out.write(y)
+                start += self.WINDOW_S
+
+                if progress_callback:
+                    progress_callback(40 + int(45 * min(1.0, start / max(duration, 1e-6))))
+
+        logger.info(f"[DeepFilterNet] Saved to {output_path} (fenêtré)")
+        if progress_callback:
+            progress_callback(100)
         return output_path
 
     def unload(self):

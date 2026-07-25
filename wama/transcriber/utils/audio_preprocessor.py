@@ -58,7 +58,10 @@ class AudioPreprocessor:
             )
             if DeepFilterNetBackend.is_available():
                 tmp_denoised = output_path + ".dfn.wav"
-                get_deepfilternet_backend().enhance(input_path, tmp_denoised)
+                # mono=True : l'étape 2 reconvertit de toute façon en 16 kHz mono, donc
+                # débruiter en stéréo ne change RIEN au résultat ASR et double la RAM
+                # (un 2 h 21 stéréo à 48 kHz = 3,3 Go rien qu'en entrée). Gratuit.
+                get_deepfilternet_backend().enhance(input_path, tmp_denoised, mono=True)
                 source = tmp_denoised
             else:
                 logger.warning("[preprocess] DeepFilterNet indisponible — "
