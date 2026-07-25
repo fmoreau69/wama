@@ -323,7 +323,13 @@ Ajouter le nouveau modèle dans la fonction `_discover_*_models()` correspondant
 
 **❌ Non-conformités connues à corriger — SOURCE LIVE = `/apps/` (`get_conformity_summary()`),
 ne plus recopier de listes figées ici (elles dérivent — la ligne « Composer : Dupliquer/Download All
-manquants » était périmée, les deux existent, vérifié 2026-07-03) :**
+manquants » était périmée, les deux existent, vérifié 2026-07-03).**
+
+> ⚠ Depuis 2026-07-25 la grille est **MESURÉE** : `python manage.py check_app_conformity`
+> (40 critères F1–F8 par analyse du code réel, `common/services/conformity_checker.py`) écrit
+> `logs/conformity_report.json` qui **écrase les booléens déclarés** de `_conv(...)`. Ne plus
+> éditer ces booléens à la main pour les critères mesurés ; re-lancer la commande après un
+> palier de portage (skill `/conformite`).
 - Toutes les apps : import dossier récursif non implémenté
 - Checklist de fin d'app (18 points) : `TRANSCRIBER_REFERENCE_AUDIT.md §6`
 
