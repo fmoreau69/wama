@@ -356,6 +356,21 @@ neuve** (contexte chargé = erreurs). Recoupe et précise §19.
 - ✅ **Le stop survit au redémarrage worker (2026-07-24)** : revokes persistants
   `celery --statedb=$LOG_DIR/celery-{gpu,default}.state` dans `start_wama_dev.sh`/`start_wama_prod.sh`
   (3e38994).
+- ✅ **Quick wins audit conformité (2026-07-25, d03e256)** : describer ⧉ dupliquait EN DOUBLE
+  (handler local + brique queue-actions.js → retiré) ; anti-race start_all/batch_start describer
+  + batch_start avatarizer ; réconciliation orphelins câblée composer/describer/reader (adoption
+  4/10) ; alias `add_to_imager`/`add_to_composer` au TOOL_REGISTRY ; scoring conformité ne compte
+  plus `export_binding` (+1 gratuit). ⚠ Restart WSL2 requis ; validation navigateur ⧉ describer.
+- 🐞 **Constats d'audit 2026-07-25 NON corrigés (empirique, preuves en mémoire de session)** :
+  converter `layout=True` FAUX (aucun `.wama-card` → toggle mosaïque sans effet) ; reader
+  `source_url` persisté mais JAMAIS téléchargé (batch d'URLs → items sans entrée) ; anonymizer =
+  0 anti-race sur TOUS les démarrages ; enhancer/synthesizer start_all sans verrou ; enhancer
+  8 `alert()` résiduels (audio-enhancer.js) ; `during_preview` transcriber/describer : texte
+  partiel existe (cache) mais PAS branché au mécanisme commun de preview « pendant » (flag False
+  = capacité runtime, ne pas flipper sans câbler). Scores honnêtes (24 crit.) : reader 21✅ ·
+  composer 20✅ · transcriber/describer ~90 % · enhancer 11✅ · synthesizer 11✅ · avatarizer 11✅ ·
+  anonymizer 8✅ · imager 6✅. La grille live = 35 booléens DÉCLARATIFS (rien n'est mesuré) —
+  chantier : critères M1-M26 automatisables proposés (rapport d'audit session 2026-07-25).
 
 ## Ordre de reprise recommandé
 1. **Consolidation des mécanismes de génération d'UI (§20)** — inventaire + plan de convergence AVANT tout
