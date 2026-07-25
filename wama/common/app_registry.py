@@ -874,6 +874,8 @@ def get_conformity_summary() -> dict:
         for key, val in conv.items():
             if val is None:
                 continue  # N/A
+            if not isinstance(val, bool):
+                continue  # taxonomie (ex. export_binding 'early'/'late') — pas un critère notable
             total += 1
             if val:
                 ok += 1

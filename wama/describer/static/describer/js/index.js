@@ -243,16 +243,9 @@ document.addEventListener('DOMContentLoaded', function() {
         openBatchSettings(bbtn);
     });
 
-    // Duplication d'un item (carte autonome ou dans un batch) — la vue place la
-    // copie DANS le même batch (élément frère). Aucun handler n'existait avant.
-    document.addEventListener('click', function (e) {
-        const dbtn = e.target.closest('.duplicate-btn');
-        if (!dbtn || !dbtn.dataset.duplicateUrl) return;
-        fetch(dbtn.dataset.duplicateUrl, { method: 'POST', headers: { 'X-CSRFToken': config.csrfToken } })
-            .then(r => r.json())
-            .then(() => window.location.reload())
-            .catch(() => {});
-    });
+    // Duplication : gérée par la brique commune queue-actions.js (base.html) via
+    // .duplicate-btn[data-duplicate-url] — pas de handler local (un doublon ici
+    // provoquait DEUX copies par clic).
 
     function openBatchSettings(btn) {
         const group = btn.closest('.batch-group');

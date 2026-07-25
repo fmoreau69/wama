@@ -322,15 +322,14 @@ def delete(request, pk):
     from wama.common.utils.batch_utils import find_member_batch
     parent_batch = find_member_batch(BatchAvatarJobItem, job=job)
 
+    # safe_delete_file (brique commune) : ne supprime le fichier physique que s'il
+    # n'est référencé par aucune autre instance (fichiers partagés par duplication).
+    from wama.common.utils.queue_duplication import safe_delete_file
     for field_name in ['audio_input', 'avatar_upload', 'output_video']:
-        f = getattr(job, field_name)
-        if f:
-            try:
-                path = f.path
-                if os.path.exists(path):
-                    os.remove(path)
-            except Exception:
-                pass
+        try:
+            safe_delete_file(job, field_name)
+        except Exception:
+            pass
 
     job.delete()  # signal batch_sync : recale total / supprime le batch vidé
     return JsonResponse({'status': 'deleted', 'batch_changed': parent_batch is not None})
@@ -807,17 +806,27 @@ def batch_start(request, pk):
     batch = get_object_or_404(BatchAvatarJob, pk=pk, user=user)
     _ensure_workers_imported()
 
+    from django.db import transaction
+
     started = 0
     for it in batch.items.select_related('job').order_by('row_index'):
         job = it.job
-        if not job or job.status == 'RUNNING':
+        if not job:
             continue
-        task = _generate_avatar.delay(job.id)
-        job.status = 'PENDING'
-        job.task_id = task.id
-        job.progress = 0
-        job.error_message = ''
-        job.save(update_fields=['status', 'task_id', 'progress', 'error_message'])
+        # Anti-race (pattern CLAUDE.md) : verrou par item — un double-clic sur ▶ batch
+        # ne doit pas mettre deux fois le même job en file Celery.
+        with transaction.atomic():
+            locked = AvatarJob.objects.select_for_update().get(pk=job.pk)
+            if locked.status == 'RUNNING' or (locked.status == 'PENDING' and locked.task_id):
+                continue
+            locked.status = 'PENDING'
+            locked.progress = 0
+            locked.error_message = ''
+            locked.task_id = ''
+            locked.save(update_fields=['status', 'task_id', 'progress', 'error_message'])
+        task = _generate_avatar.delay(locked.id)
+        locked.task_id = task.id
+        locked.save(update_fields=['task_id'])
         started += 1
     return JsonResponse({'status': 'started', 'count': started})
 

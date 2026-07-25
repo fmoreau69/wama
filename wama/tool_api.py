@@ -2058,6 +2058,7 @@ TOOL_REGISTRY = {
     'get_anonymizer_status': get_anonymizer_status,
     'sam3_examples':         sam3_examples,
     'create_image':          create_image,
+    'add_to_imager':         add_to_imager,   # alias canonique §17.2 (runner générique)
     'start_imager':          start_imager,
     'get_imager_status':     get_imager_status,
     'add_to_enhancer':           add_to_enhancer,
@@ -2070,6 +2071,7 @@ TOOL_REGISTRY = {
     'start_synthesizer':      start_synthesizer,
     'get_synthesizer_status': get_synthesizer_status,
     'compose_music':          compose_music,
+    'add_to_composer':        add_to_composer,   # alias canonique §17.2 (runner générique)
     'start_composer': start_composer,
     'get_composer_status':    get_composer_status,
     'add_to_describer':       add_to_describer,

@@ -149,6 +149,15 @@ class IndexView(View):
                 'eta_ids': ','.join(str(r.id) for r in readings),
             }
 
+        # Réconcilie les tâches RUNNING orphelines (worker mort/crash) — brique COMMUNE,
+        # même câblage que transcriber : preuve positive de mort uniquement.
+        try:
+            from wama.common.utils.process_control import reconcile_orphaned_running
+            running = list(ReadingItem.objects.filter(user=user, status='RUNNING'))
+            reconcile_orphaned_running(running)
+        except Exception:
+            pass
+
         batches_list = build_batches_list(user, batch_model=BatchReadingItem,
                                           work_attr='reading', order_by='-id', extra=_extra)
 

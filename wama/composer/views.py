@@ -105,6 +105,17 @@ class IndexView(View):
     def get(self, request):
         user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
 
+        # Réconcilie les tâches RUNNING orphelines (worker mort/crash) — brique COMMUNE,
+        # même câblage que transcriber : preuve positive de mort uniquement.
+        try:
+            from wama.common.utils.process_control import reconcile_orphaned_running
+            running = list(ComposerGeneration.objects.filter(user=user, status='RUNNING'))
+            n = reconcile_orphaned_running(running)
+            if n:
+                logger.info(f"[composer] {n} tâche(s) RUNNING orpheline(s) réconciliée(s) → échec relançable")
+        except Exception as exc:
+            logger.debug(f"[composer] reconcile_orphaned_running ignoré: {exc}")
+
         batches_list = _get_batches_list(user)
 
         # Tri + filtrage de la file — brique COMMUNE (persistés en session).

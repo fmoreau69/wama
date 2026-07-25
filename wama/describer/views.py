@@ -165,6 +165,18 @@ class IndexView(TemplateView):
         # Lazily wrap any orphan descriptions into a batch-of-1
         _auto_wrap_orphans(user)
 
+        # Réconcilie les tâches RUNNING orphelines (worker mort/crash) — brique COMMUNE,
+        # même câblage que transcriber : preuve positive de mort uniquement.
+        try:
+            from wama.common.utils.process_control import reconcile_orphaned_running
+            running = list(Description.objects.filter(user=user, status='RUNNING'))
+            n = reconcile_orphaned_running(running)
+            if n:
+                logging.getLogger(__name__).info(
+                    f"[describer] {n} tâche(s) RUNNING orpheline(s) réconciliée(s) → échec relançable")
+        except Exception:
+            pass
+
         # Agrégats de file — brique COMMUNE (contrat toolbar) + enrichissements describer.
         from wama.common.utils.batch_common import build_batches_list
 
@@ -656,18 +668,18 @@ def start_all(request):
     pending = Description.objects.filter(user=user, status='PENDING')
 
     from .workers import describe_content
+    from wama.common.utils.process_control import begin_processing
 
     started = []
     for description in pending:
-        description.status = 'RUNNING'
-        description.progress = 0
-        description.save()
-
-        task = describe_content.delay(description.id)
-        description.task_id = task.id
-        description.save()
-
-        started.append(description.id)
+        locked, err = begin_processing(Description, description.pk, user=user,
+                                       reset=_reset_for_relaunch)
+        if err:
+            continue
+        task = describe_content.delay(locked.id)
+        locked.task_id = task.id
+        locked.save(update_fields=['task_id'])
+        started.append(locked.id)
 
     return JsonResponse({'started': started, 'count': len(started)})
 
@@ -902,23 +914,21 @@ def batch_start(request, pk):
     batch = get_object_or_404(BatchDescription, pk=pk, user=user)
 
     from .workers import describe_content
+    from wama.common.utils.process_control import begin_processing
 
     started = []
     for item in batch.items.select_related('description').all():
         desc = item.description
-        if not desc or desc.status == 'RUNNING':
+        if not desc:
             continue
-        desc.status = 'RUNNING'
-        desc.progress = 0
-        desc.error_message = ''
-        desc.save(update_fields=['status', 'progress', 'error_message'])
-        cache.set(f"describer_progress_{desc.id}", 0, timeout=3600)
-
-        task = describe_content.delay(desc.id)
-        desc.task_id = task.id
-        desc.status = 'RUNNING'
-        desc.save(update_fields=['task_id', 'status'])
-        started.append(desc.id)
+        locked, err = begin_processing(Description, desc.pk, user=user, reset=_reset_for_relaunch)
+        if err:
+            continue
+        cache.set(f"describer_progress_{locked.id}", 0, timeout=3600)
+        task = describe_content.delay(locked.id)
+        locked.task_id = task.id
+        locked.save(update_fields=['task_id'])
+        started.append(locked.id)
 
     return JsonResponse({'started': started, 'count': len(started)})
 
