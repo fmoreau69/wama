@@ -147,7 +147,7 @@ def _eta_seeded(f: _AppFiles):
 
 
 _START_DEF = re.compile(r'^def\s+((?:re)?start\w*|batch_start\w*)\s*\(', re.M)
-_LOCK = re.compile(r'begin_processing|select_for_update')
+_LOCK = re.compile(r'begin_processing|select_for_update|cache\.add\(')  # cache.add = verrou atomique (pattern anonymizer)
 
 
 def _anti_race(f: _AppFiles):

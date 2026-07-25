@@ -265,9 +265,10 @@ class ProcessView(View):
             user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
             logger.info(f"[ProcessView] Starting process for user {user.id} ({user.username})")
 
-            # Dedup: check batch lock
+            # Dedup: prise de verrou ATOMIQUE (cache.add = set-si-absent). L'ancien
+            # get() puis set() laissait une fenêtre de course sur double-clic.
             batch_lock_key = f"anon_lock:batch:{user.id}"
-            if cache.get(batch_lock_key):
+            if not cache.add(batch_lock_key, True, timeout=7200):
                 logger.info(f"[ProcessView] Batch already running for user {user.id}")
                 return JsonResponse({"task_id": None, "error": "Un traitement est déjà en cours"}, status=409)
 
@@ -278,8 +279,7 @@ class ProcessView(View):
                 logger.warning(f"[ProcessView] No media found for user {user.username}")
                 return JsonResponse({"task_id": None, "error": "No media to process"})
 
-            # Set batch lock before dispatching
-            cache.set(batch_lock_key, True, timeout=7200)
+            # (verrou batch déjà posé atomiquement par cache.add ci-dessus)
 
             # Reset all media to allow reprocessing
             for media in all_medias:
@@ -1482,17 +1482,15 @@ def restart_media(request):
         media = Media.objects.get(pk=media_id)
         logger.info(f"[restart_media] Found media: {media.title} (id={media.id})")
 
-        # Dedup: check media lock
+        # Dedup: prise de verrou ATOMIQUE (cache.add = set-si-absent) — l'ancien
+        # get() puis set() laissait une fenêtre de course sur double-clic.
         lock_key = f"anon_lock:media:{media_id}"
-        if cache.get(lock_key):
+        if not cache.add(lock_key, True, timeout=7200):
             logger.info(f"[restart_media] Media {media_id} already locked (in progress)")
             return JsonResponse({
                 'success': False,
                 'error': 'Ce média est déjà en cours de traitement'
             }, status=409)
-
-        # Set lock before dispatching
-        cache.set(lock_key, True, timeout=7200)
 
         # Reset processing status
         media.status = 'PENDING'

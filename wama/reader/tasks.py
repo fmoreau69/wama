@@ -234,6 +234,13 @@ def read_document_task(self, item_id: int):
     _console(user_id, f"[Reader] Démarrage : {item.filename}")
     _set_progress(item_id, 2, "Démarrage…")
 
+    # Ingest déclaratif (WAMA_INGEST) : source_url → input_file local si besoin.
+    try:
+        from wama.common.utils.source_ingest import ensure_local_input
+        ensure_local_input(item, console=lambda m: _console(user_id, m))
+    except Exception as exc:
+        logger.warning(f"[Reader] ensure_local_input({item_id}) : {exc}")
+
     import time as _time
     _t0 = _time.time()  # chrono pour le seeding ETA
 

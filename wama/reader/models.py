@@ -27,6 +27,14 @@ class ReadingItem(ProcessingTimeMixin, models.Model):
         TXT      = 'txt',      'Texte brut (.txt)'
         MARKDOWN = 'markdown', 'Markdown (.md)'
 
+    # Ingest déclaratif commun (source_ingest.ensure_local_input) : résout source_url
+    # → input_file local en tête de tâche (avant : source_url était persisté mais JAMAIS
+    # téléchargé — items d'un batch d'URLs sans entrée, bug identifié 2026-07-25).
+    WAMA_INGEST = {
+        'source': 'source_url', 'target': 'input_file', 'mode': 'smart',
+        'name_field': 'original_filename',
+    }
+
     user          = models.ForeignKey(User, on_delete=models.CASCADE, related_name='reading_items')
     input_file    = models.FileField(upload_to=upload_to_user_input('reader'), blank=True, null=True)
     original_filename = models.CharField(max_length=255, blank=True, default='')
