@@ -282,3 +282,37 @@ def reconcile_orphaned_running(instances, *, snapshot=None,
             _mark_reconciled(inst, status_field, task_field, to_status, error_field, error_message)
             n += 1
     return n
+
+
+def refuse_crash_redelivery(task, instance, *,
+                            status_field: str = "status", task_field: str = "task_id",
+                            to_status: str = "FAILURE", error_field: str | None = None,
+                            error_message: str = ("Interrompu par un arrêt brutal du worker "
+                                                  "(crash machine) — relancer manuellement.")) -> bool:
+    """
+    Garde ANTI-BOUCLE-DE-CRASH pour les tâches lourdes (GPU) — à appeler EN TÊTE
+    d'une tâche ``bind=True``.
+
+    Si le message broker de l'exécution courante est marqué ``redelivered`` — worker
+    mort SANS acquitter (freeze machine, kill -9) —, ne PAS ré-exécuter aveuglément :
+    c'est précisément cette exécution qui a tué le worker. Sans cette garde, Redis
+    re-livre le message à CHAQUE démarrage du worker et la machine re-gèle en boucle
+    (vécu 23-25/07/2026 : diarisation pyannote du transcriber).
+
+    Les messages en file jamais préchargés ne portent pas le flag ``redelivered`` :
+    un batch en attente survit normalement à un restart. Seul cas de faux positif :
+    message préchargé puis requeué par un arrêt propre (rare avec
+    ``--prefetch-multiplier=1``) → l'item passe en échec relançable, pas de perte.
+
+    Renvoie True si l'exécution doit être abandonnée (l'item est déjà basculé en
+    échec relançable) ; l'appelant fait simplement ``return``.
+    """
+    try:
+        info = getattr(getattr(task, "request", None), "delivery_info", None) or {}
+        redelivered = bool(info.get("redelivered"))
+    except Exception:
+        redelivered = False
+    if not redelivered:
+        return False
+    _mark_reconciled(instance, status_field, task_field, to_status, error_field, error_message)
+    return True

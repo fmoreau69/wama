@@ -375,6 +375,15 @@ def transcribe(self, transcript_id: int):
     _t0 = time.time()
     close_old_connections()
     t = Transcript.objects.get(pk=transcript_id)
+
+    # Garde anti-boucle-de-crash (brique COMMUNE) : un message `redelivered` vient
+    # d'un worker mort sans acquitter (freeze machine) — on refuse de rejouer
+    # l'exécution qui a tué le worker, l'item passe en échec relançable.
+    from wama.common.utils.process_control import refuse_crash_redelivery
+    if refuse_crash_redelivery(self, t):
+        _console(t.user_id, f"Transcription {t.id} : reprise après crash refusée — item en échec, relancer manuellement.")
+        return
+
     _set_progress(t, 5, force=True)
     _console(t.user_id, f"Transcription {t.id} démarrée.")
 
@@ -676,6 +685,14 @@ def transcribe_without_preprocessing(self, transcript_id: int):
     Delegates to the main transcribe task after disabling preprocessing.
     """
     close_old_connections()
+
+    # Garde anti-boucle-de-crash (brique COMMUNE) — le flag `redelivered` est porté
+    # par CE message ; la délégation directe à transcribe() ne le verrait pas.
+    from wama.common.utils.process_control import refuse_crash_redelivery
+    t = Transcript.objects.get(pk=transcript_id)
+    if refuse_crash_redelivery(self, t):
+        _console(t.user_id, f"Transcription {t.id} : reprise après crash refusée — item en échec, relancer manuellement.")
+        return
 
     # Update transcript to disable preprocessing
     Transcript.objects.filter(pk=transcript_id).update(preprocess_audio=False)

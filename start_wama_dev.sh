@@ -153,6 +153,7 @@ if ! pgrep -f "celery.*gpu@" > /dev/null; then
         --pool=solo \
         --queues=gpu \
         --hostname=gpu@%h \
+        --prefetch-multiplier=1 \
         --statedb=$LOG_DIR/celery-gpu.state \
         --loglevel=INFO \
         --detach \

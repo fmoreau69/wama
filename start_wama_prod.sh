@@ -84,9 +84,13 @@ fi
 # ------------------------------------------------------
 # PostgreSQL
 # ------------------------------------------------------
-echo "=== Starting PostgreSQL ==="
-sudo service postgresql start
-sleep 3
+if ! pgrep -x "postgres" > /dev/null; then
+    echo "=== Starting PostgreSQL ==="
+    sudo service postgresql start
+    sleep 3
+else
+    echo "PostgreSQL is already running."
+fi
 
 # ------------------------------------------------------
 # REDIS
@@ -277,6 +281,7 @@ if ! pgrep -f "celery.*gpu@" > /dev/null; then
         --pool=solo \
         --queues=gpu \
         --hostname=gpu@%h \
+        --prefetch-multiplier=1 \
         --statedb=$LOG_DIR/celery-gpu.state \
         --loglevel=INFO \
         --detach \
