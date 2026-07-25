@@ -1033,18 +1033,10 @@ Branche « direct » de §10.B appliquée au Describer : `image_describer._visio
 
 ## 11. Déploiement — Migration vers serveur Linux dédié
 
-> Actuellement : Apache Windows + WSL2 (fonctionnel pour dev/prod local)
-
-### Cible : Nginx full Linux ⏳
-```
-Client → Linux:80 (Nginx) → localhost:8000 (Gunicorn) → Django/DB/Redis
-```
-- Supprimer la dépendance Apache Windows + portproxy WSL2
-- Créer systemd units : nginx, gunicorn, celery, redis, postgresql
-- Remplacer `start_wama_prod.sh` par systemd/supervisord
-- Branche dédiée : `deploy/linux-server`
-
----
+> Détail DÉPLACÉ (2026-07-25, plan doc B9-§11) : la référence unique est
+> **`INFRA_WSL_VS_WINDOWS.md` § « Implications pour le passage en prod full-Linux »** (systemd,
+> chemins `/mnt/d` en dur, `OLLAMA_HOST`, secrets ✅ 2026-07-23). Plan serveur : `memory/
+> project_deployment_roadmap.md`. Jalon macro : Apache Windows → Nginx Linux, LiteLLM orchestrateur.
 
 ## 12. Décisions actées
 

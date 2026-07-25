@@ -14,8 +14,8 @@
 
 | # | Élément | Emplacement | Pourquoi résidu | Prérequis avant suppression | Statut |
 |---|---|---|---|---|---|
-| R1 | Clés `multilingual`, `languages_count` | `model_registry.py::_discover_transcriber_models` (~l.567-573) | **dérivables** de `languages` ; **lues par aucun consommateur** | `normalize_capabilities` au sync les dérive/supprime au niveau DB (fait) → nettoyer la SOURCE | ⛔ |
-| R2 | Clé `native_diarization` | idem | nom non canonique (le reste du code utilise `supports_diarization`) ; lue par personne | normalize la renomme au sync (fait) → renommer la SOURCE | ⛔ |
+| R1 | Clés `multilingual`, `languages_count` | `model_registry.py::_discover_transcriber_models` | **dérivables** de `languages` ; **lues par aucun consommateur** | ✅ SOURCE nettoyée (vérifié grep 2026-07-25 : 0 occurrence dans la découverte) | ✅ |
+| R2 | Clé `native_diarization` | idem | nom non canonique (le reste du code utilise `supports_diarization`) ; lue par personne | ✅ SOURCE nettoyée (vérifié grep 2026-07-25) | ✅ |
 | R3 | Dict `capabilities` transcriber entier (si on choisit minimal) | idem | écrit dans AIModel, **consommé par rien** côté transcriber (UI lit l'item + flags backend) | décision : garder les faits réels (reco) OU minimal ; ne PAS supprimer les faits `supports_*` (méta-app/sélection en auront besoin) | ⛔ |
 
 ## 2. Résidu d'UI (métadonnée-widget non remontée à la source)

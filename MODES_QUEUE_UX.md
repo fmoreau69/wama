@@ -72,6 +72,11 @@ distinct.** Il y a **deux axes** à ne pas mélanger :
   focalisée (mobile-friendly) ; inspecteur = miroir desktop ; les deux **éditent, synchronisés**.
 
 ## 5. Temps réel = un MODE (pas un onglet)
+
+> ⚠ **SUPERSEDED — tranché AUTREMENT dans le code commun (confirmé Fabien 2026-07-25)** : le temps
+> réel n'est PAS un mode ; c'est une **affordance de la card d'entrée** (`show_live` de
+> `_new_item_card`, Speak transcriber). Cf. `REMOVAL_LEDGER F6` + `TRANSCRIBER_REFERENCE_AUDIT §1`.
+> Le P4 du plan ci-dessous est donc caduc. Section conservée comme historique du raisonnement.
 - Devient le **mode « temps réel »** d'une app qui le déclare → intégré au switch, **généré par
   description**, homogène. Card **unitaire**.
 - Flux : `entrée (prompt / bouton Speak) → réglages ↔ preview live → [Ajouter à la file]`.

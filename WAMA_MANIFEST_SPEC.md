@@ -227,22 +227,12 @@ les **besoins de modèles** de l'app. Le manifeste `app` les rend explicites.
 
 ---
 
-## 5. Provenance (où chaque facette vit aujourd'hui — l'ingest projette VERS ces lieux)
+## 5. Provenance (où chaque facette vit aujourd'hui)
 
-| Facette | Registre/fichier actuel |
-|---|---|
-| Identité, ports, batch, conventions | `common/app_registry.py` (`APP_CATALOG`, `MEDIA_CATEGORIES`, `studio_node_ports`) |
-| Modes/domaines | `common/utils/app_modes.py` (`APP_MODES`, `INPUT_TYPES`) |
-| Params/UI | `wama/<app>/params.py` (`PARAMS_JSON`) + `common/utils/param_schema.py` |
-| Volet droit / preview | `common/utils/detail_registry.py`, `preview_registry.py` |
-| Modèles | `model_manager/models.py` (`AIModel`), `model_manager/services/model_selector.py`, `common/utils/model_capabilities.py`, `<app>/utils/model_config.py` |
-| Prompts | `common/utils/app_metadata.py` (`PROMPT_TARGETS`), `common/prompt_skills/` |
-| API assistant | `wama/tool_api.py` (`TOOL_REGISTRY`/`TOOL_DESCRIPTIONS`) |
-| Studio | `studio/services/generic_runner.py` (`GENERIC_APPS`), `studio/models.py` |
-| Permissions | `accounts/permissions.py` (`DEFAULT_APP_ACCESS`), `accounts/models.py` (`AppAccessPolicy`) |
-| Scope données | `common/models.py` (`ScopedVisibility`, `Project`, `OrgUnit`) |
-
----
+> Table courte SUPPRIMÉE (2026-07-25, plan doc B11) : le mapping facette → registre → consommateurs
+> avec `fichier:ligne` vit dans **`WAMA_APP_GENERATION_ROUTE.md §1`** (le « terrain », vérifié au
+> code). Le triangle des 3 docs : SPEC = ce qui est déclaré · ARCHITECTURE = les flux · ROUTE = le
+> réel — ne pas maintenir de copie du terrain ici.
 
 ## 6. Plan de construction (proposé)
 

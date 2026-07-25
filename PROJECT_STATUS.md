@@ -883,7 +883,9 @@ check_app_conformity exécutable → introspection Django→schéma → scaffold
    à porter sur un doc archivé.
 2. ✅ SANS OBJET (2026-07-22) : `GENERALIZATION_PLAN.md` archivé.
 3. `INPUT_MODEL_MATCHING.md` : cocher étapes 1-4/6 déjà exécutées.
-4. `MEDIA_STORAGE_TIERING.md` §B : `EMAIL_BACKEND` déjà configuré, ne reste que `notify_by_email`.
+4. ✅ SOLDÉ (2026-07-25, plan doc B7) : `MEDIA_STORAGE_TIERING.md` §A/§B supprimés — les réglages
+   sont LIVRÉS sous d'autres noms (`media_retention_days`, `notify_email`/`notify_on`, câblés
+   10 apps) ; renvoi vers `PROFILES_PERMISSIONS.md` §2/§3 posé.
 5. `MODAL_ACTIONS_AUDIT.md` : note "rollout 5/11 apps sur `_settings_modal_footer.html`".
 6. `REMOVAL_LEDGER.md` : resynchroniser la table §1 avec le journal (R1/R2 → ✅).
 7. `README.md` : étoffer la table de doc (8/26 référencés seulement).

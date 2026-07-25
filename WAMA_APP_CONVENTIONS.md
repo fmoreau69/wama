@@ -47,8 +47,8 @@ Créer dans l'ordre. Ne pas sauter d'étape.
            avec les sous-dossiers réels (input/output/…) — c'est ce qui FAIT
            apparaître l'app dans l'arbre
         b) `appFolderMap` (filemanager.js + staticfiles) : auto-dépliement sidebar (§8.5)
-        c) Drop zone du volet droit : `class="… drop-zone"` + `data-wama-app="<app>"`
-           → active le drag&drop filemanager/explorateur → zone d'import (§8.6)
+        c) ~~Drop zone du volet droit~~ SUPPRIMÉE du cahier des charges (décision 2026-07-25) —
+           remplacée par la preview à cycle avant/pendant/après (§19)
         NB : l'autorisation d'accès (preview/download/delete) via `is_path_allowed`
         est désormais AUTOMATIQUE (dérivée de APP_CATALOG) — plus rien à faire là.
 [ ] 17. Ajouter l'app dans app_registry.py (APP_CATALOG) en ordre ALPHABÉTIQUE (§16)
@@ -478,7 +478,7 @@ Les deux doivent rester **synchronisées**.
 | 1 | **Paramètres** | `btn-outline-secondary` | `settings` | Ouvre modale de config |
 | 2 | **Démarrer / Relancer** | `btn-outline-success` (start) / `btn-outline-secondary` (restart) / `btn-outline-warning disabled` (running) | `start` / `restart` | Adaptatif selon statut |
 | 3 | **Télécharger** | `btn-outline-info` | — (lien `<a>`) | Disabled si pas de résultat |
-| 4 | **Dupliquer** | `btn-outline-secondary` | `duplicate` | Partage le fichier source (§12) |
+| 4 | **Dupliquer** | `btn-warning` (jaune — tranché 2026-07-25, aligne `CARD_DESIGN §2` : zéro collision de teinte) | `duplicate` | Partage le fichier source (§12) |
 | 5 | **Supprimer** | `btn-outline-danger` | `delete` | `safe_delete_file()` (§12) |
 
 **Boutons supplémentaires** (spécifiques à l'app) : insérés **avant** le bouton Paramètres (position 0)
@@ -522,8 +522,8 @@ Exemples : Aperçu (👁), Segmentation (SAM3), Export SRT, Lire l'audio…
   </button>
   {% endif %}
 
-  <!-- 4. Dupliquer -->
-  <button class="btn btn-sm btn-outline-secondary" data-action="duplicate" title="Dupliquer">
+  <!-- 4. Dupliquer (jaune — CARD_DESIGN §2) -->
+  <button class="btn btn-sm btn-warning" data-action="duplicate" title="Dupliquer">
     <i class="fas fa-copy"></i>
   </button>
 
@@ -935,52 +935,8 @@ homogène (fallback déjà en place).
 > **directement une card BROUILLON dans la file** (config via inspecteur, lancement via ▶ Lancer).
 > Décision + détail : **`CARD_DESIGN.md §8.5`**. Conservé ci-dessous pour historique uniquement.
 
-
-> **Principe (décision projet 2026-06)** : un fichier importé **n'entre pas
-> directement en file d'attente**. Il arrive d'abord dans une **zone de staging**
-> (« À valider »), où l'utilisateur peut **régler les paramètres** (volet droit ou
-> modale item), **puis** cliquer **« Ajouter »** (→ file) ou **« Lancer »**
-> (→ file + démarrage). Plus besoin de penser à régler les paramètres *avant*
-> l'import.
-
-**Implémentation — statut `DRAFT` côté serveur** (robuste, persiste au rechargement,
-réutilise les modales item/batch existantes) :
-
-| Élément | Règle |
-|---------|-------|
-| Statut | Nouveau statut **`DRAFT`** (champ `status` ; pas de migration si `CharField` libre). Un `DRAFT` n'est **jamais** mis en file ni enveloppé en batch. |
-| Import | La vue d'upload crée l'élément en `status='DRAFT'` (pas de `_wrap_*_in_batch`, pas de `.delay()`). |
-| `_auto_wrap_orphans` | **Exclure `DRAFT`** (`.exclude(status='DRAFT')`) pour ne pas les committer. |
-| Rendu | `IndexView` passe `staging_list` (les `DRAFT`) ; zone affichée au-dessus de la file, masquée si vide. |
-| Réglages | Bouton ⚙ par item = **modale item existante** (`.settings-btn` + mêmes `data-*`). Bouton « Param. à tous » = applique les défauts du volet à tous les `DRAFT`. |
-| Transitions | `stage_commit(pk, ?start=1)` : `DRAFT`→`PENDING` + `_wrap_*_in_batch` (+ start). `stage_commit_all(?start)` : tous → `PENDING` + `_auto_wrap_orphans` (UN batch-de-N) (+ start). `stage_clear` : supprime tous les `DRAFT`. `stage_update_all` : applique des paramètres à tous les `DRAFT`. |
-| URLs | `stage/<pk>/commit/`, `stage/commit_all/`, `stage/clear/`, `stage/update_all/`. |
-| JS | Upload → `location.reload()` (la zone se rend côté serveur). Handlers délégués `.stage-add-btn` / `.stage-start-btn` / `.stage-del-btn` + en-tête « Tout ajouter / Tout lancer / Vider / Param. à tous ». |
-
-**Application des paramètres du volet (staging) :**
-- **Au dépôt** : l'élément DRAFT capture l'**état complet** du volet droit (tous les
-  champs, pas seulement quelques-uns).
-- **Actions de lot** (« Tout ajouter » / « Tout lancer » / « Param. à tous ») : le
-  **volet droit fait foi** → ses valeurs sont appliquées à tous les éléments à valider.
-- **Action par élément** (« Ajouter » / « Lancer » sur une card) : commit **tel quel**,
-  conserve les réglages propres à l'élément (ex. ceux de l'inspecteur §10 / de la modale).
-
-**Quels imports passent par le staging ?**
-- **Imports interactifs ad hoc → staging (`DRAFT`)** : upload/drag&drop de fichier,
-  URL simple, drag depuis le filemanager. L'utilisateur n'a pas encore « validé » →
-  il règle puis `Ajouter`/`Lancer`.
-- **Import de fichier batch → file directement** : le fichier batch **est** la
-  spécification explicite (paramètres par ligne / défauts du volet) ; il crée donc le
-  batch sans étape de staging.
-
-**État de déploiement :** **Transcriber ✅ (pilote)** — staging sur les 3 imports
-interactifs (upload `upload()`, URL `upload_youtube()`, filemanager `import_to_transcriber()`).
-À généraliser ensuite à describer, enhancer, reader, synthesizer, converter, anonymizer,
-composer, imager, avatarizer (même pattern ; extraire un helper commun
-`wama/common/.../staging.py` + JS `wama-staging.js` lors de la généralisation).
-Cible UX globale : voir **`CARD_CENTRIC_UI.md`** (card-centric + descripteur d'app).
-
----
+(Contenu historique retiré le 2026-07-25 — plan doc B4 : rien à migrer, la décision
+et la liste des retraits vivent dans `CARD_DESIGN.md §8.5` et `PROJECT_STATUS §17`.)
 
 ## 9. Système de Batch
 
@@ -2032,18 +1988,23 @@ document.addEventListener('wama:fileimported', e => {
 
 ### Conformité par app
 
-| App | Drop zone volet droit | Menu "Envoyer vers…" | Event `wama:fileimported` |
+> ⚠ **DÉCISION 2026-07-25 (Fabien) : la drop zone du volet droit NE DOIT PLUS EXISTER.** Elle est
+> remplacée par la **preview à cycle avant/pendant/après** (brique `preview_utils` — la face
+> « Entrée » couvre le besoin). Les « ❌ à faire » historiques de cette colonne sont donc SANS
+> OBJET ; ne pas ajouter de drop zone au volet dans les nouvelles apps, et retirer celle du Reader
+> lors de son prochain passage.
+
+| App | ~~Drop zone volet droit~~ (supprimée du cahier des charges) | Menu "Envoyer vers…" | Event `wama:fileimported` |
 |---|---|---|---|
-| Reader | ✅ | ✅ | ✅ |
-| Anonymizer | ❌ à faire | ✅ (existant) | ✅ (`right_panel.js`) |
-| Transcriber | ❌ à faire | ✅ (existant) | ✅ (`index.js`) |
-| Describer | ❌ à faire | ✅ (existant) | ✅ (`index.js`) |
-| Enhancer | ❌ à faire | ✅ (existant) | ✅ (`index.js`) |
-| Synthesizer | ❌ à faire | ✅ (existant) | ✅ (`index.js`) |
+| Reader | ⚠ à retirer (seule app qui l'a) | ✅ | ✅ |
+| Anonymizer | sans objet | ✅ (existant) | ✅ (`right_panel.js`) |
+| Transcriber | sans objet | ✅ (existant) | ✅ (`index.js`) |
+| Describer | sans objet | ✅ (existant) | ✅ (`index.js`) |
+| Enhancer | sans objet | ✅ (existant) | ✅ (`index.js`) |
+| Synthesizer | sans objet | ✅ (existant) | ✅ (`index.js`) |
 
 > MAJ 2026-07-25 : colonne Event vérifiée par grep `wama:fileimported` (listeners présents dans les
-> 5 apps + converter/reader) — cohérent avec §8.3 « TOUTES les apps ». Reste réellement à faire :
-> la drop zone du volet droit.
+> 5 apps + converter/reader) — cohérent avec §8.3 « TOUTES les apps ».
 
 ---
 
