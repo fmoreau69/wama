@@ -368,7 +368,11 @@ neuve** (contexte chargé = erreurs). Recoupe et précise §19.
   de `read_document_task` (le `source_url` persisté-jamais-téléchargé est résolu) ; anonymizer :
   verrous cache rendus ATOMIQUES (`cache.add` au lieu de get+set — l'audit disait « 0 anti-race »,
   en réalité verrous cache avec fenêtre TOCTOU ; le checker reconnaît maintenant `cache.add`).
-- 🐞 **Constats d'audit 2026-07-25 restants** : enhancer/synthesizer start_all sans verrou ; enhancer
+- ✅ **Anti-race enhancer/synthesizer (2026-07-25, 3e salve)** : `begin_processing` sur enhancer
+  start_all + batch_start + audio_start_all (options globales déplacées dans le reset callback) et
+  synthesizer start_all + batch_start (reset partagé `_reset_synthesis_for_relaunch`, options
+  persistées AVANT le verrou). `anti_race` mesuré ✅ sur les deux.
+- 🐞 **Constats d'audit 2026-07-25 restants** : enhancer
   8 `alert()` résiduels (audio-enhancer.js) ; `during_preview` transcriber/describer : texte
   partiel existe (cache) mais PAS branché au mécanisme commun de preview « pendant » (flag False
   = capacité runtime, ne pas flipper sans câbler). Scores honnêtes (24 crit.) : reader 21✅ ·

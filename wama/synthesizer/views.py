@@ -546,25 +546,28 @@ def stop(request, pk: int):
     return JsonResponse({'id': synthesis.id, 'status': new_status})
 
 
+def _reset_synthesis_for_relaunch(s):
+    """Reset partagé (start / start_all / batch_start) pour begin_processing."""
+    s.progress = 0
+    s.error_message = ''
+    # Supprimer l'ancien audio si présent
+    if s.audio_output:
+        try:
+            s.audio_output.delete(save=False)
+        except Exception:
+            pass
+
+
 def start(request, pk: int):
     """
     Démarre la synthèse vocale pour un fichier.
     """
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
 
-    def _reset(s):
-        s.progress = 0
-        s.error_message = ''
-        # Supprimer l'ancien audio si présent
-        if s.audio_output:
-            try:
-                s.audio_output.delete(save=False)
-            except Exception:
-                pass
-
     # Anti-race COMMUN (atomic + select_for_update + revoke) — audit 2026-07-11
     from wama.common.utils.process_control import begin_processing
-    synthesis, err = begin_processing(VoiceSynthesis, pk, user=user, reset=_reset)
+    synthesis, err = begin_processing(VoiceSynthesis, pk, user=user,
+                                      reset=_reset_synthesis_for_relaunch)
     if err:
         msg = 'La synthèse est déjà en cours' if err == 'already_running' else err
         return JsonResponse({'error': msg}, status=404 if err == 'not_found' else 400)
@@ -920,30 +923,19 @@ def start_all(request):
 
         if options_changed:
             updated_options.append(synthesis.id)
+            synthesis.save()  # persister les options AVANT le verrou (begin_processing re-lit l'instance)
 
-        # Réinitialiser la synthèse
-        synthesis.status = 'PENDING'
-        synthesis.progress = 0
-        synthesis.error_message = ''
-
-        # Supprimer l'ancien audio si présent
-        if synthesis.audio_output:
-            try:
-                synthesis.audio_output.delete(save=False)
-            except:
-                pass
-
-        synthesis.save()
-        cache.set(f"synthesizer_progress_{synthesis.id}", 0, timeout=3600)
-
-        # Lancer la tâche
-        task = synthesize_voice.delay(synthesis.id)
-        synthesis.task_id = task.id
-        synthesis.status = 'RUNNING'
-        synthesis.progress = 0
-        cache.set(f"synthesizer_progress_{synthesis.id}", 0, timeout=3600)
-        synthesis.save(update_fields=['task_id', 'status', 'progress'])
-        started.append(synthesis.id)
+        # Anti-race COMMUN (atomic + select_for_update + revoke) — même brique que start()
+        from wama.common.utils.process_control import begin_processing
+        locked, err = begin_processing(VoiceSynthesis, synthesis.pk, user=user,
+                                       reset=_reset_synthesis_for_relaunch)
+        if err:
+            continue  # already_running / not_found
+        cache.set(f"synthesizer_progress_{locked.id}", 0, timeout=3600)
+        task = synthesize_voice.delay(locked.id)
+        locked.task_id = task.id
+        locked.save(update_fields=['task_id'])
+        started.append(locked.id)
 
     return JsonResponse({
         'started_ids': started,
@@ -1334,28 +1326,24 @@ def batch_start(request, pk: int):
 
     _ensure_workers_imported()
 
+    from wama.common.utils.process_control import begin_processing
+
     started = []
     for item in batch.items.select_related('synthesis').all():
         synthesis = item.synthesis
-        if not synthesis or synthesis.status == 'RUNNING':
+        if not synthesis:
             continue
 
-        synthesis.status = 'PENDING'
-        synthesis.progress = 0
-        synthesis.error_message = ''
-        if synthesis.audio_output:
-            try:
-                synthesis.audio_output.delete(save=False)
-            except Exception:
-                pass
-        synthesis.save(update_fields=['status', 'progress', 'error_message', 'audio_output'])
-        cache.set(f"synthesizer_progress_{synthesis.id}", 0, timeout=3600)
-
-        task = synthesize_voice.delay(synthesis.id)
-        synthesis.task_id = task.id
-        synthesis.status = 'RUNNING'
-        synthesis.save(update_fields=['task_id', 'status'])
-        started.append(synthesis.id)
+        # Anti-race COMMUN — même brique que start()
+        locked, err = begin_processing(VoiceSynthesis, synthesis.pk, user=user,
+                                       reset=_reset_synthesis_for_relaunch)
+        if err:
+            continue
+        cache.set(f"synthesizer_progress_{locked.id}", 0, timeout=3600)
+        task = synthesize_voice.delay(locked.id)
+        locked.task_id = task.id
+        locked.save(update_fields=['task_id'])
+        started.append(locked.id)
 
     return JsonResponse({'started': started, 'count': len(started)})
 

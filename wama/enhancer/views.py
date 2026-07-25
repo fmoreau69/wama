@@ -605,34 +605,36 @@ def start_all(request):
     logger.info(f"start_all with global settings: model={global_ai_model}, denoise={global_denoise}, blend={global_blend_factor}")
 
     from .tasks import enhance_media
+    from wama.common.utils.process_control import begin_processing
 
     started = []
     errors = []
 
+    def _apply_globals(enh):
+        # Apply global settings if provided (reset callback de begin_processing)
+        if global_ai_model:
+            enh.ai_model = global_ai_model
+        if global_denoise is not None:
+            if isinstance(global_denoise, str):
+                enh.denoise = global_denoise.lower() in ('1', 'true', 'on')
+            else:
+                enh.denoise = bool(global_denoise)
+        if global_blend_factor is not None:
+            enh.blend_factor = float(global_blend_factor)
+        enh.progress = 0
+        enh.error_message = ''
+
     for enhancement in enhancements:
-        # Skip only currently running enhancements
-        if enhancement.status == 'RUNNING':
-            continue
-
         try:
-            # Apply global settings if provided
-            if global_ai_model:
-                enhancement.ai_model = global_ai_model
-            if global_denoise is not None:
-                if isinstance(global_denoise, str):
-                    enhancement.denoise = global_denoise.lower() in ('1', 'true', 'on')
-                else:
-                    enhancement.denoise = bool(global_denoise)
-            if global_blend_factor is not None:
-                enhancement.blend_factor = float(global_blend_factor)
-
-            enhancement.save(update_fields=['ai_model', 'denoise', 'blend_factor'])
-
-            task = enhance_media.delay(enhancement.id)
-            enhancement.task_id = task.id
-            enhancement.status = 'RUNNING'
-            enhancement.save(update_fields=['task_id', 'status'])
-            started.append(enhancement.id)
+            # Anti-race COMMUN (atomic + select_for_update + revoke) — même brique que start()
+            locked, err = begin_processing(Enhancement, enhancement.pk, user=user,
+                                           reset=_apply_globals)
+            if err:
+                continue  # already_running / not_found
+            task = enhance_media.delay(locked.id)
+            locked.task_id = task.id
+            locked.save(update_fields=['task_id'])
+            started.append(locked.id)
         except Exception as e:
             errors.append({'id': enhancement.id, 'error': str(e)})
 
@@ -890,23 +892,26 @@ def batch_start(request, pk: int):
     batch = get_object_or_404(BatchEnhancement, pk=pk, user=user)
 
     from .tasks import enhance_media
+    from wama.common.utils.process_control import begin_processing
+
+    def _reset(enh):
+        enh.progress = 0
+        enh.error_message = ''
 
     started = []
     for item in batch.items.select_related('enhancement').all():
         e = item.enhancement
-        if not e or e.status == 'RUNNING':
+        if not e:
             continue
-        e.status = 'RUNNING'
-        e.progress = 0
-        e.error_message = ''
-        e.save(update_fields=['status', 'progress', 'error_message'])
-        cache.set(f"enhancer_progress_{e.id}", 0, timeout=3600)
-
-        task = enhance_media.delay(e.id)
-        e.task_id = task.id
-        e.status = 'RUNNING'
-        e.save(update_fields=['task_id', 'status'])
-        started.append(e.id)
+        # Anti-race COMMUN — même brique que start()
+        locked, err = begin_processing(Enhancement, e.pk, user=user, reset=_reset)
+        if err:
+            continue
+        cache.set(f"enhancer_progress_{locked.id}", 0, timeout=3600)
+        task = enhance_media.delay(locked.id)
+        locked.task_id = task.id
+        locked.save(update_fields=['task_id'])
+        started.append(locked.id)
 
     return JsonResponse({'started': started, 'count': len(started)})
 
@@ -1311,33 +1316,32 @@ def audio_start_all(request):
     global_quality = data.get('quality')
 
     from .tasks import enhance_audio
+    from wama.common.utils.process_control import begin_processing
 
-    pending = AudioEnhancement.objects.filter(user=user).exclude(status='RUNNING')
+    pending = AudioEnhancement.objects.filter(user=user)
     started, errors = [], []
+
+    def _apply_globals(ae):
+        if global_engine:
+            ae.engine = global_engine
+        if global_mode:
+            ae.mode = global_mode
+        if global_strength is not None:
+            ae.denoising_strength = float(global_strength)
+        if global_quality is not None:
+            ae.quality = int(global_quality)
 
     for ae in pending:
         try:
-            update_fields = []
-            if global_engine:
-                ae.engine = global_engine
-                update_fields.append('engine')
-            if global_mode:
-                ae.mode = global_mode
-                update_fields.append('mode')
-            if global_strength is not None:
-                ae.denoising_strength = float(global_strength)
-                update_fields.append('denoising_strength')
-            if global_quality is not None:
-                ae.quality = int(global_quality)
-                update_fields.append('quality')
-            if update_fields:
-                ae.save(update_fields=update_fields)
-
-            task = enhance_audio.delay(ae.id)
-            ae.task_id = task.id
-            ae.status = 'RUNNING'
-            ae.save(update_fields=['task_id', 'status'])
-            started.append(ae.id)
+            # Anti-race COMMUN — même brique que audio_start()
+            locked, err = begin_processing(AudioEnhancement, ae.pk, user=user,
+                                           reset=_apply_globals)
+            if err:
+                continue  # already_running / not_found
+            task = enhance_audio.delay(locked.id)
+            locked.task_id = task.id
+            locked.save(update_fields=['task_id'])
+            started.append(locked.id)
         except Exception as e:
             errors.append({'id': ae.id, 'error': str(e)})
 
