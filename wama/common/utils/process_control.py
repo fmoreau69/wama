@@ -12,6 +12,10 @@ Détection AUTOMATIQUE des items bloqués (heartbeat/timeout → bascule en éch
 PAS ici : sans champ d'horodatage/heartbeat fiable, conclure « bloqué » risque de faire échouer à tort
 des tâches légitimement EN FILE (Celery PENDING = en attente, pas mort). À concevoir avec un délai de
 grâce + progression observée. Voir `reconcile_if_stuck` (signature posée, NON activée par défaut).
+
+RÈGLE DE CONCEPTION de la réconciliation (`reconcile_orphaned_running`) : ne basculer un item en échec
+que sur PREUVE POSITIVE de mort. L'absence d'information n'est pas une preuve — un worker qui ne répond
+pas est le plus souvent un worker OCCUPÉ par la tâche qu'on s'apprête à déclarer morte (pool `solo`).
 """
 from __future__ import annotations
 
@@ -157,12 +161,23 @@ def reconcile_if_stuck(instance, *, status_field: str = "status", task_field: st
     return True
 
 
-def collect_active_task_ids(timeout: float = 2.0):
+def collect_worker_snapshot(timeout: float = 2.0):
     """
-    Set des `task_id` actifs + réservés sur TOUS les workers Celery.
+    Photo de la flotte Celery en UNE interrogation :
 
-    Renvoie None si aucun worker ne répond (incertitude → l'appelant NE réconcilie
-    rien, pour ne jamais tuer une tâche légitime par simple injoignabilité).
+        {'workers':  {noms des workers AYANT RÉPONDU},
+         'task_ids': {task_id actifs + réservés SUR CES workers}}
+
+    Renvoie None si aucun worker ne répond (broker injoignable / flotte à l'arrêt) :
+    incertitude totale → l'appelant NE réconcilie rien.
+
+    ⚠ La photo est PARTIELLE par nature : `inspect()` est un broadcast, seuls les workers
+    disponibles répondent dans le délai imparti. Un worker `--pool=solo` (chez nous : le
+    worker `gpu`) exécute la tâche DANS son thread principal et ne peut donc PAS répondre
+    tant qu'elle tourne — c'est-à-dire exactement quand sa tâche est bien vivante.
+
+    Conséquence, à ne jamais oublier : **`task_ids` ne prouve JAMAIS une absence.** Seul
+    `workers` dit de qui la photo est fiable. Voir `is_task_orphaned`.
     """
     try:
         from celery import current_app
@@ -173,28 +188,55 @@ def collect_active_task_ids(timeout: float = 2.0):
         return None
     if active is None and reserved is None:
         return None
-    ids = set()
+    workers, ids = set(), set()
     for group in (active or {}, reserved or {}):
-        for tasks in group.values():
+        for worker, tasks in group.items():
+            workers.add(worker)
             for t in (tasks or []):
                 tid = t.get("id") if isinstance(t, dict) else None
                 if tid:
                     ids.add(tid)
-    return ids
+    return {'workers': workers, 'task_ids': ids}
 
 
-def is_task_orphaned(task_id: str, active_ids) -> bool:
+def task_owner(task_id: str) -> str | None:
     """
-    True si la tâche a DÉMARRÉ (Celery `STARTED`) mais n'est plus active/réservée sur
-    aucun worker → worker mort (crash machine). Signal à très faible faux-positif :
-    STARTED prouve qu'un worker l'a lancée ; absente des actives prouve qu'il est mort.
+    Nom du worker qui exécute la tâche (ex. ``'gpu@fbro-20-026'``), ou None si inconnu.
 
-    Ne conclut RIEN (False) si : task_id vide, workers injoignables (`active_ids` None),
-    ou état non-STARTED (PENDING = en file légitime ; terminal = géré par is_task_dead).
+    Celery écrit ``{'pid', 'hostname'}`` dans le meta de l'état ``STARTED`` (nécessite
+    ``CELERY_TASK_TRACK_STARTED = True``, cf. settings). Les noms de nœud sont STABLES
+    entre redémarrages (``--hostname=gpu@%h``), ce qui permet de savoir si le worker
+    propriétaire a répondu à `collect_worker_snapshot`.
     """
-    if not task_id or active_ids is None:
+    try:
+        from celery import current_app
+        from celery.result import AsyncResult
+        meta = AsyncResult(task_id, app=current_app).result
+    except Exception:
+        return None
+    return meta.get('hostname') if isinstance(meta, dict) else None
+
+
+def is_task_orphaned(task_id: str, snapshot) -> bool:
+    """
+    True SEULEMENT si l'on a une PREUVE POSITIVE que la tâche est morte : elle a démarré
+    (`STARTED`), son worker propriétaire A RÉPONDU, et il ne l'a ni active ni réservée
+    → il a redémarré sans elle (crash worker / machine).
+
+    Ne conclut RIEN (False) dans tous les autres cas — notamment quand le propriétaire
+    n'a pas répondu (worker solo occupé PAR cette tâche, ou pas encore relancé après un
+    crash). Asymétrie VOULUE : laisser une card zombie en RUNNING coûte un rechargement,
+    tuer une transcription de 2 h vivante coûte 2 h.
+
+    Historique — régression du 2026-07-25 : la version initiale concluait « orpheline »
+    dès que la tâche était absente de la photo, sans vérifier QUI avait répondu. Le worker
+    `gpu` (solo) ne répondant pas pendant qu'il travaille, toute tâche longue était
+    déclarée morte ~5 s après son lancement, alors qu'elle tournait (item basculé en
+    FAILURE, polling arrêté côté front, card rouge figée).
+    """
+    if not task_id or not snapshot:
         return False
-    if task_id in active_ids:
+    if task_id in snapshot.get('task_ids', ()):
         return False
     try:
         from celery import current_app
@@ -202,34 +244,41 @@ def is_task_orphaned(task_id: str, active_ids) -> bool:
         state = AsyncResult(task_id, app=current_app).state
     except Exception:
         return False
-    return state == "STARTED"
+    if state != "STARTED":
+        return False           # PENDING = en file légitime ; terminal = is_task_dead
+    owner = task_owner(task_id)
+    # Propriétaire inconnu ou muet → aucune preuve de mort → on ne touche à rien.
+    return bool(owner) and owner in snapshot.get('workers', ())
 
 
-def reconcile_orphaned_running(instances, *, active_ids=None,
+def reconcile_orphaned_running(instances, *, snapshot=None,
                                status_field: str = "status", task_field: str = "task_id",
                                running_value: str = "RUNNING", to_status: str = "FAILURE",
                                error_field: str | None = None,
                                error_message: str = "Traitement interrompu (worker arrêté)") -> int:
     """
     Réconcilie une liste d'items RUNNING dont la tâche Celery est TERMINÉE (is_task_dead)
-    OU ORPHELINE (STARTED mais absente des workers actifs → crash worker). Chaque item
-    concerné bascule en échec RELANÇABLE. Renvoie le nombre d'items réconciliés.
+    OU ORPHELINE (worker propriétaire relancé sans elle). Chaque item concerné bascule en
+    échec RELANÇABLE. Renvoie le nombre d'items réconciliés.
 
-    Un SEUL `inspect()` par appel (via active_ids). Ne touche à rien si aucun worker ne
-    répond. Ignore les items sans task_id (peut-être tout juste démarrés — task_id pas
-    encore persisté, cf. begin_processing).
+    Un SEUL `inspect()` par appel (via `snapshot`). Ne touche à rien si aucun worker ne
+    répond, ni si la preuve de mort n'est pas positive (cf. `is_task_orphaned`). Ignore
+    les items sans task_id (peut-être tout juste démarrés — task_id pas encore persisté,
+    cf. begin_processing).
     """
     running = [i for i in instances if getattr(i, status_field, None) == running_value]
     if not running:
         return 0
-    if active_ids is None:
-        active_ids = collect_active_task_ids()
+    if snapshot is None:
+        snapshot = collect_worker_snapshot()
+    if snapshot is None:
+        return 0
     n = 0
     for inst in running:
         tid = getattr(inst, task_field, "") or ""
         if not tid:
             continue
-        if is_task_dead(tid) or is_task_orphaned(tid, active_ids):
+        if is_task_dead(tid) or is_task_orphaned(tid, snapshot):
             _mark_reconciled(inst, status_field, task_field, to_status, error_field, error_message)
             n += 1
     return n
