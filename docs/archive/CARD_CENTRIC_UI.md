@@ -1,3 +1,5 @@
+> ⚠ **ARCHIVÉ 2026-07-25 (plan doc B1) — §5bis → CARD_DESIGN §1quinquies, §4 → CARD_DESIGN §8.6 ; le reste (COMPOSE_CAPABILITIES, APP_SPEC, staging) = vocabulaire jamais implémenté.**
+
 # WAMA — Architecture UI « card-centric » (décision projet, 2026-06)
 
 > **Décision** : la **card devient l'unité de travail auto-suffisante** ; le **volet

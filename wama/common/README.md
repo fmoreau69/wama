@@ -53,7 +53,7 @@ elle lit le **catalogue**.
 | `WamaParams.render(host, schema, {context, values, optionsResolver})` | `static/common/js/wama-params.js` | **génère les champs** : toggle/select/radio/text/textarea/number/range (avec bornes min/max), optgroups, `show_if`, aide modèle |
 | `WamaParams.renderSettingsModal({…})` | idem | **génère la coquille** de modale per-item (pattern enhancer/reader) |
 | `WamaInspector.init` / `initFromSchema` | `static/common/js/wama-inspector.js` | **câble** le volet : sélection card, read/apply dérivés du schéma, save |
-| `_settings_modal_footer.html` | `templates/common/` | **pied de modale conforme** — Annuler / Enregistrer / Enregistrer & démarrer (+ slot gauche) ; convention `MODAL_ACTIONS_AUDIT.md §3` |
+| `_settings_modal_footer.html` | `templates/common/` | **pied de modale conforme** — Annuler / Enregistrer / Enregistrer & démarrer (+ slot gauche) ; convention `WAMA_APP_CONVENTIONS.md §6.5` (ex-MODAL_ACTIONS_AUDIT, archivé) |
 | `_inspector_banner.html`, `_inspector_actions.html` | `templates/common/` | coquille du volet inspecteur |
 
 ### Modes & domaines
@@ -139,7 +139,7 @@ elle lit le **catalogue**.
 
 ## 5. Références détaillées
 `UI_MECHANISMS_CONSOLIDATION.md` (sources de vérité + état par app) · `MODEL_META_UNIFICATION_KICKOFF.md`
-(méta-modèles) · `REMOVAL_LEDGER.md` (résidus/corrections tracés R*/F*) · `MODAL_ACTIONS_AUDIT.md`
+(méta-modèles) · `REMOVAL_LEDGER.md` (résidus/corrections tracés R*/F*) · `WAMA_APP_CONVENTIONS.md §6.5` (pied de modale)
 (conventions boutons) · `WAMA_APP_CONVENTIONS.md` (checklist app) · `COMMON_REFACTORING.md` ·
 `MODES_QUEUE_UX.md` (doctrine modes/file/cards) · `CARD_DESIGN.md` · `PROMPT_PIPELINE.md` ·
 `GENERALIZATION_PLAN.md` (trajectoire manifeste).

@@ -52,6 +52,21 @@
 
 ---
 
+## 🔴 RÈGLE OBLIGATOIRE : DISCIPLINE GIT MULTI-INSTANCES (migré de REPRISE_2026-07-22, leçon vécue)
+
+> Plusieurs instances Claude peuvent travailler en parallèle sur ce repo. Un
+> `git add <fichier> && git commit` a déjà **balayé 12 fichiers stagés par une autre instance**.
+
+- **Toujours** `git commit <chemins explicites> -m "…"` — JAMAIS `git add .` / `git add -A`, et
+  jamais un `git commit` sans pathspec (il emporte TOUT l'index partagé).
+- `git status` avant de commiter ; ne commiter que ce que TU as touché.
+- **Partitionner** le travail par sous-système (deux instances ne touchent jamais le même fichier) ;
+  la partition se déclare dans le handoff (`PROJECT_STATUS` §REPRISE).
+- Travail parallèle lourd → **un `git worktree` par instance** (index isolé, merge maîtrisé vers dev).
+- `PROJECT_STATUS.md` est édité en concurrence → petits blocs, relire avant chaque édition.
+
+---
+
 ## 🔴 RÈGLE OBLIGATOIRE : PATCHES DE COMPATIBILITÉ VENV → `patches/apply_patches.py`
 
 > **Toute correction manuelle dans `venv_linux/` ou `venv_win/` DOIT être ajoutée à `patches/apply_patches.py`.**

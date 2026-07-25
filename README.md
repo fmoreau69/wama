@@ -265,9 +265,9 @@ Full dependency list: `requirements.txt` (Windows) / `requirements_linux.txt` (W
 | [`WAMA_APP_CONVENTIONS.md`](WAMA_APP_CONVENTIONS.md) | Conventions UI/architecture, checklist de création d'app, ordre des boutons, composants de file, table de conformité. |
 | [`PROJECT_STATUS.md`](PROJECT_STATUS.md) | Point d'étape des chantiers en cours (✅/🔄/⏳) + ordre de reprise. |
 | [`ROADMAP.md`](ROADMAP.md) | Feuille de route détaillée (numérotée par section). |
-| [`COMMON_REFACTORING.md`](COMMON_REFACTORING.md) | Briques communes disponibles + app de référence (Transcriber) + recette d'adoption. |
+| [`WAMA_APP_GENERATION_ROUTE.md`](WAMA_APP_GENERATION_ROUTE.md) | Route F1–F8 : briques communes, adoption, trous (consolide l'ex-`COMMON_REFACTORING.md`, archivé). |
 | [`PROMPT_PIPELINE.md`](PROMPT_PIPELINE.md) | Pipeline de prompts centralisée (traduction/enrichissement/fichiers de référence). |
-| [`CARD_CENTRIC_UI.md`](CARD_CENTRIC_UI.md) | Spécification UI card-centric (volet droit = inspecteur). |
+| [`CARD_DESIGN.md`](CARD_DESIGN.md) | Formalisme de card + UI card-centric (volet droit = inspecteur ; absorbe l'ex-`CARD_CENTRIC_UI.md`). |
 | [`BATCH_FORMAT.md`](BATCH_FORMAT.md) | Format des fichiers d'import batch. |
 
 ---

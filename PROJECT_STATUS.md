@@ -5,11 +5,9 @@
 > 2026-07-11 (§31 : audit empirique conformité 10 apps).
 > Marqueurs : ✅ fait · 🔄 en cours · ⏳ à faire. Détails par chantier dans les docs/mémoire référencés.
 >
-> 🔜 **REPRISE session neuve** : voir **[`REPRISE_2026-07-22.md`](REPRISE_2026-07-22.md)** — handoff
-> daté (fait / mis de côté / validations navigateur en attente / coordination manifeste / discipline git).
-> ⚠ Handoff arrêté au 2026-07-22 — les sessions 07-23/24/25 (projection write-back `access`,
-> `html_render`, adoption select_model transcriber, réconciliation orphelins, celery `--statedb`)
-> n'y figurent pas : voir §2, §23, §38 et « Bugs / dettes connus ».
+> 🔜 **REPRISE session neuve** : le handoff `REPRISE_2026-07-22.md` est **ARCHIVÉ**
+> (`docs/archive/`, 2026-07-25 — plan doc B8) après migration de son vivant : backlog → **§40**,
+> duplications → `REMOVAL_LEDGER R18/R19`, discipline git multi-instances → `CLAUDE.md`.
 
 ## 1. PromptPipeline (prompts centralisés §16.6 / §10.B) — bien avancé
 Doc : [`PROMPT_PIPELINE.md`](PROMPT_PIPELINE.md).
@@ -361,6 +359,10 @@ neuve** (contexte chargé = erreurs). Recoupe et précise §19.
   + batch_start avatarizer ; réconciliation orphelins câblée composer/describer/reader (adoption
   4/10) ; alias `add_to_imager`/`add_to_composer` au TOOL_REGISTRY ; scoring conformité ne compte
   plus `export_binding` (+1 gratuit). ⚠ Restart WSL2 requis ; validation navigateur ⧉ describer.
+- 🐞 **Bugs converter hérités de `MODAL_ACTIONS_AUDIT.md §5` (archivé)** : ① le clic « Enregistrer »
+  de la modale batch ne ferme pas toujours la modale (état bootstrap) ; ② après édition des réglages
+  d'un job, la card ne reflète pas immédiatement le nouveau format (attendre le refresh). À
+  re-vérifier au prochain passage converter (peuvent être résorbés).
 - 🐞 **Constats d'audit 2026-07-25 NON corrigés (empirique, preuves en mémoire de session)** :
   converter `layout=True` FAUX (aucun `.wama-card` → toggle mosaïque sans effet) ; reader
   `source_url` persisté mais JAMAIS téléchargé (batch d'URLs → items sans entrée) ; anonymizer =
@@ -815,7 +817,7 @@ check_app_conformity exécutable → introspection Django→schéma → scaffold
 | ~~BACKEND_CARTOGRAPHY.md~~ | 110 | référence | 🗄️ **ARCHIVÉ** → `docs/archive/` (2026-07-22, 12fdabc ; consolidé dans WAMA_APP_GENERATION_ROUTE) |
 | BATCH_FORMAT.md | 149 | référence vivante | ✅ sain, à jour |
 | ~~BATCH_MODEL_AUDIT.md~~ | 87 | audit ponctuel clos | 🗄️ **ARCHIVÉ** → `docs/archive/` (2026-07-09) |
-| CARD_CENTRIC_UI.md | 162 | décision d'archi (le « pourquoi ») | 🔧 §7 mentionne encore le staging (supprimé 2026-06-29) — à purger |
+| ~~CARD_CENTRIC_UI.md~~ | 162 | décision d'archi | 🗄️ **ARCHIVÉ** → `docs/archive/` (2026-07-25, B1 ; §5bis+§4 migrés dans CARD_DESIGN) |
 | CARD_DESIGN.md | 408 | **doc pivot**, le plus à jour | ✅ sain (léger résidu §8.5 déjà coché ci-dessous) |
 | ~~COMMON_REFACTORING.md~~ | 132 | référence, hub | 🗄️ **ARCHIVÉ** → `docs/archive/` (2026-07-22, 12fdabc ; consolidé dans WAMA_APP_GENERATION_ROUTE) |
 | ~~GENERALIZATION_PLAN.md~~ | 60 | chapeau | 🗄️ **ARCHIVÉ** → `docs/archive/` (2026-07-22, 12fdabc ; consolidé dans WAMA_APP_GENERATION_ROUTE) |
@@ -823,7 +825,7 @@ check_app_conformity exécutable → introspection Django→schéma → scaffold
 | INPUT_MODEL_MATCHING.md | 72 | décision + plan | 🔧 étapes 1-4/6 déjà exécutées (`wama-input-match.js` existe), non cochées |
 | INSPECTOR_DETAIL_FIELDS.md | 65 | référence vivante | ✅ sain |
 | MEDIA_STORAGE_TIERING.md | 88 | décision d'archi (pas implémenté) | 🔧 §B périmé : `EMAIL_BACKEND` déjà configuré (2026-07-02) |
-| MODAL_ACTIONS_AUDIT.md | 89 | audit + cible | 🔧 cible `_settings_modal_footer.html` existe et est adoptée par 5/11 apps — non mentionné |
+| ~~MODAL_ACTIONS_AUDIT.md~~ | 89 | audit + cible | 🗄️ **ARCHIVÉ** → `docs/archive/` (2026-07-25, B6 ; §3→CONVENTIONS §6.5, §4→§2bis.3, §5→Bugs) |
 | ~~MODEL_META_UNIFICATION_KICKOFF.md~~ | 192 | kickoff de session | 🗄️ **ARCHIVÉ** → `docs/archive/` (2026-07-09 ; R10 confirmé fait dans REMOVAL_LEDGER.md, suivi résiduel = REMOVAL_LEDGER) |
 | MODES_QUEUE_UX.md | 178 | boussole produit vivante | ✅ **corrigé ce jour** : P1 marqué fait (était en retard sur le code) |
 | ~~NEXT_SESSION_KICKOFF.md~~ | 55 | brief de session | 🗄️ **ARCHIVÉ** → `docs/archive/` (2026-07-09 ; livrable produit = `UI_MECHANISMS_CONSOLIDATION.md`) |
@@ -841,13 +843,14 @@ check_app_conformity exécutable → introspection Django→schéma → scaffold
 | WAMA_MANIFEST_SPEC.md | — | formalisme des manifestes (6 kinds) | ✅ vivant (créé 2026-07-21) |
 | WAMA_MANIFEST_ARCHITECTURE.md | — | schéma fonctionnel manifestes/ingest/projection | ✅ vivant (créé 2026-07-21) |
 | WAMA_DATA_FUNCTION_CARDS.md | — | catalogue capability WAMA Data | ✅ vivant (créé 2026-07-20 ; à resynchroniser post-refactoring `data/functions/` par domaine) |
-| REPRISE_2026-07-22.md | — | handoff de session daté | ✅ pointeur d'en-tête de ce fichier (gelé au 07-22) |
+| ~~REPRISE_2026-07-22.md~~ | — | handoff daté | 🗄️ **ARCHIVÉ** → `docs/archive/` (2026-07-25, B8 ; vivant migré §40 + R18/R19 + CLAUDE.md) |
 
 ### 23.2 Recouvrements identifiés (pas de vrai doublon strict trouvé)
 
-- **CARD_CENTRIC_UI.md vs CARD_DESIGN.md** : PAS un doublon — l'un est la décision d'architecture
-  (le « pourquoi », figé), l'autre le formalisme visuel vivant (mis à jour en continu). À
-  **synchroniser** (fait ce jour pour le point staging), pas à fusionner.
+- **CARD_CENTRIC_UI.md vs CARD_DESIGN.md** : verdict de 07-09 RÉVISÉ le 2026-07-25 (plan doc B1) —
+  fusionné : le vivant (§5bis preview 3 niveaux, §4 zones de dépôt) migré dans CARD_DESIGN
+  (§1quinquies, §8.6) ; le reste (COMPOSE_CAPABILITIES/APP_SPEC/staging) n'a jamais existé dans le
+  code → CARD_CENTRIC_UI archivé.
 - **ROADMAP.md vs PROJECT_STATUS.md** : le plus gros chevauchement du lot (~55-60 %). ROADMAP
   mélange vision long terme, décisions historiques ET détails d'implémentation déjà livrés
   (Media Library, Ollama, cam_analyzer §9.1/9.2 — tout 2026-04/05, 100% ✅). Les deux docs
@@ -886,7 +889,8 @@ check_app_conformity exécutable → introspection Django→schéma → scaffold
 4. ✅ SOLDÉ (2026-07-25, plan doc B7) : `MEDIA_STORAGE_TIERING.md` §A/§B supprimés — les réglages
    sont LIVRÉS sous d'autres noms (`media_retention_days`, `notify_email`/`notify_on`, câblés
    10 apps) ; renvoi vers `PROFILES_PERMISSIONS.md` §2/§3 posé.
-5. `MODAL_ACTIONS_AUDIT.md` : note "rollout 5/11 apps sur `_settings_modal_footer.html`".
+5. ✅ SOLDÉ (2026-07-25, B6) : `MODAL_ACTIONS_AUDIT.md` archivé ; le suivi d'adoption de
+   `_settings_modal_footer.html` = critère `settings_modal_footer` de `check_app_conformity`.
 6. `REMOVAL_LEDGER.md` : resynchroniser la table §1 avec le journal (R1/R2 → ✅).
 7. `README.md` : étoffer la table de doc (8/26 référencés seulement).
 8. `WAMA_APP_CONVENTIONS.md` §15.1 : ETA et bouton Dupliquer Avatarizer marqués ❌ alors que faits.
@@ -1915,3 +1919,26 @@ un conflit d'édition concurrente).
 - ✅ 19 fonctions au catalogue (5 pures dont `placement_spread` b779395 + 14 app-bound
   `cam_analyzer.*`) ; les libs helper (io/geometry.shapes/kinematics) restent hors catalogue
 - ⏳ UI de chaînage (canvas), exposition `tool_api` du catalogue
+
+## 40. Backlog repris du handoff REPRISE_2026-07-22 (archivé 2026-07-25) — état re-vérifié
+
+> Les 6 items « à reprendre » du handoff, TOUS encore ouverts au 2026-07-25 (vérif agents).
+> Les 2 duplications (ex-items 2 et 4) sont tracées en `REMOVAL_LEDGER R18/R19`.
+
+1. ⏳ **`describer.result_file` orphelin** : retrait en passe ISOLÉE (migration describer.00xx sur
+   les DEUX bases) — ~32 occurrences restantes (views 17, models 3).
+2. ⏳ **`common/_result_tabs.html`** : cf. `REMOVAL_LEDGER R18`.
+3. ⏳ **Streaming MusicGen mid-génération** : `audiocraft_backend.on_audio` n'est appelé qu'UNE fois
+   en fin de génération — pas de token-callback ; `emit_streaming_peaks` prêt côté tasks.
+4. ⏳ **Fusion des 2 renderers waveform** : cf. `REMOVAL_LEDGER R19` (calcul déjà unifié).
+5. 🔶 **Preview filemanager → composant commun** : partiellement branché (`setupPreviewModal`
+   manipule déjà `#wamaMediaPreviewModal`) ; reste à retirer la modale locale `filePreviewModal`.
+6. ⏳ **Composer pt7/pt8/pt9** : `_card_state`/`_card_progress` non inclus ; ETA via
+   `model_config.estimate_seconds` statique (cible : catalogue) ; export médiathèque spécifique
+   (cible : action commune pilotée par `output_types`).
+
+**Validations navigateur toujours en attente** (reportées de session en session — passer `/smoke`
+quand Playwright MCP est actif) : composer save modale + actions volet ; cards ×2 contextes
+transcriber ; describer re-bind après re-rendu ; card v2 chips Reader (pilote) ; inspecteur des 5
+apps portées ; cards mères ×3 ; bouton cycle transcriber ; toasts ; manipulation directe ;
+duplication describer (fix double-fire 2026-07-25) ; entrée URL ×3 apps.

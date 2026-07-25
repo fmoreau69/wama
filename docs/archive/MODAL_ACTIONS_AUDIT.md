@@ -1,3 +1,5 @@
+> ⚠ **ARCHIVÉ 2026-07-25 (plan doc B6) — §3 → WAMA_APP_CONVENTIONS §6.5, §4 (supports_profiles) → CONVENTIONS §2bis.3, §5 (bugs converter) → PROJECT_STATUS §Bugs.**
+
 # Audit — boutons d'action des modales (cards / batch) par application
 
 > Demandé par Fabien (2026-06-30). But : recenser tous les cas, identifier les divergences, proposer

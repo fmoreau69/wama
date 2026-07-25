@@ -221,6 +221,13 @@ io = {
 `batch`, `export_binding` (`'late'` = format choisi à l'export / `'early'` = format figé à la
 génération, cf. §6.4) … → composent le template (cf. §4) et informent l'agent de ce que l'app sait faire.
 
+**`supports_profiles` (spec migrée de `MODAL_ACTIONS_AUDIT.md §4`, 2026-07-25 — À IMPLÉMENTER en
+capacité COMMUNE, pas par app)** : « sauver la configuration courante comme profil réutilisable ».
+L'app qui la déclare gagne dans le pied de modale (§6.5) un bouton « Enregistrer comme profil » ;
+stockage = `UserAsset` (médiathèque, kind profil, JSON des params du schéma `params.py`) ; relecture
+= liste des profils dans la modale/l'inspecteur. Converter a un système de profils PROPRE
+(`profile_list/save/delete`) → premier candidat à la généralisation, ne pas dupliquer son impl.
+
 ### 2bis.4 Prompt targets — déclaration des prompts (pilote la PromptPipeline §16.6)
 Chaque app déclare ses champs-prompt dans `common/utils/app_metadata.py::PROMPT_TARGETS` (source
 unique, découvrable par l'assistant/méta-app **sans lire le code**). Format par target :
@@ -660,6 +667,23 @@ média déjà rendu** (→ early binding : reformater = job du Converter) ?
 **Anonymizer = cas hybride** (à faire) : la détection produit un master (boîtes/masques + source) et
 le floutage est une 2ᵉ passe peu coûteuse → migrable vers late-binding (réviser/cliquer les détections
 avant de « rendre » le format voulu). Chantier séparé (ROADMAP §15/§16).
+
+### 6.5 Pied de modale réglages — convention commune (migré de `MODAL_ACTIONS_AUDIT.md §3`, 2026-07-25)
+
+Ordre et couleurs canoniques du pied de TOUTE modale de réglages (item comme batch) :
+
+`[actions spécifiques en outline-*, à gauche] … [Annuler btn-secondary] [Enregistrer btn-primary] [Enregistrer & démarrer btn-success]`
+
+- **Annuler** = `btn-secondary` (JAMAIS « Fermer » en 1er — l'action de sortie sans sauvegarde se
+  nomme Annuler et vient AVANT les actions d'enregistrement).
+- **Enregistrer** = `btn-primary` ; **Enregistrer & démarrer** = `btn-success` (présent seulement si
+  le démarrage manuel a du sens pour l'app).
+- Actions spécifiques d'app (ex. « Enregistrer comme profil » si `supports_profiles`, cf. §2bis.3)
+  = `btn-outline-*`, alignées à gauche, jamais entre Annuler et Enregistrer.
+- Implémentation : partial commun `common/_settings_modal_footer.html` (existant — critère
+  `settings_modal_footer` de `check_app_conformity`) ; ne pas écrire de pied à la main.
+- ⚠ Converter : son volet droit est une **zone de composition**, pas un inspecteur — un « bug »
+  récurrent signalé à tort (note conservée de l'audit d'origine).
 
 ---
 

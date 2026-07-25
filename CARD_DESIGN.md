@@ -69,6 +69,31 @@ Un **clic** sur une card = 3 effets cohérents : (a) **étend** la card (concis�
 `Échap` replie. → exploration rapide du contenu sans souris (réutilise la garde clavier
 input/textarea/select déjà posée pour l'éditeur transcriber).
 
+### 1quinquies. Preview du résultat — modèle à 3 niveaux (divulgation progressive)
+
+> Migré de `CARD_CENTRIC_UI.md §5bis` (2026-07-25, plan doc B1 — décision validée 2026-06, seule
+> partie de ce doc non reprise ailleurs). Référencé par `ROADMAP §1.2`.
+
+| Niveau | Geste | Contenu | Rôle |
+|--------|-------|---------|------|
+| **Card** | toujours visible (sous la barre de progression) | preview **compacte typée par média** : image→miniature · vidéo→miniature+durée · audio→forme d'onde+durée · texte/OCR/transcript→extrait + **ligne de métriques** (« Transcription 77 mots · Diarisation · Résumé 48 mots · Cohérence 88 mots ») | **scanner** la file |
+| **Volet droit (inspecteur)** | **clic** sur la card | preview **complète** + paramètres éditables | **détailler** la sélection |
+| **Overlay plein écran** | **double-clic** (ou clic sur la miniature) | vue maximisée (transcript intégral, grande image, audio scrubbable) = la modale de preview repositionnée | **inspection approfondie** |
+
+- Card (compact) et volet (complet) se **complètent**, ne se dupliquent pas.
+- Le **bouton œil disparaît** : clic = sélection/inspecteur, double-clic = overlay.
+- **Coût** : artefacts légers déjà générés (miniature, extrait, forme d'onde) + **lazy-load** des
+  vignettes pour ne pas alourdir le rendu de la file.
+- Le type de preview compacte est déclaré par app via la brique commune (`preview_registry` /
+  `unified_preview` — l'`APP_SPEC.output_preview` du doc d'origine n'a jamais existé).
+- **Composant commun (implémenté)** : classe `.wama-card-preview` → `media-preview.js` binde le
+  **double-clic** et émet `wama:card-expand` (`detail: {id, url, el}`, *cancelable*). Style dans
+  `media-preview.css`. Deux façons d'ouvrir le détail : l'app gère le sien (transcriber/reader :
+  le RÉSULTAT — l'événement est alors annulé), sinon comportement par défaut = overlay du média.
+- S'articule avec le **cycle avant/pendant/après** de la preview (`preview_utils`, faces
+  Entrée/Comparer/Sortie) — c'est CE mécanisme qui remplace la drop zone du volet droit
+  (décision 2026-07-25).
+
 ## 2. Boutons d'action — ordre + code couleur (schéma CONVERTER, adopté)
 
 Ordre canonique (conventions UI) · style **sobre** : `btn btn-outline-X btn-sm py-0 px-2`, **icône seule + `title`**.
@@ -257,6 +282,12 @@ Lié : `WAMA_APP_CONVENTIONS.md` (§boutons, §22 inspecteur), `GENERALIZATION_P
   l'usage) → la clarté vit dans l'état **déplié** (divulgation progressive), pas dans le replié.
 - **Détail lié** : si la card d'import est toujours 1ʳᵉ card, retirer la **répétition « File d'attente »**
   de l'en-tête (garder « File d'attente + nb » sur l'onglet). Polish.
+- **Carte des zones de dépôt (anti-prolifération — migré de `CARD_CENTRIC_UI.md §4`)** :
+  **1 source + 1 destination par app**, + la surface globale. Filemanager (arbre) = bibliothèque
+  persistante = **source** (on glisse depuis) ; **card d'import (dans la file)** = **destination**
+  unique par app (fichier de travail + référence) ; AI-assistant (accueil) = surface
+  conversationnelle, concern distinct. La zone de dépôt du **volet droit est supprimée**
+  (cohérent avec la décision 2026-07-25, cf. CONVENTIONS §19).
 
 ### 8.4 Lien Axe 3 (hors card, noté ici pour cohérence)
 Prospection LLM → router un modèle vers une app existante (capacités vs `APP_CATALOG`) ou faire
