@@ -1,5 +1,6 @@
 # Folders
-.claude/
+.claude/*
+!.claude/skills/
 media/
 logs/
 wama-analysis/results
