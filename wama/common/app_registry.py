@@ -860,20 +860,58 @@ def _assign_derived_colors():
 _assign_derived_colors()
 
 
+# ── Conformité MESURÉE (check_app_conformity) ────────────────────────────────────
+# Le rapport JSON produit par `manage.py check_app_conformity` (analyse statique du
+# code réel, cf. common/services/conformity_checker.py) ÉCRASE les booléens déclarés
+# de `_conv(...)` — les valeurs saisies à la main ne servent plus que de repli pour
+# les critères non mesurés. Cache par mtime (pas de re-parse à chaque requête).
+_CONFORMITY_REPORT = {'mtime': None, 'data': None}
+
+
+def _measured_conformity(app_name: str) -> tuple[dict, str | None]:
+    """(valeurs mesurées {clé: True|'partial'|False}, date du rapport) — ({}, None) sans rapport."""
+    import json as _json
+    from pathlib import Path as _Path
+    try:
+        from django.conf import settings as _settings
+        path = _Path(_settings.BASE_DIR) / 'logs' / 'conformity_report.json'
+        mtime = path.stat().st_mtime
+    except Exception:
+        return {}, None
+    if _CONFORMITY_REPORT['mtime'] != mtime:
+        try:
+            _CONFORMITY_REPORT['data'] = _json.loads(path.read_text(encoding='utf-8'))
+            _CONFORMITY_REPORT['mtime'] = mtime
+        except Exception:
+            return {}, None
+    data = _CONFORMITY_REPORT['data'] or {}
+    app = data.get('apps', {}).get(app_name, {})
+    return app.get('conv', {}), data.get('generated_at')
+
+
 def get_conformity_summary() -> dict:
     """
     Returns per-app conformity score:
-        { 'reader': {'score': 10, 'total': 10, 'pct': 100, 'issues': []}, ... }
+        { 'reader': {'score': 10, 'total': 10, 'pct': 100, 'issues': [], 'measured': True}, ... }
+    Les critères MESURÉS (rapport check_app_conformity) priment sur les déclarés ;
+    'partial' compte pour 0.5 et apparaît dans issues avec le suffixe « (partiel) ».
     """
     summary = {}
     for app_name, spec in APP_CATALOG.items():
-        conv = spec.get('conventions', {})
+        conv = dict(spec.get('conventions', {}))
+        measured, measured_at = _measured_conformity(app_name)
+        conv.update(measured)  # le réel écrase le déclaré
         issues = []
         total = 0
-        ok = 0
+        ok = 0.0
         for key, val in conv.items():
             if val is None:
                 continue  # N/A
+            if val == 'partial':
+                total += 1
+                ok += 0.5
+                issues.append(f"{key} (partiel)")
+                continue
             if not isinstance(val, bool):
                 continue  # taxonomie (ex. export_binding 'early'/'late') — pas un critère notable
             total += 1
@@ -883,10 +921,12 @@ def get_conformity_summary() -> dict:
                 issues.append(key)
         pct = int(ok / total * 100) if total > 0 else 100
         summary[app_name] = {
-            'score': ok,
+            'score': int(ok),
             'total': total,
             'pct':   pct,
             'issues': issues,
+            'measured': bool(measured),
+            'measured_at': measured_at,
         }
     return summary
 
