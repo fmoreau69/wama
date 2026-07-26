@@ -418,8 +418,8 @@
 window.ENHANCER_MEDIA_SCHEMA = {{ media_params_json|safe }};
 window.ENHANCER_AUDIO_SCHEMA = {{ audio_params_json|safe }};
 </script>
-{# Pieds de modale COMMUNS (_settings_modal_footer) — gabarits clonés par les
-   modales générées en JS (un par domaine, data-id posé au clonage). #}
+{% comment %}Pieds de modale COMMUNS (_settings_modal_footer) — gabarits clonés
+par les modales générées en JS (un par domaine, data-id posé au clonage).{% endcomment %}
 <template id="mediaSettingsFooterTpl">
     {% include 'common/_settings_modal_footer.html' with save_class='save-settings-btn' save_label='Sauvegarder' save_start_class='save-and-restart-btn' save_start_label='Sauvegarder et relancer' %}
 </template>
