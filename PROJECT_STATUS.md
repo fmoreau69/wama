@@ -426,6 +426,15 @@ dérivées (menu/accueil//apps/ générés du catalogue).
    `_batch_card` (collapse_prefix/show_settings), `_settings_modal_footer` (classes+labels).
    ⚠ Validation NAVIGATEUR à faire (2 domaines : dépôt, batch, transitions, modales, bascule).
    **Anonymizer** (généraliste classique) ;
+4. ~~**Synthesizer**~~ ✅ **PORTÉ À 100 % MESURÉ (40/40) — 2026-07-26, 3e app, 1er PROMPT-FIRST
+   sur la card d'entrée commune** (état replié = champ texte ; l'app consomme enfin la brique
+   extraite d'elle-même en 07/2026). Volet compose PRÉSERVÉ (variante déclarée) ; modale item
+   GÉNÉRÉE (WamaParams, options clonées du volet) ; WamaBatchImport remplace ~200 l. de chaîne
+   batch locale (server_path préservé en direct confirmé) ; WAMA_INGEST → voice_reference
+   (migration 0014 ×2) ; double-fire duplication corrigé ; user_settings alimente enfin
+   preferred_language. **VALIDÉ NAVIGATEUR** (Playwright : replié/déplié, voix clonées ×34,
+   soumission réelle, modale 8 champs, 0 erreur console). Cards d'entrée REPLIÉES aussi
+   activées sur converter/enhancer/reader (fichier-first, même session).
 4. **Synthesizer** (PRÉREQUIS : séparer le volet droit = surface de composition ; son accordéon
    est déjà globalisé en `collapsible`, sa `_synthesis_card.html` existe) ;
 5. **Imager** (le + de modes — app de référence du build complet, à faire en dernier des
