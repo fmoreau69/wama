@@ -136,6 +136,7 @@ window.WAMA_READER_SCHEMA = {{ params_json|safe }};  // exposé pour la modale I
   if (bh) WamaParams.render(bh, schema, { context: 'batch', values: {} });
 })();
 </script>
+<script src="{% static_v 'common/js/wama-new-item-card.js' %}"></script>  {# card d'entrée repliable (auto-init) #}
 <script src="{% static_v 'reader/js/reader.js' %}"></script>
 <!-- Barre globale commune (balayage permanent + ETA agrégée) : URL puis script auto-démarré. -->
 <script>window.WAMA_GLOBAL_PROGRESS_URL = "{% url 'reader:global_progress' %}";</script>
@@ -168,7 +169,7 @@ window._batchImport = WamaBatchImport({
     {% comment %}Card d'entrée COMMUNE en tête de file (upload + batch) — alignement T/D/C, 2026-07-07.
     Mêmes IDs dropZone/fileInput → handlers reader.js inchangés ; show_batch_bar inclut la barre.{% endcomment %}
     {% url 'reader:batch_template' as reader_batch_template_url %}
-    {% include 'common/_new_item_card.html' with drop_zone_id='dropZone' file_input_id='fileInput' file_accept='.pdf,.jpg,.jpeg,.png,.tiff,.tif,.webp,.bmp' formats_label='PDF · JPG · PNG · TIFF · WebP · BMP' batch_template_url=reader_batch_template_url show_batch_bar=True %}
+    {% include 'common/_new_item_card.html' with drop_zone_id='dropZone' file_input_id='fileInput' file_accept='.pdf,.jpg,.jpeg,.png,.tiff,.tif,.webp,.bmp' formats_label='PDF · JPG · PNG · TIFF · WebP · BMP' batch_template_url=reader_batch_template_url show_batch_bar=True collapsible=True %}
 
     <!-- Global progress bar -->
     {# Barre globale + ETA agrégée — brique commune (balayage bleu/vert permanent, toujours visible). #}
