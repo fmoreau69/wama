@@ -435,10 +435,11 @@ document.addEventListener('DOMContentLoaded', function () {
     const p = (schema || []).find(function (x) { return x.name === name; });
     return (p && p.help_fallback) || null;
   }
+  // Les help_fallback des schémas enhancer sont des OBJETS {description,…} → param meta.
   const mediaHelp = helpOf(window.ENHANCER_MEDIA_SCHEMA, 'ai_model');
-  if (mediaHelp) WamaModelHelp.init({ selectId: 'defaultAiModel', helpId: 'mediaModelHelp', fallback: mediaHelp });
+  if (mediaHelp) WamaModelHelp.init({ selectId: 'defaultAiModel', helpId: 'mediaModelHelp', meta: mediaHelp });
   const audioHelp = helpOf(window.ENHANCER_AUDIO_SCHEMA, 'engine');
-  if (audioHelp) WamaModelHelp.init({ selectId: 'audioEngine', helpId: 'audioEngineHelp', fallback: audioHelp });
+  if (audioHelp) WamaModelHelp.init({ selectId: 'audioEngine', helpId: 'audioEngineHelp', meta: audioHelp });
 });
 </script>
 <script>

@@ -42,8 +42,14 @@
     const fallback = cfg.fallback || {};
 
     function render() {
-      const m = meta[sel.value] || {};
-      let txt = m.description || fallback[sel.value] || '';
+      // fallback[valeur] peut être une CHAÎNE (reader, converter) ou un OBJET
+      // {description, description_long, …} (enhancer params.py) — on normalise.
+      let fb = fallback[sel.value] || '';
+      if (fb && typeof fb === 'object') { fb = fb.description || ''; }
+      const rawMeta = meta[sel.value];
+      const m = (rawMeta && typeof rawMeta === 'object') ? rawMeta
+                : (typeof fallback[sel.value] === 'object' ? fallback[sel.value] : {});
+      let txt = m.description || fb || (typeof rawMeta === 'string' ? rawMeta : '');
       const vram = m.recommended_vram_gb || m.vram_gb;
       if (txt && vram) txt += ' · ' + vram + ' Go VRAM';
 
