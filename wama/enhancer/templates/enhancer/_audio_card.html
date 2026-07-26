@@ -1,0 +1,68 @@
+{% comment %}
+Card AudioEnhancement — SOURCE UNIQUE du markup (port 2026-07-26).
+Rendue au chargement (index.html, single + fille de batch) ET par l'endpoint
+`audio_card_html` (refreshCard JS). Contexte : ae (AudioEnhancement), in_batch (bool).
+Les classes js-audio-* et data-* sont le contrat des handlers délégués de
+audio-enhancer.js — ne pas renommer sans mettre à jour le JS.
+{% endcomment %}
+<div class="synthesis-card wama-card {% if ae.status == 'RUNNING' %}processing{% elif ae.status == 'SUCCESS' %}success{% elif ae.status == 'FAILURE' %}error{% endif %}"
+     data-id="{{ ae.id }}" data-status="{{ ae.status }}">
+    <div class="row align-items-center">
+        <div class="col-md-3">
+            <button type="button" class="btn btn-link p-0 text-start preview-media-link"
+                    data-preview-url="{% url 'common:unified_preview' 'audio_enhancer' ae.id %}"
+                    style="color: #fff; text-decoration: none; font-size: 0.9rem;">
+                <i class="fas fa-microphone-alt text-success"></i>
+                {% if ae.get_input_filename %}{{ ae.get_input_filename }}{% else %}{{ ae.source_url|truncatechars:40 }}{% endif %}
+            </button>
+            {% if ae.duration %}<br><small class="text-white-50">{{ ae.duration|floatformat:1 }}s</small>{% endif %}
+        </div>
+        <div class="col-md-3">
+            <small>
+                <span class="badge bg-info audio-engine-badge">{{ ae.get_engine_display }}</span>
+                <span class="text-white-50 ms-1">{% if ae.engine == 'resemble' %}Force {{ ae.denoising_strength }} / NFE {{ ae.quality }}{% else %}Rapide{% endif %}</span>
+                <br><span class="badge bg-secondary audio-mode-badge mt-1">{{ ae.get_mode_display }}</span>
+            </small>
+        </div>
+        <div class="col-md-2">
+            {# Statut + progression + ETA + temps écoulé — brique COMMUNE #}
+            {% include 'common/_card_progress.html' with status=ae.status progress=ae.progress elapsed=ae.processing_display %}
+            {% if ae.status == 'FAILURE' and ae.error_message %}
+            <div class="text-danger small mt-1"><i class="fas fa-exclamation-triangle"></i> {{ ae.error_message|truncatechars:120 }}</div>
+            {% endif %}
+        </div>
+        <div class="col-md-4">
+            {# Ordre canonique : ⚙ ▶(cycle) ⬇ ⧉ 🗑 #}
+            <div class="btn-group-actions">
+                <button class="btn btn-sm btn-outline-secondary js-audio-settings"
+                        data-id="{{ ae.id }}" data-engine="{{ ae.engine }}"
+                        data-mode="{{ ae.mode }}" data-strength="{{ ae.denoising_strength }}"
+                        data-quality="{{ ae.quality }}" title="Paramètres">
+                    <i class="fas fa-cog"></i>
+                </button>
+                {# Bouton de cycle commun ▶/⏹/↻ — câblé par WamaCycleButton (audio-enhancer.js) #}
+                {% include 'common/_cycle_button.html' with id=ae.id status=ae.status %}
+                {% if ae.output_file %}
+                <a class="btn btn-sm btn-outline-info download-btn"
+                   href="{% url 'enhancer:audio_download' ae.id %}" title="Télécharger">
+                    <i class="fas fa-download"></i>
+                </a>
+                {% else %}
+                <button class="btn btn-sm btn-outline-info" disabled title="Télécharger">
+                    <i class="fas fa-download"></i>
+                </button>
+                {% endif %}
+                <button class="btn btn-sm btn-outline-warning duplicate-btn"
+                        data-duplicate-url="{% url 'enhancer:audio_duplicate' ae.id %}" title="Dupliquer">
+                    <i class="fas fa-copy"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-danger js-audio-delete" data-id="{{ ae.id }}" title="Supprimer">
+                    <i class="fas fa-trash-alt"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+    {% if ae.output_file and not in_batch %}
+    {% include 'common/_audio_waveform.html' with audio_url=ae.output_file.url player_id=ae.id %}
+    {% endif %}
+</div>

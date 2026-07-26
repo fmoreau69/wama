@@ -25,7 +25,7 @@ L'app garde autour : le wrapper .batch-group + le conteneur .collapse des filles
      data-batch-running="{{ batch_info.running_count }}" data-batch-failure="{{ batch_info.failure_count }}">
     <div class="row align-items-center">
         <div class="col-md-9" data-bs-toggle="collapse"
-             data-bs-target="#batchItems{{ batch_info.obj.id }}" aria-expanded="false"
+             data-bs-target="#{{ collapse_prefix|default:'batchItems' }}{{ batch_info.obj.id }}" aria-expanded="false"
              style="cursor:pointer; user-select:none;">
             <div class="row align-items-center">
                 {# Identité (≈ colonne « fichier » des filles) #}
@@ -69,11 +69,13 @@ L'app garde autour : le wrapper .batch-group + le conteneur .collapse des filles
         {# Actions batch : HORS du toggle (clics → handlers délégués .batch-*-btn) #}
         <div class="col-md-3">
             <div class="btn-group-actions">
+                {% if show_settings|default:True %}
                 <button class="btn btn-sm btn-outline-secondary batch-settings-btn py-0 px-2"
                         data-batch-id="{{ batch_info.obj.id }}"
                         title="Paramètres du batch (appliqués à tous les éléments)">
                     <i class="fas fa-cog"></i>
                 </button>
+                {% endif %}
                 {% if show_start|default:True %}
                 {# ▶ Lancer/Relancer (pos. 2, comme les cards individuelles — conventions §6) #}
                 <button class="btn btn-sm btn-outline-success batch-start-btn py-0 px-2"

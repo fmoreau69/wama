@@ -8,6 +8,14 @@ class Enhancement(ProcessingTimeMixin, models.Model):
     """
     Represents an image or video enhancement task.
     """
+    # Ingest URL déclaratif — consommé par la brique commune
+    # common/utils/source_ingest.ensure_local_input() au démarrage de la tâche.
+    WAMA_INGEST = {
+        'source': 'source_url',
+        'target': 'input_file',
+        'mode': 'media',
+    }
+
     MEDIA_TYPE_CHOICES = [
         ('image', 'Image'),
         ('video', 'Video'),
@@ -111,6 +119,13 @@ class AudioEnhancement(ProcessingTimeMixin, models.Model):
     Represents an audio speech enhancement task.
     Engines: Resemble Enhance (quality) | DeepFilterNet 3 (speed).
     """
+    # Ingest URL déclaratif (brique commune, cf. Enhancement.WAMA_INGEST).
+    WAMA_INGEST = {
+        'source': 'source_url',
+        'target': 'input_file',
+        'mode': 'audio',
+    }
+
     ENGINE_CHOICES = [
         ('resemble',      'Resemble Enhance (Recommandé — 44.1kHz)'),
         ('deepfilternet', 'DeepFilterNet 3 (Rapide — temps réel)'),

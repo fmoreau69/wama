@@ -8,89 +8,7 @@
 
 {# ── Right panel : médias ─────────────────────────────────────────────────── #}
 {% block app_right_panel_media %}
-<!-- Drop zone Image/Vidéo (visible par défaut) -->
-<div class="drop-zone drop-zone-sm mb-2" id="dropZoneEnhancer">
-    <i class="fas fa-cloud-upload-alt text-primary"></i>
-    <p class="mb-0 small text-light mt-1">Glissez ou cliquez pour importer</p>
-    <small class="text-muted">JPG, PNG, MP4, MKV…</small>
-    <input type="file" id="enhancer-file" multiple accept="image/*,video/*" style="display:none">
-    <small class="text-muted d-block mt-1">
-        Batch ?
-        <a href="{% url 'enhancer:batch_template' %}" class="text-muted" id="batchTemplateLink" download>
-            <i class="fas fa-download"></i> Template
-        </a>
-    </small>
-</div>
-{% include 'common/batch_detect_bar.html' %}
-<!-- Drop zone Audio (masquée par défaut) -->
-<div class="drop-zone drop-zone-sm mb-2 d-none" id="dropZoneAudio">
-    <i class="fas fa-microphone-alt text-success"></i>
-    <p class="mb-0 small text-light mt-1">Glissez ou cliquez pour importer</p>
-    <small class="text-muted">MP3, WAV, FLAC, OGG…</small>
-    <input type="file" id="audio-enhancer-file" multiple
-           accept=".mp3,.wav,.flac,.ogg,.m4a,.aac,.opus,.wma,audio/*" style="display:none">
-    <small class="text-muted d-block mt-1">
-        Batch ?
-        <a href="{% url 'enhancer:audio_batch_template' %}" class="text-muted" download>
-            <i class="fas fa-download"></i> Template
-        </a>
-    </small>
-</div>
-<!-- Audio Batch detect bar (appears when batch .txt file dropped on audio tab) -->
-<div id="audioBatchDetectBar" style="display:none; background:#1a1520; border:1px solid #198754; border-radius:0.375rem; padding:0.5rem 0.75rem; margin-bottom:0.5rem;">
-    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-1">
-        <span class="small text-light">
-            <i class="fas fa-list" style="color:#6ee7b7;"></i>
-            <strong>Batch audio</strong> — <span id="audioBatchDetectedCount">0</span> URL(s)
-        </span>
-        <div class="d-flex gap-1">
-            <button class="btn btn-sm py-0 px-2" style="background:#198754;color:#fff;font-size:.8rem;" id="audioBatchPreviewBtn">
-                <i class="fas fa-eye"></i> Voir
-            </button>
-            <button class="btn btn-sm btn-outline-danger py-0 px-1" id="audioBatchCancelBar" title="Annuler">
-                <i class="fas fa-times"></i>
-            </button>
-        </div>
-    </div>
-    <div id="audioBatchDetectPreview" style="display:none;">
-        <div id="audioBatchDetectWarnings" class="alert alert-warning py-1 small mb-1" style="display:none;"></div>
-        <div class="table-responsive" style="max-height:140px; overflow-y:auto;">
-            <table class="table table-sm table-dark mb-0" style="font-size:0.78rem;">
-                <thead style="position:sticky; top:0; background:#1a1520;">
-                    <tr><th>URL / Chemin</th></tr>
-                </thead>
-                <tbody id="audioBatchDetectTable"></tbody>
-            </table>
-        </div>
-        <div class="d-flex gap-2 mt-2">
-            <button class="btn btn-success btn-sm flex-grow-1" id="audioBatchCreateAndStartBtn">
-                <i class="fas fa-play"></i> Démarrer (<span id="audioBatchCreateCount">0</span>)
-            </button>
-            <button class="btn btn-outline-primary btn-sm" id="audioBatchCreateOnlyBtn">
-                <i class="fas fa-plus"></i> Ajouter
-            </button>
-        </div>
-        <div id="audioBatchCreateProgress" class="mt-2" style="display:none;">
-            <div class="progress">
-                <div class="progress-bar progress-bar-striped progress-bar-animated bg-success" style="width:100%;color:#fff;">Création…</div>
-            </div>
-        </div>
-    </div>
-</div>
-<!-- URL import (image/video only, masqué sur onglet Audio) -->
-<div id="dropZoneUrl">
-    <div class="text-center text-muted my-2" style="font-size:0.72rem;">— ou depuis une URL —</div>
-    <form id="media-url-form" method="post" action="{% url 'enhancer:upload' %}">
-        {% csrf_token %}
-        <div class="input-group input-group-sm">
-            <input type="text" class="form-control bg-dark text-white border-secondary"
-                   id="media_url" name="media_url" placeholder="https://…">
-            <button class="btn btn-primary" type="submit" title="Télécharger">
-                <i class="fas fa-download"></i>
-            </button>
-        </div>
-    </form>
-</div>
+{# Zones de dépôt déplacées en tête de file (cards d'entrée communes, port 2026-07-26). #}
 {% endblock %}
 
 {# ── Right panel : paramètres ────────────────────────────────────────────── #}
@@ -108,6 +26,8 @@
             </option>
             {% endfor %}
         </select>
+        {# Descriptif moteur — brique commune wama-model-help (fallback = MEDIA_MODEL_HELP) #}
+        <div id="mediaModelHelp" class="wama-model-help small text-muted mt-1"></div>
     </div>
     <div class="mb-3">
         <div class="form-check form-switch">
@@ -152,6 +72,8 @@
             <option value="resemble">Resemble Enhance (Recommandé)</option>
             <option value="deepfilternet">DeepFilterNet 3 (Rapide)</option>
         </select>
+        {# Descriptif moteur — brique commune wama-model-help (fallback = AUDIO_ENGINE_HELP) #}
+        <div id="audioEngineHelp" class="wama-model-help small text-muted mt-1"></div>
     </div>
 
     <div class="resemble-only">
@@ -242,15 +164,8 @@
 {% endblock %}
 
 {% block app_right_panel_actions %}
-<!-- Image/Video actions -->
-<div id="imgActions" class="d-grid gap-2">
-    {% include 'common/_queue_actions.html' with start_id='enhancer-process-btn' start_label='Démarrer' download_id='enhancer-download-all-btn' clear_id='enhancer-clear-btn' show_download=True %}
-</div>
-
-<!-- Audio actions -->
-<div id="audioActions" class="d-grid gap-2 d-none">
-    {% include 'common/_queue_actions.html' with start_id='audio-process-btn' start_label='Démarrer' download_id='audio-download-all-btn' clear_id='audio-clear-btn' show_download=True %}
-</div>
+{# Inspecteur contextuel COMMUN (hôte #inspectorActions rempli par WamaInspector) #}
+{% include 'common/_inspector_actions.html' %}
 {% endblock %}
 
 {% block enhancer_content %}
@@ -267,228 +182,36 @@
      ===================================================================== -->
 <div class="tab-pane fade show active" id="imgvideoTab" role="tabpanel" aria-labelledby="imgvideo-tab">
 
+{# Card d'entrée COMMUNE (dépôt fichier/URL/médiathèque + import batch) — port 2026-07-26 #}
+{% url 'enhancer:batch_template' as enhancer_batch_template_url %}
+{% include 'common/_new_item_card.html' with drop_zone_id='dropZoneEnhancer' file_input_id='enhancer-file' file_accept='image/*,video/*' formats_label='Images · Vidéos' show_batch_bar=True batch_template_url=enhancer_batch_template_url show_media_library=True show_url=True url_input_id='enhancerUrlInput' url_submit_id='enhancerUrlSubmit' url_placeholder='https://… (média distant, page, YouTube)' %}
+
 {# Barre globale + ETA agrégée — brique commune (balayage bleu/vert permanent, toujours visible). #}
 {% include 'common/_global_progress.html' %}
 
 <div class="row">
     <div class="col-12">
         <h4 class="mb-3"><i class="fas fa-list"></i> File d'attente — Images &amp; Vidéos</h4>
+{% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='enhancer-process-btn' clear_id='enhancer-clear-btn' download_id='enhancer-download-all-btn' show_download=True %}
         <div id="enhancer-queue" class="wama-queue-{{ card_layout|default:'list' }}">
             {% for batch_info in batches_list %}
 
             {% if batch_info.obj.total == 1 %}
             <!-- Single-item batch: render as standalone card -->
             {% for item in batch_info.items %}{% if item.enhancement %}
-            {% with e=item.enhancement %}
-            <div class="synthesis-card {% if e.status == 'RUNNING' %}processing{% elif e.status == 'SUCCESS' %}success{% elif e.status == 'FAILURE' %}error{% endif %}"
-                 data-id="{{ e.id }}" data-status="{{ e.status }}">
-                <div class="row align-items-center">
-                    <div class="col-md-3">
-                        <strong>
-                            <button type="button" class="btn btn-link p-0 text-start preview-media-link"
-                                    data-preview-url="{% url 'common:unified_preview' 'enhancer' e.id %}"
-                                    style="color: #fff; text-decoration: none; font-size: 0.9rem;">
-                                {% if e.media_type == 'image' %}<i class="fas fa-image text-info"></i>{% else %}<i class="fas fa-video text-warning"></i>{% endif %}
-                                {% if e.get_input_filename %}{{ e.get_input_filename }}{% else %}{{ e.source_url|truncatechars:40 }}{% endif %}
-                            </button>
-                        </strong>
-                        <br>
-                        <small class="text-white-50">
-                            {% if e.width %}{{ e.width }}x{{ e.height }}{% endif %}{% if e.output_width %} <i class="fas fa-arrow-right text-success"></i> {{ e.output_width }}x{{ e.output_height }}{% endif %}
-                        </small>
-                    </div>
-                    <div class="col-md-2">
-                        <small>
-                            <span class="badge bg-info">{{ e.get_ai_model_display }}</span>
-                            {% if e.denoise %}<br><span class="badge bg-primary mt-1">Débruitage</span>{% endif %}
-                            {% if e.blend_factor > 0 %}<br><span class="badge bg-secondary mt-1">Blend {{ e.blend_factor }}</span>{% endif %}
-                        </small>
-                    </div>
-                    <div class="col-md-3">
-                        <span class="status-badge badge {% if e.status == 'PENDING' %}bg-secondary{% elif e.status == 'RUNNING' %}bg-warning{% elif e.status == 'SUCCESS' %}bg-success{% elif e.status == 'FAILURE' %}bg-danger{% endif %}">
-                            {{ e.status }}
-                        </span>
-                        <div class="wama-progress-track mt-2">
-                            <div class="wama-progress-fill {% if e.status == 'RUNNING' %}active{% endif %}" style="width: {{ e.progress }}%"></div>
-                        </div>
-                        <small class="progress-text text-light">{{ e.progress }}%</small>
-                        <span class="wama-eta d-block"></span>
-                        {% include 'common/_processing_time.html' with elapsed=e.processing_display %}
-                    </div>
-                    <div class="col-md-4">
-                        <div class="btn-group-actions">
-                            <button class="btn btn-sm btn-outline-secondary js-open-settings"
-                                    data-id="{{ e.id }}"
-                                    data-ai-model="{{ e.ai_model }}"
-                                    data-denoise="{{ e.denoise|lower }}"
-                                    data-blend-factor="{{ e.blend_factor }}"
-                                    title="Paramètres">
-                                <i class="fas fa-cog"></i>
-                            </button>
-                            {% if e.status == 'RUNNING' %}
-                            <button class="btn btn-sm btn-secondary action-btn" disabled>
-                                <i class="fas fa-spinner fa-spin"></i>
-                            </button>
-                            {% elif e.status == 'SUCCESS' or e.status == 'FAILURE' %}
-                            <button class="btn btn-sm btn-outline-success js-restart-enhancement action-btn"
-                                    data-id="{{ e.id }}" title="Relancer">
-                                <i class="fas fa-redo"></i>
-                            </button>
-                            {% else %}
-                            <button class="btn btn-sm btn-outline-success js-restart-enhancement action-btn"
-                                    data-id="{{ e.id }}" title="Lancer">
-                                <i class="fas fa-play"></i>
-                            </button>
-                            {% endif %}
-                            {% if e.output_file %}
-                            <a class="btn btn-sm btn-outline-info download-btn"
-                               href="{% url 'enhancer:download' e.id %}" title="Télécharger">
-                                <i class="fas fa-download"></i>
-                            </a>
-                            {% endif %}
-                            <button class="btn btn-sm btn-outline-warning duplicate-btn"
-                                    data-duplicate-url="{% url 'enhancer:duplicate' e.id %}"
-                                    title="Dupliquer">
-                                <i class="fas fa-copy"></i>
-                            </button>
-                            <button class="btn btn-sm btn-outline-danger js-delete-enhancement"
-                                    data-delete-url="{% url 'enhancer:delete' e.id %}"
-                                    title="Supprimer">
-                                <i class="fas fa-trash-alt"></i>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            {% endwith %}
+            {% include 'enhancer/_enhancement_card.html' with e=item.enhancement in_batch=False %}
             {% endif %}{% endfor %}
 
             {% else %}
             <!-- Multi-item batch: collapsible group -->
             <div class="batch-group mb-2" data-batch-id="{{ batch_info.obj.id }}">
-                <div class="batch-group-header d-flex align-items-center gap-2 p-2"
-                     style="background:#0d1a2a; border:1px solid #0dcaf0; border-radius:0.375rem;">
-                    <div class="d-flex align-items-center gap-2 flex-grow-1"
-                         style="cursor:pointer; user-select:none; min-width:0;"
-                         data-bs-toggle="collapse"
-                         data-bs-target="#batchItems{{ batch_info.obj.id }}"
-                         aria-expanded="false">
-                        <i class="fas fa-layer-group" style="color:#67e8f9;"></i>
-                        <strong class="text-light">Batch #{{ batch_info.obj.id }}</strong>
-                        <small class="text-muted">{{ batch_info.obj.created_at|date:"d/m H:i" }}</small>
-                        <span class="badge bg-secondary">{{ batch_info.success_count }}/{{ batch_info.obj.total }}</span>
-                        <span class="wama-eta" data-eta-ids="{% for item in batch_info.items %}{% if item.enhancement %}{{ item.enhancement.id }},{% endif %}{% endfor %}"></span>
-                        <div class="flex-grow-1">
-                            <div class="wama-progress-track">
-                                <div class="wama-progress-fill" style="width:{{ batch_info.success_pct }}%;"></div>
-                            </div>
-                        </div>
-                        <i class="fas fa-chevron-down text-muted" style="font-size:.7rem;"></i>
-                    </div>
-                    <div class="d-flex gap-1 flex-shrink-0">
-                        <button class="btn btn-sm batch-start-btn py-0 px-2"
-                                data-batch-id="{{ batch_info.obj.id }}"
-                                style="background:rgba(13,202,240,0.15); color:#0dcaf0; border:1px solid #0dcaf0; font-size:.75rem;"
-                                title="Démarrer le batch">
-                            <i class="fas fa-play"></i>
-                        </button>
-                        {% if batch_info.has_success %}
-                        <a href="{% url 'enhancer:batch_download' batch_info.obj.id %}"
-                           class="btn btn-sm btn-outline-info py-0 px-2" style="font-size:.75rem;" title="Télécharger ZIP">
-                            <i class="fas fa-download"></i> ZIP
-                        </a>
-                        {% endif %}
-                        <button class="btn btn-sm batch-settings-btn py-0 px-2"
-                                data-batch-id="{{ batch_info.obj.id }}"
-                                style="background:rgba(13,202,240,0.15); color:#0dcaf0; border:1px solid #0dcaf0; font-size:.75rem;"
-                                title="Paramètres du batch (appliqués à tous les éléments)">
-                            <i class="fas fa-cog"></i>
-                        </button>
-                        <button class="btn btn-sm batch-duplicate-btn py-0 px-2"
-                                data-batch-id="{{ batch_info.obj.id }}"
-                                style="background:rgba(13,202,240,0.15); color:#0dcaf0; border:1px solid #0dcaf0; font-size:.75rem;"
-                                title="Dupliquer le batch">
-                            <i class="fas fa-copy"></i>
-                        </button>
-                        <button class="btn btn-sm btn-outline-danger batch-delete-btn py-0 px-2"
-                                data-batch-id="{{ batch_info.obj.id }}"
-                                style="font-size:.75rem;" title="Supprimer le batch">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    </div>
-                </div>
+                {% url 'enhancer:batch_download' batch_info.obj.id as batch_dl_url %}
+                {% include 'common/_batch_card.html' with eta_ids=batch_info.eta_ids download_url=batch_dl_url %}
                 <div class="collapse" id="batchItems{{ batch_info.obj.id }}"
                      data-wama-batch-key="enhancer_{{ batch_info.obj.id }}"
                      style="border-left:2px solid #0dcaf0; margin-left:0.75rem;">
                     {% for item in batch_info.items %}{% if item.enhancement %}
-                    {% with e=item.enhancement %}
-                    <div class="synthesis-card {% if e.status == 'RUNNING' %}processing{% elif e.status == 'SUCCESS' %}success{% elif e.status == 'FAILURE' %}error{% endif %}"
-                         data-id="{{ e.id }}" data-status="{{ e.status }}">
-                        <div class="row align-items-center">
-                            <div class="col-md-3">
-                                <strong>
-                                    {% if e.media_type == 'image' %}<i class="fas fa-image text-info"></i>{% else %}<i class="fas fa-video text-warning"></i>{% endif %}
-                                    <span style="font-size:0.85rem;">
-                                        {% if e.get_input_filename %}{{ e.get_input_filename }}{% else %}{{ e.source_url|truncatechars:40 }}{% endif %}
-                                    </span>
-                                </strong>
-                                <br>
-                                <small class="text-white-50">
-                                    {% if e.width %}{{ e.width }}x{{ e.height }}{% endif %}{% if e.output_width %} → {{ e.output_width }}x{{ e.output_height }}{% endif %}
-                                </small>
-                            </div>
-                            <div class="col-md-2">
-                                <small><span class="badge bg-info">{{ e.get_ai_model_display }}</span></small>
-                            </div>
-                            <div class="col-md-3">
-                                <span class="status-badge badge {% if e.status == 'PENDING' %}bg-secondary{% elif e.status == 'RUNNING' %}bg-warning{% elif e.status == 'SUCCESS' %}bg-success{% elif e.status == 'FAILURE' %}bg-danger{% endif %}">
-                                    {{ e.status }}
-                                </span>
-                                <div class="wama-progress-track mt-1">
-                                    <div class="wama-progress-fill {% if e.status == 'RUNNING' %}active{% endif %}" style="width: {{ e.progress }}%"></div>
-                                </div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="btn-group-actions">
-                                    <button class="btn btn-sm btn-outline-secondary js-open-settings"
-                                            data-id="{{ e.id }}"
-                                            data-ai-model="{{ e.ai_model }}"
-                                            data-denoise="{{ e.denoise|lower }}"
-                                            data-blend-factor="{{ e.blend_factor }}"
-                                            title="Paramètres">
-                                        <i class="fas fa-cog"></i>
-                                    </button>
-                                    {% if e.status != 'RUNNING' %}
-                                    <button class="btn btn-sm btn-outline-success js-restart-enhancement action-btn"
-                                            data-id="{{ e.id }}" title="Lancer">
-                                        <i class="fas fa-play"></i>
-                                    </button>
-                                    {% else %}
-                                    <button class="btn btn-sm btn-secondary action-btn" disabled>
-                                        <i class="fas fa-spinner fa-spin"></i>
-                                    </button>
-                                    {% endif %}
-                                    {% if e.output_file %}
-                                    <a class="btn btn-sm btn-outline-info download-btn"
-                                       href="{% url 'enhancer:download' e.id %}" title="Télécharger">
-                                        <i class="fas fa-download"></i>
-                                    </a>
-                                    {% endif %}
-                                    <button class="btn btn-sm btn-outline-warning duplicate-btn"
-                                            data-duplicate-url="{% url 'enhancer:duplicate' e.id %}"
-                                            title="Dupliquer dans le batch">
-                                        <i class="fas fa-copy"></i>
-                                    </button>
-                                    <button class="btn btn-sm btn-outline-danger js-delete-enhancement"
-                                            data-delete-url="{% url 'enhancer:delete' e.id %}"
-                                            title="Supprimer">
-                                        <i class="fas fa-trash-alt"></i>
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    {% endwith %}
+                    {% include 'enhancer/_enhancement_card.html' with e=item.enhancement in_batch=True %}
                     {% endif %}{% endfor %}
                 </div>
             </div>
@@ -508,6 +231,9 @@
      ===================================================================== -->
 <div class="tab-pane fade" id="audioTab" role="tabpanel" aria-labelledby="audio-tab">
 
+{# Card d'entrée COMMUNE audio (dépôt fichier/médiathèque + barre batch audio spécifique) #}
+{% include 'common/_new_item_card.html' with drop_zone_id='dropZoneAudio' file_input_id='audio-enhancer-file' file_accept='audio/*' formats_label='Audio — WAV, MP3, FLAC, M4A…' show_media_library=True media_library_type='audio' extra_zone_template='enhancer/_audio_batch_bar.html' %}
+
 <div id="audioGlobalStatus" style="opacity:0; pointer-events:none;">
     <div class="d-flex justify-content-between align-items-baseline mb-1">
         <small class="text-muted" id="audioGlobalProgressStats"></small>
@@ -522,158 +248,26 @@
 <div class="row">
     <div class="col-12">
         <h4 class="mb-3"><i class="fas fa-headphones"></i> File d'attente — Audio</h4>
-        <div id="audio-enhancer-queue">
+{% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='audio-process-btn' clear_id='audio-clear-btn' download_id='audio-download-all-btn' show_download=True %}
+        <div id="audio-enhancer-queue" class="wama-queue-{{ card_layout|default:'list' }}">
             {% for batch_info in audio_batches_list %}
 
             {% if batch_info.obj.total == 1 %}
             <!-- Single-item audio batch: render as standalone card -->
             {% for item in batch_info.items %}{% if item.audio_enhancement %}
-            {% with ae=item.audio_enhancement %}
-            <div class="synthesis-card {% if ae.status == 'RUNNING' %}processing{% elif ae.status == 'SUCCESS' %}success{% elif ae.status == 'FAILURE' %}error{% endif %}"
-                 data-id="{{ ae.id }}" data-status="{{ ae.status }}">
-                <div class="row align-items-center">
-                    <div class="col-md-3">
-                        <button type="button" class="btn btn-link p-0 text-start preview-media-link"
-                                data-preview-url="{% url 'common:unified_preview' 'audio_enhancer' ae.id %}"
-                                style="color: #fff; text-decoration: none; font-size: 0.9rem;">
-                            <i class="fas fa-microphone-alt text-success"></i>
-                            {% if ae.get_input_filename %}{{ ae.get_input_filename }}{% else %}{{ ae.source_url|truncatechars:40 }}{% endif %}
-                        </button>
-                        {% if ae.duration %}<br><small class="text-white-50">{{ ae.duration|floatformat:1 }}s</small>{% endif %}
-                    </div>
-                    <div class="col-md-3">
-                        <small>
-                            <span class="badge bg-info audio-engine-badge">{{ ae.get_engine_display }}</span>
-                            <span class="text-white-50 ms-1">{% if ae.engine == 'resemble' %}Force {{ ae.denoising_strength }} / NFE {{ ae.quality }}{% else %}Rapide{% endif %}</span>
-                            <br><span class="badge bg-secondary audio-mode-badge mt-1">{{ ae.get_mode_display }}</span>
-                        </small>
-                    </div>
-                    <div class="col-md-2">
-                        <span class="status-badge badge {% if ae.status == 'PENDING' %}bg-secondary{% elif ae.status == 'RUNNING' %}bg-warning{% elif ae.status == 'SUCCESS' %}bg-success{% elif ae.status == 'FAILURE' %}bg-danger{% endif %}">{{ ae.status }}</span>
-                        <div class="wama-progress-track mt-2"><div class="wama-progress-fill {% if ae.status == 'RUNNING' %}active{% endif %}" style="width: {{ ae.progress }}%"></div></div>
-                        <small class="progress-text text-light">{{ ae.progress }}%</small>
-                        {% include 'common/_processing_time.html' with elapsed=ae.processing_display %}
-                    </div>
-                    <div class="col-md-4">
-                        <div class="btn-group-actions">
-                            <button class="btn btn-sm btn-outline-secondary js-audio-settings"
-                                    data-id="{{ ae.id }}" data-engine="{{ ae.engine }}"
-                                    data-mode="{{ ae.mode }}" data-strength="{{ ae.denoising_strength }}"
-                                    data-quality="{{ ae.quality }}" title="Paramètres">
-                                <i class="fas fa-cog"></i>
-                            </button>
-                            {% if ae.status == 'RUNNING' %}
-                            <button class="btn btn-sm btn-secondary action-btn" disabled><i class="fas fa-spinner fa-spin"></i></button>
-                            {% elif ae.status == 'SUCCESS' or ae.status == 'FAILURE' %}
-                            <button class="btn btn-sm btn-outline-success js-audio-start action-btn" data-id="{{ ae.id }}" title="Relancer"><i class="fas fa-redo"></i></button>
-                            {% else %}
-                            <button class="btn btn-sm btn-outline-success js-audio-start action-btn" data-id="{{ ae.id }}" title="Lancer"><i class="fas fa-play"></i></button>
-                            {% endif %}
-                            {% if ae.output_file %}
-                            <a class="btn btn-sm btn-success" href="{% url 'enhancer:audio_download' ae.id %}" title="Télécharger"><i class="fas fa-download"></i></a>
-                            {% endif %}
-                            <button class="btn btn-sm btn-outline-warning duplicate-btn"
-                                    data-duplicate-url="{% url 'enhancer:audio_duplicate' ae.id %}" title="Dupliquer">
-                                <i class="fas fa-copy"></i>
-                            </button>
-                            <button class="btn btn-sm btn-outline-danger js-audio-delete" data-id="{{ ae.id }}" title="Supprimer"><i class="fas fa-trash-alt"></i></button>
-                        </div>
-                    </div>
-                </div>
-            {% if ae.output_file %}
-            {% include 'common/_audio_waveform.html' with audio_url=ae.output_file.url player_id=ae.id %}
-            {% endif %}
-            </div>
-            {% endwith %}
+            {% include 'enhancer/_audio_card.html' with ae=item.audio_enhancement in_batch=False %}
             {% endif %}{% endfor %}
 
             {% else %}
             <!-- Multi-item audio batch: collapsible group -->
             <div class="batch-group mb-2" data-batch-id="{{ batch_info.obj.id }}">
-                <div class="batch-group-header d-flex align-items-center gap-2 p-2"
-                     style="background:#0d1a12; border:1px solid #198754; border-radius:0.375rem;">
-                    <div class="d-flex align-items-center gap-2 flex-grow-1"
-                         style="cursor:pointer; user-select:none; min-width:0;"
-                         data-bs-toggle="collapse"
-                         data-bs-target="#audioBatchItems{{ batch_info.obj.id }}"
-                         aria-expanded="false">
-                        <i class="fas fa-layer-group" style="color:#6ee7b7;"></i>
-                        <strong class="text-light">Batch audio #{{ batch_info.obj.id }}</strong>
-                        <small class="text-muted">{{ batch_info.obj.created_at|date:"d/m H:i" }}</small>
-                        <span class="badge bg-secondary">{{ batch_info.success_count }}/{{ batch_info.obj.total }}</span>
-                        <span class="wama-eta" data-eta-ids="{% for item in batch_info.items %}{% if item.enhancement %}{{ item.enhancement.id }},{% endif %}{% endfor %}"></span>
-                        <div class="flex-grow-1">
-                            <div class="wama-progress-track">
-                                <div class="wama-progress-fill" style="width:{{ batch_info.success_pct }}%;"></div>
-                            </div>
-                        </div>
-                        <i class="fas fa-chevron-down text-muted" style="font-size:.7rem;"></i>
-                    </div>
-                    <div class="d-flex gap-1 flex-shrink-0">
-                        <button class="btn btn-sm audio-batch-start-btn py-0 px-2"
-                                data-batch-id="{{ batch_info.obj.id }}"
-                                style="background:rgba(25,135,84,0.15); color:#198754; border:1px solid #198754; font-size:.75rem;"
-                                title="Démarrer le batch">
-                            <i class="fas fa-play"></i>
-                        </button>
-                        {% if batch_info.has_success %}
-                        <a href="{% url 'enhancer:audio_batch_download' batch_info.obj.id %}"
-                           class="btn btn-sm btn-outline-success py-0 px-2" style="font-size:.75rem;" title="Télécharger ZIP">
-                            <i class="fas fa-download"></i> ZIP
-                        </a>
-                        {% endif %}
-                        <button class="btn btn-sm audio-batch-duplicate-btn py-0 px-2"
-                                data-batch-id="{{ batch_info.obj.id }}"
-                                style="background:rgba(25,135,84,0.15); color:#198754; border:1px solid #198754; font-size:.75rem;"
-                                title="Dupliquer le batch">
-                            <i class="fas fa-copy"></i>
-                        </button>
-                        <button class="btn btn-sm btn-outline-danger audio-batch-delete-btn py-0 px-2"
-                                data-batch-id="{{ batch_info.obj.id }}"
-                                style="font-size:.75rem;" title="Supprimer le batch">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    </div>
-                </div>
+                {% url 'enhancer:audio_batch_download' batch_info.obj.id as audio_batch_dl_url %}
+                {% include 'common/_batch_card.html' with collapse_prefix='audioBatchItems' eta_ids=batch_info.eta_ids show_settings=False download_url=audio_batch_dl_url %}
                 <div class="collapse" id="audioBatchItems{{ batch_info.obj.id }}"
                      data-wama-batch-key="enhancer_audio_{{ batch_info.obj.id }}"
                      style="border-left:2px solid #198754; margin-left:0.75rem;">
                     {% for item in batch_info.items %}{% if item.audio_enhancement %}
-                    {% with ae=item.audio_enhancement %}
-                    <div class="synthesis-card {% if ae.status == 'RUNNING' %}processing{% elif ae.status == 'SUCCESS' %}success{% elif ae.status == 'FAILURE' %}error{% endif %}"
-                         data-id="{{ ae.id }}" data-status="{{ ae.status }}">
-                        <div class="row align-items-center">
-                            <div class="col-md-3">
-                                <i class="fas fa-microphone-alt text-success"></i>
-                                <span style="font-size:0.85rem;">
-                                    {% if ae.get_input_filename %}{{ ae.get_input_filename }}{% else %}{{ ae.source_url|truncatechars:40 }}{% endif %}
-                                </span>
-                                {% if ae.duration %}<br><small class="text-white-50">{{ ae.duration|floatformat:1 }}s</small>{% endif %}
-                            </div>
-                            <div class="col-md-3">
-                                <small><span class="badge bg-info audio-engine-badge">{{ ae.get_engine_display }}</span><br>
-                                <span class="badge bg-secondary audio-mode-badge mt-1">{{ ae.get_mode_display }}</span></small>
-                            </div>
-                            <div class="col-md-2">
-                                <span class="status-badge badge {% if ae.status == 'PENDING' %}bg-secondary{% elif ae.status == 'RUNNING' %}bg-warning{% elif ae.status == 'SUCCESS' %}bg-success{% elif ae.status == 'FAILURE' %}bg-danger{% endif %}">{{ ae.status }}</span>
-                                <div class="wama-progress-track mt-1"><div class="wama-progress-fill {% if ae.status == 'RUNNING' %}active{% endif %}" style="width: {{ ae.progress }}%"></div></div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="btn-group-actions">
-                                    {% if ae.status != 'RUNNING' %}
-                                    <button class="btn btn-sm btn-outline-success js-audio-start action-btn" data-id="{{ ae.id }}" title="Lancer"><i class="fas fa-play"></i></button>
-                                    {% else %}
-                                    <button class="btn btn-sm btn-secondary action-btn" disabled><i class="fas fa-spinner fa-spin"></i></button>
-                                    {% endif %}
-                                    {% if ae.output_file %}
-                                    <a class="btn btn-sm btn-success" href="{% url 'enhancer:audio_download' ae.id %}" title="Télécharger"><i class="fas fa-download"></i></a>
-                                    {% endif %}
-                                    <button class="btn btn-sm btn-outline-danger js-audio-delete" data-id="{{ ae.id }}" title="Supprimer"><i class="fas fa-trash-alt"></i></button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    {% endwith %}
+                    {% include 'enhancer/_audio_card.html' with ae=item.audio_enhancement in_batch=True %}
                     {% endif %}{% endfor %}
                 </div>
             </div>
@@ -702,6 +296,7 @@
       consolidateUrl: '{% url "enhancer:consolidate" %}',
       startUrlTemplate: '{% url "enhancer:start" 0 %}',
       progressUrlTemplate: '{% url "enhancer:progress" 0 %}',
+      cardHtmlUrlTemplate: '{% url "enhancer:card_html" 0 %}',
       deleteUrlTemplate: '{% url "enhancer:delete" 0 %}',
       downloadUrlTemplate: '{% url "enhancer:download" 0 %}',
       updateSettingsUrlTemplate: '{% url "enhancer:update_settings" 0 %}',
@@ -727,6 +322,7 @@
       audioConsolidateUrl: '{% url "enhancer:audio_consolidate" %}',
       audioStartUrlTemplate: '{% url "enhancer:audio_start" 0 %}',
       audioProgressUrlTemplate: '{% url "enhancer:audio_progress" 0 %}',
+      audioCardHtmlUrlTemplate: '{% url "enhancer:audio_card_html" 0 %}',
       audioDeleteUrlTemplate: '{% url "enhancer:audio_delete" 0 %}',
       audioDownloadUrlTemplate: '{% url "enhancer:audio_download" 0 %}',
       audioStartAllUrl: '{% url "enhancer:audio_start_all" %}',
@@ -821,6 +417,29 @@
 // comme l'app de référence Transcriber. Une seule source pour volet + modale.
 window.ENHANCER_MEDIA_SCHEMA = {{ media_params_json|safe }};
 window.ENHANCER_AUDIO_SCHEMA = {{ audio_params_json|safe }};
+</script>
+{# Pieds de modale COMMUNS (_settings_modal_footer) — gabarits clonés par les
+   modales générées en JS (un par domaine, data-id posé au clonage). #}
+<template id="mediaSettingsFooterTpl">
+    {% include 'common/_settings_modal_footer.html' with save_class='save-settings-btn' save_label='Sauvegarder' save_start_class='save-and-restart-btn' save_start_label='Sauvegarder et relancer' %}
+</template>
+<template id="audioSettingsFooterTpl">
+    {% include 'common/_settings_modal_footer.html' with save_class='modal-audio-save' save_label='Sauvegarder' save_start_class='modal-audio-save-start' save_start_label='Sauvegarder et lancer' %}
+</template>
+<script>
+// Descriptif moteur sous les selects du volet — brique COMMUNE WamaModelHelp,
+// fallback = help_fallback des schémas déclaratifs (params.py, métadonnée-driven).
+document.addEventListener('DOMContentLoaded', function () {
+  if (!window.WamaModelHelp) return;
+  function helpOf(schema, name) {
+    const p = (schema || []).find(function (x) { return x.name === name; });
+    return (p && p.help_fallback) || null;
+  }
+  const mediaHelp = helpOf(window.ENHANCER_MEDIA_SCHEMA, 'ai_model');
+  if (mediaHelp) WamaModelHelp.init({ selectId: 'defaultAiModel', helpId: 'mediaModelHelp', fallback: mediaHelp });
+  const audioHelp = helpOf(window.ENHANCER_AUDIO_SCHEMA, 'engine');
+  if (audioHelp) WamaModelHelp.init({ selectId: 'audioEngine', helpId: 'audioEngineHelp', fallback: audioHelp });
+});
 </script>
 <script>
 // Onglets de DOMAINE via WamaModes (brique commune). renderInputs=false : WamaModes rend juste les

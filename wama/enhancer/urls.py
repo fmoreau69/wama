@@ -20,6 +20,15 @@ urlpatterns = [
     path('batch/<int:pk>/update/', views.batch_update, name='batch_update'),
     path('console/', views.console_content, name='console'),
     path('global_progress/', views.global_progress, name='global_progress'),
+    # Card = partial serveur unique
+    path('card/<int:pk>/html/', views.card_html, name='card_html'),
+    # Aide / À-propos
+    path('about/', views.AboutView.as_view(), name='about'),
+    path('help/', views.HelpView.as_view(), name='help'),
+    # Manipulation directe de la file (fabrique commune, variante liaison)
+    path('reorder/', views.reorder, name='reorder'),
+    path('move-to-batch/<int:pk>/', views.move_to_batch, name='move_to_batch'),
+    path('remove-from-batch/<int:pk>/', views.remove_from_batch, name='remove_from_batch'),
     # Batch enhancement (image/video)
     path('batch/template/', views.batch_template, name='batch_template'),
     path('batch/preview/', views.batch_preview, name='batch_preview'),
@@ -44,6 +53,10 @@ urlpatterns = [
     path('audio/clear_all/', views.audio_clear_all, name='audio_clear_all'),
     path('audio/download_all/', views.audio_download_all, name='audio_download_all'),
     path('audio/global_progress/', views.audio_global_progress, name='audio_global_progress'),
+    path('audio/card/<int:pk>/html/', views.audio_card_html, name='audio_card_html'),
+    path('audio/reorder/', views.audio_reorder, name='audio_reorder'),
+    path('audio/move-to-batch/<int:pk>/', views.audio_move_to_batch, name='audio_move_to_batch'),
+    path('audio/remove-from-batch/<int:pk>/', views.audio_remove_from_batch, name='audio_remove_from_batch'),
     # Audio batch
     path('audio/batch/template/', views.audio_batch_template, name='audio_batch_template'),
     path('audio/batch/preview/', views.audio_batch_preview, name='audio_batch_preview'),

@@ -1,0 +1,75 @@
+{% comment %}
+Card Enhancement (média image/vidéo) — SOURCE UNIQUE du markup (port 2026-07-26).
+Rendue au chargement (index.html, single + fille de batch) ET par l'endpoint
+`card_html` (refreshCard JS). Contexte : e (Enhancement), in_batch (bool).
+Les classes js-* et data-* sont le contrat des handlers délégués de index.js —
+ne pas renommer sans mettre à jour le JS.
+{% endcomment %}
+<div class="synthesis-card wama-card {% if e.status == 'RUNNING' %}processing{% elif e.status == 'SUCCESS' %}success{% elif e.status == 'FAILURE' %}error{% endif %}"
+     data-id="{{ e.id }}" data-status="{{ e.status }}">
+    <div class="row align-items-center">
+        <div class="col-md-3">
+            <strong>
+                <button type="button" class="btn btn-link p-0 text-start preview-media-link"
+                        data-preview-url="{% url 'common:unified_preview' 'enhancer' e.id %}"
+                        style="color: #fff; text-decoration: none; font-size: 0.9rem;">
+                    {% if e.media_type == 'image' %}<i class="fas fa-image text-info"></i>{% else %}<i class="fas fa-video text-warning"></i>{% endif %}
+                    {% if e.get_input_filename %}{{ e.get_input_filename }}{% else %}{{ e.source_url|truncatechars:40 }}{% endif %}
+                </button>
+            </strong>
+            <br>
+            <small class="text-white-50">
+                {% if e.width %}{{ e.width }}x{{ e.height }}{% endif %}{% if e.output_width %} <i class="fas fa-arrow-right text-success"></i> {{ e.output_width }}x{{ e.output_height }}{% endif %}
+            </small>
+        </div>
+        <div class="col-md-2">
+            <small>
+                <span class="badge bg-info">{{ e.get_ai_model_display }}</span>
+                {% if e.denoise %}<br><span class="badge bg-primary mt-1">Débruitage</span>{% endif %}
+                {% if e.blend_factor > 0 %}<br><span class="badge bg-secondary mt-1">Blend {{ e.blend_factor }}</span>{% endif %}
+            </small>
+        </div>
+        <div class="col-md-3">
+            {# Statut + progression + ETA + temps écoulé — brique COMMUNE #}
+            {% include 'common/_card_progress.html' with status=e.status progress=e.progress elapsed=e.processing_display %}
+            {% if e.status == 'FAILURE' and e.error_message %}
+            <div class="text-danger small mt-1"><i class="fas fa-exclamation-triangle"></i> {{ e.error_message|truncatechars:120 }}</div>
+            {% endif %}
+        </div>
+        <div class="col-md-4">
+            {# Ordre canonique : ⚙ ▶(cycle) ⬇ ⧉ 🗑 #}
+            <div class="btn-group-actions">
+                <button class="btn btn-sm btn-outline-secondary js-open-settings"
+                        data-id="{{ e.id }}"
+                        data-ai-model="{{ e.ai_model }}"
+                        data-denoise="{{ e.denoise|lower }}"
+                        data-blend-factor="{{ e.blend_factor }}"
+                        title="Paramètres">
+                    <i class="fas fa-cog"></i>
+                </button>
+                {# Bouton de cycle commun ▶/⏹/↻ — câblé par WamaCycleButton (index.js) #}
+                {% include 'common/_cycle_button.html' with id=e.id status=e.status %}
+                {% if e.output_file %}
+                <a class="btn btn-sm btn-outline-info download-btn"
+                   href="{% url 'enhancer:download' e.id %}" title="Télécharger">
+                    <i class="fas fa-download"></i>
+                </a>
+                {% else %}
+                <button class="btn btn-sm btn-outline-info" disabled title="Télécharger">
+                    <i class="fas fa-download"></i>
+                </button>
+                {% endif %}
+                <button class="btn btn-sm btn-outline-warning duplicate-btn"
+                        data-duplicate-url="{% url 'enhancer:duplicate' e.id %}"
+                        title="{% if in_batch %}Dupliquer dans le batch{% else %}Dupliquer{% endif %}">
+                    <i class="fas fa-copy"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-danger js-delete-enhancement"
+                        data-delete-url="{% url 'enhancer:delete' e.id %}"
+                        title="Supprimer">
+                    <i class="fas fa-trash-alt"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>

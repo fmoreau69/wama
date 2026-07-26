@@ -69,7 +69,7 @@ document.addEventListener('DOMContentLoaded', function () {
       appendAudioRow(data);
       return data.id || null;
     } catch (err) {
-      alert('Erreur upload audio: ' + err.message);
+      WamaApp.toast('Erreur upload audio: ' + err.message);
       return null;
     }
   }
@@ -144,7 +144,7 @@ document.addEventListener('DOMContentLoaded', function () {
         return AUDIO_BATCH_EXTS.includes(ext) || /\.(mp3|wav|flac|ogg|m4a|aac|opus|wma)$/i.test(f.name);
       });
       if (files.length === 0) {
-        alert('Formats acceptés : MP3, WAV, FLAC, OGG, M4A, AAC, OPUS, WMA (ou fichier batch .txt/.csv/.md)');
+        WamaApp.toast('Formats acceptés : MP3, WAV, FLAC, OGG, M4A, AAC, OPUS, WMA (ou fichier batch .txt/.csv/.md)');
         return;
       }
       handleAudioFiles(files);
@@ -228,7 +228,7 @@ document.addEventListener('DOMContentLoaded', function () {
     try {
       const resp = await fetch(cfg.audioBatchCreateUrl, { method: 'POST', headers: csrfHeaders(), body: fd });
       const data = await resp.json();
-      if (!resp.ok) { alert(data.error || 'Erreur création batch'); return; }
+      if (!resp.ok) { WamaApp.toast(data.error || 'Erreur création batch'); return; }
       if (autoStart && data.batch_id) {
         const startUrl = cfg.audioBatchStartUrlTemplate.replace('/0/', `/${data.batch_id}/`);
         const engine = document.getElementById('audioEngine')?.value || 'resemble';
@@ -244,7 +244,7 @@ document.addEventListener('DOMContentLoaded', function () {
       _hideAudioBatchBar();
       setTimeout(() => location.reload(), 600);
     } catch (e) {
-      alert('Erreur lors de la création du batch audio');
+      WamaApp.toast('Erreur lors de la création du batch audio');
     } finally {
       if (progress) progress.style.display = 'none';
       if (btnStart) btnStart.disabled = false;
@@ -283,155 +283,77 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // ── Queue row management ──────────────────────────────────────────────────
 
-  function appendAudioRow(data) {
+  async function appendAudioRow(data) {
     const container = document.getElementById('audio-enhancer-queue');
     if (!container) return;
 
     const empty = container.querySelector('.empty-state');
     if (empty) empty.remove();
 
-    const durationStr = data.duration
-      ? (data.duration >= 60
-          ? Math.floor(data.duration / 60) + 'min ' + Math.round(data.duration % 60) + 's'
-          : data.duration.toFixed(1) + 's')
-      : '—';
-
-    const card = document.createElement('div');
-    card.className = 'synthesis-card';
-    card.dataset.id = data.id;
-    card.dataset.status = data.status || 'PENDING';
-    card.innerHTML = `
-      <div class="row align-items-center">
-        <div class="col-md-3">
-          <button type="button" class="btn btn-link p-0 text-start preview-media-link"
-                  data-preview-url="/common/preview/audio_enhancer/${data.id}/"
-                  style="color: #fff; text-decoration: none; font-size: 0.9rem;">
-            <i class="fas fa-microphone-alt text-success"></i> ${escHtml(data.input_filename || '')}
-          </button>
-          <br>
-          <small class="text-white-50">${durationStr}</small>
-        </div>
-        <div class="col-md-3">
-          <small>
-            <span class="badge bg-info audio-engine-badge">—</span>
-            <span class="text-white-50 ms-1 properties-text">—</span>
-            <br>
-            <span class="badge bg-secondary audio-mode-badge mt-1">—</span>
-          </small>
-        </div>
-        <div class="col-md-2">
-          <span class="status-badge badge bg-secondary">PENDING</span>
-          <div class="progress-bar-custom mt-2">
-            <div class="progress-fill" style="width: 0%"></div>
-          </div>
-          <small class="progress-text text-light">0%</small>
-          <small class="wama-eta text-white-50 ms-1"></small>
-        </div>
-        <div class="col-md-4">
-          <div class="btn-group-actions">
-            <button class="btn btn-sm btn-secondary js-audio-settings"
-                    data-id="${data.id}"
-                    data-engine="resemble" data-mode="both"
-                    data-strength="0.5" data-quality="64"
-                    title="Paramètres">
-              <i class="fas fa-cog"></i>
-            </button>
-            ${window.WamaCycleButton ? WamaCycleButton.html(data.status || 'PENDING', data.id) : `<button class="btn btn-sm btn-outline-success js-audio-start action-btn" data-id="${data.id}" title="Lancer"><i class="fas fa-play"></i></button>`}
-            <button class="btn btn-sm btn-danger js-audio-delete action-delete"
-                    data-id="${data.id}" title="Supprimer">
-              <i class="fas fa-trash-alt"></i>
-            </button>
-          </div>
-        </div>
-      </div>
-    `;
-    container.appendChild(card);
-
-    if (typeof window.initMediaPreview === 'function') {
-      window.initMediaPreview();
+    // Card = rendu SERVEUR (plus de markup construit côté JS).
+    try {
+      const resp = await fetch(getUrl(cfg.audioCardHtmlUrlTemplate, data.id));
+      if (!resp.ok) throw new Error(resp.status);
+      const tpl = document.createElement('template');
+      tpl.innerHTML = (await resp.text()).trim();
+      const card = tpl.content.firstElementChild;
+      container.prepend(card);
+      createAudioSettingsModal(data.id, data.engine, data.mode, data.denoising_strength, data.quality);
+      if (typeof initMediaPreview === 'function') initMediaPreview();
+    } catch (_) {
+      location.reload();   // repli : le rechargement rend les cards serveur
+      return;
     }
     updateAudioGlobalProgress();
   }
-
   function escHtml(str) {
     return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
-  function updateRow(id, data) {
+  async function refreshAudioCard(id) {
+    // Card = partial SERVEUR unique (endpoint audio_card_html) ; handlers délégués,
+    // le waveform des cards hors batch est inclus par le partial.
+    try {
+      const resp = await fetch(getUrl(cfg.audioCardHtmlUrlTemplate, id));
+      if (!resp.ok) return null;
+      const tpl = document.createElement('template');
+      tpl.innerHTML = (await resp.text()).trim();
+      const fresh = tpl.content.firstElementChild;
+      const container = document.getElementById('audio-enhancer-queue');
+      const existing = container ? container.querySelector(`[data-id="${id}"]`) : null;
+      if (fresh && existing) {
+        existing.replaceWith(fresh);
+        if (typeof initMediaPreview === 'function') initMediaPreview();
+      }
+      return fresh;
+    } catch (_) { return null; }
+  }
+
+  async function updateRow(id, data) {
     const container = document.getElementById('audio-enhancer-queue');
     const card = container ? container.querySelector(`[data-id="${id}"]`) : null;
     if (!card) return;
 
-    if (data.status) {
-      const status = data.status.toUpperCase();
-      card.dataset.status = status;
-
-      // Status badge
-      const statusBadge = card.querySelector('.status-badge');
-      if (statusBadge) {
-        const badgeClass = { PENDING: 'bg-secondary', RUNNING: 'bg-warning', SUCCESS: 'bg-success', FAILURE: 'bg-danger' }[status] || 'bg-secondary';
-        statusBadge.textContent = status;
-        statusBadge.className = `status-badge badge ${badgeClass}`;
-      }
-
-      // Card border
-      card.classList.remove('processing', 'success', 'error');
-      if (status === 'RUNNING') card.classList.add('processing');
-      else if (status === 'SUCCESS') card.classList.add('success');
-      else if (status === 'FAILURE') card.classList.add('error');
-
-      // Action button
-      const actionBtn = card.querySelector('.action-btn');
-      if (actionBtn) {
-        if (status === 'RUNNING') {
-          actionBtn.disabled = true;
-          actionBtn.className = 'btn btn-sm btn-secondary action-btn';
-          actionBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-          actionBtn.title = 'En cours...';
-        } else if (status === 'SUCCESS' || status === 'FAILURE') {
-          actionBtn.disabled = false;
-          actionBtn.className = 'btn btn-sm btn-warning js-audio-start action-btn';
-          actionBtn.innerHTML = '<i class="fas fa-redo"></i>';
-          actionBtn.title = 'Relancer';
-        } else {
-          actionBtn.disabled = false;
-          actionBtn.className = 'btn btn-sm btn-primary js-audio-start action-btn';
-          actionBtn.innerHTML = '<i class="fas fa-play"></i>';
-          actionBtn.title = 'Lancer';
-        }
-      }
-
-      // Show download button on SUCCESS
-      if (status === 'SUCCESS' && !card.querySelector('.js-audio-download')) {
-        const actionsDiv = card.querySelector('.btn-group-actions');
-        const deleteBtn = card.querySelector('.action-delete');
-        if (actionsDiv && deleteBtn) {
-          const dlBtn = document.createElement('a');
-          dlBtn.className = 'btn btn-sm btn-success js-audio-download';
-          dlBtn.href = getUrl(cfg.audioDownloadUrlTemplate, id);
-          dlBtn.title = 'Télécharger';
-          dlBtn.innerHTML = '<i class="fas fa-download"></i>';
-          actionsDiv.insertBefore(dlBtn, deleteBtn);
-        }
-        // Waveform player (audio URL = download URL, compatible WaveSurfer fetch)
-        if (!document.getElementById('audioPlayer_' + id) && window.WamaAudioPlayer) {
-          WamaAudioPlayer.inject(getUrl(cfg.audioDownloadUrlTemplate, id), id, card);
-        }
-      }
-    }
-
-    if (data.progress !== undefined) {
-      const fill = card.querySelector('.progress-fill');
-      if (fill) fill.style.width = data.progress + '%';
-      const progressText = card.querySelector('.progress-text');
-      if (progressText) progressText.textContent = data.progress + '%';
-    }
+    const status = (data.status || card.dataset.status || 'PENDING').toUpperCase();
 
     // ETA (moteur commun) — seed depuis l'estimateur serveur (service-based)
     if (window.WamaEta) {
       WamaEta.render(card.querySelector('.wama-eta'),
-        WamaEta.update(id, { progress: data.progress || 0, status: (data.status || 'PENDING').toUpperCase(),
+        WamaEta.update(id, { progress: data.progress || 0, status: status,
                              seedSeconds: data.estimated_seconds, modelLoaded: false }));
+    }
+
+    if (status === (card.dataset.status || '').toUpperCase()) {
+      // Même état : maj légère de la progression (markup = brique _card_progress).
+      if (data.progress !== undefined) {
+        const fill = card.querySelector('.wama-progress-fill');
+        if (fill) fill.style.width = data.progress + '%';
+        const progressText = card.querySelector('.progress-text');
+        if (progressText) progressText.textContent = data.progress + '%';
+      }
+    } else {
+      // Transition d'état → re-rendu SERVEUR de la card (source unique du markup).
+      await refreshAudioCard(id);
     }
   }
 
@@ -459,20 +381,23 @@ document.addEventListener('DOMContentLoaded', function () {
                  show_if engine=resemble gère l'affichage conditionnel mode/force/qualité. -->
             <div id="wamaAudioFields${id}"></div>
           </div>
-          <div class="modal-footer border-secondary">
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-            <button type="button" class="btn btn-primary modal-audio-save" data-id="${id}" data-bs-dismiss="modal">
-              Sauvegarder
-            </button>
-            <button type="button" class="btn btn-success modal-audio-save-start" data-id="${id}" data-bs-dismiss="modal">
-              <i class="fas fa-play"></i> Sauvegarder et lancer
-            </button>
-          </div>
+          <div class="wama-modal-footer-slot" data-id="${id}"></div>
         </div>
       </div>
     `;
 
     document.body.appendChild(modal);
+
+    // Pied de modale COMMUN (_settings_modal_footer) : gabarit serveur cloné,
+    // data-id + auto-dismiss pour les handlers délégués .modal-audio-save(-start).
+    const footTpl = document.getElementById('audioSettingsFooterTpl');
+    const footSlot = modal.querySelector('.wama-modal-footer-slot');
+    if (footTpl && footSlot) {
+      const foot = footTpl.content.firstElementChild.cloneNode(true);
+      foot.querySelectorAll('.modal-audio-save, .modal-audio-save-start')
+          .forEach((b) => { b.dataset.id = id; b.setAttribute('data-bs-dismiss', 'modal'); });
+      footSlot.replaceWith(foot);
+    }
 
     // Modale GÉNÉRÉE depuis le schéma manifeste (WamaParams, context:'item') — pattern Transcriber.
     // show_if engine=resemble gère l'affichage conditionnel mode/force/qualité ; WamaParams gère aussi
@@ -606,7 +531,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }
       }
     } catch (err) {
-      alert('Erreur démarrage: ' + err.message);
+      WamaApp.toast('Erreur démarrage: ' + err.message);
     }
   }
 
@@ -665,7 +590,7 @@ document.addEventListener('DOMContentLoaded', function () {
       }
       updateAudioGlobalProgress();
     } catch (err) {
-      alert('Erreur suppression: ' + err.message);
+      WamaApp.toast('Erreur suppression: ' + err.message);
     }
   }
 
@@ -701,7 +626,7 @@ document.addEventListener('DOMContentLoaded', function () {
             pollAudioProgress(id);
           });
         } catch (err) {
-          alert('Erreur: ' + err.message);
+          WamaApp.toast('Erreur: ' + err.message);
         }
       });
     }
@@ -725,7 +650,7 @@ document.addEventListener('DOMContentLoaded', function () {
           pollers.clear();
           updateAudioGlobalProgress();
         } catch (err) {
-          alert('Erreur: ' + err.message);
+          WamaApp.toast('Erreur: ' + err.message);
         }
       });
     }
@@ -766,7 +691,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Audio batch start
     document.addEventListener('click', function(e) {
-      const btn = e.target.closest('.audio-batch-start-btn');
+      const btn = e.target.closest('.batch-start-btn');
+      if (btn && !btn.closest('#audio-enhancer-queue')) return;
       if (!btn) return;
       const batchId = btn.dataset.batchId;
       const url = cfg.audioBatchStartUrlTemplate.replace('/0/', `/${batchId}/`);
@@ -787,7 +713,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Audio batch delete
     document.addEventListener('click', function(e) {
-      const btn = e.target.closest('.audio-batch-delete-btn');
+      const btn = e.target.closest('.batch-delete-btn');
+      if (btn && !btn.closest('#audio-enhancer-queue')) return;
       if (!btn) return;
       const batchId = btn.dataset.batchId;
       if (!confirm('Supprimer ce batch audio et toutes ses améliorations ?')) return;
@@ -803,7 +730,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Audio batch duplicate
     document.addEventListener('click', function(e) {
-      const btn = e.target.closest('.audio-batch-duplicate-btn');
+      const btn = e.target.closest('.batch-duplicate-btn');
+      if (btn && !btn.closest('#audio-enhancer-queue')) return;
       if (!btn) return;
       const batchId = btn.dataset.batchId;
       const url = cfg.audioBatchDuplicateUrlTemplate.replace('/0/', `/${batchId}/`);

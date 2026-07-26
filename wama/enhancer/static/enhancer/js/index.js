@@ -123,72 +123,45 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
 
-  function appendRow(data) {
+  async function refreshCard(id) {
+    // Card = partial SERVEUR unique (endpoint card_html) — les événements de la
+    // file sont délégués (document/bindRowActions sur la card fraîche).
+    try {
+      const resp = await fetch(getUrl(config.cardHtmlUrlTemplate, id));
+      if (!resp.ok) return null;
+      const tpl = document.createElement('template');
+      tpl.innerHTML = (await resp.text()).trim();
+      const fresh = tpl.content.firstElementChild;
+      const existing = queueTable ? queueTable.querySelector(`[data-id="${id}"]`) : null;
+      if (fresh && existing) {
+        existing.replaceWith(fresh);
+        bindRowActions(fresh);
+        if (typeof initMediaPreview === 'function') initMediaPreview();
+      }
+      return fresh;
+    } catch (_) { return null; }
+  }
+
+  async function appendRow(data) {
     if (!queueTable) return;
 
     const empty = queueTable.querySelector('.empty-state');
     if (empty) empty.remove();
 
-    const mediaIcon = data.media_type === 'image'
-      ? '<i class="fas fa-image text-info"></i>'
-      : '<i class="fas fa-video text-warning"></i>';
-
-    const previewUrl = `/common/preview/enhancer/${data.id}/`;
-
-    const card = document.createElement('div');
-    card.className = 'synthesis-card';
-    card.dataset.id = data.id;
-    card.dataset.status = (data.status || 'PENDING').toUpperCase();
-
-    card.innerHTML = `
-      <div class="row align-items-center">
-        <div class="col-md-3">
-          <strong>
-            <button type="button" class="btn btn-link p-0 text-start preview-media-link"
-                    data-preview-url="${previewUrl}"
-                    style="color: #fff; text-decoration: none; font-size: 0.9rem;">
-              ${mediaIcon} ${escapeHtml(data.input_filename || 'Fichier')}
-            </button>
-          </strong>
-          <br>
-          <small class="text-white-50">${data.width}x${data.height}</small>
-        </div>
-        <div class="col-md-2">
-          <small>
-            <span class="badge bg-info">${escapeHtml(data.ai_model || '—')}</span>
-          </small>
-        </div>
-        <div class="col-md-3">
-          <span class="status-badge badge bg-secondary">PENDING</span>
-          <div class="progress-bar-custom mt-2">
-            <div class="progress-fill" style="width: 0%"></div>
-          </div>
-          <small class="progress-text text-light">0%</small>
-        </div>
-        <div class="col-md-4">
-          <div class="btn-group-actions">
-            <button class="btn btn-sm btn-outline-secondary js-open-settings"
-                    data-id="${data.id}"
-                    data-ai-model="${escapeHtml(data.ai_model || '')}"
-                    data-denoise="${data.denoise || 'false'}"
-                    data-blend-factor="${data.blend_factor || 0}"
-                    title="Paramètres">
-              <i class="fas fa-cog"></i>
-            </button>
-            ${window.WamaCycleButton ? WamaCycleButton.html(data.status || 'PENDING', data.id) : `<button class="btn btn-sm btn-outline-success js-restart-enhancement action-btn" data-id="${data.id}" title="Lancer"><i class="fas fa-play"></i></button>`}
-            <button class="btn btn-sm btn-outline-danger js-delete-enhancement"
-                    data-delete-url="${getUrl(config.deleteUrlTemplate, data.id)}"
-                    title="Supprimer">
-              <i class="fas fa-trash-alt"></i>
-            </button>
-          </div>
-        </div>
-      </div>
-    `;
-
-    queueTable.prepend(card);
-    createSettingsModal(data);
-    bindRowActions(card);
+    // Card = rendu SERVEUR (plus de markup construit côté JS).
+    try {
+      const resp = await fetch(getUrl(config.cardHtmlUrlTemplate, data.id));
+      if (!resp.ok) throw new Error(resp.status);
+      const tpl = document.createElement('template');
+      tpl.innerHTML = (await resp.text()).trim();
+      const card = tpl.content.firstElementChild;
+      queueTable.prepend(card);
+      createSettingsModal(data);
+      bindRowActions(card);
+    } catch (_) {
+      location.reload();   // repli : le rechargement rend les cards serveur
+      return;
+    }
     updateDownloadAllState();
 
     if (typeof initMediaPreview === 'function') {
@@ -231,20 +204,23 @@ document.addEventListener('DOMContentLoaded', function () {
               <div id="wamaSettingsFields${data.id}"></div>
             </form>
           </div>
-          <div class="modal-footer border-secondary">
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-            <button type="button" class="btn btn-primary save-settings-btn" data-id="${data.id}">
-              Sauvegarder
-            </button>
-            <button type="button" class="btn btn-success save-and-restart-btn" data-id="${data.id}">
-              <i class="fas fa-play"></i> Sauvegarder et relancer
-            </button>
-          </div>
+          <div class="wama-modal-footer-slot" data-id="${data.id}"></div>
         </div>
       </div>
     `;
 
     document.body.appendChild(modal);
+
+    // Pied de modale COMMUN (_settings_modal_footer) : gabarit serveur cloné,
+    // data-id posé pour les handlers délégués .save-settings-btn / .save-and-restart-btn.
+    const footTpl = document.getElementById('mediaSettingsFooterTpl');
+    const footSlot = modal.querySelector('.wama-modal-footer-slot');
+    if (footTpl && footSlot) {
+      const foot = footTpl.content.firstElementChild.cloneNode(true);
+      foot.querySelectorAll('.save-settings-btn, .save-and-restart-btn')
+          .forEach((b) => { b.dataset.id = data.id; });
+      footSlot.replaceWith(foot);
+    }
 
     // Modale GÉNÉRÉE depuis le schéma manifeste (WamaParams, context:'item') — pattern Transcriber.
     // name=ai_model/denoise/blend_factor → le save-settings-btn les lit inchangé.
@@ -295,7 +271,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   }
 
-  function updateRow(id, data) {
+  async function updateRow(id, data) {
     const card = queueTable ? queueTable.querySelector(`[data-id="${id}"]`) : null;
     if (!card) {
       stopPolling(id);
@@ -305,70 +281,23 @@ document.addEventListener('DOMContentLoaded', function () {
     const progress = Math.min(100, Math.max(0, data.progress || 0));
     const status = (data.status || 'PENDING').toUpperCase();
 
-    // Progress fill
-    const fill = card.querySelector('.progress-fill');
-    if (fill) fill.style.width = `${progress}%`;
-    const progressText = card.querySelector('.progress-text');
-    if (progressText) progressText.textContent = `${progress}%`;
-
     if (window.WamaEta) WamaEta.render(card.querySelector('.wama-eta'), WamaEta.update(id, { progress: progress, status: status, seedSeconds: data.estimated_seconds, modelLoaded: false }));
 
-    // Status badge
-    const statusBadge = card.querySelector('.status-badge');
-    if (statusBadge) {
-      const badgeClass = { PENDING: 'bg-secondary', RUNNING: 'bg-warning', SUCCESS: 'bg-success', FAILURE: 'bg-danger' }[status] || 'bg-secondary';
-      statusBadge.textContent = status;
-      statusBadge.className = `status-badge badge ${badgeClass}`;
+    if (status === (card.dataset.status || '').toUpperCase()) {
+      // Même état : maj légère de la progression (markup = brique _card_progress).
+      const fill = card.querySelector('.wama-progress-fill');
+      if (fill) fill.style.width = `${progress}%`;
+      const progressText = card.querySelector('.progress-text');
+      if (progressText) progressText.textContent = `${progress}%`;
+    } else {
+      // Transition d'état → re-rendu SERVEUR de la card (source unique du markup).
+      await refreshCard(id);
     }
 
-    // Card border
-    card.classList.remove('processing', 'success', 'error');
-    if (status === 'RUNNING') card.classList.add('processing');
-    else if (status === 'SUCCESS') card.classList.add('success');
-    else if (status === 'FAILURE') card.classList.add('error');
-    card.dataset.status = status;
-
-    // Action button
-    const actionBtn = card.querySelector('.action-btn');
-    if (actionBtn) {
-      if (status === 'RUNNING') {
-        actionBtn.disabled = true;
-        actionBtn.className = 'btn btn-sm btn-outline-secondary action-btn';
-        actionBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-        actionBtn.title = 'En cours...';
-      } else if (status === 'SUCCESS' || status === 'FAILURE') {
-        actionBtn.disabled = false;
-        actionBtn.className = 'btn btn-sm btn-outline-success js-restart-enhancement action-btn';
-        actionBtn.innerHTML = '<i class="fas fa-redo"></i>';
-        actionBtn.title = 'Relancer';
-      } else {
-        actionBtn.disabled = false;
-        actionBtn.className = 'btn btn-sm btn-outline-success js-restart-enhancement action-btn';
-        actionBtn.innerHTML = '<i class="fas fa-play"></i>';
-        actionBtn.title = 'Lancer';
-      }
-    }
-
-    // Show download button on SUCCESS
     if (status === 'SUCCESS') {
-      if (!card.querySelector('.download-btn')) {
-        const actionsDiv = card.querySelector('.btn-group-actions');
-        const deleteBtn = card.querySelector('.js-delete-enhancement');
-        if (actionsDiv && deleteBtn) {
-          const dlBtn = document.createElement('a');
-          dlBtn.className = 'btn btn-sm btn-outline-info download-btn';
-          dlBtn.href = getUrl(config.downloadUrlTemplate, id);
-          dlBtn.title = 'Télécharger';
-          dlBtn.innerHTML = '<i class="fas fa-download"></i>';
-          actionsDiv.insertBefore(dlBtn, deleteBtn);
-        }
-      }
-      if (progress < 100 && fill) fill.style.width = '100%';
       stopPolling(id);
       if (window.WamaFM) WamaFM.processed();  // sortie créée → refresh filemanager
-    } else if (status === 'FAILURE') {
-      stopPolling(id);
-    } else if (progress >= 100) {
+    } else if (status === 'FAILURE' || progress >= 100) {
       stopPolling(id);
     }
 
@@ -745,16 +674,14 @@ document.addEventListener('DOMContentLoaded', function () {
       .catch(error => console.error('Error updating global progress:', error));
   }
 
-  // === URL Upload Form ===
+  // === URL Upload (zone URL de la card d'entrée COMMUNE _new_item_card) ===
   function initUrlUpload() {
-    const mediaUrlForm = document.getElementById('media-url-form');
-    if (!mediaUrlForm) return;
+    const mediaUrlInput = document.getElementById('enhancerUrlInput');
+    const submitBtn = document.getElementById('enhancerUrlSubmit');
+    if (!mediaUrlInput || !submitBtn) return;
 
-    mediaUrlForm.addEventListener('submit', async function(e) {
-      e.preventDefault();
-
-      const mediaUrlInput = this.querySelector('input[name="media_url"]');
-      const mediaUrl = mediaUrlInput ? mediaUrlInput.value.trim() : '';
+    async function submitMediaUrl() {
+      const mediaUrl = mediaUrlInput.value.trim();
 
       if (!mediaUrl) {
         WamaApp.toast('Veuillez entrer une URL de média.', 'warning');
@@ -762,12 +689,9 @@ document.addEventListener('DOMContentLoaded', function () {
       }
 
       // Show loading state
-      const submitBtn = this.querySelector('button[type="submit"]');
-      const originalBtnHtml = submitBtn ? submitBtn.innerHTML : '';
-      if (submitBtn) {
-        submitBtn.disabled = true;
-        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Téléchargement...';
-      }
+      const originalBtnHtml = submitBtn.innerHTML;
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
 
       try {
         const formData = new FormData();
@@ -804,11 +728,14 @@ document.addEventListener('DOMContentLoaded', function () {
         WamaApp.toast('Erreur lors du téléchargement: ' + error.message, 'error');
       } finally {
         // Restore button
-        if (submitBtn) {
-          submitBtn.disabled = false;
-          submitBtn.innerHTML = originalBtnHtml;
-        }
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = originalBtnHtml;
       }
+    }
+
+    submitBtn.addEventListener('click', submitMediaUrl);
+    mediaUrlInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); submitMediaUrl(); }
     });
   }
 
@@ -880,7 +807,7 @@ document.addEventListener('DOMContentLoaded', function () {
   // ── Batch start ────────────────────────────────────────────────────────
   document.addEventListener('click', function(e) {
     const btn = e.target.closest('.batch-start-btn');
-    if (!btn) return;
+    if (!btn || !btn.closest('#enhancer-queue')) return;   // file MÉDIA seulement (l'audio a les mêmes classes brique)
     const batchId = btn.dataset.batchId;
     const url = config.batchStartUrlTemplate.replace('/0/', `/${batchId}/`);
     btn.disabled = true;
@@ -898,7 +825,7 @@ document.addEventListener('DOMContentLoaded', function () {
   // ── Batch delete ───────────────────────────────────────────────────────
   document.addEventListener('click', function(e) {
     const btn = e.target.closest('.batch-delete-btn');
-    if (!btn) return;
+    if (!btn || !btn.closest('#enhancer-queue')) return;
     const batchId = btn.dataset.batchId;
     if (!confirm('Supprimer ce batch et toutes ses améliorations ?')) return;
     const url = config.batchDeleteUrlTemplate.replace('/0/', `/${batchId}/`);
@@ -912,24 +839,13 @@ document.addEventListener('DOMContentLoaded', function () {
       .catch(() => WamaApp.toast('Erreur lors de la suppression', 'error'));
   });
 
-  // ── Duplication d'un item (autonome ou dans un batch) — la vue place la copie
-  //    DANS le même batch. Aucun handler n'existait avant. ──────────────────
-  document.addEventListener('click', function(e) {
-    const dbtn = e.target.closest('.duplicate-btn');
-    if (!dbtn || !dbtn.dataset.duplicateUrl) return;
-    if (dbtn.dataset.busy) return;            // garde anti double-soumission (double-clic / double-fire)
-    dbtn.dataset.busy = '1';
-    dbtn.disabled = true;
-    fetch(dbtn.dataset.duplicateUrl, { method: 'POST', headers: { 'X-CSRFToken': csrfToken } })
-      .then(r => r.json())
-      .then(() => location.reload())
-      .catch(() => { delete dbtn.dataset.busy; dbtn.disabled = false; });
-  });
+  // Duplication d'item : gérée par la brique commune queue-actions.js (chargée
+  // globalement par base.html) — le handler local dupliquait la requête.
 
   // ── ⚙ Batch settings : réutilise la modale du 1er item en mode batch ────
   document.addEventListener('click', function(e) {
     const bs = e.target.closest('.batch-settings-btn');
-    if (!bs) return;
+    if (!bs || !bs.closest('#enhancer-queue')) return;
     const group = bs.closest('.batch-group');
     const firstOpen = group ? group.querySelector('.js-open-settings') : null;
     if (!firstOpen) return;
@@ -940,7 +856,7 @@ document.addEventListener('DOMContentLoaded', function () {
   // ── Batch duplicate ────────────────────────────────────────────────────
   document.addEventListener('click', function(e) {
     const btn = e.target.closest('.batch-duplicate-btn');
-    if (!btn) return;
+    if (!btn || !btn.closest('#enhancer-queue')) return;
     const batchId = btn.dataset.batchId;
     const url = config.batchDuplicateUrlTemplate.replace('/0/', `/${batchId}/`);
     fetch(url, { method: 'POST', headers: { 'X-CSRFToken': csrfToken } })

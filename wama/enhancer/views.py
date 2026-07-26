@@ -166,46 +166,45 @@ class IndexView(View):
         _auto_wrap_orphans(user)
         _auto_wrap_audio_orphans(user)
 
-        # Build batches_list for image/video tab
-        batches_qs = BatchEnhancement.objects.filter(user=user).prefetch_related(
-            'items__enhancement'
-        ).order_by('-id')
+        # Réconcilie les items RUNNING orphelins (worker mort/crash machine) — brique
+        # COMMUNE, preuve positive de mort uniquement. Les DEUX domaines.
+        try:
+            from wama.common.utils.process_control import reconcile_orphaned_running
+            running = list(Enhancement.objects.filter(user=user, status='RUNNING')) + \
+                      list(AudioEnhancement.objects.filter(user=user, status='RUNNING'))
+            n = reconcile_orphaned_running(running, error_field='error_message')
+            if n:
+                logger.info(f"[enhancer] {n} tâche(s) RUNNING orpheline(s) réconciliée(s) → échec relançable")
+        except Exception as exc:
+            logger.debug(f"[enhancer] reconcile_orphaned_running ignoré: {exc}")
 
-        batches_list = []
-        for batch in batches_qs:
-            items = list(batch.items.all())
-            success_count = sum(
-                1 for i in items if i.enhancement and i.enhancement.status == 'SUCCESS'
-            )
-            batches_list.append({
-                'obj': batch,
-                'items': items,
-                'success_count': success_count,
-                'success_pct': int(success_count / batch.total * 100) if batch.total > 0 else 0,
-                'has_success': success_count > 0,
-            })
+        # Files par domaine — brique COMMUNE build_batches_list (contrat _batch_card)
+        # + tri/filtre persistés session (contrat _queue_toolbar).
+        from wama.common.utils.batch_common import build_batches_list
+        from wama.common.utils.queue_view import apply_queue_sort_filter
 
-        # Build audio_batches_list for audio tab
-        audio_batches_qs = BatchAudioEnhancement.objects.filter(user=user).prefetch_related(
-            'items__audio_enhancement'
-        ).order_by('-id')
+        def _extra(batch, items, works):
+            done = sum(1 for w in works if w.status == 'SUCCESS')
+            return {
+                'success_pct': int(done / batch.total * 100) if batch.total > 0 else 0,
+                'eta_ids': [w.id for w in works],
+            }
 
-        audio_batches_list = []
-        for batch in audio_batches_qs:
-            items = list(batch.items.all())
-            success_count = sum(
-                1 for i in items if i.audio_enhancement and i.audio_enhancement.status == 'SUCCESS'
-            )
-            audio_batches_list.append({
-                'obj': batch,
-                'items': items,
-                'success_count': success_count,
-                'success_pct': int(success_count / batch.total * 100) if batch.total > 0 else 0,
-                'has_success': success_count > 0,
-            })
+        batches_list = build_batches_list(
+            user, batch_model=BatchEnhancement, work_attr='enhancement', extra=_extra)
+        audio_batches_list = build_batches_list(
+            user, batch_model=BatchAudioEnhancement, work_attr='audio_enhancement', extra=_extra)
 
         batches_list.sort(key=lambda b: 0 if b['obj'].total > 1 else 1)
         audio_batches_list.sort(key=lambda b: 0 if b['obj'].total > 1 else 1)
+
+        def _name_of(b):
+            return (b['obj'].name or '') if hasattr(b['obj'], 'name') else str(b['obj'])
+
+        batches_list, q_sort, q_filter = apply_queue_sort_filter(
+            request, batches_list, name_of=_name_of)
+        audio_batches_list, _, _ = apply_queue_sort_filter(
+            request, audio_batches_list, name_of=_name_of)
 
         # Get or create user settings
         user_settings, _ = UserSettings.objects.get_or_create(user=user)
@@ -215,6 +214,8 @@ class IndexView(View):
         return render(request, 'enhancer/index.html', {
             'batches_list': batches_list,
             'audio_batches_list': audio_batches_list,
+            'q_sort': q_sort,
+            'q_filter': q_filter,
             'user_settings': user_settings,
             'ai_models': Enhancement.AI_MODEL_CHOICES,
             # Schémas déclaratifs par domaine → inspecteur contextuel (WamaInspector.initFromSchema).
@@ -1531,27 +1532,34 @@ def audio_batch_start(request, pk):
         data = {}
 
     from .tasks import enhance_audio
+    from wama.common.utils.process_control import begin_processing
+
+    def _apply_batch_settings(ae_locked):
+        ae_locked.progress = 0
+        ae_locked.error_message = ''
+        if data.get('engine'):
+            ae_locked.engine = data['engine']
+        if data.get('mode'):
+            ae_locked.mode = data['mode']
+        if data.get('denoising_strength') is not None:
+            ae_locked.denoising_strength = float(data['denoising_strength'])
+        if data.get('quality') is not None:
+            ae_locked.quality = int(data['quality'])
+
     started = []
     for item in batch.items.select_related('audio_enhancement').all():
         ae = item.audio_enhancement
-        if not ae or ae.status == 'RUNNING':
+        if not ae:
             continue
-        if data.get('engine'):
-            ae.engine = data['engine']
-        if data.get('mode'):
-            ae.mode = data['mode']
-        if data.get('denoising_strength') is not None:
-            ae.denoising_strength = float(data['denoising_strength'])
-        if data.get('quality') is not None:
-            ae.quality = int(data['quality'])
-        ae.status = 'RUNNING'
-        ae.progress = 0
-        ae.error_message = ''
-        ae.save()
-        task = enhance_audio.delay(ae.id)
-        ae.task_id = task.id
-        ae.save(update_fields=['task_id'])
-        started.append(ae.id)
+        # Anti-race COMMUN (verrou + revoke ancienne tâche) — même brique que start.
+        locked, err = begin_processing(AudioEnhancement, ae.pk, user=user,
+                                       reset=_apply_batch_settings)
+        if err:
+            continue
+        task = enhance_audio.delay(locked.id)
+        locked.task_id = task.id
+        locked.save(update_fields=['task_id'])
+        started.append(locked.id)
 
     return JsonResponse({'started': started, 'count': len(started)})
 
@@ -1722,3 +1730,61 @@ def global_progress(request):
     except Exception as e:
         logger.error(f"Error in global_progress: {e}")
         return JsonResponse({'error': str(e)}, status=500)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Vues standard communes (port schéma-driven 2026-07-26) — LES DEUX DOMAINES
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _req_user(request):
+    return request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+
+
+def card_html(request, pk):
+    """Card média = partial serveur UNIQUE (source du markup, remplace appendRow JS)."""
+    e = get_object_or_404(Enhancement, pk=pk, user=_req_user(request))
+    in_batch = BatchEnhancementItem.objects.filter(enhancement=e).exists()
+    return render(request, 'enhancer/_enhancement_card.html', {'e': e, 'in_batch': in_batch})
+
+
+def audio_card_html(request, pk):
+    """Card audio = partial serveur UNIQUE (remplace appendAudioRow JS)."""
+    ae = get_object_or_404(AudioEnhancement, pk=pk, user=_req_user(request))
+    in_batch = BatchAudioEnhancementItem.objects.filter(audio_enhancement=ae).exists()
+    return render(request, 'enhancer/_audio_card.html', {'ae': ae, 'in_batch': in_batch})
+
+
+from django.views.generic import TemplateView
+
+
+class AboutView(TemplateView):
+    """Onglet À-propos (contenu : bloc about_content de enhancer/base.html)."""
+    template_name = 'enhancer/base.html'
+
+
+class HelpView(TemplateView):
+    """Onglet Aide (contenu : bloc help_content de enhancer/base.html)."""
+    template_name = 'enhancer/base.html'
+
+
+# ── Manipulation directe de la file (fabrique COMMUNE, variante liaison) ──────
+# Les deux domaines ont un MODÈLE DE LIAISON (BatchEnhancementItem /
+# BatchAudioEnhancementItem) → fabrique standard. Les consolidate LOCAUX
+# (groupement par nature) sont conservés.
+from wama.common.utils.queue_manipulation import make_queue_manipulation_views
+
+_qm_media = make_queue_manipulation_views(
+    work_model=Enhancement, batch_model=BatchEnhancement,
+    item_model=BatchEnhancementItem, fk_name='enhancement', get_user=_req_user,
+)
+remove_from_batch = _qm_media['remove_from_batch']
+reorder           = _qm_media['reorder']
+move_to_batch     = _qm_media['move_to_batch']
+
+_qm_audio = make_queue_manipulation_views(
+    work_model=AudioEnhancement, batch_model=BatchAudioEnhancement,
+    item_model=BatchAudioEnhancementItem, fk_name='audio_enhancement', get_user=_req_user,
+)
+audio_remove_from_batch = _qm_audio['remove_from_batch']
+audio_reorder           = _qm_audio['reorder']
+audio_move_to_batch     = _qm_audio['move_to_batch']

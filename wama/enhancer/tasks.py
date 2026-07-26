@@ -119,6 +119,24 @@ def enhance_media(self, enhancement_id: int):
     _set_progress(enhancement_id, 5)
     logger.info("Progress set to 5%")
 
+    # ── Ingest URL déclaratif (brique commune, Enhancement.WAMA_INGEST) : si l'item
+    # a une source_url sans fichier local (batch d'URLs), on le matérialise ici.
+    try:
+        from wama.common.utils.source_ingest import ensure_local_input
+
+        def _derive(inst, path, fname):
+            if inst.media_type:
+                return []
+            from wama.common.app_registry import IMAGE_EXTENSIONS, VIDEO_EXTENSIONS
+            ext = os.path.splitext(fname)[1].lower()
+            inst.media_type = 'image' if ext in IMAGE_EXTENSIONS else \
+                              'video' if ext in VIDEO_EXTENSIONS else ''
+            return ['media_type'] if inst.media_type else []
+
+        ensure_local_input(enhancement, console=lambda m: _console(user_id, m), derive=_derive)
+    except Exception as exc:
+        logger.warning(f"[enhancer] ensure_local_input({enhancement_id}) : {exc}")
+
     start_time = time.time()
 
     try:
@@ -219,6 +237,13 @@ def enhance_audio(self, audio_enhancement_id: int):
     user_id = ae.user_id
     _console(user_id, f"Audio enhancement #{audio_enhancement_id} démarré ({ae.get_engine_display()})")
     _set_audio_progress(audio_enhancement_id, 5)
+
+    # ── Ingest URL déclaratif (brique commune, AudioEnhancement.WAMA_INGEST).
+    try:
+        from wama.common.utils.source_ingest import ensure_local_input
+        ensure_local_input(ae, console=lambda m: _console(user_id, m))
+    except Exception as exc:
+        logger.warning(f"[enhancer] ensure_local_input(audio {audio_enhancement_id}) : {exc}")
 
     start_time = time.time()
 

@@ -11,15 +11,18 @@ Paramètres (tous optionnels sauf save_id) :
 Usage :
   {% include 'common/_settings_modal_footer.html' with save_id='settingsSaveBtn' save_start_id='settingsSaveRestartBtn' save_start_label='Enregistrer et relancer' save_start_icon='fa-rotate-right' %}
 {% endcomment %}
+{# save_class/save_start_class (optionnels) : classes de délégation pour les modales
+   GÉNÉRÉES EN JS (gabarit <template> cloné par modale, data-id posé par le JS) —
+   dans ce cas save_id/save_start_id restent vides et le déclencheur est la classe. #}
 <div class="modal-footer border-secondary py-2 d-flex justify-content-between">
     <div class="d-flex gap-2">{{ left_html|default:''|safe }}</div>
     <div class="d-flex gap-2">
         <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Annuler</button>
-        <button type="button" class="btn btn-sm btn-primary" id="{{ save_id }}">
-            <i class="fas fa-save me-1"></i>Enregistrer
+        <button type="button" class="btn btn-sm btn-primary {{ save_class|default:'' }}"{% if save_id %} id="{{ save_id }}"{% endif %}>
+            <i class="fas fa-save me-1"></i>{{ save_label|default:'Enregistrer' }}
         </button>
-        {% if save_start_id %}
-        <button type="button" class="btn btn-sm btn-success" id="{{ save_start_id }}">
+        {% if save_start_id or save_start_class %}
+        <button type="button" class="btn btn-sm btn-success {{ save_start_class|default:'' }}"{% if save_start_id %} id="{{ save_start_id }}"{% endif %}>
             <i class="fas {{ save_start_icon|default:'fa-play' }} me-1"></i>{{ save_start_label|default:'Enregistrer & démarrer' }}
         </button>
         {% endif %}
