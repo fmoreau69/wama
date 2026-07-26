@@ -641,8 +641,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (quickVoice) quickVoice.focus();
             }
         });
-        // Saisie déplie ; texte vidé → retour à l'état initial (champ texte seul)
-        textContent.addEventListener('input', () => { textContent.value.trim() ? expand() : collapse(); });
+        // Clic/focus dans le champ déplie (décision 2026-07-26 — avant : dépliage à la
+        // saisie, qui décalait la page sous les doigts). Repli : champ VIDÉ qui perd le
+        // focus (jamais pendant la frappe).
+        textContent.addEventListener('focus', expand);
+        textContent.addEventListener('blur', () => { if (!textContent.value.trim()) collapse(); });
 
         // Voix inline : cloner les options du volet droit (en retirant les id → pas de doublon)
         function cloneVoiceOptions() {
