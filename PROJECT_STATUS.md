@@ -436,9 +436,17 @@ headers transcriber/composer sont chacun faux à leur façon ; describer a déj�
 `.is-batch`) ; `batch_common.py` (`_wrap_*_in_batch`/auto-wrap ×3 apps) ; `build_batches_list()`
 commun ; toast commun ; maps badge/couleur ; helper modale-batch ; `restart_instance()`.
 
-**Validations navigateur EN ATTENTE (à faire en début de session)** : **Converter (port 100 %
-du 2026-07-26 : dépôt fichier/URL/médiathèque, transitions de card via refreshCard, modales à
-footer commun, duplication brique, gabarit batch)** ; Composer (ETA cards,
+**✅ VALIDÉ NAVIGATEUR 2026-07-26 (session Playwright, user de test `pw_smoke` avec données)** :
+**Converter** (card d'entrée complète dépôt/URL/médiathèque/gabarit, toolbar, cards ordre canonique
+⚙▶⬇⧉🗑, batch déplié 2 filles, modale ⚙ ouverte/fermée avec footer commun + 12 champs, FileManager
+jstree chargé) ; **Enhancer** (2 domaines : cards d'entrée en tête, 2 toolbars, cards + cycle +
+progress brique, modale JS avec footer commun cloné, aide moteur volet+modale, FM chargé) ;
+**Reader** partiel (page + card + toolbar + FM OK ; modale ⚙ non testée — sélecteur à identifier).
+Au passage : bug BLOQUANT corrigé (commentaire {# #} multi-ligne contenant `<template>` rendu tel
+quel → il avalait tous les scripts des pages incluant `_settings_modal_footer` — cf. commit
+fix(common) 2026-07-26) + `wama-model-help` tolère les help_fallback objets.
+
+**Validations navigateur EN ATTENTE (à faire en début de session)** : Composer (ETA cards,
 batch 3 syntaxes + aperçu, template téléchargeable, card dépliable) ; Transcriber (cards ×2
 contextes, contrat de sortie sur brouillons, échec → card re-rendue) ; Describer (upload/URL
 depuis la card d'entrée, solitaire batch, **boutons actifs après re-rendu** = re-bind) ; menu +
