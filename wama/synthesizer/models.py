@@ -48,6 +48,15 @@ class VoiceSynthesis(ProcessingTimeMixin, models.Model):
         help_text="Contenu texte extrait du fichier"
     )
 
+    # Ingest URL déclaratif — app PROMPT-FIRST : le fichier ingérable est la VOIX
+    # de référence (échantillon de clonage), résolu par la brique commune
+    # common/utils/source_ingest.ensure_local_input() au démarrage de la tâche.
+    WAMA_INGEST = {
+        'source': 'source_url',
+        'target': 'voice_reference',
+        'mode': 'audio',
+    }
+
     # Fichier de référence vocale (pour le clonage)
     voice_reference = models.FileField(
         upload_to=upload_to_user_input('synthesizer'),
@@ -55,6 +64,10 @@ class VoiceSynthesis(ProcessingTimeMixin, models.Model):
         null=True,
         validators=[FileExtensionValidator(allowed_extensions=['wav', 'mp3', 'flac', 'ogg'])],
         help_text="Échantillon audio pour clonage de voix (6-10 secondes recommandé)"
+    )
+    source_url = models.CharField(
+        max_length=2000, blank=True, default='',
+        help_text="URL d'un échantillon de voix à télécharger comme référence de clonage"
     )
 
     # Options de synthèse

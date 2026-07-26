@@ -151,9 +151,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         const result = await window.FileManager.importToApp(fileData.path, 'synthesizer');
                         if (result.imported && result.is_batch && result.tasks && result.tasks.length > 0) {
                             // Batch file detected — show batch bar instead of reloading
-                            _batchServerPath = result.server_path;
-                            _batchFile = null;
-                            _showBatchBar(null, result.tasks, result.warnings || [], true);
+                            _serverBatchDirect(result);
                         } else if (result.imported) {
                             window.location.reload();
                         }
@@ -180,9 +178,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const result = e.detail;
             if (result.is_batch && result.tasks && result.tasks.length > 0) {
                 e.preventDefault(); // Prevent filemanager from reloading
-                _batchServerPath = result.server_path;
-                _batchFile = null;
-                _showBatchBar(null, result.tasks, result.warnings || [], true);
+                _serverBatchDirect(result);
             }
             // Non-batch: let filemanager reload the page (defaultPrevented stays false)
         });
@@ -326,43 +322,49 @@ document.addEventListener('DOMContentLoaded', function() {
         const settingsBtn = e.target.closest('.settings-btn');
         if (settingsBtn && settingsModalInstance) {
             const id = settingsBtn.dataset.id;
-            const ttsModel = settingsBtn.dataset.ttsModel;
-            const language = settingsBtn.dataset.language;
-            const voicePreset = settingsBtn.dataset.voicePreset;
-            const speed = settingsBtn.dataset.speed || '1.0';
-            const pitch = settingsBtn.dataset.pitch || '1.0';
+            const d = settingsBtn.dataset;
             document.getElementById('settingsSynthesisId').value = id;
-            document.getElementById('settingsTtsModel').value = ttsModel;
-            document.getElementById('settingsLanguage').value = language;
-            document.getElementById('settingsVoicePreset').value = voicePreset;
-            document.getElementById('settingsSpeed').value = speed;
-            document.getElementById('settingsSpeedValue').textContent = speed;
-            document.getElementById('settingsPitch').value = pitch;
-            document.getElementById('settingsPitchValue').textContent = pitch;
-            var _ofEl = document.getElementById('settingsOutputFormat');
-            var _oqEl = document.getElementById('settingsOutputQuality');
-            if (_ofEl && settingsBtn.dataset.outputFormat) _ofEl.value = settingsBtn.dataset.outputFormat;
-            if (_oqEl && settingsBtn.dataset.outputQuality) _oqEl.value = settingsBtn.dataset.outputQuality;
-            checkLangCompat(ttsModel, language, document.getElementById('settings-lang-compat-warning'));
+
+            // Corps de modale GÉNÉRÉ depuis le schéma déclaratif (params.py, contexte
+            // item). Options des selects : clonées du volet compose (source serveur
+            // unique — optgroups voix aplatis avec préfixe de groupe).
+            const paramsBody = document.getElementById('settingsParamsBody');
+            if (window.WamaParams && window.SYNTH_PARAMS_SCHEMA && paramsBody) {
+                WamaParams.render(paramsBody, window.SYNTH_PARAMS_SCHEMA, {
+                    context: 'item',
+                    values: {
+                        tts_model: d.ttsModel, language: d.language,
+                        voice_preset: d.voicePreset,
+                        speed: d.speed || '1.0', pitch: d.pitch || '1.0',
+                        output_format: d.outputFormat || '', output_quality: d.outputQuality || '',
+                    },
+                    optionsResolver: function (param) {
+                        const src = document.getElementById((param.dom_id && param.dom_id.panel) || param.name);
+                        if (!src || src.tagName !== 'SELECT') return null;
+                        return Array.from(src.options).map(function (o) {
+                            const grp = o.parentElement && o.parentElement.tagName === 'OPTGROUP'
+                                ? o.parentElement.label + ' — ' : '';
+                            return { value: o.value, label: grp + o.textContent.trim() };
+                        });
+                    },
+                });
+                // Warning de compatibilité langue : re-bindé sur les champs fraîchement rendus.
+                const mSel = document.getElementById('settingsTtsModel');
+                const lSel = document.getElementById('settingsLanguage');
+                const warn = document.getElementById('settings-lang-compat-warning');
+                const _check = function () {
+                    if (mSel && lSel) checkLangCompat(mSel.value, lSel.value, warn);
+                };
+                if (mSel) mSel.addEventListener('change', _check);
+                if (lSel) lSel.addEventListener('change', _check);
+                _check();
+            }
             settingsModalInstance.show();
             return;
         }
 
-        // .duplicate-btn — duplicate a synthesis
-        const dupBtn = e.target.closest('.duplicate-btn');
-        if (dupBtn) {
-            const id = dupBtn.dataset.id;
-            try {
-                const r = await fetch(URLS.duplicate + id + '/', { method: 'POST', headers: { 'X-CSRFToken': csrfToken } });
-                if (r.ok) {
-                    location.reload();
-                } else {
-                    const d = await r.json();
-                    WamaApp.toast('Erreur: ' + (d.error || 'Échec de la duplication'), 'error');
-                }
-            } catch (err) { WamaApp.toast('Erreur: ' + err.message, 'error'); }
-            return;
-        }
+        // Duplication : gérée par la brique commune queue-actions.js (délégation
+        // globale sur le bouton de card — le handler local doublait la requête).
 
         // .delete-btn — remove a synthesis (no page reload: remove card from DOM)
         const deleteBtn = e.target.closest('.delete-btn');
@@ -542,10 +544,10 @@ document.addEventListener('DOMContentLoaded', function() {
     setInterval(updateGlobalProgress, 2000);
 
     // Text input form submission
-    const textInputForm = document.getElementById('textInputForm');
-    if (textInputForm) {
-        textInputForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
+    // Soumission via le bouton primaire de la card d'entrée COMMUNE (plus de <form>).
+    const submitTextBtn = document.getElementById('submitTextBtn');
+    if (submitTextBtn) {
+        submitTextBtn.addEventListener('click', async () => {
 
             const textContent = document.getElementById('textContent').value.trim();
             const title = document.getElementById('textTitle').value.trim();
@@ -584,7 +586,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (response.ok && data.success) {
                     WamaApp.toast(`Texte ajouté avec succès à la file d'attente !\nMots: ${data.word_count}`, 'success');
                     // Clear form
-                    textInputForm.reset();
+                    const _tc = document.getElementById('textContent');
+                    const _tt = document.getElementById('textTitle');
+                    if (_tc) _tc.value = '';
+                    if (_tt) _tt.value = '';
                     // Reload page to show new synthesis
                     location.reload();
                 } else {
@@ -604,76 +609,57 @@ document.addEventListener('DOMContentLoaded', function() {
     // Entrée progressive : le texte est l'entrée ; Entrée (ou saisie) déplie titre + voix + vitesse +
     // aperçu + ajouter. Voix/vitesse inline = miroirs des contrôles canoniques du volet droit
     // (#voice_preset / #speed) que le submit lit déjà → aucune modif du flux d'envoi.
-    (function initNewSynthAccordion() {
-        const textContent  = document.getElementById('textContent');
-        const body         = document.getElementById('newSynthBody');
-        const quickVoice   = document.getElementById('textVoiceQuick');
-        const quickSpeed   = document.getElementById('textSpeedQuick');
+    (function initQuickComposeMirrors() {
+        // Le pliage/dépliage de la card d'entrée est géré par la brique COMMUNE
+        // wama-new-item-card.js (data-wama-nic : clic/focus/drag déplient — décision
+        // 2026-07-26). Restent ici : les MIROIRS voix/vitesse du volet compose et
+        // Entrée → passage aux options.
+        const textContent   = document.getElementById('textContent');
+        const quickVoice    = document.getElementById('textVoiceQuick');
+        const quickSpeed    = document.getElementById('textSpeedQuick');
         const quickSpeedVal = document.getElementById('textSpeedQuickVal');
-        const voicePreset  = document.getElementById('voice_preset');
-        const speed        = document.getElementById('speed');
-        if (!textContent || !body) return;
+        const voicePreset   = document.getElementById('voice_preset');
+        const speedInput    = document.getElementById('speed');
+        if (!textContent) return;
 
-        let expanded = false;
-        function expand() {
-            if (expanded) return;
-            expanded = true;
-            if (window.bootstrap && bootstrap.Collapse) {
-                bootstrap.Collapse.getOrCreateInstance(body, { toggle: false }).show();
-            } else {
-                body.classList.add('show');
-            }
-        }
-        function collapse() {
-            if (!expanded) return;
-            expanded = false;
-            if (window.bootstrap && bootstrap.Collapse) {
-                bootstrap.Collapse.getOrCreateInstance(body, { toggle: false }).hide();
-            } else {
-                body.classList.remove('show');
-            }
-        }
-        // Entrée (sans Maj) déplie ; Maj+Entrée = nouvelle ligne (défaut)
+        // Entrée (sans Maj) → focus sur la voix rapide (le focus a déjà déplié)
         textContent.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
-                expand();
                 if (quickVoice) quickVoice.focus();
             }
         });
-        // Clic/focus dans le champ déplie (décision 2026-07-26 — avant : dépliage à la
-        // saisie, qui décalait la page sous les doigts). Repli : champ VIDÉ qui perd le
-        // focus (jamais pendant la frappe).
-        textContent.addEventListener('focus', expand);
-        textContent.addEventListener('blur', () => { if (!textContent.value.trim()) collapse(); });
 
-        // Voix inline : cloner les options du volet droit (en retirant les id → pas de doublon)
+        // Voix rapide = clone du select canonique du volet (source serveur unique,
+        // ids retirés pour éviter les doublons) ; changement → répercuté au volet.
         function cloneVoiceOptions() {
             if (!quickVoice || !voicePreset) return;
             quickVoice.innerHTML = voicePreset.innerHTML;
-            quickVoice.querySelectorAll('[id]').forEach(el => el.removeAttribute('id'));
+            quickVoice.querySelectorAll('[id]').forEach((el) => el.removeAttribute('id'));
             quickVoice.value = voicePreset.value;
         }
+        cloneVoiceOptions();
         if (quickVoice && voicePreset) {
-            cloneVoiceOptions();
             quickVoice.addEventListener('change', () => {
                 voicePreset.value = quickVoice.value;
                 voicePreset.dispatchEvent(new Event('change', { bubbles: true }));
             });
-            voicePreset.addEventListener('change', () => {
-                if (quickVoice.options.length !== voicePreset.options.length) cloneVoiceOptions();
-                else quickVoice.value = voicePreset.value;
-            });
+            voicePreset.addEventListener('change', () => { quickVoice.value = voicePreset.value; });
         }
-        // Vitesse inline ↔ volet droit
-        if (quickSpeed && speed) {
-            const setLabel = (v) => { if (quickSpeedVal) quickSpeedVal.textContent = parseFloat(v).toFixed(1); };
-            quickSpeed.value = speed.value; setLabel(speed.value);
+
+        // Vitesse rapide ↔ volet (bidirectionnel)
+        if (quickSpeed && speedInput) {
+            quickSpeed.value = speedInput.value;
+            if (quickSpeedVal) quickSpeedVal.textContent = parseFloat(speedInput.value).toFixed(1);
             quickSpeed.addEventListener('input', () => {
-                speed.value = quickSpeed.value; setLabel(quickSpeed.value);
-                speed.dispatchEvent(new Event('input', { bubbles: true }));
+                speedInput.value = quickSpeed.value;
+                speedInput.dispatchEvent(new Event('input', { bubbles: true }));
+                if (quickSpeedVal) quickSpeedVal.textContent = parseFloat(quickSpeed.value).toFixed(1);
             });
-            speed.addEventListener('input', () => { quickSpeed.value = speed.value; setLabel(speed.value); });
+            speedInput.addEventListener('input', () => {
+                quickSpeed.value = speedInput.value;
+                if (quickSpeedVal) quickSpeedVal.textContent = parseFloat(speedInput.value).toFixed(1);
+            });
         }
     })();
 
@@ -946,216 +932,60 @@ document.addEventListener('DOMContentLoaded', function() {
     // For text-based formats (txt/md/csv): client-side analysis.
     // For binary formats (pdf/docx): server-side via batch_preview endpoint.
 
-    let _batchFile = null;
-    let _batchServerPath = null;  // used when file comes from FileManager (already on server)
-    let _batchTasks = [];
+    // ── Import batch COMMUN (brique batch-import.js, barre common/batch_detect_bar) ──
+    // Le flux server_path (drop FileManager) passe en création directe confirmée
+    // (la brique ne gère pas server_path).
+    const _batchImport = (typeof WamaBatchImport !== 'undefined') ? WamaBatchImport({
+        batchExtensions: ['txt', 'md', 'csv'],
+        batchPreviewUrl: URLS.batchPreview,
+        batchCreateUrl: URLS.batchCreate,
+        csrfToken: csrfToken,
+        formDataBuilder: function (fd) {
+            const v = (id, dft) => { const el = document.getElementById(id); return el ? el.value : dft; };
+            fd.append('tts_model', v('tts_model', 'xtts_v2'));
+            fd.append('language', v('language', 'fr'));
+            fd.append('voice_preset', v('voice_preset', 'default'));
+            fd.append('speed', v('speed', '1.0'));
+            fd.append('pitch', v('pitch', '1.0'));
+        },
+        afterCreate: function (data, autoStart) {
+            if (autoStart && data && data.batch_id) {
+                fetch(URLS.batchStart + data.batch_id + '/start/', { method: 'POST', headers: { 'X-CSRFToken': csrfToken } })
+                    .finally(() => location.reload());
+            } else {
+                location.reload();
+            }
+        },
+    }) : null;
 
     async function handleFilesWithDetect(files) {
-        // Only intercept when dropping a single file
-        if (files.length !== 1) {
-            await handleFiles(files);
-            return;
+        const rest = [];
+        for (const f of files) {
+            if (_batchImport && await _batchImport.detectAndHandle(f)) continue;
+            rest.push(f);
         }
-        const file = files[0];
-        const ext = file.name.split('.').pop().toLowerCase();
-
-        if (['txt', 'md', 'csv', 'pdf', 'docx'].includes(ext)) {
-            // Always use server-side detection (reliable for BOM, encoding, binary formats)
-            try {
-                const fd = new FormData();
-                fd.append('batch_file', file);
-                fd.append('default_voice', document.getElementById('voice_preset')?.value || 'default');
-                fd.append('default_speed', document.getElementById('speed')?.value || '1.0');
-                fd.append('csrfmiddlewaretoken', csrfToken);
-                const resp = await fetch(URLS.batchPreview, { method: 'POST', body: fd });
-                if (resp.ok) {
-                    const data = await resp.json();
-                    if (data.tasks && data.tasks.length >= 1) {
-                        _showBatchBar(file, data.tasks, data.warnings || [], true);
-                        return;
-                    }
-                }
-            } catch (_e) { /* server error — treat as individual */ }
-        }
-
-        // No batch detected → regular individual upload
-        await handleFiles([file]);
+        if (rest.length) await handleFiles(rest);
     }
 
-    function _detectBatchLines(text) {
-        const tasks = [];
-        for (const line of text.split('\n')) {
-            const l = line.trim();
-            if (!l || l.startsWith('#')) continue;
-            const parts = l.split('|').map(p => p.trim());
-            if (parts.length >= 2 && parts[0] && parts[1]) {
-                tasks.push({
-                    output_filename: parts[0],
-                    text: parts[1],
-                    voice: parts[2] || '',
-                    speed: parts[3] || '',
-                });
-            }
-        }
-        return tasks;
-    }
-
-    function _showBatchBar(file, tasks, warnings, alreadyParsed) {
-        _batchFile = file;
-        _batchTasks = tasks;
-        const bar = document.getElementById('batchDetectBar');
-        if (!bar) return;
-        document.getElementById('batchDetectedCount').textContent = tasks.length;
-        // If already parsed by server, show preview immediately
-        if (alreadyParsed) {
-            _populateBatchPreview(tasks, warnings || []);
-            document.getElementById('batchDetectPreview').style.display = 'block';
-        } else {
-            document.getElementById('batchDetectPreview').style.display = 'none';
-        }
-        bar.style.display = 'block';
-    }
-
-    function _hideBatchBar() {
-        _batchFile = null;
-        _batchServerPath = null;
-        _batchTasks = [];
-        const bar = document.getElementById('batchDetectBar');
-        if (bar) bar.style.display = 'none';
-    }
-
-    function _populateBatchPreview(tasks, warnings) {
-        const warnEl = document.getElementById('batchDetectWarnings');
-        if (warnEl) {
-            if (warnings.length > 0) {
-                warnEl.innerHTML = warnings.map(w => '⚠ ' + escHtml(w)).join('<br>');
-                warnEl.style.display = 'block';
-            } else {
-                warnEl.style.display = 'none';
-            }
-        }
-        const tbody = document.getElementById('batchDetectTable');
-        if (tbody) {
-            tbody.innerHTML = '';
-            tasks.forEach(t => {
-                const txt = t.text.length > 60 ? t.text.substring(0, 60) + '…' : t.text;
-                const tr = document.createElement('tr');
-                tr.innerHTML = `<td class="text-info">${escHtml(t.output_filename)}</td>
-                    <td title="${escHtml(t.text)}">${escHtml(txt)}</td>
-                    <td class="text-muted">${escHtml(t.voice || '—')}</td>
-                    <td class="text-muted">${t.speed ? t.speed + 'x' : '—'}</td>`;
-                tbody.appendChild(tr);
-            });
-        }
-        const cnt = document.getElementById('batchCreateCount');
-        if (cnt) cnt.textContent = tasks.length;
-    }
-
-    // "Mode batch" — calls server to get normalized parse then shows table
-    const confirmBatchBtn = document.getElementById('batchConfirmBatchBtn');
-    if (confirmBatchBtn) {
-        confirmBatchBtn.addEventListener('click', async () => {
-            if (!_batchFile) return;
-            confirmBatchBtn.disabled = true;
-            confirmBatchBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
-            try {
-                const fd = new FormData();
-                fd.append('batch_file', _batchFile);
-                fd.append('default_voice', document.getElementById('voice_preset')?.value || 'default');
-                fd.append('default_speed', document.getElementById('speed')?.value || '1.0');
-                fd.append('csrfmiddlewaretoken', csrfToken);
-                const resp = await fetch(URLS.batchPreview, { method: 'POST', body: fd });
-                const data = await resp.json();
-                if (!resp.ok) { WamaApp.toast(data.error || 'Erreur', 'error'); return; }
-                _batchTasks = data.tasks;
-                _populateBatchPreview(data.tasks, data.warnings || []);
-                document.getElementById('batchDetectPreview').style.display = 'block';
-            } finally {
-                confirmBatchBtn.disabled = false;
-                confirmBatchBtn.innerHTML = '<i class="fas fa-layer-group"></i> Voir le batch';
-            }
-        });
-    }
-
-    // "Synthèse individuelle" — ignore detection, upload normally
-    const confirmIndividualBtn = document.getElementById('batchConfirmIndividualBtn');
-    if (confirmIndividualBtn) {
-        confirmIndividualBtn.addEventListener('click', async () => {
-            const file = _batchFile;
-            const serverPath = _batchServerPath;
-            _hideBatchBar();
-            if (file) {
-                handleFiles([file]);
-            } else if (serverPath) {
-                // File already on server but VoiceSynthesis not yet created — create it now
-                const fd = new FormData();
-                fd.append('server_path', serverPath);
-                fd.append('tts_model',    document.getElementById('tts_model')?.value    || 'xtts_v2');
-                fd.append('language',     document.getElementById('language')?.value     || 'fr');
-                fd.append('voice_preset', document.getElementById('voice_preset')?.value || 'default');
-                fd.append('speed',        document.getElementById('speed')?.value        || '1.0');
-                fd.append('pitch',        document.getElementById('pitch')?.value        || '1.0');
-                fd.append('csrfmiddlewaretoken', csrfToken);
-                try {
-                    await fetch(URLS.importIndividualFromPath, { method: 'POST', body: fd });
-                } catch (_e) { /* fall through */ }
-                window.location.reload();
-            }
-        });
-    }
-
-    // "Annuler"
-    const batchCancelBar = document.getElementById('batchCancelBar');
-    if (batchCancelBar) batchCancelBar.addEventListener('click', _hideBatchBar);
-
-    async function _doCreateBatch(andStart) {
-        if (!_batchFile && !_batchServerPath) return;
-        if (!_batchTasks.length) return;
-        const progress = document.getElementById('batchCreateProgress');
-        const btnStart = document.getElementById('batchCreateAndStartBtn');
-        const btnOnly  = document.getElementById('batchCreateOnlyBtn');
-        if (progress) progress.style.display = 'block';
-        if (btnStart) btnStart.disabled = true;
-        if (btnOnly)  btnOnly.disabled  = true;
-
+    async function _serverBatchDirect(result) {
+        // Batch depuis un fichier DÉJÀ sur le serveur (FileManager).
+        const n = (result.tasks || []).length;
+        if (!confirm('Fichier batch détecté (' + n + ' synthèses). Créer le batch avec les réglages du volet ?')) return;
         const fd = new FormData();
-        if (_batchServerPath) {
-            fd.append('server_path', _batchServerPath);
-        } else {
-            fd.append('batch_file', _batchFile);
-        }
-        fd.append('tts_model',    document.getElementById('tts_model')?.value    || 'xtts_v2');
-        fd.append('language',     document.getElementById('language')?.value     || 'fr');
-        fd.append('voice_preset', document.getElementById('voice_preset')?.value || 'default');
-        fd.append('speed',        document.getElementById('speed')?.value        || '1.0');
-        fd.append('pitch',        document.getElementById('pitch')?.value        || '1.0');
-        fd.append('csrfmiddlewaretoken', csrfToken);
-
+        fd.append('server_path', result.server_path || '');
+        const v = (id, dft) => { const el = document.getElementById(id); return el ? el.value : dft; };
+        fd.append('tts_model', v('tts_model', 'xtts_v2'));
+        fd.append('language', v('language', 'fr'));
+        fd.append('voice_preset', v('voice_preset', 'default'));
+        fd.append('speed', v('speed', '1.0'));
+        fd.append('pitch', v('pitch', '1.0'));
         try {
-            const resp = await fetch(URLS.batchCreate, { method: 'POST', body: fd });
-            const data = await resp.json();
-            if (!resp.ok) { WamaApp.toast(data.error || 'Erreur création batch', 'error'); return; }
-
-            if (andStart && data.batch_id) {
-                await fetch(URLS.batchStart + data.batch_id + '/start/', {
-                    method: 'POST',
-                    headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: 'csrfmiddlewaretoken=' + encodeURIComponent(csrfToken),
-                });
-            }
-            window.location.reload();
-        } catch (err) {
-            WamaApp.toast('Erreur : ' + err.message, 'error');
-            if (progress) progress.style.display = 'none';
-            if (btnStart) btnStart.disabled = false;
-            if (btnOnly)  btnOnly.disabled  = false;
-        }
+            const r = await fetch(URLS.batchCreate, { method: 'POST', headers: { 'X-CSRFToken': csrfToken }, body: fd });
+            const d = await r.json();
+            if (r.ok) location.reload();
+            else WamaApp.toast('Erreur batch : ' + (d.error || r.status), 'error');
+        } catch (err) { WamaApp.toast('Erreur réseau : ' + err.message, 'error'); }
     }
-
-    const batchCreateAndStartBtn = document.getElementById('batchCreateAndStartBtn');
-    if (batchCreateAndStartBtn) batchCreateAndStartBtn.addEventListener('click', () => _doCreateBatch(true));
-    const batchCreateOnlyBtn = document.getElementById('batchCreateOnlyBtn');
-    if (batchCreateOnlyBtn) batchCreateOnlyBtn.addEventListener('click', () => _doCreateBatch(false));
     // ─────────────────────────────────────────────────────────────────────────
 
     async function uploadFile(file) {

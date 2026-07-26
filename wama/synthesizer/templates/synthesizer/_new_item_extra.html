@@ -1,0 +1,34 @@
+{% comment %}
+Zone étendue de la card d'entrée synthesizer — injectée dans le corps dépliable de
+common/_new_item_card.html (extra_zone_template). Ids CONSERVÉS : titre, miroirs
+voix/vitesse du volet compose, aperçu SSE (index.js les consomme tels quels).
+{% endcomment %}
+<div class="row g-2 mb-2">
+    <div class="col-md-5">
+        <input type="text" id="textTitle" name="title"
+               class="form-control form-control-sm bg-dark text-light border-secondary"
+               placeholder="Titre (optionnel — nom du fichier)">
+    </div>
+    <div class="col-md-4">
+        <select id="textVoiceQuick" class="form-select form-select-sm bg-dark text-light border-secondary"
+                title="Voix (miroir du volet de droite)"></select>
+    </div>
+    <div class="col-md-3">
+        <div class="d-flex align-items-center gap-2">
+            <i class="fas fa-gauge-high text-white-50" title="Vitesse"></i>
+            <input type="range" id="textSpeedQuick" class="form-range" min="0.5" max="2.0" step="0.1" value="1.0">
+            <small id="textSpeedQuickVal" class="text-white-50">1.0</small>
+        </div>
+    </div>
+</div>
+<small class="text-white-50 d-block mb-2">Modèle, langue et options avancées : volet de droite.</small>
+<button type="button" class="btn btn-outline-info btn-sm mb-2" id="previewTextBtn">
+    <i class="fas fa-headphones"></i> Aperçu de la voix
+</button>
+<div id="previewLoader" style="display:none;" class="mb-2">
+    <div class="wama-progress-track"><div class="wama-progress-fill" id="previewProgress" style="width:0%"></div></div>
+    <small id="previewStatus" class="text-white-50"></small>
+</div>
+<div id="previewAudioContainer" style="display:none;" class="mb-2">
+    <audio id="previewAudioPlayer" controls class="w-100"></audio>
+</div>

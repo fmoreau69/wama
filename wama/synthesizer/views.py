@@ -130,33 +130,46 @@ class IndexView(View):
         # Lazily migrate any orphan VoiceSynthesis into a batch-of-1
         _auto_wrap_orphans(user)
 
-        # All batches with prefetched items+synthesis
-        batches_qs = BatchSynthesis.objects.filter(user=user).prefetch_related(
-            'items__synthesis'
-        ).order_by('-id')
+        # Réconcilie les synthèses RUNNING orphelines (worker mort/crash machine) —
+        # brique COMMUNE, preuve positive de mort uniquement.
+        try:
+            from wama.common.utils.process_control import reconcile_orphaned_running
+            running = list(VoiceSynthesis.objects.filter(user=user, status='RUNNING'))
+            n = reconcile_orphaned_running(running, error_field='error_message')
+            if n:
+                logger.info(f"[synthesizer] {n} synthèse(s) RUNNING orpheline(s) réconciliée(s) → échec relançable")
+        except Exception as exc:
+            logger.debug(f"[synthesizer] reconcile_orphaned_running ignoré: {exc}")
 
-        batches_list = []
-        for batch in batches_qs:
-            items = list(batch.items.all())
-            success_count = sum(1 for i in items if i.synthesis and i.synthesis.status == 'SUCCESS')
-            first_s = items[0].synthesis if items else None
-            batches_list.append({
-                'obj': batch,
-                'items': items,
-                'success_count': success_count,
-                'success_pct': int(success_count / batch.total * 100) if batch.total > 0 else 0,
-                'has_success': success_count > 0,
+        # File — briques COMMUNES build_batches_list (contrat _batch_card) +
+        # tri/filtre persistés session (contrat _queue_toolbar).
+        from wama.common.utils.batch_common import build_batches_list
+        from wama.common.utils.queue_view import apply_queue_sort_filter
+
+        def _extra(batch, items, works):
+            done = sum(1 for w in works if w.status == 'SUCCESS')
+            first_s = works[0] if works else None
+            return {
+                'success_pct': int(done / batch.total * 100) if batch.total > 0 else 0,
+                'eta_ids': [w.id for w in works],
                 'first_tts_model': first_s.tts_model if first_s else 'xtts_v2',
                 'first_language': first_s.language if first_s else 'fr',
                 'first_voice_preset': first_s.voice_preset if first_s else 'default',
                 'first_speed': first_s.speed if first_s else 1.0,
                 'first_pitch': first_s.pitch if first_s else 1.0,
-            })
+            }
+
+        batches_list = build_batches_list(
+            user, batch_model=BatchSynthesis, work_attr='synthesis', extra=_extra)
 
         # Multi-item batches first, then single-item batches
         batches_list.sort(key=lambda b: 0 if b['obj'].total > 1 else 1)
 
         queue_count = sum(len(b['items']) for b in batches_list)
+
+        batches_list, q_sort, q_filter = apply_queue_sort_filter(
+            request, batches_list,
+            name_of=lambda b: str(b['obj']))
 
         voice_presets = VoicePreset.objects.filter(
             is_public=True
@@ -191,7 +204,19 @@ class IndexView(View):
             'voice_refs_groups': voice_refs_groups,
             'params_json': json.dumps(_SYNTH_PARAMS_JSON),
             'tts_model_help_meta': json.dumps(self._tts_model_help_meta()),
+            'q_sort': q_sort,
+            'q_filter': q_filter,
         }
+
+        # Réglages persistés (brique COMMUNE user_settings) : derniers choix du
+        # volet compose, re-proposés au chargement (dont preferred_language que le
+        # template référençait sans être alimenté).
+        from wama.common.utils.user_settings import get_user_app_settings
+        context.update(get_user_app_settings(user, 'synthesizer', {
+            'preferred_language': '',
+            'preferred_tts_model': '',
+            'preferred_voice_preset': '',
+        }))
         return render(request, 'synthesizer/index.html', context)
 
     @staticmethod
@@ -466,6 +491,18 @@ def upload_text(request):
             }, status=400)
 
         _wrap_synthesis_in_batch(synthesis)
+
+        # Re-persiste les choix du volet compose comme défauts du prochain chargement
+        # (brique COMMUNE user_settings).
+        try:
+            from wama.common.utils.user_settings import save_user_app_settings
+            save_user_app_settings(user, 'synthesizer', {
+                'preferred_language': synthesis.language,
+                'preferred_tts_model': synthesis.tts_model,
+                'preferred_voice_preset': synthesis.voice_preset,
+            })
+        except Exception:
+            pass
 
         return JsonResponse({
             'success': True,
@@ -1804,3 +1841,19 @@ def delete_voice_preset(request, pk: int):
     preset.delete()
 
     return JsonResponse({'deleted': pk})
+
+
+# ── Manipulation directe de la file (fabrique COMMUNE, variante liaison) ──────
+# BatchSynthesisItem est le modèle de liaison (synthesis OneToOne, row_index).
+# Le consolidate LOCAL (déjà bâti sur batch_common.consolidate_into_batch) est
+# conservé ; les 3 autres vues viennent de la brique.
+from wama.common.utils.queue_manipulation import make_queue_manipulation_views
+
+_qm = make_queue_manipulation_views(
+    work_model=VoiceSynthesis, batch_model=BatchSynthesis,
+    item_model=BatchSynthesisItem, fk_name='synthesis',
+    get_user=lambda r: r.user if r.user.is_authenticated else get_or_create_anonymous_user(),
+)
+remove_from_batch = _qm['remove_from_batch']
+reorder           = _qm['reorder']
+move_to_batch     = _qm['move_to_batch']

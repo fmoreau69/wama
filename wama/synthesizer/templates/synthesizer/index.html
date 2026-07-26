@@ -8,71 +8,7 @@
 
 {# ── Right panel : médias ─────────────────────────────────────────────────── #}
 {% block app_right_panel_media %}
-<!-- Zone d'import batch -->
-<div class="drop-zone drop-zone-sm mb-2" id="dropZoneSynthesizer"
-     data-upload-url="{% url 'synthesizer:upload' %}" data-csrf-token="{{ csrf_token }}">
-    <i class="fas fa-file-upload text-primary"></i>
-    <p class="mb-0 small text-light mt-1">Glissez ou cliquez — fichier batch</p>
-    <small class="text-muted">TXT · PDF · DOCX · CSV · MD</small>
-    <input type="file" id="fileInput" multiple accept=".txt,.pdf,.docx,.csv,.md" style="display:none">
-    <small class="text-muted d-block mt-1">
-        Batch ?
-        <a href="{% url 'synthesizer:batch_template' %}" class="text-muted" download>
-            <i class="fas fa-download"></i> Template
-        </a>
-    </small>
-</div>
-<!-- Batch detect bar -->
-<div id="batchDetectBar" style="display:none; background:#1a1520; border:1px solid #6f42c1; border-radius:0.375rem; padding:0.5rem 0.75rem; margin-bottom:0.5rem;">
-    <div class="d-flex align-items-center justify-content-between flex-wrap gap-1 mb-1">
-        <span class="small text-light">
-            <i class="fas fa-magic" style="color:#a78bfa;"></i>
-            <strong>Batch</strong> — <span id="batchDetectedCount">0</span> tâche(s)
-        </span>
-        <div class="d-flex gap-1">
-            <button class="btn btn-sm py-0 px-2" style="background:#6f42c1;color:#fff;font-size:.8rem;" id="batchConfirmBatchBtn">
-                <i class="fas fa-layer-group"></i> Voir
-            </button>
-            <button class="btn btn-sm btn-outline-secondary py-0 px-2" style="font-size:.8rem;" id="batchConfirmIndividualBtn">
-                <i class="fas fa-file-alt"></i> Individuel
-            </button>
-            <button class="btn btn-sm btn-outline-danger py-0 px-1" id="batchCancelBar" title="Annuler">
-                <i class="fas fa-times"></i>
-            </button>
-        </div>
-    </div>
-    <div id="batchDetectPreview" style="display:none;">
-        <div id="batchDetectWarnings" class="alert alert-warning py-1 small mb-1" style="display:none;"></div>
-        <div class="table-responsive" style="max-height:140px; overflow-y:auto;">
-            <table class="table table-sm table-dark mb-0" style="font-size:0.78rem;">
-                <thead style="position:sticky; top:0; background:#1a1520;">
-                    <tr>
-                        <th style="width:30%">Fichier</th>
-                        <th>Texte</th>
-                        <th style="width:12%">Voix</th>
-                        <th style="width:8%">Vit.</th>
-                    </tr>
-                </thead>
-                <tbody id="batchDetectTable"></tbody>
-            </table>
-        </div>
-        <div class="d-flex gap-2 mt-2">
-            <button class="btn btn-success btn-sm flex-grow-1" id="batchCreateAndStartBtn">
-                <i class="fas fa-play"></i> Démarrer (<span id="batchCreateCount">0</span>)
-            </button>
-            <button class="btn btn-outline-primary btn-sm" id="batchCreateOnlyBtn">
-                <i class="fas fa-plus"></i> Ajouter
-            </button>
-        </div>
-        <div id="batchCreateProgress" class="mt-2" style="display:none;">
-            <div class="progress">
-                <div class="progress-bar progress-bar-striped progress-bar-animated" style="width:100%;">Création…</div>
-            </div>
-        </div>
-    </div>
-</div>
-<!-- La « Saisie texte directe / Preview » a été remontée dans la colonne principale
-     (bloc temps réel au-dessus de la file), cf. block synthesizer_content. -->
+{# Zones de dépôt/batch déplacées en tête de file (card d'entrée commune, port 2026-07-26). #}
 {% endblock %}
 
 {# ── Right panel : paramètres ────────────────────────────────────────────── #}
@@ -230,82 +166,18 @@
 {% endblock %}
 
 {% block app_right_panel_actions %}
-<div class="d-grid gap-2">
-    <button class="btn btn-success btn-sm" id="startAllBtn">
-        <i class="fas fa-play"></i> Démarrer
-    </button>
-    <button class="btn btn-info btn-sm" id="downloadAllBtn">
-        <i class="fas fa-download"></i> Télécharger tout
-    </button>
-    <button class="btn btn-outline-danger btn-sm" id="clearAllBtn">
-        <i class="fas fa-trash"></i> Tout effacer
-    </button>
-</div>
+{# Inspecteur contextuel COMMUN (hôte #inspectorActions rempli par WamaInspector) #}
+{% include 'common/_inspector_actions.html' %}
 {% endblock %}
 
 {% block synthesizer_content %}
 <div style="overflow-x:hidden;">
 
-<!-- Card « Nouvelle synthèse » — ACCORDÉON (entrée progressive). Replié : le texte = l'entrée
-     principale. Entrée (ou saisie) déplie : titre + voix + vitesse + aperçu + ajouter. Modèle /
-     langue / multi-locuteur restent dans le volet droit. IDs préservés → JS preview/submit OK.
-     #textVoiceQuick et #textSpeedQuick sont peuplés/synchronisés depuis le volet droit par JS. -->
-<div class="card bg-dark border-secondary mb-3" id="newSynthCard">
-    <div class="card-body py-2">
-        <form id="textInputForm">
-            {% csrf_token %}
-            <!-- En-tête toujours visible : le texte EST l'entrée -->
-            <textarea class="form-control form-control-sm" id="textContent" name="text_content" rows="2"
-                      placeholder="✍️ Écrivez le texte à synthétiser — Entrée pour déplier, Maj+Entrée = nouvelle ligne"></textarea>
+{% comment %}Card d'entrée COMMUNE PROMPT-FIRST (repliée, dépliage clic/focus/drag) —
+le prompt reste visible replié ; titre/voix/vitesse/aperçu dans la zone étendue.{% endcomment %}
+{% url 'synthesizer:batch_template' as synth_batch_template_url %}
+{% include 'common/_new_item_card.html' with drop_zone_id='dropZoneSynthesizer' file_input_id='fileInput' file_accept='.txt,.pdf,.docx,.csv,.md' formats_label='Texte à synthétiser — TXT · PDF · DOCX · CSV · MD (batch : une ligne par synthèse)' show_batch_bar=True batch_template_url=synth_batch_template_url show_media_library=True media_library_type='document' show_prompt=True prompt_input_id='textContent' prompt_rows=2 prompt_placeholder='✍️ Écrivez le texte à synthétiser — clic pour les options' primary_btn_id='submitTextBtn' primary_btn_label='Ajouter à la file' primary_btn_icon='fa-plus' extra_zone_template='synthesizer/_new_item_extra.html' collapsible=True %}
 
-            <!-- Corps déplié (accordéon) -->
-            <div class="collapse mt-2" id="newSynthBody">
-                <input type="text" class="form-control form-control-sm mb-2" id="textTitle" name="title"
-                       placeholder="Titre (optionnel)">
-                <div class="row g-2 mb-1">
-                    <div class="col-7">
-                        <label for="textVoiceQuick" class="form-label small text-light mb-1">
-                            <i class="fas fa-microphone"></i> Voix
-                        </label>
-                        <select class="form-select form-select-sm bg-dark text-white border-secondary" id="textVoiceQuick"></select>
-                    </div>
-                    <div class="col-5">
-                        <label for="textSpeedQuick" class="form-label small text-light mb-1">
-                            <i class="fas fa-tachometer-alt"></i> Vitesse <span id="textSpeedQuickVal">1.0</span>x
-                        </label>
-                        <input type="range" class="form-range" id="textSpeedQuick" min="0.5" max="2.0" step="0.1" value="1.0">
-                    </div>
-                </div>
-                <small class="text-muted d-block mb-2">
-                    <i class="fas fa-info-circle"></i> Modèle, langue et options avancées dans le volet de droite.
-                </small>
-                <div class="d-flex gap-1">
-                    <button type="button" class="btn btn-info btn-sm flex-fill" id="previewTextBtn">
-                        <i class="fas fa-play-circle"></i> Aperçu
-                    </button>
-                    <button type="submit" class="btn btn-success btn-sm flex-fill" id="submitTextBtn">
-                        <i class="fas fa-plus-circle"></i> Ajouter à la file
-                    </button>
-                </div>
-                <div id="previewAudioContainer" class="mt-2" style="display:none;">
-                    <audio id="previewAudioPlayer" controls class="w-100 mt-1">
-                        <source src="" type="audio/wav">
-                    </audio>
-                </div>
-                <div id="previewLoader" class="mt-2" style="display:none;">
-                    <div class="text-center">
-                        <div class="spinner-border spinner-border-sm text-info" role="status"></div>
-                        <small class="text-muted ms-1">Génération…</small>
-                    </div>
-                    <div class="progress mt-1" style="height:6px;">
-                        <div id="previewProgress" class="progress-bar progress-bar-striped progress-bar-animated" style="width:0%"></div>
-                    </div>
-                    <small id="previewStatus" class="text-muted d-block text-center">Préparation…</small>
-                </div>
-            </div>
-        </form>
-    </div>
-</div>
 
 {# Barre globale + ETA agrégée — brique commune (balayage bleu/vert permanent, toujours visible). #}
 {% include 'common/_global_progress.html' %}
@@ -317,6 +189,10 @@
             <i class="fas fa-list"></i> File d'attente
             <span class="badge bg-secondary" id="queueCount">{{ queue_count }}</span>
         </h4>
+
+        {% comment %}Toolbar de file COMMUNE (tri/filtre/layout + actions globales) — les ids
+startAllBtn/downloadAllBtn/clearAllBtn migrent ici depuis le volet droit.{% endcomment %}
+        {% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='startAllBtn' clear_id='clearAllBtn' download_id='downloadAllBtn' show_download=True %}
 
         <div id="synthesisQueue" class="wama-queue-{{ card_layout|default:'list' }}">
             {% for batch_info in batches_list %}
@@ -330,63 +206,10 @@
             {% else %}
             <!-- Multi-item batch: collapsible group with header -->
             <div class="batch-group mb-2" data-batch-id="{{ batch_info.obj.id }}">
-                <!-- Batch header -->
-                <div class="batch-group-header d-flex align-items-center gap-2 p-2"
-                     style="background:#1a1520; border:1px solid #6f42c1; border-radius:0.375rem;">
-                    <!-- Toggle area (click here to fold/unfold) -->
-                    <div class="d-flex align-items-center gap-2 flex-grow-1"
-                         style="cursor:pointer; user-select:none; min-width:0;"
-                         data-bs-toggle="collapse"
-                         data-bs-target="#batchItems{{ batch_info.obj.id }}"
-                         aria-expanded="false">
-                        <i class="fas fa-layer-group" style="color:#a78bfa;"></i>
-                        <strong class="text-light">Batch #{{ batch_info.obj.id }}</strong>
-                        <small class="text-muted">{{ batch_info.obj.created_at|date:"d/m H:i" }}</small>
-                        <span class="badge bg-secondary">{{ batch_info.success_count }}/{{ batch_info.obj.total }}</span>
-                        <span class="wama-eta" data-eta-ids="{% for item in batch_info.items %}{% if item.synthesis %}{{ item.synthesis.id }},{% endif %}{% endfor %}"></span>
-                        <div class="flex-grow-1">
-                            <div class="wama-progress-track">
-                                <div class="wama-progress-fill" style="width:{{ batch_info.success_pct }}%;"></div>
-                            </div>
-                        </div>
-                        <i class="fas fa-chevron-down text-muted" style="font-size:.7rem; transition:transform 0.2s;"
-                           id="batchChevron{{ batch_info.obj.id }}"></i>
-                    </div>
-                    <!-- Action buttons (outside toggle area — no collapse side effect) -->
-                    <div class="d-flex gap-1 flex-shrink-0">
-                        <button class="btn btn-sm batch-settings-btn py-0 px-2"
-                                style="background:rgba(111,66,193,0.25); color:#a78bfa; border:1px solid #6f42c1; font-size:.75rem;"
-                                data-batch-id="{{ batch_info.obj.id }}"
-                                data-tts-model="{{ batch_info.first_tts_model }}"
-                                data-language="{{ batch_info.first_language }}"
-                                data-voice-preset="{{ batch_info.first_voice_preset }}"
-                                data-speed="{{ batch_info.first_speed }}"
-                                data-pitch="{{ batch_info.first_pitch }}"
-                                title="Paramètres du batch">
-                            <i class="fas fa-cog"></i>
-                        </button>
-                        {% if batch_info.has_success %}
-                        <a href="{% url 'synthesizer:batch_download' batch_info.obj.id %}"
-                           class="btn btn-sm btn-outline-success py-0 px-2"
-                           style="font-size:.75rem;"
-                           title="Télécharger ZIP">
-                            <i class="fas fa-download"></i> ZIP
-                        </a>
-                        {% endif %}
-                        <button class="btn btn-sm batch-duplicate-btn py-0 px-2"
-                                data-batch-id="{{ batch_info.obj.id }}"
-                                style="background:rgba(13,202,240,0.15); color:#0dcaf0; border:1px solid #0dcaf0; font-size:.75rem;"
-                                title="Dupliquer le batch (fichiers partagés, résultats effacés)">
-                            <i class="fas fa-copy"></i>
-                        </button>
-                        <button class="btn btn-sm btn-outline-danger batch-delete-btn py-0 px-2"
-                                data-batch-id="{{ batch_info.obj.id }}"
-                                style="font-size:.75rem;"
-                                title="Supprimer le batch">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    </div>
-                </div>
+                {% comment %}Card mère batch COMMUNE — ▶ (batch_start) câblé en JS ; le ⚙ lit
+ses défauts sur la 1re card fille (.settings-btn data-*).{% endcomment %}
+                {% url 'synthesizer:batch_download' batch_info.obj.id as batch_dl_url %}
+                {% include 'common/_batch_card.html' with eta_ids=batch_info.eta_ids download_url=batch_dl_url %}
                 <!-- Batch items (collapsible) -->
                 <div class="collapse" id="batchItems{{ batch_info.obj.id }}"
                      data-wama-batch-key="synthesizer_{{ batch_info.obj.id }}"
@@ -481,134 +304,21 @@
             <div class="modal-body">
                 <form id="settingsForm">
                     <input type="hidden" id="settingsSynthesisId" name="synthesis_id">
-
-                    <!-- TTS Model -->
-                    <div class="mb-3">
-                        <label for="settingsTtsModel" class="form-label">
-                            <i class="fas fa-robot"></i> Modèle TTS
-                        </label>
-                        <select class="form-select" id="settingsTtsModel" name="tts_model">
-                            {% for value, label in tts_models %}
-                            <option value="{{ value }}">{{ label }}</option>
-                            {% endfor %}
-                        </select>
+                    {% comment %}Champs GÉNÉRÉS depuis le schéma déclaratif (params.py, contexte item)
+par WamaParams.render à l'ouverture — options des selects clonées
+depuis le volet compose (source serveur unique, optgroups aplatis).{% endcomment %}
+                    <div id="settingsParamsBody"></div>
+                    <div id="settings-lang-compat-warning" class="alert alert-warning py-1 px-2 mt-2 mb-0 small" style="display:none;">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        Ce modèle ne supporte que l'anglais — le texte sera prononcé avec une phonologie anglaise.
                     </div>
-
-                    <!-- Language -->
-                    <div class="mb-3">
-                        <label for="settingsLanguage" class="form-label">
-                            <i class="fas fa-language"></i> Langue
-                        </label>
-                        <select class="form-select" id="settingsLanguage" name="language">
-                            {% for value, label in languages %}
-                            <option value="{{ value }}">{{ label }}</option>
-                            {% endfor %}
-                        </select>
-                        <div id="settings-lang-compat-warning" class="alert alert-warning py-1 px-2 mt-1 mb-0 small" style="display:none;">
-                            <i class="fas fa-exclamation-triangle"></i>
-                            Ce modèle ne supporte que l'anglais. Le texte sera prononcé avec une phonologie anglaise.
-                        </div>
-                    </div>
-
-                    <!-- Voice Preset -->
-                    <div class="mb-3">
-                        <label for="settingsVoicePreset" class="form-label">
-                            <i class="fas fa-microphone"></i> Voix
-                        </label>
-                        <select class="form-select" id="settingsVoicePreset" name="voice_preset">
-                            <optgroup label="Voix par défaut">
-                                <option value="default">Voix par défaut</option>
-                            </optgroup>
-                            {% for grp in voice_refs_groups %}
-                            <optgroup label="{{ grp.group }}">
-                                {% for v in grp.voices %}
-                                <option value="{{ v.id }}">{{ v.label }}</option>
-                                {% endfor %}
-                            </optgroup>
-                            {% endfor %}
-                            {% if not voice_refs_groups %}
-                            <optgroup label="Voix intégrées (héritage)">
-                                <option value="male_1">Voix masculine 1</option>
-                                <option value="male_2">Voix masculine 2</option>
-                                <option value="female_1">Voix féminine 1</option>
-                                <option value="female_2">Voix féminine 2</option>
-                            </optgroup>
-                            {% endif %}
-                            <optgroup label="Mes voix (clonage)" id="settingsCustomVoicesGroup">
-                                {% for cv in custom_voices %}
-                                <option value="ua_{{ cv.id }}">{{ cv.name }}</option>
-                                {% endfor %}
-                            </optgroup>
-                            <optgroup label="Bark (presets)">
-                                <option value="bark_v2_en_0">Bark EN Speaker 0</option>
-                                <option value="bark_v2_en_1">Bark EN Speaker 1</option>
-                                <option value="bark_v2_en_2">Bark EN Speaker 2</option>
-                                <option value="bark_v2_en_3">Bark EN Speaker 3</option>
-                                <option value="bark_v2_en_4">Bark EN Speaker 4</option>
-                                <option value="bark_v2_en_5">Bark EN Speaker 5</option>
-                                <option value="bark_v2_fr_0">Bark FR Speaker 0</option>
-                                <option value="bark_v2_fr_1">Bark FR Speaker 1</option>
-                                <option value="bark_v2_es_0">Bark ES Speaker 0</option>
-                                <option value="bark_v2_de_0">Bark DE Speaker 0</option>
-                            </optgroup>
-                        </select>
-                        <button type="button" class="btn btn-outline-secondary btn-sm w-100 mt-1 add-custom-voice-btn">
-                            <i class="fas fa-plus"></i> Ajouter une voix
-                        </button>
-                    </div>
-
-                    <!-- Speed -->
-                    <div class="mb-3">
-                        <label for="settingsSpeed" class="form-label">
-                            <i class="fas fa-tachometer-alt"></i> Vitesse: <span id="settingsSpeedValue">1.0</span>x
-                        </label>
-                        <input type="range" class="form-range" id="settingsSpeed" name="speed"
-                               min="0.5" max="2.0" step="0.1" value="1.0"
-                               oninput="document.getElementById('settingsSpeedValue').textContent = this.value">
-                    </div>
-
-                    <!-- Pitch -->
-                    <div class="mb-3">
-                        <label for="settingsPitch" class="form-label">
-                            <i class="fas fa-wave-square"></i> Hauteur: <span id="settingsPitchValue">1.0</span>x
-                        </label>
-                        <input type="range" class="form-range" id="settingsPitch" name="pitch"
-                               min="0.5" max="2.0" step="0.1" value="1.0"
-                               oninput="document.getElementById('settingsPitchValue').textContent = this.value">
-                    </div>
-                    <div class="mb-2">
-                        <label for="settingsOutputFormat" class="form-label small">Format de sortie</label>
-                        <select class="form-select form-select-sm" id="settingsOutputFormat" name="output_format">
-                            <option value="original">Original</option>
-                            <option value="mp3">MP3</option>
-                            <option value="m4a">M4A</option>
-                            <option value="ogg">OGG</option>
-                            <option value="flac">FLAC</option>
-                            <option value="aac">AAC</option>
-                            <option value="opus">OPUS</option>
-                        </select>
-                    </div>
-                    <div class="mb-2">
-                        <label for="settingsOutputQuality" class="form-label small">Qualité</label>
-                        <select class="form-select form-select-sm" id="settingsOutputQuality" name="output_quality">
-                            <option value="web">Web (léger)</option>
-                            <option value="balanced">Équilibré</option>
-                            <option value="max">Maximum</option>
-                        </select>
-                    </div>
+                    <button type="button" class="btn btn-outline-secondary btn-sm w-100 mt-2 add-custom-voice-btn">
+                        <i class="fas fa-plus"></i> Ajouter une voix personnalisée
+                    </button>
                 </form>
             </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                    Annuler
-                </button>
-                <button type="button" class="btn btn-primary" id="saveSettingsBtn">
-                    <i class="fas fa-save"></i> Sauvegarder
-                </button>
-                <button type="button" class="btn btn-success" id="saveAndStartBtn">
-                    <i class="fas fa-play"></i> Sauvegarder et démarrer
-                </button>
-            </div>
+            {# Pied de modale COMMUN — ids conservés pour index.js #}
+            {% include 'common/_settings_modal_footer.html' with save_id='saveSettingsBtn' save_label='Sauvegarder' save_start_id='saveAndStartBtn' save_start_label='Sauvegarder et démarrer' %}
         </div>
     </div>
 </div>
@@ -723,15 +433,8 @@
                            oninput="document.getElementById('batchSettingsPitchValue').textContent = parseFloat(this.value).toFixed(1)">
                 </div>
             </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-                <button type="button" class="btn btn-primary" id="saveBatchSettingsBtn">
-                    <i class="fas fa-save"></i> Sauvegarder
-                </button>
-                <button type="button" class="btn btn-success" id="saveBatchSettingsAndStartBtn">
-                    <i class="fas fa-play"></i> Sauvegarder et relancer
-                </button>
-            </div>
+            {# Pied de modale COMMUN — ids conservés pour le script batch #}
+            {% include 'common/_settings_modal_footer.html' with save_id='saveBatchSettingsBtn' save_label='Sauvegarder' save_start_id='saveBatchSettingsAndStartBtn' save_start_label='Sauvegarder et relancer' save_start_icon='fa-rotate-right' %}
         </div>
     </div>
 </div>
@@ -803,6 +506,9 @@
 <script src="{% static_v 'common/js/wama-eta.js' %}"></script>
 <script src="{% static_v 'common/js/wama-model-caps.js' %}"></script>
 <script src="{% static_v 'common/js/wama-inspector.js' %}"></script>
+<script src="{% static_v 'common/js/wama-params.js' %}"></script>  {# modale item générée du schéma #}
+<script src="{% static_v 'common/js/batch-import.js' %}"></script>  {# import batch COMMUN #}
+<script src="{% static_v 'common/js/wama-new-item-card.js' %}"></script>  {# card d'entrée repliable (auto-init) #}
 <script src="{% static_v 'synthesizer/js/index.js' %}"></script>
 <!-- Barre globale commune (balayage permanent + ETA agrégée) : URL puis script auto-démarré. -->
 <script>window.WAMA_GLOBAL_PROGRESS_URL = "{% url 'synthesizer:global_progress' %}";</script>
@@ -817,6 +523,7 @@ document.addEventListener('DOMContentLoaded', function () {
     var ph = document.getElementById('synthPanelParams');
     if (!q || !ph || !window.WamaInspector || !WamaInspector.initFromSchema) return;
     var schema = {{ params_json|safe }};
+    window.SYNTH_PARAMS_SCHEMA = schema;
     var cfg = window.WAMA_CONFIG || {};
     var U = cfg.urls || {}, csrf = cfg.csrfToken || '';
     // Params per-item (incl. format/qualité = early-binding : réglés avant génération, sauvegardés).
@@ -949,11 +656,14 @@ document.addEventListener('DOMContentLoaded', function () {
             const el = document.getElementById(elId);
             if (el) { el.value = val; document.getElementById(labelId).textContent = parseFloat(val).toFixed(1); }
         };
-        sel('batchSettingsTtsModel', btn.dataset.ttsModel || 'xtts_v2');
-        sel('batchSettingsLanguage', btn.dataset.language || 'fr');
-        sel('batchSettingsVoicePreset', btn.dataset.voicePreset || 'default');
-        setSlider('batchSettingsSpeed', 'batchSettingsSpeedValue', btn.dataset.speed || '1.0');
-        setSlider('batchSettingsPitch', 'batchSettingsPitchValue', btn.dataset.pitch || '1.0');
+        // Défauts lus sur la 1re card FILLE (la card mère commune ne porte que data-batch-id).
+        const firstChild = document.querySelector('#batchItems' + id + ' .settings-btn');
+        const fd = firstChild ? firstChild.dataset : {};
+        sel('batchSettingsTtsModel', fd.ttsModel || 'xtts_v2');
+        sel('batchSettingsLanguage', fd.language || 'fr');
+        sel('batchSettingsVoicePreset', fd.voicePreset || 'default');
+        setSlider('batchSettingsSpeed', 'batchSettingsSpeedValue', fd.speed || '1.0');
+        setSlider('batchSettingsPitch', 'batchSettingsPitchValue', fd.pitch || '1.0');
         _updateBatchLangWarning();
         batchSettingsModal.show();
     });
@@ -1008,21 +718,22 @@ document.addEventListener('DOMContentLoaded', function () {
         .catch(() => WamaApp.toast('Erreur réseau', 'error'));
     });
 
-    // Duplicate queue item (shares source file, resets results)
+    // Duplication d'item : brique commune queue-actions.js (chargée globalement) —
+    // les handlers locaux (ici + index.js) provoquaient un DOUBLE-FIRE (2 doublons/clic).
+
+    // ▶ Lancer le batch (card mère COMMUNE — endpoint batch_start anti-race existant)
     document.addEventListener('click', function (e) {
-        const btn = e.target.closest('.duplicate-btn');
+        const btn = e.target.closest('.batch-start-btn');
         if (!btn) return;
-        const id = btn.dataset.id;
-        fetch(URLS.duplicate + id + '/', {
+        const id = btn.dataset.batchId;
+        btn.disabled = true;
+        fetch("{% url 'synthesizer:batch_start' 0 %}".replace('/0/', '/' + id + '/'), {
             method: 'POST',
             headers: { 'X-CSRFToken': csrf },
         })
         .then(r => r.json())
-        .then(data => {
-            if (data.duplicated) location.reload();
-            else WamaApp.toast('Duplication impossible', 'error');
-        })
-        .catch(() => WamaApp.toast('Erreur réseau lors de la duplication', 'error'));
+        .then(() => location.reload())
+        .catch(() => { btn.disabled = false; WamaApp.toast('Erreur réseau au lancement du batch', 'error'); });
     });
 });
 </script>

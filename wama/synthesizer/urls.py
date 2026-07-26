@@ -17,6 +17,10 @@ urlpatterns = [
     # Opérations sur les synthèses
     path('upload/', views.upload, name='upload'),
     path('consolidate/', views.consolidate, name='consolidate'),
+    # Manipulation directe de la file (fabrique commune, variante liaison)
+    path('reorder/', views.reorder, name='reorder'),
+    path('move-to-batch/<int:pk>/', views.move_to_batch, name='move_to_batch'),
+    path('remove-from-batch/<int:pk>/', views.remove_from_batch, name='remove_from_batch'),
     path('upload-text/', views.upload_text, name='upload_text'),
     path('text-preview/<int:pk>/', views.text_preview, name='text_preview'),
     path('voice-preview/', views.voice_preview, name='voice_preview'),

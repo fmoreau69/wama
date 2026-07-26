@@ -305,6 +305,15 @@ def synthesize_voice(self, synthesis_id: int):
         output_dir = os.path.dirname(synthesis.text_file.path)
         temp_output = os.path.join(output_dir, f"synthesis_{synthesis.id}_temp.wav")
 
+        # ── Ingest URL déclaratif (brique commune, VoiceSynthesis.WAMA_INGEST) : si
+        # une source_url de voix de référence est posée sans fichier local, on la
+        # matérialise ici.
+        try:
+            from wama.common.utils.source_ingest import ensure_local_input
+            ensure_local_input(synthesis, console=lambda m: _console(synthesis.user_id, m))
+        except Exception as exc:
+            logger.warning(f"[synthesizer] ensure_local_input({synthesis.id}) : {exc}")
+
         # Resolve speaker_wav for voice cloning models
         speaker_wav = None
         if synthesis.voice_reference:

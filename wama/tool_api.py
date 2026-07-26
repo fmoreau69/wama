@@ -2114,6 +2114,7 @@ TOOL_REGISTRY = {
     'start_audio_enhancer':      start_audio_enhancer,
     'get_audio_enhancer_status': get_audio_enhancer_status,
     'synthesize_text':        synthesize_text,
+    'add_to_synthesizer':     add_to_synthesizer,  # alias canonique §17.2 (runner générique)
     'start_synthesizer':      start_synthesizer,
     'get_synthesizer_status': get_synthesizer_status,
     'compose_music':          compose_music,
@@ -2252,6 +2253,14 @@ TOOL_DESCRIPTIONS = {
             'speed':             'float — vitesse de parole 0.5–2.0 (défaut: 1.0)',
             'pitch':             'float — hauteur de la voix 0.5–2.0 (défaut: 1.0)',
             'emotion_intensity': 'float — intensité émotionnelle 0.0–2.0 (défaut: 1.0)',
+        },
+    },
+    'add_to_synthesizer': {
+        'description': "Alias canonique de synthesize_text (ajoute une synthèse vocale à la file). Retourne item_id.",
+        'args': {
+            'text': 'str — texte à synthétiser',
+            'voice': "str — préréglage voix (optionnel, défaut de l'app)",
+            'language': 'str — code langue (optionnel)',
         },
     },
     'start_synthesizer': {
