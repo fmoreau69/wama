@@ -62,6 +62,22 @@ def convert_media_task(self, job_id: int):
     _set_progress(job_id, 0)
     _console(user_id, f"Conversion démarrée : {job.input_filename} → .{job.output_format}")
 
+    # ── Ingest URL déclaratif (brique commune, piloté par ConversionJob.WAMA_INGEST) :
+    # si le job a une source_url sans fichier local, on le matérialise ici.
+    try:
+        from wama.common.utils.source_ingest import ensure_local_input
+
+        def _derive(inst, path, fname):
+            if inst.media_type:
+                return []
+            from .utils.format_router import detect_media_type
+            inst.media_type = detect_media_type(fname) or ''
+            return ['media_type']
+
+        ensure_local_input(job, console=lambda m: _console(user_id, m), derive=_derive)
+    except Exception as exc:
+        logger.warning(f"[converter] ensure_local_input({job_id}) : {exc}")
+
     import time as _time
     _t0 = _time.time()  # chrono pour le seeding ETA
 

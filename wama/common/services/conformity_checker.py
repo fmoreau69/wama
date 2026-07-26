@@ -193,7 +193,9 @@ def _toast(f: _AppFiles):
 
 def _duplicate_wiring(f: _AppFiles):
     data_url = f.find(TEMPLATES, r'data-duplicate-url')
-    local = f.find(JS, r"\.duplicate-btn|duplicate-btn'\)|duplicate-btn\"\)")
+    # (?<![\w-]) : ne pas compter `.batch-duplicate-btn` (bouton de la card MÈRE,
+    # hors périmètre — la brique queue-actions ne cible que `.duplicate-btn`).
+    local = f.find(JS, r"(?<![\w-])\.duplicate-btn|(?<![\w-])duplicate-btn'\)|(?<![\w-])duplicate-btn\"\)")
     if data_url and not local:
         return True, data_url
     if data_url and local:

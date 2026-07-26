@@ -26,7 +26,7 @@ from django.utils.encoding import smart_str
 from django.core.cache import cache
 from django.db import transaction
 
-from .models import ConversionJob, ConversionProfile
+from .models import ConversionJob, ConversionProfile, ConversionBatch
 from .utils.format_router import detect_media_type, get_output_formats, SUPPORTED_CONVERSIONS
 from ..accounts.views import get_or_create_anonymous_user
 from ..common.utils.queue_duplication import safe_delete_file, duplicate_instance
@@ -108,6 +108,19 @@ class IndexView(View):
         # Tout job de file appartient à un batch (batch-of-1 si fichier seul) —
         # wrap paresseux des éventuels orphelins (ex. upload direct).
         _auto_wrap_orphans(user)
+
+        # Réconcilie les jobs RUNNING orphelins (worker mort/crash machine) — brique
+        # COMMUNE. Ne bascule que sur PREUVE POSITIVE de mort (cf. process_control) :
+        # un worker muet (pool solo occupé) ne conclut rien.
+        try:
+            from wama.common.utils.process_control import reconcile_orphaned_running
+            running = list(ConversionJob.objects.filter(user=user, status='RUNNING'))
+            n = reconcile_orphaned_running(running, error_field='error_message')
+            if n:
+                logger.info(f"[converter] {n} job(s) RUNNING orphelin(s) réconcilié(s) → échec relançable")
+        except Exception as exc:
+            logger.debug(f"[converter] reconcile_orphaned_running ignoré: {exc}")
+
         # Ephemeral jobs (quick-convert) are never shown in the queue.
         jobs     = (ConversionJob.objects.filter(user=user, ephemeral=False)
                     .select_related('batch').order_by('-created_at'))
@@ -189,12 +202,19 @@ def upload(request):
 
     if not file_obj:
         return JsonResponse({'error': 'Aucun fichier fourni'}, status=400)
-    if not output_fmt:
-        return JsonResponse({'error': 'Format de sortie manquant'}, status=400)
 
     media_type = detect_media_type(file_obj.name)
     if media_type is None:
         return JsonResponse({'error': f"Format d'entrée non supporté : {file_obj.name}"}, status=400)
+
+    # Réglages persistés (brique user_settings) : le POST prime, sinon dernier
+    # format utilisé pour ce type de média.
+    from wama.common.utils.user_settings import get_user_app_settings, save_user_app_settings
+    if not output_fmt:
+        output_fmt = (get_user_app_settings(user, 'converter', {f'last_format_{media_type}': ''})
+                      .get(f'last_format_{media_type}') or '')
+    if not output_fmt:
+        return JsonResponse({'error': 'Format de sortie manquant'}, status=400)
 
     allowed_formats = get_output_formats(media_type)
     if output_fmt not in allowed_formats:
@@ -228,6 +248,9 @@ def upload(request):
         options=options,
         status='PENDING',
     )
+
+    # Re-persiste le choix comme défaut du prochain dépôt de ce type de média.
+    save_user_app_settings(user, 'converter', {f'last_format_{media_type}': output_fmt})
 
     return JsonResponse({
         'success':    True,
@@ -954,3 +977,72 @@ def quick_convert(request):
     job.task_id = task.id
     job.save(update_fields=['task_id'])
     return JsonResponse({'success': True, 'job_id': job.id, 'task_id': task.id})
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Vues standard communes (port schéma-driven 2026-07-26)
+# ═══════════════════════════════════════════════════════════════════════════
+
+def card_html(request, pk):
+    """Card = partial serveur UNIQUE : le JS remplace la card par ce rendu
+    (source unique du markup — pas de reconstruction côté client)."""
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    job = get_object_or_404(ConversionJob, pk=pk, user=user)
+    return render(request, 'converter/_job_card.html', {'job': job})
+
+
+def console_content(request):
+    """Lignes de console de l'app (brique commune console_utils)."""
+    from wama.common.utils.console_utils import get_console_lines
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    return JsonResponse({'lines': get_console_lines(user.id)})
+
+
+def batch_template(request):
+    """Gabarit de fichier batch téléchargeable (une source par ligne)."""
+    from django.http import HttpResponse
+    template_content = (
+        "# WAMA Converter - Import batch\n"
+        "# Format : une URL ou un chemin de fichier par ligne (images, vidéos, audio, documents).\n"
+        "# Les lignes commençant par # sont ignorées.\n"
+        "#\n"
+        "# Exemples :\n"
+        "# https://example.com/photo.png\n"
+        "# https://example.com/clip.mov\n"
+        "# https://www.youtube.com/watch?v=XXXXXXXXXXX\n"
+        "# D:/medias/enregistrement.wav\n"
+        "# D:/documents/rapport.docx\n"
+    )
+    response = HttpResponse(template_content, content_type='text/plain; charset=utf-8')
+    response['Content-Disposition'] = 'attachment; filename="batch_converter_template.txt"'
+    return response
+
+
+from django.views.generic import TemplateView
+
+
+class AboutView(TemplateView):
+    """Onglet À-propos (contenu : bloc about_content de converter/base.html)."""
+    template_name = 'converter/base.html'
+
+
+class HelpView(TemplateView):
+    """Onglet Aide (contenu : bloc help_content de converter/base.html)."""
+    template_name = 'converter/base.html'
+
+
+# ── Manipulation directe de la file (fabrique COMMUNE, variante FK-directe) ──
+# ConversionJob porte lui-même batch + batch_row_index (pas de modèle de liaison).
+# On garde le consolidate LOCAL (groupement par nature) ; les 3 autres viennent
+# de la brique.
+from wama.common.utils.queue_manipulation import make_queue_manipulation_views_direct
+
+_qm = make_queue_manipulation_views_direct(
+    work_model=ConversionJob,
+    batch_model=ConversionBatch,
+    get_user=lambda r: r.user if r.user.is_authenticated else get_or_create_anonymous_user(),
+    batch_extra=lambda job: {'media_type': job.media_type},
+)
+remove_from_batch = _qm['remove_from_batch']
+reorder           = _qm['reorder']
+move_to_batch     = _qm['move_to_batch']

@@ -50,8 +50,18 @@ class ConversionJob(ProcessingTimeMixin, models.Model):
         ('FAILURE',  'Erreur'),
     ]
 
+    # Ingest URL déclaratif — consommé par la brique commune
+    # common/utils/source_ingest.ensure_local_input() au démarrage de la tâche.
+    WAMA_INGEST = {
+        'source': 'source_url',
+        'target': 'input_file',
+        'mode': 'media',
+        'name_field': 'input_filename',
+    }
+
     user          = models.ForeignKey(User, on_delete=models.CASCADE, related_name='conversion_jobs')
-    input_file    = models.FileField(upload_to=UploadToUserPath('converter', 'input'))
+    input_file    = models.FileField(upload_to=UploadToUserPath('converter', 'input'), blank=True)
+    source_url    = models.CharField(max_length=2000, blank=True, default='')
     input_filename = models.CharField(max_length=255)
     media_type    = models.CharField(max_length=20, blank=True)  # 'image', 'video', 'audio'
 

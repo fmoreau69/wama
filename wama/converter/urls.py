@@ -19,8 +19,20 @@ urlpatterns = [
     path('<int:pk>/download/',          views.download,             name='download'),
     path('<int:pk>/delete/',            views.delete,               name='delete'),
     path('<int:pk>/duplicate/',         views.duplicate,            name='duplicate'),
+    # Card = partial serveur unique
+    path('card/<int:pk>/html/',         views.card_html,            name='card_html'),
+    # Console app (brique commune)
+    path('console/',                    views.console_content,      name='console'),
+    # Aide / À-propos
+    path('about/',                      views.AboutView.as_view(),  name='about'),
+    path('help/',                       views.HelpView.as_view(),   name='help'),
+    # Manipulation directe de la file (fabrique commune, variante FK-directe)
+    path('reorder/',                    views.reorder,              name='reorder'),
+    path('move-to-batch/<int:pk>/',     views.move_to_batch,        name='move_to_batch'),
+    path('remove-from-batch/<int:pk>/', views.remove_from_batch,    name='remove_from_batch'),
     # Batch import
     path('consolidate/',                views.consolidate,          name='consolidate'),
+    path('batch/template/',             views.batch_template,       name='batch_template'),
     path('batch/preview/',              views.batch_preview,        name='batch_preview'),
     path('batch/create/',               views.batch_create,         name='batch_create'),
     # Batch (groupe)

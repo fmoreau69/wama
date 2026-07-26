@@ -207,18 +207,8 @@ Actions de l'inspecteur ne s'affichait jamais pour converter (aucune erreur cons
             <div class="modal-body" id="jobSettingsBody">
                 <!-- Populated by JS -->
             </div>
-            <div class="modal-footer border-secondary">
-                <button type="button" class="btn btn-outline-info me-auto" id="jobSettingsSaveProfileBtn">
-                    <i class="fas fa-bookmark"></i> Sauver comme profil…
-                </button>
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-                <button type="button" class="btn btn-primary" id="jobSettingsApplyBtn">
-                    <i class="fas fa-save"></i> Appliquer
-                </button>
-                <button type="button" class="btn btn-success" id="jobSettingsStartBtn">
-                    <i class="fas fa-play"></i> Appliquer & (Re)lancer
-                </button>
-            </div>
+            {# Pied de modale COMMUN (MODAL_ACTIONS_AUDIT §3) — ids conservés pour converter.js #}
+            {% include 'common/_settings_modal_footer.html' with save_id='jobSettingsApplyBtn' save_start_id='jobSettingsStartBtn' save_start_label='Appliquer & (Re)lancer' left_html='<button type="button" class="btn btn-sm btn-outline-info" id="jobSettingsSaveProfileBtn"><i class="fas fa-bookmark"></i> Sauver comme profil…</button>' %}
         </div>
     </div>
 </div>
@@ -278,15 +268,8 @@ Actions de l'inspecteur ne s'affichait jamais pour converter (aucune erreur cons
                 </select>
                 <div id="batchSettingsError" class="text-danger small mt-2" style="display:none;"></div>
             </div>
-            <div class="modal-footer border-secondary">
-                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Annuler</button>
-                <button type="button" class="btn btn-primary btn-sm" id="batchSettingsApplyBtn">
-                    <i class="fas fa-save"></i> Appliquer
-                </button>
-                <button type="button" class="btn btn-success btn-sm" id="batchSettingsApplyStartBtn">
-                    <i class="fas fa-play"></i> Appliquer & démarrer
-                </button>
-            </div>
+            {# Pied de modale COMMUN — ids conservés pour converter.js #}
+            {% include 'common/_settings_modal_footer.html' with save_id='batchSettingsApplyBtn' save_start_id='batchSettingsApplyStartBtn' save_start_label='Appliquer & démarrer' %}
         </div>
     </div>
 </div>
@@ -306,6 +289,7 @@ window.CONVERTER_APP = {
         start:         "{% url 'converter:start' 0 %}",
         cancel:        "{% url 'converter:cancel' 0 %}",
         status:        "{% url 'converter:status' 0 %}",
+        cardHtml:      "{% url 'converter:card_html' 0 %}",
         update:        "{% url 'converter:update' 0 %}",
         download:      "{% url 'converter:download' 0 %}",
         delete:        "{% url 'converter:delete' 0 %}",
@@ -332,6 +316,8 @@ window.WAMA_GLOBAL_PROGRESS_URL = "{% url 'converter:global_progress' %}";
 <script src="{% static_v 'common/js/wama-inspector.js' %}"></script>
 <script src="{% static_v 'common/js/wama-params.js' %}"></script>
 <script src="{% static_v 'common/js/wama-app-base.js' %}"></script>
+<script src="{% static_v 'common/js/queue-actions.js' %}"></script>
+<script src="{% static_v 'common/js/wama-model-help.js' %}"></script>
 <script src="{% static_v 'converter/js/converter.js' %}"></script>
 <script src="{% static_v 'common/js/wama-global-progress.js' %}"></script>
 <script>
@@ -393,7 +379,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
     {% comment %}Card d'entrée commune, en TÊTE DE FILE (2026-07-10 — alignement reader/composer/
     transcriber/describer ; batch_detect_bar déplacé dedans via show_batch_bar).{% endcomment %}
-    {% include 'common/_new_item_card.html' with drop_zone_id='converterDropZone' file_input_id='converterFileInput' file_accept='.jpg,.jpeg,.png,.webp,.bmp,.tiff,.tif,.gif,.heic,.heif,.avif,.mp4,.avi,.mov,.mkv,.webm,.flv,.mpg,.mpeg,.3gp,.wmv,.ts,.m4v,.mp3,.wav,.flac,.ogg,.m4a,.aac,.opus,.wma,.aiff,.aif,.pdf,.docx,.md,.markdown,.html,.htm,.txt,.rtf,.odt,.epub,.tex,.latex' formats_label='Images · Vidéos · Audio · Documents' show_batch_bar=True show_url=True url_input_id='converterUrl' url_submit_id='converterUrlSubmit' url_placeholder='https://… (page web, YouTube, média distant)' %}
+    {% url 'converter:batch_template' as converter_batch_template_url %}
+{% include 'common/_new_item_card.html' with drop_zone_id='converterDropZone' file_input_id='converterFileInput' file_accept='.jpg,.jpeg,.png,.webp,.bmp,.tiff,.tif,.gif,.heic,.heif,.avif,.mp4,.avi,.mov,.mkv,.webm,.flv,.mpg,.mpeg,.3gp,.wmv,.ts,.m4v,.mp3,.wav,.flac,.ogg,.m4a,.aac,.opus,.wma,.aiff,.aif,.pdf,.docx,.md,.markdown,.html,.htm,.txt,.rtf,.odt,.epub,.tex,.latex' formats_label='Images · Vidéos · Audio · Documents' show_batch_bar=True show_media_library=True show_url=True url_input_id='converterUrl' url_submit_id='converterUrlSubmit' url_placeholder='https://… (page web, YouTube, média distant)' batch_template_url=converter_batch_template_url %}
 
     {% comment %}Barre d'outils commune (tri/filtre/disposition Ligne-Mosaïque/actions globales),
     alignement reader/composer/transcriber/describer (2026-07-10, absente jusqu'ici).{% endcomment %}

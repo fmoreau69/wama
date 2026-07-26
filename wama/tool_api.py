@@ -2038,6 +2038,52 @@ def add_to_converter(user, *args, **kwargs):
     return res
 
 
+def start_converter(user, job_id: int = None) -> dict:
+    """
+    Lance la (re)conversion : un job précis, ou tous les jobs PENDING.
+
+    Returns:
+        {"task_id": str, "status": "started", ...}
+    """
+    from wama.converter.models import ConversionJob
+    from wama.converter.tasks import convert_media_task
+
+    if job_id is not None:
+        try:
+            job = ConversionJob.objects.get(pk=job_id, user=user)
+        except ConversionJob.DoesNotExist:
+            return {'error': f'ConversionJob #{job_id} introuvable ou non autorisé.'}
+
+        if job.status == 'RUNNING':
+            return {'error': f'ConversionJob #{job_id} est déjà en cours.'}
+
+        job.status = 'RUNNING'
+        job.error_message = ''
+        job.progress = 0
+        job.save()
+
+        task = convert_media_task.delay(job.id)
+        job.task_id = task.id
+        job.save(update_fields=['task_id'])
+
+        return {'task_id': task.id, 'status': 'started', 'item_id': job_id}
+
+    else:
+        pending = ConversionJob.objects.filter(user=user, status='PENDING', ephemeral=False)
+        if not pending.exists():
+            return {'error': 'Aucune conversion en attente.'}
+
+        started = []
+        for job in pending:
+            task = convert_media_task.delay(job.id)
+            job.task_id = task.id
+            job.status = 'RUNNING'
+            job.save(update_fields=['task_id', 'status'])
+            started.append(job.id)
+
+        return {'status': 'started', 'item_id': None, 'count': len(started), 'ids': started}
+
+
 @functools.wraps(create_image)
 def add_to_imager(user, *args, **kwargs):
     res = create_image(user, *args, **kwargs)
@@ -2084,6 +2130,8 @@ TOOL_REGISTRY = {
     'start_reader':           start_reader,
     'get_reader_status':      get_reader_status,
     'convert_file':           convert_file,
+    'add_to_converter':       add_to_converter,   # alias canonique §17.2 (runner générique)
+    'start_converter':        start_converter,
     'get_converter_status':   get_converter_status,
     'list_media_assets':      list_media_assets,
     'get_media_asset_url':    get_media_asset_url,
@@ -2294,6 +2342,20 @@ TOOL_DESCRIPTIONS = {
             'file_path':      'str — chemin relatif à MEDIA_ROOT du fichier source',
             'output_format':  "str — format cible (ex: 'mp4', 'webp', 'pdf', 'docx', 'mp3', 'zip', 'tar.gz')",
             'quality_preset': "str — 'web' | 'balanced' (défaut) | 'max'",
+        },
+    },
+    'add_to_converter': {
+        'description': "Alias canonique de convert_file (ajoute une conversion ; démarre immédiatement — auto_start). Retourne item_id.",
+        'args': {
+            'file_path':      'str — chemin relatif à MEDIA_ROOT du fichier source',
+            'output_format':  "str — format cible (ex: 'mp4', 'webp', 'pdf', 'docx', 'mp3', 'zip', 'tar.gz')",
+            'quality_preset': "str — 'web' | 'balanced' (défaut) | 'max'",
+        },
+    },
+    'start_converter': {
+        'description': "(Re)lance une conversion précise (job_id) ou toutes les conversions PENDING.",
+        'args': {
+            'job_id': 'int — id du job à (re)lancer (optionnel ; défaut = tous les PENDING)',
         },
     },
     'get_converter_status': {

@@ -14,6 +14,23 @@ converter.js (remplace l'ancien buildModalFormHTML/readModalForm). Lu par `WamaP
 """
 from wama.common.utils.param_schema import Param, schema_to_dicts
 
+# ── Descriptif moteur (brique wama-model-help via WamaParams : chip + help_fallback) ──
+# Construit depuis SUPPORTED_CONVERSIONS — source unique des formats (format_router).
+# En cas de format multi-famille (pdf, gif, mp3…), le texte de la 1re famille gagne.
+from .utils.format_router import SUPPORTED_CONVERSIONS
+
+_ENGINE_BY_TYPE = {
+    'image':    "Moteur : Pillow — qualité, redimensionnement, rotations/miroirs.",
+    'video':    "Moteur : FFmpeg — CRF, FPS, rotations ; extraction audio possible.",
+    'audio':    "Moteur : FFmpeg — débit, normalisation du volume.",
+    'document': "Moteur : Pandoc (PDF→DOCX via pdf2docx) ; ebooks via Calibre.",
+    'archive':  "Moteur : zipfile / tarfile / py7zr.",
+}
+_FORMAT_HELP = {}
+for _mt, _spec in SUPPORTED_CONVERSIONS.items():
+    for _fmt in _spec.get('output', []):
+        _FORMAT_HELP.setdefault(_fmt, _ENGINE_BY_TYPE.get(_mt, ''))
+
 # Conditions de visibilité par valeur du champ caché media_type.
 IMG = {"field": "media_type", "equals": "image"}
 VID = {"field": "media_type", "equals": "video"}
@@ -27,7 +44,8 @@ PARAMS = [
     Param(name="media_type", type="hidden", contexts=ITEM),
 
     Param(name="output_format", type="select", label="Format de sortie", icon="fa-file-export",
-          options_source="formats", contexts=ITEM),
+          options_source="formats", contexts=ITEM,
+          chip=True, help_fallback=_FORMAT_HELP),
 
     # ── Image ───────────────────────────────────────────────────────────────
     Param(name="quality", type="range", label="Qualité", icon="fa-gauge",

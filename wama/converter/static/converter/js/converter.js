@@ -323,14 +323,8 @@
         }
     }
 
-    async function duplicateJob(jobId) {
-        try {
-            await csrfPost(urlFor(APP.urls.duplicate, jobId));
-            location.reload();
-        } catch (err) {
-            WamaApp.toast('Erreur réseau : ' + err.message, 'error');
-        }
-    }
+    // Duplication : gérée par la brique commune queue-actions.js (délégation
+    // globale sur le bouton de card, aucun handler local ici).
 
     // ── Polling ───────────────────────────────────────────────────────────────
 
@@ -351,114 +345,51 @@
             const resp = await fetch(urlFor(APP.urls.status, jobId));
             if (!resp.ok) return;
             const data = await resp.json();
-            updateCard(jobId, data);
+            const card = document.querySelector(`.job-card[data-job-id="${jobId}"]`);
+            if (card) {
+                // ETA (moteur commun) — débit observé, sans seed côté converter
+                if (window.WamaEta) {
+                    const est = WamaEta.update(jobId, { progress: data.progress, status: data.status, seedSeconds: data.estimated_seconds, modelLoaded: false });
+                    WamaEta.render(card.querySelector('.wama-eta'), est);
+                }
+                if (data.status === card.dataset.status) {
+                    // Même état : maj légère de la progression, le markup ne bouge pas.
+                    const fill = card.querySelector('.wama-progress-fill');
+                    if (fill) fill.style.width = (data.progress || 0) + '%';
+                    const pct = card.querySelector('.progress-text');
+                    if (pct) pct.textContent = (data.progress || 0) + '%';
+                } else {
+                    // Transition d'état → re-rendu SERVEUR de la card (source unique).
+                    await refreshCard(jobId);
+                }
+            }
             if (data.status === 'SUCCESS' || data.status === 'FAILURE') {
                 stopPolling(jobId);
             }
         } catch (_) { /* ignore */ }
     }
 
-    function updateCard(jobId, data) {
-        const card = document.querySelector(`.job-card[data-job-id="${jobId}"]`);
-        if (!card) return;
-        card.dataset.status = data.status;
-
-        // ETA (moteur commun) — débit observé, sans seed côté converter
-        if (window.WamaEta) {
-            const est = WamaEta.update(jobId, { progress: data.progress, status: data.status, seedSeconds: data.estimated_seconds, modelLoaded: false });
-            WamaEta.render(card.querySelector('[data-eta-card]'), est);
-        }
-
-        // Status badge — cibler le badge de STATUT (.status-badge), pas le badge
-        // de format qui est aussi un .badge et apparaît en premier.
-        const badge = card.querySelector('.status-badge') || card.querySelector('.badge');
-        if (badge) {
-            const STATUS_LABELS = {
-                PENDING: 'En attente', RUNNING: 'En cours', DONE: 'Terminé', ERROR: 'Erreur'
-            };
-            const STATUS_CLASSES = {
-                PENDING: 'bg-secondary', RUNNING: 'bg-warning text-dark',
-                DONE: 'bg-success', ERROR: 'bg-danger'
-            };
-            badge.className = `badge status-badge ${STATUS_CLASSES[data.status] || 'bg-secondary'} badge-media`;
-            badge.textContent = STATUS_LABELS[data.status] || data.status;
-        }
-
-        // Output-format badge update (in case settings changed it)
-        if (data.output_format) {
-            const filenameSpan = card.querySelector('.fw-bold');
-            if (filenameSpan) {
-                let fmtBadge = filenameSpan.parentElement.querySelector('.badge-media.bg-secondary');
-                if (fmtBadge && fmtBadge.textContent.trim().startsWith('→')) {
-                    fmtBadge.textContent = '→ .' + data.output_format;
-                }
-            }
-        }
-
-        // Progress bar
-        let progressBar = card.querySelector('.wama-progress-fill');
-        if (data.status === 'RUNNING') {
-            if (!progressBar) {
-                const track = document.createElement('div');
-                track.className = 'wama-progress-track mt-2';
-                const fill = document.createElement('div');
-                fill.className = 'wama-progress-fill';
-                track.appendChild(fill);
-                card.appendChild(track);
-                progressBar = fill;
-            }
-            progressBar.style.width = data.progress + '%';
-        } else if (data.status === 'SUCCESS') {
-            const track = card.querySelector('.wama-progress-track');
-            if (track) track.remove();
-            let info = card.querySelector('.job-info-line');
-            if (!info) {
-                info = document.createElement('div');
-                info.className = 'text-success small mt-1 job-info-line';
-                card.appendChild(info);
-            }
-            info.innerHTML = `<i class="fas fa-check-circle"></i> ${data.output_filename || 'Converti'}` +
-                (data.processing_display
-                    ? ` <span class="wama-proc-time text-white-50" title="Temps de traitement réel"><i class="fas fa-stopwatch"></i> ${data.processing_display}</span>`
-                    : '');
-
-            const dlBtn = card.querySelector('.btn-outline-info');
-            if (dlBtn) {
-                const dlLink = document.createElement('a');
-                dlLink.href = urlFor(APP.urls.download, jobId);
-                dlLink.className = dlBtn.className;
-                dlLink.title = 'Télécharger';
-                dlLink.innerHTML = '<i class="fas fa-download"></i>';
-                dlBtn.replaceWith(dlLink);
-            }
-            const startBtn = card.querySelector('.job-start-btn');
-            if (startBtn) {
-                startBtn.disabled = false;
-                startBtn.innerHTML = '<i class="fas fa-redo"></i>';
-                startBtn.title = 'Recommencer';
-            }
-        } else if (data.status === 'FAILURE') {
-            const track = card.querySelector('.wama-progress-track');
-            if (track) track.remove();
-            let info = card.querySelector('.job-info-line');
-            if (!info) {
-                info = document.createElement('div');
-                info.className = 'text-danger small mt-1 job-info-line';
-                card.appendChild(info);
-            }
-            info.innerHTML = `<i class="fas fa-exclamation-triangle"></i> ${data.error_message}`;
-            const startBtn = card.querySelector('.job-start-btn');
-            if (startBtn) {
-                startBtn.disabled = false;
-                startBtn.innerHTML = '<i class="fas fa-redo"></i>';
-            }
-        }
+    async function refreshCard(jobId) {
+        // Card = partial serveur unique (endpoint card_html) ; les événements de la
+        // file sont DÉLÉGUÉS sur le conteneur → aucun re-bind nécessaire.
+        try {
+            const resp = await fetch(urlFor(APP.urls.cardHtml, jobId));
+            if (!resp.ok) return;
+            const tpl = document.createElement('template');
+            tpl.innerHTML = (await resp.text()).trim();
+            const fresh = tpl.content.firstElementChild;
+            const card = document.querySelector(`.job-card[data-job-id="${jobId}"]`);
+            if (fresh && card) card.replaceWith(fresh);
+        } catch (_) { /* ignore */ }
     }
+
+    // (updateCard supprimée : le markup vient du serveur via refreshCard — plus de
+    // reconstruction client de la barre/badge/boutons, la card est la source unique.)
 
     // ── Event delegation for queue buttons ────────────────────────────────────
 
     // Bouton de cycle commun ▶/⏹/↻ : clics délégués (start/restart→startJob, stop→cancelJob) + auto-sync
-    // de l'icône sur data-status (posé par updateCard au poll). Remplace l'ancien .job-start-btn.
+    // de l'icône sur data-status (le re-rendu serveur refreshCard le maintient). Remplace l'ancien .job-start-btn.
     if (window.WamaCycleButton) {
         WamaCycleButton.wire(queue, { start: (id) => startJob(id), stop: (id) => cancelJob(id) });
         WamaCycleButton.autoSync({ container: queue, cardSelector: '.job-card' });
@@ -470,9 +401,6 @@
 
         const delBtn = e.target.closest('.job-delete-btn');
         if (delBtn) { deleteJob(delBtn.dataset.jobId); return; }
-
-        const dupBtn = e.target.closest('.job-duplicate-btn');
-        if (dupBtn) { duplicateJob(dupBtn.dataset.jobId); return; }
 
         const settBtn = e.target.closest('.job-settings-btn');
         if (settBtn) { openSettingsModal(settBtn.dataset.jobId); return; }
@@ -879,12 +807,8 @@
                 WamaApp.toast('Erreur : ' + (data.error || resp.statusText), 'error');
                 return false;
             }
-            // Reflect new format in the queue card immediately
-            updateCard(currentModalJobId, {
-                status: document.querySelector(`.job-card[data-job-id="${currentModalJobId}"]`)?.dataset.status || 'PENDING',
-                progress: 0,
-                output_format: data.output_format,
-            });
+            // Reflect new format in the queue card immediately (re-rendu serveur)
+            refreshCard(currentModalJobId);
             return true;
         } catch (err) {
             WamaApp.toast('Erreur réseau : ' + err.message, 'error');
