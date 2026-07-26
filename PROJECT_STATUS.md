@@ -414,7 +414,18 @@ dérivées (menu/accueil//apps/ générés du catalogue).
    sans modèle de liaison — jamais de delete d'un batch peuplé, CASCADE). Fix regex
    `duplicate_wiring` du checker (faux DOUBLE-FIRE sur `.batch-duplicate-btn`).
    ⚠ Validation NAVIGATEUR à faire (/smoke : dépôt, conversion, transitions de card, modales).
-3. **Enhancer**, **Anonymizer** (généralistes classiques) ;
+3. ~~**Enhancer**~~ ✅ **PORTÉ À 100 % MESURÉ (40/40) — 2026-07-26, 2e app à conformité totale,
+   1er port BI-DOMAINE** (média image/vidéo + audio) : 19 écarts, monolithe index.html 918→~540 l.
+   (cards d'entrée communes ×2 déplacées du volet droit — mêmes ids, bindings JS intacts ; barre
+   batch audio préservée via `extra_zone_template` ; toolbars + build_batches_list + `_batch_card`
+   ×2 ; cards = partials serveur ×2 + refreshCard — l'ancien double-markup JS avait un désaccord
+   de classes qui cassait DÉJÀ la progression des cards serveur ; WAMA_INGEST ×2 — un batch
+   d'URLs était voué à FAILURE ; anti-race réel comblé sur `audio_batch_start` ; footer modale
+   commun via gabarits `<template>` clonés — brique généralisée save_class/save_start_class ;
+   vrai double-fire duplicate supprimé ; 8 alert()→toast). Briques généralisées au passage :
+   `_batch_card` (collapse_prefix/show_settings), `_settings_modal_footer` (classes+labels).
+   ⚠ Validation NAVIGATEUR à faire (2 domaines : dépôt, batch, transitions, modales, bascule).
+   **Anonymizer** (généraliste classique) ;
 4. **Synthesizer** (PRÉREQUIS : séparer le volet droit = surface de composition ; son accordéon
    est déjà globalisé en `collapsible`, sa `_synthesis_card.html` existe) ;
 5. **Imager** (le + de modes — app de référence du build complet, à faire en dernier des
