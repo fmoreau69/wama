@@ -402,9 +402,18 @@ describer), ETA commune (eta_estimator + WamaEta), batch import unifié (balises
 multi-délimiteurs/positionnel + template généré), catégories d'apps + couleurs d'identité
 dérivées (menu/accueil//apps/ générés du catalogue).
 
-**Restent à porter (7)** — ordre recommandé :
-1. **Reader** (jumeau de describer, + retirer son tri batch-first app-spécifique) ;
-2. **Converter** (sa card `_job_card.html` est déjà LA référence → surtout file/toolbar/entrée) ;
+**Restent à porter (5)** — ordre recommandé :
+1. ~~**Reader**~~ ✅ porté (4e app — 33/40 mesuré au 2026-07-26, écarts résiduels au rapport) ;
+2. ~~**Converter**~~ ✅ **PORTÉ À 100 % MESURÉ (40/40) — 2026-07-26, 1re app à conformité
+   totale** : 14 écarts comblés en une session (triade tool_api, console, Help/About, gabarit
+   batch, WAMA_INGEST+`source_url` (migration 0006 ×2 bases), slot médiathèque, footer modale
+   commun ×2, model-help via `help_fallback` (36 formats depuis SUPPORTED_CONVERSIONS),
+   `card_html`+`refreshCard` (updateCard client SUPPRIMÉE), briques `_card_state`/`_card_progress`,
+   réconc. orphelins, duplication brique, user_settings (dernier format/type), manipulation
+   directe via **NOUVELLE brique `make_queue_manipulation_views_direct`** (variante FK-directe
+   sans modèle de liaison — jamais de delete d'un batch peuplé, CASCADE). Fix regex
+   `duplicate_wiring` du checker (faux DOUBLE-FIRE sur `.batch-duplicate-btn`).
+   ⚠ Validation NAVIGATEUR à faire (/smoke : dépôt, conversion, transitions de card, modales).
 3. **Enhancer**, **Anonymizer** (généralistes classiques) ;
 4. **Synthesizer** (PRÉREQUIS : séparer le volet droit = surface de composition ; son accordéon
    est déjà globalisé en `collapsible`, sa `_synthesis_card.html` existe) ;
@@ -416,7 +425,9 @@ headers transcriber/composer sont chacun faux à leur façon ; describer a déj�
 `.is-batch`) ; `batch_common.py` (`_wrap_*_in_batch`/auto-wrap ×3 apps) ; `build_batches_list()`
 commun ; toast commun ; maps badge/couleur ; helper modale-batch ; `restart_instance()`.
 
-**Validations navigateur EN ATTENTE (à faire en début de session)** : Composer (ETA cards,
+**Validations navigateur EN ATTENTE (à faire en début de session)** : **Converter (port 100 %
+du 2026-07-26 : dépôt fichier/URL/médiathèque, transitions de card via refreshCard, modales à
+footer commun, duplication brique, gabarit batch)** ; Composer (ETA cards,
 batch 3 syntaxes + aperçu, template téléchargeable, card dépliable) ; Transcriber (cards ×2
 contextes, contrat de sortie sur brouillons, échec → card re-rendue) ; Describer (upload/URL
 depuis la card d'entrée, solitaire batch, **boutons actifs après re-rendu** = re-bind) ; menu +
