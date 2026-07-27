@@ -1993,8 +1993,10 @@ duplication describer (fix double-fire 2026-07-25) ; entrée URL ×3 apps.
 - Évaluation complète faite (session 2026-07-27) → **décision + séquencement 4 étapes = ROADMAP §17**
   (licence non-commerciale OK Lescot / EXCLU partenaire-toolbox tierce ; latence VLM → jamais per-frame vidéo).
 - Réorganisation de l'arbre en mondes consignée **ROADMAP §18** — POST-portage, NE PAS ouvrir avant.
-- État : `scripts/poc_locate_anything.py` prêt (étape 1). **Poids ~8 Go NON téléchargés** — décision
-  disque en attente (D: 17,6 Go libres ; vhdx WSL sur C: 37,5 Go libres ; cache HF = 0,3 Go, rien à
-  récupérer là).
-- Prochain pas : télécharger les poids + smoke PoC sur cas anonymizer réels, puis brique commune
-  détection (absorber les 2 wrappers SAM3 — voir ROADMAP §17 étape 2).
+- État 2026-07-27 soir : poids téléchargés (7,3 Go, non-gated) après élagage `gpt-oss:20b` (D: ≈22 Go
+  libres) ; transformers 4.57.6 compatible ; chargement CPU ✅ (11 s, pic 2,4 Go) ; chargement CUDA
+  complet (≈60 s, 7,3 Go VRAM) mais **3 crashs hôte (hang GPU-PV WSL2, bug MS #40732)** →
+  **partie GPU du PoC SUSPENDUE sur le poste dev** (mémoire incident + protections : `.wslconfig`
+  cap 16 Go, cap GPU 320 W).
+- Prochain pas : valider l'inférence sur Linux natif (serveur R760xa) ou venv Windows natif, PUIS
+  brique commune détection (absorber les 2 wrappers SAM3 — voir ROADMAP §17 étape 2).

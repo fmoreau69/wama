@@ -1264,9 +1264,13 @@ image unique, keyframes fenêtrés (patron `sam3_fps`), **auto-labeling/distilla
 rares vers des YOLO spécialisés (le goulot actuel des modèles faces/plates).
 
 **Séquencement** :
-1. **PoC standalone** WSL2 — `scripts/poc_locate_anything.py` (poids dans
-   `AI-models/models/vision/locate-anything/`, HF_HUB_CACHE posé avant import). Valider qualité +
-   latence réelle 4090 sur cas anonymizer (écrans/badges/documents) + échantillon cam_analyzer.
+1. **PoC standalone** — `scripts/poc_locate_anything.py` + `scripts/locate_anything_worker.py`
+   (poids dans `AI-models/models/vision/locate-anything/`, HF_HUB_CACHE posé avant import).
+   ⚠ **2026-07-27 : partie GPU SUSPENDUE sur le poste dev** — 3 crashs hôte (hang GPU-PV WSL2,
+   bug ouvert MS WSL #40732 : pression d'allocation CUDA → kernel panic Hyper-V). Déjà validés :
+   compat transformers 4.57.6, chargement CPU (11 s), chargement CUDA (≈60 s, 7,3 Go VRAM).
+   Valider l'inférence (qualité + latence sur cas anonymizer écrans/badges/documents + échantillon
+   cam_analyzer) sur **Linux natif (serveur R760xa) ou venv Windows natif** — pas via WSL2 ici.
 2. **Brique commune détection** dans `wama/common/` — contrat `BaseModelBackend`, sortie normalisée
    `{bbox, label, confidence, mask?, track_id?}`, en y absorbant D'ABORD les 2 wrappers SAM3
    dupliqués (`anonymizer/core/sam3_processor.py` + `cam_analyzer/utils/sam3_road_analyzer.py`,

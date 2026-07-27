@@ -38,6 +38,10 @@ def main() -> int:
                     choices=["detect", "ground_single", "ground_multi", "point", "detect_text"],
                     help="Tâche (ground_* = referring expression dans --prompt)")
     ap.add_argument("--out", default=None, help="Image annotée de sortie (défaut: <image>_la.jpg)")
+    ap.add_argument("--device", default="cuda", choices=["cuda", "cpu"],
+                    help="cpu = test de chargement sans toucher la pile GPU WSL2")
+    ap.add_argument("--load-only", action="store_true",
+                    help="Charger le modèle, imprimer RAM/VRAM, sortir (pas d'inférence)")
     args = ap.parse_args()
 
     from PIL import Image, ImageDraw
@@ -45,52 +49,46 @@ def main() -> int:
     img = Image.open(args.image).convert("RGB")
     print(f"Image {img.size}, tâche={args.task}, mode={args.mode}, prompt={args.prompt!r}")
 
-    t0 = time.perf_counter()
-    # LocateAnythingWorker vient du code remote du repo HF (trust_remote_code).
-    try:
-        from transformers import AutoModel
-        model = AutoModel.from_pretrained(
-            MODEL_ID, cache_dir=str(WEIGHTS_DIR), trust_remote_code=True,
-        )
-        worker = getattr(model, "worker", None)
-        if worker is None:
-            # Chemin documenté sur la carte : classe utilitaire exposée par le code remote.
-            from transformers.dynamic_module_utils import get_class_from_dynamic_module
-            LocateAnythingWorker = get_class_from_dynamic_module(
-                "inference.LocateAnythingWorker", MODEL_ID, cache_dir=str(WEIGHTS_DIR),
-            )
-            worker = LocateAnythingWorker(MODEL_ID)
-    except Exception as exc:  # noqa: BLE001 — PoC : diagnostic verbeux voulu
-        print(f"[PoC] Chargement via AutoModel/worker KO ({exc}).")
-        print("[PoC] Adapter ce script au README du snapshot téléchargé "
-              f"({WEIGHTS_DIR}/models--nvidia--LocateAnything-3B/) — la carte HF fournit "
-              "la classe LocateAnythingWorker avec detect()/ground_single()/point().")
-        return 1
-    t_load = time.perf_counter() - t0
-    print(f"Chargement : {t_load:.1f}s")
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from locate_anything_worker import LocateAnythingWorker
 
     t0 = time.perf_counter()
-    fn = getattr(worker, args.task)
-    result = fn(img, args.prompt) if args.task != "detect" else fn(
-        img, args.prompt, generation_mode=args.mode)
+    worker = LocateAnythingWorker(MODEL_ID, device=args.device)
+    t_load = time.perf_counter() - t0
+    print(f"Chargement ({args.device}) : {t_load:.1f}s", flush=True)
+
+    if args.load_only:
+        import resource
+        peak_gb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1e6
+        print(f"Pic RAM process : {peak_gb:.1f} Go")
+        if args.device == "cuda":
+            import torch
+            print(f"VRAM allouée : {torch.cuda.max_memory_allocated() / 1e9:.1f} Go")
+        print("LOAD-ONLY OK")
+        return 0
+
+    t0 = time.perf_counter()
+    if args.task == "detect":
+        result = worker.detect(img, [c.strip() for c in args.prompt.split(",")],
+                               generation_mode=args.mode, verbose=False)
+    else:
+        result = getattr(worker, args.task)(img, args.prompt,
+                                            generation_mode=args.mode, verbose=False)
     t_inf = time.perf_counter() - t0
     print(f"Inférence : {t_inf:.2f}s")
-    print("Résultat brut :", result)
+    print("Réponse brute :", result.get("answer", "")[:2000])
 
-    # Boîtes en coordonnées normalisées 0-1000 → pixels, image annotée pour lecture humaine.
-    boxes = result if isinstance(result, list) else result.get("boxes", []) if isinstance(result, dict) else []
+    w, h = img.size
+    if args.task == "point":
+        boxes = []
+        for p in LocateAnythingWorker.parse_points(result["answer"], w, h):
+            print(f"  point ({p['x']:.0f}, {p['y']:.0f})")
+    else:
+        boxes = LocateAnythingWorker.parse_boxes(result["answer"], w, h)
     if boxes:
         draw = ImageDraw.Draw(img)
-        w, h = img.size
-        for det in boxes:
-            bb = det.get("box") or det.get("bbox") if isinstance(det, dict) else det
-            if not bb or len(bb) < 4:
-                continue
-            x1, y1, x2, y2 = (bb[0] * w / 1000, bb[1] * h / 1000,
-                              bb[2] * w / 1000, bb[3] * h / 1000)
-            draw.rectangle([x1, y1, x2, y2], outline="red", width=3)
-            if isinstance(det, dict) and det.get("label"):
-                draw.text((x1 + 2, y1 + 2), str(det["label"]), fill="red")
+        for bb in boxes:
+            draw.rectangle([bb["x1"], bb["y1"], bb["x2"], bb["y2"]], outline="red", width=3)
         out = args.out or str(Path(args.image).with_suffix("")) + "_la.jpg"
         img.save(out)
         print(f"{len(boxes)} détection(s) → {out}")
