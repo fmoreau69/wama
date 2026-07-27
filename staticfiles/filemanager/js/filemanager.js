@@ -370,6 +370,9 @@
                                     document.dispatchEvent(new CustomEvent('wama:fileimported', {
                                         detail: result
                                     }));
+                                } else {
+                                    // JAMAIS d'échec silencieux (ex. Access denied)
+                                    showToast(`Envoi vers ${meta.label} refusé : ` + (result.error || 'fichier non accepté'), 'danger');
                                 }
                             })
                             .catch(err => showToast('Erreur : ' + err.message, 'danger'));
@@ -1758,11 +1761,27 @@
         // Track the current drop zone element during vakata drag
         let currentDropZone = null;
 
-        // Find all WAMA drop zones (elements with .drop-zone class)
+        // Find all WAMA drop zones (elements with .drop-zone class).
+        // Une zone dans une card d'entrée REPLIÉE (collapsible) est display:none
+        // (rect 0×0) : on retombe sur le rect de la card [data-wama-nic] parente,
+        // et on DÉPLIE au survol (le dnd jstree est souris, pas de dragover natif).
         function findDropZoneAt(x, y) {
             const dropZones = document.querySelectorAll('.drop-zone');
             for (const zone of dropZones) {
-                const rect = zone.getBoundingClientRect();
+                let rect = zone.getBoundingClientRect();
+                if (!rect.width && !rect.height) {
+                    const host = zone.closest('[data-wama-nic]');
+                    if (!host) continue;
+                    rect = host.getBoundingClientRect();
+                    if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
+                        const body = host.querySelector('.collapse');
+                        if (body && !body.classList.contains('show') && window.bootstrap) {
+                            bootstrap.Collapse.getOrCreateInstance(body, { toggle: false }).show();
+                        }
+                        return zone;
+                    }
+                    continue;
+                }
                 if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
                     return zone;
                 }
@@ -1773,6 +1792,17 @@
         // Get app name from drop zone
         function getAppFromDropZone(zone) {
             if (!zone) return null;
+            // L'app de la PAGE héberge la zone — source FIABLE. Les ids sont ambigus :
+            // 'dropZone' existe chez describer ET reader (un drag sur reader partait
+            // vers describer, bug historique corrigé 2026-07-27).
+            const seg = (location.pathname.split('/').filter(Boolean)[0] || '').replace(/-/g, '_');
+            const KNOWN_APPS = ['describer', 'enhancer', 'transcriber', 'anonymizer',
+                                'synthesizer', 'reader', 'converter', 'imager',
+                                'composer', 'avatarizer'];
+            if (KNOWN_APPS.includes(seg)) {
+                // Cas particulier : la file AUDIO d'enhancer reste enhancer (même app).
+                return seg;
+            }
             const id = zone.id || '';
             if (id === 'dropZone') return 'describer';
             if (id === 'dropZoneEnhancer') return 'enhancer';
@@ -1852,7 +1882,12 @@
                             return importToApp(f.path, app).then(function (r) { return r; }).catch(function () { return null; });
                         })).then(function (results) {
                             const ok = results.filter(function (r) { return r && r.imported; });
-                            if (!ok.length) return;
+                            if (!ok.length) {
+                                // JAMAIS d'échec silencieux : dire pourquoi (ex. Access denied).
+                                const failed = results.find(function (r) { return r && r.error; });
+                                showToast("Import vers " + app + " refusé : " + ((failed && failed.error) || 'aucun fichier accepté'), 'danger');
+                                return;
+                            }
                             showToast(`${ok.length} fichier(s) importé(s) vers ${app}`, 'success');
 
                             // Évènement annulable par fichier (synthesizer & co peuvent gérer)
