@@ -120,13 +120,15 @@ MODELS = {
     ),
 
     "orchestrator": ModelConfig(
-        name="GPT-OSS 20B",
-        ollama_id="gpt-oss:20b",
+        name="Gemma 4 12B",
+        # gpt-oss:20b retiré 2026-07-27 (13 Go disque, jamais indispensable : routage/intent
+        # est une tâche légère ; gemma4:12b déjà installé la couvre sans téléchargement).
+        ollama_id="gemma4:12b",
         description="Task routing, intent analysis, orchestration and decision-making",
         context_length=8192,
         temperature=0.4,
         role="orchestrator",
-        ram_required_gb=24.0,
+        ram_required_gb=9.0,
         priority=50,
     ),
 
