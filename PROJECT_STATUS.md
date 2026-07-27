@@ -2000,3 +2000,31 @@ duplication describer (fix double-fire 2026-07-25) ; entrée URL ×3 apps.
   cap 16 Go, cap GPU 320 W).
 - Prochain pas : valider l'inférence sur Linux natif (serveur R760xa) ou venv Windows natif, PUIS
   brique commune détection (absorber les 2 wrappers SAM3 — voir ROADMAP §17 étape 2).
+
+## 42. Sauvegarde base + espace de stockage distant 🔄 (ouvert 2026-07-27)
+
+- **Brique** : `python manage.py backup_db` (`wama/model_manager/management/commands/backup_db.py`)
+  — `pg_dump --format=custom` + copie distante + **rotation** (`--keep`, défaut 10 de chaque côté),
+  vérification de taille avant de valider la copie (même garde que `offload_file`).
+  Options : `--no-remote`, `--remote-dir`, `--keep`. Variable : `WAMA_DB_BACKUP_PATH`.
+- **UI** : bouton « Backup DB » dans les outils système du model_manager (volet droit) →
+  `model_manager:api_backup_db` (POST, `is_admin_or_dev`). Synchrone — à basculer sur Celery si
+  le dump dépasse le timeout HTTP.
+- **Convention d'espace distant** (structuration demandée par Fabien) : racine
+  `\vrlescot\SAVES\DEEP_LEARNING\` = `MODELS\` (existant, `remote_backup.py`) + **`DB\`** (créé
+  2026-07-27). Depuis WSL2 la même racine est montée sur **`/mnt/shares/SAVES`** (drvfs 9p) — la
+  commande détecte WSL et bascule seule.
+  ⚠ **Dette repérée** : `remote_backup.py` n'a AUCUNE traduction UNC→`/mnt/shares` ; il ne peut donc
+  pas écrire depuis WSL2 (où tourne la stack). À aligner sur `backup_db._default_remote_dir()`.
+- **Validé** : smoke complet 2026-07-27 contre la base Windows (dump 0,4 Mo → NAS → rotation),
+  artefacts de test supprimés, dossier `DB\` conservé. **Reste à faire** : premier vrai dump de la
+  base LIVE (WSL2) une fois le cluster Postgres 16 redémarré.
+
+### Constat : la base Postgres Windows n'est PAS la base de travail
+Mesuré 2026-07-27 — Postgres 17 (Windows, `postgresql-x64-17`, port 5432) contient `wama_db` :
+92 tables, migrations à jour (26/07 17:44), mais **`auth_user`=3, `model_manager_aimodel`=147,
+`transcriber_transcript`=0** et un dump de **0,4 Mo** → schéma + seed catalogue, **zéro donnée de
+travail**. La base LIVE est celle de **WSL2 (Postgres 16)**, conforme à
+`reference_infra_wsl_windows`. La règle « migrer des DEUX côtés » ne se justifie donc que si l'on
+exécute WAMA nativement sous Windows (`venv_win runserver`) ; sinon c'est une taxe d'entretien
+supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
