@@ -2014,8 +2014,12 @@ duplication describer (fix double-fire 2026-07-25) ; entrée URL ×3 apps.
   `\vrlescot\SAVES\DEEP_LEARNING\` = `MODELS\` (existant, `remote_backup.py`) + **`DB\`** (créé
   2026-07-27). Depuis WSL2 la même racine est montée sur **`/mnt/shares/SAVES`** (drvfs 9p) — la
   commande détecte WSL et bascule seule.
-  ⚠ **Dette repérée** : `remote_backup.py` n'a AUCUNE traduction UNC→`/mnt/shares` ; il ne peut donc
-  pas écrire depuis WSL2 (où tourne la stack). À aligner sur `backup_db._default_remote_dir()`.
+  Le défaut codé dans `remote_backup.py` est le chemin UNC, mais **`start_wama_prod.sh:52` exporte
+  `WAMA_MODEL_BACKUP_PATH=/mnt/shares/SAVES/DEEP_LEARNING/MODELS`** (point de montage WSL) — donc
+  rien à corriger côté modèles. `backup_db` obtient le même résultat par auto-détection WSL, sans
+  exiger de variable. (Correction 2026-07-27 : une « dette » de traduction UNC avait été consignée
+  ici à tort, faute d'avoir suivi la variable jusqu'à son export — cf. règle « tracer le chaînage
+  d'exécution avant d'affirmer un trou ».)
 - **Validé** : smoke complet 2026-07-27 contre la base Windows (dump 0,4 Mo → NAS → rotation),
   artefacts de test supprimés, dossier `DB\` conservé. **Reste à faire** : premier vrai dump de la
   base LIVE (WSL2) une fois le cluster Postgres 16 redémarré.
