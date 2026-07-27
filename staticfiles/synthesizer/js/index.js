@@ -959,8 +959,11 @@ document.addEventListener('DOMContentLoaded', function() {
     }) : null;
 
     async function handleFilesWithDetect(files) {
+        // SNAPSHOT : files peut être la FileList VIVANTE de l'input, vidée par
+        // l'appelant pendant les await ci-dessous (leçon reader 2026-07-27).
+        const arr = Array.from(files);
         const rest = [];
-        for (const f of files) {
+        for (const f of arr) {
             if (_batchImport && await _batchImport.detectAndHandle(f)) continue;
             rest.push(f);
         }

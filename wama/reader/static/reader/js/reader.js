@@ -724,11 +724,14 @@
 
     async function uploadFilesWithBatch(files) {
         if (!files || !files.length) return;
+        // SNAPSHOT obligatoire : `files` peut être la FileList VIVANTE de l'input,
+        // que le handler vide (`input.value=''`) pendant l'await ci-dessous —
+        // relire la liste vivante après l'await = upload silencieusement vide.
         const arr = Array.from(files);
         if (arr.length === 1 && window._batchImport) {
             if (await window._batchImport.detectAndHandle(arr[0])) return;
         }
-        uploadFiles(files);
+        uploadFiles(arr);
     }
 
     function initDropZone() {
