@@ -1238,3 +1238,60 @@ Mode visé = **C (hybride chat ↔ UI synchronisés)**.
 - **Outils d'éval** (Promptfoo/DeepEval/Langfuse/lm-eval = réels ; Modelator/Evvl/Benchscope/etc. = invérifiables) : **sur-dimensionnés**. WAMA a déjà l'équivalent (registry=`AIModel.capabilities`, judge=QC, adaptateurs=LiteLLM/backends). NE PAS bâtir de plateforme d'éval ; Promptfoo/DeepEval éventuellement pour la régression plus tard.
 
 **Séquencement** : fondation (métadonnée + `PromptPipeline` commune) AVANT les interfaces méta.
+
+---
+
+## 17. Capacité détection open-vocabulary — brique commune + LocateAnything (ouvert 2026-07-27)
+
+> Décision (évaluation session 2026-07-27) : intégrer **NVIDIA LocateAnything-3B** comme
+> **complément** de YOLO/SAM3 (pas remplaçant), en **capability-first** (règle §16.6 : pas d'app
+> dédiée tant que le besoin récurrent n'est pas démontré).
+
+**Le modèle** : VLM détecteur (MoonViT-SO-400M MIT + pont MLP + Qwen2.5-3B-Instruct) qui GÉNÈRE les
+boîtes en tokens (`<box><x1><y1><x2><y2></box>`, coordonnées 0–1000). Tâches : detect (catégories
+libres), ground_single/multi (referring expressions), point, detect_text, ground_gui. ~8 Go BF16
+(4B params réels). Backend officiel = transformers 4.57.1 + `trust_remote_code` (venv_linux à
+4.57.6 — écart mineur, tester AVANT de créer un venv isolé) ; TensorRT-LLM/Triton non supportés ;
+Linux only (WSL2 OK). `generation_mode="hybrid"` + `max_new_tokens=8192` recommandés.
+
+**⚠ Licence NVIDIA NON-COMMERCIALE** (+ Qwen Research License sur le LLM) : OK recherche Lescot,
+**EXCLU pour livrables partenaire/toolbox tierce ou valorisation**. → Conséquence architecturale : déclarer
+`license` en **métadonnée** (`AIModel`/`capabilities`) pour que `select_model()`/Studio filtrent ou
+avertissent — métadonnée-driven, pas mémoire humaine.
+
+**⚠ Latence VLM** (~1,5–7 s/image sur 3090 selon mode) : JAMAIS per-frame vidéo. Usages viables :
+image unique, keyframes fenêtrés (patron `sam3_fps`), **auto-labeling/distillation** de classes
+rares vers des YOLO spécialisés (le goulot actuel des modèles faces/plates).
+
+**Séquencement** :
+1. **PoC standalone** WSL2 — `scripts/poc_locate_anything.py` (poids dans
+   `AI-models/models/vision/locate-anything/`, HF_HUB_CACHE posé avant import). Valider qualité +
+   latence réelle 4090 sur cas anonymizer (écrans/badges/documents) + échantillon cam_analyzer.
+2. **Brique commune détection** dans `wama/common/` — contrat `BaseModelBackend`, sortie normalisée
+   `{bbox, label, confidence, mask?, track_id?}`, en y absorbant D'ABORD les 2 wrappers SAM3
+   dupliqués (`anonymizer/core/sam3_processor.py` + `cam_analyzer/utils/sam3_road_analyzer.py`,
+   dont l'import cross-app l.126 est une dette). LocateAnything = backend supplémentaire.
+3. **Manifeste `function`** « détection open-vocabulary » — port de sortie `DataType.DETECTIONS`,
+   entrée `image + prompt` (champ déclaré dans `PROMPT_TARGETS`) = 1er nœud Studio natif.
+4. **App detector** = UI prompt-first + file PAR-DESSUS la fonction — APRÈS anonymizer/imager, et
+   seulement si l'usage via assistant/Studio le justifie (§16.6).
+
+**Bénéficiaires** : anonymizer (dissout à terme le sélecteur maison 1140 l. +
+`parallel_detection.py` — un open-vocab supprime le problème de couverture de classes),
+cam_analyzer (auto-labeling, requêtes fenêtrées), detector (futur).
+
+**Alternatives libres** si la licence bloque : YOLO-World, MM-Grounding-DINO (Apache-2.0), OWLv2 —
+la brique (2) est agnostique au backend, l'investissement reste bon dans tous les cas.
+
+## 18. Réorganisation de l'arbre en MONDES (POST-portage schéma-driven — NE PAS ouvrir avant)
+
+- **Constat 2026-07-27** : `wama/common/` (14 sous-packages) mélange glu de plateforme (sa vraie
+  vocation) et services de domaine qui préfigurent des mondes. Le problème n'est PAS la taille,
+  c'est le mélange des étages.
+- **Cible** : un monde = un package frère de `wama/` (précédent vivant : `wama_lab/`). Si le monde
+  Data grossit → `wama_data/` à côté, PAS un éclatement de `common/`.
+- **Conditions d'ouverture** : fin du portage anonymizer/imager (grille mesurée stable — un
+  déménagement invalide les chemins analysés) + aucun chantier multi-instances en cours (un
+  refactoring d'imports transverse casse toutes les partitions à la fois).
+- **D'ici là** : structurer l'INTÉRIEUR de `common/` (sous-packages par facette, ex. détection §17)
+  — rend le déménagement ultérieur trivial.

@@ -1987,3 +1987,14 @@ quand Playwright MCP est actif) : composer save modale + actions volet ; cards �
 transcriber ; describer re-bind après re-rendu ; card v2 chips Reader (pilote) ; inspecteur des 5
 apps portées ; cards mères ×3 ; bouton cycle transcriber ; toasts ; manipulation directe ;
 duplication describer (fix double-fire 2026-07-25) ; entrée URL ×3 apps.
+
+## 41. Capacité détection open-vocabulary — LocateAnything 🔄 (ouvert 2026-07-27)
+
+- Évaluation complète faite (session 2026-07-27) → **décision + séquencement 4 étapes = ROADMAP §17**
+  (licence non-commerciale OK Lescot / EXCLU partenaire-toolbox tierce ; latence VLM → jamais per-frame vidéo).
+- Réorganisation de l'arbre en mondes consignée **ROADMAP §18** — POST-portage, NE PAS ouvrir avant.
+- État : `scripts/poc_locate_anything.py` prêt (étape 1). **Poids ~8 Go NON téléchargés** — décision
+  disque en attente (D: 17,6 Go libres ; vhdx WSL sur C: 37,5 Go libres ; cache HF = 0,3 Go, rien à
+  récupérer là).
+- Prochain pas : télécharger les poids + smoke PoC sur cas anonymizer réels, puis brique commune
+  détection (absorber les 2 wrappers SAM3 — voir ROADMAP §17 étape 2).
