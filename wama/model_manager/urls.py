@@ -35,6 +35,7 @@ urlpatterns = [
     # API endpoints - Memory Cleanup
     path('api/cleanup/idle/', views.api_cleanup_idle, name='api_cleanup_idle'),
     path('api/cleanup/aggressive/', views.api_aggressive_cleanup, name='api_aggressive_cleanup'),
+    path('api/backup-db/', views.api_backup_db, name='api_backup_db'),
     path('api/cleanup/gpu-cache/', views.api_clear_gpu_cache, name='api_clear_gpu_cache'),
     path('api/cleanup/gc/', views.api_force_gc, name='api_force_gc'),
     path('api/cleanup/unload/', views.api_unload_model_by_id, name='api_unload_model_by_id'),

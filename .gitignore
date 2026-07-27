@@ -112,3 +112,7 @@ wama/avatarizer/musetalk/
 claude/
 # Artefact auto-généré par headroom (proxy de compression)
 recommendations.toml
+
+# Sauvegardes de base (management command backup_db)
+backups/
+*.dump

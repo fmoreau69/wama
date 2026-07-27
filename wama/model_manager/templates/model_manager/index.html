@@ -405,6 +405,9 @@
                             <button class="btn btn-outline-secondary btn-sm memory-action-btn" id="btn-force-gc" title="Force garbage collection">
                                 <i class="fas fa-recycle me-1"></i> Force GC
                             </button>
+                            <button class="btn btn-outline-success btn-sm memory-action-btn" id="btn-backup-db" title="pg_dump + copie sur l'espace de sauvegarde distant">
+                                <i class="fas fa-database me-1"></i> Backup DB
+                            </button>
                         </div>
                     </div>
                     <div class="col-md-6">
@@ -1095,6 +1098,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 return m ? m.name : ('#' + id);
             },
             renderItemActions: renderModelInspector,
+            // #media-section accueille ici les cartes Ressources (VRAM/RAM/Disque), déplacées
+            // par mmMoveResourceBlocks() : elles restent visibles sans modèle sélectionné.
+            keepMediaSection: true,
         });
         const mmDeselectBtn = document.getElementById('inspectorDeselect');
         if (mmDeselectBtn) mmDeselectBtn.addEventListener('click', () => {
@@ -1912,6 +1918,25 @@ document.addEventListener('DOMContentLoaded', function() {
             } else {
                 alert('Failed: ' + data.message);
             }
+        } catch (err) {
+            alert('Error: ' + err.message);
+        } finally {
+            hideLoading();
+        }
+    });
+
+    // Backup DB (pg_dump + copie distante)
+    document.getElementById('btn-backup-db').addEventListener('click', async function() {
+        if (!confirm('Lancer une sauvegarde de la base (pg_dump + copie distante) ?')) return;
+
+        showLoading('Sauvegarde de la base en cours…');
+        try {
+            const response = await fetch('{% url "model_manager:api_backup_db" %}', {
+                method: 'POST',
+                headers: { 'X-CSRFToken': csrfToken }
+            });
+            const data = await response.json();
+            alert(data.success ? data.lines.join('\n') : 'Échec : ' + data.error);
         } catch (err) {
             alert('Error: ' + err.message);
         } finally {

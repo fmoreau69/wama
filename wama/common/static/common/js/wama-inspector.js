@@ -462,8 +462,17 @@
         + (c.failure ? '<span class="wama-chip"><i class="fas fa-xmark text-danger"></i> ' + c.failure + '</span>' : '');
       return '<div class="small text-white-50 mb-1">' + label + '</div><div class="d-flex flex-wrap gap-1">' + chips + '</div>';
     }
+    // #media-section = aperçu du média, qui n'a de sens que pour un ITEM sélectionné.
+    // Exception déclarée par l'app (keepMediaSection) : certaines pages y logent un contenu
+    // permanent — model_manager y place les cartes VRAM/RAM/Disque, qui doivent rester
+    // visibles hors sélection.
+    function setMediaSection(visible) {
+      if (!mediaSection) return;
+      if (!visible && cfg.keepMediaSection) return;
+      mediaSection.style.display = visible ? '' : 'none';
+    }
     function showQueueInfo() {
-      if (mediaSection) mediaSection.style.display = 'none';
+      setMediaSection(false);
       if (!infoHost) return;
       var c = _fileCounts();
       if (!c || !c.total) { hideDetail(); return; }
@@ -472,7 +481,7 @@
       var banner = $(ids.banner); if (banner) banner.style.display = '';
     }
     function showBatchInfo(bid, group) {
-      if (mediaSection) mediaSection.style.display = 'none';
+      setMediaSection(false);
       if (!infoHost) return;
       var c = _batchCounts(group);
       infoHost.innerHTML = '<div class="d-flex align-items-center gap-2 mb-1"><strong class="text-light">Batch #' + escapeHtml(bid) + '</strong>'
@@ -493,7 +502,7 @@
       if (panel.apply && cfg.cardSettings) panel.apply(cfg.cardSettings(card));
       fillActions(cfg.renderItemActions, card);
       fillPreview(card, 'Aperçu');
-      if (mediaSection) mediaSection.style.display = '';
+      setMediaSection(true);
       fillDetail(card);
       toggleSections(true);
       showBanner(itemLabel(id));

@@ -501,6 +501,29 @@ def api_aggressive_cleanup(request):
 @login_required
 @user_passes_test(is_admin_or_dev)
 @require_POST
+def api_backup_db(request):
+    """API: sauvegarde la base (pg_dump) + copie sur l'espace distant.
+
+    Synchrone : suffisant tant que le dump reste de l'ordre de la dizaine de secondes.
+    À basculer sur Celery si la base grossit au point de dépasser le timeout HTTP.
+    """
+    from io import StringIO
+    from django.core.management import call_command
+    from django.core.management.base import CommandError
+
+    out = StringIO()
+    try:
+        call_command('backup_db', stdout=out, stderr=out)
+    except CommandError as exc:
+        return JsonResponse({'success': False, 'error': str(exc)}, status=500)
+
+    lines = [l for l in out.getvalue().splitlines() if l.strip()]
+    return JsonResponse({'success': True, 'lines': lines})
+
+
+@login_required
+@user_passes_test(is_admin_or_dev)
+@require_POST
 def api_clear_gpu_cache(request):
     """API: Clear GPU VRAM cache only."""
     cleaner = get_memory_cleaner()
