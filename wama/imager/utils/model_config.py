@@ -103,20 +103,11 @@ HUNYUAN_MODELS = {
 
 # ─── CogVideoX (Tsinghua THUDM) ───────────────────────────────────────────────
 COGVIDEOX_MODELS = {
-    'cogvideox-5b': {
-        'model_id': 'cogvideox-5b',
-        'hf_id': 'THUDM/CogVideoX-5b',
-        'type': 'video',
-        'mode': 't2v',
-        'vram_gb': 21,
-        'disk_gb': 12,
-        'fps': 24,
-        'resolution': '720x480',
-        'description': 'CogVideoX 5B — Text-to-Video, 24 fps',
-        'description_long': "CogVideoX 5B (Zhipu/THUDM) : génération de vidéo depuis un prompt "
-                            "texte, clips fluides à 24 images/s. Bon équilibre qualité/mouvement "
-                            "pour des plans courts.",
-    },
+    # 'cogvideox-5b' (Text-to-Video) RETIRÉ du parc local le 2026-07-28 : redondant avec
+    # LTX-Video-13B-distilled (plus récent, 14 GB VRAM contre 21, déjà sur disque), pour
+    # 20,05 GiB. Poids sauvegardés sur le NAS (DEEP_LEARNING/MODELS/diffusion/cogvideox/),
+    # vérifiés octet par octet avant suppression — restaurables par recopie.
+    # ⚠ La variante I2V ci-dessous est un dépôt HF DISTINCT et reste en service.
     'cogvideox-5b-i2v': {
         'model_id': 'cogvideox-5b-i2v',
         'hf_id': 'THUDM/CogVideoX-5b-I2V',
@@ -212,29 +203,10 @@ STABLE_DIFFUSION_MODELS = {
                             "compositions et anatomies bien plus fiables que SD 1.5, large choix "
                             "de LoRA. La valeur sûre polyvalente de la famille Stable Diffusion.",
     },
-    'dreamlike-art-2': {
-        'model_id': 'dreamlike-art-2',
-        'hf_id': 'dreamlike-art/dreamlike-diffusion-1.0',
-        'type': 'image',
-        'pipeline': 'sd',
-        'vram_gb': 4,
-        'description': 'Dreamlike Art — style artistique',
-        'description_long': "Dreamlike Diffusion 2 : fine-tune de Stable Diffusion 1.5 au rendu "
-                            "pictural et onirique marqué. Pour des visuels d'ambiance artistique "
-                            "sans prompt engineering élaboré.",
-    },
-    'deliberate-v6': {
-        'model_id': 'deliberate-v6',
-        'hf_id': 'XpucT/Deliberate',
-        'single_file': 'Deliberate_v6.safetensors',
-        'type': 'image',
-        'pipeline': 'sd',
-        'vram_gb': 4,
-        'description': 'Deliberate v6 — réaliste/artistique',
-        'description_long': "Deliberate v6 : fine-tune SD 1.5 réputé pour son équilibre entre "
-                            "photoréalisme et rendu artistique, avec une bonne réponse aux prompts "
-                            "détaillés. Polyvalent portraits/scènes.",
-    },
+    # 'dreamlike-art-2' (1,99 GiB) et 'deliberate-v6' (1,99 GiB) RETIRÉS du parc local le
+    # 2026-07-28 : deux fine-tunes SD 1.5 de 2022-2023 sur le même créneau que SD 1.5 lui-même,
+    # que les modèles 1024 px du parc (SDXL, FLUX.1-dev, Qwen) couvrent largement.
+    # Poids sauvegardés sur le NAS et vérifiés octet par octet avant suppression.
     # RETIRÉS (2026-07-28) : 'stable-diffusion-2-1', 'dreamshaper-8', 'anything-v5'.
     # Les trois étaient offerts au dropdown (téléchargement à la demande) mais n'ont JAMAIS été
     # téléchargés, et appartiennent tous à l'ère SD 1.5/2.x — exactement l'étage que la
@@ -409,7 +381,12 @@ IMAGER_MODELS = {
 # choisissait pas explicitement recevait le plus faible modèle du parc. On centralise ici pour
 # que le défaut se change en UN point, et jamais par recopie dans une vue.
 DEFAULT_IMAGE_MODEL = 'qwen-image-2'
-DEFAULT_VIDEO_MODEL = 'cogvideox-5b'
+# T2V : LTX-13B-distilled remplace CogVideoX-5b (2024, 21 GB VRAM) — plus récent, 14 GB VRAM
+# (8 en fp8) et déjà sur disque. CogVideoX-5b T2V a été retiré du parc local (vague 2).
+DEFAULT_VIDEO_MODEL = 'ltx-video-13b-0.9.8-distilled'
+# I2V : CogVideoX-5b-I2V CONSERVÉ — seule capacité image→vidéo du parc, et effectivement
+# utilisée pour animer des images. Dépôt HF distinct du T2V : le retrait de l'un n'affecte
+# pas l'autre.
 DEFAULT_I2V_MODEL = 'cogvideox-5b-i2v'
 
 

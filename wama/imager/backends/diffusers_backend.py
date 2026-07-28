@@ -101,28 +101,8 @@ class DiffusersBackend(ImageGenerationBackend):
         },
 
         # Artistic models
-        "dreamlike-art-2": {
-            "name": "Dreamlike Art 2.0",
-            "hf_id": "dreamlike-art/dreamlike-diffusion-1.0",
-            "description": "Style artistique - 4GB VRAM - Images oniriques",
-            "vram": "4GB",
-            "pipeline": "sd",
-            "min_resolution": 256,
-            "max_resolution": 768,
-            "recommended_resolutions": ["512x512", "768x768", "896x512", "512x896"],
-        },
-        # 'dreamshaper-8' RETIRÉ (2026-07-28) — cf. model_config.STABLE_DIFFUSION_MODELS.
-        "deliberate-v6": {
-            "name": "Deliberate v6",
-            "hf_id": "XpucT/Deliberate",
-            "single_file": "Deliberate_v6.safetensors",
-            "description": "Réaliste/Artistique - 4GB VRAM - Très détaillé, tokens: mj, cinematic",
-            "vram": "4GB",
-            "pipeline": "sd",
-            "min_resolution": 256,
-            "max_resolution": 768,
-            "recommended_resolutions": ["512x512", "768x768", "896x512", "512x896"],
-        },
+        # 'dreamlike-art-2', 'dreamshaper-8' et 'deliberate-v6' RETIRÉS (2026-07-28) —
+        # cf. model_config.STABLE_DIFFUSION_MODELS pour le motif et la trace du backup NAS.
 
         # 'anything-v5' (anime) RETIRÉ (2026-07-28) — cf. model_config.STABLE_DIFFUSION_MODELS.
         # Le créneau anime reste couvert par SD 1.5 + LoRA de style.
@@ -224,9 +204,9 @@ class DiffusersBackend(ImageGenerationBackend):
     }
 
     # Backward-compatibility aliases for renamed models
-    _MODEL_ALIASES = {
-        "deliberate-v2": "deliberate-v6",
-    }
+    # ('deliberate-v2' -> 'deliberate-v6' retiré avec le modèle cible le 2026-07-28 : un alias
+    #  vers une entrée absente aurait renvoyé le fallback pipeline 'sd' sur un hf_id inexistant.)
+    _MODEL_ALIASES = {}
 
     @classmethod
     def _get_model_info(cls, model_name: str) -> dict:
