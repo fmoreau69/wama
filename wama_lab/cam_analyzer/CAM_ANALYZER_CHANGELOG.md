@@ -72,6 +72,12 @@ pas de tests destructifs (user id=1 = Fabien réel, `transaction.atomic()`) · p
 
 ---
 
+## 2026-07-28
+
+| Commit | Quoi | Pourquoi | Validation/annulation |
+|---|---|---|---|
+| *(ce commit)* | **Données vectorielles IGN — `utils/ign_vector.py`** (BD TOPO V3) : `fetch_buildings()` (emprises + `hauteur`/altitudes sol-toit/étages), `fetch_roads()` (tronçons + nature/sens/largeur), `sky_mask()` (masque d'élévation par azimut, 72 secteurs) et `mask_summary()`. Cache mémoire par bbox. **Règle posée** : ce que l'IGN publie en VECTEUR n'est pas détecté visuellement — bâtiments et routes viennent de BD TOPO ; seuls les marquages au sol (absents de toute base vectorielle) restent du ressort de la détection. **Aucun chemin existant modifié** (module purement additif, encore appelé par personne). | Le biais GPS latéral (façades à l'est) était jusqu'ici constaté, jamais expliqué : `ortho_recalage` mesure un offset global sans savoir d'où il vient. Les hauteurs BD TOPO permettent de calculer le masquage satellite réel et donc de **pondérer** le recalage au lieu d'appliquer un offset aveugle. Détecter visuellement des bâtiments alors que l'IGN les publie au décimètre avec leur hauteur serait strictement moins bon. | Smoke réel 2026-07-28 (Lyon centre 45.7578/4.8320, rayon 200 m) : **266 bâtiments** dont 264 avec hauteur (max 30,7 m), **112 tronçons**, masque moyen 9,5° / max 16,5° à l'azimut 20°, cache 2ᵉ appel 0,001 s. **Contrôle négatif** zone rurale (45.05/3.20) : 0 bâtiment, masque 0,0° → pas de masquage fabriqué. Piège vérifié : le WFS IGN attend le bbox en **lon,lat** (l'ordre lat,lon renvoie 0 entité *sans erreur*). Annulation : `git revert` (aucun consommateur à défaire). |
+
 ## 2026-07-21
 
 | Commit | Quoi | Pourquoi | Validation/annulation |
