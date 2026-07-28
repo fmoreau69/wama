@@ -109,11 +109,20 @@ Doc : [`PROMPT_PIPELINE.md`](PROMPT_PIPELINE.md).
   d'auto-application. Cf. `memory/project_queue_solitaire_prospection.md`.
 - ⏳ Étape 3 centralisation (adaptateurs anonymizer/transcriber + migration per-model)
 - ⏳ Chargeur générique ; agents cloud pour confronter ; recherche web benchmarks
-- ✅ **Backup distant en MIROIR (2026-06-24)** : `remote_backup` réplique l'arbo locale `AI-models/
-  models/` (`dest = WAMA_MODEL_BACKUP_PATH / source.relative_to(AI_MODELS_DIR/'models')`), récursif
-  (préserve blobs/refs/snapshots), zéro chemin en dur. + `offload_file()` (flag opt-in
-  `delete_source_after_backup` dans convert-and-backup) : backup → vérif taille distante → suppression
-  locale, garde-fou si vérif échoue. Montage WSL : `\\vrlescot\SAVES`→`/mnt/shares/SAVES` (drvfs/fstab),
+- ✅ **Backup distant, ARCHIVE CUMULATIVE (2026-06-24, vocabulaire corrigé 2026-07-28)** :
+  `remote_backup` réplique l'arbo locale `AI-models/models/`
+  (`dest = WAMA_MODEL_BACKUP_PATH / source.relative_to(AI_MODELS_DIR/'models')`), récursif
+  (préserve blobs/refs/snapshots), zéro chemin en dur. **Seuls les CHEMINS sont répliqués, pas
+  l'état** : sens unique, aucune suppression distante — un fichier présent à distance et absent en
+  local n'est jamais visité. ⚠ Ne JAMAIS ajouter de passe de prune « pour synchroniser » : le
+  distant existe pour garder les formats d'origine que le local a retirés après conversion
+  (invariant : local = `.onnx` seul, distant = `.pt` + `.onnx`). Le terme « miroir », employé
+  jusqu'au 28/07, invitait précisément à cette erreur.
+  + `offload_file()` : backup → vérif taille distante → suppression locale, garde-fou si vérif
+  échoue. C'est le SEUL chemin de suppression d'une source, via `FormatConverter._retire_source()`
+  (2026-07-28) — les `unlink()` secs de `_convert_to_onnx`/`_convert_to_safetensors` sont supprimés,
+  et la source reste en local si le distant est indisponible ou la copie tronquée.
+  Montage WSL : `\\vrlescot\SAVES`→`/mnt/shares/SAVES` (drvfs/fstab),
   env `WAMA_MODEL_BACKUP_PATH` dans `start_wama_prod.sh`.
 
 ## Tests fonctionnels nocturnes (charpente, 2026-06-24)
@@ -2010,6 +2019,22 @@ duplication describer (fix double-fire 2026-07-25) ; entrée URL ×3 apps.
 - **UI** : bouton « Backup DB » dans les outils système du model_manager (volet droit) →
   `model_manager:api_backup_db` (POST, `is_admin_or_dev`). Synchrone — à basculer sur Celery si
   le dump dépasse le timeout HTTP.
+- **UI — bouton « Backup Models » (2026-07-28)**, à côté de « Backup DB ». Pendant « modèles » qui
+  manquait : le seul backup de modèles était celui de la barre de sélection (per-modèle, invisible
+  tant qu'aucun modèle n'est coché). **Asynchrone par nécessité** (335 Go locaux / ~325 Go déjà
+  distants) : `model_manager.backup_all_models` (Celery) →
+  `RemoteBackupService.backup_all_models()`, incrémental (fichier sauté si présent et de même
+  taille). Avancement publié dans le **cache Redis** (`BACKUP_ALL_CACHE_KEY`) et non dans
+  l'`AsyncResult` → le suivi survit à un F5. `api_backup_models_start` est idempotent (refuse une
+  2ᵉ passe concurrente, et vérifie auprès de Celery que la tâche du cache est vivante) +
+  `api_backup_models_progress`. **Reste à faire** : premier vrai run (non lancé — plusieurs
+  dizaines de milliers de fichiers sur le montage 9p).
+- **Corrigé 2026-07-28 — `api/backup/status/` en 502** : `get_status()` appelait `list_backups()`,
+  soit 3 `rglob('*')` + `stat()` par fichier sur les 70 modèles distants = **139 s** mesurées →
+  Apache coupait avant la réponse, d'où « Error checking backup » (le `catch` du fetch). Ajout de
+  `count_backups()` (3 niveaux de dossiers, aucun `stat` de fichier) → **1,6 s** ; `list_backups()`
+  fusionne ses 3 parcours en 1 → 53 s. Leçon : sur le montage 9p, tout `rglob`+`stat` récursif est
+  hors budget d'une requête HTTP.
 - **Convention d'espace distant** (structuration demandée par Fabien) : racine
   `\vrlescot\SAVES\DEEP_LEARNING\` = `MODELS\` (existant, `remote_backup.py`) + **`DB\`** (créé
   2026-07-27). Depuis WSL2 la même racine est montée sur **`/mnt/shares/SAVES`** (drvfs 9p) — la
