@@ -1,7 +1,11 @@
-"""APPLICATION du recalage ortho à la trajectoire — étape 2b, seconde moitié.
+"""Correction d'une trajectoire géoréférencée par offsets ANCRÉS.
 
-`ortho_markings.py` MESURE un offset caméra→ortho par intersection (v1 = rapport seul).
-Ce module le TRANSFORME en correction de trajectoire, derrière une bascule.
+Générique : des offsets mesurés en quelques points de repère (ancres) sont décomposés,
+interpolés le long du temps et appliqués à une trace lat/lon. Aucune dépendance à une app.
+
+Premier consommateur : cam_analyzer, étape 2b — l'offset caméra→ortho mesuré aux
+intersections (`ortho_markings.py`) devient une correction de trajectoire, derrière une
+bascule ⚑. Reclassé de `cam_analyzer/utils/ortho_apply.py` vers `common/` le 2026-07-29.
 
 Décomposition (décision Fabien 2026-07-28)
 -----------------------------------------
@@ -60,8 +64,14 @@ def decompose(rec):
     return {'camera': {'de_m': round(gde, 3), 'dn_m': round(gdn, 3)}, 'gps_local': local}
 
 
-def _window_time(w):
-    """Instant représentatif d'une fenêtre d'intersection (milieu de la traversée)."""
+def _landmark_time(w):
+    """Instant représentatif d'un repère : `ts` direct, sinon milieu de `t_enter`/`t_exit`.
+
+    Les deux formes sont acceptées pour que la fonction serve aussi bien un repère
+    ponctuel qu'une fenêtre de traversée (cas des intersections cam_analyzer).
+    """
+    if w.get('ts') is not None:
+        return float(w['ts'])
     te, tx = w.get('t_enter'), w.get('t_exit')
     if te is None and tx is None:
         return None
@@ -72,23 +82,26 @@ def _window_time(w):
     return (float(te) + float(tx)) / 2.0
 
 
-def build_anchors(intersection_windows, decomposed, mask_by_window=None):
+def build_anchors(landmarks, decomposed, mask_by_key=None):
     """Points d'ancrage temporels de la correction GPS.
 
-    `mask_by_window` : {wi: mean_deg} issu de `ign_vector.sky_mask`/`mask_summary`.
+    `landmarks` : liste de repères indexée par les clés de `decomposed['gps_local']`.
+    Chaque repère porte `ts`, ou `t_enter`/`t_exit`.
+    `mask_by_key` : {clé: mean_deg} issu de `geo.ign_vector` (masquage satellite).
     Absent → aucune rétraction (alpha = 1), comportement neutre.
 
     Retourne [{'ts', 'de_m', 'dn_m', 'n', 'alpha'}] trié par temps.
     """
-    wins = intersection_windows or []
+    wins = landmarks or []
+    mask_by_window = mask_by_key
     anchors = []
     for wi, off in (decomposed.get('gps_local') or {}).items():
         try:
             w = wins[int(wi)]
         except (ValueError, IndexError, TypeError):
-            logger.warning("[ortho_apply] fenêtre %r hors de intersection_windows — ignorée", wi)
+            logger.warning("[trajectory_offset] repère %r hors de la liste — ignoré", wi)
             continue
-        ts = _window_time(w)
+        ts = _landmark_time(w)
         if ts is None:
             continue
 
@@ -183,3 +196,47 @@ def correction_report(anchors, corrected_track=None):
         moved = [p for p in corrected_track if p.get('corr_de_m') is not None]
         rep['n_points_corrected'] = len(moved)
     return rep
+
+
+# ── Manifeste ─────────────────────────────────────────────────────────────────────────
+from wama.common.data.function_catalog import (  # noqa: E402
+    FunctionCategory, FunctionSpec, ParamSpec, PortSpec, register)
+from wama.common.data.data_types import DataType  # noqa: E402
+
+
+def apply_anchored_offsets(track, anchors, **_):
+    """Point d'entrée chaînable : trace + ancres → trace corrigée (voir `correct_track`)."""
+    return correct_track(track, anchors)
+
+
+SPEC = register(FunctionSpec(
+    key='trajectory_offset',
+    name='Correction de trajectoire par offsets ancrés',
+    description="Applique à une trace lat/lon des offsets mesurés en quelques repères : "
+                "interpolation entre ancres pondérée par la fiabilité, sans extrapolation "
+                "hors bornes. Conserve l'original (`lat_raw`/`lon_raw`) et trace la "
+                "correction appliquée par point.",
+    category=FunctionCategory.TRANSFORM,
+    tags=['geo', 'gnss', 'timeseries'],
+    inputs=[
+        PortSpec('track', DataType.GEO_TRACK, required_fields=['ts', 'lat', 'lon'],
+                 description='Trace à corriger.'),
+        PortSpec('anchors', DataType.TABLE, required_fields=['ts', 'de_m', 'dn_m'],
+                 cardinality='many',
+                 description="Offsets ancrés (sortie de `build_anchors`)."),
+    ],
+    outputs=[
+        PortSpec('track', DataType.GEO_TRACK,
+                 produced_fields=['lat', 'lon', 'lat_raw', 'lon_raw',
+                                  'corr_de_m', 'corr_dn_m']),
+    ],
+    params=[
+        ParamSpec('full_trust_mask_deg', 'float', FULL_TRUST_MASK_DEG, 0.0, 45.0, unit='°',
+                  description="Élévation moyenne bouchée au-delà de laquelle la correction "
+                              "locale s'applique à 100 % (rétraction en ciel dégagé). "
+                              "Valeur PROVISOIRE, à réétalonner sur données réelles."),
+    ],
+    cost={'cpu_bound': True},
+    projects=['ENA'],
+    fn=apply_anchored_offsets,
+))

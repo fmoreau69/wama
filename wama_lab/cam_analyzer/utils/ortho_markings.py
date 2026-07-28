@@ -29,16 +29,11 @@ ORTHO_ZOOM = 19          # 20 non servi partout (404) ; 19 ≈ 0.22 m/px, suffis
 
 
 def _proxies():
-    """Proxy pour joindre geopf.fr depuis WSL : settings.CAM_ANALYZER_ORTHO_PROXY,
-    sinon HTTP(S)_PROXY de l'environnement (le worker Celery en hérite en général)."""
-    import os
-    try:
-        from django.conf import settings
-        p = getattr(settings, 'CAM_ANALYZER_ORTHO_PROXY', None)
-    except Exception:
-        p = None
-    p = p or os.environ.get('HTTPS_PROXY') or os.environ.get('HTTP_PROXY')
-    return {'http': p, 'https': p} if p else None
+    """Proxy pour joindre geopf.fr depuis WSL — délègue à la brique commune
+    (`common/utils/http_proxy.py`, extraite 2026-07-29 ; le réglage historique
+    `CAM_ANALYZER_ORTHO_PROXY` reste honoré)."""
+    from wama.common.utils.http_proxy import outbound_proxies
+    return outbound_proxies('CAM_ANALYZER_ORTHO_PROXY')
 
 
 def _lonlat_to_tilexy(lon, lat, z):

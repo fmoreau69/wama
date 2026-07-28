@@ -1,17 +1,22 @@
-"""Tests des fonctions pures de ortho_apply (aucune dépendance Django/GPU)."""
+"""Tests des fonctions pures de `trajectory_offset` (aucune dépendance Django/GPU).
+
+Lancement : `python3 wama/common/data/functions/driving/tests_trajectory_offset.py`
+Le module est chargé par chemin, sans passer par le paquet : importer
+`wama.common.data.functions` déclencherait l'auto-déclaration des FunctionSpec, donc Django.
+"""
 import importlib.util
 import math
 import sys
-import types
 from pathlib import Path
 
-UTILS = Path(__file__).resolve().parent / "utils"
-pkg = types.ModuleType("camutils")
-pkg.__path__ = [str(UTILS)]
-sys.modules["camutils"] = pkg
-spec = importlib.util.spec_from_file_location("camutils.ortho_apply", UTILS / "ortho_apply.py")
+MOD = Path(__file__).resolve().parent / "trajectory_offset.py"
+# Racine du dépôt : le module déclare ses FunctionSpec, donc importe `wama.common.data.*`
+# (pur Python, sans Django). On charge quand même le module PAR CHEMIN pour éviter le
+# `__init__` du paquet, qui lui tirerait tout le domaine driving.
+sys.path.insert(0, str(Path(__file__).resolve().parents[5]))
+spec = importlib.util.spec_from_file_location("trajectory_offset_under_test", MOD)
 oa = importlib.util.module_from_spec(spec)
-sys.modules["camutils.ortho_apply"] = oa
+sys.modules["trajectory_offset_under_test"] = oa
 spec.loader.exec_module(oa)
 
 ok = fail = 0
@@ -56,7 +61,7 @@ check("triées par temps", [x["ts"] for x in a_nomask] == sorted(x["ts"] for x i
 check("sans masque -> alpha 1", all(x["alpha"] == 1.0 for x in a_nomask))
 
 # Ciel dégagé sur la fenêtre 1 -> correction rétractée ; canyon sur la 2 -> pleine.
-a_mask = oa.build_anchors(wins, d, mask_by_window={"0": 0.0, "1": 0.0, "2": 24.0})
+a_mask = oa.build_anchors(wins, d, mask_by_key={"0": 0.0, "1": 0.0, "2": 24.0})
 w1 = [x for x in a_mask if x["ts"] == 120.0][0]
 w2 = [x for x in a_mask if x["ts"] == 220.0][0]
 check("ciel dégagé -> correction annulée", w1["de_m"] == 0.0 and w1["alpha"] == 0.0, w1)
@@ -104,12 +109,12 @@ check("rapport cohérent", rep["n_anchors"] == 3 and rep["max_shift_m"] > 0, rep
 print("== 6. Masque ABSENT ≠ ciel dégagé (panne BD TOPO) ==")
 # Fenêtre "1" absente du dict = réseau indisponible -> ne doit PAS rétracter,
 # sinon une panne BD TOPO annulerait toute la correction en silence.
-a_part = oa.build_anchors(wins, d, mask_by_window={"2": 24.0})
+a_part = oa.build_anchors(wins, d, mask_by_key={"2": 24.0})
 w1p = [x for x in a_part if x["ts"] == 120.0][0]
 check("masque absent -> alpha 1 (correction préservée)", w1p["alpha"] == 1.0, w1p)
 check("masque absent -> offset local intact", abs(w1p["de_m"] - 5.0) < 1e-9, w1p)
 # Masque explicitement nul = ciel réellement dégagé -> rétraction totale
-a_zero = oa.build_anchors(wins, d, mask_by_window={"1": 0.0})
+a_zero = oa.build_anchors(wins, d, mask_by_key={"1": 0.0})
 w1z = [x for x in a_zero if x["ts"] == 120.0][0]
 check("masque explicite 0 -> alpha 0 (rétraction)", w1z["alpha"] == 0.0, w1z)
 

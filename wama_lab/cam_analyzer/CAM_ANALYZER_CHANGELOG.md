@@ -72,6 +72,13 @@ pas de tests destructifs (user id=1 = Fabien réel, `transaction.atomic()`) · p
 
 ---
 
+## 2026-07-29
+
+| Commit | Quoi | Pourquoi | Validation/annulation |
+|---|---|---|---|
+| *(ce commit)* | **RECLASSEMENT vers `common/` + manifestes** (correction d'une dette introduite la veille). `utils/ign_vector.py` → **`wama/common/data/functions/geo/ign_vector.py`** (nouveau domaine `geo/`) avec 3 FunctionSpec déclarées (`ign_buildings`, `ign_roads`, `sky_mask`) ; `utils/ortho_apply.py` → **`wama/common/data/functions/driving/trajectory_offset.py`** avec sa FunctionSpec, `build_anchors` généralisé (`landmarks`/`mask_by_key`, accepte `ts` ou `t_enter`/`t_exit`) ; `_proxies` extrait en **`wama/common/utils/http_proxy.py`** (`ortho_markings` délègue). **Étape 2b SÉPARÉE en deux fonctions** : `cam_analyzer.ortho_recalage` (MESURE, vision+GPU) et **`cam_analyzer.ortho_correction`** (APPLICATION, calcul pur) — nouvelle tâche `compute_ortho_correction_task`, bascule renommée `ortho_recalage` → **`ortho_correction`**. Sortie `ortho_correction` désormais DÉCLARÉE. | Deux modules purs et réutilisables avaient été écrits dans l'app, sans manifeste : invisibles du `FUNCTION_CATALOG`, de `/model-manager/functions/` et du Studio, donc inutilisables ailleurs — contraire à la règle de centralisation et à la philosophie « tout fonctionne par description ». Symptôme révélateur : `ign_vector` importait `_proxies` DEPUIS l'app (dépendance inversée). La séparation mesure/application vient d'un besoin concret : recalibrer `full_trust_mask_deg` relançait sinon la segmentation SAM3 des tuiles ortho (GPU + réseau) pour un simple calcul pur. | **29 tests OK avant ET après déplacement** (`python3 wama/common/data/functions/driving/tests_trajectory_offset.py`) — ils ont d'ailleurs attrapé le renommage `mask_by_window`→`mask_by_key`. `manage.py check` : 0 issue. Catalogue vérifié : **24 fonctions**, les 4 nouvelles pures en `binding=pure`, et **chaînage validé** (port `recalage` : sortie de la mesure = entrée de l'application). Bascule : ancienne clé absente, nouvelle présente. Annulation : `git revert` (bascule OFF par défaut, aucun comportement actif changé). |
+| — | *Note :* `FunctionCategory` n'a pas de valeur `SOURCE` ; les fetchers IGN (aucun port d'entrée, paramétrés par un point) sont déclarés `TRANSFORM` faute de mieux. Écart signalé plutôt que masqué — à trancher si d'autres sources apparaissent. | | |
+
 ## 2026-07-28
 
 | Commit | Quoi | Pourquoi | Validation/annulation |

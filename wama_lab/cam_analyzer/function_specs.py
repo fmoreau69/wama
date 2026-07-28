@@ -99,6 +99,16 @@ _spec('ortho_recalage', 'Recalage absolu ortho', "Segmente les passages piétons
       inputs=[PortSpec('markings', DT.SECTIONS, required_fields=['a', 'b', 'label']),
               PortSpec('road_map', DT.ROAD_MAP, optional=True)],
       outputs=[PortSpec('recalage', DT.SCALAR, produced_fields=['de_m', 'dn_m'])])
+_spec('ortho_correction', 'Correction de trajectoire (ortho)',
+      "APPLIQUE le recalage mesuré à la trajectoire, derrière la bascule ⚑ ortho_correction. "
+      "La médiane globale est tenue pour un biais de PROJECTION caméra et n'est PAS appliquée ; "
+      "seul l'écart LOCAL par intersection corrige le GPS, interpolé entre repères et atténué "
+      "là où le ciel est dégagé (masquage satellite BD TOPO). Séparée de la mesure : "
+      "recalibrer le seuil ne doit pas relancer la segmentation SAM3 des tuiles ortho.",
+      FC.TRANSFORM, 'cam_analyzer.tasks:compute_ortho_correction_task', ['geo', 'gnss'],
+      inputs=[PortSpec('recalage', DT.SCALAR, required_fields=['de_m', 'dn_m'])],
+      outputs=[PortSpec('ortho_correction', DT.TABLE,
+                        produced_fields=['anchors', 'camera_bias', 'sky_mask_deg', 'report'])])
 
 # ── Évènements / indicateurs métier ───────────────────────────────────────────
 _spec('lane_events', 'Évènements de voie', "Franchissements/attributions de voie par objet.",

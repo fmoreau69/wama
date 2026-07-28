@@ -18,3 +18,4 @@ from . import io          # noqa: F401
 from . import geometry    # noqa: F401
 from . import kinematics  # noqa: F401
 from . import driving     # noqa: F401
+from . import geo         # noqa: F401

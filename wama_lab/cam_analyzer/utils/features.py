@@ -46,7 +46,7 @@ FEATURES = [
             "bbox). Étape 2a : corrige l'angle (gain ×5 mesuré) ; l'échelle absolue viendra "
             "des marquages ortho. Recalcule la calib au tracking si absente.",
             default=False, scope='compute'),
-    Feature('ortho_recalage', 'Recalage GPS par marquages ortho',
+    Feature('ortho_correction', 'Recalage GPS par marquages ortho',
             "Applique à la trajectoire l'offset mesuré à l'étape 2b (passages piétons de "
             "l'orthophoto IGN vs caméra) — l'ÉCHELLE/POSITION absolue que 2a ne peut pas "
             "donner. La médiane globale est tenue pour un biais de PROJECTION caméra et "
