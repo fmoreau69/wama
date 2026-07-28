@@ -737,10 +737,11 @@ def api_backup_list(request):
 @user_passes_test(is_admin_or_dev)
 @require_POST
 def api_backup_models_start(request):
-    """API: lance le miroir global AI-models/models/ → espace distant (tâche Celery).
+    """API: lance la sauvegarde globale AI-models/models/ → espace distant (tâche Celery).
 
+    Sens unique : rien n'est jamais supprimé côté distant (archive cumulative).
     Idempotent : si un backup tourne déjà, on renvoie son état au lieu d'en lancer un
-    second (deux miroirs concurrents se marcheraient dessus sur le même arbre distant).
+    second (deux passes concurrentes se marcheraient dessus sur le même arbre distant).
     """
     from django.core.cache import cache
     from celery.result import AsyncResult

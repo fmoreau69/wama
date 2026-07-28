@@ -386,10 +386,20 @@ class RemoteBackupService:
 
     def backup_all_models(self, overwrite: bool = False, progress_cb=None) -> Dict:
         """
-        MIROIR GLOBAL INCRÉMENTAL de AI-models/models/ vers l'espace distant.
+        SAUVEGARDE GLOBALE INCRÉMENTALE de AI-models/models/ vers l'espace distant.
 
-        Pendant « modèles » de la sauvegarde DB : réplique toute l'arborescence locale
-        (domaine/famille/models--org--name/{blobs,refs,snapshots}) via mirror_dest().
+        ⚠ SENS UNIQUE, JAMAIS DE SUPPRESSION DISTANTE. Ce n'est PAS un miroir d'état :
+        seuls les CHEMINS sont répliqués (mirror_dest → même arborescence
+        domaine/famille/models--org--name/{blobs,refs,snapshots}), pas le contenu du
+        dossier. On itère sur les fichiers LOCAUX uniquement : un fichier présent sur le
+        distant et absent en local n'est jamais visité, donc jamais supprimé.
+
+        C'est VOULU et structurant : le distant est une ARCHIVE CUMULATIVE. Après une
+        conversion .pt → .onnx, le local ne garde que le .onnx tandis que le distant
+        conserve les deux. N'ajoutez JAMAIS de passe de prune « pour synchroniser » :
+        elle effacerait précisément les formats d'origine que cette archive existe pour
+        conserver (voir aussi FormatConverter._retire_source).
+
         INCRÉMENTAL : un fichier déjà présent à l'identique (même taille) est sauté sans
         être relu — indispensable, le local fait ~335 Go pour ~325 Go déjà distants.
 

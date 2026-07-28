@@ -80,7 +80,9 @@ class FormatConverter:
             model_path: Path to the source model file
             target_format: Target format ('safetensors', 'onnx')
             model_type: Type hint for conversion ('yolo', 'diffusion', 'generic')
-            keep_original: Whether to keep the original file
+            keep_original: Whether to keep the original file. À False, la source n'est PAS
+                simplement effacée : elle est d'abord archivée sur l'espace distant et
+                vérifiée (_retire_source). Elle reste en local si l'archivage échoue.
             **kwargs: Additional arguments for specific converters
 
         Returns:
@@ -130,6 +132,47 @@ class FormatConverter:
 
         return result
 
+    def _retire_source(self, model_path: str) -> bool:
+        """
+        Retire le fichier SOURCE après une conversion réussie — JAMAIS par un unlink() sec.
+
+        Invariant WAMA : le LOCAL ne garde que le format cible (ex. .onnx), l'espace
+        DISTANT garde les deux (.pt d'origine + .onnx converti). La suppression locale
+        doit donc être précédée d'une sauvegarde VÉRIFIÉE : offload_file() copie,
+        compare la taille, et ne supprime qu'ensuite.
+
+        overwrite=False : si le poids d'origine est déjà archivé, on ne re-transfère pas
+        plusieurs Go pour rien — la vérification de taille reste faite, donc une copie
+        distante tronquée bloque quand même la suppression.
+
+        Si l'espace distant est indisponible, la source est CONSERVÉE en local : perdre
+        un poids d'origine est irréversible, garder un fichier en trop ne l'est pas.
+
+        Returns: True si la source a bien été archivée puis supprimée en local.
+        """
+        from .remote_backup import get_backup_service
+
+        service = get_backup_service()
+        if not service.is_available():
+            logger.warning(
+                f"Source conservée ({model_path}) : espace de sauvegarde distant "
+                f"indisponible — suppression locale refusée, le format d'origine serait perdu."
+            )
+            return False
+
+        result = service.offload_file(model_path, overwrite=False)
+        if not result.get('deleted'):
+            logger.warning(
+                f"Source conservée ({model_path}) : "
+                f"{result.get('error') or 'offload incomplet'}"
+            )
+            return False
+
+        logger.info(
+            f"Source archivée puis supprimée en local : {model_path} -> {result.get('dest_path')}"
+        )
+        return True
+
     def _convert_to_safetensors(
         self,
         model_path: str,
@@ -142,15 +185,18 @@ class FormatConverter:
             convert_bin_to_safetensors,
         )
 
+        # remove_original=False EN DUR : la suppression de la source passe uniquement par
+        # _retire_source() (archivage vérifié d'abord). Ne pas déléguer la suppression à
+        # la lib de conversion, qui ferait un unlink() sec sans filet.
         if source_format in ['pt', 'pth']:
             success, message, output_path = convert_pt_to_safetensors(
                 model_path,
-                remove_original=not keep_original,
+                remove_original=False,
             )
         elif source_format == 'bin':
             success, message, output_path = convert_bin_to_safetensors(
                 model_path,
-                remove_original=not keep_original,
+                remove_original=False,
             )
         else:
             return ConversionResult(
@@ -158,6 +204,9 @@ class FormatConverter:
                 message=f"Cannot convert {source_format} to safetensors",
                 source_path=model_path,
             )
+
+        if success and not keep_original:
+            self._retire_source(model_path)
 
         return ConversionResult(
             success=success,
@@ -199,10 +248,7 @@ class FormatConverter:
             )
 
             if success and not keep_original:
-                try:
-                    Path(model_path).unlink()
-                except Exception as e:
-                    logger.warning(f"Could not remove original: {e}")
+                self._retire_source(model_path)
 
             return ConversionResult(
                 success=success,
@@ -236,10 +282,7 @@ class FormatConverter:
             )
 
             if success and not keep_original:
-                try:
-                    Path(model_path).unlink()
-                except Exception as e:
-                    logger.warning(f"Could not remove original: {e}")
+                self._retire_source(model_path)
 
             return ConversionResult(
                 success=success,

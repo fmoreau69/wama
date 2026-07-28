@@ -408,7 +408,7 @@
                             <button class="btn btn-outline-success btn-sm memory-action-btn" id="btn-backup-db" title="pg_dump + copie sur l'espace de sauvegarde distant">
                                 <i class="fas fa-database me-1"></i> Backup DB
                             </button>
-                            <button class="btn btn-outline-success btn-sm memory-action-btn" id="btn-backup-models" title="Miroir incrémental de AI-models/models/ vers l'espace de sauvegarde distant">
+                            <button class="btn btn-outline-success btn-sm memory-action-btn" id="btn-backup-models" title="Sauvegarde incrémentale de AI-models/models/ vers l'espace distant (sens unique : rien n'est supprimé à distance)">
                                 <i class="fas fa-cloud-upload-alt me-1"></i> Backup Models
                             </button>
                         </div>
@@ -557,8 +557,9 @@
     </div>
 
     {% comment %}
-      Avancement du miroir global des modèles. Alimenté par api/backup/models/progress/
-      (cache Redis) : reste visible après un F5 tant que la tâche Celery tourne.
+      Avancement de la sauvegarde globale des modèles. Alimenté par
+      api/backup/models/progress/ (cache Redis) : reste visible après un F5 tant que la
+      tâche Celery tourne.
     {% endcomment %}
     <div class="mb-3 d-none" id="backup-models-progress">
         <div class="d-flex justify-content-between align-items-center mb-1">
@@ -1964,7 +1965,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // =========================================================================
-    // Backup Models — miroir global incrémental (tâche Celery + polling)
+    // Backup Models — sauvegarde globale incrémentale (tâche Celery + polling)
     // =========================================================================
 
     let backupModelsTimer = null;
@@ -2017,9 +2018,10 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     document.getElementById('btn-backup-models').addEventListener('click', async function() {
-        if (!confirm("Lancer le miroir des modèles vers l'espace distant ?\n\n"
-                   + "Incrémental (les fichiers déjà présents sont sautés), mais le parcours "
-                   + "complet peut durer longtemps. Le suivi s'affiche sous le statut de backup.")) return;
+        if (!confirm("Lancer la sauvegarde des modèles vers l'espace distant ?\n\n"
+                   + "Incrémentale (les fichiers déjà présents sont sautés) et en sens unique : "
+                   + "rien n'est supprimé à distance. Le parcours complet peut durer longtemps ; "
+                   + "le suivi s'affiche sous le statut de backup.")) return;
 
         try {
             const response = await fetch('{% url "model_manager:api_backup_models_start" %}', {

@@ -105,7 +105,10 @@ BACKUP_ALL_TTL = 24 * 3600
 @shared_task(bind=True, name='model_manager.backup_all_models')
 def backup_all_models_task(self, overwrite: bool = False):
     """
-    Miroir global AI-models/models/ → espace distant (incrémental).
+    Sauvegarde globale AI-models/models/ → espace distant (incrémentale, sens unique).
+
+    Ne supprime JAMAIS rien côté distant : celui-ci est une archive cumulative (il garde
+    les formats d'origine que le local a pu retirer après conversion).
 
     Opération de plusieurs minutes à plusieurs heures selon le delta : d'où la tâche
     Celery. L'avancement est publié dans le cache Django (Redis) sous
