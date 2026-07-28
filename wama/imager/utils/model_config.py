@@ -235,41 +235,11 @@ STABLE_DIFFUSION_MODELS = {
                             "photoréalisme et rendu artistique, avec une bonne réponse aux prompts "
                             "détaillés. Polyvalent portraits/scènes.",
     },
-    # Alignés sur diffusers_backend.SUPPORTED_MODELS : étaient offerts par le dropdown mais
-    # absents de la découverte → registre incomplet. Ajoutés pour aligner registre ↔ dropdown.
-    'stable-diffusion-2-1': {
-        'model_id': 'stable-diffusion-2-1',
-        'hf_id': 'stabilityai/stable-diffusion-2-1',
-        'type': 'image',
-        'pipeline': 'sd',
-        'vram_gb': 6,
-        'description': 'Stable Diffusion 2.1 — meilleure cohérence',
-        'description_long': "Stable Diffusion 2.1 (Stability AI) : itération 768 px de SD, "
-                            "cohérence améliorée par rapport à 1.5 mais écosystème LoRA plus "
-                            "restreint. Intermédiaire entre SD 1.5 et SDXL.",
-    },
-    'dreamshaper-8': {
-        'model_id': 'dreamshaper-8',
-        'hf_id': 'Lykon/DreamShaper',
-        'type': 'image',
-        'pipeline': 'sd',
-        'vram_gb': 4,
-        'description': 'DreamShaper 8 — polyvalent, bon rapport qualité/vitesse',
-        'description_long': "DreamShaper 8 : fine-tune SD 1.5 très polyvalent (réalisme, fantasy, "
-                            "illustration) avec un excellent rapport qualité/vitesse. Bon choix "
-                            "par défaut en famille SD 1.5.",
-    },
-    'anything-v5': {
-        'model_id': 'anything-v5',
-        'hf_id': 'stablediffusionapi/anything-v5',
-        'type': 'image',
-        'pipeline': 'sd',
-        'vram_gb': 4,
-        'description': 'Anything V5 — style anime/manga',
-        'description_long': "Anything V5 : fine-tune SD 1.5 spécialisé anime/manga, traits nets "
-                            "et aplats caractéristiques. La référence du style japonais en "
-                            "génération locale légère.",
-    },
+    # RETIRÉS (2026-07-28) : 'stable-diffusion-2-1', 'dreamshaper-8', 'anything-v5'.
+    # Les trois étaient offerts au dropdown (téléchargement à la demande) mais n'ont JAMAIS été
+    # téléchargés, et appartiennent tous à l'ère SD 1.5/2.x — exactement l'étage que la
+    # modernisation du parc remplace. SD 1.5 et SDXL restent, eux, pour l'écosystème LoRA.
+    # Restaurables par git si un besoin de style précis réapparaît.
 }
 
 # ─── Qwen Image 2 (Alibaba) ───────────────────────────────────────────────────
@@ -286,6 +256,11 @@ QWEN_IMAGE_MODELS = {
         'vram_gb': 16,
         'disk_gb': 40,
         'resolution': 2048,
+        # Alignés sur qwen_image_backend.SUPPORTED_MODELS (default_steps / default_true_cfg) :
+        # Qwen attend 50 étapes et un true_cfg de 4.0, PAS les 30/7.5 de l'ère SD. Sans ces clés,
+        # get_model_defaults() retombait sur les valeurs SD et bridait le modèle par défaut.
+        'default_steps': 50,
+        'default_guidance_scale': 4.0,
         'description': 'Qwen Image 2 (20B) — #1 open source, text rendering, 2K natif',
         'description_long': "Qwen-Image 2 (Alibaba, 20B) : parmi les meilleurs modèles image "
                             "open-source, rendu du texte dans l'image remarquable et 2K natif. "
@@ -301,6 +276,9 @@ QWEN_IMAGE_MODELS = {
         'vram_gb': 12,
         'disk_gb': 25,
         'resolution': 2048,
+        # Idem qwen-image-2 : valeurs du backend Qwen, pas celles de SD.
+        'default_steps': 50,
+        'default_guidance_scale': 4.0,
         'description': 'Qwen Image Edit — édition multi-image, 14 images, 2K',
         'description_long': "Qwen-Image-Edit (Alibaba) : édition d'images guidée par instruction "
                             "— retouche, fusion et composition jusqu'à 14 images de référence, "
@@ -373,6 +351,41 @@ LOGO_MODELS = {
 }
 
 # =============================================================================
+# FLUX BASE MODELS
+# =============================================================================
+
+FLUX_MODELS = {
+    # FLUX.1-dev est DÉJÀ sur disque (31,4 GiB, dossier diffusion/flux/) depuis l'ajout du LoRA
+    # logo, qui s'en sert comme `base_model`. Il n'était pourtant exposé NULLE PART comme modèle
+    # sélectionnable : 31 GiB de poids de premier plan inaccessibles à l'utilisateur.
+    # Aucun téléchargement ni code backend requis — `_load_flux_pipeline()` saute l'application
+    # du LoRA dès que model_type != 'lora' (diffusers_backend.py:526).
+    'flux-1-dev': {
+        'model_id': 'flux-1-dev',
+        'hf_id': 'black-forest-labs/FLUX.1-dev',
+        'base_model': 'black-forest-labs/FLUX.1-dev',
+        'type': 'image',
+        'mode': 'text-to-image',
+        'pipeline': 'flux',
+        'model_type': 'base',
+        'vram_gb': 16,
+        'disk_gb': 32,
+        'resolution': '1024x1024',
+        # FLUX = rectified flow : guidance 3.5, JAMAIS 7.5-20 comme SD (cf. LOGO_MODELS)
+        'default_guidance_scale': 3.5,
+        'default_steps': 28,
+        'license': 'flux-1-dev-non-commercial',
+        'description': 'FLUX.1-dev — adhérence au prompt de référence',
+        'description_long': (
+            "FLUX.1-dev (Black Forest Labs, 12B) : référence open-weights pour l'adhérence au "
+            "prompt et l'esthétique générale. Déjà présent localement — il servait uniquement de "
+            "modèle de base au LoRA logo. Rectified flow : guidance 3.5 et ~28 étapes. "
+            "Licence non commerciale (recherche/usage interne)."
+        ),
+    },
+}
+
+# =============================================================================
 # COMBINED DICTIONARY
 # =============================================================================
 
@@ -383,9 +396,58 @@ IMAGER_MODELS = {
     **MOCHI_MODELS,
     **STABLE_DIFFUSION_MODELS,
     **QWEN_IMAGE_MODELS,
+    **FLUX_MODELS,
     **FLUX2_KLEIN_MODELS,
     **LOGO_MODELS,
 }
+
+# =============================================================================
+# DÉFAUTS D'APPLICATION — SOURCE UNIQUE
+# =============================================================================
+# Avant : l'id du modèle par défaut était écrit EN DUR dans 5 vues (views.py 197, 247, 324,
+# 389, 1262 = 'stable-diffusion-v1-5', un modèle de 2022) — donc tout utilisateur qui ne
+# choisissait pas explicitement recevait le plus faible modèle du parc. On centralise ici pour
+# que le défaut se change en UN point, et jamais par recopie dans une vue.
+DEFAULT_IMAGE_MODEL = 'qwen-image-2'
+DEFAULT_VIDEO_MODEL = 'cogvideox-5b'
+DEFAULT_I2V_MODEL = 'cogvideox-5b-i2v'
+
+
+def get_model_defaults(model_id: str) -> dict:
+    """
+    Paramètres de génération par défaut D'UN MODÈLE, lus depuis sa déclaration.
+
+    Évite le second piège des défauts en dur : 512x512 / 30 étapes / guidance 7.5 sont les
+    valeurs de l'ère SD 1.5 et donnent de mauvais résultats sur un modèle 1024 px en rectified
+    flow (Qwen, FLUX). Les vues doivent appeler ceci plutôt que d'écrire des littéraux.
+
+    Retourne : {'width', 'height', 'steps', 'guidance_scale'}.
+    """
+    cfg = IMAGER_MODELS.get(model_id) or {}
+
+    # ⚠ La clé 'resolution' a DEUX formalismes dans les déclarations existantes :
+    #   - str 'LxH'  (vidéo : '720x480', '1216x704') → résolution de travail exacte
+    #   - int  N     (image : 2048 pour qwen, 1024 pour klein, 768 pour le logo) → côté MAXIMUM
+    #     supporté, pas un défaut : générer du 2048x2048 par défaut serait lent et hasardeux.
+    # On les distingue ici plutôt que de laisser un parse rater en silence. (Uniformiser les
+    # déclarations serait le vrai correctif — hors périmètre de cette passe.)
+    resolution = cfg.get('resolution')
+    width = height = 512
+    if isinstance(resolution, str) and 'x' in resolution.lower():
+        try:
+            width, height = (int(v) for v in resolution.lower().split('x', 1))
+        except (ValueError, TypeError):
+            width = height = 512
+    elif isinstance(resolution, (int, float)) and resolution > 0:
+        # Côté max déclaré → on plafonne le DÉFAUT à 1024 (natif de tous les modèles récents).
+        width = height = min(int(resolution), 1024)
+
+    return {
+        'width': width,
+        'height': height,
+        'steps': int(cfg.get('default_steps') or 30),
+        'guidance_scale': float(cfg.get('default_guidance_scale') or 7.5),
+    }
 
 
 # =============================================================================
@@ -477,6 +539,8 @@ def get_model_info(model_name: str) -> dict:
         info['cache_dir'] = str(MOCHI_DIR)
     elif model_name in QWEN_IMAGE_MODELS:
         info['cache_dir'] = str(QWEN_IMAGE_DIR)
+    elif model_name in FLUX_MODELS:
+        info['cache_dir'] = str(FLUX_DIR)
     elif model_name in FLUX2_KLEIN_MODELS:
         info['cache_dir'] = str(FLUX2_KLEIN_DIR)
     elif model_name in LOGO_MODELS:

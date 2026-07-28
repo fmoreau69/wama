@@ -88,16 +88,7 @@ class DiffusersBackend(ImageGenerationBackend):
             "max_resolution": 768,
             "recommended_resolutions": ["512x512", "768x768", "896x512", "512x896"],
         },
-        "stable-diffusion-2-1": {
-            "name": "Stable Diffusion 2.1",
-            "hf_id": "stabilityai/stable-diffusion-2-1",
-            "description": "Version améliorée - 6GB VRAM - Meilleure cohérence",
-            "vram": "6GB",
-            "pipeline": "sd",
-            "min_resolution": 256,
-            "max_resolution": 1024,
-            "recommended_resolutions": ["768x768", "1024x1024", "896x512", "512x896"],
-        },
+        # 'stable-diffusion-2-1' RETIRÉ (2026-07-28) — cf. model_config.STABLE_DIFFUSION_MODELS.
         "stable-diffusion-xl": {
             "name": "Stable Diffusion XL",
             "hf_id": "stabilityai/stable-diffusion-xl-base-1.0",
@@ -120,16 +111,7 @@ class DiffusersBackend(ImageGenerationBackend):
             "max_resolution": 768,
             "recommended_resolutions": ["512x512", "768x768", "896x512", "512x896"],
         },
-        "dreamshaper-8": {
-            "name": "DreamShaper 8",
-            "hf_id": "Lykon/DreamShaper",
-            "description": "Polyvalent - 4GB VRAM - Excellent rapport qualité/vitesse",
-            "vram": "4GB",
-            "pipeline": "sd",
-            "min_resolution": 256,
-            "max_resolution": 768,
-            "recommended_resolutions": ["512x512", "768x768", "896x512", "512x896"],
-        },
+        # 'dreamshaper-8' RETIRÉ (2026-07-28) — cf. model_config.STABLE_DIFFUSION_MODELS.
         "deliberate-v6": {
             "name": "Deliberate v6",
             "hf_id": "XpucT/Deliberate",
@@ -142,17 +124,8 @@ class DiffusersBackend(ImageGenerationBackend):
             "recommended_resolutions": ["512x512", "768x768", "896x512", "512x896"],
         },
 
-        # Anime models
-        "anything-v5": {
-            "name": "Anything V5",
-            "hf_id": "stablediffusionapi/anything-v5",
-            "description": "Style anime - 4GB VRAM - Illustrations manga",
-            "vram": "4GB",
-            "pipeline": "sd",
-            "min_resolution": 256,
-            "max_resolution": 768,
-            "recommended_resolutions": ["512x512", "768x768", "896x512", "512x896"],
-        },
+        # 'anything-v5' (anime) RETIRÉ (2026-07-28) — cf. model_config.STABLE_DIFFUSION_MODELS.
+        # Le créneau anime reste couvert par SD 1.5 + LoRA de style.
 
         # =================================================================
         # LOGO GENERATION MODELS
@@ -181,6 +154,28 @@ class DiffusersBackend(ImageGenerationBackend):
             "min_resolution": 512,
             "max_resolution": 768,
             "recommended_resolutions": ["768x768", "768x512", "512x768"],
+        },
+
+        # FLUX.1-dev EN MODÈLE À PART ENTIÈRE (base, sans LoRA).
+        # Ses poids (31,4 GiB) étaient déjà sur disque comme `base_model` du LoRA logo, mais
+        # aucune entrée ne permettait de le sélectionner : le meilleur modèle d'adhérence au
+        # prompt du parc était inaccessible. `_load_flux_pipeline()` gère déjà model_type='base'
+        # (il ne charge le LoRA que si model_type == 'lora') → aucun code à ajouter.
+        # Résolution plafonnée à 1024 : contrairement au LoRA logo (768 max, cf. ci-dessus), le
+        # modèle nu est chargé quantifié ou en offload selon _get_flux_strategy().
+        "flux-1-dev": {
+            "name": "FLUX.1-dev",
+            "hf_id": "black-forest-labs/FLUX.1-dev",
+            "base_model": "black-forest-labs/FLUX.1-dev",
+            "description": "FLUX.1-dev 12B — adhérence au prompt de référence (16GB VRAM, non commercial)",
+            "vram": "16GB",
+            "pipeline": "flux",
+            "model_type": "base",
+            "default_guidance_scale": 3.5,
+            "default_steps": 28,
+            "min_resolution": 512,
+            "max_resolution": 1024,
+            "recommended_resolutions": ["1024x1024", "1024x768", "768x1024"],
         },
 
         # =================================================================

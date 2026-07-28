@@ -23,6 +23,9 @@ import logging
 from pathlib import Path
 
 from .models import ImageGeneration, UserSettings
+from .utils.model_config import (
+    DEFAULT_IMAGE_MODEL, DEFAULT_VIDEO_MODEL, DEFAULT_I2V_MODEL, get_model_defaults,
+)
 from wama.accounts.views import get_or_create_anonymous_user
 
 logger = logging.getLogger(__name__)
@@ -194,11 +197,15 @@ def handle_txt2img(request, user):
         return JsonResponse({'error': 'Prompt is required'}, status=400)
 
     negative_prompt = request.POST.get('negative_prompt', '').strip()
-    model = request.POST.get('model', 'stable-diffusion-v1-5')
-    width = int(request.POST.get('width', 512))
-    height = int(request.POST.get('height', 512))
-    steps = int(request.POST.get('steps', 30))
-    guidance_scale = float(request.POST.get('guidance_scale', 7.5))
+    # Défauts SOURCÉS depuis la déclaration du modèle (model_config), jamais en dur ici :
+    # 512x512 / 30 étapes / guidance 7.5 sont les valeurs de l'ère SD 1.5 et dégradent tout
+    # modèle 1024 px en rectified flow (Qwen, FLUX).
+    model = request.POST.get('model', DEFAULT_IMAGE_MODEL)
+    _def = get_model_defaults(model)
+    width = int(request.POST.get('width', _def['width']))
+    height = int(request.POST.get('height', _def['height']))
+    steps = int(request.POST.get('steps', _def['steps']))
+    guidance_scale = float(request.POST.get('guidance_scale', _def['guidance_scale']))
     seed = request.POST.get('seed')
     if seed:
         seed = int(seed)
@@ -244,11 +251,15 @@ def handle_file2img(request, user):
         return JsonResponse({'error': 'No prompt file provided'}, status=400)
 
     # Default parameters for batch
-    model = request.POST.get('model', 'stable-diffusion-v1-5')
-    width = int(request.POST.get('width', 512))
-    height = int(request.POST.get('height', 512))
-    steps = int(request.POST.get('steps', 30))
-    guidance_scale = float(request.POST.get('guidance_scale', 7.5))
+    # Défauts SOURCÉS depuis la déclaration du modèle (model_config), jamais en dur ici :
+    # 512x512 / 30 étapes / guidance 7.5 sont les valeurs de l'ère SD 1.5 et dégradent tout
+    # modèle 1024 px en rectified flow (Qwen, FLUX).
+    model = request.POST.get('model', DEFAULT_IMAGE_MODEL)
+    _def = get_model_defaults(model)
+    width = int(request.POST.get('width', _def['width']))
+    height = int(request.POST.get('height', _def['height']))
+    steps = int(request.POST.get('steps', _def['steps']))
+    guidance_scale = float(request.POST.get('guidance_scale', _def['guidance_scale']))
 
     # Save file temporarily to parse it
     import tempfile
@@ -321,11 +332,15 @@ def handle_describe2img(request, user):
     if not reference_image:
         return JsonResponse({'error': 'No reference image provided'}, status=400)
 
-    model = request.POST.get('model', 'stable-diffusion-v1-5')
-    width = int(request.POST.get('width', 512))
-    height = int(request.POST.get('height', 512))
-    steps = int(request.POST.get('steps', 30))
-    guidance_scale = float(request.POST.get('guidance_scale', 7.5))
+    # Défauts SOURCÉS depuis la déclaration du modèle (model_config), jamais en dur ici :
+    # 512x512 / 30 étapes / guidance 7.5 sont les valeurs de l'ère SD 1.5 et dégradent tout
+    # modèle 1024 px en rectified flow (Qwen, FLUX).
+    model = request.POST.get('model', DEFAULT_IMAGE_MODEL)
+    _def = get_model_defaults(model)
+    width = int(request.POST.get('width', _def['width']))
+    height = int(request.POST.get('height', _def['height']))
+    steps = int(request.POST.get('steps', _def['steps']))
+    guidance_scale = float(request.POST.get('guidance_scale', _def['guidance_scale']))
     prompt_style = request.POST.get('prompt_style', 'detailed')
 
     # Create generation with placeholder prompt
@@ -386,11 +401,15 @@ def handle_img2img(request, user, mode):
 
     prompt = request.POST.get('prompt', '').strip()
     negative_prompt = request.POST.get('negative_prompt', '').strip()
-    model = request.POST.get('model', 'stable-diffusion-v1-5')
-    width = int(request.POST.get('width', 512))
-    height = int(request.POST.get('height', 512))
-    steps = int(request.POST.get('steps', 30))
-    guidance_scale = float(request.POST.get('guidance_scale', 7.5))
+    # Défauts SOURCÉS depuis la déclaration du modèle (model_config), jamais en dur ici :
+    # 512x512 / 30 étapes / guidance 7.5 sont les valeurs de l'ère SD 1.5 et dégradent tout
+    # modèle 1024 px en rectified flow (Qwen, FLUX).
+    model = request.POST.get('model', DEFAULT_IMAGE_MODEL)
+    _def = get_model_defaults(model)
+    width = int(request.POST.get('width', _def['width']))
+    height = int(request.POST.get('height', _def['height']))
+    steps = int(request.POST.get('steps', _def['steps']))
+    guidance_scale = float(request.POST.get('guidance_scale', _def['guidance_scale']))
     image_strength = float(request.POST.get('image_strength', 0.75))
     seed = request.POST.get('seed')
     if seed:
@@ -438,7 +457,7 @@ def handle_txt2vid(request, user):
         return JsonResponse({'error': 'Prompt is required'}, status=400)
 
     negative_prompt = request.POST.get('negative_prompt', '').strip()
-    model = request.POST.get('model', 'cogvideox-5b')
+    model = request.POST.get('model', DEFAULT_VIDEO_MODEL)
     video_duration = float(request.POST.get('video_duration', 5.0))
     video_fps = int(request.POST.get('video_fps', 16))
     video_resolution = request.POST.get('video_resolution', '480p')
@@ -483,7 +502,7 @@ def handle_img2vid(request, user):
 
     prompt = request.POST.get('prompt', '').strip()
     negative_prompt = request.POST.get('negative_prompt', '').strip()
-    model = request.POST.get('model', 'cogvideox-5b-i2v')
+    model = request.POST.get('model', DEFAULT_I2V_MODEL)
     video_duration = float(request.POST.get('video_duration', 5.0))
     video_fps = int(request.POST.get('video_fps', 16))
     video_resolution = request.POST.get('video_resolution', '480p')
@@ -1259,7 +1278,7 @@ def api_model_resolutions(request):
         IMAGE_RESOLUTION_PRESETS
     )
 
-    model_name = request.GET.get('model', 'stable-diffusion-v1-5')
+    model_name = request.GET.get('model', DEFAULT_IMAGE_MODEL)
 
     config = get_model_resolution_config(model_name)
     resolutions = get_recommended_resolutions(model_name)
