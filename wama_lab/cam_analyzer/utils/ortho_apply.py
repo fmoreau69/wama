@@ -92,9 +92,12 @@ def build_anchors(intersection_windows, decomposed, mask_by_window=None):
         if ts is None:
             continue
 
+        # Masque ABSENT ≠ ciel dégagé : BD TOPO peut être injoignable. Dans ce cas on ne
+        # rétracte pas (alpha=1) — sinon une panne réseau annulerait toute la correction
+        # en silence. Seule une valeur réellement mesurée peut atténuer.
         alpha = 1.0
-        if mask_by_window is not None:
-            mean_deg = float(mask_by_window.get(wi) or 0.0)
+        if mask_by_window is not None and wi in mask_by_window:
+            mean_deg = float(mask_by_window[wi] or 0.0)
             alpha = max(0.0, min(1.0, mean_deg / FULL_TRUST_MASK_DEG))
 
         anchors.append({

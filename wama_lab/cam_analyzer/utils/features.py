@@ -46,6 +46,14 @@ FEATURES = [
             "bbox). Étape 2a : corrige l'angle (gain ×5 mesuré) ; l'échelle absolue viendra "
             "des marquages ortho. Recalcule la calib au tracking si absente.",
             default=False, scope='compute'),
+    Feature('ortho_recalage', 'Recalage GPS par marquages ortho',
+            "Applique à la trajectoire l'offset mesuré à l'étape 2b (passages piétons de "
+            "l'orthophoto IGN vs caméra) — l'ÉCHELLE/POSITION absolue que 2a ne peut pas "
+            "donner. La médiane globale est tenue pour un biais de PROJECTION caméra et "
+            "n'est PAS appliquée ; seul l'écart LOCAL par intersection corrige le GPS, "
+            "interpolé entre intersections et atténué là où le ciel est dégagé (hauteurs "
+            "BD TOPO). OFF = trajectoire brute, l'offset restant mesuré et rapporté.",
+            default=False, scope='compute'),
     Feature('world_markings', 'Marquages SAM3 en monde',
             "Les stop_line/passages piétons segmentés par SAM3 sont projetés au sol et "
             "agrégés multi-passages : bornes réelles d'intersection sur la mini-map, et "

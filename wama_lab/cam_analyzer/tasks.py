@@ -2355,14 +2355,54 @@ def compute_ortho_recalage_task(self, session_id: str):
         rs = session.results_summary or {}
         rs['ortho_markings'] = oc
         rs['ortho_recalage'] = rec
+        # ⚑ ortho_recalage — APPLICATION derrière bascule (comparaison A/B). On ne stocke que
+        # les ancres (quelques entrées) et non une trace dupliquée : tout consommateur
+        # rejoue `offset_at()`. Non bloquant : un échec laisse la mesure intacte.
+        corr_rep = None
+        try:
+            from .utils.features import effective as _feff
+            if _feff(session).get('ortho_recalage', False):
+                from .utils.ortho_apply import decompose, build_anchors, correction_report
+                from .utils.ign_vector import fetch_buildings, sky_mask, mask_summary
+                dec = decompose(rec)
+                wins = session.intersection_windows or []
+                masks = {}
+                for wi in (dec.get('gps_local') or {}):
+                    try:
+                        w = wins[int(wi)]
+                        blds = fetch_buildings(w['lat'], w['lon'], radius_m=300.0)
+                        if blds:   # pas de données ≠ ciel dégagé : on n'inscrit rien
+                            masks[wi] = mask_summary(
+                                sky_mask(w['lat'], w['lon'], blds))['mean_deg']
+                    except Exception:
+                        logger.warning("[ortho] masque BD TOPO indisponible pour la fenêtre %r", wi)
+                anchors = build_anchors(wins, dec, masks or None)
+                corr_rep = correction_report(anchors)
+                rs['ortho_correction'] = {
+                    'anchors': anchors,
+                    'camera_bias': dec['camera'],
+                    'sky_mask_deg': masks,
+                    'report': corr_rep,
+                }
+        except Exception:
+            logger.warning('ortho_apply failed (non-blocking)', exc_info=True)
+
         session.results_summary = rs
         session.save(update_fields=['results_summary'])
         g = rec.get('global')
         if g:
             import math as _m
-            _console(uid, f"Recalage ortho : offset mesuré {_m.hypot(g['de_m'], g['dn_m']):.1f} m "
-                          f"(E {g['de_m']:+.1f} / N {g['dn_m']:+.1f}, {g['n']} appariements) — "
-                          f"non appliqué (bascule à venir).")
+            msg = (f"Recalage ortho : offset mesuré {_m.hypot(g['de_m'], g['dn_m']):.1f} m "
+                   f"(E {g['de_m']:+.1f} / N {g['dn_m']:+.1f}, {g['n']} appariements) — ")
+            if corr_rep:
+                msg += (f"⚑ APPLIQUÉ : biais caméra E {dec['camera']['de_m']:+.1f} / "
+                        f"N {dec['camera']['dn_m']:+.1f} m écarté, correction GPS locale sur "
+                        f"{corr_rep['n_anchors']} intersections "
+                        f"(moy {corr_rep['mean_shift_m']:.1f} m, max {corr_rep['max_shift_m']:.1f} m, "
+                        f"atténuation moyenne ×{corr_rep['mean_alpha']:.2f}).")
+            else:
+                msg += "non appliqué (bascule ⚑ « Recalage GPS par marquages ortho » désactivée)."
+            _console(uid, msg)
         else:
             _console(uid, f"Recalage ortho : {n_cross} passages piétons ortho détectés, "
                           f"aucun appariement avec les crossings caméra (relancer le tracking ?).")

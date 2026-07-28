@@ -101,5 +101,17 @@ check("fenêtre hors index ignorée",
 rep = oa.correction_report(a_nomask)
 check("rapport cohérent", rep["n_anchors"] == 3 and rep["max_shift_m"] > 0, rep)
 
+print("== 6. Masque ABSENT ≠ ciel dégagé (panne BD TOPO) ==")
+# Fenêtre "1" absente du dict = réseau indisponible -> ne doit PAS rétracter,
+# sinon une panne BD TOPO annulerait toute la correction en silence.
+a_part = oa.build_anchors(wins, d, mask_by_window={"2": 24.0})
+w1p = [x for x in a_part if x["ts"] == 120.0][0]
+check("masque absent -> alpha 1 (correction préservée)", w1p["alpha"] == 1.0, w1p)
+check("masque absent -> offset local intact", abs(w1p["de_m"] - 5.0) < 1e-9, w1p)
+# Masque explicitement nul = ciel réellement dégagé -> rétraction totale
+a_zero = oa.build_anchors(wins, d, mask_by_window={"1": 0.0})
+w1z = [x for x in a_zero if x["ts"] == 120.0][0]
+check("masque explicite 0 -> alpha 0 (rétraction)", w1z["alpha"] == 0.0, w1z)
+
 print(f"\n=== {ok} OK, {fail} FAIL ===")
 sys.exit(1 if fail else 0)

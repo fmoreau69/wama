@@ -286,6 +286,7 @@ par côté). Règle : **jamais de if ad hoc dispersé** pour une amélioration c
 | `sam3_interp` | ON | live | interpolation des marquages SAM3 entre keyframes (fondu aux bords) |
 | `world_markings` | ON | compute | stop_line/crossing projetés+agrégés en monde (bornes d'intersection) |
 | `learned_branches` | ON | compute | voies croisantes apprises des trajectoires du trafic |
+| `ortho_recalage` | OFF | compute | étape 2b APPLIQUÉE : biais caméra (médiane globale) écarté, correction GPS locale par intersection, interpolée et atténuée selon le masquage BD TOPO |
 | `track_speed_unified` | OFF | compute | (chantier) vitesse/distance monde uniques par track |
 
 ## Calibration sol — plan complet (angle par le mouvement + échelle par les marquages)
