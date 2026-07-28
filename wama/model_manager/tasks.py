@@ -95,6 +95,54 @@ def sync_ollama_models():
         return {'error': str(e), 'synced': 0}
 
 
+#: Clé de cache partagée entre la tâche (écrit l'avancement) et la vue de progression
+#: (le lit). Passer par le cache plutôt que par l'AsyncResult permet de retrouver un
+#: backup en cours après un simple F5 sur la page — le navigateur n'a plus le task_id.
+BACKUP_ALL_CACHE_KEY = 'model_manager:backup_all_models'
+BACKUP_ALL_TTL = 24 * 3600
+
+
+@shared_task(bind=True, name='model_manager.backup_all_models')
+def backup_all_models_task(self, overwrite: bool = False):
+    """
+    Miroir global AI-models/models/ → espace distant (incrémental).
+
+    Opération de plusieurs minutes à plusieurs heures selon le delta : d'où la tâche
+    Celery. L'avancement est publié dans le cache Django (Redis) sous
+    BACKUP_ALL_CACHE_KEY, lu par api_backup_models_progress.
+    """
+    from django.core.cache import cache
+    from .services.remote_backup import get_backup_service
+
+    def publish(state: str, payload: dict):
+        cache.set(
+            BACKUP_ALL_CACHE_KEY,
+            dict(payload, state=state, task_id=self.request.id),
+            BACKUP_ALL_TTL,
+        )
+
+    publish('RUNNING', {'phase': 'scan', 'total_files': 0, 'processed': 0,
+                        'copied': 0, 'skipped': 0, 'failed': 0, 'copied_mb': 0.0})
+    logger.info("Starting full model backup to remote storage")
+
+    try:
+        service = get_backup_service()
+        result = service.backup_all_models(
+            overwrite=overwrite,
+            progress_cb=lambda p: publish('RUNNING', p),
+        )
+        publish('SUCCESS' if result['success'] else 'PARTIAL', result)
+        logger.info(
+            f"Model backup complete: +{result['copied']} copiés, "
+            f"{result['skipped']} déjà présents, {result['failed']} échecs"
+        )
+        return result
+    except Exception as e:
+        logger.error(f"Full model backup failed: {e}")
+        publish('FAILURE', {'errors': [str(e)]})
+        raise
+
+
 @shared_task(name='model_manager.update_loaded_status')
 def update_loaded_status_task(model_key: str, is_loaded: bool):
     """

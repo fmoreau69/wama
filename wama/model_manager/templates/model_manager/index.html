@@ -408,6 +408,9 @@
                             <button class="btn btn-outline-success btn-sm memory-action-btn" id="btn-backup-db" title="pg_dump + copie sur l'espace de sauvegarde distant">
                                 <i class="fas fa-database me-1"></i> Backup DB
                             </button>
+                            <button class="btn btn-outline-success btn-sm memory-action-btn" id="btn-backup-models" title="Miroir incrémental de AI-models/models/ vers l'espace de sauvegarde distant">
+                                <i class="fas fa-cloud-upload-alt me-1"></i> Backup Models
+                            </button>
                         </div>
                     </div>
                     <div class="col-md-6">
@@ -551,6 +554,21 @@
             <i class="fas fa-circle-notch fa-spin me-1"></i>Checking backup...
         </span>
         <small class="text-muted" id="backup-path"></small>
+    </div>
+
+    {% comment %}
+      Avancement du miroir global des modèles. Alimenté par api/backup/models/progress/
+      (cache Redis) : reste visible après un F5 tant que la tâche Celery tourne.
+    {% endcomment %}
+    <div class="mb-3 d-none" id="backup-models-progress">
+        <div class="d-flex justify-content-between align-items-center mb-1">
+            <small class="text-muted"><i class="fas fa-cloud-upload-alt me-1"></i>Backup models</small>
+            <small class="text-muted" id="backup-models-summary"></small>
+        </div>
+        <div class="progress" style="height: 6px;">
+            <div class="progress-bar bg-success" id="backup-models-bar" role="progressbar" style="width: 0%"></div>
+        </div>
+        <small class="text-muted text-truncate d-block mt-1" id="backup-models-current"></small>
     </div>
 
     <!-- Models Grid -->
@@ -1665,6 +1683,7 @@ document.addEventListener('DOMContentLoaded', function() {
     loadModels();
     loadBackupStatus();
     loadDiskSpace();
+    pollBackupModels();   // reprend l'affichage si un backup tourne déjà
 
     // =========================================================================
     // Disk Space Functions
@@ -1941,6 +1960,79 @@ document.addEventListener('DOMContentLoaded', function() {
             alert('Error: ' + err.message);
         } finally {
             hideLoading();
+        }
+    });
+
+    // =========================================================================
+    // Backup Models — miroir global incrémental (tâche Celery + polling)
+    // =========================================================================
+
+    let backupModelsTimer = null;
+
+    function renderBackupModels(p) {
+        const box = document.getElementById('backup-models-progress');
+        if (!p) { box.classList.add('d-none'); return; }
+        box.classList.remove('d-none');
+
+        const total = p.total_files || 0;
+        const done = p.processed || 0;
+        const pct = total ? Math.round((done / total) * 100) : 0;
+        const bar = document.getElementById('backup-models-bar');
+        bar.style.width = (p.phase === 'scan' ? 100 : pct) + '%';
+        bar.classList.toggle('progress-bar-striped', p.state === 'RUNNING');
+        bar.classList.toggle('progress-bar-animated', p.state === 'RUNNING');
+        bar.classList.toggle('bg-danger', p.state === 'FAILURE');
+
+        let txt;
+        if (p.phase === 'scan') {
+            txt = 'Inventaire des fichiers locaux…';
+        } else {
+            txt = `${done}/${total} (${pct}%) — ${p.copied || 0} copiés, `
+                + `${p.skipped || 0} déjà présents, ${p.failed || 0} échecs`
+                + (p.copied_mb ? ` — ${(p.copied_mb / 1024).toFixed(1)} Go transférés` : '');
+        }
+        if (p.state === 'SUCCESS') txt = 'Terminé — ' + txt;
+        if (p.state === 'PARTIAL') txt = 'Terminé avec erreurs — ' + txt;
+        if (p.state === 'FAILURE') txt = 'Échec : ' + (p.errors || []).join(' / ');
+        document.getElementById('backup-models-summary').textContent = txt;
+        document.getElementById('backup-models-current').textContent = p.current || '';
+    }
+
+    async function pollBackupModels() {
+        try {
+            const response = await fetch('{% url "model_manager:api_backup_models_progress" %}');
+            const data = await response.json();
+            renderBackupModels(data.progress);
+
+            if (data.progress && data.progress.state === 'RUNNING') {
+                if (!backupModelsTimer) backupModelsTimer = setInterval(pollBackupModels, 3000);
+            } else if (backupModelsTimer) {
+                clearInterval(backupModelsTimer);
+                backupModelsTimer = null;
+                loadBackupStatus();   // le nombre de modèles distants a bougé
+            }
+        } catch (err) {
+            // Silencieux : le polling reprendra au prochain tick / rechargement.
+        }
+    }
+
+    document.getElementById('btn-backup-models').addEventListener('click', async function() {
+        if (!confirm("Lancer le miroir des modèles vers l'espace distant ?\n\n"
+                   + "Incrémental (les fichiers déjà présents sont sautés), mais le parcours "
+                   + "complet peut durer longtemps. Le suivi s'affiche sous le statut de backup.")) return;
+
+        try {
+            const response = await fetch('{% url "model_manager:api_backup_models_start" %}', {
+                method: 'POST',
+                headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ overwrite: false })
+            });
+            const data = await response.json();
+            if (!data.success) { alert('Échec : ' + (data.error || 'inconnu')); return; }
+            if (data.already_running) alert('Un backup des modèles est déjà en cours.');
+            pollBackupModels();
+        } catch (err) {
+            alert('Error: ' + err.message);
         }
     });
 

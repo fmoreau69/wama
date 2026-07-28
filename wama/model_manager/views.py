@@ -736,6 +736,46 @@ def api_backup_list(request):
 @login_required
 @user_passes_test(is_admin_or_dev)
 @require_POST
+def api_backup_models_start(request):
+    """API: lance le miroir global AI-models/models/ → espace distant (tâche Celery).
+
+    Idempotent : si un backup tourne déjà, on renvoie son état au lieu d'en lancer un
+    second (deux miroirs concurrents se marcheraient dessus sur le même arbre distant).
+    """
+    from django.core.cache import cache
+    from celery.result import AsyncResult
+    from .tasks import backup_all_models_task, BACKUP_ALL_CACHE_KEY
+
+    current = cache.get(BACKUP_ALL_CACHE_KEY)
+    if current and current.get('state') == 'RUNNING':
+        task_id = current.get('task_id')
+        # Le cache peut survivre à un worker tué : ne considérer « en cours » que si
+        # Celery confirme que la tâche est encore vivante.
+        if task_id and AsyncResult(task_id).state in ('PENDING', 'STARTED', 'RETRY'):
+            return JsonResponse({
+                'success': True, 'already_running': True, 'progress': current,
+            })
+
+    overwrite = bool(json.loads(request.body or '{}').get('overwrite', False))
+    task = backup_all_models_task.delay(overwrite=overwrite)
+    return JsonResponse({'success': True, 'already_running': False, 'task_id': task.id})
+
+
+@login_required
+@user_passes_test(is_admin_or_dev)
+@require_GET
+def api_backup_models_progress(request):
+    """API: avancement du miroir global des modèles (lu depuis le cache Redis)."""
+    from django.core.cache import cache
+    from .tasks import BACKUP_ALL_CACHE_KEY
+
+    progress = cache.get(BACKUP_ALL_CACHE_KEY)
+    return JsonResponse({'success': True, 'running': bool(progress), 'progress': progress})
+
+
+@login_required
+@user_passes_test(is_admin_or_dev)
+@require_POST
 def api_backup_model(request):
     """API: Backup a model to remote storage."""
     from .services.remote_backup import get_backup_service

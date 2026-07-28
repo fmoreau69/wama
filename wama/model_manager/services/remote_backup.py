@@ -384,6 +384,76 @@ class RemoteBackupService:
             'backup_count': self.count_backups(),
         }
 
+    def backup_all_models(self, overwrite: bool = False, progress_cb=None) -> Dict:
+        """
+        MIROIR GLOBAL INCRÉMENTAL de AI-models/models/ vers l'espace distant.
+
+        Pendant « modèles » de la sauvegarde DB : réplique toute l'arborescence locale
+        (domaine/famille/models--org--name/{blobs,refs,snapshots}) via mirror_dest().
+        INCRÉMENTAL : un fichier déjà présent à l'identique (même taille) est sauté sans
+        être relu — indispensable, le local fait ~335 Go pour ~325 Go déjà distants.
+
+        Opération longue (des dizaines de milliers de fichiers sur un montage réseau) :
+        à n'appeler QUE depuis une tâche Celery, jamais dans le cycle requête/réponse.
+
+        Args:
+            overwrite: si True, recopie même les fichiers déjà présents (resync complet).
+            progress_cb: callable(dict) appelé périodiquement avec l'avancement.
+
+        Returns: dict de synthèse (voir clés ci-dessous).
+        """
+        summary = {
+            'success': False, 'total_files': 0, 'copied': 0, 'skipped': 0,
+            'failed': 0, 'copied_mb': 0.0, 'errors': [], 'remote_path': str(self.remote_path),
+        }
+
+        if not self.is_available():
+            summary['errors'].append(f"Espace distant indisponible : {self.remote_path}")
+            return summary
+
+        root = self._models_root()
+        if not root or not Path(root).exists():
+            summary['errors'].append(f"Racine locale des modèles introuvable : {root}")
+            return summary
+
+        # Phase 1 — inventaire LOCAL (disque rapide) : on connaît le total avant de copier,
+        # ce qui permet un vrai pourcentage côté UI plutôt qu'un spinner aveugle.
+        local_files = [f for f in Path(root).rglob('*') if f.is_file()]
+        summary['total_files'] = len(local_files)
+        if progress_cb:
+            progress_cb(dict(summary, phase='copy', current=''))
+
+        # Phase 2 — copie incrémentale.
+        for idx, src in enumerate(local_files, 1):
+            dest = self.mirror_dest(src)
+            if dest is None:
+                summary['skipped'] += 1
+                continue
+            try:
+                if not overwrite and dest.exists() and dest.stat().st_size == src.stat().st_size:
+                    summary['skipped'] += 1
+                else:
+                    res = self._copy_one(src, dest, overwrite=True)
+                    if res.success:
+                        summary['copied'] += 1
+                        summary['copied_mb'] += res.size_mb
+                    else:
+                        summary['failed'] += 1
+                        if len(summary['errors']) < 20:
+                            summary['errors'].append(f"{src.name}: {res.error}")
+            except Exception as e:
+                summary['failed'] += 1
+                if len(summary['errors']) < 20:
+                    summary['errors'].append(f"{src.name}: {e}")
+
+            # Remonter l'avancement sans saturer Redis : tous les 200 fichiers + à la fin.
+            if progress_cb and (idx % 200 == 0 or idx == summary['total_files']):
+                progress_cb(dict(summary, phase='copy', processed=idx,
+                                 current=str(src.relative_to(root))))
+
+        summary['success'] = summary['failed'] == 0
+        return summary
+
 
 # Singleton instance
 _backup_service: Optional[RemoteBackupService] = None

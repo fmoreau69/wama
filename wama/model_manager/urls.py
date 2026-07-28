@@ -50,6 +50,8 @@ urlpatterns = [
     path('api/backup/status/', views.api_backup_status, name='api_backup_status'),
     path('api/backup/list/', views.api_backup_list, name='api_backup_list'),
     path('api/backup/model/', views.api_backup_model, name='api_backup_model'),
+    path('api/backup/models/start/', views.api_backup_models_start, name='api_backup_models_start'),
+    path('api/backup/models/progress/', views.api_backup_models_progress, name='api_backup_models_progress'),
     path('api/convert-and-backup/', views.api_convert_and_backup, name='api_convert_and_backup'),
 
     # API endpoints - Database Catalog (fast)
