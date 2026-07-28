@@ -323,18 +323,19 @@ class RemoteBackupService:
                         if not model_dir.is_dir():
                             continue
 
-                        # Calculate total size
-                        total_size = sum(
-                            f.stat().st_size
-                            for f in model_dir.rglob('*')
-                            if f.is_file()
-                        )
-
-                        # Get modification time
-                        mtime = max(
-                            (f.stat().st_mtime for f in model_dir.rglob('*') if f.is_file()),
-                            default=0
-                        )
+                        # UN SEUL parcours récursif + UN SEUL stat() par fichier : sur un
+                        # montage réseau (9p/CIFS) chaque appel coûte un aller-retour, donc
+                        # les 3 rglob() séparés d'avant triplaient une opération déjà lente.
+                        total_size = 0
+                        mtime = 0.0
+                        file_count = 0
+                        for f in model_dir.rglob('*'):
+                            if not f.is_file():
+                                continue
+                            st = f.stat()
+                            total_size += st.st_size
+                            mtime = max(mtime, st.st_mtime)
+                            file_count += 1
 
                         backups.append({
                             'format': fmt_dir.name,
@@ -343,7 +344,7 @@ class RemoteBackupService:
                             'path': str(model_dir),
                             'size_mb': total_size / (1024 * 1024),
                             'modified': datetime.fromtimestamp(mtime).isoformat() if mtime else None,
-                            'file_count': sum(1 for _ in model_dir.rglob('*') if _.is_file())
+                            'file_count': file_count,
                         })
 
         except Exception as e:
@@ -351,12 +352,36 @@ class RemoteBackupService:
 
         return backups
 
+    def count_backups(self) -> int:
+        r"""
+        Nombre de modèles sauvegardés — VERSION LÉGÈRE : ne descend QUE dans les 3 niveaux
+        de dossiers, sans jamais stat() les fichiers. Indispensable pour un endpoint de
+        statut : `list_backups()` fait un rglob+stat sur tout l'arbre distant (≈140 s sur le
+        montage 9p \\vrlescot\SAVES → Apache coupait en 502 avant la réponse).
+        """
+        if not self.is_available():
+            return 0
+        count = 0
+        try:
+            for fmt_dir in self.remote_path.iterdir():
+                if not fmt_dir.is_dir():
+                    continue
+                for type_dir in fmt_dir.iterdir():
+                    if not type_dir.is_dir():
+                        continue
+                    for model_dir in type_dir.iterdir():
+                        if model_dir.is_dir():
+                            count += 1
+        except Exception as e:
+            logger.error(f"Error counting backups: {e}")
+        return count
+
     def get_status(self) -> Dict:
-        """Get backup service status."""
+        """Get backup service status (léger — voir count_backups)."""
         return {
             'available': self.is_available(),
             'remote_path': str(self.remote_path),
-            'backup_count': len(self.list_backups()) if self.is_available() else 0,
+            'backup_count': self.count_backups(),
         }
 
 
