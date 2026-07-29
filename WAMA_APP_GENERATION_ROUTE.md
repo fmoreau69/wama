@@ -187,7 +187,18 @@ manifeste** (ce que le kind `app` capte + cible de projection).
 - **Task Celery** : `@shared_task`, **dual-write progress** (cache + `.update`), seeding ETA `record_run`.
 - **Reprise après crash worker** : `process_control.reconcile_orphaned_running()` (93329c4 puis
   32df89c = bascule en échec sur **preuve positive de mort** du worker propriétaire seulement) —
-  adopté **1/10** (transcriber IndexView) → trou d'adoption de même nature que #5.
+  adopté **8/11** (2026-07-29 : + imager ; manquent anonymizer, avatarizer, translator + apps lab).
+- **Garde anti-BOUCLE-de-crash** : `process_control.refuse_crash_redelivery()` — un message
+  `redelivered` vient d'un worker mort SANS acquitter (freeze/panic machine) ; le rejouer relance
+  l'exécution qui a tué le worker, à CHAQUE démarrage. Distinct de la réconciliation ci-dessus, et
+  **non couvert** par les gardes « statut terminal » / « task_id divergent » (le statut reste
+  `RUNNING` ET le task_id est identique). Adopté **10 tâches / 42** (610bdd5) — cf. `PROJECT_STATUS` §0
+  pour la liste des 32 restantes (dont cam_analyzer ×13 et les sous-tâches GPU de l'anonymizer).
+- **Ressources GPU/CPU/RAM** : **`common/services/resource_governor.py` = domicile unique**
+  (plafond allocateur CUDA par process, registre VRAM partagé Redis inter-process, table de
+  priorités déclarative). Ne JAMAIS re-poser une limite de ressource dans une app ou un backend :
+  la version d'origine, posée sur un seul chemin de chargement, laissait passer tous les backends
+  qui font `.to('cuda')` en direct. Détail + reste-à-faire : `ROADMAP.md` §Gouvernance des ressources.
 - **Rendu HTML→PDF** : brique commune `common/utils/html_render.py` (Chromium headless → WeasyPrint,
   1329638) — consommateur unique converter `document_backend`.
   **`start` anti-race conforme** (transaction.atomic + select_for_update + revoke, `converter/views.py:243`).

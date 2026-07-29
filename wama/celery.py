@@ -28,6 +28,30 @@ app.config_from_object('django.conf:settings', namespace='CELERY')
 app.autodiscover_tasks()
 app.autodiscover_tasks(related_name='workers')
 
+
+# ---------------------------------------------------------------------------
+# Garde ressources — posée UNE FOIS PAR PROCESS WORKER, pas par tâche
+# ---------------------------------------------------------------------------
+# `worker_process_init` est émis dans CHAQUE process d'exécution : le process
+# unique du pool `solo` (worker gpu) comme chacun des enfants `prefork` (worker
+# default, autoscale 1-4). C'est le seul point qui couvre tous les backends,
+# y compris ceux qui font `.to('cuda')` sans passer par le model_manager
+# (transcriber/vibevoice, reader/olmocr, describer, avatarizer, imager ltx…).
+#
+# Sans ça, le plafond de l'allocateur CUDA ne protégeait que la voie diffusers
+# de l'imager — et un débordement VRAM depuis une autre app pouvait encore faire
+# paniquer le noyau WSL2 (4 kernel panics le 29/07/2026).
+from celery.signals import worker_process_init  # noqa: E402
+
+
+@worker_process_init.connect
+def _wama_configure_worker_resources(**_kwargs):
+    try:
+        from wama.common.services.resource_governor import configure_cuda_process
+        configure_cuda_process()
+    except Exception:  # jamais bloquant pour le démarrage d'un worker
+        pass
+
 @app.task(bind=True)
 def debug_task(self):
     print(f'Request: {self.request!r}')

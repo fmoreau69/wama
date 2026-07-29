@@ -749,6 +749,16 @@ async def startup():
 
     logger.info("=== TTS Service starting ===")
     logger.info(f"Device: {DEVICE}")
+
+    # Gouverneur de ressources — ce service est un process SÉPARÉ (uvicorn:8001)
+    # qui détient de la VRAM hors du verrou Celery `gpu`. Sans ce câblage il
+    # restait l'angle mort du dispositif : ni plafonné, ni visible du reclaim
+    # inter-app (constat du 29/07/2026).
+    try:
+        from wama.common.services.resource_governor import configure_cuda_process
+        configure_cuda_process()
+    except Exception as exc:
+        logger.warning(f"[TTS] gouverneur de ressources non initialisé : {exc}")
     logger.info(f"Coqui DIR: {COQUI_DIR}")
     logger.info(f"Bark DIR: {BARK_DIR}")
     logger.info(f"Higgs DIR: {HIGGS_DIR}")

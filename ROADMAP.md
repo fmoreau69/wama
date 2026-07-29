@@ -310,6 +310,52 @@ les doublons en gardant ≥1 copie ; `--move-misplaced` déplace, jamais supprim
 - Speech reste une catégorie large (familles whisper/kokoro/diarization/qwen_asr) — **pas** de
   sous-catégorie TTS/ASR (peu de modèles, couche d'orga inutile à cette échelle).
 
+### 🎛 Gouvernance des ressources (GPU/CPU/RAM) — `common/services/resource_governor.py`
+
+> **DOMICILE UNIQUE de toute logique d'allocation.** Créé 2026-07-29 pour arrêter la dispersion
+> (plafond CUDA posé sur UN chemin de chargement, registre d'unloaders local à un process,
+> sérialisation GPU cachée dans un flag CLI de `start_wama`). Si tu cherches « où
+> limiter/réserver/prioriser » : ce fichier, et nulle part ailleurs.
+
+**Décision d'architecture — PAS d'outil externe (analysé 29/07/2026).** Ray / Slurm / Triton /
+Kubernetes+Kueue ont été confrontés au besoin réel. La sérialisation GPU **existe déjà** (worker
+`gpu` en `--pool=solo --prefetch-multiplier=1` : une tâche à la fois, 11 apps et tous utilisateurs
+confondus). Le manque n'est pas un ordonnanceur mais le fait que ce verrou est **invisible, non
+priorisable et percé**. Empiler un second runtime pour de la sémantique que Celery+Redis expriment
+déjà coûterait plus qu'il ne rapporte. **Ray redevient le bon choix au passage multi-GPU /
+multi-nœuds (R760xa)** — d'où l'intérêt de tout centraliser ici : la bascule se ferait dans ce
+fichier, pas dans les 11 apps.
+
+**✅ Livré 2026-07-29**
+- `configure_cuda_process()` — plafond allocateur CUDA (95 % du physique) **par PROCESS**, câblé
+  aux 3 familles : signal Celery `worker_process_init` (`wama/celery.py` — couvre le pool `solo`
+  ET chaque enfant `prefork`), `common/apps.py::ready()` (workers gunicorn), `startup` du service
+  TTS. Corrige le défaut de la v1, posée dans `MemoryManager.apply_memory_strategy` : elle ne
+  couvrait que la voie diffusers de l'imager, alors que transcriber/vibevoice, reader/olmocr,
+  describer, avatarizer et imager ltx/cogvideox font `.to('cuda')` en direct.
+- **Registre VRAM PARTAGÉ (Redis)** — `reserve_vram` / `release_vram` / `reserved_gb` /
+  `effective_free_gb`, visible de **tous** les process. Comble l'angle mort identifié : le service
+  TTS (uvicorn:8001) détient de la VRAM hors du verrou Celery et échappait au reclaim. TTL
+  d'expiration + purge des lignes d'un process mort sans libérer (kernel panic, kill -9).
+- `ensure_free_vram()` consulte désormais ce registre (`MemoryManager._free_vram_gb`) : le pilote
+  seul ne voit que le présent et ignore qu'un autre process s'apprête à prendre 18 Go.
+- `PRIORITIES` — table déclarative, **WAMA-Lab prioritaire** (cam_analyzer/face_analyzer = 9)
+  sur la production média (imager = 2). Décision Fabien 29/07.
+- 13 assertions (registre multi-process, non-double-comptage au rafraîchissement, purge des
+  périmées, tolérance aux lignes corrompues, idempotence).
+
+**⏳ Reste — à ajouter ICI, jamais dans les apps**
+1. **Câbler `PRIORITIES` dans le routage Celery** (`priority` du transport Redis +
+   `queue_order_strategy`). Déclarée mais pas encore effective : la file `gpu` est FIFO strict,
+   donc « WAMA-Lab prioritaire » n'est pas encore appliqué.
+2. **Équité inter-utilisateurs** : FIFO global aujourd'hui → un batch de 50 items d'un utilisateur
+   affame tous les autres, y compris le lab. Viser un round-robin sur les items en attente.
+3. **Admission CPU/RAM** sur la file `default` (`--autoscale=4,1` sans aucune conscience
+   mémoire). D'autant plus nécessaire que WSL2 peut désormais prendre 48 Go et étrangler l'hôte.
+   WAMA-Data sera surtout CPU → c'est là que ça se jouera.
+4. **Appeler `reserve_vram()` aux points de chargement** (backends + service TTS) : le registre
+   est livré et testé, mais **0 producteur** pour l'instant — il ne reflète donc encore rien.
+
 ### Warm-loading VRAM — modèles temps réel chauds (chantier prod)
 > But : sur serveur de prod (grosse VRAM), garder chargés les modèles **temps réel**
 > (AI-Assistant LLM+vocalisation+traduction, preview synthesizer, speak Transcriber).

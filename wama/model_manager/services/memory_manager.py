@@ -16,45 +16,25 @@ logger = logging.getLogger(__name__)
 # + fragmentation). En dessous, on abandonne FULL_GPU et on retombe sur MODEL_OFFLOAD.
 FULL_GPU_MIN_FREE_GB = 1.5
 
-# Fraction du total physique au-delà de laquelle l'allocateur CUDA doit ÉCHOUER.
-_ALLOCATOR_CAP_FRACTION = 0.95
-_allocator_capped = False
-
-
 def _cap_cuda_allocator() -> None:
     """
-    Plafonne l'allocateur CUDA à ``_ALLOCATOR_CAP_FRACTION`` de la VRAM physique.
+    Plafond de l'allocateur CUDA — DÉLÉGUÉ au gouverneur de ressources.
 
-    CRITIQUE sous WSL2/WDDM : sans ce plafond, une allocation qui dépasse la VRAM
-    physique n'échoue PAS — le pilote la fait déborder silencieusement en RAM hôte et
-    pagine à travers la frontière GPU-PV. Cette pagination sature `dxgkio_make_resident`
-    (ENOMEM en rafale) et finit par faire paniquer le noyau invité : la VM WSL entière
-    est réinitialisée, pas seulement le worker.
+    L'implémentation vit dans `wama/common/services/resource_governor.py`, seul
+    domicile des mécanismes d'allocation (GPU/CPU/RAM). Elle est désormais posée
+    UNE FOIS PAR PROCESS (signal Celery `worker_process_init` + `AppConfig.ready`),
+    et plus par chemin de chargement : la version d'origine, posée ici, ne couvrait
+    que la voie diffusers de l'imager alors que transcriber, reader, describer,
+    avatarizer et le service TTS font `.to('cuda')` en direct.
 
-    Vécu 29/07/2026 : génération imager #42 (qwen-image-2), stratégie FULL_GPU décidée
-    sur 24 Go libres, transformer déplacé jusqu'à 38,1 Go sur une carte de 24 Go →
-    4 min 14 de pagination → 4 kernel panics WSL2 d'affilée (`Fatal machine check`).
-
-    Avec le plafond, PyTorch lève un OOM franc et la chaîne de repli
-    (MODEL_OFFLOAD → SEQUENTIAL_OFFLOAD) fait son travail.
+    Cet appel reste comme FILET pour les process qui n'auraient pas été initialisés
+    (l'opération est idempotente).
     """
-    global _allocator_capped
-    if _allocator_capped:
-        return
     try:
-        import torch
-        if not torch.cuda.is_available():
-            return
-        torch.cuda.set_per_process_memory_fraction(_ALLOCATOR_CAP_FRACTION)
-        total_gb = torch.cuda.get_device_properties(0).total_memory / (1024 ** 3)
-        logger.info(
-            f"[MemoryManager] Allocateur CUDA plafonné à "
-            f"{_ALLOCATOR_CAP_FRACTION:.0%} de {total_gb:.1f} GB "
-            f"(= {total_gb * _ALLOCATOR_CAP_FRACTION:.1f} GB) — anti-débordement WDDM"
-        )
-        _allocator_capped = True
+        from wama.common.services.resource_governor import configure_cuda_process
+        configure_cuda_process()
     except Exception as exc:
-        logger.warning(f"[MemoryManager] Plafond allocateur CUDA non appliqué : {exc}")
+        logger.debug(f"[MemoryManager] plafond CUDA délégué non appliqué : {exc}")
 
 
 def _component_size_gb(component) -> float:
@@ -224,21 +204,47 @@ class MemoryManager:
         info = MemoryManager.get_gpu_memory_info()
         if info is None:
             return True  # pas de GPU → rien à garantir
-        if info['free_gb'] >= target:
+
+        # VRAM libre INTER-PROCESS : le pilote ne voit que le présent et ignore
+        # qu'un autre process (service TTS, autre worker) a déjà annoncé qu'il
+        # allait prendre N Go. Le registre partagé du gouverneur comble ce trou ;
+        # sans lui, deux process se croient seuls et débordent ensemble.
+        free_gb = MemoryManager._free_vram_gb(info)
+
+        if free_gb >= target:
             return True
         logger.info(
-            f"[MemoryManager] ensure_free_vram: {info['free_gb']:.1f}GB libre "
+            f"[MemoryManager] ensure_free_vram: {free_gb:.1f}GB libre "
             f"< {target:.1f}GB requis → reclaim…"
         )
+        # Le reclaim ne porte QUE sur les modèles de CE process (registre local
+        # d'unloaders) : on ne peut pas décharger le modèle d'un autre process.
         MemoryManager.release_vram(exclude=exclude)
         info = MemoryManager.get_gpu_memory_info()
-        ok = info is not None and info['free_gb'] >= target
+        free_gb = MemoryManager._free_vram_gb(info) if info else 0.0
+        ok = free_gb >= target
         logger.info(
             f"[MemoryManager] ensure_free_vram: après reclaim "
-            f"{info['free_gb']:.1f}GB libre (objectif {target:.1f}GB) → "
+            f"{free_gb:.1f}GB libre (objectif {target:.1f}GB) → "
             f"{'OK' if ok else 'INSUFFISANT'}"
         )
         return ok
+
+    @staticmethod
+    def _free_vram_gb(info) -> float:
+        """VRAM libre vue par le pilote, MOINS les réservations des autres process."""
+        driver_free = info['free_gb'] if info else 0.0
+        try:
+            from wama.common.services.resource_governor import reserved_gb
+            return max(0.0, driver_free - reserved_gb(exclude=MemoryManager.vram_owner()))
+        except Exception:
+            return driver_free  # gouverneur/Redis indisponible → comportement d'avant
+
+    @staticmethod
+    def vram_owner() -> str:
+        """Identité de CE process dans le registre VRAM partagé."""
+        import os
+        return f"celery-gpu:{os.getpid()}"
 
     @staticmethod
     def get_gpu_memory_info() -> Optional[Dict]:
