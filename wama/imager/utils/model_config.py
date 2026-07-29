@@ -225,7 +225,11 @@ QWEN_IMAGE_MODELS = {
         'type': 'image',
         'mode': 't2i',
         'pipeline': 'qwen_image',
-        'vram_gb': 16,
+        # 38 Go MESURÉS le 29/07/2026 (annoncé 16 jusque-là). Un MMDiT de 20B en bf16 pèse
+        # ~40 Go de poids : 16 était structurellement impossible. Conséquence de l'écart : le
+        # backend tentait FULL_GPU sur une carte de 24 Go → débordement en RAM hôte sous WSL2.
+        # ⛔ Ne tient PAS sur une RTX 4090 → offload CPU obligatoire (lent, mais fonctionnel).
+        'vram_gb': 38,
         'disk_gb': 40,
         'resolution': 2048,
         # Alignés sur qwen_image_backend.SUPPORTED_MODELS (default_steps / default_true_cfg) :
@@ -245,7 +249,11 @@ QWEN_IMAGE_MODELS = {
         'type': 'image',
         'mode': 'edit',
         'pipeline': 'qwen_image',
-        'vram_gb': 12,
+        # ⚠️ NON MESURÉ — borne prudente. Qwen-Image-Edit partage la dorsale MMDiT 20B de
+        # Qwen-Image : les 12 Go déclarés ici à l'origine étaient impossibles. En attendant une
+        # mesure, on prend celle de la dorsale (38) : sur-estimer coûte de l'offload,
+        # sous-estimer fait tenter FULL_GPU et fait tomber l'hôte. À MESURER.
+        'vram_gb': 38,
         'disk_gb': 25,
         'resolution': 2048,
         # Idem qwen-image-2 : valeurs du backend Qwen, pas celles de SD.
@@ -300,7 +308,9 @@ LOGO_MODELS = {
         'category': 'logo',
         'trigger_words': ['wablogo', 'logo', 'Minimalist'],
         'lora_scale': 0.8,
-        'vram_gb': 16,
+        # LoRA sur FLUX.1-dev : c'est la DORSALE qui coûte (12B en bf16 ≈ 24 Go), pas la LoRA.
+        # 16 sous-estimait la base — d'où le `vram_warning` « max 768 px avec MODEL_OFFLOAD ».
+        'vram_gb': 24,
         'disk_gb': 24,
         'resolution': 768,
         'min_resolution': 512,
@@ -340,7 +350,8 @@ FLUX_MODELS = {
         'mode': 'text-to-image',
         'pipeline': 'flux',
         'model_type': 'base',
-        'vram_gb': 16,
+        # 12B en bf16 ≈ 24 Go de poids + encodeur T5. 16 sous-estimait la dorsale.
+        'vram_gb': 24,
         'disk_gb': 32,
         'resolution': '1024x1024',
         # FLUX = rectified flow : guidance 3.5, JAMAIS 7.5-20 comme SD (cf. LOGO_MODELS)
@@ -373,6 +384,55 @@ IMAGER_MODELS = {
     **LOGO_MODELS,
 }
 
+
+# =============================================================================
+# VRAM D'EXÉCUTION — RÉALIGNEMENT SUR LA SOURCE UNIQUE
+# =============================================================================
+# Les `vram_gb` déclarés ci-dessus étaient une SECONDE déclaration du même fait, et ils avaient
+# dérivé : qwen-image-2 annonçait 16 Go pour 38 MESURÉS, flux-1-dev 16 pour 24. Conséquence
+# concrète : le catalogue (et donc l'UI, et le tirage) croyait que ces modèles tenaient sur une
+# 4090, alors que la couche mémoire savait le contraire — d'où des offloads « inexplicables »
+# côté utilisateur, et pire, des tentatives de FULL_GPU sur un modèle 38 Go (crash 29/07).
+#
+# 🔴 C'EST ICI QUE LE CHIFFRE FAIT FOI — ce fichier est le manifeste des modèles imager :
+# `model_registry._discover_imager_models()` l'ingère tel quel dans le catalogue `AIModel`,
+# et c'est le catalogue qui alimente le tirage (`select_model`) et l'UI. Un `vram_gb` faux ici
+# se propage à toute la chaîne.
+#
+# `MODEL_SIZE_PRESETS` (memory_manager) est une heuristique de repli qui devine une taille à
+# partir d'un CHEMIN de modèle : elle est indexée par familles ('qwen-image', 'flux'…), pas par
+# id de modèle. Elle ne peut donc PAS écraser le manifeste — elle est moins précise (elle ne
+# distingue pas la variante fp8 d'un modèle de sa version pleine).
+#
+# On ne recopie donc rien : on VÉRIFIE seulement que les deux tables ne se contredisent pas,
+# et on le signale. C'est cette contradiction, restée silencieuse, qui a produit le crash du
+# 29/07/2026 (manifeste 16 Go / mesure 38 Go pour Qwen-Image).
+def _check_vram_consistency() -> dict:
+    """Écarts manifeste ↔ presets : {model_id: (déclaré, preset)}. Ne modifie RIEN."""
+    try:
+        from wama.model_manager.services.memory_manager import preset_vram_gb
+    except Exception:          # pragma: no cover — jamais bloquant au démarrage
+        return {}
+    drift = {}
+    for model_id, cfg in IMAGER_MODELS.items():
+        preset = preset_vram_gb(model_id)
+        declared = cfg.get('vram_gb')
+        # Seul un écart SIGNIFICATIF compte : le preset est une estimation de famille, il est
+        # normal qu'une variante (fp8, distilled) s'en écarte un peu.
+        if preset is not None and declared is not None and abs(float(declared) - preset) > 4.0:
+            drift[model_id] = (declared, preset)
+    return drift
+
+
+VRAM_DRIFT = _check_vram_consistency()
+if VRAM_DRIFT:
+    import logging as _logging
+    _logging.getLogger(__name__).warning(
+        "[ImagerModels] vram_gb du manifeste s'écarte des presets mémoire — À ARBITRER "
+        "(le manifeste fait foi, mais un écart signale une mesure non reportée) : %s",
+        ", ".join(f"{k} manifeste={a} preset={b}" for k, (a, b) in VRAM_DRIFT.items())
+    )
+
 # =============================================================================
 # DÉFAUTS D'APPLICATION — SOURCE UNIQUE
 # =============================================================================
@@ -380,7 +440,13 @@ IMAGER_MODELS = {
 # 389, 1262 = 'stable-diffusion-v1-5', un modèle de 2022) — donc tout utilisateur qui ne
 # choisissait pas explicitement recevait le plus faible modèle du parc. On centralise ici pour
 # que le défaut se change en UN point, et jamais par recopie dans une vue.
-DEFAULT_IMAGE_MODEL = 'qwen-image-2'
+# ⚠️ Ce n'est PAS le tirage : depuis le 29/07/2026 le modèle est choisi par la brique commune
+# `select_model()` (cf. `utils/model_selection.py::select_imager_model`), qui connaît la VRAM
+# libre. Ces constantes ne servent plus que de REPLI (catalogue vide, model_manager KO).
+# Elles doivent donc tenir sur la carte : un repli qui déborde redonne de l'offload subi.
+# Qwen-Image-2 tenait ce rôle jusque-là — 38 Go mesurés pour un MMDiT 20B, soit offload garanti
+# sur 24 Go. Il reste parfaitement sélectionnable à la main (l'offload devient un choix).
+DEFAULT_IMAGE_MODEL = 'hunyuan-image-2.1'   # 16 Go + 4 de marge = 20 ≤ 24 → FULL_GPU
 # T2V : LTX-13B-distilled remplace CogVideoX-5b (2024, 21 GB VRAM) — plus récent, 14 GB VRAM
 # (8 en fp8) et déjà sur disque. CogVideoX-5b T2V a été retiré du parc local (vague 2).
 DEFAULT_VIDEO_MODEL = 'ltx-video-13b-0.9.8-distilled'

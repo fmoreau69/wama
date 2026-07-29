@@ -84,7 +84,15 @@ MODEL_SIZE_PRESETS = {
     # débordement WDDM en RAM hôte → kernel panic WSL2. Ne PAS rabaisser sans mesure.
     'qwen-image': 38.0,       # Qwen-Image-2512
 
-    'qwen-image-edit': 12.0,  # Qwen-Image-Edit-2511  ~12 GB at bf16
+    # ⚠️ BORNE PRUDENTE, NON MESURÉE : Qwen-Image-Edit-2511 partage la dorsale MMDiT 20B de
+    # Qwen-Image — les « ~12 Go at bf16 » écrits ici à l'origine sont impossibles (20B en bf16
+    # = ~40 Go de poids). Tant que la mesure n'est pas faite, on prend la valeur de la dorsale :
+    # sur-estimer coûte de l'offload (lent), sous-estimer fait tenter FULL_GPU et déborde en RAM
+    # hôte sous WSL2 — c'est ce qui a produit les kernel panics du 29/07. À MESURER.
+    'qwen-image-edit': 38.0,
+    # NON MESURÉ : FLUX.2-Klein 4B. Sans cette clé, 'flux' (24 Go, la 12B) matchait par préfixe
+    # et envoyait une 4B en offload pour rien. Estimation = poids bf16 (~8 Go) + encodeur texte.
+    'flux2-klein': 12.0,
 
     # ── Video diffusion ──────────────────────────────────────────────────────
     'hunyuan-video': 24.0,
@@ -116,6 +124,37 @@ MODEL_SIZE_PRESETS = {
     'blip': 2.0,
     'blip2': 4.0,
 }
+
+
+def preset_vram_gb(model_key: str) -> Optional[float]:
+    """
+    Empreinte VRAM d'exécution d'un modèle, depuis `MODEL_SIZE_PRESETS`.
+    Clé la PLUS SPÉCIFIQUE qui matche (les clés se préfixent entre elles). None si inconnu.
+
+    🔴 **SOURCE UNIQUE de ce chiffre.** Ne pas le recopier dans un backend, un `model_config`
+    ou un catalogue : c'est précisément ce qui a produit le crash du 29/07/2026 — la mesure
+    (38 Go pour Qwen-Image) avait été corrigée ICI, mais deux copies périmées (16 Go)
+    subsistaient ailleurs, et c'est une copie qui décidait de tenter FULL_GPU sur 24 Go.
+    """
+    if not model_key:
+        return None
+    key_lower = model_key.lower()
+    matches = [(len(k), v) for k, v in MODEL_SIZE_PRESETS.items() if k in key_lower]
+    return max(matches, key=lambda m: m[0])[1] if matches else None
+
+
+def fits_full_gpu(model_key: str, total_vram_gb: float, headroom_gb: float = 4.0) -> Optional[bool]:
+    """
+    Ce modèle peut-il tenir ENTIÈREMENT sur la carte (donc tourner en FULL_GPU, sans offload) ?
+
+    None si l'empreinte est inconnue — un appelant ne doit pas conclure « ça tient » d'une
+    absence d'information. Sert à ne proposer/tirer que des modèles qui n'imposeront pas
+    d'offload CPU (lent), et à afficher un avertissement honnête sur les autres.
+    """
+    gb = preset_vram_gb(model_key)
+    if gb is None:
+        return None
+    return (gb + headroom_gb) <= total_vram_gb
 
 
 # =============================================================================
@@ -918,10 +957,16 @@ class MemoryManager:
 
         path_lower = model_path.lower()
 
-        # Check against known presets
-        for key, size in MODEL_SIZE_PRESETS.items():
-            if key in path_lower:
-                return size
+        # Presets : la clé la PLUS SPÉCIFIQUE gagne (la plus longue qui matche).
+        # ⚠️ NE PAS revenir à un « premier qui matche » : les clés se préfixent entre elles
+        # ('qwen-image' ⊂ 'qwen-image-edit', 'flux' ⊂ 'flux-schnell', 'ltx-video' ⊂
+        # 'ltx-video-fp8'). En ordre d'insertion, la clé GÉNÉRIQUE gagnait — Qwen-Image-Edit
+        # héritait des 38 Go de Qwen-Image, FLUX-schnell et flux2-klein-4b des 24 Go de FLUX :
+        # trois modèles qui TIENNENT sur 24 Go étaient envoyés en CPU offload pour rien.
+        matches = [(len(key), size) for key, size in MODEL_SIZE_PRESETS.items()
+                   if key in path_lower]
+        if matches:
+            return max(matches, key=lambda m: m[0])[1]
 
         # Try to get actual file size
         if os.path.isfile(model_path):

@@ -193,8 +193,15 @@ class QwenImageBackend(ImageGenerationBackend):
             gc.collect()
 
             from wama.model_manager.services.memory_manager import MemoryManager
-            _MODEL_VRAM = {'qwen-image-2': 16.0, 'qwen-image-edit': 12.0}
-            model_size_gb = _MODEL_VRAM.get(model_name, 16.0)
+
+            # 🔴 Empreinte lue sur le MANIFESTE (`IMAGER_MODELS`), seule source du chiffre —
+            # c'est lui qu'ingère le catalogue et qu'utilise le tirage. Ce dict était recopié
+            # ici en dur (`{'qwen-image-2': 16.0}`) et la mesure du 29/07/2026 (38 Go) n'y avait
+            # pas été reportée : le backend croyait donc que Qwen-Image tenait sur une 4090 et
+            # tentait FULL_GPU (`device_map="auto"`), ce qui déborde en RAM hôte sous WSL2.
+            # Ne pas réintroduire de copie locale.
+            from ..utils.model_config import IMAGER_MODELS
+            model_size_gb = float(IMAGER_MODELS.get(model_name, {}).get('vram_gb') or 38.0)
 
             gpu_info = MemoryManager.get_gpu_memory_info()
             free_gb = gpu_info['free_gb'] if gpu_info else 0
