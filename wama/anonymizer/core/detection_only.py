@@ -18,6 +18,7 @@ from typing import List, Dict, Optional
 
 from ultralytics import YOLO
 
+from wama.anonymizer.backends import DetectionBackend
 from wama.common.utils.video_utils import is_image
 
 logger = logging.getLogger(__name__)
@@ -31,7 +32,7 @@ CLASS_ALIASES = {
 }
 
 
-class DetectionOnlyProcessor:
+class DetectionOnlyProcessor(DetectionBackend):
     """
     Runs YOLO detection without applying blur.
     Returns structured detection results for later merging.
@@ -58,8 +59,24 @@ class DetectionOnlyProcessor:
         self.class_list = []
         self._is_segmentation = False
 
-    def load_model(self):
+    # ── Contrat commun (BaseModelBackend) ────────────────────────────────────
+    # Repli d'empreinte si la mesure autour du chargement n'est pas concluante (YOLO ≈ 2 Go).
+    REQUIRED_PACKAGES = ['ultralytics']
+    recommended_vram_gb = 2
+
+    @property
+    def is_loaded(self) -> bool:
+        return self.model is not None
+
+    def process(self, **kwargs):
+        """Point d'entrée métier générique (contrat commun) → délègue à detect_media()."""
+        return self.detect_media(**kwargs)
+
+    # `load_model()` (nom historique, hérité de DetectionBackend) délègue ICI.
+    def load(self, model: str = None) -> bool:
         """Load the YOLO model."""
+        if model:
+            self.model_path = model
         logger.info(f"[DetectionOnly] Loading model: {self.model_path}")
         self.model = YOLO(self.model_path)
 
@@ -79,6 +96,7 @@ class DetectionOnlyProcessor:
         self._is_segmentation = self._detect_segmentation_model()
         logger.info(f"[DetectionOnly] Model loaded. Segmentation: {self._is_segmentation}, "
                     f"Classes: {self.class_list[:10]}{'...' if len(self.class_list) > 10 else ''}")
+        return True
 
     def _detect_segmentation_model(self) -> bool:
         """

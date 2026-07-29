@@ -21,6 +21,7 @@ from PIL import Image
 from .blur_utils import blur_segmentation, normalize_blur_ratio
 from .ffmpeg_utils import copy_audio_to_video
 
+from wama.anonymizer.backends import DetectionBackend
 from wama.common.utils.video_utils import is_image
 from wama.settings import MEDIA_INPUT_ROOT, MEDIA_OUTPUT_ROOT, MODEL_PATHS, AI_MODELS_DIR
 
@@ -87,7 +88,7 @@ def setup_sam3_hf_environment():
         logger.info(f"[SAM3] HuggingFace env set to: {sam_root_str}")
 
 
-class SAM3Processor:
+class SAM3Processor(DetectionBackend):
     """
     SAM3-based processor for prompt-driven object segmentation and blurring.
 
@@ -139,7 +140,35 @@ class SAM3Processor:
         self.meta_data = None
         self.vid_writer = None
 
-    def load_model(self, model_type='auto', **kwargs):
+    # ── Contrat commun (BaseModelBackend) ────────────────────────────────────
+    # Repli d'empreinte si la mesure autour du chargement n'est pas concluante.
+    # 3 Go = ce que le catalogue AIModel déclare pour SAM3 (model_registry).
+    REQUIRED_PACKAGES = ['sam3']
+    recommended_vram_gb = 3
+
+    @property
+    def is_loaded(self) -> bool:
+        return self._model_loaded
+
+    def unload(self) -> None:
+        """
+        Libère les modèles SAM3 (et la réservation VRAM, via l'enveloppe du contrat commun).
+
+        `cleanup()` reste le point d'entrée historique : il libère EN PLUS le writer vidéo.
+        """
+        if not self._model_loaded and self.image_model is None:
+            return
+        self.image_model = None
+        self.image_processor = None
+        self.video_predictor = None
+        self._model_loaded = False
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        logger.info("[SAM3] Models unloaded ✓")
+
+    # `load_model(model_type, **kwargs)` (nom historique, hérité de DetectionBackend) délègue ICI.
+    def load(self, model_type='auto', **kwargs) -> bool:
         """
         Load SAM3 model for image or video processing.
 
@@ -153,7 +182,7 @@ class SAM3Processor:
         """
         if self._model_loaded:
             logger.info("[SAM3] Model already loaded")
-            return
+            return True
 
         # Setup HuggingFace environment BEFORE importing SAM3 modules
         setup_sam3_hf_environment()
@@ -183,6 +212,7 @@ class SAM3Processor:
                     self.load_model('image')
 
             self._model_loaded = True
+            return True
 
         except ImportError as e:
             error_msg = f"SAM3 not installed. Install with: pip install sam3\nError: {e}"
@@ -522,16 +552,9 @@ class SAM3Processor:
             self.vid_writer.release()
             self.vid_writer = None
 
-        # Clear model references
-        self.image_model = None
-        self.image_processor = None
-        self.video_predictor = None
-        self._model_loaded = False
-
-        # Force garbage collection
-        gc.collect()
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
+        # Modèles + VRAM : passe par unload() (contrat commun) pour que la réservation
+        # au gouverneur soit LIBÉRÉE, et pas seulement les références Python.
+        self.unload()
 
         logger.info("[SAM3] Cleanup complete")
 

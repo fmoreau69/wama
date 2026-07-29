@@ -12,11 +12,12 @@ from .ffmpeg_utils import copy_audio_to_video
 from ultralytics import YOLO, settings
 from ultralytics.utils import MACOS, WINDOWS
 
+from wama.anonymizer.backends import DetectionBackend
 from wama.common.utils.video_utils import is_image
 from wama.settings import MEDIA_INPUT_ROOT, MEDIA_OUTPUT_ROOT
 
 
-class Anonymize:
+class Anonymize(DetectionBackend):
     def __init__(self, source_dir=None, destination_dir=None):
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         print(f"Using device: {self.device}")
@@ -66,7 +67,32 @@ class Anonymize:
         self.max_interpolation_frames = 15  # Will be capped at 0.5s based on FPS
         self.detection_buffer = {}  # {track_id: [(frame_idx, bbox, label), ...]}
 
-    def load_model(self, **kwargs):
+    # ── Contrat commun (BaseModelBackend) ────────────────────────────────────
+    # Dépendances et empreinte VRAM déclaratives : c'est ce que le gouverneur réserve si la
+    # mesure autour du chargement n'est pas concluante. YOLOv8n ≈ 0,5 Go, yolov8m ≈ 2 Go.
+    REQUIRED_PACKAGES = ['ultralytics']
+    recommended_vram_gb = 2
+
+    @property
+    def is_loaded(self) -> bool:
+        return self.model is not None
+
+    def unload(self) -> None:
+        """Libère le modèle YOLO (et la réservation VRAM, via l'enveloppe du contrat commun)."""
+        if self.model is None:
+            return
+        self.model = None
+        try:
+            import gc
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+        except Exception:
+            pass
+
+    # `load_model(**kwargs)` (nom historique, hérité de DetectionBackend) délègue ICI : c'est
+    # ce qui fait passer tous les appelants par la déclaration d'empreinte.
+    def load(self, **kwargs) -> bool:
         self.model_name = 'yolov8n-seg.pt' if self.task == 'segment' else "yolov8n.pt"
         if any([classe in self.classes2blur for classe in ['face', 'plate']]):
             self.model_name = "yolov8m_faces&plates_720p.pt"  # "yolov8m_faces&plates_1080p.pt"
@@ -84,6 +110,7 @@ class Anonymize:
             self.task = 'segment'
             self.ret_mask = True  # Enable retina masks for better quality
             print(f'[Segmentation] Model detected as segmentation model, task set to: {self.task}')
+        return True
 
     def _detect_segmentation_model(self):
         """
