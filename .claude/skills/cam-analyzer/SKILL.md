@@ -17,7 +17,25 @@ absolue par marquages ortho) → **monde** (positions lat/lon) → indicateurs (
 Chaque étage consomme le précédent : une erreur de projection contamine tout l'aval, d'où la
 règle des bascules.
 
-## 3. Règles non négociables
+## 3. Où vivent les mécanismes — et où écrire les nouveaux
+- **Liste EXHAUSTIVE des traitements : `wama_lab/cam_analyzer/function_specs.py`** — chaque
+  traitement y est déclaré en capacité (ports typés E/S, catégorie, coût), dans le même langage
+  que les fonctions pures WAMA Data. **Ne jamais la recopier ailleurs** (règle « un domaine = un
+  fichier de référence ») : la tenir à jour EST le geste. Ajouter un traitement sans l'y déclarer
+  le rend invisible du catalogue, de `/model-manager/functions/` et du Studio.
+- **Toute logique PURE et réutilisable va dans `wama/common/data/functions/<domaine>/`**, avec sa
+  `FunctionSpec` **auto-déclarée en fin de module** (patron : `driving/gps_map_match.py`). PAS dans
+  `cam_analyzer/utils/`. Domaines existants : `io`, `geometry`, `kinematics`, `driving`, `geo`.
+- Ce qui reste couplé à `AnalysisSession` (lit/écrit la BDD, passe Celery) se déclare en
+  `Binding.APP` dans `function_specs.py`, **à porter vers `PURE`** dès qu'on veut le chaîner —
+  c'est la voie d'intégration à WAMA Data.
+- **Une sortie non déclarée n'existe pas pour le système** : UI, chaînage et Studio se génèrent
+  à partir des descriptions. Modifier ce qu'une fonction produit sans mettre à jour ses `outputs`
+  est un bug de manifeste, pas un détail de doc.
+- Signal d'alerte : un module de `common/` qui importe depuis une app = dépendance inversée,
+  la brique est mal placée.
+
+## 4. Règles non négociables
 - **Toute amélioration comparable = un flag ⚑** déclaré dans `utils/features.py`, jamais un `if`
   ad hoc. Le panneau ⚑ Modes se génère depuis le registre — aucune UI à écrire.
 - **A/B objectif, jamais visuel seul** : une bascule doit s'accompagner d'une métrique chiffrée
@@ -26,7 +44,7 @@ règle des bascules.
   et annulation), dans le MÊME commit.
 - **Défaut OFF** pour une bascule non encore validée sur données réelles.
 
-## 4. Distinguer ANALYSE et RAPPORT (piège récurrent)
+## 5. Distinguer ANALYSE et RAPPORT (piège récurrent)
 Deux notions que le code a longtemps confondues (décorrélées le 2026-07-29) :
 - `analysis_radius_m()` — borne le **traitement à venir** ; le changer n'invalide aucune donnée.
 - `interest_radius_m()` — filtre le **rapport** ; se dérive de l'existant, donc se change SANS
@@ -35,7 +53,7 @@ Corollaire : un profil restreint aux intersections laisse ~75 % de la timeline s
 de conclure à un bug d'affichage, **vérifier la couverture** (`config['analyzed_ranges']`, ou en
 base). Le nom d'un profil décrit le RAPPORT visé, pas le périmètre d'analyse.
 
-## 5. Pièges d'exécution (chèrement acquis)
+## 6. Pièges d'exécution (chèrement acquis)
 - **Aucune charge GPU sous WSL2 sur le poste de dev** (crashs hôte, bug MS WSL #40732). Vaut aussi
   pour `manage.py shell` : `django.setup()` importe `torch.cuda` et le process meurt en silence
   → interroger la base en **`psql` direct**.
@@ -46,7 +64,7 @@ base). Le nom d'un profil décrit le RAPPORT visé, pas le périmètre d'analyse
 - JS/CSS modifié → copier vers `staticfiles/cam_analyzer/` ; template modifié → HUP gunicorn.
 - Migrations **non versionnées** dans ce projet (`.gitignore`).
 
-## 6. Validation
+## 7. Validation
 `manage.py check`, tests purs des fonctions déplacées, `check_js.sh`, puis **smoke navigateur** —
 et si le navigateur n'a pas été ouvert, l'écrire noir sur blanc dans le CHANGELOG plutôt que de
 laisser croire à une validation complète.
