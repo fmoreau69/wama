@@ -339,8 +339,20 @@ fichier, pas dans les 11 apps.
   d'expiration + purge des lignes d'un process mort sans libérer (kernel panic, kill -9).
 - `ensure_free_vram()` consulte désormais ce registre (`MemoryManager._free_vram_gb`) : le pilote
   seul ne voit que le présent et ignore qu'un autre process s'apprête à prendre 18 Go.
-- `PRIORITIES` — table déclarative, **WAMA-Lab prioritaire** (cam_analyzer/face_analyzer = 9)
-  sur la production média (imager = 2). Décision Fabien 29/07.
+- **Priorités CÂBLÉES** (2026-07-29) — `APP_TIERS` (paliers nommés `lab` / `haute` / `normale` /
+  `basse`) + `celery_priority_for()`, injectées dans `CELERY_TASK_ROUTES` et activées par
+  `CELERY_BROKER_TRANSPORT_OPTIONS = {queue_order_strategy: 'priority', priority_steps: …}`.
+  **WAMA-Lab prioritaire** : cam_analyzer/face_analyzer passent devant tout, imager en dernier.
+  ⚠ **PIÈGE MAJEUR — dans le transport Redis la priorité est INVERSÉE : `0` = LE PLUS
+  PRIORITAIRE** (Kombu crée une liste par palier et consomme la première non vide), à l'inverse
+  d'AMQP où 9 est le plus prioritaire. Une première version de la table écrivait `cam_analyzer: 9`
+  en croyant le prioriser — c'était exactement l'inverse. D'où les **paliers NOMMÉS** : plus aucun
+  nombre n'est écrit à la main, `celery_priority_for()` est le seul endroit qui connaît
+  l'inversion. `priority_steps` et `sep` doivent rester identiques producteur/consommateur (tout
+  vient de `settings.py`, donc garanti).
+  ⚠ **La priorité RÉORDONNE la file, elle ne PRÉEMPTE PAS** : le worker `gpu` étant en
+  `--pool=solo`, une tâche imager déjà EN COURS n'est pas interrompue par l'arrivée d'une tâche
+  lab — celle-ci passe devant les tâches en ATTENTE.
 - **Déclaration AUTOMATIQUE des empreintes** (`common/backends/base.py`) : `__init_subclass__`
   enveloppe les `load()` / `unload()` de **toute** sous-classe de `BaseModelBackend`, présente et
   à venir — un backend futur hérite du mécanisme sans que personne n'y pense. L'empreinte
@@ -355,9 +367,9 @@ fichier, pas dans les 11 apps.
   2 niveaux, chargement en échec).
 
 **⏳ Reste — à ajouter ICI, jamais dans les apps**
-1. **Câbler `PRIORITIES` dans le routage Celery** (`priority` du transport Redis +
-   `queue_order_strategy`). Déclarée mais pas encore effective : la file `gpu` est FIFO strict,
-   donc « WAMA-Lab prioritaire » n'est pas encore appliqué.
+1. ~~Câbler les priorités dans le routage Celery~~ ✅ 2026-07-29 (ci-dessus, 14 assertions).
+   **Reste à valider en charge réelle** : les tests vérifient la résolution du routage, pas le
+   comportement du worker face à plusieurs paliers non vides simultanément.
 2. **Équité inter-utilisateurs** : FIFO global aujourd'hui → un batch de 50 items d'un utilisateur
    affame tous les autres, y compris le lab. Viser un round-robin sur les items en attente.
 3. **Admission CPU/RAM** sur la file `default` (`--autoscale=4,1` sans aucune conscience

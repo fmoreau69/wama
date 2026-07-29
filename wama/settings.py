@@ -425,23 +425,45 @@ if ENABLE_CELERY:
     CELERY_RESULT_SERIALIZER = 'json'
 
     # Queue routing: GPU-heavy tasks → 'gpu' queue, light tasks → 'default'
+    # Priorités : la file est une donnée de DÉPLOIEMENT (ici), la priorité une
+    # décision d'ORDONNANCEMENT (gouverneur de ressources, source unique).
+    # `resource_governor` est un module feuille (stdlib seule au niveau module) :
+    # importable au chargement des settings sans cycle — vérifié empiriquement.
+    # ⚠ NE PAS écrire les nombres à la main ici : dans le transport Redis la
+    # priorité est INVERSÉE (0 = le plus prioritaire), `celery_priority_for` est
+    # le seul endroit qui connaît cette inversion.
+    from wama.common.services.resource_governor import celery_priority_for as _prio
+
     CELERY_TASK_ROUTES = {
-        'wama.anonymizer.tasks.*': {'queue': 'gpu'},
-        'wama.imager.tasks.*': {'queue': 'gpu'},
-        'wama.enhancer.tasks.*': {'queue': 'gpu'},
-        'wama.synthesizer.workers.*': {'queue': 'gpu'},
-        'wama.transcriber.workers.*': {'queue': 'gpu'},
-        'wama.describer.workers.*': {'queue': 'gpu'},
-        'wama.avatarizer.workers.*': {'queue': 'gpu'},
-        'wama.reader.tasks.*': {'queue': 'gpu'},
-        'wama.composer.tasks.*': {'queue': 'gpu'},
-        'wama_lab.face_analyzer.tasks.*': {'queue': 'gpu'},
-        'wama_lab.cam_analyzer.tasks.*': {'queue': 'gpu'},
+        'wama.anonymizer.tasks.*': {'queue': 'gpu', 'priority': _prio('anonymizer')},
+        'wama.imager.tasks.*': {'queue': 'gpu', 'priority': _prio('imager')},
+        'wama.enhancer.tasks.*': {'queue': 'gpu', 'priority': _prio('enhancer')},
+        'wama.synthesizer.workers.*': {'queue': 'gpu', 'priority': _prio('synthesizer')},
+        'wama.transcriber.workers.*': {'queue': 'gpu', 'priority': _prio('transcriber')},
+        'wama.describer.workers.*': {'queue': 'gpu', 'priority': _prio('describer')},
+        'wama.avatarizer.workers.*': {'queue': 'gpu', 'priority': _prio('avatarizer')},
+        'wama.reader.tasks.*': {'queue': 'gpu', 'priority': _prio('reader')},
+        'wama.composer.tasks.*': {'queue': 'gpu', 'priority': _prio('composer')},
+        'wama_lab.face_analyzer.tasks.*': {'queue': 'gpu', 'priority': _prio('face_analyzer')},
+        'wama_lab.cam_analyzer.tasks.*': {'queue': 'gpu', 'priority': _prio('cam_analyzer')},
         'wama.converter.tasks.*': {'queue': 'default'},
         'wama.model_manager.tasks.*': {'queue': 'default'},
         'common.run_nightly_tests': {'queue': 'gpu'},  # charge des modèles → queue GPU
     }
     CELERY_TASK_DEFAULT_QUEUE = 'default'
+
+    # Active la priorité côté transport Redis. `priority_steps` DOIT être
+    # identique chez le producteur (web) et le consommateur (workers) — c'est le
+    # cas, tout vient de ce fichier. Kombu crée une liste Redis par palier
+    # (`gpu`, `gpu\x06\x163`, …) et consomme la PREMIÈRE non vide : le palier 0
+    # passe donc en premier. `sep` doit aussi correspondre des deux côtés.
+    from wama.common.services.resource_governor import PRIORITY_STEPS as _STEPS
+
+    CELERY_BROKER_TRANSPORT_OPTIONS = {
+        'queue_order_strategy': 'priority',
+        'priority_steps': list(_STEPS),
+        'sep': ':',
+    }
 
     # Réconciliation périodique du catalogue model_manager (catalogue ↔ disque) :
     # garde la page de gestion des modèles fiable sans intervention manuelle.

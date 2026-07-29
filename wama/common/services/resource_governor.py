@@ -245,31 +245,71 @@ def effective_free_gb(exclude: str | None = None) -> float:
 # 3. Priorités — DÉCLARATIF, pas codé en dur dans les apps
 # ---------------------------------------------------------------------------
 
-# Plus le nombre est ÉLEVÉ, plus c'est prioritaire.
+# ⚠⚠ PIÈGE — DANS LE TRANSPORT REDIS, LA PRIORITÉ EST INVERSÉE : **0 = LE PLUS
+# PRIORITAIRE**. C'est l'inverse d'AMQP/RabbitMQ (où 9 est le plus prioritaire).
+# Kombu implémente la priorité Redis en créant une liste par palier et consomme
+# la PREMIÈRE liste non vide — donc le palier 0 d'abord. Écrire `cam_analyzer: 9`
+# en croyant le rendre prioritaire produit EXACTEMENT L'INVERSE.
 #
-# Décision Fabien (29/07/2026) : WAMA-Lab prioritaire — les traitements de
-# recherche (cam_analyzer, face_analyzer) passent devant la production média.
-#
-# ⚠ Table DÉCLARÉE mais PAS ENCORE CÂBLÉE dans le routage Celery : la file `gpu`
-# est aujourd'hui FIFO strict. Le câblage se fait ICI (routage + `priority` du
-# transport Redis), jamais app par app.
-PRIORITIES = {
-    "cam_analyzer": 9,
-    "face_analyzer": 9,
-    "transcriber": 6,
-    "describer": 5,
-    "anonymizer": 5,
-    "enhancer": 4,
-    "synthesizer": 4,
-    "reader": 4,
-    "composer": 3,
-    "avatarizer": 3,
-    "imager": 2,
+# Pour rendre l'erreur impossible, on ne manipule pas de nombres ici : on déclare
+# des PALIERS NOMMÉS, et la conversion vers la convention du transport est faite
+# à un seul endroit (`celery_priority_for`).
+
+# Valeurs de palier du transport (doivent correspondre à `priority_steps` côté
+# broker, cf. `CELERY_BROKER_TRANSPORT_OPTIONS`). Ordre = du + prioritaire au -.
+TIER_VALUES = {
+    "lab": 0,        # recherche — passe devant tout
+    "haute": 3,
+    "normale": 6,
+    "basse": 9,
 }
 
-DEFAULT_PRIORITY = 4
+PRIORITY_STEPS = tuple(sorted(TIER_VALUES.values()))
+
+# Décision Fabien (29/07/2026) : **WAMA-Lab prioritaire** — les traitements de
+# recherche passent devant la production média.
+APP_TIERS = {
+    "cam_analyzer": "lab",
+    "face_analyzer": "lab",
+    "transcriber": "haute",
+    "describer": "normale",
+    "anonymizer": "normale",
+    "enhancer": "normale",
+    "synthesizer": "normale",
+    "reader": "normale",
+    "composer": "basse",
+    "avatarizer": "basse",
+    "imager": "basse",
+}
+
+DEFAULT_TIER = "normale"
 
 
-def priority_for(app_label: str) -> int:
-    """Priorité déclarée d'une app (défaut `DEFAULT_PRIORITY` si inconnue)."""
-    return PRIORITIES.get(app_label, DEFAULT_PRIORITY)
+def tier_for(app_label: str) -> str:
+    """Palier déclaré d'une app (nom lisible)."""
+    return APP_TIERS.get(app_label, DEFAULT_TIER)
+
+
+def celery_priority_for(app_label: str) -> int:
+    """
+    Valeur `priority` à passer à Celery pour cette app, dans la convention du
+    transport Redis (**0 = le plus prioritaire**). Seule fonction qui connaît
+    cette inversion — ne pas la ré-implémenter ailleurs.
+    """
+    return TIER_VALUES[tier_for(app_label)]
+
+
+def task_routes() -> dict:
+    """
+    Complète les routes Celery avec la priorité de chaque app.
+
+    Consommé par `settings.CELERY_TASK_ROUTES` : la file reste déclarée dans les
+    settings (c'est une donnée de déploiement), la priorité vient d'ici (c'est
+    une décision d'ordonnancement).
+
+    ⚠ LA PRIORITÉ RÉORDONNE LA FILE, ELLE NE PRÉEMPTE PAS. Le worker `gpu` est en
+    `--pool=solo` : une tâche imager déjà EN COURS n'est pas interrompue par
+    l'arrivée d'une tâche lab — celle-ci passera devant les tâches en ATTENTE.
+    La préemption supposerait de tuer un traitement en cours ; hors sujet ici.
+    """
+    return {app: {"priority": celery_priority_for(app)} for app in APP_TIERS}

@@ -22,12 +22,11 @@ enhancer ×2, describer, composer, synthesizer, avatarizer, anonymizer `process_
 
 **Reste ⏳ — par ordre de risque :**
 
-1. **`_cap_cuda_allocator()` n'est appelé QUE depuis `MemoryManager.apply_memory_strategy`** →
-   ne couvre que le chemin diffusers de l'imager. **Tout backend qui fait `.to('cuda')` en direct
-   peut encore déborder en RAM hôte et tuer la VM** : transcriber (vibevoice), reader (olmocr),
-   describer (video_describer), imager ltx/cogvideox, avatarizer (codeformer/facelib), synthesizer
-   (`tts_service.py`). **Correctif : l'appeler UNE fois par process CUDA** (signal Celery
-   `worker_process_init` + `AppConfig.ready()`), pas par chemin de chargement. ← le vrai trou.
+1. ~~`_cap_cuda_allocator()` limité au chemin diffusers de l'imager~~ ✅ **CORRIGÉ 2026-07-29** —
+   déplacé dans `common/services/resource_governor.py::configure_cuda_process()` et posé **par
+   PROCESS** : signal Celery `worker_process_init` (pool `solo` + chaque enfant `prefork`),
+   `common/apps.py::ready()` (gunicorn), `startup` du service TTS. Couvre désormais tous les
+   backends faisant `.to('cuda')` en direct. Voir `ROADMAP.md` §Gouvernance des ressources.
 2. **32 tâches sur 42 sans garde de redélivrance** : `wama_lab/cam_analyzer` (13), reader ×2,
    converter, studio, face_analyzer, 3 tâches anonymizer (dont les sous-tâches de chord
    `detect_with_model` / `merge_and_blur`, les plus GPU-lourdes), 2 synthesizer, 2 transcriber,
