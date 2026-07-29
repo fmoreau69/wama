@@ -2088,3 +2088,14 @@ travail**. La base LIVE est celle de **WSL2 (Postgres 16)**, conforme à
 `reference_infra_wsl_windows`. La règle « migrer des DEUX côtés » ne se justifie donc que si l'on
 exécute WAMA nativement sous Windows (`venv_win runserver`) ; sinon c'est une taxe d'entretien
 supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
+
+## §REPRISE — handoff 2026-07-29
+
+> **Point de départ session neuve : [`REPRISE_2026-07-29.md`](REPRISE_2026-07-29.md)** — à lire EN
+> ENTIER avant de toucher au code (périmètre multi-instances, pièges, reste à faire priorisé).
+
+Première action au redémarrage : **bande de couverture sous la timeline du cam_analyzer**
+(conception arrêtée, source `config['analyzed_ranges']` déjà peuplée, aucun calcul nouveau).
+
+⚠ Partition : une autre instance tient l'infra GPU/ressources (`resource_governor.py`,
+`remote_backup.py` modifié non commité, `wama/celery.py`, `memory_manager.py`) — ne pas y toucher.
