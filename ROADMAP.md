@@ -341,8 +341,18 @@ fichier, pas dans les 11 apps.
   seul ne voit que le présent et ignore qu'un autre process s'apprête à prendre 18 Go.
 - `PRIORITIES` — table déclarative, **WAMA-Lab prioritaire** (cam_analyzer/face_analyzer = 9)
   sur la production média (imager = 2). Décision Fabien 29/07.
-- 13 assertions (registre multi-process, non-double-comptage au rafraîchissement, purge des
-  périmées, tolérance aux lignes corrompues, idempotence).
+- **Déclaration AUTOMATIQUE des empreintes** (`common/backends/base.py`) : `__init_subclass__`
+  enveloppe les `load()` / `unload()` de **toute** sous-classe de `BaseModelBackend`, présente et
+  à venir — un backend futur hérite du mécanisme sans que personne n'y pense. L'empreinte
+  déclarée est **MESURÉE** (delta `torch.cuda.memory_allocated()`), avec repli sur
+  `recommended_vram_gb` si la mesure n'est pas concluante (< 0,1 Go = chargement paresseux) ; la
+  mesure prime volontairement sur le déclaratif, puisque c'est l'écart preset 16 Go / réel 38,1 Go
+  qui a fait paniquer le noyau le 29/07. N'enveloppe que les méthodes définies par la classe
+  elle-même (sinon un héritage à 2 niveaux — imager : Base → ImagerBase → concret — compterait
+  l'empreinte deux fois). Aucune erreur du gouverneur ne peut faire échouer un chargement.
+- 22 assertions (registre multi-process, non-double-comptage au rafraîchissement, purge des
+  périmées, tolérance aux lignes corrompues, idempotence, enveloppe des backends, héritage à
+  2 niveaux, chargement en échec).
 
 **⏳ Reste — à ajouter ICI, jamais dans les apps**
 1. **Câbler `PRIORITIES` dans le routage Celery** (`priority` du transport Redis +
@@ -353,8 +363,12 @@ fichier, pas dans les 11 apps.
 3. **Admission CPU/RAM** sur la file `default` (`--autoscale=4,1` sans aucune conscience
    mémoire). D'autant plus nécessaire que WSL2 peut désormais prendre 48 Go et étrangler l'hôte.
    WAMA-Data sera surtout CPU → c'est là que ça se jouera.
-4. **Appeler `reserve_vram()` aux points de chargement** (backends + service TTS) : le registre
-   est livré et testé, mais **0 producteur** pour l'instant — il ne reflète donc encore rien.
+4. ~~Appeler `reserve_vram()` aux points de chargement~~ ✅ 2026-07-29 via `BaseModelBackend`
+   (ci-dessus). **Restriction connue** : ne couvre que les backends qui héritent de
+   `BaseModelBackend` — 4 sous-classes directes à ce jour (imager, reader ×2, composer). Les
+   backends transcriber (`backends/manager.py`), avatarizer, anonymizer et le **service TTS**
+   (process uvicorn séparé) ne déclarent toujours rien : les rattacher au contrat commun est le
+   prolongement naturel du portage d'uniformisation.
 
 ### Warm-loading VRAM — modèles temps réel chauds (chantier prod)
 > But : sur serveur de prod (grosse VRAM), garder chargés les modèles **temps réel**
