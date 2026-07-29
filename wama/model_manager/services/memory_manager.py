@@ -96,7 +96,18 @@ MODEL_SIZE_PRESETS = {
 
     # ── Video diffusion ──────────────────────────────────────────────────────
     'hunyuan-video': 24.0,
-    'cogvideox': 21.0,    # CogVideoX-5B measured: transformer 10.8 + text_encoder 8.9 + VAE 0.4 = 20.1 GB
+    # CogVideoX-5B mesuré : transformer 10.8 + text_encoder 8.9 + VAE 0.4 = 20.1 GB.
+    # ⛔ NE PAS BAISSER pour « récupérer » du FULL_GPU. Preuve au journal
+    # (`logs/celery-gpu.log.3`, 2026-03-13 15:58:40) : ce modèle a bien été chargé en plein GPU,
+    # « 20.34 GiB allocated by PyTorch », puis **CUDA out of memory** à la génération — il ne
+    # restait pas les 570 Mio d'activations demandés. C'est ce run qui justifie la marge de 4 Go.
+    # ⚠️ Ce 21 est une SOMME DE COMPOSANTS, pas un pic simultané : le text_encoder T5 (8,9 Go,
+    # soit 45 % du total) ne sert QU'UNE FOIS, pour encoder le prompt. En MODEL_OFFLOAD le jeu
+    # de travail réel des 50 étapes de débruitage est donc ~11 Go, et l'offload ne coûte ici
+    # qu'un transfert du T5 (~1-2 s sur une génération de plusieurs minutes) — c'est le cas
+    # IDÉAL pour `enable_model_cpu_offload()`, pas une dégradation subie. Le calcul reste
+    # intégralement sur le GPU : « offload » ne veut pas dire « inférence CPU ».
+    'cogvideox': 21.0,
     'ltx-video': 18.0,        # LTX-Video 13B bf16 — transformer ~14GB + text_encoder ~4GB
     'ltx-video-fp8': 8.0,    # LTX-Video 13B FP8 quantized (torchao)
     'mochi': 22.0,        # Mochi-1 Preview bf16 ~22 GB
