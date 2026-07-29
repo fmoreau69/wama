@@ -55,6 +55,12 @@ class VibeVoiceBackend(SpeechToTextBackend):
     supports_hotwords    = True   # via context_info parameter
     supports_streaming   = False
 
+    # Dépendances (contrat commun). PIP_PACKAGES = [] VOLONTAIREMENT : `pip install vibevoice`
+    # installe un paquet TTS homonyme SANS rapport — l'installation passe par git clone +
+    # `pip install -e .`. Le model_installer ne doit donc rien proposer d'automatique ici.
+    REQUIRED_PACKAGES = ['vibevoice']
+    PIP_PACKAGES      = []
+
     min_vram_gb         = 16
     recommended_vram_gb = 24
     # Le crash sur audio long (cudaErrorUnknown) était un OVERFLOW int32 du GEMM CUDA dans lm_head —
@@ -78,8 +84,9 @@ class VibeVoiceBackend(SpeechToTextBackend):
         """
         Check if the VibeVoice package is installed from GitHub.
 
-        The standard `pip install vibevoice` installs an unrelated TTS package.
-        This backend requires: git clone + pip install -e .
+        OVERRIDE assumé du défaut commun (find_spec) : la présence du paquet ne suffit PAS à
+        conclure — le `pip install vibevoice` standard installe un paquet TTS sans rapport.
+        Ce backend exige : git clone + pip install -e .
         """
         # On vérifie l'EXISTENCE du fichier du modeling ASR SANS exécuter d'import : importer
         # vibevoice lance son __init__ (TensorFlow + modeling) ≈ 140 s → ça ralentissait le 1er

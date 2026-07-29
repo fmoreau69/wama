@@ -175,8 +175,18 @@ manifeste** (ce que le kind `app` capte + cible de projection).
   canonicalisées dans la découverte, pas dans les `model_config` d'app.
 - **Manifeste** : `models.{consumes, selection:{strategy: select_model|app_custom|fixed, requires, classes,
   priority, prefer_loaded}, paths_key, capabilities_vocab}`.
-- **⚠ À réintégrer depuis l'archive** : le contrat `BaseModelBackend` (ex-`BACKEND_CARTOGRAPHY.md`) n'a pas
-  été re-tracé en profondeur ici — pointeur `docs/archive/BACKEND_CARTOGRAPHY.md` en attendant sa fusion en F4.
+- **Contrat de backend commun** (`common/backends/base.py::BaseModelBackend`) : cycle de vie
+  `load/is_loaded/unload/process`, dépendances déclaratives (`REQUIRED_PACKAGES` → `missing_packages()` /
+  `is_available()` / `pip_install_spec()`), et **déclaration automatique de l'empreinte VRAM** au gouverneur
+  via `__init_subclass__` (cf. `ROADMAP.md` §Gouvernance des ressources). **ADOPTION 6/10 apps** — imager,
+  **transcriber** (2026-07-29 : `SpeechToTextBackend` était un contrat CONCURRENT hérité d'`ABC`, ses
+  3 moteurs échappaient donc à tout le mécanisme), enhancer, reader, composer ; restent **avatarizer**,
+  **anonymizer** et le **service TTS**, qui n'ont aucun `backends/` (chargements dispersés dans `utils/` +
+  vendoré) — portage plus lourd, cf. `PROJECT_STATUS.md` §0 (3bis).
+  ⚠ Règle : une app qui a besoin d'un contrat plus riche **spécialise** `BaseModelBackend` (verbe métier +
+  capacités), elle n'en redéfinit JAMAIS un à côté.
+- **⚠ À réintégrer depuis l'archive** : le détail par backend (ex-`BACKEND_CARTOGRAPHY.md`) n'a pas été
+  re-tracé en profondeur ici — pointeur `docs/archive/BACKEND_CARTOGRAPHY.md` en attendant sa fusion en F4.
 
 ### F5 — Traitement / cycle de vie  ⟷ `SPEC §F5`
 - **Spine item** : `ProcessingTimeMixin` (`common/models.py:19`) + `BatchMixin` (`:43`). Champs communs de

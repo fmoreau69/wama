@@ -41,7 +41,13 @@ class WhisperBackend(SpeechToTextBackend):
     supports_hotwords    = True    # param NATIF `hotwords` de faster-whisper (cf. transcribe(), ~l.211)
     supports_streaming   = False
 
+    # Dépendances (contrat commun) : nom d'IMPORT ≠ nom pip.
+    REQUIRED_PACKAGES = ['faster_whisper']
+    PIP_PACKAGES      = ['faster-whisper']
+
     min_vram_gb         = 2
+    # Repli du gouverneur : CTranslate2 alloue hors de l'allocateur PyTorch, la mesure autour de
+    # load() reste donc à ~0 et c'est CETTE valeur qui est réservée. Ne pas la sous-estimer.
     recommended_vram_gb = 10
 
     MODEL_VRAM = {
@@ -66,11 +72,8 @@ class WhisperBackend(SpeechToTextBackend):
     # Class-level helpers
     # ------------------------------------------------------------------
 
-    @classmethod
-    def is_available(cls) -> bool:
-        """Check whether faster_whisper is installed (sans l'importer : find_spec ~ms vs import lourd)."""
-        import importlib.util
-        return importlib.util.find_spec('faster_whisper') is not None
+    # is_available() : hérité du contrat commun (find_spec sur REQUIRED_PACKAGES — sans importer :
+    # ~ms vs import lourd). Aucune dépendance native cachée à sonder ici.
 
     def _get_device_and_compute(self) -> tuple[str, str]:
         """Auto-select device and matching CTranslate2 compute type."""

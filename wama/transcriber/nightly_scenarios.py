@@ -39,12 +39,22 @@ def _run_asr_load(ctx):
 
 
 def register_scenarios():
+    # VRAM de planification : lue sur la CLASSE backend, désormais rattachée au contrat commun
+    # (`BaseModelBackend`) — même source que ce que le gouverneur réserve au chargement. Un
+    # chiffre recopié ici dériverait du réel : c'est ce type d'écart (16 déclarés vs 38 réels
+    # sur qwen-image) qui a fait paniquer le noyau WSL2 le 29/07/2026.
+    try:
+        from wama.transcriber.backends.whisper_backend import WhisperBackend
+        vram_gb = float(WhisperBackend.recommended_vram_gb or 0) or 10.0
+    except Exception:
+        vram_gb = 10.0
+
     register(
         id="transcriber.asr_load",
         app="transcriber",
         stage="model_loaded",
         description="Charge le backend ASR puis le décharge (smoke chargement modèle)",
         run=_run_asr_load,
-        vram_gb=3.0,        # Whisper large-v3 ~ ordre de grandeur (info de planification)
+        vram_gb=vram_gb,
         timeout_s=600,
     )

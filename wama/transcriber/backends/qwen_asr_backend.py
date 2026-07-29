@@ -50,6 +50,9 @@ class QwenASRBackend(SpeechToTextBackend):
     supports_hotwords    = True    # context biasing via initial prompt
     supports_streaming   = False
 
+    # Dépendances (contrat commun) — le téléchargement du modèle, lui, est vérifié dans load().
+    REQUIRED_PACKAGES = ['transformers', 'soundfile']
+
     min_vram_gb         = 2
     recommended_vram_gb = 4
 
@@ -69,20 +72,9 @@ class QwenASRBackend(SpeechToTextBackend):
     # Availability
     # ------------------------------------------------------------------
 
-    @classmethod
-    def is_available(cls) -> bool:
-        """
-        Check whether the required packages are installed.
-
-        We only check for `transformers` and `soundfile` here; the actual
-        model download is checked at `load()` time.
-
-        On utilise find_spec (sans importer) : importer transformers est lourd et inutile
-        juste pour peupler la liste des modèles (volet droit / modales) après un restart.
-        """
-        import importlib.util
-        return (importlib.util.find_spec('transformers') is not None
-                and importlib.util.find_spec('soundfile') is not None)
+    # is_available() : hérité du contrat commun (find_spec sur REQUIRED_PACKAGES). On n'importe
+    # PAS transformers pour répondre — c'est lourd et inutile juste pour peupler la liste des
+    # modèles (volet droit / modales) après un restart.
 
     # ------------------------------------------------------------------
     # Internal helpers

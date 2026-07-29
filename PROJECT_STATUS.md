@@ -33,7 +33,7 @@
 |---|---|
 | Plafond allocateur CUDA | ✅ **universel** — par process, aucune action par app |
 | Priorités | ✅ **universel** — par le routage, toutes les routes GPU couvertes |
-| Déclaration VRAM auto | ⚠️ **conditionnelle** — 13 backends (imager 10, reader 2, composer 1) |
+| Déclaration VRAM auto | ⚠️ **conditionnelle** — 17 backends concrets (imager 9, **transcriber 3** depuis le 29/07, enhancer 2, reader 2, composer 1) |
 | Garde de redélivrance | ⚠️ **par tâche** — 10 / 42 |
 
 **Reste ⏳ — par ordre de risque :**
@@ -48,12 +48,29 @@
    `detect_with_model` / `merge_and_blur`, les plus GPU-lourdes), 2 synthesizer, 2 transcriber,
    model_manager ×4, common ×2.
 3. `reconcile_orphaned_running` **manquant** : anonymizer, avatarizer, translator, apps lab.
-3bis. **CONTRAT BACKEND CONCURRENT — transcriber** : `wama/transcriber/backends/base.py` définit
-   son propre `SpeechToTextBackend(ABC)` au lieu d'hériter de `BaseModelBackend`. Ses 3 backends
-   (whisper, vibevoice, qwen_asr) échappent donc à la déclaration automatique d'empreinte VRAM.
-   C'est exactement la duplication que la règle de centralisation vise ; le rattachement au
-   contrat commun est une tâche de **portage d'uniformisation**, pas de la couche ressources.
-   Même question à instruire pour avatarizer, anonymizer et le service TTS (process séparé).
+3bis. ~~**CONTRAT BACKEND CONCURRENT — transcriber**~~ ✅ **PORTÉ 2026-07-29** —
+   `SpeechToTextBackend` hérite désormais de `BaseModelBackend` et n'est plus qu'une
+   **spécialisation métier** (verbe `transcribe()`, `TranscriptionResult/Segment`, capacités,
+   `max_audio_seconds`). Ses 3 moteurs (whisper, vibevoice, qwen_asr) déclarent donc leur
+   empreinte VRAM au gouverneur sans une ligne de câblage par app. Gains collatéraux de la
+   dé-duplication : `is_available()` de whisper et qwen **supprimés** (ils recopiaient le
+   `find_spec` du contrat commun) au profit de `REQUIRED_PACKAGES` ; `pip_install_spec()`
+   devient exploitable par le `model_installer` (`faster-whisper`, `transformers`+`soundfile`),
+   avec `PIP_PACKAGES = []` VOLONTAIRE sur vibevoice — le paquet pip homonyme est un TTS sans
+   rapport, l'install passe par git clone. VibeVoice garde son `is_available()` (sonde le
+   fichier de modeling ASR) : override assumé et documenté. Repli `recommended_vram_gb`
+   important ici — faster-whisper (CTranslate2) alloue **hors** de l'allocateur PyTorch, donc
+   la mesure autour de `load()` reste nulle et c'est la valeur déclarée (10 Go) qui est
+   réservée. Le scénario nocturne `transcriber.asr_load` lit maintenant cette VRAM **sur la
+   classe** au lieu de la recopier (il annonçait 3 Go pour 10 réels — même famille d'écart que
+   le preset qwen-image).
+   Validé CPU-seul (aucune charge GPU) : 3 backends `issubclass(BaseModelBackend)`, `load`/
+   `unload` enveloppés **une seule fois**, base restée abstraite, `is_available()` identique à
+   l'avant-port, chaîne publique `get_backend('auto')` → whisper inchangée.
+   ⏳ **Reste de la même famille** : avatarizer, anonymizer et le service TTS (process séparé)
+   n'ont **aucun** `backends/` — ce n'est pas un contrat concurrent mais une **absence de
+   contrat** (chargement de modèle dispersé dans `utils/` + code vendoré codeformer). Leur
+   rattachement est un portage plus lourd, à instruire séparément.
 4. **Presets `MODEL_SIZE_PRESETS` non audités** : seul `qwen-image` a été confronté au réel. Les
    autres peuvent sous-estimer de la même façon et re-déclencher FULL_GPU à tort.
 5. **Aucune validation GPU réelle** des correctifs (règle : pas de charge GPU WSL2 par Claude).

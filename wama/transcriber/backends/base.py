@@ -1,13 +1,27 @@
 """
 Transcriber Backend Base Classes
 
-Abstract base class for speech-to-text backends.
+Spécialisation MÉTIER (speech-to-text) du contrat de backend COMMUN
+`wama.common.backends.base.BaseModelBackend`.
+
+⚠️ Ne PAS re-définir ici un contrat concurrent : jusqu'au 2026-07-29 cette classe héritait
+directement d'`ABC`, si bien que les 3 moteurs ASR (whisper, vibevoice, qwen_asr) échappaient à
+la déclaration automatique d'empreinte VRAM au gouverneur de ressources — c'est-à-dire au
+mécanisme même dont le transcriber avait été l'app de référence. Cf. PROJECT_STATUS §0 (3bis).
+
+Ce qui vient du COMMUN (ne pas dupliquer) : cycle de vie (load/is_loaded/unload/process),
+`missing_packages()`/`is_available()`/`pip_install_spec()` dérivés de `REQUIRED_PACKAGES`, et
+l'enveloppe automatique load/unload qui déclare/libère la VRAM (`__init_subclass__`).
+Ce qui est PROPRE au domaine ici : le verbe `transcribe()`, `TranscriptionResult/Segment`,
+les capacités (diarisation, timestamps, hotwords, streaming) et `max_audio_seconds`.
 """
 
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from dataclasses import dataclass, field
 from typing import List, Optional
 import logging
+
+from wama.common.backends.base import BaseModelBackend
 
 logger = logging.getLogger(__name__)
 
@@ -56,12 +70,13 @@ class TranscriptionResult:
         }
 
 
-class SpeechToTextBackend(ABC):
+class SpeechToTextBackend(BaseModelBackend):
     """
-    Abstract base class for speech-to-text backends.
+    Contrat des moteurs de reconnaissance de parole — spécialisation de `BaseModelBackend`.
 
-    All transcription backends must inherit from this class and implement
-    the required methods.
+    Un nouveau moteur = une sous-classe qui déclare ses `REQUIRED_PACKAGES`, ses capacités,
+    et implémente `load()/unload()/transcribe()`. Rien d'autre : l'empreinte VRAM est déclarée
+    au gouverneur automatiquement par le contrat commun.
     """
 
     # Class-level attributes to be overridden by subclasses
@@ -81,7 +96,10 @@ class SpeechToTextBackend(ABC):
 
     # Resource requirements
     min_vram_gb: float = 0
-    recommended_vram_gb: float = 0
+    # `recommended_vram_gb` est HÉRITÉ du contrat commun : c'est la valeur de repli que le
+    # gouverneur réserve quand la mesure autour de load() n'est pas concluante. Ce repli n'est
+    # pas théorique ici — faster-whisper (CTranslate2) alloue HORS de l'allocateur PyTorch, donc
+    # `torch.cuda.memory_allocated()` ne bouge pas : c'est la valeur déclarée qui fait foi.
 
     # Durée audio MAX (secondes) que le moteur traite d'un seul tenant. None = illimité
     # (ex. Whisper, fenêtré). Si un audio dépasse, la couche d'orchestration (workers) le
@@ -93,16 +111,10 @@ class SpeechToTextBackend(ABC):
         self._loaded = False
         self._current_model = None
 
-    @classmethod
-    @abstractmethod
-    def is_available(cls) -> bool:
-        """
-        Check if this backend's dependencies are installed and available.
-
-        Returns:
-            True if the backend can be used, False otherwise.
-        """
-        pass
+    # `is_available()` / `missing_packages()` / `pip_install_spec()` viennent du contrat commun
+    # et se déduisent de `REQUIRED_PACKAGES` (find_spec). N'override que si la présence du paquet
+    # ne suffit PAS à conclure — cf. VibeVoiceBackend, dont le paquet pip homonyme est un TTS
+    # sans rapport (on vérifie alors le fichier de modeling ASR).
 
     @abstractmethod
     def load(self, model_name: str = None) -> bool:
@@ -138,6 +150,10 @@ class SpeechToTextBackend(ABC):
             TranscriptionResult with text and optional segments.
         """
         pass
+
+    def process(self, **kwargs) -> TranscriptionResult:
+        """Point d'entrée métier générique (contrat commun BaseModelBackend) → délègue à transcribe()."""
+        return self.transcribe(**kwargs)
 
     @abstractmethod
     def unload(self) -> None:
