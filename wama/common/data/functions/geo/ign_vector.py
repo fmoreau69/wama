@@ -176,6 +176,65 @@ def sky_mask(lat: float, lon: float, buildings, n_azimuth: int = 72,
     return [round(v, 1) for v in mask]
 
 
+def _seg_bearing(p1, p2):
+    """Azimut (0=Nord, sens horaire) du segment p1→p2, en (lon, lat)."""
+    lat_m = math.radians((p1[1] + p2[1]) / 2.0)
+    de = (p2[0] - p1[0]) * math.cos(lat_m)
+    dn = (p2[1] - p1[1])
+    return math.degrees(math.atan2(de, dn)) % 360.0
+
+
+def _nearest_segment(coords, lat, lon):
+    """(index, distance_m) du sommet le plus proche de (lat, lon) sur une polyligne."""
+    best_i, best_d = 0, float('inf')
+    coslat = max(math.cos(math.radians(lat)), 1e-6)
+    for i, (plon, plat) in enumerate(coords):
+        d = math.hypot((plon - lon) * 111_320.0 * coslat, (plat - lat) * 111_320.0)
+        if d < best_d:
+            best_i, best_d = i, d
+    return best_i, best_d
+
+
+def road_branches_at(lat: float, lon: float, axis_bearing_deg: float,
+                     radius_m: float = 60.0, cross_min_deg: float = 30.0):
+    """Branches routières autour d'un point, classées par rapport à un axe de référence.
+
+    `axis_bearing_deg` = cap de l'axe suivi (ex. cap d'entrée du véhicule dans l'intersection).
+    Chaque tronçon est ramené à son azimut LOCAL près du point, puis comparé à cet axe modulo
+    180° : au-delà de `cross_min_deg` d'écart, la branche est dite CROISANTE.
+
+    Retourne [{'coords', 'bearing_deg', 'delta_deg', 'is_crossing', 'dist_m',
+               'largeur', 'nature', 'nom'}], trié du plus proche au plus lointain.
+
+    Remplace avantageusement une bande perpendiculaire symétrique « aveugle » : la géométrie
+    et la largeur viennent du référentiel, et restent justes même sans trafic observé.
+    """
+    out = []
+    for r in fetch_roads(lat, lon, radius_m):
+        coords = r.get('coords') or []
+        if len(coords) < 2:
+            continue
+        i, dist = _nearest_segment(coords, lat, lon)
+        j = i + 1 if i + 1 < len(coords) else i - 1
+        if j < 0:
+            continue
+        b = _seg_bearing(coords[min(i, j)], coords[max(i, j)])
+        # Écart modulo 180° : une route n'a pas de sens privilégié pour cette comparaison.
+        delta = abs(((b - axis_bearing_deg + 90.0) % 180.0) - 90.0)
+        out.append({
+            'coords': coords,
+            'bearing_deg': round(b, 1),
+            'delta_deg': round(delta, 1),
+            'is_crossing': delta >= cross_min_deg,
+            'dist_m': round(dist, 1),
+            'largeur': r.get('largeur'),
+            'nature': r.get('nature'),
+            'nom': r.get('nom'),
+        })
+    out.sort(key=lambda x: x['dist_m'])
+    return out
+
+
 def sky_mask_at(lat: float, lon: float, radius_m: float = 300.0, n_azimuth: int = 72):
     """Masque satellite en un point : récupère les bâtiments puis calcule le masque.
 
@@ -260,6 +319,31 @@ SPEC_ROADS = register(FunctionSpec(
     cost={'network': True},
     projects=['ENA'],
     fn=fetch_roads,
+))
+
+SPEC_BRANCHES = register(FunctionSpec(
+    key='road_branches',
+    name="Branches routières autour d'un point",
+    description="Tronçons IGN proches d'un point, classés CROISANTS ou non par rapport à un "
+                "axe de référence (comparaison d'azimut modulo 180°). Donne la géométrie et "
+                "la largeur réelles d'une branche d'intersection, même sans trafic observé — "
+                "remplace une bande perpendiculaire symétrique estimée.",
+    category=FunctionCategory.ENRICHER,
+    tags=['geo', 'ign', 'reference', 'network', 'france'],
+    inputs=[],
+    outputs=[PortSpec('branches', DataType.ROAD_MAP,
+                      produced_fields=['coords', 'bearing_deg', 'delta_deg', 'is_crossing',
+                                       'dist_m', 'largeur', 'nature', 'nom'],
+                      cardinality='many')],
+    params=_LOC_PARAMS + [
+        ParamSpec('axis_bearing_deg', 'float', None, 0.0, 360.0, unit='°',
+                  description="Cap de l'axe de référence (ex. cap d'entrée dans l'intersection)."),
+        ParamSpec('cross_min_deg', 'float', 30.0, 5.0, 90.0, unit='°',
+                  description="Écart d'azimut au-delà duquel une branche est dite croisante."),
+    ],
+    cost={'network': True},
+    projects=['ENA'],
+    fn=road_branches_at,
 ))
 
 SPEC_SKY_MASK = register(FunctionSpec(
