@@ -1173,6 +1173,24 @@ def ortho_recalage(request, session_id):
 
 
 @login_required
+@require_http_methods(["POST"])
+def ortho_correction(request, session_id):
+    """Étape 2b (2/2) — APPLIQUE le recalage mesuré à la trajectoire (bascule ⚑ ortho_correction).
+
+    Calcul pur (pas de GPU, pas de SAM3) : relançable à volonté pour recalibrer le seuil de
+    masquage sans refaire la segmentation ortho. Exige que la mesure ait été faite."""
+    from .tasks import compute_ortho_correction_task
+    session = get_object_or_404(AnalysisSession, id=session_id, user=request.user)
+    if not ((session.results_summary or {}).get('ortho_recalage') or {}).get('per_window'):
+        return JsonResponse({'success': False,
+                             'error': "Aucun recalage mesuré — lancer d'abord « Recalage absolu ortho »"},
+                            status=400)
+    task = compute_ortho_correction_task.delay(str(session.id))
+    _console(request.user.id, "Correction de trajectoire — lancement (calcul pur + masquage BD TOPO).")
+    return JsonResponse({'success': True, 'task_id': task.id})
+
+
+@login_required
 @require_http_methods(["GET"])
 def get_session_status(request, session_id):
     """Get session status and progress."""

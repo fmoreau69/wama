@@ -2822,9 +2822,18 @@ document.addEventListener('DOMContentLoaded', function () {
         // Throttle ~10 Hz (le marqueur navette reste fluide à 60 Hz au-dessus).
         if (Math.abs(currentTime - topDownLastRender) < 0.09) return;
         topDownLastRender = currentTime;
-        if (!miniMapObjectLayer) miniMapObjectLayer = L.layerGroup().addTo(miniMap);
-        if (!miniMapTrailLayer) miniMapTrailLayer = L.layerGroup().addTo(miniMap);
+        // Ordre d'empilement EXPLICITE (2026-07-29) : la géométrie de voie/branche est du
+        // CONTEXTE (emprise au sol) — elle doit passer SOUS la trace et les véhicules, sinon
+        // la bande d'intersection masque les objets qu'on cherche justement à observer.
+        // Un pane dédié fixe le z-index une fois pour toutes, indépendamment de l'ordre
+        // d'ajout des polygones à chaque frame (les layerGroup sont vidés/repeuplés en boucle).
+        if (!miniMap.getPane('lanePane')) {
+            miniMap.createPane('lanePane');
+            miniMap.getPane('lanePane').style.zIndex = 350;   // < overlayPane (400)
+        }
         if (!miniMapLaneLayer) miniMapLaneLayer = L.layerGroup().addTo(miniMap);
+        if (!miniMapTrailLayer) miniMapTrailLayer = L.layerGroup().addTo(miniMap);
+        if (!miniMapObjectLayer) miniMapObjectLayer = L.layerGroup().addTo(miniMap);
         // Reset des traces sur saut temporel (seek).
         if (Math.abs(currentTime - topDownLastTime) > 1.0) { topDownTrails.clear(); topDownHeadings.clear(); topDownDist.clear(); topDownLat.clear(); topDownCls.clear(); topDownAxial.clear(); }
         topDownLastTime = currentTime;
@@ -2920,13 +2929,13 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (_sm.length < 2) return;
                 const a = _sm.map(p => egoToLatLon(p.lat, p.lon, p.h, xL, 0));
                 const b = _sm.map(p => egoToLatLon(p.lat, p.lon, p.h, xR, 0)).reverse();
-                L.polygon(a.concat(b), { stroke: false, fillColor: col, fillOpacity: 0.12 }).addTo(miniMapLaneLayer);
+                L.polygon(a.concat(b), { stroke: false, fillColor: col, fillOpacity: 0.12, pane: "lanePane" }).addTo(miniMapLaneLayer);
             };
             _band(-_half, _half, '#4caf50');        // voie navette (droite)
             _band(-_half * 3, -_half, '#78909c');   // voie opposée
             _edges.forEach(e => {
                 const pts = _sm.map(p => egoToLatLon(p.lat, p.lon, p.h, e.x, 0));
-                if (pts.length >= 2) L.polyline(pts, { color: e.c, weight: 1.5, opacity: 0.85, dashArray: e.d }).addTo(miniMapLaneLayer);
+                if (pts.length >= 2) L.polyline(pts, { color: e.c, weight: 1.5, opacity: 0.85, dashArray: e.d, pane: "lanePane" }).addTo(miniMapLaneLayer);
             });
 
             // ── Routes PERPENDICULAIRES aux intersections (repère GPS, demande 2026-07-19) ──
@@ -2968,6 +2977,7 @@ document.addEventListener('DOMContentLoaded', function () {
                             L.polyline([mk.a, mk.b], {
                                 color: col, weight: 3, opacity: mk.calibrated ? 0.9 : 0.55,
                                 dashArray: mk.label === 'crossing' ? '3,3' : null,
+                                pane: "lanePane",
                             }).addTo(miniMapLaneLayer);
                         });
                 }
@@ -2980,10 +2990,10 @@ document.addEventListener('DOMContentLoaded', function () {
                             ? oc.poly_latlon.filter(_okLL) : [];
                         if (poly.length >= 3) {
                             L.polygon(poly, { color: '#ff9800', weight: 2,
-                                opacity: 0.9, fill: false }).addTo(miniMapLaneLayer);
+                                opacity: 0.9, fill: false, pane: "lanePane" }).addTo(miniMapLaneLayer);
                         } else if (_okLL([oc.lat, oc.lon])) {
                             L.circleMarker([oc.lat, oc.lon], { radius: 4, color: '#ff9800',
-                                weight: 2, fill: false }).addTo(miniMapLaneLayer);
+                                weight: 2, fill: false, pane: "lanePane" }).addTo(miniMapLaneLayer);
                         }
                     });
                 }
@@ -2998,9 +3008,9 @@ document.addEventListener('DOMContentLoaded', function () {
                         const _sh = (pt2, sgn) => [pt2[0] + sgn * hw * vy2 / mLat2,
                                                    pt2[1] + sgn * hw * vx2 / mLon2];
                         L.polygon([_sh(br.a, -1), _sh(br.b, -1), _sh(br.b, 1), _sh(br.a, 1)],
-                            { stroke: false, fillColor: '#ab47bc', fillOpacity: 0.14 }).addTo(miniMapLaneLayer);
+                            { stroke: false, fillColor: '#ab47bc', fillOpacity: 0.14, pane: "lanePane" }).addTo(miniMapLaneLayer);
                         L.polyline([br.a, br.b],
-                            { color: '#ab47bc', weight: 1.5, opacity: 0.85, dashArray: '6,6' }).addTo(miniMapLaneLayer);
+                            { color: '#ab47bc', weight: 1.5, opacity: 0.85, dashArray: '6,6', pane: "lanePane" }).addTo(miniMapLaneLayer);
                     });
                     return;
                 }
@@ -3014,9 +3024,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 const _pt = (du, dv) => [w.lat + (uy * du + vy * dv) / mLat,
                                          w.lon + (ux * du + vx * dv) / mLon];
                 L.polygon([_pt(-halfL, -halfW), _pt(halfL, -halfW), _pt(halfL, halfW), _pt(-halfL, halfW)],
-                    { stroke: false, fillColor: '#ab47bc', fillOpacity: 0.10 }).addTo(miniMapLaneLayer);
+                    { stroke: false, fillColor: '#ab47bc', fillOpacity: 0.10, pane: "lanePane" }).addTo(miniMapLaneLayer);
                 L.polyline([_pt(-halfL, 0), _pt(halfL, 0)],
-                    { color: '#ab47bc', weight: 1.5, opacity: 0.8, dashArray: '6,6' }).addTo(miniMapLaneLayer);
+                    { color: '#ab47bc', weight: 1.5, opacity: 0.8, dashArray: '6,6', pane: "lanePane" }).addTo(miniMapLaneLayer);
             });
         }
 

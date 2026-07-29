@@ -38,6 +38,7 @@ urlpatterns = [
     path('api/sessions/<uuid:session_id>/recompute-windows/', views.recompute_windows, name='recompute_windows'),
     path('api/sessions/<uuid:session_id>/start-sam3/', views.start_sam3_only, name='start_sam3_only'),
     path('api/sessions/<uuid:session_id>/ortho-recalage/', views.ortho_recalage, name='ortho_recalage'),
+    path('api/sessions/<uuid:session_id>/ortho-correction/', views.ortho_correction, name='ortho_correction'),
     path('api/sessions/<uuid:session_id>/calibrate/', views.calibrate_homography, name='calibrate_homography'),
     path('api/sessions/<uuid:session_id>/sam3-test/', views.sam3_test_frame, name='sam3_test_frame'),
     path('api/sessions/<uuid:session_id>/sam3-test-result/', views.sam3_test_result, name='sam3_test_result'),
