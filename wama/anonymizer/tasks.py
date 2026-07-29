@@ -137,6 +137,16 @@ def process_single_media(self, media_id, force_individual=False):
 
     try:
         media = Media.objects.get(pk=media_id)
+
+        # Garde anti-boucle-de-crash (brique COMMUNE) : message `redelivered` = worker
+        # mort sans acquitter (freeze/panic machine) → ne PAS rejouer l'exécution qui
+        # l'a tué. Le dedup par cache ci-dessus ne couvre PAS ce cas (cache Redis vidé
+        # ou TTL expiré au reboot, et le propriétaire enregistré est ce même task_id).
+        from wama.common.utils.process_control import refuse_crash_redelivery
+        if refuse_crash_redelivery(self, media, error_field='error_message'):
+            logger.warning(f"[anonymizer] Media #{media_id}: reprise après crash refusée — relancer manuellement.")
+            return {"skipped": True, "media_id": media_id, "reason": "crash_redelivery"}
+
         user = media.user
         user_settings, _ = UserSettings.objects.get_or_create(user=user)
 

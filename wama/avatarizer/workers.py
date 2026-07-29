@@ -337,6 +337,13 @@ def generate_avatar(self, job_id: int):
         logger.error(f"[avatarizer] AvatarJob #{job_id} introuvable")
         return
 
+    # Garde anti-boucle-de-crash (brique COMMUNE) : message `redelivered` = worker mort
+    # sans acquitter (freeze/panic machine) → ne PAS rejouer l'exécution qui l'a tué.
+    from wama.common.utils.process_control import refuse_crash_redelivery
+    if refuse_crash_redelivery(self, job, error_field='error_message'):
+        logger.warning(f"[avatarizer] AvatarJob #{job_id}: reprise après crash refusée — relancer manuellement.")
+        return
+
     job.status = 'RUNNING'
     job.task_id = self.request.id
     job.save(update_fields=['status', 'task_id'])

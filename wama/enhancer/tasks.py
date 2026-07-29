@@ -113,6 +113,13 @@ def enhance_media(self, enhancement_id: int):
         logger.error(f"Enhancement {enhancement_id} not found in database!")
         return {'ok': False, 'error': 'Enhancement not found'}
 
+    # Garde anti-boucle-de-crash (brique COMMUNE) : message `redelivered` = worker mort
+    # sans acquitter (freeze/panic machine) → ne PAS rejouer l'exécution qui l'a tué.
+    from wama.common.utils.process_control import refuse_crash_redelivery
+    if refuse_crash_redelivery(self, enhancement, error_field='error_message'):
+        logger.warning(f"[enhancer] Enhancement #{enhancement_id}: reprise après crash refusée — relancer manuellement.")
+        return {'ok': False, 'error': 'crash_redelivery'}
+
     user_id = enhancement.user_id
     logger.info(f"Sending console message to user {user_id}")
     _console(user_id, f"Starting enhancement #{enhancement_id}")
@@ -233,6 +240,12 @@ def enhance_audio(self, audio_enhancement_id: int):
     except AudioEnhancement.DoesNotExist:
         logger.error(f"AudioEnhancement {audio_enhancement_id} not found!")
         return {'ok': False, 'error': 'AudioEnhancement not found'}
+
+    # Garde anti-boucle-de-crash (brique COMMUNE) — cf. enhance_media.
+    from wama.common.utils.process_control import refuse_crash_redelivery
+    if refuse_crash_redelivery(self, ae, error_field='error_message'):
+        logger.warning(f"[enhancer] AudioEnhancement #{audio_enhancement_id}: reprise après crash refusée.")
+        return {'ok': False, 'error': 'crash_redelivery'}
 
     user_id = ae.user_id
     _console(user_id, f"Audio enhancement #{audio_enhancement_id} démarré ({ae.get_engine_display()})")

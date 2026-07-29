@@ -85,6 +85,13 @@ def describe_content(self, description_id: int):
         logger.error(f"Description {description_id} not found")
         return {'ok': False, 'error': 'Description not found'}
 
+    # Garde anti-boucle-de-crash (brique COMMUNE) : message `redelivered` = worker mort
+    # sans acquitter (freeze/panic machine) → ne PAS rejouer l'exécution qui l'a tué.
+    from wama.common.utils.process_control import refuse_crash_redelivery
+    if refuse_crash_redelivery(self, description, error_field='error_message'):
+        logger.warning(f"[describer] Description #{description_id}: reprise après crash refusée — relancer manuellement.")
+        return {'ok': False, 'error': 'crash_redelivery'}
+
     user_id = description.user_id
     _console(user_id, f"Starting description for: {description.filename}")
 

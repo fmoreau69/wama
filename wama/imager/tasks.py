@@ -67,6 +67,18 @@ def generate_image_task(self, generation_id):
             )
             return {'skipped': True, 'reason': 'stale_task', 'generation_id': generation_id}
 
+        # Garde anti-boucle-de-crash (brique COMMUNE) : un message `redelivered` vient
+        # d'un worker mort sans acquitter (freeze machine) — on refuse de rejouer
+        # l'exécution qui a tué le worker, l'item passe en échec relançable.
+        # Les deux gardes ci-dessus ne couvrent PAS ce cas (statut resté RUNNING ET
+        # task_id identique) — vécu 29/07/2026 : génération #42 (qwen-image-2) rejouée
+        # à CHAQUE démarrage du worker, 4 kernel panics WSL2 d'affilée.
+        from wama.common.utils.process_control import refuse_crash_redelivery
+        if refuse_crash_redelivery(self, generation, error_field='error_message'):
+            logger.warning(f"[Imager] Generation #{generation_id}: reprise après crash refusée — relancer manuellement.")
+            _console(generation.user_id, f"[Imager] Génération #{generation_id} : reprise après crash refusée.")
+            return {'skipped': True, 'reason': 'crash_redelivery', 'generation_id': generation_id}
+
         generation.status = 'RUNNING'
         generation.progress = 0
         generation.save()
@@ -392,6 +404,13 @@ def generate_video_task(self, generation_id):
                 f"(DB={generation.task_id}, this={current_task_id}) — stale re-queued task, skipping"
             )
             return {'skipped': True, 'reason': 'stale_task', 'generation_id': generation_id}
+
+        # Garde anti-boucle-de-crash (brique COMMUNE) — cf. generate_image_task.
+        from wama.common.utils.process_control import refuse_crash_redelivery
+        if refuse_crash_redelivery(self, generation, error_field='error_message'):
+            logger.warning(f"[Imager Video] Generation #{generation_id}: reprise après crash refusée — relancer manuellement.")
+            _console(generation.user_id, f"[Imager Video] Génération #{generation_id} : reprise après crash refusée.")
+            return {'skipped': True, 'reason': 'crash_redelivery', 'generation_id': generation_id}
 
         generation.status = 'RUNNING'
         generation.progress = 0

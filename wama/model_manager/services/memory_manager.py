@@ -12,6 +12,61 @@ from enum import Enum
 logger = logging.getLogger(__name__)
 
 
+# Marge minimale de VRAM libre à préserver pendant un chargement FULL_GPU (activations
+# + fragmentation). En dessous, on abandonne FULL_GPU et on retombe sur MODEL_OFFLOAD.
+FULL_GPU_MIN_FREE_GB = 1.5
+
+# Fraction du total physique au-delà de laquelle l'allocateur CUDA doit ÉCHOUER.
+_ALLOCATOR_CAP_FRACTION = 0.95
+_allocator_capped = False
+
+
+def _cap_cuda_allocator() -> None:
+    """
+    Plafonne l'allocateur CUDA à ``_ALLOCATOR_CAP_FRACTION`` de la VRAM physique.
+
+    CRITIQUE sous WSL2/WDDM : sans ce plafond, une allocation qui dépasse la VRAM
+    physique n'échoue PAS — le pilote la fait déborder silencieusement en RAM hôte et
+    pagine à travers la frontière GPU-PV. Cette pagination sature `dxgkio_make_resident`
+    (ENOMEM en rafale) et finit par faire paniquer le noyau invité : la VM WSL entière
+    est réinitialisée, pas seulement le worker.
+
+    Vécu 29/07/2026 : génération imager #42 (qwen-image-2), stratégie FULL_GPU décidée
+    sur 24 Go libres, transformer déplacé jusqu'à 38,1 Go sur une carte de 24 Go →
+    4 min 14 de pagination → 4 kernel panics WSL2 d'affilée (`Fatal machine check`).
+
+    Avec le plafond, PyTorch lève un OOM franc et la chaîne de repli
+    (MODEL_OFFLOAD → SEQUENTIAL_OFFLOAD) fait son travail.
+    """
+    global _allocator_capped
+    if _allocator_capped:
+        return
+    try:
+        import torch
+        if not torch.cuda.is_available():
+            return
+        torch.cuda.set_per_process_memory_fraction(_ALLOCATOR_CAP_FRACTION)
+        total_gb = torch.cuda.get_device_properties(0).total_memory / (1024 ** 3)
+        logger.info(
+            f"[MemoryManager] Allocateur CUDA plafonné à "
+            f"{_ALLOCATOR_CAP_FRACTION:.0%} de {total_gb:.1f} GB "
+            f"(= {total_gb * _ALLOCATOR_CAP_FRACTION:.1f} GB) — anti-débordement WDDM"
+        )
+        _allocator_capped = True
+    except Exception as exc:
+        logger.warning(f"[MemoryManager] Plafond allocateur CUDA non appliqué : {exc}")
+
+
+def _component_size_gb(component) -> float:
+    """Empreinte réelle d'un composant de pipeline (paramètres + buffers), en Go."""
+    try:
+        n = sum(p.numel() * p.element_size() for p in component.parameters())
+        n += sum(b.numel() * b.element_size() for b in component.buffers())
+        return n / (1024 ** 3)
+    except Exception:
+        return 0.0
+
+
 class MemoryStrategy(Enum):
     """Memory loading strategies for AI models."""
     FULL_GPU = "full_gpu"              # Load entirely on GPU (fastest)
@@ -38,7 +93,11 @@ MODEL_SIZE_PRESETS = {
     'hunyuan-image-2.1': 16.0,
 
     # Qwen Image (Alibaba) — Diffusers pipelines (not transformers)
-    'qwen-image': 16.0,       # Qwen-Image-2512  ~16 GB at bf16
+    # MESURÉ 29/07/2026 : le transformer seul atteint 38,1 GB au chargement (log worker
+    # gpu). L'ancienne valeur de 16.0 faisait choisir FULL_GPU sur une carte de 24 Go →
+    # débordement WDDM en RAM hôte → kernel panic WSL2. Ne PAS rabaisser sans mesure.
+    'qwen-image': 38.0,       # Qwen-Image-2512
+
     'qwen-image-edit': 12.0,  # Qwen-Image-Edit-2511  ~12 GB at bf16
 
     # ── Video diffusion ──────────────────────────────────────────────────────
@@ -550,6 +609,8 @@ class MemoryManager:
         """
         import torch
 
+        _cap_cuda_allocator()
+
         def reset_cuda_state():
             """Reset CUDA state after errors."""
             if torch.cuda.is_available():
@@ -577,7 +638,22 @@ class MemoryManager:
                 component = getattr(pipeline, attr, None)
                 if component is None or not hasattr(component, 'parameters'):
                     continue
-                logger.info(f"[MemoryManager]   → moving {attr} to {device}…")
+
+                # Re-vérifier AVANT chaque déplacement : la stratégie a été décidée une
+                # seule fois sur une taille de modèle DÉCLARÉE (presets), qui peut être
+                # très sous-estimée. Sans ce contrôle, un composant trop gros ne lève pas
+                # d'OOM sous WDDM — il déborde en RAM hôte et fait paniquer le noyau WSL
+                # (cf. _cap_cuda_allocator). On échoue net pour tomber sur MODEL_OFFLOAD.
+                size_gb = _component_size_gb(component)
+                free_gb = torch.cuda.mem_get_info()[0] / (1024 ** 3)
+                if size_gb and free_gb - size_gb < FULL_GPU_MIN_FREE_GB:
+                    raise RuntimeError(
+                        f"CUDA out of memory (pré-contrôle FULL_GPU) : {attr} pèse "
+                        f"{size_gb:.1f} GB, seulement {free_gb:.1f} GB libres "
+                        f"(marge requise {FULL_GPU_MIN_FREE_GB:.1f} GB)"
+                    )
+
+                logger.info(f"[MemoryManager]   → moving {attr} to {device} ({size_gb:.1f} GB, {free_gb:.1f} GB libres)…")
                 setattr(pipeline, attr, component.to(device))
                 torch.cuda.synchronize()
                 vram = torch.cuda.memory_allocated() / (1024 ** 3)

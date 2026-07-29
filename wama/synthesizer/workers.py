@@ -278,6 +278,14 @@ def synthesize_voice(self, synthesis_id: int):
         logger.error(f"VoiceSynthesis {synthesis_id} not found")
         return {'ok': False, 'error': 'Synthesis not found'}
 
+    # Garde anti-boucle-de-crash (brique COMMUNE) : message `redelivered` = worker mort
+    # sans acquitter (freeze/panic machine) → ne PAS rejouer l'exécution qui l'a tué.
+    # Un `self.retry()` émet un message NEUF (non redelivered) : les retries restent OK.
+    from wama.common.utils.process_control import refuse_crash_redelivery
+    if refuse_crash_redelivery(self, synthesis, error_field='error_message'):
+        logger.warning(f"[synthesizer] Synthesis #{synthesis_id}: reprise après crash refusée — relancer manuellement.")
+        return {'ok': False, 'error': 'crash_redelivery'}
+
     _set_progress(synthesis, 5)
     _console(synthesis.user_id, f"Synthèse vocale #{synthesis.id} démarrée")
 

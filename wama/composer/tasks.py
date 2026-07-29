@@ -39,6 +39,13 @@ def compose_task(self, generation_id: int):
         logger.error(f"[Composer] Generation {generation_id} introuvable")
         return
 
+    # Garde anti-boucle-de-crash (brique COMMUNE) : message `redelivered` = worker mort
+    # sans acquitter (freeze/panic machine) → ne PAS rejouer l'exécution qui l'a tué.
+    from wama.common.utils.process_control import refuse_crash_redelivery
+    if refuse_crash_redelivery(self, gen, error_field='error_message'):
+        logger.warning(f"[Composer] Generation #{generation_id}: reprise après crash refusée — relancer manuellement.")
+        return
+
     user_id = gen.user_id
     if gen.model in ('auto-music', 'auto-sfx'):
         from wama.composer.utils.auto_model import resolve_auto_model
