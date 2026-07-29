@@ -412,8 +412,12 @@ class RemoteBackupService:
 
         Returns: dict de synthèse (voir clés ci-dessous).
         """
+        # 'processed' fait partie du summary LUI-MÊME (et pas seulement des dicts passés au
+        # progress_cb) : le résultat final est republié tel quel à la fin de la tâche, et
+        # sans cette clé l'UI retombait sur 0 → « Terminé — 0/1149 (0%) » alors que tout
+        # avait été traité.
         summary = {
-            'success': False, 'total_files': 0, 'copied': 0, 'skipped': 0,
+            'success': False, 'total_files': 0, 'processed': 0, 'copied': 0, 'skipped': 0,
             'failed': 0, 'copied_mb': 0.0, 'errors': [], 'remote_path': str(self.remote_path),
         }
 
@@ -435,6 +439,7 @@ class RemoteBackupService:
 
         # Phase 2 — copie incrémentale.
         for idx, src in enumerate(local_files, 1):
+            summary['processed'] = idx   # compté AVANT le continue ci-dessous
             dest = self.mirror_dest(src)
             if dest is None:
                 summary['skipped'] += 1
@@ -458,7 +463,7 @@ class RemoteBackupService:
 
             # Remonter l'avancement sans saturer Redis : tous les 200 fichiers + à la fin.
             if progress_cb and (idx % 200 == 0 or idx == summary['total_files']):
-                progress_cb(dict(summary, phase='copy', processed=idx,
+                progress_cb(dict(summary, phase='copy',
                                  current=str(src.relative_to(root))))
 
         summary['success'] = summary['failed'] == 0
