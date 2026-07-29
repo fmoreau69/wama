@@ -94,6 +94,7 @@ document.addEventListener('DOMContentLoaded', function () {
     let sessionMarkings = {};      // marquages SAM3 agrégés en monde (stop_line/crossing, par fenêtre)
     let orthoMarkings = {};        // passages piétons segmentés sur l'ortho IGN (recalage 2b)
     let orthoRecalage = null;      // offset de recalage mesuré (global + par fenêtre)
+    let orthoCorrection = null;    // ancres de correction GPS (étape 2b appliquée, ⚑ ortho_correction)
     const camFovUsed = {};    // FOV V utilisé à l'annotation (config.fov_v_used, sinon legacy)
     // Bascules ⚑ Modes (miroir de utils/features.py) : comparer AVEC/SANS chaque
     // amélioration. Surchargées par le catalogue serveur au chargement de session.
@@ -488,6 +489,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 sessionMarkings = (data.results_summary && data.results_summary.intersection_markings) || {};
                 orthoMarkings = (data.results_summary && data.results_summary.ortho_markings) || {};
                 orthoRecalage = (data.results_summary && data.results_summary.ortho_recalage) || null;
+                orthoCorrection = (data.results_summary && data.results_summary.ortho_correction) || null;
                 stationaryAnchors = (data.results_summary && data.results_summary.stationary_anchors) || {};
                 sessionAnalyzedRanges = (data.config && data.config.analyzed_ranges) || {};
             } catch (e) { stationaryGids = new Set(); stationaryAnchors = {}; sessionAnalyzedRanges = {}; }
@@ -999,6 +1001,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     sessionMarkings = (d.results_summary && d.results_summary.intersection_markings) || {};
                     orthoMarkings = (d.results_summary && d.results_summary.ortho_markings) || {};
                     orthoRecalage = (d.results_summary && d.results_summary.ortho_recalage) || null;
+                    orthoCorrection = (d.results_summary && d.results_summary.ortho_correction) || null;
                     stationaryAnchors = (d.results_summary && d.results_summary.stationary_anchors) || {};
                     sessionAnalyzedRanges = (d.config && d.config.analyzed_ranges) || {};
                 } catch (e) { /* prochaine sélection de session fera foi */ }
@@ -2627,12 +2630,61 @@ document.addEventListener('DOMContentLoaded', function () {
         } catch (e) { /* noop */ }
     }
 
+    // ⚑ ortho_correction — offset (est, nord) au temps ts, interpolé entre ancres et pondéré
+    // par la fiabilité (nombre d'appariements). Port fidèle de `offset_at()`
+    // (common/data/functions/driving/trajectory_offset.py) : PAS d'extrapolation hors bornes,
+    // on maintient la valeur extrême. Toute divergence entre les deux implémentations
+    // produirait un affichage qui ment sur la correction réellement calculée.
+    function _orthoOffsetAt(anchors, ts) {
+        if (!anchors || !anchors.length) return [0, 0];
+        if (anchors.length === 1 || ts <= anchors[0].ts) return [anchors[0].de_m, anchors[0].dn_m];
+        const last = anchors[anchors.length - 1];
+        if (ts >= last.ts) return [last.de_m, last.dn_m];
+        for (let i = 0; i < anchors.length - 1; i++) {
+            const a = anchors[i], b = anchors[i + 1];
+            if (a.ts <= ts && ts <= b.ts) {
+                const span = b.ts - a.ts;
+                if (span <= 0) return [a.de_m, a.dn_m];
+                const u = (ts - a.ts) / span;
+                const wa = (a.n || 0) * (1 - u), wb = (b.n || 0) * u, tot = wa + wb;
+                if (tot <= 0) return [a.de_m * (1 - u) + b.de_m * u, a.dn_m * (1 - u) + b.dn_m * u];
+                return [(a.de_m * wa + b.de_m * wb) / tot, (a.dn_m * wa + b.dn_m * wb) / tot];
+            }
+        }
+        return [0, 0];
+    }
+
+    // Applique la correction à la trace AFFICHÉE. Gardée par la bascule ⚑ : si elle est
+    // repassée OFF, on doit revoir la trace BRUTE même si `ortho_correction` traîne encore
+    // dans results_summary — sinon l'A/B mentirait.
+    function _applyOrthoCorrection(track) {
+        const on = camFeat && camFeat['ortho_correction'];
+        const anchors = orthoCorrection && orthoCorrection.anchors;
+        if (!on || !anchors || !anchors.length) return track;
+        const M_LAT = 111320;
+        return track.map(p => {
+            if (p.ts === undefined || p.ts === null) return p;
+            const [de, dn] = _orthoOffsetAt(anchors, p.ts);
+            if (!de && !dn) return p;
+            const mLon = M_LAT * Math.max(Math.cos(p.lat * Math.PI / 180), 1e-6);
+            return Object.assign({}, p, {
+                lat: p.lat + dn / M_LAT,        // + offset (dérivation du signe : cf. module Python)
+                lon: p.lon + de / mLon,
+                lat_raw: p.lat, lon_raw: p.lon,
+                corr_de_m: de, corr_dn_m: dn,
+            });
+        });
+    }
+
     function renderMiniMap(gpsTrack, intersectionWindows) {
         initMiniMap();
         if (!miniMap) return;
         addMapControls();   // boutons Calibrer/Suivi sur la carte (pas sur le viewport)
 
-        cachedGpsTrack = Array.isArray(gpsTrack) ? gpsTrack.filter(p => p.lat && p.lon) : [];
+        // Point d'ingestion UNIQUE de la trace : corriger ici propage à tout l'aval
+        // (trace, pose ego, projections caméra) sans toucher aux consommateurs.
+        cachedGpsTrack = _applyOrthoCorrection(
+            Array.isArray(gpsTrack) ? gpsTrack.filter(p => p.lat && p.lon) : []);
 
         // Clear previous layers
         if (miniMapPolyline) { miniMap.removeLayer(miniMapPolyline); miniMapPolyline = null; }
