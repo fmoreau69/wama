@@ -119,6 +119,34 @@
    (timeouts de 10 et 30 min), pas pour un bloc plus long sans rafraîchissement.
 4. **Presets `MODEL_SIZE_PRESETS` non audités** : seul `qwen-image` a été confronté au réel. Les
    autres peuvent sous-estimer de la même façon et re-déclencher FULL_GPU à tort.
+   🔴 **Aggravation trouvée le 29/07 (corrigée)** — la mesure de 38 Go avait bien été reportée
+   dans les presets, mais le chiffre était déclaré **à TROIS endroits** : le manifeste
+   (`imager/utils/model_config.py`, 16), les presets (38) et une **copie en dur dans
+   `qwen_image_backend.py`** (16). C'est la copie du backend qui décidait → il tentait FULL_GPU
+   sur un MMDiT 20B avec 24 Go de carte. Corriger la mesure « quelque part » ne suffit donc pas.
+   - Le **manifeste fait foi** (c'est lui qu'ingère le catalogue, qui alimente le tirage et l'UI) ;
+     la copie du backend est supprimée ; un garde signale au démarrage tout écart manifeste↔presets
+     au lieu de le laisser silencieux.
+   - `estimate_model_size()` retenait le **premier** preset qui matchait, or les clés se préfixent :
+     Qwen-Image-**Edit** héritait des 38 Go de Qwen-Image, FLUX-**schnell** et flux2-klein-4b des
+     24 Go de FLUX → trois modèles qui TIENNENT partaient en offload. La clé la plus **spécifique**
+     gagne désormais.
+   - ⏳ **À MESURER** : `qwen-image-edit` (posé à 38 par prudence — même dorsale 20B ; les 12 Go
+     déclarés étaient impossibles) et `flux2-klein` (posé à 12).
+4bis. ✅ **TIRAGE IMAGER — adoption de `select_model()` (29/07)** : l'imager n'avait **aucun**
+   tirage ; la vue prenait `DEFAULT_IMAGE_MODEL`, pointé sur `qwen-image-2` → **offload CPU
+   garanti** pour tout utilisateur qui ne choisissait pas. `imager/utils/model_selection.py`
+   adopte la brique commune (3ᵉ adopteur après composer et transcriber) : « pas d'offload » s'y
+   traduit en un **budget** (VRAM libre − marge) passé à `select_model()`, qui retient déjà le
+   plus gros modèle qui rentre — aucune règle de sélection n'est réécrite.
+   ⚠️ **Deux pièges d'adoption** trouvés par le smoke, à connaître pour les prochains adopteurs :
+   (a) le catalogue **préfixe** ses clés (`imager:<id>`) — sans le préfixe, `candidates` ne matche
+   rien et le tirage retombe silencieusement sur le défaut **en ayant l'air de marcher** ;
+   (b) filtrer les candidats sur les métadonnées, sinon une demande d'image tire une **LoRA de
+   spécialité** (`flux-lora-logo-design`).
+   🔜 **REQUIS pour que ça morde** : `python manage.py sync_models` sur la base **WSL2** — le
+   catalogue porte encore les anciens `vram_gb` (qwen 16, flux 16) ; le tirage lit le CATALOGUE,
+   pas le manifeste.
 5. **Aucune validation GPU réelle** des correctifs (règle : pas de charge GPU WSL2 par Claude).
    Preuve attendue au prochain qwen-image : `Strategy: MODEL_OFFLOAD` et non `FULL_GPU`.
 6. Grille de conformité **non re-mesurée** depuis l'ajout de `reconcile_orphaned_running` à
