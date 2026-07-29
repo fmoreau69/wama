@@ -82,7 +82,51 @@ wsl.exe -e bash -lc "PGPASSWORD=*** psql -h 127.0.0.1 -U wama_user -d wama_db -t
   - Reste optionnel : hostname interne `vrlescot` + IP gateway WSL `172.29.240.1` encore en clair
     dans quelques docs/scripts (divulgation d'infra mineure, non critique).
 
+## RAM hôte & plafond WSL2 (`.wslconfig`) — MAJ 2026-07-29
+
+**Hôte : 64 Go** (2× Samsung `M378A4G43AB2-CWE` 32 Go, détectées **3200 MT/s**, une par canal
+— `ChannelA-DIMM1` / `ChannelB-DIMM1`, dual channel à la fréquence nominale).
+Précédemment 32 Go. **Plafond WSL2 : 48 Go**, réserve Windows 16 Go, `swap=8GB`.
+
+- Générateur : **`scripts/set_wslconfig.ps1`** (à relancer côté **hôte** après tout changement de
+  barrettes). Calcule depuis la RAM **physique** (somme des barrettes — `TotalVisibleMemorySize`
+  retranche la réservation matérielle et donne 63 au lieu de 64). Options `-DryRun`, `-MemoryGB`,
+  `-ReserveGB`, `-SwapGB` ; sauvegarde `.bak` ; écriture **UTF-8 SANS BOM** (WSL ne parse pas un
+  `.wslconfig` commençant par un BOM).
+- ⚠ **Ne PAS dimensionner la réserve sur la mémoire ENGAGÉE (commit) de Windows** : le commit est
+  adossable au fichier d'échange et dépasse normalement le résident (mesuré 21,9 Go engagés alors
+  que la machine tournait bien avec 16 Go physiques côté Windows sur la config 32 Go). C'est le
+  **résident** qui compte. Plancher absolu : 12 Go.
+- `memory=` est un **PLAFOND, pas une réservation** : vmmem ne prend que ce que l'invité utilise.
+- `swap=8GB` conservé volontairement : touché seulement si l'invité dépasse `memory=`, il amortit
+  alors au lieu d'un OOM-kill sec en plein chargement de modèle. Un `.vhdx` inutilisé ne coûte rien.
+- **Prise en compte au prochain `wsl.exe --shutdown` uniquement.** Ne PAS tenter de l'automatiser
+  depuis `start_wama_*.sh` : `.wslconfig` est lu par l'hôte AVANT le boot de la VM, alors que les
+  scripts de démarrage s'exécutent DANS WSL.
+- Vérification côté invité : `free -g` (48 Go → `Mem: 47` après surcoût noyau).
+
+## Journaux — on DÉCALE, on ne VIDE pas (2026-07-29)
+
+Écraser un journal à chaque relance détruit la trace qui explique le crash qui vient d'avoir lieu.
+Le 29/07, c'est `celery-gpu.log` (append) qui a identifié la tâche imager #42 responsable de
+4 kernel panics WSL2 — avec un `>` il aurait fallu **reproduire** le crash.
+
+- Brique : `wama/common/utils/log_rotation.py` + `manage.py rotate_logs`, appelé en tête des deux
+  scripts de démarrage, **services arrêtés** (renommer un fichier ouvert ne détache pas le
+  descripteur : le process continuerait d'écrire dans le `.1`).
+- `X.log` → `X.log.1` → … → `X.log.3`. **Le journal courant garde toujours le même nom** (on
+  renomme les anciens) → pas de fichier à retrouver après un redémarrage. Suivi en continu :
+  `tail -F` (majuscule, rouvre par nom), pas `tail -f`.
+- Cible = **liste explicite** `RUNTIME_LOGS`, pas `*.log` : un balayage glob ferait sortir les
+  journaux d'archive à tirage unique (`download_*.log`, `poc_*`) de la fenêtre et les supprimerait
+  au bout de 3 relances.
+- `wama-console.log` **exclu** : `console_utils.py` le fait déjà tourner par taille
+  (RotatingFileHandler 5 Mo ×3) avec le **même** nommage `.1/.2/.3`.
+- `[ModelSync]` cloisonné dans `logs/model-sync.log` (`propagate=False`) : il pesait **71 %** de
+  `celery-default.log` (138 328 lignes / 194 328). Après portage : 0 occurrence, fichier 28 Mo → 9,5 Ko.
+
 ## Voir aussi
 - `start_wama_dev.sh`, `start_wama_prod.sh`, `gunicorn_conf.py`, `.env` / `.env.example`.
 - `wama/common/management/commands/rotate_secrets.py` (rotation des secrets).
+- `scripts/set_wslconfig.ps1` (plafond RAM WSL2), `wama/common/utils/log_rotation.py` (journaux).
 - `CLAUDE.md` (proxy UGE, modèles), `memory/reference_proxy_uge.md`.
