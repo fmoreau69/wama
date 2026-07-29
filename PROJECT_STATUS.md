@@ -67,10 +67,21 @@
    Validé CPU-seul (aucune charge GPU) : 3 backends `issubclass(BaseModelBackend)`, `load`/
    `unload` enveloppés **une seule fois**, base restée abstraite, `is_available()` identique à
    l'avant-port, chaîne publique `get_backend('auto')` → whisper inchangée.
+   Effet de bord utile : le reclaim central (`MemoryManager._unload_transcriber_model`) appelle
+   `instance.unload()` — donc il **libère aussi la réservation** au gouverneur, sans une ligne
+   de plus.
    ⏳ **Reste de la même famille** : avatarizer, anonymizer et le service TTS (process séparé)
    n'ont **aucun** `backends/` — ce n'est pas un contrat concurrent mais une **absence de
    contrat** (chargement de modèle dispersé dans `utils/` + code vendoré codeformer). Leur
    rattachement est un portage plus lourd, à instruire séparément.
+3ter. **DIARISEUR PYANNOTE — tient de la VRAM hors contrat** (constaté 2026-07-29, non corrigé) :
+   `wama/transcriber/backends/pyannote_diarizer.py` n'est pas une classe backend mais un module à
+   pipeline global (`_pipeline`, `.to("cuda")`). Il est bien **libérable** (le reclaim central le
+   vide déjà), mais il ne **déclare** rien : il se charge dans `workers.py` **par-dessus** un ASR
+   déjà résident (whisper 10 Go réservés + pyannote non compté), donc le gouverneur sous-estime le
+   pic réel du transcriber. C'est le chemin même de la « diarisation tueuse » de la boucle de crash.
+   Correctif visé : en faire un backend du contrat commun (ou déclarer/libérer explicitement autour
+   du chargement du pipeline).
 4. **Presets `MODEL_SIZE_PRESETS` non audités** : seul `qwen-image` a été confronté au réel. Les
    autres peuvent sous-estimer de la même façon et re-déclencher FULL_GPU à tort.
 5. **Aucune validation GPU réelle** des correctifs (règle : pas de charge GPU WSL2 par Claude).
