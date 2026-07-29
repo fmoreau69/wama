@@ -280,6 +280,10 @@ APP_TIERS = {
     "composer": "basse",
     "avatarizer": "basse",
     "imager": "basse",
+    # Pseudo-app : campagne de tests nocturnes (`common.run_nightly_tests`).
+    # Charge des modèles, donc file GPU, mais ne doit JAMAIS passer devant un
+    # traitement demandé par un utilisateur.
+    "_nightly_tests": "basse",
 }
 
 DEFAULT_TIER = "normale"

@@ -9,16 +9,32 @@
 > (`docs/archive/`, 2026-07-25 — plan doc B8) après migration de son vivant : backlog → **§40**,
 > duplications → `REMOVAL_LEDGER R18/R19`, discipline git multi-instances → `CLAUDE.md`.
 
-## 0. 🔴 Gardes anti-boucle-de-crash GPU — portage INCOMPLET (2026-07-29)
+## 0. 🔴 Gardes anti-crash GPU & gouvernance des ressources — portage INCOMPLET (2026-07-29)
 
 > Contexte : 4 kernel panics WSL2 le 29/07 (`Machine Check Exception` Bank 0), causés par une
-> tâche imager redélivrée en boucle à chaque démarrage. Commits `610bdd5` (gardes) et `2b62e73`
-> (journaux). Détail complet : `memory/reference_orphan_task_reconcile.md`.
+> tâche imager redélivrée en boucle à chaque démarrage. Détail de l'incident :
+> `memory/reference_orphan_task_reconcile.md`. **Conception et reste-à-faire de la couche
+> ressources : `ROADMAP.md` §Gouvernance des ressources** (source unique — ne pas dupliquer ici).
 
-**Fait ✅** — `refuse_crash_redelivery` sur **10 tâches** (transcriber ×2 antérieur + imager ×2,
-enhancer ×2, describer, composer, synthesizer, avatarizer, anonymizer `process_single_media`) ;
-`reconcile_orphaned_running` ajouté à imager (**8 apps** au total) ; plafond allocateur CUDA
-+ pré-contrôle par composant via `ensure_free_vram` ; preset `qwen-image` 16 → 38 Go (mesuré).
+**Fait ✅**
+- *Gardes* — `refuse_crash_redelivery` sur **10 tâches** (transcriber ×2 antérieur + imager ×2,
+  enhancer ×2, describer, composer, synthesizer, avatarizer, anonymizer `process_single_media`) ;
+  `reconcile_orphaned_running` ajouté à imager (**8 apps**) ; preset `qwen-image` 16 → 38 Go (mesuré).
+- *Couche ressources* (`common/services/resource_governor.py` = **domicile unique**) — plafond
+  allocateur CUDA **par process** (3 points de câblage, couvre tout) ; registre VRAM **partagé
+  Redis** inter-process ; **déclaration automatique** des empreintes par
+  `BaseModelBackend.__init_subclass__` ; **priorités câblées**, WAMA-Lab prioritaire.
+- *Journaux* — rotation au démarrage (nom courant inchangé) ; détail de maintenance du catalogue
+  (`[ModelSync]`, `[ModelRegistry]`) cloisonné dans `logs/model-sync.log`.
+
+**Ce qui est UNIVERSEL vs ce qui demande une adoption par app** (mesuré 2026-07-29) :
+
+| Mécanisme | Portée réelle |
+|---|---|
+| Plafond allocateur CUDA | ✅ **universel** — par process, aucune action par app |
+| Priorités | ✅ **universel** — par le routage, toutes les routes GPU couvertes |
+| Déclaration VRAM auto | ⚠️ **conditionnelle** — 13 backends (imager 10, reader 2, composer 1) |
+| Garde de redélivrance | ⚠️ **par tâche** — 10 / 42 |
 
 **Reste ⏳ — par ordre de risque :**
 
@@ -32,6 +48,12 @@ enhancer ×2, describer, composer, synthesizer, avatarizer, anonymizer `process_
    `detect_with_model` / `merge_and_blur`, les plus GPU-lourdes), 2 synthesizer, 2 transcriber,
    model_manager ×4, common ×2.
 3. `reconcile_orphaned_running` **manquant** : anonymizer, avatarizer, translator, apps lab.
+3bis. **CONTRAT BACKEND CONCURRENT — transcriber** : `wama/transcriber/backends/base.py` définit
+   son propre `SpeechToTextBackend(ABC)` au lieu d'hériter de `BaseModelBackend`. Ses 3 backends
+   (whisper, vibevoice, qwen_asr) échappent donc à la déclaration automatique d'empreinte VRAM.
+   C'est exactement la duplication que la règle de centralisation vise ; le rattachement au
+   contrat commun est une tâche de **portage d'uniformisation**, pas de la couche ressources.
+   Même question à instruire pour avatarizer, anonymizer et le service TTS (process séparé).
 4. **Presets `MODEL_SIZE_PRESETS` non audités** : seul `qwen-image` a été confronté au réel. Les
    autres peuvent sous-estimer de la même façon et re-déclencher FULL_GPU à tort.
 5. **Aucune validation GPU réelle** des correctifs (règle : pas de charge GPU WSL2 par Claude).

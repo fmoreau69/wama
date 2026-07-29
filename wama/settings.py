@@ -448,7 +448,9 @@ if ENABLE_CELERY:
         'wama_lab.cam_analyzer.tasks.*': {'queue': 'gpu', 'priority': _prio('cam_analyzer')},
         'wama.converter.tasks.*': {'queue': 'default'},
         'wama.model_manager.tasks.*': {'queue': 'default'},
-        'common.run_nightly_tests': {'queue': 'gpu'},  # charge des modèles → queue GPU
+        # Charge des modèles → queue GPU, mais palier le plus BAS : une campagne
+        # de tests nocturnes ne doit jamais passer devant un traitement demandé.
+        'common.run_nightly_tests': {'queue': 'gpu', 'priority': _prio('_nightly_tests')},
     }
     CELERY_TASK_DEFAULT_QUEUE = 'default'
 

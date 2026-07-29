@@ -56,15 +56,27 @@ class ModelManagerConfig(AppConfig):
         if os.environ.get('RUN_MAIN') == 'true':
             self._start_file_watcher()
 
+    # Loggers de MAINTENANCE du catalogue : ils émettent une ligne par modèle à
+    # chaque réconciliation (~97 modèles), ce qui noie les traces de tâches
+    # réelles dans le journal du worker. Leur DÉTAIL part dans un journal dédié.
+    #
+    # Ce qui RESTE volontairement dans celery-default.log : la trace de niveau
+    # tâche, qui vient d'autres loggers — « Task model_manager.sync_models
+    # received », « Starting background model sync », le résumé « Model sync
+    # complete: +0, ~97, -0 » et « succeeded ». On voit donc toujours que la
+    # tâche a tourné et ce qu'elle a changé, sans le détail modèle par modèle.
+    _SYNC_LOGGERS = (
+        'wama.model_manager.services.model_sync',      # [ModelSync]
+        'wama.model_manager.services.model_registry',  # [ModelRegistry]
+    )
+
     def _attach_sync_log(self):
-        """Route les journaux de synchro du catalogue vers `logs/model-sync.log`."""
+        """Route le détail de maintenance du catalogue vers `logs/model-sync.log`."""
         try:
             from wama.common.utils.log_rotation import attach_dedicated_log
 
-            attach_dedicated_log(
-                'wama.model_manager.services.model_sync',
-                'model-sync.log',
-            )
+            for name in self._SYNC_LOGGERS:
+                attach_dedicated_log(name, 'model-sync.log')
         except Exception as exc:
             logger.debug(f"Journal dédié model-sync non attaché : {exc}")
 
