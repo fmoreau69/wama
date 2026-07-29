@@ -317,7 +317,7 @@
                                 <span>Prompt <span class="text-danger">*</span></span>
                                 <button type="button" class="btn btn-outline-warning btn-sm enhance-prompt-btn"
                                         data-target="prompt" data-mode="image"
-                                        title="Améliorer le prompt avec Gemma 4 (Ollama)">
+                                        title="Enrichir le prompt (LLM local)">
                                     <i class="fas fa-magic"></i> Améliorer
                                 </button>
                             </label>
@@ -662,7 +662,7 @@
                                 <span>Prompt <span class="text-danger">*</span></span>
                                 <button type="button" class="btn btn-outline-warning btn-sm enhance-prompt-btn"
                                         data-target="video_prompt" data-mode="video"
-                                        title="Améliorer le prompt avec Gemma 4 (Ollama)">
+                                        title="Enrichir le prompt (LLM local)">
                                     <i class="fas fa-magic"></i> Améliorer
                                 </button>
                             </label>
@@ -1042,7 +1042,19 @@
 
                     <!-- Prompt -->
                     <div class="mb-3">
-                        <label for="settings_prompt" class="form-label">Prompt</label>
+                        {% comment %}
+                        Même bouton que la card d'entrée : le handler est délégué sur `document`
+                        (imager/js/index.js) et l'endpoint common:enrich_prompt est générique →
+                        l'enrichissement reste accessible APRÈS la mise en file.
+                        {% endcomment %}
+                        <div class="d-flex justify-content-between align-items-center">
+                            <label for="settings_prompt" class="form-label mb-0">Prompt</label>
+                            <button type="button" class="btn btn-outline-warning btn-sm enhance-prompt-btn"
+                                    data-target="settings_prompt" data-mode="image"
+                                    title="Enrichir le prompt (LLM local)">
+                                <i class="fas fa-magic"></i> Améliorer
+                            </button>
+                        </div>
                         <textarea class="form-control bg-dark text-white border-secondary" id="settings_prompt" name="prompt" rows="3"></textarea>
                     </div>
 
@@ -1216,7 +1228,14 @@
 
                     <!-- Prompt -->
                     <div class="mb-3">
-                        <label for="video_settings_prompt" class="form-label">Prompt</label>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <label for="video_settings_prompt" class="form-label mb-0">Prompt</label>
+                            <button type="button" class="btn btn-outline-warning btn-sm enhance-prompt-btn"
+                                    data-target="video_settings_prompt" data-mode="video"
+                                    title="Enrichir le prompt (LLM local)">
+                                <i class="fas fa-magic"></i> Améliorer
+                            </button>
+                        </div>
                         <textarea class="form-control bg-dark text-white border-secondary" id="video_settings_prompt" name="prompt" rows="3"></textarea>
                     </div>
 

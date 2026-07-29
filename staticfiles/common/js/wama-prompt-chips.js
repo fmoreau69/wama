@@ -244,7 +244,38 @@
     // Resynchronise les chips si le prompt change ailleurs (ex : enrichissement, reset).
     Chips.prototype.refresh = function () { this._syncActive(); };
 
+    // Registre des instances : permet de retrouver les mots-clés ACTIFS d'un champ prompt
+    // depuis l'extérieur (enrichissement ✨) sans que l'app ait à garder la référence.
+    var _instances = [];
+
     global.WamaPromptChips = {
-        init: function (cfg) { return new Chips(cfg); },
+        init: function (cfg) { var c = new Chips(cfg); _instances.push(c); return c; },
+
+        /**
+         * Mots-clés actifs d'un champ prompt (élément ou sélecteur) → Array.
+         * Ce sont des termes CHOISIS par l'utilisateur, pas de la prose : ils partent en
+         * glossaire d'enrichissement pour être préservés VERBATIM (sinon le LLM les
+         * reformule et le chip s'éteint tout seul). Cf. common/views.api_enrich_prompt.
+         */
+        activeFor: function (el) {
+            var c = this.instanceFor(el);
+            return c ? Array.from(c.active) : [];
+        },
+
+        /** Instance pilotant un champ prompt (élément ou sélecteur), ou null. */
+        instanceFor: function (el) {
+            if (typeof el === 'string') el = document.querySelector(el);
+            if (!el) return null;
+            for (var i = 0; i < _instances.length; i++) {
+                if (_instances[i].target === el) return _instances[i];
+            }
+            return null;
+        },
+
+        /** Resynchronise l'état visuel des chips après un changement externe du champ. */
+        refreshFor: function (el) {
+            var c = this.instanceFor(el);
+            if (c) c.refresh();
+        },
     };
 })(window);

@@ -7,8 +7,12 @@ Enrichissement de prompt génératif (ROADMAP §16.6, hook « A » de la PromptP
 Garde-fous RESSOURCES (préoccupation récurrente de l'utilisateur — pas de cascade) :
 - **OFF par défaut** : ne fait quoi que ce soit que si `settings.WAMA_PROMPT_ENRICH` est vrai
   (interrupteur maître global) ET si le champ est marqué `enrich=True` en métadonnée.
-- **Une seule passe LLM locale légère** (`llm_chat`, modèle « fast »), `think=False`, `num_ctx`
-  plafonné → empreinte VRAM contenue.
+- **Une seule passe LLM locale** (`llm_chat`, défaut `qwen3.5:9b`), `think=False`, `num_ctx`
+  plafonné, `keep_alive=0` → empreinte VRAM contenue ET non résidente.
+  Le 9b est un choix MESURÉ (bench 2026-07-29, 4 prompts × 2 modèles + 3 tirages de contrôle) :
+  `qwen3.5:4b` est ~0,4 s plus rapide et 3,2 Go plus léger mais viole la clause de langue
+  d'émission 3/3 sur prompt court (répond en anglais) et dérive le sujet
+  (« navette autonome » → « voiture autonome »), soit les 2 règles centrales. Ne pas basculer.
 - **Garde de longueur** : un prompt déjà détaillé (> seuil) n'est PAS ré-enrichi (zéro appel).
 - **Cache** (Django cache) : un prompt identique n'est enrichi qu'une fois.
 - **Fail-safe** : toute erreur / réponse vide → prompt d'origine (aucune régression).
@@ -37,6 +41,9 @@ _MAX_INPUT_CHARS = 320
 # Plafond de génération (l'enrichi reste un paragraphe) + fenêtre KV plafonnée (VRAM).
 _NUM_PREDICT = 400
 _NUM_CTX = 8192
+# Résidence VRAM nulle : l'enrichissement PRÉCÈDE souvent un gros chargement GPU (diffusion).
+# Sans ça, Ollama garde les poids 5 min par défaut → ~6,6 Go squattés PENDANT la génération.
+_KEEP_ALIVE = '0'
 
 _SYSTEM = (
     "You are an expert prompt engineer for text-to-image generation. "
@@ -107,6 +114,7 @@ def enrich_generative(prompt: str, *, language: str = 'en', model: str = None,
                       {"role": "user", "content": user}],
             provider=provider, model=model,
             num_predict=_NUM_PREDICT, num_ctx=_NUM_CTX, think=False, timeout=timeout,
+            keep_alive=_KEEP_ALIVE,
         )
     except Exception as e:
         logger.debug(f"[prompt_enrichment] {e}")

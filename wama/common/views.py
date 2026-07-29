@@ -45,6 +45,10 @@ def api_enrich_prompt(request):
         app = (body.get('app') or '').strip() or None
         # `mode` accepté en alias (vocabulaire des switch de mode côté apps)
         domain = (body.get('domain') or body.get('mode') or '').strip() or None
+        # Mots-clés cliqués par l'utilisateur ([[wama-prompt-chips]]) : ce sont des termes
+        # CHOISIS, pas de la prose — ils partent en glossaire pour être préservés VERBATIM par
+        # l'enrichissement. Sans ça le LLM les reformule/absorbe et le chip s'éteint tout seul.
+        keywords = [str(k).strip() for k in (body.get('keywords') or []) if str(k).strip()]
     except Exception:
         return JsonResponse({'error': 'Invalid JSON'}, status=400)
 
@@ -55,8 +59,10 @@ def api_enrich_prompt(request):
 
     lang = (getattr(getattr(request.user, 'profile', None), 'preferred_language', None) or 'en')
     try:
-        enhanced = enrich_on_demand(prompt, app=app, domain=domain, language=lang)
-        return JsonResponse({'original': prompt, 'enhanced': enhanced})
+        enhanced = enrich_on_demand(prompt, app=app, domain=domain, language=lang,
+                                    glossary=keywords or None)
+        return JsonResponse({'original': prompt, 'enhanced': enhanced,
+                             'keywords': keywords})
     except RuntimeError as e:
         return JsonResponse({'error': str(e)})
 

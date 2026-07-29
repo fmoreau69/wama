@@ -43,6 +43,7 @@ def ollama_chat(
     num_ctx: Optional[int] = None,
     think: bool = True,
     timeout: float = 180.0,
+    keep_alive: Optional[str] = None,
 ) -> tuple[Optional[str], Optional[str]]:
     """
     Send a chat request to the local Ollama server.
@@ -60,6 +61,11 @@ def ollama_chat(
                      token budget on reasoning before the actual answer.
         timeout:     HTTP timeout in seconds (default 180). Use a shorter value
                      (e.g. 30) for non-critical tasks where fast-fail is preferred.
+        keep_alive:  Résidence VRAM du modèle APRÈS la réponse (défaut Ollama : 5m).
+                     Passer '0' pour décharger immédiatement — impératif pour les
+                     passes courtes qui PRÉCÈDENT un gros chargement GPU (ex.
+                     enrichissement de prompt avant une diffusion), sinon les
+                     poids du LLM squattent la VRAM pendant toute la génération.
 
     Returns:
         (text, None)  on success
@@ -83,6 +89,8 @@ def ollama_chat(
     }
     if not think:
         payload["think"] = False
+    if keep_alive is not None:
+        payload["keep_alive"] = keep_alive
 
     try:
         with httpx.Client(timeout=timeout, trust_env=False) as client:
@@ -109,6 +117,7 @@ def llm_chat(
     timeout: float = 180.0,
     api_key: Optional[str] = None,
     api_base: Optional[str] = None,
+    keep_alive: Optional[str] = None,
 ) -> tuple[Optional[str], Optional[str]]:
     """
     Unified LLM chat function — provider-agnostic entry point.
@@ -126,6 +135,8 @@ def llm_chat(
         num_predict: Max tokens to generate (Ollama) / max_tokens (cloud).
         num_ctx:    KV cache size in tokens (Ollama only, ignored for cloud).
         think:      Qwen3 thinking mode (Ollama only, ignored for cloud).
+        keep_alive: Résidence VRAM après réponse (Ollama only, ignoré pour le cloud).
+                    '0' = décharger tout de suite (cf. ollama_chat).
         timeout:    HTTP timeout in seconds.
         api_key:    Cloud API key (required for non-Ollama providers).
         api_base:   Override API base URL (e.g. custom Ollama host).
@@ -147,6 +158,7 @@ def llm_chat(
             num_ctx=num_ctx,
             think=think,
             timeout=timeout,
+            keep_alive=keep_alive,
         )
 
     # ── Phase 2: cloud provider via LiteLLM ───────────────────────────────────

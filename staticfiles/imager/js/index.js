@@ -309,13 +309,20 @@
             fetch(config.urls.enhancePrompt, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json', 'X-CSRFToken': config.csrfToken},
-                body: JSON.stringify({prompt: textarea.value, app: 'imager', domain: mode})
+                body: JSON.stringify({
+                    prompt: textarea.value, app: 'imager', domain: mode,
+                    // Mots-clés cliqués → glossaire : préservés VERBATIM par l'enrichissement.
+                    keywords: window.WamaPromptChips ? WamaPromptChips.activeFor(textarea) : []
+                })
             })
             .then(r => r.json())
             .then(data => {
                 if (data.enhanced) {
                     textarea.dataset.originalPrompt = textarea.value;
                     textarea.value = data.enhanced;
+                    // Les mots-clés cliqués sont préservés verbatim (glossaire) → resynchroniser
+                    // l'état visuel des chips sur le texte enrichi.
+                    if (window.WamaPromptChips) WamaPromptChips.refreshFor(textarea);
                 } else {
                     WamaApp.toast(data.error || 'Erreur lors de l\'amélioration du prompt', 'error');
                 }
