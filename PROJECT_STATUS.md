@@ -2058,8 +2058,16 @@ duplication describer (fix double-fire 2026-07-25) ; entrée URL ×3 apps.
   taille). Avancement publié dans le **cache Redis** (`BACKUP_ALL_CACHE_KEY`) et non dans
   l'`AsyncResult` → le suivi survit à un F5. `api_backup_models_start` est idempotent (refuse une
   2ᵉ passe concurrente, et vérifie auprès de Celery que la tâche du cache est vivante) +
-  `api_backup_models_progress`. **Reste à faire** : premier vrai run (non lancé — plusieurs
-  dizaines de milliers de fichiers sur le montage 9p).
+  `api_backup_models_progress`.
+  **✅ Premier vrai run 2026-07-29** : 1149 fichiers, 123 copiés (**10,0 Go**), 1026 déjà présents,
+  0 échec. **Intégrité vérifiée après coup** : 1149/1149 présents à distance avec taille identique,
+  0 manquant, 0 écart. Corrigé dans la foulée : l'UI affichait « Terminé — 0/1149 (0 %) » car
+  `processed` n'existait que dans les dicts du `progress_cb`, pas dans le `summary` republié au
+  dernier publish → clé absente → `undefined` → 0 (le run, lui, était correct).
+  ⚠ Piège de vérification : `AI-models/models/` contient **832 fichiers réels + 317 symlinks HF**
+  (`snapshots/ → blobs/`) = 1149. Comparer des `find -type f` local/distant induit en erreur ; et
+  tout script de contrôle doit exporter `WAMA_MODEL_BACKUP_PATH`, sinon il teste le défaut UNC
+  (inexistant sous WSL) et conclut faussement que 100 % des fichiers manquent.
 - **Corrigé 2026-07-28 — `api/backup/status/` en 502** : `get_status()` appelait `list_backups()`,
   soit 3 `rglob('*')` + `stat()` par fichier sur les 70 modèles distants = **139 s** mesurées →
   Apache coupait avant la réponse, d'où « Error checking backup » (le `catch` du fetch). Ajout de
@@ -2077,8 +2085,12 @@ duplication describer (fix double-fire 2026-07-25) ; entrée URL ×3 apps.
   ici à tort, faute d'avoir suivi la variable jusqu'à son export — cf. règle « tracer le chaînage
   d'exécution avant d'affirmer un trou ».)
 - **Validé** : smoke complet 2026-07-27 contre la base Windows (dump 0,4 Mo → NAS → rotation),
-  artefacts de test supprimés, dossier `DB\` conservé. **Reste à faire** : premier vrai dump de la
-  base LIVE (WSL2) une fois le cluster Postgres 16 redémarré.
+  artefacts de test supprimés, dossier `DB\` conservé.
+- **✅ Premier vrai dump de la base LIVE (WSL2) — 2026-07-29** : `wama_db_2026-07-29_1708.dump`,
+  **88,6 Mo**, présent en local ET sur le NAS (`DB\`) à taille identique. Validé par
+  `pg_restore --list` : 92 tables avec données (`auth_user`, `model_manager_aimodel`,
+  `transcriber_*`…). L'écart 88,6 Mo vs 0,4 Mo confirme le constat ci-dessous : la base Windows
+  n'était bien qu'un schéma + seed. Ce point de §42 est clos.
 
 ### Constat : la base Postgres Windows n'est PAS la base de travail
 Mesuré 2026-07-27 — Postgres 17 (Windows, `postgresql-x64-17`, port 5432) contient `wama_db` :
