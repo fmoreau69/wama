@@ -9,6 +9,37 @@
 > (`docs/archive/`, 2026-07-25 — plan doc B8) après migration de son vivant : backlog → **§40**,
 > duplications → `REMOVAL_LEDGER R18/R19`, discipline git multi-instances → `CLAUDE.md`.
 
+## 0. 🔴 Gardes anti-boucle-de-crash GPU — portage INCOMPLET (2026-07-29)
+
+> Contexte : 4 kernel panics WSL2 le 29/07 (`Machine Check Exception` Bank 0), causés par une
+> tâche imager redélivrée en boucle à chaque démarrage. Commits `610bdd5` (gardes) et `2b62e73`
+> (journaux). Détail complet : `memory/reference_orphan_task_reconcile.md`.
+
+**Fait ✅** — `refuse_crash_redelivery` sur **10 tâches** (transcriber ×2 antérieur + imager ×2,
+enhancer ×2, describer, composer, synthesizer, avatarizer, anonymizer `process_single_media`) ;
+`reconcile_orphaned_running` ajouté à imager (**8 apps** au total) ; plafond allocateur CUDA
++ pré-contrôle par composant via `ensure_free_vram` ; preset `qwen-image` 16 → 38 Go (mesuré).
+
+**Reste ⏳ — par ordre de risque :**
+
+1. **`_cap_cuda_allocator()` n'est appelé QUE depuis `MemoryManager.apply_memory_strategy`** →
+   ne couvre que le chemin diffusers de l'imager. **Tout backend qui fait `.to('cuda')` en direct
+   peut encore déborder en RAM hôte et tuer la VM** : transcriber (vibevoice), reader (olmocr),
+   describer (video_describer), imager ltx/cogvideox, avatarizer (codeformer/facelib), synthesizer
+   (`tts_service.py`). **Correctif : l'appeler UNE fois par process CUDA** (signal Celery
+   `worker_process_init` + `AppConfig.ready()`), pas par chemin de chargement. ← le vrai trou.
+2. **32 tâches sur 42 sans garde de redélivrance** : `wama_lab/cam_analyzer` (13), reader ×2,
+   converter, studio, face_analyzer, 3 tâches anonymizer (dont les sous-tâches de chord
+   `detect_with_model` / `merge_and_blur`, les plus GPU-lourdes), 2 synthesizer, 2 transcriber,
+   model_manager ×4, common ×2.
+3. `reconcile_orphaned_running` **manquant** : anonymizer, avatarizer, translator, apps lab.
+4. **Presets `MODEL_SIZE_PRESETS` non audités** : seul `qwen-image` a été confronté au réel. Les
+   autres peuvent sous-estimer de la même façon et re-déclencher FULL_GPU à tort.
+5. **Aucune validation GPU réelle** des correctifs (règle : pas de charge GPU WSL2 par Claude).
+   Preuve attendue au prochain qwen-image : `Strategy: MODEL_OFFLOAD` et non `FULL_GPU`.
+6. Grille de conformité **non re-mesurée** depuis l'ajout de `reconcile_orphaned_running` à
+   l'imager (`python manage.py check_app_conformity`, skill `/conformite`).
+
 ## 1. PromptPipeline (prompts centralisés §16.6 / §10.B) — bien avancé
 Doc : [`PROMPT_PIPELINE.md`](PROMPT_PIPELINE.md).
 - ✅ A Enrichissement génératif (`prompt_enrichment.py`, OFF par défaut `WAMA_PROMPT_ENRICH`)
