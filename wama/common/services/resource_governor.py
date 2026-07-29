@@ -47,6 +47,7 @@ from __future__ import annotations
 
 import logging
 import os
+from contextlib import contextmanager
 
 logger = logging.getLogger(__name__)
 
@@ -176,6 +177,31 @@ def release_vram(owner: str) -> bool:
     except Exception as exc:
         logger.debug(f"[ResourceGovernor] release_vram({owner}) : {exc}")
         return False
+
+
+@contextmanager
+def vram_reservation(owner: str, gb: float):
+    """
+    Réserve `gb` pour la DURÉE d'un bloc, puis libère — y compris si le bloc lève.
+
+    Destiné aux consommateurs de VRAM qui ne sont PAS des `BaseModelBackend` résidents :
+    typiquement un **sous-processus** (MuseTalk, CodeFormer) ou un **service séparé** (TTS).
+    Leur empreinte est invisible du process appelant — sans déclaration, le gouverneur croit
+    la VRAM libre et laisse démarrer une autre tâche GPU par-dessus. C'est exactement le
+    scénario qui a produit les kernel panics du 29/07.
+
+    ⚠️ Une réservation expire après `RESERVATION_TTL_S` (1 h) — garde-fou pour qu'un process
+    mort ne gèle pas le registre. Ne pas envelopper un bloc plus long sans rafraîchissement
+    (les appelants actuels sont bornés par un `timeout` de 10 et 30 min).
+
+        with vram_reservation(f"avatarizer.musetalk:{os.getpid()}", 8.0):
+            subprocess.run([...], timeout=600)
+    """
+    reserve_vram(owner, gb)
+    try:
+        yield
+    finally:
+        release_vram(owner)
 
 
 def reservations(exclude: str | None = None) -> dict[str, float]:

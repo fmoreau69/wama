@@ -178,13 +178,21 @@ manifeste** (ce que le kind `app` capte + cible de projection).
 - **Contrat de backend commun** (`common/backends/base.py::BaseModelBackend`) : cycle de vie
   `load/is_loaded/unload/process`, dépendances déclaratives (`REQUIRED_PACKAGES` → `missing_packages()` /
   `is_available()` / `pip_install_spec()`), et **déclaration automatique de l'empreinte VRAM** au gouverneur
-  via `__init_subclass__` (cf. `ROADMAP.md` §Gouvernance des ressources). **ADOPTION 6/10 apps** — imager,
+  via `__init_subclass__` (cf. `ROADMAP.md` §Gouvernance des ressources). **ADOPTION 7/10 apps** — imager,
   **transcriber** (2026-07-29 : `SpeechToTextBackend` était un contrat CONCURRENT hérité d'`ABC`, ses
-  3 moteurs échappaient donc à tout le mécanisme), enhancer, reader, composer ; restent **avatarizer**,
-  **anonymizer** et le **service TTS**, qui n'ont aucun `backends/` (chargements dispersés dans `utils/` +
-  vendoré) — portage plus lourd, cf. `PROJECT_STATUS.md` §0 (3bis).
+  3 moteurs échappaient donc à tout le mécanisme, + `PyannoteDiarizerBackend`), **anonymizer** (29/07 :
+  aucun `backends/`, 3 porteurs de modèle rattachés par `DetectionBackend`), enhancer, reader, composer.
   ⚠ Règle : une app qui a besoin d'un contrat plus riche **spécialise** `BaseModelBackend` (verbe métier +
-  capacités), elle n'en redéfinit JAMAIS un à côté.
+  capacités), elle n'en redéfinit JAMAIS un à côté. Le point de levier est la **classe intermédiaire** :
+  `__init_subclass__` enveloppe les `load`/`unload` à n'importe quelle profondeur, donc rattacher
+  l'intermédiaire couvre TOUS les backends concrets sans les toucher (3 classes → 7 backends le 29/07).
+  ⚠ **Piège** : mapper le verbe historique par délégation (`def load_model(self, *a, **k): return
+  self.load(*a, **k)`), JAMAIS par alias de classe (`load_model = load`) — l'alias capture la fonction
+  avant l'enveloppe, et le mécanisme devient présent mais inopérant.
+- **Modèles hors process** (sous-processus, service séparé) : l'héritage ne s'y applique pas — rien n'est
+  résident dans le worker. Brique dédiée `resource_governor.vram_reservation(owner, gb)` (contextmanager).
+  Adoptée par **avatarizer** (MuseTalk + CodeFormer en `subprocess`) ; reste le **service TTS**, dont la
+  déclaration doit venir de l'intérieur du service. Cf. `PROJECT_STATUS.md` §0 (3quinquies).
 - **⚠ À réintégrer depuis l'archive** : le détail par backend (ex-`BACKEND_CARTOGRAPHY.md`) n'a pas été
   re-tracé en profondeur ici — pointeur `docs/archive/BACKEND_CARTOGRAPHY.md` en attendant sa fusion en F4.
 

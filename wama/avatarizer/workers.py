@@ -31,6 +31,7 @@ from django.core.cache import cache
 from django.db import close_old_connections
 
 from .models import AvatarJob
+from wama.common.services.resource_governor import vram_reservation
 from wama.common.utils.console_utils import push_console_line
 
 logger = logging.getLogger(__name__)
@@ -39,6 +40,13 @@ logger = logging.getLogger(__name__)
 APP_DIR        = Path(__file__).parent
 MUSETALK_DIR   = APP_DIR / 'musetalk'
 CODEFORMER_DIR = APP_DIR / 'codeformer'
+
+# Empreintes VRAM des SOUS-PROCESSUS GPU, déclarées au gouverneur le temps de leur exécution.
+# ⚠️ ESTIMATIONS NON MESURÉES (MuseTalk v15 = UNet + VAE + Whisper + DWPose ; CodeFormer +
+# face_upsample). Même réserve que les presets `MODEL_SIZE_PRESETS` (PROJECT_STATUS §0, point 4) :
+# à confronter au réel — une sous-estimation laisse démarrer une autre tâche GPU par-dessus.
+MUSETALK_VRAM_GB   = 8.0
+CODEFORMER_VRAM_GB = 3.0
 
 # Checkpoints dans AI-models/ (organisés par type, pas par application)
 MUSETALK_MODELS_DIR   = settings.BASE_DIR / 'AI-models' / 'models' / 'lipsync' / 'musetalk'
@@ -161,22 +169,26 @@ def _run_musetalk(image_path: str, audio_path: str, output_dir: str, bbox_shift:
 
     logger.info(f"[avatarizer] MuseTalk config : {config_path}")
 
-    result = subprocess.run(
-        [
-            sys.executable, '-W', 'ignore::UserWarning',
-            '-m', 'scripts.inference',
-            '--inference_config', str(config_path),
-            '--version', 'v15',
-            '--unet_model_path', './models/musetalkV15/unet.pth',
-            '--unet_config', './models/musetalkV15/musetalk.json',
-            '--result_dir', str(output_dir),   # MuseTalk écrit dans <output_dir>/v15/
-        ],
-        cwd=str(MUSETALK_DIR),
-        env=_build_musetalk_env(),
-        capture_output=True,
-        text=True,
-        timeout=600,
-    )
+    # La VRAM de MuseTalk est consommée par un SOUS-PROCESSUS : invisible du gouverneur, qui
+    # croirait la VRAM libre et laisserait une autre tâche GPU démarrer par-dessus. On la
+    # déclare donc pour la durée de l'appel (cf. `vram_reservation`, PROJECT_STATUS §0).
+    with vram_reservation(f"avatarizer.musetalk:{os.getpid()}", MUSETALK_VRAM_GB):
+        result = subprocess.run(
+            [
+                sys.executable, '-W', 'ignore::UserWarning',
+                '-m', 'scripts.inference',
+                '--inference_config', str(config_path),
+                '--version', 'v15',
+                '--unet_model_path', './models/musetalkV15/unet.pth',
+                '--unet_config', './models/musetalkV15/musetalk.json',
+                '--result_dir', str(output_dir),   # MuseTalk écrit dans <output_dir>/v15/
+            ],
+            cwd=str(MUSETALK_DIR),
+            env=_build_musetalk_env(),
+            capture_output=True,
+            text=True,
+            timeout=600,
+        )
 
     # Toujours capturer la sortie pour le diagnostic
     musetalk_output = ((result.stdout or '') + (result.stderr or '')).strip()
@@ -278,20 +290,22 @@ def _run_codeformer(video_path: str, output_dir: str) -> str:
     cf_out.mkdir(parents=True, exist_ok=True)
 
     try:
-        result = subprocess.run(
-            [
-                sys.executable, 'inference_codeformer.py',
-                '-i', str(Path(video_path).resolve()),
-                '-o', str(cf_out.resolve()),
-                '--face_upsample',
-                '-w', '0.7',   # fidelity weight : 0 = amélioration max, 1 = fidélité max
-                '-s', '2',     # upscale ×2
-            ],
-            cwd=str(CODEFORMER_DIR),
-            capture_output=True,
-            text=True,
-            timeout=1800,   # 30 min — chargement modèle + traitement vidéo longue
-        )
+        # Même raison que MuseTalk : sous-processus GPU, empreinte déclarée le temps de l'appel.
+        with vram_reservation(f"avatarizer.codeformer:{os.getpid()}", CODEFORMER_VRAM_GB):
+            result = subprocess.run(
+                [
+                    sys.executable, 'inference_codeformer.py',
+                    '-i', str(Path(video_path).resolve()),
+                    '-o', str(cf_out.resolve()),
+                    '--face_upsample',
+                    '-w', '0.7',   # fidelity weight : 0 = amélioration max, 1 = fidélité max
+                    '-s', '2',     # upscale ×2
+                ],
+                cwd=str(CODEFORMER_DIR),
+                capture_output=True,
+                text=True,
+                timeout=1800,   # 30 min — chargement modèle + traitement vidéo longue
+            )
     except subprocess.TimeoutExpired:
         logger.warning("[avatarizer] CodeFormer timeout (30 min) — on garde la vidéo MuseTalk.")
         return video_path

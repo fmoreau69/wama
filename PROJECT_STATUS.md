@@ -33,7 +33,8 @@
 |---|---|
 | Plafond allocateur CUDA | ✅ **universel** — par process, aucune action par app |
 | Priorités | ✅ **universel** — par le routage, toutes les routes GPU couvertes |
-| Déclaration VRAM auto | ⚠️ **conditionnelle** — 17 backends concrets (imager 9, **transcriber 3** depuis le 29/07, enhancer 2, reader 2, composer 1) |
+| Déclaration VRAM auto | ⚠️ **conditionnelle** — 21 backends concrets, 9 sous-classes directes (imager 9, **transcriber 4** dont pyannote, **anonymizer 3**, enhancer 2, reader 2, composer 1) — les 7 ajouts du 29/07 sont venus de 3 classes intermédiaires, pas de 7 rattachements |
+| Déclaration des SOUS-PROCESSUS GPU | ⚠️ **explicite** — brique `vram_reservation()` ; adoptée par avatarizer (MuseTalk, CodeFormer), reste le service TTS |
 | Garde de redélivrance | ⚠️ **par tâche** — 10 / 42 |
 
 **Reste ⏳ — par ordre de risque :**
@@ -70,10 +71,10 @@
    Effet de bord utile : le reclaim central (`MemoryManager._unload_transcriber_model`) appelle
    `instance.unload()` — donc il **libère aussi la réservation** au gouverneur, sans une ligne
    de plus.
-   ⏳ **Reste de la même famille** : avatarizer, anonymizer et le service TTS (process séparé)
-   n'ont **aucun** `backends/` — ce n'est pas un contrat concurrent mais une **absence de
-   contrat** (chargement de modèle dispersé dans `utils/` + code vendoré codeformer). Leur
-   rattachement est un portage plus lourd, à instruire séparément.
+   ✅ **Suite traitée le même jour** — voir 3quater (anonymizer) et 3quinquies (avatarizer).
+   ⏳ Reste le **service TTS** (process uvicorn séparé) : sa déclaration doit venir de
+   l'intérieur du service, au chargement de son modèle (il reste résident entre deux appels,
+   donc l'envelopper depuis l'appelant HTTP serait faux).
 3ter. ~~**DIARISEUR PYANNOTE — VRAM hors contrat**~~ ✅ **PORTÉ 2026-07-29** —
    `pyannote_diarizer.py` n'était pas une classe backend mais un module à pipeline global
    (`_pipeline`, `.to("cuda")`), chargé dans `workers.py` **par-dessus** un ASR déjà résident :
@@ -93,6 +94,29 @@
    posée puis effacée, registre revenu à l'état initial), `diarize([])` ne charge rien.
    ⚠ Non enregistré dans `TranscriberBackendManager` **volontairement** : ce n'est pas un moteur
    alternatif ; l'y mettre l'exposerait au choix de moteur et à `get_backend('auto')`.
+3quater. ✅ **ANONYMIZER — porté 2026-07-29** : l'app n'avait **aucun** `backends/`, alors que
+   c'est elle qui enchaîne les sous-tâches GPU les plus lourdes (chord `detect_with_model` /
+   `merge_and_blur`) — celles qui ont déclenché la boucle de crash. Ses 3 porteurs de modèle
+   (`Anonymize` et `DetectionOnlyProcessor` → YOLO, `SAM3Processor` → SAM3) avaient déjà la
+   **forme** du contrat (`load_model()`, parfois `unload()`/`cleanup()`) sans en hériter.
+   Une classe intermédiaire `anonymizer/backends/base.py::DetectionBackend` mappe le verbe
+   historique `load_model()` sur le `load()` du contrat : **aucun appelant modifié**, les 3
+   classes couvertes. Ajouts au passage : `Anonymize.unload()` (son modèle YOLO n'était
+   **jamais** libéré) et `SAM3Processor.unload()`, avec `cleanup()` qui y délègue — il ne
+   relâchait que les références Python, pas la réservation.
+   ⚠️ **Piège documenté dans la classe** : ne PAS écrire `load_model = load` (alias de classe).
+   L'alias capturerait la fonction **avant** que `__init_subclass__` n'enveloppe `load` — les
+   appelants passeraient à côté de la déclaration, mécanisme présent et inopérant. Seule la
+   délégation `self.load(...)` garantit que tous les chemins traversent l'enveloppe.
+3quinquies. ✅ **AVATARIZER — porté 2026-07-29, par un AUTRE mécanisme** : ici l'héritage ne
+   s'applique pas — MuseTalk et CodeFormer tournent en **sous-processus** (`subprocess.run`,
+   code vendoré upstream), donc aucun modèle n'est résident dans le worker. Leur VRAM était
+   totalement invisible du gouverneur, qui pouvait laisser démarrer une autre tâche GPU
+   par-dessus. Nouvelle brique commune `resource_governor.vram_reservation(owner, gb)`
+   (contextmanager : réserve, libère en `finally` **y compris sur exception**), adoptée par les
+   deux appels. ⚠️ Empreintes **NON MESURÉES** (MuseTalk 8 Go, CodeFormer 3 Go) — même réserve
+   que le point 4 ci-dessous. ⚠️ La réservation expire après 1 h (`RESERVATION_TTL_S`) : OK ici
+   (timeouts de 10 et 30 min), pas pour un bloc plus long sans rafraîchissement.
 4. **Presets `MODEL_SIZE_PRESETS` non audités** : seul `qwen-image` a été confronté au réel. Les
    autres peuvent sous-estimer de la même façon et re-déclencher FULL_GPU à tort.
 5. **Aucune validation GPU réelle** des correctifs (règle : pas de charge GPU WSL2 par Claude).

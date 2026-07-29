@@ -377,13 +377,17 @@ fichier, pas dans les 11 apps.
    WAMA-Data sera surtout CPU → c'est là que ça se jouera.
 4. ~~Appeler `reserve_vram()` aux points de chargement~~ ✅ 2026-07-29 via `BaseModelBackend`
    (ci-dessus). **Restriction connue** : ne couvre que les backends qui héritent de
-   `BaseModelBackend` — 7 sous-classes directes à ce jour (imager `ImageGenerationBackend`,
-   **transcriber `SpeechToTextBackend`** ✅ 29/07, enhancer ×2, reader ×2, composer), soit
-   17 backends concrets. Restent **avatarizer**, **anonymizer** et le **service TTS** (process
-   uvicorn séparé) : contrairement au transcriber (contrat concurrent, donc simple rattachement),
-   ceux-là n'ont **aucun** `backends/` — leurs chargements de modèles vivent dans `utils/` et,
-   pour avatarizer, dans du code vendoré (codeformer). C'est un portage d'uniformisation plus
-   lourd, pas un simple changement de classe de base. Cf. `PROJECT_STATUS.md` §0 (3bis).
+   `BaseModelBackend` — **9 sous-classes directes** au 29/07 (imager `ImageGenerationBackend`,
+   transcriber `SpeechToTextBackend` + `PyannoteDiarizerBackend`, anonymizer `DetectionBackend`,
+   enhancer ×2, reader ×2, composer), soit **21 backends concrets**. Les 7 ajouts du 29/07 sont
+   venus de **3 classes intermédiaires**, pas de 7 rattachements : `__init_subclass__` enveloppe
+   les `load`/`unload` à n'importe quelle profondeur d'héritage — c'est le point de levier.
+   **L'héritage ne couvre pas tout** : un modèle chargé dans un **sous-processus** ou un
+   **service séparé** n'est résident dans aucun objet Python du worker. Pour ceux-là, la brique
+   est `vram_reservation(owner, gb)` (contextmanager, réserve/libère autour du bloc) — adoptée
+   par **avatarizer** (MuseTalk, CodeFormer) ✅ 29/07. Reste le **service TTS**, dont la
+   déclaration doit venir de l'intérieur du service (son modèle reste résident entre deux
+   appels). Cf. `PROJECT_STATUS.md` §0 (3bis → 3quinquies).
 
 ### Warm-loading VRAM — modèles temps réel chauds (chantier prod)
 > But : sur serveur de prod (grosse VRAM), garder chargés les modèles **temps réel**
