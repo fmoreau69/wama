@@ -74,14 +74,25 @@
    n'ont **aucun** `backends/` — ce n'est pas un contrat concurrent mais une **absence de
    contrat** (chargement de modèle dispersé dans `utils/` + code vendoré codeformer). Leur
    rattachement est un portage plus lourd, à instruire séparément.
-3ter. **DIARISEUR PYANNOTE — tient de la VRAM hors contrat** (constaté 2026-07-29, non corrigé) :
-   `wama/transcriber/backends/pyannote_diarizer.py` n'est pas une classe backend mais un module à
-   pipeline global (`_pipeline`, `.to("cuda")`). Il est bien **libérable** (le reclaim central le
-   vide déjà), mais il ne **déclare** rien : il se charge dans `workers.py` **par-dessus** un ASR
-   déjà résident (whisper 10 Go réservés + pyannote non compté), donc le gouverneur sous-estime le
-   pic réel du transcriber. C'est le chemin même de la « diarisation tueuse » de la boucle de crash.
-   Correctif visé : en faire un backend du contrat commun (ou déclarer/libérer explicitement autour
-   du chargement du pipeline).
+3ter. ~~**DIARISEUR PYANNOTE — VRAM hors contrat**~~ ✅ **PORTÉ 2026-07-29** —
+   `pyannote_diarizer.py` n'était pas une classe backend mais un module à pipeline global
+   (`_pipeline`, `.to("cuda")`), chargé dans `workers.py` **par-dessus** un ASR déjà résident :
+   whisper 10 Go réservés + pyannote non compté, donc pic réel sous-estimé sur le chemin même de
+   la « diarisation tueuse ». Le pipeline vit maintenant dans un `PyannoteDiarizerBackend
+   (BaseModelBackend)` ; l'API module (`is_available`/`diarize`) est inchangée pour `workers.py`.
+   🔴 **FUITE RÉELLE trouvée au passage** (et corrigée) : `MemoryManager._unload_transcriber_model`
+   (`memory_manager.py:483`) importait `unload_pipeline()` **qui n'existait nulle part**.
+   L'`ImportError` étant avalé en `logger.debug`, le reclaim central **croyait** libérer la VRAM
+   de pyannote et ne libérait rien — jusqu'à la mort du process. La fonction existe désormais et
+   délègue à `unload()` (donc `release_vram`). *(La ligne « il est bien libérable, le reclaim le
+   vide déjà » écrite plus tôt le 29/07 était fausse — vérification faite, l'appelant était seul.)*
+   Leçon transposable : un `except Exception: logger.debug(...)` autour d'un **import** transforme
+   une fonction manquante en no-op silencieux. À traquer ailleurs dans `memory_manager`.
+   Validé CPU-seul, sans charger le pipeline : `load`/`unload` enveloppés, aller-retour
+   `reserve_vram` → `release_vram` **prouvé sur le registre Redis partagé** (réservation 2 Go
+   posée puis effacée, registre revenu à l'état initial), `diarize([])` ne charge rien.
+   ⚠ Non enregistré dans `TranscriberBackendManager` **volontairement** : ce n'est pas un moteur
+   alternatif ; l'y mettre l'exposerait au choix de moteur et à `get_backend('auto')`.
 4. **Presets `MODEL_SIZE_PRESETS` non audités** : seul `qwen-image` a été confronté au réel. Les
    autres peuvent sous-estimer de la même façon et re-déclencher FULL_GPU à tort.
 5. **Aucune validation GPU réelle** des correctifs (règle : pas de charge GPU WSL2 par Claude).
