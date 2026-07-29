@@ -64,6 +64,11 @@ echo "=== Seeding access policies + prompt keywords ==="
 python manage.py seed_access --settings=$DJANGO_SETTINGS_MODULE || true
 python manage.py seed_prompt_keywords --settings=$DJANGO_SETTINGS_MODULE || true
 
+# Journaux : on DÉCALE (X.log → X.log.1 → …), on n'écrase pas — la trace d'un crash
+# doit survivre au redémarrage qui suit. Services arrêtés ici, avant relance.
+echo "=== Rotating logs (3 runs conservés) ==="
+python manage.py rotate_logs --settings=$DJANGO_SETTINGS_MODULE || true
+
 # Playwright Chromium (HTML→PDF fidèle, brique commune) — provisioning idempotent, non bloquant.
 # Navigateur = cache Playwright par défaut (~/.cache/ms-playwright) ; fallback WeasyPrint si absent.
 if python -c "import playwright" 2>/dev/null; then

@@ -58,7 +58,13 @@ def _cap_cuda_allocator() -> None:
 
 
 def _component_size_gb(component) -> float:
-    """Empreinte réelle d'un composant de pipeline (paramètres + buffers), en Go."""
+    """
+    Empreinte réelle d'un composant de pipeline (paramètres + buffers), en Go.
+
+    Complémentaire de ``MemoryManager.estimate_model_size(path)``, qui estime depuis
+    un CHEMIN (presets + taille de fichier) : ici on mesure un module DÉJÀ instancié,
+    seul moyen de connaître l'empreinte vraie quand le preset est faux.
+    """
     try:
         n = sum(p.numel() * p.element_size() for p in component.parameters())
         n += sum(b.numel() * b.element_size() for b in component.buffers())
@@ -644,16 +650,23 @@ class MemoryManager:
                 # très sous-estimée. Sans ce contrôle, un composant trop gros ne lève pas
                 # d'OOM sous WDDM — il déborde en RAM hôte et fait paniquer le noyau WSL
                 # (cf. _cap_cuda_allocator). On échoue net pour tomber sur MODEL_OFFLOAD.
+                #
+                # On passe par la brique COMMUNE ensure_free_vram (mesure → reclaim des
+                # unloaders enregistrés → re-mesure) : un composant qui ne tient pas
+                # seulement parce qu'une AUTRE app squatte la VRAM doit d'abord
+                # déclencher un reclaim, pas faire échouer FULL_GPU.
                 size_gb = _component_size_gb(component)
-                free_gb = torch.cuda.mem_get_info()[0] / (1024 ** 3)
-                if size_gb and free_gb - size_gb < FULL_GPU_MIN_FREE_GB:
+                if size_gb and not MemoryManager.ensure_free_vram(
+                    size_gb, headroom_gb=FULL_GPU_MIN_FREE_GB
+                ):
+                    info = MemoryManager.get_gpu_memory_info() or {}
                     raise RuntimeError(
                         f"CUDA out of memory (pré-contrôle FULL_GPU) : {attr} pèse "
-                        f"{size_gb:.1f} GB, seulement {free_gb:.1f} GB libres "
-                        f"(marge requise {FULL_GPU_MIN_FREE_GB:.1f} GB)"
+                        f"{size_gb:.1f} GB, seulement {info.get('free_gb', 0):.1f} GB "
+                        f"libres après reclaim (marge requise {FULL_GPU_MIN_FREE_GB:.1f} GB)"
                     )
 
-                logger.info(f"[MemoryManager]   → moving {attr} to {device} ({size_gb:.1f} GB, {free_gb:.1f} GB libres)…")
+                logger.info(f"[MemoryManager]   → moving {attr} to {device} ({size_gb:.1f} GB)…")
                 setattr(pipeline, attr, component.to(device))
                 torch.cuda.synchronize()
                 vram = torch.cuda.memory_allocated() / (1024 ** 3)

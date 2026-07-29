@@ -22,6 +22,7 @@ class ModelManagerConfig(AppConfig):
     _SKIP_CMDS = [
         'migrate', 'makemigrations', 'collectstatic',
         'sync_models', 'verify_models', 'shell', 'dbshell', 'test', 'createsuperuser',
+        'rotate_logs',  # pure manipulation de fichiers : aucune synchro à déclencher
     ]
 
     def ready(self):
@@ -35,6 +36,14 @@ class ModelManagerConfig(AppConfig):
         # Enregistre le garde-fou anti-dérive des enums (registre ⊆ DB), cf. checks.py / F5.
         from . import checks  # noqa: F401  (l'import déclenche @register)
 
+        # Journal DÉDIÉ pour la synchro du catalogue (brique COMMUNE) : `[ModelSync]`
+        # émet une ligne par modèle à chaque réconciliation et représentait 71 % de
+        # celery-default.log (138 328 lignes sur 194 328), noyant les traces de tâches
+        # réelles. `propagate=False` : ces lignes ne remontent plus au logger racine.
+        # La remise à zéro se fait par `manage.py rotate_logs` au démarrage, PAS ici
+        # (ready() tourne dans chacun des ~7 process).
+        self._attach_sync_log()
+
         if any(cmd in sys.argv for cmd in self._SKIP_CMDS):
             return
 
@@ -46,6 +55,18 @@ class ModelManagerConfig(AppConfig):
         # serait dupliqué et inutile → on s'appuie sur sync-démarrage + Beat.
         if os.environ.get('RUN_MAIN') == 'true':
             self._start_file_watcher()
+
+    def _attach_sync_log(self):
+        """Route les journaux de synchro du catalogue vers `logs/model-sync.log`."""
+        try:
+            from wama.common.utils.log_rotation import attach_dedicated_log
+
+            attach_dedicated_log(
+                'wama.model_manager.services.model_sync',
+                'model-sync.log',
+            )
+        except Exception as exc:
+            logger.debug(f"Journal dédié model-sync non attaché : {exc}")
 
     def _dispatch_startup_sync(self):
         """Dispatch (une seule fois, tous process confondus) une réconciliation au démarrage."""

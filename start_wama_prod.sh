@@ -119,6 +119,18 @@ python manage.py seed_access --settings=$DJANGO_SETTINGS_MODULE || true
 python manage.py seed_prompt_keywords --settings=$DJANGO_SETTINGS_MODULE || true
 
 # ------------------------------------------------------
+# JOURNAUX — rotation, PAS écrasement
+# ------------------------------------------------------
+# On DÉCALE les journaux du run précédent (X.log → X.log.1 → …) au lieu de les
+# vider : après un crash, la trace qui l'explique doit survivre au redémarrage
+# qui suit, sinon il faut reproduire le bug pour l'étudier (vécu 29/07/2026 :
+# c'est celery-gpu.log conservé qui a identifié la boucle de crash WSL2).
+# IMPÉRATIF : ici, services ARRÊTÉS (kill plus haut) et AVANT de les relancer —
+# renommer un fichier encore ouvert ne détacherait pas le descripteur.
+echo "=== Rotating logs (3 runs conservés) ==="
+python manage.py rotate_logs --settings=$DJANGO_SETTINGS_MODULE || true
+
+# ------------------------------------------------------
 # PLAYWRIGHT CHROMIUM  (converter HTML→PDF fidèle)
 # ------------------------------------------------------
 # Le binaire navigateur + ses libs OS ne sont PAS couverts par pip (requirements).
@@ -195,7 +207,7 @@ if ! pgrep -f "uvicorn tts_service" > /dev/null; then
         --port 8001 \
         --workers 1 \
         --log-level warning \
-        > $LOG_DIR/tts-service.log 2>&1 &
+        >> $LOG_DIR/tts-service.log 2>&1 &
     TTS_PID=$!
     disown $TTS_PID
     if [ $FAST -eq 1 ]; then
