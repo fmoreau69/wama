@@ -58,7 +58,17 @@ class AnalysisProfile(models.Model):
     intersections = models.JSONField(
         default=list,
         blank=True,
-        help_text='List of {name, lat, lon, radius_m} dicts for intersection_insertion report',
+        help_text=(
+            "Liste de {name, lat, lon, radius_m, interest_radius_m?}. "
+            "DEUX rayons DÉCORRÉLÉS (2026-07-29) : "
+            "`radius_m` = rayon d'ANALYSE, il ne borne que le traitement à venir "
+            "(YOLO/SAM…) et ne sert qu'à économiser du temps de calcul quand l'analyse "
+            "n'a pas encore eu lieu — le changer n'invalide aucune donnée existante. "
+            "`interest_radius_m` = rayon d'INTÉRÊT du rapport, il filtre les interactions "
+            "retenues et se dérive des détections déjà en base, donc il se change SANS "
+            "recalcul et peut dépasser le rayon d'analyse. Absent → retombe sur `radius_m`. "
+            "Résolution : `intersection_analyzer.interest_radius_m()`."
+        ),
     )
     road_model_path = models.CharField(
         max_length=500,

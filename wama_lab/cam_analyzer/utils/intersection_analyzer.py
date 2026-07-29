@@ -3,6 +3,26 @@ Intersection insertion analyzer for WAMA cam_analyzer.
 
 Detects vehicles that insert in front of the shuttle at road intersections.
 
+DEUX RAYONS DÉCORRÉLÉS (décision Fabien 2026-07-29)
+---------------------------------------------------
+Le rayon d'intersection portait deux sens contradictoires selon qu'une analyse avait déjà
+eu lieu ou non — surcharge de champ, indevinable pour l'utilisateur comme pour le code.
+Séparation :
+
+* `radius_m` — rayon d'**ANALYSE**. Borne le TRAITEMENT à venir (fenêtres passées à YOLO/SAM
+  quand `restrict_to_intersection_windows` est actif). Sa seule finalité est d'économiser du
+  temps de calcul, notamment pour le futur batch multi-sessions. Le modifier n'invalide
+  aucune donnée déjà calculée : il ne décrit que ce qui reste à faire.
+* `interest_radius_m` — rayon d'**INTÉRÊT** du rapport. Filtre les interactions retenues en
+  sortie ; il se dérive des détections DÉJÀ en base, donc se change **sans recalcul** et peut
+  légitimement dépasser le rayon d'analyse (il exploite alors ce qui existe — la couverture
+  réelle se lit sur la bande de la timeline). Absent → retombe sur `radius_m`.
+
+Corollaire vécu : les fenêtres de 245 s observées sur les sessions `_det` viennent d'un
+`radius_m` historique plus large (50 puis 60 m, ramené à 40 m). Un rayon d'analyse large
+étire la fenêtre tant que le véhicule reste dedans — à l'arrêt, indéfiniment. Raison de plus
+pour ne pas lui faire porter le périmètre du rapport.
+
 Algorithm (Phase Initiale + Intermédiaire):
 1. Find time windows where shuttle GPS is within radius_m of a known intersection
 2. In each window, analyze YOLO detection tracks on the front camera:
@@ -68,6 +88,28 @@ MAX_TRAJ_POINTS = 200
 
 
 # ─── Haversine distance ────────────────────────────────────────────────────────
+
+def analysis_radius_m(intersection: dict, default: float = 40.0) -> float:
+    """Rayon d'ANALYSE — borne le traitement à venir uniquement (cf. en-tête du module)."""
+    try:
+        v = float(intersection.get('radius_m') or 0.0)
+    except (TypeError, ValueError):
+        v = 0.0
+    return v if v > 0 else default
+
+
+def interest_radius_m(intersection: dict, default: float = 40.0) -> float:
+    """Rayon d'INTÉRÊT du rapport — retombe sur le rayon d'analyse s'il n'est pas défini.
+
+    À utiliser dans TOUT chemin produisant le rapport d'interactions ; ne jamais y employer
+    `radius_m` directement, sinon les deux notions se reconfondent.
+    """
+    try:
+        v = float(intersection.get('interest_radius_m') or 0.0)
+    except (TypeError, ValueError):
+        v = 0.0
+    return v if v > 0 else analysis_radius_m(intersection, default)
+
 
 def haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     """Return distance in metres between two WGS-84 points."""
@@ -174,7 +216,8 @@ class IntersectionAnalyzer:
         for intersection in self.intersections:
             i_lat = intersection.get('lat', 0)
             i_lon = intersection.get('lon', 0)
-            radius = intersection.get('radius_m', 100)
+            # Calcul de FENÊTRES = chemin d'ANALYSE → rayon d'analyse (jamais celui d'intérêt).
+            radius = analysis_radius_m(intersection, 100)
 
             in_window = False
             window_start = None
@@ -308,7 +351,7 @@ class IntersectionAnalyzer:
                     continue
 
                 gap_s = w['t_enter'] - current['t_exit']
-                radius = (current['intersection'] or {}).get('radius_m', 100)
+                radius = analysis_radius_m(current['intersection'] or {}, 100)
 
                 # Merge if time gap is small OR if shuttle never traveled far enough
                 # to count as a real exit/return.
