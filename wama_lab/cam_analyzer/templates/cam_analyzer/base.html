@@ -157,8 +157,12 @@ encombrer le quotidien) → 2. VUE (bascules d'affichage quotidiennes, live) →
             <i class="fas fa-flask"></i>
         </button>
         <button type="button" id="orthoRecalageBtn" class="btn btn-sm btn-outline-warning"
-                title="Recalage absolu : segmente les passages piétons sur l'orthophoto IGN et mesure le décalage avec ceux vus par les caméras (étape 2b)">
+                title="Recalage absolu : segmente les passages piétons sur l'orthophoto IGN et mesure le décalage avec ceux vus par les caméras (étape 2b, MESURE — SAM3 + GPU)">
             <i class="fas fa-satellite-dish me-1"></i>Recalage ortho
+        </button>
+        <button type="button" id="orthoCorrectionBtn" class="btn btn-sm btn-outline-success"
+                title="Applique le recalage mesuré à la trajectoire (étape 2b, APPLICATION — calcul pur, relançable à volonté pour recalibrer le seuil de masquage). Nécessite la bascule ⚑ « Recalage GPS par marquages ortho ».">
+            <i class="fas fa-crosshairs me-1"></i>Corriger trajectoire
         </button>
     </div>
 </div>

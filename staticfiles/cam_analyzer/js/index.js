@@ -4990,6 +4990,7 @@ document.addEventListener('DOMContentLoaded', function () {
         wire('sam3TestBtn', () => runSam3Test(false));
         wire('sam3CalibBtn', () => runSam3Test(true));
         wire('orthoRecalageBtn', runOrthoRecalage);
+        wire('orthoCorrectionBtn', runOrthoCorrection);
         wire('copyDebugBtn', copyDebugInfo);
         // Bascule coloration Prédiction (trajectoire) ↔ naïf (ttc_s) pour comparer.
         const _pb = document.getElementById('predictionBtn');
@@ -5443,6 +5444,54 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
             }
             alert('Recalage ortho : délai dépassé (réessaie — le réseau IGN peut être lent).');
+        } catch (e) { alert('Échec : ' + e.message); }
+        finally { if (btn) { btn.disabled = false; btn.innerHTML = label; } }
+    }
+
+    // Étape 2b (2/2) — APPLIQUE le recalage mesuré. Calcul pur (ni SAM3 ni GPU) : quelques
+    // secondes, relançable à volonté pour recalibrer le seuil de masquage sans refaire la
+    // segmentation ortho. C'est tout l'intérêt d'avoir séparé mesure et application.
+    async function runOrthoCorrection() {
+        if (!currentSessionId) { alert('Aucune session sélectionnée.'); return; }
+        if (!(camFeat && camFeat['ortho_correction'])) {
+            alert('La bascule ⚑ « Recalage GPS par marquages ortho » est désactivée : '
+                  + 'active-la dans le panneau ⚑ Modes, sinon la correction ne sera pas appliquée.');
+            return;
+        }
+        const btn = document.getElementById('orthoCorrectionBtn');
+        const label = btn ? btn.innerHTML : '';
+        if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Correction…'; }
+        try {
+            const r = await fetch(`${config.urls.deleteSession}${currentSessionId}/ortho-correction/`, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': getCookie('csrftoken'), 'Content-Type': 'application/json' },
+            });
+            const d = await r.json();
+            if (!d.success) { alert('Correction : ' + (d.error || 'échec')); return; }
+
+            // Le masque satellite BD TOPO est un appel réseau par intersection : on laisse
+            // le temps à la tâche, puis on relit le résumé.
+            for (let i = 0; i < 24; i++) {
+                await new Promise(res => setTimeout(res, 2500));
+                const sr = await fetch(`${config.urls.getSession}${currentSessionId}/`);
+                if (!sr.ok) continue;
+                const sd = await sr.json();
+                const cor = sd.results_summary && sd.results_summary.ortho_correction;
+                if (cor && cor.report) {
+                    orthoCorrection = cor;
+                    const rep = cor.report, cb = cor.camera_bias || {};
+                    alert(`Correction de trajectoire appliquée.\n\n`
+                        + `Biais caméra écarté (projection, non appliqué) : `
+                        + `E ${(cb.de_m || 0).toFixed(1)} / N ${(cb.dn_m || 0).toFixed(1)} m\n`
+                        + `Correction GPS locale : ${rep.n_anchors} repères, `
+                        + `moy ${rep.mean_shift_m} m, max ${rep.max_shift_m} m\n`
+                        + `Atténuation moyenne (masquage satellite) : ×${rep.mean_alpha}\n\n`
+                        + `Bascule ⚑ ON/OFF pour comparer avec la trace brute.`);
+                    if (typeof reloadSessionData === 'function') reloadSessionData();
+                    return;
+                }
+            }
+            alert('Correction : délai dépassé (le WFS IGN peut être lent — réessaie).');
         } catch (e) { alert('Échec : ' + e.message); }
         finally { if (btn) { btn.disabled = false; btn.innerHTML = label; } }
     }
