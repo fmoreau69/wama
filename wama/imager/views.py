@@ -136,7 +136,7 @@ def index(request):
     # `requires=['video']` = la MODALITÉ, pas la tâche : la liste doit contenir les modèles
     # image→vidéo (cogvideox-5b-i2v) autant que les texte→vidéo. Le tirage, lui, demande la
     # tâche précise ('t2v' ou 'i2v') plus bas.
-    video_models, video_models_info = get_registry_models('imager', requires=['video'])
+    video_models, video_models_info = get_registry_models('imager', modality='video')
     # Separate image and video generations
     image_generations = generations.exclude(generation_mode__in=['txt2vid', 'img2vid'])
     video_generations = generations.filter(generation_mode__in=['txt2vid', 'img2vid'])
@@ -202,7 +202,7 @@ def handle_txt2img(request, user):
     # modèle 1024 px en rectified flow (Qwen, FLUX).
     # Tirage : choix explicite respecté, sinon la brique commune `select_model()` retient le
     # meilleur modèle qui tient ENTIÈREMENT sur le GPU (pas d'offload CPU subi).
-    model = select_model_id('imager', requires=['t2i'], requested=request.POST.get('model'), fallback=DEFAULT_IMAGE_MODEL)
+    model = select_model_id('imager', modality='image', requested=request.POST.get('model'), fallback=DEFAULT_IMAGE_MODEL)
     _def = get_model_defaults(model)
     width = int(request.POST.get('width', _def['width']))
     height = int(request.POST.get('height', _def['height']))
@@ -258,7 +258,7 @@ def handle_file2img(request, user):
     # modèle 1024 px en rectified flow (Qwen, FLUX).
     # Tirage : choix explicite respecté, sinon la brique commune `select_model()` retient le
     # meilleur modèle qui tient ENTIÈREMENT sur le GPU (pas d'offload CPU subi).
-    model = select_model_id('imager', requires=['t2i'], requested=request.POST.get('model'), fallback=DEFAULT_IMAGE_MODEL)
+    model = select_model_id('imager', modality='image', requested=request.POST.get('model'), fallback=DEFAULT_IMAGE_MODEL)
     _def = get_model_defaults(model)
     width = int(request.POST.get('width', _def['width']))
     height = int(request.POST.get('height', _def['height']))
@@ -341,7 +341,7 @@ def handle_describe2img(request, user):
     # modèle 1024 px en rectified flow (Qwen, FLUX).
     # Tirage : choix explicite respecté, sinon la brique commune `select_model()` retient le
     # meilleur modèle qui tient ENTIÈREMENT sur le GPU (pas d'offload CPU subi).
-    model = select_model_id('imager', requires=['t2i'], requested=request.POST.get('model'), fallback=DEFAULT_IMAGE_MODEL)
+    model = select_model_id('imager', modality='image', requested=request.POST.get('model'), fallback=DEFAULT_IMAGE_MODEL)
     _def = get_model_defaults(model)
     width = int(request.POST.get('width', _def['width']))
     height = int(request.POST.get('height', _def['height']))
@@ -412,7 +412,7 @@ def handle_img2img(request, user, mode):
     # modèle 1024 px en rectified flow (Qwen, FLUX).
     # Tirage : choix explicite respecté, sinon la brique commune `select_model()` retient le
     # meilleur modèle qui tient ENTIÈREMENT sur le GPU (pas d'offload CPU subi).
-    model = select_model_id('imager', requires=['t2i'], requested=request.POST.get('model'), fallback=DEFAULT_IMAGE_MODEL)
+    model = select_model_id('imager', modality='image', requested=request.POST.get('model'), fallback=DEFAULT_IMAGE_MODEL)
     _def = get_model_defaults(model)
     width = int(request.POST.get('width', _def['width']))
     height = int(request.POST.get('height', _def['height']))
@@ -465,7 +465,7 @@ def handle_txt2vid(request, user):
         return JsonResponse({'error': 'Prompt is required'}, status=400)
 
     negative_prompt = request.POST.get('negative_prompt', '').strip()
-    model = select_model_id('imager', requires=['t2v'], requested=request.POST.get('model'), fallback=DEFAULT_VIDEO_MODEL)
+    model = select_model_id('imager', modality='video', available_inputs=['prompt'], requested=request.POST.get('model'), fallback=DEFAULT_VIDEO_MODEL)
     video_duration = float(request.POST.get('video_duration', 5.0))
     video_fps = int(request.POST.get('video_fps', 16))
     video_resolution = request.POST.get('video_resolution', '480p')
@@ -510,7 +510,7 @@ def handle_img2vid(request, user):
 
     prompt = request.POST.get('prompt', '').strip()
     negative_prompt = request.POST.get('negative_prompt', '').strip()
-    model = select_model_id('imager', requires=['i2v'], requested=request.POST.get('model'), fallback=DEFAULT_I2V_MODEL)
+    model = select_model_id('imager', modality='video', available_inputs=['prompt', 'work_image'], consumes=['work_image'], requested=request.POST.get('model'), fallback=DEFAULT_I2V_MODEL)
     video_duration = float(request.POST.get('video_duration', 5.0))
     video_fps = int(request.POST.get('video_fps', 16))
     video_resolution = request.POST.get('video_resolution', '480p')

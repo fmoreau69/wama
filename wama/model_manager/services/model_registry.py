@@ -268,6 +268,22 @@ class ModelRegistry:
                 _tasks = {t for t in ('t2i', 't2v', 'i2v', 'edit') if t in _mode}
                 if not _tasks:                      # mode absent → déduit de la modalité
                     _tasks = {'t2v'} if _is_video else {'t2i'}
+                # Traduction en vocabulaire CANONIQUE (`CANONICAL_CAPABILITIES`) : `task` au
+                # format HF + entrées consommées en ids d'`INPUT_TYPES`. Le `mode` du manifeste
+                # est un raccourci d'app ; il ne doit pas fuiter tel quel dans le catalogue.
+                if _is_video:
+                    _task = 'image-to-video' if _tasks == {'i2v'} else 'text-to-video'
+                elif 'edit' in _tasks:
+                    _task = 'image-to-image'
+                else:
+                    _task = 'text-to-image'
+                _inputs_required = ['prompt']
+                _inputs_optional = []
+                if 'i2v' in _tasks or 'edit' in _tasks:
+                    # L'image est OBLIGATOIRE si le modèle ne sait faire que ça, OPTIONNELLE
+                    # s'il sait aussi partir d'un simple prompt (LTX = t2v+i2v).
+                    (_inputs_required if _tasks <= {'i2v', 'edit'} else _inputs_optional
+                     ).append('work_image')
                 self._models[f"imager:{model_id}"] = ModelInfo(
                     id=f"imager:{model_id}",
                     name=name,
@@ -287,19 +303,15 @@ class ModelRegistry:
                     can_convert_to=convert_options,
                     capabilities={
                         'modalities': ['video'] if _is_video else ['image'],
-                        # Conservé pour les lecteurs existants (WamaModelCaps, lang_routing).
-                        'task': 'text-to-video' if _is_video else 'text-to-image',
-                        # Drapeaux par capacité — c'est ce que `select_model(requires=[…])` et
-                        # `get_registry_models(requires=[…])` filtrent. Un modèle « t2v+i2v »
-                        # porte les deux : il apparaît dans les deux listes, sans une ligne de
-                        # code par app.
-                        **{t: True for t in _tasks},
-                        # Modalité AUSSI en drapeau : `requires` est une conjonction, donc sans
-                        # elle une liste « tous les modèles vidéo » devrait s'écrire « t2v OU
-                        # i2v » — impossible. Avec `requires=['video']`, un modèle i2v-seul
-                        # (cogvideox-5b-i2v) reste proposé à l'UI tout en étant exclu du tirage
-                        # texte→vidéo. C'est exactement ce qui manquait pour ne pas le perdre.
-                        ('video' if _is_video else 'image'): True,
+                        'task': _task,
+                        # Entrées consommées, en ids d'INPUT_TYPES — c'est ce qui permet
+                        # l'appariement entrée↔modèle (`matches_inputs`) SANS drapeau ad hoc :
+                        # un modèle image→vidéo EXIGE une image de travail, un modèle
+                        # texte→vidéo ne l'exige pas, un modèle qui sait faire les deux la
+                        # déclare OPTIONNELLE. La distinction t2v/i2v tombe donc du vocabulaire
+                        # canonique, sans inventer de clé.
+                        'inputs_required': _inputs_required,
+                        'inputs_optional': _inputs_optional,
                     },
                 )
         except ImportError as e:

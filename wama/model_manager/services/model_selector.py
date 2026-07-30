@@ -169,6 +169,41 @@ def list_models(source: str, downloaded_only: bool = True) -> List[dict]:
     return [m.to_dict() for m in qs]
 
 
+def matches_inputs(model, available_inputs=None, task: Optional[str] = None,
+                   consumes=None) -> bool:
+    """
+    Ce modèle est-il utilisable avec les entrées dont on dispose ? (appariement entrée↔modèle)
+
+    VOCABULAIRE CANONIQUE UNIQUEMENT (`common/utils/model_capabilities.CANONICAL_CAPABILITIES`) :
+    `task`, `inputs_required`, `inputs_optional`, avec des ids d'`INPUT_TYPES`. Ne jamais
+    inventer de drapeau ad hoc (`t2v`, `i2v`, `video`…) : c'est le vocabulaire hétérogène que
+    `model_capabilities.py` a été écrit pour supprimer, et `INPUT_MODEL_MATCHING.md` en fait la
+    règle — un modèle DÉCLARE ce qu'il consomme, personne ne le devine.
+
+    Deux questions DISTINCTES, et il faut souvent les deux :
+      - `available_inputs` — FAISABILITÉ : ses entrées requises sont-elles toutes disponibles ?
+      - `consumes`        — UTILITÉ : consomme-t-il vraiment l'entrée que je lui donne
+                            (en requise OU en optionnelle) ?
+
+    Sans `consumes`, « j'ai une image à animer » retiendrait aussi un modèle texte→vidéo pur :
+    ses entrées requises sont satisfaites… mais il IGNORERAIT l'image. Avec `consumes`, un
+    modèle qui sait faire les deux (LTX : image en optionnelle) reste éligible, là où filtrer
+    sur `task='image-to-video'` l'aurait écarté à tort au profit d'un modèle plus lourd.
+
+    Extrait de `composer/utils/auto_model.py` (1er adopteur, 2026-07-21), qui portait cette
+    logique en propre — c'est elle qui doit servir à TOUTES les apps.
+    """
+    caps = getattr(model, 'capabilities', None) or {}
+    if task and caps.get('task') and caps.get('task') != task:
+        return False
+    required = set(caps.get('inputs_required') or [])
+    if consumes and not set(consumes).issubset(required | set(caps.get('inputs_optional') or [])):
+        return False
+    if available_inputs is None:
+        return True
+    return required.issubset(set(available_inputs))
+
+
 def full_gpu_budget_gb(headroom_gb: float = 4.0) -> Optional[float]:
     """
     Budget VRAM au-delà duquel un modèle imposerait de l'offload CPU.
@@ -189,7 +224,8 @@ def full_gpu_budget_gb(headroom_gb: float = 4.0) -> Optional[float]:
 
 def select_model_id(source: str, requires=None, requested: Optional[str] = None,
                     fallback: Optional[str] = None, avoid_offload: bool = True,
-                    **kwargs) -> Optional[str]:
+                    modality: Optional[str] = None, task: Optional[str] = None,
+                    available_inputs=None, consumes=None, **kwargs) -> Optional[str]:
     """
     Tirage d'un modèle pour une app, rendu comme un `model_id` nu (sans le préfixe "source:").
 
@@ -206,9 +242,19 @@ def select_model_id(source: str, requires=None, requested: Optional[str] = None,
     if requested and requested not in ('', 'auto'):
         return requested
     try:
+        # Le filtrage canonique (modalité / tâche / entrées disponibles) passe par la même
+        # brique de listage que l'UI : une seule route, un seul vocabulaire.
+        cand = kwargs.pop('candidates', None)
+        if modality or task or consumes or available_inputs is not None:
+            ids = [d['id'] for d in get_registry_models(
+                source, modality=modality, task=task,
+                available_inputs=available_inputs, consumes=consumes)[1]]
+            cand = [i for i in cand if i in ids] if cand else ids
+            cand = [f'{source}:{i}' for i in cand]
         chosen = select_model(
             source=source,
             requires=requires,
+            candidates=cand,
             vram_budget_gb=full_gpu_budget_gb() if avoid_offload else None,
             **kwargs,
         )
@@ -225,7 +271,8 @@ def select_model_id(source: str, requires=None, requested: Optional[str] = None,
 
 
 def get_registry_models(source: str, allowed_ids=None, downloaded_only: bool = False,
-                        requires=None):
+                        requires=None, modality: Optional[str] = None,
+                        task: Optional[str] = None, available_inputs=None, consumes=None):
     """
     (choices, info) pour le <select> d'une app, PILOTÉ par le registre AIModel (verrou n°1).
 
@@ -236,24 +283,32 @@ def get_registry_models(source: str, allowed_ids=None, downloaded_only: bool = F
     on ne propose jamais un modèle non chargeable. Retourne ([], []) si le registre n'a rien
     pour cette source → l'appelant doit alors faire un repli sur sa liste backend.
 
-    `requires` (optionnel) : capacités exigées (mêmes clés que `select_model`, filtrées par
-    `_supports` sur `capabilities`). C'est ce qui permet à une app de servir la liste d'UNE
-    modalité — « les modèles qui savent faire de l'image→vidéo » — sans écrire le moindre
-    filtre par type chez elle : la capacité est DÉCLARÉE au manifeste, INGÉRÉE au catalogue,
-    et lue ici. Aucune fonction ne doit porter un type de média dans son nom.
+    Filtres de capacité, tous en VOCABULAIRE CANONIQUE (cf. `INPUT_MODEL_MATCHING.md`) :
+      - `modality`        : 'image' | 'video' | 'audio' | … (appartenance à `modalities`)
+      - `task`            : 'text-to-image', 'image-to-video', … (format HF)
+      - `available_inputs`: ids d'`INPUT_TYPES` dont on dispose → ne garde que les modèles
+                            dont les `inputs_required` sont satisfaites
+      - `requires`        : drapeaux booléens `supports_*` (usage historique)
+
+    Une app NOMME ce dont elle dispose ; elle n'écrit aucun filtre par type de média, et
+    aucune fonction ne porte de modalité dans son nom.
     """
     from ..models import AIModel
     qs = AIModel.objects.filter(source=source, is_available=True)
     if downloaded_only:
         qs = qs.filter(is_downloaded=True)
     qs = qs.order_by('-vram_gb', 'name')
-    models = [m for m in qs if _supports(m, requires, None)]
-    if requires and not models:
+    models = [m for m in qs
+              if _supports(m, requires, None)
+              and (modality is None or modality in ((m.capabilities or {}).get('modalities') or []))
+              and matches_inputs(m, available_inputs, task, consumes)]
+    if (requires or modality or task or consumes or available_inputs is not None) and not models:
         # Le catalogue n'a pas (encore) les capacités — typiquement avant le premier
         # `sync_models` qui suit un enrichissement de l'ingest. On sert la liste NON filtrée
         # plutôt qu'un <select> vide : dégrader la précision, jamais la disponibilité.
-        logger.info("[Registry] %s : aucune capacité %s au catalogue → liste non filtrée "
-                    "(un sync_models réglera le filtrage)", source, requires)
+        logger.info("[Registry] %s : aucun modèle ne correspond (requires=%s modality=%s "
+                    "task=%s inputs=%s) → liste non filtrée (un sync_models peuplera les "
+                    "capacités)", source, requires, modality, task, available_inputs)
         models = list(qs)
     choices, info = [], []
     for m in models:
