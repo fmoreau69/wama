@@ -24,22 +24,21 @@ def resolve_auto_model(gen):
     need_ref = bool(gen.melody_reference)
     task = 'text-to-music' if gen.generation_type == 'music' else 'text-to-audio'
 
-    candidates = []
-    for m in AIModel.objects.filter(source='composer', is_proposed=False):
-        caps = m.capabilities or {}
-        accepted = list(caps.get('inputs_required') or []) + list(caps.get('inputs_optional') or [])
-        if need_ref:
-            # Une référence mélodique est fournie : seuls les modèles qui l'acceptent
-            # (cohérent avec le grisage WamaInputMatch côté UI).
-            if 'reference_melody' not in accepted:
-                continue
-        elif caps.get('task') and caps.get('task') != task:
-            continue
-        candidates.append(m.model_key)
+    # Appariement entrée↔modèle : par la brique COMMUNE `matches_inputs()`, pas par un filtre
+    # local. Cette boucle portait la logique en propre (composer = 1er adopteur, 2026-07-21) ;
+    # elle a été extraite telle quelle dans `model_selector` le 2026-07-30 pour que toutes les
+    # apps partagent le même appariement. Sémantique identique : si une référence mélodique est
+    # fournie, seuls les modèles qui la CONSOMMENT (cohérent avec le grisage WamaInputMatch
+    # côté UI) ; sinon, filtrage sur la tâche.
+    from wama.model_manager.services import matches_inputs, select_model
+    candidates = [
+        m.model_key for m in AIModel.objects.filter(source='composer', is_proposed=False)
+        if (matches_inputs(m, consumes=['reference_melody']) if need_ref
+            else matches_inputs(m, task=task))
+    ]
 
     if candidates:
         try:
-            from wama.model_manager.services import select_model
             chosen = select_model(source='composer', candidates=candidates)
             if isinstance(chosen, (list, tuple)):
                 chosen = chosen[0] if chosen else None
