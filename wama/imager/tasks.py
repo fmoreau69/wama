@@ -35,6 +35,39 @@ def _console(user_id: int, message: str, level: str = None) -> None:
         pass
 
 
+@shared_task(bind=True, name='wama.imager.enrich_prompt_at_ingest')
+def enrich_prompt_at_ingest_task(self, generation_id):
+    """
+    Enrichit le prompt d'une card DÈS SON DÉPÔT (déclenché par signal, cf. imager/signals.py).
+
+    Ne fait que déléguer à la brique commune : les champs traités viennent de la déclaration
+    `PROMPT_TARGETS` (`enrich=True`), pas d'ici. Aucune logique imager.
+
+    Tâche volontairement légère et sans GPU : c'est une passe LLM courte (Ollama), pas une
+    génération. Elle ne prend donc PAS le verrou de ressources GPU et ne bloque pas la file.
+    """
+    from wama.imager.models import ImageGeneration
+    from wama.common.utils.app_metadata import enrich_instance_prompts
+
+    try:
+        gen = ImageGeneration.objects.get(pk=generation_id)
+    except ImageGeneration.DoesNotExist:
+        return {'enriched': [], 'reason': 'introuvable'}
+
+    # Course possible avec un lancement immédiat : si la génération est déjà partie, la pipeline
+    # de la tâche s'en occupe — ne pas réécrire le prompt sous ses pieds.
+    if gen.status != 'PENDING':
+        return {'enriched': [], 'reason': f'statut {gen.status}'}
+
+    done = enrich_instance_prompts(
+        'imager', gen, user=gen.user,
+        glossary=list(getattr(gen, 'prompt_keywords', None) or []) or None)
+    if done:
+        _console(gen.user_id, f"[Imager] ✨ Prompt enrichi ({', '.join(done)}) — "
+                              f"vous pouvez le relire, l'éditer ou revenir au vôtre.")
+    return {'enriched': done}
+
+
 @shared_task(bind=True)
 def generate_image_task(self, generation_id):
     """
@@ -207,10 +240,19 @@ def generate_image_task(self, generation_id):
             _console(user_id, f"[Imager] Using reference image: {os.path.basename(reference_image_path)}")
 
         # Pipeline de prompt commune (§16.6) — KIND déclaré dans app_metadata.PROMPT_TARGETS.
-        from wama.common.utils.app_metadata import process_prompt_for
+        # `effective_prompt` : le prompt enrichi à l'ingestion (`prompt_processed`) prime sur ce
+        # que l'utilisateur a tapé, qu'on ne touche jamais. `enrich` reste None (= suivre la
+        # déclaration) car si l'enrichissement d'ingestion n'a pas eu lieu (lancement immédiat,
+        # broker indisponible, préférence changée), c'est ICI qu'il se rattrape — la traduction,
+        # elle, se fait toujours ici : elle dépend du modèle cible, encore modifiable après dépôt.
+        from wama.common.utils.app_metadata import effective_prompt, process_prompt_for
         _cons = lambda m: _console(user_id, f"[Imager] {m}")
-        _prompt = process_prompt_for('imager', 'prompt', generation.prompt,
-                                     instance=generation, user=generation.user, console=_cons)
+        _already = bool((getattr(generation, 'prompt_processed', '') or '').strip())
+        _prompt = process_prompt_for('imager', 'prompt',
+                                     effective_prompt(generation, 'prompt'),
+                                     instance=generation, user=generation.user, console=_cons,
+                                     enrich=False if _already else None,
+                                     glossary=list(getattr(generation, 'prompt_keywords', None) or []) or None)
         _negative = process_prompt_for('imager', 'negative_prompt', generation.negative_prompt,
                                        instance=generation, user=generation.user)
 
@@ -426,12 +468,17 @@ def generate_video_task(self, generation_id):
         logger.info(f"Starting video generation #{generation_id} ({mode_label})")
 
         # Pipeline de prompt commune (§16.6) — manquait côté vidéo (comblé 2026-07-08 avec les
-        # skills). Variables LOCALES comme côté image : les generation.save() plus bas ne
-        # doivent pas persister le prompt traité (la base garde l'original de l'utilisateur).
-        from wama.common.utils.app_metadata import process_prompt_for
+        # skills). Variables LOCALES pour la TRADUCTION (dépend du modèle cible, donc calculée
+        # ici) ; l'ENRICHISSEMENT, lui, est persisté à l'ingestion dans `prompt_processed` et
+        # `effective_prompt` le reprend — cf. le commentaire de la tâche image.
+        from wama.common.utils.app_metadata import effective_prompt, process_prompt_for
         _cons = lambda m: _console(user_id, f"[Imager Video] {m}")
-        _prompt = process_prompt_for('imager', 'prompt', generation.prompt,
-                                     instance=generation, user=generation.user, console=_cons)
+        _already = bool((getattr(generation, 'prompt_processed', '') or '').strip())
+        _prompt = process_prompt_for('imager', 'prompt',
+                                     effective_prompt(generation, 'prompt'),
+                                     instance=generation, user=generation.user, console=_cons,
+                                     enrich=False if _already else None,
+                                     glossary=list(getattr(generation, 'prompt_keywords', None) or []) or None)
         _negative = process_prompt_for('imager', 'negative_prompt', generation.negative_prompt,
                                        instance=generation, user=generation.user, console=_cons)
 

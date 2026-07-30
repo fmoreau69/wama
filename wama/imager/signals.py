@@ -1,9 +1,15 @@
 """
-Notification de fin/échec pour Imager via signal (la tâche a de NOMBREUX points de sortie en échec —
-validations de backend, VRAM, etc. — qu'un signal couvre d'un seul endroit, succès inclus).
+Signaux Imager.
 
-Notifie sur **transition** du statut vers un état terminal (SUCCESS/FAILURE), une seule fois.
-Évite les requêtes inutiles sur les saves de progression (update_fields sans 'status').
+1. Notification de fin/échec (la tâche a de NOMBREUX points de sortie en échec — validations de
+   backend, VRAM, etc. — qu'un signal couvre d'un seul endroit, succès inclus). Notifie sur
+   **transition** du statut vers un état terminal (SUCCESS/FAILURE), une seule fois. Évite les
+   requêtes inutiles sur les saves de progression (update_fields sans 'status').
+
+2. Enrichissement du prompt À L'INGESTION. Imager a SIX handlers de création (txt2img, file2img,
+   describe2img, img2img, txt2vid, img2vid) : un signal `post_save(created=True)` les couvre tous
+   d'un seul endroit, au lieu de six patches — et couvre aussi la création par batch et par l'API
+   de l'assistant. Les champs traités viennent de la DÉCLARATION (`PROMPT_TARGETS`), pas d'ici.
 """
 from django.db.models.signals import pre_save, post_save
 from django.dispatch import receiver
@@ -44,3 +50,27 @@ def _notify_terminal(sender, instance, created, **kwargs):
         except Exception:
             pass
         instance._old_status = new  # éviter une re-notification sur un save suivant
+
+
+@receiver(post_save, sender=ImageGeneration)
+def _enrich_prompt_at_ingest(sender, instance, created, **kwargs):
+    """
+    Met en file l'enrichissement du prompt dès la création de la card.
+
+    ASYNCHRONE volontairement : la passe LLM coûte ~1,3 s à chaud mais ~12 s à froid (chargement
+    des poids) — inacceptable dans la requête HTTP de dépôt. La card apparaît tout de suite ; le
+    prompt enrichi arrive juste après et le polling de la file l'affiche.
+
+    Garde-fou : si l'utilisateur lance la génération avant que l'enrichissement soit revenu, la
+    tâche de génération enrichit elle-même (la pipeline reste appelée au lancement) — il n'y a donc
+    pas de fenêtre où le prompt partirait non enrichi.
+    """
+    if not created or getattr(instance, 'prompt_processed', ''):
+        return
+    if not (getattr(instance, 'prompt', '') or '').strip():
+        return
+    try:
+        from wama.imager.tasks import enrich_prompt_at_ingest_task
+        enrich_prompt_at_ingest_task.delay(instance.pk)
+    except Exception:
+        pass  # broker indisponible → la tâche de génération enrichira au lancement (fail-safe)

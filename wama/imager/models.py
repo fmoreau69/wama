@@ -203,6 +203,21 @@ class ImageGeneration(models.Model):
     prompt = models.TextField(help_text="Description of the image to generate")
     negative_prompt = models.TextField(blank=True, default="", help_text="What to avoid in the image")
 
+    # Prompt réellement envoyé au modèle (enrichi à l'ingestion par la PromptPipeline commune).
+    # `prompt` reste CE QUE L'UTILISATEUR A TAPÉ et n'est jamais écrasé : c'est ce qui permet de
+    # lui montrer les deux et de revenir en arrière (vider `prompt_processed`). Convention
+    # commune `<field>_processed` — cf. common/utils/app_metadata.effective_prompt().
+    prompt_processed = models.TextField(
+        blank=True, default="",
+        help_text="Prompt enrichi effectivement envoyé au modèle (vide = utiliser `prompt`)")
+    prompt_trace = models.JSONField(
+        default=dict, blank=True,
+        help_text="Trace de la PromptPipeline par champ : {enriched, source, language, keywords}")
+    # Mots-clés cliqués par l'utilisateur (chips) : une DONNÉE, pas de la prose — passés en
+    # glossaire pour être préservés verbatim par l'enrichissement, et conservés à travers un
+    # retour au prompt d'origine.
+    prompt_keywords = models.JSONField(default=list, blank=True)
+
     # Prompt file for batch processing (file2img mode)
     prompt_file = models.FileField(
         upload_to=UploadToUserPath('imager', 'input/prompts'),

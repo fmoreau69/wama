@@ -41,9 +41,13 @@ _MAX_INPUT_CHARS = 320
 # Plafond de génération (l'enrichi reste un paragraphe) + fenêtre KV plafonnée (VRAM).
 _NUM_PREDICT = 400
 _NUM_CTX = 8192
-# Résidence VRAM nulle : l'enrichissement PRÉCÈDE souvent un gros chargement GPU (diffusion).
-# Sans ça, Ollama garde les poids 5 min par défaut → ~6,6 Go squattés PENDANT la génération.
+# Résidence VRAM par défaut = NULLE : sur le chemin critique (pipeline au lancement de tâche),
+# l'enrichissement PRÉCÈDE immédiatement un gros chargement GPU (diffusion) ; sans ça Ollama
+# garde les poids 5 min par défaut → ~6,6 Go squattés PENDANT la génération.
 _KEEP_ALIVE = '0'
+# À l'INGESTION en revanche, rien ne charge le GPU juste après et les prompts arrivent en série
+# (batch) : décharger entre chaque ferait repayer ~12 s de chargement par item. Résidence courte.
+KEEP_ALIVE_INGEST = '60s'
 
 _SYSTEM = (
     "You are an expert prompt engineer for text-to-image generation. "
@@ -57,19 +61,37 @@ _SYSTEM = (
 )
 
 
-def enrichment_enabled() -> bool:
-    """Interrupteur maître global (OFF par défaut → coût ressources nul tant que non activé)."""
+def enrichment_enabled(user=None) -> bool:
+    """
+    L'enrichissement automatique est-il actif pour cet utilisateur ?
+
+    Deux étages, dans cet ordre :
+    1. `settings.WAMA_PROMPT_ENRICH` = **kill switch plateforme** (env `=0` → OFF pour tout le
+       monde, quoi que disent les profils). Sert aux incidents ressources / au debug.
+    2. `user.profile.prompt_enrich` = **préférence utilisateur** (défaut True). C'est le vrai
+       interrupteur : l'utilisateur n'a pas à connaître la chaîne derrière son prompt, mais il
+       peut la couper.
+
+    `user=None` (tâche sans utilisateur résolu, appel hors requête) → le kill switch seul décide.
+    """
     try:
         from django.conf import settings
-        return bool(getattr(settings, 'WAMA_PROMPT_ENRICH', False))
+        if not bool(getattr(settings, 'WAMA_PROMPT_ENRICH', True)):
+            return False
     except Exception:
         return False
+
+    if user is None:
+        return True
+    pref = getattr(getattr(user, 'profile', None), 'prompt_enrich', None)
+    return True if pref is None else bool(pref)
 
 
 def enrich_generative(prompt: str, *, language: str = 'en', model: str = None,
                       provider: str = 'ollama', glossary=None, console=None,
                       timeout: int = 60, skill_name: str = None, skill_text: str = None,
-                      max_input_chars: int = _MAX_INPUT_CHARS) -> str:
+                      max_input_chars: int = _MAX_INPUT_CHARS,
+                      keep_alive: str = _KEEP_ALIVE) -> str:
     """
     Étoffe un prompt génératif. Retourne l'enrichi, ou `prompt` inchangé si rien à faire / erreur.
 
@@ -114,7 +136,7 @@ def enrich_generative(prompt: str, *, language: str = 'en', model: str = None,
                       {"role": "user", "content": user}],
             provider=provider, model=model,
             num_predict=_NUM_PREDICT, num_ctx=_NUM_CTX, think=False, timeout=timeout,
-            keep_alive=_KEEP_ALIVE,
+            keep_alive=keep_alive,
         )
     except Exception as e:
         logger.debug(f"[prompt_enrichment] {e}")
@@ -134,7 +156,7 @@ def enrich_generative(prompt: str, *, language: str = 'en', model: str = None,
 
 def enrich_on_demand(prompt: str, *, app: str = None, domain: str = None,
                      language: str = 'en', model: str = None, glossary=None,
-                     timeout: int = 60) -> str:
+                     timeout: int = 60, keep_alive: str = _KEEP_ALIVE) -> str:
     """
     Enrichissement EXPLICITE (bouton ✨) : le clic vaut demande → pas d'interrupteur maître.
     Résout le skill de l'app ([[prompt_skills]]) puis passe par le même chemin (cache compris).
@@ -145,7 +167,7 @@ def enrich_on_demand(prompt: str, *, app: str = None, domain: str = None,
     name, text = resolve_skill(app=app, domain=domain, kind='generative')
     enriched = enrich_generative(prompt, language=language, model=model, glossary=glossary,
                                  timeout=timeout, skill_name=name, skill_text=text,
-                                 max_input_chars=2000)
+                                 max_input_chars=2000, keep_alive=keep_alive)
     if not enriched or enriched == (prompt or '').strip() or enriched == prompt:
         raise RuntimeError("Enrichissement indisponible (LLM local injoignable ou réponse vide)")
     return enriched

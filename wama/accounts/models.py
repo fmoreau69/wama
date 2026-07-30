@@ -41,6 +41,14 @@ class UserProfile(models.Model):
         default=False,
         verbose_name="Lecture auto de l'aperçu dans l'inspecteur",
     )
+    # Enrichissement automatique des prompts génératifs ([[prompt_enrichment]]).
+    # L'utilisateur n'a pas à connaître la chaîne qui tourne derrière son prompt : c'est ON par
+    # défaut, comme dans un environnement conversationnel. Il garde la main (préférence + retour
+    # à son prompt d'origine sur chaque card). Kill switch plateforme : env WAMA_PROMPT_ENRICH=0.
+    prompt_enrich = models.BooleanField(
+        default=True,
+        verbose_name="Enrichir automatiquement mes prompts de génération",
+    )
     # Axe A — profil de compte (tier). Les rôles métier (axe B) = Django Groups 'role:*'.
     account_tier = models.CharField(
         max_length=16,

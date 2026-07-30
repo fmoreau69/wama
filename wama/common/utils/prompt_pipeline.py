@@ -89,7 +89,9 @@ def process_prompt(prompt, *, kind='generative', model_capabilities=None, model_
         # sinon langue d'entrée que le modèle gère).
         if kind == 'generative' and enrich:
             from .prompt_enrichment import enrich_generative, enrichment_enabled
-            if enrichment_enabled():
+            # `user` transmis : la préférence utilisateur pilote (le réglage plateforme n'est
+            # plus qu'un kill switch). Sans utilisateur résolu, seul le kill switch décide.
+            if enrichment_enabled(user):
                 from .prompt_skills import resolve_skill
                 sk_name, sk_text = resolve_skill(app=app, domain=domain or model_type, kind=kind)
                 enr_lang = routing.get('input_pivot') if result['translated'] else lang
