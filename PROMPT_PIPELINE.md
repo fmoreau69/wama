@@ -14,11 +14,11 @@ et la méta-app.
 ## Modules (`wama/common/utils/`)
 | Module | Rôle |
 |--------|------|
-| `app_metadata.py` | `PROMPT_TARGETS` (déclaration par app) + `process_prompt_for(...)`. Résout modèle (`AIModel`), `enrich`, `reference_field`. |
+| `app_metadata.py` | `PROMPT_TARGETS` (déclaration par app) + `process_prompt_for(...)` (options `enrich=` / `glossary=` / `full=`). Résout modèle (`AIModel`), `enrich`, `reference_field`. Plus les briques d'ingestion : `enrich_instance_prompts()`, `effective_prompt()`, `detected_keywords()`. |
 | `prompt_pipeline.py` | `process_prompt(...)` — orchestre détection langue → routing → traduction → enrichissement → fichiers de référence. Fail-safe. |
 | `lang_routing.py` | DÉCIDEUR : `routing_for_model(caps, model_type, input_lang, …)` → `{direct, input_translate, input_pivot, …}`. `_TYPE_LANG_DEFAULT` (diffusion/upscaling/music/audio_gen → `['en']`). Inconnu → `['*']` (direct). |
 | `translator.py` | ACTEUR : `TranslatorService` via `translategemma` (Ollama), cache, glossaire do-not-translate, découpage. Passthrough si même langue. |
-| `prompt_enrichment.py` | « Upsampling » génératif : `enrich_generative()`. **OFF par défaut** (`settings.WAMA_PROMPT_ENRICH`). Une passe LLM légère, cache, garde longueur, fail-safe. |
+| `prompt_enrichment.py` | « Upsampling » génératif : `enrich_generative()`. **ON par défaut** depuis 2026-07-30, piloté par la préférence utilisateur (`enrichment_enabled(user)`). Une passe LLM, cache, garde longueur, `keep_alive` paramétrable, fail-safe. |
 | `reference_comprehension.py` | `comprehend_files()` multimodal (image→vision, doc→`batch_parsers`). Data-gated. Replie un bloc `[Reference context]`. |
 | `qc.py` | `assess_output_quality()` — validateur LLM indépendant (post-génération, à câbler). |
 
@@ -77,8 +77,44 @@ locales `_prompt`/`_negative`, la base garde l'original) ; composer `enrich=True
   commande de bench `bench_describer`).
 
 ## Réglages (`wama/settings.py`)
-- `WAMA_PROMPT_ENRICH` (env, défaut OFF) — interrupteur maître de l'enrichissement.
-- `WAMA_PROMPT_ENRICH_MODEL` (env, optionnel) — modèle d'enrichissement (défaut `llm_chat`).
+- `WAMA_PROMPT_ENRICH` (env, **défaut ON depuis 2026-07-30**) — **kill switch plateforme**, plus
+  l'interrupteur maître. `=0` coupe l'enrichissement pour tout le monde (incident ressources, debug).
+- `UserProfile.prompt_enrich` (défaut `True`) — **le vrai interrupteur**. L'utilisateur n'a pas à
+  connaître la chaîne derrière son prompt, mais il peut la couper. Arbitrage : `enrichment_enabled(user)`.
+- `WAMA_PROMPT_ENRICH_MODEL` (env, optionnel) — modèle d'enrichissement (défaut `llm_chat` =
+  `qwen3.5:9b`). **Choix mesuré** (bench 2026-07-29) : `qwen3.5:4b` est plus léger/rapide mais viole
+  la clause de langue 3/3 sur prompt court et dérive le sujet → ne pas basculer. Détail dans le
+  docstring de `prompt_enrichment.py`.
+
+## Quand l'enrichissement a lieu (2026-07-30)
+
+| Étape | Ce qui s'y fait | Pourquoi là |
+|---|---|---|
+| **Ingestion** (création de la card) | **Enrichissement** — `enrich_instance_prompts()`, un hook `post_save` par app (`on_commit`), tâche Celery légère | L'utilisateur VOIT et peut éditer/annuler ce qui partira ; la passe LLM ne recouvre plus le chargement du modèle de génération |
+| **Lancement de la tâche** | **Traduction** + rattrapage d'enrichissement si absent | La traduction dépend du modèle cible, encore modifiable après le dépôt |
+
+- `<field>_processed` = ce qui part au modèle ; `<field>` = **ce que l'utilisateur a tapé, jamais
+  écrasé** (seule façon de revenir en arrière). `effective_prompt(instance, field)` arbitre.
+  Convention **opt-in par modèle** : un modèle sans `_processed` garde le comportement d'avant.
+- `prompt_trace` (JSON) trace `{enriched, source, language, keywords}` ; `prompt_keywords` conserve
+  les mots-clés comme **donnée**.
+- **VRAM** : `keep_alive='0'` sur le chemin critique (juste avant la diffusion), `'60s'` à
+  l'ingestion — sinon un batch repaierait ~12 s de chargement par item.
+
+## UI — champ prompt à deux états (`wama-prompt-enrich.js`, brique commune globale)
+
+Un **seul** champ (jamais deux : deux champs éditables = deux sources de vérité, et l'enrichi
+devient périmé en silence dès que l'original est modifié). Le champ contient toujours ce qui sera
+envoyé ; sous lui : `✨ Enrichi · voir mon prompt · revenir au mien · ↻ ré-enrichir`. L'original
+s'affiche en lecture seule. **Silence total si le prompt part tel quel.**
+
+- L'état courant est porté par `data-prompt-state` (`user` | `processed`) et **posté** : le serveur
+  sait dans quel champ écrire (`processed` → n'écrase pas l'original ; `user` → vide l'enrichi périmé).
+- À la **création**, le front poste le prompt de l'utilisateur, pas l'enrichi affiché.
+- **Mots-clés** ([[wama-prompt-chips]]) : `detected_keywords()` les RETROUVE en confrontant le prompt
+  à la palette (dérivés, pas transmis) → aucun handler de création à patcher, et ils partent en
+  glossaire donc sont préservés verbatim.
+- Adopté par imager (4 champs) ; prêt pour composer et le studio, sans code par app.
 
 ## RAG — anticipation de l'architecture (PAS encore implémenté, prochain gros chantier)
 
