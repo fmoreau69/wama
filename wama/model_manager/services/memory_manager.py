@@ -110,6 +110,12 @@ MODEL_SIZE_PRESETS = {
     'cogvideox': 21.0,
     'ltx-video': 18.0,        # LTX-Video 13B bf16 — transformer ~14GB + text_encoder ~4GB
     'ltx-video-fp8': 8.0,    # LTX-Video 13B FP8 quantized (torchao)
+    # ⚠️ La clé ci-dessus ne matche AUCUN id réel : le modèle s'appelle
+    # `ltx-video-13b-0.9.8-distilled-fp8`, où 'ltx-video-fp8' n'est pas une sous-chaîne. La
+    # variante fp8 héritait donc des 18 Go de la version pleine — 10 Go sur-réservés et une
+    # stratégie plus prudente que nécessaire. Le garde de cohérence manifeste↔presets
+    # (`imager/utils/model_config.py::_check_vram_consistency`) a signalé l'écart 8 vs 18.
+    'distilled-fp8': 8.0,
     'mochi': 22.0,        # Mochi-1 Preview bf16 ~22 GB
     'wan-t2v': 14.0,
     'wan-i2v': 28.0,
