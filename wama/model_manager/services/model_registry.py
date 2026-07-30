@@ -128,6 +128,11 @@ class ModelRegistry:
 
         logger.info("[ModelRegistry] Starting model discovery...")
 
+        # Ollama D'ABORD : c'est un listing EXTERNE, sans dépendance sur les autres.
+        # Les apps dont un moteur est SERVI par Ollama (reader/glm-ocr) s'appuient sur
+        # sa présence pour se dire téléchargées — l'inverse n'est jamais vrai.
+        self._discover_ollama_models()
+
         self._discover_imager_models()
         self._discover_describer_models()
         self._discover_anonymizer_models()
@@ -137,7 +142,6 @@ class ModelRegistry:
         self._discover_avatarizer_models()
         self._discover_composer_models()
         self._discover_reader_models()
-        self._discover_ollama_models()
 
         # Log summary
         formats_found = {}
@@ -1022,6 +1026,14 @@ class ModelRegistry:
 
                 if hf_id:
                     is_downloaded = _check_hf_model_downloaded(str(cache_dir), hf_id)
+                elif config.get('ollama_id'):
+                    # Servi par Ollama : « téléchargé » = présent dans la liste Ollama.
+                    # Sa DISPONIBILITÉ réelle (serveur allumé) est une sonde runtime, pas
+                    # une propriété du catalogue — cf. `_backend_is_available` du reader.
+                    is_downloaded = any(
+                        k == f"ollama:{config['ollama_id']}" or
+                        k.startswith(f"ollama:{config['ollama_id'].split(':', 1)[0]}")
+                        for k in self._models)
                 else:
                     # docTR: bundled weights — consider "downloaded" if package is installed
                     try:

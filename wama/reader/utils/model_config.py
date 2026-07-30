@@ -39,6 +39,24 @@ READER_MODELS = {
                             "qualité de référence. Gourmand en VRAM ; à réserver aux documents "
                             "complexes.",
     },
+    # GLM-OCR existait comme BACKEND (glm_ocr_backend.py) et était même préféré par
+    # l'ancienne cascade d'auto-sélection, mais n'était déclaré NULLE PART : ni au
+    # catalogue, ni dans le sélecteur de moteur de l'UI. Il n'était donc atteignable
+    # que par le code écrit en dur — un modèle utilisable et invisible. Le bascule du
+    # reader sur `select_model_id()` (source = catalogue) l'a mis au jour.
+    # Servi par Ollama : aucune VRAM réservée côté worker Django.
+    'glm-ocr': {
+        'model_id':    'glm-ocr',
+        'hf_model_id': '',   # servi par Ollama (`glm-ocr:0.9b`), pas de cache HF local
+        'ollama_id':   'glm-ocr:0.9b',
+        'type':        'ocr-vlm',
+        'vram_gb':     2.2,
+        'description': 'GLM-OCR 0.9B — via Ollama — léger, excellent sur documents courants',
+        'description_long': "GLM-OCR 0.9B servi par Ollama : très bon rapport qualité/coût sur "
+                            "les documents courants, avec une empreinte mémoire dix fois "
+                            "moindre qu'olmOCR. Nécessite qu'Ollama tourne ; sinon le moteur "
+                            "est écarté automatiquement de la sélection.",
+    },
     'doctr': {
         'model_id':    'doctr',
         'hf_model_id': '',   # modèles embarqués dans le package

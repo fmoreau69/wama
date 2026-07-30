@@ -82,57 +82,66 @@ def _count_pdf_pages(file_path: str) -> int:
     return 0
 
 
-def _select_best_backend() -> str:
-    """Auto-select the best available OCR backend.
+def _olmocr_is_resident() -> bool:
+    """Le singleton olmOCR est-il déjà chargé ? (sonde `prefer_loaded` du sélecteur commun)"""
+    return _olmocr_singleton is not None and getattr(_olmocr_singleton, '_model', None) is not None
 
-    Priority cascade:
-      1. olmOCR singleton already loaded in VRAM — reuse to avoid costly reload.
-      2. GLM-OCR via Ollama — lightweight (0.9B / ~2.2 GB), top OmniDocBench score,
-         no VRAM management needed.
-      3. olmOCR-7B — if >= 10 GB free VRAM detected (nvidia-smi or torch).
-      4. docTR — CPU-friendly fallback, always available.
 
-    Uses nvidia-smi (subprocess) as the primary VRAM check because torch.cuda
-    is often uninitialized in forked Celery workers and returns False even
-    when a GPU is present.
-    """
-    # 1. If the olmOCR singleton is already loaded, reuse it.
-    if _olmocr_singleton is not None and getattr(_olmocr_singleton, '_model', None) is not None:
-        return 'olmocr'
-
-    # 2. GLM-OCR via Ollama (lightweight, no VRAM overhead).
+def _glm_ocr_available() -> bool:
+    """GLM-OCR tourne dans Ollama : téléchargé ≠ joignable (serveur éteint)."""
     try:
         from .backends.glm_ocr_backend import is_available as glm_available
-        if glm_available():
-            return 'glm-ocr'
+        return bool(glm_available())
     except Exception:
-        pass
+        return False
 
-    # 3. olmOCR-7B — requires >= 10 GB free VRAM.
-    # Primary: nvidia-smi subprocess — reliable in forked workers.
+
+def _backend_is_available(model) -> bool:
+    """Sonde de disponibilité RUNTIME passée au sélecteur commun (reçoit un `AIModel`).
+
+    Le catalogue sait qu'un modèle est téléchargé ; il ne sait pas si le service qui le
+    sert répond.
+    """
+    return _glm_ocr_available() if getattr(model, 'model_id', '') == 'glm-ocr' else True
+
+
+def _select_best_backend() -> str:
+    """Choisit le moteur OCR via la brique COMMUNE `select_model_id()`.
+
+    Cette fonction ré-implémentait la cascade que le sélecteur commun fait déjà :
+    préférence au modèle résident, sonde de disponibilité, seuil de VRAM libre, repli.
+    Elle re-mesurait même la VRAM à la main (nvidia-smi puis torch) alors que
+    `get_free_vram_gb()` existe et gère précisément le cas du worker Celery forké où
+    `torch.cuda` n'est pas initialisé. Un seuil de 10 Go était écrit ici en dur, sans lien
+    avec le `vram_gb` déclaré par olmOCR au catalogue : les deux pouvaient diverger
+    silencieusement.
+
+    Le REPLI reste intégral : catalogue vide, model_manager en erreur ou modèle inconnu →
+    on retombe sur la cascade statique ci-dessous. Une app ne doit jamais devenir
+    intraitable parce que le catalogue n'a pas été synchronisé.
+    """
     try:
-        import subprocess
-        result = subprocess.run(
-            ['nvidia-smi', '--query-gpu=memory.free', '--format=csv,noheader,nounits'],
-            capture_output=True, text=True, timeout=5
+        from wama.model_manager.services.model_selector import select_model_id
+        chosen = select_model_id(
+            'reader',
+            task='ocr',
+            # `prefer_loaded` couvre le pas 1 de l'ancienne cascade (réutiliser olmOCR
+            # déjà résident) sans que l'app ait à inspecter son propre singleton.
+            prefer_loaded=True,
+            downloaded_only=True,
+            availability_probe=_backend_is_available,
+            fallback='doctr',   # CPU, toujours disponible
         )
-        if result.returncode == 0:
-            values = [int(v.strip()) for v in result.stdout.strip().split('\n') if v.strip().isdigit()]
-            if values and max(values) / 1024 >= 10:
-                return 'olmocr'
-    except Exception:
-        pass
-    # Fallback VRAM check: torch (may fail in forked contexts).
-    try:
-        import torch
-        if torch.cuda.is_available():
-            free_vram = torch.cuda.mem_get_info()[0] / 1024 ** 3
-            if free_vram >= 10:
-                return 'olmocr'
-    except Exception:
-        pass
+        if chosen:
+            return chosen
+    except Exception as e:
+        logger.debug(f"[Reader] Sélection via model_manager indisponible ({e}) — repli statique.")
 
-    # 4. docTR — always available, CPU-friendly.
+    # ── Repli statique (ordre de préférence historique) ──────────────────────────
+    if _olmocr_is_resident():
+        return 'olmocr'
+    if _glm_ocr_available():
+        return 'glm-ocr'
     return 'doctr'
 
 

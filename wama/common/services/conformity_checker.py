@@ -429,6 +429,42 @@ def _access_policy(f: _AppFiles):
 
 # ── F8 — nœud studio ─────────────────────────────────────────────────────────────
 
+def _select_model(f: _AppFiles):
+    """L'app confie-t-elle son choix AUTOMATIQUE de modèle à la brique commune ?
+
+    Non applicable quand il n'y a rien à choisir automatiquement : pas d'option « auto »
+    et aucun sélecteur maison. L'enhancer, par exemple, laisse l'utilisateur désigner son
+    moteur — lui reprocher de ne pas appeler `select_model()` reviendrait à exiger une
+    fonctionnalité qu'il n'a pas, pas à combler un trou.
+
+    Reste KO le cas qui compte : une app qui SÉLECTIONNE, mais avec sa propre cascade
+    (sonde VRAM maison, seuils écrits en dur) au lieu de la brique — c'est là que les
+    deux mécanismes divergent en silence.
+    """
+    adopted = f.find(PY, r'\bselect_model(_id)?\b')
+    if adopted:
+        return True, adopted
+
+    # Sélecteur MAISON : soit une sonde VRAM écrite à la main, soit une fonction de choix.
+    probe = f.find(PY, r'nvidia-smi|mem_get_info|free_vram')
+    chooser = f.find(PY, r'def (select|choose|_select|_auto)\w*model|def select_best')
+    home_made = probe or chooser
+    if home_made:
+        # Un sélecteur qui lit DÉJÀ le catalogue n'est pas une source concurrente : il peut
+        # être un sur-ensemble légitime (l'anonymizer combine plusieurs modèles pour couvrir
+        # un jeu de classes ; la brique commune n'en choisit qu'un). On le distingue du
+        # sélecteur qui se fabrique sa propre vérité.
+        reads_catalog = f.find(PY, r'model_manager|AIModel')
+        if reads_catalog and not probe:
+            return 'partial', (f"sélecteur maison en {home_made}, mais alimenté par le "
+                               f"catalogue ({reads_catalog}) — sur-ensemble, pas doublon")
+        return False, f"sélecteur maison en {home_made} — concurrent de select_model()"
+
+    if not f.find(PARAMS + ['utils/model_config.py'], r"['\"]auto['\"]"):
+        return None, None
+    return False, "option « auto » exposée mais résolue hors de la brique commune"
+
+
 def _model_caps_canonical(f: _AppFiles):
     """Les modèles de l'app entrent-ils au catalogue en vocabulaire CANONIQUE ?
 
@@ -579,8 +615,8 @@ CRITERIA: list[Criterion] = [
               _f4(lambda f: _present(f, PY, r'REQUIRED_PACKAGES'))),
     Criterion('model_caps_canonical', 'F4', 'Entrée au catalogue en capacités CANONIQUES',
               _f4(_model_caps_canonical)),
-    Criterion('select_model', 'F4', 'Sélection VRAM-aware commune (select_model)',
-              _f4(lambda f: _present(f, PY, r'\bselect_model\b'))),
+    Criterion('select_model', 'F4', 'Sélection auto confiée à la brique commune (select_model)',
+              _f4(_select_model)),
     Criterion('vram_unloader', 'F4', 'Reclaim VRAM cross-app (unloader auto, explicite ou réservation)',
               _f4(_vram_unloader)),
     Criterion('hf_cache_isolation', 'F4', 'Cache HF isolé (HF_HUB_CACHE posé avant import)',
