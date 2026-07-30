@@ -2241,6 +2241,38 @@ travail**. La base LIVE est celle de **WSL2 (Postgres 16)**, conforme à
 exécute WAMA nativement sous Windows (`venv_win runserver`) ; sinon c'est une taxe d'entretien
 supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 
+## §REPRISE — handoff 2026-07-30 (session « contrat backend + tirage »)
+
+> **PREMIÈRE ACTION RECOMMANDÉE : compléter `common/services/conformity_checker.py`.**
+> Motif mesuré ce jour : la grille compte 40 critères répartis **F1:3 · F2:5 · F3:6 · F4:1 ·
+> F5:25 · F6/F7/F8:0**. C'est une mesure de F5, pas du portage. Un audit humain comptait
+> **54 mécanismes** — l'écart n'est pas une erreur d'audit, c'est la grille qui ne voit pas.
+> Conséquence vécue : l'imager a gagné le contrat backend, la déclaration VRAM, le tirage
+> VRAM-aware, les capacités canoniques et l'appariement d'entrées **sans bouger de 17/40**.
+>
+> Critères à ajouter, sourcés sur l'inventaire de **`wama/common/README.md`** (= le document de
+> référence des briques, à lire AVANT la route) :
+> - **F4 réels** : héritage `BaseModelBackend` · `REQUIRED_PACKAGES` déclarés · empreinte VRAM
+>   déclarée · adoption `select_model`/`select_model_id` · capacités canoniques ingérées
+>   (`task` + `inputs_required/optional`) · option « Auto » présente ET résolue **au lancement**
+>   (pas au dépôt) · `WamaModelCaps` · `WamaInputMatch` chargé (⚠ 8 apps ont la card commune,
+>   **une seule** charge la brique — support ≠ adoption).
+> - **F6/F7/F8** : aucun critère aujourd'hui — à instruire à partir de la route.
+>
+> **Ensuite, dans cet ordre** : (1) **anonymizer** — dernier sélecteur concurrent
+> (`utils/model_selector.py`, ~800 l.), migration balisée vers `select_model(classes=…)`,
+> paramètre écrit POUR lui ; (2) **imager** — chantier long, 17/40 mais F4 désormais solide.
+>
+> ⚠️ **À faire tourner avant tout test réel** : redémarrer les workers WSL2 **puis**
+> `manage.py sync_models` — les workers tiennent l'ancien `model_registry` en mémoire, donc la
+> base live n'a pas encore les capacités canoniques.
+>
+> **Leçon de méthode à ne pas reperdre** (3 occurrences ce jour) : une information existait, dans
+> un document qu'aucun chemin de lecture ne désignait, et elle a été réinventée à côté —
+> `INPUT_MODEL_MATCHING.md`, `wama/common/README.md`, puis le pattern « résoudre l'auto au
+> lancement » que composer appliquait déjà. Les deux documents sont raccrochés au graphe et le
+> skill `/port-app` porte désormais la règle : **lire l'app qui l'a déjà fait avant d'écrire.**
+
 ## §REPRISE — handoff 2026-07-29
 
 > **Point de départ session neuve : [`REPRISE_2026-07-29.md`](REPRISE_2026-07-29.md)** — à lire EN
