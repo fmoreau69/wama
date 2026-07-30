@@ -36,7 +36,7 @@
 | **Apache (frontal)** | **Windows** | reverse proxy public → gunicorn WSL2 via **netsh portproxy** `0.0.0.0:8000 → WSL2_IP:8000` | :80/:443 |
 | **Ollama** | **Windows** | « Ollama runs on Windows » ; WSL2 le joint via l'IP de la **default gateway** (`OLLAMA_HOST` auto, surchargeable ; `.env` pointe une IP LAN UGE) | host:11434 |
 | **CIFS / montages** | WSL2 | remontés au démarrage via l'API `filemanager/api/mounts/remount/` | — |
-| **Tooling dev (Claude Code)** | Windows | venv_win ; atteint Postgres/Redis WSL2 par localhost forwarding | — |
+| **Tooling dev (Claude Code)** | Windows | venv_win ; atteint la base WSL2 via `settings._resolve_db_host()` | — |
 
 ## Stockage partagé (D: ↔ /mnt/d)
 - `BASE_DIR` = `D:\WAMA\web-app-for-media-automation` (Windows) = `/mnt/d/WAMA/web-app-for-media-automation` (WSL2).
@@ -77,6 +77,29 @@ wsl.exe -e bash -lc "PGPASSWORD=*** psql -h 127.0.0.1 -U wama_user -d wama_db -t
   - `--all --also-wsl` = rote clé Django + mot de passe DB, applique l'`ALTER USER` à la base **dev
     Windows** (courante) ET à la base **live WSL2** (via `wsl.exe`), met à jour `.env` — les DEUX bases
     en une commande (cf. règle des deux Postgres distincts plus haut). Lancer **depuis Windows**.
+    ⚠ Depuis 2026-07-30, la « base courante » vue depuis Windows EST celle de WSL2 : l'étape
+    `--also-wsl` se saute alors d'elle-même (rejouer l'`ALTER USER` échouerait, il
+    s'authentifierait avec l'ancien mot de passe déjà remplacé).
+
+## ⚠ Une seule base fait foi (2026-07-30)
+
+`127.0.0.1` **ne désigne pas la même machine des deux côtés** : sous WSL2 c'est la base de
+l'application, depuis PowerShell c'est le service `postgresql-x64-17` de Windows — **une base
+différente**. Un `manage.py migrate` lancé depuis Windows semblait donc réussir tout en migrant
+une base que personne ne lit (mesuré : 225 migrations côté Windows contre 228 côté WSL2).
+
+`wama/settings.py::_resolve_db_host()` lève l'ambiguïté : sous Windows, une adresse de
+**bouclage** ne peut pas désigner la base de l'app → l'IP de WSL2 est résolue dynamiquement
+(`wsl.exe hostname -I` ; jamais figée, elle change à chaque redémarrage de WSL). Un hôte
+explicite **non loopback** reste prioritaire. `.env` est PARTAGÉ par les deux côtés et y pose
+`WAMA_DB_HOST=127.0.0.1` : il ne peut donc pas porter cette distinction.
+
+**La base Postgres de Windows est désormais orpheline** — plus rien ne la lit. Comparaison des
+deux avant bascule : ses seules lignes exclusives sont 48 entrées périmées du catalogue
+`AIModel` (openjourney-v4, realistic-vision-v5, cogvideox-2b, wan-*, logo-redmond-v2… — soit
+exactement les modèles listés « Supprimés (obsolètes) » dans `CLAUDE.md`) et le seed
+`anonymizer_globalsettings.precision_level`. WSL2, lui, a 3 entrées que Windows n'a pas : c'est
+le plus récent. **Aucune donnée utilisateur exclusive côté Windows.**
   - Vérifie une nouvelle connexion + rollback auto si KO ; l'ancienne `SECRET_KEY` bascule dans
     `DJANGO_SECRET_KEY_FALLBACKS` (aucune session invalidée) ; journal `logs/secret_rotation.log`.
   - Reste optionnel : hostname interne `vrlescot` + IP gateway WSL `172.29.240.1` encore en clair

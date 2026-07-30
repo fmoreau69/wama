@@ -130,6 +130,15 @@ class Command(BaseCommand):
         """Applique le nouveau mot de passe à la base live WSL2. Retourne un statut."""
         if sys.platform != 'win32':
             return 'skip(non-Windows: la base "autre côté" se rote séparément)'
+
+        # Depuis 2026-07-30, `settings._resolve_db_host()` fait pointer le Django de Windows sur
+        # la base de WSL2 (il n'y a plus qu'UNE base qui compte). Si la base « courante » est
+        # déjà celle-ci, la rotation vient de s'y appliquer : rejouer l'ALTER USER ici échouerait,
+        # car ce second appel s'authentifie avec l'ANCIEN mot de passe, déjà remplacé.
+        from django.conf import settings as _s
+        current_host = (_s.DATABASES['default'].get('HOST') or '').strip()
+        if current_host and current_host not in ('127.0.0.1', 'localhost', '::1'):
+            return f'skip(base courante = WSL2 @{current_host}, déjà rotée à l\'étape précédente)'
         inner = (f"PGPASSWORD='{old_pw}' psql -h 127.0.0.1 -U {db_user} -d {db_name} "
                  f"-v ON_ERROR_STOP=1 -c \"ALTER USER \\\"{db_user}\\\" WITH PASSWORD '{new_pw}';\"")
         try:
