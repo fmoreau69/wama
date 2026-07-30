@@ -430,11 +430,25 @@ class ModelRegistry:
                     format=model_format,
                     preferred_format=preferred,
                     can_convert_to=convert_options,
-                    # Capacités : modalité d'entrée déduite du type de modèle (image/audio/texte).
-                    capabilities={'modalities': (
-                        ['image'] if model_type in (ModelType.VLM, ModelType.VISION)
-                        else ['audio'] if model_type == ModelType.SPEECH
-                        else ['text'])},
+                    # Capacités CANONIQUES : modalité d'entrée déduite du type de modèle.
+                    # `task` + `inputs_required` complètent le tronc commun (2026-07-31) :
+                    # sans eux, l'appariement entrée↔modèle (INPUT_MODEL_MATCHING.md) n'avait
+                    # rien à comparer pour cette app et ne pouvait griser aucun moteur.
+                    # Un décrypteur de texte (LLM) travaille sur le prompt, pas sur un fichier.
+                    capabilities={
+                        'modalities': (
+                            ['image'] if model_type in (ModelType.VLM, ModelType.VISION)
+                            else ['audio'] if model_type == ModelType.SPEECH
+                            else ['text']),
+                        'task': (
+                            'captioning' if model_type in (ModelType.VLM, ModelType.VISION)
+                            else 'transcription' if model_type == ModelType.SPEECH
+                            else 'text-generation'),
+                        'inputs_required': (
+                            ['prompt'] if model_type not in (
+                                ModelType.VLM, ModelType.VISION, ModelType.SPEECH)
+                            else ['work_file']),
+                    },
                 )
         except ImportError as e:
             logger.debug(f"Could not import Describer models: {e}")
@@ -505,7 +519,11 @@ class ModelRegistry:
                         can_convert_to=convert_options,
                         # Capacités : tâche YOLO + classes détectables (→ sélection par classe,
                         # filtrage UI : ne proposer qu'un modèle gérant les classes demandées).
-                        capabilities={'task': model_type, 'classes': class_list or []},
+                        # `inputs_required` : YOLO travaille sur le média déposé (image/vidéo),
+                        # jamais sur un prompt — c'est ce qui l'oppose à SAM3 ci-dessous.
+                        capabilities={'task': model_type, 'classes': class_list or [],
+                                      'modalities': ['image', 'video'],
+                                      'inputs_required': ['work_file']},
                     )
 
             # Add SAM3 if available
@@ -532,8 +550,13 @@ class ModelRegistry:
                     format='safetensors',
                     preferred_format=preferred,
                     can_convert_to=['onnx'],
-                    # SAM3 : segmentation pilotée par prompt texte (open-vocabulary).
-                    capabilities={'task': 'segment', 'text_promptable': True},
+                    # SAM3 : segmentation pilotée par prompt texte (open-vocabulary) — il exige
+                    # DONC le média ET le prompt, là où YOLO se contente du média. C'est
+                    # exactement la distinction que l'appariement doit rendre visible dans l'UI
+                    # (INPUT_MODEL_MATCHING.md), au lieu de la laisser échouer au lancement.
+                    capabilities={'task': 'segment', 'text_promptable': True,
+                                  'modalities': ['image', 'video'],
+                                  'inputs_required': ['work_file', 'prompt']},
                 )
             except Exception:
                 pass
@@ -632,7 +655,11 @@ class ModelRegistry:
                 # False = pas de diar. NATIVE, mais l'app la fournit via pyannote). hotwords :
                 # les 3 backends l'exposent (whisper = param NATIF faster-whisper, cf.
                 # WhisperBackend.supports_hotwords=True). languages ['*'] = multilingue.
-                caps = {'languages': ['*'], 'supports_timestamps': True, 'supports_hotwords': True}
+                # `task`/`modalities`/`inputs_required` complètent le tronc commun (2026-07-31) :
+                # un ASR consomme la piste audio du média de travail, jamais un prompt.
+                caps = {'languages': ['*'], 'supports_timestamps': True, 'supports_hotwords': True,
+                        'task': 'transcription', 'modalities': ['audio'],
+                        'inputs_required': ['work_audio']}
                 if model_id.startswith('vibevoice'):
                     caps.update({'supports_diarization': True})
                 else:  # whisper / qwen3-asr — diarisation via pyannote (post-traitement)
@@ -665,6 +692,23 @@ class ModelRegistry:
             from django.conf import settings
             # Descriptions = source unique dans le model_config de l'app (R9) — plus de hardcode ici.
             from wama.synthesizer.utils.model_config import REGISTRY_MODEL_DESCRIPTIONS as _SYNTH_DESC
+
+            def _tts_caps(**caps):
+                """Complète les capacités d'un moteur TTS avec le tronc CANONIQUE.
+
+                `supports_cloning` était déjà déclaré par les 4 moteurs, mais dans un
+                vocabulaire propre à l'app : rien ne le reliait à l'appariement
+                entrée↔modèle. C'est exactement `inputs_optional: ['reference_voice']`
+                (INPUT_MODEL_MATCHING.md) — une voix de référence ACCEPTÉE, jamais exigée
+                (sans elle le moteur parle avec sa voix par défaut). Le drapeau d'app est
+                conservé : le traduire ici évite de le dupliquer à 4 endroits.
+                """
+                caps.setdefault('task', 'text-to-speech')
+                caps.setdefault('modalities', ['audio'])
+                caps.setdefault('inputs_required', ['prompt'])
+                if caps.get('supports_cloning'):
+                    caps.setdefault('inputs_optional', ['reference_voice'])
+                return caps
 
             # Get preferred format for speech models
             preferred = self._get_preferred_format(ModelType.SPEECH)
@@ -707,11 +751,11 @@ class ModelRegistry:
                 preferred_format=preferred,
                 can_convert_to=['onnx', 'safetensors'],
                 extra_info={'path': str(coqui_model_path) if coqui_model_path else ''},
-                capabilities={
-                    'supports_cloning': True,  # XTTS = clonage de voix par speaker_wav
-                    'languages': ['fr', 'en', 'es', 'it', 'pt', 'de', 'nl', 'pl', 'ru',
-                                  'cs', 'ar', 'zh-cn', 'ja', 'ko', 'tr', 'hu', 'hi'],
-                },
+                capabilities=_tts_caps(
+                    supports_cloning=True,  # XTTS = clonage de voix par speaker_wav
+                    languages=['fr', 'en', 'es', 'it', 'pt', 'de', 'nl', 'pl', 'ru',
+                               'cs', 'ar', 'zh-cn', 'ja', 'ko', 'tr', 'hu', 'hi'],
+                ),
             )
 
             # Check for Bark TTS
@@ -746,11 +790,11 @@ class ModelRegistry:
                 preferred_format=preferred,
                 can_convert_to=['onnx', 'safetensors'],
                 extra_info={'path': str(bark_model_path) if bark_model_path else ''},
-                capabilities={
-                    'supports_cloning': False,  # Bark = presets de locuteurs, pas de clonage libre
-                    'languages': ['en', 'de', 'es', 'fr', 'hi', 'it', 'ja', 'ko',
-                                  'pl', 'pt', 'ru', 'tr', 'zh-cn'],
-                },
+                capabilities=_tts_caps(
+                    supports_cloning=False,  # Bark = presets de locuteurs, pas de clonage libre
+                    languages=['en', 'de', 'es', 'fr', 'hi', 'it', 'ja', 'ko',
+                               'pl', 'pt', 'ru', 'tr', 'zh-cn'],
+                ),
             )
 
             # Check for Higgs Audio v2
@@ -775,10 +819,10 @@ class ModelRegistry:
                 can_convert_to=[],
                 extra_info={'hf_id': 'bosonai/higgs-audio-v2-generation-3B-base',
                             'path': str(higgs_dir)},
-                capabilities={
-                    'supports_cloning': True,  # Higgs = clonage multi-locuteurs
-                    'languages': ['en', 'fr', 'de', 'es', 'it', 'pt', 'zh-cn', 'ja', 'ko'],
-                },
+                capabilities=_tts_caps(
+                    supports_cloning=True,  # Higgs = clonage multi-locuteurs
+                    languages=['en', 'fr', 'de', 'es', 'it', 'pt', 'zh-cn', 'ja', 'ko'],
+                ),
             )
 
             # Check for Kokoro 82M
@@ -801,10 +845,10 @@ class ModelRegistry:
                 preferred_format=preferred,
                 can_convert_to=[],
                 extra_info={'hf_id': 'hexgrad/Kokoro-82M', 'path': str(kokoro_dir)},
-                capabilities={
-                    'supports_cloning': False,  # Kokoro = voix fixes par langue
-                    'languages': ['fr', 'en', 'es', 'it', 'pt', 'ja', 'zh-cn'],
-                },
+                capabilities=_tts_caps(
+                    supports_cloning=False,  # Kokoro = voix fixes par langue
+                    languages=['fr', 'en', 'es', 'it', 'pt', 'ja', 'zh-cn'],
+                ),
             )
 
             logger.info(
@@ -838,6 +882,10 @@ class ModelRegistry:
                     _caps = {
                         'task': 'denoise' if 'ircnn' in _n else 'upscale',
                         'modalities': ['image', 'video'],
+                        # Appariement entrée↔modèle (INPUT_MODEL_MATCHING.md) : un upscaler
+                        # exige le fichier de travail. Sans cette clé, WamaInputMatch n'a rien
+                        # à comparer et ne peut pas griser les moteurs incompatibles.
+                        'inputs_required': ['work_file'],
                     }
                     if 'x4' in _n:
                         _caps['scale'] = 4
@@ -901,7 +949,10 @@ class ModelRegistry:
                 vram_gb=_eng['vram'],
                 is_downloaded=True,
                 backend_ref='enhancer',
-                capabilities={'task': 'audio_enhance', 'modalities': ['audio'], 'params': _eng['params']},
+                capabilities={'task': 'audio_enhance', 'modalities': ['audio'], 'params': _eng['params'],
+                              # Moteurs AUDIO : c'est ce qui les distingue des upscalers
+                              # image/vidéo de la même app (eux exigent 'work_file').
+                              'inputs_required': ['work_audio']},
             )
 
     def _discover_composer_models(self):
@@ -942,6 +993,10 @@ class ModelRegistry:
                         'modalities': ['audio'],
                         'task': 'text-to-music' if config.get('type') == 'music' else 'text-to-audio',
                         'languages': ['en'],
+                        # Requis pour TOUS (AudioCraft part d'une description textuelle) ;
+                        # la mélodie n'est OPTIONNELLE que pour melody — c'est cette
+                        # distinction requis/optionnel que l'appariement exploite.
+                        'inputs_required': ['prompt'],
                         **({'inputs_optional': ['reference_melody']}
                            if model_id == 'musicgen-melody' else {}),
                     },
@@ -992,6 +1047,7 @@ class ModelRegistry:
                     capabilities={
                         'modalities': ['image', 'document'],
                         'task': 'ocr',
+                        'inputs_required': ['work_file'],
                     },
                 )
                 # Clé de registre = `{source}:{id}` (convention). Cf. REMOVAL_LEDGER F4.
@@ -1056,6 +1112,18 @@ class ModelRegistry:
                                 preferred_format=preferred,
                                 can_convert_to=[],  # Managed by Ollama
                                 extra_info={'disk_gb': ram_gb, 'ollama_id': model_id_hash},
+                                # Capacités CANONIQUES. Les LLM Ollama étaient les SEULS
+                                # modèles du catalogue sans capacités : les apps qui les
+                                # consomment (describer, translator, enrichissement de
+                                # prompt) ne pouvaient donc pas les apparier comme les
+                                # autres. `vision` reste hors de portée ici — la liste
+                                # Ollama ne dit pas si un modèle est multimodal ; ne pas
+                                # sur-affirmer une modalité qu'on n'a pas vérifiée.
+                                capabilities={
+                                    'modalities': ['text'],
+                                    'task': 'text-generation',
+                                    'inputs_required': ['prompt'],
+                                },
                             )
                             models_found = True
             except (FileNotFoundError, subprocess.TimeoutExpired):
@@ -1417,9 +1485,13 @@ class ModelRegistry:
                         'pipeline': 'musetalk',
                     },
                     # Capacités CANONIQUES : lip-sync = image (avatar) + audio (voix) → vidéo.
+                    # DEUX entrées requises : c'est le seul modèle du catalogue dans ce cas,
+                    # et c'est précisément ce que l'appariement doit dire à l'utilisateur
+                    # AVANT le lancement plutôt que de le laisser échouer (INPUT_MODEL_MATCHING.md).
                     capabilities={
                         'modalities': ['image', 'audio', 'video'],
                         'task': 'lip-sync',
+                        'inputs_required': ['work_image', 'work_audio'],
                     },
                     backend_ref='avatarizer',
                     format='pth',

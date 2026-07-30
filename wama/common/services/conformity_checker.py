@@ -429,6 +429,33 @@ def _access_policy(f: _AppFiles):
 
 # ── F8 — nœud studio ─────────────────────────────────────────────────────────────
 
+def _model_caps_canonical(f: _AppFiles):
+    """Les modèles de l'app entrent-ils au catalogue en vocabulaire CANONIQUE ?
+
+    ⚠ Se mesure dans la DÉCOUVERTE (`model_registry._discover_<app>_models`), PAS dans le
+    `model_config.py` de l'app. La frontière est délibérée et documentée : l'app déclare dans
+    SON vocabulaire (`type`, `mode`, `supports_cloning`…), la découverte traduit vers le
+    tronc commun, et `AIModel.capabilities` est la source unique que tout le monde lit
+    (INPUT_MODEL_MATCHING.md). Une première version de ce critère cherchait le vocabulaire
+    canonique dans les fichiers de l'app : elle sanctionnait une architecture correcte.
+
+    `inputs_required`/`inputs_optional` est la clé qui compte — c'est elle qui alimente
+    l'appariement entrée↔modèle et le grisage des moteurs incompatibles.
+    """
+    text = _wama_text(MODEL_REGISTRY_PY)
+    m = re.search(rf"^    def _discover_{f.app}_models\b.*?(?=^    def |\Z)", text, re.S | re.M)
+    if not m:
+        return False, f"_discover_{f.app}_models() absent de {MODEL_REGISTRY_PY}"
+    body, line = m.group(0), text.count('\n', 0, m.start()) + 1
+    missing = [k for k, rx in (('task', r"'task'"),
+                               ('modalities', r"'modalities'"),
+                               ('inputs_required/optional', r"inputs_required|inputs_optional"))
+               if not re.search(rx, body)]
+    if missing:
+        return 'partial', f"{MODEL_REGISTRY_PY}:{line} — manquent {', '.join(missing)}"
+    return True, f"{MODEL_REGISTRY_PY}:{line} (task + modalities + inputs_*)"
+
+
 def _vram_unloader(f: _AppFiles):
     """L'app sait-elle rendre sa VRAM au reclaim cross-app ?
 
@@ -550,8 +577,8 @@ CRITERIA: list[Criterion] = [
               _f4(_backend_contract)),
     Criterion('backend_packages', 'F4', 'Dépendances déclaratives (REQUIRED_PACKAGES)',
               _f4(lambda f: _present(f, PY, r'REQUIRED_PACKAGES'))),
-    Criterion('model_caps_canonical', 'F4', 'Vocabulaire de capacités CANONIQUE (inputs_required/…)',
-              _f4(lambda f: _present(f, PY, r'inputs_required|inputs_optional|CANONICAL_CAPABILITIES'))),
+    Criterion('model_caps_canonical', 'F4', 'Entrée au catalogue en capacités CANONIQUES',
+              _f4(_model_caps_canonical)),
     Criterion('select_model', 'F4', 'Sélection VRAM-aware commune (select_model)',
               _f4(lambda f: _present(f, PY, r'\bselect_model\b'))),
     Criterion('vram_unloader', 'F4', 'Reclaim VRAM cross-app (unloader auto, explicite ou réservation)',
