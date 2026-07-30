@@ -6,13 +6,33 @@ description: Porter une app WAMA vers le standard schéma-driven (uniformisation
 # /port-app — Portage d'une app vers le standard commun
 
 Objectif : ZÉRO réinvention. Tout ce dont un port a besoin existe déjà en brique commune ; le
-travail est de CONSOMMER, pas de créer. Référence unique : `WAMA_APP_GENERATION_ROUTE.md` (F1–F8).
+travail est de CONSOMMER, pas de créer. Route d'ensemble : `WAMA_APP_GENERATION_ROUTE.md` (F1–F8).
+
+> ⚠️ **La route n'est PAS auto-suffisante** : chaque domaine a son document de référence, et une
+> facette qui ne pointe pas vers le sien laisse un trou. Vécu le 2026-07-30 : une session a
+> réinventé un vocabulaire de capacités (`t2i`/`t2v`/`i2v`) parce que `INPUT_MODEL_MATCHING.md`
+> n'était cité nulle part dans la route. **Si le domaine que tu touches figure ci-dessous, son
+> document se lit AVANT le code — pas la peine de « voir d'abord ».**
 
 ## 0. Avant de commencer (obligatoire)
 - Lire la section de l'app dans `PROJECT_STATUS.md` (§20bis/§21/§31…) + l'état live `/apps/`
   (`get_conformity_summary`) — ne PAS se fier aux tables figées.
 - Relire `WAMA_APP_GENERATION_ROUTE.md` pour la facette qu'on touche, et la recette des ports
   précédents (Transcriber/Composer/Describer/Reader/Converter = 5 apps déjà portées).
+- **Documents de domaine — lire celui qui correspond au chantier :**
+
+  | Tu touches… | Lire AVANT de coder |
+  |---|---|
+  | modèles, capacités, tirage, entrées acceptées | **`INPUT_MODEL_MATCHING.md`** + `common/utils/model_capabilities.py::CANONICAL_CAPABILITIES` |
+  | chargement/déchargement d'un modèle, VRAM | `ROADMAP.md` §Gouvernance des ressources + `common/backends/base.py` |
+  | prompts (traduction, enrichissement) | `PROMPT_PIPELINE.md` |
+  | manifestes | `WAMA_MANIFEST_SPEC.md` + `WAMA_MANIFEST_ARCHITECTURE.md` |
+  | conventions UI / boutons / file | `WAMA_APP_CONVENTIONS.md` |
+
+- **Règle de vocabulaire** : avant d'introduire une clé, un drapeau ou un nom de fonction,
+  chercher s'il existe déjà (`grep` du vocabulaire canonique). Un nom de fonction ne doit JAMAIS
+  porter un type de média (`video_models_from_manifest` ⇒ faux ; `get_registry_models(modality=…)`
+  ⇒ juste) : ce qui est typé dans le nom ne sera jamais réutilisé par une autre app.
 - Périmètre : UNE app à la fois, finir à 100 % plutôt que porter partout avec des trous
   (recadrage Fabien 2026-07-02).
 

@@ -70,3 +70,23 @@ card commune + select modèle (surfaces). Zéro hardcode par app ; composer = pi
 5. Composer : retirer le `melodyGroup` hardcodé du volet (remplacé par le slot de card déclaré) —
    la « disparition » actuelle devient sans objet.
 6. Étendre : imager (image de référence img2img — même mécanique), puis studio (mêmes ports).
+
+## 5. État mesuré (2026-07-30)
+
+| Surface | État |
+|---|---|
+| `wama-input-match.js` | ✅ commune (`common/static/common/js/`) |
+| Card commune `_new_item_card.html` | incluse par **8 apps** (avatarizer, composer, converter, describer, enhancer, reader, synthesizer, transcriber) |
+| Brique **chargée** | ⚠️ **composer seul** — les 7 autres ont la card sans le double sens |
+| **Imager** | ❌ ni la card commune, ni la brique |
+
+**Le préalable de l'étape 6 est LEVÉ** : les modèles imager déclarent enfin
+`inputs_required`/`inputs_optional` au catalogue (ingest depuis le `mode` du manifeste, 30/07 —
+cf. `PROJECT_STATUS §0 4ter`). Le double sens se nourrissant exactement de ces champs, il ne
+pouvait pas fonctionner avant ; il est maintenant alimentable. Le tirage côté serveur consomme
+déjà ces champs via `matches_inputs()` — **le serveur et l'UI partagent donc la même déclaration**,
+ce qui est le but : le grisage d'une entrée et l'exclusion d'un modèle disent la même chose.
+
+⚠️ **Écart à surveiller** : 7 apps affichent la card commune **sans** charger la brique. Elles
+n'ont donc pas le double sens alors qu'elles en ont le support — c'est un trou d'adoption, pas
+un trou de conception.

@@ -155,6 +155,13 @@ manifeste** (ce que le kind `app` capte + cible de projection).
   capacité `during_preview/streaming`, profil ETA (unit + a-priori load/per_unit).
 
 ### F4 — Modèles IA  ⟷ `SPEC §F4`
+- 🔴 **AVANT DE TOUCHER AUX CAPACITÉS OU AU TIRAGE — lire [`INPUT_MODEL_MATCHING.md`](INPUT_MODEL_MATCHING.md)**
+  (appariement entrée↔modèle : vocabulaire canonique, `inputs_required`/`inputs_optional`, grisage UI
+  `WamaInputMatch`). Ce document était **orphelin du graphe** jusqu'au 2026-07-30 : cité nulle part ici,
+  alors que le skill `/port-app` annonce cette route comme « référence unique ». Conséquence vécue le
+  30/07 : une session a réinventé des drapeaux de capacité ad hoc (`t2i`/`t2v`/`i2v`) faute d'avoir su
+  que le vocabulaire canonique existait. **Une facette qui ne pointe pas vers son document de domaine
+  produit exactement la duplication que la route combat.**
 - **Catalogue** = `AIModel` (source unique), `capabilities` JSON canonique (`CANONICAL_CAPABILITIES`,
   `model_capabilities.py:30`). **Découverte** : `_discover_<app>_models()` importe le `model_config.py` de
   l'app et construit les capabilities (`model_registry.py`). **Déclaration app** : `<APP>_MODELS` + `*_DIR`.
