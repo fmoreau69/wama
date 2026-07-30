@@ -112,6 +112,15 @@ def generate_image_task(self, generation_id):
             _console(generation.user_id, f"[Imager] Génération #{generation_id} : reprise après crash refusée.")
             return {'skipped': True, 'reason': 'crash_redelivery', 'generation_id': generation_id}
 
+        # Tirage « auto » AU LANCEMENT (pas au dépôt) : le choix dépend de la VRAM libre, qui
+        # a pu changer pendant l'attente en file. Même moment que composer/tasks.py:50.
+        from wama.imager.utils.auto_model import AUTO, resolve_auto_model
+        if (generation.model or AUTO).strip() in ('', AUTO):
+            generation.model = resolve_auto_model(generation)
+            generation.save(update_fields=['model'])
+            _console(generation.user_id,
+                     f"[Imager] 🧠 Auto → {generation.model} (capacités + VRAM libre au lancement)")
+
         generation.status = 'RUNNING'
         generation.progress = 0
         generation.save()
@@ -453,6 +462,15 @@ def generate_video_task(self, generation_id):
             logger.warning(f"[Imager Video] Generation #{generation_id}: reprise après crash refusée — relancer manuellement.")
             _console(generation.user_id, f"[Imager Video] Génération #{generation_id} : reprise après crash refusée.")
             return {'skipped': True, 'reason': 'crash_redelivery', 'generation_id': generation_id}
+
+        # Tirage « auto » AU LANCEMENT (pas au dépôt) : le choix dépend de la VRAM libre, qui
+        # a pu changer pendant l'attente en file. Même moment que composer/tasks.py:50.
+        from wama.imager.utils.auto_model import AUTO, resolve_auto_model
+        if (generation.model or AUTO).strip() in ('', AUTO):
+            generation.model = resolve_auto_model(generation)
+            generation.save(update_fields=['model'])
+            _console(generation.user_id,
+                     f"[Imager] 🧠 Auto → {generation.model} (capacités + VRAM libre au lancement)")
 
         generation.status = 'RUNNING'
         generation.progress = 0

@@ -19,6 +19,15 @@
             <i class="fas fa-robot"></i> Modèle
         </label>
         <select class="form-select form-select-sm bg-dark text-white border-secondary model-select-with-tooltip" id="model" name="model">
+            {% comment %}
+            « Auto » = tirage par la brique commune AU LANCEMENT de la tâche (capacités +
+            VRAM libre du moment, cf. utils/auto_model.py). Sans cette option, le select
+            poste toujours un modèle explicite et le tirage ne se déclenche JAMAIS.
+            {% endcomment %}
+            <option value="auto" {% if not user_settings.default_model %}selected{% endif %}
+                    data-description="Choix automatique : le meilleur modèle qui tient entièrement sur le GPU au moment du lancement (pas d'offload CPU).">
+                🧠 Auto (recommandé)
+            </option>
             {% for model in models_info %}
             <option value="{{ model.id }}"
                     data-description="{{ model.description }}"
@@ -168,6 +177,16 @@
             <i class="fas fa-robot"></i> Modèle
         </label>
         <select class="form-select form-select-sm bg-dark text-white border-secondary model-select-with-tooltip" id="panel_video_model">
+            {% comment %}
+            Même « Auto » que pour l'image : le tirage a lieu au LANCEMENT et connaît le mode
+            (texte→vidéo vs image→vidéo), donc il choisit un modèle qui CONSOMME l'image
+            fournie quand il y en a une. Cf. utils/auto_model.py.
+            {% endcomment %}
+            <option value="auto" selected
+                    data-description="Choix automatique : le meilleur modèle qui tient entièrement sur le GPU au lancement, et qui sait exploiter l'image fournie en mode image→vidéo."
+                    data-type="t2v+i2v">
+                🧠 Auto (recommandé)
+            </option>
             {% for model in video_models_info %}
             <option value="{{ model.id }}"
                     data-description="{{ model.description }}"

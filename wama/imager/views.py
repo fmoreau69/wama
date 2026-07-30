@@ -23,7 +23,7 @@ import logging
 from pathlib import Path
 
 from .models import ImageGeneration, UserSettings
-from wama.model_manager.services import get_registry_models, select_model_id
+from wama.model_manager.services import get_registry_models
 from .utils.model_config import (
     DEFAULT_IMAGE_MODEL, DEFAULT_VIDEO_MODEL, DEFAULT_I2V_MODEL, get_model_defaults,
 )
@@ -200,9 +200,9 @@ def handle_txt2img(request, user):
     # Défauts SOURCÉS depuis la déclaration du modèle (model_config), jamais en dur ici :
     # 512x512 / 30 étapes / guidance 7.5 sont les valeurs de l'ère SD 1.5 et dégradent tout
     # modèle 1024 px en rectified flow (Qwen, FLUX).
-    # Tirage : choix explicite respecté, sinon la brique commune `select_model()` retient le
-    # meilleur modèle qui tient ENTIÈREMENT sur le GPU (pas d'offload CPU subi).
-    model = select_model_id('imager', modality='image', requested=request.POST.get('model'), fallback=DEFAULT_IMAGE_MODEL)
+    # On ENREGISTRE le choix (ou 'auto') — le tirage a lieu au LANCEMENT de la tâche, où la
+    # VRAM libre est celle du moment (cf. utils/auto_model.py). Résoudre ici serait périmé.
+    model = request.POST.get('model') or 'auto'
     _def = get_model_defaults(model)
     width = int(request.POST.get('width', _def['width']))
     height = int(request.POST.get('height', _def['height']))
@@ -256,9 +256,9 @@ def handle_file2img(request, user):
     # Défauts SOURCÉS depuis la déclaration du modèle (model_config), jamais en dur ici :
     # 512x512 / 30 étapes / guidance 7.5 sont les valeurs de l'ère SD 1.5 et dégradent tout
     # modèle 1024 px en rectified flow (Qwen, FLUX).
-    # Tirage : choix explicite respecté, sinon la brique commune `select_model()` retient le
-    # meilleur modèle qui tient ENTIÈREMENT sur le GPU (pas d'offload CPU subi).
-    model = select_model_id('imager', modality='image', requested=request.POST.get('model'), fallback=DEFAULT_IMAGE_MODEL)
+    # On ENREGISTRE le choix (ou 'auto') — le tirage a lieu au LANCEMENT de la tâche, où la
+    # VRAM libre est celle du moment (cf. utils/auto_model.py). Résoudre ici serait périmé.
+    model = request.POST.get('model') or 'auto'
     _def = get_model_defaults(model)
     width = int(request.POST.get('width', _def['width']))
     height = int(request.POST.get('height', _def['height']))
@@ -339,9 +339,9 @@ def handle_describe2img(request, user):
     # Défauts SOURCÉS depuis la déclaration du modèle (model_config), jamais en dur ici :
     # 512x512 / 30 étapes / guidance 7.5 sont les valeurs de l'ère SD 1.5 et dégradent tout
     # modèle 1024 px en rectified flow (Qwen, FLUX).
-    # Tirage : choix explicite respecté, sinon la brique commune `select_model()` retient le
-    # meilleur modèle qui tient ENTIÈREMENT sur le GPU (pas d'offload CPU subi).
-    model = select_model_id('imager', modality='image', requested=request.POST.get('model'), fallback=DEFAULT_IMAGE_MODEL)
+    # On ENREGISTRE le choix (ou 'auto') — le tirage a lieu au LANCEMENT de la tâche, où la
+    # VRAM libre est celle du moment (cf. utils/auto_model.py). Résoudre ici serait périmé.
+    model = request.POST.get('model') or 'auto'
     _def = get_model_defaults(model)
     width = int(request.POST.get('width', _def['width']))
     height = int(request.POST.get('height', _def['height']))
@@ -410,9 +410,9 @@ def handle_img2img(request, user, mode):
     # Défauts SOURCÉS depuis la déclaration du modèle (model_config), jamais en dur ici :
     # 512x512 / 30 étapes / guidance 7.5 sont les valeurs de l'ère SD 1.5 et dégradent tout
     # modèle 1024 px en rectified flow (Qwen, FLUX).
-    # Tirage : choix explicite respecté, sinon la brique commune `select_model()` retient le
-    # meilleur modèle qui tient ENTIÈREMENT sur le GPU (pas d'offload CPU subi).
-    model = select_model_id('imager', modality='image', requested=request.POST.get('model'), fallback=DEFAULT_IMAGE_MODEL)
+    # On ENREGISTRE le choix (ou 'auto') — le tirage a lieu au LANCEMENT de la tâche, où la
+    # VRAM libre est celle du moment (cf. utils/auto_model.py). Résoudre ici serait périmé.
+    model = request.POST.get('model') or 'auto'
     _def = get_model_defaults(model)
     width = int(request.POST.get('width', _def['width']))
     height = int(request.POST.get('height', _def['height']))
@@ -465,7 +465,7 @@ def handle_txt2vid(request, user):
         return JsonResponse({'error': 'Prompt is required'}, status=400)
 
     negative_prompt = request.POST.get('negative_prompt', '').strip()
-    model = select_model_id('imager', modality='video', available_inputs=['prompt'], requested=request.POST.get('model'), fallback=DEFAULT_VIDEO_MODEL)
+    model = request.POST.get('model') or 'auto'
     video_duration = float(request.POST.get('video_duration', 5.0))
     video_fps = int(request.POST.get('video_fps', 16))
     video_resolution = request.POST.get('video_resolution', '480p')
@@ -510,7 +510,7 @@ def handle_img2vid(request, user):
 
     prompt = request.POST.get('prompt', '').strip()
     negative_prompt = request.POST.get('negative_prompt', '').strip()
-    model = select_model_id('imager', modality='video', available_inputs=['prompt', 'work_image'], consumes=['work_image'], requested=request.POST.get('model'), fallback=DEFAULT_I2V_MODEL)
+    model = request.POST.get('model') or 'auto'
     video_duration = float(request.POST.get('video_duration', 5.0))
     video_fps = int(request.POST.get('video_fps', 16))
     video_resolution = request.POST.get('video_resolution', '480p')
