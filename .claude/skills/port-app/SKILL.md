@@ -15,6 +15,17 @@ travail est de CONSOMMER, pas de créer. Route d'ensemble : `WAMA_APP_GENERATION
 > document se lit AVANT le code — pas la peine de « voir d'abord ».**
 
 ## 0. Avant de commencer (obligatoire)
+
+- 🔴 **`wama/common/README.md` = L'INVENTAIRE DES BRIQUES + LA RECETTE + LES PIÈGES.** À lire en
+  premier, avant même la route : c'est le seul document qui liste les briques réellement
+  disponibles avec leur API. Ne pas écrire une ligne avant d'y avoir cherché la brique.
+- 🔴 **LE SCORE /40 NE MESURE PAS TOUT LE PORTAGE.** La grille `check_app_conformity` couvre
+  **F1:3 · F2:5 · F3:6 · F4:1 · F5:25 — et F6/F7/F8 : ZÉRO critère** (mesuré 2026-07-30). Sont
+  donc **invisibles au score** : contrat `BaseModelBackend`, déclaration VRAM, tirage
+  `select_model`, capacités canoniques, `WamaInputMatch`, `WamaModelCaps`, enrichissement de
+  prompt, navette, ETA… Une app peut gagner beaucoup sans bouger d'un point, et inversement.
+  **Le score sert à repérer les régressions F1–F5, pas à déclarer un portage terminé** — pour ça,
+  c'est l'inventaire de `common/README.md` qui fait foi.
 - Lire la section de l'app dans `PROJECT_STATUS.md` (§20bis/§21/§31…) + l'état live `/apps/`
   (`get_conformity_summary`) — ne PAS se fier aux tables figées.
 - Relire `WAMA_APP_GENERATION_ROUTE.md` pour la facette qu'on touche, et la recette des ports
@@ -28,6 +39,21 @@ travail est de CONSOMMER, pas de créer. Route d'ensemble : `WAMA_APP_GENERATION
   | prompts (traduction, enrichissement) | `PROMPT_PIPELINE.md` |
   | manifestes | `WAMA_MANIFEST_SPEC.md` + `WAMA_MANIFEST_ARCHITECTURE.md` |
   | conventions UI / boutons / file | `WAMA_APP_CONVENTIONS.md` |
+
+- **Briques JS communes — les chercher, pas les réécrire** (`common/static/common/js/`, 24 à ce
+  jour) : `wama-app-base` · `wama-params` · `wama-inspector` (+`-autofill`) · `wama-modes` ·
+  `wama-model-help` · `wama-model-caps` · `wama-input-match` · `wama-new-item-card` ·
+  `wama-cycle-button` · `wama-eta` · `wama-global-progress` · `wama-queue` · `queue-actions` ·
+  `batch-import` · `wama-prompt-enrich` · `wama-prompt-chips` · `wama-shuttle` · `media-picker` ·
+  `media-preview` · `wama-audio-player` · `wama-fm-notify` · `console` · `system-stats`.
+  ⚠️ Avoir la card commune ne suffit pas : mesuré le 30/07, **8 apps incluent
+  `_new_item_card.html` mais une seule charge `wama-input-match.js`**. Support ≠ adoption.
+
+- **Le tirage « auto » se résout AU LANCEMENT, jamais au dépôt.** Il lit la VRAM libre ; entre la
+  mise en file et l'exécution, plusieurs minutes peuvent passer. La vue ENREGISTRE `'auto'`, la
+  tâche résout (`composer/tasks.py:50`, `imager/utils/auto_model.py`). Et vérifier qu'une option
+  « Auto » existe vraiment dans le `<select>` : sans elle le formulaire poste toujours un modèle
+  explicite et le tirage ne se déclenche **jamais** (cas vécu sur l'imager le 30/07).
 
 - **Règle de vocabulaire** : avant d'introduire une clé, un drapeau ou un nom de fonction,
   chercher s'il existe déjà (`grep` du vocabulaire canonique). Un nom de fonction ne doit JAMAIS
