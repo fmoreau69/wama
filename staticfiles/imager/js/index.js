@@ -294,6 +294,22 @@
             });
         }
 
+        // ── Champ prompt à deux états ([[wama-prompt-enrich]], brique commune) ──────────────
+        // Les 4 champs prompt d'imager (card d'entrée image/vidéo + les 2 modales de
+        // paramètres) partagent le même composant : même geste partout, aucun code dupliqué.
+        ['prompt', 'video_prompt', 'settings_prompt', 'video_settings_prompt'].forEach(function (id) {
+            const el = document.getElementById(id);
+            if (el && window.WamaPromptEnrich) {
+                WamaPromptEnrich.attach(el, {
+                    app: 'imager',
+                    domain: id.indexOf('video') === 0 ? 'video' : 'image',
+                    endpoint: config.urls.enhancePrompt,
+                    csrf: config.csrfToken,
+                    original: el.value, processed: ''
+                });
+            }
+        });
+
         // Prompt enhancement buttons (image + video)
         document.addEventListener('click', function(e) {
             const btn = e.target.closest('.enhance-prompt-btn');
@@ -310,7 +326,7 @@
                 method: 'POST',
                 headers: {'Content-Type': 'application/json', 'X-CSRFToken': config.csrfToken},
                 body: JSON.stringify({
-                    prompt: textarea.value, app: 'imager', domain: mode,
+                    prompt: promptOf(textarea), app: 'imager', domain: mode,
                     // Mots-clés cliqués → glossaire : préservés VERBATIM par l'enrichissement.
                     keywords: window.WamaPromptChips ? WamaPromptChips.activeFor(textarea) : []
                 })
@@ -318,11 +334,15 @@
             .then(r => r.json())
             .then(data => {
                 if (data.enhanced) {
-                    textarea.dataset.originalPrompt = textarea.value;
-                    textarea.value = data.enhanced;
-                    // Les mots-clés cliqués sont préservés verbatim (glossaire) → resynchroniser
-                    // l'état visuel des chips sur le texte enrichi.
-                    if (window.WamaPromptChips) WamaPromptChips.refreshFor(textarea);
+                    textarea.dataset.originalPrompt = promptOf(textarea);
+                    // Passe par la brique commune : c'est elle qui tient les deux états
+                    // (« voir mon prompt » / « revenir au mien ») et resynchronise les chips.
+                    if (window.WamaPromptEnrich && WamaPromptEnrich.get(textarea)) {
+                        WamaPromptEnrich.setProcessed(textarea, data.enhanced);
+                    } else {
+                        textarea.value = data.enhanced;
+                        if (window.WamaPromptChips) WamaPromptChips.refreshFor(textarea);
+                    }
                 } else {
                     WamaApp.toast(data.error || 'Erreur lors de l\'amélioration du prompt', 'error');
                 }
@@ -745,7 +765,7 @@
                 return;
             }
 
-            formData.set('prompt', prompt.value);
+            formData.set('prompt', promptOf(prompt));
             if (negativePrompt && negativePrompt.value) {
                 formData.set('negative_prompt', negativePrompt.value);
             }
@@ -765,7 +785,7 @@
             }
 
             formData.set('reference_image', videoImage.files[0]);
-            formData.set('prompt', prompt.value);
+            formData.set('prompt', promptOf(prompt));
             if (negativePrompt && negativePrompt.value) {
                 formData.set('negative_prompt', negativePrompt.value);
             }
@@ -888,6 +908,38 @@
      * Handle form submission - create new generation
      * Handles all modes: txt2img, file2img, describe2img, style2img, img2img
      */
+    /**
+     * Prompt de l'UTILISATEUR pour un champ (et non l'enrichi affiché).
+     * Invariant : en base, `prompt` = ce qu'il a tapé ; l'enrichi vit dans `prompt_processed`.
+     * À la création on poste donc toujours l'original — le serveur ré-enrichit à l'ingestion
+     * (même skill, même cache → immédiat), sinon un clic sur ✨ avant l'ajout écraserait
+     * définitivement le prompt d'origine par sa version enrichie.
+     */
+    function promptOf(field) {
+        const c = window.WamaPromptEnrich && WamaPromptEnrich.get(field);
+        return c ? c.snapshot().original : field.value;
+    }
+
+    /**
+     * (Ré)attache le champ à deux états d'une modale de paramètres sur l'item ouvert.
+     * `data` vient de get_generation_settings : `prompt` (le sien) + `prompt_processed`.
+     */
+    function attachPromptStates(fieldId, domain, data) {
+        const el = document.getElementById(fieldId);
+        if (!el) return;
+        if (!window.WamaPromptEnrich) {          // brique absente → comportement d'avant
+            el.value = data.prompt || '';
+            return;
+        }
+        WamaPromptEnrich.attach(el, {
+            app: 'imager', domain: domain,
+            endpoint: config.urls.enhancePrompt, csrf: config.csrfToken,
+            original: data.prompt || '',
+            processed: data.prompt_processed || '',
+            keywords: data.prompt_keywords || []
+        });
+    }
+
     function handleFormSubmit(e) {
         e.preventDefault();
 
@@ -931,7 +983,7 @@
                 return;
             }
 
-            formData.set('prompt', prompt.value);
+            formData.set('prompt', promptOf(prompt));
             if (negativePrompt && negativePrompt.value) {
                 formData.set('negative_prompt', negativePrompt.value);
             }
@@ -971,7 +1023,7 @@
 
             formData.set('reference_image', referenceImage.files[0]);
             if (img2imgPrompt && img2imgPrompt.value) {
-                formData.set('prompt', img2imgPrompt.value);
+                formData.set('prompt', promptOf(img2imgPrompt));
             }
             if (img2imgNegativePrompt && img2imgNegativePrompt.value) {
                 formData.set('negative_prompt', img2imgNegativePrompt.value);
@@ -1451,7 +1503,9 @@
                     autoPromptRow.style.display = 'none';
                 }
 
-                document.getElementById('settings_prompt').value = data.prompt || '';
+                // Deux états : le champ affiche l'enrichi s'il existe, l'original reste
+                // consultable et récupérable ([[wama-prompt-enrich]]).
+                attachPromptStates('settings_prompt', 'image', data);
                 document.getElementById('settings_negative_prompt').value = data.negative_prompt || '';
                 document.getElementById('settings_model').value = data.model || '';
                 document.getElementById('settings_num_images').value = data.num_images || 1;
@@ -1523,7 +1577,11 @@
         const url = config.urls.saveSettings.replace('0', genId);
 
         const formData = new FormData();
-        formData.append('prompt', document.getElementById('settings_prompt').value);
+        // `prompt_state` dit au serveur s'il édite l'enrichi ou son propre prompt (auquel cas
+        // l'enrichi devient périmé et est vidé) — cf. save_generation_settings.
+        const _sp = document.getElementById('settings_prompt');
+        formData.append('prompt', _sp.value);
+        formData.append('prompt_state', _sp.dataset.promptState || 'user');
         formData.append('negative_prompt', document.getElementById('settings_negative_prompt').value);
         formData.append('model', document.getElementById('settings_model').value);
         formData.append('width', document.getElementById('settings_width').value);
@@ -1608,7 +1666,7 @@
                     videoRefImg.src = data.reference_image_url;
                 }
 
-                document.getElementById('video_settings_prompt').value = data.prompt || '';
+                attachPromptStates('video_settings_prompt', 'video', data);
                 document.getElementById('video_settings_negative_prompt').value = data.negative_prompt || '';
                 document.getElementById('video_settings_model').value = data.model || 'wan-t2v-1.3b';
                 document.getElementById('video_settings_resolution').value = data.video_resolution || '480p';
@@ -1659,7 +1717,9 @@
         const url = config.urls.saveSettings.replace('0', genId);
 
         const formData = new FormData();
-        formData.append('prompt', document.getElementById('video_settings_prompt').value);
+        const _vsp = document.getElementById('video_settings_prompt');
+        formData.append('prompt', _vsp.value);
+        formData.append('prompt_state', _vsp.dataset.promptState || 'user');
         formData.append('negative_prompt', document.getElementById('video_settings_negative_prompt').value);
         formData.append('model', document.getElementById('video_settings_model').value);
         formData.append('video_resolution', document.getElementById('video_settings_resolution').value);

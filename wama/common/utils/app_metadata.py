@@ -171,6 +171,32 @@ PROCESSED_SUFFIX = '_processed'
 TRACE_FIELD = 'prompt_trace'
 
 
+def detected_keywords(text, user=None, domain=None):
+    """
+    Mots-clés de la palette PRÉSENTS VERBATIM dans un prompt.
+
+    Les chips ([[wama-prompt-chips]]) insèrent du TEXTE dans le champ : à l'ingestion, on n'a donc
+    aucune liste de ce qui a été cliqué. On la RETROUVE en confrontant le prompt à la palette de
+    l'utilisateur (+ tronc commun `user=None`). Dérivé plutôt que transmis : aucun handler de
+    création à patcher (imager en a sept), et un mot-clé tapé à la main est protégé pareil.
+
+    Sert de glossaire d'enrichissement → ces termes sont préservés verbatim.
+    """
+    try:
+        from django.db.models import Q
+        from wama.media_library.models import PromptKeyword
+
+        low = (text or '').lower()
+        if not low:
+            return []
+        qs = PromptKeyword.objects.filter(Q(user=user) | Q(user__isnull=True))
+        if domain:
+            qs = qs.filter(Q(domain=domain) | Q(domain=''))
+        return [k.text for k in qs.only('text') if k.text and k.text.lower() in low]
+    except Exception:
+        return []
+
+
 def effective_prompt(instance, field):
     """
     Valeur à ENVOYER au modèle pour ce champ-prompt.
@@ -230,9 +256,12 @@ def enrich_instance_prompts(app, instance, user=None, glossary=None, source='ing
         if not value or not str(value).strip():
             continue
 
+        domain = _domain_for(instance, tgt)
+        # Glossaire non fourni → on le DÉRIVE du prompt (cf. detected_keywords).
+        gloss = list(glossary) if glossary else detected_keywords(value, user, domain)
         try:
-            enriched = enrich_on_demand(value, app=app, domain=_domain_for(instance, tgt),
-                                        language=lang, glossary=glossary or None,
+            enriched = enrich_on_demand(value, app=app, domain=domain,
+                                        language=lang, glossary=gloss or None,
                                         keep_alive=KEEP_ALIVE_INGEST)
         except Exception as e:                           # LLM injoignable, timeout, réponse vide
             logger.debug(f"[app_metadata] enrichissement {app}.{field} ignoré ({e})")
@@ -243,7 +272,12 @@ def enrich_instance_prompts(app, instance, user=None, glossary=None, source='ing
         setattr(instance, pfield, enriched)
         updates.append(pfield)
         trace[field] = {'enriched': True, 'source': source, 'language': lang,
-                        'keywords': list(glossary or [])}
+                        'keywords': gloss}
+        # Mots-clés conservés comme DONNÉE : ils survivent à un retour au prompt d'origine et
+        # resservent de glossaire à un ré-enrichissement.
+        if gloss and hasattr(instance, 'prompt_keywords') and not instance.prompt_keywords:
+            instance.prompt_keywords = gloss
+            updates.append('prompt_keywords')
         done.append(field)
 
     if updates:

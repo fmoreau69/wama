@@ -1172,6 +1172,12 @@ def get_generation_settings(request, generation_id):
             'id': generation.id,
             'generation_mode': generation.generation_mode,
             'prompt': generation.prompt,
+            # Champ prompt à DEUX ÉTATS ([[wama-prompt-enrich]]) : `prompt` reste ce que
+            # l'utilisateur a tapé, `prompt_processed` ce qui part au modèle. L'UI affiche le
+            # second et permet de revenir au premier — d'où l'envoi des deux.
+            'prompt_processed': generation.prompt_processed or '',
+            'prompt_keywords': generation.prompt_keywords or [],
+            'prompt_trace': generation.prompt_trace or {},
             'negative_prompt': generation.negative_prompt or '',
             'auto_prompt': generation.auto_prompt or '',
             'model': generation.model,
@@ -1215,7 +1221,16 @@ def save_generation_settings(request, generation_id):
             prompt = request.POST.get('prompt', '').strip()
             if not prompt:
                 return JsonResponse({'error': 'Prompt is required'}, status=400)
-            generation.prompt = prompt
+            # Champ à DEUX ÉTATS ([[wama-prompt-enrich]]) : le client dit dans QUEL champ écrire.
+            # - 'processed' : l'utilisateur édite l'enrichi → n'écrase surtout pas son original ;
+            # - 'user' : il a repris son prompt (retour arrière) ou l'a modifié → l'enrichi
+            #   devient périmé, on le vide. C'est le piège des deux champs éditables : ici
+            #   l'invalidation est explicite au lieu d'être silencieuse.
+            if request.POST.get('prompt_state') == 'processed':
+                generation.prompt_processed = prompt
+            else:
+                generation.prompt = prompt
+                generation.prompt_processed = ''
 
         if 'negative_prompt' in request.POST:
             generation.negative_prompt = request.POST.get('negative_prompt', '').strip()
