@@ -1,6 +1,6 @@
 ---
 name: conformite
-description: Mesurer la conformité RÉELLE des apps WAMA (check_app_conformity, 40 critères couvrant F1-F5 SEULEMENT — F6/F7/F8 non mesurées) et trier les écarts en plan d'action. Utiliser après un palier de portage, quand l'utilisateur demande « où en est la conformité », « re-mesure », ou pour choisir la prochaine app/critère à porter. Le score n'est PAS l'avancement du portage : voir l'avertissement en tête du skill.
+description: Mesurer la conformité RÉELLE des apps WAMA (check_app_conformity, 72 critères couvrant les 8 facettes F1-F8) et trier les écarts en plan d'action. Utiliser après un palier de portage, quand l'utilisateur demande « où en est la conformité », « re-mesure », ou pour choisir la prochaine app/critère à porter. Le score n'est PAS l'avancement du portage : voir l'avertissement en tête du skill.
 ---
 
 # /conformite — Mesure réelle + triage
@@ -8,22 +8,28 @@ description: Mesurer la conformité RÉELLE des apps WAMA (check_app_conformity,
 La grille `/apps/` est MESURÉE, plus déclarée : ne JAMAIS éditer à la main les booléens
 `_conv(...)` d'`app_registry.py` pour les critères mesurés (le rapport les écrase).
 
-> 🔴 **CE QUE LE SCORE /40 NE DIT PAS.** Répartition réelle des critères (mesurée 2026-07-30) :
-> **F1:3 · F2:5 · F3:6 · F4:1 · F5:25 · F6:0 · F7:0 · F8:0.** La grille est donc surtout une
-> mesure de **F5 (paramètres/inspecteur)**, et ne voit RIEN de : contrat `BaseModelBackend`,
-> déclaration VRAM au gouverneur, tirage `select_model`, capacités canoniques, appariement
-> entrée↔modèle, enrichissement de prompt, navette, ETA.
+> 🔴 **CE QUE LE SCORE DIT — ET NE DIT PAS.** Répartition des critères (élargie 2026-07-30,
+> **40 → 72**) : **F1:4 · F2:9 · F3:13 · F4:9 · F5:27 · F6:5 · F7:3 · F8:2.** Les 8 facettes de
+> `WAMA_APP_GENERATION_ROUTE.md` sont désormais **toutes** couvertes — avant cet élargissement la
+> grille ne voyait que F1–F5 (dont 25 critères de F5 à eux seuls) et était donc **aveugle** au
+> contrat `BaseModelBackend`, à la déclaration VRAM, au tirage `select_model`, aux capacités
+> canoniques, à l'appariement entrée↔modèle, aux prompts, aux permissions et au nœud studio.
+>
+> Le dénominateur **varie par app** (60 à 72) : un critère peut être **non applicable** et sortir
+> du calcul — F4 entier pour le converter (ffmpeg/pandoc, aucun modèle IA), les 4 critères prompt
+> pour une app sans champ prompt. C'est voulu : on ne pénalise pas une absence légitime.
 >
 > Conséquences pratiques, à dire à l'utilisateur quand on annonce un score :
-> - un « 17/40 » ne signifie pas « 17 mécanismes sur 40 portés » — l'inventaire réel des briques
->   est dans **`wama/common/README.md`**, et il en compte davantage ;
-> - une session peut faire gagner beaucoup à une app **sans bouger le score d'un point** (vécu :
->   imager, 30/07 — contrat, VRAM, tirage, capacités, tous invisibles à la grille) ;
-> - donc **ne jamais conclure « portage terminé » sur le score seul**. Le score sert à détecter
->   les régressions F1–F5.
+> - le score compte des **mécanismes détectés dans le code**, pas des « fonctionnalités finies » ;
+>   l'inventaire narratif des briques reste **`wama/common/README.md`** ;
+> - un critère mesuré **écrase** son homonyme déclaré dans `_conv(...)` ; les clés déclarées
+>   SANS critère mesuré subsistent (d'où le total affiché sur `/apps/`, union des deux) ;
+> - **ne jamais conclure « portage terminé » sur le score seul** — il détecte surtout les
+>   régressions et les trous d'adoption.
 >
-> ⏳ Combler la grille (critères F4 réels + F6/F7/F8) est un chantier ouvert : chaque nouveau
-> critère = une entrée dans `CRITERIA` avec sa preuve.
+> Ajouter un critère = une entrée dans `CRITERIA` (`common/services/conformity_checker.py`) qui
+> retourne `(état, preuve)`, l'état `None` valant **non applicable**. Toujours fournir la preuve
+> (`fichier:ligne`) : c'est elle qui rend l'écart actionnable.
 
 ## 1. Mesurer
 - `./venv_win/Scripts/python.exe manage.py check_app_conformity` (10 apps → écrit

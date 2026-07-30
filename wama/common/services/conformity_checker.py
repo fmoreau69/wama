@@ -74,6 +74,8 @@ TASKS = ['tasks.py', 'workers.py', 'tasks/*.py']
 URLS = ['urls.py']
 APPS_PY = ['apps.py']
 CARD_TPL = ['templates/**/*card*.html', 'templates/**/index.html', 'templates/**/media_table.html']
+PY = ['**/*.py']
+PARAMS = ['params.py']
 
 
 # ── Critères ─────────────────────────────────────────────────────────────────────
@@ -270,12 +272,181 @@ def _btn_order(f: _AppFiles):
     return best if best else (False, "5 boutons ⚙▶⬇⧉🗑 jamais réunis dans un template de card")
 
 
+# ── Registres transverses (lecture STATIQUE : le checker ne charge pas Django) ────
+
+_ROOT_CACHE: dict[str, str] = {}
+
+
+def _wama_text(rel: str) -> str:
+    """Contenu d'un fichier sous `wama/` (chaîne vide s'il n'existe pas)."""
+    if rel not in _ROOT_CACHE:
+        try:
+            _ROOT_CACHE[rel] = (WAMA_ROOT / rel).read_text(encoding='utf-8', errors='replace')
+        except OSError:
+            _ROOT_CACHE[rel] = ''
+    return _ROOT_CACHE[rel]
+
+
+def _registry_block(app: str, rel: str) -> str | None:
+    """Corps du bloc `'<app>': { … }` d'un registre déclaré dans `rel`."""
+    m = re.search(rf"^(\s*)'{re.escape(app)}':\s*\{{(.*?)^\1\}},", _wama_text(rel), re.S | re.M)
+    return m.group(2) if m else None
+
+
+def _registry_keys(name: str, rel: str) -> set[str]:
+    """Clés de PREMIER niveau d'un dict-registre `NAME = { 'app': …, }` (indentation 4)."""
+    m = re.search(rf"^{name}\s*[:=].*?\{{(.*?)^\}}", _wama_text(rel), re.S | re.M)
+    return set(re.findall(r"^ {4}'([a-z_]+)'\s*:", m.group(1), re.M)) if m else set()
+
+
+APP_REGISTRY_PY = 'common/app_registry.py'
+MODEL_REGISTRY_PY = 'model_manager/services/model_registry.py'
+GENERIC_RUNNER_PY = 'studio/services/generic_runner.py'
+
+
+def _uses_models(f: _AppFiles) -> bool:
+    """L'app porte-t-elle des modèles IA ? (converter = ffmpeg/pandoc → F4 non applicable)"""
+    return bool(f.glob('utils/model_config.py')
+                or f'_discover_{f.app}_models' in _wama_text(MODEL_REGISTRY_PY))
+
+
+def _f4(fn):
+    """Enveloppe un critère F4 : état None (= non applicable) si l'app n'a pas de modèle IA."""
+    def wrapped(f: _AppFiles):
+        return fn(f) if _uses_models(f) else (None, None)
+    return wrapped
+
+
+def _has_prompt(f: _AppFiles) -> bool:
+    """L'app a-t-elle un champ prompt ? (sinon les critères F6 prompt sont non applicables)"""
+    return bool(f.find(MODELS, r'^\s*prompt\s*=\s*models\.')
+                or f.app in _registry_keys('PROMPT_TARGETS', 'common/utils/app_metadata.py'))
+
+
+def _f6_prompt(fn):
+    def wrapped(f: _AppFiles):
+        return fn(f) if _has_prompt(f) else (None, None)
+    return wrapped
+
+
+# ── F1 / F2 — identité déclarée & entrée ─────────────────────────────────────────
+
+def _catalog_entry(f: _AppFiles):
+    block = _registry_block(f.app, APP_REGISTRY_PY)
+    if block is None:
+        return False, "absente d'APP_CATALOG (identité non déclarée)"
+    missing = [k for k in ('input_types', 'output_types', 'input_extensions')
+               if not re.search(rf"'{k}'\s*:", block)]
+    if missing:
+        return 'partial', f"APP_CATALOG['{f.app}'] : manquent {', '.join(missing)}"
+    return True, f"{APP_REGISTRY_PY} APP_CATALOG['{f.app}'] (E/S typées + extensions)"
+
+
+# ── F3 — preview « PENDANT » (backend câblé ⟷ frontend consommateur) ─────────────
+
+def _during_preview(f: _AppFiles):
+    ev = f.find(PY + TEMPLATES + JS, r'during_preview|emit_streaming_peaks|side=during')
+    if not ev:
+        return False, None
+    if re.search(r"side\s*[=:]\s*['\"]?during", _wama_text('common/static/common/js/media-preview.js')):
+        return True, ev
+    return 'partial', (f"{ev} — émission backend OK mais media-preview.js ne consomme pas "
+                       "`?side=during` (trou #4 de WAMA_APP_GENERATION_ROUTE)")
+
+
+def _params_modal_batch(f: _AppFiles):
+    ev = f.find(TEMPLATES + JS, r"context\s*:\s*['\"]batch['\"]|renderBatchParams")
+    if ev:
+        return True, ev
+    return False, "modale batch hand-built (WamaParams jamais rendu en contexte batch)"
+
+
+# ── F4 — modèles IA ──────────────────────────────────────────────────────────────
+
+def _model_discovery(f: _AppFiles):
+    fn = f'_discover_{f.app}_models'
+    text = _wama_text(MODEL_REGISTRY_PY)
+    if f'def {fn}' not in text:
+        return False, f"{fn}() absent de {MODEL_REGISTRY_PY}"
+    line = text.count('\n', 0, text.index(f'def {fn}')) + 1
+    return True, f"{MODEL_REGISTRY_PY}:{line}"
+
+
+def _backend_contract(f: _AppFiles):
+    ev = f.find(PY, r'BaseModelBackend')
+    if not ev:
+        return False, "aucun backend ne dérive de common/backends/base.py::BaseModelBackend"
+    # Piège documenté : l'alias de classe capture la fonction AVANT l'enveloppe
+    # `__init_subclass__` → mécanisme présent mais inopérant.
+    alias = f.find(PY, r'^\s*load_model\s*=\s*load\b|^\s*unload_model\s*=\s*unload\b')
+    if alias:
+        return 'partial', f"{ev} — mais alias de classe en {alias} (enveloppe VRAM court-circuitée)"
+    return True, ev
+
+
+# ── F6 — prompts & contrat tool_api ──────────────────────────────────────────────
+
+def _prompt_skill(f: _AppFiles):
+    files = sorted((WAMA_ROOT / 'common' / 'prompt_skills').glob(f'{f.app.replace("_", "-")}*.md'))
+    if files:
+        return True, ', '.join(p.relative_to(WAMA_ROOT).as_posix() for p in files)
+    return False, f"aucun common/prompt_skills/{f.app}-*.md (fallback default-<kind>)"
+
+
+def _tool_api_item_id(f: _AppFiles):
+    """Contrat exigé par build_generic_runner : add_to_<app> doit retourner `item_id`."""
+    text = _wama_text('tool_api.py')
+    m = re.search(rf"^def add_to_{f.app}\b.*?(?=^def |\Z)", text, re.S | re.M)
+    if not m:
+        alias = re.search(rf"^add_to_{f.app}\s*=\s*(\w+)", text, re.M)
+        if not alias:
+            return False, f"add_to_{f.app} introuvable dans tool_api.py"
+        m = re.search(rf"^def {alias.group(1)}\b.*?(?=^def |\Z)", text, re.S | re.M)
+        if not m:
+            return 'partial', f"add_to_{f.app} = alias {alias.group(1)} (corps non retrouvé)"
+    line = text.count('\n', 0, m.start()) + 1
+    if re.search(r"""['"]item_id['"]""", m.group(0)):
+        return True, f"tool_api.py:{line} (retourne 'item_id')"
+    return False, f"tool_api.py:{line} — add_to_{f.app} ne retourne pas 'item_id' (studio KO)"
+
+
+# ── F7 — permissions & scope données ─────────────────────────────────────────────
+
+def _access_policy(f: _AppFiles):
+    m = re.search(r'DEFAULT_APP_ACCESS\s*=\s*\{(.*?)\n\}',
+                  _wama_text('accounts/permissions.py'), re.S)
+    if m and re.search(rf"'{f.app}'\s*:", m.group(1)):
+        return True, f"accounts/permissions.py DEFAULT_APP_ACCESS['{f.app}']"
+    return False, "absente du seed DEFAULT_APP_ACCESS (gating d'app non déclaré)"
+
+
+# ── F8 — nœud studio ─────────────────────────────────────────────────────────────
+
+def _studio_params(f: _AppFiles):
+    block = _registry_block(f.app, GENERIC_RUNNER_PY)
+    if block is None:
+        return False, "absente de GENERIC_APPS (nœud studio non câblé)"
+    mod = re.search(r"'params_module'\s*:\s*'([\w.]+)'", block)
+    attr = re.search(r"'params_attr'\s*:\s*'(\w+)'", block)
+    if not (mod and attr):
+        return False, 'params_module / params_attr non déclarés'
+    rel = mod.group(1).replace('wama.', '', 1).replace('.', '/') + '.py'
+    text = _wama_text(rel)
+    if not text:
+        return False, f"module {mod.group(1)} introuvable"
+    if not re.search(rf"^{attr.group(1)}\s*[:=]", text, re.M):
+        return False, f"{mod.group(1)}.{attr.group(1)} absent"
+    return True, f"{rel}::{attr.group(1)}"
+
+
 CRITERIA: list[Criterion] = [
     # ── F1 identité / intégration transverse ──
     Criterion('tool_api', 'F1', 'Triade tool_api (add_to/start/get_status) au TOOL_REGISTRY', _tool_api_triad),
     Criterion('console', 'F1', 'Console app (bloc + endpoint)', _console),
     Criterion('help_about', 'F1', 'Vues Aide / À-propos',
               lambda f: _present(f, VIEWS, r'class (Help|About)View')),
+    Criterion('catalog_entry', 'F1', "Identité APP_CATALOG (E/S typées + input_extensions)",
+              _catalog_entry),
     # ── F2 entrée ──
     Criterion('new_item_card', 'F2', "Card d'entrée commune _new_item_card",
               lambda f: _present(f, TEMPLATES, r"common/_new_item_card\.html")),
@@ -285,6 +456,14 @@ CRITERIA: list[Criterion] = [
     Criterion('batch_import', 'F2', 'Import batch unifié (batch-import.js + batch_parsers)', _batch_import),
     Criterion('media_library_slot', 'F2', 'Slot médiathèque sur la card d’entrée',
               lambda f: _present(f, TEMPLATES, r'show_media_library')),
+    Criterion('input_card_collapsed', 'F2', "Card d'entrée REPLIABLE (collapsible)",
+              lambda f: _present(f, TEMPLATES, r'collapsible=True|collapsible=1')),
+    Criterion('input_match_ui', 'F2', 'Grisage des modèles incompatibles (WamaInputMatch)',
+              lambda f: _present(f, TEMPLATES + JS, r'wama-input-match|WamaInputMatch')),
+    Criterion('filemanager_import', 'F2', 'Réception « Envoyer vers app » (wama:fileimported)',
+              lambda f: _present(f, JS + TEMPLATES, r'wama:fileimported')),
+    Criterion('recursive_import', 'F2', 'Import de DOSSIER récursif (webkitdirectory)',
+              lambda f: _present(f, TEMPLATES + JS, r'webkitdirectory')),
     # ── F3 UI / params / inspecteur ──
     Criterion('settings_modal_item', 'F3', 'Modale paramètres générée (WamaParams.render)', _params_modal),
     Criterion('init_from_schema', 'F3', 'Volet droit initFromSchema',
@@ -296,8 +475,39 @@ CRITERIA: list[Criterion] = [
               lambda f: _present(f, TEMPLATES, r"common/_settings_modal_footer\.html")),
     Criterion('model_help', 'F3', 'Descriptif moteur (wama-model-help)',
               lambda f: _present(f, TEMPLATES + JS, r'wama-model-help|WamaModelHelp')),
+    Criterion('params_schema', 'F3', 'Schéma de paramètres déclaratif (params.py → PARAMS_JSON)',
+              lambda f: _present(f, PARAMS, r'schema_to_dicts\(|derive_from_model\(|Param\(')),
+    Criterion('params_modal_batch', 'F3', 'Modale BATCH générée par WamaParams', _params_modal_batch),
+    Criterion('card_chips', 'F3', 'Chips métadonnée sur la card (card_chips)',
+              lambda f: _present(f, VIEWS + TEMPLATES, r'card_chips|_card_chips\.html')),
+    Criterion('model_caps_ui', 'F3', 'show_if dérivé des capacités-modèle (WamaModelCaps)',
+              lambda f: _present(f, TEMPLATES + JS, r'wama-model-caps|WamaModelCaps')),
+    Criterion('modes', 'F3', 'Modes déclarés (APP_MODES) rendus par WamaModes',
+              lambda f: (f.app in _registry_keys('APP_MODES', 'common/utils/app_modes.py'),
+                         f"common/utils/app_modes.py APP_MODES['{f.app}']"
+                         if f.app in _registry_keys('APP_MODES', 'common/utils/app_modes.py') else None)),
+    Criterion('layout', 'F3', 'Bascule Ligne / Mosaïque (card_layout)',
+              lambda f: _present(f, TEMPLATES + JS + VIEWS, r'card_layout|data-layout')),
+    Criterion('during_preview', 'F3', 'Aperçu « PENDANT » (émission backend + consommation front)',
+              _during_preview),
     # ── F4 modèles ──
     Criterion('eta_seeded', 'F4', 'ETA seedée auto-apprenante (record_run + estimate)', _eta_seeded),
+    Criterion('model_config', 'F4', 'Modèles déclarés par l’app (utils/model_config.py)',
+              _f4(lambda f: _present(f, ['utils/model_config.py'], r'_MODELS\s*[:=]|_DIR\s*='))),
+    Criterion('model_discovery', 'F4', 'Découverte au catalogue AIModel (_discover_<app>_models)',
+              _f4(_model_discovery)),
+    Criterion('backend_contract', 'F4', 'Backends dérivés de BaseModelBackend (contrat commun)',
+              _f4(_backend_contract)),
+    Criterion('backend_packages', 'F4', 'Dépendances déclaratives (REQUIRED_PACKAGES)',
+              _f4(lambda f: _present(f, PY, r'REQUIRED_PACKAGES'))),
+    Criterion('model_caps_canonical', 'F4', 'Vocabulaire de capacités CANONIQUE (inputs_required/…)',
+              _f4(lambda f: _present(f, PY, r'inputs_required|inputs_optional|CANONICAL_CAPABILITIES'))),
+    Criterion('select_model', 'F4', 'Sélection VRAM-aware commune (select_model)',
+              _f4(lambda f: _present(f, PY, r'\bselect_model\b'))),
+    Criterion('vram_unloader', 'F4', 'Reclaim VRAM cross-app (register_vram_unloader)',
+              _f4(lambda f: _present(f, PY, r'register_vram_unloader|vram_reservation'))),
+    Criterion('hf_cache_isolation', 'F4', 'Cache HF isolé (HF_HUB_CACHE posé avant import)',
+              _f4(lambda f: _present(f, PY, r'HF_HUB_CACHE'))),
     # ── F5 cycle de vie ──
     Criterion('anti_race', 'F5', 'Verrou anti-race sur TOUTES les vues de démarrage', _anti_race),
     Criterion('reconcile_orphans', 'F5', 'Réconciliation RUNNING orphelins (IndexView)',
@@ -342,6 +552,36 @@ CRITERIA: list[Criterion] = [
     Criterion('batch_template', 'F5', 'Gabarit batch téléchargeable',
               lambda f: _present(f, URLS, r'batch_template|batch-template')),
     Criterion('btn_order', 'F5', 'Ordre canonique des boutons ⚙▶⬇⧉🗑', _btn_order),
+    Criterion('crash_redelivery_guard', 'F5', 'Garde anti-BOUCLE-de-crash (refuse_crash_redelivery)',
+              lambda f: _present(f, TASKS, r'refuse_crash_redelivery')),
+    Criterion('error_message_field', 'F5', 'Champ error_message sur le modèle d’item',
+              lambda f: _present(f, MODELS, r'error_message\s*=\s*models\.')),
+    # ── F6 prompts & tool_api ──
+    Criterion('prompt_targets', 'F6', 'Champs-prompt déclarés (PROMPT_TARGETS)',
+              _f6_prompt(lambda f: (
+                  f.app in _registry_keys('PROMPT_TARGETS', 'common/utils/app_metadata.py'),
+                  f"common/utils/app_metadata.py PROMPT_TARGETS['{f.app}']"
+                  if f.app in _registry_keys('PROMPT_TARGETS', 'common/utils/app_metadata.py')
+                  else "champ prompt non déclaré → ni traduction ni enrichissement"))),
+    Criterion('prompt_pipeline', 'F6', 'Pipeline commune appelée (process_prompt_for)',
+              _f6_prompt(lambda f: _present(f, TASKS + VIEWS, r'process_prompt_for'))),
+    Criterion('prompt_skill', 'F6', 'Skill de prompt dédiée (common/prompt_skills/<app>-*.md)',
+              _f6_prompt(_prompt_skill)),
+    Criterion('prompt_enrich_ui', 'F6', 'Champ prompt à deux états (wama-prompt-enrich)',
+              _f6_prompt(lambda f: _present(f, TEMPLATES + JS, r'wama-prompt-enrich|WamaPromptEnrich'))),
+    Criterion('tool_api_item_id', 'F6', "Contrat de retour add_to_<app> → 'item_id'", _tool_api_item_id),
+    # ── F7 permissions & scope données ──
+    Criterion('access_policy', 'F7', "Gating d'app déclaré (DEFAULT_APP_ACCESS)", _access_policy),
+    Criterion('app_access_view', 'F7', 'Décorateur @app_access sur les vues (défense en profondeur)',
+              lambda f: _present(f, VIEWS, r'@app_access')),
+    Criterion('user_scope', 'F7', 'Requêtes filtrées par utilisateur (scope données)',
+              lambda f: _present(f, VIEWS, r'user\s*=\s*(request\.user|self\.request\.user|user)\b')),
+    # ── F8 studio ──
+    Criterion('studio_runnable', 'F8', 'Nœud studio câblé (GENERIC_APPS)',
+              lambda f: (f.app in _registry_keys('GENERIC_APPS', GENERIC_RUNNER_PY),
+                         f"{GENERIC_RUNNER_PY} GENERIC_APPS['{f.app}']"
+                         if f.app in _registry_keys('GENERIC_APPS', GENERIC_RUNNER_PY) else None)),
+    Criterion('studio_params_module', 'F8', 'Params du nœud tirés du schéma de l’app', _studio_params),
 ]
 
 
