@@ -23,7 +23,9 @@ import logging
 from pathlib import Path
 
 from .models import ImageGeneration, UserSettings
-from .utils.model_selection import select_imager_model
+from .utils.model_selection import (
+    enrich_with_registry, select_imager_model, video_models_from_manifest,
+)
 from .utils.model_config import (
     DEFAULT_IMAGE_MODEL, DEFAULT_VIDEO_MODEL, DEFAULT_I2V_MODEL, get_model_defaults,
 )
@@ -129,28 +131,12 @@ def index(request):
         ('img2vid', 'Image to Video', 'fas fa-image'),
     ]
 
-    # Video model choices with descriptions
-    video_models = [
-        # CogVideoX
-        ('cogvideox-5b', 'CogVideoX 5B'),
-        ('cogvideox-5b-i2v', 'CogVideoX 5B I2V'),
-        # LTX-Video 13B (Lightricks) — HF: Lightricks/LTX-Video-0.9.8-13B-distilled
-        ('ltx-video-13b-0.9.8-distilled-fp8', 'LTX-Video 13B FP8'),
-        ('ltx-video-13b-0.9.8-distilled', 'LTX-Video 13B Distilled'),
-        # Mochi - High quality
-        ('mochi-1-preview', 'Mochi-1 Preview'),
-    ]
-    video_models_info = [
-        # CogVideoX (~21GB VRAM mesurée)
-        {'id': 'cogvideox-5b', 'name': 'CogVideoX 5B', 'description': 'Text-to-Video 24fps - 21GB VRAM', 'vram': '21GB', 'type': 't2v', 'fps': 24, 'disk': '12GB'},
-        {'id': 'cogvideox-5b-i2v', 'name': 'CogVideoX 5B I2V', 'description': 'Image-to-Video 24fps - 21GB VRAM', 'vram': '21GB', 'type': 'i2v', 'fps': 24, 'disk': '12GB'},
-        # LTX-Video 13B (Lightricks) — HF: Lightricks/LTX-Video-0.9.8-13B-distilled
-        {'id': 'ltx-video-13b-0.9.8-distilled-fp8', 'name': 'LTX-Video 13B FP8', 'description': 'T2V + I2V 24fps - 8GB VRAM - Meilleur ratio qualité/VRAM', 'vram': '8GB', 'type': 't2v+i2v', 'fps': 24, 'disk': '18GB'},
-        {'id': 'ltx-video-13b-0.9.8-distilled', 'name': 'LTX-Video 13B Distilled', 'description': 'T2V + I2V 24fps - 14GB VRAM - Rapide, haute qualité', 'vram': '14GB', 'type': 't2v+i2v', 'fps': 24, 'disk': '18GB'},
-        # Mochi - High quality (22GB VRAM)
-        {'id': 'mochi-1-preview', 'name': 'Mochi-1 Preview', 'description': 'Text-to-Video 30fps - 22GB VRAM - High quality', 'vram': '22GB', 'type': 't2v', 'fps': 30, 'disk': '18GB'},
-    ]
-
+    # Modèles vidéo — DÉRIVÉS du manifeste (`IMAGER_MODELS`) puis enrichis par le registre,
+    # comme les images. La liste littérale qui vivait ici portait une Nᵉ copie des VRAM et
+    # proposait encore `cogvideox-5b`, retiré du parc le 2026-07-28 : retirer un modèle du
+    # manifeste doit suffire à le retirer de l'UI.
+    video_models_info = enrich_with_registry(video_models_from_manifest())
+    video_models = [(m['id'], m['name']) for m in video_models_info]
     # Separate image and video generations
     image_generations = generations.exclude(generation_mode__in=['txt2vid', 'img2vid'])
     video_generations = generations.filter(generation_mode__in=['txt2vid', 'img2vid'])

@@ -59,6 +59,68 @@ def _budget_gb(avoid_offload: bool) -> Optional[float]:
     return max(0.0, free - FULL_GPU_HEADROOM_GB)
 
 
+def video_models_from_manifest() -> list:
+    """
+    Liste des modèles vidéo pour l'UI, DÉRIVÉE du manifeste (`IMAGER_MODELS`).
+
+    Remplace la liste littérale qui vivait dans `views.py` : elle portait une Nᵉ copie des VRAM
+    ('21GB', '8GB', '14GB') et proposait encore `cogvideox-5b`, retiré du parc le 2026-07-28 —
+    la dérive exacte que la règle « source unique » vise. Ici, retirer un modèle du manifeste
+    le retire de l'UI, sans autre geste.
+
+    Forme conservée telle quelle pour `index.html` : id / name / description / vram / type /
+    fps / disk.
+    """
+    out = []
+    for mid, cfg in IMAGER_MODELS.items():
+        if cfg.get('type') != 'video':
+            continue
+        desc = cfg.get('description', '')
+        mode = str(cfg.get('mode', ''))
+        vram, disk = cfg.get('vram_gb'), cfg.get('disk_gb')
+        out.append({
+            'id': mid,
+            # Pas de champ 'name' au manifeste : on prend la tête du descriptif court
+            # (« LTX-Video 13B Distilled — rapide, T2V + I2V » → « LTX-Video 13B Distilled »).
+            'name': cfg.get('name') or desc.split('—')[0].strip() or mid,
+            'description': desc,
+            'vram': f'{vram}GB' if vram else '',
+            'type': 't2v+i2v' if ('t2v' in mode and 'i2v' in mode) else ('i2v' if 'i2v' in mode else 't2v'),
+            'fps': cfg.get('fps'),
+            'disk': f'{disk}GB' if disk else '',
+        })
+    out.sort(key=lambda d: d['id'])
+    return out
+
+
+def enrich_with_registry(models_info: list) -> list:
+    """
+    Complète une liste de modèles avec les métadonnées du catalogue `AIModel` (capacités,
+    statut téléchargé, description/VRAM canoniques), SANS jamais masquer un modèle.
+
+    Même politique que le « verrou n°1 » côté images dans `views.py` : le registre ENRICHIT,
+    il ne décide pas encore de la liste — sinon on masquerait les modèles qu'il ne connaît pas
+    encore. Extrait ici pour que la vidéo n'en refasse pas une copie.
+    """
+    try:
+        from wama.model_manager.services import get_registry_models
+        _, reg_info = get_registry_models('imager')
+        reg = {d['id']: d for d in reg_info}
+    except Exception:
+        return models_info
+    for d in models_info:
+        r = reg.get(d.get('id'))
+        if not r:
+            continue
+        d['capabilities'] = r.get('capabilities') or {}
+        d['downloaded'] = r.get('downloaded')
+        if r.get('description'):
+            d['description'] = r['description']
+        if r.get('vram'):
+            d['vram'] = r['vram']
+    return models_info
+
+
 def _fits_kind(cfg: dict, kind: str) -> bool:
     """
     Ce modèle du manifeste sait-il faire CE travail ? Lu sur les métadonnées déclarées
@@ -70,12 +132,18 @@ def _fits_kind(cfg: dict, kind: str) -> bool:
     """
     if cfg.get('model_type') == 'lora' or cfg.get('category') == 'logo':
         return False
+    # ⚠️ Vocabulaire RÉEL du manifeste : 't2v', 'i2v', 't2v+i2v' (et 't2i'/'edit' côté image) —
+    # pas 'text-to-video'/'image-to-video'. Une première version testait ces libellés longs :
+    # le filtre i2v ne matchait donc RIEN (repli silencieux sur le défaut) et le filtre t2v
+    # laissait passer les modèles i2v-seuls. Toujours confronter au manifeste.
     mode = str(cfg.get('mode', ''))
-    if kind == 'i2v':
-        return cfg.get('type') == 'video' and 'image-to-video' in mode
-    if kind == 'video':
-        return cfg.get('type') == 'video' and mode != 'image-to-video'
-    return cfg.get('type') == 'image'
+    wants_video = kind in ('video', 'i2v')
+    if cfg.get('type') == 'video':
+        # Ne JAMAIS proposer un modèle vidéo pour une demande d'image : une version
+        # précédente entrait ici quel que soit `kind` et renvoyait `'t2v' in mode`, donc LTX
+        # et Mochi étaient candidats à la génération d'IMAGES.
+        return wants_video and ('i2v' in mode if kind == 'i2v' else 't2v' in mode)
+    return not wants_video and cfg.get('type') == 'image'
 
 
 def select_imager_model(kind: str = 'image', requested: Optional[str] = None,
