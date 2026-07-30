@@ -173,16 +173,17 @@ def full_gpu_budget_gb(headroom_gb: float = 4.0) -> Optional[float]:
     """
     Budget VRAM au-delà duquel un modèle imposerait de l'offload CPU.
 
-    Traduit « je ne veux pas d'offload » en la seule chose que `select_model` comprend : un
-    budget. La marge est celle de `MemoryManager.get_memory_strategy()` — en dessous, la couche
-    mémoire bascule en MODEL_OFFLOAD, donc viser au-delà c'est viser un offload évitable.
-    None si la VRAM libre est inconnue (→ `select_model` décide sans contrainte).
+    ⚠️ N'ajoute qu'UNE chose au comportement par défaut : la MARGE. `select_model` prend déjà
+    la VRAM libre comme budget quand `vram_budget_gb` est omis — il répond donc « ça rentre »,
+    pas « ça tourne sans offload ». Or `MemoryManager.get_memory_strategy()` bascule en
+    MODEL_OFFLOAD dès qu'il ne reste pas cette marge pour les activations : viser le budget
+    brut, c'est viser un offload évitable. Même valeur des deux côtés, sinon les deux couches
+    se contredisent.
+
+    Réutilise `get_free_vram_gb()` — la MÊME source que le budget par défaut de `select_model`,
+    pour qu'un tirage avec et sans marge parlent de la même VRAM.
     """
-    try:
-        from wama.common.services.resource_governor import effective_free_gb
-        free = effective_free_gb()
-    except Exception:
-        return None
+    free = get_free_vram_gb()
     return max(0.0, free - headroom_gb) if free else None
 
 
@@ -218,9 +219,9 @@ def select_model_id(source: str, requires=None, requested: Optional[str] = None,
         logger.info("[Select] %s : aucun modèle %s ne tient dans le budget GPU → repli %s "
                     "(offload probable)", source, requires or '', fallback)
         return fallback
-    mid = chosen.model_key.split(':', 1)[1] if ':' in chosen.model_key else chosen.model_key
-    logger.info("[Select] %s %s → %s (%s Go)", source, requires or '', mid, chosen.vram_gb)
-    return mid
+    logger.info("[Select] %s %s → %s (%s Go)",
+                source, requires or '', chosen.model_id, chosen.vram_gb)
+    return chosen.model_id
 
 
 def get_registry_models(source: str, allowed_ids=None, downloaded_only: bool = False,
