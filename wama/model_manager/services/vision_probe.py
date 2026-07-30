@@ -11,8 +11,14 @@ import os
 
 
 def describe_image_ollama(image_path: str, model: str = 'gemma4:12b',
-                          prompt: str | None = None, timeout: int = 180):
-    """Décrit une image via un modèle vision Ollama LOCAL. Retourne {'ok', 'description'|'error'}."""
+                          prompt: str | None = None, timeout: int = 180,
+                          keep_alive: str | None = None):
+    """Décrit une image via un modèle vision Ollama LOCAL. Retourne {'ok', 'description'|'error'}.
+
+    `keep_alive` : résidence VRAM après réponse (défaut Ollama : 5 min). Une valeur courte
+    ('120s') laisse s'enchaîner un LOT d'images sans repayer le chargement des poids, puis
+    libère ; '0' décharge tout de suite. Cf. [[llm_utils]], même réglage côté texte.
+    """
     from django.conf import settings
     import requests
 
@@ -27,10 +33,18 @@ def describe_image_ollama(image_path: str, model: str = 'gemma4:12b',
     base = getattr(settings, 'OLLAMA_HOST', 'http://127.0.0.1:11434').rstrip('/')
     prompt = prompt or "Décris cette image en français, de façon précise et concise."
     try:
-        r = requests.post(f"{base}/api/chat", json={
+        payload = {
             'model': model, 'stream': False,
             'messages': [{'role': 'user', 'content': prompt, 'images': [b64]}],
-        }, timeout=timeout)
+        }
+        if keep_alive is not None:
+            payload['keep_alive'] = keep_alive
+        # `trust_env=False` : Ollama est LOCAL. Sans ça, requests honore HTTP(S)_PROXY et
+        # envoie l'appel dans le proxy UGE, qui répond 504 (constaté 2026-07-31 depuis le
+        # smoke UI). Même précaution que llm_utils.ollama_chat, qui pose déjà trust_env=False.
+        with requests.Session() as s:
+            s.trust_env = False
+            r = s.post(f"{base}/api/chat", json=payload, timeout=timeout)
         r.raise_for_status()
         msg = (r.json().get('message') or {})
         return {'ok': True, 'description': (msg.get('content') or '').strip()}

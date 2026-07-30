@@ -41,7 +41,9 @@ logger = logging.getLogger(__name__)
 TEST_USERNAME = "wama_nightly_test"
 
 # Étapes cibles d'un scénario, du plus léger au plus complet.
-STAGES = ("wired", "model_loaded", "output")
+# `ui` est à part : ~2 s par app, aucun GPU — à ne pas noyer dans la série lourde à teardown
+# VRAM (`python manage.py run_nightly_tests --stage ui` doit rester quasi instantané).
+STAGES = ("wired", "ui", "model_loaded", "output")
 
 
 class SkipScenario(Exception):
@@ -214,3 +216,11 @@ def register_examples() -> None:
 
 # Auto-enregistrement des exemples au chargement du module (charpente démontrable).
 register_examples()
+
+# Scénarios UI (un par app exposant une page d'index) — import TARDIF et tolérant : Playwright
+# ou le serveur peuvent manquer sur une machine de dev, ça ne doit pas casser le registre.
+try:
+    from wama.common.services.ui_smoke import register_ui_scenarios
+    register_ui_scenarios()
+except Exception as _e:                                   # pragma: no cover
+    logger.debug(f"[nightly] scénarios UI non enregistrés ({_e})")
