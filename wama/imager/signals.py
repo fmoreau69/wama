@@ -70,7 +70,13 @@ def _enrich_prompt_at_ingest(sender, instance, created, **kwargs):
     if not (getattr(instance, 'prompt', '') or '').strip():
         return
     try:
+        from django.db import transaction
         from wama.imager.tasks import enrich_prompt_at_ingest_task
-        enrich_prompt_at_ingest_task.delay(instance.pk)
+
+        pk = instance.pk
+        # `on_commit` et pas `delay()` direct : si la création est dans une transaction (batch,
+        # vue atomique, import), le worker peut prendre la tâche AVANT le commit et ne pas
+        # trouver la ligne. Hors transaction, on_commit s'exécute immédiatement.
+        transaction.on_commit(lambda: enrich_prompt_at_ingest_task.delay(pk))
     except Exception:
         pass  # broker indisponible → la tâche de génération enrichira au lancement (fail-safe)
