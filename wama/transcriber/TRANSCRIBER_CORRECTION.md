@@ -114,3 +114,87 @@ Clavier-first (Whispurge). Sauvegarde → texte/segments corrigés → ré-expor
 
 > Performance : signaux gratuits (confiance) d'abord ; LLM par-segment en 1 passe à la demande ;
 > turbo dispo. Mener le transcriber au bout AVANT de généraliser aux autres apps.
+
+---
+
+## 8. ⚠ Biais du guidage par cohérence — fidélité vs fluidité (constaté 2026-07-29)
+
+### 8.1 Constat (ancré dans le code, pas une hypothèse)
+
+`analyze_segments_coherence` (`wama/common/utils/llm_utils.py:441`) demande au LLM de signaler :
+« répétitions, phrases tronquées/incomplètes, hallucinations, **incohérences sémantiques**, mots
+douteux ». Sur un **entretien**, répétitions + phrases tronquées + incohérences sémantiques sont la
+définition même de la parole réelle : le guidage signale donc systématiquement ce qu'il faut
+**préserver**. `verify_text_coherence` (`llm_utils.py:332`) va plus loin — son champ `suggestion`
+renvoie une « version corrigée » : elle ne signale pas, elle **réécrit**.
+
+### 8.2 Le défaut est STRUCTUREL, pas un défaut de prompt
+
+Ces deux fonctions ne reçoivent **que du texte, jamais l'audio**. Elles ne peuvent donc pas, même en
+principe, distinguer « l'ASR a halluciné » de « la personne a réellement dit ça maladroitement ».
+Elles mesurent la **fluidité** et l'utilisent comme proxy de la **fidélité** — or les deux sont
+**anticorrélées** sur de l'entretien : plus le texte est fidèle, plus il paraît incohérent.
+Reformuler le prompt ne corrige pas ça, ça déplace le biais. Il faut un signal **ancré sur l'audio**.
+
+⚠ Enjeu SHS : sur de l'entretien de recherche, hésitations, autocorrections et répétitions **sont des
+données**. Un LLM qui les lisse en silence est un problème d'**intégrité méthodologique**, pas un
+désagrément d'UI. Défaut du labo ⇒ verbatim préservé, nettoyage **opt-in**.
+
+### 8.3 Signal à substituer : divergence inter-systèmes
+
+Deux ASR indépendants ne se trompent pas de la même façon mais entendent la même chose :
+- **divergence** ⇒ forte probabilité d'erreur réelle → c'est là qu'il faut envoyer l'humain ;
+- **convergence, même sur du texte « incohérent »** ⇒ la personne l'a réellement dit (deux systèmes
+  indépendants n'hallucinent pas la même hésitation).
+
+Signal **objectif, ancré sur l'audio sans réécoute**, sans avis de LLM. Généralisable sans outil
+externe : 2 passes ASR (modèles différents, ou même modèle à paramètres différents).
+
+**Ordre de priorité de la heatmap à adopter** — ⚠ **inverse la règle actuelle** (§ « l'éditeur bascule
+la heatmap sur la cohérence, priorité sur la confiance ») :
+1. **Divergence inter-systèmes** — signal dur ;
+2. **Confiance ASR** — déjà le repli documenté quand le LLM échoue ;
+3. **Cohérence LLM** — en dernier, cantonnée à une classe **étroite et déclarée** : bascule de langue,
+   boucle de répétition du *même token* (pathologie ASR connue), segment final tronqué.
+   **Jamais « incohérence sémantique ».**
+
+### 8.4 Profils = politique déclarée, pas variante de prompt
+
+`verify_text_coherence` a déjà un `content_hint` (avec un label `'meeting'`) mais il ne change que la
+**formulation** du prompt, pas le **comportement** : il dit au LLM de quoi il parle, pas ce qui compte
+comme erreur ni s'il a le droit de réécrire. C'est le trou. Un profil porte 4 décisions :
+
+| Profil | Qu'est-ce qu'une erreur | Réécriture LLM | Guidage |
+|---|---|---|---|
+| **Entretien / verbatim** | uniquement ce que l'audio ne soutient pas | **interdite** | divergence + confiance |
+| **Réunion / CR** | tout ce qui gêne la lecture | autorisée | cohérence pertinente |
+| **Conférence / cours** | disfluences oui ; terminologie et noms propres non | partielle | divergence + confiance |
+| **Sous-titrage** | longueur, découpage, lisibilité | contrainte | segmentation |
+
+Alimente la barre de guidage prévue en Phase 4 (slider rigueur + interrupteurs
+silences/hésitations/redondances) : les interrupteurs deviennent des **conséquences du profil**.
+⚠ Le contrat de `common/prompt_skills/` est explicitement « enrichissement de prompt génératif,
+sortie = le prompt enrichi seul » : un skill de contrôle qualité **n'y entre pas tel quel** — le
+traiter comme un `kind` distinct plutôt que de le faire rentrer au chausse-pied.
+
+### 8.5 Protocole de mesure (cas de test à 4 fichiers)
+
+Jeu de test disponible : **audio source + transcription outil externe + transcription WAMA +
+version finale corrigée à la main**. Il apporte deux choses distinctes :
+- **(a) référence corrigée** = vérité terrain → WER WAMA vs WER outil externe, et **localisation** des
+  vraies erreurs ;
+- **(b) seconde transcription** = le signal §8.3, mesurable de bout en bout.
+
+**Le plus petit pas qui tranche** : commande de management (aucun changement d'UI) calculant le diff
+`segments_json` → `corrected_segments_json` et confrontant les 3 signaux (divergence / confiance /
+cohérence LLM) → **précision** (parmi les segments signalés, combien réellement corrigés) et
+**rappel** (parmi les corrections réelles, combien signalées) de chacun. C'est l'A/B objectif exigé
+par la règle « jamais de bascule sur impression visuelle seule ».
+
+> Hypothèse à réfuter : la cohérence LLM sort en précision **et** rappel faibles — elle signale des
+> disfluences authentiques et rate les vrais mots mal reconnus, qui sont souvent parfaitement
+> plausibles en contexte.
+
+✅ **Pas de nouvelle table nécessaire pour la 1re boucle** : `corrected_segments_json` (migration 0010)
+contient déjà la version humaine. Il manque le diff et le scoring par-dessus. C'est aussi la 1re
+instance concrète de la brique `RunOutcome`/`ResultFeedback` visée en ROADMAP §16.7.

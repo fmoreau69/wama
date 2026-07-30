@@ -232,3 +232,53 @@ la surface des registres.**
 - **Apps lab** (`cam_analyzer`, `face_analyzer`) absentes d'APP_CATALOG → à réconcilier.
 - **Déclaratif, pas runtime** : exclure du manifeste l'état volatile (modèle chargé, x/y canvas...).
 - **Langue** : manifeste en EN canonique → registre i18n central (pas de traduction embarquée).
+
+---
+
+## 7. État MESURÉ de la projection + kind `library` proposé (vérifié 2026-07-30)
+
+Relevé **dans le code** (`grep` des hooks passés à `register_kind()` dans `common/manifests/builtin/`),
+pas dans les intentions :
+
+| kind | `extract` | `project` / `un_project` |
+|---|---|---|
+| `app` | `extract_app` | ✅ `project_app` / `un_project_app` — **le seul** |
+| `function` | `extract_function` | `project=None` |
+| `model` | `extract_model` | ❌ |
+| `pipeline` | `extract_pipeline` | ❌ |
+| `project` | `extract_project` | ❌ |
+| `dataset` | `None` — *le manifeste est l'origine* | ❌ |
+
+**Lecture** : le formalisme, l'enveloppe et l'ingest sont en place, mais le sens **génératif**
+(manifeste → réalité) n'existe que pour `app`, sur une seule facette (`access` → `AppAccessPolicy`),
+en dry-run par défaut. **Un manifeste de modèle ne crée aujourd'hui aucun `AIModel`.** Le manifeste
+est donc la source **par architecture**, le registre l'est encore **en pratique** pour 5 kinds sur 6.
+
+**Pourquoi c'est coûteux ici** — comparaison Hermes (cf. `ROADMAP.md` §16.7) : leur registre est
+**éphémère**, rebâti par scan à chaque démarrage ⇒ pas de write-back, donc ni idempotence ni
+réversibilité à garantir. Nos registres sont **persistés et vivants** (ils servent les pages de
+gestion) ⇒ toute projection doit être idempotente **et** réversible. La lenteur de ce chantier est la
+contrepartie de la persistance, pas un retard.
+
+**Kind `library` — proposé comme PILOTE du manifeste-first.** Deux régimes déjà supportés par le
+formalisme s'y combinent **champ par champ** :
+- **constaté** (`extract` via `importlib.metadata.distributions()`, écarts inter-environnements
+  remontés par `verify`) : version installée, dérive dev/prod ;
+- **déclaré** (le manifeste est l'origine, précédent `dataset`) : `apps_dépendantes`,
+  `fonctions_exposées`, `criticité`, `version_min`, `licence`, `dernier_audit`.
+
+Intérêt : **aucun registre hérité à réconcilier** — son registre *naîtrait de* la projection au lieu
+de la précéder. Terrain vierge pour prouver la chaîne `library.fonctions_exposées` → manifestes
+`function` → ports typés → nœuds studio de bout en bout.
+
+⚠ **Ne PAS importer le régime éphémère d'Hermes** (registre recalculé à la lecture) : il viole la
+propriété de sûreté **§2.1 du SPEC** (*rien ne lit le manifeste en direct ; ingest = seul pont gaté ;
+état committé = les registres*). Hermes peut se le permettre — un plugin absent n'y coûte qu'une
+capacité optionnelle ; ici un registre volatil casserait les pages de gestion. `library` obtient donc
+un **vrai registre persisté écrit par l'ingest**, comme les autres kinds.
+
+⚠ L'auto-installation associée n'est **pas** une projection anodine : `pip install` n'est ni
+idempotent ni réversible, il **écrase les patches venv** (`patches/apply_patches.py`) et peut casser
+les pins de la pile GPU. Contrat exigé : `project()` produit un **plan**, exécution sous validation
+humaine, **ré-exécution d'`apply_patches.py` en post-étape obligatoire**, et allowlist façon Hermes
+(PyPI par nom, pin PEP 440, pas de `git+`/`file:`/`--index-url`).

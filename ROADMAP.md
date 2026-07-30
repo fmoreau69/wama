@@ -1318,6 +1318,203 @@ Mode visé = **C (hybride chat ↔ UI synchronisés)**.
 
 **Séquencement** : fondation (métadonnée + `PromptPipeline` commune) AVANT les interfaces méta.
 
+### 16.7 Hermes Agent (Nous Research) — évaluation + décision (2026-07-29)
+
+**Existence vérifiée** (recherche web) : MIT, sorti fév. 2026, ~46k stars, v0.18.2 en juillet.
+Runtime d'agent auto-hébergé, sans télémétrie, mémoire persistante inter-sessions, **skills générés
+depuis l'expérience** dans `~/.hermes/skills/`, plugins découverts via `entry_points`/`~/.hermes/plugins/`,
+LLM-agnostique (tout endpoint compatible OpenAI). Le « MCP natif » annoncé par certaines sources
+**n'a pas pu être confirmé** — à vérifier avant de s'appuyer dessus.
+
+**Ce qui est retenu / ce qui est écarté** — il faut séparer deux objets :
+
+| Couche Hermes | Verdict | Pourquoi |
+|---|---|---|
+| **Runtime** (boucle, backends d'exécution Docker/SSH/Modal, ~20 passerelles de messagerie) | **ÉCARTÉ en prod** | WAMA a déjà Django+Celery+`resource_governor` (domicile UNIQUE GPU/CPU/RAM). Un 2e ordonnanceur lançant de la charge GPU à côté du gouverneur = corps étranger (cf. 4 kernel panics WSL2 du 29/07). Les passerelles de messagerie sont hors sujet. |
+| **Mémoire procédurale** (distiller une tâche résolue en skill réutilisable) | **IDÉE RETENUE** | C'est le seul apport réel. `common/prompt_skills/` est **déjà** le format de stockage ; ce qui manque n'est pas le dossier mais **l'écrivain** (rien ne génère ces fichiers depuis l'expérience). |
+
+**Point LiteLLM** — LiteLLM est documenté comme provider de référence côté Hermes (proxy
+OpenAI-compatible, ~100 fournisseurs, load balancing, fallback, contrôle budgétaire). Câblage :
+
+```yaml
+model:
+  default: <nom-du-modele>
+  provider: custom
+  base_url: http://localhost:4000/v1
+  api_key: <clé-ou-vide-en-local>
+```
+Bascule en cours de session à 3 niveaux : `/model custom:local:qwen-2.5`,
+`/model custom:work:llama3-70b` → le routage LiteLLM local+cloud existant (§8d) reste inchangé, on
+change juste de modèle selon la tâche.
+
+⚠ **DEUX RÉSERVES — ne pas répéter la formule « un seul catalogue à maintenir », elle est fausse
+aujourd'hui :**
+1. **Bug ouvert sur ce couplage précis** : Hermes + endpoint OpenAI-compatible custom via LiteLLM sur
+   `localhost:4000` ⇒ **les requêtes du gateway n'atteignent pas l'endpoint**. Reproductible par
+   config CLI, fichier de config, ou `HERMES_INFERENCE_PROVIDER=custom`. Signalé sur v2026.4.3
+   (peut-être corrigé sur `main`). Le chemin de code affecté semble être le **gateway
+   (mode messagerie/API)** — **pas** le mode **CLI/TUI**. ⇒ **tester en TUI d'abord**, gateway
+   seulement après vérification.
+2. **Pas d'auto-découverte** : le sélecteur `/model` n'affiche que les modèles **listés manuellement**
+   dans le `config.yaml` d'Hermes. Ajouter/retirer un modèle côté LiteLLM ⇒ **mise à jour manuelle**
+   de la config Hermes. L'objection « énième config modèles à tenir à jour » n'est donc **PAS levée** —
+   elle est seulement *réductible*, en générant ce `config.yaml` depuis le catalogue `AIModel`.
+
+**Découverte de plugins Hermes — 4 sources** (vérifié sur la doc du dépôt, 2026-07-30) : **bundled**,
+`~/.hermes/plugins/` (user), `.hermes/plugins/` (projet), et les **`entry_points` pip**. C'est la 3e qui est le vrai point d'accroche : le registre WAMA peut
+**piloter la génération des `entry_points` exposés à Hermes**, avec correspondance directe
+`fonctions_exposées` → outils découverts par Hermes. (Il ne s'agit donc pas d'un symlink de
+manifestes mais d'une génération de points d'entrée.)
+
+**Débat capacités** (recadrage utilisateur, retenu) : la philosophie WAMA **est** l'agrégation de
+capacités, et le mécanisme de plugins d'Hermes relève de la même logique — l'objection initiale
+« corps étranger » ne vaut que pour le runtime, pas pour l'agrégation. **Convergence** : le registre
+WAMA reste **source unique** ; les manifestes de plugins Hermes sont **générés depuis lui**, jamais
+saisis en double. Deux consommateurs (UI WAMA + Hermes), un seul inventaire.
+
+**Manifeste ≠ registre — articulation WAMA** (corrige une inversion commise en séance) : le
+**manifeste est le point d'entrée** de toute nouvelle capacité (1 manifeste = 1 unité : une lib, un
+modèle, une app) ; les **registres** (`model_manager`, `app_registry`, `TOOL_REGISTRY`) maintiennent
+la connaissance en base et servent les pages de gestion. Les deux coexistent — le kind ne remplace
+pas le registre, il en décrit l'unité. Il manque donc **les deux** côté librairies : un registre
+(inventaire) **et** un kind `library` (unité déclarée).
+
+**Registres — état réel** : modèles (`AIModel`/`model_registry.py`) ✅ · apps (`app_registry.py`/
+`APP_CATALOG`) ✅ · fonctions (`TOOL_REGISTRY`/`tool_api.py`) ✅ · **bibliothèques ❌**.
+
+Besoin réel : savoir **quelle app dépend de quelle librairie** (`opencv`, `ffmpeg-python`…), ce qui
+casse si on met à jour, et **quel environnement a quelle version** (dev/prod, machines différentes —
+un `pip freeze` ne répond qu'à la 3e question, sur une seule machine).
+
+**Deux couches à ne pas confondre :**
+
+| Couche | Contenu | Maintenance |
+|---|---|---|
+| **1. Inventaire technique** | version installée par environnement, dérive entre machines | **AUTOMATISABLE** — `importlib.metadata.distributions()` + cron de détection de dérive |
+| **2. Couche capacités** | à quoi sert la lib, qui en dépend, ce qu'elle expose | **MANUELLE — c'est celle qui a de la valeur** |
+
+Schéma d'entrée (couche 2) :
+```yaml
+- nom: opencv-python
+  version_min: "4.9"
+  catégorie: vision
+  apps_dépendantes: [cam_analyzer, anonymizer, avatarizer]
+  fonctions_exposées: [lecture_video, détection_contours]
+  criticité: haute
+  dernier_audit: 2026-07-29
+  licence: Apache-2.0        # ex. pandas → BSD-3 ; utile pour un labo public
+```
+
+Justification WAMA-spécifique en plus de « qui dépend de quoi » : les champs `version_min` +
+`criticité` + un patch associé serviraient directement `patches/apply_patches.py` (patches venv
+perdus silencieusement au `pip install --upgrade`), les pins connus (`setuptools<81`, torchcodec
+cassé, xformers/torch 2.9) et la charpente de tests nocturnes.
+
+**Boucle** : c'est le manifeste — pas Hermes — qui est la source. Une fois `apps_dépendantes` et
+`fonctions_exposées` remplis, ils alimentent à la fois l'UI WAMA et la génération des `entry_points`
+consommés par Hermes. Sans eux, un agent qui « auto-maintient les libs » travaille à l'aveugle.
+
+#### Confrontation Hermes ↔ WAMA (vérifiée sur code + doc du dépôt, 2026-07-30)
+
+**Convergence de formalisme** : Hermes impose lui aussi un **manifeste par plugin** (YAML, « Step 2:
+Write the manifest », « Manifest declares what the plugin is ») avec un champ **`kind`** discriminant
+(`kind: platform` pour un adaptateur de gateway ; `kind: exclusive` auto-détecté pour un fournisseur
+de mémoire, routé via `memory.provider` au lieu de `plugins.enabled`). Deux équipes ont convergé vers
+l'union discriminée. Découverte par **scan** des 4 sources, registre peuplé à l'exécution par
+`ctx.register_tool()` (collisions refusées sauf `override=True`).
+
+**Renversement source/dérivé — le point structurant :**
+
+| | Source de vérité | Dérivé |
+|---|---|---|
+| **WAMA** | le **manifeste** (cible architecturale) ; **en pratique le registre** pour 5 kinds/6 | manifeste via `extract` |
+| **Hermes** | le **manifeste** (fichier disque) | le **registre**, reconstruit par scan à chaque démarrage |
+
+⚠ **État réel de la projection WAMA (vérifié dans `builtin/*.py`, pas seulement dans la doc)** :
+`app` = seul kind avec `project`/`un_project` ; `function` a `project=None` ; `model`, `pipeline`,
+`project`, `dataset` n'ont **aucune** projection. Soit **1 kind sur 6**, et côté `app` une seule
+facette (`access` → `AppAccessPolicy`) en **dry-run par défaut** (`apply=False`). Autrement dit : le
+formalisme, l'enveloppe et l'ingest sont là, **c'est la projection qui manque** — un manifeste de
+modèle ne crée aujourd'hui aucun `AIModel`.
+
+**Pourquoi c'est plus dur chez nous que chez eux** : le registre d'Hermes est **éphémère** (rebâti par
+scan au démarrage) ⇒ rien à écrire en retour, ni idempotence ni réversibilité à garantir. Nos
+registres sont des modèles Django **persistés et vivants** qui servent les pages de gestion ⇒ la
+projection doit être idempotente **et** réversible. **Notre difficulté est la contrepartie de notre
+persistance**, pas un retard de travail.
+
+**Modèles — Hermes ne le fait PAS.** Son plugin modèle est `register_provider(ProviderProfile(...))`
+(+ `auth_type`) : il ajoute un **fournisseur**, pas un catalogue ; et `/model` n'affiche que ce qui est
+écrit à la main dans son `config.yaml`. ⇒ **`AIModel`/`model_registry.py` est en AVANCE sur Hermes.**
+Ne pas aller y chercher une solution qui n'existe pas.
+
+**Librairies — Hermes le fait réellement**, via `tools.lazy_deps.ensure(...)` (install à la première
+utilisation), avec **4 verrous superposés à transposer** :
+1. **Kill switch global** `security.allow_lazy_installs: false` ⇒ `FeatureUnavailable` + indice de
+   remédiation, et le plugin doit **se dégrader proprement** (erreur retournée, pas de crash de la
+   boucle d'outils) ;
+2. **Allowlist `LAZY_DEPS` en dur dans l'arbre** — motif cité : *« prevents a malicious config from
+   coaxing Hermes into installing arbitrary packages — only specs Hermes itself ships are eligible »*
+   (la config utilisateur ne peut pas élargir le périmètre) ;
+3. **PyPI par nom uniquement** — ni `--index-url`, ni `git+https://`, ni `file:` ;
+4. **Pin PEP 440 dans l'entrée d'allowlist** (`"my-sdk>=1.2,<2"`).
+Les plugins **tiers** sont volontairement **exclus** de l'auto-install (extras
+`[project.optional-dependencies]`) ; le lazy-install ne sert qu'aux plugins *bundled*.
+
+⚠ **Transposer les VERROUS, pas le CYCLE DE VIE.** Hermes installe *à la première utilisation*,
+capacité jetable, optimisé pour « ne jamais être bloqué par une dépendance manquante » — modèle
+d'assistant personnel. WAMA est un **outil de labo** : l'ingestion est **progressive et cumulative**,
+une capacité ingérée **reste intégrée**. On n'installe/désinstalle pas au fil de l'eau. Le moment de
+l'installation est donc **l'ingestion du manifeste** (une fois, sous validation), pas l'appel d'outil.
+Raison de fond : **reproductibilité scientifique** — un résultat de recherche doit rester
+re-productible des mois plus tard, ce qu'un parc de dépendances volatil rend impossible. C'est ce qui
+justifie `version_min`, les pins et `dernier_audit` : traçabilité de l'état d'environnement, pas
+seulement hygiène.
+
+**Trois protections supplémentaires à voler** : (a) **`requires_env`** dans le manifeste — conditionne
+le chargement à des variables d'env, **demandées interactivement** à l'installation et écrites dans
+`.env`, avec description + URL d'inscription (utile vu l'externalisation des secrets) ; (b)
+**`pre_tool_call`** peut retourner `{"action": "block"}` (veto) ou `{"action": "approve"}` (**escalade
+vers validation humaine**) = notre doctrine « l'agent propose, l'humain valide » câblée dans le
+runtime ; (c) **aucune porte dérobée** — `ctx.dispatch_tool()` passe par *« the normal approval,
+redaction, and budget pipelines — not a shortcut around them »* ⇒ toute capacité ajoutée par
+manifeste doit passer par le `resource_governor` et le chemin de permission normal, sans exception
+privilégiée.
+
+**Recommandation — `library` = kind PILOTE du manifeste-first**, parce qu'il n'a **aucun registre
+hérité à réconcilier** : son registre naîtrait *de* la projection au lieu de la précéder. C'est un
+terrain vierge pour prouver la chaîne manifeste → ingest → registre → capacité → studio, avant
+d'attaquer la projection des 5 kinds hérités.
+
+⚠ **NE PAS importer le régime Hermes ici** — le registre éphémère « recalculé à la lecture » viole la
+**propriété de sûreté `WAMA_MANIFEST_SPEC.md` §2.1** (*rien ne lit le manifeste en direct ; ingest =
+seul pont gaté ; état committé = les registres ; un manifeste corrompu ou supprimé ne corrompt pas
+l'aval*). Hermes peut se le permettre parce qu'un plugin absent ne casse qu'une capacité optionnelle ;
+chez nous un registre volatil casserait les pages de gestion. ⇒ `library` obtient un **vrai registre
+persisté, écrit par l'ingest** comme les autres kinds. L'avantage du terrain vierge subsiste (rien à
+rattraper), la garantie de sûreté aussi.
+
+⚠ Non vérifié : nom de fichier exact et liste complète des champs du manifeste de plugin Hermes, et
+nom du groupe d'`entry_points` (le site coupe la connexion ; lu via le dépôt uniquement).
+
+**Décision** :
+1. **PAS d'adoption comme couche d'orchestration de prod.** Un agent qui écrit et exécute son propre
+   code, sur serveur UGE, sur données de recherche ⇒ revue RSSI, pas décision d'intégration.
+2. **Pilote borné sur `wama-dev-ai` uniquement** — hôte de dev, read-only, aucune donnée sensible,
+   doctrine « propose / l'humain valide » déjà écrite. Seul moyen de juger le framework empiriquement.
+   **En mode CLI/TUI d'abord** (le bug gateway ci-dessus n'affecte apparemment pas ce chemin) ;
+   n'ouvrir le mode gateway/messagerie qu'après reproduction et vérification sur `main`.
+3. **Préalable indépendant d'Hermes** : brique `RunOutcome`/`ResultFeedback` dans `common/` — capture
+   du signal (accepté / corrigé / rejeté / relancé). **Toutes** les boucles d'auto-amélioration
+   visées (résultat, enrichissement de prompt, prospection de modèles) sont bloquées sur son absence,
+   et aucun framework ne récupérera ce signal rétroactivement.
+4. Garde-fous §16.5 applicables tels quels ; métrique d'abord, boucle ensuite, autonomie en dernier
+   (un agent qui réécrit ses prompts sans métrique mesurée **dérive** au lieu de s'améliorer).
+
+**Labels humains déjà jetés** (gisement, à capter par le point 3) : corrections manuelles Transcriber
+(paires ASR→vérité), entités démasquées/ajoutées Anonymizer (FP/FN Presidio+GLiNER), générations
+imager gardées vs supprimées (préférence), prompts enrichis acceptés vs réécrits.
+
 ---
 
 ## 17. Capacité détection open-vocabulary — brique commune + LocateAnything (ouvert 2026-07-27)
