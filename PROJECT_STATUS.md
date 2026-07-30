@@ -133,6 +133,34 @@
      gagne désormais.
    - ⏳ **À MESURER** : `qwen-image-edit` (posé à 38 par prudence — même dorsale 20B ; les 12 Go
      déclarés étaient impossibles) et `flux2-klein` (posé à 12).
+4ter. 🔴 **AUDIT DU TIRAGE — 12 apps mesurées (2026-07-30)** — trou n°5 de
+   `WAMA_APP_GENERATION_ROUTE.md` (« `select_model()` adopté par 2/10 »). État **mesuré** :
+
+   | App | Tirage | Détail |
+   |---|---|---|
+   | composer | ✅ commune | 1ᵉʳ adopteur ; son appariement entrée↔modèle est **remonté en commun** le 30/07 |
+   | transcriber | ✅ commune | + `BACKEND_PRIORITY` en **repli statique** assumé (whisper-first) |
+   | imager | ✅ commune | 3ᵉ adopteur 29-30/07 ; listage UI **et** tirage sur la même route |
+   | **anonymizer** | 🔴 **SÉLECTEUR CONCURRENT** | `utils/model_selector.py` — `select_model_by_precision()`, `select_best_model()`, ~800 lignes. **Le dernier vrai divergent.** |
+   | describer | ⚠️ modèle fixe | `get_blip_model()` — pas un tirage ; à instruire si plusieurs modèles |
+   | enhancer, reader, converter, synthesizer, avatarizer, translator, studio | — | pas de tirage (modèle fixe ou pas de modèle) |
+
+   **Vocabulaire** — le tirage ET le listage filtrent désormais en **canonique**
+   (`CANONICAL_CAPABILITIES` : `modalities`, `task`, `inputs_required`/`inputs_optional`), via
+   `matches_inputs()`. ⚠️ **Piège vécu le 30/07** : j'avais inventé des drapeaux `t2i`/`t2v`/`i2v`
+   dans l'ingest — exactement le vocabulaire hétérogène que `model_capabilities.py` supprime.
+   Toujours lire `INPUT_MODEL_MATCHING.md` avant de toucher aux capacités.
+   **Deux critères distincts, et il faut souvent les deux** : `available_inputs` (FAISABILITÉ :
+   ses entrées requises sont-elles là ?) et `consumes` (UTILITÉ : consomme-t-il vraiment ce que
+   je fournis ?). Sans le second, « j'ai une image à animer » retenait un modèle texte→vidéo qui
+   l'aurait **ignorée** ; filtrer sur `task='image-to-video'` écartait au contraire LTX, qui sait
+   l'animer ET tient sur la carte. Effet mesuré : i2v passe de cogvideox (21 Go, offload) à
+   ltx-13b-distilled (14 Go, FULL_GPU).
+   ⏳ **Reste** : (a) **anonymizer** — migration vers `select_model(classes=…)`, paramètre déjà
+   prévu POUR lui ; (b) doublons de `model_key` au catalogue (`audiogen-medium` **et**
+   `composer:audiogen-medium` coexistent — cf. commande `dedup_models`) ; (c) `cogvideox-5b`,
+   retiré du manifeste imager, subsiste au catalogue via une **autre découverte** que
+   `_discover_imager_models` — deux chemins d'ingest pour une même source.
 4bis. ✅ **TIRAGE IMAGER — adoption de `select_model()` (29/07)** : l'imager n'avait **aucun**
    tirage ; la vue prenait `DEFAULT_IMAGE_MODEL`, pointé sur `qwen-image-2` → **offload CPU
    garanti** pour tout utilisateur qui ne choisissait pas. `imager/utils/model_selection.py`
