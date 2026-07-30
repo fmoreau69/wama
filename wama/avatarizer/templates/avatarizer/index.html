@@ -173,7 +173,7 @@ action primaire de la card, conventions CARD_DESIGN §2 ; id #btn-generate incha
         standalone) ; galerie d'avatars + badge audio via le slot déclaré extra_zone_template ;
         ids historiques conservés (#audio-dropzone, #audio_input, #btn-generate) → handlers
         de index.js intacts. STANDALONE-ONLY depuis 2026-07-11 (pipeline = studio).{% endcomment %}
-        {% include 'common/_new_item_card.html' with card_id='avatarizerNewCard' drop_zone_id='audio-dropzone' file_input_id='audio_input' file_accept='.wav,.mp3,.ogg,.flac' formats_label='WAV, MP3, OGG, FLAC — la voix de l’avatar' show_media_library=True media_library_type='audio' extra_zone_template='avatarizer/_new_item_extra.html' primary_btn_id='btn-generate' primary_btn_label='Générer la vidéo' primary_btn_icon='fa-play-circle' %}
+        {% include 'common/_new_item_card.html' with collapsible=True card_id='avatarizerNewCard' drop_zone_id='audio-dropzone' file_input_id='audio_input' file_accept='.wav,.mp3,.ogg,.flac' formats_label='WAV, MP3, OGG, FLAC — la voix de l’avatar' show_media_library=True media_library_type='audio' extra_zone_template='avatarizer/_new_item_extra.html' primary_btn_id='btn-generate' primary_btn_label='Générer la vidéo' primary_btn_icon='fa-play-circle' %}
 
         <div id="jobs-container">
             {% if batches_list %}
@@ -428,7 +428,10 @@ action primaire de la card, conventions CARD_DESIGN §2 ; id #btn-generate incha
 {# ===================================================================== #}
 {% block app_scripts %}
 <script>const ML_LIST_URL = "{% url 'media_library:api_list' %}";</script>
-<script src="{% static_v 'common/js/media-picker.js' %}"></script>
+{% comment %}
+media-picker.js est une brique GLOBALE montée par base.html — la ré-inclure lève
+« Identifier 'MediaPicker' has already been declared » (pageerror). Cf. imager/index.html.
+{% endcomment %}
 <script>
 // Injecte l'image sélectionnée dans la zone d'upload avatar
 function _mpInjectAvatar(file, asset) {

@@ -1,4 +1,4 @@
-import os, logging, socket, mimetypes
+import os, logging, socket, mimetypes, sys
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -182,13 +182,55 @@ except:
     HOSTNAME = 'localhost'
 
 # Base de données
+def _resolve_db_host():
+    """
+    Hôte de la base — UNE SEULE base fait foi : celle de WSL2, qui sert l'application.
+
+    Le piège historique : `HOST` valait `127.0.0.1` pour tout le monde, or `127.0.0.1` ne
+    désigne pas la même machine des deux côtés. Sous WSL2 → le Postgres de WSL2 (le bon) ;
+    depuis PowerShell → le service `postgresql-x64-17` de Windows, une base DIFFÉRENTE. Un
+    `manage.py migrate` lancé depuis Windows semblait réussir tout en migrant une base que
+    personne n'utilise, sans le moindre signal (constaté 2026-07-30).
+
+    Sous Windows on résout donc dynamiquement l'IP de WSL2 (`wsl.exe hostname -I`) plutôt que
+    de la figer : elle change à chaque redémarrage de WSL. `WAMA_DB_HOST` reste prioritaire et
+    court-circuite tout ; en cas d'échec on retombe sur `127.0.0.1` avec un avertissement
+    explicite, jamais en silence. `.env` étant PARTAGÉ par les deux côtés, il ne peut pas
+    porter cette valeur — d'où la résolution ici.
+    """
+    explicit = os.environ.get('WAMA_DB_HOST')
+    if sys.platform != 'win32':
+        return explicit or '127.0.0.1'          # sous WSL2/Linux : la base locale EST la bonne
+    # Sous Windows, une adresse de BOUCLAGE ne peut pas désigner la base de l'application :
+    # celle-ci vit dans WSL2. Or `.env` (PARTAGÉ par les deux côtés) pose `WAMA_DB_HOST=127.0.0.1`,
+    # valeur juste sous WSL2 et trompeuse ici — c'est ce qui rendait la garde inopérante à sa
+    # première écriture. Un hôte explicite NON loopback reste prioritaire (base distante, CI…).
+    if explicit and explicit.lower() not in ('127.0.0.1', 'localhost', '::1', '0.0.0.0'):
+        return explicit
+    try:
+        import subprocess
+        out = subprocess.run(['wsl.exe', '-e', 'hostname', '-I'],
+                             capture_output=True, text=True, timeout=15)
+        ip = (out.stdout or '').strip().split()
+        if ip:
+            return ip[0]
+        raise RuntimeError('wsl.exe hostname -I sans réponse')
+    except Exception as e:
+        import warnings
+        warnings.warn(
+            f"[WAMA] IP de WSL2 non résolue ({e}) — repli sur 127.0.0.1, soit la base "
+            f"POSTGRES DE WINDOWS, qui n'est PAS celle de l'application. Poser WAMA_DB_HOST "
+            f"pour lever l'ambiguïté.", RuntimeWarning)
+        return '127.0.0.1'
+
+
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
         "NAME": os.environ.get('WAMA_DB_NAME', 'wama_db'),
         "USER": os.environ.get('WAMA_DB_USER', 'wama_user'),
         "PASSWORD": os.environ.get('WAMA_DB_PASSWORD', ''),
-        "HOST": os.environ.get('WAMA_DB_HOST', '127.0.0.1'),
+        "HOST": _resolve_db_host(),
         "PORT": os.environ.get('WAMA_DB_PORT', '5432'),
     }
 }

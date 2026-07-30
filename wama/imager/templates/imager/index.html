@@ -1362,7 +1362,12 @@
 
 {% block app_scripts %}
 <script>const ML_LIST_URL = "{% url 'media_library:api_list' %}";</script>
-<script src="{% static_v 'common/js/media-picker.js' %}"></script>
+{% comment %}
+media-picker.js est une brique GLOBALE montée par base.html (avant `app_scripts` via
+`block.super`). La ré-inclure ici levait « Identifier 'MediaPicker' has already been declared »
+— une pageerror qui INTERROMPT l'évaluation du script. Détecté par la passe Playwright
+2026-07-30. Ne jamais ré-inclure une brique globale.
+{% endcomment %}
 <script>
 // Helper partagé par les trois boutons Médiathèque de l'Imager
 function _mpInjectImage(file, inputId, previewId) {

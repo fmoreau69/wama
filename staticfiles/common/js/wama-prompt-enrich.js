@@ -71,6 +71,7 @@
         this.field.addEventListener('input', function () {
             if (self.state() === 'processed') self.processed = self.field.value;
             else self.original = self.field.value;
+            self._autosize();
         });
     };
 
@@ -79,10 +80,25 @@
         return this.processed && this.processed.trim() ? 'processed' : 'user';
     };
 
+    /**
+     * Le champ s'adapte à ce qu'il contient.
+     * Un prompt enrichi fait 5 à 10 fois la longueur de l'original : à hauteur fixe,
+     * l'utilisateur ne voit qu'un tiers de ce qui va réellement partir au modèle — ce qui vide
+     * de son sens le fait de le lui montrer. Plafonné pour ne pas pousser la page.
+     */
+    Ctrl.prototype._autosize = function () {
+        var f = this.field;
+        if (!f || f.tagName !== 'TEXTAREA') return;
+        f.style.height = 'auto';
+        f.style.height = Math.min(f.scrollHeight, 320) + 'px';
+        f.style.overflowY = f.scrollHeight > 320 ? 'auto' : 'hidden';
+    };
+
     Ctrl.prototype.render = function () {
         var st = this.state();
         this.field.dataset.promptState = st;
         this.field.value = st === 'processed' ? this.processed : this.original;
+        this._autosize();
 
         if (st !== 'processed') {           // rien à dire → silence complet
             this.bar.innerHTML = '';
