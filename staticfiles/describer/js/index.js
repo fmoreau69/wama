@@ -942,8 +942,3 @@ document.addEventListener('DOMContentLoaded', function() {
             .catch(() => showToast('Erreur lors de la duplication', 'danger'));
     });
 });
-
-// Filemanager 'Envoyer vers...' — reload page to show imported item
-document.addEventListener('wama:fileimported', function(e) {
-    if (e.detail && e.detail.app === 'describer') { window.location.reload(); }
-});

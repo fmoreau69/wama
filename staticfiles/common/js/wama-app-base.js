@@ -219,6 +219,23 @@
     SUCCESS: 'Terminé', FAILURE: 'Échec',
   };
 
+  // ── Réception « Envoyer vers app » du filemanager (source UNIQUE) ────────────────
+  // Le filemanager émet `wama:fileimported` avec {app, ...} après avoir créé l'item dans
+  // l'app cible. Chaque app recopiait le MÊME listener de 3 lignes dans son propre JS
+  // (7 copies avant 2026-07-30, 3 apps oubliées au passage). L'app courante est connue
+  // globalement (`window.WAMA_CURRENT_APP`, posé par base.html depuis APP_CATALOG) :
+  // le listener est donc générique et vaut pour toutes les apps, présentes et futures.
+  // Une app qui sait intégrer l'item SANS recharger (le reader insère la card) pose
+  // `detail.handled = true` dans son propre listener ; le repli générique s'efface alors.
+  // Le report d'un tick est ce qui rend l'échappatoire possible : sans lui, ce listener —
+  // enregistré en premier puisque cette brique est chargée avant le JS d'app — rechargerait
+  // la page avant même que le listener de l'app ait pu s'exprimer.
+  document.addEventListener('wama:fileimported', function (e) {
+    const detail = e && e.detail;
+    if (!detail || detail.app !== global.WAMA_CURRENT_APP) return;
+    setTimeout(function () { if (!detail.handled) global.location.reload(); }, 0);
+  });
+
   global.WamaApp = {
     escapeHtml: escapeHtml,
     getUrl: getUrl,

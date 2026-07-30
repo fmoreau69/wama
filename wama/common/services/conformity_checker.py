@@ -345,13 +345,20 @@ def _catalog_entry(f: _AppFiles):
 # ── F3 — preview « PENDANT » (backend câblé ⟷ frontend consommateur) ─────────────
 
 def _during_preview(f: _AppFiles):
+    """Émission backend par l'app ⟷ consommation par le front COMMUN (`?side=during`).
+
+    Le consommateur vit dans `wama-inspector.js` (`_startDuring`), PAS dans `media-preview.js`
+    qui ne fait que rendre la donnée — vérifié 2026-07-30 (le trou #4 de la route était périmé).
+    """
     ev = f.find(PY + TEMPLATES + JS, r'during_preview|emit_streaming_peaks|side=during')
     if not ev:
         return False, None
-    if re.search(r"side\s*[=:]\s*['\"]?during", _wama_text('common/static/common/js/media-preview.js')):
-        return True, ev
-    return 'partial', (f"{ev} — émission backend OK mais media-preview.js ne consomme pas "
-                       "`?side=during` (trou #4 de WAMA_APP_GENERATION_ROUTE)")
+    front = [p.relative_to(WAMA_ROOT).as_posix()
+             for p in sorted((WAMA_ROOT / 'common' / 'static' / 'common' / 'js').glob('*.js'))
+             if re.search(r"side=during", p.read_text(encoding='utf-8', errors='replace'))]
+    if front:
+        return True, f"{ev} ⟷ {', '.join(front)}"
+    return 'partial', f"{ev} — émission backend OK, aucun front commun ne lit `?side=during`"
 
 
 def _params_modal_batch(f: _AppFiles):
@@ -422,6 +429,24 @@ def _access_policy(f: _AppFiles):
 
 # ── F8 — nœud studio ─────────────────────────────────────────────────────────────
 
+def _filemanager_import(f: _AppFiles):
+    """Réception de « Envoyer vers app » — BRIQUE COMMUNE depuis 2026-07-30.
+
+    Le listener `wama:fileimported` était recopié à l'identique dans chaque app (7 copies,
+    3 apps oubliées au passage). Il vit désormais dans `wama-app-base.js`, monté globalement,
+    et cible l'app via `window.WAMA_CURRENT_APP`. Une app est donc conforme dès qu'elle est
+    dans `APP_CATALOG` — c'est lui qui résout `current_app` côté contexte.
+    """
+    if 'wama:fileimported' not in _wama_text('common/static/common/js/wama-app-base.js'):
+        return False, 'brique commune absente de wama-app-base.js'
+    if _registry_block(f.app, APP_REGISTRY_PY) is None:
+        return False, "absente d'APP_CATALOG → window.WAMA_CURRENT_APP ne résout pas"
+    own = f.find(JS, r"addEventListener\('wama:fileimported'")
+    if own:
+        return True, f'brique commune + intégration enrichie {own}'
+    return True, 'brique commune wama-app-base.js (générique via WAMA_CURRENT_APP)'
+
+
 def _studio_params(f: _AppFiles):
     block = _registry_block(f.app, GENERIC_RUNNER_PY)
     if block is None:
@@ -461,7 +486,7 @@ CRITERIA: list[Criterion] = [
     Criterion('input_match_ui', 'F2', 'Grisage des modèles incompatibles (WamaInputMatch)',
               lambda f: _present(f, TEMPLATES + JS, r'wama-input-match|WamaInputMatch')),
     Criterion('filemanager_import', 'F2', 'Réception « Envoyer vers app » (wama:fileimported)',
-              lambda f: _present(f, JS + TEMPLATES, r'wama:fileimported')),
+              _filemanager_import),
     Criterion('recursive_import', 'F2', 'Import de DOSSIER récursif (webkitdirectory)',
               lambda f: _present(f, TEMPLATES + JS, r'webkitdirectory')),
     # ── F3 UI / params / inspecteur ──

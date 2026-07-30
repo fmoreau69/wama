@@ -34,7 +34,7 @@ migré 2026-07-05) ; IDs dropZone/fileInput/media_url conservés → handlers JS
 {# Barre globale + ETA agrégée — brique commune (balayage bleu/vert permanent, toujours visible). #}
 {# Card « Nouvel élément » COMMUNE, EN TÊTE d'onglet (ordre canonique : card → progression → toolbar → file). #}
 {% url 'describer:batch_template' as describer_batch_template_url %}
-{% include 'common/_new_item_card.html' with drop_zone_id='dropZone' file_input_id='fileInput' file_accept='image/*,video/*,audio/*,.pdf,.docx,.txt,.md,.csv' formats_label='Images · Vidéos · Audio · PDF · DOCX…' batch_template_url=describer_batch_template_url show_batch_bar=True show_media_library=True show_url=True url_input_id='media_url' url_submit_id='mediaUrlSubmit' url_placeholder='https://… ou YouTube' %}
+{% include 'common/_new_item_card.html' with collapsible=True drop_zone_id='dropZone' file_input_id='fileInput' file_accept='image/*,video/*,audio/*,.pdf,.docx,.txt,.md,.csv' formats_label='Images · Vidéos · Audio · PDF · DOCX…' batch_template_url=describer_batch_template_url show_batch_bar=True show_media_library=True show_url=True url_input_id='media_url' url_submit_id='mediaUrlSubmit' url_placeholder='https://… ou YouTube' %}
 
 {% include 'common/_global_progress.html' %}
 

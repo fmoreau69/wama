@@ -869,8 +869,3 @@ document.addEventListener('DOMContentLoaded', function () {
       .catch(() => WamaApp.toast('Erreur lors de la duplication', 'error'));
   });
 });
-
-// Filemanager 'Envoyer vers...' — reload page to show imported item
-document.addEventListener('wama:fileimported', function(e) {
-    if (e.detail && e.detail.app === 'enhancer') { window.location.reload(); }
-});

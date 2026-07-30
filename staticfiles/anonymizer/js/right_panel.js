@@ -576,8 +576,3 @@
     };
 
 })();
-
-// Filemanager 'Envoyer vers...' — reload page to show imported item
-document.addEventListener('wama:fileimported', function(e) {
-    if (e.detail && e.detail.app === 'anonymizer') { window.location.reload(); }
-});

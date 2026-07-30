@@ -145,9 +145,14 @@ manifeste** (ce que le kind `app` capte + cible de projection).
 - **Preview** : `PreviewRegistry` + `unified_preview` ; **10/11** (imager exclu, décision documentée). Règle
   **entrée = port `travail` sinon `prompt`, JAMAIS `reference`** — **implémentée et vérifiée** via l'accesseur
   unique (`preview_utils.py:66-85`). Face sortie dérivée de l'adapter Detail (couplage Preview→Detail).
-- **« PENDANT » (preview progressive)** : **backend entièrement câblé** (composer `emit_streaming_peaks`,
-  capacité `during_preview=True` `app_registry.py:455`, face `?side=during`) **MAIS `media-preview.js` ne le
-  consomme pas** → **maillon FRONTEND uniquement** (le worker publie une onde que rien n'affiche).
+- **« PENDANT » (preview progressive)** : **chaîne COMPLÈTE** (composer `emit_streaming_peaks` →
+  capacité `during_preview=True` `app_registry.py:455` → face `?side=during` `preview_utils.py:255`
+  → **consommée par `wama-inspector.js` `_startDuring`** (polling 1300 ms, auto-arrêt en fin de run).
+  ⚠ **Correction 2026-07-30** : ce doc affirmait « `media-preview.js` ne le consomme pas → maillon
+  FRONTEND manquant ». C'était **faux** — le consommateur est l'inspecteur, `media-preview.js` ne fait
+  que *rendre* la donnée qu'on lui passe. Le trou réel n'est pas le front mais l'**émission** :
+  **1 app sur 10** (composer) publie un partiel ; les 9 autres n'ont rien à afficher. Mesuré par le
+  critère `during_preview` (F3), qui exige émission app **ET** consommation front commune.
 - **Filemanager** : **unifié** (réutilise `media-preview.js`), mais endpoint de données distinct.
 - **ETA** : `WamaEta` (1 moteur, 3 niveaux carte/batch/global) + backend apprenant `eta_estimator` +
   `ModelRuntimeStat`. ~9 apps enregistrent `record_run` (reader/anonymizer = front sans apprentissage).
@@ -297,7 +302,7 @@ réversible / `verify`). On préserve tout le riche, on régénère le simplifi�
 | 1 | `describer` : `document` absent des ports | F2 | correctif de données |
 | 2 | modale **batch** jamais rendue par WamaParams (hand-built partout) | F3 | adoption |
 | 3 | studio `renderNodeParams` appauvri (réinvente WamaParams en dégradant) | F3/F8 | réinvention à supprimer |
-| 4 | **« pendant »** : backend câblé, `media-preview.js` ne consomme pas `?side=during` | F3b | frontend manquant |
+| 4 | ✅ **périmé (2026-07-30)** — le front consomme bien `?side=during` (`wama-inspector.js::_startDuring`). Trou RÉEL reformulé : l'**émission** de partiels n'existe que dans le composer (1/10) | F3b | adoption, pas frontend |
 | 5 | `select_model()` adopté par 2 apps / 10 (composer + transcriber ; anonymizer = sélecteur concurrent) ; reclaim VRAM commun adopté 1/10 | F4 | adoption |
 | 6 | **statuts non uniformes** → 3 tables d'alias | F5 | dette de schéma |
 | 7 | gating d'app **non ré-appliqué au RUN** d'un pipeline studio | F7 | sécurité |

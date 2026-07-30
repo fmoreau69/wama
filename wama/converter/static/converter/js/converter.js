@@ -973,15 +973,6 @@
         startPolling(card.dataset.jobId);
     });
 
-    // ── Filemanager "Envoyer vers Converter" — reload to show new job ─────────
-    // (Pattern WAMA standard, cf. enhancer/index.js)
-
-    document.addEventListener('wama:fileimported', function(e) {
-        if (e.detail && e.detail.app === 'converter') {
-            window.location.reload();
-        }
-    });
-
     // ── Init ──────────────────────────────────────────────────────────────────
     setMediaType(null);
     loadProfiles().then(() => renderProfileDropdown(null));

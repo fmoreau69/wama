@@ -105,11 +105,14 @@ def user_role(request):
 
     # Couleur d'IDENTITÉ de l'app courante (liseré des cards — CARD_DESIGN §9) : dérivée du
     # 1er segment du path si c'est une app du catalogue. Identité ≠ état (jamais sur les barres).
-    current_app_color = ''
+    # `current_app` : l'ID d'app était DÉJÀ dérivé ici pour la couleur, mais jeté après usage —
+    # chaque app le re-codait en dur dans son JS (listener wama:fileimported ×7). On l'expose.
+    current_app_color, current_app = '', ''
     try:
         from wama.common.app_registry import APP_CATALOG as _AC
         _seg = (request.path.split('/') + [''])[1]
         if _seg in _AC:
+            current_app = _seg
             current_app_color = _AC[_seg].get('color', '')
     except Exception:
         pass
@@ -124,6 +127,7 @@ def user_role(request):
         'inspector_autoplay': inspector_autoplay,
         'app_catalog_json': app_catalog_json,
         'nav_apps_grouped': nav_apps_grouped,
+        'current_app': current_app,
         'current_app_color': current_app_color,
         'converter_output_formats_json': converter_output_formats_json,
         'account_tier': account_tier,

@@ -230,6 +230,14 @@ def read_document_task(self, item_id: int):
         logger.error(f"[Reader] ReadingItem {item_id} introuvable")
         return
 
+    # Garde anti-boucle-de-crash (brique COMMUNE) : message `redelivered` = worker mort sans
+    # acquitter (freeze/panic machine) → ne PAS rejouer l'exécution qui l'a tué. olmOCR (~16 Go)
+    # et doctr chargent en VRAM depuis cette tâche : c'est exactement le profil à risque.
+    from wama.common.utils.process_control import refuse_crash_redelivery
+    if refuse_crash_redelivery(self, item, error_field='error_message'):
+        logger.warning(f"[Reader] ReadingItem #{item_id} : reprise après crash refusée — relancer manuellement.")
+        return
+
     user_id = item.user_id
     _console(user_id, f"[Reader] Démarrage : {item.filename}")
     _set_progress(item_id, 2, "Démarrage…")

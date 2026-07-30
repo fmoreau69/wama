@@ -257,6 +257,7 @@
     <!-- WAMA App Catalog (injected server-side — used by FileManager JS) -->
     <script>window.WAMA_APP_CATALOG = {{ app_catalog_json|safe }};</script>
     <script>window.WAMA_INSPECTOR_AUTOPLAY = {{ inspector_autoplay|yesno:'true,false' }};  // pref profil (aperçu inspecteur)</script>
+    <script>window.WAMA_CURRENT_APP = "{{ current_app|escapejs }}";  // ID d'app courante (dérivé du path via APP_CATALOG)</script>
     {% if current_app_color %}
     <!-- Couleur d'IDENTITÉ de l'app courante (liseré des cards — CARD_DESIGN §9, dérivée du catalogue) -->
     <style>:root { --wama-app-color: {{ current_app_color }}; }</style>

@@ -1410,8 +1410,3 @@ document.addEventListener('DOMContentLoaded', function () {
   // Progression globale + ETA agrégée : désormais pilotées par la brique commune
   // wama-global-progress.js (auto-démarrée). On ne double pas le poller ici.
 });
-
-// Filemanager 'Envoyer vers...' — reload page to show imported item
-document.addEventListener('wama:fileimported', function(e) {
-    if (e.detail && e.detail.app === 'transcriber') { window.location.reload(); }
-});

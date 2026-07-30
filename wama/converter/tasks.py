@@ -58,6 +58,15 @@ def convert_media_task(self, job_id: int):
         logger.error(f"ConversionJob #{job_id} introuvable")
         return
 
+    # Garde anti-boucle-de-crash (brique COMMUNE) : message `redelivered` = worker mort sans
+    # acquitter (freeze/panic machine) → ne PAS rejouer l'exécution qui l'a tué. Pertinent ici
+    # bien que le converter soit ffmpeg/pandoc : les options cross-app (upscale, audio_enhance)
+    # chargent des modèles GPU depuis CETTE tâche.
+    from wama.common.utils.process_control import refuse_crash_redelivery
+    if refuse_crash_redelivery(self, job, error_field='error_message'):
+        logger.warning(f"[converter] Job #{job_id} : reprise après crash refusée — relancer manuellement.")
+        return
+
     user_id = job.user_id
     _set_progress(job_id, 0)
     _console(user_id, f"Conversion démarrée : {job.input_filename} → .{job.output_format}")

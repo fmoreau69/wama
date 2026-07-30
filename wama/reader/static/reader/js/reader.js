@@ -768,15 +768,16 @@
         const result = e.detail;
         if (!result || result.app !== 'reader') return;
         if (result.id) {
-            // Single-file import with known ID: add card dynamically
+            // Single-file import with known ID: add card dynamically.
+            // `handled` désamorce le repli générique de wama-app-base.js (rechargement) :
+            // insérer la card est strictement meilleur, on ne veut pas les deux.
+            result.handled = true;
             fetch(urlFor('progress', result.id))
                 .then(r => r.json())
                 .then(item => { upsertCard(item); updateGlobalProgress(); })
                 .catch(() => {});
-        } else {
-            // Multi-file import (no ID in event) → reload to show batch group
-            window.location.reload();
         }
+        // Multi-file import (no ID in event) → on laisse le repli commun recharger la page.
     });
 
     document.addEventListener('DOMContentLoaded', init);
