@@ -191,8 +191,8 @@
             <option value="{{ model.id }}"
                     data-description="{{ model.description }}"
                     data-vram="{{ model.vram }}"
-                    data-type="{{ model.type }}">
-                {{ model.name }} [{% if model.type == 't2v+i2v' %}T2V+I2V{% elif model.type == 'i2v' %}I2V{% else %}T2V{% endif %}]{% if model.vram %} ({{ model.vram }}){% endif %}
+                    data-type="{% if 'work_image' in model.capabilities.inputs_required %}i2v{% elif 'work_image' in model.capabilities.inputs_optional %}t2v+i2v{% else %}t2v{% endif %}">
+                {{ model.name }} [{% if 'work_image' in model.capabilities.inputs_required %}I2V{% elif 'work_image' in model.capabilities.inputs_optional %}T2V+I2V{% else %}T2V{% endif %}]{% if model.vram %} ({{ model.vram }}){% endif %}
             </option>
             {% endfor %}
         </select>
@@ -769,8 +769,8 @@
                                         <option value="{{ model.id }}"
                                                 data-description="{{ model.description }}"
                                                 data-vram="{{ model.vram }}"
-                                                data-type="{{ model.type }}">
-                                            {{ model.name }} [{% if model.type == 't2v+i2v' %}T2V+I2V{% elif model.type == 'i2v' %}I2V{% else %}T2V{% endif %}]{% if model.vram %} ({{ model.vram }}){% endif %}
+                                                data-type="{% if 'work_image' in model.capabilities.inputs_required %}i2v{% elif 'work_image' in model.capabilities.inputs_optional %}t2v+i2v{% else %}t2v{% endif %}">
+                                            {{ model.name }} [{% if 'work_image' in model.capabilities.inputs_required %}I2V{% elif 'work_image' in model.capabilities.inputs_optional %}T2V+I2V{% else %}T2V{% endif %}]{% if model.vram %} ({{ model.vram }}){% endif %}
                                         </option>
                                         {% endfor %}
                                     </select>
@@ -1273,8 +1273,8 @@
                                 <option value="{{ model.id }}"
                                         data-description="{{ model.description }}"
                                         data-vram="{{ model.vram }}"
-                                        data-type="{{ model.type }}">
-                                    {{ model.name }} [{% if model.type == 't2v+i2v' %}T2V+I2V{% elif model.type == 'i2v' %}I2V{% else %}T2V{% endif %}]{% if model.vram %} ({{ model.vram }}){% endif %}
+                                        data-type="{% if 'work_image' in model.capabilities.inputs_required %}i2v{% elif 'work_image' in model.capabilities.inputs_optional %}t2v+i2v{% else %}t2v{% endif %}">
+                                    {{ model.name }} [{% if 'work_image' in model.capabilities.inputs_required %}I2V{% elif 'work_image' in model.capabilities.inputs_optional %}T2V+I2V{% else %}T2V{% endif %}]{% if model.vram %} ({{ model.vram }}){% endif %}
                                 </option>
                                 {% endfor %}
                             </select>
