@@ -251,11 +251,23 @@ class ModelRegistry:
                     f"vram_gb={vram_gb}, downloaded={is_downloaded}"
                 )
 
-                # Capacités : modalité (image vs vidéo) → task text-to-image/video.
+                # Capacités : LUES sur le manifeste (`type` + `mode`), jamais devinées.
+                # ⚠️ Une version précédente reniflait le NOM du modèle
+                # (`any(k in model_id for k in ('video','cogvideo','ltx','mochi','wan'))`) :
+                # tout nouveau modèle vidéo au nom imprévu était classé « image », et surtout
+                # la distinction t2v/i2v — pourtant DÉCLARÉE au manifeste — était perdue, si
+                # bien qu'aucun filtrage par capacité n'était possible en aval.
                 _img_type = (config.get('type') or '').lower()
-                _is_video = (_img_type == 'video'
-                             or any(k in model_id.lower()
-                                    for k in ('video', 'cogvideo', 'ltx', 'mochi', 'wan')))
+                _is_video = _img_type == 'video'
+                # Vocabulaire du manifeste : 't2i' | 't2v' | 'i2v' | 't2v+i2v' | 'edit'
+                # (quelques entrées historiques écrivent encore les libellés longs).
+                _mode = (config.get('mode') or '').lower()
+                for _long, _short in (('text-to-image', 't2i'), ('text-to-video', 't2v'),
+                                      ('image-to-video', 'i2v'), ('image-to-image', 'edit')):
+                    _mode = _mode.replace(_long, _short)
+                _tasks = {t for t in ('t2i', 't2v', 'i2v', 'edit') if t in _mode}
+                if not _tasks:                      # mode absent → déduit de la modalité
+                    _tasks = {'t2v'} if _is_video else {'t2i'}
                 self._models[f"imager:{model_id}"] = ModelInfo(
                     id=f"imager:{model_id}",
                     name=name,
@@ -275,7 +287,19 @@ class ModelRegistry:
                     can_convert_to=convert_options,
                     capabilities={
                         'modalities': ['video'] if _is_video else ['image'],
+                        # Conservé pour les lecteurs existants (WamaModelCaps, lang_routing).
                         'task': 'text-to-video' if _is_video else 'text-to-image',
+                        # Drapeaux par capacité — c'est ce que `select_model(requires=[…])` et
+                        # `get_registry_models(requires=[…])` filtrent. Un modèle « t2v+i2v »
+                        # porte les deux : il apparaît dans les deux listes, sans une ligne de
+                        # code par app.
+                        **{t: True for t in _tasks},
+                        # Modalité AUSSI en drapeau : `requires` est une conjonction, donc sans
+                        # elle une liste « tous les modèles vidéo » devrait s'écrire « t2v OU
+                        # i2v » — impossible. Avec `requires=['video']`, un modèle i2v-seul
+                        # (cogvideox-5b-i2v) reste proposé à l'UI tout en étant exclu du tirage
+                        # texte→vidéo. C'est exactement ce qui manquait pour ne pas le perdre.
+                        ('video' if _is_video else 'image'): True,
                     },
                 )
         except ImportError as e:

@@ -169,7 +169,62 @@ def list_models(source: str, downloaded_only: bool = True) -> List[dict]:
     return [m.to_dict() for m in qs]
 
 
-def get_registry_models(source: str, allowed_ids=None, downloaded_only: bool = False):
+def full_gpu_budget_gb(headroom_gb: float = 4.0) -> Optional[float]:
+    """
+    Budget VRAM au-delà duquel un modèle imposerait de l'offload CPU.
+
+    Traduit « je ne veux pas d'offload » en la seule chose que `select_model` comprend : un
+    budget. La marge est celle de `MemoryManager.get_memory_strategy()` — en dessous, la couche
+    mémoire bascule en MODEL_OFFLOAD, donc viser au-delà c'est viser un offload évitable.
+    None si la VRAM libre est inconnue (→ `select_model` décide sans contrainte).
+    """
+    try:
+        from wama.common.services.resource_governor import effective_free_gb
+        free = effective_free_gb()
+    except Exception:
+        return None
+    return max(0.0, free - headroom_gb) if free else None
+
+
+def select_model_id(source: str, requires=None, requested: Optional[str] = None,
+                    fallback: Optional[str] = None, avoid_offload: bool = True,
+                    **kwargs) -> Optional[str]:
+    """
+    Tirage d'un modèle pour une app, rendu comme un `model_id` nu (sans le préfixe "source:").
+
+    GÉNÉRIQUE — aucune modalité, aucun type de média, aucun nom d'app ici : une app déclare sa
+    capacité au manifeste et passe la chaîne correspondante dans `requires`.
+
+    Args:
+        requested:     choix explicite de l'utilisateur, respecté TEL QUEL (même s'il impose
+                       un offload : c'est alors un choix assumé, pas une surprise).
+        fallback:      rendu si le catalogue ne propose rien (première install, sync jamais
+                       lancé, model_manager indisponible).
+        avoid_offload: ne tirer que parmi les modèles qui tiennent entièrement sur le GPU.
+    """
+    if requested and requested not in ('', 'auto'):
+        return requested
+    try:
+        chosen = select_model(
+            source=source,
+            requires=requires,
+            vram_budget_gb=full_gpu_budget_gb() if avoid_offload else None,
+            **kwargs,
+        )
+    except Exception as exc:
+        logger.debug("[Select] %s : tirage indisponible (%s) → repli %s", source, exc, fallback)
+        return fallback
+    if chosen is None:
+        logger.info("[Select] %s : aucun modèle %s ne tient dans le budget GPU → repli %s "
+                    "(offload probable)", source, requires or '', fallback)
+        return fallback
+    mid = chosen.model_key.split(':', 1)[1] if ':' in chosen.model_key else chosen.model_key
+    logger.info("[Select] %s %s → %s (%s Go)", source, requires or '', mid, chosen.vram_gb)
+    return mid
+
+
+def get_registry_models(source: str, allowed_ids=None, downloaded_only: bool = False,
+                        requires=None):
     """
     (choices, info) pour le <select> d'une app, PILOTÉ par le registre AIModel (verrou n°1).
 
@@ -179,14 +234,28 @@ def get_registry_models(source: str, allowed_ids=None, downloaded_only: bool = F
     `allowed_ids` (optionnel) : restreint aux modèles que le backend sait CHARGER — sécurité,
     on ne propose jamais un modèle non chargeable. Retourne ([], []) si le registre n'a rien
     pour cette source → l'appelant doit alors faire un repli sur sa liste backend.
+
+    `requires` (optionnel) : capacités exigées (mêmes clés que `select_model`, filtrées par
+    `_supports` sur `capabilities`). C'est ce qui permet à une app de servir la liste d'UNE
+    modalité — « les modèles qui savent faire de l'image→vidéo » — sans écrire le moindre
+    filtre par type chez elle : la capacité est DÉCLARÉE au manifeste, INGÉRÉE au catalogue,
+    et lue ici. Aucune fonction ne doit porter un type de média dans son nom.
     """
     from ..models import AIModel
     qs = AIModel.objects.filter(source=source, is_available=True)
     if downloaded_only:
         qs = qs.filter(is_downloaded=True)
     qs = qs.order_by('-vram_gb', 'name')
+    models = [m for m in qs if _supports(m, requires, None)]
+    if requires and not models:
+        # Le catalogue n'a pas (encore) les capacités — typiquement avant le premier
+        # `sync_models` qui suit un enrichissement de l'ingest. On sert la liste NON filtrée
+        # plutôt qu'un <select> vide : dégrader la précision, jamais la disponibilité.
+        logger.info("[Registry] %s : aucune capacité %s au catalogue → liste non filtrée "
+                    "(un sync_models réglera le filtrage)", source, requires)
+        models = list(qs)
     choices, info = [], []
-    for m in qs:
+    for m in models:
         mid = m.model_key.split(':', 1)[1] if ':' in m.model_key else m.model_key
         if allowed_ids is not None and mid not in allowed_ids:
             continue

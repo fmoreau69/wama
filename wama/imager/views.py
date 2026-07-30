@@ -23,9 +23,7 @@ import logging
 from pathlib import Path
 
 from .models import ImageGeneration, UserSettings
-from .utils.model_selection import (
-    enrich_with_registry, select_imager_model, video_models_from_manifest,
-)
+from wama.model_manager.services import get_registry_models, select_model_id
 from .utils.model_config import (
     DEFAULT_IMAGE_MODEL, DEFAULT_VIDEO_MODEL, DEFAULT_I2V_MODEL, get_model_defaults,
 )
@@ -131,12 +129,14 @@ def index(request):
         ('img2vid', 'Image to Video', 'fas fa-image'),
     ]
 
-    # Modèles vidéo — DÉRIVÉS du manifeste (`IMAGER_MODELS`) puis enrichis par le registre,
-    # comme les images. La liste littérale qui vivait ici portait une Nᵉ copie des VRAM et
-    # proposait encore `cogvideox-5b`, retiré du parc le 2026-07-28 : retirer un modèle du
-    # manifeste doit suffire à le retirer de l'UI.
-    video_models_info = enrich_with_registry(video_models_from_manifest())
-    video_models = [(m['id'], m['name']) for m in video_models_info]
+    # Modèles vidéo — servis par la brique COMMUNE, filtrés sur la capacité déclarée au
+    # manifeste puis ingérée au catalogue. Aucun filtre par type ici : l'app ne fait que
+    # nommer la capacité qu'elle veut. La liste littérale qui vivait à cet endroit portait
+    # une Nᵉ copie des VRAM et proposait encore `cogvideox-5b`, retiré du parc le 28/07.
+    # `requires=['video']` = la MODALITÉ, pas la tâche : la liste doit contenir les modèles
+    # image→vidéo (cogvideox-5b-i2v) autant que les texte→vidéo. Le tirage, lui, demande la
+    # tâche précise ('t2v' ou 'i2v') plus bas.
+    video_models, video_models_info = get_registry_models('imager', requires=['video'])
     # Separate image and video generations
     image_generations = generations.exclude(generation_mode__in=['txt2vid', 'img2vid'])
     video_generations = generations.filter(generation_mode__in=['txt2vid', 'img2vid'])
@@ -202,7 +202,7 @@ def handle_txt2img(request, user):
     # modèle 1024 px en rectified flow (Qwen, FLUX).
     # Tirage : choix explicite respecté, sinon la brique commune `select_model()` retient le
     # meilleur modèle qui tient ENTIÈREMENT sur le GPU (pas d'offload CPU subi).
-    model = select_imager_model('image', request.POST.get('model'))
+    model = select_model_id('imager', requires=['t2i'], requested=request.POST.get('model'), fallback=DEFAULT_IMAGE_MODEL)
     _def = get_model_defaults(model)
     width = int(request.POST.get('width', _def['width']))
     height = int(request.POST.get('height', _def['height']))
@@ -258,7 +258,7 @@ def handle_file2img(request, user):
     # modèle 1024 px en rectified flow (Qwen, FLUX).
     # Tirage : choix explicite respecté, sinon la brique commune `select_model()` retient le
     # meilleur modèle qui tient ENTIÈREMENT sur le GPU (pas d'offload CPU subi).
-    model = select_imager_model('image', request.POST.get('model'))
+    model = select_model_id('imager', requires=['t2i'], requested=request.POST.get('model'), fallback=DEFAULT_IMAGE_MODEL)
     _def = get_model_defaults(model)
     width = int(request.POST.get('width', _def['width']))
     height = int(request.POST.get('height', _def['height']))
@@ -341,7 +341,7 @@ def handle_describe2img(request, user):
     # modèle 1024 px en rectified flow (Qwen, FLUX).
     # Tirage : choix explicite respecté, sinon la brique commune `select_model()` retient le
     # meilleur modèle qui tient ENTIÈREMENT sur le GPU (pas d'offload CPU subi).
-    model = select_imager_model('image', request.POST.get('model'))
+    model = select_model_id('imager', requires=['t2i'], requested=request.POST.get('model'), fallback=DEFAULT_IMAGE_MODEL)
     _def = get_model_defaults(model)
     width = int(request.POST.get('width', _def['width']))
     height = int(request.POST.get('height', _def['height']))
@@ -412,7 +412,7 @@ def handle_img2img(request, user, mode):
     # modèle 1024 px en rectified flow (Qwen, FLUX).
     # Tirage : choix explicite respecté, sinon la brique commune `select_model()` retient le
     # meilleur modèle qui tient ENTIÈREMENT sur le GPU (pas d'offload CPU subi).
-    model = select_imager_model('image', request.POST.get('model'))
+    model = select_model_id('imager', requires=['t2i'], requested=request.POST.get('model'), fallback=DEFAULT_IMAGE_MODEL)
     _def = get_model_defaults(model)
     width = int(request.POST.get('width', _def['width']))
     height = int(request.POST.get('height', _def['height']))
@@ -465,7 +465,7 @@ def handle_txt2vid(request, user):
         return JsonResponse({'error': 'Prompt is required'}, status=400)
 
     negative_prompt = request.POST.get('negative_prompt', '').strip()
-    model = select_imager_model('video', request.POST.get('model'))
+    model = select_model_id('imager', requires=['t2v'], requested=request.POST.get('model'), fallback=DEFAULT_VIDEO_MODEL)
     video_duration = float(request.POST.get('video_duration', 5.0))
     video_fps = int(request.POST.get('video_fps', 16))
     video_resolution = request.POST.get('video_resolution', '480p')
@@ -510,7 +510,7 @@ def handle_img2vid(request, user):
 
     prompt = request.POST.get('prompt', '').strip()
     negative_prompt = request.POST.get('negative_prompt', '').strip()
-    model = select_imager_model('i2v', request.POST.get('model'))
+    model = select_model_id('imager', requires=['i2v'], requested=request.POST.get('model'), fallback=DEFAULT_I2V_MODEL)
     video_duration = float(request.POST.get('video_duration', 5.0))
     video_fps = int(request.POST.get('video_fps', 16))
     video_resolution = request.POST.get('video_resolution', '480p')

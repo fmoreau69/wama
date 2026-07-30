@@ -2,6 +2,8 @@
 from .model_registry import ModelRegistry, ModelInfo, ModelType, ModelSource
 from .model_selector import (
     select_model,
+    select_model_id,
+    full_gpu_budget_gb,
     list_models,
     describe_model,
     get_free_vram_gb,
@@ -35,6 +37,8 @@ __all__ = [
     'ModelSource',
     # Model Selector (sélection intelligente centralisée)
     'select_model',
+    'select_model_id',
+    'full_gpu_budget_gb',
     'list_models',
     'describe_model',
     'get_free_vram_gb',
