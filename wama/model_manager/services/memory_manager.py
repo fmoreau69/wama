@@ -378,202 +378,62 @@ class MemoryManager:
 
     @staticmethod
     def _unload_all_backends():
-        """Unload all known model backends."""
-        # Unload Imager backends
-        try:
-            from wama.imager.backends.manager import get_manager
-            manager = get_manager()
-            if hasattr(manager, '_instances'):
-                for name, instance in list(manager._instances.items()):
-                    try:
-                        instance.unload()
-                        logger.info(f"Unloaded imager backend: {name}")
-                    except Exception as e:
-                        logger.warning(f"Failed to unload {name}: {e}")
-                manager._instances.clear()
-        except Exception as e:
-            logger.debug(f"Could not unload Imager backends: {e}")
+        """Décharge TOUTES les apps résidentes — via le registre, seul chemin.
 
-        # Unload Describer models
-        try:
-            from wama.describer.utils import image_describer
-            if hasattr(image_describer, '_blip_model') and image_describer._blip_model is not None:
-                del image_describer._blip_model
-                image_describer._blip_model = None
-                logger.info("Unloaded BLIP model")
-            if hasattr(image_describer, '_blip_processor') and image_describer._blip_processor is not None:
-                del image_describer._blip_processor
-                image_describer._blip_processor = None
-                logger.info("Unloaded BLIP processor")
-        except Exception as e:
-            logger.debug(f"Could not unload Describer models: {e}")
-
+        Cette fonction énumérait deux apps EN DUR (imager, describer). C'était le
+        mécanisme concurrent du registre `_VRAM_UNLOADERS` : une app adoptant le
+        registre n'était pas vue ici, et une app câblée ici échappait à
+        `release_vram()`. Deux listes à tenir à jour = deux dérives. Il n'en reste
+        qu'une, et elle se remplit toute seule (`common/backends/base.py`
+        enregistre l'unloader d'une app à la première résidence réelle).
+        """
+        MemoryManager.release_vram()
         gc.collect()
 
     @staticmethod
     def unload_model(model_id: str) -> bool:
         """
-        Unload a specific model from memory.
+        Décharge les modèles résidents de l'app portée par `model_id` (`<app>:<modèle>`).
 
-        Routes to the appropriate backend based on model_id prefix.
+        Routait auparavant vers une méthode `_unload_<app>_model` par app. Trois d'entre
+        elles (anonymizer, synthesizer, enhancer) étaient des stubs qui faisaient un
+        `gc.collect()` et retournaient **True** : l'appelant croyait la VRAM libérée alors
+        que rien ne l'était — pire qu'un échec, puisque indétectable. On interroge
+        désormais le registre, et l'absence d'unloader se dit `False`.
+
+        La granularité reste l'APP, pas le modèle : les backends d'une même app partagent
+        le contexte CUDA du process, il n'y a rien à libérer sélectivement.
         """
+        app = (model_id.split(':', 1)[0] or '').strip()
         try:
-            if model_id.startswith('imager:'):
-                return MemoryManager._unload_imager_model(model_id)
-            elif model_id.startswith('describer:'):
-                return MemoryManager._unload_describer_model(model_id)
-            elif model_id.startswith('anonymizer:'):
-                return MemoryManager._unload_anonymizer_model(model_id)
-            elif model_id.startswith('transcriber:'):
-                return MemoryManager._unload_transcriber_model(model_id)
-            elif model_id.startswith('synthesizer:'):
-                return MemoryManager._unload_synthesizer_model(model_id)
-            elif model_id.startswith('enhancer:'):
-                return MemoryManager._unload_enhancer_model(model_id)
-            elif model_id.startswith('ollama:'):
-                # Ollama manages its own memory
+            if app == 'ollama':
+                # Ollama gère sa propre mémoire (service séparé, hors de ce process).
                 logger.info(f"Ollama models are managed by Ollama server: {model_id}")
                 return True
-            else:
-                logger.warning(f"Unknown model source for: {model_id}")
+            # Une app peut enregistrer PLUSIEURS unloaders : l'automatique sous son nom
+            # (`transcriber`) et un explicite pour ce qui échappe au contrat de backend
+            # (`transcriber-diarizer`, pipeline caché en variable de module). On les
+            # appelle tous — décharger l'ASR sans la diarisation ne libère rien d'utile.
+            matched = [(name, fn) for name, fn in list(_VRAM_UNLOADERS.items())
+                       if name == app or name.startswith(f'{app}-')]
+            if not matched:
+                logger.warning(
+                    f"Aucun unloader VRAM enregistré pour '{app}' ({model_id}) : rien à libérer. "
+                    "Une app dont les backends dérivent de BaseModelBackend s'enregistre seule "
+                    "au premier load ; sinon, la déclarer dans son apps.py::ready().")
                 return False
+            freed = False
+            for name, fn in matched:
+                try:
+                    if fn():
+                        freed = True
+                except Exception as exc:
+                    logger.warning(f"[MemoryManager] Unloader '{name}' failed: {exc}")
+            return freed
         except Exception as e:
             logger.error(f"Error unloading model {model_id}: {e}")
             return False
 
-    @staticmethod
-    def _unload_imager_model(model_id: str) -> bool:
-        """Unload an Imager backend model."""
-        try:
-            from wama.imager.backends.manager import get_manager
-            manager = get_manager()
-
-            # Unload all imager backends (they share GPU memory)
-            if hasattr(manager, '_instances'):
-                for name, instance in list(manager._instances.items()):
-                    try:
-                        instance.unload()
-                    except Exception as e:
-                        logger.warning(f"Failed to unload imager backend {name}: {e}")
-                manager._instances.clear()
-
-            gc.collect()
-
-            try:
-                import torch
-                if torch.cuda.is_available():
-                    torch.cuda.empty_cache()
-            except ImportError:
-                pass
-
-            logger.info(f"Unloaded imager model: {model_id}")
-            return True
-        except Exception as e:
-            logger.error(f"Error unloading imager model: {e}")
-            return False
-
-    @staticmethod
-    def _unload_describer_model(model_id: str) -> bool:
-        """Unload Describer global models."""
-        try:
-            from wama.describer.utils import image_describer
-
-            if 'blip' in model_id:
-                if hasattr(image_describer, '_blip_model'):
-                    del image_describer._blip_model
-                    image_describer._blip_model = None
-                if hasattr(image_describer, '_blip_processor'):
-                    del image_describer._blip_processor
-                    image_describer._blip_processor = None
-
-            gc.collect()
-
-            try:
-                import torch
-                if torch.cuda.is_available():
-                    torch.cuda.empty_cache()
-            except ImportError:
-                pass
-
-            logger.info(f"Unloaded describer model: {model_id}")
-            return True
-        except Exception as e:
-            logger.error(f"Error unloading describer model: {e}")
-            return False
-
-    @staticmethod
-    def _unload_anonymizer_model(model_id: str) -> bool:
-        """Unload Anonymizer models (YOLO, SAM3)."""
-        try:
-            # YOLO models are typically loaded per-request, not cached
-            # SAM3 may have its own cache
-            gc.collect()
-            logger.info(f"Anonymizer model cleanup requested: {model_id}")
-            return True
-        except Exception as e:
-            logger.error(f"Error unloading anonymizer model: {e}")
-            return False
-
-    @staticmethod
-    def _unload_transcriber_model(model_id: str) -> bool:
-        """
-        Unload Transcriber models (ASR backends + pyannote diarizer).
-
-        Was a no-op stub → the central reclaim could not free Transcriber's VRAM.
-        Now delegates to the TranscriberManager (unloads the resident ASR backend)
-        and to the pyannote diarizer pipeline cache.
-        """
-        freed = False
-        # 1) ASR backends (whisper / qwen_asr / vibevoice) via leur manager
-        try:
-            from wama.transcriber.backends.manager import TranscriberBackendManager
-            mgr = TranscriberBackendManager.get_instance()
-            if any(getattr(i, 'is_loaded', False) for i in mgr._instances.values()):
-                freed = True
-            mgr.unload_all()  # décharge + vide le cache d'instances
-        except Exception as e:
-            logger.debug(f"Could not unload ASR backends: {e}")
-
-        # 2) pyannote diarizer (pipeline caché module-level)
-        try:
-            from wama.transcriber.backends.pyannote_diarizer import unload_pipeline
-            if unload_pipeline():
-                freed = True
-        except Exception as e:
-            logger.debug(f"Could not unload pyannote pipeline: {e}")
-
-        try:
-            import torch
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
-        except Exception:
-            pass
-        gc.collect()
-        logger.info(f"Transcriber model cleanup done (freed={freed}): {model_id}")
-        return True
-
-    @staticmethod
-    def _unload_synthesizer_model(model_id: str) -> bool:
-        """Unload Synthesizer models (Coqui, Bark)."""
-        try:
-            gc.collect()
-            logger.info(f"Synthesizer model cleanup requested: {model_id}")
-            return True
-        except Exception as e:
-            logger.error(f"Error unloading synthesizer model: {e}")
-            return False
-
-    @staticmethod
-    def _unload_enhancer_model(model_id: str) -> bool:
-        """Unload Enhancer models (ONNX)."""
-        try:
-            # ONNX models are loaded per-request typically
-            gc.collect()
-            logger.info(f"Enhancer model cleanup requested: {model_id}")
-            return True
-        except Exception as e:
-            logger.error(f"Error unloading enhancer model: {e}")
-            return False
 
     # =========================================================================
     # GPU Memory Strategy Management

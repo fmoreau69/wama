@@ -429,6 +429,31 @@ def _access_policy(f: _AppFiles):
 
 # ── F8 — nœud studio ─────────────────────────────────────────────────────────────
 
+def _vram_unloader(f: _AppFiles):
+    """L'app sait-elle rendre sa VRAM au reclaim cross-app ?
+
+    Trois voies légitimes, dans cet ordre de préférence :
+      1. **automatique** — ses backends dérivent de `BaseModelBackend`, qui enregistre
+         l'unloader de l'app au premier `load()` (`common/backends/base.py::_track_live`) ;
+      2. **explicite** — `register_vram_unloader` dans `apps.py::ready()`, pour ce qui vit
+         hors backend (modèle en variable de module, pipeline caché) ;
+      3. **réservation** — `vram_reservation`, pour les modèles HORS PROCESS (sous-processus).
+
+    Non applicable à une app qui ne charge RIEN en process : le synthesizer délègue tout au
+    service TTS (aucun `torch`/`from_pretrained` chez lui) — y exiger un unloader ferait
+    libérer de la VRAM qu'il ne détient pas.
+    """
+    explicit = f.find(PY, r'register_vram_unloader|vram_reservation')
+    if explicit:
+        return True, explicit
+    auto = f.find(PY, r'BaseModelBackend')
+    if auto:
+        return True, f'automatique via BaseModelBackend ({auto})'
+    if not f.find(PY, r'^\s*import torch|^\s*from torch|from_pretrained'):
+        return None, None
+    return False, "modèle résident sans unloader : ni BaseModelBackend, ni register_vram_unloader"
+
+
 def _filemanager_import(f: _AppFiles):
     """Réception de « Envoyer vers app » — BRIQUE COMMUNE depuis 2026-07-30.
 
@@ -529,8 +554,8 @@ CRITERIA: list[Criterion] = [
               _f4(lambda f: _present(f, PY, r'inputs_required|inputs_optional|CANONICAL_CAPABILITIES'))),
     Criterion('select_model', 'F4', 'Sélection VRAM-aware commune (select_model)',
               _f4(lambda f: _present(f, PY, r'\bselect_model\b'))),
-    Criterion('vram_unloader', 'F4', 'Reclaim VRAM cross-app (register_vram_unloader)',
-              _f4(lambda f: _present(f, PY, r'register_vram_unloader|vram_reservation'))),
+    Criterion('vram_unloader', 'F4', 'Reclaim VRAM cross-app (unloader auto, explicite ou réservation)',
+              _f4(_vram_unloader)),
     Criterion('hf_cache_isolation', 'F4', 'Cache HF isolé (HF_HUB_CACHE posé avant import)',
               _f4(lambda f: _present(f, PY, r'HF_HUB_CACHE'))),
     # ── F5 cycle de vie ──

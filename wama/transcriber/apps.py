@@ -13,18 +13,22 @@ class TranscriberConfig(AppConfig):
         except Exception:
             pass
 
-        # Reclaim VRAM cross-app : déclare COMMENT libérer les modèles Transcriber
-        # (ASR + pyannote) au registre commun du model_manager. Ainsi toute autre
-        # app peut récupérer la VRAM de Transcriber via ensure_free_vram(), et
-        # inversement. Callable paresseux (imports différés) → pas de coût au boot.
+        # Reclaim VRAM cross-app : déclare COMMENT libérer les modèles Transcriber.
+        # Ne couvre QUE le pipeline pyannote, caché en variable de module donc invisible
+        # du registre d'instances de BaseModelBackend. Les backends ASR (whisper /
+        # qwen_asr / vibevoice) s'enregistrent SEULS au premier load depuis 2026-07-30 —
+        # les redéclarer ici recréerait le doublon qu'on vient de supprimer.
+        # Auparavant ce bloc pointait vers `MemoryManager._unload_transcriber_model`,
+        # c'est-à-dire que l'app déléguait au model_manager la connaissance de ses
+        # propres internes. L'app déclare, le model_manager orchestre.
         try:
-            from wama.model_manager.services.memory_manager import (
-                MemoryManager, register_vram_unloader,
-            )
-            register_vram_unloader(
-                'transcriber',
-                lambda: MemoryManager._unload_transcriber_model('transcriber:*'),
-            )
+            from wama.model_manager.services.memory_manager import register_vram_unloader
+
+            def _unload_diarizer() -> bool:
+                from .backends.pyannote_diarizer import unload_pipeline
+                return bool(unload_pipeline())
+
+            register_vram_unloader('transcriber-diarizer', _unload_diarizer)
         except Exception:
             pass
 

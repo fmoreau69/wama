@@ -21,6 +21,7 @@ import functools
 import importlib.util
 import logging
 import os
+import weakref
 from abc import ABC, abstractmethod
 from typing import List, Optional
 
@@ -32,6 +33,60 @@ _WRAPPED = "_wama_governor_wrapped"
 # En dessous, la mesure est jugée non concluante (chargement paresseux) et l'on
 # retombe sur `recommended_vram_gb`.
 _MEASURE_FLOOR_GB = 0.1
+
+
+# ── Registre des backends RÉSIDENTS (source du reclaim VRAM cross-app) ───────────
+#
+# Le gouverneur tient une COMPTABILITÉ (qui détient combien) ; il ne sait pas *décharger*.
+# Le reclaim, lui, a besoin de l'objet vivant. Ce registre est ce chaînon : alimenté par
+# l'enveloppe `load` (donc à n'importe quelle profondeur d'héritage, cf. classe intermédiaire),
+# purgé par l'enveloppe `unload`, et en WeakSet pour ne jamais maintenir un modèle en vie.
+#
+# ⚠ Il rend l'unloader d'une app AUTOMATIQUE : plus rien à déclarer app par app tant que ses
+# backends dérivent de BaseModelBackend. Une app hors contrat (modèle en variable de module)
+# doit encore appeler `register_vram_unloader` dans son `apps.py::ready()`.
+_LIVE_BACKENDS: "dict[str, weakref.WeakSet]" = {}
+
+
+def _app_of(instance) -> str:
+    """App propriétaire d'un backend, déduite de son module (`wama.<app>.…`)."""
+    parts = type(instance).__module__.split('.')
+    return parts[1] if len(parts) > 1 and parts[0] == 'wama' else parts[0]
+
+
+def unload_app_backends(app: str) -> bool:
+    """Décharge les backends résidents de `app`. True si quelque chose a été libéré."""
+    freed = False
+    for instance in list(_LIVE_BACKENDS.get(app) or ()):
+        try:
+            if not getattr(instance, 'is_loaded', True):
+                continue
+            instance.unload()
+            freed = True
+        except Exception:
+            logger.warning("Déchargement de %s échoué", type(instance).__name__, exc_info=True)
+    return freed
+
+
+def _track_live(instance) -> None:
+    app = _app_of(instance)
+    bucket = _LIVE_BACKENDS.get(app)
+    if bucket is None:
+        bucket = _LIVE_BACKENDS[app] = weakref.WeakSet()
+        # Enregistrement à la PREMIÈRE résidence réelle, pas à l'import : le registre
+        # ne contient donc que des apps ayant effectivement chargé un modèle.
+        try:
+            from wama.model_manager.services.memory_manager import register_vram_unloader
+            register_vram_unloader(app, functools.partial(unload_app_backends, app))
+        except Exception:
+            logger.debug("Enregistrement de l'unloader %s ignoré", app, exc_info=True)
+    bucket.add(instance)
+
+
+def _untrack_live(instance) -> None:
+    bucket = _LIVE_BACKENDS.get(_app_of(instance))
+    if bucket is not None:
+        bucket.discard(instance)
 
 
 def _wrap_load(func):
@@ -58,6 +113,7 @@ def _wrap_load(func):
                     reserve_vram(_governor_owner(self), float(gb))
         except Exception:
             logger.debug("Déclaration VRAM au gouverneur ignorée", exc_info=True)
+        _track_live(self)
         return result
 
     setattr(wrapper, _WRAPPED, True)
@@ -77,6 +133,7 @@ def _wrap_unload(func):
             release_vram(_governor_owner(self))
         except Exception:
             logger.debug("Libération VRAM au gouverneur ignorée", exc_info=True)
+        _untrack_live(self)
         return result
 
     setattr(wrapper, _WRAPPED, True)
