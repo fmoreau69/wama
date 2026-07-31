@@ -20,6 +20,15 @@ TROIS COUCHES, ET UNE SEULE DÉCIDE.
    d'ouvrir dix captures. Même précaution que `bench_describer` : le juge final reste humain.
 
 Sous WSL2, où vivent le serveur ET les navigateurs Playwright (`~/.cache/ms-playwright`).
+
+⚠ CRON : exporter `OLLAMA_HOST` (Ollama tourne sur l'hôte WINDOWS ; `127.0.0.1` depuis WSL2 ne
+l'atteint pas). Sans lui, les couches 1 et 2 fonctionnent mais le triage échoue silencieusement
+en « triage VLM indisponible » — piège rencontré deux fois pendant la mise au point.
+
+CALIBRATION (2026-07-31) : deux passages consécutifs avec des références fraîches donnent
+0 déclenchement sur 13 — le diff est stable, donc le VLM ne coûte rien les nuits sans
+changement. Si un changement d'UI est VOULU, supprimer les références concernées : elles se
+recréent au passage suivant (sinon le triage se déclenche chaque nuit et le signal se dilue).
 """
 from __future__ import annotations
 
@@ -47,12 +56,50 @@ IGNORED_CONSOLE = (
 )
 
 
-def _viewport_screenshot(url, png_path, selector=None, timeout_ms=45000):
-    """Charge `url`, retourne (status, erreurs_js, selector_trouvé). Écrit la capture."""
+def _session_keys():
+    """Clés de session existantes — photo prise AVANT le passage."""
+    try:
+        from django.contrib.sessions.models import Session
+        return set(Session.objects.values_list('session_key', flat=True))
+    except Exception:
+        return set()
+
+
+def _drop_new_sessions(before: set):
+    """
+    Supprime les sessions créées PAR ce passage, sans jamais toucher celle d'un utilisateur.
+
+    Une page en crée PLUSIEURS (chaque requête sans cookie en ouvre une) : viser la seule clé du
+    cookie du navigateur ne nettoyait presque rien (mesuré : +8 lignes malgré la suppression).
+    On supprime donc toutes les clés APPARUES pendant le passage — mais **uniquement les
+    anonymes** : une session portant `_auth_user_id` appartient à quelqu'un de connecté, et la
+    supprimer déconnecterait un utilisateur réel qui travaillerait pendant le passage. Un test ne
+    doit jamais causer ça.
+    """
+    try:
+        from django.contrib.sessions.models import Session
+        new = Session.objects.exclude(session_key__in=before)
+        doomed = [s.session_key for s in new if not s.get_decoded().get('_auth_user_id')]
+        return Session.objects.filter(session_key__in=doomed).delete()[0] if doomed else 0
+    except Exception:
+        return 0
+
+
+def _exercise_page(url, png_path, selector=None, timeout_ms=45000):
+    """
+    Charge `url`, PARCOURT LES ONGLETS, écrit la capture.
+
+    Pourquoi interagir : charger une page ne teste que le rendu initial, or la majorité des
+    erreurs JS vivent dans les GESTIONNAIRES d'événements — elles n'apparaissent qu'au clic.
+    Les onglets sont le seul geste réellement commun (mesuré : présents sur 10 des 13 apps).
+
+    Retourne (status, erreurs_js, sélecteur_trouvé, nb_onglets_parcourus, session_supprimée).
+    """
     from playwright.sync_api import sync_playwright
 
-    errors, status, found = [], None, None
+    errors, status, found, tabs_done = [], None, None, 0
     png_path.parent.mkdir(parents=True, exist_ok=True)
+    sessions_before = _session_keys()
     with sync_playwright() as p:
         browser = p.chromium.launch()
         try:
@@ -64,11 +111,42 @@ def _viewport_screenshot(url, png_path, selector=None, timeout_ms=45000):
             status = resp.status if resp else None
             if selector:
                 found = page.locator(selector).count() > 0
+
+            # Onglets : le seul geste réellement commun aux apps. Deux précautions, toutes deux
+            # apprises en mesurant (2026-07-31) :
+            #  - beaucoup d'onglets sont MASQUÉS au repos (describer : 4 visibles sur 7) — cliquer
+            #    un élément invisible n'est pas un geste utilisateur ;
+            #  - nos propres clics MUTENT le DOM (changer de mode masque les onglets suivants :
+            #    l'imager a 6 onglets visibles au chargement, plus autant après le 4e clic).
+            # D'où : on revérifie la visibilité juste avant chaque clic, et un échec n'est une
+            # ERREUR que si l'onglet est TOUJOURS visible après coup — sinon c'est notre propre
+            # navigation qui l'a escamoté. Une barrière qui crie au loup ne serait pas relue.
+            tabs = page.locator('[data-bs-toggle="tab"]')
+            for i in range(min(tabs.count(), 8)):          # borne : pas de page à 30 onglets
+                tab = tabs.nth(i)
+                try:
+                    if not tab.is_visible():
+                        continue
+                    tab.click(timeout=4000)
+                    page.wait_for_timeout(250)             # laisse le gestionnaire s'exécuter
+                    tabs_done += 1
+                except Exception as e:
+                    still_there = False
+                    try:
+                        still_there = tab.is_visible()
+                    except Exception:
+                        pass
+                    if still_there:
+                        errors.append(f"onglet {i} visible mais non cliquable: {type(e).__name__}")
+            if tabs_done:
+                page.wait_for_timeout(400)                 # laisse remonter une erreur tardive
+
             page.screenshot(path=str(png_path), full_page=False)
         finally:
             browser.close()
+    dropped = _drop_new_sessions(sessions_before)
     keep = [e for e in errors if not any(tok in e for tok in IGNORED_CONSOLE)]
-    return status, keep, found
+    return status, keep, found, tabs_done, dropped
 
 
 def _diff_ratio(current: Path, reference: Path):
@@ -116,7 +194,8 @@ def check_app_page(app: str, url_path: str, selector: str | None = None):
 
     url = f"{BASE_URL.rstrip('/')}{url_path}"
     try:
-        status, errors, found = _viewport_screenshot(url, CUR_DIR / f"{app}.png", selector)
+        status, errors, found, tabs, dropped = _exercise_page(
+            url, CUR_DIR / f"{app}.png", selector)
     except Exception as e:
         # Serveur éteint ou navigateur absent = dépendance manquante, pas une régression.
         raise SkipScenario(f"page injoignable ({type(e).__name__}: {str(e)[:120]})")
@@ -144,9 +223,11 @@ def check_app_page(app: str, url_path: str, selector: str | None = None):
     elif ratio is not None and ratio > DIFF_TRIAGE_RATIO:
         extra = f" ; capture modifiée à {ratio:.1%} → {_vlm_triage(cur, app)}"
 
+    gestes = f"{tabs} onglet(s) parcouru(s)" if tabs else "aucun onglet"
+    trace = f" ; {dropped} session(s) nettoyée(s)" if dropped else ""
     if problems:
-        return False, "; ".join(problems) + extra
-    return True, f"page OK (HTTP 200, 0 erreur JS){extra}"
+        return False, "; ".join(problems) + f" [{gestes}]" + extra + trace
+    return True, f"page OK (HTTP 200, 0 erreur JS, {gestes}){extra}{trace}"
 
 
 def discoverable_apps():
