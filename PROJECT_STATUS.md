@@ -2284,6 +2284,36 @@ travail**. La base LIVE est celle de **WSL2 (Postgres 16)**, conforme à
 exécute WAMA nativement sous Windows (`venv_win runserver`) ; sinon c'est une taxe d'entretien
 supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 
+## §REPRISE-bis — handoff 2026-07-31 soir (session « avatarizer porté à 93 % »)
+
+> **Fait (3 commits, grille re-mesurée à chaque palier)** : F5+F7+F1 (42→56) — card serveur
+> UNIQUE `_avatar_card.html` + endpoint `card_html` (la card n'est plus écrite 3 fois),
+> cycle button commun, chips schéma (`chip=` + propriété lazy), ProcessingTimeMixin +
+> ScopedVisibility + `visible_or_404`, fabrique `make_queue_manipulation_views` (consolidate
+> maison SUPPRIMÉ), user_settings, console, Help/About, `@app_access` (1er adopteur du parc).
+> F4 (56→61) — MuseTalk/CodeFormer = vrais backends `BaseModelBackend` (sous-processus),
+> code déplacé VERBATIM depuis workers.py, `REQUIRED_PACKAGES`, cache HF du sous-processus
+> isolé, `utils/model_config.py` = source unique, `settings.MODEL_PATHS['lipsync']`.
+> F3+F2 (61→64) — APP_MODES (ports double-entrée image+audio, zéro onglet rendu — décision
+> route F2 : qualité = paramètre), modale de LOT (⚙ batch → WamaParams context='batch' →
+> batch_update), brique batch-import + barre de détection (panneau maison SUPPRIMÉ),
+> ingestion URL fermée bout en bout (show_url → create(source_url) → ensure_local_input).
+> Migration `0007` appliquée (base unique WSL2) ; workers Celery redémarrés (code neuf).
+>
+> **⚠ Brique commune modifiée** : `app_access` (accounts/permissions.py:182) ALIGNÉ sur
+> AppAccessMiddleware — les anonymes passent (sinon le 1er adopteur casse l'usage anonyme ;
+> les deux couches de défense doivent prendre la MÊME décision).
+>
+> **Restes avatarizer (5 rouges)** : `model_help`/`model_caps_ui`/`input_match_ui` = gated
+> sur une DÉCISION PRODUIT (exposer un select « Moteur » v1.5/v1.0 + Auto dans le panneau ;
+> les câbler sans select = briques inertes, refusé) ; `during_preview` (1/10 apps vertes) et
+> `recursive_import` (0/10) = trous PLATEFORME, pas spécifiques à l'avatarizer.
+> **Piège vécu** : le `pkill -f "celery"` de start_wama_prod.sh tue le wrapper bash qui
+> l'invoque si sa propre cmdline contient « celery » → relancer via `setsid nohup bash
+> start_wama_prod.sh` (ligne de commande neutre), puis poller.
+> **Prochaine action** : finir enhancer (89 %) / converter (86 %) / transcriber (85 %), puis
+> chantier UI/UX des cards (2 versions coexistantes) avec la skill frontend-design.
+
 ## §REPRISE — handoff 2026-07-31 (session « grille élargie + unification F4 + avatarizer »)
 
 > **CADRAGE, à lire avant tout le reste (Fabien, 2026-07-31).** Les apps ont été construites
