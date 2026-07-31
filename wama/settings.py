@@ -63,6 +63,12 @@ MODEL_PATHS = {
         'deepfilternet': AI_MODELS_DIR / "models" / "speech" / "deepfilternet",
         'kokoro': AI_MODELS_DIR / "models" / "speech" / "kokoro",
     },
+    # Lip-sync / face restoration (avatarizer)
+    'lipsync': {
+        'root': AI_MODELS_DIR / "models" / "lipsync",
+        'musetalk': AI_MODELS_DIR / "models" / "lipsync" / "musetalk",
+        'codeformer': AI_MODELS_DIR / "models" / "lipsync" / "codeformer",
+    },
     # Diffusion models (image/video generation)
     'diffusion': {
         'root': AI_MODELS_DIR / "models" / "diffusion",
